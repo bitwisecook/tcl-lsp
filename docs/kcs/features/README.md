@@ -119,6 +119,7 @@ combine them when more than one form helps:
 - [kcs-feature-f5-cli.md](kcs-feature-f5-cli.md)
 - [kcs-feature-f5-secret-crypto.md](kcs-feature-f5-secret-crypto.md)
 - [kcs-feature-f5-query-renderers.md](kcs-feature-f5-query-renderers.md)
+- [kcs-feature-f5-secret-crypto.md](kcs-feature-f5-secret-crypto.md)
 
 ## AI features
 

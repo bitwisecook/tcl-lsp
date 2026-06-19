@@ -1,0 +1,4 @@
+# === __FIXTURES__/bigip.conf ===
+web
+api
+ssl

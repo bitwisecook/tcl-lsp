@@ -1,0 +1,704 @@
+//! Inter-procedural taint summary solver.
+//!
+//! Faithful port of Python `compiler.taint._interprocedural`
+//! (`_solve_interprocedural_taints` and the per-proc return-taint
+//! summary + parameter entry-taint worklist it drives).
+//!
+//! The intra-procedural pass ([`crate::taint::propagate_taints`]) already
+//! models a single return-passthrough parameter; this module adds the two
+//! pieces Python has that Rust lacked:
+//!
+//! 1. **Colour-aware return summaries** — [`ProcTaintSummary`] records, per
+//!    procedure, the taint a call returns as a function of which parameters
+//!    are tainted (and with which colour basis). Computed by a monotone
+//!    fixpoint ([`solve_interprocedural_taints`], the summary worklist).
+//! 2. **Parameter entry-taint** — a worklist that flows tainted call
+//!    arguments into the callee's parameters, so a tainted argument reaching
+//!    a sink *inside* the callee is warned (cross-proc entry-taint).
+//!
+//! The result ([`InterprocTaintResult`]) carries `top_taints` (top-level)
+//! and `proc_taints` (per procedure), which the warning consumers
+//! (`compiler_checks::run_all_checks`, the `dataflow` view) read in place of
+//! the bare per-function [`crate::compilation_unit::FunctionUnit::taints`].
+
+use std::collections::{HashMap, HashSet, VecDeque};
+
+use tcl_lexer::{Lexer, SourceMap, TokenType};
+use tcl_registry::{Arity, CommandRegistry};
+
+use crate::cfg::Terminator;
+use crate::compilation_unit::{CompilationUnit, FunctionUnit};
+use crate::interprocedural::resolve_call_target;
+use crate::naming::normalise_var_name;
+use crate::ssa::ValueKey;
+use crate::taint::{TaintColour, TaintCtx, TaintLattice, propagate_taints, word_taint};
+use crate::value_shapes::parse_command_substitution;
+
+// ---------------------------------------------------------------------------
+// Basis lattices
+// ---------------------------------------------------------------------------
+
+/// Ordered taint-colour bases, mirroring Python `_BASIS_ORDER`. The
+/// per-parameter return scenarios are computed by seeding the parameter with
+/// each basis lattice in turn.
+const BASIS_ORDER: [&str; 15] = [
+    "generic",
+    "path",
+    "non_dash",
+    "crlf_free",
+    "shell_atom",
+    "list_canonical",
+    "regex_literal",
+    "path_normalised",
+    "path_bounded",
+    "header_token_safe",
+    "html_escaped",
+    "url_encoded",
+    "ip",
+    "port",
+    "fqdn",
+];
+
+/// The taint lattice each basis name seeds a parameter with. Mirrors Python
+/// `_BASIS_LATTICES`.
+fn basis_lattice(basis: &str) -> TaintLattice {
+    let t = TaintColour::TAINTED;
+    let colour = match basis {
+        "path" => t | TaintColour::PATH_PREFIXED,
+        "non_dash" => t | TaintColour::NON_DASH_PREFIXED,
+        "crlf_free" => t | TaintColour::CRLF_FREE,
+        "shell_atom" => t | TaintColour::SHELL_ATOM,
+        "list_canonical" => t | TaintColour::LIST_CANONICAL,
+        "regex_literal" => t | TaintColour::REGEX_LITERAL,
+        "path_normalised" => t | TaintColour::PATH_NORMALISED,
+        // PATH_BOUNDED is set alongside PATH_NORMALISED (the basis entry is
+        // reserved for future branch-dependent refinement).
+        "path_bounded" => t | TaintColour::PATH_NORMALISED | TaintColour::PATH_BOUNDED,
+        "header_token_safe" => t | TaintColour::HEADER_TOKEN_SAFE,
+        "html_escaped" => t | TaintColour::HTML_ESCAPED,
+        "url_encoded" => t | TaintColour::URL_ENCODED,
+        "ip" => t | TaintColour::IP_ADDRESS,
+        "port" => t | TaintColour::PORT,
+        "fqdn" => t | TaintColour::FQDN,
+        _ => t,
+    };
+    TaintLattice { colours: colour }
+}
+
+/// Basis names whose lattice colour intersects `taint`'s colour, excluding
+/// `"generic"` (falling back to `["generic"]` when none match). Mirrors
+/// Python `_basis_names_for_taint`.
+fn basis_names_for_taint(taint: TaintLattice) -> Vec<&'static str> {
+    if !taint.is_tainted() {
+        return Vec::new();
+    }
+    let mut names: Vec<&'static str> = BASIS_ORDER
+        .iter()
+        .copied()
+        .filter(|basis| {
+            *basis != "generic" && basis_lattice(basis).colours.intersects(taint.colours)
+        })
+        .collect();
+    if names.is_empty() {
+        names.push("generic");
+    }
+    names
+}
+
+// ---------------------------------------------------------------------------
+// Proc taint summary
+// ---------------------------------------------------------------------------
+
+/// Context-insensitive return-taint transfer summary for one procedure.
+///
+/// Mirrors Python `ProcTaintSummary`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProcTaintSummary {
+    /// Fully-qualified procedure name.
+    pub qualified_name: String,
+    /// Parameter names in declaration order.
+    pub params: Vec<String>,
+    /// Declared arity.
+    pub arity: Arity,
+    /// Taint the call returns when no parameter is tainted.
+    pub return_base: TaintLattice,
+    /// Per-parameter return taint, indexed by [`BASIS_ORDER`]: for each
+    /// `(param, [taint_per_basis])`, `taint_per_basis[i]` is the taint the
+    /// call returns when `param` is seeded with `BASIS_ORDER[i]`'s lattice.
+    pub return_by_param_basis: Vec<(String, Vec<TaintLattice>)>,
+}
+
+impl ProcTaintSummary {
+    /// An untainted seed summary (every scenario clean). Mirrors the initial
+    /// `summaries` seeding in Python's solver.
+    fn untainted(qname: &str, params: &[String]) -> Self {
+        let clean = TaintLattice::clean();
+        Self {
+            qualified_name: qname.to_owned(),
+            params: params.to_vec(),
+            arity: arity_from_params(params),
+            return_base: clean,
+            return_by_param_basis: params
+                .iter()
+                .map(|p| (p.clone(), vec![clean; BASIS_ORDER.len()]))
+                .collect(),
+        }
+    }
+
+    /// The return taint when `param` is tainted with `basis`. Mirrors
+    /// Python `ProcTaintSummary.scenario`.
+    fn scenario(&self, param: &str, basis_idx: usize) -> TaintLattice {
+        for (p_name, values) in &self.return_by_param_basis {
+            if p_name == param && basis_idx < values.len() {
+                return values[basis_idx];
+            }
+        }
+        TaintLattice::clean()
+    }
+}
+
+/// Declared arity from a parameter list: a trailing `args` parameter makes
+/// the procedure variadic. Mirrors Python `_arity_from_params`.
+fn arity_from_params(params: &[String]) -> Arity {
+    let n = u16::try_from(params.len()).unwrap_or(u16::MAX);
+    if params.last().is_some_and(|p| p == "args") {
+        Arity::at_least(n.saturating_sub(1))
+    } else {
+        Arity::exact(n)
+    }
+}
+
+/// Apply a procedure's return-taint summary to a tuple of argument taints.
+///
+/// Mirrors Python `_apply_proc_return_summary`: bind each parameter (handling
+/// a trailing variadic `args`), then for every tainted bound argument join the
+/// return scenario for each of its colour bases onto the base return taint.
+#[must_use]
+pub fn apply_proc_return_summary(
+    summary: &ProcTaintSummary,
+    arg_taints: &[TaintLattice],
+) -> TaintLattice {
+    let n = u16::try_from(arg_taints.len()).unwrap_or(u16::MAX);
+    if !summary.arity.accepts(n) {
+        return TaintLattice::clean();
+    }
+
+    let mut bound: Vec<(String, TaintLattice)> = Vec::with_capacity(summary.params.len());
+    if summary.params.last().is_some_and(|p| p == "args") {
+        let fixed = summary.params.len() - 1;
+        for (i, p) in summary.params.iter().take(fixed).enumerate() {
+            let t = arg_taints
+                .get(i)
+                .copied()
+                .unwrap_or_else(TaintLattice::clean);
+            bound.push((p.clone(), t));
+        }
+        let mut rest = TaintLattice::clean();
+        for t in arg_taints.iter().skip(fixed) {
+            rest = rest.join(*t);
+        }
+        bound.push(("args".to_owned(), rest));
+    } else {
+        for (i, p) in summary.params.iter().enumerate() {
+            let t = arg_taints
+                .get(i)
+                .copied()
+                .unwrap_or_else(TaintLattice::clean);
+            bound.push((p.clone(), t));
+        }
+    }
+
+    let mut out = summary.return_base;
+    for (p, t) in &bound {
+        if !t.is_tainted() {
+            continue;
+        }
+        for basis in basis_names_for_taint(*t) {
+            let idx = BASIS_ORDER.iter().position(|b| *b == basis).unwrap_or(0);
+            out = out.join(summary.scenario(p, idx));
+        }
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
+// Return-taint collection
+// ---------------------------------------------------------------------------
+
+/// Build a `name -> version` use map for `text` from a block's exit versions,
+/// scanning the word for `$var` references. Mirrors Python
+/// `_word_uses_from_versions`.
+fn word_uses_from_versions(text: &str, versions: &HashMap<String, u32>) -> HashMap<String, u32> {
+    let mut uses: HashMap<String, u32> = HashMap::new();
+    let source_map = SourceMap::new(text);
+    let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+        return uses;
+    };
+    for tok in tokens {
+        if tok.kind != TokenType::Var {
+            continue;
+        }
+        let name = normalise_var_name(source_map.text(tok.span));
+        if name.is_empty() {
+            continue;
+        }
+        let ver = versions.get(name).copied().unwrap_or(0);
+        uses.insert(name.to_owned(), ver);
+    }
+    uses
+}
+
+/// Join the taint of every executable block's return value. Mirrors Python
+/// `_collect_return_taint`.
+fn collect_return_taint(
+    fu: &FunctionUnit,
+    taints: &HashMap<ValueKey, TaintLattice>,
+    ctx: TaintCtx<'_>,
+) -> TaintLattice {
+    let mut ret = TaintLattice::clean();
+    for bn in &fu.sccp.executable_blocks {
+        let Some(block) = fu.cfg.blocks.get(bn) else {
+            continue;
+        };
+        let Some(Terminator::Return {
+            value: Some(value), ..
+        }) = &block.terminator
+        else {
+            continue;
+        };
+        let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
+            continue;
+        };
+        let uses = word_uses_from_versions(value, &ssa_block.exit_versions);
+        ret = ret.join(word_taint(value, &uses, taints, ctx));
+    }
+    ret
+}
+
+/// Run intra-procedural taint propagation over `fu` with the given entry
+/// taints and summaries. A thin wrapper threading the common arguments.
+fn run_propagation(
+    fu: &FunctionUnit,
+    registry: &CommandRegistry,
+    interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
+    dialect: Option<&str>,
+    param_taints: Option<&HashMap<String, TaintLattice>>,
+    summaries: &HashMap<String, ProcTaintSummary>,
+) -> HashMap<ValueKey, TaintLattice> {
+    propagate_taints(
+        &fu.cfg,
+        &fu.ssa,
+        &fu.sccp,
+        registry,
+        Some(&fu.rendered_props),
+        interproc,
+        dialect,
+        param_taints,
+        Some(summaries),
+    )
+}
+
+/// Build a [`TaintCtx`] for evaluating return-value words of `fu`.
+fn return_ctx<'a>(
+    fu: &'a FunctionUnit,
+    registry: &'a CommandRegistry,
+    interproc: Option<&'a crate::interprocedural::InterproceduralAnalysis>,
+    dialect: Option<&'a str>,
+    known: &'a HashSet<String>,
+    summaries: &'a HashMap<String, ProcTaintSummary>,
+) -> TaintCtx<'a> {
+    TaintCtx {
+        registry,
+        interproc,
+        known_procs: Some(known),
+        caller_qname: Some(fu.ssa.name.as_str()),
+        dialect,
+        taint_summaries: Some(summaries),
+    }
+}
+
+/// Infer a procedure's return-taint summary under the current summaries.
+/// Mirrors Python `_infer_proc_summary`.
+#[allow(clippy::too_many_arguments)]
+fn infer_proc_summary(
+    qname: &str,
+    params: &[String],
+    fu: &FunctionUnit,
+    registry: &CommandRegistry,
+    interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
+    dialect: Option<&str>,
+    known: &HashSet<String>,
+    summaries: &HashMap<String, ProcTaintSummary>,
+) -> ProcTaintSummary {
+    let base_taints = run_propagation(fu, registry, interproc, dialect, None, summaries);
+    let ctx = return_ctx(fu, registry, interproc, dialect, known, summaries);
+    let return_base = collect_return_taint(fu, &base_taints, ctx);
+
+    let mut by_param_basis: Vec<(String, Vec<TaintLattice>)> = Vec::with_capacity(params.len());
+    for param in params {
+        let mut scenario_values: Vec<TaintLattice> = Vec::with_capacity(BASIS_ORDER.len());
+        for basis in BASIS_ORDER {
+            let mut seed: HashMap<String, TaintLattice> = HashMap::new();
+            seed.insert(param.clone(), basis_lattice(basis));
+            let seeded = run_propagation(fu, registry, interproc, dialect, Some(&seed), summaries);
+            scenario_values.push(collect_return_taint(fu, &seeded, ctx));
+        }
+        by_param_basis.push((param.clone(), scenario_values));
+    }
+
+    ProcTaintSummary {
+        qualified_name: qname.to_owned(),
+        params: params.to_vec(),
+        arity: arity_from_params(params),
+        return_base,
+        return_by_param_basis: by_param_basis,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Call-flow resolution (entry-taint worklist)
+// ---------------------------------------------------------------------------
+
+/// Resolve the (callee, arg-taints) flows a function makes to known procs.
+/// Mirrors Python `_resolve_call_flows_for_function`.
+fn resolve_call_flows(
+    fu: &FunctionUnit,
+    taints: &HashMap<ValueKey, TaintLattice>,
+    registry: &CommandRegistry,
+    interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
+    dialect: Option<&str>,
+    known: &HashSet<String>,
+    summaries: &HashMap<String, ProcTaintSummary>,
+) -> Vec<(String, Vec<TaintLattice>)> {
+    let ctx = return_ctx(fu, registry, interproc, dialect, known, summaries);
+    let caller_qname = fu.ssa.name.as_str();
+    let mut flows: Vec<(String, Vec<TaintLattice>)> = Vec::new();
+
+    for bn in &fu.sccp.executable_blocks {
+        let Some(block) = fu.cfg.blocks.get(bn) else {
+            continue;
+        };
+        let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
+            continue;
+        };
+        let stmt_count = block.statements.len().min(ssa_block.statements.len());
+        for idx in 0..stmt_count {
+            let stmt = &block.statements[idx];
+            let ssa_stmt = &ssa_block.statements[idx];
+
+            let resolved: Option<(String, Vec<String>)> = match stmt {
+                crate::ir::Statement::Call { command, args, .. } => {
+                    Some((command.clone(), args.clone()))
+                }
+                crate::ir::Statement::AssignValue { value, .. } => {
+                    parse_command_substitution(value)
+                }
+                _ => None,
+            };
+            let Some((cmd_name, cmd_args)) = resolved else {
+                continue;
+            };
+
+            let Some(callee) = resolve_call_target(&cmd_name, &cmd_args, caller_qname, known)
+            else {
+                continue;
+            };
+            let Some(summary) = summaries.get(&callee) else {
+                continue;
+            };
+            let n = u16::try_from(cmd_args.len()).unwrap_or(u16::MAX);
+            if !summary.arity.accepts(n) {
+                continue;
+            }
+
+            let arg_taints: Vec<TaintLattice> = cmd_args
+                .iter()
+                .map(|arg| word_taint(arg, &ssa_stmt.uses, taints, ctx))
+                .collect();
+            flows.push((callee, arg_taints));
+        }
+    }
+
+    flows
+}
+
+// ---------------------------------------------------------------------------
+// Solver
+// ---------------------------------------------------------------------------
+
+/// Result of the interprocedural taint solve. Mirrors Python
+/// `_InterprocTaintResult` (summaries are dropped — the warning consumers
+/// only read `top_taints` / `proc_taints`).
+#[derive(Debug, Clone, Default)]
+pub struct InterprocTaintResult {
+    /// Taints for the top-level script.
+    pub top_taints: HashMap<ValueKey, TaintLattice>,
+    /// Per-procedure taints, keyed by qualified name.
+    pub proc_taints: HashMap<String, HashMap<ValueKey, TaintLattice>>,
+}
+
+impl InterprocTaintResult {
+    /// The solved taints for `name`, falling back to `fallback` (the bare
+    /// per-function taints) when the function was not part of the solve.
+    /// Mirrors Python's `solved.proc_taints.get(qname, fu.analysis.taints)`
+    /// (and `top_taints` for the top level).
+    #[must_use]
+    pub fn taints_for<'a>(
+        &'a self,
+        name: &str,
+        fallback: &'a HashMap<ValueKey, TaintLattice>,
+    ) -> &'a HashMap<ValueKey, TaintLattice> {
+        if name == "::top" {
+            return &self.top_taints;
+        }
+        self.proc_taints.get(name).unwrap_or(fallback)
+    }
+}
+
+/// Update a callee's accumulated entry taints with an incoming argument tuple.
+/// Returns `true` when any parameter's entry taint grew. Mirrors Python's
+/// nested `update_entry`.
+fn update_entry(
+    summaries: &HashMap<String, ProcTaintSummary>,
+    entry_taints: &mut HashMap<String, HashMap<String, TaintLattice>>,
+    callee: &str,
+    args: &[TaintLattice],
+) -> bool {
+    let Some(summary) = summaries.get(callee) else {
+        return false;
+    };
+    let entry = entry_taints.entry(callee.to_owned()).or_default();
+    let mut changed = false;
+
+    if summary.params.last().is_some_and(|p| p == "args") {
+        let fixed = summary.params.len() - 1;
+        for (i, param) in summary.params.iter().take(fixed).enumerate() {
+            let incoming = args.get(i).copied().unwrap_or_else(TaintLattice::clean);
+            let slot = entry
+                .entry(param.clone())
+                .or_insert_with(TaintLattice::clean);
+            let merged = slot.join(incoming);
+            if merged != *slot {
+                *slot = merged;
+                changed = true;
+            }
+        }
+        let mut rest = TaintLattice::clean();
+        for t in args.iter().skip(fixed) {
+            rest = rest.join(*t);
+        }
+        let slot = entry
+            .entry("args".to_owned())
+            .or_insert_with(TaintLattice::clean);
+        let merged = slot.join(rest);
+        if merged != *slot {
+            *slot = merged;
+            changed = true;
+        }
+        return changed;
+    }
+
+    for (i, param) in summary.params.iter().enumerate() {
+        let incoming = args.get(i).copied().unwrap_or_else(TaintLattice::clean);
+        let slot = entry
+            .entry(param.clone())
+            .or_insert_with(TaintLattice::clean);
+        let merged = slot.join(incoming);
+        if merged != *slot {
+            *slot = merged;
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Solve interprocedural taints for a compilation unit. Mirrors Python
+/// `_solve_interprocedural_taints`.
+///
+/// The unit's `interproc` summary (when present) is threaded through so the
+/// Rust-specific conservative global-write seeding and the dialect handling
+/// match the per-function [`crate::compilation_unit::FunctionUnit::taints`]
+/// baseline; on top of that the colour-aware return summaries and parameter
+/// entry taints are applied.
+#[must_use]
+pub fn solve_interprocedural_taints(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> InterprocTaintResult {
+    let interproc = cu.interproc.as_ref();
+
+    // Procedures in deterministic (sorted) order. The summary lattice is
+    // monotone, so the fixpoint is order-independent; sorting keeps the
+    // intermediate visit order reproducible across runs.
+    let mut proc_names: Vec<&String> = cu.ir_module.procedures.keys().collect();
+    proc_names.sort();
+
+    // Seed summaries (all scenarios untainted).
+    let mut summaries: HashMap<String, ProcTaintSummary> = HashMap::new();
+    for qname in &proc_names {
+        let proc = &cu.ir_module.procedures[*qname];
+        summaries.insert(
+            (*qname).clone(),
+            ProcTaintSummary::untainted(qname, &proc.params),
+        );
+    }
+    let known: HashSet<String> = summaries.keys().cloned().collect();
+
+    // Summary worklist: recompute every proc's summary until a fixpoint.
+    // In-place updates are visible to later procs within a pass (Gauss-Seidel,
+    // matching Python's `summaries` dict mutation under the live provider).
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for qname in &proc_names {
+            let Some(fu) = cu.procedures.get(*qname) else {
+                continue;
+            };
+            let proc = &cu.ir_module.procedures[*qname];
+            let inferred = infer_proc_summary(
+                qname,
+                &proc.params,
+                fu,
+                registry,
+                interproc,
+                dialect,
+                &known,
+                &summaries,
+            );
+            if summaries.get(*qname) != Some(&inferred) {
+                summaries.insert((*qname).clone(), inferred);
+                changed = true;
+            }
+        }
+    }
+
+    // Top-level taints under the converged summaries.
+    let top_taints = run_propagation(
+        &cu.top_level,
+        registry,
+        interproc,
+        dialect,
+        None,
+        &summaries,
+    );
+
+    // Entry-taint worklist: flow tainted call arguments into callee params,
+    // re-propagating each callee until a fixpoint. Every proc is seeded into
+    // the queue (so each is propagated at least once, with its accumulated —
+    // initially empty — entry taints).
+    let mut entry_taints: HashMap<String, HashMap<String, TaintLattice>> = HashMap::new();
+    let mut proc_taints: HashMap<String, HashMap<ValueKey, TaintLattice>> = HashMap::new();
+    for qname in &proc_names {
+        entry_taints.insert((*qname).clone(), HashMap::new());
+        proc_taints.insert((*qname).clone(), HashMap::new());
+    }
+
+    let mut queue: VecDeque<String> = proc_names.iter().map(|q| (*q).clone()).collect();
+    let mut queued: HashSet<String> = queue.iter().cloned().collect();
+
+    // Initial flows from the top level.
+    let initial_flows = resolve_call_flows(
+        &cu.top_level,
+        &top_taints,
+        registry,
+        interproc,
+        dialect,
+        &known,
+        &summaries,
+    );
+    for (callee, args) in initial_flows {
+        if update_entry(&summaries, &mut entry_taints, &callee, &args)
+            && queued.insert(callee.clone())
+        {
+            queue.push_back(callee);
+        }
+    }
+
+    while let Some(qname) = queue.pop_front() {
+        queued.remove(&qname);
+        let Some(fu) = cu.procedures.get(&qname) else {
+            continue;
+        };
+        let entry = entry_taints.get(&qname).cloned().unwrap_or_default();
+        let taints = run_propagation(fu, registry, interproc, dialect, Some(&entry), &summaries);
+
+        let flows = resolve_call_flows(
+            fu, &taints, registry, interproc, dialect, &known, &summaries,
+        );
+        proc_taints.insert(qname.clone(), taints);
+
+        for (callee, args) in flows {
+            if update_entry(&summaries, &mut entry_taints, &callee, &args)
+                && queued.insert(callee.clone())
+            {
+                queue.push_back(callee);
+            }
+        }
+    }
+
+    InterprocTaintResult {
+        top_taints,
+        proc_taints,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compilation_unit::CompilationUnit;
+    use tcl_registry::CommandRegistry;
+
+    fn warnings(src: &str) -> Vec<crate::taint::TaintWarning> {
+        let reg = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, None);
+        crate::taint::find_taint_warnings_for_cu(&cu, &reg, None)
+    }
+
+    #[test]
+    fn cross_proc_entry_taint_into_sink_warns() {
+        // A tainted argument flowing into a proc parameter and then into a
+        // sink inside that proc is reported (cross-proc entry-taint) — the
+        // gap `_solve_interprocedural_taints` closes.
+        let src = "proc s {v} { eval $v }\nset x [gets stdin]\ns $x\n";
+        let w = warnings(src);
+        assert_eq!(w.len(), 1, "expected one cross-proc sink warning: {w:?}");
+        assert_eq!(w[0].code, "T100");
+        assert_eq!(w[0].variable, "v");
+        assert_eq!(w[0].sink_command, "eval");
+    }
+
+    #[test]
+    fn clean_argument_into_proc_does_not_warn() {
+        // A clean (literal) argument flowing into the same proc must NOT warn.
+        let src = "proc s {v} { eval $v }\ns hello\n";
+        assert!(warnings(src).is_empty());
+    }
+
+    #[test]
+    fn return_summary_carries_taint_through_callee() {
+        // A proc returning its tainted parameter taints the caller's value,
+        // which then reaches a sink: exercises the return-summary half.
+        let src = "proc id {v} { return $v }\nset x [gets stdin]\neval [id $x]\n";
+        let w = warnings(src);
+        assert!(
+            w.iter()
+                .any(|w| w.code == "T100" && w.sink_command == "eval"),
+            "expected eval injection via return summary: {w:?}"
+        );
+    }
+
+    #[test]
+    fn untainted_param_summary_is_clean() {
+        let reg = CommandRegistry::build_default();
+        let summary = ProcTaintSummary::untainted("::p", &["a".to_owned(), "b".to_owned()]);
+        let _ = &reg;
+        // Untainted args → untainted return.
+        let out =
+            apply_proc_return_summary(&summary, &[TaintLattice::clean(), TaintLattice::clean()]);
+        assert!(!out.is_tainted());
+        // Wrong arity → untainted (matches Python `_apply_proc_return_summary`).
+        let out = apply_proc_return_summary(&summary, &[TaintLattice::tainted()]);
+        assert!(!out.is_tainted());
+    }
+}

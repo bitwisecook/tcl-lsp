@@ -1,0 +1,33 @@
+# pyproject.toml for the public PyO3 binding crate (ARCH9), built by maturin.
+#
+# Replaces the transitional `rust/tcl-lsp-rust/pyproject.toml`. The
+# wheel installs as the top-level Python module `tcl_lsp_py`.
+#
+#   make rust-build  →  builds both `tcl_lsp_py` and the transitional
+#                       `tcl_lsp_rust` re-export wheel.
+#
+# `tcl-lsp-rust` continues to ship for one release as a re-export
+# alias so existing wheel consumers keep working; it retires in
+# vNext.
+
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "tcl-lsp-py"
+description = "Public PyO3 bindings for tcl-lsp (folding, lexer, analyser, …)"
+version = "0.1.0"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-or-later" }
+classifiers = [
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Rust",
+    "Development Status :: 3 :: Alpha",
+]
+
+[tool.maturin]
+module-name = "tcl_lsp_py"
+bindings = "pyo3"
+features = ["pyo3/extension-module", "pyo3/abi3-py310"]
+strip = true

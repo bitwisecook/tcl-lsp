@@ -1,0 +1,21 @@
+[package]
+name = "tcl-lsp-rust"
+description = "Transitional alias for tcl-lsp-py — re-exports the public PyO3 surface under the legacy `tcl_lsp_rust` module name. Retires in vNext."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+# cdylib → Python can load it as a native extension module.
+# rlib   → lets `cargo test` link against it for integration tests.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tcl-lsp-py = { path = "../tcl-lsp-py" }
+pyo3 = { version = "0.28", features = ["extension-module", "abi3-py310"] }
+
+[lints]
+workspace = true

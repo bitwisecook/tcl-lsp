@@ -6,19 +6,17 @@ import {
   mkdtempSync,
   openSync,
   readSync,
-  realpathSync,
   rmSync,
   writeFileSync,
 } from "fs";
 import * as path from "path";
 import { execFile } from "child_process";
 import { gzipSync } from "zlib";
-import { homedir, platform, tmpdir } from "os";
+import { tmpdir } from "os";
 import { promisify } from "util";
 import * as vscode from "vscode";
 import {
   commands,
-  env,
   ExtensionContext,
   Range,
   StatusBarAlignment,
@@ -136,20 +134,7 @@ const TCL_VERSION_DIALECTS: Record<string, string> = {
   "9.0": "tcl9.0",
 };
 
-// Python discovery
-
-const MIN_PYTHON_MAJOR = 3;
-const MIN_PYTHON_MINOR = 10;
-const MAX_PYTHON_MINOR_SCAN = 15;
-
-interface PythonInfo {
-  path: string;
-  version: string;
-  major: number;
-  minor: number;
-  patch: number;
-  source: string;
-}
+// LSP wire types (used by rename partitioning)
 
 interface LspPosition {
   line: number;
@@ -186,222 +171,60 @@ function getOutputChannel(): vscode.OutputChannel {
   return outputChannel;
 }
 
-/** Run `<command> --version` and parse the result. */
-async function probePython(
-  command: string,
-  args: string[] = [],
-): Promise<Omit<PythonInfo, "source"> | undefined> {
-  try {
-    const versionArgs = [...args, "--version"];
-    const { stdout, stderr } = await execFileAsync(command, versionArgs, { timeout: 3000 });
-    const output = (stdout || stderr).trim();
-    const match = output.match(/Python\s+(\d+)\.(\d+)\.(\d+)/);
-    if (!match) return undefined;
-    const major = parseInt(match[1], 10);
-    const minor = parseInt(match[2], 10);
-    const patch = parseInt(match[3], 10);
-    if (major < MIN_PYTHON_MAJOR) return undefined;
-    if (major === MIN_PYTHON_MAJOR && minor < MIN_PYTHON_MINOR) return undefined;
-    // Resolve the real path to deduplicate symlinks.
-    let resolvedPath: string;
-    if (args.length === 0) {
-      try {
-        // For a bare command, find its absolute path first.
-        const whichCmd = platform() === "win32" ? "where" : "which";
-        const { stdout: whichOut } = await execFileAsync(whichCmd, [command], { timeout: 2000 });
-        const absPath = whichOut.trim().split(/\r?\n/)[0];
-        resolvedPath = absPath ? realpathSync(absPath) : command;
-      } catch {
-        resolvedPath = command;
-      }
-    } else {
-      // For commands like "py -3.12", the command itself is the path.
-      resolvedPath = command;
-    }
-    return { path: resolvedPath, version: `${major}.${minor}.${patch}`, major, minor, patch };
-  } catch {
-    return undefined;
-  }
+// Rust workspace detection — the directory holding `target/` after a
+// `cargo build`, used to locate a dev-checkout build of `tcl-lsp-server`.
+
+function hasRustWorkspace(dir: string): boolean {
+  return existsSync(path.join(dir, "Cargo.toml"));
 }
 
-/** Collect candidate paths from well-known locations per platform. */
-function wellKnownPythonPaths(): { command: string; args: string[]; source: string }[] {
-  const candidates: { command: string; args: string[]; source: string }[] = [];
-  const os = platform();
+// The native server filename for the current OS.
+const RUST_SERVER_EXE = process.platform === "win32" ? "tcl-lsp-server.exe" : "tcl-lsp-server";
 
-  if (os === "darwin") {
-    // Homebrew — Apple Silicon
-    for (let m = MAX_PYTHON_MINOR_SCAN; m >= MIN_PYTHON_MINOR; m--) {
-      candidates.push({ command: `/opt/homebrew/bin/python3.${m}`, args: [], source: "Homebrew" });
-    }
-    candidates.push({ command: "/opt/homebrew/bin/python3", args: [], source: "Homebrew" });
-    // Homebrew — Intel
-    for (let m = MAX_PYTHON_MINOR_SCAN; m >= MIN_PYTHON_MINOR; m--) {
-      candidates.push({
-        command: `/usr/local/bin/python3.${m}`,
-        args: [],
-        source: "Homebrew/python.org",
-      });
-    }
-    candidates.push({ command: "/usr/local/bin/python3", args: [], source: "Homebrew/python.org" });
-    // python.org framework
-    for (let m = MAX_PYTHON_MINOR_SCAN; m >= MIN_PYTHON_MINOR; m--) {
-      candidates.push({
-        command: `/Library/Frameworks/Python.framework/Versions/3.${m}/bin/python3`,
-        args: [],
-        source: "python.org",
-      });
-    }
-  } else if (os === "win32") {
-    // Windows py launcher
-    for (let m = MAX_PYTHON_MINOR_SCAN; m >= MIN_PYTHON_MINOR; m--) {
-      candidates.push({ command: "py", args: [`-3.${m}`], source: "py launcher" });
-    }
-    // python.org per-user install
-    const localAppData = process.env.LOCALAPPDATA || "";
-    if (localAppData) {
-      for (let m = MAX_PYTHON_MINOR_SCAN; m >= MIN_PYTHON_MINOR; m--) {
-        candidates.push({
-          command: path.join(localAppData, "Programs", "Python", `Python3${m}`, "python.exe"),
-          args: [],
-          source: "python.org",
-        });
-      }
-    }
-    // python.org system-wide
-    const progFiles = process.env.ProgramFiles || "C:\\Program Files";
-    for (let m = MAX_PYTHON_MINOR_SCAN; m >= MIN_PYTHON_MINOR; m--) {
-      candidates.push({
-        command: path.join(progFiles, `Python3${m}`, "python.exe"),
-        args: [],
-        source: "python.org",
-      });
-    }
-  } else {
-    // Linux
-    for (let m = MAX_PYTHON_MINOR_SCAN; m >= MIN_PYTHON_MINOR; m--) {
-      candidates.push({ command: `/usr/bin/python3.${m}`, args: [], source: "system" });
-    }
-    for (let m = MAX_PYTHON_MINOR_SCAN; m >= MIN_PYTHON_MINOR; m--) {
-      candidates.push({ command: `/usr/local/bin/python3.${m}`, args: [], source: "local" });
-    }
-  }
-
-  // Anaconda / Miniconda — all platforms (last resort)
-  const home = homedir();
-  if (os === "win32") {
-    for (const dir of ["Miniconda3", "Anaconda3"]) {
-      candidates.push({
-        command: path.join(home, dir, "python.exe"),
-        args: [],
-        source: "Anaconda",
-      });
-    }
-  } else {
-    for (const dir of ["miniconda3", "anaconda3"]) {
-      candidates.push({
-        command: path.join(home, dir, "bin", "python3"),
-        args: [],
-        source: "Anaconda",
-      });
-    }
-  }
-
-  return candidates;
+// VSIX bundle directory for the current platform, e.g. `darwin-arm64`,
+// `linux-x64`, `linux-riscv64`, `win32-arm64`.  Node's `process.platform` /
+// `process.arch` map 1:1 onto the directory names the universal VSIX ships
+// under `server/<platform>-<arch>/` (and onto VS Code's own target slugs).
+function bundlePlatformDir(): string {
+  return `${process.platform}-${process.arch}`;
 }
 
-/** Discover all Python 3.10+ interpreters, sorted highest-version-first. */
-async function discoverPythons(): Promise<PythonInfo[]> {
-  const seen = new Set<string>();
-  const results: PythonInfo[] = [];
-
-  async function tryCandidate(command: string, args: string[], source: string): Promise<void> {
-    const info = await probePython(command, args);
-    if (!info) return;
-    const key = info.path;
-    if (seen.has(key)) return;
-    seen.add(key);
-    results.push({ ...info, source });
+// Locate the native Rust `tcl-lsp-server` binary.
+// Honours an explicit path first (config `tclLsp.rustServerPath` or the
+// `TCL_LSP_SERVER_BIN` env var), then the platform binary bundled inside the
+// VSIX (`server/<platform>-<arch>/`), then probes `target/{release,debug}/`
+// under the workspace root (resolved by walking up to the `Cargo.toml`) so a
+// plain `cargo build -p tcl-lsp-server` in a checkout is picked up automatically.
+function resolveRustServer(
+  configuredBin: string,
+  configuredServerPath: string,
+  extensionPath: string,
+): string | undefined {
+  const explicit = configuredBin.trim();
+  if (explicit) {
+    return existsSync(explicit) ? explicit : undefined;
   }
-
-  // 1. Versioned PATH binaries (highest first)
-  const pathPromises: Promise<void>[] = [];
-  for (let m = MAX_PYTHON_MINOR_SCAN; m >= MIN_PYTHON_MINOR; m--) {
-    pathPromises.push(tryCandidate(`python3.${m}`, [], "PATH"));
-  }
-  pathPromises.push(tryCandidate("python3", [], "PATH"));
-  if (platform() === "win32") {
-    pathPromises.push(tryCandidate("python", [], "PATH"));
-  }
-  await Promise.all(pathPromises);
-
-  // 2. uv (if available)
-  try {
-    const { stdout } = await execFileAsync("uv", ["python", "find", "--no-project"], {
-      timeout: 5000,
-    });
-    const uvPython = stdout.trim();
-    if (uvPython) {
-      await tryCandidate(uvPython, [], "uv");
+  // A configured `serverPath` means "run from this checkout" and must take
+  // precedence over the binary bundled in the VSIX — otherwise an installed
+  // user who points at a local checkout to test server changes would silently
+  // keep getting the packaged binary.  Only consult the bundled binary when no
+  // serverPath is set.
+  if (!configuredServerPath.trim()) {
+    // Packaged install: the universal VSIX bundles one binary per platform.
+    const bundled = path.join(extensionPath, "server", bundlePlatformDir(), RUST_SERVER_EXE);
+    if (existsSync(bundled)) {
+      return bundled;
     }
-  } catch {
-    // uv not installed or failed — skip
   }
-
-  // 3. Well-known locations
-  const wellKnown = wellKnownPythonPaths();
-  const wellKnownPromises = wellKnown.map((c) => tryCandidate(c.command, c.args, c.source));
-  await Promise.all(wellKnownPromises);
-
-  // Sort by version descending
-  results.sort((a, b) => {
-    if (a.major !== b.major) return b.major - a.major;
-    if (a.minor !== b.minor) return b.minor - a.minor;
-    return b.patch - a.patch;
-  });
-
-  return results;
-}
-
-/** Log discovery results and select the appropriate interpreter. */
-async function resolvePython(configured: string): Promise<PythonInfo | undefined> {
-  const ch = getOutputChannel();
-
-  // User specified an explicit path
-  if (configured && configured !== "auto") {
-    ch.appendLine(`Python: using configured interpreter: ${configured}`);
-    const info = await probePython(configured);
-    if (info) {
-      const result = { ...info, source: "configured" };
-      ch.appendLine(`  ${info.version} — OK`);
-      return result;
+  // Dev checkout: pick up a locally built binary.
+  const root = resolveServerDir(configuredServerPath, extensionPath);
+  for (const profile of ["release", "debug"]) {
+    const candidate = path.join(root, "target", profile, RUST_SERVER_EXE);
+    if (existsSync(candidate)) {
+      return candidate;
     }
-    ch.appendLine("  ERROR: not found or below minimum version (3.10)");
-    return undefined;
   }
-
-  // Auto-discovery
-  ch.appendLine("Python discovery:");
-  const pythons = await discoverPythons();
-  if (pythons.length === 0) {
-    ch.appendLine("  (none found)");
-    return undefined;
-  }
-  for (const p of pythons) {
-    ch.appendLine(`  ${p.path}  ${p.version}  (${p.source})`);
-  }
-  const selected = pythons[0];
-  ch.appendLine(`Selected: ${selected.path} (${selected.version})`);
-  return selected;
-}
-
-// Server bundle detection
-
-function hasServerBundle(dir: string): boolean {
-  return (
-    existsSync(path.join(dir, "server", "__main__.py")) &&
-    existsSync(path.join(dir, "pyproject.toml"))
-  );
+  return undefined;
 }
 
 function resolveServerDir(configuredPath: string, extensionPath: string): string {
@@ -409,12 +232,12 @@ function resolveServerDir(configuredPath: string, extensionPath: string): string
   if (configured) {
     return configured;
   }
-  // Walk up from the extension directory to find the server bundle.
+  // Walk up from the extension directory to find the workspace root.
   // Handles both repo-root layouts (extension at /) and nested layouts
   // (extension at editors/vscode/).
   let dir = extensionPath;
   for (let i = 0; i < 3; i++) {
-    if (hasServerBundle(dir)) {
+    if (hasRustWorkspace(dir)) {
       return dir;
     }
     const parent = path.resolve(dir, "..");
@@ -487,59 +310,34 @@ export async function activate(context: ExtensionContext) {
   const config = workspace.getConfiguration("tclLsp");
   const configuredServerPath = config.get<string>("serverPath", "");
 
-  let serverOptions: ServerOptions;
-
-  // Dev mode: explicit serverPath or running from a git checkout.
-  const serverDir = resolveServerDir(configuredServerPath, context.extensionPath);
-  if (configuredServerPath || hasServerBundle(serverDir)) {
-    if (!hasServerBundle(serverDir)) {
-      window.showErrorMessage(
-        `Unable to locate Tcl server bundle under '${serverDir}'. Set 'tclLsp.serverPath' to the tcl-lsp project root.`,
-      );
-    }
-    ch.appendLine(`Dev mode: using uv in ${serverDir}`);
-    serverOptions = {
-      command: "uv",
-      args: ["run", "--directory", serverDir, "--no-dev", "python", "-m", "server"],
-      options: { cwd: serverDir },
-    };
-  } else {
-    // VSIX mode: use bundled .pyz with discovered Python.
-    const pyzPath = path.join(context.extensionPath, "tcl-lsp-server.pyz");
-    if (!existsSync(pyzPath)) {
-      window.showErrorMessage(
-        "Tcl LSP: bundled server (tcl-lsp-server.pyz) not found. Reinstall the extension or set tclLsp.serverPath.",
-      );
-      return;
-    }
-
-    const configuredPython = config.get<string>("pythonPath", "auto");
-    const pythonStart = Date.now();
-    const python = await resolvePython(configuredPython);
-    ch.appendLine(`[timing] Python discovery: ${Date.now() - pythonStart}ms`);
-    if (!python) {
-      const installGuide =
-        "https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite";
-      const msg =
-        configuredPython && configuredPython !== "auto"
-          ? `Tcl LSP: configured Python '${configuredPython}' not found or below 3.10.`
-          : "Tcl LSP: Python 3.10+ is required but was not found. " +
-            "The VSIX bundles all Python dependencies, but a Python interpreter must be installed on your system.";
-      const action = await window.showErrorMessage(msg, "Install Python", "Open Guide");
-      if (action === "Install Python") {
-        env.openExternal(Uri.parse("https://www.python.org/downloads/"));
-      } else if (action === "Open Guide") {
-        env.openExternal(Uri.parse(installGuide));
-      }
-      return;
-    }
-
-    serverOptions = {
-      command: python.path,
-      args: [pyzPath],
-      options: { cwd: context.extensionPath },
-    };
+  // The extension runs the native Rust `tcl-lsp-server` exclusively.  The
+  // universal VSIX bundles one binary per platform under
+  // `server/<platform>-<arch>/`; a dev checkout builds it with
+  // `cargo build -p tcl-lsp-server` and it is picked up from
+  // `target/{release,debug}/`.  An explicit binary can be supplied via
+  // `tclLsp.rustServerPath` or the `TCL_LSP_SERVER_BIN` env var (the latter
+  // lets test harnesses point at a freshly built binary without writing
+  // workspace settings).
+  const rustBin = resolveRustServer(
+    process.env.TCL_LSP_SERVER_BIN || config.get<string>("rustServerPath", ""),
+    configuredServerPath,
+    context.extensionPath,
+  );
+  if (!rustBin) {
+    window.showErrorMessage(
+      `Tcl LSP: no native tcl-lsp-server binary found for ${bundlePlatformDir()}. ` +
+        "In a checkout, build it with `cargo build -p tcl-lsp-server` (or `make rust-server`), " +
+        "or set 'tclLsp.rustServerPath' to a native binary. A packaged install reaching this " +
+        "point does not ship a binary for your OS/architecture.",
+    );
+    return;
   }
+  ch.appendLine(`Using native tcl-lsp-server: ${rustBin}`);
+  const serverOptions: ServerOptions = {
+    command: rustBin,
+    args: [],
+    options: { cwd: path.dirname(rustBin) },
+  };
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [

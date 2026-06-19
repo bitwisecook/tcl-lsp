@@ -2953,18 +2953,18 @@
         "title": "General",
         "order": 0,
         "properties": {
-          "tclLsp.pythonPath": {
-            "scope": "machine-overridable",
-            "type": "string",
-            "default": "auto",
-            "description": "Python 3.10+ interpreter for the language server (latest stable recommended). The VSIX bundles all Python dependencies — only the interpreter is needed. Set to 'auto' (default) to search PATH and well-known locations, or provide a full path (e.g. /opt/homebrew/bin/python3.14). Install Python from python.org or via Homebrew (brew install python@3.14).",
-            "order": 0
-          },
           "tclLsp.serverPath": {
             "scope": "machine-overridable",
             "type": "string",
             "default": "",
-            "description": "Path to the tcl-lsp server directory. If empty, uses the bundled server.",
+            "description": "Path to a tcl-lsp checkout (workspace root). When set, the extension probes target/{release,debug}/ under it for a locally built tcl-lsp-server binary. If empty, uses the bundled native binary.",
+            "order": 0
+          },
+          "tclLsp.rustServerPath": {
+            "scope": "machine-overridable",
+            "type": "string",
+            "default": "",
+            "description": "Path to the native Rust tcl-lsp-server binary. If empty, uses the bundled binary, then probes target/{release,debug}/ under the workspace root.",
             "order": 1
           },
           "tclLsp.dialect": {
@@ -3237,6 +3237,13 @@
             "type": "boolean",
             "default": false,
             "description": "Enable pull-model diagnostics (textDocument/diagnostic, workspace/diagnostic). Off by default: turning this on causes most clients to stop honouring push notifications.",
+            "order": 21
+          },
+          "tclLsp.features.willSaveWaitUntil": {
+            "scope": "language-overridable",
+            "type": "boolean",
+            "default": false,
+            "description": "Format the document on save via textDocument/willSaveWaitUntil. Off by default; enable for format-on-save without relying on the editor's own editor.formatOnSave. Uses the resolved tclLsp.formatting.lineLength for the document's folder.",
             "order": 21
           },
           "tclLsp.features.progress": {
@@ -4937,9 +4944,10 @@
   ],
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./ && npm run copy-canonical && npm run copy-core-js && npm run bundle",
+    "compile": "tsc -p ./ && npm run copy-canonical && npm run copy-core-js && npm run copy-wasm && npm run bundle",
     "copy-canonical": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('src','chat','canonical'),d=p.join('out','chat','canonical');if(fs.existsSync(s)){fs.mkdirSync(d,{recursive:true});fs.readdirSync(s).forEach(f=>fs.copyFileSync(p.join(s,f),p.join(d,f)))}\"",
-    "copy-core-js": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('..','..','explorer','static','explorer-core.js'),d=p.join('out','explorer-core.js');if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,d)}\"",
+    "copy-core-js": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('..','..','tooling','explorer','static','explorer-core.js'),d=p.join('out','explorer-core.js');if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,d)}\"",
+    "copy-wasm": "node -e \"const fs=require('fs'),p=require('path');const dir=p.join('..','..','tooling','explorer','static');['tcl_explorer_wasm.js','tcl_explorer_wasm_bg.wasm'].forEach(f=>{const s=p.join(dir,f);if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,p.join('out',f))}})\"",
     "bundle": "esbuild ./src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=out/extension.js --sourcemap --minify --tree-shaking=true --define:__SCREENSHOT_MODE__=false --loader:.md=text",
     "bundle:screenshots": "esbuild ./src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=out/extension.js --sourcemap --minify --tree-shaking=true --define:__SCREENSHOT_MODE__=true --loader:.md=text",
     "watch": "tsc -watch -p ./",

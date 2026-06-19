@@ -1,0 +1,5 @@
+members down/up over time (1 char = 10 min)
+                      10    11    1
+                      +------------
+api                   | v####^
+web                   |v##^

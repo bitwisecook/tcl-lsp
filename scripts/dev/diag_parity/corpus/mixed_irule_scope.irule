@@ -1,0 +1,8 @@
+when HTTP_REQUEST {
+    set unused_var "value"
+    set uri [HTTP::uri]
+    if { $uri == "/admin" } {
+        log local0. "admin access"
+    }
+    session add uie $uri 60
+}

@@ -1,0 +1,25 @@
+# ============================================================================
+# SPIKE -- throwaway proof-of-concept. NOT the final design.
+# Do not derive the production runtime/ABI/header shape from this crate.
+# See runtime/rust-spike/README.md and docs/design/runtime/c-extension-abi.md.
+# ============================================================================
+#
+# Standalone workspace so this does not join the root tcl-lsp workspace (it uses
+# no_std + unsafe and targets wasm32-unknown-unknown).
+[workspace]
+
+[package]
+name = "tcl-ext-spike-dyn-runtime"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = "s"

@@ -1,0 +1,21 @@
+//! `coverage` command.
+use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "coverage ?save | report | reload | clear? ?-file file? ?-directive? ?-comments?",
+}];
+
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "coverage",
+        dialects: Some(DialectSet::MENTOR),
+        arity: Arity::at_least(0),
+        hover: Some(HoverSnippet::brief(
+            "Configure or report code coverage.",
+            &["coverage ?save | report | reload | clear? ?-file file? ?-directive? ?-comments?"],
+            "F5",
+        )),
+        forms: FORMS,
+        ..CommandSpec::DEFAULT
+    }
+}

@@ -1,0 +1,89 @@
+//! The agnostic code-generation [`Backend`] trait.
+//!
+//! Family A of the cross-backend architecture
+//! ([`docs/design/common-runtime-emitter-architecture.md`] §3): the shared
+//! frontend (lexer → CST → IR → CFG → SSA → optimise) is backend-independent; a
+//! backend only owns *lowering* the CFG/IR to its artifact. The bytecode
+//! ("TCLVM") backend implements the trait by delegating to the existing
+//! `emitter` entry points, so the working emitter does not churn. A future WASM
+//! backend (or any other) sets its own associated artifact types and walks the
+//! same `CfgFunction.blocks`/`Terminator`; the associated types absorb the
+//! value-model / instruction-encoding difference.
+
+use tcl_registry::CommandRegistry;
+
+use crate::cfg::{CfgModule, Function as CfgFunction};
+use crate::ir::{Module as IrModule, Procedure as IrProcedure};
+
+use super::emitter::{codegen_function_with_procs, codegen_module};
+use super::{FunctionAsm, ModuleAsm};
+
+/// A code-generation backend: lowers the shared CFG/IR to a backend artifact.
+///
+/// The frontend is shared; an implementor only lowers CFG/IR → its artifact
+/// types. Generic over the artifact so backends with different value and
+/// instruction models (bytecode vs WASM vs …) share one driving interface.
+pub trait Backend {
+    /// What this backend produces for a single function (a proc body or the
+    /// top-level script).
+    type FuncArtifact;
+    /// What this backend produces for a whole module.
+    type ModuleArtifact;
+
+    /// Lower a single CFG function.
+    ///
+    /// `is_proc` selects LVT-based vs stack-based variable access; `proc_defs`
+    /// are pending proc definitions to interleave at their source positions
+    /// (as `codegen_module` does for the top-level script); `registry` is
+    /// consulted for codegen-hook resolution — pass the same instance the
+    /// lowering pass used.
+    fn lower_function(
+        &mut self,
+        cfg: &CfgFunction,
+        params: &[&str],
+        is_proc: bool,
+        proc_defs: &[IrProcedure],
+        registry: &CommandRegistry,
+    ) -> Self::FuncArtifact;
+
+    /// Lower an entire module (top-level script + procedures).
+    fn lower_module(
+        &mut self,
+        cfg: &CfgModule,
+        ir: &IrModule,
+        registry: &CommandRegistry,
+    ) -> Self::ModuleArtifact;
+}
+
+/// The Tcl 9 bytecode ("TCLVM") backend.
+///
+/// A zero-sized handle; it implements [`Backend`] by delegating to the existing
+/// `emitter` free functions, which keeps the hot, churn-sensitive emitter body
+/// untouched.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BytecodeBackend;
+
+impl Backend for BytecodeBackend {
+    type FuncArtifact = FunctionAsm;
+    type ModuleArtifact = ModuleAsm;
+
+    fn lower_function(
+        &mut self,
+        cfg: &CfgFunction,
+        params: &[&str],
+        is_proc: bool,
+        proc_defs: &[IrProcedure],
+        registry: &CommandRegistry,
+    ) -> FunctionAsm {
+        codegen_function_with_procs(cfg, params, is_proc, proc_defs, registry)
+    }
+
+    fn lower_module(
+        &mut self,
+        cfg: &CfgModule,
+        ir: &IrModule,
+        registry: &CommandRegistry,
+    ) -> ModuleAsm {
+        codegen_module(cfg, ir, registry)
+    }
+}

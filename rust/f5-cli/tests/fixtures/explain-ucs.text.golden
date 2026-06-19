@@ -1,0 +1,20 @@
+explain virtual: /Common/vs_web
+
+  destination:
+    /Common/10.0.0.100:80
+
+  profiles:
+    (none)
+
+  iRules:
+    (none)
+
+  persistence:
+    (none)
+
+  SNAT:
+    (none)
+
+  default pool:
+    /Common/web_pool (round-robin)
+      member /Common/10.0.0.1:80 addr=10.0.0.1

@@ -1,0 +1,49 @@
+//! Typed BIG-IP scalar values — IP addresses, networks, ports,
+//! partitions, destinations, folders, attachments, and the typed list.
+//! Rust port of `dialects/f5/bigip/types/`.
+//!
+//! Each type round-trips to its canonical F5 spelling via `Display` and
+//! parses via `parse` / `try_parse`, mirroring the Python value layer so
+//! reconstructed objects compare equal.
+
+mod ip_class;
+
+pub mod address;
+pub mod attachments;
+pub mod bigip_list;
+pub mod cert_key_chain;
+pub mod data_group_record;
+pub mod destination;
+pub mod error;
+pub mod firewall_rule;
+pub mod folder;
+pub mod gtm_region_member;
+pub mod ip_range;
+pub mod monitor_expression;
+pub mod network;
+pub mod partition;
+pub mod policy;
+pub mod port;
+pub mod port_set;
+pub mod route_domain;
+pub mod snat_mode;
+
+pub use address::{Address, FQDN, IPAddress, parse_address, try_parse_address};
+pub use attachments::{PersistenceAttachment, ProfileAttachment};
+pub use bigip_list::{BigipList, ListItem, ListItemValue, ListSyntax, SourceSpan};
+pub use cert_key_chain::CertKeyChain;
+pub use data_group_record::DataGroupRecord;
+pub use destination::Destination;
+pub use error::ValueError;
+pub use firewall_rule::{FirewallEndpoint, FirewallRule, NatRule};
+pub use folder::{Folder, ObjectPath};
+pub use gtm_region_member::GtmRegionMember;
+pub use ip_range::IPRange;
+pub use monitor_expression::{MonitorExpression, MonitorMode};
+pub use network::{Cidr, Network};
+pub use partition::Partition;
+pub use policy::{LtmPolicyAction, LtmPolicyCondition};
+pub use port::{Port, PortRange};
+pub use port_set::{PortSegment, PortSet};
+pub use route_domain::RouteDomain;
+pub use snat_mode::{SnatMode, SnatModeKind};

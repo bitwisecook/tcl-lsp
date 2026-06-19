@@ -47,7 +47,7 @@ local action.
 │   - check/      kcs_index_links.py, wasm_command_parity.py, … │
 │   - capture/    tcltest bytecode + result capture            │
 │   - release/    tag.sh, publish_*.sh, jetbrains_token.sh, …  │
-│   - install/    install.sh, hooks.sh, filter_readme.py       │
+│   - install/    install.sh, hooks.sh, filter-readme.mjs      │
 │   - zipapp-main/  3-line entry-point shims                   │
 └─────────────┬────────────────────────────────────────────────┘
               ↓ invoked by both
@@ -56,9 +56,11 @@ local action.
 │   - pr-gate    runs `make ci-fast` on every PR + main        │
 │   - test-py    full Python suite on push to main and tags    │
 │   - test-ext   VS Code extension tests on push and tags      │
-│   - create-release  + build-vsix + build-zipapp (matrix)     │
-│     + build-claude-skills + build-jetbrains + build-sublime  │
-│     + build-zed + publish-checksums       — tag-only         │
+│   - create-release  + build-server-matrix (native LSP per    │
+│       platform) → build-vsix (universal) + build-zipapp      │
+│       (matrix) + build-claude-skills + build-jetbrains       │
+│       + build-sublime + build-zed + publish-checksums        │
+│       — tag-only                                             │
 │   - never holds a marketplace token                          │
 └─────────────┬────────────────────────────────────────────────┘
               ↓ produces signed artefacts that

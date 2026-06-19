@@ -1,0 +1,909 @@
+[
+  {
+    "query": "defined(null)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "defined(\"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "defined(\"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "defined(false)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "defined(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "defined([])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "defined({\"a\": 1})",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "defined(.)",
+    "input": "x",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "defined(.)",
+    "input": "",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "\"a\" | in({\"a\": 1, \"b\": 2})",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "\"c\" | in({\"a\": 1})",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "1 | in([10, 20, 30])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "5 | in([10, 20])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "in({\"name\": 1})",
+    "input": "name",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "in([1, 2, 3])",
+    "input": 0,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "in(null)",
+    "input": "k",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "in(\"string\")",
+    "input": "k",
+    "mode": "json",
+    "kind": "err",
+    "output": "has: cannot test membership on string"
+  },
+  {
+    "query": "in([1, 2])",
+    "input": "notanint",
+    "mode": "json",
+    "kind": "err",
+    "output": "has: argument 2 must be an integer, got string"
+  },
+  {
+    "query": "kind(.)",
+    "input": {
+      "name": "web"
+    },
+    "mode": "json",
+    "kind": "err",
+    "output": "kind: argument 1 must be an object, got dict"
+  },
+  {
+    "query": "kind(\"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "kind: argument 1 must be an object, got string"
+  },
+  {
+    "query": "kind(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "kind: argument 1 must be an object, got int"
+  },
+  {
+    "query": "path(.)",
+    "input": {
+      "name": "web"
+    },
+    "mode": "json",
+    "kind": "err",
+    "output": "path: cannot take path of dict"
+  },
+  {
+    "query": "path(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "path: cannot take path of int"
+  },
+  {
+    "query": "path(\"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "path: cannot take path of string"
+  },
+  {
+    "query": "json_parse(\"{\\\"a\\\": 1, \\\"b\\\": [2, 3]}\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"a\": 1,\n    \"b\": [\n      2,\n      3\n    ]\n  }\n]\n"
+  },
+  {
+    "query": "json_parse(\"[1, 2.5, true, null, \\\"s\\\"]\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1,\n    2.5,\n    true,\n    null,\n    \"s\"\n  ]\n]\n"
+  },
+  {
+    "query": "json_parse(\"42\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  42\n]\n"
+  },
+  {
+    "query": "json_parse(\"\\\"hi\\\"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"hi\"\n]\n"
+  },
+  {
+    "query": "json_parse(\"{\\\"z\\\": 1, \\\"a\\\": 2}\") | keys_unsorted",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"z\",\n    \"a\"\n  ]\n]\n"
+  },
+  {
+    "query": "json_parse(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "json_parse: argument 1 must be a string, got int"
+  },
+  {
+    "query": "all",
+    "input": [
+      true,
+      true,
+      1,
+      "x"
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "all",
+    "input": [
+      true,
+      false
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "all",
+    "input": [],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "any",
+    "input": [
+      false,
+      0,
+      "",
+      null
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "any",
+    "input": [
+      false,
+      true
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "any",
+    "input": [],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "all",
+    "input": [
+      [
+        true
+      ],
+      [
+        true
+      ]
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "any",
+    "input": [
+      [
+        false
+      ],
+      [
+        true
+      ]
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "all",
+    "input": [
+      [
+        true
+      ],
+      [
+        false
+      ]
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "all",
+    "input": 42,
+    "mode": "json",
+    "kind": "err",
+    "output": "all: argument 1 must be a list or stream, got int"
+  },
+  {
+    "query": "any",
+    "input": "notalist",
+    "mode": "json",
+    "kind": "err",
+    "output": "any: argument 1 must be a list or stream, got string"
+  },
+  {
+    "query": "halt",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "halt: query halted by halt()"
+  },
+  {
+    "query": "halt_error",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "halt_error: query halted (exit_code=5)"
+  },
+  {
+    "query": "halt_error(7)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "halt_error: query halted (exit_code=7)"
+  },
+  {
+    "query": "halt_error(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "halt_error: query halted (exit_code=0)"
+  },
+  {
+    "query": "halt_error(\"notanint\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "halt_error: argument 1 must be an integer, got string"
+  },
+  {
+    "query": "\"ell\" | inside(\"hello\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "\"xyz\" | inside(\"hello\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "2 | inside([1, 2, 3])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "9 | inside([1, 2, 3])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "inside(\"hello world\")",
+    "input": "world",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "inside([1, 2, 3])",
+    "input": 2,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "inside(42)",
+    "input": "x",
+    "mode": "json",
+    "kind": "err",
+    "output": "contains: cannot search inside int"
+  },
+  {
+    "query": "inside([1, 2])",
+    "input": 3,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "limit(., 2)",
+    "input": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1,\n    2\n  ]\n]\n"
+  },
+  {
+    "query": "limit(., 0)",
+    "input": [
+      1,
+      2,
+      3
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  []\n]\n"
+  },
+  {
+    "query": "limit(., -1)",
+    "input": [
+      1,
+      2,
+      3
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  []\n]\n"
+  },
+  {
+    "query": "limit(., 10)",
+    "input": [
+      1,
+      2
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1,\n    2\n  ]\n]\n"
+  },
+  {
+    "query": "limit(42, 2)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "limit: argument 1 must be a list or stream, got int"
+  },
+  {
+    "query": "limit([1, 2], \"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "limit: argument 2 must be an integer, got string"
+  },
+  {
+    "query": "nth(., 0)",
+    "input": [
+      10,
+      20,
+      30
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  10\n]\n"
+  },
+  {
+    "query": "nth(., 2)",
+    "input": [
+      10,
+      20,
+      30
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  30\n]\n"
+  },
+  {
+    "query": "nth(., -1)",
+    "input": [
+      10,
+      20,
+      30
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  30\n]\n"
+  },
+  {
+    "query": "nth(., 5)",
+    "input": [
+      10,
+      20,
+      30
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "nth(., -5)",
+    "input": [
+      10,
+      20,
+      30
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "nth(42, 0)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "nth: argument 1 must be a list or stream, got int"
+  },
+  {
+    "query": "nth([1], \"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "nth: argument 2 must be an integer, got string"
+  },
+  {
+    "query": "basename(\"/Common/web_pool\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"web_pool\"\n]\n"
+  },
+  {
+    "query": "basename(\"/Common/iApps/T.app/pool_1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"pool_1\"\n]\n"
+  },
+  {
+    "query": "basename(\"barename\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"barename\"\n]\n"
+  },
+  {
+    "query": "basename(\"/\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\"\n]\n"
+  },
+  {
+    "query": "basename(\"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\"\n]\n"
+  },
+  {
+    "query": "basename(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "basename: argument 1 must be a string, got int"
+  },
+  {
+    "query": "partition(\"/Common/web_pool\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"Common\"\n]\n"
+  },
+  {
+    "query": "partition(\"/Tenant_A/iApps/T.app/p\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"Tenant_A\"\n]\n"
+  },
+  {
+    "query": "partition(\"relativename\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\"\n]\n"
+  },
+  {
+    "query": "partition(\"/\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\"\n]\n"
+  },
+  {
+    "query": "partition(\"/Common\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"Common\"\n]\n"
+  },
+  {
+    "query": "partition(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "partition: argument 1 must be a string, got int"
+  },
+  {
+    "query": "with_partition(\"/Common/web_pool\", \"Tenant_A\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Tenant_A/web_pool\"\n]\n"
+  },
+  {
+    "query": "with_partition(\"barename\", \"Common\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/barename\"\n]\n"
+  },
+  {
+    "query": "with_partition(\"/Common/iApps/T.app/p1\", \"X\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/X/p1\"\n]\n"
+  },
+  {
+    "query": "with_partition(\"/Common/web_pool\", \"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "with_partition: partition must not be empty"
+  },
+  {
+    "query": "with_partition(42, \"Common\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "with_partition: argument 1 must be a string, got int"
+  },
+  {
+    "query": "base64(\"hello\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"aGVsbG8=\"\n]\n"
+  },
+  {
+    "query": "base64(\"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\"\n]\n"
+  },
+  {
+    "query": "base64(\"foob\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"Zm9vYg==\"\n]\n"
+  },
+  {
+    "query": "base64(\"r\u00e9sum\u00e9\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"csOpc3Vtw6k=\"\n]\n"
+  },
+  {
+    "query": "base64d(\"aGVsbG8=\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"hello\"\n]\n"
+  },
+  {
+    "query": "base64d(\"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\"\n]\n"
+  },
+  {
+    "query": "base64(\"hello\") | base64d",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"hello\"\n]\n"
+  },
+  {
+    "query": "base64(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "base64: argument 1 must be a string, got int"
+  },
+  {
+    "query": "html(\"<a href=\\\"x\\\">&'</a>\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"&lt;a href=&quot;x&quot;&gt;&amp;&#x27;&lt;/a&gt;\"\n]\n"
+  },
+  {
+    "query": "html(\"plain text\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"plain text\"\n]\n"
+  },
+  {
+    "query": "html(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "html: argument 1 must be a string, got int"
+  },
+  {
+    "query": "uri(\"hello world\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"hello%20world\"\n]\n"
+  },
+  {
+    "query": "uri(\"a/b?c=d&e=f\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"a%2Fb%3Fc%3Dd%26e%3Df\"\n]\n"
+  },
+  {
+    "query": "uri(\"r\u00e9sum\u00e9\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"r%C3%A9sum%C3%A9\"\n]\n"
+  },
+  {
+    "query": "uri(\"safe-_.~chars\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"safe-_.~chars\"\n]\n"
+  },
+  {
+    "query": "uri(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "uri: argument 1 must be a string, got int"
+  },
+  {
+    "query": "tojson",
+    "input": {
+      "z": 1,
+      "a": [
+        2,
+        3
+      ]
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"{\\\"a\\\":[2,3],\\\"z\\\":1}\"\n]\n"
+  },
+  {
+    "query": "tojson",
+    "input": [
+      1,
+      "x",
+      true,
+      null
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"[1,\\\"x\\\",true,null]\"\n]\n"
+  },
+  {
+    "query": "tojson",
+    "input": "a string",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\\\"a string\\\"\"\n]\n"
+  },
+  {
+    "query": "tojson",
+    "input": 42,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"42\"\n]\n"
+  },
+  {
+    "query": "fromjson(\"{\\\"a\\\": 1, \\\"b\\\": 2}\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"a\": 1,\n    \"b\": 2\n  }\n]\n"
+  },
+  {
+    "query": "fromjson(\"[1, 2, 3]\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1,\n    2,\n    3\n  ]\n]\n"
+  },
+  {
+    "query": "fromjson(\"true\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "fromjson(\"3.14\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.14\n]\n"
+  },
+  {
+    "query": "fromjson(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "fromjson: argument 1 must be a string, got int"
+  },
+  {
+    "query": "sh(\"simple\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"'simple'\"\n]\n"
+  },
+  {
+    "query": "sh(\"it's a test\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"'it'\\\\''s a test'\"\n]\n"
+  },
+  {
+    "query": "sh(\"a b c\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"'a b c'\"\n]\n"
+  },
+  {
+    "query": "sh",
+    "input": [
+      "a",
+      "b c",
+      "it's"
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"'a' 'b c' 'it'\\\\''s'\"\n]\n"
+  },
+  {
+    "query": "sh",
+    "input": [],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\"\n]\n"
+  },
+  {
+    "query": "sh(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "sh: argument 1 must be a string, got int"
+  },
+  {
+    "query": "sh",
+    "input": [
+      1,
+      2
+    ],
+    "mode": "json",
+    "kind": "err",
+    "output": "sh: argument 1 must be a string, got int"
+  }
+]

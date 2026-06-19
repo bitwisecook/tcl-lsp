@@ -1,0 +1,26 @@
+#
+# config/bigip_base.conf
+#
+net vlan external {
+    tag 10
+}
+
+#
+# config/bigip.conf
+#
+ltm pool /Common/web_pool {
+    members {
+        /Common/10.0.0.1:80 { address 10.0.0.1 }
+    }
+}
+ltm virtual /Common/vs_web {
+    destination /Common/10.0.0.100:80
+    pool /Common/web_pool
+}
+
+#
+# config/bigip_user.conf
+#
+auth user /Common/admin {
+    role admin
+}

@@ -5,7 +5,10 @@
 
 ## Applies to
 
-`f5` CLI (zipapp + `python -m tooling.f5.main`)
+`f5` CLI — both the Python front-end (`python -m tooling.f5.main`) and the
+native Rust port (`f5-query`, `rust/f5-cli`). The two share one behaviour
+contract: the same verbs, flags, master-key resolution order, and the
+byte-for-byte `$M$<salt>$<base64>` envelope.
 
 ## Summary
 
@@ -43,12 +46,16 @@ F5MKU="$(cat key.txt)" f5 encrypt-secrets clear.conf -o sealed.conf
 f5 decrypt-secrets bigip.conf -k BHDLd0bbao1VlwpTk1sioQ==
 ```
 
-The key is resolved from `--f5mku KEY`, then `--f5mku-file FILE`, then the
-`$F5MKU` environment variable, and finally a secure `F5 MKU Key:`
+`encrypt` / `decrypt` are accepted as aliases for the two verbs.
+
+The key is resolved from `--f5mku KEY` (`-k`), then `--f5mku-file FILE`,
+then the `$F5MKU` environment variable, and finally a secure `F5 MKU Key:`
 terminal prompt (no echo).  Pass `--no-key-prompt` to fail instead of
 prompting in non-interactive runs.  Output goes to stdout unless
-`-o FILE` is given, and `--format scf|tmsh` re-renders the result the
-same way the other rewriting verbs do.
+`-o FILE` is given, and `--format scf|tmsh|tmsh-delta` re-renders the
+result the same way the other rewriting verbs do (`tmsh-delta` uses the
+pre-rewrite config as its baseline, so existing objects emit `modify`,
+not a spurious `create`).
 
 ### Which values are affected
 
@@ -83,12 +90,15 @@ original `secret "my radius secret"`.
 ## Notes
 
 - The transform is AES in ECB mode with PKCS#7 padding and a two-character
-  salt — the scheme BIG-IP itself uses.  It runs on the bundled
-  pure-Python cipher, so it works in the zipapp with no `cryptography`
-  dependency.
+  salt — the scheme BIG-IP itself uses.  The Python front-end runs it on a
+  bundled pure-Python cipher (so it works in the zipapp with no
+  `cryptography` dependency); the Rust front-end delegates the block
+  transform to the audited [`aes`] crate already vendored for the
+  encrypted-UCS path.  Both produce identical ciphertext.
 - A wrong master key is reported as an error (the padding or salt check
   fails) rather than producing silent garbage.
 - The clear-text output holds real credentials and SSL key passphrases —
   treat `decrypt-secrets` output as sensitive and avoid writing it to a
   shared location.
-```
+
+[`aes`]: https://crates.io/crates/aes

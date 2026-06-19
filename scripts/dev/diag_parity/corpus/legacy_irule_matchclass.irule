@@ -1,0 +1,11 @@
+when HTTP_REQUEST {
+  if { [matchclass [HTTP::uri] equals $::mylist] } {
+    log local0. "hit"
+  }
+}
+when CLIENT_ACCEPTED {
+  set ip [IP::client_addr]
+  if { [matchclass $ip equals $::blocklist] } {
+    log local0. "blocked $ip"
+  }
+}

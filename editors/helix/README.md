@@ -25,11 +25,15 @@ on their PATH — no per-user `languages.toml` edit is required.
 ## Configuration (until upstream merges)
 
 ```toml
+# Native Rust server (default); build with `make rust-server`.
 [language-server.tcl-lsp]
-command = "uv"
-args = ["run", "--directory", "/path/to/tcl-lsp", "--no-dev", "python", "-m", "server"]
+command = "/path/to/tcl-lsp/target/release/tcl-lsp-server"
+args = []
 
-# Or with the standalone zipapp:
+# Python opt-out — run from source:
+# command = "uv"
+# args = ["run", "--directory", "/path/to/tcl-lsp", "--no-dev", "python", "-m", "server"]
+# ...or the standalone zipapp:
 # command = "python3"
 # args = ["/path/to/tcl-lsp-server.pyz"]
 

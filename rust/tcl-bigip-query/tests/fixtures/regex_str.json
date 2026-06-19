@@ -1,0 +1,527 @@
+[
+  {
+    "query": "match(\"vs_prod_web\", \"^vs_\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "match(\"api_vs\", \"^vs_\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "match(\"a1b2c3\", \"[0-9]\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "match(\"hello\", \"x+\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "test(\"vs_prod\", \"^vs_\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "test(\"VS_PROD\", \"^vs_\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "test(\"VS_PROD\", \"^vs_\", \"i\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "test(\"abc\", \"B\", \"i\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "test(\"one\\ntwo\", \"^two$\", \"m\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "test(\"a\", \"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "sub(\"1.2.3.4:443\", \":443$\", \":8443\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"1.2.3.4:8443\"\n]\n"
+  },
+  {
+    "query": "sub(\"user@host\", \"(\\\\w+)@(\\\\w+)\", \"\\\\2.\\\\1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"host.user\"\n]\n"
+  },
+  {
+    "query": "sub(\"foo-bar\", \"(?P<a>\\\\w+)-(?P<b>\\\\w+)\", \"\\\\g<b>_\\\\g<a>\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"bar_foo\"\n]\n"
+  },
+  {
+    "query": "sub(\"aaa\", \"a\", \"b\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"baa\"\n]\n"
+  },
+  {
+    "query": "sub(\"VS_dev_web\", \"^VS_\", \"vs_\", \"i\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"vs_dev_web\"\n]\n"
+  },
+  {
+    "query": "sub(\"nomatch\", \"xyz\", \"q\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"nomatch\"\n]\n"
+  },
+  {
+    "query": "gsub(\"a.b.c.d\", \"\\\\.\", \"-\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"a-b-c-d\"\n]\n"
+  },
+  {
+    "query": "gsub(\"/Common/old_x /Common/old_y\", \"old_\", \"new_\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/new_x /Common/new_y\"\n]\n"
+  },
+  {
+    "query": "gsub(\"a1b2c3\", \"([a-z])([0-9])\", \"\\\\2\\\\1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"1a2b3c\"\n]\n"
+  },
+  {
+    "query": "gsub(\"Mix MIX mix\", \"mix\", \"X\", \"i\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"X X X\"\n]\n"
+  },
+  {
+    "query": "gsub(\"hello\", \"z\", \"Q\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"hello\"\n]\n"
+  },
+  {
+    "query": "scan(\"a1 b22 c333\", \"[0-9]+\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"1\",\n    \"22\",\n    \"333\"\n  ]\n]\n"
+  },
+  {
+    "query": "scan(\"a=1 b=2 c=3\", \"([a-z])=([0-9])\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    [\n      \"a\",\n      \"1\"\n    ],\n    [\n      \"b\",\n      \"2\"\n    ],\n    [\n      \"c\",\n      \"3\"\n    ]\n  ]\n]\n"
+  },
+  {
+    "query": "scan(\"nope\", \"[0-9]+\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  []\n]\n"
+  },
+  {
+    "query": "scan(\"ABC\", \"[a-z]+\", \"i\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"ABC\"\n  ]\n]\n"
+  },
+  {
+    "query": "capture(\"vs_prod_web\", \"(?<env>prod|dev|qa)_(?<app>.+)\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"env\": \"prod\",\n    \"app\": \"web\"\n  }\n]\n"
+  },
+  {
+    "query": "capture(\"10.0.0.1:80\", \"(?<addr>[0-9.]+):(?<port>[0-9]+)\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"addr\": \"10.0.0.1\",\n    \"port\": \"80\"\n  }\n]\n"
+  },
+  {
+    "query": "capture(\"abc\", \"(?P<x>a)(?P<y>b)\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"x\": \"a\",\n    \"y\": \"b\"\n  }\n]\n"
+  },
+  {
+    "query": "capture(\"foobar\", \"(?P<g>[0-9]+)\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "capture: pattern '(?P<g>[0-9]+)' did not match"
+  },
+  {
+    "query": "capture(\"XYZ\", \"(?<low>[a-z]+)\", \"i\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"low\": \"XYZ\"\n  }\n]\n"
+  },
+  {
+    "query": "splits(\"a, b ,c,  d\", \" *, *\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"a\",\n    \"b\",\n    \"c\",\n    \"d\"\n  ]\n]\n"
+  },
+  {
+    "query": "splits(\"v1.2.3-rc4\", \"[.-]\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"v1\",\n    \"2\",\n    \"3\",\n    \"rc4\"\n  ]\n]\n"
+  },
+  {
+    "query": "splits(\"abc\", \"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"abc\"\n  ]\n]\n"
+  },
+  {
+    "query": "index(\"/Common/vs_443\", \":443\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "index(\"host:443:x\", \":443\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  4\n]\n"
+  },
+  {
+    "query": "index(\"nope\", \"zzz\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "index([\"http\", \"tcp\", \"ssl\"], \"ssl\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2\n]\n"
+  },
+  {
+    "query": "index([\"http\", \"tcp\"], \"ssl\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "ltrimstr(\"vs_prod_web\", \"vs_\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"prod_web\"\n]\n"
+  },
+  {
+    "query": "ltrimstr(\"api_vs\", \"vs_\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"api_vs\"\n]\n"
+  },
+  {
+    "query": "ltrimstr(\"anything\", \"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"anything\"\n]\n"
+  },
+  {
+    "query": "rtrimstr(\"web_pool\", \"_pool\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"web\"\n]\n"
+  },
+  {
+    "query": "rtrimstr(\"web_pool\", \"_xxx\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"web_pool\"\n]\n"
+  },
+  {
+    "query": "rtrimstr(\"web_pool\", \"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"web_pool\"\n]\n"
+  },
+  {
+    "query": "explode(\"abc\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    97,\n    98,\n    99\n  ]\n]\n"
+  },
+  {
+    "query": "explode(\"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  []\n]\n"
+  },
+  {
+    "query": "implode([97, 98, 99])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"abc\"\n]\n"
+  },
+  {
+    "query": "implode([72, 105])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"Hi\"\n]\n"
+  },
+  {
+    "query": "implode([])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\"\n]\n"
+  },
+  {
+    "query": "ascii(65)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"A\"\n]\n"
+  },
+  {
+    "query": "ascii(97)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"a\"\n]\n"
+  },
+  {
+    "query": "ascii(48)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"0\"\n]\n"
+  },
+  {
+    "query": "utf8bytelength(\"hello\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  5\n]\n"
+  },
+  {
+    "query": "utf8bytelength(\"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0\n]\n"
+  },
+  {
+    "query": "utf8bytelength(\"a b c\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  5\n]\n"
+  },
+  {
+    "query": "csv(\"a\", \"b\", \"c\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"a,b,c\"\n]\n"
+  },
+  {
+    "query": "csv(\"plain\", \"has,comma\", \"has\\\"quote\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"plain,\\\"has,comma\\\",\\\"has\\\"\\\"quote\\\"\"\n]\n"
+  },
+  {
+    "query": "csv(\"a\", \"\", \"c\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"a,,c\"\n]\n"
+  },
+  {
+    "query": "csv(\"name\", 42, true)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"name,42,true\"\n]\n"
+  },
+  {
+    "query": "csv(null, \"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \",x\"\n]\n"
+  },
+  {
+    "query": "tsv(\"a\", \"b\", \"c\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"a\\tb\\tc\"\n]\n"
+  },
+  {
+    "query": "tsv(\"name\", 80, false)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"name\\t80\\tfalse\"\n]\n"
+  },
+  {
+    "query": "tsv(null, \"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\\tx\"\n]\n"
+  },
+  {
+    "query": "test(\"x\", \"bad\", \"z\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "test: unsupported regex flag 'z' (supported: i, x, s, m)"
+  },
+  {
+    "query": "match(42, \"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "match: argument 1 must be a string, got int"
+  },
+  {
+    "query": "sub(42, \"a\", \"b\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "sub: argument 1 must be a string, got int"
+  },
+  {
+    "query": "implode([\"a\"])",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "implode: item 0 must be an integer codepoint, got string"
+  },
+  {
+    "query": "implode([-1])",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "implode: item 0 = -1 is not a valid Unicode codepoint"
+  },
+  {
+    "query": "implode([1114112])",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "implode: item 0 = 1114112 is not a valid Unicode codepoint"
+  },
+  {
+    "query": "ascii(-1)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ascii: -1 is not a valid Unicode codepoint"
+  },
+  {
+    "query": "ascii(1114112)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ascii: 1114112 is not a valid Unicode codepoint"
+  },
+  {
+    "query": "index(42, \"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "index: cannot search inside int"
+  },
+  {
+    "query": "explode(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "explode: argument 1 must be a string, got int"
+  },
+  {
+    "query": "utf8bytelength(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "utf8bytelength: argument 1 must be a string, got int"
+  },
+  {
+    "query": "csv({a: 1})",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "csv: argument 1 cannot be rendered as a row cell (dict)"
+  }
+]

@@ -1,0 +1,1627 @@
+[
+  {
+    "query": ".",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"name\": \"web\",\n    \"port\": 80,\n    \"tags\": [\n      \"a\",\n      \"b\"\n    ],\n    \"nested\": {\n      \"x\": 1\n    }\n  }\n]\n"
+  },
+  {
+    "query": ".name",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"web\"\n]\n"
+  },
+  {
+    "query": ".nested.x",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1\n]\n"
+  },
+  {
+    "query": ".tags[0]",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"a\"\n]\n"
+  },
+  {
+    "query": ".tags[-1]",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"b\"\n]\n"
+  },
+  {
+    "query": ".tags[]",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"a\",\n  \"b\"\n]\n"
+  },
+  {
+    "query": ".[]",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3,\n  1,\n  2,\n  1,\n  5\n]\n"
+  },
+  {
+    "query": ".[1]",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1\n]\n"
+  },
+  {
+    "query": ".tags | length",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2\n]\n"
+  },
+  {
+    "query": ".[] | . + 1",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  4,\n  2,\n  3,\n  2,\n  6\n]\n"
+  },
+  {
+    "query": "length",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  5\n]\n"
+  },
+  {
+    "query": "length",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  4\n]\n"
+  },
+  {
+    "query": "keys",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"name\",\n    \"nested\",\n    \"port\",\n    \"tags\"\n  ]\n]\n"
+  },
+  {
+    "query": "keys_unsorted",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"name\",\n    \"port\",\n    \"tags\",\n    \"nested\"\n  ]\n]\n"
+  },
+  {
+    "query": "values",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"web\",\n    {\n      \"x\": 1\n    },\n    80,\n    [\n      \"a\",\n      \"b\"\n    ]\n  ]\n]\n"
+  },
+  {
+    "query": "type",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"dict\"\n]\n"
+  },
+  {
+    "query": "type",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"list\"\n]\n"
+  },
+  {
+    "query": "has(\"name\")",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "has(\"missing\")",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "add",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  12\n]\n"
+  },
+  {
+    "query": "add",
+    "input": [
+      [
+        "a"
+      ],
+      [
+        "b",
+        "c"
+      ]
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"a\",\n    \"b\",\n    \"c\"\n  ]\n]\n"
+  },
+  {
+    "query": "sort",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1,\n    1,\n    2,\n    3,\n    5\n  ]\n]\n"
+  },
+  {
+    "query": "unique",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1,\n    2,\n    3,\n    5\n  ]\n]\n"
+  },
+  {
+    "query": "dupes",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1\n  ]\n]\n"
+  },
+  {
+    "query": "reverse",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    5,\n    1,\n    2,\n    1,\n    3\n  ]\n]\n"
+  },
+  {
+    "query": "first",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3\n]\n"
+  },
+  {
+    "query": "last",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  5\n]\n"
+  },
+  {
+    "query": "count",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  5\n]\n"
+  },
+  {
+    "query": "min",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1\n]\n"
+  },
+  {
+    "query": "max",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  5\n]\n"
+  },
+  {
+    "query": "range(5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0,\n  1,\n  2,\n  3,\n  4\n]\n"
+  },
+  {
+    "query": "range(1, 10, 2)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1,\n  3,\n  5,\n  7,\n  9\n]\n"
+  },
+  {
+    "query": "range(5, 0, -2)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  5,\n  3,\n  1\n]\n"
+  },
+  {
+    "query": "empty",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[]\n"
+  },
+  {
+    "query": "1 + 2 * 3",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  7\n]\n"
+  },
+  {
+    "query": "10 / 4",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2.5\n]\n"
+  },
+  {
+    "query": "7 - 3",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  4\n]\n"
+  },
+  {
+    "query": ".port + 1",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  81\n]\n"
+  },
+  {
+    "query": ".name + \"!\"",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"web!\"\n]\n"
+  },
+  {
+    "query": "\"n=\" + (.port | tostring)",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"n=80\"\n]\n"
+  },
+  {
+    "query": ".port > 50",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": ".port == 80 and .name == \"web\"",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "not",
+    "input": true,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "-.port",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -80\n]\n"
+  },
+  {
+    "query": "[1,2,3] - [2]",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1,\n    3\n  ]\n]\n"
+  },
+  {
+    "query": ".[] | select(. > 1)",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3,\n  2,\n  5\n]\n"
+  },
+  {
+    "query": "map(. + 1)",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    4,\n    2,\n    3,\n    2,\n    6\n  ]\n]\n"
+  },
+  {
+    "query": "map(. * 2)",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    6,\n    2,\n    4,\n    2,\n    10\n  ]\n]\n"
+  },
+  {
+    "query": "[.[] | select(. > 1)]",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    3,\n    2,\n    5\n  ]\n]\n"
+  },
+  {
+    "query": "sort_by(.age)",
+    "input": [
+      {
+        "name": "alice",
+        "age": 30,
+        "team": "blue"
+      },
+      {
+        "name": "bob",
+        "age": 25,
+        "team": "red"
+      },
+      {
+        "name": "carol",
+        "age": 30,
+        "team": "blue"
+      }
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    {\n      \"name\": \"bob\",\n      \"age\": 25,\n      \"team\": \"red\"\n    },\n    {\n      \"name\": \"alice\",\n      \"age\": 30,\n      \"team\": \"blue\"\n    },\n    {\n      \"name\": \"carol\",\n      \"age\": 30,\n      \"team\": \"blue\"\n    }\n  ]\n]\n"
+  },
+  {
+    "query": "group_by(.team)",
+    "input": [
+      {
+        "name": "alice",
+        "age": 30,
+        "team": "blue"
+      },
+      {
+        "name": "bob",
+        "age": 25,
+        "team": "red"
+      },
+      {
+        "name": "carol",
+        "age": 30,
+        "team": "blue"
+      }
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    [\n      {\n        \"name\": \"alice\",\n        \"age\": 30,\n        \"team\": \"blue\"\n      },\n      {\n        \"name\": \"carol\",\n        \"age\": 30,\n        \"team\": \"blue\"\n      }\n    ],\n    [\n      {\n        \"name\": \"bob\",\n        \"age\": 25,\n        \"team\": \"red\"\n      }\n    ]\n  ]\n]\n"
+  },
+  {
+    "query": "unique_by(.team)",
+    "input": [
+      {
+        "name": "alice",
+        "age": 30,
+        "team": "blue"
+      },
+      {
+        "name": "bob",
+        "age": 25,
+        "team": "red"
+      },
+      {
+        "name": "carol",
+        "age": 30,
+        "team": "blue"
+      }
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    {\n      \"name\": \"alice\",\n      \"age\": 30,\n      \"team\": \"blue\"\n    },\n    {\n      \"name\": \"bob\",\n      \"age\": 25,\n      \"team\": \"red\"\n    }\n  ]\n]\n"
+  },
+  {
+    "query": "min_by(.age)",
+    "input": [
+      {
+        "name": "alice",
+        "age": 30,
+        "team": "blue"
+      },
+      {
+        "name": "bob",
+        "age": 25,
+        "team": "red"
+      },
+      {
+        "name": "carol",
+        "age": 30,
+        "team": "blue"
+      }
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"name\": \"bob\",\n    \"age\": 25,\n    \"team\": \"red\"\n  }\n]\n"
+  },
+  {
+    "query": "max_by(.age)",
+    "input": [
+      {
+        "name": "alice",
+        "age": 30,
+        "team": "blue"
+      },
+      {
+        "name": "bob",
+        "age": 25,
+        "team": "red"
+      },
+      {
+        "name": "carol",
+        "age": 30,
+        "team": "blue"
+      }
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"name\": \"alice\",\n    \"age\": 30,\n    \"team\": \"blue\"\n  }\n]\n"
+  },
+  {
+    "query": "min_max(.age)",
+    "input": [
+      {
+        "name": "alice",
+        "age": 30,
+        "team": "blue"
+      },
+      {
+        "name": "bob",
+        "age": 25,
+        "team": "red"
+      },
+      {
+        "name": "carol",
+        "age": 30,
+        "team": "blue"
+      }
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    {\n      \"name\": \"bob\",\n      \"age\": 25,\n      \"team\": \"red\"\n    },\n    {\n      \"name\": \"alice\",\n      \"age\": 30,\n      \"team\": \"blue\"\n    }\n  ]\n]\n"
+  },
+  {
+    "query": "map(.name)",
+    "input": [
+      {
+        "name": "alice",
+        "age": 30,
+        "team": "blue"
+      },
+      {
+        "name": "bob",
+        "age": 25,
+        "team": "red"
+      },
+      {
+        "name": "carol",
+        "age": 30,
+        "team": "blue"
+      }
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"alice\",\n    \"bob\",\n    \"carol\"\n  ]\n]\n"
+  },
+  {
+    "query": "{a: .port, b: .name}",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"a\": 80,\n    \"b\": \"web\"\n  }\n]\n"
+  },
+  {
+    "query": "{name}",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"name\": \"web\"\n  }\n]\n"
+  },
+  {
+    "query": "{}",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {}\n]\n"
+  },
+  {
+    "query": "[.[] | . * 10]",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    30,\n    10,\n    20,\n    10,\n    50\n  ]\n]\n"
+  },
+  {
+    "query": "[]",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  []\n]\n"
+  },
+  {
+    "query": ".name, .port",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"web\",\n  80\n]\n"
+  },
+  {
+    "query": "if .port > 50 then \"big\" else \"small\" end",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"big\"\n]\n"
+  },
+  {
+    "query": ".[] | if . > 2 then \"hi\" elif . > 1 then \"mid\" else \"lo\" end",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"hi\",\n  \"lo\",\n  \"mid\",\n  \"lo\",\n  \"hi\"\n]\n"
+  },
+  {
+    "query": "to_entries",
+    "input": {
+      "a": 1,
+      "b": 2
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    {\n      \"key\": \"a\",\n      \"value\": 1\n    },\n    {\n      \"key\": \"b\",\n      \"value\": 2\n    }\n  ]\n]\n"
+  },
+  {
+    "query": "from_entries",
+    "input": [
+      {
+        "key": "a",
+        "value": 1
+      },
+      {
+        "key": "b",
+        "value": 2
+      }
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"a\": 1,\n    \"b\": 2\n  }\n]\n"
+  },
+  {
+    "query": "with_entries(.value += 1)",
+    "input": {
+      "a": 1,
+      "b": 2
+    },
+    "mode": "json",
+    "kind": "err",
+    "output": "cannot assign to 'value' on dict (LHS must resolve to a BIG-IP object)"
+  },
+  {
+    "query": "flatten",
+    "input": [
+      [
+        1,
+        2
+      ],
+      [
+        3,
+        [
+          4
+        ]
+      ]
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1,\n    2,\n    3,\n    [\n      4\n    ]\n  ]\n]\n"
+  },
+  {
+    "query": "flatten(2)",
+    "input": [
+      [
+        1,
+        2
+      ],
+      [
+        3,
+        [
+          4
+        ]
+      ]
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1,\n    2,\n    3,\n    4\n  ]\n]\n"
+  },
+  {
+    "query": "[paths]",
+    "input": {
+      "a": 1,
+      "b": [
+        2,
+        3
+      ]
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    [\n      \"a\"\n    ],\n    [\n      \"b\"\n    ],\n    [\n      \"b\",\n      0\n    ],\n    [\n      \"b\",\n      1\n    ]\n  ]\n]\n"
+  },
+  {
+    "query": "[leaf_paths]",
+    "input": {
+      "a": 1,
+      "b": [
+        2,
+        3
+      ]
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    [\n      \"a\"\n    ],\n    [\n      \"b\",\n      0\n    ],\n    [\n      \"b\",\n      1\n    ]\n  ]\n]\n"
+  },
+  {
+    "query": "getpath([\"nested\", \"x\"])",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1\n]\n"
+  },
+  {
+    "query": "setpath([\"port\"], 0)",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"name\": \"web\",\n    \"port\": 0,\n    \"tags\": [\n      \"a\",\n      \"b\"\n    ],\n    \"nested\": {\n      \"x\": 1\n    }\n  }\n]\n"
+  },
+  {
+    "query": "del([\"port\"])",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"name\": \"web\",\n    \"tags\": [\n      \"a\",\n      \"b\"\n    ],\n    \"nested\": {\n      \"x\": 1\n    }\n  }\n]\n"
+  },
+  {
+    "query": "walk(if type == \"string\" then ascii_upcase else . end)",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"name\": \"WEB\",\n    \"port\": 80,\n    \"tags\": [\n      \"A\",\n      \"B\"\n    ],\n    \"nested\": {\n      \"x\": 1\n    }\n  }\n]\n"
+  },
+  {
+    "query": "[recurse]",
+    "input": {
+      "a": {
+        "b": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    {\n      \"a\": {\n        \"b\": 1\n      }\n    },\n    {\n      \"b\": 1\n    },\n    1\n  ]\n]\n"
+  },
+  {
+    "query": "startswith(\"web\")",
+    "input": "webserver",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "endswith(\"ver\")",
+    "input": "webserver",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "contains(\"bs\")",
+    "input": "webserver",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "split(\",\")",
+    "input": "a,b,c",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"a\",\n    \"b\",\n    \"c\"\n  ]\n]\n"
+  },
+  {
+    "query": "join(\"-\")",
+    "input": [
+      "a",
+      "b",
+      "c"
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"a-b-c\"\n]\n"
+  },
+  {
+    "query": "ascii_upcase",
+    "input": "abc",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"ABC\"\n]\n"
+  },
+  {
+    "query": "downcase",
+    "input": "ABC",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"abc\"\n]\n"
+  },
+  {
+    "query": "tonumber",
+    "input": "42",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  42\n]\n"
+  },
+  {
+    "query": "tonumber",
+    "input": "3.5",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.5\n]\n"
+  },
+  {
+    "query": "tostring",
+    "input": 42,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"42\"\n]\n"
+  },
+  {
+    "query": "tostring",
+    "input": [
+      1,
+      2
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"[1,2]\"\n]\n"
+  },
+  {
+    "query": "floor",
+    "input": 2.7,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2\n]\n"
+  },
+  {
+    "query": "ceil",
+    "input": 2.1,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3\n]\n"
+  },
+  {
+    "query": "abs",
+    "input": -5,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  5\n]\n"
+  },
+  {
+    "query": "abs",
+    "input": -2.5,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2.5\n]\n"
+  },
+  {
+    "query": "IN(1, 2, 3)",
+    "input": 2,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "IN(1, 2, 3)",
+    "input": 9,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "INDEX(.name)",
+    "input": [
+      {
+        "name": "alice",
+        "age": 30,
+        "team": "blue"
+      },
+      {
+        "name": "bob",
+        "age": 25,
+        "team": "red"
+      },
+      {
+        "name": "carol",
+        "age": 30,
+        "team": "blue"
+      }
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"alice\": {\n      \"name\": \"alice\",\n      \"age\": 30,\n      \"team\": \"blue\"\n    },\n    \"bob\": {\n      \"name\": \"bob\",\n      \"age\": 25,\n      \"team\": \"red\"\n    },\n    \"carol\": {\n      \"name\": \"carol\",\n      \"age\": 30,\n      \"team\": \"blue\"\n    }\n  }\n]\n"
+  },
+  {
+    "query": ". as $x | $x.port",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  80\n]\n"
+  },
+  {
+    "query": ".tags[] as $t | $t + \"!\"",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"a!\",\n  \"b!\"\n]\n"
+  },
+  {
+    "query": "combinations",
+    "input": [
+      [
+        1,
+        2
+      ],
+      [
+        "a",
+        "b"
+      ]
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1,\n    \"a\"\n  ],\n  [\n    1,\n    \"b\"\n  ],\n  [\n    2,\n    \"a\"\n  ],\n  [\n    2,\n    \"b\"\n  ]\n]\n"
+  },
+  {
+    "query": ".[]",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "raw",
+    "kind": "ok",
+    "output": "3\n1\n2\n1\n5\n"
+  },
+  {
+    "query": ".name",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "raw",
+    "kind": "ok",
+    "output": "web\n"
+  },
+  {
+    "query": "[.tags[]]",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "auto",
+    "kind": "ok",
+    "output": "a\nb\n"
+  },
+  {
+    "query": ".[] | select(. > 1)",
+    "input": [
+      3,
+      1,
+      2,
+      1,
+      5
+    ],
+    "mode": "raw",
+    "kind": "ok",
+    "output": "3\n2\n5\n"
+  },
+  {
+    "query": "sort",
+    "input": [
+      null,
+      true,
+      2,
+      "x",
+      [
+        1
+      ],
+      {
+        "k": 1
+      }
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    null,\n    true,\n    2,\n    \"x\",\n    [\n      1\n    ],\n    {\n      \"k\": 1\n    }\n  ]\n]\n"
+  },
+  {
+    "query": "unique",
+    "input": [
+      3,
+      1,
+      2,
+      1
+    ],
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1,\n    2,\n    3\n  ]\n]\n"
+  },
+  {
+    "query": "http_status",
+    "input": {
+      "status": 200,
+      "body": "ok",
+      "headers": {
+        "x": "y"
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  200\n]\n"
+  },
+  {
+    "query": "http_status",
+    "input": {
+      "body": "no status"
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "http_body",
+    "input": {
+      "status": 204,
+      "body": "hello"
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"hello\"\n]\n"
+  },
+  {
+    "query": "http_body",
+    "input": {
+      "status": 204
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\"\n]\n"
+  },
+  {
+    "query": "http_body_json",
+    "input": {
+      "body": "{\"a\":1,\"b\":[2,3]}"
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"a\": 1,\n    \"b\": [\n      2,\n      3\n    ]\n  }\n]\n"
+  },
+  {
+    "query": "http_body_json",
+    "input": {
+      "body_json": {
+        "k": "v"
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"k\": \"v\"\n  }\n]\n"
+  },
+  {
+    "query": "http_headers",
+    "input": {
+      "headers": {
+        "content-type": "text/html"
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"content-type\": \"text/html\"\n  }\n]\n"
+  },
+  {
+    "query": "http_header(\"Content-Type\")",
+    "input": {
+      "headers": {
+        "content-type": "text/html"
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"text/html\"\n]\n"
+  },
+  {
+    "query": "http_header(\"missing\")",
+    "input": {
+      "headers": {}
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "http_ok",
+    "input": {
+      "status": 200
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "http_ok",
+    "input": {
+      "status": 404
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "http_redirect",
+    "input": {
+      "status": 301
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "http_client_error",
+    "input": {
+      "status": 404
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "http_server_error",
+    "input": {
+      "status": 503
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "http_status",
+    "input": 5,
+    "mode": "json",
+    "kind": "err",
+    "output": "http_status: argument must be an HTTP response dict (got int)"
+  },
+  {
+    "query": ".a + .b",
+    "input": {
+      "a": 1,
+      "b": "x"
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"1x\"\n]\n"
+  },
+  {
+    "query": "keys",
+    "input": 5,
+    "mode": "json",
+    "kind": "err",
+    "output": "keys: argument 1 must be an object or list, got int"
+  },
+  {
+    "query": "length",
+    "input": 5,
+    "mode": "json",
+    "kind": "err",
+    "output": "length: cannot take length of int"
+  },
+  {
+    "query": "nope(.)",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "err",
+    "output": "unknown function 'nope'"
+  },
+  {
+    "query": ".missing",
+    "input": {
+      "name": "web",
+      "port": 80,
+      "tags": [
+        "a",
+        "b"
+      ],
+      "nested": {
+        "x": 1
+      }
+    },
+    "mode": "json",
+    "kind": "err",
+    "output": "no field 'missing'"
+  },
+  {
+    "query": "1 / 0",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "division by zero"
+  }
+]

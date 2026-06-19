@@ -1,0 +1,1451 @@
+[
+  {
+    "query": "ip(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.1\"\n]\n"
+  },
+  {
+    "query": "ip(\"/Common/192.168.1.1:80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"192.168.1.1\"\n]\n"
+  },
+  {
+    "query": "ip(\"/Common/10.10.0.5%5:443\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.10.0.5\"\n]\n"
+  },
+  {
+    "query": "ip(\"2001:db8::1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8::1\"\n]\n"
+  },
+  {
+    "query": "ip(\"/Common/[2001:db8::1]:80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8::1\"\n]\n"
+  },
+  {
+    "query": "ip(\"[2001:db8::1%5].8080\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8::1\"\n]\n"
+  },
+  {
+    "query": "ip(\"192.168.9.0/24\", \"10.10.0.5%5:443\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"192.168.9.5%5:443\"\n]\n"
+  },
+  {
+    "query": "ip(\"192.168.9.0/24\", \"/Common/10.10.0.5%5:443\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/192.168.9.5%5:443\"\n]\n"
+  },
+  {
+    "query": "ip(\"2001:db8:9::/64\", \"2001:db8::1:203\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8:9::1:203\"\n]\n"
+  },
+  {
+    "query": "ip(\"192.168.9.0/24\", \"10.10.0.5\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"192.168.9.5\"\n]\n"
+  },
+  {
+    "query": "ip(\"notanip\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ip: invalid address 'notanip': 'notanip' does not appear to be an IPv4 or IPv6 address"
+  },
+  {
+    "query": "ip(\"garbage\", \"10.0.0.5\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ip: invalid network 'garbage': 'garbage' does not appear to be an IPv4 or IPv6 network"
+  },
+  {
+    "query": "ip(\"192.168.9.0/24\", \"notanip\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ip: invalid source address 'notanip': 'notanip' does not appear to be an IPv4 or IPv6 address"
+  },
+  {
+    "query": "ip(\"10.0.0.0/24\", \"2001:db8::1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ip: cannot rebase an IPv6 address into an IPv4 network"
+  },
+  {
+    "query": "ip(\"2001:db8::/64\", \"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ip: cannot rebase an IPv4 address into an IPv6 network"
+  },
+  {
+    "query": "ip(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ip: argument 1 must be a string, got int"
+  },
+  {
+    "query": "ip_translate(\"10.0.0.0/8\", \"2001:db8::/32\", \"10.1.2.3\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8::1:203\"\n]\n"
+  },
+  {
+    "query": "ip_translate(\"192.168.50.0/24\", \"2001:db8:50::/64\", \"192.168.50.10\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8:50::a\"\n]\n"
+  },
+  {
+    "query": "ip_translate(\"10.0.0.0/8\", \"192.168.0.0/16\", \"10.0.0.5\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ip_translate: dst_net '192.168.0.0/16' is too specific to hold the host bits of src_net '10.0.0.0/8' (24-bit host vs 16-bit host)"
+  },
+  {
+    "query": "ip_translate(\"10.0.0.0/24\", \"10.1.0.0/16\", \"10.0.0.5\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.1.0.5\"\n]\n"
+  },
+  {
+    "query": "ip_translate(\"10.0.0.0/24\", \"10.1.0.0/26\", \"10.0.0.5\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ip_translate: dst_net '10.1.0.0/26' is too specific to hold the host bits of src_net '10.0.0.0/24' (8-bit host vs 6-bit host)"
+  },
+  {
+    "query": "ip_translate(\"10.0.0.0/24\", \"10.1.0.0/16\", \"192.168.1.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ip_translate: '192.168.1.1' is not within src_net '10.0.0.0/24'"
+  },
+  {
+    "query": "ip_translate(\"bad\", \"10.0.0.0/8\", \"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ip_translate: invalid src_net 'bad': 'bad' does not appear to be an IPv4 or IPv6 network"
+  },
+  {
+    "query": "ip_translate(\"10.0.0.0/8\", \"bad\", \"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ip_translate: invalid dst_net 'bad': 'bad' does not appear to be an IPv4 or IPv6 network"
+  },
+  {
+    "query": "ip_translate(\"10.0.0.0/8\", \"10.1.0.0/16\", \"notanip\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ip_translate: invalid addr 'notanip': 'notanip' does not appear to be an IPv4 or IPv6 address"
+  },
+  {
+    "query": "net(\"192.168.9.0/24\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"192.168.9.0/24\"\n]\n"
+  },
+  {
+    "query": "net(\"192.168.9.42/24\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"192.168.9.0/24\"\n]\n"
+  },
+  {
+    "query": "net(\"2001:db8::42/64\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8::/64\"\n]\n"
+  },
+  {
+    "query": "net(\"10.0.0.0/255.255.255.0\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.0/24\"\n]\n"
+  },
+  {
+    "query": "net(\"notanet\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "net: invalid value 'notanet': 'notanet' does not appear to be an IPv4 or IPv6 network"
+  },
+  {
+    "query": "host(\"/Common/192.168.1.1:80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"192.168.1.1\"\n]\n"
+  },
+  {
+    "query": "host(\"/Common/10.0.0.1%5:443\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.1\"\n]\n"
+  },
+  {
+    "query": "host(\"2001:db8::1.80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8::1\"\n]\n"
+  },
+  {
+    "query": "host(\"plainstring\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"plainstring\"\n]\n"
+  },
+  {
+    "query": "port(\"192.168.1.1:80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  80\n]\n"
+  },
+  {
+    "query": "port(\"/Common/10.0.0.1%5:443\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  443\n]\n"
+  },
+  {
+    "query": "port(\"/Common/10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "port(\"0.0.0.0:any\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "invalid literal for int() with base 10: 'any'"
+  },
+  {
+    "query": "route_domain(\"10.0.0.1%5:80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"5\"\n]\n"
+  },
+  {
+    "query": "route_domain(\"/Common/10.0.0.1:80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "route_domain(\"2001:db8::1%7.443\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"7\"\n]\n"
+  },
+  {
+    "query": "with_route_domain(\"/Common/10.0.0.1:80\", 7)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/10.0.0.1%7:80\"\n]\n"
+  },
+  {
+    "query": "with_route_domain(\"/Common/10.0.0.1%5:80\", \"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/10.0.0.1:80\"\n]\n"
+  },
+  {
+    "query": "with_route_domain(\"10.0.0.1:80\", \"9\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.1%9:80\"\n]\n"
+  },
+  {
+    "query": "with_route_domain(\"10.0.0.1\", 3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.1%3\"\n]\n"
+  },
+  {
+    "query": "with_route_domain(\"10.0.0.1\", true)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "with_route_domain: rd cannot be a boolean"
+  },
+  {
+    "query": "in_cidr(\"10.0.0.5\", \"10.0.0.0/8\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "in_cidr(\"/Common/10.0.0.5:80\", \"10.0.0.0/8\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "in_cidr(\"10.0.0.5%5\", \"10.0.0.0/8\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "in_cidr(\"192.168.1.1\", \"10.0.0.0/8\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "in_cidr(\"2001:db8::1\", \"2001:db8::/32\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "in_cidr(\"10.0.0.5\", \"2001:db8::/32\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "in_cidr(\"notanip\", \"10.0.0.0/8\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "in_cidr(\"10.0.0.5\", \"notanet\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "in_cidr: invalid network 'notanet': 'notanet' does not appear to be an IPv4 or IPv6 network"
+  },
+  {
+    "query": "is_ipv4(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_ipv4(\"2001:db8::1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_ipv4(\"host.example.com\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_ipv4(\"/Common/10.0.0.1:80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_ipv6(\"2001:db8::1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_ipv6(\"[2001:db8::1]:80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_ipv6(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_fqdn(\"host.example.com\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_fqdn(\"/Common/host.example.com:443\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_fqdn(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_ipv4(null)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_private(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_private(\"172.16.5.5\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_private(\"192.168.1.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_private(\"8.8.8.8\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_private(\"fc00::1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_private(\"2001:db8::1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_loopback(\"127.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_loopback(\"::1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_loopback(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_unspecified(\"0.0.0.0\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_unspecified(\"::\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_unspecified(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_multicast(\"224.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_multicast(\"ff02::1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_multicast(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_link_local(\"169.254.1.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_link_local(\"fe80::1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_link_local(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_reserved(\"240.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_reserved(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_public(\"8.8.8.8\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_public(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_public(\"127.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_public(\"224.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_public(\"2606:4700:4700::1111\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_documentation(\"192.0.2.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_documentation(\"198.51.100.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_documentation(\"203.0.113.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_documentation(\"2001:db8::1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_documentation(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_wildcard_port(\"/Common/0.0.0.0:any\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_wildcard_port(\"/Common/10.0.0.1:0\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "is_wildcard_port(\"/Common/10.0.0.1:80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "is_wildcard_port(null)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "prefix_length(\"10.0.0.0/24\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  24\n]\n"
+  },
+  {
+    "query": "prefix_length(\"10.0.0.0/255.255.255.0\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  24\n]\n"
+  },
+  {
+    "query": "prefix_length(\"2001:db8::/64\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  64\n]\n"
+  },
+  {
+    "query": "prefix_length(\"notanet\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "network_address(\"10.0.0.5/24\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.0\"\n]\n"
+  },
+  {
+    "query": "network_address(\"2001:db8::5/64\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8::\"\n]\n"
+  },
+  {
+    "query": "network_address(\"notanet\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "broadcast_address(\"10.0.0.0/24\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.255\"\n]\n"
+  },
+  {
+    "query": "broadcast_address(\"2001:db8::/120\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8::ff\"\n]\n"
+  },
+  {
+    "query": "first_host(\"10.0.0.0/24\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.1\"\n]\n"
+  },
+  {
+    "query": "first_host(\"10.0.0.0/31\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.0\"\n]\n"
+  },
+  {
+    "query": "first_host(\"10.0.0.5/32\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.5\"\n]\n"
+  },
+  {
+    "query": "first_host(\"2001:db8::/120\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8::1\"\n]\n"
+  },
+  {
+    "query": "last_host(\"10.0.0.0/24\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.254\"\n]\n"
+  },
+  {
+    "query": "last_host(\"10.0.0.0/31\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.1\"\n]\n"
+  },
+  {
+    "query": "last_host(\"2001:db8::/120\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8::ff\"\n]\n"
+  },
+  {
+    "query": "host_count(\"10.0.0.0/24\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  254\n]\n"
+  },
+  {
+    "query": "host_count(\"10.0.0.0/31\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2\n]\n"
+  },
+  {
+    "query": "host_count(\"10.0.0.0/32\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1\n]\n"
+  },
+  {
+    "query": "host_count(\"2001:db8::/120\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  254\n]\n"
+  },
+  {
+    "query": "host_count(\"notanet\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "collapse_cidrs([\"10.0.0.0/24\", \"10.0.1.0/24\"])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"10.0.0.0/23\"\n  ]\n]\n"
+  },
+  {
+    "query": "collapse_cidrs([\"10.0.0.0/9\", \"10.128.0.0/9\"])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"10.0.0.0/8\"\n  ]\n]\n"
+  },
+  {
+    "query": "collapse_cidrs([\"10.0.0.0/8\", \"10.1.0.0/16\"])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"10.0.0.0/8\"\n  ]\n]\n"
+  },
+  {
+    "query": "collapse_cidrs([\"10.0.0.0/24\", \"10.0.2.0/24\"])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"10.0.0.0/24\",\n    \"10.0.2.0/24\"\n  ]\n]\n"
+  },
+  {
+    "query": "collapse_cidrs([\"10.0.0.0/24\", \"2001:db8::/64\", \"10.0.1.0/24\"])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"10.0.0.0/23\",\n    \"2001:db8::/64\"\n  ]\n]\n"
+  },
+  {
+    "query": "collapse_cidrs([\"10.0.0.0/24\", \"notanet\"])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"10.0.0.0/24\"\n  ]\n]\n"
+  },
+  {
+    "query": "collapse_cidrs([])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  []\n]\n"
+  },
+  {
+    "query": "supernet_of([\"10.0.0.1\", \"10.0.1.1\"])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.0/23\"\n]\n"
+  },
+  {
+    "query": "supernet_of([\"10.0.0.0/24\", \"10.0.1.0/24\"])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.0/23\"\n]\n"
+  },
+  {
+    "query": "supernet_of([\"10.0.0.5\"])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.5/32\"\n]\n"
+  },
+  {
+    "query": "supernet_of([\"2001:db8::1\", \"2001:db8::1:0\"])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8::/111\"\n]\n"
+  },
+  {
+    "query": "supernet_of([\"10.0.0.1\", \"2001:db8::1\"])",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "supernet_of: cannot mix IPv4 and IPv6 inputs"
+  },
+  {
+    "query": "supernet_of([])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "subnet_of(\"10.1.0.0/16\", \"10.0.0.0/8\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "subnet_of(\"10.0.0.0/8\", \"10.1.0.0/16\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "subnet_of(\"10.0.0.0/8\", \"10.0.0.0/8\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "subnet_of(\"10.0.0.0/8\", \"2001:db8::/32\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "subnet_of(\"notanet\", \"10.0.0.0/8\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "overlaps(\"10.0.0.0/24\", \"10.0.0.0/16\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "overlaps(\"10.0.0.0/24\", \"10.1.0.0/24\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "overlaps(\"10.0.0.0/8\", \"2001:db8::/32\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "with_port(\"/Common/10.0.0.1:80\", 8443)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/10.0.0.1:8443\"\n]\n"
+  },
+  {
+    "query": "with_port(\"/Common/10.0.0.1:80\", \"any\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/10.0.0.1:any\"\n]\n"
+  },
+  {
+    "query": "with_port(\"/Common/10.0.0.1:80\", \"\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/10.0.0.1\"\n]\n"
+  },
+  {
+    "query": "with_port(\"/Common/[2001:db8::1]:80\", 443)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/[2001:db8::1]:443\"\n]\n"
+  },
+  {
+    "query": "with_port(\"2001:db8::1.80\", 443)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001:db8::1.443\"\n]\n"
+  },
+  {
+    "query": "with_port(\"/Common/10.0.0.1:80\", 70000)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "with_port: port out of range (70000)"
+  },
+  {
+    "query": "with_port(\"/Common/10.0.0.1:80\", true)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "with_port: port cannot be a boolean"
+  },
+  {
+    "query": "with_port(\"notadest\", 80)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "with_port: cannot parse destination 'notadest'"
+  },
+  {
+    "query": "with_port(\"/Common/10.0.0.1:80\", \"notaport\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "Port: not a number ('notaport')"
+  },
+  {
+    "query": "with_host(\"/Common/10.0.0.1:80\", \"10.0.0.2\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/10.0.0.2:80\"\n]\n"
+  },
+  {
+    "query": "with_host(\"/Common/10.0.0.1:80\", \"host.example.com\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/host.example.com:80\"\n]\n"
+  },
+  {
+    "query": "with_host(\"/Common/10.0.0.1:80\", \"2001:db8::1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/2001:db8::1:80\"\n]\n"
+  },
+  {
+    "query": "with_host(\"/Common/[2001:db8::1]:80\", \"10.0.0.5\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/10.0.0.5:80\"\n]\n"
+  },
+  {
+    "query": "with_host(\"notadest\", \"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "with_host: cannot parse destination 'notadest'"
+  },
+  {
+    "query": "folder(\"/Common/web_pool\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common\"\n]\n"
+  },
+  {
+    "query": "folder(\"/Common/iApps/Tenant.app/pool_1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/iApps/Tenant.app\"\n]\n"
+  },
+  {
+    "query": "folder(\"relativename\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\"\n]\n"
+  },
+  {
+    "query": "with_folder(\"/Common/web_pool\", \"/Tenant_A\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Tenant_A/web_pool\"\n]\n"
+  },
+  {
+    "query": "with_folder(\"/Common/iApps/old.app/pool_1\", \"/Common/iApps/new.app\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/iApps/new.app/pool_1\"\n]\n"
+  },
+  {
+    "query": "with_folder(\"notapath\", \"/Common\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "with_folder: cannot parse path 'notapath'"
+  },
+  {
+    "query": "with_folder(\"/Common/web_pool\", \"badfolder\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "with_folder: cannot parse folder 'badfolder'"
+  },
+  {
+    "query": "with_name(\"/Common/old_pool\", \"new_pool\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/new_pool\"\n]\n"
+  },
+  {
+    "query": "with_name(\"/Common/iApps/T.app/p1\", \"p2\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/iApps/T.app/p2\"\n]\n"
+  },
+  {
+    "query": "with_name(\"barename\", \"renamed\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"renamed\"\n]\n"
+  },
+  {
+    "query": "with_name(\"/Common/pool\", \"  \")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "with_name: new name must not be empty"
+  },
+  {
+    "query": "with_name(\"/badpath/\", \"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "with_name: cannot parse path '/badpath/'"
+  },
+  {
+    "query": "in_partition(\"/Common/web_pool\", \"Common\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "in_partition(\"/Common/web_pool\", \"/Common\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "in_partition(\"/Tenant_A/p\", \"Common\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "in_partition(\"notapath\", \"Common\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "in_folder(\"/Common/iApps/Tenant.app/pool_1\", \"/Common/iApps\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "in_folder(\"/Common/web_pool\", \"/Common/iApps\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "in_folder(\"/Common/iApps_bak/p\", \"/Common/iApps\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "in_folder(\"/Common/web_pool\", \"/Common\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "can_see(\"/Tenant_A/vs1\", \"/Common/web_pool\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "can_see(\"/Common/vs1\", \"/Tenant_A/web_pool\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "can_see(\"/Tenant_A/vs1\", \"/Tenant_B/web_pool\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "can_see(\"/Common/a\", \"/Common/b\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "can_see(\"notapath\", \"/Common/b\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "port_set_contains(\"80-82,8081\", 81)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "port_set_contains(\"80,443\", 8080)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "port_set_contains(\"any\", 12345)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "port_set_contains(\"notaset\", 80)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "port_set_count(\"80-82,8081\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  4\n]\n"
+  },
+  {
+    "query": "port_set_count(\"any\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  65536\n]\n"
+  },
+  {
+    "query": "port_set_count(\"80,80,80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1\n]\n"
+  },
+  {
+    "query": "port_set_count(\"notaset\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "port_set_overlaps(\"80-82,443\", \"82-100\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "port_set_overlaps(\"80-82,443\", \"100-200\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "port_set_overlaps(\"notaset\", \"80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "ip_range_to_cidrs(\"192.168.9.77-192.168.9.83\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"192.168.9.77/32\",\n    \"192.168.9.78/31\",\n    \"192.168.9.80/30\"\n  ]\n]\n"
+  },
+  {
+    "query": "ip_range_to_cidrs(\"10.0.0.1-10.0.0.255\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"10.0.0.1/32\",\n    \"10.0.0.2/31\",\n    \"10.0.0.4/30\",\n    \"10.0.0.8/29\",\n    \"10.0.0.16/28\",\n    \"10.0.0.32/27\",\n    \"10.0.0.64/26\",\n    \"10.0.0.128/25\"\n  ]\n]\n"
+  },
+  {
+    "query": "ip_range_to_cidrs(\"10.0.0.5\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"10.0.0.5/32\"\n  ]\n]\n"
+  },
+  {
+    "query": "ip_range_to_cidrs(\"notarange\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "ip_range_supernet(\"192.168.9.77-192.168.9.83\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"192.168.9.64/27\"\n]\n"
+  },
+  {
+    "query": "ip_range_supernet(\"10.0.0.0-10.0.0.255\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"10.0.0.0/24\"\n]\n"
+  },
+  {
+    "query": "ip_range_count(\"192.168.9.77-192.168.9.83\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  7\n]\n"
+  },
+  {
+    "query": "ip_range_count(\"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1\n]\n"
+  },
+  {
+    "query": "ip_range_count(\"badrange\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "ip_range_contains(\"192.168.9.77-192.168.9.83\", \"192.168.9.80\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "ip_range_contains(\"10.0.0.0-10.0.0.255\", \"10.0.1.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "ip_range_contains(\"10.0.0.0-10.0.0.255\", \"2001:db8::1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "ip_range_contains(\"badrange\", \"10.0.0.1\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "host(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "host: argument 1 must be a string, got int"
+  },
+  {
+    "query": "in_cidr(42, \"10.0.0.0/8\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "in_cidr: argument 1 must be a string, got int"
+  },
+  {
+    "query": "port_set_count(true)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "port_set_count: argument 1 must be a string, got bool"
+  }
+]

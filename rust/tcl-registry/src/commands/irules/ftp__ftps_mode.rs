@@ -1,0 +1,28 @@
+//! `FTP::ftps_mode` iRules command.
+use crate::prelude::*;
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "FTP::ftps_mode",
+        dialects: Some(DialectSet::IRULES),
+        arity: Arity::at_least(0),
+        hover: Some(HoverSnippet {
+            summary: "Get or set the activation mode for FTPS.",
+            synopsis: &["FTP::ftps_mode (disallow | allow | require)?"],
+            snippet: "Sets the FTPS activation mode to disallow (FTP commands \"AUTH SSL/TLS\" will be filtered out, and implicit FTPS connection will be dropped), allow (FTP will optionally activate TLS if client or server support \"AUTH SSL/TLS\"), or require (FTP will require that the client and server complete \"AUTH SSL/TLS\" before data transfers).",
+            source: "https://clouddocs.f5.com/api/irules/FTP__ftps_mode.html",
+            examples: "when CLIENT_ACCEPTED {\n                if { ([IP::addr [IP::client_addr] equals 10.0.0.0/8]) } {\n                    FTP::ftps_mode require\n                }\n\n                if { ([IP::addr [IP::client_addr] equals 10.0.0.0/8]) } {\n                    set mode [FTP::ftps_mode]\n                }\n            }",
+            return_value: "Returns the current activation mode.",
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "FTP::ftps_mode (disallow | allow | require)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FtpState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
+        ..CommandSpec::DEFAULT
+    }
+}

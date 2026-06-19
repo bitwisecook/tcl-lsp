@@ -1,0 +1,105 @@
+# Workspace manifest for the Rust side of tcl-lsp.
+#
+# This is the first step of an incremental Python-to-Rust migration. See
+# `docs/rust-rewrite.md` for the chunking strategy and the
+# "binding layer owns Python compatibility" rule.
+#
+# Layout:
+#
+#   rust/tcl-lexer/     Pure Rust lexer crate (no pyo3 dependency).
+#                       Uses borrowed `&str`, `thiserror`, iterators, enums.
+#                       Reusable by any downstream Rust consumer.
+#
+#   rust/tcl-lsp-core/   Pure Rust LSP feature providers (folding, symbols,
+#                        diagnostics projection). No pyo3 dependency.
+#                        The eventual native LSP server links against this.
+#
+#   rust/tcl-bigip/      Faithful port of the F5 BIG-IP object model + config
+#                        parser (dialects/f5/bigip). Value types, 169 model
+#                        structs, the parse_bigip_conf driver + dispatch, and
+#                        a canonical-JSON bridge the f5 command consumes via
+#                        PyO3. No pyo3 dependency itself.
+#
+#   rust/tcl-lsp-server/ Native LSP server binary built on tower-lsp.
+#                        Links tcl-lsp-core / tcl-compiler / tcl-registry.
+#                        No pyo3 dependency.
+#
+#   rust/tcl-lsp-py/     Public PyO3 binding crate (ARCH9). Owns the
+#                        `#[pyclass]` wrappers, `PyErr` translations,
+#                        and Python-compat shims. cdylib + rlib so
+#                        `tcl-lsp-rust` can re-export the same surface.
+#
+#   rust/tcl-lsp-rust/   Transitional alias crate — a one-release
+#                        re-export shim over `tcl-lsp-py`. Existing
+#                        `import tcl_lsp_rust` consumers keep working;
+#                        retires in vNext.
+#
+# `editors/zed/` is a pre-existing standalone cdylib targeting wasm32-wasip2;
+# it is intentionally excluded from this workspace so it continues to build
+# with its own resolver and lockfile.
+
+[workspace]
+resolver = "2"
+members = [
+    "rust/tcl-lexer",
+    "rust/tcl-syntax",
+    "rust/tcl-bytecode",
+    "rust/tcl-runtime-api",
+    "rust/tcl-registry",
+    "rust/tcl-compiler",
+    "rust/tcl-vm",
+    "rust/tcl-bigip",
+    "rust/tcl-bigip-io",
+    "rust/tcl-bigip-query",
+    "rust/tcl-irules",
+    "rust/tcl-lsp-core",
+    "rust/tcl-lsp-db",
+    "rust/tcl-lsp-server",
+    "rust/tcl-lsp-py",
+    "rust/tcl-lsp-rust",
+    "rust/tcl-explorer",
+    "rust/tcl-cli-support",
+    "rust/tcl-cli",
+    "rust/f5-cli",
+]
+exclude = [
+    "editors/zed",
+    # The compiler-explorer WASM facade is a cdylib for wasm32-unknown-unknown;
+    # wasm-bindgen's generated glue needs `unsafe`, which the workspace
+    # `unsafe_code = "forbid"` lint bans. Built via `make explorer-wasm`.
+    "rust/tcl-explorer-wasm",
+    # The Rust runtime port (runtime/rust/) is a standalone crate: it requires
+    # raw-pointer `unsafe` over the shared linear memory (c-extension-abi.md §9),
+    # so it cannot inherit the workspace `unsafe_code = "forbid"` lint, and it
+    # eventually targets wasm32 as a cdylib. Kept out of `cargo test --workspace`
+    # so the LSP/compiler workstream cannot regress on runtime-port churn.
+    # Gated separately via `make runtime-rust-test`. See
+    # docs/design/runtime/rust-runtime-port.md (T1.1).
+    "runtime/rust",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+# 2024 is the current Rust edition (editions ship ~every 3 years: 2015 / 2018 /
+# 2021 / 2024). MSRV tracks the toolchain the workspace is built/tested against
+# (rustc 1.96); ≥ 1.85 was already required for salsa 0.26 / tcl-lsp-db and the
+# runtime/rust port's is_none_or.
+rust-version = "1.96"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/bitwisecook/tcl-lsp"
+authors = ["tcl-lsp contributors"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Not useful in this codebase:
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

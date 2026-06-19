@@ -317,6 +317,11 @@ function clearSourceHighlight(): void {
   }
 }
 
+// Host-brokered compile via the LSP `tcl-lsp.compilerExplorer` command. This is
+// now the *fallback* path: when the webview bundles the Rust → WASM module it
+// compiles in-process and never posts `{type:"compile"}`, so this only runs in
+// dev builds without `make explorer-wasm` (and requires the Python LSP server,
+// which the native Rust server does not yet implement).
 async function runCompile(source: string, dialect: string, requestSeq: number): Promise<void> {
   const client: LanguageClient = getClient();
   if (!client || !panel) {

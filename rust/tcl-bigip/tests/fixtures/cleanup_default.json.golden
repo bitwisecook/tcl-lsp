@@ -1,0 +1,38 @@
+{
+  "candidates": [],
+  "kept": [
+    "test://config:103:49:ltm:persistence cookie:/Common/my_cookie_persist",
+    "test://config:113:41:ltm:profile http:/Common/my_http_profile",
+    "test://config:118:39:ltm:profile tcp:/Common/my_tcp_profile",
+    "test://config:123:44:ltm:profile client-ssl:/Common/my_clientssl",
+    "test://config:129:44:ltm:profile server-ssl:/Common/my_serverssl",
+    "test://config:12:44:ltm:data-group internal:/Common/blocked_ips",
+    "test://config:133:46:ltm:profile one-connect:/Common/my_oneconnect",
+    "test://config:137:31:ltm:rule:/Common/route_by_host",
+    "test://config:154:30:ltm:rule:/Common/ip_blocklist",
+    "test://config:162:29:ltm:rule:/Common/uri_rewrite",
+    "test://config:171:26:ltm:rule:/Common/ssl_info",
+    "test://config:177:32:ltm:rule:/Common/bad_references",
+    "test://config:190:27:ltm:virtual:/Common/www_vs",
+    "test://config:224:27:ltm:virtual:/Common/api_vs",
+    "test://config:237:32:ltm:virtual:/Common/ssl_only_vs",
+    "test://config:250:27:ltm:virtual:/Common/bad_vs",
+    "test://config:27:49:ltm:data-group internal:/Common/uri_redirect_map",
+    "test://config:3:46:ltm:data-group internal:/Common/allowed_hosts",
+    "test://config:46:22:ltm:node:/Common/web1",
+    "test://config:50:22:ltm:node:/Common/web2",
+    "test://config:54:22:ltm:node:/Common/web3",
+    "test://config:58:41:ltm:monitor http:/Common/my_http_monitor",
+    "test://config:66:26:ltm:pool:/Common/web_pool",
+    "test://config:79:26:ltm:pool:/Common/api_pool",
+    "test://config:96:33:ltm:snatpool:/Common/my_snatpool"
+  ],
+  "roots": [
+    "test://config:190:27:ltm:virtual:/Common/www_vs",
+    "test://config:224:27:ltm:virtual:/Common/api_vs",
+    "test://config:237:32:ltm:virtual:/Common/ssl_only_vs",
+    "test://config:250:27:ltm:virtual:/Common/bad_vs"
+  ],
+  "summary": {},
+  "tmshScript": "# tcl-lsp BIG-IP cleanup\n# Sources: test://config\n# Roots (kept): 4 virtual server(s) / wide-IP(s)\n# Candidates: none \u2014 every object is referenced.\n"
+}

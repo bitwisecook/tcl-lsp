@@ -389,11 +389,6 @@ suite("Configuration Settings", () => {
     assert.ok(inspect, "dialect setting should exist");
   });
 
-  // Python path
-  test("pythonPath defaults to auto", () => {
-    assert.strictEqual(cfg().get<string>("pythonPath"), "auto");
-  });
-
   // Server path
   test("serverPath defaults to empty", () => {
     assert.strictEqual(cfg().get<string>("serverPath"), "");

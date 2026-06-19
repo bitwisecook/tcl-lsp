@@ -1,0 +1,28 @@
+//! `JSON::get` iRules command.
+use crate::prelude::*;
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "JSON::get",
+        dialects: Some(DialectSet::IRULES),
+        arity: Arity::at_least(0),
+        hover: Some(HoverSnippet {
+            summary: "Gets the value content of a JSON element.",
+            synopsis: &["JSON::get JSON_ELEMENT (JSON_TYPE)?"],
+            snippet: "A JSON value can be one of many types. This command returns the value (content) of an element according to its type, as described below:\n\nnull : An empty Tcl list.\nboolean : 1 for true or 0 for false.\ninteger : A Tcl number representing an integer in the range -(2^63) through (2^63 - 1).\nliteral: A Tcl string not requiring JSON escape sequences.\nstring : A Tcl string without escape sequences (having been replaced by the characters they represent).\nobject : A JSON object handle.\narray : A JSON array handle.",
+            source: "https://clouddocs.f5.com/api/irules/JSON__get.html",
+            examples: "when JSON_REQUEST {\n    set rootval [JSON::root]\n    set content [JSON::get $rootval integer]\n    log local0. \"$content\"\n}",
+            return_value: "Returns the content held within the JSON element, according to the types listed in the above description.",
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "JSON::get JSON_ELEMENT (JSON_TYPE)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::Unknown,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::None,
+        }],
+        ..CommandSpec::DEFAULT
+    }
+}

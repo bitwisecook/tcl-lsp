@@ -1,0 +1,1 @@
+tmsh create ltm node /Common/n1 { address 10.0.0.1 }
