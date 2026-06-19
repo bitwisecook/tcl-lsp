@@ -9,6 +9,18 @@
 > precision first, performance second — with **time to first
 > semantic tokens** called out as the headline latency metric — and
 > memory a distant third. The sections are ordered to match.
+>
+> **Status update (2026-06-19).** This is a historical snapshot; several
+> headline findings have since been addressed. **C2** (no document-version
+> guard) is **resolved** — `DocumentState` now carries `revision`/`version`
+> with a currency check that rejects stale workers. **C1** (byte vs UTF-16
+> columns) is **substantially done** — the column-returning hot paths route
+> through `position_at_utf16`; the residual byte `position_at` sites and the
+> unset `position_encoding` are tracked as the **SRV-LSP** track. The native
+> server is now the **default backend**. The remaining items live in
+> [`../../rust-rewrite.md`](../../rust-rewrite.md#remaining-work); the per-item
+> Python-parity detail is in
+> [`compiler-pipeline-parity.md`](compiler-pipeline-parity.md).
 
 ## Verdict
 

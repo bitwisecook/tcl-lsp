@@ -129,6 +129,19 @@ parity has baked.
 | Interprocedural analysis | `TCL_LSP_RUST_INTERPROC` | `core/compiler/interprocedural.py` |
 | GVN | `TCL_LSP_RUST_GVN` | `core/compiler/gvn.py` |
 
+**Current reality (2026-06-19).** These env-var gates govern only the **opt-out
+Python server**. The native `tcl-lsp-server` is now the **default backend**
+(`TCL_LSP_SERVER_KIND=python` opts out), and on that default path the Rust
+optimiser and the GVN / SCCP / taint / shimmer diagnostics run **ungated** via
+`compiler_checks::run_all_checks` and `optimiser::optimise_with_dialect` — so
+GVN redundancy diagnostics (O105 / O106) are already user-facing. The
+`TCL_LSP_RUST_INTERPROC` gate is currently **inert** (named but never called).
+The residual Rust↔Python optimiser parity (O104 / O108 / O114 / O119 / O128 /
+O130 and the general proc inliner) and the interprocedural precision deltas are
+tracked as the **FE-OPT** track in
+[`../../rust-rewrite.md`](../../rust-rewrite.md#remaining-work); the per-item
+evidence is in [`compiler-pipeline-parity.md`](compiler-pipeline-parity.md).
+
 ## Python fallbacks planned for deletion
 
 After each chunk's env var has been default-on for one release
@@ -231,8 +244,13 @@ which **per-item incremental analysis** targets — see
   reasoning behind the plan.
 - [`target-architecture.md`](target-architecture.md) — the zero-copy /
   single-parse / MVCC destination (salsa engine decision recorded).
-- [`docs/rust-rewrite.md`](../../rust-rewrite.md) — chunking
-  strategy, principles, chunk log.
+- [`docs/rust-rewrite.md`](../../rust-rewrite.md) — porting principles, the
+  durable reference, and the **live remaining-work plan** (parallel tracks in
+  dependency order). The landed chunk-log history is in
+  [`docs/rust-rewrite-history.md`](../../rust-rewrite-history.md).
+- [`compiler-pipeline-parity.md`](compiler-pipeline-parity.md) — deep
+  Rust-vs-Python parity audit of the lexer, CST, IR/CFG/SSA, analyses,
+  optimiser, and bytecode codegen, with a per-code coverage table.
 - [`docs/kcs/kcs-qa-rust-shim-env-vars.md`](../../kcs/kcs-qa-rust-shim-env-vars.md) —
   Rust shim env-var reference.
 - [`docs/rust-rewrite-test-audit.md`](../../rust-rewrite-test-audit.md)
