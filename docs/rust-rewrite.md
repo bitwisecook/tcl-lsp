@@ -965,11 +965,11 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Lexer / segmenter / expr-lexer / CST | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | ✅ | FE-LEX complete — `${name}` brace-depth, quoted `\<nl>`, nested-body E202/E203 landed (see [history](rust-rewrite-history.md), 2026-06-19) |
 | IR / lowering / CFG / SSA | `tcl-compiler` | 🟢 | `IRUpFrame` clobber; dynamic-`uplevel` barrier; minor IR fields → **FE-DATAFLOW**, **FE-DIAG** |
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
-| Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | **FE-TYPESHIM** complete; precise TclOO `object_of` typing now tracked under **FE-DIAG** (its W307/W308 consumer) |
+| Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | **FE-TYPESHIM** complete; precise TclOO `object_of` typing landed under **FE-DIAG** (its W307/W308 consumer) |
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
 | Optimiser passes | `tcl-compiler::optimiser` | 🟡 | O114/O108 gates; O104/O119 applied; O128/O130; O106 category+gates; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
-| Analyser diagnostics | `tcl-compiler::analyser` | 🟢 | E001/W125/IRULE5005/IRULE1001; snit; OO body-walks; C44 path-sensitivity; `when`-body dialect gating; source-style/W108 → **FE-DIAG** |
+| Analyser diagnostics | `tcl-compiler::analyser` | 🟢 | E001/W125/IRULE5005/IRULE1001; snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity; `when`-body dialect gating; source-style/W108 → **FE-DIAG** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | TclOO; clock/encoding/interp/IO/after; CLI/REPL binary → **RT-VM** |
@@ -1106,24 +1106,36 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
   `initialise` body, and `property -get/-set` accessor bodies. Verified
   byte-for-byte against the Python analyser and against real `tclsh8.6` +
   tcllib.
-- **open** **W307 / W308** method-dispatch type checks + the precise TclOO
-  `object_of` typing they consume (handed off from **FE-TYPESHIM**, which
-  widens constructor results to OVERDEFINED today). The type lattice already
-  models `TypeLattice::object_of(class)` and the join widens mismatched
-  classes; what is missing is the *known-classes* set fed to
-  `type_infer::return_type_for_command` so `[Foo new]` / `[Foo create x]` /
-  `[Foo %AUTO%]` / `[Widget .path]` type as `OBJECT(::ns::Foo)` (relative
-  names resolved against the call-site namespace). Source the class set from
-  the analyser-layer `signature_scan` (the Rust IR keeps `namespace eval`
-  bodies as raw barriers, so the Python `class_names.extract_class_names`
-  IR-walk misses namespace-scoped classes — do **not** port it as-is), then
-  thread it through `FunctionUnit::build`→`propagate_types`/
-  `infer_function_return_type` and key the per-procedure lattice memo
-  (`LatticeRequest` + `tcl-lsp-db`) on it, mirroring Python's
-  `known_classes_fp`. Port `_return_type_for_command`'s constructor
-  recognition (`new`/`create`/`createWithNamespace`/`%AUTO%`/leading-`.`),
-  keeping the D4-F6 guard (no `object_of` from the `new` spelling alone when
-  the command is not a known class).
+- **done** **W307 / W308** method-dispatch type checks + the precise TclOO
+  `object_of` typing they consume (handed off from **FE-TYPESHIM**). The
+  *known-classes* set is sourced from the analyser-layer `signature_scan`
+  (`CompilationUnit::collect_known_classes`, gated on a `class` substring probe),
+  threaded through `FunctionUnit::build_with_param_constants_and_classes` →
+  `propagate_types` / `infer_function_return_type`, and folded into the
+  per-procedure lattice memo key (`LatticeRequest::known_classes` +
+  `FnLatticeKey::known_classes` in `tcl-lsp-db`) so the incremental build stays
+  byte-identical to the whole-file build (verified by the memoised-CU parity
+  test, now with a constructor-bearing snippet, and the incremental fuzz). The
+  ported `type_infer::constructor_object_type` recognises `new` / `create` /
+  `%AUTO%` / leading-`.` spellings, resolving the relative head as-is,
+  `::`-qualified, and against the call-site namespace, keeping the D4-F6 guard
+  (no `object_of` from the `new` spelling alone). `[Foo new] m` / `set o [Foo
+  new]; $o m` / transitive `set b $a` aliases / `Foo create %AUTO%` / namespace-
+  scoped classes all type as `OBJECT(::ns::Foo)` and validate the method (W308)
+  or stay silent — verified byte-for-byte against the Python analyser oracle
+  (13-case battery) with full W308 parity across the 102-file tcllib OO corpus.
+  Python's separate object-factory W307 *suppression* (the
+  `object_returning_procs` / factory-locals fixpoint — a proc returning `[Class
+  new]` / `[::ns::factory]` makes its result a non-literal-but-designed command
+  target) is also ported as `Analyser::compute_factory_object_ranges`.
+  **Residual (separate row, not object typing):** the 8 remaining W307
+  divergences on 4 tcllib files trace to two orthogonal gaps — `$var method`
+  dispatches *inside* command substitutions (`[$obj m]`) are not recorded as
+  var-command sites, so the multi-dispatch (≥2) suppression under-counts; and
+  `::oo::class` (leading-`::`) class definitions are recognised by neither the
+  analyser nor `signature_scan` (Python has the same `all_classes=[]` blind spot
+  there, so it is *not* an object-typing divergence). Both are analyser-walk /
+  class-extraction follow-ups, not part of the `object_of` typing item.
 - **done bar quick-fixes** IRULE1201 / 1202 / 5002 / 5004 path-sensitivity (the
   C44 follow-up). The linear scans are replaced by a shared path-sensitive
   walk over the structured IR (`irules_checks::walk_flow`) that threads

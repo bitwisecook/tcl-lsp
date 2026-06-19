@@ -266,6 +266,13 @@ pub struct FnLatticeKey<'db> {
     /// [`tcl_compiler::compilation_unit::decode_param_constants`] in [`function_lattice`].
     #[returns(ref)]
     pub param_constants: Vec<(String, u32, String)>,
+    /// Fully-qualified names of every class in the compilation unit (sorted) —
+    /// a whole-unit fact identical for every procedure, folded into the key so
+    /// adding/removing a class anywhere invalidates each procedure's lattice (a
+    /// new class can change a body's constructor typing).  Threaded into the
+    /// type-propagation pass in [`function_lattice`].
+    #[returns(ref)]
+    pub known_classes: Vec<String>,
 }
 
 /// Memoised offset-0 baseline lattice (CFG → SSA → def-use → SCCP → type →
@@ -292,12 +299,14 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     let cfg = build_cfg_function_with_upvars(key.qname(db), key.body(db), true, upvar, proc_params);
     let param_constants =
         tcl_compiler::compilation_unit::decode_param_constants(key.param_constants(db));
-    Arc::new(FunctionUnit::build_with_param_constants(
+    let known_classes: HashSet<String> = key.known_classes(db).iter().cloned().collect();
+    Arc::new(FunctionUnit::build_with_param_constants_and_classes(
         key.qname(db),
         cfg,
         key.params(db),
         &registry,
         param_constants.as_ref(),
+        &known_classes,
     ))
 }
 
@@ -366,6 +375,7 @@ pub fn memoised_compilation_unit<'db>(
                 context,
                 req.dialect.to_owned(),
                 req.param_constants.to_vec(),
+                req.known_classes.to_vec(),
             );
             lattice_keys.insert(req.qname.to_owned(), key);
             (*function_lattice(db, key)).clone()
