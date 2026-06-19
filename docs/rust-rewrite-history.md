@@ -1222,6 +1222,21 @@ general inliner). What landed:
   across `when <event>` boundaries) is never sunk into a branch, matching
   Python's `var_name in ctx.cross_event_vars` skip. The multi-branch /
   deepest-target descent + already-covered guard remain open.
+- **O104 / O130 (applied build-chain folds)** — new `optimiser::chain_fold`
+  replaces the hint-only string-build detector. A run of strictly-consecutive
+  static writes to one variable (`set` anchor + `append`/`lappend`) folds into
+  a single `set`: O104 for string-concat, O130 for `lappend` lists (the
+  initial string value is re-split into list elements via `split_list`). The
+  fold rewrites the last write and emits paired deletions over the earlier
+  ones, all in one group. Soundness gates: strictly-consecutive (no
+  intermediate read), every value word a static `Esc`/`Str` literal, and the
+  variable neither escaping (`var_observability::escaping_var_names`) nor a
+  cross-event var. Conservative vs Python's flow-sensitive read tracking (an
+  interleaved non-reading statement ends the run early) but never unsound;
+  list rendering reuses `tcl_syntax::list::{join_list,list_element}` and the
+  `_statement_delete_rewrite_range` delete-span logic is ported verbatim.
+  Fold semantics + byte-exact rewrite application verified against tclsh.
+  O119 multi-set packing stays hint-only.
 
 All verified against the Python reference algorithms in
 `compiler/optimiser/{_expr_simplify,_pattern_recognition,_elimination,_tail_call}.py`

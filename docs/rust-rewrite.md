@@ -967,7 +967,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟢 | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) to port → **FE-TYPESHIM** |
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
-| Optimiser passes | `tcl-compiler::optimiser` | 🟡 | soundness gates (O120/O114/O108), O106 category, O123 guard, O110 boolify, O128 end-offset, O125 cross-event guard landed; remaining: O104/O119/O130 applied rewrites; O106 trace+latch-dominance; O103/O125 multi-branch/O101/O115 precision; general inliner → **FE-OPT** |
+| Optimiser passes | `tcl-compiler::optimiser` | 🟡 | soundness gates (O120/O114/O108), O106 category, O123 guard, O110 boolify, O128 end-offset, O125 cross-event guard, O104/O130 chain folds landed; remaining: O119 applied packing; O104/O130 precise-flow extension; O106 trace+latch-dominance; O103/O125 multi-branch/O101/O115 precision; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005 (incl. nested `[…]` subs); snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108. Residuals: per-check config toggles + surfacing flow-warning fixes as code actions → **SRV-LSP**. Two review-found refinements (IRULE2001 3-arg `matchclass` fix, catch-`return` flow) are shared with Python → fixed Python-first, port pending → **FE-DIAG** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
@@ -1085,18 +1085,21 @@ over-fire guard, and the O110 logical-identity boolify have **landed**
 (2026-06-19; archived in [history](rust-rewrite-history.md)). What remains is
 feature-completeness — applied rewrites, two unimplemented detectors, and the
 general inliner:
-- **partial** O104 (string-build chain) and O119 (multi-set packing) emit
-  hint-only; port the applied rewrites + dead-write deletions. Needs the
-  flow-sensitive `var_observability` escape gate and the
-  `_statement_delete_rewrite_range` delete-span logic so a folded chain's
-  intermediate writes are removed with byte-exact ranges.
-- **open** O130 (lappend chain) — the list variant of the O104 chain fold,
-  implemented by the same applied-rewrite pass above (shares the observability
-  gate + delete-span logic). **O128 (end-offset index) has landed**
-  (`optimiser::end_offset`, 2026-06-19): a per-statement token re-parse over
-  the statement's source slice (recursing into nested `[…]` subs) recovers the
-  index argument's command-subst span the IR `Statement::Call { args:
-  Vec<String> }` does not carry.
+- **partial** O119 (multi-set packing) still emits hint-only — port the
+  `lassign` packing rewrite + dead-write deletions. **O104 / O130 (string /
+  list build-chain folds) have landed** (`optimiser::chain_fold`, 2026-06-19)
+  as applied rewrites: a run of strictly-consecutive static `set`+`append`/
+  `lappend` writes folds into a single `set`, gated on the variable not
+  escaping (`var_observability::escaping_var_names`) and not being a
+  cross-event var, with `_statement_delete_rewrite_range`-equivalent
+  delete-span logic. Conservative vs Python's flow-sensitive read tracking
+  (skips a chain with an interleaved non-reading statement) but never
+  unsound; the precise-flow extension is the residual.
+- **landed** O128 (end-offset index) — `optimiser::end_offset`
+  (2026-06-19): a per-statement token re-parse over the statement's source
+  slice (recursing into nested `[…]` subs) recovers the index argument's
+  command-subst span the IR `Statement::Call { args: Vec<String> }` does not
+  carry.
 - **open** O106 precision — thread execution-trace facts into the GVN/LICM
   family and add the latch-dominance "runs every iteration" gate. (The
   profile-category omission that made the hint unsuppressable is fixed.)
