@@ -129,7 +129,7 @@ Shared in `tcl-cmd-core`:
 - `path::{tail, dirname, extension, rootname}` — a `/`-based **byte** path core
   (platform-independent), replacing the VM's old `std::path::Path` versions.
 - `mathop::eval` — `::tcl::mathop::*` (every `expr` operator as a command) over
-  the existing [`ExprOps`](tcl_syntax::expr::ExprOps) seam, so **no new value
+  the existing `ExprOps` seam, so **no new value
   seam**: the fold/identity/chain logic is shared, each primitive going through
   each runtime's `ExprOps` (the WASM runtime's bignum tower, the VM's i64+double).
   The VM had no `mathop` at all; it now has the full operator set.
@@ -166,7 +166,7 @@ Shared in `tcl-cmd-core`:
   and `add` (count/unit arithmetic incl. calendar months/years). The civil↔days
   math is Hinnant's branch-free algorithm. The command stays **host-free**: the
   per-runtime adapter reads the current time from its host's
-  [`Clock`](tcl_platform::Clock) capability and passes it in as a `Now` plus a
+  `Clock` capability and passes it in as a `Now` plus a
   `local_offset(ts)` callback, so the core never touches the host (resolving the
   same `ops`+host borrow the `exec` slice hit, via each runtime's owned
   `Rc<dyn Host>`). The `Clock` trait grew `now_micros` + `local_offset_secs`; the

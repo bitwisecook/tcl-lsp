@@ -969,7 +969,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
 | Optimiser passes | `tcl-compiler::optimiser` | 🟡 | O114/O108 gates; O104/O119 applied; O128/O130; O106 category+gates; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
-| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005 (incl. nested `[…]` subs); snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108. Residuals: per-check config toggles + surfacing flow-warning fixes as code actions → **SRV-LSP**. Two review-found refinements (IRULE2001 3-arg `matchclass` fix, catch-`return` flow) are shared with Python → fixed Python-first, port pending → **FE-DIAG** |
+| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005 (incl. nested `[…]` subs); snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108; IRULE2001 3-arg `matchclass` fix + catch-`return` flow (shared with Python, fixed Python-first in #662, now ported). Residuals: per-check config toggles + surfacing flow-warning fixes as code actions → **SRV-LSP** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after; CLI/REPL binary → **RT-VM** |
@@ -1247,39 +1247,47 @@ follow-ups** at the end of this section.
   Mirrors Python's `run_all_checks` recursion into nested commands (verified:
   the Python analyser emits the same `IRULE5005 … call helper` for this form).
 
-**Lockstep follow-ups (Python-first).** A review of the port (PR #660) surfaced
-two *shared* correctness bugs — present identically in the canonical Python
-analyser — so, exactly like **S110**, the fix lands on the Python reference
-first and the Rust port follows. Porting the Rust side ahead of Python would
-make it diverge from the very differential oracle this track is verified against,
-so both are deliberately gated on the upstream Python correction:
-- **port pending** **IRULE2001 `matchclass` 3-arg quick-fix** corruption. Both
-  the Rust emitter (`analyser::diagnostics::emit_irule2001_matchclass`) and
-  Python (`analyser/irules_checks.py::check_matchclass`) gate on `args.len() >= 2`
-  and always rewrite to `class match <item> equals <class>` from
-  `arg_tokens[0]`/`arg_tokens[1]`, so the documented 3-arg form
+**Lockstep follow-ups (Python-first) — landed.** A review of the port (PR #660)
+surfaced two *shared* correctness bugs — present identically in the canonical
+Python analyser — so, exactly like **S110**, the fix landed on the Python
+reference first ([PR #662]) and the Rust port follows here. Porting the Rust
+side ahead of Python would have made it diverge from the very differential
+oracle this track is verified against, so both were gated on the upstream Python
+correction. Both are now **ported and verified** (Rust unit tests mirror the
+Python `test_irules_checks.py` cases #662 added):
+- **done** **IRULE2001 `matchclass` 3-arg quick-fix** corruption. The Rust
+  emitter (`analyser::diagnostics::emit_irule2001_matchclass`) previously gated
+  on `args.len() >= 2` and always rewrote to `class match <item> equals <class>`
+  from `arg_tokens[0]`/`arg_tokens[1]`, so the documented 3-arg form
   `matchclass <item> <operator> <class>` (e.g. `matchclass [HTTP::uri]
-  starts_with $::admin_paths`) drops its class and is forced to `equals`
-  (→ `class match [HTTP::uri] equals starts_with`). The fix: offer the
-  default-`equals` rewrite only for *exactly* two args, rewrite the 3-arg form
-  verbatim (`matchclass` → `class match` is a 1:1 rename), and offer no fix for
-  other arities. Diagnostic text is unchanged. Port once the Python correction
-  lands.
-- **port pending** **catch-caught `return` flow**. Tcl `catch` swallows the
-  return code, so execution continues after the `catch` body even when it
-  `return`s — but the shared path-sensitive flow walk drops the post-catch path.
-  This is a limitation of the shared algorithm present in Python too
-  (`compiler/irules_flow.py` `_analyse_script` ~486 / `_walk` ~951 extend with
-  the catch-body walk and lose the path when the body returns; the sibling
-  `IRTry` arms already fall back to `[st]`). The Rust twin
-  (`irules_checks::flow_step`, `Statement::Catch`) faithfully mirrors this. It
-  affects IRULE1201/1202 (HTTP-after-respond) and IRULE5002/5004 (unguarded
-  drop / DNS::return) for code that still runs after the catch. Being resolved
-  Python-first — the semantics decision (minimal incoming-state fallback like
-  `IRTry`, vs. capturing the at-return state so e.g. a `HTTP::respond` before the
-  catch-internal `return` still flags the post-catch command) is made on the
-  reference; Rust `walk_flow`/`flow_step` then mirrors the corrected catch
-  handling.
+  starts_with $::admin_paths`) dropped its class and was forced to `equals`
+  (→ `class match [HTTP::uri] equals starts_with`). It now matches `arg_tokens`
+  by arity: exactly two args → the default-`equals` rewrite; exactly three →
+  the verbatim 1:1 `matchclass` → `class match` rename preserving operator and
+  class; any other arity warns but offers **no** fix. The raw argument slices
+  (and the whole-command fix range) are widened through trailing `]`/`}`/`"`
+  closers via `optimiser::helpers::spans::full_rewrite_span` — the lexer's
+  representative span for a `[cmd …]` word stops before its `]`, so a slice
+  would otherwise round-trip `[HTTP::uri]` as `[HTTP::uri` (mirrors Python's
+  `_raw_arg_text` / `word_end_position`). Diagnostic text unchanged.
+- **done** **catch-caught `return` flow**. Tcl `catch` swallows the return
+  code, so execution continues after the `catch` body even when it `return`s —
+  but the shared path-sensitive flow walk dropped the post-catch path. #662
+  settled the semantics on the Python reference (`compiler/irules_flow.py`
+  `_analyse_script` / `_walk`): the richer option — *capture* the at-return
+  state into the enclosing catch (so e.g. a `HTTP::respond` before the
+  catch-internal `return` still flags the post-catch command), falling back to
+  the incoming state only when the body yields nothing. The Rust twin
+  (`irules_checks::walk_flow`/`flow_step`) now mirrors it via a `return_sink`
+  threaded through every nested control-flow walk: a `return` hands its
+  at-return states to the nearest enclosing `Statement::Catch`'s sink instead
+  of discarding them, and the `Catch` arm folds `body_out + catch_returns`
+  (falling back to `[st]`) into the continuing paths. At event/proc scope the
+  sink is `None` and a `return` terminates the path as before. Fixes
+  IRULE1201/1202 (HTTP-after-respond) and IRULE5002/5004 (unguarded drop /
+  DNS::return) for code that still runs after the catch.
+
+[PR #662]: https://github.com/bitwisecook/tcl-lsp/pull/662
 
 #### FE-DIAG-F5 — F5 dialect diagnostics
 Owns new analyser slices on `tcl-bigip` / `tcl-xc` and the tk dialect.
