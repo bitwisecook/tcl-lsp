@@ -18,30 +18,42 @@
 //!    `tcl_eval`s it. Its constant pool is relocated to [`RESERVED_DATA_BASE`]
 //!    (`0x100000`) so it lands in the gap, not under the runtime's stack.
 //! 3. **bootstrap** (the WASI command) — creates an interp, makes it current,
-//!    calls `user::top` (running `set x 42`), then `tcl_eval`s `set x` against the
-//!    *same* interp, reads the result string with `Tcl_GetStringFromObj`, and
-//!    writes it to stdout. Stdout `42` proves the emitted program's side effect
+//!    calls `user::top`, then `tcl_eval`s a `query` against the *same* interp,
+//!    reads the result string with `Tcl_GetStringFromObj`, and writes it to
+//!    stdout. The printed result proves the emitted program's side effect
 //!    persisted in the real runtime.
+//!
+//! Two programs are linked and run: a bare `set x 42` (read back as `42`) and a
+//! **proc** defined and called — `proc greet {name} {return "hi $name"}` then
+//! `set r [greet world]`, read back as `hi world`. The proc exercises a real
+//! frame push, parameter binding, `return`, string interpolation, and command
+//! substitution in the live runtime. (Dispatch still flows through the interp's
+//! eval-fallback, so the separately-emitted `::greet` function is not yet the one
+//! that runs — wiring `greet …` calls to `call ::greet` is the next increment.)
 //!
 //! Heavy + gated: it builds `runtime/rust` to wasm (cached after the first run)
 //! and shells out to the `wasmtime` CLI. It skips cleanly when either is
-//! unavailable, mirroring the other wasm tests. `set x` needs no `expr` (the
-//! numeric tower is off in the wasm build) and no host capabilities, so it runs
+//! unavailable, mirroring the other wasm tests. Neither program needs `expr` (the
+//! numeric tower is off in the wasm build) nor any host capability, so both run
 //! faithfully on the placeholder `BrowserHost`.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use tcl_compiler::codegen::wasm::{RESERVED_DATA_BASE, wasm_codegen_module_based};
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
-/// The bootstrap WASI command (see the module docs). Reserved-gap scratch: the
-/// query string `set x` at `0x180000`, the `Tcl_GetStringFromObj` length-out at
-/// `0x190000`, and the `fd_write` iovec/result at `0x190008`/`0x190010` — all
-/// above the emitted module's data at `0x100000` and below the runtime's data at
-/// `0x200000`.
-const BOOTSTRAP_WAT: &str = r#"(module
+/// The bootstrap WASI command (see the module docs): create + select an interp,
+/// run the emitted `::top`, then evaluate `query` against the same interp and
+/// print its result string. Reserved-gap scratch: the `query` string at
+/// `0x180000`, the `Tcl_GetStringFromObj` length-out at `0x190000`, and the
+/// `fd_write` iovec/result at `0x190008`/`0x190010` — all above the emitted
+/// module's data at `0x100000` and below the runtime's data at `0x200000`.
+/// `query` must be WAT-literal-safe (no `"` or `\`).
+fn bootstrap_wat(query: &str) -> String {
+    format!(
+        r#"(module
   (import "tcl" "memory" (memory 1))
   (import "tcl" "tcl_runtime_create_interp" (func $create (result i32)))
   (import "tcl" "tcl_runtime_set_current_interp" (func $setcur (param i32)))
@@ -56,16 +68,19 @@ const BOOTSTRAP_WAT: &str = r#"(module
     (local $interp i32) (local $result i32) (local $strptr i32) (local $len i32)
     (local.set $interp (call $create))
     (call $setcur (local.get $interp))
-    (call $top)                                                                   ;; run "set x 42"
-    (local.set $result (call $eval (call $box (i32.const 0x180000) (i32.const 5)))) ;; eval "set x"
+    (call $top)                                                                       ;; run the emitted program
+    (local.set $result (call $eval (call $box (i32.const 0x180000) (i32.const {qlen})))) ;; eval the query
     (local.set $strptr (call $getstr (local.get $result) (i32.const 0x190000)))
     (local.set $len (i32.load (i32.const 0x190000)))
     (i32.store (i32.const 0x190008) (local.get $strptr))
     (i32.store (i32.const 0x19000C) (local.get $len))
     (drop (call $fd_write (i32.const 1) (i32.const 0x190008) (i32.const 1) (i32.const 0x190010)))
     (call $rel (local.get $result)))
-  (data (i32.const 0x180000) "set x"))
-"#;
+  (data (i32.const 0x180000) "{query}"))
+"#,
+        qlen = query.len(),
+    )
+}
 
 fn have_wasmtime() -> bool {
     Command::new("wasmtime")
@@ -104,30 +119,19 @@ fn build_reserved_runtime() -> Option<PathBuf> {
     ok.then(|| target_dir.join("wasm32-unknown-unknown/debug/tcl_runtime.wasm"))
 }
 
-/// The emitted `set x 42` module, linked against the real runtime, sets `x` in
-/// the live interpreter — observed by reading it back through the same interp.
-#[test]
-fn emitted_module_runs_against_the_real_runtime() {
-    if !have_wasmtime() {
-        eprintln!("wasmtime CLI unavailable; skipping the real link");
-        return;
-    }
-    let Some(runtime) = build_reserved_runtime() else {
-        eprintln!("could not build the wasm32 runtime; skipping the real link");
-        return;
-    };
-
-    // Emit the user module with its constant pool in the reserved gap.
-    let src = "set x 42\n";
+/// Emit `program`, link it against the real `runtime`, run its `::top`, then
+/// evaluate `query` against the same interp and return the printed result.
+fn run_real_link(runtime: &Path, program: &str, query: &str) -> String {
     let registry = CommandRegistry::build_default();
-    let module = lower_to_ir(src, &registry);
-    let user_bytes = wasm_codegen_module_based(&module, src, RESERVED_DATA_BASE).to_bytes();
+    let module = lower_to_ir(program, &registry);
+    // Constant pool in the reserved gap so it does not hit the runtime's stack.
+    let user_bytes = wasm_codegen_module_based(&module, program, RESERVED_DATA_BASE).to_bytes();
 
     let tmp = std::env::temp_dir();
     let user = tmp.join("tcl_real_link_user.wasm");
     let boot = tmp.join("tcl_real_link_boot.wat");
     std::fs::write(&user, &user_bytes).expect("write user module");
-    std::fs::write(&boot, BOOTSTRAP_WAT).expect("write bootstrap");
+    std::fs::write(&boot, bootstrap_wat(query)).expect("write bootstrap");
 
     let out = Command::new("wasmtime")
         .arg("run")
@@ -143,13 +147,44 @@ fn emitted_module_runs_against_the_real_runtime() {
 
     assert!(
         out.status.success(),
-        "real link trapped:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        "real link trapped for {program:?}:\n--- stdout ---\n{}\n--- stderr ---\n{}",
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr),
     );
-    assert_eq!(
-        String::from_utf8_lossy(&out.stdout),
-        "42",
-        "the emitted `set x 42` did not take effect in the real runtime"
-    );
+    String::from_utf8(out.stdout).expect("stdout is utf-8")
+}
+
+/// Emitted modules linked against the real runtime produce real side effects in
+/// the live interpreter — observed by reading state back through the same interp.
+#[test]
+fn emitted_modules_run_against_the_real_runtime() {
+    if !have_wasmtime() {
+        eprintln!("wasmtime CLI unavailable; skipping the real link");
+        return;
+    }
+    let Some(runtime) = build_reserved_runtime() else {
+        eprintln!("could not build the wasm32 runtime; skipping the real link");
+        return;
+    };
+
+    // (program run by `::top`, the query the bootstrap then evaluates, expected).
+    let cases = [
+        // A bare variable set, read back.
+        ("set x 42\n", "set x", "42"),
+        // A proc defined and called: frame push + parameter binding + `return` +
+        // string interpolation + command substitution — all pure, so it runs on
+        // the wasm build (no `expr`/numeric tower, no host capabilities).
+        (
+            "proc greet {name} {return \"hi $name\"}\nset r [greet world]\n",
+            "set r",
+            "hi world",
+        ),
+    ];
+    for (program, query, expected) in cases {
+        assert_eq!(
+            run_real_link(&runtime, program, query),
+            expected,
+            "program {program:?}, query {query:?}"
+        );
+    }
 }
