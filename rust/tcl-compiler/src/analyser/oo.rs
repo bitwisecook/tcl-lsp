@@ -69,6 +69,24 @@ const CHAIN_TARGETS: &[&str] = &[
     "original_unknown",
 ];
 
+/// snit (tcllib) type/widget definers, both bare and `::`-qualified.  Mirrors
+/// `_SNIT_DEFINERS` in `analyser/_analyser/_oo.py`.
+const SNIT_DEFINERS: &[&str] = &[
+    "snit::type",
+    "snit::widget",
+    "snit::widgetadaptor",
+    "::snit::type",
+    "::snit::widget",
+    "::snit::widgetadaptor",
+];
+
+/// Implicit instance variables snit injects into `method` / `constructor` /
+/// `destructor` / `onconfigure` / `oncget` bodies.
+const SNIT_INSTANCE_IMPLICIT: &[&str] = &["self", "selfns", "type", "options"];
+
+/// Implicit variable snit injects into `typemethod` / `typeconstructor` bodies.
+const SNIT_TYPE_IMPLICIT: &[&str] = &["type"];
+
 impl Analyser {
     /// Walk the body of a ``oo::class create`` / ``oo::define``
     /// block, populating `class_def` from each subcommand.
@@ -187,6 +205,358 @@ impl Analyser {
             });
         } else {
             self.analyse_body(&mb.body_text, mb.body_tok, &method_path);
+        }
+    }
+
+    /// Handle a snit (tcllib) type/widget definition —
+    /// ``snit::type``/``snit::widget``/``snit::widgetadaptor Name { body }``
+    /// (and their `::`-qualified forms).  Snit reinterprets its body as a
+    /// class description, exactly like an `oo::class` body, so we model it as
+    /// a real [`ClassDef`] with method scopes — object dispatch inside method
+    /// bodies (`$self foo`, `$component bar`) is then recognised as in-method
+    /// dispatch (no false W307) and snit's implicit instance variables don't
+    /// surface as read-before-set / unused.  Mirrors `_handle_snit_type_command`
+    /// in `analyser/_analyser/_oo.py:503`.
+    pub(super) fn handle_snit_type_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if !SNIT_DEFINERS.contains(&cmd_name) || args.len() < 2 || arg_tokens.len() < 2 {
+            return false;
+        }
+        let raw_name = &args[0];
+        let body = &args[1];
+        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        let ns_for_qualify = ns_prefix.trim_start_matches(':');
+        let qualified = super::handlers::qualify(ns_for_qualify, raw_name);
+        let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+        let name_span = arg_tokens[0].span;
+        let body_tok = arg_tokens[1];
+        let is_widget = cmd_name.ends_with("widget") || cmd_name.ends_with("widgetadaptor");
+        let doc = std::mem::take(&mut self.last_comment);
+        let mut class = ClassDef {
+            name: simple.clone(),
+            qualified_name: qualified.clone(),
+            name_span,
+            body_span: body_tok.span,
+            metaclass: cmd_name.to_string(),
+            doc,
+            ..Default::default()
+        };
+        if !body.is_empty() {
+            self.parse_snit_definition_body(
+                body, body_tok, &mut class, &qualified, scope_path, is_widget,
+            );
+        }
+        self.result.all_classes.insert(qualified, class.clone());
+        let path = scope_path.to_vec();
+        if let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) {
+            scope.classes.insert(simple, class);
+        }
+        true
+    }
+
+    /// Parse a snit type/widget body into methods + variable declarations, in
+    /// two passes (so a method can reference any instance/type variable
+    /// regardless of declaration order).  Mirrors `_parse_snit_definition_body`.
+    fn parse_snit_definition_body(
+        &mut self,
+        body: &str,
+        body_tok: Token,
+        class_def: &mut ClassDef,
+        class_qualified: &str,
+        scope_path: &[usize],
+        is_widget: bool,
+    ) {
+        if body_tok.kind != TokenType::Str {
+            return;
+        }
+        let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+            body,
+            base_offset,
+            self.lexer_config(),
+        );
+
+        // Snit injects these implicit variables into method / type-method bodies.
+        let mut instance_vars: Vec<String> = SNIT_INSTANCE_IMPLICIT
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        if is_widget {
+            instance_vars.push("win".to_string());
+            instance_vars.push("hull".to_string());
+        }
+        let mut type_vars: Vec<String> = SNIT_TYPE_IMPLICIT
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+
+        // First pass: collect declared instance / type variable + component names.
+        for cmd in &cmds {
+            if cmd.is_partial {
+                continue;
+            }
+            let Some((sub, sub_args)) = cmd.texts.split_first() else {
+                continue;
+            };
+            match sub.as_str() {
+                "variable" | "component" => {
+                    if let Some(name) = sub_args.first() {
+                        instance_vars.push(name.clone());
+                    }
+                }
+                "typevariable" | "typecomponent" => {
+                    if let Some(name) = sub_args.first() {
+                        type_vars.push(name.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Record the *explicit* instance + type variables on the class —
+        // method-scope seeding and the W307 dispatch-source suppression both
+        // read `ClassDef::variables`.  Only the four implicit scalars
+        // (`self`/`selfns`/`type`/`options`) and the type-implicit `type` are
+        // filtered; a widget's injected `win`/`hull` are kept (Python parity).
+        class_def.variables = instance_vars
+            .iter()
+            .filter(|v| !SNIT_INSTANCE_IMPLICIT.contains(&v.as_str()))
+            .chain(
+                type_vars
+                    .iter()
+                    .filter(|v| !SNIT_TYPE_IMPLICIT.contains(&v.as_str())),
+            )
+            .cloned()
+            .collect();
+
+        // Second pass: analyse method-bearing declarations in method scopes.
+        for cmd in &cmds {
+            if cmd.is_partial {
+                continue;
+            }
+            if let Some((sub, sub_args)) = cmd.texts.split_first() {
+                let sub_tokens = cmd.argv.get(1..).unwrap_or(&[]);
+                self.dispatch_snit_member(
+                    sub,
+                    sub_args,
+                    sub_tokens,
+                    class_def,
+                    class_qualified,
+                    scope_path,
+                    &instance_vars,
+                    &type_vars,
+                );
+            }
+        }
+    }
+
+    /// Dispatch one snit body subcommand to the matching method extractor (or,
+    /// for `proc`, the ordinary proc handler).  Split out of
+    /// [`Self::parse_snit_definition_body`] so the two-pass walk stays small.
+    #[allow(clippy::too_many_arguments)]
+    fn dispatch_snit_member(
+        &mut self,
+        sub: &str,
+        sub_args: &[String],
+        sub_tokens: &[Token],
+        class_def: &mut ClassDef,
+        class_qualified: &str,
+        scope_path: &[usize],
+        instance_vars: &[String],
+        type_vars: &[String],
+    ) {
+        match sub {
+            // snit allows a type-private `proc name args body` — analyse it as
+            // an ordinary proc in the enclosing scope.
+            "proc" => {
+                self.handle_proc_command("proc", sub_args, sub_tokens, scope_path);
+            }
+            "method" => self.extract_snit_method(
+                sub_args,
+                sub_tokens,
+                class_def,
+                class_qualified,
+                scope_path,
+                instance_vars,
+                "method",
+                false,
+                "",
+            ),
+            "typemethod" => self.extract_snit_method(
+                sub_args,
+                sub_tokens,
+                class_def,
+                class_qualified,
+                scope_path,
+                type_vars,
+                "classmethod",
+                false,
+                "",
+            ),
+            "constructor" => self.extract_snit_method(
+                sub_args,
+                sub_tokens,
+                class_def,
+                class_qualified,
+                scope_path,
+                instance_vars,
+                "constructor",
+                false,
+                "<constructor>",
+            ),
+            "destructor" => self.extract_snit_method(
+                sub_args,
+                sub_tokens,
+                class_def,
+                class_qualified,
+                scope_path,
+                instance_vars,
+                "destructor",
+                true,
+                "<destructor>",
+            ),
+            "typeconstructor" => self.extract_snit_method(
+                sub_args,
+                sub_tokens,
+                class_def,
+                class_qualified,
+                scope_path,
+                type_vars,
+                "classmethod",
+                true,
+                "<typeconstructor>",
+            ),
+            // `onconfigure -opt valuevar { body }` / `oncget -opt { body }`
+            // (snit 1.x) — the leading `-opt` word is dropped.
+            "onconfigure" => {
+                let label = sub_args
+                    .first()
+                    .map_or(String::new(), |o| format!("<onconfigure {o}>"));
+                self.extract_snit_method(
+                    sub_args.get(1..).unwrap_or(&[]),
+                    sub_tokens.get(1..).unwrap_or(&[]),
+                    class_def,
+                    class_qualified,
+                    scope_path,
+                    instance_vars,
+                    "method",
+                    false,
+                    &label,
+                );
+            }
+            "oncget" => {
+                let label = sub_args
+                    .first()
+                    .map_or(String::new(), |o| format!("<oncget {o}>"));
+                self.extract_snit_method(
+                    sub_args.get(1..).unwrap_or(&[]),
+                    sub_tokens.get(1..).unwrap_or(&[]),
+                    class_def,
+                    class_qualified,
+                    scope_path,
+                    instance_vars,
+                    "method",
+                    true,
+                    &label,
+                );
+            }
+            _ => {}
+        }
+    }
+
+    /// Analyse one snit method / constructor / etc. body in a method scope
+    /// seeded with `seed_vars` (snit's implicit names + declared instance or
+    /// type variables) and the method's formal parameters.  Mirrors
+    /// `_extract_snit_method`.  `no_arglist` is for declarations whose body
+    /// immediately follows the keyword (`destructor` / `typeconstructor` /
+    /// `oncget`); `synthetic_name` names the synthetic constructor/handler
+    /// forms.
+    #[allow(clippy::too_many_arguments)]
+    fn extract_snit_method(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        class_def: &mut ClassDef,
+        class_qualified: &str,
+        scope_path: &[usize],
+        seed_vars: &[String],
+        kind: &str,
+        no_arglist: bool,
+        synthetic_name: &str,
+    ) {
+        let (name, params, body_text, body_tok) = if no_arglist {
+            let Some(body) = args.first() else {
+                return;
+            };
+            let nm = if synthetic_name.is_empty() {
+                "<body>".to_string()
+            } else {
+                synthetic_name.to_string()
+            };
+            (nm, Vec::new(), body.clone(), arg_tokens.first().copied())
+        } else if synthetic_name.is_empty() {
+            // method / typemethod: NAME ARGLIST BODY.
+            if args.len() < 3 {
+                return;
+            }
+            (
+                args[0].clone(),
+                parse_param_list(&args[1]),
+                args[2].clone(),
+                arg_tokens.get(2).copied(),
+            )
+        } else {
+            // constructor / onconfigure: ARGLIST BODY (name is synthetic).
+            if args.len() < 2 {
+                return;
+            }
+            (
+                synthetic_name.to_string(),
+                parse_param_list(&args[0]),
+                args[1].clone(),
+                arg_tokens.get(1).copied(),
+            )
+        };
+
+        let zero = Span::new(0, 0);
+        let name_span = arg_tokens.first().map_or(zero, |t| t.span);
+        let body_span = body_tok.map_or(name_span, |t| t.span);
+        let method_def = MethodDef {
+            name: name.clone(),
+            params: params.clone(),
+            name_span,
+            body_span,
+            kind: kind.to_string(),
+            visibility: "public".to_string(),
+            doc: String::new(),
+        };
+        match kind {
+            "constructor" => class_def.constructors.push(method_def),
+            "destructor" => class_def.destructor = Some(method_def),
+            "classmethod" => {
+                class_def.class_methods.insert(name.clone(), method_def);
+            }
+            _ => {
+                class_def.methods.insert(name.clone(), method_def);
+            }
+        }
+
+        // Walk the body in a method scope seeded with the params + seed vars,
+        // reusing the TclOO method-body walker (it pre-binds the params and the
+        // supplied vars as never-warn locals, then analyses the body).
+        if let Some(bt) = body_tok {
+            let mb = CollectedMethodBody {
+                name,
+                params,
+                body_text,
+                body_tok: bt,
+            };
+            self.walk_method_body(seed_vars, class_qualified, scope_path, &mb);
         }
     }
 
@@ -1118,5 +1488,92 @@ mod tests {
         let body = r"switch -exact $cmd { foo { return 1 } }";
         let info = a.extract_unknown_proc_info(body, &[]);
         assert!(info.dispatch_targets.contains("foo"));
+    }
+
+    // snit (tcllib) type / widget support.  Verified against the Python
+    // `_handle_snit_type_command` oracle and real `tclsh8.6` + tcllib.
+
+    #[test]
+    fn snit_type_recorded_as_class_with_members() {
+        let src = "snit::type ::foo::Bar {\n\
+                   variable v1\n\
+                   typevariable tv1\n\
+                   method m1 {a b} { return [expr {$a+$b+$v1}] }\n\
+                   typemethod tm1 {} { return $tv1 }\n\
+                   constructor {args} { set v1 0 }\n\
+                   destructor { unset v1 }\n\
+                   typeconstructor { set tv1 0 }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let c = r.all_classes.get("::foo::Bar").expect("Bar class recorded");
+        assert_eq!(c.metaclass, "snit::type");
+        assert!(c.methods.contains_key("m1"));
+        assert!(c.class_methods.contains_key("tm1"));
+        assert!(c.class_methods.contains_key("<typeconstructor>"));
+        assert_eq!(c.constructors.len(), 1);
+        assert!(c.destructor.is_some());
+        assert_eq!(c.variables, vec!["v1".to_string(), "tv1".to_string()]);
+    }
+
+    #[test]
+    fn snit_widget_keeps_win_and_hull_vars() {
+        // A snit::widget injects `win` and `hull` instance variables — both
+        // are recorded (only the four implicit scalars are filtered).
+        let src = "snit::widget Dial {\n\
+                   variable state\n\
+                   method draw {} { return $win }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let c = r.all_classes.get("::Dial").expect("Dial recorded");
+        assert_eq!(c.metaclass, "snit::widget");
+        assert_eq!(
+            c.variables,
+            vec!["win".to_string(), "hull".to_string(), "state".to_string()]
+        );
+    }
+
+    #[test]
+    fn snit_method_body_suppresses_self_dispatch_and_implicit_vars() {
+        // Inside a snit method, `$self`/`$component` dispatch and reads of
+        // instance variables must not false-fire W307 (non-literal command),
+        // W210 (read-before-set), or W211/W214 (unused).
+        let src = "snit::widget mywidget {\n\
+                   variable helper\n\
+                   component inner\n\
+                   method draw {} {\n\
+                       $self configure -bg white\n\
+                       $inner render\n\
+                       $helper compute\n\
+                       return $win\n\
+                   }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        for code in ["W210", "W211", "W214", "W307", "W308"] {
+            assert!(
+                !r.diagnostics.iter().any(|d| d.code == code),
+                "{code} must not fire in a snit method body: {:?}",
+                r.diagnostics
+            );
+        }
+    }
+
+    #[test]
+    fn snit_widgetadaptor_and_qualified_definer() {
+        let mut a = Analyser::new();
+        let r = a.analyse("::snit::widgetadaptor Foo { method m {} {} }", "tcl8.6");
+        let c = r.all_classes.get("::Foo").expect("Foo recorded");
+        assert_eq!(c.metaclass, "::snit::widgetadaptor");
+        assert!(c.methods.contains_key("m"));
+    }
+
+    #[test]
+    fn non_snit_command_is_not_a_class() {
+        // A plain command that merely starts with `snit` is not a definer.
+        let mut a = Analyser::new();
+        let r = a.analyse("snitch foo { bar }", "tcl8.6");
+        assert!(r.all_classes.is_empty());
     }
 }

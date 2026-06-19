@@ -401,6 +401,12 @@ impl Analyser {
             return;
         }
 
+        // snit (tcllib) `snit::type` / `widget` / `widgetadaptor` — modelled
+        // as a `ClassDef` with method scopes, like `oo::class`.
+        if self.handle_snit_type_command(cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
+
         // namespace eval — opens a namespace child scope.
         if self.handle_namespace_eval_command(cmd_name, args, arg_tokens, scope_path) {
             return;
