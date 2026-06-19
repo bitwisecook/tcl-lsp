@@ -18,17 +18,67 @@
 //! their own follow-up sub-strips per the chunk-log row's
 //! "each diagnostic is its own sub-strip" sequencing.
 
+use std::collections::HashSet;
+use std::sync::OnceLock;
+
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 use tcl_registry::events::EventRegistry;
+use tcl_registry::side_effects::SideEffectTarget;
 
 use crate::cfg_builder::build_cfg;
 use crate::compilation_unit::CompilationUnit;
-use crate::ir::Statement;
+use crate::ir::{Script, Statement};
 use crate::lowering::lower_to_ir_with_config;
 use crate::sccp::cfg_order;
 use crate::taint::is_irules_dialect;
 use crate::value_shapes::parse_command_substitution;
+
+/// Process-wide iRules command registry, used to derive the HTTP-flow command
+/// sets below.  Built once (the data is static).
+fn irules_registry() -> &'static CommandRegistry {
+    static REG: OnceLock<CommandRegistry> = OnceLock::new();
+    REG.get_or_init(|| {
+        let mut r = CommandRegistry::build_default();
+        r.load_irules();
+        r
+    })
+}
+
+/// Commands that commit an HTTP response — derived from the registry's
+/// `ResponseCommit` side-effect (Python `_commits_response_commands`), so the
+/// bare iRules `redirect` is included alongside `HTTP::respond` /
+/// `HTTP::redirect` without a hardcoded list.
+fn commits_response_commands() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        let reg = irules_registry();
+        reg.command_names()
+            .filter(|name| {
+                reg.get(name).is_some_and(|spec| {
+                    spec.side_effects
+                        .iter()
+                        .any(|h| h.target == SideEffectTarget::ResponseCommit && h.writes)
+                })
+            })
+            .map(String::from)
+            .collect()
+    })
+}
+
+/// Registered `HTTP::` namespace commands (Python `_http_namespace_commands`).
+/// Only *registered* commands count, so an unregistered `HTTP::log` does not
+/// trip IRULE1201 (matches the Python set of 32 commands).
+fn http_namespace_commands() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        irules_registry()
+            .command_names()
+            .filter(|name| name.starts_with("HTTP::"))
+            .map(String::from)
+            .collect()
+    })
+}
 
 /// Whether `cmd` is a registered iRules getter that carries the
 /// `-normalized` option in its [`tcl_registry::CommandSpec`].
@@ -652,33 +702,30 @@ pub fn find_collect_flow_warnings(
 // IRULE1201 / IRULE1202 — HTTP-after-respond / multi-respond
 // ---------------------------------------------------------------------------
 //
-// Mirrors `irules_flow.py::_analyse_when_body` (lines 296-450).
-// Linear CFG scan within each `::when::HTTP*` proc body:
+// Path-sensitive port of `irules_flow.py::_analyse_when_body` (the C44
+// follow-up).  Walks the *structured* IR body of each `::when::HTTP*`
+// procedure, tracking a set of per-path response states so that:
 //
-//   * IRULE1202 — second `HTTP::respond` / `HTTP::redirect` on the
-//     same path; only the first response takes effect.
-//   * IRULE1201 — any `HTTP::*` command issued after a response is
-//     committed; HTTP context is invalid post-respond.
+//   * IRULE1202 — a second `HTTP::respond` / `HTTP::redirect` / `redirect`
+//     on a path that already responded; only the first response takes effect.
+//   * IRULE1201 — a registered `HTTP::*` command issued on a path where a
+//     response is already committed; HTTP context is invalid post-respond.
 //
-// Path-sensitivity (separate state per branch of `if` / `switch` /
-// `try`) is the C44 follow-up.  This linear shape catches the
-// straight-line cases (`HTTP::respond ...; HTTP::header ...`).
-//
-// Response-committing commands: hardcoded to `HTTP::respond` /
-// `HTTP::redirect` (the canonical pair).  When the registry grows
-// a `SideEffectTarget::ResponseCommit` category the lookup
-// switches to the registry-driven query.
+// Mutually-exclusive branches keep separate states, so `if {…} { respond }
+// else { respond }` is *not* a double-respond (avoids the linear-scan false
+// positive), `catch { respond }; HTTP::…` *is* flagged, and a loop body runs
+// zero-or-more times.  `return` terminates the current path.
 
-fn commits_http_response(cmd: &str) -> bool {
-    matches!(cmd, "HTTP::respond" | "HTTP::redirect")
+/// A single response-flow fact along one path.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct HttpFlowState {
+    responded: bool,
+    /// Start offset of the committing response (for dedup / parity), or `None`.
+    respond_at: Option<u32>,
 }
 
-fn is_http_namespace(cmd: &str) -> bool {
-    cmd.starts_with("HTTP::")
-}
-
-/// Per-event HTTP-flow warnings.  Emits IRULE1201 + IRULE1202 for
-/// each `::when::HTTP*` proc body.
+/// Per-event HTTP-flow warnings.  Emits IRULE1201 + IRULE1202 for each
+/// `::when::HTTP*` proc body, path-sensitively.
 #[must_use]
 pub fn find_http_flow_warnings(
     cu: &CompilationUnit,
@@ -688,6 +735,8 @@ pub fn find_http_flow_warnings(
     if !is_irules_dialect(dialect) {
         return out;
     }
+    // Iterate the *analysable* functions (honouring the FE-DATAFLOW
+    // complexity guard, #652) but walk their structured IR body.
     for fu in cu.analysable_functions() {
         let Some(event) = fu.name.strip_prefix("::when::") else {
             continue;
@@ -697,75 +746,215 @@ pub fn find_http_flow_warnings(
         if !bare_event.starts_with("HTTP") {
             continue;
         }
-        out.extend(
-            scan_when_body_for_http_flow(fu, bare_event)
-                .into_iter()
-                .map(|mut w| {
-                    w.span = fu.abs_span(w.span);
-                    w
-                }),
+        let Some(proc) = cu.ir_module.procedures.get(&fu.name) else {
+            continue;
+        };
+        analyse_http_flow_script(
+            &proc.body,
+            bare_event,
+            &[HttpFlowState {
+                responded: false,
+                respond_at: None,
+            }],
+            &mut out,
         );
     }
     out
 }
 
-fn scan_when_body_for_http_flow(
-    fu: &crate::compilation_unit::FunctionUnit,
-    event: &str,
-) -> Vec<IrulesCheckWarning> {
+/// Deduplicate flow states by `(responded, respond_at)` (Python `_dedupe`).
+fn dedupe_flow_states(states: Vec<HttpFlowState>) -> Vec<HttpFlowState> {
+    let mut seen: HashSet<(bool, i64)> = HashSet::new();
     let mut out = Vec::new();
-    let mut responded = false;
-    let mut respond_command: Option<String> = None;
-
-    for bn in cfg_order(&fu.cfg) {
-        if !fu.sccp.executable_blocks.contains(&bn) {
-            continue;
-        }
-        let Some(block) = fu.cfg.blocks.get(&bn) else {
-            continue;
-        };
-        for stmt in &block.statements {
-            let (cmd, span) = match stmt {
-                Statement::Call { command, span, .. }
-                | Statement::Barrier { command, span, .. } => (command.as_str(), *span),
-                _ => continue,
-            };
-            if commits_http_response(cmd) {
-                if responded {
-                    out.push(IrulesCheckWarning {
-                        span,
-                        code: "IRULE1202".to_owned(),
-                        message: format!(
-                            "Multiple '{cmd}' calls possible in {event}. Only the first response takes effect.",
-                        ),
-                        replacement: None,
-                    });
-                } else {
-                    responded = true;
-                    respond_command = Some(cmd.to_string());
-                }
-                continue;
-            }
-            if responded && is_http_namespace(cmd) {
-                let _ = respond_command.as_ref();
-                out.push(IrulesCheckWarning {
-                    span,
-                    code: "IRULE1201".to_owned(),
-                    message: format!(
-                        "'{cmd}' used after response is committed. HTTP context is invalid after HTTP::respond/HTTP::redirect.",
-                    ),
-                    replacement: None,
-                });
-            }
-        }
-        // `return` Terminator clears the response state (the rule
-        // exits before any "after" code runs).
-        if let Some(crate::cfg::Terminator::Return { .. }) = &block.terminator {
-            responded = false;
-            respond_command = None;
+    for s in states {
+        let key = (s.responded, s.respond_at.map_or(-1, i64::from));
+        if seen.insert(key) {
+            out.push(s);
         }
     }
     out
+}
+
+/// The command word + span a statement applies to the response flow, or `None`.
+/// Mirrors Python `_stmt_command`: direct `Call`/`Barrier` heads, plus a
+/// whole-value `[cmd …]` command substitution assigned by `set`.
+fn http_flow_stmt_command(stmt: &Statement) -> Option<(&str, Span)> {
+    match stmt {
+        Statement::Call { command, span, .. } | Statement::Barrier { command, span, .. } => {
+            Some((command.as_str(), *span))
+        }
+        Statement::AssignValue { value, span, .. } => {
+            let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?.trim();
+            inner.split_whitespace().next().map(|cmd| (cmd, *span))
+        }
+        _ => None,
+    }
+}
+
+/// Apply one command to a flow state, emitting IRULE1201/1202 as warranted.
+fn apply_http_flow_command(
+    state: HttpFlowState,
+    cmd: &str,
+    span: Span,
+    event: &str,
+    out: &mut Vec<IrulesCheckWarning>,
+) -> HttpFlowState {
+    if commits_response_commands().contains(cmd) {
+        if state.responded {
+            out.push(IrulesCheckWarning {
+                span,
+                code: "IRULE1202".to_owned(),
+                message: format!(
+                    "Multiple '{cmd}' calls possible in {event}. Only the first response takes effect.",
+                ),
+                replacement: None,
+            });
+            return state;
+        }
+        return HttpFlowState {
+            responded: true,
+            respond_at: Some(span.start()),
+        };
+    }
+    if state.responded && http_namespace_commands().contains(cmd) {
+        out.push(IrulesCheckWarning {
+            span,
+            code: "IRULE1201".to_owned(),
+            message: format!(
+                "'{cmd}' used after response is committed. HTTP context is invalid after HTTP::respond/HTTP::redirect.",
+            ),
+            replacement: None,
+        });
+    }
+    state
+}
+
+/// Path-sensitive walk of a structured IR script, threading the set of
+/// response-flow states.  Mirrors Python `_analyse_script`: a thin loop over
+/// the structured statements, delegating each step to [`http_flow_step`].
+fn analyse_http_flow_script(
+    script: &Script,
+    event: &str,
+    in_states: &[HttpFlowState],
+    out: &mut Vec<IrulesCheckWarning>,
+) -> Vec<HttpFlowState> {
+    let mut states = in_states.to_vec();
+    for stmt in &script.statements {
+        match http_flow_step(stmt, event, &states, out) {
+            // `None` ⇒ the statement terminates every current path (`return`).
+            None => return Vec::new(),
+            Some(next) => states = next,
+        }
+    }
+    states
+}
+
+/// Transfer one structured statement over the response-flow state set, or
+/// `None` when the statement (`return`) terminates the current paths.  The
+/// control-flow arms recurse through [`analyse_http_flow_script`].
+fn http_flow_step(
+    stmt: &Statement,
+    event: &str,
+    states: &[HttpFlowState],
+    out: &mut Vec<IrulesCheckWarning>,
+) -> Option<Vec<HttpFlowState>> {
+    Some(match stmt {
+        Statement::Return { .. } => return None,
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            let mut next = Vec::new();
+            for st in states {
+                let one = [*st];
+                for clause in clauses {
+                    next.extend(analyse_http_flow_script(&clause.body, event, &one, out));
+                }
+                if let Some(eb) = else_body {
+                    next.extend(analyse_http_flow_script(eb, event, &one, out));
+                } else {
+                    // condition-false path keeps the incoming state.
+                    next.push(*st);
+                }
+            }
+            dedupe_flow_states(next)
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            let mut next = Vec::new();
+            for st in states {
+                let one = [*st];
+                // no-match fall-through path.
+                next.push(*st);
+                for arm in arms {
+                    if let Some(body) = &arm.body {
+                        next.extend(analyse_http_flow_script(body, event, &one, out));
+                    }
+                }
+                if let Some(db) = default_body {
+                    next.extend(analyse_http_flow_script(db, event, &one, out));
+                }
+            }
+            dedupe_flow_states(next)
+        }
+        Statement::For { body, .. }
+        | Statement::While { body, .. }
+        | Statement::Foreach { body, .. } => {
+            let mut next = Vec::new();
+            for st in states {
+                let one = [*st];
+                next.push(*st); // zero iterations
+                next.extend(analyse_http_flow_script(body, event, &one, out));
+            }
+            dedupe_flow_states(next)
+        }
+        Statement::Catch { body, .. } => {
+            let mut next = Vec::new();
+            for st in states {
+                next.extend(analyse_http_flow_script(body, event, &[*st], out));
+            }
+            dedupe_flow_states(next)
+        }
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            let mut next = Vec::new();
+            for st in states {
+                let one = [*st];
+                let mut branch = analyse_http_flow_script(body, event, &one, out);
+                for handler in handlers {
+                    branch.extend(analyse_http_flow_script(&handler.body, event, &one, out));
+                }
+                if let Some(fb) = finally_body {
+                    let mut final_out = Vec::new();
+                    for mid in &branch {
+                        final_out.extend(analyse_http_flow_script(fb, event, &[*mid], out));
+                    }
+                    branch = final_out;
+                }
+                if branch.is_empty() {
+                    next.push(*st);
+                } else {
+                    next.extend(branch);
+                }
+            }
+            dedupe_flow_states(next)
+        }
+        // A grouping block (namespace/uplevel body) runs in sequence.
+        Statement::Block { body, .. } => analyse_http_flow_script(body, event, states, out),
+        _ => match http_flow_stmt_command(stmt) {
+            Some((cmd, span)) => dedupe_flow_states(
+                states
+                    .iter()
+                    .map(|st| apply_http_flow_command(*st, cmd, span, event, out))
+                    .collect(),
+            ),
+            None => states.to_vec(),
+        },
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -1427,6 +1616,91 @@ mod tests {
             !ws.iter().any(|w| w.code == "IRULE1202"),
             "IRULE1202 should not fire outside HTTP events, got {ws:?}",
         );
+    }
+
+    fn http_codes(source: &str) -> Vec<String> {
+        let mut c: Vec<String> = http_warnings(source)
+            .iter()
+            .map(|w| w.code.clone())
+            .collect();
+        c.sort();
+        c
+    }
+
+    #[test]
+    fn irule1202_quiet_on_mutually_exclusive_branches() {
+        // A respond in each arm of an if/else is NOT a double-respond — only
+        // one executes per path.  The path-sensitive walk keeps the branch
+        // states separate (the linear scan wrongly fired IRULE1202 here).
+        assert!(
+            http_codes(
+                "when HTTP_REQUEST { if {$x} { HTTP::respond 200 content a } \
+             else { HTTP::respond 404 content b } }"
+            )
+            .is_empty()
+        );
+        // Same for mutually-exclusive switch arms.
+        assert!(
+            http_codes(
+                "when HTTP_REQUEST { switch $x { a { HTTP::respond 200 content a } \
+             b { HTTP::respond 404 content b } } }"
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn irule1201_quiet_when_respond_and_use_are_exclusive() {
+        // respond in one branch, an HTTP command in the *other* — no path
+        // both responds and then uses HTTP, so nothing fires.
+        assert!(
+            http_codes(
+                "when HTTP_REQUEST { if {$x} { HTTP::respond 200 content a } \
+             else { HTTP::header insert Foo bar } }"
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn irule1201_fires_through_catch_body() {
+        // A respond inside `catch { … }` still commits the response, so a
+        // following HTTP command is flagged (the linear scan missed this).
+        assert!(http_codes(
+            "when HTTP_REQUEST { catch { HTTP::respond 200 content a }; HTTP::header insert Foo bar }"
+        )
+        .contains(&"IRULE1201".to_string()));
+    }
+
+    #[test]
+    fn irule1201_quiet_on_unregistered_http_subcommand() {
+        // `HTTP::log` is not a registered HTTP:: command, so it must not trip
+        // IRULE1201 (matches the registry-derived namespace set).
+        assert!(
+            !http_codes("when HTTP_REQUEST { HTTP::respond 200 content a; HTTP::log foo }")
+                .contains(&"IRULE1201".to_string())
+        );
+    }
+
+    #[test]
+    fn irule1202_fires_after_loop_respond() {
+        // A respond in a loop body, then a respond after the loop: when the
+        // loop runs at least once, the second respond is a double-respond.
+        assert!(
+            http_codes(
+                "when HTTP_REQUEST { foreach i $list { HTTP::respond 200 content a }; \
+             HTTP::respond 404 content b }"
+            )
+            .contains(&"IRULE1202".to_string())
+        );
+    }
+
+    #[test]
+    fn bare_redirect_commits_response() {
+        // The bare iRules `redirect` (not just `HTTP::redirect`) commits a
+        // response — derived from the registry's ResponseCommit side-effect.
+        assert!(commits_response_commands().contains("redirect"));
+        assert!(commits_response_commands().contains("HTTP::respond"));
     }
 
     // -- IRULE4004 ----------------------------------------------------
