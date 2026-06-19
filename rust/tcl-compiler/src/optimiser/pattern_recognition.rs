@@ -46,6 +46,9 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let ints = cu.procedures.get(qname).map(int_var_names).unwrap_or_default();
         walk_script(ctx, &proc.body, &ints);
     }
+    // O128 — end-offset index rewrites (its own segment-level walk over
+    // the same source).
+    super::end_offset::run(ctx, cu);
 }
 
 /// Names whose **every** SSA version is a known `TclType::Int`. A name absent

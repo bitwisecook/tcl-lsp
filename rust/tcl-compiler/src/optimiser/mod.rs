@@ -35,6 +35,7 @@
 pub mod branch_folding;
 pub mod code_sinking;
 pub mod elimination;
+pub mod end_offset;
 pub mod expr_simplify;
 pub mod helpers;
 pub mod manager;
