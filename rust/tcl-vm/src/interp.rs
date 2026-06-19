@@ -1027,6 +1027,59 @@ impl Vm {
         )
     }
 
+    /// Whether `name` resolves to an array variable (the `set a` array/scalar
+    /// diagnostic; `array exists`).
+    pub(crate) fn var_is_array(&self, name: &str) -> bool {
+        let resolved = self.ns_var_fallback(name);
+        let lookup = resolved.as_deref().unwrap_or(name);
+        let (lvl, nm) = self.locate(lookup);
+        matches!(
+            self.frames.get(lvl).and_then(|f| f.locals.get(&nm)),
+            Some(Local::Array(_))
+        )
+    }
+
+    /// C's three-way read-miss message (`tclVar.c`): a scalar read of an array
+    /// (`variable is array`), a missing element of an existing array (`no such
+    /// element in array`), an existing scalar accessed with an index (`variable
+    /// isn't array`), or a wholly missing variable (`no such variable`).
+    pub(crate) fn read_miss_msg(&self, name: &str) -> String {
+        let (base, has_idx) = elem_ref(name).map_or((name, false), |(b, _)| (b, true));
+        let what = if self.var_is_array(base) {
+            if has_idx {
+                "no such element in array"
+            } else {
+                "variable is array"
+            }
+        } else if has_idx && self.has_var(base) {
+            "variable isn't array"
+        } else {
+            "no such variable"
+        };
+        format!("can't read \"{name}\": {what}")
+    }
+
+    /// Ensure `name` is an array (creating an empty one if unset) — `array set
+    /// name {}` with an empty value list still materialises the array (C's
+    /// `TclArraySet`). A scalar `name` errors `variable isn't array`.
+    pub(crate) fn ensure_array(&mut self, name: &str) -> Result<(), Completion<Value>> {
+        let resolved = self.ns_var_fallback(name);
+        let lookup = resolved.as_deref().unwrap_or(name).to_string();
+        let (lvl, nm) = self.locate(&lookup);
+        if let Some(f) = self.frames.get_mut(lvl) {
+            match f.locals.get(&nm) {
+                Some(Local::Array(_) | Local::Link { .. }) => {}
+                Some(Local::Scalar(_)) => {
+                    return Err(err(format!("can't set \"{name}\": variable isn't array")));
+                }
+                None => {
+                    f.locals.insert(nm, Local::Array(BTreeMap::new()));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Whether `name` exists, resolving an `arr(key)` element reference to the
     /// element — the `info exists` / `existStk` semantic.
     pub(crate) fn exists_var(&self, name: &str) -> bool {

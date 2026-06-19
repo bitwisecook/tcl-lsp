@@ -50,6 +50,12 @@ fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
                     return err("list must have an even number of elements");
                 }
                 let name = n.to_str();
+                // `array set a {}` still materialises an empty array (and a
+                // scalar `a` errors), so ensure it up front — the loop below
+                // never runs for an empty value list.
+                if let Err(e) = vm.ensure_array(&name) {
+                    return e;
+                }
                 let mut i = 0;
                 while i + 1 < items.len() {
                     if let Err(e) =

@@ -108,8 +108,7 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
         [name] => {
             let n = name.to_str();
-            vm.var_get(&n)
-                .map_or_else(|| err(format!("can't read \"{n}\": no such variable")), ok)
+            vm.var_get(&n).map_or_else(|| err(vm.read_miss_msg(&n)), ok)
         }
         [name, value] => match vm.var_set(&name.to_str(), value.clone()) {
             Ok(()) => ok(value.clone()),
