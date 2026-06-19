@@ -181,12 +181,21 @@ test.
     with an index reports `variable isn't array`; `trace add|remove|info`
     resolves its type word by unambiguous prefix (`var`→`variable`). `set.test`
     53 → **59/64**.
+  - **`while`/`for` errorInfo frames + for-step break.** The interpreted
+    `Tcl_WhileObjCmd`/`Tcl_ForObjCmd` append `("while" body line N)` /
+    `("for" body line N)` on a body error (outside a proc, like `foreach`), plus
+    the no-line `("for" initial command)` / `("for" loop-end command)` frames for
+    the init/next scripts (new `Interp::append_frame_noline`); a `break` in the
+    for **step** clause now ends the loop cleanly (C `case TCL_BREAK: result =
+    TCL_OK`). `while.test` 45 → **46/46**, `for.test` 52 → **63/88**.
   - Other basic suites run with high pass rates on this path: `list` 78/78,
-    `eval` 12/12, `unknown` 7/7, `while` 45/46, `switch` 112/113, `string`
-    681/705, `foreach` 39/43, `incr` 61/69, `var` 175/219. The dominant remaining
-    failure mode across files is the deferred incremental `errorInfo`
-    source-trace; next is `"word"junk` (`extra characters after close-quote`)
-    parse-error fidelity in the runtime's parser.
+    `eval` 12/12, `unknown` 7/7, `error` 309/309, `while` 46/46, `switch`
+    112/113, `string` 681/705, `foreach` 39/43, `incr` 61/69, `var` 175/219. The
+    dominant remaining failure mode across files is the deferred incremental
+    `errorInfo` source-trace on non-control-flow paths and the trace/upvar detail
+    suites; next is the list-element-quoting / `"word"junk`
+    (`extra characters after close-quote`) parse-error fidelity in the runtime's
+    parser.
 
 ## Appendix — Zig-runtime discoveries to honour
 
