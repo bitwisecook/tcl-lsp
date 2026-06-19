@@ -251,8 +251,34 @@ impl CodegenCtx<'_> {
             // emit a generic `switch` invoke — tclsh 9.0's un-compiled approach
             // for these modes. Mirrors Python's `IRSwitch` codegen
             // (`_emit_call("switch", raw_args)`).
-            Statement::Switch { raw_args, .. } => {
-                self.emit_call_stmt("switch", raw_args, None, used_generic_invoke);
+            Statement::Switch {
+                raw_args,
+                patterns_braced,
+                ..
+            } => {
+                // The single-braced arm form `switch … { pat body … }` passes
+                // the whole arm block as one braced-literal word: its patterns
+                // and bodies are data, so a `[…]`/`$…` inside (e.g. a `-regexp`
+                // character class `{[0-9]+}`) must not be substituted. Mark that
+                // trailing word `Str` so it is pushed verbatim; the leading
+                // option/subject words still interpolate (the subject may be
+                // `$s`). The multi-word form keeps the all-interpolated path.
+                if *patterns_braced && !raw_args.is_empty() {
+                    let n = raw_args.len();
+                    let mut kinds = vec![tcl_lexer::TokenType::Esc; n + 1];
+                    kinds[n] = tcl_lexer::TokenType::Str;
+                    let toks = crate::ir::CommandTokens {
+                        argv: Vec::new(),
+                        argv_texts: Vec::new(),
+                        argv_kinds: kinds,
+                        single_token_word: vec![true; n + 1],
+                        all_tokens: Vec::new(),
+                        expand_word: None,
+                    };
+                    self.emit_call_stmt("switch", raw_args, Some(&toks), used_generic_invoke);
+                } else {
+                    self.emit_call_stmt("switch", raw_args, None, used_generic_invoke);
+                }
             }
 
             Statement::Return { value, .. } => {
