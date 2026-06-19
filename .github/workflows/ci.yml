@@ -951,7 +951,12 @@ jobs:
       - name: Install vsce from the committed lockfile
         run: cd editors/vscode && npm ci
 
-      - name: Download the released VSIX and verify against SHA256SUMS
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v2.6.3'
+
+      - name: Download the released VSIX and verify against the signed SHA256SUMS
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -959,7 +964,20 @@ jobs:
           tag="${GITHUB_REF#refs/tags/}"
           mkdir -p dist && cd dist
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
-            --pattern '*.vsix' --pattern 'SHA256SUMS' --clobber
+            --pattern '*.vsix' --pattern 'SHA256SUMS' \
+            --pattern 'SHA256SUMS.cosign.bundle' --clobber
+          # Verify SHA256SUMS is the manifest publish-checksums actually signed
+          # (keyless OIDC) BEFORE trusting any hash in it.  The Release stays
+          # mutable while this job waits for approval, so an actor with
+          # release-write could otherwise swap the .vsix AND SHA256SUMS as a
+          # self-consistent pair and pass a bare `sha256sum -c`.  Pinning the
+          # cosign identity to this repo's ci.yml on a v* tag makes that swap
+          # detectable.
+          cosign verify-blob \
+            --bundle SHA256SUMS.cosign.bundle \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp '^https://github\.com/bitwisecook/tcl-lsp/\.github/workflows/ci\.yml@refs/tags/v' \
+            SHA256SUMS
           # --ignore-missing: SHA256SUMS lists every release asset; we only
           # fetched the .vsix, so verify just that one (others are skipped).
           sha256sum -c --ignore-missing SHA256SUMS
@@ -993,7 +1011,12 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Download the released plugin and verify against SHA256SUMS
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v2.6.3'
+
+      - name: Download the released plugin and verify against the signed SHA256SUMS
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -1001,7 +1024,18 @@ jobs:
           tag="${GITHUB_REF#refs/tags/}"
           mkdir -p dist && cd dist
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'tcl-lsp-jetbrains-*.zip' --pattern 'SHA256SUMS' --clobber
+            --pattern 'tcl-lsp-jetbrains-*.zip' --pattern 'SHA256SUMS' \
+            --pattern 'SHA256SUMS.cosign.bundle' --clobber
+          # Verify SHA256SUMS is the manifest publish-checksums actually signed
+          # (keyless OIDC) BEFORE trusting any hash in it — the Release is
+          # mutable during the approval wait, so a bare `sha256sum -c` would
+          # accept an attacker's self-consistent {zip, SHA256SUMS} swap.  The
+          # pinned cosign identity (this repo's ci.yml on a v* tag) closes that.
+          cosign verify-blob \
+            --bundle SHA256SUMS.cosign.bundle \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp '^https://github\.com/bitwisecook/tcl-lsp/\.github/workflows/ci\.yml@refs/tags/v' \
+            SHA256SUMS
           sha256sum -c --ignore-missing SHA256SUMS
 
       - name: Publish to JetBrains Marketplace

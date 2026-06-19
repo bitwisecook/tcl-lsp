@@ -34,19 +34,27 @@ TOKEN="$(bash "$HERE/jetbrains_token.sh")" || exit 1
 
 echo "==> Uploading $(basename "$ZIP") to JetBrains Marketplace (pluginId=$PLUGIN_ID${CHANNEL:+, channel=$CHANNEL})" >&2
 
+# The documented bearer-token upload endpoint
+# (https://plugins.jetbrains.com/docs/marketplace/plugin-upload.html):
+# POST multipart to /api/updates/upload with `pluginId` + `file`, and an
+# optional `channel` (omit entirely for the default Stable channel — an
+# empty `channel=` form field is not the same as "unset").
+#
 # The endpoint returns 201/302 on success and 4xx with a JSON error body
 # otherwise.  Capture the HTTP status separately from the body so a failed
 # upload is a hard error rather than a silently-ignored 4xx.
 body="$(mktemp)"
 trap 'rm -f "$body"' EXIT
+channel_field=()
+[ -n "$CHANNEL" ] && channel_field=(-F "channel=${CHANNEL}")
 status="$(curl -sS -o "$body" -w '%{http_code}' \
     --retry 3 --retry-delay 5 --retry-all-errors \
     -X POST \
     -H "Authorization: Bearer $TOKEN" \
     -F "pluginId=${PLUGIN_ID}" \
-    -F "channel=${CHANNEL}" \
+    "${channel_field[@]}" \
     -F "file=@${ZIP}" \
-    https://plugins.jetbrains.com/plugin/uploadPlugin)"
+    https://plugins.jetbrains.com/api/updates/upload)"
 
 if [ "$status" -ge 200 ] && [ "$status" -lt 400 ]; then
     echo "==> JetBrains Marketplace accepted the upload (HTTP $status)." >&2
