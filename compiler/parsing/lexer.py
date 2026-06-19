@@ -132,6 +132,66 @@ def _convert_rust_token(tok: object) -> Token:
     )
 
 
+def _byte_to_position_map(
+    text: str,
+    byte_offsets: set[int],
+    base_offset: int,
+    base_line: int,
+    base_col: int,
+) -> dict[int, SourcePosition]:
+    """Map UTF-8 *byte* offsets in *text* to code-point :class:`SourcePosition`s.
+
+    The Rust lexer reports positions as byte offsets / byte columns, but the
+    pure-Python lexer — and every consumer downstream (parser ranges, hovers,
+    code actions, diagnostics) — indexes by Python string *code point*.  For
+    sources containing non-ASCII text before a token those two conventions
+    diverge, shifting later ranges.  This walks *text* once, mapping each
+    requested byte offset (always a UTF-8 character boundary, since the Rust
+    spans are) to the code-point ``(line, character, offset)`` the Python lexer
+    would produce, applying the sub-lexing bases exactly as
+    :meth:`TclLexer._pos_at` does.
+    """
+
+    def make(line_idx: int, col: int, char_off: int) -> SourcePosition:
+        return SourcePosition(
+            line=base_line + line_idx,
+            character=(base_col + col) if line_idx == 0 else col,
+            offset=char_off + base_offset,
+        )
+
+    result: dict[int, SourcePosition] = {}
+    if 0 in byte_offsets:
+        result[0] = make(0, 0, 0)
+    byte_pos = 0
+    char_off = 0
+    line_idx = 0
+    col = 0
+    for ch in text:
+        byte_pos += len(ch.encode("utf-8"))
+        if ch == "\n":
+            line_idx += 1
+            col = 0
+        else:
+            col += 1
+        char_off += 1
+        if byte_pos in byte_offsets:
+            result[byte_pos] = make(line_idx, col, char_off)
+    return result
+
+
+def _convert_rust_token_remapped(tok: object, pos_map: dict[int, SourcePosition]) -> Token:
+    """Like :func:`_convert_rust_token`, but resolve the start/end positions
+    from *pos_map* (byte offset → code-point :class:`SourcePosition`) so a
+    non-ASCII source's token ranges match the pure-Python lexer."""
+    return Token(
+        type=_TOKEN_TYPE_BY_NAME[tok.type.name],  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        text=tok.text,  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        start=pos_map[tok.start.offset],  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        end=pos_map[tok.end.offset],  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        in_quote=tok.in_quote,  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    )
+
+
 class TclParseError(Exception):
     """Raised for Tcl syntax errors detected during lexing."""
 
@@ -1247,23 +1307,37 @@ class TclLexer:
         The Python fallback is used otherwise.
         """
         if _rust_lexer_tokenise_cfg is not None and not self._has_virtuals and self.pos == 0:
+            # The Rust lexer reports positions as UTF-8 *byte* offsets/columns,
+            # while the Python lexer indexes by code point.  For pure-ASCII
+            # sources the two coincide, so we let the Rust side apply the
+            # sub-lexing bases and copy positions verbatim (the fast path).  For
+            # a source with any non-ASCII character the conventions diverge, so
+            # we ask the Rust lexer for *zero-based* byte positions and remap
+            # them to code-point positions (with the bases re-applied) below.
+            ascii_only = self.text.isascii()
+            if ascii_only:
+                base_offset, base_line, base_col = (
+                    self._base_offset,
+                    self._base_line,
+                    self._base_col,
+                )
+            else:
+                base_offset = base_line = base_col = 0
             try:
                 tokens, warnings = _rust_lexer_tokenise_cfg(
                     self.text,
                     _expand_syntax_active(),
                     _irules_brace_separator_active(),
                     _strict_quoting(),
-                    self._base_offset,
-                    self._base_line,
-                    self._base_col,
+                    base_offset,
+                    base_line,
+                    base_col,
                 )
             except ValueError as exc:
                 # The Rust lexer raises ValueError for strict-mode syntax
                 # errors; re-raise as TclParseError so callers that catch
                 # TclParseError still work.
                 raise TclParseError(str(exc)) from exc
-            if warnings:
-                self.warnings.extend(warnings)
             # Finalise cursor state so a subsequent ``get_token()`` returns
             # ``None`` rather than re-reading from offset 0.
             self.pos = self._len
@@ -1274,7 +1348,28 @@ class TclLexer:
             # ``shared.tokens.TokenType``, so leaving them as-is would make
             # every ``tok.type is TokenType.X`` check in the parser silently
             # fail wherever the wheel is installed (see _TOKEN_TYPE_BY_NAME).
-            return [_convert_rust_token(tok) for tok in tokens]
+            if ascii_only:
+                if warnings:
+                    self.warnings.extend(warnings)
+                return [_convert_rust_token(tok) for tok in tokens]
+            # Non-ASCII: translate every byte position to the code-point
+            # convention the rest of the pipeline expects.
+            byte_offsets: set[int] = set()
+            for tok in tokens:
+                byte_offsets.add(tok.start.offset)
+                byte_offsets.add(tok.end.offset)
+            for pos, _msg in warnings:
+                byte_offsets.add(pos.offset)
+            pos_map = _byte_to_position_map(
+                self.text,
+                byte_offsets,
+                self._base_offset,
+                self._base_line,
+                self._base_col,
+            )
+            if warnings:
+                self.warnings.extend((pos_map[pos.offset], msg) for pos, msg in warnings)
+            return [_convert_rust_token_remapped(tok, pos_map) for tok in tokens]
         tokens: list[Token] = []
         while True:
             tok = self.get_token()
