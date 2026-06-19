@@ -361,12 +361,44 @@ impl Vm {
                     }
                 },
                 Tick::Return(c) => {
+                    // A `break`/`continue` *returned by a command* (`if {…} $z`,
+                    // `eval break`) inside an inline loop body: jump to the
+                    // loop's exit/continue point rather than unwinding out of
+                    // the function (the inline `JUMP` only covers a *literal*
+                    // break/continue). Mirrors C Tcl's exception ranges.
+                    if matches!(c.code, Code::Break | Code::Continue)
+                        && self.catch_loop_completion(acts.last_mut().unwrap(), c.code)
+                    {
+                        continue;
+                    }
                     if let Some(done) = self.unwind(&mut acts, c) {
                         return done;
                     }
                 }
             }
         }
+    }
+
+    /// If the instruction that just produced a `break`/`continue` completion is
+    /// inside an inline loop body (per `FunctionAsm::loop_targets`), redirect the
+    /// frame's `pc` to the loop's break / continue target and return `true`;
+    /// otherwise return `false` (the completion keeps unwinding). The stack is at
+    /// a statement boundary here (the failing command consumed its args and
+    /// pushed no result), matching what the loop-end / header expects.
+    fn catch_loop_completion(&self, f: &mut Frame, code: Code) -> bool {
+        let idx = f.pc.saturating_sub(1);
+        let Some(&(brk, cont)) = f.asm.loop_targets.get(&idx) else {
+            return false;
+        };
+        let target = if code == Code::Break { brk } else { cont };
+        let Some(off) = target else {
+            return false; // no target (e.g. a for-step continue) → propagate
+        };
+        let Some(&tidx) = f.off2idx.get(&off) else {
+            return false;
+        };
+        f.pc = tidx;
+        true
     }
 
     /// Unwind one or more activations with completion `c`. Returns `Some` when

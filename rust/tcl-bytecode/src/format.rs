@@ -332,6 +332,7 @@ mod tests {
             lvt: LocalVarTable::new(&[]),
             instructions: instrs,
             labels: HashMap::new(),
+            loop_targets: HashMap::new(),
         };
 
         let output = format_function_asm(&asm);

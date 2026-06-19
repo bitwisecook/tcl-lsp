@@ -218,6 +218,7 @@ impl<'r> CodegenCtx<'r> {
             lvt: self.lvt,
             instructions: self.instructions,
             labels,
+            loop_targets: HashMap::new(),
         }
     }
 }

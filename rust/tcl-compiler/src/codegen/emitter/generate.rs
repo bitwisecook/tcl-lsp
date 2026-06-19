@@ -543,13 +543,63 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     // Layout pass.
     optimise_jumps(&mut ctx.instructions, &ctx.label_positions, 10);
     let labels = resolve_layout(&mut ctx.instructions, &ctx.label_positions);
+
+    // Loop-target table: each loop-body instruction → its loop's break/continue
+    // byte offsets, so the executor can catch a command-returned break/continue
+    // (`if {…} $z`, `eval break`). Built post-layout from the (innermost-first)
+    // `loop_ctx` block targets + the final block index ranges. `label_positions`
+    // is maintained through the peephole removals, so the indices are final.
+    let loop_targets = build_loop_targets(&block_order, &loop_ctx, &ctx.label_positions, &labels, ctx.instructions.len());
+
     FunctionAsm {
         name: cfg.name.clone(),
         literals: std::mem::take(&mut ctx.literals),
         lvt: std::mem::take(&mut ctx.lvt),
         instructions: std::mem::take(&mut ctx.instructions),
         labels,
+        loop_targets,
     }
+}
+
+/// Build the per-instruction loop-target table (see `FunctionAsm::loop_targets`).
+///
+/// `loop_ctx` maps each loop-body block to its `(continue, break)` target
+/// labels (innermost-first). Each block occupies the instruction range
+/// `[its start, the next block's start)` — `label_positions` gives the final
+/// (post-peephole) start index of every block; `labels` resolves the target
+/// labels to byte offsets. Stamp every instruction in each loop block's range.
+fn build_loop_targets(
+    block_order: &[String],
+    loop_ctx: &HashMap<String, (Option<String>, String)>,
+    label_positions: &HashMap<String, usize>,
+    labels: &HashMap<String, usize>,
+    n_instructions: usize,
+) -> HashMap<usize, (Option<i32>, Option<i32>)> {
+    let mut out: HashMap<usize, (Option<i32>, Option<i32>)> = HashMap::new();
+    if loop_ctx.is_empty() {
+        return out;
+    }
+    // (start index, block name) for each emitted block, in index order.
+    let mut starts: Vec<(usize, &str)> = block_order
+        .iter()
+        .filter_map(|b| label_positions.get(b).map(|&i| (i, b.as_str())))
+        .collect();
+    starts.sort_by_key(|&(i, _)| i);
+    for (k, &(start, bname)) in starts.iter().enumerate() {
+        let Some((cont_lbl, brk_lbl)) = loop_ctx.get(bname) else {
+            continue;
+        };
+        let end = starts.get(k + 1).map_or(n_instructions, |&(i, _)| i);
+        let brk_off = labels.get(brk_lbl).and_then(|&o| i32::try_from(o).ok());
+        let cont_off = cont_lbl
+            .as_ref()
+            .and_then(|l| labels.get(l))
+            .and_then(|&o| i32::try_from(o).ok());
+        for idx in start..end {
+            out.insert(idx, (brk_off, cont_off));
+        }
+    }
+    out
 }
 
 /// Return `Some(idx)` where `idx` is the index of the for-init
