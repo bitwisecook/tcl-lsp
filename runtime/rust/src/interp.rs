@@ -1636,6 +1636,17 @@ impl Interp {
         )
     }
 
+    /// Ensure `name` is an array (creating an empty one if unset) — backs
+    /// `array set name {}` with an empty value list. A scalar `name` errors.
+    pub(crate) fn ensure_array(&self, name: &[u8]) -> Result<(), VarError> {
+        crate::vars::ensure_array(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            name,
+        )
+    }
+
     /// The array's TIP 508 default value (borrowed), or `None`.
     pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
         crate::vars::array_default(
@@ -5349,6 +5360,10 @@ impl Interp {
             } else {
                 msg.extend_from_slice(b"variable is array");
             }
+        } else if index.is_some() && self.var_exists(base) {
+            // An existing scalar accessed with an index (`set b(123)` where `b`
+            // is a scalar): C's `tclVar.c` reports `variable isn't array`.
+            msg.extend_from_slice(b"variable isn't array");
         } else {
             msg.extend_from_slice(b"no such variable");
         }

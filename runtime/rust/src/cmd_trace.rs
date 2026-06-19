@@ -172,6 +172,41 @@ fn bad_option(interp: &mut Interp, bad: &[u8], must_be: &[u8]) -> Code {
     interp.set_error(&m)
 }
 
+/// The three trace kinds, after resolving a (possibly abbreviated) type word.
+#[derive(Clone, Copy)]
+enum TraceType {
+    Variable,
+    Command,
+    Execution,
+}
+
+/// Resolve a `trace add|remove|info` type word by unambiguous prefix, matching
+/// C's `Tcl_GetIndexFromObj` (`var` → `variable`, `comm` → `command`, `exec` →
+/// `execution`). An exact match wins; an empty or ambiguous prefix is `None`.
+fn resolve_trace_type(arg: &[u8]) -> Option<TraceType> {
+    let table = [
+        (&b"execution"[..], TraceType::Execution),
+        (&b"command"[..], TraceType::Command),
+        (&b"variable"[..], TraceType::Variable),
+    ];
+    if let Some((_, ty)) = table.iter().find(|(name, _)| *name == arg) {
+        return Some(*ty);
+    }
+    if arg.is_empty() {
+        return None;
+    }
+    let mut hit = None;
+    for (name, ty) in &table {
+        if name.starts_with(arg) {
+            if hit.is_some() {
+                return None; // ambiguous prefix
+            }
+            hit = Some(*ty);
+        }
+    }
+    hit
+}
+
 fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"trace option ?arg ...?");
@@ -190,12 +225,17 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     },
                 );
             }
-            match obj_bytes(argv[2]).as_slice() {
-                b"variable" => trace_var_add_remove(interp, argv, is_add),
-                b"command" => cmd_trace_add_remove(interp, argv, is_add, ops::CMD_ANY),
-                b"execution" => cmd_trace_add_remove(interp, argv, is_add, ops::EXEC_ANY),
-                other => interp.set_error(
-                    core_trace::bad_type_error(&String::from_utf8_lossy(other))
+            let ty = obj_bytes(argv[2]);
+            match resolve_trace_type(&ty) {
+                Some(TraceType::Variable) => trace_var_add_remove(interp, argv, is_add),
+                Some(TraceType::Command) => {
+                    cmd_trace_add_remove(interp, argv, is_add, ops::CMD_ANY)
+                }
+                Some(TraceType::Execution) => {
+                    cmd_trace_add_remove(interp, argv, is_add, ops::EXEC_ANY)
+                }
+                None => interp.set_error(
+                    core_trace::bad_type_error(&String::from_utf8_lossy(&ty))
                         .message()
                         .as_bytes(),
                 ),
@@ -205,12 +245,13 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() < 3 {
                 return wrong_args(interp, b"trace info type name");
             }
-            match obj_bytes(argv[2]).as_slice() {
-                b"variable" => trace_var_info(interp, argv),
-                b"command" => cmd_trace_info(interp, argv, ops::CMD_ANY),
-                b"execution" => cmd_trace_info(interp, argv, ops::EXEC_ANY),
-                other => interp.set_error(
-                    core_trace::bad_type_error(&String::from_utf8_lossy(other))
+            let ty = obj_bytes(argv[2]);
+            match resolve_trace_type(&ty) {
+                Some(TraceType::Variable) => trace_var_info(interp, argv),
+                Some(TraceType::Command) => cmd_trace_info(interp, argv, ops::CMD_ANY),
+                Some(TraceType::Execution) => cmd_trace_info(interp, argv, ops::EXEC_ANY),
+                None => interp.set_error(
+                    core_trace::bad_type_error(&String::from_utf8_lossy(&ty))
                         .message()
                         .as_bytes(),
                 ),

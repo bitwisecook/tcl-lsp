@@ -254,6 +254,12 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj], name: &[u8]) -> Code {
     if kvs.len() % 2 != 0 {
         return interp.set_error(b"list must have an even number of elements");
     }
+    // `array set a {}` still materialises an empty array (and a scalar `a`
+    // errors `variable isn't array`), so ensure the array up front — the loop
+    // below never runs for an empty value list.
+    if let Err(e) = interp.ensure_array(name) {
+        return crate::builtins::var_error(interp, name, e);
+    }
     for pair in kvs.chunks_exact(2) {
         // `var_set_elem` retains the live value obj (no fresh allocation).
         let key = obj_bytes(pair[0]);

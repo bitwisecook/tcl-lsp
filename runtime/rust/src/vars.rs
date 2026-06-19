@@ -426,6 +426,24 @@ pub(crate) fn set_array_default(
     Ok(())
 }
 
+/// Ensure `name` is an (possibly empty) array, creating an empty one if it is
+/// unset — `array set name {}` with an empty value list still materialises the
+/// array (C's `TclArraySet`). A scalar `name` errors `IsScalar`. Resolves
+/// links/namespaces like the element setters.
+pub(crate) fn ensure_array(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) -> Result<(), VarError> {
+    let place = match resolve(frames, ns, current_ns, name) {
+        Resolved::Place(p) if p.elem.is_none() => p,
+        Resolved::NoNamespace => return Err(VarError::NoSuchNamespace),
+        _ => return Err(VarError::IsScalar),
+    };
+    table_mut(frames, ns, place.home).ensure_array(&place.name)
+}
+
 /// `array default get/exists` — the array's default value (following links), or
 /// `None` if the name isn't an array or has no default.
 pub(crate) fn array_default(
