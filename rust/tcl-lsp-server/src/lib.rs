@@ -83,19 +83,18 @@ use tower_lsp::lsp_types::{
     FullDocumentDiagnosticReport, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
     InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
-    PositionEncodingKind,
     InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
     MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier,
-    ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range, ReferenceParams,
-    Registration, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
-    RenameFilesParams, RenameOptions, RenameParams, SelectionRange, SelectionRangeParams,
-    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens,
-    SemanticTokensDeltaParams, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
-    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
-    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
-    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentEdit,
-    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    ParameterInformation, ParameterLabel, Position, PositionEncodingKind, PrepareRenameResponse,
+    Range, ReferenceParams, Registration, RelatedFullDocumentDiagnosticReport,
+    RelatedUnchangedDocumentDiagnosticReport, RenameFilesParams, RenameOptions, RenameParams,
+    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
+    SemanticTokens as LspSemanticTokens, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
+    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
+    TextDocumentEdit, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextEdit, TypeDefinitionProviderCapability,
     UnchangedDocumentDiagnosticReport, Url, WatchKind, WillSaveTextDocumentParams,
     WorkDoneProgressOptions, WorkspaceDiagnosticParams, WorkspaceDiagnosticReport,
@@ -4184,9 +4183,7 @@ impl LanguageServer for Backend {
         // `null` — when both are disabled, mirroring the Python default-off
         // contract (`on_inlay_hint` returns `[]`).
         let type_hints = self.inlay_family_enabled(&uri, "inlayTypeHints").await;
-        let parameter_hints = self
-            .inlay_family_enabled(&uri, "inlayParameterHints")
-            .await;
+        let parameter_hints = self.inlay_family_enabled(&uri, "inlayParameterHints").await;
         if !type_hints && !parameter_hints {
             return Ok(Some(Vec::new()));
         }
@@ -5682,7 +5679,9 @@ fn negotiate_position_encoding(params: &InitializeParams) -> Option<PositionEnco
 /// `LanguageServer::initialize` handler stays focused on
 /// state setup and result construction — the long capability
 /// literal lives here rather than inside the trait method.
-fn build_server_capabilities(position_encoding: Option<PositionEncodingKind>) -> ServerCapabilities {
+fn build_server_capabilities(
+    position_encoding: Option<PositionEncodingKind>,
+) -> ServerCapabilities {
     ServerCapabilities {
         // UTF-16 columns, matching the LSP default and what every provider
         // emits.  Advertised explicitly only when the client offered it
@@ -6151,7 +6150,10 @@ mod tests {
         // honour; omitting it falls back to the UTF-16 default.
         assert_eq!(with_encodings(Some(vec![PositionEncodingKind::UTF8])), None);
         // No `general` capability at all → omit (default UTF-16).
-        assert_eq!(negotiate_position_encoding(&InitializeParams::default()), None);
+        assert_eq!(
+            negotiate_position_encoding(&InitializeParams::default()),
+            None
+        );
     }
 
     #[test]

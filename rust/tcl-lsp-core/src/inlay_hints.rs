@@ -120,7 +120,15 @@ pub fn inlay_hints(
 
     if type_hints {
         if let Some(registry) = registry {
-            collect_type_hints(source, dialect, analysis, registry, range, &line_index, &mut out);
+            collect_type_hints(
+                source,
+                dialect,
+                analysis,
+                registry,
+                range,
+                &line_index,
+                &mut out,
+            );
         }
         collect_format_string_hints(source, dialect, range, &line_index, &mut out);
     }
@@ -554,7 +562,9 @@ fn collect_format_string_hints(
                     }
                 }
             }
-            FormatArg::Binary(_) => collect_binary_hints(content, cstart, range, source, line_index, out),
+            FormatArg::Binary(_) => {
+                collect_binary_hints(content, cstart, range, source, line_index, out)
+            }
             FormatArg::Regsub(_) => {
                 for m in REGSUB_RE.captures_iter(content) {
                     let whole = m.get(0).expect("group 0");
@@ -960,7 +970,15 @@ mod tests {
     fn hints_emitted_for_user_proc_call() {
         let src = "proc greet {name greeting} {}\ngreet alice hello\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None, false, true);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert!(
             labels.contains(&"name:"),
@@ -976,7 +994,15 @@ mod tests {
     fn hints_anchored_at_argument_start() {
         let src = "proc greet {name} {}\ngreet alice\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None, false, true);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         assert_eq!(hints.len(), 1);
         let h = &hints[0];
         assert_eq!(h.position_line, 1);
@@ -989,7 +1015,15 @@ mod tests {
     fn no_hints_for_unknown_command() {
         let src = "unknown_cmd a b c\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None, false, true);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         assert!(hints.is_empty(), "{hints:?}");
     }
 
@@ -999,7 +1033,15 @@ mod tests {
         // because there's no individual name to surface.
         let src = "proc many {first args} {}\nmany 1 2 3 4\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None, false, true);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         // Only the `first` arg gets a hint.
         assert_eq!(hints.len(), 1);
         assert_eq!(hints[0].label, "first:");
@@ -1012,7 +1054,15 @@ mod tests {
         // no hints (no name to attach).
         let src = "proc one {a} {}\none 1 2 3\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None, false, true);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         assert_eq!(hints.len(), 1);
         assert_eq!(hints[0].label, "a:");
     }
@@ -1271,7 +1321,15 @@ mod tests {
         // Same source, no registry — no built-in hints.
         let src = "string index $s 3\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None, false, true);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         assert!(hints.is_empty(), "{hints:?}");
     }
 
@@ -1325,7 +1383,10 @@ mod tests {
             "{type_hints:?}",
         );
         // No parameter hints leak in when only type hints are requested.
-        assert!(hints.iter().all(|h| h.kind == InlayHintKind::Type), "{hints:?}");
+        assert!(
+            hints.iter().all(|h| h.kind == InlayHintKind::Type),
+            "{hints:?}"
+        );
     }
 
     #[test]
@@ -1379,7 +1440,9 @@ mod tests {
         );
         assert!(!param_only.is_empty(), "expected parameter hints");
         assert!(
-            param_only.iter().all(|h| h.kind == InlayHintKind::Parameter),
+            param_only
+                .iter()
+                .all(|h| h.kind == InlayHintKind::Parameter),
             "{param_only:?}",
         );
     }

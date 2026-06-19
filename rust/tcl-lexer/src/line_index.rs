@@ -256,7 +256,11 @@ mod tests {
         let src = "á\nbc\nd";
         let idx = LineIndex::new(src);
         for off in [0u32, 2, 3, 5, 6] {
-            assert_eq!(idx.line_at(off), idx.position_at(off).line, "byte off {off}");
+            assert_eq!(
+                idx.line_at(off),
+                idx.position_at(off).line,
+                "byte off {off}"
+            );
             assert_eq!(
                 idx.line_at(off),
                 idx.position_at_utf16(off, src).line,
