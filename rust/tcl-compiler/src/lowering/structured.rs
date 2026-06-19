@@ -148,6 +148,11 @@ impl Lowerer<'_> {
                 if i + 1 >= args.len() {
                     return Self::barrier(seg, "malformed if else clause");
                 }
+                // Only a substitution-free literal body inlines (see the
+                // clause-body note below).
+                if !super::seg_word_is_static_literal(seg, i + 2) {
+                    return Self::barrier(seg, "if with non-literal body");
+                }
                 let body_tok = arg_tokens.get(i + 1);
                 let dead = later_clauses_dead;
                 if dead {
@@ -171,6 +176,15 @@ impl Lowerer<'_> {
             }
 
             let body_idx = i;
+            // C's TclCompileIfCmd only inlines a braced-literal body; a body
+            // carrying substitutions (`$x`, `[cmd]`, a quoted or concatenated
+            // word like `$x1$x2`) must be substituted *then* evaluated as a
+            // script — which the runtime `if` command does. Bail the whole
+            // construct to that command rather than mis-parsing the unsubstituted
+            // word as a literal script at compile time.
+            if !super::seg_word_is_static_literal(seg, body_idx + 1) {
+                return Self::barrier(seg, "if with non-literal body");
+            }
             let body_tok = arg_tokens.get(body_idx);
             let cond_tok = arg_tokens.get(cond_idx);
             let static_cond = super::static_bool(&args[cond_idx]);

@@ -137,6 +137,19 @@ fn seg_word_is_static_braced(seg: &SegmentedCommand, idx: usize) -> bool {
         && seg.argv.get(idx).is_some_and(|t| t.kind == TokenType::Str)
 }
 
+/// Word `idx` is a single substitution-free literal: a `{braced}` (`Str`) word
+/// or a plain bareword (`Esc`) — exactly the body words C's `TclCompileIfCmd`
+/// inlines. A word carrying `$var` / `[cmd]` substitution, or a multi-token
+/// concatenation like `$x1$x2`, is not (it must be substituted then evaluated
+/// as a script by the runtime `if` command).
+fn seg_word_is_static_literal(seg: &SegmentedCommand, idx: usize) -> bool {
+    seg.single_token_word.get(idx).copied().unwrap_or(false)
+        && seg
+            .argv
+            .get(idx)
+            .is_some_and(|t| matches!(t.kind, TokenType::Str | TokenType::Esc))
+}
+
 /// True iff `nm` is a static instance-variable name (not a `$var` /
 /// `[cmd]` substitution and not an option flag). Dynamic names are
 /// skipped — conservative.
