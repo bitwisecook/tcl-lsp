@@ -1192,8 +1192,12 @@ pub fn find_loop_invariants(
     let mut results: Vec<RedundantComputation> = Vec::new();
 
     // Collect unique header → loop_blocks pairs via back-edge
-    // detection: edge tail → succ where succ dominates tail.
+    // detection: edge tail → succ where succ dominates tail. The
+    // back-edge tails (latches) are tracked per header for the
+    // latch-dominance gate below.
     let mut header_to_blocks: std::collections::HashMap<String, HashSet<String>> =
+        std::collections::HashMap::new();
+    let mut header_to_latches: std::collections::HashMap<String, HashSet<String>> =
         std::collections::HashMap::new();
     for tail in &executable {
         let Some(block) = cfg.blocks.get(tail) else {
@@ -1217,17 +1221,30 @@ pub fn find_loop_invariants(
             }
             let blocks = natural_loop_blocks(cfg, &succ, tail, &executable);
             header_to_blocks
-                .entry(succ)
+                .entry(succ.clone())
                 .and_modify(|e| e.extend(blocks.iter().cloned()))
                 .or_insert(blocks);
+            header_to_latches
+                .entry(succ)
+                .or_default()
+                .insert(tail.clone());
         }
     }
 
     for (header, loop_blocks) in &header_to_blocks {
         let defined = loop_defined_variables(ssa, loop_blocks);
+        let latches = &header_to_latches[header];
         for bn in loop_blocks {
             if bn == header {
                 // Skip header-only scans (contains the loop test).
+                continue;
+            }
+            // Latch-dominance "runs every iteration" gate: an invariant in
+            // a block that does not dominate every back-edge tail runs only
+            // on some iterations (it sits behind a branch inside the loop),
+            // so hoisting it changes *when* it runs. Only blocks that
+            // dominate every latch are guaranteed to execute each iteration.
+            if !latches.iter().all(|latch| dominates(ssa, bn, latch)) {
                 continue;
             }
             let Some(ssa_block) = ssa.blocks.get(bn) else {
@@ -2370,6 +2387,77 @@ mod tests {
         // which is unreachable dead code) — GAP-B2.
         assert_eq!(results[0].code, "O106");
         assert!(results[0].expression_text.contains("llength"));
+    }
+
+    #[test]
+    fn find_loop_invariants_skips_branch_that_does_not_dominate_latch() {
+        // Loop:  header → cond → {then, latch}; then → latch; latch → header.
+        // The invariant `llength $x` sits in `then`, which does NOT dominate
+        // the latch (cond can reach the latch directly), so it runs only on
+        // some iterations — the latch-dominance gate must suppress O106.
+        let registry = CommandRegistry::build_default();
+        let mut cfg = Function::new("::top", "header");
+        for b in ["cond", "then", "latch", "exit"] {
+            cfg.blocks.insert(b.into(), Block::new(b));
+        }
+        cfg.blocks.get_mut("header").unwrap().terminator = Some(Terminator::Branch {
+            condition: crate::expr_ast::ExprNode::Literal { text: "1".into(), start: 0, end: 1 },
+            true_target: "cond".into(),
+            false_target: "exit".into(),
+            span: None,
+        });
+        cfg.blocks.get_mut("cond").unwrap().terminator = Some(Terminator::Branch {
+            condition: crate::expr_ast::ExprNode::Literal { text: "1".into(), start: 0, end: 1 },
+            true_target: "then".into(),
+            false_target: "latch".into(),
+            span: None,
+        });
+        cfg.blocks.get_mut("then").unwrap().statements.push(llength_call());
+        cfg.blocks.get_mut("then").unwrap().terminator =
+            Some(Terminator::Goto { target: "latch".into(), span: None });
+        cfg.blocks.get_mut("latch").unwrap().terminator =
+            Some(Terminator::Goto { target: "header".into(), span: None });
+        cfg.blocks.get_mut("exit").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "header".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        ssa.idom.insert("header".into(), None);
+        ssa.idom.insert("cond".into(), Some("header".into()));
+        ssa.idom.insert("then".into(), Some("cond".into()));
+        // The latch is reachable from `cond` both directly and via `then`,
+        // so its immediate dominator is `cond`, not `then`.
+        ssa.idom.insert("latch".into(), Some("cond".into()));
+        ssa.idom.insert("exit".into(), Some("header".into()));
+        ssa.dominator_tree.insert("header".into(), vec!["cond".into(), "exit".into()]);
+        ssa.dominator_tree.insert("cond".into(), vec!["then".into(), "latch".into()]);
+        for b in ["then", "latch", "exit"] {
+            ssa.dominator_tree.insert(b.into(), Vec::new());
+        }
+
+        ssa.blocks.insert("header".into(), empty_ssa_block("header"));
+        ssa.blocks.insert("cond".into(), empty_ssa_block("cond"));
+        let mut then_b = empty_ssa_block("then");
+        then_b.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        ssa.blocks.insert("then".into(), then_b);
+        ssa.blocks.insert("latch".into(), empty_ssa_block("latch"));
+        ssa.blocks.insert("exit".into(), empty_ssa_block("exit"));
+
+        let results = find_loop_invariants(&registry, &cfg, &ssa, None);
+        assert!(
+            results.is_empty(),
+            "invariant behind an in-loop branch must not be hoisted, got {results:?}",
+        );
     }
 
     #[test]
