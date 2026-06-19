@@ -41,11 +41,30 @@
 //!   analyser's method-resolution machinery that
 //!   `S-references-rich` will eventually land.
 
-use tcl_compiler::analyser::{AnalysisResult, ProcDef};
+use std::collections::HashMap;
+
+use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::types::{TypeKind, TypeLattice};
 use tcl_lexer::LineIndex;
-use tcl_registry::CommandRegistry;
+use tcl_registry::{CommandRegistry, TclType};
 
 use crate::definition::LspRange;
+
+/// Which inlay-hint family a hint belongs to.
+///
+/// Mirrors the LSP `InlayHintKind` split the server lifts to: inferred
+/// variable types and format-string specifier labels are [`Self::Type`];
+/// the proc / built-in parameter-name labels at call sites are
+/// [`Self::Parameter`].  Each family is gated independently
+/// (`inlayTypeHints` / `inlayParameterHints`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InlayHintKind {
+    /// Inferred variable type or format-specifier annotation (`: int`).
+    Type,
+    /// Call-site parameter-name label (`name:`).
+    Parameter,
+}
 
 /// One inlay-hint entry — position plus label.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,6 +76,11 @@ pub struct InlayHint {
     pub position_character: u32,
     /// Hint label (e.g. `name:`).
     pub label: String,
+    /// Which family this hint belongs to (Type vs Parameter).
+    pub kind: InlayHintKind,
+    /// Whether the editor should pad a space to the left of the label
+    /// (the inferred-type / format hints render as ` : int`).
+    pub padding_left: bool,
 }
 
 /// Compute inlay hints for `range` in `source`.
@@ -65,7 +89,16 @@ pub struct InlayHint {
 /// the hints need.  When `analysis` is `None` (a stub-only
 /// caller from the minimal port), returns an empty vector.
 /// `registry`, when `Some`, additionally surfaces parameter-
-/// name hints for built-in commands via their synopsis.
+/// name hints for built-in commands via their synopsis (and is
+/// required for the inferred-type hints, which build a
+/// [`CompilationUnit`] from it).
+///
+/// `type_hints` gates the inferred-variable-type annotations and the
+/// format-string specifier labels ([`InlayHintKind::Type`]);
+/// `parameter_hints` gates the call-site parameter-name labels
+/// ([`InlayHintKind::Parameter`]).  Each family is requested
+/// independently so an editor can opt into one without the other,
+/// mirroring Python's `get_inlay_hints(type_hints=…, parameter_hints=…)`.
 #[must_use]
 pub fn inlay_hints(
     source: &str,
@@ -73,38 +106,528 @@ pub fn inlay_hints(
     range: LspRange,
     analysis: Option<&AnalysisResult>,
     registry: Option<&CommandRegistry>,
+    type_hints: bool,
+    parameter_hints: bool,
 ) -> Vec<InlayHint> {
+    if !type_hints && !parameter_hints {
+        return Vec::new();
+    }
     let Some(analysis) = analysis else {
         return Vec::new();
     };
     let line_index = LineIndex::new(source);
+    let mut out = Vec::new();
+
+    if type_hints {
+        if let Some(registry) = registry {
+            collect_type_hints(
+                source,
+                dialect,
+                analysis,
+                registry,
+                range,
+                &line_index,
+                &mut out,
+            );
+        }
+        collect_format_string_hints(source, dialect, range, &line_index, &mut out);
+    }
+
+    if parameter_hints {
+        let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            tcl_lexer::LexerConfig::for_dialect(dialect),
+        );
+        for seg in &segments {
+            if seg.texts.is_empty() || seg.argv.is_empty() {
+                continue;
+            }
+            let cmd_name = &seg.texts[0];
+            if let Some(proc_def) = lookup_proc(analysis, cmd_name) {
+                emit_hints_for_call(source, seg, proc_def, &line_index, range, &mut out);
+                continue;
+            }
+            // Built-in command — parse the registry synopsis for
+            // positional parameter names.  User procs take
+            // precedence (handled above).
+            if let Some(registry) = registry
+                && let Some(spec) = registry.get(cmd_name)
+            {
+                emit_builtin_hints(source, seg, spec, &line_index, range, &mut out);
+            }
+        }
+    }
+
+    out
+}
+
+/// Short display name for a Tcl intrep type — mirrors Python's
+/// `_TYPE_SHORT` / `_short_type`.
+fn short_type(t: TclType) -> &'static str {
+    match t {
+        TclType::String => "str",
+        TclType::Int => "int",
+        TclType::Double => "double",
+        TclType::Boolean => "bool",
+        TclType::List => "list",
+        TclType::Dict => "dict",
+        TclType::ByteArray => "bytes",
+        TclType::Numeric => "num",
+        TclType::Object => "object",
+        TclType::Channel => "channel",
+    }
+}
+
+/// Render a [`TypeLattice`] as its inlay display string, or `None`
+/// when the lattice carries no concrete type (Unknown / Overdefined,
+/// or a Shimmered lattice missing an endpoint).  A `Known` type shows
+/// `int`; a `Shimmered` one shows `from → to` (mirrors
+/// `_collect_type_hints`).
+fn type_display(tl: &TypeLattice) -> Option<String> {
+    match tl.kind {
+        TypeKind::Known => tl.tcl_type.map(|t| short_type(t).to_owned()),
+        TypeKind::Shimmered => match (tl.from_type, tl.tcl_type) {
+            (Some(from), Some(to)) => {
+                Some(format!("{} \u{2192} {}", short_type(from), short_type(to)))
+            }
+            _ => None,
+        },
+        TypeKind::Unknown | TypeKind::Overdefined => None,
+    }
+}
+
+/// Collect inferred-variable-type hints (`: int`) for variable
+/// definitions in `range`.  Rust port of `_collect_type_hints`:
+/// builds a name → display-type map from the type-propagation pass
+/// (over every function in a fresh [`CompilationUnit`]) and walks the
+/// analyser scope tree, annotating each variable definition whose type
+/// is known.
+fn collect_type_hints(
+    source: &str,
+    dialect: &str,
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    range: LspRange,
+    line_index: &LineIndex,
+    out: &mut Vec<InlayHint>,
+) {
+    let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+    let cu = CompilationUnit::build_for_with_config(source, registry, false, config);
+
+    // Flatten the per-SSA-definition type lattices into a name → display
+    // map.  Like Python this is last-writer-wins across versions and
+    // functions; distinct names (the common case) are order-independent.
+    let mut type_map: HashMap<String, String> = HashMap::new();
+    for fu in cu.functions() {
+        for ((name, _ver), tl) in &fu.types {
+            if let Some(display) = type_display(tl) {
+                type_map.insert(name.clone(), display);
+            }
+        }
+    }
+    if type_map.is_empty() {
+        return;
+    }
+
+    walk_scope_type_hints(
+        &analysis.global_scope,
+        &type_map,
+        range,
+        source,
+        line_index,
+        out,
+    );
+}
+
+/// Recursively emit type hints for every variable definition in `scope`
+/// (and its children) whose name carries a known type and whose
+/// definition falls within `range`.
+fn walk_scope_type_hints(
+    scope: &Scope,
+    type_map: &HashMap<String, String>,
+    range: LspRange,
+    source: &str,
+    line_index: &LineIndex,
+    out: &mut Vec<InlayHint>,
+) {
+    for var_def in scope.variables.values() {
+        let Some(type_str) = type_map.get(&var_def.name) else {
+            continue;
+        };
+        let start = line_index.position_at_utf16(var_def.definition_span.start(), source);
+        let end = line_index.position_at_utf16(var_def.definition_span.end(), source);
+        // The hint sits immediately after the variable name; skip when the
+        // definition falls entirely outside the requested range.
+        if end.line < range.start_line || start.line > range.end_line {
+            continue;
+        }
+        out.push(InlayHint {
+            position_line: end.line,
+            position_character: end.character,
+            label: format!(": {type_str}"),
+            kind: InlayHintKind::Type,
+            padding_left: true,
+        });
+    }
+    for child in &scope.children {
+        walk_scope_type_hints(child, type_map, range, source, line_index, out);
+    }
+}
+
+// -- format-string specifier hints ---------------------------------------
+//
+// Rust port of `_collect_format_string_hints`.  These are `Type`-kind
+// hints that annotate the conversion specifiers inside the format string
+// of `format`/`scan` (`%d` → `int`), `clock format`/`scan` (`%Y` →
+// `year`), `binary format`/`scan` (`i` → `i32le`), and the substitution
+// backreferences of `regsub` (`\1` → `grp1`).  The compiled patterns
+// mirror the Python regexes one-for-one.
+
+/// `format`/`scan` conversion specifier — Python `_SPRINTF_RE`.  Capture
+/// group 6 is the conversion type letter.
+static SPRINTF_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(
+        r"%(?:(\d+)\\?\$)?([-+ 0#]*)?(\*|\d+)?(?:.(\*|\d+))?([hlLzq])?([aAbBcdieEfgGosuxX%])",
+    )
+    .expect("static sprintf regex")
+});
+
+/// `clock format`/`scan` specifier — Python `_CLOCK_FORMAT_RE`.  The
+/// significant letter is the final character of the match.
+static CLOCK_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"%(?:[EO])?[aAbBcCdDeEgGhHIjJklmMNOpPqQsSuUVwWxXyYzZ%]")
+        .expect("static clock regex")
+});
+
+/// `regsub` substitution backreference (`\0`-`\9`, `\&`) — Python
+/// `_REGSUB_BACKREF_RE`.  Capture group 1 is the back-reference char.
+static REGSUB_RE: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"\\([0-9&])").expect("static regsub regex"));
+
+/// Short label for a `format`/`scan` conversion type — Python
+/// `_SPRINTF_SHORT`.  `%` (literal percent) yields `None` so no hint is
+/// emitted for `%%`.
+fn sprintf_short(c: char) -> Option<&'static str> {
+    Some(match c {
+        's' => "str",
+        'd' | 'i' => "int",
+        'u' => "uint",
+        'o' => "oct",
+        'x' => "hex",
+        'X' => "HEX",
+        'f' => "float",
+        'e' => "exp",
+        'E' => "EXP",
+        'g' => "num",
+        'G' => "NUM",
+        'c' => "char",
+        'b' => "bin",
+        'B' => "BIN",
+        'a' => "hexf",
+        'A' => "HEXF",
+        _ => return None,
+    })
+}
+
+/// Short label for a `clock` field letter — Python `_CLOCK_SHORT`.
+#[allow(clippy::too_many_lines)]
+fn clock_short(c: char) -> Option<&'static str> {
+    Some(match c {
+        'Y' => "year",
+        'y' => "yr",
+        'm' | 'B' => "month",
+        'd' | 'e' => "day",
+        'H' | 'k' => "hour",
+        'I' | 'l' => "hour12",
+        'M' => "min",
+        'S' => "sec",
+        's' => "epoch",
+        'p' => "AM/PM",
+        'P' => "am/pm",
+        'a' => "wday",
+        'A' => "weekday",
+        'b' => "mon",
+        'c' => "datetime",
+        'D' | 'x' => "date",
+        'j' => "yday",
+        'u' | 'w' => "wday#",
+        'U' | 'W' => "week",
+        'V' => "isoweek",
+        'z' | 'Z' => "tz",
+        'X' => "time",
+        'C' => "century",
+        'g' | 'G' => "isoyear",
+        'J' => "julian",
+        _ => return None,
+    })
+}
+
+/// Short label for a `binary format`/`scan` specifier letter — Python
+/// `_BINARY_SHORT`.
+fn binary_short(c: char) -> Option<&'static str> {
+    Some(match c {
+        'a' => "strN",
+        'A' => "strS",
+        'b' => "bits",
+        'B' => "BITS",
+        'h' => "hex",
+        'H' => "HEX",
+        'c' => "i8",
+        's' => "i16le",
+        'S' => "i16be",
+        'i' => "i32le",
+        'I' => "i32be",
+        'n' => "i32",
+        'w' => "i64le",
+        'W' => "i64be",
+        'm' => "i64",
+        'r' => "f32le",
+        'R' => "f32be",
+        'f' => "f32",
+        'd' => "f64",
+        'x' => "pad",
+        'X' => "back",
+        '@' => "seek",
+        't' => "rsv",
+        _ => return None,
+    })
+}
+
+/// Short label for a `regsub` substitution backreference — Python
+/// `_REGSUB_SHORT`.
+fn regsub_short(c: char) -> Option<&'static str> {
+    Some(match c {
+        '&' | '0' => "match",
+        '1' => "grp1",
+        '2' => "grp2",
+        '3' => "grp3",
+        '4' => "grp4",
+        '5' => "grp5",
+        '6' => "grp6",
+        '7' => "grp7",
+        '8' => "grp8",
+        '9' => "grp9",
+        _ => return None,
+    })
+}
+
+/// Which format family a command's argument carries, plus the argv index
+/// of the format word.
+enum FormatArg {
+    Sprintf(usize),
+    Clock(usize),
+    Binary(usize),
+    Regsub(usize),
+}
+
+/// Resolve the argv index (and family) of the format/spec word a command
+/// carries, if any.  Mirrors the `_*_format_arg_index` helpers.
+fn format_arg(seg: &tcl_compiler::segmenter::SegmentedCommand) -> Option<FormatArg> {
+    let texts = &seg.texts;
+    let head = texts.first()?.as_str();
+    match head {
+        "format" if texts.len() >= 2 => Some(FormatArg::Sprintf(1)),
+        "scan" if texts.len() >= 3 => Some(FormatArg::Sprintf(2)),
+        "binary" if texts.len() >= 3 => match texts[1].as_str() {
+            "format" => Some(FormatArg::Binary(2)),
+            "scan" if texts.len() >= 4 => Some(FormatArg::Binary(3)),
+            _ => None,
+        },
+        "clock" if texts.len() >= 3 && matches!(texts[1].as_str(), "format" | "scan") => {
+            // The format string is the value of the `-format` option.
+            let i = (2..texts.len()).find(|&i| texts[i] == "-format")?;
+            (i + 1 < texts.len()).then(|| FormatArg::Clock(i + 1))
+        }
+        "regsub" if texts.len() >= 4 => {
+            // `regsub ?switches? exp string subSpec ?varName?` — skip option
+            // switches to find the pattern, then the subspec sits two words
+            // past it.  Mirrors `_regsub_subspec_arg_index` /
+            // `regexp_pattern_index` for the no-registry common case.
+            let mut i = 1;
+            while i < texts.len() && texts[i].starts_with('-') && texts[i] != "--" {
+                if texts[i] == "-start" && i + 1 < texts.len() {
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+            if i < texts.len() && texts[i] == "--" {
+                i += 1;
+            }
+            // `i` now indexes the pattern; the subSpec is two words later.
+            let subspec = i + 2;
+            (subspec < texts.len()).then_some(FormatArg::Regsub(subspec))
+        }
+        _ => None,
+    }
+}
+
+/// Byte range of a format word's *content* — the token span with one
+/// layer of `"…"` / `{…}` delimiters stripped.
+fn format_content_range(source: &str, span: tcl_lexer::Span) -> Option<(usize, usize)> {
+    let mut start = span.start() as usize;
+    let mut end = span.end() as usize;
+    if start >= end || end > source.len() {
+        return None;
+    }
+    let bytes = source.as_bytes();
+    if matches!(bytes[start], b'"' | b'{') {
+        start += 1;
+    }
+    if end > start && matches!(bytes[end - 1], b'"' | b'}') {
+        end -= 1;
+    }
+    (start < end).then_some((start, end))
+}
+
+/// Push a `Type`-kind specifier hint at the byte offset `abs_byte`
+/// (converted to a UTF-16 position) when it lies within `range`.
+fn push_format_hint(
+    label: &str,
+    abs_byte: usize,
+    range: LspRange,
+    source: &str,
+    line_index: &LineIndex,
+    out: &mut Vec<InlayHint>,
+) {
+    let pos = line_index.position_at_utf16(u32::try_from(abs_byte).unwrap_or(u32::MAX), source);
+    if pos.line < range.start_line || pos.line > range.end_line {
+        return;
+    }
+    out.push(InlayHint {
+        position_line: pos.line,
+        position_character: pos.character,
+        label: label.to_owned(),
+        kind: InlayHintKind::Type,
+        padding_left: true,
+    });
+}
+
+/// Collect format-string specifier hints for the whole document.
+fn collect_format_string_hints(
+    source: &str,
+    dialect: &str,
+    range: LspRange,
+    line_index: &LineIndex,
+    out: &mut Vec<InlayHint>,
+) {
     let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
         source,
         0,
         tcl_lexer::LexerConfig::for_dialect(dialect),
     );
-    let mut out = Vec::new();
-
     for seg in &segments {
-        if seg.texts.is_empty() || seg.argv.is_empty() {
+        let Some(found) = format_arg(seg) else {
             continue;
-        }
-        let cmd_name = &seg.texts[0];
-        if let Some(proc_def) = lookup_proc(analysis, cmd_name) {
-            emit_hints_for_call(source, seg, proc_def, &line_index, range, &mut out);
+        };
+        let idx = match found {
+            FormatArg::Sprintf(i)
+            | FormatArg::Clock(i)
+            | FormatArg::Binary(i)
+            | FormatArg::Regsub(i) => i,
+        };
+        let Some(tok) = seg.argv.get(idx) else {
             continue;
-        }
-        // Built-in command — parse the registry synopsis for
-        // positional parameter names.  User procs take
-        // precedence (handled above).
-        if let Some(registry) = registry
-            && let Some(spec) = registry.get(cmd_name)
-        {
-            emit_builtin_hints(source, seg, spec, &line_index, range, &mut out);
+        };
+        let Some((cstart, cend)) = format_content_range(source, tok.span) else {
+            continue;
+        };
+        let content = &source[cstart..cend];
+        match found {
+            FormatArg::Sprintf(_) => {
+                for m in SPRINTF_RE.captures_iter(content) {
+                    let whole = m.get(0).expect("group 0");
+                    let type_char = m
+                        .get(6)
+                        .and_then(|g| g.as_str().chars().next())
+                        .unwrap_or('%');
+                    if let Some(label) = sprintf_short(type_char) {
+                        push_format_hint(
+                            label,
+                            cstart + whole.end(),
+                            range,
+                            source,
+                            line_index,
+                            out,
+                        );
+                    }
+                }
+            }
+            FormatArg::Clock(_) => {
+                for m in CLOCK_RE.find_iter(content) {
+                    let letter = m.as_str().chars().last().unwrap_or('%');
+                    if let Some(label) = clock_short(letter) {
+                        push_format_hint(label, cstart + m.end(), range, source, line_index, out);
+                    }
+                }
+            }
+            FormatArg::Binary(_) => {
+                collect_binary_hints(content, cstart, range, source, line_index, out);
+            }
+            FormatArg::Regsub(_) => {
+                for m in REGSUB_RE.captures_iter(content) {
+                    let whole = m.get(0).expect("group 0");
+                    let ch = m
+                        .get(1)
+                        .and_then(|g| g.as_str().chars().next())
+                        .unwrap_or(' ');
+                    if let Some(label) = regsub_short(ch) {
+                        push_format_hint(
+                            label,
+                            cstart + whole.end(),
+                            range,
+                            source,
+                            line_index,
+                            out,
+                        );
+                    }
+                }
+            }
         }
     }
+}
 
-    out
+/// Scan a `binary format`/`scan` template for specifier letters and emit
+/// a hint after each.  Hand-rolled (as in Python `_emit_binary_hints`):
+/// skip whitespace, skip the optional repeat count, read the spec letter,
+/// then an optional `u`/`s` signedness flag and an optional `*` count.
+fn collect_binary_hints(
+    content: &str,
+    cstart: usize,
+    range: LspRange,
+    source: &str,
+    line_index: &LineIndex,
+    out: &mut Vec<InlayHint>,
+) {
+    let bytes = content.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if matches!(bytes[i], b' ' | b'\t' | b'\r' | b'\n') {
+            i += 1;
+            continue;
+        }
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        let ch = bytes[i] as char;
+        let Some(label) = binary_short(ch) else {
+            i += 1;
+            continue;
+        };
+        let mut spec_end = i + 1;
+        if spec_end < bytes.len() && matches!(bytes[spec_end], b'u' | b's') {
+            spec_end += 1;
+        }
+        if spec_end < bytes.len() && bytes[spec_end] == b'*' {
+            spec_end += 1;
+        }
+        push_format_hint(label, cstart + spec_end, range, source, line_index, out);
+        i = spec_end;
+    }
 }
 
 /// Emit parameter-name hints for a built-in command call by
@@ -185,6 +708,8 @@ fn emit_builtin_hints(
             position_line: pos.line,
             position_character: pos.character,
             label: format!("{name}:"),
+            kind: InlayHintKind::Parameter,
+            padding_left: false,
         });
     }
 }
@@ -385,6 +910,8 @@ fn emit_hints_for_call(
             position_line: pos.line,
             position_character: pos.character,
             label: format!("{}:", param.name),
+            kind: InlayHintKind::Parameter,
+            padding_left: false,
         });
     }
 }
@@ -433,6 +960,8 @@ mod tests {
             whole_document_range("set x 1\n"),
             None,
             None,
+            false,
+            true,
         );
         assert!(hints.is_empty());
     }
@@ -441,7 +970,15 @@ mod tests {
     fn hints_emitted_for_user_proc_call() {
         let src = "proc greet {name greeting} {}\ngreet alice hello\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert!(
             labels.contains(&"name:"),
@@ -457,7 +994,15 @@ mod tests {
     fn hints_anchored_at_argument_start() {
         let src = "proc greet {name} {}\ngreet alice\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         assert_eq!(hints.len(), 1);
         let h = &hints[0];
         assert_eq!(h.position_line, 1);
@@ -470,7 +1015,15 @@ mod tests {
     fn no_hints_for_unknown_command() {
         let src = "unknown_cmd a b c\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         assert!(hints.is_empty(), "{hints:?}");
     }
 
@@ -480,7 +1033,15 @@ mod tests {
         // because there's no individual name to surface.
         let src = "proc many {first args} {}\nmany 1 2 3 4\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         // Only the `first` arg gets a hint.
         assert_eq!(hints.len(), 1);
         assert_eq!(hints[0].label, "first:");
@@ -493,7 +1054,15 @@ mod tests {
         // no hints (no name to attach).
         let src = "proc one {a} {}\none 1 2 3\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         assert_eq!(hints.len(), 1);
         assert_eq!(hints[0].label, "a:");
     }
@@ -510,7 +1079,7 @@ mod tests {
             end_line: 2,
             end_character: u32::MAX,
         };
-        let hints = inlay_hints(src, "tcl", range, Some(&analysis), None);
+        let hints = inlay_hints(src, "tcl", range, Some(&analysis), None, false, true);
         assert_eq!(hints.len(), 1, "{hints:?}");
         assert_eq!(hints[0].position_line, 2);
     }
@@ -629,6 +1198,8 @@ mod tests {
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
+            false,
+            true,
         );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert_eq!(labels, vec!["string:"], "{hints:?}");
@@ -647,6 +1218,8 @@ mod tests {
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
+            false,
+            true,
         );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert_eq!(labels, vec!["channelId:", "string:"], "{hints:?}");
@@ -665,6 +1238,8 @@ mod tests {
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
+            false,
+            true,
         );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert!(labels.contains(&"string:"), "{hints:?}");
@@ -684,6 +1259,8 @@ mod tests {
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
+            false,
+            true,
         );
         // The flag token shouldn't be labelled.
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
@@ -709,6 +1286,8 @@ mod tests {
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
+            false,
+            true,
         );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert!(labels.contains(&"string:"), "{hints:?}");
@@ -728,6 +1307,8 @@ mod tests {
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
+            false,
+            true,
         );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         // Only the two positionals are labelled — `-length` and its
@@ -740,7 +1321,15 @@ mod tests {
         // Same source, no registry — no built-in hints.
         let src = "string index $s 3\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         assert!(hints.is_empty(), "{hints:?}");
     }
 
@@ -758,8 +1347,180 @@ mod tests {
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
+            false,
+            true,
         );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert!(labels.contains(&"name:"), "{hints:?}");
+    }
+
+    // -- inferred type hints (InlayHintKind::Type) ------------------------
+
+    #[test]
+    fn type_hint_for_integer_set() {
+        // `set x 42` → a `: int` Type-kind hint immediately after `x`
+        // (character 5), mirroring Python's `test_integer_type_hint`.
+        let src = "set x 42\n";
+        let analysis = analyse(src);
+        let reg = registry();
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+            true,
+            false,
+        );
+        let type_hints: Vec<&InlayHint> = hints
+            .iter()
+            .filter(|h| h.kind == InlayHintKind::Type)
+            .collect();
+        assert!(
+            type_hints
+                .iter()
+                .any(|h| h.label == ": int" && h.position_character == 5),
+            "{type_hints:?}",
+        );
+        // No parameter hints leak in when only type hints are requested.
+        assert!(
+            hints.iter().all(|h| h.kind == InlayHintKind::Type),
+            "{hints:?}"
+        );
+    }
+
+    #[test]
+    fn type_hints_require_registry_for_inference() {
+        // Without a registry the type map can't be built; no type hints.
+        let src = "set x 42\n";
+        let analysis = analyse(src);
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            None,
+            true,
+            false,
+        );
+        assert!(
+            hints.iter().all(|h| h.kind != InlayHintKind::Type),
+            "{hints:?}",
+        );
+    }
+
+    #[test]
+    fn type_and_parameter_families_gate_independently() {
+        // `set x 42` carries a type hint; `add 1 2` carries parameter hints.
+        let src = "proc add {a b} {}\nset x 42\nadd 1 2\n";
+        let analysis = analyse(src);
+        let reg = registry();
+        let type_only = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+            true,
+            false,
+        );
+        assert!(!type_only.is_empty(), "expected type hints");
+        assert!(
+            type_only.iter().all(|h| h.kind == InlayHintKind::Type),
+            "{type_only:?}",
+        );
+        let param_only = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+            false,
+            true,
+        );
+        assert!(!param_only.is_empty(), "expected parameter hints");
+        assert!(
+            param_only
+                .iter()
+                .all(|h| h.kind == InlayHintKind::Parameter),
+            "{param_only:?}",
+        );
+    }
+
+    #[test]
+    fn both_families_disabled_yields_nothing() {
+        let src = "set x 42\nadd 1 2\n";
+        let analysis = analyse(src);
+        let reg = registry();
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+            false,
+            false,
+        );
+        assert!(hints.is_empty(), "{hints:?}");
+    }
+
+    // -- format-string specifier hints (InlayHintKind::Type) --------------
+
+    fn type_labels(src: &str) -> Vec<(u32, String)> {
+        let analysis = analyse(src);
+        let reg = registry();
+        inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+            true,
+            false,
+        )
+        .into_iter()
+        .filter(|h| h.kind == InlayHintKind::Type)
+        .map(|h| (h.position_character, h.label))
+        .collect()
+    }
+
+    #[test]
+    fn format_sprintf_specifier_hints() {
+        let labels = type_labels("format \"%d-%s\" 1 two\n");
+        let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
+        assert!(names.contains(&"int"), "{labels:?}");
+        assert!(names.contains(&"str"), "{labels:?}");
+    }
+
+    #[test]
+    fn format_literal_percent_not_hinted() {
+        // `%%` is a literal percent — no specifier hint.
+        let labels = type_labels("format \"100%%\"\n");
+        assert!(labels.is_empty(), "{labels:?}");
+    }
+
+    #[test]
+    fn clock_format_specifier_hints() {
+        let labels = type_labels("clock format $t -format \"%Y-%m-%d\"\n");
+        let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
+        assert!(names.contains(&"year"), "{labels:?}");
+        assert!(names.contains(&"month"), "{labels:?}");
+        assert!(names.contains(&"day"), "{labels:?}");
+    }
+
+    #[test]
+    fn binary_format_specifier_hints() {
+        let labels = type_labels("binary format \"a3 i\" foo 1\n");
+        let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
+        assert!(names.contains(&"strN"), "{labels:?}");
+        assert!(names.contains(&"i32le"), "{labels:?}");
+    }
+
+    #[test]
+    fn regsub_subspec_backreference_hints() {
+        let labels = type_labels("regsub {(a)(b)} $s {\\1-\\2} out\n");
+        let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
+        assert!(names.contains(&"grp1"), "{labels:?}");
+        assert!(names.contains(&"grp2"), "{labels:?}");
     }
 }

@@ -13,6 +13,7 @@ tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-irules = { path = "../tcl-irules" }
+regex = "1"
 
 [lints]
 workspace = true

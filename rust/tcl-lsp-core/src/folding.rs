@@ -257,9 +257,9 @@ fn emit_body_span_fold(
     if span.is_empty() {
         return;
     }
-    let start_line = line_index.position_at(span.start()).line;
+    let start_line = line_index.line_at(span.start());
     let end_offset = span.end().saturating_sub(1) as usize;
-    let raw_end_line = line_index.position_at(span.end().saturating_sub(1)).line;
+    let raw_end_line = line_index.line_at(span.end().saturating_sub(1));
     if start_line < raw_end_line {
         let end_line = adjust_body_end_line(source, end_offset, raw_end_line);
         push_unique(seen, ranges, start_line, end_line, FoldKind::Region);
@@ -366,7 +366,7 @@ fn collect_continuation_folds(
         }
         let start = tok.span.start();
         if bytes.get(start as usize) == Some(&b'\\') {
-            continued.insert(line_index.position_at(start).line);
+            continued.insert(line_index.line_at(start));
         }
     }
 
