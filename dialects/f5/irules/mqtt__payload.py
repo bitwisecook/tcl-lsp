@@ -48,6 +48,7 @@ class MqttPayloadCommand(CommandDef):
         return CommandSpec(
             name="MQTT::payload",
             dialects=_IRULES_ONLY,
+            byte_array_payload=True,
             hover=HoverSnippet(
                 summary="Manipulate payload of MQTT PUBLISH message",
                 synopsis=(

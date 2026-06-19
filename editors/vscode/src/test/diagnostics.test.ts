@@ -165,4 +165,33 @@ suite("Diagnostics", () => {
       );
     }
   });
+
+  test("S110 fires for byte-array corruption (string op on a byte array)", async () => {
+    // Plain-Tcl Case A: `binary format` -> `string toupper` mangles high bytes.
+    // A `.tcl` fixture keeps the shared server in the default tcl8.6 dialect —
+    // a `.irul` fixture here would switch it to f5-irules and leak that state
+    // into the next suite (dialectDetection).  The iRules `*::payload`
+    // round-trip is covered by the Python e2e suite.
+    const uri = getDocUri("byteArrayCorruption.tcl");
+    await activate(uri);
+    // S110 is a *deep*-tier diagnostic (a second publish after the basic
+    // tier), so wait for it specifically rather than for any first diagnostic.
+    const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const diagnostics = await waitForDiagnostics(uri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "S110"),
+    });
+
+    const s110 = diagnostics.find((d) => codeOf(d) === "S110");
+
+    assert.ok(s110, "expected S110 (byte-array corruption) for `string toupper` on a byte array");
+    assert.strictEqual(
+      s110.severity,
+      vscode.DiagnosticSeverity.Warning,
+      "S110 should be a warning",
+    );
+    assert.ok(
+      /[Bb]yte-array corruption/.test(s110.message),
+      `S110 message should describe the corruption, got: ${s110.message}`,
+    );
+  });
 });

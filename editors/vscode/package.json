@@ -4092,6 +4092,13 @@
             "default": true,
             "markdownDescription": "**S102:** Variable oscillates between two types across loop iterations.",
             "order": 2
+          },
+          "tclLsp.diagnostics.S110": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**S110:** Byte array corrupted by a string operation before being written back as bytes.",
+            "order": 3
           }
         }
       },

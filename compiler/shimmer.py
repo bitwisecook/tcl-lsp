@@ -17,9 +17,13 @@ Diagnostic codes
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
+from enum import Enum, auto
 
-from compiler.registry.runtime import TYPE_HINTS
+from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
+from compiler.registry.runtime import TYPE_HINTS, byte_array_payload_commands
 from compiler.registry.type_hints import CommandTypeHint, SubcommandTypeHint
 from shared.codes import diag
 from shared.diagnostic import Range
@@ -44,7 +48,7 @@ from .expr_ast import (
 from .ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRCall, IRExprEval, IRIncr
 from .ssa import SSAFunction, SSAValueKey, SSAVersion
 from .types import TclType, TypeKind, TypeLattice
-from .value_shapes import parse_command_substitution
+from .value_shapes import is_pure_var_ref, parse_command_substitution
 
 log = logging.getLogger(__name__)
 
@@ -1568,6 +1572,500 @@ def _find_expr_shimmers(
     return warnings
 
 
+# ===========================================================================
+# Byte-array corruption (S110)
+#
+# A *correctness* shimmer, distinct from the S100/S101/S102 performance
+# family.  Tcl byte arrays (binary data) and character strings are different
+# internal representations.  When a byte array is forced through a
+# character-string operation and then written back to a byte sink, every byte
+# >= 0x80 is silently re-encoded (latin-1 decode -> UTF-8 encode, or pushed
+# out of the 0..255 range by case folding), corrupting the data.  In iRules
+# this is the canonical ``*::payload`` rewrite bug (F5 KB K22406348); in plain
+# Tcl it is ``binary format`` -> ``string ...`` -> ``binary scan``.
+#
+# The check is a small forward dataflow tracking *byte provenance* per SSA
+# value:
+#   * BINARY  — the value currently has a byte-array intrep (safe to write to
+#     a byte sink).  Sources: ``*::payload`` getters, ``binary format`` /
+#     ``binary decode`` / ``encoding convertto`` results.
+#   * DAMAGED — a binary-sourced value that has since been coerced to a
+#     character string (interpolation, ``append``, a ``string`` subcommand,
+#     ``format``, ``expr`` …).  Writing it to a byte sink corrupts it.
+# A ``binary scan $v …`` re-binarifies ``v`` in place (the documented fix) and
+# clears DAMAGED.
+# ===========================================================================
+
+
+class _ByteProv(Enum):
+    """Byte-array provenance of an SSA value."""
+
+    BINARY = auto()  # currently a byte array — safe at a byte sink
+    DAMAGED = auto()  # binary-sourced but coerced to a character string
+
+
+@dataclass(frozen=True, slots=True)
+class _ByteProvInfo:
+    state: _ByteProv
+    source_range: Range | None
+    source_label: str
+    coercion_range: Range | None = None
+    coercion_label: str = ""
+
+
+# ``string`` subcommands that fold case — they reinterpret bytes as Unicode
+# code points and can push a byte out of the 0..255 range (e.g. 0xFF -> U+0178),
+# corrupting the byte array directly, with or without a write-back.
+_CASE_FOLD_STRING_SUBS = frozenset({"toupper", "tolower", "totitle"})
+
+# ``string`` subcommands that return a character string built from their data
+# operand.  Latin-1-preserving in isolation, but the result is a STRING, so
+# writing it back to a byte sink re-encodes the high bytes.
+_STRING_VALUE_SUBS = frozenset(
+    {
+        "map",
+        "replace",
+        "range",
+        "index",
+        "reverse",
+        "repeat",
+        "trim",
+        "trimleft",
+        "trimright",
+        "cat",
+        "insert",
+    }
+)
+
+# Commands (other than ``string``) whose result is a character string derived
+# from a byte-array operand.  All latin-1-preserving (tclsh-verified): the
+# bytes survive in the result, so the corruption only lands when the value is
+# written back to a UTF-8 byte sink — hence these mark a value DAMAGED rather
+# than warning on the spot (cf. ``_CASE_FOLD_STRING_SUBS`` / ``encoding
+# convertto``, which corrupt unconditionally).
+_STRING_COERCING_COMMANDS = frozenset({"format", "subst", "regsub", "join", "concat", "split"})
+
+# Non-getter ``*::payload`` subcommand words — these forms do not return raw
+# payload bytes, so they are not binary sources.
+_PAYLOAD_NON_GETTER_SUBS = frozenset({"replace", "length", "rechunk", "unchunk"})
+
+_VAR_REF_RE = re.compile(r"\$\{([^}]+)\}|\$(\w+(?:\([^)]*\))?)")
+
+
+def _source_label(cmd: str, args: tuple[str, ...]) -> str:
+    """Human-readable label for a binary source, e.g. ``binary format``."""
+    if cmd in ("binary", "encoding") and args:
+        return f"{cmd} {args[0]}"
+    return cmd
+
+
+def _cmdsub_returns_bytearray(cmd: str, args: tuple[str, ...]) -> bool:
+    """True when ``[cmd args]`` is a registry command that returns a byte array
+    (``binary format`` / ``binary decode`` / ``encoding convertto``)."""
+    hint = TYPE_HINTS.get(cmd)
+    if isinstance(hint, SubcommandTypeHint):
+        if not args:
+            return False
+        sub = hint.subcommands.get(args[0])
+        return sub is not None and sub.return_type is TclType.BYTEARRAY
+    if isinstance(hint, CommandTypeHint):
+        return hint.return_type is TclType.BYTEARRAY
+    return False
+
+
+def _is_payload_getter(cmd: str, args: tuple[str, ...], payload_cmds: frozenset[str]) -> bool:
+    """True when ``[cmd args]`` reads raw payload bytes (the getter form)."""
+    if cmd not in payload_cmds:
+        return False
+    return not args or args[0] not in _PAYLOAD_NON_GETTER_SUBS
+
+
+def _payload_replace_data_index(
+    cmd: str, args: tuple[str, ...], payload_cmds: frozenset[str]
+) -> int | None:
+    """For a ``<proto>::payload replace <offset> <length> <data>`` sink, return
+    the index of the ``<data>`` argument; ``None`` if not a replace sink."""
+    if cmd not in payload_cmds:
+        return None
+    if len(args) >= 4 and args[0] == "replace":
+        return 3
+    return None
+
+
+def _vars_in_text(text: str) -> list[str]:
+    """Normalised variable names referenced by ``$var`` / ``${var}`` in *text*."""
+    out: list[str] = []
+    for m in _VAR_REF_RE.finditer(text):
+        out.append(_normalise_var_name(m.group(1) or m.group(2) or ""))
+    return out
+
+
+def _arg_byte_prov(
+    arg_text: str,
+    uses: dict[str, int],
+    prov: dict[SSAValueKey, _ByteProvInfo],
+    payload_cmds: frozenset[str],
+) -> _ByteProvInfo | None:
+    """Byte provenance of a single argument expression (var ref, command
+    substitution, or interpolation)."""
+    a = arg_text.strip()
+    if not a:
+        return None
+    if is_pure_var_ref(a):
+        name = _normalise_var_name(a)
+        ver = uses.get(name, 0)
+        return prov.get((name, ver)) if ver > 0 else None
+    parsed = parse_command_substitution(a)
+    if parsed is not None:
+        cmd, cargs = parsed
+        # ``encoding convertto`` and ``string`` case-folding intrinsically
+        # corrupt a binary operand (double-encode / mangle high bytes).  These
+        # must be checked *before* the byte-array-return-type classification
+        # below: ``encoding convertto`` returns a byte array, but applied to a
+        # binary value it is the corrupting op — so the inline sink form
+        # ``<proto>::payload replace … [encoding convertto …]`` is DAMAGED, not
+        # a clean source.
+        if (cmd == "encoding" and cargs and cargs[0] == "convertto") or (
+            cmd == "string" and cargs and cargs[0] in _CASE_FOLD_STRING_SUBS
+        ):
+            operand = _join_prov([_arg_byte_prov(c, uses, prov, payload_cmds) for c in cargs[1:]])
+            if operand is not None and operand.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
+                return _ByteProvInfo(
+                    _ByteProv.DAMAGED,
+                    operand.source_range,
+                    operand.source_label,
+                    None,
+                    _coercion_label(cmd, cargs),
+                )
+            # ``encoding convertto`` of non-binary data is a legitimate byte
+            # source; case folding of non-binary data is untracked.
+            if cmd == "encoding":
+                return _ByteProvInfo(_ByteProv.BINARY, None, "encoding convertto")
+            return None
+        if _is_payload_getter(cmd, cargs, payload_cmds) or _cmdsub_returns_bytearray(cmd, cargs):
+            return _ByteProvInfo(_ByteProv.BINARY, None, _source_label(cmd, cargs))
+        # A string transform applied to a binary operand inside the arg.
+        inner = _join_prov(
+            [_arg_byte_prov(c, uses, prov, payload_cmds) for c in cargs],
+        )
+        if inner is not None and inner.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
+            return _ByteProvInfo(
+                _ByteProv.DAMAGED, inner.source_range, inner.source_label, None, cmd
+            )
+        return None
+    if "$" in a or "[" in a:
+        # Interpolation — join the provenance of any referenced variable.
+        infos: list[_ByteProvInfo | None] = []
+        for name in _vars_in_text(a):
+            ver = uses.get(name, 0)
+            if ver > 0:
+                infos.append(prov.get((name, ver)))
+        joined = _join_prov(infos)
+        if joined is not None:
+            return _ByteProvInfo(
+                _ByteProv.DAMAGED, joined.source_range, joined.source_label, None, "interpolation"
+            )
+    return None
+
+
+def _join_prov(infos: list[_ByteProvInfo | None]) -> _ByteProvInfo | None:
+    """Join byte provenance over several inputs — DAMAGED dominates BINARY
+    (may-corrupt), and the first non-empty source is kept for the diagnostic."""
+    damaged: _ByteProvInfo | None = None
+    binary: _ByteProvInfo | None = None
+    for info in infos:
+        if info is None:
+            continue
+        if info.state is _ByteProv.DAMAGED and damaged is None:
+            damaged = info
+        elif info.state is _ByteProv.BINARY and binary is None:
+            binary = info
+    return damaged or binary
+
+
+def _byte_corruption_warning(
+    range_: Range,
+    variable: str,
+    info: _ByteProvInfo,
+    message: str,
+) -> ShimmerWarning:
+    related: list[tuple[Range, str]] = []
+    if info.source_range is not None:
+        related.append((info.source_range, f"binary data from {info.source_label} here"))
+    if info.coercion_range is not None and info.coercion_range is not info.source_range:
+        label = info.coercion_label or "string operation"
+        related.append((info.coercion_range, f"treated as a character string by {label} here"))
+    return ShimmerWarning(
+        range=range_,
+        variable=variable,
+        from_type=TclType.BYTEARRAY,
+        to_type=TclType.STRING,
+        command=info.coercion_label or info.source_label,
+        in_loop=False,
+        code="S110",
+        message=message,
+        related_ranges=tuple(related),
+    )
+
+
+@diag(
+    "S110",
+    "Byte array corrupted by a string operation before being written back as bytes.",
+    section="shimmer",
+)
+def _find_byte_array_corruption(
+    cfg: CFGFunction,
+    ssa: SSAFunction,
+    executable_blocks: set[str],
+) -> list[ShimmerWarning]:
+    """Flag binary data that is string-coerced and then written to a byte sink
+    (``*::payload replace`` / ``binary``), or case-folded / re-encoded directly."""
+    # ``*::payload`` source/sink recognition is iRules-specific.  The registry is
+    # process-global, so once an iRules document loads the f5-irules pack the
+    # payload commands stay registered for the rest of the session — gate them
+    # on the *active* dialect so a plain-Tcl document that merely names a
+    # ``*::payload`` command never trips the check.  Plain-Tcl binary sources
+    # (``binary format`` / ``encoding convertto``) are dialect-agnostic and stay
+    # on everywhere.
+    dialect = active_dialect()
+    payload_cmds = frozenset(
+        c for c in byte_array_payload_commands() if REGISTRY.get(c, dialect) is not None
+    )
+    warnings: list[ShimmerWarning] = []
+    prov: dict[SSAValueKey, _ByteProvInfo] = {}
+
+    for bn in cfg.reverse_postorder():
+        if bn not in executable_blocks:
+            continue
+        block = cfg.blocks.get(bn)
+        ssa_block = ssa.blocks.get(bn)
+        if block is None or ssa_block is None:
+            continue
+
+        for phi in ssa_block.phis:
+            joined = _join_prov([prov.get((phi.name, v)) for v in phi.incoming.values() if v > 0])
+            if joined is not None:
+                prov[(phi.name, phi.version)] = joined
+
+        for idx, ssa_stmt in enumerate(ssa_block.statements):
+            if idx >= len(block.statements):
+                continue
+            stmt = block.statements[idx]
+
+            if isinstance(stmt, IRAssignValue):
+                _track_assign_value(stmt, ssa_stmt, prov, payload_cmds, warnings)
+            elif isinstance(stmt, IRAssignExpr):
+                _track_assign_expr(stmt, ssa_stmt, prov)
+            elif isinstance(stmt, IRCall):
+                _track_call(stmt, ssa_stmt, prov, payload_cmds, warnings)
+
+    return warnings
+
+
+def _track_assign_value(
+    stmt: IRAssignValue,
+    ssa_stmt,
+    prov: dict[SSAValueKey, _ByteProvInfo],
+    payload_cmds: frozenset[str],
+    warnings: list[ShimmerWarning],
+) -> None:
+    name = _normalise_var_name(stmt.name)
+    ver = ssa_stmt.defs.get(name)
+    if ver is None:
+        return
+    key = (name, ver)
+    uses = ssa_stmt.uses
+    val = stmt.value.strip()
+
+    parsed = parse_command_substitution(val)
+    if parsed is not None:
+        cmd, cargs = parsed
+        if _is_payload_getter(cmd, cargs, payload_cmds):
+            prov[key] = _ByteProvInfo(_ByteProv.BINARY, stmt.range, cmd)
+            return
+        # encoding convertto of an already-binary value is the double-encode
+        # bug — warn, then treat the (byte-array) result as binary.
+        if cmd == "encoding" and cargs and cargs[0] == "convertto":
+            operand = _join_prov([_arg_byte_prov(c, uses, prov, payload_cmds) for c in cargs[1:]])
+            if operand is not None and operand.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
+                warnings.append(
+                    _byte_corruption_warning(
+                        stmt.range,
+                        name,
+                        operand,
+                        f"Byte-array corruption: 'encoding convertto' on binary data from "
+                        f"{operand.source_label} double-encodes it — the bytes are reinterpreted "
+                        f"as characters and re-encoded. Decode with 'encoding convertfrom' or keep "
+                        f"it a byte array (S110)",
+                    )
+                )
+            prov[key] = _ByteProvInfo(_ByteProv.BINARY, stmt.range, "encoding convertto")
+            return
+        if _cmdsub_returns_bytearray(cmd, cargs):
+            prov[key] = _ByteProvInfo(_ByteProv.BINARY, stmt.range, _source_label(cmd, cargs))
+            return
+        # string case-folding directly mangles a byte array.
+        if cmd == "string" and cargs and cargs[0] in _CASE_FOLD_STRING_SUBS:
+            operand = _join_prov([_arg_byte_prov(c, uses, prov, payload_cmds) for c in cargs[1:]])
+            if operand is not None and operand.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
+                warnings.append(
+                    _byte_corruption_warning(
+                        stmt.range,
+                        name,
+                        operand,
+                        f"Byte-array corruption: 'string {cargs[0]}' on binary data from "
+                        f"{operand.source_label} reinterprets bytes as Unicode characters, "
+                        f"mangling every byte >= 0x80 (S110)",
+                    )
+                )
+                prov[key] = _ByteProvInfo(
+                    _ByteProv.DAMAGED,
+                    operand.source_range,
+                    operand.source_label,
+                    stmt.range,
+                    f"string {cargs[0]}",
+                )
+                return
+        # string value subcommands / other string-coercing commands derive a
+        # character string from a (possibly binary) operand.
+        derived = _coerced_from_binary(cmd, cargs, uses, prov, payload_cmds)
+        if derived is not None:
+            prov[key] = _ByteProvInfo(
+                _ByteProv.DAMAGED,
+                derived.source_range,
+                derived.source_label,
+                stmt.range,
+                _coercion_label(cmd, cargs),
+            )
+        return
+
+    if is_pure_var_ref(val):
+        src = _normalise_var_name(val)
+        src_ver = uses.get(src, 0)
+        info = prov.get((src, src_ver)) if src_ver > 0 else None
+        if info is not None:
+            prov[key] = info
+        return
+
+    if "$" in val or "[" in val:
+        joined = _join_prov(
+            [prov.get((nm, uses.get(nm, 0))) for nm in _vars_in_text(val) if uses.get(nm, 0) > 0]
+        )
+        if joined is not None:
+            prov[key] = _ByteProvInfo(
+                _ByteProv.DAMAGED,
+                joined.source_range,
+                joined.source_label,
+                stmt.range,
+                "string interpolation",
+            )
+
+
+def _coerced_from_binary(
+    cmd: str,
+    cargs: tuple[str, ...],
+    uses: dict[str, int],
+    prov: dict[SSAValueKey, _ByteProvInfo],
+    payload_cmds: frozenset[str],
+) -> _ByteProvInfo | None:
+    """If ``[cmd cargs]`` is a string-coercing op over a binary operand, return
+    the originating binary provenance; else ``None``."""
+    is_string_value_sub = cmd == "string" and cargs and cargs[0] in _STRING_VALUE_SUBS
+    if not (is_string_value_sub or cmd in _STRING_COERCING_COMMANDS):
+        return None
+    joined = _join_prov([_arg_byte_prov(c, uses, prov, payload_cmds) for c in cargs])
+    if joined is not None and joined.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
+        return joined
+    return None
+
+
+def _coercion_label(cmd: str, cargs: tuple[str, ...]) -> str:
+    if cmd == "string" and cargs:
+        return f"string {cargs[0]}"
+    return cmd
+
+
+def _track_assign_expr(
+    stmt: IRAssignExpr, ssa_stmt, prov: dict[SSAValueKey, _ByteProvInfo]
+) -> None:
+    name = _normalise_var_name(stmt.name)
+    ver = ssa_stmt.defs.get(name)
+    if ver is None:
+        return
+    joined = _join_prov([prov.get((nm, v)) for nm, v in ssa_stmt.uses.items() if v > 0])
+    if joined is not None:
+        prov[(name, ver)] = _ByteProvInfo(
+            _ByteProv.DAMAGED, joined.source_range, joined.source_label, stmt.range, "expr"
+        )
+
+
+def _track_call(
+    stmt: IRCall,
+    ssa_stmt,
+    prov: dict[SSAValueKey, _ByteProvInfo],
+    payload_cmds: frozenset[str],
+    warnings: list[ShimmerWarning],
+) -> None:
+    cmd, args = stmt.command, stmt.args
+    uses = ssa_stmt.uses
+
+    # ``binary scan $v …`` re-binarifies its *value* operand in place (forces a
+    # byte-array intrep) — the documented fix.  ``binary format … $v`` does NOT
+    # mutate ``$v`` (it returns a new value), so it must not clear provenance
+    # here; the assigned form ``set x [binary format …]`` is re-binarified by
+    # _track_assign_value via the byte-array return type.
+    if cmd == "binary" and len(args) >= 2 and args[0] == "scan":
+        a = args[1]
+        if is_pure_var_ref(a):
+            nm = _normalise_var_name(a)
+            v = uses.get(nm, 0)
+            if v > 0 and (nm, v) in prov:
+                old = prov[(nm, v)]
+                prov[(nm, v)] = _ByteProvInfo(_ByteProv.BINARY, old.source_range, old.source_label)
+        return
+
+    # ``append v …`` coerces the target to a character string when either the
+    # target or an appended operand carries binary data.
+    if cmd == "append" and args:
+        target = _normalise_var_name(args[0])
+        new_ver = ssa_stmt.defs.get(target)
+        if new_ver is not None:
+            old = prov.get((target, uses.get(target, 0)))
+            operand = _join_prov(
+                [old] + [_arg_byte_prov(a, uses, prov, payload_cmds) for a in args[1:]]
+            )
+            if operand is not None and operand.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
+                prov[(target, new_ver)] = _ByteProvInfo(
+                    _ByteProv.DAMAGED,
+                    operand.source_range,
+                    operand.source_label,
+                    stmt.range,
+                    "append",
+                )
+        return
+
+    # Sink: ``<proto>::payload replace <offset> <length> <data>``.
+    data_idx = _payload_replace_data_index(cmd, args, payload_cmds)
+    if data_idx is not None and data_idx < len(args):
+        info = _arg_byte_prov(args[data_idx], uses, prov, payload_cmds)
+        if info is not None and info.state is _ByteProv.DAMAGED:
+            data_var = (
+                _normalise_var_name(args[data_idx]) if is_pure_var_ref(args[data_idx]) else ""
+            )
+            coercion = info.coercion_label or "string operations"
+            warnings.append(
+                _byte_corruption_warning(
+                    stmt.range,
+                    data_var,
+                    info,
+                    f"Byte-array corruption: '{cmd} replace' writes binary data from "
+                    f"{info.source_label} that was modified as a character string ({coercion}); "
+                    f"every byte >= 0x80 will be re-encoded. Re-binarify the value first, e.g. "
+                    f"'binary scan ${data_var or 'data'} c* -' (S110)",
+                )
+            )
+
+
 def find_shimmer_warnings(
     source: str,
     cu: CompilationUnit | None = None,
@@ -1644,6 +2142,13 @@ def find_shimmer_warnings(
                 dr,
                 empty_by_name,
                 loop_body_types,
+            )
+        )
+        all_warnings.extend(
+            _find_byte_array_corruption(
+                fu.cfg,
+                fu.ssa,
+                executable,
             )
         )
 
