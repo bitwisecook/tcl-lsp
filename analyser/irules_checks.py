@@ -200,8 +200,18 @@ def check_matchclass(
         return []
 
     fixes: tuple[CodeFix, ...] = ()
-    # Auto-fix: matchclass <item> <class> → class match <item> equals <class>
-    if len(args) >= 2 and len(all_tokens) >= 3 and len(arg_tokens) >= 2:
+    # Auto-fix: ``matchclass`` → ``class match`` is a 1:1 rename (same argument
+    # order).  The iRules forms are:
+    #   * 3-arg ``matchclass <item> <operator> <class>`` → preserve all three
+    #     verbatim as ``class match <item> <operator> <class>``.
+    #   * 2-arg shorthand ``matchclass <item> <class>`` → expand with the
+    #     default operator: ``class match <item> equals <class>``.
+    # Any other arity is ambiguous, so we still warn but offer NO quick-fix
+    # rather than corrupt the command.  (Gating on ``>= 2`` and always forcing
+    # ``equals`` mangled the 3-arg form — e.g. ``matchclass [HTTP::uri]
+    # starts_with $::admin_paths`` became ``class match [HTTP::uri] equals
+    # starts_with``, dropping the real class and the real operator.)
+    if len(arg_tokens) in (2, 3) and len(all_tokens) >= 3:
         first_tok = all_tokens[0]
         last_tok = all_tokens[-1]
         # Token ends point at the last *content* character, so a quoted/braced
@@ -221,12 +231,19 @@ def check_matchclass(
         # variable reference (IRULE2001 quick-fix audit, 2026-05).
         # Pull the raw source slice via the arg token offsets so the
         # rewrite preserves variable/command substitutions verbatim.
-        item = _raw_arg_text(source, arg_tokens[0])
-        cls = _raw_arg_text(source, arg_tokens[1])
+        if len(arg_tokens) == 3:
+            item = _raw_arg_text(source, arg_tokens[0])
+            operator = _raw_arg_text(source, arg_tokens[1])
+            cls = _raw_arg_text(source, arg_tokens[2])
+            new_text = f"class match {item} {operator} {cls}"
+        else:
+            item = _raw_arg_text(source, arg_tokens[0])
+            cls = _raw_arg_text(source, arg_tokens[1])
+            new_text = f"class match {item} equals {cls}"
         fixes = (
             CodeFix(
                 range=fix_range,
-                new_text=f"class match {item} equals {cls}",
+                new_text=new_text,
                 description="Replace with 'class match'",
             ),
         )
