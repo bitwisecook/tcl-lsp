@@ -3550,7 +3550,28 @@ Consider capturing the result: catch {\u{2026}} result"
                 // unknown-subcommand path is handled separately by
                 // [`Self::emit_w001_unknown_subcommand`].
                 let Some(sub_name) = args.first() else {
-                    // Missing subcommand — Python's E001 path; not here.
+                    // **E001.** A subcommand-dispatch command invoked with no
+                    // subcommand at all (`string` / `dict` / `info` on its
+                    // own).  Mirrors the empty-`args` arm of `_check_arity`
+                    // (`compiler_checks.py:740-750`).  Queued as a
+                    // `pending_arity` candidate so an earlier shadowing user
+                    // proc / class / alias / ensemble / stub suppresses it,
+                    // exactly like the E002 / E003 paths and Python's
+                    // `_resolves_to_user_command` gate on `_check_arity`.
+                    let ns = self.command_resolution_namespace(scope_path);
+                    let enforce_order = !self.scope_path_in_proc_body(scope_path);
+                    self.pending_arity.push((
+                        cmd_name.to_string(),
+                        ns,
+                        enforce_order,
+                        super::types::Diagnostic {
+                            code: "E001".to_string(),
+                            span: cmd_tok.span,
+                            message: format!("'{cmd_name}' requires a subcommand"),
+                            severity: Severity::Error,
+                            fixes: Vec::new(),
+                        },
+                    ));
                     return;
                 };
                 // A `{*}`-expanded subcommand word resolves to an unknown
@@ -9661,6 +9682,50 @@ mod tests {
                 result.diagnostics
             );
         }
+    }
+
+    #[test]
+    fn e001_fires_for_bare_subcommand_command() {
+        // A subcommand-dispatch command (`string`, `dict`, `info`) invoked
+        // with no subcommand at all is E001.
+        for snippet in ["string", "dict", "info"] {
+            let mut a = Analyser::new();
+            let result = a.analyse(snippet, "tcl8.6");
+            let e001: Vec<&Diagnostic> = result
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == "E001")
+                .collect();
+            assert_eq!(
+                e001.len(),
+                1,
+                "expected one E001 for {snippet:?}: {result:?}",
+            );
+            assert_eq!(
+                e001[0].message,
+                format!("'{snippet}' requires a subcommand")
+            );
+            assert_eq!(e001[0].severity, Severity::Error);
+        }
+    }
+
+    #[test]
+    fn e001_quiet_when_subcommand_present() {
+        let mut a = Analyser::new();
+        let result = a.analyse("string length abc", "tcl8.6");
+        assert!(!result.diagnostics.iter().any(|d| d.code == "E001"));
+    }
+
+    #[test]
+    fn e001_suppressed_by_shadowing_user_proc() {
+        // A user proc named `string` shadows the builtin ensemble — a bare
+        // `string` call resolves to the proc, so no E001.
+        let mut a = Analyser::new();
+        let result = a.analyse("proc string {} { return x }\nstring", "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == "E001"),
+            "shadowing proc should suppress E001: {result:?}"
+        );
     }
 
     #[test]
