@@ -33,6 +33,9 @@ crossterm = { version = "0.28", optional = true }
 # Used by the CLI parity tests to compare help-search retrieval structurally
 # (the BM25 `rank` float is environment-dependent, so we don't byte-match it).
 serde_json = { version = "1", features = ["preserve_order"] }
+# Normalise the absolute fixtures path baked into `minimize`/`symbols` output
+# so the goldens compare portably (see cli_parity.rs).
+regex = "1"
 
 [features]
 # The interactive `tcl explore --tui` shell. Off by default so the lean CLI
