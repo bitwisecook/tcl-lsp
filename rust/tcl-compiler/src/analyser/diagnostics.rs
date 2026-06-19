@@ -7153,14 +7153,21 @@ file; this call falls through to the 'unknown' handler."
         } else {
             fu.sccp.executable_blocks.clone()
         };
-        for finding in
-            crate::interval_bounds::find_divide_by_zero(&fu.cfg, &fu.ssa, &fu.sccp.values, &executable)
-        {
+        for finding in crate::interval_bounds::find_divide_by_zero(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.sccp.values,
+            &executable,
+        ) {
             let span = fu.abs_span(finding.span);
             if span.is_empty() {
                 continue;
             }
-            let verb = if finding.op == "/" { "Division" } else { "Modulo" };
+            let verb = if finding.op == "/" {
+                "Division"
+            } else {
+                "Modulo"
+            };
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "W233".to_string(),
                 span,

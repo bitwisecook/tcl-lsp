@@ -494,12 +494,16 @@ impl CompilationUnit {
             // generated proc is block-light yet byte-huge, so the byte test is
             // what catches it. Mirrors Python's `byte_guarded ||
             // is_complexity_guarded(cfg)` in the compilation-unit build.
-            let body_bytes =
-                proc.map_or(0usize, |p| p.span.end().saturating_sub(p.span.start()) as usize);
+            let body_bytes = proc.map_or(0usize, |p| {
+                p.span.end().saturating_sub(p.span.start()) as usize
+            });
             if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES
                 || crate::ssa::is_complexity_guarded(cfg)
             {
-                procedures.insert(qname.clone(), FunctionUnit::trivial_guarded(qname, cfg.clone()));
+                procedures.insert(
+                    qname.clone(),
+                    FunctionUnit::trivial_guarded(qname, cfg.clone()),
+                );
                 continue;
             }
             let body_offset = proc.map_or(0, |p| p.span.start());

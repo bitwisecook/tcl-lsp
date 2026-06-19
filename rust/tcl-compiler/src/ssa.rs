@@ -2226,7 +2226,8 @@ mod tests {
         // that would cost seconds on a pathological generated body.
         let mut big = Function::new("::big", "b0");
         for i in 0..=COMPLEXITY_GUARD_BLOCKS {
-            big.blocks.insert(format!("b{i}"), Block::new(format!("b{i}")));
+            big.blocks
+                .insert(format!("b{i}"), Block::new(format!("b{i}")));
         }
         assert!(big.blocks.len() > COMPLEXITY_GUARD_BLOCKS);
         assert!(is_complexity_guarded(&big));

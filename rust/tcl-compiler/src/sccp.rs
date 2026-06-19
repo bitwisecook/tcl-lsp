@@ -2175,7 +2175,9 @@ mod tests {
         // a loop-carried phi, but the static-loop summary simulates the loop
         // and folds the branch. Verified against tclsh 8.4-9.0 (i == 10, and
         // the accumulator j == 5, hold after the loops).
-        let c = cu("proc ::p {} { for {set i 0} {$i < 10} {incr i} {}\n if {$i == 10} { return yes } else { return no } }");
+        let c = cu(
+            "proc ::p {} { for {set i 0} {$i < 10} {incr i} {}\n if {$i == 10} { return yes } else { return no } }",
+        );
         let fu = c.function("::p").unwrap();
         let r = sccp(&fu.cfg, &fu.ssa, None, None);
         let cb = r
@@ -2186,7 +2188,9 @@ mod tests {
         assert!(cb.value, "i == 10 after the loop, so the branch is true");
 
         // Body side effects are simulated too: j accumulates to 5.
-        let ca = cu("proc ::a {} { set j 0\n for {set k 5} {$k > 0} {incr k -1} { incr j }\n if {$j == 5} { return yes } else { return no } }");
+        let ca = cu(
+            "proc ::a {} { set j 0\n for {set k 5} {$k > 0} {incr k -1} { incr j }\n if {$j == 5} { return yes } else { return no } }",
+        );
         let fa = ca.function("::a").unwrap();
         let ra = sccp(&fa.cfg, &fa.ssa, None, None);
         let cba = ra
@@ -2198,7 +2202,9 @@ mod tests {
 
         // A loop with an unknown (parameter) bound cannot be summarised, so the
         // post-loop branch stays unfolded (conservative).
-        let cq = cu("proc ::q {n} { for {set i 0} {$i < $n} {incr i} {}\n if {$i == 10} { return yes } else { return no } }");
+        let cq = cu(
+            "proc ::q {n} { for {set i 0} {$i < $n} {incr i} {}\n if {$i == 10} { return yes } else { return no } }",
+        );
         let fq = cq.function("::q").unwrap();
         let rq = sccp(&fq.cfg, &fq.ssa, None, None);
         assert!(
