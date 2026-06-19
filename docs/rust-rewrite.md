@@ -928,6 +928,29 @@ Task status is either **open** or **partial** (with a note on what remains).
   modelling, O109 / O116 / O120, the upvar transitive-merge, the
   document-version guard (review-findings C2), and the CST descent. Trust this
   plan and the source over the archive's dated rows.
+- **This document is a forward-looking plan, not a changelog.** It lists only
+  **open** / **partial** work. The narrative of *what landed and why* is
+  history — record it in [`rust-rewrite-history.md`](rust-rewrite-history.md),
+  not here. When a track finishes, delete its detailed `####` section and leave
+  only its rows in the subsystem-status and track-map tables (mark them ✅ /
+  🟢); add the landed detail to the history file in the same change. Do **not**
+  accumulate `**done**` bullets in this plan.
+- **Verify every port against real Tcl behaviour.** Check the produced result
+  against **tclsh 8.4–9.0** (the four source trees live under `tmp/tcl<ver>/`;
+  build a missing one with `.claude/skills/fetch-tcl-source` + `configure &&
+  make` under `unix/`), and consult the **C Tcl source** for the reference
+  algorithm — `tmp/tcl9.0.3/generic/` carries the `tclParse.c` / `tclUtil.c` /
+  `tclExecute.c` files the ports mirror. Gate version-specific behaviour (e.g.
+  `0o` / `0b` integer prefixes exist in 8.5+ but not 8.4; `{*}` expansion is
+  8.5+) on the registry / `LexerConfig` dialect flags, never hardcode one
+  version. C Tcl 9.0.3 is the reference standard — see
+  [`rust-rewrite-history.md`](rust-rewrite-history.md) §"C Tcl 9.0.3 is the
+  reference standard".
+- **A discovery in one track that affects another must update the other
+  track's entry here, in the same change.** When working a track surfaces a
+  wrong assumption, a shared invariant, or a handoff (e.g. a residual that
+  belongs to a different owner), edit that other track's row/section now —
+  don't leave the finding buried only in a commit message or PR description.
 
 ### Subsystem status (current reality)
 
@@ -939,7 +962,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Lexer / segmenter / expr-lexer / CST | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | 🟢 | `${name}` brace-depth; quoted `\<nl>`; nested-body E202/E203 → **FE-LEX** |
 | IR / lowering / CFG / SSA | `tcl-compiler` | 🟢 | `IRUpFrame` clobber; dynamic-`uplevel` barrier; minor IR fields → **FE-DATAFLOW**, **FE-DIAG** |
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
-| Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟢 | **FE-TYPESHIM** landed; only precise TclOO `object_of` typing (needs `known_classes`) remains → **FE-DIAG** (its W307/W308 consumer) |
+| Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | **FE-TYPESHIM** complete; precise TclOO `object_of` typing now tracked under **FE-DIAG** (its W307/W308 consumer) |
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
 | Optimiser passes | `tcl-compiler::optimiser` | 🟡 | O114/O108 gates; O104/O119 applied; O128/O130; O106 category+gates; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
@@ -1026,31 +1049,6 @@ Owns `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}`.
   Python applies in `ssa.py`, `taint/_api.py`, `optimiser/_manager.py`,
   `shimmer.py` (0 occurrences in Rust). Absence → runaway latency + over-optimistic
   interproc summaries on adversarial input.
-
-#### FE-TYPESHIM — type inference / shimmer / shapes ✅
-Owns `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}`.
-All listed residuals have landed:
-- **done** shimmer: S100 now emits as **Information** (new
-  `compiler_checks::Severity::Info`, mapped to LSP `INFORMATION`); the
-  S100/S101 code is computed from `in_loop` in both `phi.rs` and `expr.rs`
-  (was hardcoded); the loop-invariant S101→S100 downgrade
-  (`use_site::LoopFacts`), the `incr`-amount check, and the per-statement
-  `(span, var)` expr-shimmer de-duplication (Python's `seen` set) are ported.
-- **done** expr-context literal typing (`expr_literal_type`: `0o`/`0x`/`0b`
-  → INT, unrecognised → NUMERIC), `~$double`→INT (`UnaryOp::BitNot`), and
-  scope-alias → OVERDEFINED widening (`global`/`variable`/`upvar`/`namespace
-  upvar`, registry-`CREATES_SCOPE_ALIAS`-driven). TclOO constructor results
-  already widen to OVERDEFINED; precise `object_of` typing is left to
-  **FE-DIAG**, which owns both the analyser-layer class extraction (the Rust
-  IR keeps `namespace eval` bodies as raw barriers, so the class set comes
-  from `signature_scan`, not an IR walk) and the W307/W308 emitter that is
-  its only consumer.
-- **done** rendered-props ESC numeric/hex/octal/unicode escape rendering —
-  `scan_escape` now decodes via `tcl_lexer::backslash_subst`, so `\x2f` /
-  `\057` / `/` → `/` set `HAS_FORWARD_SLASH` (was a W201 false-negative).
-- **done** `value_shapes::is_pure_var_ref` accepts `$arr(idx)` (and the
-  backslash-escaped `$a(x\)y)` form); added `is_braced_whole_name_array_ref`
-  for `${a(1)}`.
 
 #### FE-VARESCAPE — var-escape wiring
 Owns `tcl-compiler::var_escape`.
