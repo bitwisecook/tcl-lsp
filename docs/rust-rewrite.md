@@ -972,7 +972,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Analyser diagnostics | `tcl-compiler::analyser` | 🟢 | E001/W125/IRULE5005/IRULE1001; snit; OO body-walks; C44 path-sensitivity; `when`-body dialect gating; source-style/W108 → **FE-DIAG** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
-| Bytecode VM | `tcl-vm` | 🟡 | TclOO; clock/encoding/interp/IO/after; CLI/REPL binary → **RT-VM** |
+| Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after; CLI/REPL binary → **RT-VM** |
 | LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | 🟢 | incremental reanalysis; UTF-16 residuals; registry/CU sharing + debounce; panic containment; token/reposition cache; rope state; `codeLens/resolve`; inlay type-hints → **SRV-LSP** |
 | `tcl` CLI | `tcl-cli` | 🟡 | `dis`/`compwasm`/`pkg`/`venv`/`docker` verbs → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --simulate/--tshark/--keylog`; a few parity files → **TOOL-F5** |
@@ -1154,10 +1154,49 @@ Owns `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` bin.
 
 #### RT-VM — bytecode VM
 Owns `tcl-vm`.
+
+The engine core is solid (loads the real Tcl 9 `tcltest.tcl` end-to-end). The
+active workstream is **tcltest pass/fail/skip parity** with the more-complete
+tree-walking `runtime/rust`, both pinned against C Tcl 9.0.3 (§0). Harness:
+`tmp/parity.sh` runs `tcl-vm`'s `run_test` example and `runtime/rust`'s
+`run_script --init` over each `tmp/tcl9.0.3/tests/*.test` and tabulates P/S/F; a
+suite is at parity when the two columns match. The landing log is in the
+[history](rust-rewrite-history.md) (2026-06-19); the per-suite snapshot + gaps
+below are the live state.
+
+- **done** the 2026-06-19 parity push: `namespace eval`/`inscope` run in a real
+  call frame (so `info level` counts them and `uplevel`/`upvar` resolve in the
+  body's namespace); `try`/`throw` (TIP 329) as VM builtins behind a
+  `lower_to_ir_for_bytecode` barrier (the bytecode backend has no `beginCatch`
+  exception ranges); nested-`foreach` / all-`lmap` routed to their runtime
+  builtins (the inline nested-complex-foreach codegen miscompiles and inline
+  `lmap` never collected results); `namespace delete`; plus `return -level
+  0`/integer `-code`, the array-write guard, `error` empty-info / arg-count, and
+  full list-parse error text. Net: error.test 44 → 280, lmap 21 → 61, namespace
+  93 → 112.
+- **open (P1) VM hangs that zero out whole suites** — `info.test` and `proc.test`
+  time out in the bytecode VM while the runtime completes them (`catch.test`
+  times out in both). A hang yields *no* parity for the suite, so these lead.
+- **open** `namespace` / `var` / `upvar` depth (≈ 290 failures combined) — the
+  namespace-eval-frame fix corrected the *mechanism*; the remainder is
+  feature/semantics depth (namespace-name canonicalisation of multiple/trailing
+  `::` runs; deeper variable-scoping / introspection). The three share the model
+  and likely move together.
+- **open** `error.test` (29 failing) — 22 are the `[try]` coverage generated
+  tests (`return -level $level -code $code`), which need the **`-level`
+  countdown** the VM simplifies (only `-level 0` is immediate today); the rest
+  are `info errorstack` / the `-errorstack` option (unimplemented) and errorInfo
+  edge cases.
+- **open** smaller per-suite gaps — `switch` (14), `for` (8), `foreach` (6),
+  `incr` (3), `if`/`set` (2), `while` (1): individual bugs to chase after the
+  structural items.
+- **open** structural follow-up — give the bytecode backend real exception
+  ranges (`beginCatch`) and a fixed nested-complex-foreach / lmap-collecting
+  codegen, then drop the `for_bytecode` barriers (`try`/nested-`foreach`/`lmap`
+  run via runtime builtins today — correct but not inline).
 - **open** the missing command surface: **TclOO** (largest), `clock`,
   `encoding`, full `interp`, real I/O (`open`/`gets`/`seek`), `after`/`time`,
-  residual `file`/`info`/`namespace` subcommands. The engine core is solid
-  (loads the real Tcl 9 `tcltest.tcl` end-to-end).
+  residual `file`/`info`/`namespace` subcommands.
 - **open** a VM CLI/REPL binary (`tcl-vm` is lib-only today) — also unblocks the
   `tcl dis` verb.
 

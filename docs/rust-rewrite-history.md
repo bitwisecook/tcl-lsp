@@ -10688,3 +10688,66 @@ Tests: new `tcl-lexer` unit tests (`var_braced_*`), the `segment.rs`
 `e202_fires_inside_a_nested_body` pin; `differential_segment` (edge cases +
 full Tcl 8.4–9.0 corpus) and the structural-index faithfulness fuzz stay green.
 `cargo test -p tcl-lexer -p tcl-compiler` + workspace `clippy` clean.
+
+## RT-VM — bytecode-VM tcltest parity push (2026-06-19)
+
+Brought the bytecode VM (`tcl-vm`) from ~10–15 % of the tree-walking
+`runtime/rust`'s coverage on the control/error suites toward parity, pinned
+against C Tcl 9.0.3 via `tmp/parity.sh`. The live per-suite snapshot and the
+open gaps are in [`rust-rewrite.md`](rust-rewrite.md) → **RT-VM**; this is the
+landing log. Each increment was independently green (both runtimes' suites +
+leak gate + `clippy -D warnings` + fmt, behaviour pinned against tclsh 9.0).
+
+Preceding work staged the WASM runtime: `runtime/rust` built for
+`wasm32-unknown-unknown` (2026-06-18), constant-pool relocation into the
+runtime's reserved region, and a proc-defining emitted module running
+end-to-end under wasmtime against the real runtime.
+
+* **`namespace eval`/`inscope` in a real call frame.** A namespace body now
+  pushes its own call frame (marked with the namespace it runs in) instead of
+  borrowing the caller's. Each frame gains a well-defined namespace, matching
+  tclsh: `info level` counts the body; `uplevel`/`upvar` target it and resolve
+  commands/variables in its namespace (so a proc called inside a `namespace
+  eval` — e.g. tcltest's `test`, which does `uplevel 1 $script` — reaches that
+  namespace's procs); a bare `set x` at namespace-script level binds `ns::x`.
+  `eval_at_level` saves/restores the namespace stack alongside the frames (kept
+  aligned 1:1); `locate_from` redirects a bare name landing on a namespace-eval
+  frame to `ns::name` in the global frame.
+
+* **`try`/`throw` (TIP 329).** The bytecode backend has no exception-range
+  (`beginCatch`) support, so a structured `try` can't be compiled correctly —
+  its handler/finally clauses were silently dropped. `try` is lowered to a
+  runtime-command barrier on the bytecode path (a new `lower_to_ir_for_bytecode`
+  entry sets `Lowerer::for_bytecode`; the analyser keeps the structured
+  `Statement::Try` for its handler-edge SSA diagnostics), and `try`/`throw` are
+  VM builtins with on/trap/finally, `-` fall-through, result/options var
+  binding, and `-during` chaining. Supporting fixes: `return -level 0 -code N`
+  and integer `-code` → `Code::Other`; a shared `completion_options` (OK reads
+  back `-code 0 -level 0`) used by both `catch` and `try`; `error` empty-`info` /
+  arg-count; a scalar write onto an array errors; `ListError::full_message` in
+  `tcl-syntax` gives the full `…followed by "X" instead of space` text.
+  **error.test 44 → 164.**
+
+* **Nested `foreach` / all `lmap` barriered.** The inline nested-complex-foreach
+  codegen miscompiles when a `foreach`/`lmap` body *directly* contains another
+  (the inner loop's back-edge corrupts the outer's `FOREACH_STEP` routing) —
+  blocking error.test's `foreach level … foreach code … foreach extras …`
+  test-generation loop, so ~138 generated tests never ran. Inline `lmap` also
+  never collected its body results. Both route to their runtime builtin on the
+  bytecode path (`for_bytecode`); a loop nested via `if`/`while`/`for` is
+  unaffected and stays inline. **error.test now runs all 317 tests (280
+  passing, was aborting at 179); lmap 21 → 61.**
+
+* **`namespace delete`.** Was an accepted no-op, so namespaces (and their
+  commands/variables) leaked between tests that use it for cleanup
+  (namespace.test uses it 244× across 314 tests) — the leaked state cascaded
+  into widespread failures. Now deletes the namespace and every descendant
+  (commands, namespace variables, exports, interned ids); an unknown namespace
+  reports `unknown namespace "X" in namespace delete command`. **namespace.test
+  93 → 112.**
+
+Net suite movement: error 44 → 280, lmap 21 → 61, namespace 93 → 112; switch
+crash → 98, for hang → 55, set → 57, incr → 58. The remaining gaps (info/proc
+VM hangs, namespace/var/upvar depth, the error `[try]`-coverage + errorstack
+failures, and the smaller per-suite gaps) are tracked under **RT-VM** in
+`rust-rewrite.md`.
