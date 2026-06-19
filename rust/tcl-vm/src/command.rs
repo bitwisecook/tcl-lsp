@@ -85,6 +85,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_array::register(vm);
     crate::cmd_chan::register(vm);
     crate::cmd_clock::register(vm);
+    crate::cmd_control::register(vm);
     crate::cmd_list::register(vm);
     crate::cmd_string::register(vm);
     crate::cmd_dict::register(vm);
