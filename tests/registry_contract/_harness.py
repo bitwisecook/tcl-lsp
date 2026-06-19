@@ -1,14 +1,9 @@
 """Helpers for driving the front-end CLIs and loading the golden fixtures.
 
 The contract tests treat the CLIs as black boxes: they invoke a verb and
-parse its JSON, exactly as an external consumer (or a Rust reimplementation
-driven over a subprocess) would.  Two execution modes are offered:
-
-- :func:`run_tcl` / :func:`run_f5` call the CLI ``main(argv)`` in-process
-  and capture stdout.  This exercises the full argparse -> handler -> JSON
-  path and is fast enough to run over every command/event.
-- :func:`run_tcl_subprocess` shells out to the installed console script
-  (or ``python -m``) so a handful of smoke tests prove the real wire.
+parse its output in-process via the CLI ``main(argv)``, exactly as an
+external consumer (or a Rust reimplementation) would.  Structural and
+presence checks read the registry / CSVs directly instead.
 """
 
 from __future__ import annotations
@@ -18,8 +13,6 @@ import csv
 import io
 import json
 import os
-import subprocess
-import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -42,13 +35,6 @@ def _run_main(main: Any, argv: list[str]) -> tuple[int, str]:
     return rc, buf.getvalue()
 
 
-def run_tcl(argv: list[str]) -> tuple[int, str]:
-    """Run the ``tcl`` CLI in-process; return ``(returncode, stdout)``."""
-    from tooling.tcl.main import main
-
-    return _run_main(main, argv)
-
-
 def run_f5(argv: list[str]) -> tuple[int, str]:
     """Run the ``f5`` CLI in-process; return ``(returncode, stdout)``."""
     from tooling.f5.main import main
@@ -56,69 +42,10 @@ def run_f5(argv: list[str]) -> tuple[int, str]:
     return _run_main(main, argv)
 
 
-def run_tcl_json(argv: list[str]) -> Any:
-    rc, out = run_tcl(argv)
-    assert rc == 0, f"tcl {argv} exited {rc}: {out!r}"
-    return json.loads(out)
-
-
 def run_f5_json(argv: list[str]) -> Any:
     rc, out = run_f5(argv)
     assert rc == 0, f"f5 {argv} exited {rc}: {out!r}"
     return json.loads(out)
-
-
-def run_dump(argv: list[str]) -> tuple[int, str]:
-    """Run the temporary registry dumper in-process; return ``(returncode, stdout)``.
-
-    The dumper is rust-branch dev tooling (``scripts/registry/dump.py``),
-    not a shipped CLI verb, so the contract tests drive it directly rather
-    than through the ``tcl`` / ``f5`` front-ends.
-    """
-    from scripts.registry.dump import main
-
-    return _run_main(main, argv)
-
-
-def run_dump_json(argv: list[str]) -> Any:
-    rc, out = run_dump(argv)
-    assert rc == 0, f"registry dump {argv} exited {rc}: {out!r}"
-    return json.loads(out)
-
-
-def run_dump_subprocess_json(argv: list[str]) -> Any:
-    """Run the registry dumper as a real subprocess and parse its JSON stdout."""
-    proc = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "registry" / "dump.py"), *argv],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return json.loads(proc.stdout)
-
-
-def run_tcl_subprocess(argv: list[str]) -> Any:
-    """Run the ``tcl`` CLI as a real subprocess and parse its JSON stdout."""
-    proc = subprocess.run(
-        [sys.executable, "-m", "tooling.tcl.main", *argv],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return json.loads(proc.stdout)
-
-
-def run_f5_subprocess(argv: list[str]) -> Any:
-    proc = subprocess.run(
-        [sys.executable, "-m", "tooling.f5.main", *argv],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return json.loads(proc.stdout)
 
 
 @dataclass(frozen=True)

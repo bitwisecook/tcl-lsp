@@ -50,43 +50,39 @@ present in the registry with basic data:
 
 CSVs were chosen over verbose JSON dumps on purpose: a registry change is
 a tiny, line-oriented, reviewable diff (one row per command), not a
-multi-megabyte blob.  `test_registry_presence.py` drives the temporary
-registry dumper (`scripts/registry/dump.py`) and checks its output equals
-the CSVs; `test_graph_integrity.py` asserts structural invariants (stable
-event order, closed profile/object reference edges) from the same dump.
+multi-megabyte blob.  There is no JSON dump surface — the registry is
+either read through the front-ends (the behavioural tests above) or
+directly in-process.  `test_registry_presence.py` regenerates the rows
+straight from the registry (`scripts/codegen/registry_baselines.py`'s
+`check_all`) and asserts they match the committed CSVs;
+`test_graph_integrity.py` reads the in-memory registry
+(`compiler.registry.namespace_data`, `NAMESPACE_REGISTRY`, the BIG-IP
+`OBJECT_KIND_SPECS` / `HEADER_KIND_MAP`) and asserts structural
+invariants (stable event order, closed profile/object reference edges).
 
 Regenerate with `make gen-registry-baselines`
 (`scripts/codegen/registry_baselines.py`); `--check`
 (`make check-registry-baselines`, and a pytest) fails on drift.
-
-## The registry dumper (temporary tooling)
-
-`scripts/registry/dump.py` serialises the full structured registry as
-JSON (`dump.py tcl …` / `dump.py f5 --section …`).  It is a temporary
-rust-branch dev aid for bringing up the Rust front-end and for
-regenerating the CSVs — **not** a shipped CLI verb or a promised surface,
-and it must not be merged to `main` as one.  The full JSON is not
-committed; only the compact CSVs are.
 
 ## Deterministic resolution
 
 A few command names are overloaded across dialects (e.g. `event` is a
 subcommand ensemble in core Tcl but a bare command in f5-iRules).
 `CommandRegistry.get` resolves these in registration order, which varies
-with load history.  The snapshot therefore resolves order-independently
+with load history.  The row builders therefore resolve order-independently
 via `resolve_spec` in `tooling/registry_snapshot.py` (prefer the most
-dialect-specific spec), so the committed CSVs and the front-end dump
-agree regardless of process history.  The behavioural generators
-deliberately use the same `REGISTRY.get` path the analyser uses, so the
-generated input and the front-end stay self-consistent within a run.
+dialect-specific spec), so the committed CSVs are stable regardless of
+process history.  The behavioural generators deliberately use the same
+`REGISTRY.get` path the analyser uses, so the generated input and the
+front-end stay self-consistent within a run.
 
 ## Using the contract from the `rust` branch
 
 A Rust front-end re-implements the CLI verbs (`command-info`,
 `event-info`, `irule event-order`, `diag`) and the four LSP
-`executeCommand` registry handlers, plus a registry dumper of its own
-(the equivalent of `scripts/registry/dump.py`, kept as branch-local
-tooling rather than a promised verb).  Point the e2e harness at the
+`executeCommand` registry handlers.  The presence and graph-integrity
+checks read the registry directly (no JSON wire to reproduce).  Point the
+e2e harness at the
 native server with `TCL_LSP_SERVER_KIND=rust` and run the CLI behavioural
 tests against the Rust binaries — both validate against the unchanged
 CSVs and the registry-generated behavioural cases.

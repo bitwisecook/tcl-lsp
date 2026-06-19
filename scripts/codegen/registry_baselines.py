@@ -9,9 +9,9 @@ the heavy coverage lives in the generated front-end behaviour tests under
 
 CSVs were chosen over verbose JSON dumps on purpose: a registry change
 produces a tiny, line-oriented, reviewable diff (one row per command),
-not a multi-megabyte blob.  The full structured shape is still available
-from the temporary ``scripts/registry/dump.py`` rust-branch tool; it is
-simply not committed (and not a shipped CLI surface).
+not a multi-megabyte blob.  There is no committed JSON dump; structural
+detail beyond the CSVs is asserted by reading the registry directly in
+the contract tests.
 
 Usage::
 
