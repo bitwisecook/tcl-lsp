@@ -1076,50 +1076,30 @@ precise TclOO `object_of` typing the W307/W308 consumer needs landed under
 [F5 K22406348]: https://my.f5.com/manage/s/article/K22406348
 
 #### FE-OPT — optimiser passes
-Owns `tcl-compiler::optimiser`, `tcl-compiler::inlining`. The **soundness
-gates** (O120/O114/O108), the O106 profile-category registration, the O123
-over-fire guard, and the O110 logical-identity boolify have **landed**
-(2026-06-19; archived in [history](rust-rewrite-history.md)). What remains is
-feature-completeness — flow-sensitive precision and the general inliner. The
-**applied rewrites all landed** (2026-06-19): O104 / O130 string & list
-build-chain folds (`optimiser::chain_fold`), O119 multi-set packing
-(`lassign` / `foreach`), and O128 end-offset index (`optimiser::end_offset`).
-- **done** O104 / O119 / O130 **precise-flow** — the applied passes fold a
-  build chain across an interleaved **static-literal write to a different
-  variable** (provably no read/write of the accumulator, no side effect, no
-  barrier), gated on `var_observability::escaping_var_names` + cross-event
-  vars; readers / dynamic statements / barriers still end the run. (Python's
-  additional candidate *reordering* of interspersed dynamic statements is the
-  only remaining nuance, and is never a correctness gap — the Rust pass skips,
-  never miscompiles, such a chain.)
-- **done** O106 precision — the profile-category registration, the
-  trace-aware purity gate (`is_pure_command_with_traces`), and the
-  **latch-dominance "runs every iteration" gate** (only hoist a
-  loop-invariant in a block that dominates every back-edge tail) have all
-  landed. (Threading richer execution-trace facts deeper into the GVN/LICM
-  family is a precision nuance, not a correctness gap.)
-- **done** O103 (both the **rename gate** and **namespace-chain resolution**
-  via `resolve_proc_qname`), O125 (**cross-event-var**, **already-covered**,
-  and **multi-branch deepest-target descent**), O101/O115 branch coverage
-  (`branch_cascade` + the unwrap/fold in `propagate_into_branches`), and the
-  O110 logical-identity instcombine gap. The regex/glob→string-op O110
-  rewrites remain (gated on the iRules `MatchesGlob`/`MatchesRegex` expr
-  operators).
-- **partial** general proc inliner — the **v0 (empty-body) + v1/v2 (zero-param
-  verbatim wrapper) shapes have landed** (`tcl-compiler::inlining`,
-  2026-06-19): a statement-position call to an inlinable proc is replaced by
-  its spliced body (or removed), gated on **both** the precise
-  `var_escape::safe_to_inline` (`pure_leaf`) proof — now wired (FE-VARESCAPE
-  complete) — and `stmt_is_splice_eligible` (def-free frame-independent
-  allow-listed builtin calls, no `[cmd]` arg subst). **Residual:** the **v3
-  parameterised** shape (α-renaming via `_rename.py` over value strings / expr
-  ASTs / defs-reads / foreach-catch bindings, variadic packing, parameter
-  defaults, trailing-vs-non-trailing `return` for/break wrapping) and dead-proc
-  elimination. **Cross-track dependency (handoff):** the inliner's *only
-  consumer is the WASM codegen* (`compiler/codegen/wasm/api.py`), so end-to-end
-  (execution-differential) verification of the capture-sensitive v3 rewriter is
-  gated on **RT-WASM** (🔴 unported) — v3 should land alongside that consumer
-  rather than as IR-shape-only unit tests. *(large)*
+Owns `tcl-compiler::optimiser`, `tcl-compiler::inlining`. **Every O-code
+optimiser pass is complete** (2026-06-19; archived in
+[history](rust-rewrite-history.md)) — the soundness gates (O120/O114/O108),
+all applied rewrites (O104/O130 chain folds, O119 packing, O128 end-offset,
+incl. **precise-flow** across safe interleaved writes), and every precision
+item (O106 category + latch-dominance, O123, O110 boolify, O125
+cross-event/already-covered/deepest-target, O101/O115 branch coverage, O103
+rename + namespace-chain). The **inliner v0 + verbatim** shapes also landed,
+gated on FE-VARESCAPE's `var_escape::safe_to_inline` (`pure_leaf`) proof plus
+per-statement `stmt_is_splice_eligible`. The sole remaining task:
+- **open** general proc inliner **v3 (parameterised)** — α-renaming via
+  `_rename.py` over value strings / expr ASTs / defs-reads / foreach-catch
+  bindings, variadic packing, parameter defaults, trailing-vs-non-trailing
+  `return` for/break wrapping, plus dead-proc elimination. **Cross-track
+  dependency (handoff):** the inliner's only consumer is the WASM codegen
+  (`compiler/codegen/wasm/api.py`), so execution-differential verification of
+  the capture-sensitive value-string rewriter is gated on **RT-WASM** (🔴
+  unported) — v3 must land alongside that consumer rather than as
+  IR-shape-only unit tests (the repo's differential-test standard cannot be
+  met otherwise). *(large)*
+- **open** *(non-correctness nuances, optional)* the O110 regex/glob →
+  string-op rewrites (gated on the iRules `MatchesGlob`/`MatchesRegex` expr
+  operators) and threading richer execution-trace facts deeper into the
+  GVN/LICM family — precision niceties, never miscompiles.
 
 #### FE-CODEGEN — bytecode codegen
 Owns `tcl-compiler::codegen` (non-wasm).
