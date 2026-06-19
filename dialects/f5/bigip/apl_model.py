@@ -28,6 +28,31 @@ from .apl_parser import _FIELD_TYPE_KEYWORDS
 
 log = logging.getLogger(__name__)
 
+# Soft dependency on the native Rust APL parser (the `tcl_lsp_rust`
+# wheel). When present it parses and the canonical-JSON bridge
+# reconstructs the dataclasses; otherwise the pure-Python parser runs.
+# Disable with ``TCL_LSP_BIGIP_RUST=0`` (shared with the config parser).
+try:
+    from tcl_lsp_rust import apl_parse_json as _rust_apl_parse_json  # ty: ignore[unresolved-import]
+except ImportError:
+    _rust_apl_parse_json = None
+
+
+def _rust_backed_parse_apl(source: str):
+    """Parse via the native Rust APL parser + bridge, or ``None`` to fall
+    back — a Rust hiccup degrades to the Python parser."""
+    if _rust_apl_parse_json is None or os.environ.get("TCL_LSP_BIGIP_RUST") == "0":
+        return None
+    try:
+        import json
+
+        from .parser._rust_bridge import rebuild_apl
+
+        return rebuild_apl(json.loads(_rust_apl_parse_json(source)))
+    except Exception:  # noqa: BLE001 — never let the Rust path break parsing.
+        return None
+
+
 # Data model
 
 
@@ -160,7 +185,15 @@ def _parse_fields_in_block(
 
 
 def parse_apl(source: str) -> AplModel:
-    """Parse APL source into a structured model."""
+    """Parse APL source into a structured model.
+
+    Delegates to the native Rust parser when the ``tcl_lsp_rust`` wheel is
+    installed (reconstructing the dataclasses via the canonical-JSON
+    bridge), falling back to the pure-Python parser otherwise.
+    """
+    rust = _rust_backed_parse_apl(source)
+    if rust is not None:
+        return rust
     model = AplModel()
 
     # Extract #include directives

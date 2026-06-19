@@ -1,0 +1,1279 @@
+//! The `f5 irule` verb group — iRules-specific sub-subcommands.
+//!
+//! Port of `tooling/f5/verbs/irule.py`. The sub-subcommands split into two
+//! groups by which engine they reuse:
+//!
+//! - **Ported, byte-parity** — `event-order` (firing-order event metadata from
+//!   [`tcl_registry::events`]), `extract` (per-rule bodies from the
+//!   [`tcl_bigip`] model), and `format` / `minify` (the [`tcl_lsp_core`]
+//!   formatter / minifier engines, driven with the `f5-irules` dialect exactly
+//!   as the `tcl` CLI drives them).
+//!   as the `tcl` CLI drives them), and `event-info` (event metadata + the
+//!   `validCommands` cross-product over the reconciled command registry,
+//!   `CommandRegistry::event_info`).
+//! - **Deferred** — `lint` / `context` (the iRule analyser), and `trace` /
+//!   `pgo` (the compiler lowering / CFG / VM). Each parses its args (so
+//!   `--help` works) but its handler prints a clear "not yet ported" error and
+//!   exits 2.
+
+use std::path::{Path, PathBuf};
+
+use tcl_bigip::model::ModelObject;
+use tcl_bigip::parser::{BigipConfig, Placed, parse_bigip_conf};
+use tcl_bigip_io::paths::read_path;
+use tcl_cli_support::registry_for_dialect;
+use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle, formatting_with};
+use tcl_lsp_core::minify::{minify_tcl, minify_tcl_aggressive, minify_tcl_compact};
+
+use crate::cli::{IruleColourArgs, IruleCommand, IruleFormatterArgs, IruleInputArgs};
+
+/// A single iRule body resolved from a CLI input (port of `IruleInput`).
+struct IruleInput {
+    /// Display label, used for diagnostics and synthesising output names.
+    label: String,
+    /// The iRule source body.
+    source: String,
+    /// Origin URI of the file / inline snippet this body came from (the dict
+    /// key shared with [`LoadedIrules::configs`] / [`LoadedIrules::sources`]).
+    // Part of the faithful `IruleInput` surface; consumed by `irule context`
+    // (next increment), not by `lint`/`format`/`minify`.
+    #[allow(dead_code)]
+    origin: String,
+    /// BIG-IP full path when extracted from a config; `None` for standalone.
+    rule_full_path: Option<String>,
+}
+
+/// The resolved iRule inputs plus the per-origin configs and post-decode
+/// source text the lint / context verbs consume (port of the
+/// `(inputs, configs, sources)` 3-tuple returned by Python's
+/// `load_irule_inputs`).
+struct LoadedIrules {
+    /// One body per `ltm rule` / standalone file / inline snippet, in load
+    /// order.
+    inputs: Vec<IruleInput>,
+    /// One [`BigipConfig`] per input *file* / inline snippet, origin-keyed, in
+    /// load order (inline snippets first, then paths). Standalone
+    /// `.tcl`/`.irul`/`.irule` files and inline `--source` synthesise a
+    /// single-rule config; `.conf`/`.scf`/UCS yield the parsed config.
+    configs: Vec<(String, BigipConfig)>,
+    /// The post-decode source text per origin (the *extracted* SCF for UCS),
+    /// keyed identically to `configs`.
+    // `lint` derives its `sources` from `configs` (joined rule bodies); this
+    // full-text view is part of the faithful loader surface and is consumed by
+    // `irule context` (next increment).
+    #[allow(dead_code)]
+    sources: Vec<(String, String)>,
+}
+
+const IRULE_SUFFIXES: &[&str] = &["tcl", "irul", "irule"];
+
+fn suffix_lower(path: &str) -> String {
+    Path::new(path)
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default()
+}
+
+/// Python `Path(label).stem or "irule"` — the final path component without its
+/// last suffix, falling back to `"irule"` when empty.
+fn label_stem(label: &str) -> String {
+    Path::new(label)
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "irule".to_owned())
+}
+
+/// Build a synthetic single-rule [`BigipConfig`] (port of
+/// `BigipConfig(rules={synth_path: BigipRule(name, full_path, source)})`): one
+/// `ltm rule` at `full_path`, `default_partition = "Common"` (the Python
+/// dataclass default).
+fn synth_rule_config(name: &str, full_path: &str, source: &str) -> BigipConfig {
+    let rule = tcl_bigip::model::BigipRule {
+        name: name.to_owned(),
+        full_path: full_path.to_owned(),
+        source: source.to_owned(),
+        ..Default::default()
+    };
+    BigipConfig {
+        default_partition: "Common".to_owned(),
+        objects: vec![Placed {
+            table_name: "rules",
+            full_path: full_path.to_owned(),
+            object: ModelObject::Rule(rule),
+        }],
+        ..Default::default()
+    }
+}
+
+/// Read each path's rules / synthesise a single-rule body, plus inline
+/// `--source` snippets. Mirrors `load_irule_inputs`, returning the inputs
+/// alongside the origin-keyed configs + post-decode sources.
+fn load_irule_inputs(paths: &[String], inline_sources: &[String]) -> Result<LoadedIrules, String> {
+    let mut inputs: Vec<IruleInput> = Vec::new();
+    let mut configs: Vec<(String, BigipConfig)> = Vec::new();
+    let mut sources: Vec<(String, String)> = Vec::new();
+
+    for (index, source_text) in inline_sources.iter().enumerate() {
+        let n = index + 1;
+        let synth_name = format!("inline_{n}");
+        let synth_path = format!("/{synth_name}");
+        let origin = format!("inline://{n}");
+        inputs.push(IruleInput {
+            label: format!("<inline:{n}>"),
+            source: source_text.clone(),
+            origin: origin.clone(),
+            rule_full_path: None,
+        });
+        configs.push((
+            origin.clone(),
+            synth_rule_config(&synth_name, &synth_path, source_text),
+        ));
+        sources.push((origin, source_text.clone()));
+    }
+
+    let opts = tcl_bigip_io::PassphraseOptions::default();
+    for path_str in paths {
+        let suffix = if path_str == "-" {
+            String::new()
+        } else {
+            suffix_lower(path_str)
+        };
+        let (origin, text) = read_path(path_str, false, &opts).map_err(|e| e.to_string())?;
+        let label = if path_str == "-" {
+            "<stdin>".to_owned()
+        } else {
+            path_str.clone()
+        };
+
+        // Standalone iRule file: never parse as a bigip.conf — synthesise a
+        // single-rule config at `/{stem}`.
+        if IRULE_SUFFIXES.contains(&suffix.as_str()) {
+            let stem = label_stem(&label);
+            let synth = synth_rule_config(&stem, &format!("/{stem}"), &text);
+            inputs.push(IruleInput {
+                label,
+                source: text.clone(),
+                origin: origin.clone(),
+                rule_full_path: None,
+            });
+            configs.push((origin.clone(), synth));
+            sources.push((origin, text));
+            continue;
+        }
+
+        // bigip.conf / SCF / unknown / stdin text — sniff for `ltm rule`.
+        let cfg = parse_bigip_conf(&text, "Common");
+        let rules = collect_rules(&cfg);
+        if rules.is_empty() {
+            // No rules: treat the whole file as a single iRule body.
+            let stem = label_stem(&label);
+            let synth = synth_rule_config(&stem, &format!("/{stem}"), &text);
+            inputs.push(IruleInput {
+                label,
+                source: text.clone(),
+                origin: origin.clone(),
+                rule_full_path: None,
+            });
+            configs.push((origin.clone(), synth));
+            sources.push((origin, text));
+        } else {
+            for (rule_path, src) in rules {
+                inputs.push(IruleInput {
+                    label: format!("{label}::{rule_path}"),
+                    source: src,
+                    origin: origin.clone(),
+                    rule_full_path: Some(rule_path),
+                });
+            }
+            configs.push((origin.clone(), cfg));
+            sources.push((origin, text));
+        }
+    }
+
+    Ok(LoadedIrules {
+        inputs,
+        configs,
+        sources,
+    })
+}
+
+/// Collect `(full_path, source)` for every `ltm rule` in a parsed config, in
+/// source order (mirrors `BigipConfig.rules` iteration).
+fn collect_rules(cfg: &tcl_bigip::parser::BigipConfig) -> Vec<(String, String)> {
+    cfg.objects
+        .iter()
+        .filter(|p| p.table_name == "rules")
+        .filter_map(|p| match &p.object {
+            ModelObject::Rule(r) => Some((p.full_path.clone(), r.source.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Resolve iRule inputs with CLI error handling (mirrors
+/// `_resolve_irule_inputs`): prints the error and returns the exit code on
+/// failure.
+fn resolve_irule_inputs(input: &IruleInputArgs) -> Result<LoadedIrules, u8> {
+    if input.paths.is_empty() && input.source.is_empty() {
+        eprintln!("error: no input provided; pass files, --source, or `-` for stdin");
+        return Err(2);
+    }
+    match load_irule_inputs(&input.paths, &input.source) {
+        Ok(loaded) => Ok(loaded),
+        Err(msg) => {
+            eprintln!("error: {msg}");
+            Err(2)
+        }
+    }
+}
+
+fn flatten_rule_path(rule_full_path: Option<&str>, fallback_label: &str) -> String {
+    if let Some(p) = rule_full_path {
+        return p.trim_start_matches('/').replace('/', "__");
+    }
+    let mut stem = Path::new(fallback_label)
+        .file_name()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if stem.is_empty() || stem == "<stdin>" || stem == "-" {
+        "irule".clone_into(&mut stem);
+    }
+    let known = [".tcl", ".irul", ".irule", ".conf", ".scf", ".ucs"];
+    if known.iter().any(|s| stem.ends_with(s))
+        && let Some(base) = Path::new(&stem).file_stem()
+    {
+        stem = base.to_string_lossy().into_owned();
+    }
+    stem.replace('/', "__")
+}
+
+/// `str(pathlib.PurePosixPath(s))` — collapse repeated `/`, drop `.` and
+/// trailing slashes (keeping `..`); empty → `.`, root stays `/`. Used so the
+/// `irule context` directory message matches Python's `print(f"… {out_dir}")`.
+fn pathlib_str(s: &str) -> String {
+    let absolute = s.starts_with('/');
+    let parts: Vec<&str> = s
+        .split('/')
+        .filter(|seg| !seg.is_empty() && *seg != ".")
+        .collect();
+    if parts.is_empty() {
+        return if absolute {
+            "/".to_owned()
+        } else {
+            ".".to_owned()
+        };
+    }
+    let joined = parts.join("/");
+    if absolute {
+        format!("/{joined}")
+    } else {
+        joined
+    }
+}
+
+/// Decide whether `output` should be treated as a directory (port of
+/// `_is_directory_target`).
+fn is_directory_target(output: &str) -> bool {
+    if output == "-" {
+        return false;
+    }
+    Path::new(output).is_dir() || output.ends_with('/') || output.ends_with('\\')
+}
+
+/// Common output dispatcher for irule format / minify (port of
+/// `_write_iRule_outputs`).
+fn write_irule_outputs(
+    output: &str,
+    inputs: &[IruleInput],
+    transformed: &[String],
+    file_extension: &str,
+    colour: Option<&IruleColourArgs>,
+) -> Result<u8, String> {
+    if is_directory_target(output) {
+        let out_dir = Path::new(output);
+        std::fs::create_dir_all(out_dir).map_err(|e| e.to_string())?;
+        for (entry, text) in inputs.iter().zip(transformed.iter()) {
+            let stem = flatten_rule_path(entry.rule_full_path.as_deref(), &entry.label);
+            let target = out_dir.join(format!("{stem}{file_extension}"));
+            let body = if text.ends_with('\n') {
+                text.clone()
+            } else {
+                format!("{text}\n")
+            };
+            std::fs::write(&target, body).map_err(|e| e.to_string())?;
+        }
+        eprintln!("wrote {} iRule(s) to {}", transformed.len(), output);
+        return Ok(0);
+    }
+
+    // Single-file / stdout: emit the concatenation.
+    let text = if transformed.len() <= 1 {
+        transformed.first().cloned().unwrap_or_default()
+    } else {
+        let mut chunks: Vec<String> = Vec::with_capacity(transformed.len());
+        for (entry, body) in inputs.iter().zip(transformed.iter()) {
+            let label = entry
+                .rule_full_path
+                .clone()
+                .unwrap_or_else(|| entry.label.clone());
+            chunks.push(format!("# ===== {label} =====\n{}\n", body.trim_end()));
+        }
+        chunks.join("\n")
+    };
+    write_highlighted(output, &text, colour)?;
+    Ok(0)
+}
+
+/// Resolve the effective tab width (port of `_resolve_tab_width`).
+fn resolve_tab_width(colour: Option<&IruleColourArgs>) -> usize {
+    colour.and_then(|c| c.tabs).unwrap_or(4)
+}
+
+/// Whether ANSI colour should be applied (port of `_resolve_use_colour`).
+fn resolve_use_colour(output: &str, colour: Option<&IruleColourArgs>) -> bool {
+    use tcl_cli_support::OutputTarget;
+    let (force, no) = colour.map_or((false, false), |c| (c.colour, c.no_colour));
+    let target = if output == "-" {
+        OutputTarget::Stdout
+    } else {
+        OutputTarget::File(PathBuf::from(output))
+    };
+    tcl_cli_support::resolve_use_colour(force, no, &target)
+}
+
+/// Write `text` with optional highlighting / tab expansion to `output`
+/// (mirrors `_write_highlighted_output`).
+fn write_highlighted(
+    output: &str,
+    text: &str,
+    colour: Option<&IruleColourArgs>,
+) -> Result<(), String> {
+    use tcl_cli_support::OutputTarget;
+    let use_colour = resolve_use_colour(output, colour);
+    let tab_width = resolve_tab_width(colour);
+    let target = if output == "-" {
+        OutputTarget::Stdout
+    } else {
+        OutputTarget::File(PathBuf::from(output))
+    };
+    tcl_cli_support::write_highlighted_output(&target, text, use_colour, tab_width, "f5-irules")
+        .map_err(|e| e.to_string())
+}
+
+/// Write plain text to `output` (mirrors `_write_text_output`).
+fn write_text(output: &str, text: &str) -> Result<(), String> {
+    use tcl_cli_support::OutputTarget;
+    let target = if output == "-" {
+        OutputTarget::Stdout
+    } else {
+        OutputTarget::File(PathBuf::from(output))
+    };
+    tcl_cli_support::write_text_output(&target, text).map_err(|e| e.to_string())
+}
+
+/// Dispatch the `irule` verb group.
+///
+/// Returns `anyhow::Result<u8>` to slot into the top-level `dispatch` match
+/// uniformly; the handlers print their own errors and resolve to an exit code,
+/// so this never returns `Err`.
+#[allow(clippy::unnecessary_wraps)]
+pub fn run_irule(action: &IruleCommand) -> anyhow::Result<u8> {
+    let rc = match action {
+        IruleCommand::EventOrder { input, json } => run_event_order(input, *json),
+        IruleCommand::Extract { paths, output } => run_extract(paths, output),
+        IruleCommand::Format {
+            input,
+            colour,
+            formatter,
+        } => run_format(input, colour, formatter),
+        IruleCommand::Minify {
+            input,
+            compact,
+            symbol_map,
+            aggressive,
+            isolated,
+            colour,
+        } => run_minify(
+            input,
+            *compact,
+            symbol_map.as_deref(),
+            *aggressive,
+            *isolated,
+            colour,
+        ),
+        IruleCommand::EventInfo {
+            event,
+            json,
+            output,
+        } => run_event_info(event, *json, output),
+        IruleCommand::Lint {
+            input,
+            json,
+            severity,
+        } => run_irule_lint(input, *json, severity.as_deref()),
+        IruleCommand::Context {
+            input,
+            rule,
+            no_transitive,
+            json,
+        } => run_irule_context(input, rule, *no_transitive, *json),
+        IruleCommand::Trace { event, input, json } => run_irule_trace(event, input, *json),
+        // Deferred sub: PGO needs the `compiler/pgo` branch-reorder engine
+        // (and `--capture` needs tclsh) — not yet ported.
+        IruleCommand::Pgo { .. } => Err(deferred("pgo", "compiler-VM")),
+    };
+    // Both the success path and the printed-error path resolve to a process
+    // exit code (mirroring the Python handlers, which `return` an int either way).
+    Ok(rc.unwrap_or_else(|code| code))
+}
+
+/// Print the standard "not yet ported" message for a deferred sub and return
+/// the exit code (2).
+fn deferred(sub: &str, engine: &str) -> u8 {
+    eprintln!("error: f5 irule {sub} is not yet ported (requires the {engine} engine)");
+    2
+}
+
+// ---------------------------------------------------------------------------
+// event-order
+// ---------------------------------------------------------------------------
+
+/// Scan `when EVENT` blocks and return events in canonical firing order
+/// (mirrors `order_events_for_file` + `order_events`).
+fn order_events_for_file(
+    source: &str,
+    events: &tcl_registry::events::EventRegistry,
+) -> Vec<String> {
+    // `\bwhen\s+([A-Z_][A-Z0-9_]*)` — the Python `scan_file_events` regex.
+    let mut found: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let bytes = source.as_bytes();
+    let mut i = 0;
+    while let Some(rel) = source[i..].find("when") {
+        let start = i + rel;
+        // `\b` before "when": preceding char must not be a word char.
+        let prev_ok = start == 0 || !is_word_byte(bytes[start - 1]);
+        let after = start + 4;
+        if prev_ok && after < bytes.len() && bytes[after].is_ascii_whitespace() {
+            // skip whitespace
+            let mut j = after;
+            while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+                j += 1;
+            }
+            // first char [A-Z_]
+            if j < bytes.len() && (bytes[j] == b'_' || bytes[j].is_ascii_uppercase()) {
+                let name_start = j;
+                while j < bytes.len()
+                    && (bytes[j] == b'_'
+                        || bytes[j].is_ascii_uppercase()
+                        || bytes[j].is_ascii_digit())
+                {
+                    j += 1;
+                }
+                found.insert(source[name_start..j].to_owned());
+            }
+        }
+        i = start + 4;
+    }
+
+    // order_events: known events by master-order index, unknown sorted after.
+    let order: Vec<&str> = events.master_order().iter().map(|o| o.event).collect();
+    let mut known: Vec<(usize, String)> = Vec::new();
+    let mut unknown: Vec<String> = Vec::new();
+    for evt in &found {
+        if let Some(idx) = order.iter().position(|e| *e == evt) {
+            known.push((idx, evt.clone()));
+        } else {
+            unknown.push(evt.clone());
+        }
+    }
+    known.sort();
+    unknown.sort();
+    known.into_iter().map(|(_, e)| e).chain(unknown).collect()
+}
+
+fn is_word_byte(b: u8) -> bool {
+    b == b'_' || b.is_ascii_alphanumeric()
+}
+
+/// Multiplicity category for a single event (mirrors `event_multiplicity`).
+fn event_multiplicity(name: &str, events: &tcl_registry::events::EventRegistry) -> &'static str {
+    if name == "RULE_INIT" {
+        "init"
+    } else if events.is_once_per_connection(name) {
+        "once_per_connection"
+    } else if events.is_per_request(name) {
+        "per_request"
+    } else {
+        "unknown"
+    }
+}
+
+fn run_event_order(input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
+    let loaded = resolve_irule_inputs(input)?;
+    let events = tcl_registry::events::EventRegistry::build();
+
+    let combined: String = loaded
+        .inputs
+        .iter()
+        .map(|e| e.source.trim_end_matches('\n'))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+
+    let ordered = order_events_for_file(&combined, &events);
+    let items: Vec<(usize, String, &str)> = ordered
+        .iter()
+        .enumerate()
+        .map(|(i, name)| (i + 1, name.clone(), event_multiplicity(name, &events)))
+        .collect();
+
+    if json {
+        use std::fmt::Write as _;
+        // `json.dumps(payload, indent=2)` — insertion-ordered keys, no sort.
+        let mut out = String::from("{\n");
+        let _ = writeln!(out, "  \"count\": {},", items.len());
+        out.push_str("  \"dialect\": ");
+        out.push_str(&json_string(&input.dialect));
+        out.push_str(",\n  \"events\": ");
+        if items.is_empty() {
+            out.push_str("[]");
+        } else {
+            out.push_str("[\n");
+            for (i, (index, name, mult)) in items.iter().enumerate() {
+                out.push_str("    {\n");
+                let _ = writeln!(out, "      \"index\": {index},");
+                out.push_str("      \"name\": ");
+                out.push_str(&json_string(name));
+                out.push_str(",\n      \"multiplicity\": ");
+                out.push_str(&json_string(mult));
+                out.push_str("\n    }");
+                if i + 1 < items.len() {
+                    out.push(',');
+                }
+                out.push('\n');
+            }
+            out.push_str("  ]");
+        }
+        out.push_str("\n}");
+        write_text(&input.output, &out).map_err(|_| 1u8)?;
+        return Ok(0);
+    }
+
+    let mut lines = vec![format!("event order: {} event(s)", items.len())];
+    for (index, name, mult) in &items {
+        lines.push(format!("  {index}. {name} ({mult})"));
+    }
+    write_text(&input.output, &lines.join("\n")).map_err(|_| 1u8)?;
+    Ok(0)
+}
+
+// ---------------------------------------------------------------------------
+// event-info
+// ---------------------------------------------------------------------------
+
+/// `f5 irule event-info EVENT` — look up event metadata + valid commands.
+/// Port of `_run_event_info` (`tooling/f5/verbs/irule.py`) over the
+/// reconciled command-registry cross-product (`CommandRegistry::event_info`).
+/// Exit code is `0` for a known event, `1` otherwise (both streams written).
+fn run_event_info(event: &str, json: bool, output: &str) -> Result<u8, u8> {
+    let mut cmds = tcl_registry::registry::CommandRegistry::build_default();
+    cmds.load_irules();
+    let events = tcl_registry::events::EventRegistry::build();
+    let profiles = tcl_registry::profiles::ProfileRegistry::build();
+    let info = cmds.event_info(event, &events, &profiles);
+    let rc = u8::from(!info.known);
+
+    if json {
+        use std::fmt::Write as _;
+        // `json.dumps(payload, indent=2)` — insertion-ordered keys.
+        let mut out = String::from("{\n");
+        let _ = write!(out, "  \"event\": {}", json_string(&info.event));
+        let _ = write!(out, ",\n  \"known\": {}", info.known);
+        let _ = write!(out, ",\n  \"deprecated\": {}", info.deprecated);
+        let _ = write!(
+            out,
+            ",\n  \"multiplicity\": {}",
+            json_string(info.multiplicity)
+        );
+        let _ = write!(
+            out,
+            ",\n  \"description\": {}",
+            json_string(&info.description)
+        );
+        let _ = write!(out, ",\n  \"side\": {}", json_string(info.side));
+        out.push_str(",\n  \"transport\": ");
+        match &info.transport {
+            Some(t) => out.push_str(&json_string(t)),
+            None => out.push_str("null"),
+        }
+        out.push_str(",\n  \"impliedProfiles\": ");
+        push_json_string_array(&mut out, info.implied_profiles.iter().copied());
+        let _ = write!(
+            out,
+            ",\n  \"validCommandCount\": {}",
+            info.valid_command_count()
+        );
+        out.push_str(",\n  \"validCommands\": ");
+        push_json_string_array(&mut out, info.valid_commands.iter().map(String::as_str));
+        out.push_str("\n}");
+        write_text(output, &out).map_err(|_| 1u8)?;
+        return Ok(rc);
+    }
+
+    let mut lines = vec![
+        format!("event: {}", info.event),
+        format!("known: {}", if info.known { "yes" } else { "no" }),
+        format!("deprecated: {}", if info.deprecated { "yes" } else { "no" }),
+        format!("multiplicity: {}", info.multiplicity),
+    ];
+    if !info.description.is_empty() {
+        lines.push(format!("description: {}", info.description));
+    }
+    lines.push(format!("side: {}", info.side));
+    if let Some(t) = info.transport.as_deref().filter(|t| !t.is_empty()) {
+        lines.push(format!("transport: {t}"));
+    }
+    if !info.implied_profiles.is_empty() {
+        lines.push(format!("profiles: {}", info.implied_profiles.join(", ")));
+    }
+    lines.push(format!("valid commands: {}", info.valid_command_count()));
+    write_text(output, &lines.join("\n")).map_err(|_| 1u8)?;
+    Ok(rc)
+}
+
+/// Append a JSON array of strings rendered as `json.dumps(..., indent=2)`
+/// would at a top-level (2-space) key: `[]` when empty, else one item per
+/// line indented four spaces with the closing bracket at two.
+fn push_json_string_array<'a>(out: &mut String, items: impl Iterator<Item = &'a str>) {
+    let rendered: Vec<String> = items.map(json_string).collect();
+    if rendered.is_empty() {
+        out.push_str("[]");
+        return;
+    }
+    out.push_str("[\n");
+    for (i, item) in rendered.iter().enumerate() {
+        out.push_str("    ");
+        out.push_str(item);
+        if i + 1 < rendered.len() {
+            out.push(',');
+        }
+        out.push('\n');
+    }
+    out.push_str("  ]");
+}
+
+// ---------------------------------------------------------------------------
+// lint
+// ---------------------------------------------------------------------------
+
+/// `f5 irule lint` — run only the iRule-category lint rules over iRule sources.
+/// Port of `_run_irule_lint` (`tooling/f5/verbs/irule.py`): it shares the
+/// [`tcl_bigip::lint`] engine and the `f5 validate` output formatters
+/// ([`crate::commands::validate::to_json`] / [`to_text`]), passing
+/// `category="irule"` so only the four irule rules run.
+///
+/// Exit code mirrors Python: any `error` finding → `2`, any `warning` → `1`,
+/// else `0`.
+///
+/// [`to_text`]: crate::commands::validate::to_text
+fn run_irule_lint(input: &IruleInputArgs, json: bool, severity: Option<&str>) -> Result<u8, u8> {
+    use tcl_bigip::lint::run_lint;
+
+    use crate::commands::validate;
+
+    let loaded = resolve_irule_inputs(input)?;
+
+    // The iRule lint category only inspects rule bodies, so the `sources`
+    // argument is the rule bodies joined back together by origin URI (the
+    // built-in rules ignore it, but pass it for signature parity).
+    let sources_for_lint: Vec<(String, String)> = loaded
+        .configs
+        .iter()
+        .map(|(origin, cfg)| {
+            let joined = collect_rules(cfg)
+                .into_iter()
+                .map(|(_path, src)| src)
+                .collect::<Vec<_>>()
+                .join("\n");
+            (origin.clone(), joined)
+        })
+        .collect();
+
+    let config_refs: Vec<(String, &BigipConfig)> = loaded
+        .configs
+        .iter()
+        .map(|(origin, cfg)| (origin.clone(), cfg))
+        .collect();
+    let source_refs: Vec<(String, &str)> = sources_for_lint
+        .iter()
+        .map(|(origin, src)| (origin.clone(), src.as_str()))
+        .collect();
+
+    let findings = run_lint(&config_refs, &source_refs, Some("irule"), severity);
+
+    // `to_json` / `to_text` already include the trailing newline, matching
+    // Python's `json.dumps(...) + "\n"` / `_to_text(findings) + "\n"`.
+    let out = if json {
+        validate::to_json(&findings)
+    } else {
+        validate::to_text(&findings)
+    };
+    write_text(&input.output, &out).map_err(|_| 2u8)?;
+
+    let has_error = findings.iter().any(|f| f.severity == "error");
+    let has_warning = findings.iter().any(|f| f.severity == "warning");
+    if has_error {
+        Ok(2)
+    } else if has_warning {
+        Ok(1)
+    } else {
+        Ok(0)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// context
+// ---------------------------------------------------------------------------
+
+/// `f5 irule context` — bundle each iRule with the BIG-IP objects it
+/// references. Port of `_run_irule_context` (`tooling/f5/verbs/irule.py`) over
+/// the [`tcl_bigip::irule_context`] engine: resolve inputs, merge the configs
+/// once for cross-file resolution, build one bundle per rule, and render to
+/// JSON / Tcl-flavoured text (directory → one file per rule; otherwise a single
+/// concatenated stream). Exit `0`, or `1` when no iRules were found.
+fn run_irule_context(
+    input: &IruleInputArgs,
+    rule_filter: &[String],
+    no_transitive: bool,
+    json: bool,
+) -> Result<u8, u8> {
+    use tcl_bigip::irule_context::{
+        build_irule_context, bundles_to_json, context_bundle_to_json, context_bundle_to_text,
+        origin_source,
+    };
+
+    let loaded = resolve_irule_inputs(input)?;
+
+    // Merge configs once so cross-file references all resolve (mirrors
+    // `_merge_configs_for_trace`: empty → default, else the merged union).
+    let config_refs: Vec<(String, &tcl_bigip::parser::BigipConfig)> = loaded
+        .configs
+        .iter()
+        .map(|(origin, cfg)| (origin.clone(), cfg))
+        .collect();
+    let merged = tcl_bigip::lint::merge_configs(&config_refs);
+
+    let mut registry = tcl_registry::registry::CommandRegistry::build_default();
+    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+
+    let filter: std::collections::HashSet<&str> = rule_filter.iter().map(String::as_str).collect();
+    let transitive = !no_transitive;
+
+    // (rule_full_path, bundle) per rule, in config-then-source order.
+    let mut bundles: Vec<(String, tcl_bigip::irule_context::IruleContextBundle)> = Vec::new();
+    for (origin, cfg) in &loaded.configs {
+        let src_text = origin_source(&loaded.sources, Some(origin));
+        for placed in &cfg.objects {
+            if placed.table_name != "rules" {
+                continue;
+            }
+            let ModelObject::Rule(rule) = &placed.object else {
+                continue;
+            };
+            if !filter.is_empty() && !filter.contains(placed.full_path.as_str()) {
+                continue;
+            }
+            let bundle = build_irule_context(rule, &merged, transitive, src_text, &registry);
+            bundles.push((placed.full_path.clone(), bundle));
+        }
+    }
+
+    if bundles.is_empty() {
+        eprintln!("error: no iRules found in input");
+        return Err(1);
+    }
+
+    if is_directory_target(&input.output) {
+        let out_dir = Path::new(&input.output);
+        if let Err(e) = std::fs::create_dir_all(out_dir) {
+            eprintln!("error: {e}");
+            return Err(2);
+        }
+        let suffix = if json { ".json" } else { ".tcl" };
+        for (rule_path, bundle) in &bundles {
+            let flat = rule_path.trim_start_matches('/').replace('/', "__");
+            let payload = if json {
+                format!("{}\n", context_bundle_to_json(bundle))
+            } else {
+                context_bundle_to_text(bundle)
+            };
+            let target = out_dir.join(format!("{flat}{suffix}"));
+            if let Err(e) = std::fs::write(&target, payload) {
+                eprintln!("error: {e}");
+                return Err(2);
+            }
+        }
+        eprintln!(
+            "wrote {} iRule context bundle(s) to {}",
+            bundles.len(),
+            pathlib_str(&input.output)
+        );
+        return Ok(0);
+    }
+
+    // Single-file / stdout: concatenate.
+    let payload = if json {
+        let only: Vec<tcl_bigip::irule_context::IruleContextBundle> =
+            bundles.into_iter().map(|(_, b)| b).collect();
+        format!("{}\n", bundles_to_json(&only))
+    } else {
+        let chunks: Vec<String> = bundles
+            .iter()
+            .map(|(_, b)| format!("{}\n", context_bundle_to_text(b).trim_end()))
+            .collect();
+        chunks.join("\n")
+    };
+    write_text(&input.output, &payload).map_err(|_| 2u8)?;
+    Ok(0)
+}
+
+// ---------------------------------------------------------------------------
+// trace
+// ---------------------------------------------------------------------------
+
+/// Return the body text inside the `{...}` starting at byte `open_brace` (port
+/// of `_slice_balanced_braces`). Brace-depth scan that skips `"…"` strings
+/// (honouring `\` escapes). Operates on bytes — `{` / `}` / `"` / `\` are all
+/// ASCII, so UTF-8 multibyte sequences are passed through untouched and the
+/// returned slice lands on char boundaries, matching Python's char-indexed slice.
+fn slice_balanced_braces(source: &str, open_brace: usize) -> String {
+    let bytes = source.as_bytes();
+    if bytes.get(open_brace) != Some(&b'{') {
+        return String::new();
+    }
+    let mut depth = 1usize;
+    let mut i = open_brace + 1;
+    let start = i;
+    while i < bytes.len() && depth > 0 {
+        match bytes[i] {
+            b'{' => depth += 1,
+            b'}' => depth -= 1,
+            b'"' => {
+                i += 1;
+                while i < bytes.len() && bytes[i] != b'"' {
+                    if bytes[i] == b'\\' {
+                        i += 1;
+                    }
+                    i += 1;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    source[start..i.saturating_sub(1)].to_owned()
+}
+
+/// First token of each non-blank, non-comment line in `body` (port of
+/// `_extract_commands`): the leading whitespace-delimited word, right-trimmed
+/// of `{`, `}`, `;`.
+fn extract_commands(body: &str) -> Vec<String> {
+    let mut cmds: Vec<String> = Vec::new();
+    for raw in body.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let head = line.split_whitespace().next().unwrap_or("");
+        let head = head.trim_end_matches(['{', '}', ';']);
+        if !head.is_empty() {
+            cmds.push(head.to_owned());
+        }
+    }
+    cmds
+}
+
+/// One resolved object reference in a trace (mirrors the Python `references`
+/// payload entry).
+struct TraceRef {
+    kind: &'static str,
+    name: String,
+    command: String,
+    resolved_path: Option<String>,
+}
+
+/// One event-handler trace: the commands the body runs and the objects it
+/// references (mirrors the Python `traces` payload entry).
+struct Trace {
+    rule: String,
+    commands: Vec<String>,
+    references: Vec<TraceRef>,
+}
+
+/// `f5 irule trace EVENT` — static trace of a single event handler: the
+/// commands it runs and the BIG-IP objects it references. Port of
+/// `_run_irule_trace` (`tooling/f5/verbs/irule.py`). Purely static — no VM /
+/// simulator. Exit `0` when at least one rule has a matching `when EVENT`
+/// block, else `1`.
+fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
+    use tcl_bigip::irule_context::{classify_kind, resolve_reference};
+    use tcl_irules::extract_irules_object_references;
+
+    let loaded = resolve_irule_inputs(input)?;
+
+    let config_refs: Vec<(String, &tcl_bigip::parser::BigipConfig)> = loaded
+        .configs
+        .iter()
+        .map(|(origin, cfg)| (origin.clone(), cfg))
+        .collect();
+    let merged = tcl_bigip::lint::merge_configs(&config_refs);
+
+    let mut registry = tcl_registry::registry::CommandRegistry::build_default();
+    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+
+    // `\bwhen\s+<EVENT>\s*\{`, case-insensitive (mirrors the Python regex).
+    let block_re = regex::Regex::new(&format!(r"(?i)\bwhen\s+{}\s*\{{", regex::escape(event)))
+        .map_err(|_| 2u8)?;
+
+    let mut traces: Vec<Trace> = Vec::new();
+    for entry in &loaded.inputs {
+        let Some(m) = block_re.find(&entry.source) else {
+            continue;
+        };
+        let open_brace = m.end() - 1; // the `{` the regex ended on
+        let body = slice_balanced_braces(&entry.source, open_brace);
+        let commands = extract_commands(&body);
+        let rule_label = entry
+            .rule_full_path
+            .clone()
+            .unwrap_or_else(|| entry.label.clone());
+
+        let mut references: Vec<TraceRef> = Vec::new();
+        let mut seen: std::collections::HashSet<(&str, String)> = std::collections::HashSet::new();
+        for reference in extract_irules_object_references(&body, None, &registry) {
+            let Some(kind) = classify_kind(&reference.kinds) else {
+                continue;
+            };
+            if !seen.insert((kind, reference.name.clone())) {
+                continue;
+            }
+            let resolved_path = resolve_reference(&merged, kind, &reference.name);
+            references.push(TraceRef {
+                kind,
+                name: reference.name,
+                command: reference.command,
+                resolved_path,
+            });
+        }
+
+        traces.push(Trace {
+            rule: rule_label,
+            commands,
+            references,
+        });
+    }
+
+    let out = if json {
+        trace_json(event, &traces)
+    } else {
+        let mut lines = vec![format!("event {event}: {} matching rule(s)", traces.len())];
+        for t in &traces {
+            lines.push(format!("  {} — {} command(s)", t.rule, t.commands.len()));
+            for cmd in &t.commands {
+                lines.push(format!("    {cmd}"));
+            }
+            for r in &t.references {
+                let marker = if r.resolved_path.is_some() {
+                    "✓"
+                } else {
+                    "✗"
+                };
+                let target = r.resolved_path.as_ref().unwrap_or(&r.name);
+                lines.push(format!("    {marker} {}: {target}", r.kind));
+            }
+        }
+        format!("{}\n", lines.join("\n"))
+    };
+    write_text(&input.output, &out).map_err(|_| 2u8)?;
+    Ok(u8::from(traces.is_empty()))
+}
+
+/// `json.dumps({"event": …, "traces": [...]}, indent=2)` + "\n", insertion-
+/// ordered keys (mirrors the Python trace payload).
+fn trace_json(event: &str, traces: &[Trace]) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::from("{\n");
+    let _ = write!(out, "  \"event\": {}", json_string(event));
+    out.push_str(",\n  \"traces\": ");
+    if traces.is_empty() {
+        out.push_str("[]\n}\n");
+        return out;
+    }
+    out.push_str("[\n");
+    for (ti, t) in traces.iter().enumerate() {
+        out.push_str("    {\n");
+        let _ = writeln!(out, "      \"rule\": {},", json_string(&t.rule));
+        let _ = writeln!(out, "      \"commandCount\": {},", t.commands.len());
+        out.push_str("      \"commands\": ");
+        push_str_array(&mut out, &t.commands, 6);
+        out.push_str(",\n      \"references\": ");
+        if t.references.is_empty() {
+            out.push_str("[]");
+        } else {
+            out.push_str("[\n");
+            for (ri, r) in t.references.iter().enumerate() {
+                out.push_str("        {\n");
+                let _ = writeln!(out, "          \"kind\": {},", json_string(r.kind));
+                let _ = writeln!(out, "          \"name\": {},", json_string(&r.name));
+                let _ = writeln!(out, "          \"command\": {},", json_string(&r.command));
+                let _ = writeln!(
+                    out,
+                    "          \"resolved\": {},",
+                    r.resolved_path.is_some()
+                );
+                out.push_str("          \"resolvedPath\": ");
+                match &r.resolved_path {
+                    Some(p) => out.push_str(&json_string(p)),
+                    None => out.push_str("null"),
+                }
+                out.push_str("\n        }");
+                if ri + 1 < t.references.len() {
+                    out.push(',');
+                }
+                out.push('\n');
+            }
+            out.push_str("      ]");
+        }
+        out.push_str("\n    }");
+        if ti + 1 < traces.len() {
+            out.push(',');
+        }
+        out.push('\n');
+    }
+    out.push_str("  ]\n}\n");
+    out
+}
+
+/// A JSON array of strings at `indent` spaces: `[]` when empty, else one item
+/// per line (`indent + 2`) with the bracket back at `indent`.
+fn push_str_array(out: &mut String, items: &[String], indent: usize) {
+    if items.is_empty() {
+        out.push_str("[]");
+        return;
+    }
+    let pad = " ".repeat(indent + 2);
+    out.push_str("[\n");
+    for (i, item) in items.iter().enumerate() {
+        out.push_str(&pad);
+        out.push_str(&json_string(item));
+        if i + 1 < items.len() {
+            out.push(',');
+        }
+        out.push('\n');
+    }
+    out.push_str(&" ".repeat(indent));
+    out.push(']');
+}
+
+// ---------------------------------------------------------------------------
+// extract
+// ---------------------------------------------------------------------------
+
+fn run_extract(paths: &[String], output: &Path) -> Result<u8, u8> {
+    if paths.is_empty() {
+        eprintln!("error: no input provided; pass bigip.conf / SCF / UCS files");
+        return Err(2);
+    }
+    let standalone = ["tcl", "irul", "irule"];
+    let bad: Vec<&String> = paths
+        .iter()
+        .filter(|p| *p != "-" && standalone.contains(&suffix_lower(p).as_str()))
+        .collect();
+    if !bad.is_empty() {
+        let joined = bad
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        eprintln!(
+            "error: extract only accepts bigip.conf / SCF / UCS; refusing standalone \
+             iRule file(s): {joined}"
+        );
+        return Err(2);
+    }
+
+    let opts = tcl_bigip_io::PassphraseOptions::default();
+    let mut all_rules: Vec<Vec<(String, String)>> = Vec::new();
+    for p in paths {
+        let (_origin, text) = match read_path(p, false, &opts) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("error: {e}");
+                return Err(2);
+            }
+        };
+        let cfg = parse_bigip_conf(&text, "Common");
+        all_rules.push(collect_rules(&cfg));
+    }
+
+    if let Err(e) = std::fs::create_dir_all(output) {
+        eprintln!("error: {e}");
+        return Err(2);
+    }
+
+    let mut written = 0;
+    for rules in &all_rules {
+        for (rule_path, source) in rules {
+            let flat = rule_path.trim_start_matches('/').replace('/', "__");
+            let target = output.join(format!("{flat}.tcl"));
+            if let Err(e) = std::fs::write(&target, format!("{source}\n")) {
+                eprintln!("error: {e}");
+                return Err(2);
+            }
+            written += 1;
+        }
+    }
+
+    eprintln!("extracted {written} iRule(s) to {}", output.display());
+    Ok(0)
+}
+
+// ---------------------------------------------------------------------------
+// format / minify
+// ---------------------------------------------------------------------------
+
+fn build_formatter_config(formatter: &IruleFormatterArgs) -> FormatterConfig {
+    let mut config = FormatterConfig::default();
+    if let Some(size) = formatter.indent_size {
+        config.indent_size = size;
+    }
+    if let Some(style) = formatter.indent_style.as_deref() {
+        config.indent_style = if style == "tabs" {
+            IndentStyle::Tabs
+        } else {
+            IndentStyle::Spaces
+        };
+    }
+    if let Some(max) = formatter.max_line_length {
+        config.max_line_length = max;
+    }
+    if let Some(goal) = formatter.goal_line_length {
+        config.goal_line_length = goal;
+    }
+    if formatter.expand_bodies {
+        config.expand_single_line_bodies = true;
+    }
+    if formatter.no_semicolons {
+        config.replace_semicolons_with_newlines = true;
+    }
+    if formatter.keep_semicolons {
+        config.replace_semicolons_with_newlines = false;
+    }
+    config
+}
+
+fn run_format(
+    input: &IruleInputArgs,
+    colour: &IruleColourArgs,
+    formatter: &IruleFormatterArgs,
+) -> Result<u8, u8> {
+    let loaded = resolve_irule_inputs(input)?;
+    let registry = registry_for_dialect(&input.dialect);
+    let config = build_formatter_config(formatter);
+
+    let rendered: Vec<String> = loaded
+        .inputs
+        .iter()
+        .map(|entry| {
+            let edits = formatting_with(&entry.source, &config, registry);
+            edits
+                .into_iter()
+                .next()
+                .map_or_else(|| entry.source.clone(), |edit| edit.new_text)
+        })
+        .collect();
+
+    write_irule_outputs(
+        &input.output,
+        &loaded.inputs,
+        &rendered,
+        ".irule",
+        Some(colour),
+    )
+    .map_err(|_| 2u8)
+}
+
+fn run_minify(
+    input: &IruleInputArgs,
+    compact: bool,
+    symbol_map: Option<&Path>,
+    aggressive: bool,
+    isolated: bool,
+    colour: &IruleColourArgs,
+) -> Result<u8, u8> {
+    let loaded = resolve_irule_inputs(input)?;
+    let registry = registry_for_dialect(&input.dialect);
+
+    let mut minified: Vec<String> = Vec::with_capacity(loaded.inputs.len());
+    let mut symbol_maps: Vec<String> = Vec::new();
+    if aggressive {
+        for entry in &loaded.inputs {
+            let result = minify_tcl_aggressive(&entry.source, &input.dialect, isolated, registry);
+            minified.push(result.source);
+            symbol_maps.push(result.symbol_map.format());
+        }
+    } else if compact {
+        for entry in &loaded.inputs {
+            let (text, sm) = minify_tcl_compact(&entry.source, &input.dialect, isolated, registry);
+            minified.push(text);
+            symbol_maps.push(sm.format());
+        }
+    } else {
+        for entry in &loaded.inputs {
+            minified.push(minify_tcl(&entry.source, &input.dialect, registry));
+        }
+    }
+
+    let rc = write_irule_outputs(
+        &input.output,
+        &loaded.inputs,
+        &minified,
+        ".irule",
+        Some(colour),
+    )
+    .map_err(|_| 2u8)?;
+    if rc != 0 {
+        return Ok(rc);
+    }
+
+    if let Some(map_path) = symbol_map
+        && !symbol_maps.is_empty()
+    {
+        let mut blocks: Vec<String> = Vec::new();
+        for (entry, m) in loaded.inputs.iter().zip(symbol_maps.iter()) {
+            if m.is_empty() {
+                continue;
+            }
+            let label = entry
+                .rule_full_path
+                .clone()
+                .unwrap_or_else(|| entry.label.clone());
+            blocks.push(format!("# {label}\n{m}").trim_end().to_owned());
+        }
+        let joined = blocks.join("\n\n");
+        let text = if joined.is_empty() {
+            String::new()
+        } else {
+            format!("{joined}\n")
+        };
+        let map_str = map_path.to_string_lossy();
+        write_text(&map_str, &text).map_err(|_| 2u8)?;
+    }
+    Ok(0)
+}
+
+/// `json.dumps`-compatible quoted string (reuses [`tcl_bigip::jsonfmt`]).
+fn json_string(s: &str) -> String {
+    tcl_bigip::jsonfmt::json_string(s)
+}

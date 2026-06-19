@@ -1,0 +1,22 @@
+[
+  {
+    "uri": "__FIXTURES__/bigip.conf",
+    "values": [
+      {
+        "name": "web",
+        "port": "80",
+        "owner": "alice"
+      },
+      {
+        "name": "api",
+        "port": "443",
+        "owner": "bob"
+      },
+      {
+        "name": "ssl",
+        "port": "8443",
+        "owner": "carol"
+      }
+    ]
+  }
+]

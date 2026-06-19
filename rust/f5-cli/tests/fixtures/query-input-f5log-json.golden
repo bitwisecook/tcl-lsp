@@ -1,0 +1,43 @@
+[
+  {
+    "uri": "__FIXTURES__/bigip.conf",
+    "values": [
+      {
+        "timestamp": "Nov 28 09:53:00",
+        "host": "bigip01",
+        "severity": "info",
+        "daemon": "tmm",
+        "pid": 12345,
+        "code": "01230140:6",
+        "module": "01230140",
+        "level": 6,
+        "message": "Connection limit reached for pool /Common/web_pool",
+        "raw": "Nov 28 09:53:00 bigip01 info tmm[12345]: 01230140:6: Connection limit reached for pool /Common/web_pool"
+      },
+      {
+        "timestamp": "Nov 28 09:53:01",
+        "host": "bigip01",
+        "severity": "err",
+        "daemon": "mcpd",
+        "pid": 5678,
+        "code": "01070417:3",
+        "module": "01070417",
+        "level": 3,
+        "message": "AUDIT - something failed",
+        "raw": "Nov 28 09:53:01 bigip01 err mcpd[5678]: 01070417:3: AUDIT - something failed"
+      },
+      {
+        "timestamp": "",
+        "host": "",
+        "severity": "",
+        "daemon": "",
+        "pid": null,
+        "code": "",
+        "module": "",
+        "level": null,
+        "message": "this is a freeform line with no syslog shape",
+        "raw": "this is a freeform line with no syslog shape"
+      }
+    ]
+  }
+]

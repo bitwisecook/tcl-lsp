@@ -1,0 +1,40 @@
+objects: 56 total
+  data-group     4
+  generic        28
+  monitor        1
+  node           3
+  persistence    2
+  pool           3
+  profile        5
+  rule           5
+  snatpool       1
+  virtual        4
+
+partitions:
+  /Common/             10
+
+iRules: 5 (35 non-blank lines)
+  /Common/route_by_host                    14 loc
+  /Common/bad_references                   7 loc
+  /Common/uri_rewrite                      6 loc
+  /Common/ip_blocklist                     5 loc
+  /Common/ssl_info                         3 loc
+
+iRule events:
+  HTTP_REQUEST                     3
+  CLIENT_ACCEPTED                  1
+  CLIENTSSL_HANDSHAKE              1
+
+most referenced:
+  /Common/my_tcp_profile                   8
+  /Common/my_http_monitor                  6
+  /Common/my_clientssl                     6
+  /Common/route_by_host                    6
+  /Common/web2                             4
+  /Common/web_pool                         4
+  /Common/my_http_profile                  4
+  /Common/web1                             2
+  /Common/web3                             2
+  /Common/my_serverssl                     2
+
+orphans (no inbound references): 3

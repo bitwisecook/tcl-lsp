@@ -1,0 +1,1 @@
+tmsh create ltm pool /Common/p1 { members replace-all-with { /Common/n1:80 { } } }

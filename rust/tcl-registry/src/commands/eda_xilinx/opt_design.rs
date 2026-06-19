@@ -1,0 +1,23 @@
+//! `opt_design` command.
+use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "opt_design ?-directive directive? ?-retarget? ?-propconst? ?-sweep? ?-bram_power_opt? ?-remap?",
+}];
+
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "opt_design",
+        dialects: Some(DialectSet::XILINX),
+        arity: Arity::at_least(0),
+        hover: Some(HoverSnippet::brief(
+            "Run logic optimization after synthesis.",
+            &[
+                "opt_design ?-directive directive? ?-retarget? ?-propconst? ?-sweep? ?-bram_power_opt? ?-remap?",
+            ],
+            "F5",
+        )),
+        forms: FORMS,
+        ..CommandSpec::DEFAULT
+    }
+}

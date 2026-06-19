@@ -1,0 +1,17 @@
+# Custom F5-trailer schema overlay: add an unknown legacy layout and a new DPT
+# provider, and override the built-in HIGH field count.
+[[legacy]]
+type = 7
+version = 0
+length = 50
+ip_fields = [
+    { offset = 8,  kind = "v6_or_v4mapped" },
+    { offset = 24, kind = "v6" },
+    { offset = 40, kind = "v4" },
+]
+
+[[dpt]]
+provider = 9
+type = 2
+version = 1
+ip_fields = [ { offset = 11, kind = "v6_or_v4mapped" } ]

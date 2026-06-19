@@ -1,0 +1,380 @@
+[
+  {
+    "query": ".ltm.virtual[].name",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"www_vs\",\n  \"api_vs\",\n  \"ssl_only_vs\",\n  \"bad_vs\"\n]\n"
+  },
+  {
+    "query": ".ltm.virtual[].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "www_vs\napi_vs\nssl_only_vs\nbad_vs\n"
+  },
+  {
+    "query": ".ltm.virtual[].name",
+    "mode": "auto",
+    "kind": "ok",
+    "output": "www_vs\napi_vs\nssl_only_vs\nbad_vs\n"
+  },
+  {
+    "query": ".ltm.pool[].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "web_pool\napi_pool\nempty_pool\n"
+  },
+  {
+    "query": ".ltm.node[].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "web1\nweb2\nweb3\n"
+  },
+  {
+    "query": ".ltm.rule[].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "route_by_host\nip_blocklist\nuri_rewrite\nssl_info\nbad_references\n"
+  },
+  {
+    "query": ".ltm.monitor[].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "my_http_monitor\n"
+  },
+  {
+    "query": ".ltm.profile[].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "my_http_profile\nmy_tcp_profile\nmy_clientssl\nmy_serverssl\nmy_oneconnect\n"
+  },
+  {
+    "query": ".ltm.persistence[].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "my_cookie_persist\nmy_source_persist\n"
+  },
+  {
+    "query": ".ltm.snatpool[].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "my_snatpool\n"
+  },
+  {
+    "query": ".ltm.data-group[].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "allowed_hosts\nblocked_ips\nuri_redirect_map\nunused_datagroup\n"
+  },
+  {
+    "query": ".ltm.virtual[].full-path",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/www_vs\n/Common/api_vs\n/Common/ssl_only_vs\n/Common/bad_vs\n"
+  },
+  {
+    "query": ".ltm.virtual[].destination",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/10.0.0.1:443\n/Common/10.0.0.2:443\n/Common/10.0.0.3:443\n/Common/10.0.0.4:80\n"
+  },
+  {
+    "query": ".ltm.virtual[].destination",
+    "mode": "scf",
+    "kind": "ok",
+    "output": "/Common/10.0.0.1:443\n/Common/10.0.0.2:443\n/Common/10.0.0.3:443\n/Common/10.0.0.4:80\n"
+  },
+  {
+    "query": ".ltm.virtual[] | .pool",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"/Common/web_pool\",\n  \"/Common/api_pool\",\n  \"/Common/web_pool\",\n  \"/Common/nonexistent_pool\"\n]\n"
+  },
+  {
+    "query": ".ltm.node[].address",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "10.0.1.10\n10.0.1.11\n10.0.1.12\n"
+  },
+  {
+    "query": ".ltm.virtual[] | .source-address-translation",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "snat\n\n\n\n"
+  },
+  {
+    "query": ".ltm.pool[] | .load-balancing-mode",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "round-robin\nleast-connections-member\n\n"
+  },
+  {
+    "query": ".ltm.profile[] | .insert-xforwarded-for",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "enabled\n\n\n\n\n"
+  },
+  {
+    "query": ".ltm.persistence[] | .type",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "cookie\nsource-addr\n"
+  },
+  {
+    "query": ".ltm.monitor[] | .type",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "http\n"
+  },
+  {
+    "query": ".ltm.pool[] | .members[].address",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "10.0.1.10\n10.0.1.11\n10.0.1.11\n10.0.1.12\n"
+  },
+  {
+    "query": ".ltm.pool[] | .members[].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/web1:80\n/Common/web2:80\n/Common/web2:8080\n/Common/web3:8080\n"
+  },
+  {
+    "query": ".ltm.pool[] | {name, members: [.members[].name]}",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"name\": \"web_pool\",\n    \"members\": [\n      \"/Common/web1:80\",\n      \"/Common/web2:80\"\n    ]\n  },\n  {\n    \"name\": \"api_pool\",\n    \"members\": [\n      \"/Common/web2:8080\",\n      \"/Common/web3:8080\"\n    ]\n  },\n  {\n    \"name\": \"empty_pool\",\n    \"members\": []\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.virtual[] | {name, pool}",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"name\": \"www_vs\",\n    \"pool\": \"/Common/web_pool\"\n  },\n  {\n    \"name\": \"api_vs\",\n    \"pool\": \"/Common/api_pool\"\n  },\n  {\n    \"name\": \"ssl_only_vs\",\n    \"pool\": \"/Common/web_pool\"\n  },\n  {\n    \"name\": \"bad_vs\",\n    \"pool\": \"/Common/nonexistent_pool\"\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.virtual[] | select(.pool == \"/Common/web_pool\") | .name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "www_vs\nssl_only_vs\n"
+  },
+  {
+    "query": ".ltm.pool[] | select(.name | startswith(\"api\")) | .name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "api_pool\n"
+  },
+  {
+    "query": ".ltm.pool[\"/Common/web_pool\"]",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"kind\": \"ltm pool\",\n    \"full-path\": \"/Common/web_pool\",\n    \"fields\": {\n      \"name\": \"web_pool\",\n      \"full-path\": \"/Common/web_pool\",\n      \"module\": \"ltm\",\n      \"monitor\": \"/Common/my_http_monitor\",\n      \"load-balancing-mode\": \"round-robin\",\n      \"members\": [\n        {\n          \"kind\": \"ltm pool-member\",\n          \"full-path\": \"/Common/web1:80\",\n          \"fields\": {\n            \"name\": \"/Common/web1:80\",\n            \"address\": \"10.0.1.10\",\n            \"port\": 0,\n            \"monitor\": \"\",\n            \"description\": \"\",\n            \"state\": \"\",\n            \"ratio\": \"\",\n            \"priority-group\": \"\",\n            \"connection-limit\": \"\",\n            \"rate-limit\": \"\"\n          }\n        },\n        {\n          \"kind\": \"ltm pool-member\",\n          \"full-path\": \"/Common/web2:80\",\n          \"fields\": {\n            \"name\": \"/Common/web2:80\",\n            \"address\": \"10.0.1.11\",\n            \"port\": 0,\n            \"monitor\": \"\",\n            \"description\": \"\",\n            \"state\": \"\",\n            \"ratio\": \"\",\n            \"priority-group\": \"\",\n            \"connection-limit\": \"\",\n            \"rate-limit\": \"\"\n          }\n        }\n      ],\n      \"description\": \"\",\n      \"min-active-members\": \"\",\n      \"min-up-members\": \"\",\n      \"service-down-action\": \"\",\n      \"slow-ramp-time\": \"\",\n      \"allow-snat\": \"\",\n      \"allow-nat\": \"\",\n      \"reselect-tries\": \"\",\n      \"queue-depth-limit\": \"\",\n      \"queue-time-limit\": \"\",\n      \"connection-limit\": \"\",\n      \"rate-limit\": \"\",\n      \"ratio\": \"\",\n      \"down-interval\": \"\",\n      \"interval\": \"\",\n      \"min-up-members-action\": \"\",\n      \"min-up-members-checking\": \"\",\n      \"ip-tos-to-client\": \"\",\n      \"ip-tos-to-server\": \"\",\n      \"link-qos-to-client\": \"\",\n      \"link-qos-to-server\": \"\",\n      \"gateway-failsafe-device\": \"\",\n      \"ignore-persisted-weight\": \"\",\n      \"inherit-profile\": \"\",\n      \"queue-on-connection-limit\": \"\",\n      \"address-family\": \"\",\n      \"autopopulate\": \"\",\n      \"profiles\": []\n    }\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.pool[\"/Common/web_pool\"]",
+    "mode": "scf",
+    "kind": "ok",
+    "output": "ltm pool /Common/web_pool {\n    members {\n        /Common/web1:80 {\n            address 10.0.1.10\n        }\n        /Common/web2:80 {\n            address 10.0.1.11\n        }\n    }\n    monitor /Common/my_http_monitor\n    load-balancing-mode round-robin\n}\n"
+  },
+  {
+    "query": ".ltm.pool[\"/Common/web_pool\"]",
+    "mode": "auto",
+    "kind": "ok",
+    "output": "ltm pool /Common/web_pool {\n    members {\n        /Common/web1:80 {\n            address 10.0.1.10\n        }\n        /Common/web2:80 {\n            address 10.0.1.11\n        }\n    }\n    monitor /Common/my_http_monitor\n    load-balancing-mode round-robin\n}\n"
+  },
+  {
+    "query": ".ltm.pool[\"web_pool\"].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "web_pool\n"
+  },
+  {
+    "query": ".ltm.virtual[\"api_vs\"].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "api_vs\n"
+  },
+  {
+    "query": ".ltm.virtual[0].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "www_vs\n"
+  },
+  {
+    "query": ".ltm.virtual[-1].name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "bad_vs\n"
+  },
+  {
+    "query": ".ltm.virtual[\"~ssl\"] | .name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "ssl_only_vs\n"
+  },
+  {
+    "query": ".ltm.pool[\"~pool\"] | .name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "web_pool\napi_pool\nempty_pool\n"
+  },
+  {
+    "query": ".ltm.pool[][\"~pool\"] | .name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "web_pool\napi_pool\nempty_pool\n"
+  },
+  {
+    "query": ".ltm.virtual[\"/Common/api_vs\"]",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"kind\": \"ltm virtual\",\n    \"full-path\": \"/Common/api_vs\",\n    \"fields\": {\n      \"name\": \"api_vs\",\n      \"full-path\": \"/Common/api_vs\",\n      \"destination\": \"/Common/10.0.0.2:443\",\n      \"pool\": \"/Common/api_pool\",\n      \"rules\": [\n        \"/Common/route_by_host\"\n      ],\n      \"profiles\": [\n        \"/Common/my_http_profile { }\",\n        \"/Common/my_tcp_profile { }\",\n        \"/Common/my_clientssl { }\"\n      ],\n      \"persist\": [],\n      \"policies\": [],\n      \"snatpool\": \"\",\n      \"source-address-translation\": \"\",\n      \"description\": \"\",\n      \"mask\": \"\",\n      \"source\": \"\",\n      \"ip-protocol\": \"\",\n      \"connection-limit\": \"\",\n      \"rate-limit\": \"\",\n      \"rate-limit-mode\": \"\",\n      \"rate-limit-dst-mask\": \"\",\n      \"rate-limit-src-mask\": \"\",\n      \"auto-lasthop\": \"\",\n      \"translate-address\": \"\",\n      \"translate-port\": \"\",\n      \"state\": \"\",\n      \"address-status\": \"\",\n      \"auto-discovery\": \"\",\n      \"cmp-enabled\": \"\",\n      \"eviction-protected\": \"\",\n      \"dhcp-relay\": false,\n      \"internal\": false,\n      \"ip-forward\": false,\n      \"l2-forward\": false,\n      \"reject\": false,\n      \"nat64\": \"\",\n      \"gtm-score\": \"\",\n      \"mirror\": \"\",\n      \"service-down-immediate-action\": \"\",\n      \"source-port\": \"\",\n      \"serverssl-use-sni\": \"\",\n      \"rate-class\": \"\",\n      \"per-flow-request-access-policy\": \"\",\n      \"transparent-nexthop\": \"\",\n      \"vlans\": [],\n      \"vlans-disabled\": false,\n      \"vlans-enabled\": false,\n      \"fallback-persistence\": \"\",\n      \"last-hop-pool\": \"\",\n      \"fw-enforced-policy\": \"\",\n      \"fw-staged-policy\": \"\",\n      \"flow-eviction-policy\": \"\",\n      \"service-policy\": \"\",\n      \"auth\": [],\n      \"traffic-classes\": [],\n      \"clone-pools\": []\n    }\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.node[\"/Common/web1\"]",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"kind\": \"ltm node\",\n    \"full-path\": \"/Common/web1\",\n    \"fields\": {\n      \"name\": \"web1\",\n      \"full-path\": \"/Common/web1\",\n      \"address\": \"10.0.1.10\",\n      \"description\": \"\",\n      \"monitor\": \"\",\n      \"state\": \"\",\n      \"connection-limit\": \"\",\n      \"rate-limit\": \"\",\n      \"ratio\": \"\",\n      \"fqdn\": \"\"\n    }\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.data-group[\"/Common/blocked_ips\"]",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"kind\": \"ltm data-group\",\n    \"full-path\": \"/Common/blocked_ips\",\n    \"fields\": {\n      \"name\": \"blocked_ips\",\n      \"full-path\": \"/Common/blocked_ips\",\n      \"type\": \"ip\",\n      \"kind\": \"DataGroupType.INTERNAL\",\n      \"records\": [\n        \"10.0.0.0/8\",\n        \"172.16.0.0/12\",\n        \"192.168.0.0/16\"\n      ],\n      \"description\": \"\"\n    }\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.data-group[\"/Common/allowed_hosts\"]",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"kind\": \"ltm data-group\",\n    \"full-path\": \"/Common/allowed_hosts\",\n    \"fields\": {\n      \"name\": \"allowed_hosts\",\n      \"full-path\": \"/Common/allowed_hosts\",\n      \"type\": \"string\",\n      \"kind\": \"DataGroupType.INTERNAL\",\n      \"records\": [\n        \"www.example.com\",\n        \"api.example.com\",\n        \"admin.example.com\"\n      ],\n      \"description\": \"\"\n    }\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.snatpool[\"/Common/my_snatpool\"]",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"kind\": \"ltm snatpool\",\n    \"full-path\": \"/Common/my_snatpool\",\n    \"fields\": {\n      \"name\": \"my_snatpool\",\n      \"full-path\": \"/Common/my_snatpool\",\n      \"members\": [\n        \"10.0.2.100\",\n        \"10.0.2.101\"\n      ],\n      \"description\": \"\"\n    }\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.persistence[\"/Common/my_cookie_persist\"]",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"kind\": \"ltm persistence\",\n    \"full-path\": \"/Common/my_cookie_persist\",\n    \"fields\": {\n      \"name\": \"my_cookie_persist\",\n      \"full-path\": \"/Common/my_cookie_persist\",\n      \"type\": \"cookie\",\n      \"defaults-from\": \"/Common/cookie\",\n      \"description\": \"\",\n      \"timeout\": \"\",\n      \"match-across-pools\": \"\",\n      \"match-across-services\": \"\",\n      \"match-across-virtuals\": \"\",\n      \"mirror\": \"\",\n      \"override-connection-limit\": \"\",\n      \"always-send\": \"\",\n      \"cookie-name\": \"SERVERID\",\n      \"cookie-encryption\": \"\",\n      \"cookie-encryption-passphrase\": \"\",\n      \"httponly\": \"\",\n      \"secure\": \"\",\n      \"expiration\": \"\",\n      \"method\": \"\",\n      \"hash-length\": \"\",\n      \"hash-offset\": \"\"\n    }\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.profile[\"/Common/my_http_profile\"]",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"kind\": \"ltm profile\",\n    \"full-path\": \"/Common/my_http_profile\",\n    \"fields\": {\n      \"name\": \"my_http_profile\",\n      \"full-path\": \"/Common/my_http_profile\",\n      \"type\": \"ProfileType.HTTP\",\n      \"defaults-from\": \"/Common/http\",\n      \"description\": \"\",\n      \"idle-timeout\": \"\",\n      \"insert-xforwarded-for\": \"enabled\",\n      \"request-chunking\": \"\",\n      \"response-chunking\": \"\",\n      \"lws-max-columns\": \"\",\n      \"lws-separator\": \"\",\n      \"server-agent-name\": \"\",\n      \"via-request\": \"\",\n      \"via-response\": \"\",\n      \"ciphers\": \"\",\n      \"cert\": \"\",\n      \"key\": \"\",\n      \"chain\": \"\",\n      \"ca-file\": \"\",\n      \"crl-file\": \"\",\n      \"cert-extension-includes\": \"\",\n      \"options\": \"\",\n      \"peer-cert-mode\": \"\",\n      \"sni-default\": \"\",\n      \"sni-require\": \"\",\n      \"server-name\": \"\",\n      \"renegotiation\": \"\",\n      \"secure-renegotiation\": \"\",\n      \"proxy-ca-cert\": \"\",\n      \"proxy-ca-key\": \"\",\n      \"keep-alive-interval\": \"\",\n      \"ip-tos-to-client\": \"\",\n      \"ip-tos-to-server\": \"\",\n      \"link-qos-to-client\": \"\",\n      \"link-qos-to-server\": \"\",\n      \"nagle\": \"\",\n      \"reset-on-timeout\": \"\",\n      \"send-buffer-size\": \"\",\n      \"receive-window-size\": \"\",\n      \"proxy-buffer-low\": \"\",\n      \"proxy-buffer-high\": \"\",\n      \"pva-acceleration\": \"\",\n      \"pva-dynamic-client-packets\": \"\",\n      \"pva-dynamic-server-packets\": \"\",\n      \"loose-close\": \"\",\n      \"loose-initialization\": \"\",\n      \"datagram-load-balancing\": \"\",\n      \"allow-no-payload\": \"\",\n      \"source-mask\": \"\",\n      \"idle-timeout-override\": \"\",\n      \"max-age\": \"\",\n      \"max-reuse\": \"\",\n      \"max-size\": \"\",\n      \"source\": \"\",\n      \"target\": \"\",\n      \"pool\": \"\",\n      \"collected-stats-internal-logging\": \"\",\n      \"collected-stats-external-logging\": \"\",\n      \"publisher\": \"\"\n    }\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.monitor[\"/Common/my_http_monitor\"]",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"kind\": \"ltm monitor\",\n    \"full-path\": \"/Common/my_http_monitor\",\n    \"fields\": {\n      \"name\": \"my_http_monitor\",\n      \"full-path\": \"/Common/my_http_monitor\",\n      \"type\": \"http\",\n      \"description\": \"\",\n      \"interval\": \"10\",\n      \"timeout\": \"31\",\n      \"destination\": \"\",\n      \"send\": \"GET /health HTTP/1.1\\\\r\\\\nHost: localhost\\\\r\\\\n\\\\r\\\\n\",\n      \"recv\": \"200 OK\",\n      \"recv-disable\": \"\",\n      \"username\": \"\",\n      \"password\": \"\",\n      \"base\": \"\",\n      \"filter\": \"\",\n      \"count\": \"\",\n      \"database\": \"\",\n      \"args\": \"\",\n      \"run\": \"\",\n      \"adaptive\": \"\",\n      \"adaptive-divergence-type\": \"\",\n      \"adaptive-divergence-value\": \"\",\n      \"adaptive-limit\": \"\",\n      \"adaptive-sampling-timespan\": \"\",\n      \"transparent\": \"\",\n      \"reverse\": \"\",\n      \"manual-resume\": \"\",\n      \"ignore-down-response\": \"\",\n      \"ip-dscp\": \"\",\n      \"up-interval\": \"\",\n      \"time-until-up\": \"\",\n      \"cipherlist\": \"\",\n      \"cert\": \"\",\n      \"key\": \"\",\n      \"compatibility\": \"\",\n      \"community\": \"\",\n      \"version\": \"\",\n      \"agent-type\": \"\",\n      \"cpu-coefficient\": \"\",\n      \"cpu-threshold\": \"\",\n      \"disk-coefficient\": \"\",\n      \"disk-threshold\": \"\",\n      \"memory-coefficient\": \"\",\n      \"memory-threshold\": \"\",\n      \"headers\": \"\",\n      \"request\": \"\",\n      \"response\": \"\",\n      \"mode\": \"\",\n      \"alias-address\": \"\",\n      \"alias-service-port\": \"\",\n      \"defaults-from\": \"/Common/http\"\n    }\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.virtual[\"/Common/www_vs\"].rules",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"/Common/route_by_host\",\n    \"/Common/ip_blocklist\",\n    \"/Common/uri_rewrite\"\n  ]\n]\n"
+  },
+  {
+    "query": ".ltm.virtual[\"/Common/www_vs\"].profiles",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"/Common/my_http_profile { context all }\",\n    \"/Common/my_tcp_profile { context all }\",\n    \"/Common/my_clientssl { context clientside }\",\n    \"/Common/my_serverssl { context serverside }\",\n    \"/Common/my_oneconnect { }\"\n  ]\n]\n"
+  },
+  {
+    "query": ".ltm.virtual[\"/Common/www_vs\"].persist",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"/Common/my_cookie_persist { default yes }\"\n  ]\n]\n"
+  },
+  {
+    "query": ".ltm.virtual[\"/Common/www_vs\"].pool.name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "web_pool\n"
+  },
+  {
+    "query": ".ltm.virtual[\"/Common/www_vs\"].pool.members[].address",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "10.0.1.10\n10.0.1.11\n"
+  },
+  {
+    "query": ".ltm.virtual[\"/Common/www_vs\"].pool.load-balancing-mode",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "round-robin\n"
+  },
+  {
+    "query": "[.ltm.virtual[]] | length",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  4\n]\n"
+  },
+  {
+    "query": "[.ltm.pool[]] | length",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3\n]\n"
+  },
+  {
+    "query": "[.ltm.rule[]] | length",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  5\n]\n"
+  },
+  {
+    "query": "[.ltm.virtual[].name]",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"www_vs\",\n    \"api_vs\",\n    \"ssl_only_vs\",\n    \"bad_vs\"\n  ]\n]\n"
+  },
+  {
+    "query": "[.ltm.pool[].name] | sort",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"api_pool\",\n    \"empty_pool\",\n    \"web_pool\"\n  ]\n]\n"
+  },
+  {
+    "query": "[.ltm.virtual[].pool] | unique",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    \"/Common/api_pool\",\n    \"/Common/nonexistent_pool\",\n    \"/Common/web_pool\"\n  ]\n]\n"
+  },
+  {
+    "query": ".ltm.virtual[]",
+    "mode": "paths",
+    "kind": "ok",
+    "output": "/Common/www_vs\n/Common/api_vs\n/Common/ssl_only_vs\n/Common/bad_vs\n"
+  },
+  {
+    "query": ".ltm.pool[]",
+    "mode": "paths",
+    "kind": "ok",
+    "output": "/Common/web_pool\n/Common/api_pool\n/Common/empty_pool\n"
+  },
+  {
+    "query": ".ltm.pool[\"nonexistent\"]",
+    "mode": "json",
+    "kind": "err",
+    "output": "ltm pool: no entry 'nonexistent'"
+  },
+  {
+    "query": ".ltm.virtual[\"does_not_exist\"].name",
+    "mode": "raw",
+    "kind": "err",
+    "output": "ltm virtual: no entry 'does_not_exist'"
+  },
+  {
+    "query": ".ltm.virtual[99].name",
+    "mode": "raw",
+    "kind": "err",
+    "output": "ltm virtual: index 99 out of range"
+  },
+  {
+    "query": ".ltm.virtual[] | .nope",
+    "mode": "raw",
+    "kind": "err",
+    "output": "ltm virtual: no field 'nope'"
+  }
+]

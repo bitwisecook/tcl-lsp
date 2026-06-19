@@ -54,9 +54,45 @@ from ._parsers import (  # noqa: F401 — explicit imports for the names the dri
 
 # Public API
 
+# Soft dependency on the native Rust parser (the `tcl_lsp_rust` wheel).
+# When present it parses the config and the canonical-JSON bridge
+# reconstructs the dataclasses; otherwise the pure-Python driver below
+# runs.  Disable with ``TCL_LSP_BIGIP_RUST=0`` (e.g. to A/B the backends).
+try:
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        bigip_parse_conf_json as _rust_bigip_parse_json,
+    )
+except ImportError:
+    _rust_bigip_parse_json = None
+
+
+def _rust_backed_parse(source: str, default_partition: str) -> BigipConfig | None:
+    """Parse via the native Rust parser + bridge, or ``None`` to fall back.
+
+    Returns ``None`` when the wheel is absent, the backend is disabled, or
+    anything goes wrong — so a Rust hiccup degrades to the Python parser
+    rather than breaking the caller.
+    """
+    import os
+
+    if _rust_bigip_parse_json is None or os.environ.get("TCL_LSP_BIGIP_RUST") == "0":
+        return None
+    try:
+        import json
+
+        from ._rust_bridge import rebuild
+
+        return rebuild(json.loads(_rust_bigip_parse_json(source, default_partition)))
+    except Exception:  # noqa: BLE001 — never let the Rust path break parsing.
+        return None
+
 
 def parse_bigip_conf(source: str, *, default_partition: str = "Common") -> BigipConfig:
     """Parse a BIG-IP configuration file and return a :class:`BigipConfig`.
+
+    Delegates to the native Rust parser when the ``tcl_lsp_rust`` wheel is
+    installed (reconstructing the dataclasses via the canonical-JSON
+    bridge), falling back to the pure-Python driver otherwise.
 
     Handles ``ltm`` and ``gtm`` stanzas.  Unknown stanza types are
     silently skipped.
@@ -72,6 +108,9 @@ def parse_bigip_conf(source: str, *, default_partition: str = "Common") -> Bigip
     canonical full-paths.  ``resolve_name`` falls back to
     ``/Common/`` after the loaded partition fails to match.
     """
+    rust = _rust_backed_parse(source, default_partition or "Common")
+    if rust is not None:
+        return rust
     partition_prefix = "/" + (default_partition or "Common").strip("/") + "/"
     # ``(module, object_type)`` pairs whose identifier is *itself* a
     # partition or other cluster-wide reference, not a partition-

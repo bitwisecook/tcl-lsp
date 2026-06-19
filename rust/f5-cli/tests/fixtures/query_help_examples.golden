@@ -1,0 +1,100 @@
+F5 QUERY DSL — COOKBOOK
+
+  1. List every virtual server's default pool
+     $ f5 query '.ltm.virtual[] | .pool' bigip.conf
+     -- Streams every VS, projects its `pool` field as a path-ref.
+
+  2. Names of VSes whose name starts with ``vs_prod_``
+     $ f5 query '.ltm.virtual["~/vs_prod_"] | .name' bigip.conf
+     -- Regex subscript filters keys; the dot-chain projects the name.
+
+  3. VSes attached to a specific iRule
+     $ f5 query '.ltm.virtual[] | select(contains(.rules, "/Common/log_rule")) | .name' bigip.conf
+     -- `contains` works on both strings and lists.
+
+  4. VSes whose pool member is in 10.0.0.0/8
+     $ f5 query '.ltm.virtual[] | select(any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))) | .name' bigip.conf
+     -- PathRefs dereference transparently: `.pool.members[]` walks VS -> pool -> members in one chain.  The pipe iterates the stream of addresses, `in_cidr` runs per item producing booleans, `any` collapses.
+
+  5. Readdress every VS into 192.168.9.0/24, keeping host bits
+     $ f5 query '.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)' bigip.conf
+     -- `|=` re-binds `.` to the current destination so the rebase helper sees the value it must transform.  `f5 query` shows a unified diff by default; pass --write to apply.
+
+  6. Rename a pool everywhere it appears
+     $ f5 query '.ltm.pool["/Common/old_pool"].name = "/Common/new_pool"' bigip.conf
+     -- Identity-field writes auto-route through the same engine `f5 rename` uses, so every reference (VS, iRule, data-group) moves with the pool.
+
+  7. Add ``/Common/log_rule`` to every VS that does not already have it
+     $ f5 query '.ltm.virtual[] | select(not contains(.rules, "/Common/log_rule")) | .rules += "/Common/log_rule"' bigip.conf
+     -- `not` is a prefix operator on the predicate; `+=` appends a scalar (or another list) to a list field.
+
+  8. Find every iRule that mentions a removed pool
+     $ f5 query '.ltm.rule[] | select(contains(.refs.pools, "/Common/old_pool")) | .name' bigip.conf
+     -- The iRule sub-tree exposes parsed ref slots without sub-parsing every command.
+
+  9. Strip the ``/Common/`` partition from every default pool
+     $ f5 query '.ltm.virtual[].pool |= basename(.)' bigip.conf
+     -- One-line projection-then-rewrite using `|=` plus the path helper.
+
+  10. Rename a single object everywhere (the engine `f5 rename` uses)
+     $ f5 query 'rename("/Common/old_pool", "/Common/new_pool")' bigip.conf
+     -- Same token-bounded rewrite the `f5 rename` verb runs; tolerant of zero-match (returns 0) so the CLI can surface it as a warning rather than an error.
+
+  11. Migrate every object from /Tenant_A/ into /Tenant_B/
+     $ f5 query 'rename_partition("Tenant_A", "Tenant_B")' bigip.conf
+     -- Token-bounded prefix rewrite — every object header and every reference (including destination addresses, pool members, and iRule body literals) moves together.  Renames the `auth partition Tenant_A` stanza too.  The visibility model refuses renames involving `/Common` (every tenant sees `/Common` one-way) so examples stay tenant→tenant.
+
+  12. Move every pool out of /Common/ but leave other kinds alone
+     $ f5 query '.ltm.pool["~^/Common/"] | .name |= with_partition(., "Tenant_A")' bigip.conf
+     -- Identity-field `|=` routes through the rename engine; only the pools (and references *to* them) move, virtuals and iRules keep their partition.
+
+  13. Set the route domain on every destination
+     $ f5 query '.ltm.virtual[] | .destination |= with_route_domain(., 7)' bigip.conf
+     -- Route domain is part of the routable identity; `with_route_domain` sets, replaces, or strips it while preserving partition prefix and port.
+
+  14. Readdress with a route domain preserved through the rebase
+     $ f5 query '.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)' bigip.conf
+     -- `ip(net, src)` keeps the route domain and port from `src` and only rebases the address bits — `%5` survives the subnet move.
+
+  15. Count VSes grouped by partition
+     $ f5 query '[.ltm.virtual[]] | group_by(partition(."full-path")) | map({partition: (.[0]."full-path" | partition(.)), count: length})' bigip.conf
+     -- `group_by(partition(."full-path"))` partitions the stream of VSes by their partition string; `map` then projects each group to `{partition, count}` using `length` to count and `.[0]."full-path" | partition(.)` to recover the partition label.  For the flat-list variant, ``[.ltm.virtual[]."full-path" | partition(.)] | unique`` yields the distinct partition names sorted.
+
+  16. Park every dev VS on port 0 (a common maintenance trick)
+     $ f5 query '.ltm.virtual[] | select(contains(.name, "_dev_")) | .destination |= sub(., ":[0-9]+$", ":0")' bigip.conf
+     -- Arbitrary string rewriting via `sub` / `gsub` lands as a normal field edit.  Pair with `--in-place` to persist.
+
+  17. Cross-reference GTM and LTM via named sources
+     $ f5 query '$ltm.ltm.virtual[].name' bigip.conf
+     -- Load several configs together (`f5 query ... gtm.conf ltm.conf`).  Every input is auto-bound under its filename stem so `$ltm` and `$gtm` work without ceremony; override with `--name N=PATH` when the stem would collide or read poorly.
+
+  18. Edit one source via $name from a multi-config invocation
+     $ f5 query '$ltm.ltm.virtual["/Common/vs_app"].destination = "/Common/192.168.1.1:443"' bigip.conf
+     -- The assignment routes back to the source the named root came from, so only `ltm.conf` is modified even though `gtm.conf` was loaded alongside it.  Pair with `--in-place` to persist edits to each originating file.
+
+  19. Walk references across files with --merge
+     $ f5 query '.ltm.pool[] | referenced_by(.)' bigip.conf
+     -- `--merge` treats every loaded source as one namespace, so `refs` / `referenced_by` cross files (a GTM pool pointing into an LTM virtual resolves transparently).  Refuses to merge when two sources define the same (kind, full-path) — namespace or redact the inputs first.
+
+  20. Pool names attached to more than one VS
+     $ f5 query '[.ltm.virtual[].pool] | dupes' bigip.conf
+     -- ``dupes`` is the inverse of ``unique`` — returns the values that occur **more than once** in the list, sorted.  Useful for surfacing intentional sharing (or copy-paste bugs).
+
+  21. VSes sorted ascending by attached pool member count
+     $ f5 query '[.ltm.virtual[]] | sort_by(.pool.members | length) | map(.name)' bigip.conf
+     -- ``sort_by(body)`` orders a list by the value of *body* evaluated against each item.  Pair with ``map`` to project the field you care about.
+
+  22. Largest pool by member count, in one pass
+     $ f5 query '[.ltm.pool[]] | max_by(.members | length)' bigip.conf
+     -- ``max_by(body)`` picks the item whose *body* value is largest under jq's cross-type ordering.  Use ``min_by`` for the opposite extreme and ``min_max(body)`` to get both in one array.
+
+  23. Lowercase every string field anywhere in a VS, recursively
+     $ f5 query '.ltm.virtual.web_vs | walk(if type == "string" then ascii_downcase else . end)' bigip.conf
+     -- ``walk(body)`` is jq's recursive transform — for every value in the tree (bottom-up), it rebinds ``.`` to that value and evaluates *body*.  Pair with ``type`` and ``ascii_downcase`` / ``ascii_upcase`` for case normalisation across an entire object.
+
+  24. Index VSes by name for O(1) lookup in downstream pipelines
+     $ f5 query '[.ltm.virtual[]] | INDEX(.name)' bigip.conf
+     -- ``INDEX`` builds an object keyed by the result of *body* evaluated against each item — here the VS name.  jq's two-arg form ``INDEX(source; key)`` uses ``;`` as the argument separator; in this DSL function arguments are comma-separated, so collect the stream first and pipe.
+
+More: see docs/kcs/features/kcs-feature-bigip-query.md
+      and docs/references/f5_query/dsl.md

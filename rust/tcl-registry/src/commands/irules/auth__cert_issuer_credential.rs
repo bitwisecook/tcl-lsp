@@ -1,0 +1,28 @@
+//! `AUTH::cert_issuer_credential` iRules command.
+use crate::prelude::*;
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "AUTH::cert_issuer_credential",
+        dialects: Some(DialectSet::IRULES),
+        arity: Arity::at_least(0),
+        hover: Some(HoverSnippet {
+            summary: "Sets the peer certificate issuer credential to the value of for a future AUTH::authenticate call.",
+            synopsis: &["AUTH::cert_issuer_credential AUTH_ID PEER_CERTIFICATE"],
+            snippet: "Sets the peer certificate issuer credential to the value of <peer\ncertificate> for a future AUTH::authenticate call. This command\nreturns an error if attempted for a standby system.\n\nAUTH::cert_issuer_credential authid <peer certificate>\n\n     * Sets the peer certificate issuer credential to <peer certificate>\n       for a future AUTH::authenticate call.",
+            source: "https://clouddocs.f5.com/api/irules/AUTH__cert_issuer_credential.html",
+            examples: "when CLIENTSSL_CLIENTCERT {\n  set ldap_sid [AUTH::start pam $myprofilename]\n  AUTH::cert_credential $ldap_sid [SSL::cert 0]\n  AUTH::cert_issuer_credential $ldap_sid [SSL::cert issuer 0]\n  AUTH::authenticate $ldap_sid\n}",
+            return_value: "",
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "AUTH::cert_issuer_credential AUTH_ID PEER_CERTIFICATE",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
+        ..CommandSpec::DEFAULT
+    }
+}

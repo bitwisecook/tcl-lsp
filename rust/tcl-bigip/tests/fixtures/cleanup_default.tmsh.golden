@@ -1,0 +1,4 @@
+# tcl-lsp BIG-IP cleanup
+# Sources: test://config
+# Roots (kept): 4 virtual server(s) / wide-IP(s)
+# Candidates: none — every object is referenced.

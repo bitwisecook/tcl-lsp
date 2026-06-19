@@ -9,7 +9,25 @@ from contextlib import contextmanager as _contextmanager
 from compiler.dialect_context import _dialect_var
 from shared.tokens import SourcePosition, Token, TokenType
 
+try:
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        lexer_tokenise_with_config as _rust_lexer_tokenise_cfg,
+    )
+except ImportError:
+    _rust_lexer_tokenise_cfg = None
+
 _bisect_right = bisect.bisect_right
+
+# Map TokenType variant *names* to the canonical ``shared.tokens.TokenType``
+# members.  The Rust fast path (:func:`_rust_lexer_tokenise_cfg`) returns
+# PyO3 ``tcl_lsp_py.Token`` objects whose ``.type`` is a distinct
+# ``PyTokenType`` enum — equal by value but NOT identity-equal to the
+# ``shared.tokens.TokenType`` members the parser compares against with
+# ``is``.  We rebuild native :class:`Token` objects keyed on ``.type.name``
+# so ``tok.type is TokenType.VAR`` works regardless of whether the wheel is
+# installed.  Built once at import; ``TokenType[name]`` would also work but a
+# dict avoids the per-token ``__getitem__`` enum lookup in the hot path.
+_TOKEN_TYPE_BY_NAME: dict[str, TokenType] = {member.name: member for member in TokenType}
 
 # Pre-computed character class sets for O(1) membership testing in the
 # lexer hot path.  Using frozenset instead of sequential == checks
@@ -85,6 +103,33 @@ def expand_syntax_disabled_scope():
 def _irules_brace_separator_active() -> bool:
     """Whether the iRules ``}{`` brace-word boundary is enabled."""
     return _dialect_var.get() == "f5-irules"
+
+
+def _convert_rust_token(tok: object) -> Token:
+    """Lift a PyO3 ``tcl_lsp_py.Token`` into a native :class:`Token`.
+
+    The Rust fast path returns tokens whose ``.type`` is a ``PyTokenType``
+    enum and whose ``.start`` / ``.end`` are ``PySourcePosition`` objects.
+    These are structurally identical to the ``shared.tokens`` dataclasses
+    but distinct types, so the parser's ``tok.type is TokenType.VAR``
+    identity checks fail against them.  We rebuild the canonical dataclass,
+    mapping the token type by ``.type.name`` and copying the line/character/
+    offset triples plus the ``in_quote`` flag.
+
+    ``tok`` is intentionally typed ``object``: when the wheel is absent the
+    annotation must not reference any ``tcl_lsp_rust`` symbol.  The duck-typed
+    attribute access (``.type.name``, ``.text``, ``.start.line`` …) mirrors
+    the PyO3 ``Token`` surface exactly.
+    """
+    start = tok.start  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    end = tok.end  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    return Token(
+        type=_TOKEN_TYPE_BY_NAME[tok.type.name],  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        text=tok.text,  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        start=SourcePosition(line=start.line, character=start.character, offset=start.offset),
+        end=SourcePosition(line=end.line, character=end.character, offset=end.offset),
+        in_quote=tok.in_quote,  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    )
 
 
 class TclParseError(Exception):
@@ -1192,7 +1237,44 @@ class TclLexer:
         Rust-binding shortcut that bypasses ``get_token``) must finalise
         cursor state explicitly so callers can mix ``tokenise_all`` and
         ``get_token`` on the same instance without divergence.
+
+        When the Rust ``tcl_lsp_rust`` wheel is installed and this lexer
+        has no virtual insertions and sits at offset 0, this dispatches
+        to the Rust tokeniser for a large speedup, passing the
+        dialect-resolved ``expand_syntax`` / ``irules_brace_separator``
+        flags (via :func:`_expand_syntax_active` /
+        :func:`_irules_brace_separator_active`) so the two paths agree.
+        The Python fallback is used otherwise.
         """
+        if _rust_lexer_tokenise_cfg is not None and not self._has_virtuals and self.pos == 0:
+            try:
+                tokens, warnings = _rust_lexer_tokenise_cfg(
+                    self.text,
+                    _expand_syntax_active(),
+                    _irules_brace_separator_active(),
+                    _strict_quoting(),
+                    self._base_offset,
+                    self._base_line,
+                    self._base_col,
+                )
+            except ValueError as exc:
+                # The Rust lexer raises ValueError for strict-mode syntax
+                # errors; re-raise as TclParseError so callers that catch
+                # TclParseError still work.
+                raise TclParseError(str(exc)) from exc
+            if warnings:
+                self.warnings.extend(warnings)
+            # Finalise cursor state so a subsequent ``get_token()`` returns
+            # ``None`` rather than re-reading from offset 0.
+            self.pos = self._len
+            self._type = TokenType.EOF
+            # Convert the PyO3 ``tcl_lsp_py.Token`` objects into native
+            # ``shared.tokens.Token`` instances.  Their ``.type`` is a
+            # ``PyTokenType`` enum that is NOT identity-equal to
+            # ``shared.tokens.TokenType``, so leaving them as-is would make
+            # every ``tok.type is TokenType.X`` check in the parser silently
+            # fail wherever the wheel is installed (see _TOKEN_TYPE_BY_NAME).
+            return [_convert_rust_token(tok) for tok in tokens]
         tokens: list[Token] = []
         while True:
             tok = self.get_token()

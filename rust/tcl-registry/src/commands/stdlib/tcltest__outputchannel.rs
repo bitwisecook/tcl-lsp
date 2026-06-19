@@ -1,0 +1,19 @@
+//! `tcltest::outputChannel` command.
+use crate::prelude::*;
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "tcltest::outputChannel",
+        dialects: None,
+        arity: Arity::new(0, 1),
+        hover: Some(HoverSnippet {
+            summary: "Get or set the channel for test output.",
+            synopsis: &["tcltest::outputChannel ?channelID?"],
+            snippet: "",
+            source: "Tcl stdlib tcltest package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("tcltest"),
+        ..CommandSpec::DEFAULT
+    }
+}

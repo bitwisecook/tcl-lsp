@@ -1,0 +1,17 @@
+# === __FIXTURES__/bigip.conf ===
+[
+  {
+    "x": 42,
+    "name": "inventory",
+    "items": [
+      {
+        "name": "a",
+        "port": 80
+      },
+      {
+        "name": "b",
+        "port": 443
+      }
+    ]
+  }
+]

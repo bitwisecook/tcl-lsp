@@ -1,0 +1,27 @@
+//! `math::statistics::pstdev` command.
+use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "math::statistics::pstdev values",
+}];
+
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "math::statistics::pstdev",
+        traits: Traits::PURE,
+        dialects: None,
+        arity: Arity::exact(1),
+        hover: Some(HoverSnippet {
+            summary: "Return the population standard deviation.",
+            synopsis: &["math::statistics::pstdev values"],
+            snippet: "",
+            source: "tcllib math::statistics package",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
+        tcllib_package: Some("math::statistics"),
+        required_package: Some("math::statistics"),
+        ..CommandSpec::DEFAULT
+    }
+}

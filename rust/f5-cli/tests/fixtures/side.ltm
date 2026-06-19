@@ -1,0 +1,3 @@
+Nov 28 09:53:00 bigip01 info tmm[12345]: 01230140:6: Connection limit reached for pool /Common/web_pool
+Nov 28 09:53:01 bigip01 err mcpd[5678]: 01070417:3: AUDIT - something failed
+this is a freeform line with no syslog shape

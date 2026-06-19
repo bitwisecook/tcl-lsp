@@ -1,0 +1,73 @@
+{
+  "totalObjects": 56,
+  "objectCounts": {
+    "pool": 3,
+    "virtual": 4,
+    "node": 3,
+    "profile": 5,
+    "monitor": 1,
+    "data-group": 4,
+    "snatpool": 1,
+    "persistence": 2,
+    "rule": 5,
+    "generic": 28
+  },
+  "partitionCounts": {
+    "/Common/": 10
+  },
+  "iruleLoc": {
+    "/Common/route_by_host": 14,
+    "/Common/ip_blocklist": 5,
+    "/Common/uri_rewrite": 6,
+    "/Common/ssl_info": 3,
+    "/Common/bad_references": 7
+  },
+  "iruleEventHistogram": {
+    "HTTP_REQUEST": 3,
+    "CLIENT_ACCEPTED": 1,
+    "CLIENTSSL_HANDSHAKE": 1
+  },
+  "topReferenced": [
+    {
+      "identifier": "/Common/my_tcp_profile",
+      "incomingEdges": 8
+    },
+    {
+      "identifier": "/Common/my_http_monitor",
+      "incomingEdges": 6
+    },
+    {
+      "identifier": "/Common/my_clientssl",
+      "incomingEdges": 6
+    },
+    {
+      "identifier": "/Common/route_by_host",
+      "incomingEdges": 6
+    },
+    {
+      "identifier": "/Common/web2",
+      "incomingEdges": 4
+    },
+    {
+      "identifier": "/Common/web_pool",
+      "incomingEdges": 4
+    },
+    {
+      "identifier": "/Common/my_http_profile",
+      "incomingEdges": 4
+    },
+    {
+      "identifier": "/Common/web1",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/web3",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/my_serverssl",
+      "incomingEdges": 2
+    }
+  ],
+  "orphanCount": 3
+}

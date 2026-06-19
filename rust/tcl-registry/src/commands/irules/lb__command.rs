@@ -1,0 +1,28 @@
+//! `LB::command` iRules command.
+use crate::prelude::*;
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "LB::command",
+        dialects: Some(DialectSet::IRULES),
+        arity: Arity::at_least(0),
+        hover: Some(HoverSnippet {
+            summary: "LB::command",
+            synopsis: &["LB::command ('transparent_port')?"],
+            snippet: "",
+            source: "https://clouddocs.f5.com/api/irules/lb__command.html",
+            examples: "",
+            return_value: "",
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "LB::command ('transparent_port')?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Server,
+        }],
+        ..CommandSpec::DEFAULT
+    }
+}
