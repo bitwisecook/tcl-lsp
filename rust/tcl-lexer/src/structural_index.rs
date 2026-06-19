@@ -457,12 +457,23 @@ fn scan_brace_word(bytes: &[u8], start: usize) -> (usize, bool) {
 /// Scan a `${…}` variable-name brace starting at the `$` at `start`.
 /// Returns (offset just past the matching `}`, true) when terminated,
 /// or (EOF, false) when unterminated. The interior is inert for brackets.
+///
+/// Mirrors `Lexer::parse_var`'s braced branch: inner `{…}` nests with
+/// brace counting and `\X` is consumed as a literal pair, so the closer
+/// is the first `}` at depth zero — `${a{b}c}` and `${a\}b}` both close
+/// at their final `}`, not the first one.
 fn scan_dollar_brace(bytes: &[u8], start: usize) -> (usize, bool) {
     let n = bytes.len();
     let mut i = start + 2; // skip `${`
+    let mut depth: u32 = 0;
     while i < n {
-        if bytes[i] == b'}' {
-            return (i + 1, true); // terminated
+        match bytes[i] {
+            b'}' if depth == 0 => return (i + 1, true), // terminated
+            b'{' => depth += 1,
+            b'}' => depth -= 1,
+            // Skip the backslash; the loop step skips the escaped byte.
+            b'\\' => i += 1,
+            _ => {}
         }
         i += 1;
     }

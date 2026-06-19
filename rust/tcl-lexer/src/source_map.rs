@@ -133,11 +133,16 @@ impl<'src> SourceMap<'src> {
         // Kind-specific trailing-strip or empty-clamp rules.
         match tok.kind {
             TokenType::Var => {
-                // `${...}` braced form: the degenerate `${}` case
-                // extends the span by one byte to cover the
-                // closing `}`. Non-degenerate braced forms have no
-                // trailing `}` inside the span.
-                stripped.strip_suffix('}').unwrap_or(stripped)
+                // `${}` degenerate: the span is extended by one byte to
+                // cover the closing `}`, so the only remainder that is a
+                // bare `}` is that empty-name case. A non-degenerate braced
+                // name may legitimately *end* with a `}` — `${a{b}}` names
+                // the variable `a{b}` (brace-nesting), `${a\}b}` names
+                // `a\}b` — and the closing `}` is already excluded from the
+                // span. So, like the `Cmd` / `Str` arms, clear only the
+                // exact 1-character `}` remainder rather than stripping
+                // unconditionally.
+                if stripped == "}" { "" } else { stripped }
             }
             TokenType::Cmd => {
                 // `[]` degenerate: span extended by one to cover

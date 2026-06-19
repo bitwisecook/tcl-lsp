@@ -285,16 +285,23 @@ fn e201_at_brace(content: &str, content_start: u32, bracket_off: u32) -> Option<
 /// diagnostic: the known-command heuristic with a closing-delimiter
 /// insertion fix when one can be located, else the fix-less fallback.
 /// Returns an empty vector for well-formed input.
+/// `region_end` is the absolute byte offset at which the analysed region
+/// ends — `source.len()` at the top level, but `base_offset + body_len`
+/// when scanning a nested body whose tokens are absolute spans into the
+/// full `source`. The "reaches EOF" / "no closing delimiter" tests are
+/// relative to that end, mirroring Python's `base_offset + len(source)`
+/// arithmetic in `recovery.py`.
 pub(crate) fn unterminated_delimiter_diagnostics(
     cmd: &SegmentedCommand,
     source: &str,
+    region_end: usize,
     registry: Option<&CommandRegistry>,
 ) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for tok in &cmd.all_tokens {
-        if is_suspicious_quote(tok, cmd, source) {
+        if is_suspicious_quote(tok, cmd, source, region_end) {
             out.push(detect_e202(tok, source, registry));
-        } else if is_suspicious_str(tok, source) {
+        } else if is_suspicious_str(tok, source, region_end) {
             out.push(detect_e203(tok, cmd, source, registry));
         }
     }
@@ -317,7 +324,12 @@ fn token_inner<'a>(source: &'a str, tok: &Token) -> Option<&'a str> {
 /// that swallows the rest of the document.  Mirrors `_is_suspicious_quote`:
 /// the token starts at a `"`, its inner text begins with a newline with
 /// non-blank content after it, and the command reaches EOF.
-fn is_suspicious_quote(tok: &Token, cmd: &SegmentedCommand, source: &str) -> bool {
+fn is_suspicious_quote(
+    tok: &Token,
+    cmd: &SegmentedCommand,
+    source: &str,
+    region_end: usize,
+) -> bool {
     if tok.kind != TokenType::Esc {
         return false;
     }
@@ -330,9 +342,22 @@ fn is_suspicious_quote(tok: &Token, cmd: &SegmentedCommand, source: &str) -> boo
     if !text.starts_with('\n') || text[1..].trim().is_empty() {
         return false;
     }
-    // A properly closed quote wouldn't run to EOF.
+    // Properly closed: the byte at the token's inner end is the closing `"`
+    // *within* the region. A closed multi-line quoted word that happens to
+    // sit at the very end of a body — `proc p {} {set x "\nhello"}`, where
+    // the closing `"` is the body's last byte so the command still "reaches
+    // EOF" — must NOT be flagged. (The inner-end span convention puts the
+    // closer at `span.end()`; an unterminated quote instead runs to
+    // `region_end`, so its `span.end()` is not `< region_end`.) Mirrors the
+    // analogous `}` guard in `is_suspicious_str`.
+    if (tok.span.end() as usize) < region_end
+        && source.as_bytes().get(tok.span.end() as usize) == Some(&b'"')
+    {
+        return false;
+    }
+    // A properly closed quote wouldn't run to the end of the region.
     if let Some(last) = cmd.all_tokens.last()
-        && (last.span.end() as usize) < source.len().saturating_sub(1)
+        && (last.span.end() as usize) < region_end.saturating_sub(1)
     {
         return false;
     }
@@ -343,15 +368,20 @@ fn is_suspicious_quote(tok: &Token, cmd: &SegmentedCommand, source: &str) -> boo
 /// lines with no closing `}`.  Mirrors `_is_suspicious_str`: a token
 /// text containing `}` is E103 territory (brace closed at the wrong
 /// nesting level), not a truly missing brace.
-fn is_suspicious_str(tok: &Token, source: &str) -> bool {
+fn is_suspicious_str(tok: &Token, source: &str, region_end: usize) -> bool {
     if tok.kind != TokenType::Str {
         return false;
     }
     if source.as_bytes().get(tok.span.start() as usize) != Some(&b'{') {
         return false;
     }
-    // Properly closed: the byte at the inner end is the `}`.
-    if source.as_bytes().get(tok.span.end() as usize) == Some(&b'}') {
+    // Properly closed: the byte at the inner end is a `}` *within* the
+    // region. A `}` at or past `region_end` belongs to an enclosing
+    // construct (e.g. the body's own closing brace), so it does not close
+    // this token — mirrors Python's `close_local < len(source)` guard.
+    if (tok.span.end() as usize) < region_end
+        && source.as_bytes().get(tok.span.end() as usize) == Some(&b'}')
+    {
         return false;
     }
     let Some(text) = token_inner(source, tok) else {
@@ -1063,6 +1093,43 @@ mod tests {
         );
         // A balanced brace body is silent.
         assert!(recovery_diags("set x {a b c}\n", "E203").is_empty());
+    }
+
+    #[test]
+    fn e202_fires_inside_a_nested_body() {
+        // The proc's brace word is balanced, so the body is re-segmented and
+        // analysed; a run-away `"` inside it must still surface E202 — not
+        // only at the top level. Mirrors Python's `_analyse_body_inner`,
+        // which runs `segment_with_recovery` over body content.
+        let src = "proc p {} {\n    set x \"\n    puts hello\n}\n";
+        assert_eq!(
+            recovery_diags(src, "E202"),
+            vec![("missing \"".to_string(), 1)]
+        );
+        // The detector reaches arbitrarily deep — here the quote is two
+        // bodies down (`proc` body → `if` body).
+        let deep = "proc p {} {\n  if {1} {\n    set x \"\n    puts hi\n  }\n}\n";
+        assert_eq!(
+            recovery_diags(deep, "E202"),
+            vec![("missing \"".to_string(), 1)]
+        );
+        // A well-formed quoted string inside a body stays silent.
+        assert!(recovery_diags("proc p {} {\n    set x \"hello\"\n}\n", "E202").is_empty());
+    }
+
+    #[test]
+    fn e202_not_emitted_for_closed_multiline_quote_at_body_end() {
+        // A *closed* multi-line quoted word whose closing `"` is the body's
+        // last byte — `proc p {} {set x "\nhello"}` — must not be flagged:
+        // the command "reaches EOF" only because the body ends there, but the
+        // quote is terminated (`info complete` == 1 in tclsh 8.6/9.0, and the
+        // Python analyser emits nothing). Regression guard for the body scan.
+        assert!(recovery_diags("proc p {} {set x \"\nhello\"}\n", "E202").is_empty());
+        // The unterminated counterpart in the same shape still fires.
+        assert_eq!(
+            recovery_diags("proc p {} {set x \"\nhello\n}\n", "E202"),
+            vec![("missing \"".to_string(), 0)],
+        );
     }
 
     #[test]
