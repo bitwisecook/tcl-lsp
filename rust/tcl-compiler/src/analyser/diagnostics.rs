@@ -1419,141 +1419,6 @@ fn build_phi_undef_index(
     (phi_def, phi_block, killed)
 }
 
-/// True when an expression operand is provably the integer zero: a literal
-/// `0` (int or float spelling) or a variable whose SCCP value at `versions`
-/// is a constant zero.  Used by the W233 divide-by-zero check.
-fn expr_operand_is_zero(
-    node: &ExprNode,
-    versions: &std::collections::HashMap<String, crate::ssa::Version>,
-    sccp: &std::collections::HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>,
-) -> bool {
-    use crate::analyses::{ConstValue, LatticeValue};
-    let const_is_zero = |lv: Option<&LatticeValue>| match lv {
-        Some(LatticeValue::Const(ConstValue::Int(0) | ConstValue::Bool(false))) => true,
-        Some(LatticeValue::Const(ConstValue::Float(f))) => *f == 0.0,
-        Some(LatticeValue::Const(ConstValue::String(s))) => {
-            let t = s.trim();
-            t.parse::<i64>() == Ok(0) || t.parse::<f64>().is_ok_and(|f| f == 0.0)
-        }
-        _ => false,
-    };
-    match node {
-        ExprNode::Literal { text, .. } => {
-            let t = text.trim();
-            t.parse::<i64>() == Ok(0) || t.parse::<f64>().is_ok_and(|f| f == 0.0)
-        }
-        ExprNode::Var { name, .. } => versions
-            .get(name)
-            .is_some_and(|&ver| const_is_zero(sccp.get(&(name.clone(), ver)))),
-        _ => false,
-    }
-}
-
-/// Constant truthiness of `text` under Tcl boolean rules: a non-zero number
-/// is true, `0`/`0.0` false, and the literal boolean words (case-insensitive)
-/// map directly.  `None` when not a recognised constant.
-fn const_truthiness(text: &str) -> Option<bool> {
-    let t = text.trim();
-    if let Ok(n) = t.parse::<i64>() {
-        return Some(n != 0);
-    }
-    if let Ok(f) = t.parse::<f64>() {
-        return Some(f != 0.0);
-    }
-    match t.to_ascii_lowercase().as_str() {
-        "true" | "yes" | "on" => Some(true),
-        "false" | "no" | "off" => Some(false),
-        _ => None,
-    }
-}
-
-/// Provable truthiness of an expression operand (`Some(true)`/`Some(false)`),
-/// or `None` when not statically known.  Used to model short-circuit (`&&` /
-/// `||`) and ternary reachability for the W233 divisor walk.
-fn expr_truthiness(
-    node: &ExprNode,
-    versions: &std::collections::HashMap<String, crate::ssa::Version>,
-    sccp: &std::collections::HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>,
-) -> Option<bool> {
-    use crate::analyses::{ConstValue, LatticeValue};
-    match node {
-        ExprNode::Literal { text, .. } => const_truthiness(text),
-        ExprNode::Var { name, .. } => {
-            let ver = versions.get(name)?;
-            match sccp.get(&(name.clone(), *ver))? {
-                LatticeValue::Const(ConstValue::Int(n)) => Some(*n != 0),
-                LatticeValue::Const(ConstValue::Float(f)) => Some(*f != 0.0),
-                LatticeValue::Const(ConstValue::Bool(b)) => Some(*b),
-                LatticeValue::Const(ConstValue::String(s)) => const_truthiness(s),
-                _ => None,
-            }
-        }
-        // `-1` / `+1` keep the operand's zero-ness; `!x` / `not x` invert it.
-        ExprNode::Unary { op, operand } => match op {
-            UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot => {
-                expr_truthiness(operand, versions, sccp)
-            }
-            UnaryOp::Not | UnaryOp::WordNot => expr_truthiness(operand, versions, sccp).map(|b| !b),
-        },
-        _ => None,
-    }
-}
-
-/// Find the first `/` or `%` operator in `node` whose divisor is provably
-/// zero **and is actually reachable**, returning its [`BinOp`].  Models
-/// short-circuit `&&` / `||` and ternary reachability so a guarded division
-/// (`$d != 0 && 1/$d`, `0 ? 1/0 : 7`) does not fire.  Mirrors
-/// `find_divide_by_zero` (`compiler/interval_bounds.py`).
-fn find_divide_by_zero(
-    node: &ExprNode,
-    versions: &std::collections::HashMap<String, crate::ssa::Version>,
-    sccp: &std::collections::HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>,
-) -> Option<BinOp> {
-    let recurse = |n| find_divide_by_zero(n, versions, sccp);
-    match node {
-        ExprNode::Binary { op, left, right } => {
-            if matches!(op, BinOp::Div | BinOp::Mod) && expr_operand_is_zero(right, versions, sccp)
-            {
-                return Some(*op);
-            }
-            // The left operand is always evaluated.  The right operand of a
-            // short-circuit `&&` is reached only when the left is provably
-            // truthy; of `||` only when the left is provably falsy.
-            if let Some(hit) = recurse(left) {
-                return Some(hit);
-            }
-            let right_reachable = match op {
-                BinOp::And | BinOp::WordAnd => expr_truthiness(left, versions, sccp) == Some(true),
-                BinOp::Or | BinOp::WordOr => expr_truthiness(left, versions, sccp) == Some(false),
-                _ => true,
-            };
-            if right_reachable {
-                recurse(right)
-            } else {
-                None
-            }
-        }
-        ExprNode::Unary { operand, .. } => recurse(operand),
-        ExprNode::Ternary {
-            condition,
-            true_branch,
-            false_branch,
-        } => {
-            // The condition is always evaluated; an arm only when the
-            // condition provably selects it.
-            if let Some(hit) = recurse(condition) {
-                return Some(hit);
-            }
-            match expr_truthiness(condition, versions, sccp) {
-                Some(true) => recurse(true_branch),
-                Some(false) => recurse(false_branch),
-                None => None,
-            }
-        }
-        _ => None,
-    }
-}
-
 /// Name-level suppression context for the `return`-value phi-from-undef W210
 /// pass, harvested from `dict with` / `dict update` and qualified `variable`
 /// declarations.  Mirrors the corresponding `skip` / key-set construction in
@@ -7266,72 +7131,39 @@ file; this call falls through to the 'unknown' handler."
     /// statement's span); seen-offsets dedup avoids duplicate
     /// emissions when multiple SSA versions share a def.
     /// **W233.** Division / modulo by a provably-zero divisor — raises
-    /// "divide by zero" at runtime.  Walks every `[expr …]` AST reachable in
-    /// the function (`AssignExpr` statements, `if`/`while` branch conditions,
-    /// and `return [expr …]` values) over SCCP-executable blocks; a literal
-    /// `0` divisor or a variable whose SCCP value is a constant zero fires.
-    /// Mirrors the `find_divide_by_zero` arm of
+    /// "divide by zero" at runtime.  Delegates to the canonical
+    /// interval-bounds analysis [`crate::interval_bounds::find_divide_by_zero`]
+    /// (the single source of truth, shared with the interval-bounds index
+    /// checks): a `/` or `%` whose divisor's interval — guard-narrowed at the
+    /// use site and seeded from the SCCP lattice — is exactly `[0, 0]`, on the
+    /// always-evaluated spine of an executable expression. Mirrors the
+    /// `find_divide_by_zero` arm of
     /// `analyser/_analyser/_diag_interval_bounds.py`.
+    ///
+    /// (Verified against tclsh 8.4–9.0: integer `1/0` and `5%0` raise "divide
+    /// by zero"; float division such as `1.0/0` yields `Inf` and does not
+    /// error. The interval domain is integer, matching that boundary for the
+    /// common cases.)
     fn emit_w233_divide_by_zero(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
-        use crate::cfg::Terminator;
-        use crate::ir::Statement;
-
-        let considered: HashSet<&str> = if fu.sccp.executable_blocks.is_empty() {
-            fu.ssa.blocks.keys().map(String::as_str).collect()
+        // The block set SCCP proved reachable; fall back to every SSA block
+        // when SCCP produced nothing (e.g. a trivial function) so the check
+        // still runs — matching the previous emitter's reachability fallback.
+        let executable: HashSet<String> = if fu.sccp.executable_blocks.is_empty() {
+            fu.ssa.blocks.keys().cloned().collect()
         } else {
-            fu.sccp
-                .executable_blocks
-                .iter()
-                .map(String::as_str)
-                .collect()
+            fu.sccp.executable_blocks.clone()
         };
-        let mut hits: Vec<(tcl_lexer::Span, BinOp)> = Vec::new();
-        for bn in &considered {
-            let Some(block) = fu.cfg.blocks.get(*bn) else {
-                continue;
-            };
-            let ssa_block = fu.ssa.blocks.get(*bn);
-            for (idx, stmt) in block.statements.iter().enumerate() {
-                if let Statement::AssignExpr { expr, span, .. } = stmt {
-                    let versions = ssa_block
-                        .and_then(|sb| sb.statements.get(idx))
-                        .map(|s| &s.uses);
-                    if let Some(versions) = versions
-                        && let Some(op) = find_divide_by_zero(expr, versions, &fu.sccp.values)
-                    {
-                        hits.push((fu.abs_span(*span), op));
-                    }
-                }
-            }
-            let exit = ssa_block.map(|sb| &sb.exit_versions);
-            let Some(exit) = exit else { continue };
-            match &block.terminator {
-                Some(Terminator::Return {
-                    expr: Some(e),
-                    span: Some(sp),
-                    ..
-                }) => {
-                    if let Some(op) = find_divide_by_zero(e, exit, &fu.sccp.values) {
-                        hits.push((fu.abs_span(*sp), op));
-                    }
-                }
-                Some(Terminator::Branch {
-                    condition,
-                    span: Some(sp),
-                    ..
-                }) => {
-                    if let Some(op) = find_divide_by_zero(condition, exit, &fu.sccp.values) {
-                        hits.push((fu.abs_span(*sp), op));
-                    }
-                }
-                _ => {}
-            }
-        }
-        for (span, op) in hits {
+        for finding in crate::interval_bounds::find_divide_by_zero(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.sccp.values,
+            &executable,
+        ) {
+            let span = fu.abs_span(finding.span);
             if span.is_empty() {
                 continue;
             }
-            let verb = if op == BinOp::Div {
+            let verb = if finding.op == "/" {
                 "Division"
             } else {
                 "Modulo"
@@ -11959,6 +11791,7 @@ foo
 
     #[test]
     fn w233_divide_by_zero_literal_and_const_var() {
+        // Each case verified against tclsh 8.4–9.0 to raise "divide by zero".
         assert_eq!(w233_codes("proc f {} { return [expr {1 / 0}] }"), 1);
         assert_eq!(w233_codes("proc f {} { return [expr {10 % 0}] }"), 1);
         assert_eq!(
@@ -11975,13 +11808,28 @@ foo
             0
         );
         assert_eq!(w233_codes("proc f {n} { return [expr {10 / $n}] }"), 0);
-        // Short-circuit / dead-arm guards make the division unreachable.
+        // Short-circuit / dead-arm guards make the division unreachable
+        // (tclsh: these expressions do *not* raise — the RHS is skipped).
         assert_eq!(w233_codes("proc f {} { return [expr {0 && 1/0}] }"), 0);
         assert_eq!(w233_codes("proc f {} { return [expr {0 ? 1/0 : 7}] }"), 0);
         assert_eq!(w233_codes("proc f {c} { return [expr {$c && 1/0}] }"), 0);
-        // Constant-truthy guard forces the arm — fires.
+        assert_eq!(w233_codes("proc f {} { return [expr {+0 && 1/0}] }"), 0);
+        // Constant-truthy guard forces the arm — fires. Each verified against
+        // tclsh 8.4–9.0 (`-1`, `1.0`, `!0` are truthy, so `1/0` is reached
+        // and raises "divide by zero").
         assert_eq!(w233_codes("proc f {} { return [expr {1.0 && 1/0}] }"), 1);
         assert_eq!(w233_codes("proc f {} { return [expr {-1 && 1/0}] }"), 1);
+        assert_eq!(w233_codes("proc f {} { return [expr {!0 && 1/0}] }"), 1);
+    }
+
+    #[test]
+    fn w233_silent_on_float_division() {
+        // Float division by zero yields Inf (verified against tclsh 8.4–9.0:
+        // `1.0/0.0` and `1/0.0` are *not* errors), so the integer-only
+        // divide-by-zero check must not fire. A float-literal divisor never
+        // narrows to the integer point `[0, 0]`.
+        assert_eq!(w233_codes("proc f {} { return [expr {1.0 / 0.0}] }"), 0);
+        assert_eq!(w233_codes("proc f {} { return [expr {1 / 0.0}] }"), 0);
     }
 
     #[test]

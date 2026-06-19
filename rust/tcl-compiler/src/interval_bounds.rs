@@ -295,6 +295,20 @@ fn index_subs_in_expr(expr: &ExprNode) -> Vec<Candidate> {
 /// Constant truthiness of a literal expression node (`Some(true/false)`), else
 /// `None`.  Mirrors `_const_bool` for the eager walk's guard resolution.
 fn const_bool(expr: &ExprNode) -> Option<bool> {
+    use tcl_syntax::expr::ast::UnaryOp;
+    // Fold the boolean-relevant unaries over a constant operand, matching
+    // Python's `expr_ast._const_bool`: `+`/`-` preserve zero-ness (`-1` is
+    // true, `-0` false), `!`/`not` invert it. `~` needs the integer value (a
+    // bitwise-not guard is rare) so it stays conservative. Verified against
+    // tclsh 8.4–9.0: `-1 && 1/0`, `!0 && 1/0` evaluate the RHS (a forced
+    // arm → divide-by-zero), while `+0 && 1/0` short-circuits.
+    if let ExprNode::Unary { op, operand } = expr {
+        return match op {
+            UnaryOp::Neg | UnaryOp::Pos => const_bool(operand),
+            UnaryOp::Not | UnaryOp::WordNot => const_bool(operand).map(|b| !b),
+            UnaryOp::BitNot => None,
+        };
+    }
     let ExprNode::Literal { text, .. } = expr else {
         return None;
     };

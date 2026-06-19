@@ -211,14 +211,14 @@ pub fn run_all_checks(
     let mut out: Vec<Diagnostic> = Vec::new();
 
     // SCCP constant branches (per function).
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         for cb in &fu.sccp.constant_branches {
             out.push(shift(fu, Diagnostic::from_constant_branch(cb)));
         }
     }
 
     // GVN full + partial redundancies + loop invariants.
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         for r in find_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
             out.push(shift(fu, Diagnostic::from_redundant(&r)));
         }
@@ -231,7 +231,7 @@ pub fn run_all_checks(
     }
 
     // Shimmer + thunking.
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         for w in find_shimmer_warnings(
             &fu.cfg,
             &fu.ssa,
@@ -254,7 +254,7 @@ pub fn run_all_checks(
     // reported (cross-proc entry-taint). Mirrors Python `find_taint_warnings`,
     // which consumes `_solve_interprocedural_taints`.
     let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         let taints = solved.taints_for(&fu.name, &fu.taints);
         for w in find_taint_warnings(
             &fu.cfg,
