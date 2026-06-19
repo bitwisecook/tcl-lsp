@@ -15,7 +15,7 @@
 //! The Python facade also owns class-name extraction and
 //! connection-scope analysis; those are follow-ups.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tcl_registry::CommandRegistry;
 
@@ -67,6 +67,15 @@ pub struct LatticeRequest<'a> {
     /// Position-independent — keyed by parameter name + SSA version, never by
     /// span — so it rebases trivially with the rest of the offset-0 unit.
     pub param_constants: &'a [(String, u32, String)],
+    /// Fully-qualified names of every class defined in the compilation unit
+    /// (sorted), so the type-propagation pass can recognise a `TclOO` / itcl
+    /// constructor call (`Foo new`) and type it `OBJECT(::ns::Foo)`.  A
+    /// whole-unit fact, identical for every procedure, so it is folded into the
+    /// memo key: adding or removing a class anywhere invalidates each
+    /// procedure's lattice (a new class can change any body's constructor
+    /// typing).  Sourced from [`crate::signature_scan`] so the standalone and
+    /// incremental builds derive an identical set from the same source.
+    pub known_classes: &'a [String],
 }
 
 /// Salsa-native per-procedure lattice memo used by
@@ -185,6 +194,36 @@ impl FunctionUnit {
             &std::collections::HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>,
         >,
     ) -> Self {
+        Self::build_with_param_constants_and_classes(
+            name,
+            cfg,
+            params,
+            registry,
+            param_constants,
+            &HashSet::new(),
+        )
+    }
+
+    /// Like [`Self::build_with_param_constants`] but additionally threads the
+    /// compilation unit's `known_classes` set into type propagation and return
+    /// inference, so a `TclOO` / itcl constructor call (`Foo new` / `Foo create
+    /// x`) whose head names a known class is typed `OBJECT(::ns::Foo)` (the
+    /// signal the analyser's W307 / W308 method-dispatch checks consume).  The
+    /// per-function [`Self::build`] / [`Self::build_with_param_constants`]
+    /// entry points default to an empty set (no object typing); the
+    /// compilation-unit builders ([`Self::build_for`] and friends) source the
+    /// real set from [`crate::signature_scan`].
+    #[must_use]
+    pub fn build_with_param_constants_and_classes(
+        name: impl Into<String>,
+        cfg: CfgFunction,
+        params: &[String],
+        registry: &CommandRegistry,
+        param_constants: Option<
+            &std::collections::HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>,
+        >,
+        known_classes: &HashSet<String>,
+    ) -> Self {
         // Complexity guard (block-count half): a pathologically large body
         // would cost seconds of SSA + dataflow for near-zero findings, so skip
         // the deep analysis and flag the unit. The body-byte half is applied by
@@ -216,9 +255,14 @@ impl FunctionUnit {
             params.iter().map(String::as_str).collect();
         sccp.constant_branches
             .extend(crate::sccp::existence_constant_branches(&cfg, &param_set));
-        let types = propagate_types(&cfg, &ssa, &sccp, registry);
-        let return_type =
-            crate::type_infer::infer_function_return_type(&cfg, &sccp, &types, registry);
+        let types = propagate_types(&cfg, &ssa, &sccp, registry, known_classes);
+        let return_type = crate::type_infer::infer_function_return_type(
+            &cfg,
+            &sccp,
+            &types,
+            registry,
+            known_classes,
+        );
         let rendered_props = propagate_rendered_props(&cfg, &ssa, &sccp, registry);
         let taints = propagate_taints(
             &cfg,
@@ -472,7 +516,26 @@ impl CompilationUnit {
         // callee's SCCP can fold a param every caller passes the same literal
         // for (interprocedural constant propagation).
         let call_site_constants = collect_call_site_constants(&cfg_module, &ir_module.procedures);
-        let top_level = FunctionUnit::build("::top", cfg_module.top_level.clone(), &[], registry);
+        // Fully-qualified names of every class defined in the unit, sourced from
+        // the signature scanner so this build and the incremental/db build
+        // derive an identical set (⇒ identical OBJECT-constructor typing on both
+        // paths).  `known_classes` (sorted) is also what each `LatticeRequest`
+        // carries into the memo key, so a class-set change invalidates the
+        // per-procedure lattices.
+        let known_class_set = collect_known_classes(source, registry);
+        let known_classes: Vec<String> = {
+            let mut v: Vec<String> = known_class_set.iter().cloned().collect();
+            v.sort_unstable();
+            v
+        };
+        let top_level = FunctionUnit::build_with_param_constants_and_classes(
+            "::top",
+            cfg_module.top_level.clone(),
+            &[],
+            registry,
+            None,
+            &known_class_set,
+        );
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every
         // memoised request (and the methods below), so the offset-0 CFG the
@@ -533,6 +596,7 @@ impl CompilationUnit {
                         proc_params,
                         dialect,
                         param_constants: &encoded_pc,
+                        known_classes: &known_classes,
                     });
                     // Rebase the offset-0 memo result to the procedure's real
                     // position so every consumer sees **absolute** spans without
@@ -545,12 +609,13 @@ impl CompilationUnit {
                 _ => None,
             };
             let fu = memoised.unwrap_or_else(|| {
-                FunctionUnit::build_with_param_constants(
+                FunctionUnit::build_with_param_constants_and_classes(
                     qname,
                     cfg.clone(),
                     params,
                     registry,
                     param_constants.as_ref(),
+                    &known_class_set,
                 )
             });
             procedures.insert(qname.clone(), fu);
@@ -589,7 +654,14 @@ impl CompilationUnit {
                     let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
                         FunctionUnit::trivial_guarded(mqname, cfg)
                     } else {
-                        FunctionUnit::build(mqname, cfg, &method.params, registry)
+                        FunctionUnit::build_with_param_constants_and_classes(
+                            mqname,
+                            cfg,
+                            &method.params,
+                            registry,
+                            None,
+                            &known_class_set,
+                        )
                     };
                     (mqname.clone(), fu)
                 })
@@ -782,6 +854,26 @@ struct ArgConsts {
     unknown: bool,
     /// Distinct literal values seen at this position.
     values: std::collections::HashSet<String>,
+}
+
+/// Fully-qualified names of every class defined in `source`.
+///
+/// Sourced from [`crate::signature_scan`] (which records `oo::class create` and
+/// `itcl::class` definitions) so the standalone analyser build and the
+/// incremental/db build derive an *identical* set from the same source — the
+/// precondition for the two paths agreeing on constructor (`Foo new`) typing.
+/// Gated on a cheap substring probe (`class`, the only token both class-defining
+/// heads share) so the overwhelmingly common non-OO source skips the scan
+/// entirely.  A false-positive probe just runs the (still fast) scan; the probe
+/// can never miss a real definition because both heads contain `class`.
+fn collect_known_classes(source: &str, registry: &CommandRegistry) -> HashSet<String> {
+    if !source.contains("class") {
+        return HashSet::new();
+    }
+    crate::signature_scan::extract_signatures(source, registry)
+        .classes
+        .into_keys()
+        .collect()
 }
 
 /// Collect literal arg values per user-proc call site across the whole

@@ -90,7 +90,9 @@ pub(super) fn scan(
             "package" => handlers::handle_package(texts, argv, conditional, &mut ctx.result),
             "source" => handlers::handle_source(texts, argv, &mut ctx.result),
             "interp" => handlers::handle_interp(texts, &mut ctx.result),
-            "oo::class" => handlers::handle_oo_class(texts, argv, ns_prefix, &mut ctx.result),
+            "oo::class" | "::oo::class" => {
+                handlers::handle_oo_class(texts, argv, ns_prefix, &mut ctx.result);
+            }
             "itcl::class" | "::itcl::class" => {
                 handlers::handle_itcl_class(texts, argv, ns_prefix, &mut ctx.result);
             }

@@ -386,6 +386,57 @@ impl CommandRegistry {
         names
     }
 
+    /// Whether `command` is legal in iRules `event` — the O(1) legality-matrix
+    /// test of Python `CommandLegality.is_legal` (`command_legality`).
+    ///
+    /// A command is legal when the event is known, the command supports the
+    /// iRules dialect, the event is not in the command's `excluded_events`,
+    /// and the command's [`crate::events::EventRequires`] (if any) are
+    /// satisfied by the event's [`crate::events::EventProps`].  An unknown
+    /// event is illegal for every command, matching Python's empty
+    /// valid-command set for events with no props.
+    #[must_use]
+    pub fn is_irules_command_legal_in_event(
+        &self,
+        command: &str,
+        event: &str,
+        events: &crate::events::EventRegistry,
+        profiles: &crate::profiles::ProfileRegistry,
+    ) -> bool {
+        let Some(props) = events.get_props(event) else {
+            return false;
+        };
+        let Some(spec) = self.get_for_dialect(command, DialectSet::IRULES) else {
+            return false;
+        };
+        if spec.excluded_events.contains(&event) {
+            return false;
+        }
+        spec.event_requires
+            .as_ref()
+            .is_none_or(|req| crate::events::event_satisfies(props, req, event, profiles))
+    }
+
+    /// Sorted iRules events where `command` is legal — Python
+    /// `CommandLegality.events_for_command`, the inverse of
+    /// [`Self::valid_irules_commands_for_event`].  Used by the IRULE1001
+    /// "Available in: …" hint.
+    #[must_use]
+    pub fn irules_events_for_command<'a>(
+        &self,
+        command: &str,
+        events: &'a crate::events::EventRegistry,
+        profiles: &crate::profiles::ProfileRegistry,
+    ) -> Vec<&'a str> {
+        let mut names: Vec<&str> = events
+            .all_event_names()
+            .into_iter()
+            .filter(|event| self.is_irules_command_legal_in_event(command, event, events, profiles))
+            .collect();
+        names.sort_unstable();
+        names
+    }
+
     /// Resolve full metadata for an iRules `event` — a faithful port of
     /// `compiler.registry.info.lookup_event_info` (the engine behind
     /// `f5 irule event-info`).
@@ -915,6 +966,54 @@ mod tests {
         let mut reg90 = CommandRegistry::build_default();
         reg90.load_dialect(DialectSet::TCL90);
         assert!(!reg90.leading_zero_is_octal(), "tcl9.0 should be decimal");
+    }
+
+    #[test]
+    fn irules_command_legality_matrix() {
+        use crate::dialects::DialectSet;
+        use crate::events::EventRegistry;
+        use crate::profiles::ProfileRegistry;
+        let mut reg = CommandRegistry::build_default();
+        reg.load_dialect(DialectSet::IRULES);
+        let events = EventRegistry::build();
+        let profiles = ProfileRegistry::build();
+        // HTTP::respond is satisfied in HTTP_REQUEST (HTTP profile implied) but
+        // not in the L4 CLIENT_ACCEPTED event.
+        assert!(reg.is_irules_command_legal_in_event(
+            "HTTP::respond",
+            "HTTP_REQUEST",
+            &events,
+            &profiles
+        ));
+        assert!(!reg.is_irules_command_legal_in_event(
+            "HTTP::respond",
+            "CLIENT_ACCEPTED",
+            &events,
+            &profiles
+        ));
+        // An unknown event is illegal for every command.
+        assert!(!reg.is_irules_command_legal_in_event(
+            "HTTP::respond",
+            "NOT_AN_EVENT",
+            &events,
+            &profiles
+        ));
+        // HA::status is explicitly excluded from RULE_INIT.
+        assert!(!reg.is_irules_command_legal_in_event(
+            "HA::status",
+            "RULE_INIT",
+            &events,
+            &profiles
+        ));
+
+        // The inverse list is sorted and reflects the same matrix.
+        let evs = reg.irules_events_for_command("HTTP::respond", &events, &profiles);
+        assert!(evs.contains(&"HTTP_REQUEST"));
+        assert!(!evs.contains(&"CLIENT_ACCEPTED"));
+        assert!(
+            evs.windows(2).all(|w| w[0] <= w[1]),
+            "events must be sorted"
+        );
     }
 
     #[test]

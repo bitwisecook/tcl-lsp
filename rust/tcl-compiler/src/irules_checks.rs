@@ -18,17 +18,67 @@
 //! their own follow-up sub-strips per the chunk-log row's
 //! "each diagnostic is its own sub-strip" sequencing.
 
+use std::collections::HashSet;
+use std::sync::OnceLock;
+
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 use tcl_registry::events::EventRegistry;
+use tcl_registry::side_effects::SideEffectTarget;
 
 use crate::cfg_builder::build_cfg;
 use crate::compilation_unit::CompilationUnit;
-use crate::ir::Statement;
+use crate::ir::{Script, Statement};
 use crate::lowering::lower_to_ir_with_config;
 use crate::sccp::cfg_order;
 use crate::taint::is_irules_dialect;
 use crate::value_shapes::parse_command_substitution;
+
+/// Process-wide iRules command registry, used to derive the HTTP-flow command
+/// sets below.  Built once (the data is static).
+fn irules_registry() -> &'static CommandRegistry {
+    static REG: OnceLock<CommandRegistry> = OnceLock::new();
+    REG.get_or_init(|| {
+        let mut r = CommandRegistry::build_default();
+        r.load_irules();
+        r
+    })
+}
+
+/// Commands that commit an HTTP response — derived from the registry's
+/// `ResponseCommit` side-effect (Python `_commits_response_commands`), so the
+/// bare iRules `redirect` is included alongside `HTTP::respond` /
+/// `HTTP::redirect` without a hardcoded list.
+fn commits_response_commands() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        let reg = irules_registry();
+        reg.command_names()
+            .filter(|name| {
+                reg.get(name).is_some_and(|spec| {
+                    spec.side_effects
+                        .iter()
+                        .any(|h| h.target == SideEffectTarget::ResponseCommit && h.writes)
+                })
+            })
+            .map(String::from)
+            .collect()
+    })
+}
+
+/// Registered `HTTP::` namespace commands (Python `_http_namespace_commands`).
+/// Only *registered* commands count, so an unregistered `HTTP::log` does not
+/// trip IRULE1201 (matches the Python set of 32 commands).
+fn http_namespace_commands() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        irules_registry()
+            .command_names()
+            .filter(|name| name.starts_with("HTTP::"))
+            .map(String::from)
+            .collect()
+    })
+}
 
 /// Whether `cmd` is a registered iRules getter that carries the
 /// `-normalized` option in its [`tcl_registry::CommandSpec`].
@@ -43,6 +93,25 @@ fn supports_normalized_flag(registry: &CommandRegistry, cmd: &str) -> bool {
         .is_some_and(|spec| spec.options.iter().any(|opt| opt.name == "-normalized"))
 }
 
+/// A suggested code-action fix — maps to an LSP `TextEdit`.
+///
+/// `span` is the **fix range** the edit applies to, *independent* of the
+/// diagnostic's own span: an insertion is a zero-width span anchored at the
+/// insertion point (e.g. the end of a `drop`), a replacement covers the text it
+/// rewrites.  This is the lower-level twin of the analyser's `CodeFix`, which
+/// re-exports this type (see `analyser::types`); it lives here because the
+/// iRules-flow / compiler-checks layer is below the analyser.  Mirrors Python
+/// `shared/diagnostic.py::CodeFix`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CodeFix {
+    /// Source span the `new_text` replaces (zero-width for an insertion).
+    pub span: Span,
+    /// Replacement / inserted text.
+    pub new_text: String,
+    /// Human-readable description (`"Add 'event disable all' + 'return'"`).
+    pub description: String,
+}
+
 /// An IRULE3102 / iRules-check diagnostic emitted by
 /// [`find_unnormalised_getter_warnings`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -55,6 +124,9 @@ pub struct IrulesCheckWarning {
     pub message: String,
     /// Optional replacement text (currently always `None`).
     pub replacement: Option<String>,
+    /// Suggested fixes whose range is independent of `span` (insertions /
+    /// out-of-span replacements).  Empty when the check supplies no fix.
+    pub fixes: Vec<CodeFix>,
 }
 
 /// Return `true` when `args` suggests a *getter* invocation — no args,
@@ -140,6 +212,7 @@ pub fn find_unnormalised_getter_warnings(
                                 code: "IRULE3102".to_owned(),
                                 message: format_message(command),
                                 replacement: None,
+                                fixes: Vec::new(),
                             });
                         }
                         // Getter nested as a command-substitution argument —
@@ -167,6 +240,7 @@ pub fn find_unnormalised_getter_warnings(
                                     code: "IRULE3102".to_owned(),
                                     message: format_message(&cmd),
                                     replacement: None,
+                                    fixes: Vec::new(),
                                 });
                             }
                         }
@@ -181,6 +255,7 @@ pub fn find_unnormalised_getter_warnings(
                                 code: "IRULE3102".to_owned(),
                                 message: format_message(&cmd),
                                 replacement: None,
+                                fixes: Vec::new(),
                             });
                         }
                     }
@@ -226,8 +301,77 @@ fn is_event_disable_all(cmd: &str, args: &[String]) -> bool {
     cmd == "event" && args.len() >= 2 && args[0] == "disable" && args[1] == "all"
 }
 
-/// Scan each `::when::*` proc body for IRULE5002 / IRULE5004
-/// shapes.  Linear analysis only — see the module-level note.
+/// One drop / DNS-return flow fact along a path.  Dedup keys on the
+/// `(dropped, dns_returned)` pair only (Python `_DropState` dedup), so the
+/// first unguarded occurrence on any surviving path wins.
+#[derive(Clone, Default)]
+struct DropFlowState {
+    dropped: bool,
+    drop_cmd: String,
+    drop_at: Option<Span>,
+    dns_returned: bool,
+    dns_at: Option<Span>,
+}
+
+/// Deduplicate drop states by `(dropped, dns_returned)`, keeping the first
+/// (Python `_dedupe`).
+fn dedupe_drop_states(states: Vec<DropFlowState>) -> Vec<DropFlowState> {
+    let mut seen: HashSet<(bool, bool)> = HashSet::new();
+    let mut out = Vec::new();
+    for s in states {
+        if seen.insert((s.dropped, s.dns_returned)) {
+            out.push(s);
+        }
+    }
+    out
+}
+
+/// Leaf transfer for the drop-flow walk: `drop`/`reject`/`discard` set the
+/// dropped fact, `DNS::return` sets the DNS fact, and `event disable all`
+/// clears the dropped fact (it guards the drop).  Mirrors the leaf handling
+/// in Python `_analyse_drop_without_disable._walk`.
+fn drop_flow_leaf(st: &DropFlowState, stmt: &Statement) -> DropFlowState {
+    let Statement::Call {
+        command,
+        args,
+        span,
+        ..
+    } = stmt
+    else {
+        return st.clone();
+    };
+    if is_event_disable_all(command, args) {
+        return DropFlowState {
+            dropped: false,
+            drop_cmd: String::new(),
+            drop_at: None,
+            dns_returned: st.dns_returned,
+            dns_at: st.dns_at,
+        };
+    }
+    if is_drop_command(command) {
+        return DropFlowState {
+            dropped: true,
+            drop_cmd: command.clone(),
+            drop_at: Some(*span),
+            dns_returned: st.dns_returned,
+            dns_at: st.dns_at,
+        };
+    }
+    if is_dns_return(command, args) {
+        return DropFlowState {
+            dns_returned: true,
+            dns_at: Some(*span),
+            ..st.clone()
+        };
+    }
+    st.clone()
+}
+
+/// Path-sensitive IRULE5002 / IRULE5004 — an unguarded `drop`/`reject`/
+/// `discard` (no following `event disable all` / `return`) or a `DNS::return`
+/// without a following `return`, on at least one path through a `::when::*`
+/// body.  Port of Python `irules_flow._analyse_drop_without_disable`.
 #[must_use]
 pub fn find_unguarded_drop_warnings(
     cu: &CompilationUnit,
@@ -237,89 +381,67 @@ pub fn find_unguarded_drop_warnings(
     if !is_irules_dialect(dialect) {
         return out;
     }
-
+    let leaf = |st: &DropFlowState, stmt: &Statement, _out: &mut Vec<IrulesCheckWarning>| {
+        drop_flow_leaf(st, stmt)
+    };
+    // Honour the FE-DATAFLOW complexity guard (#652) but walk the structured
+    // IR body of each analysable `::when::*` event handler.
     for fu in cu.analysable_functions() {
-        // Only `::when::EVENT` proc bodies are iRules event handlers.
         if !fu.name.starts_with("::when::") {
             continue;
         }
-        // Scan spans come from `fu.cfg` (offset-0 on the memoised path);
-        // absolutise to the unit's real position.
-        out.extend(scan_when_body_for_drops(fu).into_iter().map(|mut w| {
-            w.span = fu.abs_span(w.span);
-            w
-        }));
-    }
-    out
-}
-
-fn scan_when_body_for_drops(fu: &crate::compilation_unit::FunctionUnit) -> Vec<IrulesCheckWarning> {
-    let mut out = Vec::new();
-    // Linear scan: track the most-recent drop / DNS::return spans.
-    // A `return` or `event disable all` clears them.
-    let mut pending_drop: Option<(Span, String)> = None;
-    let mut pending_dns: Option<Span> = None;
-
-    for bn in cfg_order(&fu.cfg) {
-        if !fu.sccp.executable_blocks.contains(&bn) {
-            continue;
-        }
-        let Some(block) = fu.cfg.blocks.get(&bn) else {
+        let Some(proc) = cu.ir_module.procedures.get(&fu.name) else {
             continue;
         };
-        for stmt in &block.statements {
-            let Statement::Call {
-                command,
-                args,
-                span,
-                ..
-            } = stmt
-            else {
-                continue;
-            };
-            if is_drop_command(command) {
-                pending_drop = Some((*span, command.clone()));
-                continue;
+        let finals = walk_flow(
+            &proc.body,
+            &[DropFlowState::default()],
+            &mut out,
+            &leaf,
+            &dedupe_drop_states,
+        );
+        for st in finals {
+            if st.dropped
+                && let Some(span) = st.drop_at
+            {
+                out.push(IrulesCheckWarning {
+                    span,
+                    code: "IRULE5002".to_owned(),
+                    message: format!(
+                        "'{}' without 'event disable all' or 'return' — other iRules and later \
+                         priorities in this event will still execute, which may cause TCL errors.",
+                        st.drop_cmd,
+                    ),
+                    replacement: None,
+                    // Insert `event disable all` + `return` right after the drop
+                    // (a zero-width edit at the drop command's end).  Mirrors the
+                    // IRULE5002 `CodeFix` in Python `irules_flow.py`.
+                    fixes: vec![CodeFix {
+                        span: Span::new(span.end(), span.end()),
+                        new_text: "\n    event disable all\n    return".to_owned(),
+                        description: "Add 'event disable all' + 'return'".to_owned(),
+                    }],
+                });
             }
-            if is_dns_return(command, args) {
-                pending_dns = Some(*span);
-                continue;
+            if st.dns_returned
+                && let Some(span) = st.dns_at
+            {
+                out.push(IrulesCheckWarning {
+                    span,
+                    code: "IRULE5004".to_owned(),
+                    message: "'DNS::return' must be followed by 'return' to stop iRule processing."
+                        .to_owned(),
+                    replacement: None,
+                    // Insert `return` right after `DNS::return`.  Mirrors the
+                    // IRULE5004 `CodeFix` in Python `irules_flow.py`.
+                    fixes: vec![CodeFix {
+                        span: Span::new(span.end(), span.end()),
+                        new_text: "\n    return".to_owned(),
+                        description: "Add 'return' after DNS::return".to_owned(),
+                    }],
+                });
             }
-            if is_event_disable_all(command, args) {
-                // Guards an earlier drop.
-                pending_drop = None;
-            }
-            // `return` is a Terminator on the block, not a Call —
-            // handled below per-block.
         }
-        // After the block's statements: check the terminator.  A
-        // `Return` clears all pending drops; otherwise pending state
-        // carries across.
-        if let Some(term) = &block.terminator
-            && matches!(term, crate::cfg::Terminator::Return { .. })
-        {
-            pending_drop = None;
-            pending_dns = None;
-        }
-    }
-
-    if let Some((span, cmd)) = pending_drop {
-        out.push(IrulesCheckWarning {
-            span,
-            code: "IRULE5002".to_owned(),
-            message: format!(
-                "`{cmd}` without a subsequent `event disable all` or `return` — other iRules continue executing on this connection.",
-            ),
-            replacement: None,
-        });
-    }
-    if let Some(span) = pending_dns {
-        out.push(IrulesCheckWarning {
-            span,
-            code: "IRULE5004".to_owned(),
-            message: "`DNS::return` without a subsequent `return` — iRule processing continues after `DNS::return`.".to_owned(),
-            replacement: None,
-        });
     }
     out
 }
@@ -597,6 +719,7 @@ pub fn find_collect_flow_warnings(
                 proto_hint.join(" or "),
             ),
             replacement: None,
+            fixes: Vec::new(),
         });
     }
 
@@ -611,6 +734,7 @@ pub fn find_collect_flow_warnings(
                     "'{proto}::payload' without a {side} {proto}::collect call. The payload buffer will be empty.",
                 ),
                 replacement: None,
+                fixes: Vec::new(),
             });
         }
     }
@@ -626,6 +750,7 @@ pub fn find_collect_flow_warnings(
                     "{proto}::collect without matching {proto}::release on the {side} side; collected data is never released",
                 ),
                 replacement: None,
+                fixes: Vec::new(),
             });
         }
     }
@@ -641,6 +766,7 @@ pub fn find_collect_flow_warnings(
                     "{proto}::release without matching {proto}::collect on the {side} side; no data was collected",
                 ),
                 replacement: None,
+                fixes: Vec::new(),
             });
         }
     }
@@ -652,33 +778,30 @@ pub fn find_collect_flow_warnings(
 // IRULE1201 / IRULE1202 — HTTP-after-respond / multi-respond
 // ---------------------------------------------------------------------------
 //
-// Mirrors `irules_flow.py::_analyse_when_body` (lines 296-450).
-// Linear CFG scan within each `::when::HTTP*` proc body:
+// Path-sensitive port of `irules_flow.py::_analyse_when_body` (the C44
+// follow-up).  Walks the *structured* IR body of each `::when::HTTP*`
+// procedure, tracking a set of per-path response states so that:
 //
-//   * IRULE1202 — second `HTTP::respond` / `HTTP::redirect` on the
-//     same path; only the first response takes effect.
-//   * IRULE1201 — any `HTTP::*` command issued after a response is
-//     committed; HTTP context is invalid post-respond.
+//   * IRULE1202 — a second `HTTP::respond` / `HTTP::redirect` / `redirect`
+//     on a path that already responded; only the first response takes effect.
+//   * IRULE1201 — a registered `HTTP::*` command issued on a path where a
+//     response is already committed; HTTP context is invalid post-respond.
 //
-// Path-sensitivity (separate state per branch of `if` / `switch` /
-// `try`) is the C44 follow-up.  This linear shape catches the
-// straight-line cases (`HTTP::respond ...; HTTP::header ...`).
-//
-// Response-committing commands: hardcoded to `HTTP::respond` /
-// `HTTP::redirect` (the canonical pair).  When the registry grows
-// a `SideEffectTarget::ResponseCommit` category the lookup
-// switches to the registry-driven query.
+// Mutually-exclusive branches keep separate states, so `if {…} { respond }
+// else { respond }` is *not* a double-respond (avoids the linear-scan false
+// positive), `catch { respond }; HTTP::…` *is* flagged, and a loop body runs
+// zero-or-more times.  `return` terminates the current path.
 
-fn commits_http_response(cmd: &str) -> bool {
-    matches!(cmd, "HTTP::respond" | "HTTP::redirect")
+/// A single response-flow fact along one path.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct HttpFlowState {
+    responded: bool,
+    /// Start offset of the committing response (for dedup / parity), or `None`.
+    respond_at: Option<u32>,
 }
 
-fn is_http_namespace(cmd: &str) -> bool {
-    cmd.starts_with("HTTP::")
-}
-
-/// Per-event HTTP-flow warnings.  Emits IRULE1201 + IRULE1202 for
-/// each `::when::HTTP*` proc body.
+/// Per-event HTTP-flow warnings.  Emits IRULE1201 + IRULE1202 for each
+/// `::when::HTTP*` proc body, path-sensitively.
 #[must_use]
 pub fn find_http_flow_warnings(
     cu: &CompilationUnit,
@@ -688,6 +811,8 @@ pub fn find_http_flow_warnings(
     if !is_irules_dialect(dialect) {
         return out;
     }
+    // Iterate the *analysable* functions (honouring the FE-DATAFLOW
+    // complexity guard, #652) but walk their structured IR body.
     for fu in cu.analysable_functions() {
         let Some(event) = fu.name.strip_prefix("::when::") else {
             continue;
@@ -697,75 +822,235 @@ pub fn find_http_flow_warnings(
         if !bare_event.starts_with("HTTP") {
             continue;
         }
-        out.extend(
-            scan_when_body_for_http_flow(fu, bare_event)
-                .into_iter()
-                .map(|mut w| {
-                    w.span = fu.abs_span(w.span);
-                    w
-                }),
+        let Some(proc) = cu.ir_module.procedures.get(&fu.name) else {
+            continue;
+        };
+        let leaf = |st: &HttpFlowState, stmt: &Statement, out: &mut Vec<IrulesCheckWarning>| {
+            match http_flow_stmt_command(stmt) {
+                Some((cmd, span)) => apply_http_flow_command(*st, cmd, span, bare_event, out),
+                None => *st,
+            }
+        };
+        walk_flow(
+            &proc.body,
+            &[HttpFlowState {
+                responded: false,
+                respond_at: None,
+            }],
+            &mut out,
+            &leaf,
+            &dedupe_flow_states,
         );
     }
     out
 }
 
-fn scan_when_body_for_http_flow(
-    fu: &crate::compilation_unit::FunctionUnit,
-    event: &str,
-) -> Vec<IrulesCheckWarning> {
+/// Deduplicate flow states by `(responded, respond_at)` (Python `_dedupe`).
+fn dedupe_flow_states(states: Vec<HttpFlowState>) -> Vec<HttpFlowState> {
+    let mut seen: HashSet<(bool, i64)> = HashSet::new();
     let mut out = Vec::new();
-    let mut responded = false;
-    let mut respond_command: Option<String> = None;
-
-    for bn in cfg_order(&fu.cfg) {
-        if !fu.sccp.executable_blocks.contains(&bn) {
-            continue;
-        }
-        let Some(block) = fu.cfg.blocks.get(&bn) else {
-            continue;
-        };
-        for stmt in &block.statements {
-            let (cmd, span) = match stmt {
-                Statement::Call { command, span, .. }
-                | Statement::Barrier { command, span, .. } => (command.as_str(), *span),
-                _ => continue,
-            };
-            if commits_http_response(cmd) {
-                if responded {
-                    out.push(IrulesCheckWarning {
-                        span,
-                        code: "IRULE1202".to_owned(),
-                        message: format!(
-                            "Multiple '{cmd}' calls possible in {event}. Only the first response takes effect.",
-                        ),
-                        replacement: None,
-                    });
-                } else {
-                    responded = true;
-                    respond_command = Some(cmd.to_string());
-                }
-                continue;
-            }
-            if responded && is_http_namespace(cmd) {
-                let _ = respond_command.as_ref();
-                out.push(IrulesCheckWarning {
-                    span,
-                    code: "IRULE1201".to_owned(),
-                    message: format!(
-                        "'{cmd}' used after response is committed. HTTP context is invalid after HTTP::respond/HTTP::redirect.",
-                    ),
-                    replacement: None,
-                });
-            }
-        }
-        // `return` Terminator clears the response state (the rule
-        // exits before any "after" code runs).
-        if let Some(crate::cfg::Terminator::Return { .. }) = &block.terminator {
-            responded = false;
-            respond_command = None;
+    for s in states {
+        let key = (s.responded, s.respond_at.map_or(-1, i64::from));
+        if seen.insert(key) {
+            out.push(s);
         }
     }
     out
+}
+
+/// The command word + span a statement applies to the response flow, or `None`.
+/// Mirrors Python `_stmt_command`: direct `Call`/`Barrier` heads, plus a
+/// whole-value `[cmd …]` command substitution assigned by `set`.
+fn http_flow_stmt_command(stmt: &Statement) -> Option<(&str, Span)> {
+    match stmt {
+        Statement::Call { command, span, .. } | Statement::Barrier { command, span, .. } => {
+            Some((command.as_str(), *span))
+        }
+        Statement::AssignValue { value, span, .. } => {
+            let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?.trim();
+            inner.split_whitespace().next().map(|cmd| (cmd, *span))
+        }
+        _ => None,
+    }
+}
+
+/// Apply one command to a flow state, emitting IRULE1201/1202 as warranted.
+fn apply_http_flow_command(
+    state: HttpFlowState,
+    cmd: &str,
+    span: Span,
+    event: &str,
+    out: &mut Vec<IrulesCheckWarning>,
+) -> HttpFlowState {
+    if commits_response_commands().contains(cmd) {
+        if state.responded {
+            out.push(IrulesCheckWarning {
+                span,
+                code: "IRULE1202".to_owned(),
+                message: format!(
+                    "Multiple '{cmd}' calls possible in {event}. Only the first response takes effect.",
+                ),
+                replacement: None,
+                fixes: Vec::new(),
+            });
+            return state;
+        }
+        return HttpFlowState {
+            responded: true,
+            respond_at: Some(span.start()),
+        };
+    }
+    if state.responded && http_namespace_commands().contains(cmd) {
+        out.push(IrulesCheckWarning {
+            span,
+            code: "IRULE1201".to_owned(),
+            message: format!(
+                "'{cmd}' used after response is committed. HTTP context is invalid after HTTP::respond/HTTP::redirect.",
+            ),
+            replacement: None,
+            fixes: Vec::new(),
+        });
+    }
+    state
+}
+
+/// Path-sensitive forward walk of a structured IR script, threading a set of
+/// per-path flow states `S`.  Control-flow statements fan the states into each
+/// branch and merge (`dedupe`) at join points; `return` terminates the current
+/// paths.  Leaf statements are transferred by `leaf` (which may emit warnings
+/// into `out`).  Shared by the IRULE1201/1202 and IRULE5002/5004 analyses —
+/// they differ only in their state type, `leaf`, and `dedupe`.  Mirrors Python
+/// `irules_flow._analyse_script` / `_walk`.
+fn walk_flow<S, L, D>(
+    script: &Script,
+    in_states: &[S],
+    out: &mut Vec<IrulesCheckWarning>,
+    leaf: &L,
+    dedupe: &D,
+) -> Vec<S>
+where
+    S: Clone,
+    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    D: Fn(Vec<S>) -> Vec<S>,
+{
+    let mut states = in_states.to_vec();
+    for stmt in &script.statements {
+        // `None` ⇒ the statement terminates every current path (`return`).
+        match flow_step(stmt, &states, out, leaf, dedupe) {
+            None => return Vec::new(),
+            Some(next) => states = next,
+        }
+    }
+    states
+}
+
+/// Transfer one structured statement over the flow-state set, or `None` when
+/// it (`return`) terminates the current paths.  Control-flow arms recurse
+/// through [`walk_flow`]; leaf statements go through `leaf`.
+fn flow_step<S, L, D>(
+    stmt: &Statement,
+    states: &[S],
+    out: &mut Vec<IrulesCheckWarning>,
+    leaf: &L,
+    dedupe: &D,
+) -> Option<Vec<S>>
+where
+    S: Clone,
+    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    D: Fn(Vec<S>) -> Vec<S>,
+{
+    let one = std::slice::from_ref;
+    Some(match stmt {
+        Statement::Return { .. } => return None,
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            let mut next = Vec::new();
+            for st in states {
+                for clause in clauses {
+                    next.extend(walk_flow(&clause.body, one(st), out, leaf, dedupe));
+                }
+                if let Some(eb) = else_body {
+                    next.extend(walk_flow(eb, one(st), out, leaf, dedupe));
+                } else {
+                    // condition-false path keeps the incoming state.
+                    next.push(st.clone());
+                }
+            }
+            dedupe(next)
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            let mut next = Vec::new();
+            for st in states {
+                // no-match fall-through path.
+                next.push(st.clone());
+                for arm in arms {
+                    if let Some(body) = &arm.body {
+                        next.extend(walk_flow(body, one(st), out, leaf, dedupe));
+                    }
+                }
+                if let Some(db) = default_body {
+                    next.extend(walk_flow(db, one(st), out, leaf, dedupe));
+                }
+            }
+            dedupe(next)
+        }
+        Statement::For { body, .. }
+        | Statement::While { body, .. }
+        | Statement::Foreach { body, .. } => {
+            let mut next = Vec::new();
+            for st in states {
+                next.push(st.clone()); // zero iterations
+                next.extend(walk_flow(body, one(st), out, leaf, dedupe));
+            }
+            dedupe(next)
+        }
+        Statement::Catch { body, .. } => {
+            let mut next = Vec::new();
+            for st in states {
+                next.extend(walk_flow(body, one(st), out, leaf, dedupe));
+            }
+            dedupe(next)
+        }
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            let mut next = Vec::new();
+            for st in states {
+                let mut branch = walk_flow(body, one(st), out, leaf, dedupe);
+                for handler in handlers {
+                    branch.extend(walk_flow(&handler.body, one(st), out, leaf, dedupe));
+                }
+                if let Some(fb) = finally_body {
+                    let mut final_out = Vec::new();
+                    for mid in &branch {
+                        final_out.extend(walk_flow(fb, one(mid), out, leaf, dedupe));
+                    }
+                    branch = final_out;
+                }
+                if branch.is_empty() {
+                    next.push(st.clone());
+                } else {
+                    next.extend(branch);
+                }
+            }
+            dedupe(next)
+        }
+        // A grouping block (namespace/uplevel body) runs in sequence.
+        Statement::Block { body, .. } => walk_flow(body, states, out, leaf, dedupe),
+        _ => {
+            let mut next = Vec::with_capacity(states.len());
+            for st in states {
+                next.push(leaf(st, stmt, out));
+            }
+            dedupe(next)
+        }
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -849,6 +1134,7 @@ pub fn find_hoistable_set_warnings(
                         "`set {name} ...` runs on every request — consider hoisting to a once-per-connection event (e.g. CLIENT_ACCEPTED).",
                     ),
                     replacement: None,
+                    fixes: Vec::new(),
                 });
             }
         }
@@ -997,6 +1283,7 @@ fn check_generic_static(
              prefix with the application or rule name (e.g. 'static::<app>_{bare}')."
         ),
         replacement: None,
+        fixes: Vec::new(),
     });
 }
 
@@ -1218,6 +1505,92 @@ mod tests {
         assert!(ws.is_empty(), "got {ws:?}");
     }
 
+    fn drop_codes(source: &str) -> Vec<String> {
+        let mut c: Vec<String> = drop_warnings(source)
+            .iter()
+            .map(|w| w.code.clone())
+            .collect();
+        c.sort();
+        c
+    }
+
+    #[test]
+    fn irule5002_fires_when_only_one_branch_guarded() {
+        // The `drop` path has no following `event disable all` / `return`, so
+        // it is unguarded — the path-sensitive walk keeps that path's state and
+        // flags it even though the other branch returns.
+        assert!(
+            drop_codes("when CLIENT_ACCEPTED { if {$x} { drop } else { return } }")
+                .contains(&"IRULE5002".to_string())
+        );
+    }
+
+    #[test]
+    fn irule5002_quiet_when_every_branch_guarded() {
+        // Both branches guard their drop with `return`, so no surviving path
+        // is left unguarded.
+        assert!(
+            drop_codes("when CLIENT_ACCEPTED { if {$x} { drop; return } else { reject; return } }")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn irule5002_drop_points_at_the_drop_command() {
+        // The diagnostic span must land on the `drop` word itself (offset 23
+        // in this source), not past it — the structured-IR walk carries the
+        // command's absolute span.
+        let ws = drop_warnings("when CLIENT_ACCEPTED { drop }");
+        let w = ws
+            .iter()
+            .find(|w| w.code == "IRULE5002")
+            .expect("IRULE5002");
+        assert_eq!(w.span.start(), 23, "span should point at `drop`");
+    }
+
+    #[test]
+    fn irule5002_carries_insertion_fix() {
+        // The quick-fix inserts `event disable all` + `return` *after* the drop
+        // (a zero-width edit anchored at the drop command's end), independent of
+        // the diagnostic span.  Text matches the Python IRULE5002 `CodeFix`.
+        let ws = drop_warnings("when CLIENT_ACCEPTED { drop }");
+        let w = ws
+            .iter()
+            .find(|w| w.code == "IRULE5002")
+            .expect("IRULE5002");
+        assert_eq!(w.fixes.len(), 1, "expected one fix, got {:?}", w.fixes);
+        let fix = &w.fixes[0];
+        assert_eq!(fix.new_text, "\n    event disable all\n    return");
+        assert_eq!(fix.description, "Add 'event disable all' + 'return'");
+        // Zero-width insertion at the drop command's end.
+        assert_eq!(fix.span.start(), w.span.end());
+        assert_eq!(fix.span.start(), fix.span.end());
+    }
+
+    #[test]
+    fn irule5004_carries_insertion_fix() {
+        let ws = drop_warnings("when DNS_REQUEST { DNS::return }");
+        let w = ws
+            .iter()
+            .find(|w| w.code == "IRULE5004")
+            .expect("IRULE5004");
+        assert_eq!(w.fixes.len(), 1);
+        let fix = &w.fixes[0];
+        assert_eq!(fix.new_text, "\n    return");
+        assert_eq!(fix.description, "Add 'return' after DNS::return");
+        assert_eq!(fix.span.start(), fix.span.end());
+    }
+
+    #[test]
+    fn irule5004_fires_through_catch_body() {
+        // A `DNS::return` inside `catch { … }` still leaves the path needing a
+        // following `return` (the linear scan missed the catch body).
+        assert!(
+            drop_codes("when DNS_REQUEST { catch { DNS::return } }")
+                .contains(&"IRULE5004".to_string())
+        );
+    }
+
     // -- IRULE1005 / 1006 / 1007 / 1008 -------------------------------
 
     fn flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
@@ -1427,6 +1800,91 @@ mod tests {
             !ws.iter().any(|w| w.code == "IRULE1202"),
             "IRULE1202 should not fire outside HTTP events, got {ws:?}",
         );
+    }
+
+    fn http_codes(source: &str) -> Vec<String> {
+        let mut c: Vec<String> = http_warnings(source)
+            .iter()
+            .map(|w| w.code.clone())
+            .collect();
+        c.sort();
+        c
+    }
+
+    #[test]
+    fn irule1202_quiet_on_mutually_exclusive_branches() {
+        // A respond in each arm of an if/else is NOT a double-respond — only
+        // one executes per path.  The path-sensitive walk keeps the branch
+        // states separate (the linear scan wrongly fired IRULE1202 here).
+        assert!(
+            http_codes(
+                "when HTTP_REQUEST { if {$x} { HTTP::respond 200 content a } \
+             else { HTTP::respond 404 content b } }"
+            )
+            .is_empty()
+        );
+        // Same for mutually-exclusive switch arms.
+        assert!(
+            http_codes(
+                "when HTTP_REQUEST { switch $x { a { HTTP::respond 200 content a } \
+             b { HTTP::respond 404 content b } } }"
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn irule1201_quiet_when_respond_and_use_are_exclusive() {
+        // respond in one branch, an HTTP command in the *other* — no path
+        // both responds and then uses HTTP, so nothing fires.
+        assert!(
+            http_codes(
+                "when HTTP_REQUEST { if {$x} { HTTP::respond 200 content a } \
+             else { HTTP::header insert Foo bar } }"
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn irule1201_fires_through_catch_body() {
+        // A respond inside `catch { … }` still commits the response, so a
+        // following HTTP command is flagged (the linear scan missed this).
+        assert!(http_codes(
+            "when HTTP_REQUEST { catch { HTTP::respond 200 content a }; HTTP::header insert Foo bar }"
+        )
+        .contains(&"IRULE1201".to_string()));
+    }
+
+    #[test]
+    fn irule1201_quiet_on_unregistered_http_subcommand() {
+        // `HTTP::log` is not a registered HTTP:: command, so it must not trip
+        // IRULE1201 (matches the registry-derived namespace set).
+        assert!(
+            !http_codes("when HTTP_REQUEST { HTTP::respond 200 content a; HTTP::log foo }")
+                .contains(&"IRULE1201".to_string())
+        );
+    }
+
+    #[test]
+    fn irule1202_fires_after_loop_respond() {
+        // A respond in a loop body, then a respond after the loop: when the
+        // loop runs at least once, the second respond is a double-respond.
+        assert!(
+            http_codes(
+                "when HTTP_REQUEST { foreach i $list { HTTP::respond 200 content a }; \
+             HTTP::respond 404 content b }"
+            )
+            .contains(&"IRULE1202".to_string())
+        );
+    }
+
+    #[test]
+    fn bare_redirect_commits_response() {
+        // The bare iRules `redirect` (not just `HTTP::redirect`) commits a
+        // response — derived from the registry's ResponseCommit side-effect.
+        assert!(commits_response_commands().contains("redirect"));
+        assert!(commits_response_commands().contains("HTTP::respond"));
     }
 
     // -- IRULE4004 ----------------------------------------------------
