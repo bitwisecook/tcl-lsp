@@ -35,6 +35,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 
+# Minimum Python a shipped zipapp must run on — keep in lockstep with the
+# ``requires-python`` floor in pyproject.toml.  Bundled pip dependencies are
+# resolved *for this version* (not the build interpreter) so conditional,
+# marker-gated deps like ``exceptiongroup; python_version < "3.11"`` (a cattrs
+# requirement reached via pygls) get bundled even when the release is built on
+# a newer Python.  Without this, a 3.11+ build silently drops them and the
+# zipapp dies with ``ModuleNotFoundError`` on a 3.10 host.
+MIN_PYTHON = "3.10"
+
 # All seven concern packages — keep in dependency order (top-down).
 ALL_PACKAGES: tuple[str, ...] = (
     "shared",
@@ -155,6 +164,11 @@ def _pip_install_pure(stage: Path, packages: tuple[str, ...]) -> None:
             "install",
             "--target",
             str(stage),
+            # Resolve environment markers for the minimum supported Python
+            # rather than the (possibly newer) build interpreter, so
+            # version-gated transitive deps are bundled.  See MIN_PYTHON.
+            "--python-version",
+            MIN_PYTHON,
             "--quiet",
             *packages,
         ]
