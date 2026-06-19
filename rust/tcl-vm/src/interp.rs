@@ -101,6 +101,13 @@ pub struct Vm {
     ns_script_frames: Vec<usize>,
     out: Box<dyn Write>,
     compiler: Option<Box<dyn CompileService<Module = ModuleAsm>>>,
+    /// Cache of compiled scripts for the runtime-`eval` / command-substitution
+    /// path (`eval_source`), keyed by source text. Compilation is a pure
+    /// function of the source and the (fixed) command registry, so a script
+    /// re-evaluated every loop iteration — a `switch`/`if`/`while` body, a
+    /// `[subst]`ed command, a tcltest `-body` — compiles once instead of each
+    /// time. This is the dominant cost in the tcltest workload.
+    eval_cache: HashMap<String, Rc<ModuleAsm>>,
     /// Open I/O channels (file handles), keyed by channel id (`file3`, …). The
     /// predefined `stdin`/`stdout`/`stderr` are not stored here; commands
     /// special-case those names.
@@ -164,6 +171,7 @@ impl Vm {
             ns_script_frames: Vec::new(),
             out,
             compiler: None,
+            eval_cache: HashMap::new(),
             channels: HashMap::new(),
             chan_counter: 2,
             script_stack: Vec::new(),
@@ -1320,12 +1328,17 @@ impl Vm {
     /// Compile and run a Tcl source string via the injected [`CompileService`]
     /// (the runtime-`eval` / command-substitution path) in the *current* frame.
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
-        let module = match self.compiler.as_ref() {
-            Some(c) => c.compile(src).map_err(|e| TclError::new(e.0))?,
+        let module = match self.eval_cache.get(src) {
+            Some(m) => Rc::clone(m),
             None => {
-                return Err(TclError::new(
-                    "eval / command substitution requires a CompileService",
-                ));
+                let Some(c) = self.compiler.as_ref() else {
+                    return Err(TclError::new(
+                        "eval / command substitution requires a CompileService",
+                    ));
+                };
+                let m = Rc::new(c.compile(src).map_err(|e| TclError::new(e.0))?);
+                self.eval_cache.insert(src.to_string(), Rc::clone(&m));
+                m
             }
         };
         Ok(self.run_module(&module))
