@@ -60,7 +60,7 @@ behind the approval gate.
 │   - check/      kcs_index_links.py, wasm_command_parity.py, … │
 │   - capture/    tcltest bytecode + result capture            │
 │   - release/    tag.sh, publish_*.sh, jetbrains_token.sh, …  │
-│   - install/    install.sh, hooks.sh, filter-readme.mjs      │
+│   - install/    install.sh, hooks.sh, filter_readme.py       │
 │   - zipapp-main/  3-line entry-point shims                   │
 └─────────────┬────────────────────────────────────────────────┘
               ↓ invoked by both
@@ -69,11 +69,9 @@ behind the approval gate.
 │   - pr-gate    runs `make ci-fast` on every PR + main        │
 │   - test-py    full Python suite on push to main and tags    │
 │   - test-ext   VS Code extension tests on push and tags      │
-│   - create-release  + build-server-matrix (native LSP per    │
-│       platform) → build-vsix (universal) + build-zipapp      │
-│       (matrix) + build-claude-skills + build-jetbrains       │
-│       + build-sublime + build-zed + publish-checksums        │
-│       — tag-only                                             │
+│   - create-release  + build-vsix + build-zipapp (matrix)     │
+│     + build-claude-skills + build-jetbrains + build-sublime  │
+│     + build-zed + publish-checksums       — tag-only         │
 │   - publish-vsix-marketplace + publish-jetbrains-marketplace │
 │     publish from CI behind a protected Environment           │
 └─────────────┬────────────────────────────────────────────────┘

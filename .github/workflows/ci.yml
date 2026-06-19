@@ -280,8 +280,9 @@ jobs:
   # and uploads the binaries preserving `target/<triple>/release/`.  build-vsix
   # downloads them all and bundles a single universal VSIX.
   #
-  # Per the no-marketplace-tokens invariant this uses only GitHub's built-in
-  # token — nothing is published to a marketplace here.
+  # This job only builds + uploads artefacts using GitHub's built-in token;
+  # nothing is published to a marketplace here (the protected
+  # publish-*-marketplace jobs handle that, behind an approval gate).
   #
   # The triple→bundle-dir mapping lives in the Makefile (SERVER_TARGET_MAP);
   # keep the matrix below and that map in sync (7 triples total).
