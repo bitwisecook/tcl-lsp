@@ -334,6 +334,24 @@ impl Lowerer<'_> {
 
         let body = self.lower_body_from_tok(&args[body_idx], body_tok, namespace);
 
+        // Route a loop to its runtime builtin on the bytecode path when the inline
+        // codegen can't compile it correctly:
+        //   * `lmap` always — the inline `FOREACH` opcodes don't collect the body
+        //     results, so an inline `lmap` yields the empty string.
+        //   * a `foreach` whose body *directly* contains another `foreach`/`lmap` —
+        //     the inner loop's back-edge corrupts the outer's `FOREACH_STEP`
+        //     routing (the nested-complex-foreach bug). A loop nested via an
+        //     `if`/`while`/`for` is unaffected and stays inline.
+        // The runtime builtin evaluates the body transparently (an inner loop
+        // recompiles fresh), so nesting works by recursion.
+        let body_nests_foreach = body
+            .statements
+            .iter()
+            .any(|s| matches!(s, Statement::Foreach { .. }));
+        if self.for_bytecode && (is_lmap || body_nests_foreach) {
+            return Self::barrier(seg, if is_lmap { "lmap" } else { "foreach" });
+        }
+
         Statement::Foreach {
             span: seg.span,
             iterators,
@@ -471,8 +489,8 @@ impl Lowerer<'_> {
         // The bytecode/VM compile path lowers `try` to a runtime-command barrier:
         // the backend has no exception-range support, so a structured `try` can't
         // be compiled correctly (its handler/finally clauses would be dropped).
-        // Analysis callers keep the structured form below. See `barrier_try`.
-        if self.barrier_try {
+        // Analysis callers keep the structured form below. See `for_bytecode`.
+        if self.for_bytecode {
             return Self::barrier(seg, "try");
         }
 

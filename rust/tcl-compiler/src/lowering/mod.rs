@@ -547,13 +547,14 @@ pub struct Lowerer<'r> {
     /// `LexerConfig::default()`; production callers thread the active
     /// dialect via [`Lowerer::with_config`] / [`lower_to_ir_with_config`].
     config: tcl_lexer::LexerConfig,
-    /// Lower `try` to a runtime-command [barrier](Statement::Barrier) instead of
-    /// a structured [`Statement::Try`]. The bytecode backend has no exception-range
-    /// (`beginCatch`) support, so it can't compile a structured `try` correctly;
-    /// the VM runs `try` as a runtime builtin (full TIP 329 semantics). The
-    /// analyser keeps the structured form (default `false`) for its handler-edge
-    /// SSA diagnostics. Set via [`lower_to_ir_for_bytecode`].
-    pub(crate) barrier_try: bool,
+    /// Lower constructs the bytecode backend can't compile correctly to a
+    /// runtime-command [barrier](Statement::Barrier) instead of their structured
+    /// IR. Covers `try` (no exception-range/`beginCatch` support → dropped
+    /// handlers) and a `foreach`/`lmap` directly nesting another `foreach`/`lmap`
+    /// (a structural bug in the inline nested-complex-foreach codegen). The VM
+    /// runs these as runtime builtins; analysis callers keep the structured IR
+    /// (default `false`) for their diagnostics. Set via [`lower_to_ir_for_bytecode`].
+    pub(crate) for_bytecode: bool,
 }
 
 impl<'r> Lowerer<'r> {
@@ -580,15 +581,15 @@ impl<'r> Lowerer<'r> {
             dead_code_depth: 0,
             suppress_proc_register: false,
             config,
-            barrier_try: false,
+            for_bytecode: false,
         }
     }
 
-    /// Enable lowering `try` to a runtime-command barrier (see
-    /// [`barrier_try`](Self::barrier_try)) — the bytecode/VM compile path.
+    /// Mark this as the bytecode/VM compile path, barriering constructs the
+    /// backend can't compile (see [`for_bytecode`](Self::for_bytecode)).
     #[must_use]
-    pub fn with_barrier_try(mut self) -> Self {
-        self.barrier_try = true;
+    pub fn for_bytecode_backend(mut self) -> Self {
+        self.for_bytecode = true;
         self
     }
 
@@ -2038,15 +2039,15 @@ pub fn lower_to_ir_with_config(
     lower_with(Lowerer::with_config(registry, config), source)
 }
 
-/// Like [`lower_to_ir`] but lowering `try` to a runtime-command barrier — the
-/// bytecode/VM compile path (see [`Lowerer::barrier_try`]). The structured
-/// [`Statement::Try`] can't be compiled to correct bytecode (no exception
-/// ranges), so the VM runs `try` as a runtime builtin; analysis callers keep the
-/// structured form via [`lower_to_ir`].
+/// Like [`lower_to_ir`] but for the bytecode/VM compile path: constructs the
+/// backend can't compile correctly (`try`, and a `foreach`/`lmap` directly
+/// nesting another) are lowered to runtime-command barriers (see
+/// [`Lowerer::for_bytecode`]). Analysis callers keep the structured IR via
+/// [`lower_to_ir`].
 #[must_use]
 pub fn lower_to_ir_for_bytecode(source: &str, registry: &CommandRegistry) -> Module {
     lower_with(
-        Lowerer::with_config(registry, tcl_lexer::LexerConfig::default()).with_barrier_try(),
+        Lowerer::with_config(registry, tcl_lexer::LexerConfig::default()).for_bytecode_backend(),
         source,
     )
 }
