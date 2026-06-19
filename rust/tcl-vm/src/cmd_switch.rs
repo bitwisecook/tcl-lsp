@@ -1,10 +1,19 @@
-//! The `switch` builtin — the runtime form the codegen invokes for
-//! `-glob`/`-regexp`/`-nocase` (exact switches use the `JUMP_TABLE` opcode).
-//! M3: exact/glob/nocase; regexp falls back to exact (no engine yet).
+//! The `switch` builtin. Option parsing and pattern selection (exact/glob/regexp
+//! incl. `default` and the TIP #75 `-matchvar`/`-indexvar` side-channel) are the
+//! shared [`tcl_cmd_core::switch`] core, over `ValueOps` + the `regex`-crate
+//! engine. The VM owns the per-target parts: extracting the pattern/body pairs
+//! (inline or brace-list), resolving a `-` fall-through, the variable writes, and
+//! evaluating the chosen body as a transparent script (`return`/`break`/
+//! `continue` propagate).
+//!
+//! `-regexp` switches now match through the engine (previously they fell back to
+//! exact); exact switches still use the `JUMP_TABLE` opcode, so this runtime form
+//! is invoked for `-glob`/`-regexp`/`-nocase`/dynamic cases.
 
+use tcl_cmd_core::switch::{self as core_switch, Selection};
 use tcl_runtime_api::Completion;
-use tcl_syntax::glob::string_case_match;
 
+use crate::cmd_regexp::CrateEngine;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -12,81 +21,73 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("switch", cmd_switch);
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum Mode {
-    Exact,
-    Glob,
-    Regexp,
-}
+const USAGE_LIST: &str = "switch ?-option ...? string {?pattern body ...? ?default body?}";
 
 fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let mut mode = Mode::Exact;
-    let mut nocase = false;
-    let mut rest = args;
-    while let Some(first) = rest.first() {
-        match &*first.to_str() {
-            "-exact" => mode = Mode::Exact,
-            "-glob" => mode = Mode::Glob,
-            "-regexp" => mode = Mode::Regexp,
-            "-nocase" => nocase = true,
-            "--" => {
-                rest = &rest[1..];
-                break;
-            }
-            s if s.starts_with('-') => {} // ignore unknown options (M3)
-            _ => break,
-        }
-        rest = &rest[1..];
-    }
-    let Some((value, body_args)) = rest.split_first() else {
-        return err("wrong # args: should be \"switch ?options? string ?pattern body ...?\"");
+    // Options + the `string` index are shared (the VM's argv is name-stripped).
+    let opts = match core_switch::parse_options(vm, args) {
+        Ok(o) => o,
+        Err(e) => return err(e.into_message()),
     };
-    let v = value.to_str();
+    let value = args[opts.value_index].clone();
+    let rest = &args[opts.value_index + 1..];
 
-    // Pattern/body pairs: either a single brace-list arg or inline args.
-    let pairs: Vec<(String, String)> = if body_args.len() == 1 {
-        let items = match body_args[0].as_list() {
+    // Pattern/body pairs: a single trailing argument is the brace-list form.
+    let pairs: Vec<(Value, Value)> = if rest.len() == 1 {
+        let items = match rest[0].as_list() {
             Ok(i) => i,
             Err(e) => return err(e.message),
         };
-        if items.len() % 2 != 0 {
-            return err("extra switch pattern with no body");
+        if items.is_empty() {
+            return err(format!("wrong # args: should be \"{USAGE_LIST}\""));
+        }
+        if !items.len().is_multiple_of(2) {
+            // The "misplaced comment" heuristic: a pattern beginning with `#`.
+            let hint = items.iter().step_by(2).any(|p| p.to_str().starts_with('#'));
+            return err(core_switch::extra_pattern_error(hint).into_message());
         }
         items
             .chunks_exact(2)
-            .map(|c| (c[0].to_str().to_string(), c[1].to_str().to_string()))
+            .map(|c| (c[0].clone(), c[1].clone()))
             .collect()
     } else {
-        if body_args.len() % 2 != 0 {
-            return err("extra switch pattern with no body");
+        if !rest.len().is_multiple_of(2) {
+            return err(core_switch::extra_pattern_error(false).into_message());
         }
-        body_args
-            .chunks_exact(2)
-            .map(|c| (c[0].to_str().to_string(), c[1].to_str().to_string()))
+        rest.chunks_exact(2)
+            .map(|c| (c[0].clone(), c[1].clone()))
             .collect()
     };
 
-    let last = pairs.len().saturating_sub(1);
-    let matched = pairs.iter().position(|(pat, _)| {
-        if pat == "default" {
-            return true; // `default` matches anything (conventionally last)
-        }
-        let _ = last;
-        match mode {
-            Mode::Glob => string_case_match(pat, &v, nocase),
-            Mode::Exact | Mode::Regexp if nocase => pat.eq_ignore_ascii_case(&v),
-            Mode::Exact | Mode::Regexp => *pat == *v,
-        }
-    });
+    // A trailing `-` fall-through body has nothing to fall through to.
+    if let Some((pat, body)) = pairs.last()
+        && &*body.to_str() == "-"
+    {
+        return err(core_switch::no_body_error(&pat.to_str()).into_message());
+    }
 
-    let Some(mut idx) = matched else {
+    let patterns: Vec<Value> = pairs.iter().map(|(p, _)| p.clone()).collect();
+    let sel = match core_switch::select::<Vm, CrateEngine, Value>(vm, &opts, &value, &patterns) {
+        Ok(s) => s,
+        Err(e) => return err(e.into_message()),
+    };
+    let Selection::Matched { index, writes } = sel else {
         return ok(Value::empty());
     };
-    // Fall-through: a body of "-" reuses the next pattern's body.
-    while pairs[idx].1 == "-" && idx + 1 < pairs.len() {
-        idx += 1;
+    // TIP #75 `-matchvar`/`-indexvar` writes happen before the body runs.
+    for (name, val) in writes {
+        if let Err(e) = vm.set_var(&name.to_str(), val) {
+            return e;
+        }
     }
-    match vm.eval_source(&pairs[idx].1) {
+    // Resolve a `-` fall-through to the next real body (the trailing-`-` check
+    // above guarantees one exists).
+    let mut b = index;
+    while &*pairs[b].1.to_str() == "-" {
+        b += 1;
+    }
+    let body = pairs[b].1.to_str().to_string();
+    match vm.eval_source(&body) {
         Ok(c) => c,
         Err(e) => err(e.message),
     }

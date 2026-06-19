@@ -546,6 +546,15 @@ impl core::ops::Deref for Interp {
 /// across a sub-eval** — so re-entrancy (proc recursion, cross-interp calls)
 /// re-borrows freshly instead of aliasing. The command resolver returns *cloned*
 /// `Command` handles precisely so dispatch holds no table borrow.
+/// The command-identity arena backing `Namespaces::find_command` /
+/// `Commands::dispatch_id`: a bijection between a command's FQN and a dense raw
+/// `CommandId` (the index into `fqns`). Minted on first `find_command`.
+#[derive(Default)]
+struct CmdArena {
+    ids: std::collections::HashMap<Vec<u8>, u32>,
+    fqns: Vec<Vec<u8>>,
+}
+
 pub struct InterpState {
     pub(crate) frames: RefCell<FrameStack>,
     /// The command-table-as-core-service: the namespace tree + the one
@@ -615,6 +624,17 @@ pub struct InterpState {
     /// was non-zero; the actual removal from the parent's table is deferred until
     /// the last eval unwinds (C's deferred `Tcl_DeleteInterp`).
     pending_delete: Cell<bool>,
+    /// The capability host — the platform seam every file/`env`/`clock`/
+    /// subprocess facility is reached through (instead of direct `std::fs`/
+    /// `std::env`/`std::time`). A [`NativeHost`](tcl_host_native::NativeHost)
+    /// with the full capability set on native builds; a restricted
+    /// `WasiHost`/`BrowserHost` on the WASM targets (where `host.process()` /
+    /// `host.sockets()` report absence rather than panicking). `RefCell` so a
+    /// test (or a future safe-interp) can swap in a sandboxed host via
+    /// [`set_host`](Interp::set_host); the `Rc` makes [`host`](Interp::host)
+    /// hand out an independent handle, sidestepping the borrow conflict when a
+    /// command needs both `&mut self` (its `ValueOps`) and the host at once.
+    host: RefCell<Rc<dyn tcl_platform::Host>>,
     /// TclOO object system state (classes, objects, the method-call stack).
     pub(crate) oo: RefCell<crate::cmd_oo::OoState>,
     /// The source-location stack (`cmdFramePtr`; PC-5) — what `info frame` reads.
@@ -683,6 +703,12 @@ pub struct InterpState {
     /// since the chain is then consumed.
     during: Cell<Option<*mut TclObj>>,
     result: Cell<*mut TclObj>,
+    /// Command-FQN ⇆ dense raw `CommandId` arena for `Namespaces::find_command`
+    /// and `Commands::dispatch_id`. Interior-mutable because `find_command` is
+    /// `&self` but mints a handle on first sight; `state_traits.rs` wraps the raw id
+    /// in the contract's `CommandId`. Bidirectional: `find_command` interns an
+    /// FQN, `dispatch_id` reverses the id back to its FQN to invoke it.
+    cmd_arena: RefCell<CmdArena>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -712,6 +738,14 @@ impl Interp {
         let result = obj::new_obj();
         // SAFETY: `result` is freshly created; the interp takes the owning ref.
         unsafe { obj::incr_ref_count(result) };
+        // The default capability host. Native builds get the full-capability
+        // std-backed `NativeHost`; the `wasm32-unknown-unknown` build gets the
+        // placeholder `BrowserHost` (mandatory caps stubbed, no fs/sockets/process)
+        // so the runtime links — a real browser host plugs into the same trait.
+        #[cfg(not(target_arch = "wasm32"))]
+        let host: Rc<dyn tcl_platform::Host> = Rc::new(tcl_host_native::NativeHost::new());
+        #[cfg(target_arch = "wasm32")]
+        let host: Rc<dyn tcl_platform::Host> = Rc::new(crate::host_wasm::BrowserHost::new());
         let mut interp = Interp(Rc::new(InterpState {
             frames: RefCell::new(FrameStack::new()),
             namespaces: RefCell::new(Namespaces::new()),
@@ -732,6 +766,7 @@ impl Interp {
             is_safe: Cell::new(false),
             eval_active: Cell::new(0),
             pending_delete: Cell::new(false),
+            host: RefCell::new(host),
             oo: RefCell::new(crate::cmd_oo::OoState::default()),
             cmd_frames: RefCell::new(Vec::new()),
             arg_lines: RefCell::new(Vec::new()),
@@ -748,9 +783,28 @@ impl Interp {
             reset_error_stack: Cell::new(true),
             during: Cell::new(None),
             result: Cell::new(result),
+            cmd_arena: RefCell::new(CmdArena::default()),
         }));
         builtins::install(&mut interp);
         interp
+    }
+
+    // -- capability host ------------------------------------------------------
+
+    /// The capability host (filesystem/`env`/`clock`/subprocess seam). Returns an
+    /// independent `Rc` handle, not a borrow, so a command can hold the host
+    /// while still taking `&mut self` for its `ValueOps` (e.g. the `exec`
+    /// adapter, which needs both at once).
+    #[must_use]
+    pub(crate) fn host(&self) -> Rc<dyn tcl_platform::Host> {
+        self.0.host.borrow().clone()
+    }
+
+    /// Swap the capability host (e.g. a test installing a sandboxed,
+    /// no-subprocess host to prove the capability gate, or a safe interp taking
+    /// a restricted one). Interior-mutable since the interp is shared via `Rc`.
+    pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
+        *self.0.host.borrow_mut() = host;
     }
 
     // -- command registry -----------------------------------------------------
@@ -1127,7 +1181,7 @@ impl Interp {
     /// `argv`/…) — the cheap half of `Tcl_Init`, shared by the main interp's
     /// `init_library` and each child interpreter (`interp create`).
     pub(crate) fn set_startup_globals(&mut self) {
-        let lib = std::env::var("TCL_LIBRARY").unwrap_or_default();
+        let lib = self.host().env().get("TCL_LIBRARY").unwrap_or_default();
         let set = |i: &mut Interp, name: &[u8], val: &[u8]| {
             let o = new_string(val);
             if i.var_set(name, o).is_err() {
@@ -1160,7 +1214,8 @@ impl Interp {
             }
         }
         // env array from the host environment (no quoting hazards via var_set_elem).
-        for (k, v) in std::env::vars() {
+        let vars = self.host().env().vars();
+        for (k, v) in vars {
             let o = new_string(v.as_bytes());
             if self.var_set_elem(b"env", k.as_bytes(), o).is_err() {
                 drop_fresh(o);
@@ -1170,13 +1225,17 @@ impl Interp {
 
     pub fn init_library(&mut self) -> Code {
         self.set_startup_globals();
-        let lib = std::env::var("TCL_LIBRARY").unwrap_or_default();
+        let lib = self.host().env().get("TCL_LIBRARY").unwrap_or_default();
         // Source init.tcl, which sets up unknown/auto-load/package + appends
         // tcl_library (and its parent) to auto_path.
         let init_path = format!("{lib}/init.tcl");
-        match std::fs::read(&init_path) {
-            Ok(bytes) => self.eval_sourced(&bytes, init_path.as_bytes()),
-            Err(_) => {
+        let bytes = self
+            .host()
+            .filesystem()
+            .and_then(|fs| fs.read(&init_path).ok());
+        match bytes {
+            Some(bytes) => self.eval_sourced(&bytes, init_path.as_bytes()),
+            None => {
                 let mut m = b"can't find ".to_vec();
                 m.extend_from_slice(init_path.as_bytes());
                 m.extend_from_slice(b" (set TCL_LIBRARY)");
@@ -1418,6 +1477,57 @@ impl Interp {
         )
     }
 
+    // -- frame-addressed access (the `VarStore` `FrameId`-honouring path) -----
+    //
+    // Resolve `name` as if `level` were the active frame. Used only for a
+    // non-active `FrameId`; the active frame keeps the by-name accessors above.
+
+    /// Frame-addressed [`var_get`](Self::var_get).
+    pub(crate) fn var_get_at(&self, name: &[u8], level: usize) -> Option<*mut TclObj> {
+        crate::vars::get_at(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            name,
+            level,
+        )
+    }
+
+    /// Frame-addressed [`var_set`](Self::var_set) — the cell takes a **+1**.
+    pub(crate) fn var_set_at(
+        &mut self,
+        name: &[u8],
+        obj: *mut TclObj,
+        level: usize,
+    ) -> Result<(), VarError> {
+        crate::vars::set_at(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            name,
+            obj,
+            level,
+        )
+    }
+
+    /// Frame-addressed [`var_unset`](Self::var_unset).
+    pub(crate) fn var_unset_at(&mut self, name: &[u8], level: usize) -> bool {
+        crate::vars::unset_at(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            name,
+            level,
+        )
+    }
+
+    /// Frame-addressed [`var_exists`](Self::var_exists).
+    pub(crate) fn var_exists_at(&self, name: &[u8], level: usize) -> bool {
+        crate::vars::exists_at(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            name,
+            level,
+        )
+    }
+
     /// `set name(key)` — borrowed.
     pub(crate) fn var_get_elem(&self, name: &[u8], key: &[u8]) -> Option<*mut TclObj> {
         crate::vars::get_elem(
@@ -1523,6 +1633,17 @@ impl Interp {
             self.current_ns.get(),
             name,
             obj,
+        )
+    }
+
+    /// Ensure `name` is an array (creating an empty one if unset) — backs
+    /// `array set name {}` with an empty value list. A scalar `name` errors.
+    pub(crate) fn ensure_array(&self, name: &[u8]) -> Result<(), VarError> {
+        crate::vars::ensure_array(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            name,
         )
     }
 
@@ -1735,6 +1856,34 @@ impl Interp {
             self.result.set(saved);
         }
         errored
+    }
+
+    /// Fire `var`'s `op` traces; on a read/write callback error return the
+    /// access-aborting message, already wrapped as `can't read/set "var": <msg>`
+    /// (`TclCallVarTraces`), else `None`. The `Traces::fire` engine (`state_traits.rs`)
+    /// — it keeps the trace internals (the firing guard, `pending_err`, the
+    /// per-op wrapping) here; `unset`/`array` callback errors do not abort, so
+    /// they yield `None`.
+    pub(crate) fn fire_var_traces_for(&mut self, var: &[u8], op: &[u8]) -> Option<Vec<u8>> {
+        let (base, elem) = crate::frame::split_array_ref(var);
+        if !self.fire_var_trace(&base, elem.as_deref(), op) {
+            return None;
+        }
+        let raw = self
+            .traces
+            .borrow_mut()
+            .pending_err
+            .take()
+            .unwrap_or_default();
+        // The user-facing verb: a write trace reports `can't set` (C's wording).
+        let verb: &[u8] = if op == b"read" { b"read" } else { b"set" };
+        let mut m = b"can't ".to_vec();
+        m.extend_from_slice(verb);
+        m.extend_from_slice(b" \"");
+        m.extend_from_slice(var);
+        m.extend_from_slice(b"\": ");
+        m.extend_from_slice(&raw);
+        Some(m)
     }
 
     /// Fire matching command traces (`rename`/`delete`) as `command oldName
@@ -2220,11 +2369,6 @@ impl Interp {
         )
     }
 
-    /// `info level` — the current frame level (proc nesting depth).
-    pub(crate) fn level(&self) -> usize {
-        self.frames.borrow().current_level()
-    }
-
     /// The invoking command words at call `level` (`info level N`), or `None`
     /// when the level has none.
     pub(crate) fn level_words(&self, level: usize) -> Option<Vec<Vec<u8>>> {
@@ -2243,12 +2387,6 @@ impl Interp {
         } else {
             self.namespaces.borrow().var_names(self.current_ns.get())
         }
-    }
-
-    /// `info locals` — the active frame's local variable names (links such as
-    /// `global`/`variable`/`upvar` and auto-linked instance vars are excluded).
-    pub(crate) fn local_var_names(&self) -> Vec<Vec<u8>> {
-        self.frames.borrow().local_names_no_links()
     }
 
     /// `info consts` — the `const` scalar names visible in the current scope.
@@ -2280,34 +2418,13 @@ impl Interp {
         }
     }
 
-    /// `info globals` — the global namespace's variable names.
-    pub(crate) fn global_var_names(&self) -> Vec<Vec<u8>> {
-        self.namespaces.borrow().var_names(GLOBAL)
-    }
-
-    /// Command names visible from the current namespace (`info commands`):
-    /// current ns ∪ global, sorted/deduped.
-    pub(crate) fn visible_command_names(&self) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        let cur = self.current_ns.get();
-        let mut v: Vec<Vec<u8>> = ns.command_names(cur).iter().map(|s| s.to_vec()).collect();
-        if cur != GLOBAL {
-            v.extend(ns.command_names(GLOBAL).iter().map(|s| s.to_vec()));
-        }
-        v.sort();
-        v.dedup();
-        v
-    }
-
-    /// Simple command names in the namespace named `qualifier` (absolute or
-    /// relative to the current namespace), or empty if it does not exist — for
-    /// a namespace-qualified `info commands ::ns::pattern`.
     /// The canonical fully-qualified prefix (ending in `::`) of the namespace a
-    /// pattern qualifier addresses (`info commands ns::pat`): `::` for the global
+    /// pattern qualifier addresses (`info vars ns::pat`): `::` for the global
     /// namespace, `::a::b::` otherwise. Resolves a *relative* qualifier against
-    /// the current namespace, so `info commands` results are always absolute
-    /// (matching C, where names are re-qualified through the namespace's
-    /// `fullName`). `None` if the namespace doesn't exist.
+    /// the current namespace, so results are always absolute (matching C, where
+    /// names are re-qualified through the namespace's `fullName`). `None` if the
+    /// namespace doesn't exist. (Used by [`set_list_qualified`] for `info
+    /// vars`/`consts`; command/proc re-qualification moved to the shared core.)
     pub(crate) fn canonical_ns_prefix(&self, qualifier: &[u8]) -> Option<Vec<u8>> {
         let ns = self.namespaces.borrow();
         let id = if qualifier.is_empty() {
@@ -2322,6 +2439,10 @@ impl Interp {
         Some(p)
     }
 
+    /// Simple command names in the namespace named `qualifier` (absolute or
+    /// relative to the current namespace), or empty if it does not exist. Used by
+    /// `cmd_oo` for ensemble/method enumeration. (`info commands`/`procs` listing
+    /// is the shared `tcl_cmd_core::info::command_list` core.)
     pub(crate) fn commands_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
         let ns = self.namespaces.borrow();
         // An empty qualifier (a leading `::pattern`) addresses the global ns.
@@ -2338,58 +2459,6 @@ impl Interp {
             }
             None => Vec::new(),
         }
-    }
-
-    /// Simple proc names in the namespace named `qualifier` (`info procs
-    /// ::ns::pattern`), or empty if it does not exist.
-    pub(crate) fn procs_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        let target = if qualifier.is_empty() {
-            Some(GLOBAL)
-        } else {
-            ns.find_namespace(self.current_ns.get(), qualifier)
-        };
-        match target {
-            Some(id) => {
-                let mut v = ns.proc_names(id);
-                v.sort();
-                v
-            }
-            None => Vec::new(),
-        }
-    }
-
-    /// Variable names in the namespace named `qualifier` (`info vars
-    /// ::ns::pattern`), or empty if it does not exist. An empty qualifier (a
-    /// leading `::pattern`) addresses the global namespace.
-    pub(crate) fn vars_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        let target = if qualifier.is_empty() {
-            Some(GLOBAL)
-        } else {
-            ns.find_namespace(self.current_ns.get(), qualifier)
-        };
-        match target {
-            Some(id) => {
-                let mut v = ns.var_names(id);
-                v.sort();
-                v
-            }
-            None => Vec::new(),
-        }
-    }
-
-    /// Proc names visible from the current namespace (`info procs`).
-    pub(crate) fn visible_proc_names(&self) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        let cur = self.current_ns.get();
-        let mut v = ns.proc_names(cur);
-        if cur != GLOBAL {
-            v.extend(ns.proc_names(GLOBAL));
-        }
-        v.sort();
-        v.dedup();
-        v
     }
 
     /// The proc definition bound to `name` (for `info body`/`args`/`default`).
@@ -2477,6 +2546,47 @@ impl Interp {
     /// The current result's string bytes (copied).
     pub fn result_bytes(&self) -> Vec<u8> {
         obj_bytes(self.result.get())
+    }
+
+    /// The current result **object** — a borrowed pointer (the interp keeps its
+    /// reference; the caller must not release it without first taking its own
+    /// `+1`). Backs `Commands::dispatch`'s completion capture in `state_traits.rs`.
+    pub(crate) fn result_obj(&self) -> *mut TclObj {
+        self.result.get()
+    }
+
+    /// Intern a command's fully-qualified name to a stable, dense raw
+    /// `CommandId`, minting one on first sight. Backs `Namespaces::find_command`.
+    fn intern_cmd(&self, fqn: &[u8]) -> u32 {
+        let mut a = self.cmd_arena.borrow_mut();
+        if let Some(&id) = a.ids.get(fqn) {
+            return id;
+        }
+        let id = u32::try_from(a.fqns.len()).expect("command count fits u32");
+        a.fqns.push(fqn.to_vec());
+        a.ids.insert(fqn.to_vec(), id);
+        id
+    }
+
+    /// Resolve `name` from namespace context `cxt` (through the namespace tree to
+    /// the root) to its command's FQN, then intern that to a stable raw
+    /// `CommandId`. `None` if it resolves to no command. The `Namespaces::find_command`
+    /// engine (`state_traits.rs`), keeping the namespace-table access here.
+    pub(crate) fn find_command_id(&self, cxt: NsId, name: &[u8]) -> Option<u32> {
+        let fqn = self.namespaces.borrow().resolve_fqn(cxt, name)?;
+        Some(self.intern_cmd(&fqn))
+    }
+
+    /// The FQN an interned raw `CommandId` was minted from, or `None` for a
+    /// fabricated/out-of-range id. Backs `Commands::dispatch_id`'s reverse step.
+    pub(crate) fn command_fqn(&self, id: u32) -> Option<Vec<u8>> {
+        self.cmd_arena.borrow().fqns.get(id as usize).cloned()
+    }
+
+    /// The fully-qualified name of namespace `ns` (`"::"` for the root). Backs
+    /// `Namespaces::name` (`state_traits.rs`), keeping the namespace-table access here.
+    pub(crate) fn ns_qualified_name(&self, ns: NsId) -> Vec<u8> {
+        self.namespaces.borrow().qualified_name(ns)
     }
 
     /// Raise an error with result `msg` and return [`Code::Error`] — the generic
@@ -2937,6 +3047,26 @@ impl Interp {
         buf.extend_from_slice(b" line ");
         buf.extend_from_slice(line.to_string().as_bytes());
         buf.push(b')');
+    }
+
+    /// Append a frame with no `line N` suffix — `"\n    (<text>)"`, e.g.
+    /// `("for" initial command)` / `("for" loop-end command)` (C's
+    /// `Tcl_AddErrorInfo` for the `for` init/next scripts) — seeding errorInfo
+    /// from the result if needed, then clear `already_logged` so the enclosing
+    /// command logs its own `invoked from within` frame.
+    pub(crate) fn append_frame_noline(&mut self, text: &[u8]) {
+        if self.exc.borrow().info.is_none() {
+            let msg = self.result_bytes();
+            self.exc.borrow_mut().info = Some(msg);
+        }
+        {
+            let mut exc = self.exc.borrow_mut();
+            let buf = exc.info.as_mut().expect("seeded above");
+            buf.extend_from_slice(b"\n    (");
+            buf.extend_from_slice(text);
+            buf.push(b')');
+        }
+        self.exc.borrow_mut().already_logged = false;
     }
 
     /// The current accumulated `errorInfo` (for `catch`'s `-errorinfo`): the
@@ -4047,11 +4177,9 @@ impl Interp {
         const RAND_IQ: i64 = 127_773;
         const RAND_IR: i64 = 2836;
         let mut seed = self.rand_seed.get().unwrap_or_else(|| {
-            // Nondeterministic first seed, kept in [1, 2^31-2].
-            let t = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos() as i64)
-                .unwrap_or(1);
+            // Nondeterministic first seed, kept in [1, 2^31-2]. The wall clock
+            // comes from the host (so the browser/WASI hosts seed it too).
+            let t = self.host().clock().now_millis() as i64;
             let mut s = t & 0x7FFF_FFFF;
             if s == 0 || s == 0x7FFF_FFFF {
                 s ^= 123_459_876;
@@ -5252,6 +5380,10 @@ impl Interp {
             } else {
                 msg.extend_from_slice(b"variable is array");
             }
+        } else if index.is_some() && self.var_exists(base) {
+            // An existing scalar accessed with an index (`set b(123)` where `b`
+            // is a scalar): C's `tclVar.c` reports `variable isn't array`.
+            msg.extend_from_slice(b"variable isn't array");
         } else {
             msg.extend_from_slice(b"no such variable");
         }
@@ -5586,6 +5718,34 @@ mod tests {
             assert_eq!(i.eval_str(b"set f 1.5"), Code::Ok);
             assert_eq!(i.eval_str(b"incr f"), Code::Error);
             assert_eq!(i.result_bytes(), b"expected integer but got \"1.5\"");
+        });
+    }
+
+    /// The `incr` adapter's element + const paths, exercised through the shared
+    /// `ValueOps::int_add` seam: array elements increment (and widen) correctly,
+    /// an unset element starts at 0, and a `const` scalar is rejected before the
+    /// read-modify-write (the const check stays runtime-side).
+    #[cfg(have_tommath)]
+    #[test]
+    fn incr_element_and_const_via_seam() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"set a(k) 10"), Code::Ok);
+            assert_eq!(i.eval_str(b"incr a(k) 5"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"15");
+            // an unset element starts at 0
+            assert_eq!(i.eval_str(b"incr a(fresh)"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            // an element past a wide promotes to a bignum (never wraps)
+            assert_eq!(i.eval_str(b"set a(big) 9223372036854775807"), Code::Ok);
+            assert_eq!(i.eval_str(b"incr a(big)"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9223372036854775808");
+            // a const scalar cannot be incremented
+            assert_eq!(i.eval_str(b"const c 7"), Code::Ok);
+            assert_eq!(i.eval_str(b"incr c"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't incr \"c\": variable is a constant"
+            );
         });
     }
 

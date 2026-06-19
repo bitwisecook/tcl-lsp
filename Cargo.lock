@@ -2219,6 +2219,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-cmd-core"
+version = "0.1.0"
+dependencies = [
+ "tcl-platform",
+ "tcl-runtime-api",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-compiler"
 version = "0.1.0"
 dependencies = [
@@ -2234,6 +2243,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-core-types"
+version = "0.1.0"
+
+[[package]]
 name = "tcl-explorer"
 version = "0.1.0"
 dependencies = [
@@ -2243,6 +2256,13 @@ dependencies = [
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-host-native"
+version = "0.1.0"
+dependencies = [
+ "tcl-platform",
 ]
 
 [[package]]
@@ -2323,6 +2343,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-platform"
+version = "0.1.0"
+
+[[package]]
 name = "tcl-registry"
 version = "0.1.0"
 dependencies = [
@@ -2335,7 +2359,7 @@ dependencies = [
 name = "tcl-runtime-api"
 version = "0.1.0"
 dependencies = [
- "tcl-bytecode",
+ "tcl-core-types",
 ]
 
 [[package]]
@@ -2352,7 +2376,10 @@ version = "0.1.0"
 dependencies = [
  "regex",
  "tcl-bytecode",
+ "tcl-cmd-core",
  "tcl-compiler",
+ "tcl-host-native",
+ "tcl-platform",
  "tcl-registry",
  "tcl-runtime-api",
  "tcl-syntax",

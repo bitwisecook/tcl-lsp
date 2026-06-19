@@ -16,11 +16,13 @@
 pub mod backend;
 pub mod cmd_subst;
 pub mod control_flow;
+pub mod emit;
 pub mod emitter;
 pub mod expressions;
 pub mod helpers;
 pub mod peephole;
 pub mod statements;
+pub mod structured;
 pub mod values;
 pub mod wasm;
 
@@ -108,6 +110,10 @@ pub struct CodegenCtx<'r> {
     /// lifetime of the context — codegen runs synchronously and the
     /// caller already holds the registry that lowering used.
     pub registry: &'r CommandRegistry,
+    /// The module's original source text, indexed by `current_span` to recover
+    /// each command's surface text for `errorInfo` (`while executing "…"`).
+    /// Empty when the caller did not supply it (hand-built test contexts).
+    source: std::rc::Rc<str>,
 }
 
 impl<'r> CodegenCtx<'r> {
@@ -143,6 +149,39 @@ impl<'r> CodegenCtx<'r> {
             current_source_line: 0,
             current_span: None,
             registry,
+            source: "".into(),
+        }
+    }
+
+    /// Set the module source text (see [`Self::source`]) so emitted instructions
+    /// carry their command's surface text for `errorInfo`.
+    pub fn set_source(&mut self, source: &str) {
+        self.source = source.into();
+    }
+
+    /// The surface text of the construct at `current_span`, for `errorInfo`.
+    /// Empty when no span is set or no source was supplied.
+    fn span_text(&self) -> String {
+        match self.current_span {
+            Some(sp) => {
+                let (s, e) = (sp.start() as usize, sp.end() as usize);
+                self.source.get(s..e).unwrap_or("").to_string()
+            }
+            None => String::new(),
+        }
+    }
+
+    /// The 1-based line of `current_span` within the module source — the line a
+    /// command reports in `errorInfo` (`(procedure … line N)` / `("while" body
+    /// line N)`). `0` when no span / source is available.
+    fn span_line(&self) -> u32 {
+        match self.current_span {
+            Some(sp) => {
+                let start = sp.start() as usize;
+                let prefix = self.source.get(..start).unwrap_or("");
+                1 + u32::try_from(prefix.bytes().filter(|&b| b == b'\n').count()).unwrap_or(0)
+            }
+            None => 0,
         }
     }
 
@@ -151,6 +190,8 @@ impl<'r> CodegenCtx<'r> {
         let idx = self.instructions.len();
         let mut instr = Instruction::new(op, operands);
         instr.source_span = self.current_span;
+        instr.source_cmd_text = self.span_text();
+        instr.source_line = self.span_line();
         self.instructions.push(instr);
         idx
     }
@@ -161,6 +202,8 @@ impl<'r> CodegenCtx<'r> {
         let mut instr = Instruction::new(op, operands);
         comment.clone_into(&mut instr.comment);
         instr.source_span = self.current_span;
+        instr.source_cmd_text = self.span_text();
+        instr.source_line = self.span_line();
         self.instructions.push(instr);
         idx
     }
@@ -191,6 +234,8 @@ impl<'r> CodegenCtx<'r> {
             lvt: self.lvt,
             instructions: self.instructions,
             labels,
+            loop_targets: HashMap::new(),
+            body_base_line: 0,
         }
     }
 }

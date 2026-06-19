@@ -94,25 +94,35 @@ fn adjusted_delim_span(source: &str, tok: tcl_lexer::Token) -> Span {
     }
 }
 
-/// Parse switch options, returning `(first_non_option_index, mode, nocase)`.
-fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool) {
+/// Parse switch options, returning `(first_non_option_index, mode, nocase,
+/// unknown)`. `unknown` is set when a leading `-word` is not one of the options
+/// the compiler inlines (`-exact`/`-glob`/`-regexp`/`-nocase`/`--`) — an
+/// arg-taking `-indexvar`/`-matchvar`, or an invalid option such as `-foo`. The
+/// caller bails the whole switch to the runtime command, which validates the
+/// option set (tclsh rejects `-foo`) and handles the side-channel writes.
+fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool, bool) {
     let mut i = 0;
     let mut mode = SwitchMode::Exact;
     let mut nocase = false;
+    let mut unknown = false;
     while i < args.len() && args[i].starts_with('-') {
         match args[i].as_str() {
             "--" => {
                 i += 1;
                 break;
             }
+            "-exact" => mode = SwitchMode::Exact,
             "-glob" => mode = SwitchMode::Glob,
             "-regexp" => mode = SwitchMode::Regexp,
             "-nocase" => nocase = true,
-            _ => {}
+            _ => {
+                unknown = true;
+                break;
+            }
         }
         i += 1;
     }
-    (i, mode, nocase)
+    (i, mode, nocase, unknown)
 }
 
 impl Lowerer<'_> {
@@ -148,6 +158,11 @@ impl Lowerer<'_> {
                 if i + 1 >= args.len() {
                     return Self::barrier(seg, "malformed if else clause");
                 }
+                // Only a substitution-free literal body inlines (see the
+                // clause-body note below).
+                if !super::seg_word_is_static_literal(seg, i + 2) {
+                    return Self::barrier(seg, "if with non-literal body");
+                }
                 let body_tok = arg_tokens.get(i + 1);
                 let dead = later_clauses_dead;
                 if dead {
@@ -171,6 +186,15 @@ impl Lowerer<'_> {
             }
 
             let body_idx = i;
+            // C's TclCompileIfCmd only inlines a braced-literal body; a body
+            // carrying substitutions (`$x`, `[cmd]`, a quoted or concatenated
+            // word like `$x1$x2`) must be substituted *then* evaluated as a
+            // script — which the runtime `if` command does. Bail the whole
+            // construct to that command rather than mis-parsing the unsubstituted
+            // word as a literal script at compile time.
+            if !super::seg_word_is_static_literal(seg, body_idx + 1) {
+                return Self::barrier(seg, "if with non-literal body");
+            }
             let body_tok = arg_tokens.get(body_idx);
             let cond_tok = arg_tokens.get(cond_idx);
             let static_cond = super::static_bool(&args[cond_idx]);
@@ -194,6 +218,14 @@ impl Lowerer<'_> {
                 later_clauses_dead = true;
             }
             i += 1;
+            // After a clause, only `elseif` / `else` (or end) may follow. A bare
+            // word (`if 1<2 {a} elwood {b}`, `if 0 {a} {b}`) is "extra words
+            // after else clause" — the inline loop would otherwise mis-read it
+            // as another implicit clause. Bail to the runtime `if`, which
+            // reports the error faithfully.
+            if i < args.len() && args[i] != "elseif" && args[i] != "else" {
+                return Self::barrier(seg, "if with extra words");
+            }
         }
 
         if clauses.is_empty() {
@@ -301,6 +333,24 @@ impl Lowerer<'_> {
         }
 
         let body = self.lower_body_from_tok(&args[body_idx], body_tok, namespace);
+
+        // Route a loop to its runtime builtin on the bytecode path when the inline
+        // codegen can't compile it correctly:
+        //   * `lmap` always — the inline `FOREACH` opcodes don't collect the body
+        //     results, so an inline `lmap` yields the empty string.
+        //   * a `foreach` whose body *directly* contains another `foreach`/`lmap` —
+        //     the inner loop's back-edge corrupts the outer's `FOREACH_STEP`
+        //     routing (the nested-complex-foreach bug). A loop nested via an
+        //     `if`/`while`/`for` is unaffected and stays inline.
+        // The runtime builtin evaluates the body transparently (an inner loop
+        // recompiles fresh), so nesting works by recursion.
+        let body_nests_foreach = body
+            .statements
+            .iter()
+            .any(|s| matches!(s, Statement::Foreach { .. }));
+        if self.for_bytecode && (is_lmap || body_nests_foreach) {
+            return Self::barrier(seg, if is_lmap { "lmap" } else { "foreach" });
+        }
 
         Statement::Foreach {
             span: seg.span,
@@ -436,6 +486,14 @@ impl Lowerer<'_> {
 
     /// Lower `try body ?on|trap matchArg varList handlerBody ...? ?finally finallyBody?`.
     pub(super) fn lower_try(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+        // The bytecode/VM compile path lowers `try` to a runtime-command barrier:
+        // the backend has no exception-range support, so a structured `try` can't
+        // be compiled correctly (its handler/finally clauses would be dropped).
+        // Analysis callers keep the structured form below. See `for_bytecode`.
+        if self.for_bytecode {
+            return Self::barrier(seg, "try");
+        }
+
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
         let arg_single = seg.arg_single_token();
@@ -584,8 +642,13 @@ impl Lowerer<'_> {
             return Self::barrier(seg, "malformed switch");
         }
 
-        let (mut i, mode, nocase) = parse_switch_options(args);
+        let (mut i, mode, nocase, unknown) = parse_switch_options(args);
 
+        // An unrecognised / arg-taking option (`-foo`, `-matchvar`, …): bail to
+        // the runtime `switch`, which validates options and does the var writes.
+        if unknown {
+            return Self::barrier(seg, "switch with non-inlined option");
+        }
         if i >= args.len() {
             return Self::barrier(seg, "malformed switch options");
         }
@@ -620,6 +683,11 @@ impl Lowerer<'_> {
             let body_base = outer_arg_span.start().saturating_add(content_shift);
 
             let elements = switch_body_elements(body_text);
+            // An empty arm list (`switch x {}`) is a "wrong # args" error, not a
+            // no-op — bail to the runtime command, which reports it.
+            if elements.is_empty() {
+                return Self::barrier(seg, "switch with no arms");
+            }
             if !elements.len().is_multiple_of(2) {
                 return Self::barrier(seg, "switch odd pattern count");
             }

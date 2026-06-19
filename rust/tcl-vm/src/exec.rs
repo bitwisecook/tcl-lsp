@@ -17,7 +17,7 @@ use tcl_syntax::expr::{BinOp, UnaryOp};
 
 use crate::command::{Command, ProcDef};
 use crate::expr;
-use crate::interp::{Vm, err, ok};
+use crate::interp::{RECURSION_LIMIT, Vm, err, ok};
 use crate::value::Value;
 
 /// Active `foreach` iteration state (C Tcl `ForeachInfo` + the loop counters).
@@ -335,7 +335,16 @@ impl Vm {
 
     /// Run one bytecode function to completion via the NRE trampoline.
     pub fn run_function(&mut self, asm: &FunctionAsm) -> Completion<Value> {
-        let mut acts: Vec<Frame> = vec![Frame::new(Rc::new(asm.clone()), false)];
+        self.run_activation(Frame::new(Rc::new(asm.clone()), false))
+    }
+
+    /// Drive the NRE trampoline from an initial activation to completion. The
+    /// initial frame's `is_proc` decides whether the outermost body is a proc
+    /// call (so `unwind` pops a call-frame + namespace and absorbs `return`):
+    /// `false` for a module top-level ([`run_function`](Self::run_function)),
+    /// `true` for [`invoke_command`](Self::invoke_command) running a proc body.
+    fn run_activation(&mut self, initial: Frame) -> Completion<Value> {
+        let mut acts: Vec<Frame> = vec![initial];
         loop {
             let tick = {
                 let top = acts.last_mut().expect("activation stack is non-empty");
@@ -352,12 +361,44 @@ impl Vm {
                     }
                 },
                 Tick::Return(c) => {
+                    // A `break`/`continue` *returned by a command* (`if {…} $z`,
+                    // `eval break`) inside an inline loop body: jump to the
+                    // loop's exit/continue point rather than unwinding out of
+                    // the function (the inline `JUMP` only covers a *literal*
+                    // break/continue). Mirrors C Tcl's exception ranges.
+                    if matches!(c.code, Code::Break | Code::Continue)
+                        && Self::catch_loop_completion(acts.last_mut().unwrap(), c.code)
+                    {
+                        continue;
+                    }
                     if let Some(done) = self.unwind(&mut acts, c) {
                         return done;
                     }
                 }
             }
         }
+    }
+
+    /// If the instruction that just produced a `break`/`continue` completion is
+    /// inside an inline loop body (per `FunctionAsm::loop_targets`), redirect the
+    /// frame's `pc` to the loop's break / continue target and return `true`;
+    /// otherwise return `false` (the completion keeps unwinding). The stack is at
+    /// a statement boundary here (the failing command consumed its args and
+    /// pushed no result), matching what the loop-end / header expects.
+    fn catch_loop_completion(f: &mut Frame, code: Code) -> bool {
+        let idx = f.pc.saturating_sub(1);
+        let Some(&(brk, cont)) = f.asm.loop_targets.get(&idx) else {
+            return false;
+        };
+        let target = if code == Code::Break { brk } else { cont };
+        let Some(off) = target else {
+            return false; // no target (e.g. a for-step continue) → propagate
+        };
+        let Some(&tidx) = f.off2idx.get(&off) else {
+            return false;
+        };
+        f.pc = tidx;
+        true
     }
 
     /// Unwind one or more activations with completion `c`. Returns `Some` when
@@ -370,10 +411,38 @@ impl Vm {
         loop {
             let act = acts.pop().expect("unwinding a non-empty stack");
             if act.is_proc {
+                // An error unwinding out of a proc body adds a
+                // `(procedure "name" line N)` frame before the frame is popped,
+                // then the call site (the command that invoked the proc) logs
+                // its own `invoked from within "…"` frame.
+                if c.code == Code::Error
+                    && let Some(name) = self.current_proc_name()
+                {
+                    // Proc-relative line: absolute line − the body's base line + 1.
+                    let base = act.asm.body_base_line;
+                    let n = self
+                        .error_line()
+                        .saturating_sub(base)
+                        .saturating_add(1)
+                        .max(1);
+                    self.append_proc_frame(&name, n);
+                }
                 self.pop_call_frame();
                 self.pop_ns();
                 if c.code == Code::Return {
                     c = ok(c.result);
+                }
+                if c.code == Code::Error {
+                    let call_site = acts.last().and_then(|parent| {
+                        parent
+                            .asm
+                            .instructions
+                            .get(parent.pc.saturating_sub(1))
+                            .map(|i| (i.source_cmd_text.clone(), i.source_line))
+                    });
+                    if let Some((cmd, line)) = call_site {
+                        self.log_command_info(&cmd, "", line);
+                    }
                 }
             }
             match acts.last_mut() {
@@ -391,6 +460,11 @@ impl Vm {
 
     /// Push a call-frame and bind `argv` to the proc's parameters.
     fn enter_proc(&mut self, proc: &ProcDef, argv: &[Value]) -> Result<(), Completion<Value>> {
+        // Recursion bound (catchable, not a host stack overflow). Checked before
+        // the frame push, matching C's `interp recursionlimit`.
+        if self.recursion_depth() >= RECURSION_LIMIT {
+            return Err(err("too many nested evaluations (infinite loop?)"));
+        }
         let simple = proc.name.rsplit("::").next().unwrap_or(&proc.name);
         let mut call_argv = Vec::with_capacity(argv.len() + 1);
         call_argv.push(Value::string(simple));
@@ -471,7 +545,16 @@ impl Vm {
                 } else {
                     match crate::subst::subst_word(&raw, self) {
                         Ok(v) => f.stack.push(v),
-                        Err(e) => return Tick::Return(err(e.message)),
+                        // A `break`/`continue`/`return` carried out of a `[…]`
+                        // substitution propagates with its own code (an enclosing
+                        // loop's exception range / a proc boundary handles it).
+                        Err(e) => {
+                            return Tick::Return(Completion::new(
+                                e.code.unwrap_or(Code::Error),
+                                Value::string(e.message),
+                                Value::empty(),
+                            ));
+                        }
                     }
                 }
             }
@@ -1077,7 +1160,13 @@ impl Vm {
                 match self.dispatch_words(f, &words) {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
-                    Err(c) => return Tick::Return(c),
+                    Err(c) => {
+                        let cmd_text = instr.source_cmd_text.clone();
+                        let msg = c.result.to_str().to_string();
+                        let line = instr.source_line;
+                        self.log_command_info(&cmd_text, &msg, line);
+                        return Tick::Return(c);
+                    }
                 }
             }
 
@@ -1110,7 +1199,13 @@ impl Vm {
                 match self.dispatch_words(f, &words) {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
-                    Err(c) => return Tick::Return(c),
+                    Err(c) => {
+                        let cmd_text = instr.source_cmd_text.clone();
+                        let msg = c.result.to_str().to_string();
+                        let line = instr.source_line;
+                        self.log_command_info(&cmd_text, &msg, line);
+                        return Tick::Return(c);
+                    }
                 }
             }
             Op::EXPR_STK => {
@@ -1193,18 +1288,55 @@ impl Vm {
         }
     }
 
+    /// Dispatch a fully-resolved command by `name` + `argv` to a completion —
+    /// the `Commands::dispatch` engine. Unlike [`dispatch_words`](Self::dispatch_words)
+    /// (bytecode-frame-coupled: it pushes the result onto `f.stack` and defers a
+    /// proc call to the trampoline as a `Tick::Call`), this is self-contained and
+    /// usable outside the bytecode loop: a builtin runs inline, a proc body runs
+    /// to completion in a nested `is_proc` activation (so its call-frame and
+    /// `return` are handled), and an alias re-evaluates its target prefix.
+    pub(crate) fn invoke_command(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
+        match self.lookup_command(name) {
+            Some(Command::Builtin(bf)) => bf(self, argv),
+            Some(Command::Proc(p)) => match self.enter_proc(&p, argv) {
+                Ok(()) => self.run_activation(Frame::new(Rc::clone(&p.body), true)),
+                Err(c) => c,
+            },
+            Some(Command::Alias(target)) => {
+                let mut full: Vec<Value> = (*target).clone();
+                full.extend_from_slice(argv);
+                let script = full
+                    .iter()
+                    .map(|v| quote_for_script(&v.to_str()))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                match self.eval_source(&script) {
+                    Ok(c) => c,
+                    Err(e) => err(e.message),
+                }
+            }
+            None => err(format!("invalid command name \"{name}\"")),
+        }
+    }
+
     /// `incr` helper shared by the scalar/stk increment opcodes.
+    ///
+    /// The current cell is read exactly as before (scalar or `arr(key)`), but the
+    /// arithmetic goes through the shared [`tcl_syntax::value::ValueOps::int_add`]
+    /// seam — the same one `incr`'s command core uses — so the number-model
+    /// behaviour is identical across the compiled and dispatched paths. The VM
+    /// has no bignum, so an overflowing `incr` reports `integer value too large to
+    /// represent` rather than silently wrapping (the old `wrapping_add` bug).
     fn incr_var(
         &mut self,
         f: &mut Frame,
         name: &str,
         amount: i64,
     ) -> Result<(), Completion<Value>> {
-        let old = match self.var_get(name) {
-            Some(v) => v.as_int().map_err(|e| err(e.message))?,
-            None => 0,
-        };
-        let next = Value::int(old.wrapping_add(amount));
+        let cur = self.var_get(name);
+        let inc = Value::int(amount);
+        let next = tcl_syntax::value::ValueOps::int_add(self, cur.as_ref(), &inc)
+            .map_err(|e| err(e.message()))?;
         self.var_set(name, next.clone())?;
         f.stack.push(next);
         Ok(())

@@ -876,6 +876,19 @@ pub struct FunctionAsm {
     pub instructions: Vec<Instruction>,
     /// Label → byte offset (populated by the layout pass).
     pub labels: HashMap<String, usize>,
+    /// For each instruction inside an inline loop body (by index), the loop's
+    /// `(break, continue)` jump targets as **byte offsets**. Lets the executor
+    /// catch a `break`/`continue` *returned by a command* (`if {…} $z`, `eval
+    /// break`) — which the inline `JUMP` only covers for a *literal*
+    /// `break`/`continue` — and jump to the loop's exit/continue point, as C
+    /// Tcl's exception ranges do. Either target may be `None` (a `for`-step's
+    /// `continue` propagates). Sparse: only loop-body instructions appear.
+    pub loop_targets: HashMap<usize, (Option<i32>, Option<i32>)>,
+    /// For a procedure body, the 1-based source line of its `proc` definition
+    /// (the body's line 1). `errorInfo`'s `(procedure "name" line N)` reports
+    /// `N = instruction_line − body_base_line + 1`, so the line is relative to
+    /// the proc, not the whole module. `0` for the top level / hand-built asm.
+    pub body_base_line: u32,
 }
 
 /// Assembly for an entire module.

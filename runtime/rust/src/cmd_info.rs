@@ -81,51 +81,20 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     match sub {
         b"exists" => info_exists(interp, argv),
-        b"commands" => set_list_qualified(
-            interp,
-            argv,
-            b"info commands ?pattern?",
-            Interp::commands_in_namespace,
-            Interp::visible_command_names,
-        ),
-        b"procs" => set_list_qualified(
-            interp,
-            argv,
-            b"info procs ?pattern?",
-            Interp::procs_in_namespace,
-            Interp::visible_proc_names,
-        ),
-        b"vars" => set_list_qualified(
-            interp,
-            argv,
-            b"info vars ?pattern?",
-            Interp::vars_in_namespace,
-            Interp::visible_var_names,
-        ),
-        b"globals" => {
-            if argv.len() > 3 {
-                return wrong_args(interp, b"info globals ?pattern?");
-            }
-            // Strip leading global-namespace qualifiers (Bug 1057461): only when
-            // the pattern starts with `::` — then drop *all* leading colons, so
-            // `::x`/`:::x` match global `x` but a lone `:x` does not.
-            let pattern = argv.get(2).map(|&a| obj_bytes(a)).map(|p| {
-                if p.starts_with(b"::") {
-                    let n = p.iter().position(|&c| c != b':').unwrap_or(p.len());
-                    p[n..].to_vec()
-                } else {
-                    p
-                }
-            });
-            let list = interp.global_var_names();
-            set_filtered(interp, list, pattern.as_deref())
-        }
-        b"locals" => set_list(
-            interp,
-            argv,
-            b"info locals ?pattern?",
-            Interp::local_var_names,
-        ),
+        // commands/procs route through the shared namespace-aware core (over the
+        // `Namespaces` enumeration rungs). This also fixed a real bug: `info procs`
+        // in a namespace wrongly merged the global procs (the old
+        // `visible_proc_names`); C's `InfoProcsCmd` lists the current namespace
+        // only, while `info commands` does merge global.
+        b"commands" => info_command_list(interp, argv, b"info commands ?pattern?", false),
+        b"procs" => info_command_list(interp, argv, b"info procs ?pattern?", true),
+        // vars/locals/globals route through the shared variable-listing cores
+        // (namespace-aware over `Namespaces::vars_in` + the active-frame
+        // `Frames::var_names`/`in_proc`); `globals` owns the Bug 1057461 leading-
+        // `::` strip in the core.
+        b"vars" => info_var_list(interp, argv, b"info vars ?pattern?", VarList::Vars),
+        b"globals" => info_var_list(interp, argv, b"info globals ?pattern?", VarList::Globals),
+        b"locals" => info_var_list(interp, argv, b"info locals ?pattern?", VarList::Locals),
         b"level" => info_level(interp, argv),
         b"frame" => info_frame(interp, argv),
         b"coroutine" => {
@@ -147,7 +116,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 3 {
                 return wrong_args(interp, b"info complete command");
             }
-            let ok = command_complete(&obj_bytes(argv[2]));
+            let ok = tcl_cmd_core::info::complete(&obj_bytes(argv[2]));
             interp.set_result_bytes(if ok { b"1" } else { b"0" });
             Code::Ok
         }
@@ -207,10 +176,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 2 {
                 return wrong_args(interp, b"info nameofexecutable");
             }
-            let exe = std::env::current_exe()
-                .ok()
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_default();
+            let exe = interp.host().env().current_exe().unwrap_or_default();
             interp.set_result_bytes(exe.as_bytes());
             Code::Ok
         }
@@ -230,7 +196,8 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 2 {
                 return wrong_args(interp, b"info hostname");
             }
-            interp.set_result_bytes(&hostname());
+            let h = hostname(interp);
+            interp.set_result_bytes(&h);
             Code::Ok
         }
         b"errorstack" => {
@@ -271,11 +238,14 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// The host name (`info hostname`, `Tcl_GetHostName`) — best-effort from
-/// `/proc/sys/kernel/hostname`, else `/etc/hostname`, else empty.
-fn hostname() -> Vec<u8> {
+/// `/proc/sys/kernel/hostname`, else `/etc/hostname`, else empty. Read through
+/// the host filesystem (empty when the host provides none).
+fn hostname(interp: &Interp) -> Vec<u8> {
+    let host = interp.host();
+    let fs = host.filesystem();
     for path in ["/proc/sys/kernel/hostname", "/etc/hostname"] {
-        if let Ok(s) = std::fs::read_to_string(path) {
-            return s.trim().as_bytes().to_vec();
+        if let Some(bytes) = fs.and_then(|fs| fs.read(path).ok()) {
+            return String::from_utf8_lossy(&bytes).trim().as_bytes().to_vec();
         }
     }
     Vec::new()
@@ -311,21 +281,6 @@ fn set_filtered(interp: &mut Interp, names: Vec<Vec<u8>>, pattern: Option<&[u8]>
     let l = list::new_list_obj(&objs); // retains each element
     interp.set_result(l); // retains the list; the rc-0 temporaries are now owned by it
     Code::Ok
-}
-
-/// `info <sub> ?pattern?` over a name producer.
-fn set_list(
-    interp: &mut Interp,
-    argv: &[*mut TclObj],
-    usage: &[u8],
-    names: fn(&Interp) -> Vec<Vec<u8>>,
-) -> Code {
-    if argv.len() > 3 {
-        return wrong_args(interp, usage);
-    }
-    let pattern = argv.get(2).map(|&a| obj_bytes(a));
-    let list = names(interp);
-    set_filtered(interp, list, pattern.as_deref())
 }
 
 /// `info commands|procs|vars ?pattern?` — a namespace-qualified pattern
@@ -373,53 +328,81 @@ fn set_list_qualified(
     set_filtered(interp, list, pattern.as_deref())
 }
 
+/// `info commands ?pattern?` / `info procs ?pattern?` — the shared
+/// namespace-aware command/proc listing core (over the `Namespaces` enumeration
+/// rungs); `procs_only` selects `procs`. The qualified-pattern split,
+/// re-qualification, glob filter, and the global-merge asymmetry all live in the
+/// core. (Variable listing — `vars`/`locals`/`globals`/`consts` — stays on
+/// [`set_list_qualified`]: the VM has no namespace variables to share against.)
+fn info_command_list(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    usage: &[u8],
+    procs_only: bool,
+) -> Code {
+    if argv.len() > 3 {
+        return wrong_args(interp, usage);
+    }
+    let result = tcl_cmd_core::info::command_list(interp, argv.get(2), procs_only);
+    interp.set_result(result);
+    Code::Ok
+}
+
+/// Which variable-listing core `info_var_list` dispatches to.
+enum VarList {
+    /// `info vars` — current context (frame locals in a proc, else namespace vars).
+    Vars,
+    /// `info locals` — the current proc frame's genuine locals.
+    Locals,
+    /// `info globals` — the global namespace's variables.
+    Globals,
+}
+
+/// `info vars`/`locals`/`globals` — the shared variable-listing cores (over
+/// `Namespaces::vars_in` + the active-frame `Frames` rungs). The whole
+/// context/namespace/link logic lives in the core; this adapter only checks
+/// arity and maps the result. (`consts` stays on [`set_list_qualified`] — TIP 677
+/// is runtime-only.)
+fn info_var_list(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], which: VarList) -> Code {
+    if argv.len() > 3 {
+        return wrong_args(interp, usage);
+    }
+    let pattern = argv.get(2);
+    let result = match which {
+        VarList::Vars => tcl_cmd_core::info::vars(interp, pattern),
+        VarList::Locals => tcl_cmd_core::info::locals(interp, pattern),
+        VarList::Globals => tcl_cmd_core::info::globals(interp, pattern),
+    };
+    interp.set_result(result);
+    Code::Ok
+}
+
 fn info_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return wrong_args(interp, b"info exists varName");
     }
-    let exists = interp.var_exists(&obj_bytes(argv[2]));
-    interp.set_result_bytes(if exists { b"1" } else { b"0" });
+    // The shared Family-B core over `VarStore::exists`.
+    let result = tcl_cmd_core::info::exists(interp, &argv[2]);
+    interp.set_result(result);
     Code::Ok
 }
 
 fn info_level(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    match argv.len() {
-        2 => {
-            interp.set_result_bytes(interp.level().to_string().as_bytes());
+    // The shared Family-B core over `Introspect` (`tcl_cmd_core::info::level`);
+    // the runtime is a thin adapter mapping `Result<*mut TclObj, CmdError>` onto
+    // its set-result/`Code` ABI. (`info level 0` is relative — the current call;
+    // `N>0` absolute.)
+    let number = match argv.len() {
+        2 => None,
+        3 => Some(&argv[2]),
+        _ => return wrong_args(interp, b"info level ?number?"),
+    };
+    match tcl_cmd_core::info::level(interp, number) {
+        Ok(v) => {
+            interp.set_result(v);
             Code::Ok
         }
-        // `info level N` — the command words at level N. N<=0 is relative to the
-        // current level (`info level 0` = the current call); N>0 is absolute.
-        3 => {
-            let spec = obj_bytes(argv[2]);
-            let n = match core::str::from_utf8(&spec)
-                .ok()
-                .and_then(|s| s.trim().parse::<i64>().ok())
-            {
-                Some(n) => n,
-                None => {
-                    let mut m = b"expected integer but got \"".to_vec();
-                    m.extend_from_slice(&spec);
-                    m.push(b'"');
-                    return interp.set_error(&m);
-                }
-            };
-            let cur = interp.level() as i64;
-            let target = if n <= 0 { cur + n } else { n };
-            if target <= 0 {
-                return bad_level(interp, &spec);
-            }
-            match interp.level_words(target as usize) {
-                Some(words) => {
-                    let objs: Vec<*mut TclObj> =
-                        words.iter().map(|w| crate::interp::new_string(w)).collect();
-                    interp.set_result(crate::list::new_list_obj(&objs));
-                    Code::Ok
-                }
-                None => bad_level(interp, &spec),
-            }
-        }
-        _ => wrong_args(interp, b"info level ?number?"),
+        Err(e) => interp.set_error(e.message().as_bytes()),
     }
 }
 
@@ -466,57 +449,6 @@ fn info_frame(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `Tcl_CommandComplete` (approximation): a script is complete when no brace,
 /// bracket, or quote is left open and it doesn't end mid-escape. Inside braces
 /// only `{`/`}` nest; inside quotes `[...]` command substitution still nests.
-fn command_complete(s: &[u8]) -> bool {
-    let mut stack: Vec<u8> = Vec::new(); // expected closers: `}` or `]`
-    let mut in_quote = false;
-    let mut i = 0;
-    while i < s.len() {
-        let c = s[i];
-        if c == b'\\' {
-            // A backslash escapes the next byte; a trailing one leaves the
-            // command incomplete (line continuation awaiting more input).
-            if i + 1 >= s.len() {
-                return false;
-            }
-            i += 2;
-            continue;
-        }
-        let in_brace = stack.last() == Some(&b'}');
-        if in_brace {
-            match c {
-                b'{' => stack.push(b'}'),
-                b'}' => {
-                    stack.pop();
-                }
-                _ => {}
-            }
-        } else if in_quote {
-            match c {
-                b'"' => in_quote = false,
-                b'[' => stack.push(b']'),
-                b']' if stack.last() == Some(&b']') => {
-                    stack.pop();
-                }
-                _ => {}
-            }
-        } else {
-            match c {
-                b'{' => stack.push(b'}'),
-                b'[' => stack.push(b']'),
-                b']' => {
-                    if stack.last() == Some(&b']') {
-                        stack.pop();
-                    }
-                }
-                b'"' => in_quote = true,
-                _ => {}
-            }
-        }
-        i += 1;
-    }
-    stack.is_empty() && !in_quote
-}
-
 fn bad_level(interp: &mut Interp, spec: &[u8]) -> Code {
     let mut m = b"bad level \"".to_vec();
     m.extend_from_slice(spec);
@@ -560,13 +492,12 @@ fn info_body(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return wrong_args(interp, b"info body procname");
     }
-    let name = obj_bytes(argv[2]);
-    match interp.proc_def(&name) {
-        Some(def) => {
-            interp.set_result_bytes(&def.body);
+    match tcl_cmd_core::info::body(interp, &argv[2]) {
+        Ok(v) => {
+            interp.set_result(v);
             Code::Ok
         }
-        None => not_a_proc(interp, &name),
+        Err(e) => interp.set_error(e.message().as_bytes()),
     }
 }
 
@@ -574,16 +505,12 @@ fn info_args(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return wrong_args(interp, b"info args procname");
     }
-    let name = obj_bytes(argv[2]);
-    match interp.proc_def(&name) {
-        Some(def) => {
-            let names: Vec<Vec<u8>> = def.params.iter().map(|p| p.name.clone()).collect();
-            // info args preserves declaration order (not sorted).
-            let objs: Vec<*mut TclObj> = names.iter().map(|n| new_string(n)).collect();
-            interp.set_result(list::new_list_obj(&objs));
+    match tcl_cmd_core::info::args(interp, &argv[2]) {
+        Ok(v) => {
+            interp.set_result(v);
             Code::Ok
         }
-        None => not_a_proc(interp, &name),
+        Err(e) => interp.set_error(e.message().as_bytes()),
     }
 }
 
@@ -591,41 +518,21 @@ fn info_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return wrong_args(interp, b"info default procname arg varname");
     }
-    let proc = obj_bytes(argv[2]);
-    let arg = obj_bytes(argv[3]);
     let var = obj_bytes(argv[4]);
-    let Some(def) = interp.proc_def(&proc) else {
-        return not_a_proc(interp, &proc);
+    // The core computes the `(value, has_default)` pair (and the not-a-proc /
+    // no-such-argument errors); the **store** stays here because it is
+    // trace-aware — a write trace or array-typed target makes it fail with the
+    // variable error verbatim (`can't set "a": variable is array`).
+    let (val, has) = match tcl_cmd_core::info::default(interp, &argv[2], &argv[3]) {
+        Ok(pair) => pair,
+        Err(e) => return interp.set_error(e.message().as_bytes()),
     };
-    let Some(param) = def.params.iter().find(|p| p.name == arg) else {
-        let mut m = b"procedure \"".to_vec();
-        m.extend_from_slice(&proc);
-        m.extend_from_slice(b"\" doesn't have an argument \"");
-        m.extend_from_slice(&arg);
-        m.push(b'"');
-        return interp.set_error(&m);
-    };
-    // With a default, store it and return 1; without one, store the empty string
-    // and return 0 (C's `InfoDefaultCmd`). A store failure (e.g. the target is an
-    // array) is the variable error verbatim (`can't set "a": variable is array`).
-    let (val, has): (&[u8], &[u8]) = match &param.default {
-        Some(d) => (d, b"1"),
-        None => (b"", b"0"),
-    };
-    let o = new_string(val);
-    if let Err(e) = interp.var_set(&var, o) {
-        crate::interp::drop_fresh(o);
+    if let Err(e) = interp.var_set(&var, val) {
+        crate::interp::drop_fresh(val);
         return crate::builtins::var_error(interp, &var, e);
     }
-    interp.set_result_bytes(has);
+    interp.set_result_bytes(if has { b"1" } else { b"0" });
     Code::Ok
-}
-
-fn not_a_proc(interp: &mut Interp, name: &[u8]) -> Code {
-    let mut m = b"\"".to_vec();
-    m.extend_from_slice(name);
-    m.extend_from_slice(b"\" isn't a procedure");
-    interp.set_error(&m)
 }
 
 fn glob_match(pat: &[u8], name: &[u8]) -> bool {
@@ -811,6 +718,98 @@ mod tests {
             assert_eq!(run(i, b"info procs greet"), b"greet");
             assert_eq!(run(i, b"info procs nosuch*"), b"");
             i.eval_str(b"unset d");
+        });
+    }
+
+    #[test]
+    fn info_vars_locals_globals() {
+        leak_free(|i| {
+            run(
+                i,
+                b"namespace eval foo { variable a 1; variable b 2 }\nset gx 10",
+            );
+            // In a proc: `info locals` is the genuine locals; `info vars` also
+            // lists the linked namespace var by its local alias.
+            run(
+                i,
+                b"proc p {} { set loc 5; variable ::foo::a; \
+                  set ::out \"[lsort [info locals]]|[lsort [info vars]]\" }",
+            );
+            run(i, b"p");
+            assert_eq!(run(i, b"set ::out"), b"loc|a loc");
+            // `info globals` lists global-namespace vars only (not `foo::a`).
+            assert_eq!(run(i, b"lsearch -exact [info globals] foo::a"), b"-1");
+            assert_eq!(
+                run(i, b"expr {[lsearch -exact [info globals] gx] >= 0}"),
+                b"1"
+            );
+            // A qualified `info vars` lists that namespace re-qualified.
+            assert_eq!(run(i, b"lsort [info vars ::foo::*]"), b"::foo::a ::foo::b");
+            // At namespace scope, `info vars` lists the namespace's own vars.
+            assert_eq!(run(i, b"namespace eval foo { lsort [info vars] }"), b"a b");
+        });
+    }
+
+    #[test]
+    fn info_commands_procs_namespaced() {
+        leak_free(|i| {
+            run(
+                i,
+                b"namespace eval foo { proc bar {} {}; proc baz {} {} }\n\
+                  namespace eval foo::sub { proc deep {} {} }\nproc gproc {} {}",
+            );
+            // A qualified glob lists that namespace re-qualified (direct members
+            // only — not `foo::sub::deep`).
+            assert_eq!(
+                run(i, b"lsort [info commands ::foo::*]"),
+                b"::foo::bar ::foo::baz"
+            );
+            assert_eq!(
+                run(i, b"lsort [info procs foo::*]"),
+                b"::foo::bar ::foo::baz"
+            );
+            // A namespaced proc is not in the global listing.
+            assert_eq!(run(i, b"lsearch -exact [info commands] foo::bar"), b"-1");
+            // The bug this share fixed: inside a namespace, `info procs` lists only
+            // that namespace's procs (no global merge), while `info commands` does
+            // see the global `gproc`.
+            assert_eq!(
+                run(i, b"namespace eval foo { lsort [info procs] }"),
+                b"bar baz"
+            );
+            assert_eq!(
+                run(
+                    i,
+                    b"namespace eval foo { expr {[lsearch -exact [info commands] gproc] >= 0} }"
+                ),
+                b"1"
+            );
+            // A missing namespace qualifier → the empty list, not an error.
+            assert_eq!(run(i, b"info commands ::nope::*"), b"");
+        });
+    }
+
+    #[test]
+    fn info_proc_introspection_errors() {
+        leak_free(|i| {
+            run(i, b"proc greet {name {g hi}} {return $g-$name}");
+            // body/args/default on a non-proc (unknown name or a builtin) → the
+            // shared `"name" isn't a procedure` error (pinned vs tclsh 9.0).
+            for src in [
+                &b"info body nosuch"[..],
+                &b"info args nosuch"[..],
+                &b"info default nosuch a d"[..],
+                &b"info body set"[..],
+            ] {
+                assert_eq!(i.eval_str(src), Code::Error);
+            }
+            assert_eq!(i.result_bytes(), b"\"set\" isn't a procedure");
+            // An unknown formal parameter.
+            assert_eq!(i.eval_str(b"info default greet zz d"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"procedure \"greet\" doesn't have an argument \"zz\""
+            );
         });
     }
 

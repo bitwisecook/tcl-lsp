@@ -67,6 +67,34 @@ pub fn codegen_function_with_procs(
     generate::generate(&mut ctx, cfg, proc_defs)
 }
 
+/// Like [`codegen_function_with_procs`] but threading the module source text so
+/// each instruction carries its command's surface text for `errorInfo`, plus
+/// the proc body's `base_line` (its `proc` definition line) so the
+/// `(procedure … line N)` frame reports a proc-relative line.
+#[must_use]
+fn codegen_function_src(
+    cfg: &CfgFunction,
+    params: &[&str],
+    is_proc: bool,
+    proc_defs: &[IrProcedure],
+    registry: &CommandRegistry,
+    source: &str,
+    base_line: u32,
+) -> FunctionAsm {
+    let mut ctx = CodegenCtx::new(is_proc, params, registry);
+    ctx.set_source(source);
+    let mut asm = generate::generate(&mut ctx, cfg, proc_defs);
+    asm.body_base_line = base_line;
+    asm
+}
+
+/// The 1-based line of byte offset `off` within `source`.
+fn line_of(source: &str, off: u32) -> u32 {
+    let end = (off as usize).min(source.len());
+    1 + u32::try_from(source.get(..end).unwrap_or("").bytes().filter(|&b| b == b'\n').count())
+        .unwrap_or(0)
+}
+
 /// Generate bytecode assembly for an entire module.
 #[must_use]
 pub fn codegen_module(
@@ -74,7 +102,8 @@ pub fn codegen_module(
     ir_module: &IrModule,
     registry: &CommandRegistry,
 ) -> ModuleAsm {
-    let top = codegen_function(&cfg_module.top_level, &[], false, registry);
+    let src = &ir_module.source;
+    let top = codegen_function_src(&cfg_module.top_level, &[], false, &[], registry, src, 0);
     let mut procs: HashMap<String, FunctionAsm> = HashMap::new();
     for (qname, cfg_func) in &cfg_module.procedures {
         let ir_proc = ir_module.procedures.get(qname);
@@ -88,9 +117,11 @@ pub fn codegen_module(
         let params: Vec<&str> = ir_proc
             .map(|p| p.params.iter().map(String::as_str).collect())
             .unwrap_or_default();
+        // The proc's definition line drives proc-relative `errorInfo` lines.
+        let base_line = ir_proc.map_or(0, |p| line_of(src, p.span.start()));
         procs.insert(
             qname.clone(),
-            codegen_function(cfg_func, &params, true, registry),
+            codegen_function_src(cfg_func, &params, true, &[], registry, src, base_line),
         );
     }
     ModuleAsm {

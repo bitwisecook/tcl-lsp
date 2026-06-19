@@ -1,0 +1,14 @@
+ByteCode ::top, 8 instructions, 20 bytes, 3 literals, 0 variables
+  Literals:
+    0: "d"
+    1: "tcl::mathfunc::double"
+    2: "3"
+  Instructions:
+    (0) push1 0	# "d"
+    (2) startCommand +16 1	# next cmd at pc 18, 1 cmds start here
+    (11) push1 1	# "tcl::mathfunc::double"
+    (13) push1 2	# "3"
+    (15) invokeStk1 2
+    (17) tryCvtToNumeric
+    (18) storeStk
+    (19) done

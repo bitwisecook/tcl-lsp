@@ -12,7 +12,28 @@ use std::io::Read;
 
 use tcl_runtime::interp::{Code, Interp};
 
+/// The recursive tree-walking interpreter uses native stack per Tcl call level,
+/// so honouring the 1000-deep `interp recursionlimit` (a *catchable* error)
+/// needs more than the default 8 MiB main-thread stack — otherwise deep
+/// recursion overflows the native stack and aborts before the limit fires.
+/// `tclsh` likewise runs on a large stack. 512 MiB is virtual (only touched
+/// pages are committed), comfortably covering the limit.
+const EVAL_STACK_BYTES: usize = 512 * 1024 * 1024;
+
 fn main() {
+    let code = std::thread::Builder::new()
+        .stack_size(EVAL_STACK_BYTES)
+        .spawn(run)
+        .expect("spawn eval thread")
+        .join()
+        .expect("eval thread panicked");
+    std::process::exit(code);
+}
+
+/// Evaluate the script (or stdin) and return the process exit code. Runs on the
+/// large-stack worker thread so the interp — an `Rc` handle, hence single-thread
+/// — is created and used entirely here.
+fn run() -> i32 {
     let mut args: Vec<String> = std::env::args().collect();
     // `--init` bootstraps the standard library (TCL_LIBRARY → source init.tcl)
     // before evaluating, like a real `tclsh`.
@@ -24,10 +45,13 @@ fn main() {
     // `info frame` reports `type source`); stdin is evaluated as a script.
     let path = args.get(1).cloned();
     let src = if let Some(path) = &path {
-        std::fs::read(path).unwrap_or_else(|e| {
-            eprintln!("run_script: cannot read {path}: {e}");
-            std::process::exit(2);
-        })
+        match std::fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                eprintln!("run_script: cannot read {path}: {e}");
+                return 2;
+            }
+        }
     } else {
         let mut buf = Vec::new();
         std::io::stdin().read_to_end(&mut buf).expect("read stdin");
@@ -40,7 +64,7 @@ fn main() {
             "init error: {}",
             String::from_utf8_lossy(&interp.result_bytes())
         );
-        std::process::exit(1);
+        return 1;
     }
     let code = match &path {
         Some(p) => interp.eval_sourced(&src, p.as_bytes()),
@@ -49,10 +73,11 @@ fn main() {
     let result = interp.result_bytes();
     if code == Code::Error {
         eprintln!("error: {}", String::from_utf8_lossy(&result));
-        std::process::exit(1);
+        return 1;
     }
     // Print the script's final result (if any), like an interactive evaluation.
     if !result.is_empty() {
         println!("{}", String::from_utf8_lossy(&result));
     }
+    0
 }

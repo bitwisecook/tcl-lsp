@@ -64,55 +64,80 @@ fn continue_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `if expr1 ?then? body1 elseif expr2 ?then? body2 ... ?else? ?bodyN?`.
 #[cfg(have_tommath)]
 fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let objc = argv.len();
     let mut i = 1;
+    // The body of the first true condition, recorded but **not executed** until
+    // the whole `if` grammar is validated (C's `Tcl_IfObjCmd` `thenScriptIndex`):
+    // a matched branch still rejects malformed trailing clauses, and conditions
+    // after the first true one are not evaluated (their side effects are skipped).
+    let mut then_body: Option<*mut TclObj> = None;
+    // The keyword before the expected expression — for the "no expression" error.
+    let mut clause: &[u8] = b"if";
+
     loop {
-        if i >= argv.len() {
-            return interp.set_error(b"wrong # args: no expression after \"if\" argument");
-        }
-        let cond_obj = argv[i];
-        let cond = obj_bytes(cond_obj);
-        i += 1;
-        // optional `then` keyword.
-        if i < argv.len() && obj_bytes(argv[i]).as_slice() == b"then" {
-            i += 1;
-        }
-        if i >= argv.len() {
-            let mut m = b"wrong # args: no script following \"".to_vec();
-            m.extend_from_slice(&cond);
+        if i >= objc {
+            let mut m = b"wrong # args: no expression after \"".to_vec();
+            m.extend_from_slice(clause);
             m.extend_from_slice(b"\" argument");
             return interp.set_error(&m);
         }
-        let body = argv[i];
+        let cond_obj = argv[i];
         i += 1;
-
-        match crate::builtins::eval_bool_expr(interp, cond_obj) {
-            Ok(true) => return interp.eval_control_body(body),
-            Ok(false) => {}
-            Err(code) => return code,
+        // Optional `then` keyword.
+        if i < objc && obj_bytes(argv[i]).as_slice() == b"then" {
+            i += 1;
         }
-
-        // Condition false: dispatch on the next keyword.
-        if i >= argv.len() {
-            interp.set_result_bytes(b"");
-            return Code::Ok;
+        if i >= objc {
+            return no_script_following(interp, &obj_bytes(argv[i - 1]));
         }
-        match obj_bytes(argv[i]).as_slice() {
-            b"elseif" => {
-                i += 1;
-                continue;
+        if then_body.is_none() {
+            match crate::builtins::eval_bool_expr(interp, cond_obj) {
+                Ok(true) => then_body = Some(argv[i]),
+                Ok(false) => {}
+                Err(code) => return code,
             }
-            b"else" => {
-                i += 1;
-                if i >= argv.len() {
-                    return interp
-                        .set_error(b"wrong # args: no script following \"else\" argument");
-                }
-                return interp.eval_control_body(argv[i]);
-            }
-            // A bare trailing body is the implicit else (`if {0} a b`).
-            _ => return interp.eval_control_body(argv[i]),
+        }
+        i += 1; // consume the body
+        if i >= objc {
+            break; // no further clauses
+        }
+        if obj_bytes(argv[i]).as_slice() == b"elseif" {
+            i += 1;
+            clause = b"elseif";
+            continue;
+        }
+        break;
+    }
+
+    // Past the `elseif` chain: an optional `else` then exactly one body, or a
+    // single bare implicit-else body. Anything else is "extra words".
+    if i < objc && obj_bytes(argv[i]).as_slice() == b"else" {
+        i += 1;
+        if i >= objc {
+            return no_script_following(interp, b"else");
         }
     }
+    if i < objc.saturating_sub(1) {
+        return interp
+            .set_error(b"wrong # args: extra words after \"else\" clause in \"if\" command");
+    }
+
+    match then_body {
+        Some(body) => interp.eval_control_body(body),
+        None if i < objc => interp.eval_control_body(argv[i]),
+        None => {
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
+    }
+}
+
+/// `wrong # args: no script following "<token>" argument` (C's `missingScript`).
+fn no_script_following(interp: &mut Interp, token: &[u8]) -> Code {
+    let mut m = b"wrong # args: no script following \"".to_vec();
+    m.extend_from_slice(token);
+    m.extend_from_slice(b"\" argument");
+    interp.set_error(&m)
 }
 
 // -- while -----------------------------------------------------------------
@@ -134,7 +159,16 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         match interp.eval_control_body(body) {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
-            other => return other, // return / error propagate
+            Code::Error => {
+                // `("while" body line N)` — the interpreted `Tcl_WhileObjCmd`
+                // frame, added only outside a proc (Tcl inlines `while` when it
+                // compiles a proc body, so no frame there; see `foreach`).
+                if !interp.in_proc() {
+                    interp.append_body_frame(b"while");
+                }
+                return Code::Error;
+            }
+            other => return other, // return propagates
         }
     }
     interp.set_result_bytes(b"");
@@ -155,6 +189,13 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // the body. (Their result is discarded; only their completion code matters.)
     match interp.eval_control_body(init) {
         Code::Ok => {}
+        Code::Error => {
+            // `("for" initial command)` (no line) — interpreted `Tcl_ForObjCmd`.
+            if !interp.in_proc() {
+                interp.append_frame_noline(b"\"for\" initial command");
+            }
+            return Code::Error;
+        }
         other => return other,
     }
     loop {
@@ -166,10 +207,29 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         match interp.eval_control_body(body) {
             Code::Ok | Code::Continue => {} // `continue` still runs `next`
             Code::Break => break,
+            Code::Error => {
+                // `("for" body line N)` (interpreted `Tcl_ForObjCmd`), outside a
+                // proc only — as for `while`/`foreach`.
+                if !interp.in_proc() {
+                    interp.append_body_frame(b"for");
+                }
+                return Code::Error;
+            }
             other => return other,
         }
         match interp.eval_control_body(next) {
             Code::Ok => {}
+            // A `break` in the step clause ends the loop cleanly (C's
+            // `Tcl_ForObjCmd`: `case TCL_BREAK: result = TCL_OK`), unlike
+            // `continue`/`return`, which propagate.
+            Code::Break => break,
+            Code::Error => {
+                // `("for" loop-end command)` (no line) — interpreted `Tcl_ForObjCmd`.
+                if !interp.in_proc() {
+                    interp.append_frame_noline(b"\"for\" loop-end command");
+                }
+                return Code::Error;
+            }
             other => return other,
         }
     }

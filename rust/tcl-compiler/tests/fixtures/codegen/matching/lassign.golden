@@ -1,0 +1,20 @@
+ByteCode ::top, 14 instructions, 41 bytes, 3 literals, 0 variables
+  Literals:
+    0: "lst"
+    1: "a"
+    2: "b"
+  Instructions:
+    (0) push1 0	# "lst"
+    (2) loadStk
+    (3) push1 1	# "a"
+    (5) over 1
+    (10) listIndexImm 0
+    (15) storeStk
+    (16) pop
+    (17) push1 2	# "b"
+    (19) over 1
+    (24) listIndexImm 1
+    (29) storeStk
+    (30) pop
+    (31) listRangeImm 2 end
+    (40) done

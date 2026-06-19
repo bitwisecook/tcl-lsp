@@ -50,31 +50,35 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         };
     }
 
-    // A constant can't be appended to; reject before the in-place update would
-    // bypass the store-time constant check (var-26.2/27.2).
+    // A constant can't be appended to; reject before the update would bypass the
+    // store-time constant check (var-26.2/27.2).
     if let Some(c) = interp.const_write_check(&name) {
         return c;
     }
 
-    // Pick the target: in place if it's an unshared plain string; else a fresh
-    // plain string seeded from the current value (or empty).
-    let (target, is_new) = match interp.var_get(&name) {
-        Some(o) if obj::is_plain_string(o) && !obj::is_shared(o) => (o, false),
-        Some(o) => (obj::new_string_bytes(&obj_bytes(o)), true), // typed/shared → copy
-        None => (obj::new_string_bytes(b""), true),
-    };
+    // Byte-exact concatenation, shared with the VM via `append_bytes`: it grows
+    // the current value in place when it's an unshared plain string (returning
+    // that same object) else builds a fresh copy/new value. `var_get` parses
+    // `a(k)`, so array elements are handled.
+    let cur = interp.var_get(&name);
+    let result = tcl_cmd_core::var::append_bytes(interp, cur, values);
 
-    for &v in values {
-        let bytes = obj_bytes(v);
-        obj::string_append_inplace(target, &bytes);
+    // Always store back: rebinds the variable to `result` — a refcount-neutral
+    // re-set when it was grown in place — and fires the write trace exactly once
+    // (the in-place path used to skip the store and so fire no trace, diverging
+    // from C; this fixes that).
+    match interp.var_set(&name, result) {
+        Ok(()) => {
+            interp.set_result(result);
+            Code::Ok
+        }
+        Err(e) => {
+            // `result` is fresh (rc 0) on the copy/new path; on the in-place path
+            // it's the frame-owned object and `drop_fresh` is a no-op.
+            drop_fresh(result);
+            crate::builtins::var_error(interp, &name, e)
+        }
     }
-
-    if is_new && interp.var_set(&name, target).is_err() {
-        drop_fresh(target);
-        return cant_set(interp, &name);
-    }
-    interp.set_result(target);
-    Code::Ok
 }
 
 // -- string ensemble -------------------------------------------------------
@@ -96,6 +100,21 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return interp.set_error(&m);
         }
     };
+    // Portable subcommands now live in the shared command core (`tcl-cmd-core`),
+    // driven over this runtime's `*mut TclObj` `ValueOps`. The runtime is a thin
+    // adapter: map `Result<*mut TclObj, CmdError>` onto set_result/set_error.
+    // Not-yet-ported subcommands fall through to the legacy arms below.
+    if let Ok(canon_str) = std::str::from_utf8(canonical) {
+        if let Some(result) = tcl_cmd_core::string::dispatch_canon(interp, canon_str, &argv[2..]) {
+            return match result {
+                Ok(v) => {
+                    interp.set_result(v);
+                    Code::Ok
+                }
+                Err(e) => interp.set_error(e.message().as_bytes()),
+            };
+        }
+    }
     match canonical {
         b"length" => str_length(interp, argv),
         b"index" => str_index(interp, argv),
@@ -118,8 +137,7 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"is" => str_is(interp, argv),
         b"replace" => str_replace(interp, argv),
         b"insert" => str_insert(interp, argv),
-        b"wordstart" => str_word(interp, argv, true),
-        b"wordend" => str_word(interp, argv, false),
+        // `wordstart`/`wordend` are handled by the shared core above.
         _ => unreachable!("index_lookup only yields a known subcommand"),
     }
 }
@@ -401,28 +419,6 @@ fn list_error_message(s: &[u8]) -> Option<Vec<u8>> {
     None
 }
 
-/// The character index at which Tcl list parsing of `text` fails, or `None` for
-/// a well-formed list. Mirrors the `STR_IS_LIST` failat loop in tclCmdMZ.c:
-/// walk element by element and, on the first error, skip leading element
-/// whitespace and report the character count up to that point.
-fn list_failat(text: &str) -> Option<i64> {
-    let bytes = text.as_bytes();
-    let mut pos = 0usize;
-    loop {
-        match tcl_syntax::list::find_element(text, pos) {
-            Ok(None) => return None,
-            Ok(Some(el)) => pos = el.next,
-            Err(_) => {
-                let mut p = pos;
-                while p < bytes.len() && tcl_syntax::list::is_list_space(bytes[p]) {
-                    p += 1;
-                }
-                return Some(text[..p].chars().count() as i64);
-            }
-        }
-    }
-}
-
 /// `list element in <kind> followed by "<fragment>" instead of space`, where the
 /// fragment runs from `p` to the next list-space (max 20 bytes, as in C).
 fn followed_by_message(kind: &[u8], s: &[u8], p: usize) -> Vec<u8> {
@@ -617,70 +613,6 @@ fn tcl_prefix_longest(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let out: String = longest.iter().collect();
     interp.set_result_bytes(out.as_bytes());
-    Code::Ok
-}
-
-/// `string wordstart|wordend string charIndex` — the bounds of the word
-/// containing `charIndex` (`StringStartCmd`/`StringEndCmd`). A word is a maximal
-/// run of word-characters, or a single non-word character.
-fn str_word(interp: &mut Interp, argv: &[*mut TclObj], start: bool) -> Code {
-    if argv.len() != 4 {
-        return wrong_args(
-            interp,
-            if start {
-                b"string wordstart string index"
-            } else {
-                b"string wordend string index"
-            },
-        );
-    }
-    let chars: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[2]))
-        .chars()
-        .collect();
-    let n = chars.len();
-    let index = match index_spec(&obj_bytes(argv[3]), n) {
-        Some(i) => i,
-        None => return bad_index(interp, &obj_bytes(argv[3])),
-    };
-    let is_word = is_word_char;
-    let result: usize = if start {
-        if n == 0 {
-            0
-        } else {
-            let i = index.min(n as isize - 1);
-            if i <= 0 {
-                0
-            } else {
-                let i = i as usize;
-                if !is_word(chars[i]) {
-                    i
-                } else {
-                    let mut j = i;
-                    while j > 0 && is_word(chars[j - 1]) {
-                        j -= 1;
-                    }
-                    j
-                }
-            }
-        }
-    } else {
-        let i = index.max(0);
-        if i >= n as isize {
-            n
-        } else {
-            let i = i as usize;
-            let mut cur = i;
-            while cur < n && is_word(chars[cur]) {
-                cur += 1;
-            }
-            if cur == i {
-                cur + 1
-            } else {
-                cur
-            }
-        }
-    };
-    interp.set_result(obj::new_wide_int_obj(result as i64));
     Code::Ok
 }
 
@@ -1259,7 +1191,9 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 
     let s = obj_bytes(argv[last]);
-    let (ok, fail_index) = class_check(class, &s, strict);
+    let class_str = std::str::from_utf8(class).unwrap_or("");
+    let s_str = String::from_utf8_lossy(&s);
+    let (ok, fail_index) = tcl_cmd_core::string_is::class_check(class_str, &s_str, strict);
 
     if !ok {
         if let Some(var) = failvar {
@@ -1294,211 +1228,9 @@ fn option_err(kind: &[u8], arg: &[u8]) -> Vec<u8> {
     m
 }
 
-/// Run the class membership test. Returns `(is_member, fail_index)`; the fail
-/// index (a **character** offset, or -1) is only meaningful when not a member.
-fn class_check(class: &[u8], s: &[u8], strict: bool) -> (bool, i64) {
-    match class {
-        b"integer" | b"wideinteger" | b"entier" | b"double" => is_number_class(class, s, strict),
-        b"boolean" | b"true" | b"false" => is_boolean_class(class, s, strict),
-        b"list" => {
-            // `list`/`dict` ignore strictness (empty is a well-formed list). On
-            // failure the index is where list parsing broke down, not the length.
-            let Ok(text) = std::str::from_utf8(s) else {
-                return (false, 0);
-            };
-            match list_failat(text) {
-                None => (true, -1),
-                Some(idx) => (false, idx),
-            }
-        }
-        b"dict" => {
-            let Ok(text) = std::str::from_utf8(s) else {
-                return (false, 0);
-            };
-            // A list-parse failure reports its character index; a valid but
-            // odd-sized list reports -1 (C only computes a failat for parse
-            // errors, matching `string-32.9a`).
-            if let Some(idx) = list_failat(text) {
-                return (false, idx);
-            }
-            let even = tcl_syntax::list::split_list(text).is_ok_and(|l| l.len() % 2 == 0);
-            (even, -1)
-        }
-        _ => {
-            // Per-character class: first failing char index.
-            if s.is_empty() {
-                return (!strict, 0);
-            }
-            for (failat, c) in String::from_utf8_lossy(s).chars().enumerate() {
-                if !char_class_ok(class, c) {
-                    return (false, failat as i64);
-                }
-            }
-            (true, -1)
-        }
-    }
-}
-
-/// Tcl numeric whitespace (matches `tcl_syntax::number`'s internal set): space,
-/// tab, newline, VT, FF, CR. `TclParseNumber` consumes a surrounding run of it.
-#[inline]
-fn is_num_ws(c: u8) -> bool {
-    matches!(c, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r')
-}
-
-/// `string is integer|wideinteger|entier|double`. Defers to the shared
-/// `TclParseNumber` port: surrounding whitespace is allowed, the fail index is
-/// where parsing stopped, and `wideinteger` reports -1 on a value that parses
-/// but overflows a wide.
-fn is_number_class(class: &[u8], s: &[u8], strict: bool) -> (bool, i64) {
-    use tcl_syntax::number::{self, Number, ParseFlags};
-
-    if s.is_empty() {
-        return (!strict, 0);
-    }
-    let Ok(st) = std::str::from_utf8(s) else {
-        return (false, 0);
-    };
-    let is_double = class == b"double";
-    let flags = ParseFlags {
-        integer_only: !is_double,
-        ..Default::default()
-    };
-    let Some(p) = number::parse(st, flags) else {
-        return (false, 0); // no numeric prefix at all → fail at the start
-    };
-    // For the integer classes, reject the `Inf`/`NaN` alpha forms that the
-    // shared parser still classifies (C's `TCL_PARSE_INTEGER_ONLY` would not).
-    let is_int_val = matches!(p.number, Number::Int(_) | Number::Big { .. });
-    if !is_double && !is_int_val {
-        return (false, 0);
-    }
-    // `TclParseNumber`'s end-pointer consumes a trailing whitespace run.
-    let mut stop = p.end;
-    while stop < s.len() && is_num_ws(s[stop]) {
-        stop += 1;
-    }
-    if stop < s.len() {
-        // Some prefix parsed, but not the whole string. The fail index equals
-        // the byte stop (everything up to it is ASCII ws/digits, so byte == char).
-        return (false, stop as i64);
-    }
-    // The entire string is a number.
-    if class == b"wideinteger" {
-        match p.number {
-            Number::Int(_) => (true, -1),
-            _ => (false, -1), // a valid integer, but it overflows a wide
-        }
-    } else {
-        (true, -1)
-    }
-}
-
-/// `string is boolean|true|false`. A non-member fails at index 0 (the whole
-/// string is rejected as one unit).
-fn is_boolean_class(class: &[u8], s: &[u8], strict: bool) -> (bool, i64) {
-    match parse_boolean(s) {
-        Some(v) => {
-            let member = match class {
-                b"true" => v,
-                b"false" => !v,
-                _ => true,
-            };
-            (member, 0)
-        }
-        None => {
-            if strict {
-                (false, 0)
-            } else {
-                // Non-strict: empty is a member; anything else is not.
-                (s.is_empty(), 0)
-            }
-        }
-    }
-}
-
-/// `Tcl_GetBoolean`'s `ParseBoolean` (`tclObj.c`): `0`/`1`, or a case-insensitive
-/// unambiguous prefix of `true`/`false`/`yes`/`no`/`on`/`off`. Returns the
-/// boolean value, or `None` when the string is not a valid boolean.
-fn parse_boolean(s: &[u8]) -> Option<bool> {
-    let len = s.len();
-    if !(1..=5).contains(&len) {
-        return None; // "false" is the longest valid spelling
-    }
-    match s[0] {
-        b'0' => return (len == 1).then_some(false),
-        b'1' => return (len == 1).then_some(true),
-        _ => {}
-    }
-    // Lower-case, rejecting any byte outside the boolean-keyword letter set.
-    let mut lower = [0u8; 5];
-    for (i, &c) in s.iter().enumerate() {
-        let lc = c.to_ascii_lowercase();
-        if !matches!(
-            lc,
-            b'a' | b'e' | b'f' | b'l' | b'n' | b'o' | b'r' | b's' | b't' | b'u' | b'y'
-        ) {
-            return None;
-        }
-        lower[i] = lc;
-    }
-    let lc = &lower[..len];
-    // `strncmp(lc, keyword, len) == 0` ⇔ `keyword.starts_with(lc)`.
-    match lc[0] {
-        b'y' => b"yes".starts_with(lc).then_some(true),
-        b'n' => b"no".starts_with(lc).then_some(false),
-        b't' => b"true".starts_with(lc).then_some(true),
-        b'f' => b"false".starts_with(lc).then_some(false),
-        b'o' if len >= 2 && b"on".starts_with(lc) => Some(true),
-        b'o' if len >= 2 && b"off".starts_with(lc) => Some(false),
-        _ => None,
-    }
-}
-
-/// Per-character `string is` class membership.
-fn char_class_ok(class: &[u8], c: char) -> bool {
-    match class {
-        b"alnum" => c.is_alphanumeric(),
-        b"alpha" => c.is_alphabetic(),
-        b"ascii" => (c as u32) < 0x80,
-        b"control" => c.is_control(),
-        b"digit" => c.is_numeric(),
-        b"graph" => !c.is_whitespace() && !c.is_control() && (c as u32) != 0x20,
-        b"lower" => c.is_lowercase(),
-        b"print" => !c.is_control(),
-        b"punct" => c.is_ascii_punctuation(),
-        b"space" => c.is_whitespace(),
-        b"upper" => c.is_uppercase(),
-        b"wordchar" => is_word_char(c),
-        b"xdigit" => c.is_ascii_hexdigit(),
-        _ => false,
-    }
-}
-
-/// The connector-punctuation characters (Unicode category `Pc`) — the full set,
-/// including `_`. `Tcl_UniCharIsWordChar` and `string is wordchar` treat these
-/// as word characters.
-fn is_connector_punct(c: char) -> bool {
-    matches!(
-        c,
-        '\u{005F}'
-            | '\u{203F}'
-            | '\u{2040}'
-            | '\u{2054}'
-            | '\u{FE33}'
-            | '\u{FE34}'
-            | '\u{FE4D}'
-            | '\u{FE4E}'
-            | '\u{FE4F}'
-            | '\u{FF3F}'
-    )
-}
-
-/// `Tcl_UniCharIsWordChar`: letters and decimal digits (here approximated by
-/// `char::is_alphanumeric`) plus connector punctuation.
-fn is_word_char(c: char) -> bool {
-    c.is_alphanumeric() || is_connector_punct(c)
-}
+// `string is` classification now lives in the shared `tcl_cmd_core::string_is`
+// (the per-class membership + fail-index logic). `str_is` above is the thin
+// per-runtime wrapper (option parsing + `-failindex` var write) over it.
 
 // -- char helpers (ASCII fast path) ----------------------------------------
 
@@ -1762,6 +1494,30 @@ mod tests {
         assert_eq!(
             ok(b"set i 0; append acc x; append acc y; append acc z"),
             b"xyz"
+        );
+    }
+
+    /// `append` routed through the shared byte core: byte-exact (a high byte
+    /// survives, where the lossy char seam would corrupt it to U+FFFD), the
+    /// no-values read matches tclsh (returns the value, errors if unset — the VM
+    /// shared the same fix), and the in-place growth now fires the write trace
+    /// once (the old in-place path skipped the store and so fired no trace).
+    #[test]
+    fn append_shared_core_parity() {
+        // byte-exact: 0x41 then 0xc8 → "41c8", not a corrupted multi-byte U+FFFD.
+        assert_eq!(
+            ok(b"set b [binary format H* 41]; append b [binary format H* c8]; binary scan $b H* h; set h"),
+            b"41c8"
+        );
+        // no-values: read the value; error if unset (was a VM bug, now both fixed).
+        assert_eq!(ok(b"set s hello; append s"), b"hello");
+        let (c, m) = run(b"append nope");
+        assert_eq!(c, Code::Error);
+        assert_eq!(m, b"can't read \"nope\": no such variable");
+        // the in-place growth path fires the write trace exactly once.
+        assert_eq!(
+            ok(b"set t abc; set n 0; trace add variable t write {incr ::n;#}; append t xyz; set n"),
+            b"1"
         );
     }
 

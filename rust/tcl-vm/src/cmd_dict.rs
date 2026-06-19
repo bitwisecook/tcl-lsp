@@ -100,6 +100,15 @@ fn upsert(ps: &mut Vec<(String, Value)>, key: &str, value: Value) {
 
 #[allow(clippy::too_many_lines)]
 fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
+    // Pure dict subcommands now live in the shared command core; the VM is a
+    // thin adapter. Variable-mutating subcommands fall through to the legacy
+    // arms below.
+    if let Some(result) = tcl_cmd_core::dict::dispatch_canon(vm, sub, rest) {
+        return match result {
+            Ok(v) => ok(v),
+            Err(e) => err(e.into_message()),
+        };
+    }
     match sub {
         "create" => {
             if !rest.len().is_multiple_of(2) {
@@ -285,6 +294,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             })
         }
         "for" => cmd_dict_for(vm, rest),
+        "filter" => cmd_dict_filter(vm, rest),
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
     }
 }
@@ -323,4 +333,52 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         }
     }
     ok(Value::empty())
+}
+
+/// `dict filter dictionary script {keyVar valueVar} body` — the Family-B `script`
+/// filter type (the pure `key`/`value` globs are handled by the shared
+/// `tcl_cmd_core::dict` core, which returns `None` only for `script`). Keeps each
+/// pair whose body result is true; the body's completion code drives the loop
+/// (OK ⇒ keep iff true; CONTINUE ⇒ skip; BREAK ⇒ stop; else ⇒ propagate).
+fn cmd_dict_filter(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let [dict, _script, vars, body] = rest else {
+        return err(
+            "wrong # args: should be \"dict filter dictionary script {keyVarName valueVarName} filterScript\"",
+        );
+    };
+    let ps = match pairs(dict) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    let vnames = match vars.as_list() {
+        Ok(v) => v,
+        Err(e) => return err(e.message),
+    };
+    let [kvar, vvar] = vnames.as_slice() else {
+        return err("must have exactly two variable names");
+    };
+    let body_src = body.to_str();
+    let mut kept: Vec<(String, Value)> = Vec::new();
+    for (k, v) in ps {
+        if let Err(e) = vm.set_var(&kvar.to_str(), Value::string(k.as_str())) {
+            return e;
+        }
+        if let Err(e) = vm.set_var(&vvar.to_str(), v.clone()) {
+            return e;
+        }
+        match vm.eval_source(&body_src) {
+            Ok(c) => match c.code {
+                Code::Ok => match c.result.as_bool() {
+                    Ok(true) => kept.push((k, v)),
+                    Ok(false) => {}
+                    Err(e) => return err(e.message),
+                },
+                Code::Continue => {}
+                Code::Break => break,
+                _ => return c,
+            },
+            Err(e) => return err(e.message),
+        }
+    }
+    ok(from_pairs(&kept))
 }

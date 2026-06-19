@@ -115,12 +115,21 @@ pub fn detect_complex_foreach(
         let Some(body_blk) = cfg.blocks.get(&info.body) else {
             continue;
         };
-        // A body that *branches* (an `if`/loop) is complex — `FOREACH_STEP`/
-        // `FOREACH_END` must move to the foreach_end block and body back-edges
-        // route to the step label. The body may still carry statements (e.g. a
-        // `<cond>` placeholder for a command substitution in the condition), so
-        // we key on the Branch terminator rather than an empty statement list.
-        if !matches!(body_blk.terminator, Some(Terminator::Branch { .. })) {
+        // A *simple* foreach is a single straight-line body block that loops
+        // directly back to the header (`Goto header`); its `FOREACH_STEP`/
+        // `FOREACH_END` are emitted inline after the body. Anything else is
+        // complex — the step/end move to the foreach_end block and body
+        // back-edges route to the step label. This covers both a branching body
+        // (an `if`, terminator `Branch`) *and* a body that flows through further
+        // blocks before looping (a nested `for`/`while`/`foreach`, whose tail
+        // `Goto`s the header from a *different* block — keying only on `Branch`
+        // here mis-classified that as simple and emitted the outer step/end
+        // before the inner loop ran, an infinite loop).
+        let is_simple = matches!(
+            &body_blk.terminator,
+            Some(Terminator::Goto { target, .. }) if target == header
+        );
+        if is_simple {
             continue;
         }
         let step_label = format!("foreach_continue_{}", *label_counter);

@@ -1,19 +1,29 @@
 //! The interpreter state (`Vm`): the call-frame stack, the command table, the
 //! compiled-proc registry, and the variable/command/eval surface.
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::io::{self, Write};
 use std::rc::Rc;
 
-use tcl_bytecode::FunctionAsm;
-use tcl_runtime_api::{Code, CompileService, Completion, FrameId, ROOT_NS, VarStore};
+use tcl_bytecode::{FunctionAsm, ModuleAsm};
+use tcl_platform::Host;
+use tcl_runtime_api::{
+    Code, CommandId, Commands, CompileService, Completion, FrameId, Frames, Introspect, Namespaces,
+    NsId, ProcInfo, ProcParam, Procs, ROOT_NS, Traces, VarStore,
+};
 use tcl_syntax::expr::{eval, parse_expr};
 
 use crate::command::{BuiltinFn, Command, ProcDef, register_builtins};
 use crate::error::TclError;
 use crate::expr::ExprEval;
 use crate::frame::{CallFrame, Local};
+use crate::host_native::NativeHost;
 use crate::value::Value;
+
+/// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
+/// A deeper nesting is a catchable error, not a native stack overflow.
+pub(crate) const RECURSION_LIMIT: usize = 1000;
 
 /// Build an `OK` completion (empty options dict).
 pub(crate) fn ok(result: Value) -> Completion<Value> {
@@ -66,6 +76,18 @@ pub struct Vm {
     /// Export patterns per namespace (canonical name → glob patterns), set by
     /// `namespace export` and consulted by `namespace import`.
     ns_exports: HashMap<String, Vec<String>>,
+    /// Namespace-name ⇆ opaque `NsId` arena for the Family-B `Frames`/`Namespaces`
+    /// contract. The VM resolves namespaces by their canonical `String` name; this
+    /// side-table mints stable `NsId` handles for them (`ns_arena[id]` is the name,
+    /// `ROOT_NS` = 0 = `""`), bridging the handle-based trait to the string model.
+    ns_arena: Vec<String>,
+    ns_intern: HashMap<String, NsId>,
+    /// Command-FQN ⇆ dense raw `CommandId` arena for `Namespaces::find_command`
+    /// and `Commands::dispatch_id`. Interior-mutable because `find_command` is
+    /// `&self` but mints a handle on first sight. Bidirectional: `find_command`
+    /// interns an absolute FQN, `dispatch_id` reverses the id to that FQN and
+    /// invokes it.
+    cmd_arena: RefCell<CmdArena>,
     /// Provided packages → version (`package provide`/`require`).
     packages: HashMap<String, String>,
     /// Variable traces, keyed by a resolved-owner key (frame level + name) so a
@@ -82,7 +104,29 @@ pub struct Vm {
     /// unqualified names are proc locals.
     ns_script_frames: Vec<usize>,
     out: Box<dyn Write>,
-    compiler: Option<Box<dyn CompileService>>,
+    compiler: Option<Box<dyn CompileService<Module = ModuleAsm>>>,
+    /// Cache of compiled scripts for the runtime-`eval` / command-substitution
+    /// path (`eval_source`), keyed by source text. Compilation is a pure
+    /// function of the source and the (fixed) command registry, so a script
+    /// re-evaluated every loop iteration — a `switch`/`if`/`while` body, a
+    /// `[subst]`ed command, a tcltest `-body` — compiles once instead of each
+    /// time. This is the dominant cost in the tcltest workload.
+    eval_cache: HashMap<String, Rc<ModuleAsm>>,
+    /// The accumulating `errorInfo` source trace (C's `iPtr->errorInfo`): the
+    /// error message followed by `while executing` / `invoked from within`
+    /// frames, built up as the error unwinds through commands. `None` until the
+    /// first frame is logged (which selects `while executing`). Consumed and
+    /// reset when an error is caught (`catch`) or published.
+    error_info: Option<String>,
+    /// C's `ERR_ALREADY_LOGGED`: set once the current command level has logged
+    /// its frame (so the same bytecode frame is not re-logged), cleared at a
+    /// real frame boundary (a nested `eval`/`[subst]`, a proc/control body) so
+    /// the enclosing command logs its own `invoked from within` frame.
+    error_logged: bool,
+    /// The 1-based source line of the innermost command logged into the current
+    /// `errorInfo` trace (C's `iPtr->errorLine`) — the line the `(procedure …
+    /// line N)` / `("while" body line N)` frames report.
+    error_line: u32,
     /// Open I/O channels (file handles), keyed by channel id (`file3`, …). The
     /// predefined `stdin`/`stdout`/`stderr` are not stored here; commands
     /// special-case those names.
@@ -92,6 +136,29 @@ pub struct Vm {
     /// Stack of file paths currently being evaluated by `source`. The top is
     /// what `info script` returns; empty when not inside a `source`.
     script_stack: Vec<String>,
+    /// Active call-nesting depth — C Tcl's `interp recursionlimit`. Bounds proc
+    /// recursion so an infinite loop is a *catchable* error rather than a native
+    /// stack overflow (the trampoline avoids host-stack growth for a *single*
+    /// activation, but `uplevel`/`catch`/`[subst]` re-enter `eval_source`, which
+    /// does recurse on the host stack). Tracked on every call-frame push/pop.
+    recursion_depth: usize,
+    /// The host environment: the capability seam (`tcl-platform`) through which
+    /// every command reaches the filesystem, clock, env, stdio, subprocess, and
+    /// sockets. The bytecode VM is a native target, so this defaults to a
+    /// full-capability [`NativeHost`]; [`Vm::set_host`] swaps it (e.g. for a
+    /// sandboxed, WASM-posture host in capability tests). An `Rc` (not `Box`) so
+    /// a command can clone a handle and pass `&dyn Host` *alongside* a `&mut Vm`
+    /// borrow (the VM is itself the `ValueOps` a shared helper takes).
+    host: Rc<dyn Host>,
+}
+
+/// The command-identity arena backing `Namespaces::find_command` /
+/// `Commands::dispatch_id`: a bijection between a command's absolute FQN and a
+/// dense raw `CommandId` (the index into `fqns`). Minted on first `find_command`.
+#[derive(Default)]
+struct CmdArena {
+    ids: HashMap<String, u32>,
+    fqns: Vec<String>,
 }
 
 /// A single registered variable trace.
@@ -120,15 +187,24 @@ impl Vm {
             ns_stack: vec![String::new()],
             namespaces: std::collections::HashSet::new(),
             ns_exports: HashMap::new(),
+            ns_arena: vec![String::new()],
+            ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
+            cmd_arena: RefCell::new(CmdArena::default()),
             packages: HashMap::new(),
             var_traces: HashMap::new(),
             active_traces: std::collections::HashSet::new(),
             ns_script_frames: Vec::new(),
             out,
             compiler: None,
+            eval_cache: HashMap::new(),
+            error_info: None,
+            error_logged: false,
+            error_line: 1,
             channels: HashMap::new(),
             chan_counter: 2,
             script_stack: Vec::new(),
+            recursion_depth: 0,
+            host: Rc::new(NativeHost::new()),
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
@@ -166,8 +242,25 @@ impl Vm {
     }
 
     /// Inject the compiler used for runtime `eval` / command substitution.
-    pub fn set_compiler(&mut self, compiler: Box<dyn CompileService>) {
+    pub fn set_compiler(&mut self, compiler: Box<dyn CompileService<Module = ModuleAsm>>) {
         self.compiler = Some(compiler);
+    }
+
+    /// The host environment (capability seam) backing the platform commands.
+    pub(crate) fn host(&self) -> &dyn Host {
+        &*self.host
+    }
+
+    /// A cloned handle to the host, so a command can hold `&dyn Host` while also
+    /// taking `&mut self` as the `ValueOps` a shared `tcl-cmd-core` helper needs.
+    pub(crate) fn host_rc(&self) -> Rc<dyn Host> {
+        Rc::clone(&self.host)
+    }
+
+    /// Swap the host environment — e.g. a [`NativeHost::sandboxed`] to exercise
+    /// the WASM-posture "unsupported" paths natively.
+    pub fn set_host(&mut self, host: Rc<dyn Host>) {
+        self.host = host;
     }
 
     pub(crate) fn register(&mut self, name: &str, f: BuiltinFn) {
@@ -224,11 +317,73 @@ impl Vm {
         self.ns_stack.last().map_or("", String::as_str)
     }
 
+    /// Intern a canonical namespace name to its stable `NsId`, minting one on
+    /// first sight (`ROOT_NS` = 0 = `""`). The handle a `Frames::push` caller
+    /// passes — and what `Namespaces::current` will return — round-trips through
+    /// [`ns_name`](Self::ns_name).
+    pub fn intern_ns(&mut self, name: &str) -> NsId {
+        if let Some(&id) = self.ns_intern.get(name) {
+            return id;
+        }
+        let id = NsId(u32::try_from(self.ns_arena.len()).expect("namespace count fits u32"));
+        self.ns_arena.push(name.to_string());
+        self.ns_intern.insert(name.to_string(), id);
+        id
+    }
+
+    /// The canonical namespace name for an interned `NsId` (`""` for `ROOT_NS`
+    /// or any unknown id — a `Frames::push` into the global namespace).
+    fn ns_name(&self, id: NsId) -> String {
+        self.ns_arena
+            .get(id.0 as usize)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Resolve `name` from namespace `cxt` to its command's canonical key (the
+    /// `commands` map key — a qualified name without the leading `::`), mirroring
+    /// [`lookup_command`](Self::lookup_command)'s order: an absolute `::name`
+    /// directly, else `cxt::name`, else the global `name`. `None` if unresolved.
+    fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
+        if let Some(abs) = name.strip_prefix("::") {
+            return self.commands.contains_key(abs).then(|| abs.to_string());
+        }
+        if !cxt.is_empty() {
+            let qualified = format!("{cxt}::{name}");
+            if self.commands.contains_key(&qualified) {
+                return Some(qualified);
+            }
+        }
+        self.commands.contains_key(name).then(|| name.to_string())
+    }
+
+    /// Intern an absolute command FQN to a stable, dense raw `CommandId`, minting
+    /// one on first sight. Backs `Namespaces::find_command`.
+    fn intern_cmd(&self, fqn: &str) -> u32 {
+        let mut a = self.cmd_arena.borrow_mut();
+        if let Some(&id) = a.ids.get(fqn) {
+            return id;
+        }
+        let id = u32::try_from(a.fqns.len()).expect("command count fits u32");
+        a.fqns.push(fqn.to_string());
+        a.ids.insert(fqn.to_string(), id);
+        id
+    }
+
+    /// The absolute FQN an interned raw `CommandId` was minted from, or `None`
+    /// for a fabricated/out-of-range id. Backs `Commands::dispatch_id`'s reverse.
+    fn command_fqn(&self, id: u32) -> Option<String> {
+        self.cmd_arena.borrow().fqns.get(id as usize).cloned()
+    }
+
     /// Push a namespace onto the resolution stack (created if new).
     pub(crate) fn push_ns(&mut self, ns: String) {
         if !ns.is_empty() {
             self.namespaces.insert(ns.clone());
         }
+        // Ensure it has an `NsId` so `Namespaces::current` (a `&self` lookup) can
+        // resolve it without minting.
+        self.intern_ns(&ns);
         self.ns_stack.push(ns);
     }
 
@@ -260,14 +415,12 @@ impl Vm {
             return;
         }
         self.namespaces.insert(ns.to_string());
+        // Mint a stable `NsId` (handle) so the `Namespaces` nav methods are pure
+        // `&self` lookups — every namespace, however created, has an id.
+        self.intern_ns(ns);
         if let Some((parent, _)) = ns.rsplit_once("::") {
             self.declare_namespace(parent);
         }
-    }
-
-    /// Whether a canonical namespace name exists.
-    pub(crate) fn namespace_exists(&self, ns: &str) -> bool {
-        ns.is_empty() || self.namespaces.contains(ns)
     }
 
     /// Record `namespace export` patterns for the current namespace.
@@ -319,6 +472,30 @@ impl Vm {
             imported.push(tail);
         }
         imported
+    }
+
+    /// Delete namespace `canonical` (no leading `::`) and every descendant,
+    /// removing their commands/procs, namespace variables, export patterns, and
+    /// interned ids. Returns `false` (deleting nothing) when the namespace does
+    /// not exist — the caller reports `unknown namespace`. The global namespace
+    /// (`""`) is never deletable.
+    pub(crate) fn delete_namespace(&mut self, canonical: &str) -> bool {
+        if canonical.is_empty() || !self.namespaces.contains(canonical) {
+            return false;
+        }
+        let prefix = format!("{canonical}::");
+        let in_tree = |k: &str| k == canonical || k.starts_with(&prefix);
+        // Commands and namespace variables are keyed by their fully-qualified
+        // (unrooted) name, so a member of the namespace or a descendant begins
+        // with `canonical::`.
+        self.commands.retain(|k, _| !k.starts_with(&prefix));
+        if let Some(g) = self.frames.first_mut() {
+            g.locals.retain(|k, _| !k.starts_with(&prefix));
+        }
+        self.namespaces.retain(|n| !in_tree(n));
+        self.ns_exports.retain(|k, _| !in_tree(k));
+        self.ns_intern.retain(|k, _| !in_tree(k));
+        true
     }
 
     /// Immediate child namespaces of `parent` (canonical names).
@@ -550,13 +727,35 @@ impl Vm {
         let level = self.frames.len();
         self.frames
             .push(CallFrame::new(level, ROOT_NS, proc_name, call_argv));
+        self.recursion_depth += 1;
         level
     }
 
     pub(crate) fn pop_call_frame(&mut self) {
         if self.frames.len() > 1 {
             self.frames.pop();
+            self.recursion_depth = self.recursion_depth.saturating_sub(1);
         }
+    }
+
+    /// Push a non-proc call frame for a `namespace eval`/`inscope` body running
+    /// in namespace `ns` (canonical, no leading `::`). Like a proc call this is a
+    /// real frame — `info level` counts it and `uplevel`/`upvar` can target it —
+    /// but it is marked [`ns_eval`](CallFrame::ns_eval) so an unqualified variable
+    /// in its body resolves to a namespace variable rather than a frame local.
+    /// `call_argv` is the invoking command words (for `info level N`).
+    pub(crate) fn push_ns_eval_frame(&mut self, ns: &str, call_argv: Vec<Value>) -> usize {
+        let level = self.frames.len();
+        let mut frame = CallFrame::new(level, ROOT_NS, None, call_argv);
+        frame.ns_eval = Some(ns.to_owned());
+        self.frames.push(frame);
+        self.recursion_depth += 1;
+        level
+    }
+
+    /// The current call-nesting depth (proc recursion bound).
+    pub(crate) fn recursion_depth(&self) -> usize {
+        self.recursion_depth
     }
 
     /// Evaluate `src` as if `target` were the current call frame (`uplevel`).
@@ -586,20 +785,42 @@ impl Vm {
             return err(format!("bad level \"{target}\""));
         }
         let saved = self.frames.split_off(target + 1);
+        // The namespace stack is kept aligned 1:1 with the call-frame stack (every
+        // proc call and `namespace eval` pushes one of each), so the target frame's
+        // namespace is `ns_stack[target]`. Set it aside with the frames so the
+        // uplevel'd script resolves commands/variables in the target frame's
+        // namespace — what makes `uplevel 1`/tcltest's body eval inside a
+        // `namespace eval` reach that namespace's procs and variables.
+        let ns_cut = (target + 1).min(self.ns_stack.len());
+        let saved_ns = self.ns_stack.split_off(ns_cut);
+        let saved_depth = self.recursion_depth;
         let result = self.eval_source(src);
         // Restore any frames the script left in place, then re-attach the ones
         // we set aside (the script's own proc activations are already balanced).
+        // `truncate` may drop frames the script left unbalanced (an error mid
+        // proc), which `pop_call_frame` never saw — so reset the recursion depth
+        // to its pre-eval value rather than leak it.
         self.frames.truncate(target + 1);
         self.frames.extend(saved);
+        self.ns_stack.truncate(ns_cut);
+        self.ns_stack.extend(saved_ns);
+        self.recursion_depth = saved_depth;
         match result {
             Ok(c) => c,
             Err(e) => err(e.message),
         }
     }
 
-    /// All registered command names (for `info commands`).
-    pub(crate) fn command_names(&self) -> Vec<String> {
-        self.commands.keys().cloned().collect()
+    /// The unqualified names of commands (or, with `procs_only`, just user
+    /// procedures) defined **directly** in namespace `canonical` (unrooted; `""`
+    /// = global) — the `Namespaces::commands_in`/`procs_in` enumeration, filtering
+    /// the flat command map. Direct members only (`foo::sub::x` is not in `foo`).
+    pub(crate) fn names_directly_in(&self, canonical: &str, procs_only: bool) -> Vec<String> {
+        self.commands
+            .iter()
+            .filter(|(_, c)| !procs_only || matches!(c, Command::Proc(_)))
+            .filter_map(|(key, _)| direct_member_tail(key, canonical).map(str::to_owned))
+            .collect()
     }
 
     /// The `ProcDef` for a user proc, if `name` resolves to one (`info body`/`args`).
@@ -610,13 +831,10 @@ impl Vm {
         }
     }
 
-    /// User-proc names (for `info procs`).
-    pub(crate) fn proc_names(&self) -> Vec<String> {
-        self.commands
-            .iter()
-            .filter(|(_, c)| matches!(c, Command::Proc(_)))
-            .map(|(n, _)| n.clone())
-            .collect()
+    /// Whether `name` is already a defined user proc — distinguishes a `proc`
+    /// redefinition (which must recompile its body) from a first definition.
+    pub(crate) fn is_proc_defined(&self, name: &str) -> bool {
+        matches!(self.lookup_command(name), Some(Command::Proc(_)))
     }
 
     /// The invocation argv of the frame at absolute `level` (`info level N`).
@@ -624,22 +842,34 @@ impl Vm {
         self.frames.get(level).map(|f| f.call_argv.clone())
     }
 
-    /// Scalar variable names visible in the current frame (`info vars`/`locals`).
-    pub(crate) fn local_scalar_names(&self) -> Vec<String> {
+    /// The variable names of the current (active) frame — the `Frames::var_names`
+    /// enumeration. Genuine locals (scalars, arrays) always; `upvar`/`global`/
+    /// `variable` links iff `include_links` (`info vars` lists links by their
+    /// local alias, `info locals` does not).
+    pub(crate) fn frame_var_names(&self, include_links: bool) -> Vec<String> {
         self.frames.last().map_or_else(Vec::new, |f| {
             f.locals
                 .iter()
-                .filter(|(_, l)| matches!(l, Local::Scalar(_) | Local::Array(_)))
+                .filter(|(_, l)| include_links || matches!(l, Local::Scalar(_) | Local::Array(_)))
                 .map(|(n, _)| n.clone())
                 .collect()
         })
     }
 
-    /// Global variable names (`info globals`).
-    pub(crate) fn global_names(&self) -> Vec<String> {
-        self.frames
-            .first()
-            .map_or_else(Vec::new, |f| f.locals.keys().cloned().collect())
+    /// The variables defined **directly** in namespace `canonical` (unrooted; `""`
+    /// = global) — the `Namespaces::vars_in` enumeration. Namespace variables live
+    /// in the global frame keyed by their qualified name (`foo::v`), so this is the
+    /// variable analogue of [`names_directly_in`](Self::names_directly_in): the
+    /// global frame's genuine variables (scalars/arrays, not links) whose key is a
+    /// direct member of `canonical`.
+    pub(crate) fn vars_directly_in(&self, canonical: &str) -> Vec<String> {
+        self.frames.first().map_or_else(Vec::new, |f| {
+            f.locals
+                .iter()
+                .filter(|(_, l)| matches!(l, Local::Scalar(_) | Local::Array(_)))
+                .filter_map(|(key, _)| direct_member_tail(key, canonical).map(str::to_owned))
+                .collect()
+        })
     }
 
     /// Set a local directly in the current frame (proc argument binding).
@@ -727,6 +957,21 @@ impl Vm {
                 _ => break,
             }
         }
+        // A bare name landing on a `namespace eval` body frame (no genuine local
+        // there) is a *namespace* variable: redirect it to `ns::name` in the
+        // global frame, where namespace variables live. This mirrors what
+        // `ns_var_fallback` does for the current frame, but also covers an
+        // `upvar`/`uplevel` link that reaches a namespace-eval frame — so a proc's
+        // `upvar 1 v` into a `namespace eval` body resolves the namespace variable,
+        // and a plain `set x` at namespace-script level *creates* `ns::x`.
+        if !nm.contains("::")
+            && let Some(f) = self.frames.get(level)
+            && let Some(ns) = &f.ns_eval
+            && !ns.is_empty()
+            && !f.locals.contains_key(&nm)
+        {
+            return (0, format!("{ns}::{nm}"));
+        }
         (level, nm)
     }
 
@@ -783,9 +1028,28 @@ impl Vm {
         }
     }
 
+    /// Whether a scalar write to `name` would land on an existing array variable
+    /// — a `can't set "x": variable is array` error rather than a silent
+    /// overwrite (the resolution mirrors [`write_scalar_raw`](Self::write_scalar_raw)).
+    fn scalar_write_hits_array(&self, name: &str) -> bool {
+        let resolved = self.ns_var_fallback(name);
+        let name = resolved.as_deref().unwrap_or(name);
+        let (lvl, nm) = self.locate(name);
+        if elem_ref(&nm).is_some() {
+            return false; // an element write resolves the array base separately
+        }
+        matches!(
+            self.frames.get(lvl).and_then(|f| f.locals.get(&nm)),
+            Some(Local::Array(_))
+        )
+    }
+
     /// Write a scalar, firing `write` traces afterwards (the old value is
     /// restored if a trace callback aborts the write).
     pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
+        if self.scalar_write_hits_array(name) {
+            return Err(err(format!("can't set \"{name}\": variable is array")));
+        }
         if self.var_traces.is_empty() {
             self.write_scalar_raw(name, value);
             return Ok(());
@@ -823,11 +1087,73 @@ impl Vm {
         existed
     }
 
-    fn var_exists(&self, name: &str) -> bool {
-        let (lvl, nm) = self.locate(name);
+    // -- frame-addressed storage (the `VarStore` `FrameId`-honouring path) ------
+    //
+    // These resolve `name` starting from an *explicit* frame (following links),
+    // touching only storage: no current-eval-context namespace fallback and no
+    // trace firing (both are current-frame concerns). The `VarStore` impl uses
+    // them only for a non-current `FrameId`; a `FrameId` equal to the current
+    // frame delegates to the full inherent accessors above, so the common case
+    // keeps its exact behaviour (fallback + traces).
+
+    /// Frame-addressed scalar read (the storage half of [`get_var`](Self::get_var)).
+    pub(crate) fn get_var_from(&self, start: usize, name: &str) -> Option<Value> {
+        let (lvl, nm) = self.locate_from(name, start);
+        if let Some((base, key)) = elem_ref(&nm) {
+            let (blvl, bnm) = self.locate_from(base, lvl);
+            return match self.frames.get(blvl)?.locals.get(&bnm) {
+                Some(Local::Array(m)) => m.get(key).cloned(),
+                _ => None,
+            };
+        }
+        match self.frames.get(lvl)?.locals.get(&nm) {
+            Some(Local::Scalar(v)) => Some(v.clone()),
+            _ => None,
+        }
+    }
+
+    /// Frame-addressed scalar write (the storage half of
+    /// [`write_scalar_raw`](Self::write_scalar_raw)).
+    pub(crate) fn write_scalar_from(&mut self, start: usize, name: &str, value: Value) {
+        let (lvl, nm) = self.locate_from(name, start);
+        if let Some((base, key)) = elem_ref(&nm) {
+            let key = key.to_owned();
+            let (blvl, bnm) = self.locate_from(base, lvl);
+            if let Some(f) = self.frames.get_mut(blvl) {
+                match f.locals.get_mut(&bnm) {
+                    Some(Local::Array(m)) => {
+                        m.insert(key, value);
+                    }
+                    Some(_) => {}
+                    None => {
+                        let mut m = BTreeMap::new();
+                        m.insert(key, value);
+                        f.locals.insert(bnm, Local::Array(m));
+                    }
+                }
+            }
+            return;
+        }
+        if let Some(f) = self.frames.get_mut(lvl) {
+            f.locals.insert(nm, Local::Scalar(value));
+        }
+    }
+
+    /// Frame-addressed scalar existence (the storage half of
+    /// [`var_exists`](Self::var_exists)).
+    pub(crate) fn exists_from(&self, start: usize, name: &str) -> bool {
+        let (lvl, nm) = self.locate_from(name, start);
         self.frames
             .get(lvl)
             .is_some_and(|f| matches!(f.locals.get(&nm), Some(Local::Scalar(_))))
+    }
+
+    /// Frame-addressed unset (storage only — no unset-trace firing).
+    pub(crate) fn unset_from(&mut self, start: usize, name: &str) -> bool {
+        let (lvl, nm) = self.locate_from(name, start);
+        self.frames
+            .get_mut(lvl)
+            .is_some_and(|f| f.locals.remove(&nm).is_some())
     }
 
     /// Whether a scalar or array variable named `name` exists (`info exists`).
@@ -837,6 +1163,59 @@ impl Vm {
             self.frames.get(lvl).and_then(|f| f.locals.get(&nm)),
             Some(Local::Scalar(_) | Local::Array(_))
         )
+    }
+
+    /// Whether `name` resolves to an array variable (the `set a` array/scalar
+    /// diagnostic; `array exists`).
+    pub(crate) fn var_is_array(&self, name: &str) -> bool {
+        let resolved = self.ns_var_fallback(name);
+        let lookup = resolved.as_deref().unwrap_or(name);
+        let (lvl, nm) = self.locate(lookup);
+        matches!(
+            self.frames.get(lvl).and_then(|f| f.locals.get(&nm)),
+            Some(Local::Array(_))
+        )
+    }
+
+    /// C's three-way read-miss message (`tclVar.c`): a scalar read of an array
+    /// (`variable is array`), a missing element of an existing array (`no such
+    /// element in array`), an existing scalar accessed with an index (`variable
+    /// isn't array`), or a wholly missing variable (`no such variable`).
+    pub(crate) fn read_miss_msg(&self, name: &str) -> String {
+        let (base, has_idx) = elem_ref(name).map_or((name, false), |(b, _)| (b, true));
+        let what = if self.var_is_array(base) {
+            if has_idx {
+                "no such element in array"
+            } else {
+                "variable is array"
+            }
+        } else if has_idx && self.has_var(base) {
+            "variable isn't array"
+        } else {
+            "no such variable"
+        };
+        format!("can't read \"{name}\": {what}")
+    }
+
+    /// Ensure `name` is an array (creating an empty one if unset) — `array set
+    /// name {}` with an empty value list still materialises the array (C's
+    /// `TclArraySet`). A scalar `name` errors `variable isn't array`.
+    pub(crate) fn ensure_array(&mut self, name: &str) -> Result<(), Completion<Value>> {
+        let resolved = self.ns_var_fallback(name);
+        let lookup = resolved.as_deref().unwrap_or(name).to_string();
+        let (lvl, nm) = self.locate(&lookup);
+        if let Some(f) = self.frames.get_mut(lvl) {
+            match f.locals.get(&nm) {
+                Some(Local::Array(_) | Local::Link { .. }) => {}
+                Some(Local::Scalar(_)) => {
+                    return Err(err(format!("can't set \"{name}\": variable isn't array")));
+                }
+                None => {
+                    f.locals.insert(nm, Local::Array(BTreeMap::new()));
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Whether `name` exists, resolving an `arr(key)` element reference to the
@@ -995,6 +1374,115 @@ impl Vm {
         }
     }
 
+    /// Append one `while executing` / `invoked from within` frame for the
+    /// command `cmd_text` to the accumulating `errorInfo` trace (C's
+    /// `TclLogCommandInfo`). The first frame seeds the trace from the error
+    /// message `msg` and reads "while executing"; later frames read "invoked
+    /// from within". A command level already logged in the same bytecode frame
+    /// (`error_logged`) is not re-logged. Command text over 150 bytes is
+    /// truncated with `...`, as in C.
+    pub(crate) fn log_command_info(&mut self, cmd_text: &str, msg: &str, line: u32) {
+        if self.error_logged {
+            return;
+        }
+        // The innermost logged command's line drives the enclosing `(procedure …
+        // line N)` / `("while" body line N)` frames (C's `iPtr->errorLine`).
+        if line != 0 {
+            self.error_line = line;
+        }
+        let started = self.error_info.is_some();
+        let info = self.error_info.get_or_insert_with(|| msg.to_string());
+        let verb = if started {
+            "invoked from within"
+        } else {
+            "while executing"
+        };
+        // Truncate at a UTF-8 boundary near 150 bytes (C truncates at 150).
+        let (slice, overflow) = if cmd_text.len() > 150 {
+            let mut end = 150;
+            while end > 0 && !cmd_text.is_char_boundary(end) {
+                end -= 1;
+            }
+            (&cmd_text[..end], true)
+        } else {
+            (cmd_text, false)
+        };
+        info.push_str("\n    ");
+        info.push_str(verb);
+        info.push_str("\n\"");
+        info.push_str(slice);
+        if overflow {
+            info.push_str("...");
+        }
+        info.push('"');
+        self.error_logged = true;
+    }
+
+    /// Append a `("<label>" body line N)` frame to the trace — the frame an
+    /// *uncompiled* `while`/`for`/`foreach` (the runtime command form) adds when
+    /// its body errors (C's interpreted `Tcl_WhileObjCmd` &c). `N` is the
+    /// innermost logged command's line. Clears `error_logged` so the enclosing
+    /// command then logs its own `invoked from within` frame.
+    pub(crate) fn append_body_frame(&mut self, label: &str) {
+        let line = self.error_line;
+        let info = self.error_info.get_or_insert_with(String::new);
+        info.push_str("\n    (\"");
+        info.push_str(label);
+        info.push_str("\" body line ");
+        info.push_str(&line.to_string());
+        info.push(')');
+        self.error_logged = false;
+    }
+
+    /// The current call frame's proc name (unqualified), or `None` at the global
+    /// frame / a non-proc activation.
+    pub(crate) fn current_proc_name(&self) -> Option<String> {
+        self.frames
+            .last()
+            .and_then(|f| f.proc_name.as_ref())
+            .map(|q| q.rsplit("::").next().unwrap_or(q).to_owned())
+    }
+
+    /// Append a `(procedure "<name>" line N)` frame — the frame a proc body adds
+    /// to errorInfo as an error unwinds out of it (C's `errorInfo` proc frame).
+    /// `line` is the proc-relative line of the innermost logged command. Clears
+    /// `error_logged` so the call site then logs its `invoked from within` frame.
+    pub(crate) fn append_proc_frame(&mut self, name: &str, line: u32) {
+        let info = self.error_info.get_or_insert_with(String::new);
+        info.push_str("\n    (procedure \"");
+        info.push_str(name);
+        info.push_str("\" line ");
+        info.push_str(&line.to_string());
+        info.push(')');
+        self.error_logged = false;
+    }
+
+    /// The innermost logged command's source line (C's `iPtr->errorLine`).
+    pub(crate) fn error_line(&self) -> u32 {
+        self.error_line
+    }
+
+    /// Clear `ERR_ALREADY_LOGGED` at a frame boundary (a nested `eval`/`[subst]`
+    /// returned an error), so the enclosing command logs its own frame.
+    pub(crate) fn clear_error_logged(&mut self) {
+        self.error_logged = false;
+    }
+
+    /// Seed the `errorInfo` trace with an explicit value and mark it logged —
+    /// C's `error msg info` / `return -errorinfo`, which set the trace directly
+    /// and suppress the command's own `while executing` frame.
+    pub(crate) fn seed_error_info(&mut self, info: String) {
+        self.error_info = Some(info);
+        self.error_logged = true;
+    }
+
+    /// Take the accumulated `errorInfo` trace (if any) and reset it for the next
+    /// error — used when `catch` reports an error.
+    pub(crate) fn take_error_info(&mut self) -> Option<String> {
+        self.error_logged = false;
+        self.error_info.take()
+    }
+
     /// Publish `errorInfo` / `errorCode` into the global frame.
     pub(crate) fn publish_error(&mut self, info: &str, code: &Value) {
         if let Some(g) = self.frames.first_mut() {
@@ -1073,15 +1561,26 @@ impl Vm {
     /// Compile and run a Tcl source string via the injected [`CompileService`]
     /// (the runtime-`eval` / command-substitution path) in the *current* frame.
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
-        let module = match self.compiler.as_ref() {
-            Some(c) => c.compile(src).map_err(|e| TclError::new(e.0))?,
-            None => {
+        let module = if let Some(m) = self.eval_cache.get(src) {
+            Rc::clone(m)
+        } else {
+            let Some(c) = self.compiler.as_ref() else {
                 return Err(TclError::new(
                     "eval / command substitution requires a CompileService",
                 ));
-            }
+            };
+            let m = Rc::new(c.compile(src).map_err(|e| TclError::new(e.0))?);
+            self.eval_cache.insert(src.to_string(), Rc::clone(&m));
+            m
         };
-        Ok(self.run_module(&module))
+        let comp = self.run_module(&module);
+        // Crossing back out of a nested script is a frame boundary: clear
+        // `ERR_ALREADY_LOGGED` so the enclosing command (the `eval`/`[subst]`/
+        // proc call site) logs its own `invoked from within` frame.
+        if comp.code == Code::Error {
+            self.clear_error_logged();
+        }
+        Ok(comp)
     }
 }
 
@@ -1092,23 +1591,454 @@ impl Default for Vm {
 }
 
 /// The Family-B variable store over the call-frame stack. `FrameId` is the
-/// absolute level; `get`/`set` follow links exactly like the by-name accessors.
+/// absolute frame level (`GLOBAL_FRAME` = 0); access resolves from that frame,
+/// following links. A `FrameId` naming the *current* frame delegates to the full
+/// by-name accessors (namespace fallback + traces); any other frame uses the
+/// frame-addressed storage helpers (no current-eval-context fallback/traces).
 impl VarStore for Vm {
     type Value = Value;
 
-    fn get(&self, _frame: FrameId, name: &str) -> Option<Value> {
-        self.get_var(name)
+    fn get(&self, frame: FrameId, name: &str) -> Option<Value> {
+        if frame.0 == self.current_level() {
+            self.get_var(name)
+        } else {
+            self.get_var_from(frame.0, name)
+        }
     }
 
-    fn set(&mut self, _frame: FrameId, name: &str, value: Value) {
-        let _ = self.set_var(name, value);
+    fn set(&mut self, frame: FrameId, name: &str, value: Value) {
+        if frame.0 == self.current_level() {
+            let _ = self.set_var(name, value);
+        } else {
+            self.write_scalar_from(frame.0, name, value);
+        }
     }
 
-    fn unset(&mut self, _frame: FrameId, name: &str) -> bool {
-        self.unset_var(name)
+    fn unset(&mut self, frame: FrameId, name: &str) -> bool {
+        if frame.0 == self.current_level() {
+            self.unset_var(name)
+        } else {
+            self.unset_from(frame.0, name)
+        }
     }
 
-    fn exists(&self, _frame: FrameId, name: &str) -> bool {
-        self.var_exists(name)
+    fn exists(&self, frame: FrameId, name: &str) -> bool {
+        if frame.0 == self.current_level() {
+            // The *complete* existence check: a scalar, an array, or an array
+            // element (`exists_var`) — not the scalar-only `var_exists`, which
+            // would miss arrays like `::env` (a `VarStore` contract bug surfaced
+            // by routing `info exists` through this method).
+            self.exists_var(name)
+        } else {
+            self.exists_from(frame.0, name)
+        }
+    }
+
+    // Element access: the VM's by-name accessors already parse `base(key)`, so
+    // get/set/exists reconstruct the name and delegate (honouring `FrameId`).
+    // `unset` is the exception — `unset_var` is element-blind — so it removes the
+    // element directly (active frame; the cores always pass the current frame).
+
+    fn get_elem(&self, frame: FrameId, name: &str, key: &str) -> Option<Value> {
+        self.get(frame, &format!("{name}({key})"))
+    }
+
+    fn set_elem(&mut self, frame: FrameId, name: &str, key: &str, value: Value) {
+        self.set(frame, &format!("{name}({key})"), value);
+    }
+
+    fn unset_elem(&mut self, _frame: FrameId, name: &str, key: &str) -> bool {
+        let existed = self.get_array_elem(name, key).is_some();
+        self.array_unset_elem(name, key);
+        existed
+    }
+
+    fn exists_elem(&self, frame: FrameId, name: &str, key: &str) -> bool {
+        self.exists(frame, &format!("{name}({key})"))
+    }
+
+    fn array_keys(&self, _frame: FrameId, name: &str) -> Option<Vec<String>> {
+        // `array_is` distinguishes an (empty-or-not) array from a scalar/unset;
+        // `array_pairs` yields the keys (active frame — the cores pass current).
+        if self.array_is(name) {
+            Some(self.array_pairs(name).into_iter().map(|(k, _)| k).collect())
+        } else {
+            None
+        }
+    }
+}
+
+/// Runtime introspection backing the `info` family (`info level`/`info level N`).
+///
+/// Handle-free — the reconciliation finding is that `Introspect` fits *both*
+/// runtime models as-drafted (no `FrameId`/`NsId` reshape needed), so it is the
+/// first Family-B role trait both the VM and `runtime/rust` satisfy with shared
+/// semantics: [`level`](Introspect::level) is the current stack depth and
+/// [`level_argv`](Introspect::level_argv) the retained invoking words at an
+/// absolute level, `None` for a level with no call (the global frame).
+impl Introspect for Vm {
+    type Value = Value;
+
+    fn level(&self) -> usize {
+        self.current_level()
+    }
+
+    fn level_argv(&self, level: usize) -> Option<Value> {
+        self.frame_argv(level)
+            .filter(|av| !av.is_empty())
+            .map(Value::list)
+    }
+}
+
+/// Proc introspection (`info body`/`args`/`default`) over the VM's retained
+/// [`ProcDef`](crate::command::ProcDef). The body (`body_src`) and any defaults
+/// are flattened to owned bytes so the shared `info` core can rebuild the result
+/// values through `ValueOps` — a string round-trip that is observably identical
+/// (only the value's string content is significant to these subcommands).
+impl Procs for Vm {
+    fn proc_info(&self, name: &str) -> Option<ProcInfo> {
+        let p = self.proc_def(name)?;
+        Some(ProcInfo {
+            body: p.body_src.to_str().as_bytes().to_vec(),
+            params: p
+                .params
+                .iter()
+                .map(|pp| ProcParam {
+                    name: pp.name.as_bytes().to_vec(),
+                    default: pp.default.as_ref().map(|d| d.to_str().as_bytes().to_vec()),
+                })
+                .collect(),
+        })
+    }
+}
+
+/// Command dispatch: resolve `name` in the current namespace context and run it
+/// with `argv` (name-stripped) to a [`Completion`]. Builtins run inline, procs
+/// run to completion in a nested activation, aliases re-evaluate their target,
+/// and an unknown name yields an error completion. The owned-`Value` model keeps
+/// the refcount discipline implicit (`Rc` clones), unlike the runtime's
+/// `*mut TclObj` impl.
+impl Commands for Vm {
+    type Value = Value;
+
+    fn dispatch(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
+        self.invoke_command(name, argv)
+    }
+
+    fn dispatch_id(&mut self, cmd: CommandId, argv: &[Value]) -> Completion<Value> {
+        // Reverse the handle to its absolute FQN, then invoke that — the
+        // resolve-then-invoke pairing with `Namespaces::find_command`.
+        match self.command_fqn(cmd.0) {
+            Some(fqn) => self.invoke_command(&fqn, argv),
+            None => err("invalid command id"),
+        }
+    }
+}
+
+/// Variable traces: fire `var`'s `op` (`read`/`write`/`unset`) traces, aborting
+/// the access if a callback errors. The VM's [`fire_var_traces`](Vm::fire_var_traces)
+/// already produces the user-facing `can't read/set "var": <msg>` completion
+/// (and swallows `unset`/`array` errors, matching C); the trait keeps only its
+/// error result value (`options` is irrelevant to an aborted access).
+impl Traces for Vm {
+    type Value = Value;
+
+    fn fire(&mut self, var: &str, op: &str) -> Result<(), Value> {
+        self.fire_var_traces(var, op).map_err(|c| c.result)
+    }
+}
+
+/// The call-frame stack. The VM tracks namespace context by `String`, so
+/// [`push`](Frames::push) resolves the `NsId` to its name (via the intern arena)
+/// and pushes a bare call frame plus that namespace context; [`pop`](Frames::pop)
+/// unwinds both. [`link`](Frames::link) installs an `upvar`-style alias in the
+/// current frame (the only frame `upvar` targets) — the VM stores variables
+/// (globals included) in their frame's locals, so a plain level-addressed link
+/// suffices.
+impl Frames for Vm {
+    fn push(&mut self, ns: NsId) -> FrameId {
+        let name = self.ns_name(ns);
+        let level = self.push_call_frame(None, Vec::new());
+        self.push_ns(name);
+        FrameId(level)
+    }
+
+    fn pop(&mut self) {
+        self.pop_ns();
+        self.pop_call_frame();
+    }
+
+    fn current(&self) -> FrameId {
+        FrameId(self.current_level())
+    }
+
+    fn link(&mut self, here: FrameId, target: FrameId, local: &str, target_name: &str) {
+        debug_assert_eq!(
+            here.0,
+            self.current_level(),
+            "upvar installs in the current frame"
+        );
+        self.add_link(local, target.0, target_name);
+    }
+
+    fn in_proc(&self) -> bool {
+        // A proc activation carries its name; the global (0) and `namespace eval`
+        // frames do not (the latter runs in the current frame, pushing no frame).
+        self.frames.last().is_some_and(|f| f.proc_name.is_some())
+    }
+
+    fn var_names(&self, include_links: bool) -> Vec<String> {
+        self.frame_var_names(include_links)
+    }
+}
+
+/// Namespace name resolution over the VM's String-based namespace model, bridged
+/// to opaque `NsId`/`CommandId` handles via the intern arenas.
+/// [`current`](Namespaces::current) returns the interned id of the current
+/// namespace (interned when pushed). [`find_command`](Namespaces::find_command)
+/// resolves `name` from `cxt` to its command key and interns that to a stable
+/// `CommandId`. Note: the handle is produced for command *identity* only —
+/// nothing dispatches by it yet (the `Commands` trait dispatches by name), the
+/// open `find_command`/`CommandId` consumer question.
+impl Namespaces for Vm {
+    fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId> {
+        let cxt_name = self.ns_name(cxt);
+        // Intern the *absolute* FQN (the `commands` key is unrooted) so
+        // `dispatch_id` can re-dispatch it unambiguously regardless of context.
+        let key = self.resolve_command_fqn(&cxt_name, name)?;
+        Some(CommandId(self.intern_cmd(&format!("::{key}"))))
+    }
+
+    fn current(&self) -> NsId {
+        self.ns_intern
+            .get(self.current_ns())
+            .copied()
+            .unwrap_or(ROOT_NS)
+    }
+
+    fn name(&self, ns: NsId) -> String {
+        // The arena holds the canonical (unrooted) name; `namespace current`
+        // reports the absolute form (`""` → `"::"`).
+        let canonical = self.ns_name(ns);
+        if canonical.is_empty() {
+            "::".to_string()
+        } else {
+            format!("::{canonical}")
+        }
+    }
+
+    fn command_name(&self, cmd: CommandId) -> Option<String> {
+        self.command_fqn(cmd.0)
+    }
+
+    // Namespace-tree navigation over the arena. Every namespace is interned on
+    // creation (`push_ns`/`declare_namespace`), so these are pure `&self` lookups
+    // — the String model honouring the `NsId` handle contract.
+    fn find_namespace(&self, cxt: NsId, name: &str) -> Option<NsId> {
+        // Resolve `name` (absolute, or relative to `cxt`) to a canonical name.
+        let canonical = if let Some(abs) = name.strip_prefix("::") {
+            abs.to_string()
+        } else {
+            let cxt_name = self.ns_name(cxt);
+            if cxt_name.is_empty() {
+                name.to_string()
+            } else {
+                format!("{cxt_name}::{name}")
+            }
+        };
+        self.ns_intern.get(&canonical).copied()
+    }
+
+    fn parent(&self, ns: NsId) -> Option<NsId> {
+        let name = self.ns_name(ns);
+        if name.is_empty() {
+            return None; // the global root has no parent
+        }
+        let parent = name.rsplit_once("::").map_or("", |(p, _)| p);
+        self.ns_intern.get(parent).copied()
+    }
+
+    fn children(&self, ns: NsId) -> Vec<NsId> {
+        self.child_namespaces(&self.ns_name(ns))
+            .iter()
+            .filter_map(|c| self.ns_intern.get(c).copied())
+            .collect()
+    }
+
+    // Command enumeration over the flat command map (keyed by canonical unrooted
+    // name): the direct members of namespace `ns`, as unqualified tails.
+    fn commands_in(&self, ns: NsId) -> Vec<String> {
+        self.names_directly_in(&self.ns_name(ns), false)
+    }
+
+    fn procs_in(&self, ns: NsId) -> Vec<String> {
+        self.names_directly_in(&self.ns_name(ns), true)
+    }
+
+    fn vars_in(&self, ns: NsId) -> Vec<String> {
+        self.vars_directly_in(&self.ns_name(ns))
+    }
+}
+
+/// The unqualified tail of `key` if it names a command **directly** in namespace
+/// `canonical` (unrooted; `""` = global), else `None`. A direct member's key is
+/// `canonical::tail` (or a bare `tail` at the global level) with no further `::`
+/// in the tail — so descendants (`foo::sub::x` for `foo`) and the namespace
+/// itself are excluded.
+fn direct_member_tail<'a>(key: &'a str, canonical: &str) -> Option<&'a str> {
+    let tail = if canonical.is_empty() {
+        key
+    } else {
+        key.strip_prefix(canonical)?.strip_prefix("::")?
+    };
+    if tail.is_empty() || tail.contains("::") {
+        None
+    } else {
+        Some(tail)
+    }
+}
+
+#[cfg(test)]
+mod family_b_tests {
+    use super::*;
+    use tcl_runtime_api::GLOBAL_FRAME;
+
+    #[test]
+    fn introspect_level_and_argv() {
+        let mut vm = Vm::new();
+        // Top level: depth 0, the global frame has no invoking call.
+        assert_eq!(Introspect::level(&vm), 0);
+        assert!(Introspect::level_argv(&vm, 0).is_none());
+        // A proc-call frame with its invoking words.
+        vm.push_call_frame(
+            Some("p".to_string()),
+            vec![Value::string("p"), Value::string("x")],
+        );
+        assert_eq!(Introspect::level(&vm), 1);
+        assert_eq!(&*Introspect::level_argv(&vm, 1).unwrap().to_str(), "p x");
+        vm.pop_call_frame();
+        assert_eq!(Introspect::level(&vm), 0);
+    }
+
+    #[test]
+    fn varstore_honours_frame_id() {
+        let mut vm = Vm::new();
+        // Write into the global frame while it is current.
+        vm.set(GLOBAL_FRAME, "g", Value::string("global"));
+        // Enter a proc-call frame; the global var is not in it.
+        vm.push_call_frame(Some("p".to_string()), vec![Value::string("p")]);
+        let here = FrameId(vm.current_level());
+        assert_ne!(here, GLOBAL_FRAME);
+        vm.set(here, "loc", Value::string("local"));
+        // FrameId is honoured: each frame sees only its own var.
+        assert_eq!(
+            vm.get(GLOBAL_FRAME, "g").map(|v| v.to_str().to_string()),
+            Some("global".to_string())
+        );
+        assert!(vm.get(here, "g").is_none());
+        assert!(vm.exists(here, "loc"));
+        assert!(!vm.exists(GLOBAL_FRAME, "loc"));
+        // Reach back into the global frame from the child frame.
+        vm.set(GLOBAL_FRAME, "g2", Value::string("two"));
+        vm.pop_call_frame();
+        assert_eq!(
+            vm.get(GLOBAL_FRAME, "g2").map(|v| v.to_str().to_string()),
+            Some("two".to_string())
+        );
+        assert!(vm.unset(GLOBAL_FRAME, "g2"));
+        assert!(!vm.exists(GLOBAL_FRAME, "g2"));
+    }
+
+    #[test]
+    fn varstore_array_elements() {
+        let mut vm = Vm::new();
+        assert!(!vm.exists_elem(GLOBAL_FRAME, "a", "k"));
+        vm.set_elem(GLOBAL_FRAME, "a", "k", Value::string("v"));
+        assert!(vm.exists_elem(GLOBAL_FRAME, "a", "k"));
+        assert_eq!(
+            vm.get_elem(GLOBAL_FRAME, "a", "k")
+                .map(|v| v.to_str().to_string()),
+            Some("v".to_string())
+        );
+        assert!(!vm.exists_elem(GLOBAL_FRAME, "a", "nope"));
+        assert!(vm.unset_elem(GLOBAL_FRAME, "a", "k"));
+        assert!(!vm.exists_elem(GLOBAL_FRAME, "a", "k"));
+    }
+
+    #[test]
+    fn commands_dispatch_builtin_and_unknown() {
+        let mut vm = Vm::new();
+        // A builtin runs inline and yields its result.
+        let c = vm.dispatch("list", &[Value::string("a"), Value::string("b c")]);
+        assert_eq!(c.code, Code::Ok);
+        assert_eq!(&*c.result.to_str(), "a {b c}");
+        // An unknown command name is an error completion.
+        let c = vm.dispatch("no_such_command", &[]);
+        assert_eq!(c.code, Code::Error);
+        assert_eq!(
+            &*c.result.to_str(),
+            "invalid command name \"no_such_command\""
+        );
+    }
+
+    #[test]
+    fn frames_push_pop_current_link() {
+        let mut vm = Vm::new();
+        let to_s = |v: Option<Value>| v.map(|v| v.to_str().to_string());
+        // A global, set while the global frame is current.
+        vm.set(GLOBAL_FRAME, "g", Value::string("orig"));
+        let outer = Frames::current(&vm);
+        assert_eq!(outer, GLOBAL_FRAME);
+        // Push a proc-call frame in a fresh namespace (interned to an NsId, which
+        // round-trips through the arena back to its name on push).
+        let ns = vm.intern_ns("foo");
+        let inner = Frames::push(&mut vm, ns);
+        assert_ne!(inner, outer);
+        assert_eq!(Frames::current(&vm), inner);
+        // `upvar`: link `gg` (inner) to the outer frame's global `g`; reads and
+        // writes through `gg` reach `g`.
+        Frames::link(&mut vm, inner, outer, "gg", "g");
+        assert_eq!(to_s(vm.get(inner, "gg")), Some("orig".to_string()));
+        vm.set(inner, "gg", Value::string("changed"));
+        // Pop back to the global frame: the link is gone, the global updated.
+        Frames::pop(&mut vm);
+        assert_eq!(Frames::current(&vm), outer);
+        assert_eq!(to_s(vm.get(GLOBAL_FRAME, "g")), Some("changed".to_string()));
+    }
+
+    #[test]
+    fn namespaces_current_and_find_command() {
+        let mut vm = Vm::new();
+        // At the top level the current namespace is the global root.
+        assert_eq!(Namespaces::current(&vm), ROOT_NS);
+        // Builtins resolve from the global namespace to stable, distinct ids.
+        let a = Namespaces::find_command(&vm, ROOT_NS, "list").expect("list resolves");
+        assert_eq!(a, Namespaces::find_command(&vm, ROOT_NS, "list").unwrap());
+        assert_ne!(
+            a,
+            Namespaces::find_command(&vm, ROOT_NS, "llength").unwrap()
+        );
+        assert!(Namespaces::find_command(&vm, ROOT_NS, "no_such_command").is_none());
+        // `current` tracks the namespace pushed by `Frames::push`.
+        let foo = vm.intern_ns("foo");
+        Frames::push(&mut vm, foo);
+        assert_eq!(Namespaces::current(&vm), foo);
+        Frames::pop(&mut vm);
+        assert_eq!(Namespaces::current(&vm), ROOT_NS);
+    }
+
+    #[test]
+    fn commands_dispatch_id_composes() {
+        let mut vm = Vm::new();
+        // Resolve a command to a handle, then invoke it *by that handle* — the
+        // find_command -> dispatch_id composition.
+        let id = Namespaces::find_command(&vm, ROOT_NS, "list").expect("list resolves");
+        let c = vm.dispatch_id(id, &[Value::string("a"), Value::string("b")]);
+        assert_eq!(c.code, Code::Ok);
+        assert_eq!(&*c.result.to_str(), "a b");
+        // A fabricated id yields an error completion (no such command).
+        let c = vm.dispatch_id(CommandId(9999), &[]);
+        assert_eq!(c.code, Code::Error);
+        assert_eq!(&*c.result.to_str(), "invalid command id");
     }
 }

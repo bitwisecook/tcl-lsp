@@ -1,0 +1,614 @@
+//! `regexp` / `regsub` command **plumbing**, shared over a [`RegexEngine`]
+//! provider and [`ValueOps`](tcl_syntax::value::ValueOps).
+//!
+//! Tcl's ARE matching has two separable halves: the **engine** (compile a
+//! pattern, find matches in a codepoint string) and the **command plumbing**
+//! (option parsing, the match/advance loop, `-indices`/`-inline`/`-start`/`-all`
+//! handling, submatch-variable assignment, the `regsub` substitution-spec
+//! expansion, and the match-count return semantics). The two runtimes share the
+//! same engine *contract* but **not the same engine**: `runtime/rust` links the
+//! real Tcl 9 Henry-Spencer ARE engine (so it is byte-for-byte tclsh), while the
+//! bytecode VM drives the Rust `regex` crate (approximate — full ARE syntax like
+//! `\m`/`\M`/`[[:<:]]` is out of scope there). This module is everything *except*
+//! the engine: written once, run by both, so the VM inherits the runtime's full
+//! option set and the correct char-offset semantics it lacked.
+//!
+//! All offsets here are **character** (codepoint) offsets, matching Tcl's index
+//! model; [`decode_utf8`] maps the subject to codepoints plus a char→byte table
+//! so the plumbing can slice the original bytes. The engine presents matches in
+//! char offsets too (the FFI engine is natively codepoint-based; the VM's
+//! crate-based engine translates byte↔char behind the seam).
+//!
+//! Semantics verified against tclsh 9.0; `runtime/rust`'s linked ARE engine is
+//! the behavioural oracle for the loop.
+
+use tcl_syntax::value::ValueOps;
+
+// -- the engine seam ----------------------------------------------------------
+
+/// The "did not participate" sentinel for a subexpression's offset (mirrors the
+/// engine's `(size_t)-1`).
+pub const NO_MATCH: usize = usize::MAX;
+
+/// One reported (sub-)match: half-open `[so, eo)` in **character** offsets.
+/// `so == NO_MATCH` means the subexpression did not participate.
+#[derive(Clone, Copy)]
+pub struct RegMatch {
+    pub so: usize,
+    pub eo: usize,
+}
+
+/// The compile-time options that affect matching, in an engine-neutral form
+/// (each provider maps these to its own flags). `-line` sets both `linestop`
+/// and `lineanchor`.
+#[derive(Default, Clone, Copy)]
+#[allow(clippy::struct_excessive_bools)] // option flags, not a state machine
+pub struct RegexFlags {
+    /// `-nocase` — case-insensitive.
+    pub nocase: bool,
+    /// `-expanded` — whitespace/comments in the pattern are ignored.
+    pub expanded: bool,
+    /// `-linestop` — `.` and `[^…]` stop at a newline.
+    pub linestop: bool,
+    /// `-lineanchor` — `^`/`$` match at line boundaries.
+    pub lineanchor: bool,
+}
+
+/// A compiled-regex provider. Stateless at the type level (compiling is a pure
+/// function of pattern + flags), so the plumbing is generic over it without ever
+/// holding a provider borrow across the match loop.
+pub trait RegexEngine {
+    /// The provider's compiled-pattern handle.
+    type Regex;
+
+    /// Compile `pattern` (UTF-8 bytes) with `flags`. On failure, return the
+    /// engine's error *detail* bytes (the plumbing adds the standard prefix).
+    ///
+    /// # Errors
+    /// The engine's compile-error detail for a malformed pattern.
+    fn compile(pattern: &[u8], flags: RegexFlags) -> Result<Self::Regex, Vec<u8>>;
+
+    /// Number of capturing subexpressions (so the whole match plus this many).
+    fn nsub(re: &Self::Regex) -> usize;
+
+    /// Find the leftmost match in `cps` (the whole subject as codepoints) at or
+    /// after character `offset`. `notbol` requests that `^` not match at
+    /// `offset` (the FFI engine's `REG_NOTBOL`; a context-aware crate engine can
+    /// ignore it). Returns the match vector (index 0 = whole match, then each
+    /// subexpression) in **absolute** character offsets, or `None` on no match.
+    fn exec(
+        re: &mut Self::Regex,
+        cps: &[i32],
+        offset: usize,
+        notbol: bool,
+    ) -> Option<Vec<RegMatch>>;
+}
+
+// -- shared error & result shapes --------------------------------------------
+
+/// A `regexp`/`regsub` failure: the full, ready-to-report message bytes.
+pub struct RegexError(pub Vec<u8>);
+
+/// The outcome of [`regexp`] for the adapter to apply (var writes stay in the
+/// adapter — they are Family-B state).
+pub enum RegexpResult<V> {
+    /// `-inline`: set the command result to this list value (no var writes).
+    Inline(V),
+    /// Non-inline: set the command result to the integer `count`. If `assign` is
+    /// `Some`, also write each `(var-name, value)` first (a match occurred);
+    /// `None` means no match — the match variables are left **untouched** (tclsh
+    /// does not modify them on a failed match).
+    Count {
+        assign: Option<Vec<(Vec<u8>, V)>>,
+        count: i64,
+    },
+}
+
+/// The outcome of [`regsub`]: the substituted text, the substitution count, and
+/// the optional result-variable name (the adapter sets the var or returns the
+/// text, and owns the const-variable check).
+pub struct RegsubResult {
+    pub text: Vec<u8>,
+    pub count: i64,
+    pub var: Option<Vec<u8>>,
+}
+
+// -- pure helpers -------------------------------------------------------------
+
+/// Decode UTF-8 `bytes` into codepoints plus a parallel byte-offset table. The
+/// returned `offsets` has length `codepoints.len() + 1`: `offsets[i]` is the
+/// byte index where codepoint `i` starts, the final entry being `bytes.len()` —
+/// so a character range `[so, eo)` slices the original bytes as
+/// `bytes[offsets[so]..offsets[eo]]`. Invalid sequences decode to U+FFFD.
+#[must_use]
+pub fn decode_utf8(bytes: &[u8]) -> (Vec<i32>, Vec<usize>) {
+    let mut cps = Vec::with_capacity(bytes.len());
+    let mut offs = Vec::with_capacity(bytes.len() + 1);
+    let mut i = 0;
+    while i < bytes.len() {
+        offs.push(i);
+        let b0 = bytes[i];
+        let (cp, n) = if b0 < 0x80 {
+            (u32::from(b0), 1)
+        } else if b0 & 0xE0 == 0xC0 {
+            (u32::from(b0 & 0x1F), 2)
+        } else if b0 & 0xF0 == 0xE0 {
+            (u32::from(b0 & 0x0F), 3)
+        } else if b0 & 0xF8 == 0xF0 {
+            (u32::from(b0 & 0x07), 4)
+        } else {
+            (0xFFFD, 1)
+        };
+        let mut cp = cp;
+        let mut taken = 1;
+        if n > 1 && i + n <= bytes.len() {
+            let mut ok = true;
+            for j in 1..n {
+                let b = bytes[i + j];
+                if b & 0xC0 != 0x80 {
+                    ok = false;
+                    break;
+                }
+                cp = (cp << 6) | u32::from(b & 0x3F);
+                taken += 1;
+            }
+            if !ok || taken != n {
+                cp = 0xFFFD;
+                taken = 1;
+            }
+        } else if n > 1 {
+            cp = 0xFFFD;
+            taken = 1;
+        }
+        // A codepoint is at most 0x10FFFF, well within i32 range.
+        #[allow(clippy::cast_possible_wrap)]
+        cps.push(cp as i32);
+        i += taken;
+    }
+    offs.push(bytes.len());
+    (cps, offs)
+}
+
+/// Tcl's per-iteration `REG_NOTBOL` rule: set unless `offset` is the very start
+/// or follows a newline (so `^` behaves correctly in `-line` mode and at resumed
+/// offsets).
+fn notbol_at(cps: &[i32], offset: usize) -> bool {
+    if offset == 0 {
+        false
+    } else if offset > cps.len() {
+        true
+    } else {
+        cps[offset - 1] != i32::from(b'\n')
+    }
+}
+
+fn parse_isize(b: &[u8]) -> Option<isize> {
+    core::str::from_utf8(b).ok()?.trim().parse::<isize>().ok()
+}
+
+/// Resolve a `-start` index spec (integer / `end` / `end±N`) against the
+/// character length, clamped to `0` (Tcl resets negatives to the start).
+#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+fn resolve_start(spec: &[u8], char_len: usize) -> usize {
+    let len = char_len as isize;
+    let idx = if spec == b"end" {
+        len - 1
+    } else if let Some(rest) = spec.strip_prefix(b"end") {
+        match rest.first() {
+            Some(b'-') => parse_isize(&rest[1..]).map_or(0, |n| len - 1 - n),
+            Some(b'+') => parse_isize(&rest[1..]).map_or(0, |n| len - 1 + n),
+            _ => 0,
+        }
+    } else {
+        parse_isize(spec).unwrap_or(0)
+    };
+    if idx < 0 { 0 } else { idx as usize }
+}
+
+/// The compile flags + `-all`/`-start` shared by both commands' option sets.
+#[derive(Default)]
+struct Common {
+    all: bool,
+    flags: RegexFlags,
+    start: Option<Vec<u8>>,
+}
+
+/// Try to consume one shared option `name` (already known to start with `-`).
+/// `Some(Ok(ate_next))` = recognised (`ate_next` is whether it consumed the
+/// following arg, for `-start`); `Some(Err(()))` = a `-start` with no argument
+/// (Tcl treats it as end-of-options); `None` = not a shared option.
+fn shared_option(c: &mut Common, name: &[u8], next: Option<&[u8]>) -> Option<Result<bool, ()>> {
+    match name {
+        b"-all" => c.all = true,
+        b"-nocase" => c.flags.nocase = true,
+        b"-expanded" => c.flags.expanded = true,
+        b"-line" => {
+            c.flags.linestop = true;
+            c.flags.lineanchor = true;
+        }
+        b"-linestop" => c.flags.linestop = true,
+        b"-lineanchor" => c.flags.lineanchor = true,
+        b"-start" => {
+            return match next {
+                Some(v) => {
+                    c.start = Some(v.to_vec());
+                    Some(Ok(true))
+                }
+                None => Some(Err(())),
+            };
+        }
+        _ => return None,
+    }
+    Some(Ok(false))
+}
+
+fn wrong_args(usage: &[u8]) -> RegexError {
+    let mut m = b"wrong # args: should be \"".to_vec();
+    m.extend_from_slice(usage);
+    m.push(b'"');
+    RegexError(m)
+}
+
+fn bad_option(name: &[u8], tail: &[u8]) -> RegexError {
+    let mut m = b"bad option \"".to_vec();
+    m.extend_from_slice(name);
+    m.extend_from_slice(b"\": must be ");
+    m.extend_from_slice(tail);
+    RegexError(m)
+}
+
+/// Wrap a provider compile-error detail in Tcl's standard prefix.
+fn compile_error(detail: &[u8]) -> RegexError {
+    let mut m = b"cannot compile regular expression pattern: ".to_vec();
+    m.extend_from_slice(detail);
+    RegexError(m)
+}
+
+// -- regexp -------------------------------------------------------------------
+
+const REGEXP_USAGE: &[u8] = b"regexp ?-option ...? exp string ?matchVar? ?subMatchVar ...?";
+const REGEXP_OPTS: &[u8] =
+    b"-all, -about, -indices, -inline, -expanded, -line, -linestop, -lineanchor, -nocase, -start, or --";
+
+/// Drive `regexp` over the engine `E` and value-ops `O`. `args` is the
+/// command's arguments **without** the command name.
+///
+/// # Errors
+/// Option/arg/compile errors as ready-to-report [`RegexError`] messages.
+#[allow(clippy::too_many_lines)] // option scan + match loop + result build, read top-to-bottom
+pub fn regexp<O: ValueOps, E: RegexEngine>(
+    ops: &mut O,
+    args: &[&[u8]],
+) -> Result<RegexpResult<O::Value>, RegexError> {
+    let mut c = Common::default();
+    let mut indices = false;
+    let mut inline = false;
+    let mut about = false;
+
+    let mut i = 0;
+    while i < args.len() {
+        let name = args[i];
+        if name.first() != Some(&b'-') {
+            break;
+        }
+        if name == b"--" {
+            i += 1;
+            break;
+        }
+        match shared_option(&mut c, name, args.get(i + 1).copied()) {
+            Some(Ok(ate)) => {
+                i += 1 + usize::from(ate);
+                continue;
+            }
+            Some(Err(())) => {
+                i += 1; // `-start` with no argument → end of options
+                break;
+            }
+            None => {}
+        }
+        match name {
+            b"-indices" => indices = true,
+            b"-inline" => inline = true,
+            b"-about" => about = true,
+            _ => return Err(bad_option(name, REGEXP_OPTS)),
+        }
+        i += 1;
+    }
+
+    if about {
+        return Err(RegexError(b"regexp -about is not yet supported".to_vec()));
+    }
+    let rest = &args[i..];
+    if rest.len() < 2 {
+        return Err(wrong_args(REGEXP_USAGE));
+    }
+    if inline && rest.len() > 2 {
+        return Err(RegexError(
+            b"regexp match variables not allowed when using -inline".to_vec(),
+        ));
+    }
+
+    let pattern = rest[0];
+    let str_bytes = rest[1];
+    let (cps, byteoff) = decode_utf8(str_bytes);
+    let char_len = cps.len();
+    let match_vars = &rest[2..];
+
+    let mut re = E::compile(pattern, c.flags).map_err(|d| compile_error(&d))?;
+    let nsubs = E::nsub(&re);
+
+    let mut offset = c
+        .start
+        .as_ref()
+        .map_or(0, |spec| resolve_start(spec, char_len));
+
+    // Tcl's `all` doubles as flag + counter: starts 1 if `-all`, else 0.
+    let mut all_count: i64 = i64::from(c.all);
+    let mut inline_items: Vec<O::Value> = Vec::new();
+    let mut last_matches: Option<Vec<RegMatch>> = None;
+
+    loop {
+        let notbol = notbol_at(&cps, offset);
+        let Some(matches) = E::exec(&mut re, &cps, offset, notbol) else {
+            if all_count <= 1 {
+                // No match at all (first time through).
+                return Ok(if inline {
+                    RegexpResult::Inline(ops.new_list(Vec::new()))
+                } else {
+                    RegexpResult::Count {
+                        assign: None,
+                        count: 0,
+                    }
+                });
+            }
+            break;
+        };
+        let m0 = matches[0];
+        if inline {
+            for k in 0..=nsubs {
+                inline_items.push(build_match_item(
+                    ops, &matches, k, nsubs, indices, str_bytes, &byteoff,
+                ));
+            }
+        } else {
+            last_matches = Some(matches);
+        }
+
+        if !c.all {
+            break;
+        }
+        offset = m0.eo;
+        if m0.eo == m0.so {
+            offset += 1; // zero-length match: always advance to avoid looping
+        }
+        all_count += 1;
+        if offset >= char_len {
+            break;
+        }
+    }
+
+    if inline {
+        return Ok(RegexpResult::Inline(ops.new_list(inline_items)));
+    }
+    // Non-inline: build the (var, value) pairs from the final match. `-all`'s
+    // match variables hold the *last* match, so building once after the loop is
+    // both correct and leak-free (no intermediate values are constructed).
+    let lm = last_matches.expect("a match occurred");
+    let assign = match_vars
+        .iter()
+        .enumerate()
+        .map(|(k, &name)| {
+            let v = build_match_item(ops, &lm, k, nsubs, indices, str_bytes, &byteoff);
+            (name.to_vec(), v)
+        })
+        .collect();
+    Ok(RegexpResult::Count {
+        assign: Some(assign),
+        count: if all_count > 0 { all_count - 1 } else { 1 },
+    })
+}
+
+/// Build the value for match item `k`: an `{start end}` index pair (`-indices`)
+/// or the matched substring (default). A non-participating group yields
+/// `{-1 -1}` / the empty string, per `Tcl_RegexpObjCmd`.
+#[allow(clippy::cast_possible_wrap)]
+fn build_match_item<O: ValueOps>(
+    ops: &mut O,
+    matches: &[RegMatch],
+    k: usize,
+    nsubs: usize,
+    indices: bool,
+    str_bytes: &[u8],
+    byteoff: &[usize],
+) -> O::Value {
+    let m = if k <= nsubs {
+        matches.get(k).copied()
+    } else {
+        None
+    };
+    if indices {
+        let (start, end): (i64, i64) = match m {
+            Some(rm) if rm.so != NO_MATCH => (rm.so as i64, rm.eo as i64 - 1),
+            _ => (-1, -1),
+        };
+        let a = ops.new_int(start);
+        let b = ops.new_int(end);
+        ops.new_list(vec![a, b])
+    } else {
+        match m {
+            Some(rm) if rm.so != NO_MATCH && rm.eo > 0 => {
+                ops.new_bytes(&str_bytes[byteoff[rm.so]..byteoff[rm.eo]])
+            }
+            _ => ops.new_bytes(b""),
+        }
+    }
+}
+
+// -- regsub -------------------------------------------------------------------
+
+const REGSUB_USAGE: &[u8] = b"regsub ?-option ...? exp string subSpec ?varName?";
+const REGSUB_OPTS: &[u8] =
+    b"-all, -command, -expanded, -line, -linestop, -lineanchor, -nocase, -start, or --";
+
+/// Drive `regsub` over the engine `E`. `args` is the command's arguments
+/// **without** the command name. The result string + count + optional var name
+/// are returned for the adapter to apply.
+///
+/// # Errors
+/// Option/arg/compile errors as ready-to-report [`RegexError`] messages.
+pub fn regsub<E: RegexEngine>(args: &[&[u8]]) -> Result<RegsubResult, RegexError> {
+    let mut c = Common::default();
+
+    let mut i = 0;
+    while i < args.len() {
+        let name = args[i];
+        if name.first() != Some(&b'-') {
+            break;
+        }
+        if name == b"--" {
+            i += 1;
+            break;
+        }
+        match shared_option(&mut c, name, args.get(i + 1).copied()) {
+            Some(Ok(ate)) => {
+                i += 1 + usize::from(ate);
+                continue;
+            }
+            Some(Err(())) => {
+                i += 1;
+                break;
+            }
+            None => {}
+        }
+        match name {
+            b"-command" => {
+                return Err(RegexError(b"regsub -command is not yet supported".to_vec()));
+            }
+            _ => return Err(bad_option(name, REGSUB_OPTS)),
+        }
+    }
+
+    let rest = &args[i..];
+    if rest.len() < 3 || rest.len() > 4 {
+        return Err(wrong_args(REGSUB_USAGE));
+    }
+    let pattern = rest[0];
+    let str_bytes = rest[1];
+    let subspec = rest[2];
+    let var = rest.get(3).map(|&v| v.to_vec());
+
+    let (cps, byteoff) = decode_utf8(str_bytes);
+    let char_len = cps.len();
+
+    let mut re = E::compile(pattern, c.flags).map_err(|d| compile_error(&d))?;
+    let nsubs = E::nsub(&re);
+
+    let mut offset = c
+        .start
+        .as_ref()
+        .map_or(0, |spec| resolve_start(spec, char_len));
+
+    let mut result: Vec<u8> = Vec::new();
+    let mut count: i64 = 0;
+
+    while offset <= char_len {
+        let notbol = offset > 0 && cps[offset - 1] != i32::from(b'\n');
+        let Some(matches) = E::exec(&mut re, &cps, offset, notbol) else {
+            break;
+        };
+        if count == 0 && offset > 0 {
+            // Copy the skipped prefix when a `-start` offset was given.
+            result.extend_from_slice(&str_bytes[..byteoff[offset]]);
+        }
+        count += 1;
+
+        let m0 = matches[0];
+        // Text before this match.
+        result.extend_from_slice(&str_bytes[byteoff[offset]..byteoff[m0.so]]);
+        // The substitution spec, with `&`/`\N` expanded.
+        apply_subspec(&mut result, subspec, &matches, nsubs, str_bytes, &byteoff);
+
+        // Advance, always consuming at least one char on an empty match.
+        if m0.eo == offset {
+            if offset < char_len {
+                result.extend_from_slice(&str_bytes[byteoff[offset]..byteoff[offset + 1]]);
+            }
+            offset += 1;
+        } else {
+            offset = m0.eo;
+            if m0.so == m0.eo {
+                if offset < char_len {
+                    result.extend_from_slice(&str_bytes[byteoff[offset]..byteoff[offset + 1]]);
+                }
+                offset += 1;
+            }
+        }
+        if !c.all {
+            break;
+        }
+    }
+
+    let text = if count == 0 {
+        str_bytes.to_vec()
+    } else {
+        if offset < char_len {
+            result.extend_from_slice(&str_bytes[byteoff[offset]..]);
+        }
+        result
+    };
+
+    Ok(RegsubResult { text, count, var })
+}
+
+/// Expand a `regsub` substitution spec into `out`: `&` / `\0` → whole match,
+/// `\N` → capture group N, `\\` → `\`, `\&` → `&`; any other run is copied
+/// verbatim. Mirrors the `wsubspec` scan in `Tcl_RegsubObjCmd`.
+fn apply_subspec(
+    out: &mut Vec<u8>,
+    sub: &[u8],
+    matches: &[RegMatch],
+    nsubs: usize,
+    str_bytes: &[u8],
+    byteoff: &[usize],
+) {
+    let mut k = 0;
+    let mut run = 0; // start of the current verbatim run
+    while k < sub.len() {
+        let ch = sub[k];
+        let idx: usize;
+        if ch == b'&' {
+            idx = 0;
+        } else if ch == b'\\' {
+            match sub.get(k + 1) {
+                Some(&d) if d.is_ascii_digit() => idx = (d - b'0') as usize,
+                Some(&d) if d == b'\\' || d == b'&' => {
+                    // Literal `\` or `&`: flush the run, emit the bare char.
+                    out.extend_from_slice(&sub[run..k]);
+                    out.push(d);
+                    k += 2;
+                    run = k;
+                    continue;
+                }
+                _ => {
+                    // Backslash before any other char: keep both verbatim.
+                    k += 1;
+                    continue;
+                }
+            }
+        } else {
+            k += 1;
+            continue;
+        }
+        // Reached for `&` or `\N`: flush the verbatim run, then the group.
+        out.extend_from_slice(&sub[run..k]);
+        if idx <= nsubs
+            && let Some(rm) = matches.get(idx)
+            && rm.so != NO_MATCH
+        {
+            out.extend_from_slice(&str_bytes[byteoff[rm.so]..byteoff[rm.eo]]);
+        }
+        k += if ch == b'\\' { 2 } else { 1 };
+        run = k;
+    }
+    out.extend_from_slice(&sub[run..]);
+}

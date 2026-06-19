@@ -14,13 +14,20 @@ use crate::value::Value;
 
 /// Run `body` as a script in namespace `target`, absorbing a top-level
 /// `return` at the boundary (a namespace body completes like a proc body).
-fn eval_in_ns(vm: &mut Vm, target: String, body: &str) -> Completion<Value> {
+///
+/// The body runs in its own call frame (like a proc) so `info level` counts it
+/// and `uplevel`/`upvar` from a proc called within reach it (and its namespace
+/// variables). `call_argv` is the invoking command (e.g. `namespace eval ::ns
+/// {…}`) for `info level N`.
+fn eval_in_ns(vm: &mut Vm, target: String, body: &str, call_argv: Vec<Value>) -> Completion<Value> {
     vm.declare_namespace(&target);
+    vm.push_ns_eval_frame(&target, call_argv);
     vm.push_ns(target);
     vm.enter_ns_script();
     let result = vm.eval_source(body);
     vm.leave_ns_script();
     vm.pop_ns();
+    vm.pop_call_frame();
     match result {
         Ok(c) if c.code == Code::Return => ok(c.result),
         Ok(c) => c,
@@ -56,35 +63,28 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     match &*sub.to_str() {
         "eval" => ns_eval(vm, rest),
-        "current" => ok(Value::string(display_ns(vm.current_ns()))),
-        "qualifiers" => ok(Value::string(qualifiers(&first(rest)))),
-        "tail" => ok(Value::string(tail(&first(rest)))),
+        "current" => ok(tcl_cmd_core::namespace::current(vm)),
+        "qualifiers" => ns_text_op(rest, tcl_cmd_core::namespace::qualifiers),
+        "tail" => ns_text_op(rest, tcl_cmd_core::namespace::tail),
+        // exists/parent/children route through the shared core over `Namespaces`
+        // (the VM's String model honours the `NsId` handles via its arena). This
+        // also gave `children` its missing `?pattern?` filter and made
+        // parent/children on a missing namespace error, both matching tclsh.
+        "exists" => ok(tcl_cmd_core::namespace::exists(vm, &first(rest))),
         "parent" => {
-            let target = if rest.is_empty() {
-                vm.current_ns().to_string()
-            } else {
-                canon_ns(vm, &rest[0].to_str())
-            };
-            let parent = target.rsplit_once("::").map_or("", |(p, _)| p);
-            ok(Value::string(display_ns(parent)))
+            let name = rest.first().map(|v| v.to_str().to_string());
+            match tcl_cmd_core::namespace::parent(vm, name.as_deref()) {
+                Ok(v) => ok(v),
+                Err(e) => err(e.into_message()),
+            }
         }
         "children" => {
-            let parent = if rest.is_empty() {
-                vm.current_ns().to_string()
-            } else {
-                canon_ns(vm, &rest[0].to_str())
-            };
-            let mut kids: Vec<String> = vm
-                .child_namespaces(&parent)
-                .iter()
-                .map(|c| display_ns(c))
-                .collect();
-            kids.sort();
-            ok(Value::list(kids.into_iter().map(Value::string).collect()))
-        }
-        "exists" => {
-            let ns = canon_ns(vm, &first(rest));
-            ok(Value::bool(vm.namespace_exists(&ns)))
+            let name = rest.first().map(|v| v.to_str().to_string());
+            let pattern = rest.get(1).map(|v| v.to_str().to_string());
+            match tcl_cmd_core::namespace::children(vm, name.as_deref(), pattern.as_deref()) {
+                Ok(v) => ok(v),
+                Err(e) => err(e.into_message()),
+            }
         }
         // `namespace code script` captures the current namespace as a callback
         // command prefix: `::namespace inscope <ns> <script>`.
@@ -102,17 +102,13 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // args appended as list elements) in namespace `ns`.
         "inscope" => ns_inscope(vm, rest),
         "which" => {
-            // `namespace which ?-command|-variable? name` → resolved full name.
+            // `namespace which ?-command|-variable? name` → the resolved FQN, via
+            // the shared `Namespaces` resolution core (flag handling stays here).
             let name = rest
                 .last()
                 .map(|v| v.to_str().to_string())
                 .unwrap_or_default();
-            let resolved = if vm.lookup_command(&name).is_some() {
-                display_ns(&vm.qualify_name(&name))
-            } else {
-                String::new()
-            };
-            ok(Value::string(resolved))
+            ok(tcl_cmd_core::namespace::which_command(vm, &name))
         }
         "origin" => {
             // `namespace origin command` → the original command's fully-qualified
@@ -146,8 +142,23 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             ok(Value::empty())
         }
+        // `namespace delete ?ns ...?` — destroy each namespace (and its
+        // descendants, commands, and variables). An unknown namespace errors,
+        // after deleting any that preceded it (matching tclsh).
+        "delete" => {
+            for n in rest {
+                let canon = canon_ns(vm, &n.to_str());
+                if !vm.delete_namespace(&canon) {
+                    return err(format!(
+                        "unknown namespace \"{}\" in namespace delete command",
+                        n.to_str()
+                    ));
+                }
+            }
+            ok(Value::empty())
+        }
         // Accepted no-ops (metadata only, for now).
-        "forget" | "delete" | "ensemble" | "unknown" => ok(Value::empty()),
+        "forget" | "ensemble" | "unknown" => ok(Value::empty()),
         other => err(format!(
             "unknown or ambiguous subcommand \"{other}\": must be \
              children, current, eval, exists, export, parent, qualifiers, or tail"
@@ -161,18 +172,15 @@ fn first(rest: &[Value]) -> String {
         .unwrap_or_default()
 }
 
-/// Everything before the last `::` of a (possibly absolute) name, preserving an
-/// absolute leading `::`.
-fn qualifiers(name: &str) -> String {
-    match name.rsplit_once("::") {
-        Some((q, _)) => q.to_string(),
-        None => String::new(),
-    }
-}
-
-/// The last `::`-separated component of a name.
-fn tail(name: &str) -> String {
-    name.rsplit("::").next().unwrap_or(name).to_string()
+/// `namespace qualifiers`/`tail`: run the first argument (lenient — defaults to
+/// empty) through a shared `tcl_cmd_core::namespace` text op, as a `Value`. The
+/// shared core handles `::`-runs the way C does (the VM's old `rsplit("::")`
+/// diverged for 3+ colons, e.g. `tail foo:::`).
+fn ns_text_op(rest: &[Value], op: fn(&[u8]) -> &[u8]) -> Completion<Value> {
+    let name = first(rest);
+    ok(Value::string(
+        std::str::from_utf8(op(name.as_bytes())).unwrap_or(""),
+    ))
 }
 
 fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
@@ -188,7 +196,9 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
-    eval_in_ns(vm, target, &body)
+    let mut call_argv = vec![Value::string("namespace"), Value::string("inscope")];
+    call_argv.extend(rest.iter().cloned());
+    eval_in_ns(vm, target, &body, call_argv)
 }
 
 fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
@@ -205,18 +215,7 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
-    eval_in_ns(vm, child, &body)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{qualifiers, tail};
-
-    #[test]
-    fn name_splitting() {
-        assert_eq!(qualifiers("foo::bar::baz"), "foo::bar");
-        assert_eq!(qualifiers("bar"), "");
-        assert_eq!(tail("foo::bar::baz"), "baz");
-        assert_eq!(tail("bar"), "bar");
-    }
+    let mut call_argv = vec![Value::string("namespace"), Value::string("eval")];
+    call_argv.extend(rest.iter().cloned());
+    eval_in_ns(vm, child, &body, call_argv)
 }

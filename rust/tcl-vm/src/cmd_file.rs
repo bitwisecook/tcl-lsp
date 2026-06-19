@@ -1,11 +1,15 @@
-//! Filesystem commands: `pwd`, `cd`, `file`, `glob`.
+//! Platform commands: `pwd`, `cd`, `file`, `glob`, `exec`.
 //!
 //! Path manipulation subcommands (`join`/`dirname`/`tail`/…) are pure string
-//! operations; the query/mutation subcommands (`exists`/`mtime`/`mkdir`/…) and
-//! `pwd`/`cd`/`glob` touch the real filesystem (POSIX layout — the test host).
+//! operations; the query/mutation subcommands (`exists`/`mtime`/`mkdir`/…),
+//! `pwd`/`cd`/`glob`, and `exec` reach the host through the [`tcl_platform`]
+//! capability seam ([`Vm::host`](crate::interp::Vm)) — the filesystem/env on a
+//! [`NativeHost`](crate::host_native::NativeHost), subprocess via
+//! `host.process()` (absent → the faithful "unsupported" error).
 
 use std::path::{Path, PathBuf};
 
+use tcl_platform::Filesystem;
 use tcl_runtime_api::Completion;
 
 use crate::interp::{Vm, err, ok};
@@ -16,22 +20,38 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("cd", cmd_cd);
     vm.register("file", cmd_file);
     vm.register("glob", cmd_glob);
+    vm.register("exec", cmd_exec);
 }
 
-fn cmd_pwd(_vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
-    match std::env::current_dir() {
-        Ok(p) => ok(Value::string(p.to_string_lossy().into_owned())),
+/// `exec arg ?arg ...?` — run a subprocess via the shared
+/// [`tcl_cmd_core::platform::exec`] body over `host.process()`. On a host
+/// without subprocess support (every WASM target, a sandbox) it yields the
+/// faithful "unsupported" Tcl error rather than running — the capability model
+/// in action. The host handle is cloned (`host_rc`) so it can be passed
+/// alongside the `&mut Vm` the shared helper takes as its `ValueOps`.
+fn cmd_exec(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let host = vm.host_rc();
+    match tcl_cmd_core::platform::exec(vm, &*host, args) {
+        Ok(v) => ok(v),
+        Err(e) => err(e.into_message()),
+    }
+}
+
+fn cmd_pwd(vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+    match vm.host().env().cwd() {
+        Ok(p) => ok(Value::string(p)),
         Err(e) => err(format!("error getting working directory name: {e}")),
     }
 }
 
-fn cmd_cd(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_cd(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let env = vm.host().env();
     let dir = match args {
-        [] => std::env::var("HOME").unwrap_or_else(|_| "/".to_string()),
+        [] => env.get("HOME").unwrap_or_else(|| "/".to_string()),
         [d] => d.to_str().to_string(),
         _ => return err("wrong # args: should be \"cd ?dirName?\""),
     };
-    match std::env::set_current_dir(&dir) {
+    match env.chdir(&dir) {
         Ok(()) => ok(Value::empty()),
         Err(e) => err(format!(
             "couldn't change working directory to \"{dir}\": {e}"
@@ -39,8 +59,14 @@ fn cmd_cd(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
+/// Wrap a `tcl_cmd_core::path` op's byte-slice result as a `Value`. Paths come
+/// from `Value`s (UTF-8), and the `/`/`.`-split slice stays valid UTF-8.
+fn path_str(bytes: &[u8]) -> Completion<Value> {
+    ok(Value::string(std::str::from_utf8(bytes).unwrap_or("")))
+}
+
 #[allow(clippy::too_many_lines)]
-fn cmd_file(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"file subcommand ?arg ...?\"");
     };
@@ -48,24 +74,22 @@ fn cmd_file(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match &*sub.to_str() {
         // -- pure path manipulation --
         "join" => ok(Value::string(file_join(rest))),
+        // The `/`-based path text ops are the shared `tcl_cmd_core::path` core
+        // (platform-independent, unlike the VM's old `std::path::Path` versions).
         "dirname" => match rest {
-            [p] => ok(Value::string(dirname(&s(p)))),
+            [p] => path_str(tcl_cmd_core::path::dirname(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file dirname name\""),
         },
         "tail" => match rest {
-            [p] => ok(Value::string(tail(&s(p)))),
+            [p] => path_str(tcl_cmd_core::path::tail(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file tail name\""),
         },
         "extension" => match rest {
-            [p] => ok(Value::string(extension(&s(p)))),
+            [p] => path_str(tcl_cmd_core::path::extension(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file extension name\""),
         },
         "rootname" => match rest {
-            [p] => {
-                let t = s(p);
-                let ext = extension(&t);
-                ok(Value::string(t[..t.len() - ext.len()].to_string()))
-            }
+            [p] => path_str(tcl_cmd_core::path::rootname(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file rootname name\""),
         },
         "split" => match rest {
@@ -75,7 +99,10 @@ fn cmd_file(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             _ => err("wrong # args: should be \"file split name\""),
         },
         "normalize" => match rest {
-            [p] => ok(Value::string(normalize(&s(p)))),
+            [p] => {
+                let cwd = vm.host().env().cwd().unwrap_or_else(|_| "/".to_string());
+                ok(Value::string(normalize(&s(p), &cwd)))
+            }
             _ => err("wrong # args: should be \"file normalize name\""),
         },
         "nativename" => match rest {
@@ -97,24 +124,37 @@ fn cmd_file(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // -- filesystem queries --
         // `readable`/`writable`/`executable` only check existence (good enough
         // for the test host where files are owned by the runner).
-        "exists" | "readable" | "writable" | "executable" => bool_query(rest, Path::exists),
-        "isdirectory" | "isdir" => bool_query(rest, Path::is_dir),
-        "isfile" => bool_query(rest, Path::is_file),
+        "exists" | "readable" | "writable" | "executable" => {
+            bool_query(vm.host().filesystem(), rest, |fs, p| fs.exists(p))
+        }
+        "isdirectory" | "isdir" => bool_query(vm.host().filesystem(), rest, |fs, p| {
+            fs.metadata(p).is_ok_and(|m| m.is_dir)
+        }),
+        "isfile" => bool_query(vm.host().filesystem(), rest, |fs, p| {
+            fs.metadata(p).is_ok_and(|m| m.is_file)
+        }),
         "size" => match rest {
-            [p] => match std::fs::metadata(s(p)) {
-                Ok(m) => ok(Value::int(i64::try_from(m.len()).unwrap_or(i64::MAX))),
-                Err(_) => err(format!("could not read \"{}\": no such file", s(p))),
+            [p] => match vm
+                .host()
+                .filesystem()
+                .and_then(|fs| fs.metadata(&s(p)).ok())
+            {
+                Some(m) => ok(Value::int(i64::try_from(m.len).unwrap_or(i64::MAX))),
+                None => err(format!("could not read \"{}\": no such file", s(p))),
             },
             _ => err("wrong # args: should be \"file size name\""),
         },
         "mtime" => match rest {
-            [p] => file_mtime(&s(p)),
+            [p] => file_mtime(vm.host().filesystem(), &s(p)),
             _ => err("wrong # args: should be \"file mtime name ?time?\""),
         },
         // -- filesystem mutation --
         "mkdir" => {
+            let Some(fs) = vm.host().filesystem() else {
+                return err("can't create directory: filesystem not available");
+            };
             for p in rest {
-                if let Err(e) = std::fs::create_dir_all(s(p)) {
+                if let Err(e) = fs.create_dir_all(&s(p)) {
                     return err(format!("can't create directory \"{}\": {e}", s(p)));
                 }
             }
@@ -129,14 +169,12 @@ fn cmd_file(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     _ => break,
                 }
             }
-            for p in paths {
-                let path = s(p);
-                let pp = Path::new(&path);
-                let _ = if pp.is_dir() {
-                    std::fs::remove_dir_all(pp)
-                } else {
-                    std::fs::remove_file(pp)
-                };
+            if let Some(fs) = vm.host().filesystem() {
+                for p in paths {
+                    // Removes a file or a directory (recursively); a missing
+                    // target is ignored, matching `file delete`.
+                    let _ = fs.remove(&s(p), true);
+                }
             }
             ok(Value::empty())
         }
@@ -144,22 +182,23 @@ fn cmd_file(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-fn bool_query(rest: &[Value], pred: impl Fn(&Path) -> bool) -> Completion<Value> {
+/// A boolean `file` query through the host filesystem. A host without a
+/// filesystem (`None`) answers `false` — nothing exists where there is no fs.
+fn bool_query(
+    fs: Option<&dyn Filesystem>,
+    rest: &[Value],
+    pred: impl Fn(&dyn Filesystem, &str) -> bool,
+) -> Completion<Value> {
     match rest {
-        [p] => ok(Value::bool(pred(Path::new(&*p.to_str())))),
+        [p] => ok(Value::bool(fs.is_some_and(|fs| pred(fs, &p.to_str())))),
         _ => err("wrong # args: should be \"file <op> name\""),
     }
 }
 
-fn file_mtime(path: &str) -> Completion<Value> {
-    match std::fs::metadata(path).and_then(|m| m.modified()) {
-        Ok(t) => {
-            let secs = t
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX));
-            ok(Value::int(secs))
-        }
-        Err(_) => err(format!(
+fn file_mtime(fs: Option<&dyn Filesystem>, path: &str) -> Completion<Value> {
+    match fs.and_then(|fs| fs.metadata(path).ok()) {
+        Some(m) => ok(Value::int(m.mtime_secs)),
+        None => err(format!(
             "could not read \"{path}\": no such file or directory"
         )),
     }
@@ -179,33 +218,6 @@ fn file_join(parts: &[Value]) -> String {
     buf.to_string_lossy().into_owned()
 }
 
-fn dirname(p: &str) -> String {
-    Path::new(p).parent().map_or_else(
-        || ".".to_string(),
-        |d| {
-            let s = d.to_string_lossy();
-            if s.is_empty() {
-                ".".to_string()
-            } else {
-                s.into_owned()
-            }
-        },
-    )
-}
-
-fn tail(p: &str) -> String {
-    Path::new(p)
-        .file_name()
-        .map_or_else(|| p.to_string(), |n| n.to_string_lossy().into_owned())
-}
-
-fn extension(p: &str) -> String {
-    let t = tail(p);
-    t.rfind('.')
-        .filter(|&i| i > 0)
-        .map_or_else(String::new, |i| t[i..].to_string())
-}
-
 fn split_path(p: &str) -> Vec<String> {
     let mut out = Vec::new();
     if p.starts_with('/') {
@@ -219,13 +231,11 @@ fn split_path(p: &str) -> Vec<String> {
 
 /// `file normalize` — make absolute (against the cwd) and resolve `.`/`..`
 /// lexically (no symlink resolution).
-fn normalize(p: &str) -> String {
+fn normalize(p: &str, cwd: &str) -> String {
     let base = if Path::new(p).is_absolute() {
         PathBuf::from(p)
     } else {
-        std::env::current_dir()
-            .unwrap_or_else(|_| PathBuf::from("/"))
-            .join(p)
+        PathBuf::from(cwd).join(p)
     };
     let mut parts: Vec<String> = Vec::new();
     for c in base.components() {
@@ -243,7 +253,7 @@ fn normalize(p: &str) -> String {
 
 /// `glob ?-nocomplain? ?-directory dir? ?--? pattern ...` — minimal matching
 /// against the directory's entries.
-fn cmd_glob(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // We never error on no match (effectively always `-nocomplain`).
     let mut dir: Option<String> = None;
     let mut i = 0;
@@ -265,10 +275,12 @@ fn cmd_glob(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let patterns = &args[i..];
     let base = dir.clone().unwrap_or_else(|| ".".to_string());
     let mut results: Vec<String> = Vec::new();
-    let entries = std::fs::read_dir(&base).ok();
+    let entries = vm
+        .host()
+        .filesystem()
+        .and_then(|fs| fs.read_dir(&base).ok());
     if let Some(entries) = entries {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
+        for name in entries {
             let matches = patterns.is_empty()
                 || patterns
                     .iter()

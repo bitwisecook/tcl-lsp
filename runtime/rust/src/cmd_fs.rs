@@ -1,7 +1,10 @@
 //! Filesystem commands (M2 / L2) — `source`, `file`, `glob`, `pwd`, `cd`.
 //!
-//! The "VFS" is the host filesystem via `std::fs`/`std::env` for the native /
-//! `wasm32-wasip1` build (a non-WASI shim can swap in later). C refs:
+//! All filesystem and working-directory access goes through the capability host
+//! ([`Interp::host`](crate::interp::Interp)) — the [`tcl_platform`]
+//! `Filesystem`/`Env` traits — rather than direct `std::fs`/`std::env`. A native
+//! build gets the std-backed `NativeHost`; the WASM targets get a restricted
+//! host (a no-VFS browser answers `false`/"unsupported"). C refs:
 //! `tclIOUtil.c`/`tclFileName.c` (`source`/`glob`), `tclFCmd.c`/`tclFileName.c`
 //! (`file`). Toward loading the real `init.tcl`/`tcltest.tcl` (the M2 gate).
 //!
@@ -9,7 +12,7 @@
 //! WASI. See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use std::path::Path;
+use tcl_platform::{Filesystem, HostError};
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::list;
@@ -54,24 +57,19 @@ fn source_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, USAGE);
     }
     let path = obj_bytes(argv[i]);
-    match std::fs::read(as_str(&path)) {
+    let read = interp
+        .host()
+        .filesystem()
+        .map_or(Err(HostError::NotFound), |fs| fs.read(as_str(&path)));
+    match read {
         Ok(bytes) => interp.eval_sourced(&bytes, &path),
         Err(e) => {
             let mut m = b"couldn't read file \"".to_vec();
             m.extend_from_slice(&path);
             m.extend_from_slice(b"\": ");
-            m.extend_from_slice(io_reason(&e).as_bytes());
+            m.extend_from_slice(e.reason().as_bytes());
             interp.set_error(&m)
         }
-    }
-}
-
-fn io_reason(e: &std::io::Error) -> &'static str {
-    use std::io::ErrorKind;
-    match e.kind() {
-        ErrorKind::NotFound => "no such file or directory",
-        ErrorKind::PermissionDenied => "permission denied",
-        _ => "I/O error",
     }
 }
 
@@ -123,10 +121,23 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let arg = |n: usize| argv.get(n).map(|&a| obj_bytes(a));
     match sub.as_slice() {
-        b"dirname" => str_result(interp, &dirname(&arg(2).unwrap_or_default())),
-        b"tail" => str_result(interp, &tail(&arg(2).unwrap_or_default())),
-        b"rootname" => str_result(interp, &rootname(&arg(2).unwrap_or_default())),
-        b"extension" => str_result(interp, &extension(&arg(2).unwrap_or_default())),
+        // The pure `/`-based path text ops are the shared `tcl_cmd_core::path` core.
+        b"dirname" => str_result(
+            interp,
+            tcl_cmd_core::path::dirname(&arg(2).unwrap_or_default()),
+        ),
+        b"tail" => str_result(
+            interp,
+            tcl_cmd_core::path::tail(&arg(2).unwrap_or_default()),
+        ),
+        b"rootname" => str_result(
+            interp,
+            tcl_cmd_core::path::rootname(&arg(2).unwrap_or_default()),
+        ),
+        b"extension" => str_result(
+            interp,
+            tcl_cmd_core::path::extension(&arg(2).unwrap_or_default()),
+        ),
         b"join" => {
             let parts: Vec<Vec<u8>> = argv[2..].iter().map(|&a| obj_bytes(a)).collect();
             str_result(interp, &join(&parts))
@@ -137,27 +148,33 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(list::new_list_obj(&objs));
             Code::Ok
         }
-        b"normalize" => str_result(interp, &normalize(&arg(2).unwrap_or_default())),
+        b"normalize" => {
+            let cwd = interp
+                .host()
+                .env()
+                .cwd()
+                .unwrap_or_else(|_| String::from("/"));
+            let norm = normalize(&arg(2).unwrap_or_default(), cwd.as_bytes());
+            str_result(interp, &norm)
+        }
         b"separator" => str_result(interp, b"/"),
         b"nativename" => str_result(interp, &arg(2).unwrap_or_default()),
-        b"exists" => bool_result(
-            interp,
-            Path::new(as_str(&arg(2).unwrap_or_default())).exists(),
-        ),
-        b"isdirectory" => bool_result(
-            interp,
-            Path::new(as_str(&arg(2).unwrap_or_default())).is_dir(),
-        ),
-        b"isfile" => bool_result(
-            interp,
-            Path::new(as_str(&arg(2).unwrap_or_default())).is_file(),
-        ),
+        b"exists" => {
+            let e = fs_exists(interp, &arg(2).unwrap_or_default());
+            bool_result(interp, e)
+        }
+        b"isdirectory" => {
+            let d = fs_meta(interp, &arg(2).unwrap_or_default()).is_some_and(|m| m.is_dir);
+            bool_result(interp, d)
+        }
+        b"isfile" => {
+            let f = fs_meta(interp, &arg(2).unwrap_or_default()).is_some_and(|m| m.is_file);
+            bool_result(interp, f)
+        }
         b"readable" | b"writable" | b"executable" => {
             // Approximate: existence (fine-grained perms are deferred).
-            bool_result(
-                interp,
-                Path::new(as_str(&arg(2).unwrap_or_default())).exists(),
-            )
+            let e = fs_exists(interp, &arg(2).unwrap_or_default());
+            bool_result(interp, e)
         }
         // `file pathtype name` — pure-syntax classification.
         b"pathtype" => {
@@ -178,8 +195,14 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 if p.is_empty() {
                     continue;
                 }
-                if let Err(e) = std::fs::create_dir_all(as_str(&p)) {
-                    return fs_error(interp, b"can't create directory", &p, &e);
+                let res = interp
+                    .host()
+                    .filesystem()
+                    .map_or(Err(HostError::Unsupported), |fs| {
+                        fs.create_dir_all(as_str(&p))
+                    });
+                if let Err(e) = res {
+                    return host_fs_error(interp, b"can't create directory", &p, &e.reason());
                 }
             }
             interp.set_result_bytes(b"");
@@ -187,31 +210,38 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"size" => {
             let p = arg(2).unwrap_or_default();
-            match std::fs::metadata(as_str(&p)) {
+            let meta = interp
+                .host()
+                .filesystem()
+                .map_or(Err(HostError::NotFound), |fs| fs.metadata(as_str(&p)));
+            match meta {
                 Ok(m) => {
-                    interp.set_result(crate::obj::new_wide_int_obj(m.len() as i64));
+                    interp.set_result(crate::obj::new_wide_int_obj(m.len as i64));
                     Code::Ok
                 }
-                Err(e) => fs_error(interp, b"could not read", &p, &e),
+                Err(e) => host_fs_error(interp, b"could not read", &p, &e.reason()),
             }
         }
         b"type" => {
             let p = arg(2).unwrap_or_default();
-            match std::fs::symlink_metadata(as_str(&p)) {
-                Ok(m) => {
-                    let t = m.file_type();
-                    str_result(
-                        interp,
-                        if t.is_symlink() {
-                            b"link"
-                        } else if t.is_dir() {
-                            b"directory"
-                        } else {
-                            b"file"
-                        },
-                    )
-                }
-                Err(e) => fs_error(interp, b"could not read", &p, &e),
+            let meta = interp
+                .host()
+                .filesystem()
+                .map_or(Err(HostError::NotFound), |fs| {
+                    fs.symlink_metadata(as_str(&p))
+                });
+            match meta {
+                Ok(m) => str_result(
+                    interp,
+                    if m.is_symlink {
+                        b"link"
+                    } else if m.is_dir {
+                        b"directory"
+                    } else {
+                        b"file"
+                    },
+                ),
+                Err(e) => host_fs_error(interp, b"could not read", &p, &e.reason()),
             }
         }
         other => {
@@ -242,48 +272,52 @@ fn file_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     for &a in &argv[i..] {
         let p = obj_bytes(a);
-        let path = Path::new(as_str(&p));
-        let meta = match std::fs::symlink_metadata(path) {
-            Ok(m) => m,
-            Err(_) => continue, // not there ⇒ nothing to delete (no error)
-        };
-        let res = if meta.is_dir() && !meta.file_type().is_symlink() {
-            if force {
-                std::fs::remove_dir_all(path)
-            } else {
-                std::fs::remove_dir(path)
-            }
-        } else {
-            std::fs::remove_file(path)
-        };
-        if let Err(e) = res {
-            return fs_error(interp, b"error deleting", &p, &e);
+        // The host's `remove` already takes its own (non-following)
+        // `symlink_metadata` to decide file-vs-recursive-dir, so a symlink to a
+        // directory is unlinked rather than recursed — matching the prior
+        // inline logic. A missing path yields `NotFound`, which we swallow
+        // (`file delete` ignores absent targets).
+        let res = interp
+            .host()
+            .filesystem()
+            .map_or(Ok(()), |fs| fs.remove(as_str(&p), force));
+        match res {
+            Ok(()) | Err(HostError::NotFound) => {}
+            Err(e) => return host_fs_error(interp, b"error deleting", &p, &e.reason()),
         }
     }
     interp.set_result_bytes(b"");
     Code::Ok
 }
 
-/// A `file` I/O error in Tcl's shape: `<prefix> "<path>": <reason>` (the prefix
-/// is operation-specific, e.g. `could not read` / `can't create directory`).
-fn fs_error(interp: &mut Interp, prefix: &[u8], path: &[u8], e: &std::io::Error) -> Code {
+/// A `file` I/O error in Tcl's shape, with the reason already rendered from a
+/// [`HostError`] (the [`Filesystem`](tcl_platform::Filesystem)-routed twin of
+/// [`fs_error`], which renders from a `std::io::Error`).
+fn host_fs_error(interp: &mut Interp, prefix: &[u8], path: &[u8], reason: &str) -> Code {
     let mut m = prefix.to_vec();
     m.extend_from_slice(b" \"");
     m.extend_from_slice(path);
     m.extend_from_slice(b"\": ");
-    m.extend_from_slice(io_error_reason(e).as_bytes());
+    m.extend_from_slice(reason.as_bytes());
     interp.set_error(&m)
 }
 
-/// The POSIX-style message Tcl uses for an `errno` (the common cases).
-fn io_error_reason(e: &std::io::Error) -> &'static str {
-    use std::io::ErrorKind::*;
-    match e.kind() {
-        NotFound => "no such file or directory",
-        PermissionDenied => "permission denied",
-        AlreadyExists => "file already exists",
-        _ => "i/o error",
-    }
+/// Existence via the host filesystem (`false` when the host provides none, e.g.
+/// a no-VFS browser — nothing exists where there is no filesystem).
+fn fs_exists(interp: &Interp, path: &[u8]) -> bool {
+    interp
+        .host()
+        .filesystem()
+        .is_some_and(|fs| fs.exists(as_str(path)))
+}
+
+/// Metadata via the host filesystem (`None` when the host provides none, or on
+/// any error — callers needing the failure reason call `metadata` directly).
+fn fs_meta(interp: &Interp, path: &[u8]) -> Option<tcl_platform::Metadata> {
+    interp
+        .host()
+        .filesystem()
+        .and_then(|fs| fs.metadata(as_str(path)).ok())
 }
 
 fn str_result(interp: &mut Interp, s: &[u8]) -> Code {
@@ -303,36 +337,6 @@ fn trim_trailing(p: &[u8]) -> &[u8] {
         end -= 1;
     }
     &p[..end]
-}
-
-fn dirname(p: &[u8]) -> Vec<u8> {
-    let p = trim_trailing(p);
-    match p.iter().rposition(|&c| c == b'/') {
-        None => b".".to_vec(),
-        Some(0) => b"/".to_vec(),
-        Some(i) => p[..i].to_vec(),
-    }
-}
-
-fn tail(p: &[u8]) -> Vec<u8> {
-    let p = trim_trailing(p);
-    match p.iter().rposition(|&c| c == b'/') {
-        None => p.to_vec(),
-        Some(i) => p[i + 1..].to_vec(),
-    }
-}
-
-fn extension(p: &[u8]) -> Vec<u8> {
-    let t = tail(p);
-    match t.iter().rposition(|&c| c == b'.') {
-        Some(i) if i > 0 => t[i..].to_vec(),
-        _ => Vec::new(),
-    }
-}
-
-fn rootname(p: &[u8]) -> Vec<u8> {
-    let ext = extension(p);
-    p[..p.len() - ext.len()].to_vec()
 }
 
 fn join(parts: &[Vec<u8>]) -> Vec<u8> {
@@ -366,16 +370,13 @@ fn split_path(p: &[u8]) -> Vec<Vec<u8>> {
     parts
 }
 
-/// Lexical normalize: make absolute (against `pwd`) and resolve `.`/`..` without
-/// requiring the path to exist.
-fn normalize(p: &[u8]) -> Vec<u8> {
+/// Lexical normalize: make absolute (against `cwd`) and resolve `.`/`..` without
+/// requiring the path to exist. `cwd` is the host's working directory (`pwd`).
+fn normalize(p: &[u8], cwd: &[u8]) -> Vec<u8> {
     let mut abs: Vec<u8> = if p.starts_with(b"/") {
         p.to_vec()
     } else {
-        let mut base = std::env::current_dir()
-            .ok()
-            .and_then(|d| d.to_str().map(|s| s.as_bytes().to_vec()))
-            .unwrap_or_else(|| b"/".to_vec());
+        let mut base = cwd.to_vec();
         base.push(b'/');
         base.extend_from_slice(p);
         base
@@ -408,8 +409,9 @@ fn pwd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 1 {
         return wrong_args(interp, b"pwd");
     }
-    match std::env::current_dir() {
-        Ok(d) => str_result(interp, d.to_string_lossy().as_bytes()),
+    let cwd = interp.host().env().cwd();
+    match cwd {
+        Ok(d) => str_result(interp, d.as_bytes()),
         Err(_) => interp.set_error(b"error getting working directory name"),
     }
 }
@@ -422,7 +424,8 @@ fn cd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .get(1)
         .map(|&a| obj_bytes(a))
         .unwrap_or_else(|| b"/".to_vec());
-    match std::env::set_current_dir(as_str(&dir)) {
+    let res = interp.host().env().chdir(as_str(&dir));
+    match res {
         Ok(()) => {
             interp.set_result_bytes(b"");
             Code::Ok
@@ -431,7 +434,7 @@ fn cd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut m = b"couldn't change working directory to \"".to_vec();
             m.extend_from_slice(&dir);
             m.extend_from_slice(b"\": ");
-            m.extend_from_slice(io_reason(&e).as_bytes());
+            m.extend_from_slice(e.reason().as_bytes());
             interp.set_error(&m)
         }
     }
@@ -491,8 +494,13 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     let base = directory.clone();
     let mut hits: Vec<Vec<u8>> = Vec::new();
+    // The host filesystem drives directory listing + the `-types` stats. An
+    // independent `Rc` handle (`host`) keeps the borrow off `interp`, which the
+    // result/error tail still needs mutably.
+    let host = interp.host();
+    let fs = host.filesystem();
     for pat in &patterns {
-        glob_one(base.as_deref(), pat, tails, &types, &mut hits);
+        glob_one(fs, base.as_deref(), pat, tails, &types, &mut hits);
     }
     hits.sort();
     hits.dedup();
@@ -513,8 +521,10 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// Match one glob pattern against the filesystem, pushing results (full paths,
-/// or just the tail when `tails`) onto `hits`.
+/// or just the tail when `tails`) onto `hits`. `fs` is the host filesystem
+/// (`None` ⇒ no VFS ⇒ no matches).
 fn glob_one(
+    fs: Option<&dyn Filesystem>,
     directory: Option<&[u8]>,
     pattern: &[u8],
     tails: bool,
@@ -533,12 +543,13 @@ fn glob_one(
         .split(|&c| c == b'/')
         .filter(|s| !s.is_empty())
         .collect();
-    walk(&start, &abs_prefix, &segs, 0, types, hits);
+    walk(fs, &start, &abs_prefix, &segs, 0, types, hits);
 }
 
 /// Recursively match path segments `segs[idx..]` under `dir`, accumulating the
 /// display path (`prefix`).
 fn walk(
+    fs: Option<&dyn Filesystem>,
     dir: &[u8],
     prefix: &[u8],
     segs: &[&[u8]],
@@ -554,12 +565,10 @@ fn walk(
     }
     let seg = segs[idx];
     let last = idx + 1 == segs.len();
-    let Ok(entries) = std::fs::read_dir(as_str(dir)) else {
+    let Some(names) = fs.and_then(|fs| fs.read_dir(as_str(dir)).ok()) else {
         return;
     };
-    for entry in entries.flatten() {
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
+    for name in names {
         let name_b = name.as_bytes();
         if !glob_seg_match(seg, name_b) {
             continue;
@@ -569,63 +578,51 @@ fn walk(
             child_prefix.push(b'/');
         }
         child_prefix.extend_from_slice(name_b);
+        // Full path of the entry (for the `-types` stat and for recursion).
+        let mut child_path = dir.to_vec();
+        if child_path.last() != Some(&b'/') {
+            child_path.push(b'/');
+        }
+        child_path.extend_from_slice(name_b);
         if last {
             // `-types`: keep only entries that satisfy every requested test.
-            if !entry_matches_types(&entry, types) {
+            if !entry_matches_types(fs, &child_path, types) {
                 continue;
             }
             hits.push(child_prefix);
         } else {
-            let mut child_dir = dir.to_vec();
-            child_dir.push(b'/');
-            child_dir.extend_from_slice(name_b);
-            walk(&child_dir, &child_prefix, segs, idx + 1, types, hits);
+            walk(fs, &child_path, &child_prefix, segs, idx + 1, types, hits);
         }
     }
 }
 
-/// Whether a directory entry satisfies every `-types` specifier. An empty list
-/// matches everything. Recognised: file-kind `d f l p s b c` and permission
-/// `r w x` (mirrors `tclFileName.c`'s `GLOB_TYPE_*`; the rarely-used
-/// `{macintosh …}` forms are not modelled). A name passes only if it matches
-/// every requested test — both any file-kind tests and the permission tests.
-fn entry_matches_types(entry: &std::fs::DirEntry, types: &[u8]) -> bool {
+/// Whether the entry at `path` satisfies every `-types` specifier. An empty list
+/// matches everything. Recognised portably: file-kind `d f l` and permission
+/// `r w x` (mirrors `tclFileName.c`'s `GLOB_TYPE_*`). A name passes only if it
+/// matches every requested test.
+///
+/// The Unix special-device kinds `p s b c` (fifo/socket/block/char) are **not**
+/// expressible through the portable [`Filesystem`] seam — a WASI/browser host
+/// has none — so they never match here (the maturity-asymmetry tax: the prior
+/// native-only path could match them via `std::os::unix`). `r`/`w` stay
+/// best-effort `true`; `x` reads the host's executable bit.
+fn entry_matches_types(fs: Option<&dyn Filesystem>, path: &[u8], types: &[u8]) -> bool {
     if types.is_empty() {
         return true;
     }
     // `symlink_metadata` so `l` (and the kind tests) see the link itself, like C.
-    let Ok(meta) = entry.path().symlink_metadata() else {
+    let Some(meta) = fs.and_then(|fs| fs.symlink_metadata(as_str(path)).ok()) else {
         return false;
     };
-    let ft = meta.file_type();
     for &t in types {
         let ok = match t {
-            b'd' => ft.is_dir(),
-            b'f' => ft.is_file(),
-            b'l' => ft.is_symlink(),
+            b'd' => meta.is_dir,
+            b'f' => meta.is_file,
+            b'l' => meta.is_symlink,
             b'r' | b'w' => true, // permission probes — best-effort (assume yes)
-            b'x' => {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    meta.permissions().mode() & 0o111 != 0
-                }
-                #[cfg(not(unix))]
-                {
-                    true
-                }
-            }
-            #[cfg(unix)]
-            b'p' | b's' | b'b' | b'c' => {
-                use std::os::unix::fs::FileTypeExt;
-                match t {
-                    b'p' => ft.is_fifo(),
-                    b's' => ft.is_socket(),
-                    b'b' => ft.is_block_device(),
-                    _ => ft.is_char_device(),
-                }
-            }
-            _ => true, // unknown specifier: don't exclude
+            b'x' => meta.executable,
+            b'p' | b's' | b'b' | b'c' => false, // special devices: not portable
+            _ => true,                          // unknown specifier: don't exclude
         };
         if !ok {
             return false;

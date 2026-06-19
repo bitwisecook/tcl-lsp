@@ -414,6 +414,13 @@ pub fn fold_cmd_args(value: &str, prefix: &str) -> Option<String> {
     // Resolve backslash-newline continuations to a single space.
     let inner = resolve_backslash_newline(inner);
 
+    // Cannot fold across a `{*}` argument expansion: it turns one braced word
+    // into *several* arguments, so a naive literal fold would mis-read `{*}` as
+    // the braced word `*`. Bail to the normal (expansion-aware) codegen.
+    if has_expand_marker(&inner) {
+        return None;
+    }
+
     // Cannot fold if UNBRACED arguments contain substitutions.
     let mut depth: i32 = 0;
     for ch in inner.bytes() {
@@ -458,6 +465,36 @@ fn resolve_backslash_newline(s: &str) -> String {
         }
     }
     result
+}
+
+/// Whether `s` contains a `{*}` argument-expansion operator: a `{*}` at a word
+/// boundary (start of string or after whitespace) immediately followed by a
+/// non-separator (Tcl 8.5+ `expand_syntax`). A `{*}` followed by whitespace —
+/// or one embedded mid-word / inside a deeper word — is the literal braced word
+/// `*`, not an expansion.
+fn has_expand_marker(s: &str) -> bool {
+    let b = s.as_bytes();
+    let is_sep = |c: u8| matches!(c, b' ' | b'\t' | b'\n' | b'\r');
+    let mut i = 0;
+    let mut word_start = true;
+    while i < b.len() {
+        if is_sep(b[i]) {
+            word_start = true;
+            i += 1;
+            continue;
+        }
+        if word_start
+            && b[i] == b'{'
+            && b.get(i + 1) == Some(&b'*')
+            && b.get(i + 2) == Some(&b'}')
+            && b.get(i + 3).is_some_and(|&c| !is_sep(c))
+        {
+            return true;
+        }
+        word_start = false;
+        i += 1;
+    }
+    false
 }
 
 /// Constant-fold `[list arg1 arg2 ...]` to the result string.

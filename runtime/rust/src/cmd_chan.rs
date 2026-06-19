@@ -1,11 +1,15 @@
 //! Channels (M2 / L2) — `open`/`close`/`read`/`gets`/`puts`/`flush`/`eof`/
 //! `seek`/`tell`/`fconfigure`/`fblocked`. C refs `tclIO.c`/`tclIOCmd.c`.
 //!
-//! Host-backed via `std::fs` (native / `wasm32-wasip1`). `stdout`/`stderr` are
-//! the process streams; `open` returns `fileN` ids backed by a buffered reader
-//! (read modes) or a file handle (write/append). `fconfigure` accepts and
-//! ignores the translation/encoding/buffering options (UTF-8 internal; no
-//! CRLF translation on Unix) so the library's channel setup succeeds.
+//! `stdout`/`stderr` go through the host's [`StdIo`](tcl_platform::StdIo)
+//! capability (so the browser routes them to a console import). File channels
+//! (`open` → `fileN` ids backed by a buffered reader or a write/append handle)
+//! still use `std::fs` directly — the streaming channel layer over the host
+//! (handle table + buffering + encoding/EOL) is the deferred net-new piece
+//! that needs both the per-interp channel state and a streaming host I/O seam.
+//! `fconfigure` accepts and ignores the translation/encoding/buffering options
+//! (UTF-8 internal; no CRLF translation on Unix) so library channel setup
+//! succeeds.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -301,10 +305,19 @@ fn puts_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         [ch, s] => (obj_bytes(*ch), obj_bytes(*s)),
         _ => return wrong_args(interp, usage),
     };
-    // `None` ⇒ no such channel; `Some(Err)` ⇒ write failed.
+    // `None` ⇒ no such channel; `Some(Err)` ⇒ write failed. The standard sinks
+    // go through the host's StdIo capability (the browser routes them to a
+    // console import); file channels write their `File` directly (the streaming
+    // channel layer over the host is the deferred net-new piece).
     let result: Option<std::io::Result<()>> = match chan.as_slice() {
-        b"stdout" => Some(write_to(&mut std::io::stdout(), &string, newline)),
-        b"stderr" => Some(write_to(&mut std::io::stderr(), &string, newline)),
+        b"stdout" => {
+            write_std(interp, &string, newline, false);
+            Some(Ok(()))
+        }
+        b"stderr" => {
+            write_std(interp, &string, newline, true);
+            Some(Ok(()))
+        }
         _ => {
             let mut channels = interp.channels.borrow_mut();
             channels
@@ -332,18 +345,31 @@ fn write_to(w: &mut impl Write, bytes: &[u8], newline: bool) -> std::io::Result<
     Ok(())
 }
 
+/// `puts` to a standard sink (`stdout`/`stderr`) via the host's StdIo capability.
+/// Infallible at this layer — a console sink swallows write errors (the prior
+/// `std::io::stdout()` path's `EPIPE` was likewise effectively unobserved).
+fn write_std(interp: &Interp, bytes: &[u8], newline: bool, err: bool) {
+    let mut buf = bytes.to_vec();
+    if newline {
+        buf.push(b'\n');
+    }
+    let host = interp.host();
+    let stdio = host.stdio();
+    if err {
+        stdio.write_stderr(&buf);
+    } else {
+        stdio.write_stdout(&buf);
+    }
+}
+
 fn flush_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
         return wrong_args(interp, b"flush channelId");
     }
     let id = obj_bytes(argv[1]);
     match id.as_slice() {
-        b"stdout" => {
-            let _ = std::io::stdout().flush();
-        }
-        b"stderr" => {
-            let _ = std::io::stderr().flush();
-        }
+        b"stdout" => interp.host().stdio().flush_stdout(),
+        b"stderr" => interp.host().stdio().flush_stderr(),
         _ => {
             let found = {
                 let mut channels = interp.channels.borrow_mut();

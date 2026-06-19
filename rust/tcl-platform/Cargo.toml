@@ -1,0 +1,27 @@
+# The platform (host-capability) seam — the clean split between portable Tcl
+# command logic and the things a host environment can or cannot do.
+#
+# This crate defines **only traits + error/capability types**: no command logic,
+# no syscalls, no `std::fs`/`std::net`/`std::process`. That keeps it a true leaf
+# (depends on nothing) and trivially `wasm32`-clean. The actual syscalls live in
+# per-target `Host` implementations (`tcl-vm`'s `NativeHost`, `runtime/rust`'s
+# `WasiHost`/`BrowserHost`); the portable command bodies in `tcl-cmd-core` call
+# through these traits.
+#
+# The capability model: a `Host` exposes mandatory facilities (`Clock`/`StdIo`/
+# `Env`) as `&dyn` and conditional ones (`Filesystem`/`Sockets`/`Process`) as
+# `Option<&dyn>`, so a platform that cannot do something (e.g. `exec` under WASI)
+# returns `None` and the shared command body yields the faithful Tcl error.
+# See `docs/design/common-runtime-emitter-architecture.md` (§ capability model).
+[package]
+name = "tcl-platform"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Host-capability seam (Filesystem/Clock/Env/StdIo/Sockets/Process traits + Host aggregate) for Tcl runtimes"
+
+[lints]
+workspace = true
