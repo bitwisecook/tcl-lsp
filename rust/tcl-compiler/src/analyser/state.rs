@@ -624,7 +624,8 @@ impl Analyser {
                     cmd_ref.partial_delimiter,
                     Some(crate::segmenter::UnclosedDelimiter::Brace)
                 );
-                if !(self.emit_unterminated_delimiter_diagnostics(cmd_ref)
+                let region_end = self.source.len();
+                if !(self.emit_unterminated_delimiter_diagnostics(cmd_ref, region_end)
                     || brace_partial && self.detect_stolen_close_brace(cmd_ref))
                 {
                     self.emit_partial_command_diagnostic(cmd_ref);
@@ -734,8 +735,9 @@ impl Analyser {
         }
         // GAP-A1: E202 / E203 fire for unterminated `"` / `{` whose
         // token wasn't split into a partial command (e.g. a quote run
-        // below the segmenter's recovery line threshold).
-        self.emit_unterminated_delimiter_diagnostics(cmd);
+        // below the segmenter's recovery line threshold).  Top-level scan,
+        // so the region ends at the document end.
+        self.emit_unterminated_delimiter_diagnostics(cmd, self.source.len());
     }
 
     /// Emit the E202 (unterminated `"`) / E203 (unterminated `{`)
@@ -743,13 +745,15 @@ impl Analyser {
     /// Returns `true` when at least one was emitted — the partial-command
     /// path uses this to suppress the generic E200.  Mirrors the E202 /
     /// E203 slice of `recovery.py::_detect_all_virtual_tokens`.
-    fn emit_unterminated_delimiter_diagnostics(
+    pub(super) fn emit_unterminated_delimiter_diagnostics(
         &mut self,
         cmd: &crate::segmenter::SegmentedCommand,
+        region_end: usize,
     ) -> bool {
         let diags = super::syntax_checks::unterminated_delimiter_diagnostics(
             cmd,
             &self.source,
+            region_end,
             self.registry.as_ref(),
         );
         let mut emitted = false;

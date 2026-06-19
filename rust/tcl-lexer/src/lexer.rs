@@ -601,15 +601,44 @@ impl<'src> Lexer<'src> {
         let dollar_pos = self.pos;
         self.pos += 1; // skip '$'
 
-        // `${name}` braced form
+        // `${name}` braced form.
+        //
+        // Per Tcl 9.0.3's parser (`tclParse.c::Tcl_ParseVarName`), this
+        // is *not* a literal scan-to-first-`}`: the parser tracks inner
+        // `{…}` with brace counting and consumes `\X` (a backslash plus
+        // the following char) as part of the name — so `${a\}b}` reads
+        // var `a\}b` and `${a{b}c}` reads var `a{b}c`. The Tcl(n) man
+        // page's "no further substitution or modification" claim refers
+        // only to `$` / `[` substitution; backslashes and inner braces
+        // ARE recognised as syntax. Mirrors `compiler/parsing/lexer.py`'s
+        // `_parse_var` braced branch.
         if self.current_byte() == Some(b'{') {
             self.pos += 1; // skip '{'
             let content_start = self.pos;
+            let mut brace_depth: u32 = 0;
             while let Some(ch) = self.current_char() {
-                if ch == '}' {
-                    break;
+                match ch {
+                    '}' if brace_depth == 0 => break,
+                    '{' => {
+                        brace_depth += 1;
+                        self.pos += 1;
+                    }
+                    '}' => {
+                        brace_depth -= 1;
+                        self.pos += 1;
+                    }
+                    '\\' => {
+                        // Consume the backslash and, if present, the
+                        // following char as a literal pair.
+                        self.pos += 1;
+                        if let Some(next) = self.current_char() {
+                            self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
+                        }
+                    }
+                    _ => {
+                        self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                    }
                 }
-                self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
             }
             let content_empty = self.pos == content_start;
             let has_close_brace = self.current_byte() == Some(b'}');
@@ -1768,6 +1797,74 @@ mod tests {
         // (L9 adds warning collection).
         let (rows, _) = var_token_text("${unterminated");
         assert_eq!(rows[0], (TokenType::Var, "unterminated".into()));
+    }
+
+    // `${name}` brace-name parsing follows C Tcl 9.0.3's
+    // `Tcl_ParseVarName` (the project's reference standard — see
+    // `docs/rust-rewrite.md` principle #0): inner `{…}` nests with brace
+    // counting and `\X` is consumed as a literal pair, so the closer is
+    // the first `}` at brace-depth zero. The expectations below were
+    // confirmed against `tclsh9.0` (9.0.3) via the variable-name a failed
+    // read reports — e.g. `${a\}b}` reads var `a\}b`, `${a{b}c}` reads var
+    // `a{b}c`. NOTE: Tcl 8.4/8.5/8.6 instead stop at the *first* `}` (their
+    // `Tcl_ParseVarName` is `while (numBytes && (*src != '}'))`, no brace
+    // counting, no backslash); the project deliberately standardises the
+    // `${…}` parse on 9.0.3 across all dialects, matching the Python lexer
+    // (`tests/test_tcl_corner_cases.py::test_brace_*`).
+
+    #[test]
+    fn var_braced_escaped_close_brace_is_part_of_name() {
+        // `${a\}b}` — the `\}` is a literal backslash + brace inside
+        // the name, so the name is `a\}b` and the *real* closer is the
+        // final `}`. Verified against tclsh 9.0.3.
+        let (rows, _) = var_token_text(r"${a\}b}");
+        assert_eq!(rows[0], (TokenType::Var, r"a\}b".into()));
+        assert_eq!(rows.len(), 2); // VAR + synthetic EOL, no trailing ESC
+    }
+
+    #[test]
+    fn var_braced_nested_braces_balance() {
+        // `${a{b}c}` — the inner `{…}` is balanced and consumed as part
+        // of the name; the name is `a{b}c`. Verified against tclsh 9.0.3.
+        let (rows, _) = var_token_text("${a{b}c}");
+        assert_eq!(rows[0], (TokenType::Var, "a{b}c".into()));
+        assert_eq!(rows.len(), 2);
+    }
+
+    #[test]
+    fn var_braced_deeply_nested_braces() {
+        let (rows, _) = var_token_text("${a{b{c}d}e}");
+        assert_eq!(rows[0], (TokenType::Var, "a{b{c}d}e".into()));
+        assert_eq!(rows.len(), 2);
+    }
+
+    #[test]
+    fn var_braced_name_ending_in_brace() {
+        // `${a{b}}` — the inner `{b}` balances, so the name is `a{b}` and it
+        // *ends* with the inner `}`; the outer `}` is the closer.
+        // `token_text` must keep that trailing `}` (regression: it used to be
+        // stripped unconditionally, yielding `a{b`). Verified against tclsh
+        // 9.0.3 (`${a{b}}` reads var `a{b}`).
+        let (rows, _) = var_token_text("${a{b}}");
+        assert_eq!(rows[0], (TokenType::Var, "a{b}".into()));
+        assert_eq!(rows.len(), 2); // VAR + synthetic EOL, no stray `}` word
+    }
+
+    #[test]
+    fn var_braced_newline_in_name() {
+        // A bare newline inside `${…}` is ordinary name content (it is not
+        // a delimiter and not a backslash). Name = `a\nb`. Mirrors the
+        // Python pin `test_tcl_corner_cases.py::test_brace_with_newline`.
+        let (rows, _) = var_token_text("${a\nb}");
+        assert_eq!(rows[0], (TokenType::Var, "a\nb".into()));
+    }
+
+    #[test]
+    fn var_braced_trailing_backslash_at_eof() {
+        // A `\` with nothing after it is consumed best-effort without
+        // panicking; the (unterminated) name is the lone backslash.
+        let (rows, _) = var_token_text("${a\\");
+        assert_eq!(rows[0], (TokenType::Var, "a\\".into()));
     }
 
     #[test]

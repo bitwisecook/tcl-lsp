@@ -245,34 +245,19 @@ impl<'a> Builder<'a> {
                     .push(GreenTrivia::new(TriviaKind::Comment, raw));
                 true
             }
-            // Backslash-newline continuation behaves like a separator: it
-            // never becomes a fragment but advances the word boundary when
-            // it follows a real word.
+            // A backslash-newline that is a *separator* (between or after
+            // words, after a `{*}` marker, or mid-word) is lexed as `Sep` and
+            // folds into whitespace trivia like any other separator, advancing
+            // the word boundary when it follows a real word.
             //
-            // DELIBERATE DIVERGENCE from `build.py` (flagged per review M1;
-            // tracked as `SYNC-JUN08-1` strand 2):
-            // the Rust port folds this `Esc` into whitespace trivia to match
-            // the **token-loop segmenter** (its `Esc if text == "\\\n"` arm),
-            // which is this rebase's byte-identity oracle.  `build.py` instead
-            // keeps the `Esc` as a word *fragment* ("folding it would lose the
-            // possibly-only fragment of the quoted word") — and #537
-            // (SYNC-JUN08) has now finalised that upstream: its `Esc` trivia
-            // branch is removed so a quoted-content `\<newline>` falls through
-            // to the fragment path.  The two differ only for a quoted word
-            // whose entire content is a line continuation (`"\<newline>"`,
-            // token text exactly `"\\\n"`), which the Rust segmenter drops —
-            // see the `puts "\<newline>"` cases in
-            // `tests/differential_segment.rs`.  Reconciling toward `build.py`
-            // / Tcl semantics (a quoted `\<newline>` collapses to a space, so
-            // the word is a valid empty-ish argument, not nothing) is a
-            // separate, coordinated lexer/segmenter change with its own
-            // behavioural bar: it must move the live token-loop segmenter, the
-            // frozen differential oracle, and this `build.rs` arm together (or
-            // the byte-identical rebase breaks), so it is left for its own
-            // strip.
-            TokenType::Sep | TokenType::Esc
-                if tok.kind == TokenType::Sep || self.sm.token_text(tok) == "\\\n" =>
-            {
+            // The lexer emits `\<newline>` as an `Esc` token *only* as
+            // quoted-word content (`"\<newline>"`, terminated or not), where it
+            // is a real fragment of that word — so an `Esc` is NOT folded here
+            // and falls through to the fragment path below. Folding it would
+            // drop a token the lexer reports and lose the (possibly only)
+            // fragment of the quoted word. Mirrors
+            // `compiler/parsing/syntax/build.py`.
+            TokenType::Sep => {
                 if !is_sep_or_eol(self.prev_type) {
                     self.word_boundary = Some(region);
                 }

@@ -45,9 +45,13 @@ impl Analyser {
     /// (`handle_proc_command`, `handle_switch_command`,
     /// `handle_try_command`, `handle_catch_command`, etc.).
     ///
-    /// Body recursion does **not** use Seg2 recovery — recovery
-    /// only fires at the top level (matches Python's
-    /// `_analyse_body` vs. `_analyse_body_inner` split).
+    /// Body recursion does **not** use the segmenter's re-segmentation
+    /// recovery (Seg2) — that splits a runaway top-level command and only
+    /// fires at the top level. The per-command syntax *detectors* (E100 /
+    /// E102 stray closers, E201 unterminated `[`, E202 unterminated `"`,
+    /// E203 unterminated `{`) do run on every body, matching Python's
+    /// `_analyse_body_inner`, whose `segment_with_recovery(source,
+    /// body_token)` runs the same detectors over body content.
     /// Dynamic bodies (`$body`, `[gen]`) are skipped because they
     /// can't be statically re-segmented.
     ///
@@ -67,6 +71,12 @@ impl Analyser {
         }
         self.body_depth += 1;
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        // Absolute byte offset at which this body region ends. The E202 /
+        // E203 detectors test "reaches end of region" against this, not the
+        // whole document — the body's tokens are absolute spans into
+        // `self.source`, but a runaway `"` / `{` only swallows to the body's
+        // own end. Mirrors Python's `base_offset + len(source)` arithmetic.
+        let region_end = base_offset as usize + body_text.len();
         let body_commands = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
             base_offset,
@@ -81,14 +91,19 @@ impl Analyser {
                 continue;
             }
             if cmd_ref.is_partial {
-                // **C41e5.** Stolen-close-brace detection ⇒ E103 (brace
-                // partials only); otherwise the generic E200 fires so the
-                // user still sees a parse-error diagnostic.
+                // GAP-A1: an unterminated `"` / `{` emits the precise E202 /
+                // E203 (with a closing-delimiter fix) ahead of the generic
+                // E200, mirroring the top-level `walk_commands_top_level`
+                // branch.  **C41e5.** Stolen-close-brace detection ⇒ E103
+                // (brace partials only); otherwise the generic E200 fires so
+                // the user still sees a parse-error diagnostic.
                 let brace_partial = matches!(
                     cmd_ref.partial_delimiter,
                     Some(crate::segmenter::UnclosedDelimiter::Brace)
                 );
-                if !(brace_partial && self.detect_stolen_close_brace(cmd_ref)) {
+                if !(self.emit_unterminated_delimiter_diagnostics(cmd_ref, region_end)
+                    || brace_partial && self.detect_stolen_close_brace(cmd_ref))
+                {
                     self.emit_partial_command_diagnostic(cmd_ref);
                 }
                 cmd_idx += 1;
@@ -122,6 +137,16 @@ impl Analyser {
                 self.registry.as_ref(),
             );
             self.result.diagnostics.extend(e201);
+            // E202 (unterminated `"`) / E203 (unterminated `{`) inside a
+            // body — `proc p {} { set x "\n puts hi }`.  The brace word the
+            // body sits in is balanced, so the body re-segments cleanly and
+            // the run-away quote/brace is a non-partial command whose token
+            // reaches the body's end.  Mirror the top-level
+            // `emit_syntax_recovery_diagnostics` E202/E203 detector, which
+            // the top-level ghost-recovery doesn't reach into body scripts —
+            // matching Python's `_analyse_body_inner`, whose
+            // `segment_with_recovery` runs the same detectors on every body.
+            self.emit_unterminated_delimiter_diagnostics(cmd_ref, region_end);
             let mut cmd = cmd_ref.clone();
             // **C41e4.** Repair stray ``]`` (missing ``[``) so
             // downstream handlers see the intended argv shape
