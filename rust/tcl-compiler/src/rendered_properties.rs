@@ -222,9 +222,7 @@ pub fn apply_normalised(mut input: RenderedValueProps) -> RenderedValueProps {
     input
 }
 
-// ---------------------------------------------------------------------------
 // Command classification
-// ---------------------------------------------------------------------------
 
 /// True when the command performs partial unescaping / decoding
 /// (`subst`, `URI::decode`, `encoding convertfrom`, …).
@@ -260,9 +258,7 @@ fn is_normalised_getter(registry: &CommandRegistry, command: &str, args: &[&str]
     spec.traits.contains(Traits::UNNORMALISED_HTTP_GETTER) && args.contains(&"-normalized")
 }
 
-// ---------------------------------------------------------------------------
 // Per-statement evaluation
-// ---------------------------------------------------------------------------
 
 /// Compute rendered properties for a constant literal value.
 #[must_use]
@@ -714,9 +710,7 @@ fn evaluate_def(
     }
 }
 
-// ---------------------------------------------------------------------------
 // SSA walk
-// ---------------------------------------------------------------------------
 
 /// Run rendered-properties propagation over one SSA function.
 ///
