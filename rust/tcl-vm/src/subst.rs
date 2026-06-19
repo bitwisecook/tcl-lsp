@@ -96,10 +96,13 @@ fn read_var(vm: &mut Vm, name: &str) -> Result<Value, TclError> {
 /// as an error rather than silently using the error message as the value.
 fn eval_subst(vm: &mut Vm, inner: &str) -> Result<Value, TclError> {
     let c = vm.eval_source(inner)?;
-    if c.code.is_ok() {
-        Ok(c.result)
-    } else {
-        Err(TclError::new(c.result.to_str().to_string()))
+    match c.code {
+        tcl_runtime_api::Code::Ok => Ok(c.result),
+        tcl_runtime_api::Code::Error => Err(TclError::new(c.result.to_str().to_string())),
+        // A `break`/`continue`/`return` escaping the substitution carries its
+        // own completion code out (so an enclosing loop / proc handles it),
+        // rather than degrading to an error.
+        other => Err(TclError::with_code(c.result.to_str().to_string(), other)),
     }
 }
 

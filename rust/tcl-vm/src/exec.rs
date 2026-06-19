@@ -517,7 +517,16 @@ impl Vm {
                 } else {
                     match crate::subst::subst_word(&raw, self) {
                         Ok(v) => f.stack.push(v),
-                        Err(e) => return Tick::Return(err(e.message)),
+                        // A `break`/`continue`/`return` carried out of a `[…]`
+                        // substitution propagates with its own code (an enclosing
+                        // loop's exception range / a proc boundary handles it).
+                        Err(e) => {
+                            return Tick::Return(Completion::new(
+                                e.code.unwrap_or(Code::Error),
+                                Value::string(e.message),
+                                Value::empty(),
+                            ));
+                        }
                     }
                 }
             }
