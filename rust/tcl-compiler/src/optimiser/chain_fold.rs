@@ -158,6 +158,13 @@ enum Write {
     },
 }
 
+/// The (normalised) target variable name of a classified write.
+fn write_var(w: &Write) -> &str {
+    match w {
+        Write::Set { var, .. } | Write::Append { var, .. } | Write::Lappend { var, .. } => var,
+    }
+}
+
 /// Classify `stmt` as a static write, or `None` for anything else
 /// (dynamic operand, other command, control flow).
 fn classify_write(stmt: &Statement) -> Option<Write> {
@@ -283,6 +290,16 @@ fn try_fold_chain_at(
                 writes.push(j);
                 j += 1;
             }
+            // Precise-flow (O104/O130): a *static-literal* write to a
+            // **different** variable cannot read or write the accumulator,
+            // has no side effect, and is not a barrier (`classify_write`
+            // only matches single-token `Esc`/`Str` value words with no
+            // substitution), so the chain continues past it — the
+            // interleaved statement stays in place and is not folded.
+            // Mirrors Python's "skip a non-reading statement" chain rule.
+            Some(other) if write_var(&other) != var => {
+                j += 1;
+            }
             _ => break,
         }
     }
@@ -395,6 +412,31 @@ mod tests {
             apply("set s start\nappend s _mid\nappend s _end"),
             "set s start_mid_end",
         );
+    }
+
+    #[test]
+    fn chain_continues_past_interleaved_literal_set() {
+        // `set t 1` writes a *different* variable with a static literal, so
+        // the build chain folds across it (precise-flow); the interleaved
+        // statement stays in place.
+        assert_eq!(
+            apply("set s \"\"\nset t 1\nappend s foo\nappend s bar"),
+            "set t 1\nset s foobar",
+        );
+    }
+
+    #[test]
+    fn chain_breaks_on_interleaved_dynamic_statement() {
+        // A `puts $s` reads the accumulator — `classify_write` returns
+        // None for it, so the chain must NOT fold across it (only the
+        // trailing two appends, which is a fresh sub-chain of length < 2).
+        let opts = run_pass("set s \"\"\nputs $s\nappend s foo\nappend s bar");
+        let fold = opts
+            .iter()
+            .find(|o| o.code == "O104" && o.replacement.starts_with("set s"));
+        // The `set s ""; puts $s` prefix breaks; the two trailing appends
+        // have no anchoring `set`, so no fold fires.
+        assert!(fold.is_none(), "must not fold across a reader, got {opts:?}");
     }
 
     #[test]
