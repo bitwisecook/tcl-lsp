@@ -244,6 +244,18 @@ pub fn sccp(
 
     seed_live_in_roots(cfg, ssa, &mut values);
 
+    // Global / namespace / upvar-aliased / traced variables are shared mutable
+    // state observable and writable from other scopes, traces, and source
+    // files. Their value is therefore never a compile-time constant: folding
+    // through one would be unsound across any opaque call (`set ::g 5; mut;
+    // expr {$::g + 1}` must NOT fold to 6 — `mut` may have rewritten `::g`).
+    // Force every such definition to OVERDEFINED so SCCP never propagates a
+    // constant through it; the read is still tracked for liveness. Mirrors
+    // Python's `_is_externally_mutable`, consulting the whole-function
+    // (flow-insensitive) view of the `var_observability` alias/trace lattice.
+    let escaping = crate::var_observability::analyse_var_observability(cfg).escaping_var_names();
+    let is_externally_mutable = |name: &str| name.starts_with("::") || escaping.contains(name);
+
     let mut executable_blocks: HashSet<String> = HashSet::new();
     let mut executable_edges: HashSet<(String, String)> = HashSet::new();
     if cfg.blocks.contains_key(&cfg.entry) {
@@ -317,7 +329,11 @@ pub fn sccp(
                     continue;
                 }
                 for (var, ver) in &stmt_ssa.defs {
-                    let val = evaluate_def(stmt_ssa, &values);
+                    let val = if is_externally_mutable(var) {
+                        LatticeValue::Overdefined
+                    } else {
+                        evaluate_def(stmt_ssa, &values)
+                    };
                     if set_value(&mut values, (var.clone(), *ver), &val) {
                         changed = true;
                     }
@@ -2017,5 +2033,41 @@ mod tests {
         let order = cfg_order(&f);
         assert!(order.contains(&"entry".to_string()));
         assert!(order.contains(&"dead".to_string()));
+    }
+
+    fn cu(src: &str) -> crate::compilation_unit::CompilationUnit {
+        crate::compilation_unit::CompilationUnit::build_for(
+            src,
+            &tcl_registry::CommandRegistry::build_default(),
+            false,
+        )
+    }
+
+    #[test]
+    fn sccp_widens_global_aliased_var_to_overdefined() {
+        // A `global`-aliased variable is shared mutable state: SCCP must not
+        // fold a constant through it, so the `if {$g == 5}` branch stays
+        // unresolved (both arms executable, no constant branch). The matching
+        // *local* program does fold — proving the widening is what makes the
+        // difference, not an unrelated failure to evaluate.
+        let global_src =
+            "proc ::p {} { global g\n set g 5\n if {$g == 5} { return 1 } else { return 0 } }";
+        let local_src = "proc ::p {} { set x 5\n if {$x == 5} { return 1 } else { return 0 } }";
+
+        let cg = cu(global_src);
+        let fg = cg.function("::p").unwrap();
+        let rg = sccp(&fg.cfg, &fg.ssa, None, None);
+        assert!(
+            rg.constant_branches.is_empty(),
+            "global var must not fold a constant branch"
+        );
+
+        let cl = cu(local_src);
+        let fl = cl.function("::p").unwrap();
+        let rl = sccp(&fl.cfg, &fl.ssa, None, None);
+        assert!(
+            !rl.constant_branches.is_empty(),
+            "local var should still fold the constant branch"
+        );
     }
 }
