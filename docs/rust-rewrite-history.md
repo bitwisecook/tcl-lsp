@@ -1251,6 +1251,12 @@ general inliner). What landed:
   (`if {[expr {$x}]}` → `if {$x}`), and O101 folds a condition that constant
   substitution collapses to a literal. Mirrors the Python order
   (unwrap → fold → cascade).
+- **O125 (already-covered guard)** — code sinking now skips a statement an
+  earlier pass already rewrites (e.g. an O109/O126 dead-store deletion;
+  `Elimination` runs before `CodeSinking`), preventing conflicting rewrites.
+  Mirrors Python's `already_covered` check. The multi-branch / deepest-target
+  descent (sink into the deepest using branch in *each* body, not just one)
+  remains the O125 residual.
 
 All verified against the Python reference algorithms in
 `compiler/optimiser/{_expr_simplify,_pattern_recognition,_elimination,_tail_call}.py`

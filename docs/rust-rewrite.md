@@ -1099,8 +1099,8 @@ build-chain folds (`optimiser::chain_fold`), O119 multi-set packing
   family and add the latch-dominance "runs every iteration" gate. (The
   profile-category omission that made the hint unsuppressable is fixed.)
 - **open** residuals: O103 namespace-chain resolution + rename gating; O125
-  multi-branch / deepest-target sinking + already-covered guard (the
-  **cross-event-var guard has landed**). The **O101/O115 branch-condition
+  multi-branch / deepest-target descent (the **cross-event-var and
+  already-covered guards have landed**). The **O101/O115 branch-condition
   coverage has landed** (`branch_cascade` + the O115 unwrap and O101 fold in
   `propagate_into_branches`, which no longer early-returns on an empty
   constant map). The O110 instcombine gap is closed for the logical
