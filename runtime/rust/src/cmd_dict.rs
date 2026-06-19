@@ -26,13 +26,24 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"dict subcommand ?arg ...?");
     }
     let sub = obj_bytes(argv[1]);
+    // Pure dict subcommands now live in the shared command core; the runtime is
+    // a thin adapter. Variable-mutating subcommands fall through to the legacy
+    // match below.
+    if let Ok(sub_str) = std::str::from_utf8(&sub) {
+        if let Some(result) = tcl_cmd_core::dict::dispatch_canon(interp, sub_str, &argv[2..]) {
+            return match result {
+                Ok(v) => {
+                    interp.set_result(v);
+                    Code::Ok
+                }
+                Err(e) => interp.set_error(e.message().as_bytes()),
+            };
+        }
+    }
     match sub.as_slice() {
         b"create" => create(interp, argv),
         b"get" => get(interp, argv),
-        b"getdef" | b"getwithdefault" => getdef(interp, argv),
         b"set" => set(interp, argv),
-        b"replace" => replace(interp, argv),
-        b"remove" => remove(interp, argv),
         b"exists" => exists(interp, argv),
         b"unset" => unset(interp, argv),
         b"size" => size(interp, argv),
@@ -247,142 +258,56 @@ fn copy_dict(interp: &mut Interp, src: *mut TclObj) -> Option<*mut TclObj> {
     Some(acc)
 }
 
-/// `dict replace dictionary ?key value ...?` — a copy with the pairs set/added.
-fn replace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 3 || argv.len() % 2 == 0 {
-        return wrong_args(interp, b"dict replace dictionary ?key value ...?");
-    }
-    let Some(acc) = copy_dict(interp, argv[2]) else {
-        return Code::Error;
-    };
-    for c in argv[3..].chunks_exact(2) {
-        let _ = dict::dict_set(acc, c[0], c[1]);
-    }
-    interp.set_result(acc);
-    unsafe { obj::decr_ref_count(acc) };
-    Code::Ok
-}
-
-/// `dict remove dictionary ?key ...?` — a copy without the given keys.
-fn remove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 3 {
-        return wrong_args(interp, b"dict remove dictionary ?key ...?");
-    }
-    let Some(acc) = copy_dict(interp, argv[2]) else {
-        return Code::Error;
-    };
-    for &k in &argv[3..] {
-        let _ = dict::dict_unset(acc, &obj_bytes(k));
-    }
-    interp.set_result(acc);
-    unsafe { obj::decr_ref_count(acc) };
-    Code::Ok
-}
-
-/// `dict getwithdefault`/`getdef dictionary ?key ...? key default` — like
-/// `dict get` over a key path, but returns `default` if any key is absent.
-fn getdef(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 5 {
-        // The usage echoes the actual sub-name (`getdef` or `getwithdefault`).
-        let mut usage = b"dict ".to_vec();
-        usage.extend_from_slice(&obj_bytes(argv[1]));
-        usage.extend_from_slice(b" dictionary ?key ...? key default");
-        return wrong_args(interp, &usage);
-    }
-    let default = argv[argv.len() - 1];
-    let keys = &argv[3..argv.len() - 1];
-    let mut cur = argv[2];
-    for &k in keys {
-        let key = obj_bytes(k);
-        match dict::dict_get(cur, &key) {
-            Ok(Some(v)) => cur = v,
-            Ok(None) => {
-                interp.set_result(default);
-                return Code::Ok;
-            }
-            Err(e) => return bad_dict(interp, e),
-        }
-    }
-    interp.set_result(cur);
-    Code::Ok
-}
-
 /// `dict filter dictionary key|value ?globPattern ...?` (glob forms) or
 /// `dict filter dictionary script {keyVar valueVar} body` (predicate form):
 /// the entries kept, as a new dict.
 fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 4 {
-        return wrong_args(interp, b"dict filter dictionary filterType ?arg ...?");
-    }
+    // Only the `script` filter type reaches here: the shared core
+    // (`tcl_cmd_core::dict`) handles `key`/`value` (pure glob), the bad-filterType
+    // error, and the missing-filterType arg error, so `dispatch_canon` returns
+    // `None` only for `script`. `argv` is therefore `[string filter dict script
+    // …]` (≥ 4). Error order matches the original: the dict is parsed before the
+    // script-form arg-count check.
     let pairs = match dict::dict_pairs(argv[2]) {
         Ok(p) => p,
         Err(e) => return bad_dict(interp, e),
     };
-    let kind = obj_bytes(argv[3]);
+    if argv.len() != 6 {
+        return wrong_args(
+            interp,
+            b"dict filter dictionary script {keyVarName valueVarName} filterScript",
+        );
+    }
+    // The two variable names are parsed as a *list*: a malformed list surfaces
+    // the list parse error verbatim (dict-17.20), then a count other than two is
+    // the dict-filter syntax error (dict-17.19).
+    let vars = match crate::parse::split_list(&obj_bytes(argv[4])) {
+        Ok(v) => v,
+        Err(e) => return interp.set_error(e.message()),
+    };
+    if vars.len() != 2 {
+        return interp.error_with_code(
+            b"must have exactly two variable names",
+            b"TCL SYNTAX dict filter",
+        );
+    }
     let mut kept: Vec<(*mut TclObj, *mut TclObj)> = Vec::new();
-
-    match kind.as_slice() {
-        b"key" | b"value" => {
-            let by_key = kind == b"key";
-            let pats: Vec<Vec<u8>> = argv[4..].iter().map(|&p| obj_bytes(p)).collect();
-            for (k, v) in pairs {
-                let target = obj_bytes(if by_key { k } else { v });
-                let hit = pats.iter().any(|p| {
-                    tcl_syntax::glob::string_match(
-                        &String::from_utf8_lossy(p),
-                        &String::from_utf8_lossy(&target),
-                    )
-                });
-                if hit {
+    for (k, v) in pairs {
+        if interp.var_set(&vars[0], k).is_err() || interp.var_set(&vars[1], v).is_err() {
+            return interp.set_error(b"couldn't set dict filter variable");
+        }
+        // The body's completion code drives the loop (C's `DictFilterCmd` script
+        // case): OK ⇒ keep iff its result is true; CONTINUE ⇒ skip; BREAK ⇒ stop,
+        // return what's kept; ERROR / RETURN / other ⇒ propagate.
+        match interp.eval_control_body(argv[5]) {
+            Code::Ok => {
+                if is_true(&obj_bytes(interp.get_obj_result())) {
                     kept.push((k, v));
                 }
             }
-        }
-        b"script" => {
-            if argv.len() != 6 {
-                return wrong_args(
-                    interp,
-                    b"dict filter dictionary script {keyVarName valueVarName} filterScript",
-                );
-            }
-            // The two variable names are parsed as a *list*: a malformed list
-            // surfaces the list parse error verbatim (dict-17.20), then a count
-            // other than two is the dict-filter syntax error (dict-17.19).
-            let vars = match crate::parse::split_list(&obj_bytes(argv[4])) {
-                Ok(v) => v,
-                Err(e) => return interp.set_error(e.message()),
-            };
-            if vars.len() != 2 {
-                return interp.error_with_code(
-                    b"must have exactly two variable names",
-                    b"TCL SYNTAX dict filter",
-                );
-            }
-            for (k, v) in pairs {
-                if interp.var_set(&vars[0], k).is_err() || interp.var_set(&vars[1], v).is_err() {
-                    return interp.set_error(b"couldn't set dict filter variable");
-                }
-                // The body's completion code drives the loop (C's `DictFilterCmd`
-                // script case): OK ⇒ keep iff its result is true; CONTINUE ⇒ skip;
-                // BREAK ⇒ stop, return what's kept; ERROR / RETURN / other ⇒
-                // propagate the code (and result) out of `dict filter`.
-                match interp.eval_control_body(argv[5]) {
-                    Code::Ok => {
-                        if is_true(&obj_bytes(interp.get_obj_result())) {
-                            kept.push((k, v));
-                        }
-                    }
-                    Code::Continue => {}
-                    Code::Break => break,
-                    other => return other,
-                }
-            }
-        }
-        _ => {
-            let mut m = b"bad filterType \"".to_vec();
-            m.extend_from_slice(&kind);
-            m.extend_from_slice(b"\": must be key, script, or value");
-            return interp.set_error(&m);
+            Code::Continue => {}
+            Code::Break => break,
+            other => return other,
         }
     }
     interp.set_result(dict::new_dict_obj(&kept));
@@ -1087,6 +1012,34 @@ mod tests {
     }
 
     #[test]
+    fn replace_and_remove() {
+        // `replace` upserts (existing key keeps position; new key appends).
+        assert_eq!(ok(b"dict replace {a 1 b 2} b 3 c 4"), b"a 1 b 3 c 4");
+        assert_eq!(ok(b"dict replace {a 1 b 2}"), b"a 1 b 2");
+        // `remove` drops the named keys; a missing key is not an error.
+        assert_eq!(ok(b"dict remove {a 1 b 2 c 3} b d"), b"a 1 c 3");
+        assert_eq!(ok(b"dict remove {a 1 b 2}"), b"a 1 b 2");
+        // An odd key/value count to `replace` is a wrong-# args error.
+        let (c, _) = run(b"dict replace {a 1} b");
+        assert_eq!(c, Code::Error);
+    }
+
+    #[test]
+    fn getdef_returns_default_on_miss() {
+        assert_eq!(ok(b"dict getdef {a 1 b 2} a X"), b"1");
+        assert_eq!(ok(b"dict getdef {a 1 b 2} z X"), b"X");
+        // Nested key path.
+        assert_eq!(ok(b"dict getdef {a {b 1}} a b X"), b"1");
+        assert_eq!(ok(b"dict getdef {a {b 1}} a z X"), b"X");
+        // The alias behaves identically and echoes its own name on misuse.
+        assert_eq!(ok(b"dict getwithdefault {a 1} z D"), b"D");
+        let (c, b) = run(b"dict getwithdefault {a 1} z");
+        assert_eq!(c, Code::Error);
+        assert!(b.starts_with(b"wrong # args"));
+        assert!(b.windows(14).any(|w| w == b"getwithdefault"));
+    }
+
+    #[test]
     fn dict_for_iterates_in_order() {
         assert_eq!(
             ok(b"set out {}; dict for {k v} {a 1 b 2 c 3} { lappend out $k=$v }; set out"),
@@ -1099,5 +1052,26 @@ mod tests {
         let (c, b) = run(b"dict get {a 1} z");
         assert_eq!(c, Code::Error);
         assert_eq!(b, b"key \"z\" not known in dictionary");
+    }
+
+    #[test]
+    fn filter_key_value_via_shared_core() {
+        // `key`/`value` globs now come from `tcl_cmd_core::dict`.
+        assert_eq!(ok(b"dict filter {a 1 b 2 aa 3} key a*"), b"a 1 aa 3");
+        assert_eq!(ok(b"dict filter {a 1 b 2 aa 3} value 2"), b"b 2");
+        assert_eq!(ok(b"dict filter {a 1 b 2} key"), b""); // no patterns → empty
+                                                           // The filterType is validated *before* the dict is parsed (was a bug:
+                                                           // a bad dict + bogus type reported the dict error first).
+        let (c, b) = run(b"dict filter {a b c} bogus");
+        assert_eq!(c, Code::Error);
+        assert_eq!(
+            b,
+            b"bad filterType \"bogus\": must be key, script, or value"
+        );
+        // `script` stays in the runtime adapter (Family-B).
+        assert_eq!(
+            ok(b"dict filter {a 1 b 2 c 3} script {k v} {expr {$v > 1}}"),
+            b"b 2 c 3"
+        );
     }
 }

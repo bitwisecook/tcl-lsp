@@ -1,0 +1,20 @@
+ByteCode ::top, 13 instructions, 23 bytes, 4 literals, 0 variables
+  Literals:
+    0: "cnt"
+    1: "0"
+    2: "a b c"
+    3: ""
+  Instructions:
+    (0) push1 0	# "cnt"
+    (2) push1 1	# "0"
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "a b c"
+    (8) foreach_start 0
+    (13) push1 0	# "cnt"
+    (15) incrStkImm +1
+    (17) pop
+    (18) foreach_step
+    (19) foreach_end
+    (20) push1 3	# ""
+    (22) done

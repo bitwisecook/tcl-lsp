@@ -457,6 +457,14 @@ pub fn in_coroutine() -> bool {
     false
 }
 
+/// The wasm32 stand-in for a registered coroutine: the type must exist so the
+/// shared `Interp`'s `coros` table + `coro_swap_named` compile, but it is never
+/// populated (coroutine creation errors in the single-threaded wasm build).
+#[cfg(target_arch = "wasm32")]
+pub struct CoroEntry {
+    pub(crate) context: crate::interp::CoroContext,
+}
+
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use crate::interp::Interp;

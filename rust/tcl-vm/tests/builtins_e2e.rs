@@ -1,4 +1,7 @@
-//! M3 end-to-end: arrays, list/string/dict builtins, and `info`.
+//! End-to-end coverage of the builtin command library: list/string/dict/array,
+//! namespace, `info`, regexp/regsub, expr, binary/scan, channels, traces, and
+//! friends — each compiled as real Tcl via `tcl-compiler` and run through
+//! `tcl-vm`, asserting observable behaviour.
 
 use std::cell::RefCell;
 use std::io::Write;
@@ -12,6 +15,8 @@ use tcl_vm::{CompileError, CompileService, Vm};
 
 struct Svc(CommandRegistry);
 impl CompileService for Svc {
+    type Module = tcl_bytecode::ModuleAsm;
+
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let ir = lower_to_ir(src, &self.0);
         let cfg = build_cfg_codegen(&ir, false);
@@ -51,6 +56,33 @@ fn out_eq(src: &str, expected: &str) {
     assert_eq!(out, expected, "for script:\n{src}");
 }
 
+/// The `exec` command, end-to-end through the bytecode pipeline, on both host
+/// postures — the capability model proven at the command level (the helper-level
+/// proof lives in `capability.rs`).
+#[test]
+fn exec_command_capability() {
+    // Native host (the VM's default): `exec` runs a real subprocess.
+    out_eq("puts [exec echo hello]\n", "hello\n");
+
+    // Sandboxed host — subprocess capability off, the posture every WASM/WASI
+    // host has. `exec` yields the faithful "unsupported" error, not a panic.
+    let buf = Rc::new(RefCell::new(Vec::new()));
+    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    vm.set_host(Rc::new(tcl_vm::host_native::NativeHost::sandboxed()));
+    let registry = CommandRegistry::build_default();
+    let ir = lower_to_ir("exec echo hello", &registry);
+    let cfg = build_cfg_codegen(&ir, false);
+    let asm = codegen_module(&cfg, &ir, &registry);
+    let c = vm.run_module(&asm);
+    assert!(!c.code.is_ok(), "sandboxed exec should error, got ok");
+    assert!(
+        c.result.to_str().contains("no subprocess support"),
+        "expected the faithful unsupported error, got: {}",
+        c.result.to_str()
+    );
+}
+
 #[test]
 fn list_basics() {
     out_eq("set l [list 1 2 3]\nputs [llength $l]\n", "3\n");
@@ -69,6 +101,101 @@ fn list_basics() {
 fn lappend_and_lassign() {
     out_eq("set l {}\nlappend l a b\nlappend l c\nputs $l\n", "a b c\n");
     out_eq("lassign {1 2 3} x y\nputs \"$x $y\"\n", "1 2\n");
+}
+
+/// `lsearch` — the VM gained the full option set by sharing
+/// `tcl_cmd_core::lsearch` (it had only a `-exact`/`-glob` stub). Pinned to tclsh.
+#[test]
+fn lsearch_shared_core() {
+    assert_eq!(run("lsearch {a b c d} c").1, "2");
+    assert_eq!(run("lsearch {a b c d} x").1, "-1");
+    assert_eq!(run("lsearch -all {a b a c a} a").1, "0 2 4");
+    assert_eq!(run("lsearch -inline {foo bar baz} ba*").1, "bar");
+    assert_eq!(run("lsearch -all -inline {x1 y2 x3} x*").1, "x1 x3");
+    assert_eq!(run("lsearch -not {a b a} a").1, "1");
+    assert_eq!(run("lsearch -start 2 {a b a a} a").1, "2");
+    assert_eq!(run("lsearch -nocase {AB cd EF} ef").1, "2");
+    assert_eq!(run("lsearch -integer {3 1 4 1 5} 4").1, "2");
+    assert_eq!(run("lsearch -sorted {1 3 5 7 9} 7").1, "3");
+    assert_eq!(run("lsearch -bisect -integer {2 4 6 8} 5").1, "1");
+    assert_eq!(run("lsearch -regexp {foo123 bar456} {[0-9]+}").1, "0");
+    assert_eq!(run("lsearch -index 1 {{a 1} {b 2} {c 3}} 2").1, "1");
+    assert_eq!(run("lsearch -all -index 1 {{a 1} {b 2} {c 1}} 1").1, "0 2");
+    assert_eq!(run("lsearch -subindices -index 1 {{a 1} {b 2}} 2").1, "1 1");
+    assert_eq!(run("lsearch -stride 2 -index 0 {a 1 b 2 c 3} b").1, "2");
+    assert_eq!(run("lsearch -index end {{a b} {c d}} d").1, "1");
+    // bad option error (full message now).
+    let (ok, msg, _) = run("lsearch -bogus {a b} a");
+    assert!(!ok);
+    assert!(msg.starts_with("bad option \"-bogus\""), "got: {msg}");
+}
+
+/// `lsort` — the VM gained `-index`/`-stride`/`-indices`/`-command` by sharing
+/// `tcl_cmd_core::lsort` (it had only flat comparison modes). Pinned to tclsh.
+#[test]
+fn lsort_shared_core() {
+    assert_eq!(run("lsort {b a c}").1, "a b c");
+    assert_eq!(
+        run("lsort -decreasing -dictionary {x9 x10 x100}").1,
+        "x100 x10 x9"
+    );
+    assert_eq!(run("lsort -integer -unique {1 01 1 2}").1, "1 2");
+    assert_eq!(run("lsort -indices {c a b}").1, "1 2 0");
+    assert_eq!(
+        run("lsort -index 1 {{a 3} {b 1} {c 2}}").1,
+        "{b 1} {c 2} {a 3}"
+    );
+    assert_eq!(
+        run("lsort -stride 2 -index 1 {x 3 y 1 z 2}").1,
+        "y 1 z 2 x 3"
+    );
+    assert_eq!(
+        run("lsort -stride 2 -indices {c 3 a 1 b 2}").1,
+        "2 3 4 5 0 1"
+    );
+    // -command (Family-B: the comparator evaluates Tcl via vm.dispatch).
+    assert_eq!(
+        run("lsort -command {apply {{a b} {expr {$a - $b}}}} {3 1 2}").1,
+        "1 2 3"
+    );
+    assert_eq!(
+        run("lsort -unique -command {apply {{a b} {expr {$a - $b}}}} {3 1 3 2 1}").1,
+        "1 2 3"
+    );
+    // Errors.
+    let (ok, msg, _) = run("lsort -index 5 {{a b} {c d}}");
+    assert!(!ok);
+    assert_eq!(msg, "element 5 missing from sublist \"a b\"");
+}
+
+/// `namespace exists`/`parent`/`children` now route through the shared core over
+/// the `Namespaces` handle trait (the VM's String model honouring `NsId`).
+/// Sharing gave `children` its `?pattern?` filter and the missing-namespace
+/// error. Pinned to tclsh 9.0.
+#[test]
+fn namespace_nav_shared() {
+    let setup = "namespace eval a { namespace eval b {}; namespace eval c {} }; ";
+    assert_eq!(run(&format!("{setup}namespace parent ::a")).1, "::");
+    assert_eq!(run(&format!("{setup}namespace parent ::a::b")).1, "::a");
+    assert_eq!(
+        run(&format!("{setup}lsort [namespace children ::a]")).1,
+        "::a::b ::a::c"
+    );
+    // `children` now honours the pattern (was ignored), qualified to the target.
+    assert_eq!(
+        run(&format!("{setup}lsort [namespace children ::a b*]")).1,
+        "::a::b"
+    );
+    assert_eq!(run(&format!("{setup}namespace exists ::a")).1, "1");
+    assert_eq!(run(&format!("{setup}namespace exists ::a::b")).1, "1");
+    assert_eq!(run("namespace exists ::nope").1, "0");
+    // A missing namespace now errors (was: a computed/empty result).
+    let (ok, msg, _) = run("namespace parent ::nope");
+    assert!(!ok);
+    assert_eq!(msg, "namespace \"::nope\" not found");
+    let (ok, msg, _) = run("namespace children ::nope");
+    assert!(!ok);
+    assert_eq!(msg, "namespace \"::nope\" not found");
 }
 
 #[test]
@@ -103,6 +230,39 @@ fn arrays() {
     out_eq("puts [array exists nope]\n", "0\n");
 }
 
+/// `array` exists/size/names/get/unset now route through the shared
+/// `tcl_cmd_core::array` core (over the VM's `VarStore`). Pinned to tclsh 9.0.
+#[test]
+fn array_shared_core() {
+    assert_eq!(run("array set a {x 1 y 2 z 3}; array exists a").1, "1");
+    assert_eq!(run("array set a {x 1 y 2 z 3}; array size a").1, "3");
+    assert_eq!(
+        run("array set a {x 1 y 2 z 3}; lsort [array names a]").1,
+        "x y z"
+    );
+    assert_eq!(
+        run("array set a {ax 1 ay 2 bz 3}; lsort [array names a a*]").1,
+        "ax ay"
+    );
+    assert_eq!(
+        run("array set a {x 1 y 2 z 3}; lsort [array get a]").1,
+        "1 2 3 x y z"
+    );
+    assert_eq!(
+        run("array set a {x 1 y 2 z 3}; array unset a y; lsort [array names a]").1,
+        "x z"
+    );
+    // The fixed bug: `array unset a` (no pattern) removes the *whole* array.
+    assert_eq!(
+        run("array set a {x 1 y 2 z 3}; array unset a; array exists a").1,
+        "0"
+    );
+    // A scalar is not an array; a missing var is not an array.
+    assert_eq!(run("set s scalar; array exists s").1, "0");
+    assert_eq!(run("array exists nope").1, "0");
+    assert_eq!(run("array size nope").1, "0");
+}
+
 #[test]
 fn dict_ops() {
     out_eq("set d [dict create a 1 b 2]\nputs [dict get $d b]\n", "2\n");
@@ -115,6 +275,37 @@ fn dict_ops() {
         "set sum 0\ndict for {k v} {a 1 b 2 c 3} { incr sum $v }\nputs $sum\n",
         "6\n",
     );
+    // `replace` / `remove` (shared command core; the VM gained these via the
+    // `dispatch_canon` seam).
+    out_eq("puts [dict replace {a 1 b 2} b 3 c 4]\n", "a 1 b 3 c 4\n");
+    out_eq("puts [dict remove {a 1 b 2 c 3} b d]\n", "a 1 c 3\n");
+    out_eq("puts [dict getdef {a 1 b 2} a X]\n", "1\n");
+    out_eq("puts [dict getdef {a 1 b 2} z X]\n", "X\n");
+}
+
+/// `dict filter` — `key`/`value` globs via the shared core, `script` via the
+/// VM's Family-B adapter (the VM lacked `dict filter` entirely). Pinned to tclsh.
+#[test]
+fn dict_filter() {
+    assert_eq!(run("dict filter {a 1 b 2 aa 3} key a*").1, "a 1 aa 3");
+    assert_eq!(run("dict filter {a 1 b 2 aa 3} value 2").1, "b 2");
+    assert_eq!(run("dict filter {a 1 b 2} key").1, ""); // no patterns → empty
+    assert_eq!(run("dict filter {a 1 b 2 c 3} key a c").1, "a 1 c 3"); // any-of
+    // script mode (Family-B): keep pairs whose body is true.
+    assert_eq!(
+        run("dict filter {a 1 b 2 c 3} script {k v} {expr {$v > 1}}").1,
+        "b 2 c 3"
+    );
+    // filterType is validated before the dict is parsed (was a runtime bug).
+    let (ok, msg, _) = run("dict filter {a b c} bogus");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad filterType \"bogus\": must be key, script, or value"
+    );
+    let (ok, msg, _) = run("dict filter {a 1 b 2} script {k} {expr 1}");
+    assert!(!ok);
+    assert_eq!(msg, "must have exactly two variable names");
 }
 
 #[test]
@@ -136,6 +327,17 @@ fn info_introspection() {
     out_eq("puts [info level]\n", "0\n");
     out_eq("proc g {} { return [info level] }\nputs [g]\n", "1\n");
     out_eq("puts [info tclversion]\n", "9.0\n");
+    // body/args/default on a non-proc (unknown or a builtin) → the shared
+    // `"name" isn't a procedure` error (pinned against tclsh 9.0).
+    let (ok, msg, _) = run("info body nosuch");
+    assert!(!ok);
+    assert_eq!(msg, "\"nosuch\" isn't a procedure");
+    let (ok, msg, _) = run("info args nosuch");
+    assert!(!ok);
+    assert_eq!(msg, "\"nosuch\" isn't a procedure");
+    let (ok, msg, _) = run("info body set");
+    assert!(!ok);
+    assert_eq!(msg, "\"set\" isn't a procedure");
 }
 
 #[test]
@@ -297,6 +499,38 @@ fn regexp_regsub() {
     );
 }
 
+/// Features the VM gained by sharing `tcl_cmd_core::regex`'s plumbing (it had
+/// only `-nocase`/`-all`/`-inline`/`-line` before). Pinned against tclsh 9.0.
+#[test]
+fn regexp_shared_features() {
+    // `-indices` reports char-offset {start end} pairs.
+    assert_eq!(run("regexp -indices {bc} abcd m; set m").1, "1 2");
+    // `-start` resumes the search at a char offset.
+    assert_eq!(run("regexp -start 3 {a} {a a a}").1, "1");
+    assert_eq!(run("regsub -start 2 -all {a} aaaa X").1, "aaXX");
+    // `-inline -all` with submatches flattens whole+subs per match.
+    assert_eq!(
+        run("regexp -inline -all {(\\d)(\\d)} 1234").1,
+        "12 1 2 34 3 4"
+    );
+    // A failed match leaves the match variables untouched (was: set to empty).
+    assert_eq!(run("set m PRESET; regexp {z} abc m; set m").1, "PRESET");
+    // The tclsh compile-error prefix (was: "couldn't compile…").
+    let (ok, msg, _) = run("regexp {a(} b");
+    assert!(!ok);
+    assert!(
+        msg.starts_with("cannot compile regular expression pattern"),
+        "got: {msg}"
+    );
+    // The per-command bad-option message.
+    let (ok, msg, _) = run("regexp -bogus {a} b");
+    assert!(!ok);
+    assert!(
+        msg.starts_with("bad option \"-bogus\": must be -all, -about"),
+        "got: {msg}"
+    );
+}
+
 #[test]
 fn file_path_ops() {
     out_eq("puts [file join /a b c]\n", "/a/b/c\n");
@@ -363,6 +597,26 @@ fn variable_traces() {
         "trace add variable x write cb\nputs [trace info variable x]\n",
         "{write cb}\n",
     );
+    // Op validation + the type error now route through the shared catalogue
+    // (the VM previously accepted any op word, and used the wrong type error).
+    let (ok, msg, _) = run("trace add variable v bogus {}");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad operation \"bogus\": must be array, read, unset, or write"
+    );
+    let (ok, msg, _) = run("trace add variable v {} {}");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad operation list \"\": must be one or more of array, read, unset, or write"
+    );
+    let (ok, msg, _) = run("trace add bogus n o c");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad option \"bogus\": must be execution, command, or variable"
+    );
 }
 
 #[test]
@@ -405,6 +659,177 @@ fn namespace_introspection() {
         "1\n",
     );
     out_eq("puts [namespace exists nope]\n", "0\n");
+}
+
+#[test]
+fn switch_shared_core() {
+    // Option parsing + pattern selection route through the shared core. Exact
+    // switches are codegen-inlined (the `JUMP_TABLE` path), so the core is
+    // exercised via `-glob`/`-regexp` and the error/option cases. Pinned vs tclsh.
+    out_eq(
+        "puts [switch -glob ab { a {expr 1} ab {expr 2} default {expr 9} }]\n",
+        "2\n",
+    );
+    out_eq("puts [switch -nocase -glob ABC { ab* {expr 7} }]\n", "7\n");
+    // `-` fall-through.
+    out_eq(
+        "puts [switch -glob x { a - b {expr 3} x {expr 4} }]\n",
+        "4\n",
+    );
+    // `-regexp` now matches through the engine (previously fell back to exact).
+    out_eq("puts [switch -regexp aXb { {a(.)b} {expr 11} }]\n", "11\n");
+    // TIP #75 -matchvar/-indexvar.
+    out_eq(
+        "switch -regexp -matchvar mv -indexvar iv aXb { {a(.)b} {} }\n\
+         puts \"$mv|$iv\"\n",
+        "aXb X|{0 2} {1 1}\n",
+    );
+    // `default` is only a wildcard as the *last* pattern; elsewhere it is a
+    // literal pattern (so value "q" matches the `q` arm, returning 6).
+    out_eq(
+        "puts [switch -glob q { default {expr 5} q {expr 6} }]\n",
+        "6\n",
+    );
+    // No match → empty string.
+    out_eq("puts <[switch -glob zz { a {expr 1} }]>\n", "<>\n");
+    // (Option-error cases route through the codegen's inline switch, not the
+    // runtime `cmd_switch`, so they are pinned via the tree-walking runtime,
+    // which always calls the shared core — see `runtime/rust` switch tests.)
+}
+
+#[test]
+fn info_vars_locals_globals() {
+    // Variable listing routes through the shared cores. Pinned against tclsh 9.0
+    // (C `InfoVarsCmd`/`InfoLocalsCmd`/`InfoGlobalsCmd`).
+    let setup = "namespace eval foo { variable a 1; variable b 2 }\n\
+                 namespace eval foo::sub { variable deep 9 }\nset gx 10\n";
+    // In a proc: `info locals` is the genuine locals only; `info vars` also lists
+    // the linked namespace variable (by its local alias `a`).
+    out_eq(
+        &format!(
+            "{setup}proc p {{}} {{ set loc 5; variable ::foo::a; \
+             puts \"[lsort [info locals]]|[lsort [info vars]]\" }}\np\n"
+        ),
+        "loc|a loc\n",
+    );
+    // `info globals` lists the global namespace's vars only — not `foo::a`.
+    out_eq(
+        &format!("{setup}puts [lsearch -exact [info globals] foo::a]\n"),
+        "-1\n",
+    );
+    out_eq(
+        &format!("{setup}puts [expr {{[lsearch -exact [info globals] gx] >= 0}}]\n"),
+        "1\n",
+    );
+    // A qualified `info vars` lists that namespace, re-qualified, direct members.
+    out_eq(
+        &format!("{setup}puts [lsort [info vars ::foo::*]]\n"),
+        "::foo::a ::foo::b\n",
+    );
+    // At namespace scope, `info vars` lists the namespace's own variables.
+    out_eq(
+        &format!("{setup}namespace eval foo {{ puts [lsort [info vars]] }}\n"),
+        "a b\n",
+    );
+}
+
+#[test]
+fn info_commands_procs_namespaced() {
+    // `info commands`/`procs` route through the shared namespace-aware core. The
+    // expectations are pinned against tclsh 9.0 (see C `InfoCommandsCmd`/
+    // `InfoProcsCmd`): a qualified pattern lists that namespace re-qualified
+    // absolute; `info commands` merges the global namespace, `info procs` never
+    // does; and a global-scope listing excludes namespaced names.
+    let setup = "namespace eval foo { proc bar {} {}; proc baz {} {} }\n\
+                 namespace eval foo::sub { proc deep {} {} }\nproc gproc {} {}\n";
+    // A namespaced proc is not in the global command/proc listing.
+    out_eq(
+        &format!("{setup}puts [lsearch -exact [info commands] foo::bar]\n"),
+        "-1\n",
+    );
+    // A qualified glob lists that namespace's members, re-qualified absolute,
+    // and only direct members (not `foo::sub::deep`).
+    out_eq(
+        &format!("{setup}puts [lsort [info commands ::foo::*]]\n"),
+        "::foo::bar ::foo::baz\n",
+    );
+    // A *relative* qualifier re-qualifies to absolute too.
+    out_eq(
+        &format!("{setup}puts [lsort [info commands foo::*]]\n"),
+        "::foo::bar ::foo::baz\n",
+    );
+    out_eq(
+        &format!("{setup}puts [lsort [info procs ::foo::*]]\n"),
+        "::foo::bar ::foo::baz\n",
+    );
+    // Inside a namespace: `info procs` lists only that namespace's procs (no
+    // global merge), while `info commands` *does* see the global `gproc`.
+    out_eq(
+        &format!("{setup}namespace eval foo {{ puts [lsort [info procs]] }}\n"),
+        "bar baz\n",
+    );
+    out_eq(
+        &format!(
+            "{setup}namespace eval foo {{ puts [expr {{[lsearch -exact [info commands] gproc] >= 0}}] }}\n"
+        ),
+        "1\n",
+    );
+    // A missing namespace qualifier yields the empty list, not an error.
+    out_eq(&format!("{setup}puts [info commands ::nope::*]\n"), "\n");
+}
+
+#[test]
+fn clock_shared_core() {
+    // `clock` is net-new (neither runtime had it); shared over tcl-cmd-core::clock.
+    // Pinned vs tclsh 9.0 (the civil math is deterministic; UTC via -gmt).
+    out_eq(
+        "puts [clock format 1700000000 -gmt 1]\n",
+        "Tue Nov 14 22:13:20 GMT 2023\n",
+    );
+    out_eq(
+        "puts [clock format 1700000000 -format {%Y-%m-%d %H:%M:%S} -gmt 1]\n",
+        "2023-11-14 22:13:20\n",
+    );
+    out_eq(
+        "puts [clock format 1700000000 -format {%a %A %b %B %p %j %u %z} -gmt 1]\n",
+        "Tue Tuesday Nov November PM 318 2 +0000\n",
+    );
+    // Unknown specifier (%F) passes through verbatim, as in tclsh.
+    out_eq(
+        "puts [clock format 0 -format {%F %T} -gmt 1]\n",
+        "%F 00:00:00\n",
+    );
+    // `clock add` — fixed + calendar units.
+    out_eq(
+        "puts [clock format [clock add 1700000000 2 days -gmt 1] -format {%Y-%m-%d} -gmt 1]\n",
+        "2023-11-16\n",
+    );
+    out_eq(
+        "puts [clock format [clock add 1700000000 3 months -gmt 1] -format {%Y-%m-%d} -gmt 1]\n",
+        "2024-02-14\n",
+    );
+    // Timing subcommands return sane monotone-ish values.
+    out_eq("puts [expr {[clock seconds] > 1700000000}]\n", "1\n");
+    out_eq(
+        "puts [expr {[clock milliseconds] > 1700000000000}]\n",
+        "1\n",
+    );
+    // `clock scan -format` round-trips `clock format` (the inverse).
+    out_eq(
+        "puts [clock scan {2023-11-14 22:13:20} -format {%Y-%m-%d %H:%M:%S} -gmt 1]\n",
+        "1700000000\n",
+    );
+    out_eq(
+        "puts [clock scan {Nov 14 2023} -format {%b %d %Y} -gmt 1]\n",
+        "1699920000\n",
+    );
+    let (ok, msg, _) = run("clock scan {2023-13-01} -format {%Y-%m-%d} -gmt 1");
+    assert!(!ok);
+    assert_eq!(msg, "unable to convert input string: invalid month");
+    // Free-form scan (no -format) is the remaining piece.
+    let (ok, msg, _) = run("clock scan tomorrow");
+    assert!(!ok);
+    assert_eq!(msg, "free-form clock scan is not yet supported");
 }
 
 #[test]
@@ -532,10 +957,24 @@ fn switch_glob_and_default() {
 
 #[test]
 fn info_default() {
+    // A parameter with a default: the var is set to it and the command returns 1.
     out_eq(
-        "proc f {a {b 99}} {}\ninfo default f b d\nputs $d\n",
-        "99\n",
+        "proc f {a {b 99}} {}\nputs [info default f b d]:$d\n",
+        "1:99\n",
     );
+    // A parameter with no default: the var is set to the empty string, returns 0.
+    out_eq(
+        "proc f {a {b 99}} {}\nputs [info default f a d]:<$d>\n",
+        "0:<>\n",
+    );
+    // An unknown parameter is the shared catalogue error (pinned vs tclsh 9.0).
+    let (ok, msg, _) = run("proc f {a {b 99}} {}\ninfo default f zz d");
+    assert!(!ok);
+    assert_eq!(msg, "procedure \"f\" doesn't have an argument \"zz\"");
+    // A non-proc target.
+    let (ok, msg, _) = run("info default nosuch a d");
+    assert!(!ok);
+    assert_eq!(msg, "\"nosuch\" isn't a procedure");
 }
 
 #[test]

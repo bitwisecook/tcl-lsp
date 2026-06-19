@@ -29,6 +29,16 @@
 //! in later Track-1 chunks (T1.3–T1.6); the `tcl_*`/`obj_*` codegen-import
 //! re-exports and the wasm `memory`/table exports land in T1.6.
 
+// On `wasm32-unknown-unknown` the native-only features — coroutines (native
+// stack swap + threads), the ARE regex FFI, and the libtommath bignum tower —
+// are all cfg-disabled (see the `BrowserHost`, `have_regex`, and `have_tommath`
+// gates below), so the machinery that drives them (coroutine context fields and
+// swap methods, the OO exec frame, the rand seed, the conditional line-base
+// bookkeeping) is unreachable on that target. Native is the primary build where
+// `clippy -D warnings` runs and nothing is dead; only the wasm32 build sees this
+// dead code, so the allow is scoped to that target alone.
+#![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]
+
 // The bignum rung of the numeric tower (libtommath `mp_int` FFI + the
 // `TCL_BIGNUM_TYPE` obj rep). Compiled only when `build.rs` links libtommath
 // (`have_tommath`); the rest of the runtime builds without it.
@@ -42,6 +52,7 @@ pub mod cmd_alias;
 pub mod cmd_array;
 pub mod cmd_binary;
 pub mod cmd_chan;
+pub mod cmd_clock;
 pub mod cmd_control;
 pub mod cmd_coro;
 pub mod cmd_dict;
@@ -66,28 +77,40 @@ pub mod cmd_oo;
 pub mod cmd_package;
 pub mod cmd_proc;
 pub mod cmd_scan;
-// `regexp`/`regsub` — only when `build.rs` links the Tcl regex engine.
-#[cfg(have_regex)]
+// `regexp`/`regsub` + the `AreEngine` provider. Always compiled; the engine is
+// real only when `build.rs` links the Tcl ARE engine (`have_regex`), else a stub
+// whose `compile` reports that regular expressions are unavailable in this build.
 pub mod cmd_regex;
 pub mod cmd_string;
 pub mod cmd_switch;
 pub mod cmd_trace;
 pub mod cmd_var;
+// The codegen-import ABI: the lowercase `tcl_*` host functions the WASM emitter
+// imports (`rust/tcl-compiler` codegen), distinct from `capi`'s `Tcl_*` surface.
+pub mod codegen_abi;
 pub mod counters;
 pub mod dict;
 pub mod ensemble;
 #[cfg(have_tommath)]
 pub mod expr;
 pub mod frame;
+// The placeholder `wasm32-unknown-unknown` capability host (native builds use
+// `tcl-host-native::NativeHost`).
+#[cfg(target_arch = "wasm32")]
+pub mod host_wasm;
 pub mod interp;
 pub mod list;
 pub mod namespace;
 pub mod obj;
 pub mod parse;
+pub mod state_traits;
 // The Tcl regex engine FFI wrapper; only when `build.rs` links the engine.
 #[cfg(have_regex)]
 pub mod regex;
 pub mod subst;
+/// `ValueOps` impl binding `tcl-cmd-core`'s portable command logic to `*mut
+/// TclObj` (the value seam).
+pub mod value_ops;
 pub mod vars;
 
 #[cfg(test)]

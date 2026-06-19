@@ -1,0 +1,20 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "id"
+    2: "x"
+    3: "return $x"
+  Instructions:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "id"
+    (4) push1 2	# "x"
+    (6) push1 3	# "return $x"
+    (8) invokeStk1 4	# proc
+    (10) done
+
+ByteCode ::id, 2 instructions, 3 bytes, 0 literals, 1 variables
+  Local variables:
+    %v0: "x"
+  Instructions:
+    (0) loadScalar1 %v0	# var "x"
+    (2) done

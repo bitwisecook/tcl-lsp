@@ -137,6 +137,19 @@ fn seg_word_is_static_braced(seg: &SegmentedCommand, idx: usize) -> bool {
         && seg.argv.get(idx).is_some_and(|t| t.kind == TokenType::Str)
 }
 
+/// Word `idx` is a single substitution-free literal: a `{braced}` (`Str`) word
+/// or a plain bareword (`Esc`) — exactly the body words C's `TclCompileIfCmd`
+/// inlines. A word carrying `$var` / `[cmd]` substitution, or a multi-token
+/// concatenation like `$x1$x2`, is not (it must be substituted then evaluated
+/// as a script by the runtime `if` command).
+fn seg_word_is_static_literal(seg: &SegmentedCommand, idx: usize) -> bool {
+    seg.single_token_word.get(idx).copied().unwrap_or(false)
+        && seg
+            .argv
+            .get(idx)
+            .is_some_and(|t| matches!(t.kind, TokenType::Str | TokenType::Esc))
+}
+
 /// True iff `nm` is a static instance-variable name (not a `$var` /
 /// `[cmd]` substitution and not an option flag). Dynamic names are
 /// skipped — conservative.
@@ -534,6 +547,14 @@ pub struct Lowerer<'r> {
     /// `LexerConfig::default()`; production callers thread the active
     /// dialect via [`Lowerer::with_config`] / [`lower_to_ir_with_config`].
     config: tcl_lexer::LexerConfig,
+    /// Lower constructs the bytecode backend can't compile correctly to a
+    /// runtime-command [barrier](Statement::Barrier) instead of their structured
+    /// IR. Covers `try` (no exception-range/`beginCatch` support → dropped
+    /// handlers) and a `foreach`/`lmap` directly nesting another `foreach`/`lmap`
+    /// (a structural bug in the inline nested-complex-foreach codegen). The VM
+    /// runs these as runtime builtins; analysis callers keep the structured IR
+    /// (default `false`) for their diagnostics. Set via [`lower_to_ir_for_bytecode`].
+    pub(crate) for_bytecode: bool,
 }
 
 impl<'r> Lowerer<'r> {
@@ -560,7 +581,16 @@ impl<'r> Lowerer<'r> {
             dead_code_depth: 0,
             suppress_proc_register: false,
             config,
+            for_bytecode: false,
         }
+    }
+
+    /// Mark this as the bytecode/VM compile path, barriering constructs the
+    /// backend can't compile (see [`for_bytecode`](Self::for_bytecode)).
+    #[must_use]
+    pub fn for_bytecode_backend(mut self) -> Self {
+        self.for_bytecode = true;
+        self
     }
 
     /// Lower a complete source string to an IR module.
@@ -2006,12 +2036,31 @@ pub fn lower_to_ir_with_config(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Module {
-    let mut lowerer = Lowerer::with_config(registry, config);
+    lower_with(Lowerer::with_config(registry, config), source)
+}
+
+/// Like [`lower_to_ir`] but for the bytecode/VM compile path: constructs the
+/// backend can't compile correctly (`try`, and a `foreach`/`lmap` directly
+/// nesting another) are lowered to runtime-command barriers (see
+/// [`Lowerer::for_bytecode`]). Analysis callers keep the structured IR via
+/// [`lower_to_ir`].
+#[must_use]
+pub fn lower_to_ir_for_bytecode(source: &str, registry: &CommandRegistry) -> Module {
+    lower_with(
+        Lowerer::with_config(registry, tcl_lexer::LexerConfig::default()).for_bytecode_backend(),
+        source,
+    )
+}
+
+/// Drive a configured [`Lowerer`] to a finished [`Module`] (the shared tail of
+/// the `lower_to_ir*` entry points).
+fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {
     lowerer.lower(source);
     // SF-2: extract TclOO method bodies from the fully-assembled
     // module (cache-independent — see `extract_oo_methods_pass`).
     lowerer.extract_oo_methods_pass();
     let mut module = lowerer.module;
+    module.source = source.to_string();
     populate_trace_facts(&mut module);
     module
 }

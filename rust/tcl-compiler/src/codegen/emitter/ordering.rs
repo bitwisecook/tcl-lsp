@@ -271,10 +271,24 @@ pub fn reorder_bottom_tested(cfg: &CfgFunction, order: Vec<String>) -> Vec<Strin
 /// For `for` loops, continue jumps to the step block; for `while` and
 /// `foreach` loops, continue jumps to the header. Break always jumps
 /// to the end block.
+///
+/// The continue target is `None` for a `for` loop's *step* block: a
+/// `continue` in the `next` script propagates out of the loop rather than
+/// re-running the step (C's `Tcl_ForObjCmd` gives the step its own exception
+/// range with `continue -1`; a self-jump here would infinite-loop). The step
+/// keeps its break target, since `break` in the step exits the loop cleanly.
 #[must_use]
-pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (String, String)> {
+pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (Option<String>, String)> {
+    /// One loop's resolved targets and the set of blocks in its body.
+    struct LoopInfo {
+        is_for: bool,
+        cont_target: String,
+        end_block: String,
+        body: HashSet<String>,
+    }
+
     let all_loop_headers: &[&str] = &["for_header_", "while_header_", "foreach_header_"];
-    let mut ctx: HashMap<String, (String, String)> = HashMap::new();
+    let mut loops: Vec<LoopInfo> = Vec::new();
 
     for (bname, blk) in &cfg.blocks {
         if !starts_with_any(bname, all_loop_headers) {
@@ -312,11 +326,37 @@ pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (String, String)
             bname.clone()
         };
 
-        // Collect body blocks (excluding exit).
-        let mut body_blocks: HashSet<String> = HashSet::new();
-        collect_loop_body(cfg, &body_start, bname, &mut body_blocks, Some(&end_block));
-        for bb in body_blocks {
-            ctx.insert(bb, (cont_target.clone(), end_block.clone()));
+        // Collect body blocks (excluding exit). For nested loops this set also
+        // contains the inner loop's blocks (they are reachable), so the final
+        // assignment is resolved innermost-first below.
+        let mut body: HashSet<String> = HashSet::new();
+        collect_loop_body(cfg, &body_start, bname, &mut body, Some(&end_block));
+        loops.push(LoopInfo {
+            is_for: bname.starts_with("for_header_"),
+            cont_target,
+            end_block,
+            body,
+        });
+    }
+
+    // A `break`/`continue` targets the *innermost* enclosing loop. A more-nested
+    // loop has a strictly smaller body, so assign in ascending body size and keep
+    // the first (innermost) writer — otherwise an outer loop, whose body subsumes
+    // the inner one's blocks, would overwrite the inner continue target (HashMap
+    // order made this nondeterministic) and an inner `continue` would jump to the
+    // outer header, looping forever.
+    loops.sort_by_key(|l| l.body.len());
+    let mut ctx: HashMap<String, (Option<String>, String)> = HashMap::new();
+    for l in &loops {
+        for bb in &l.body {
+            // The for-step block: a `continue` there propagates out (no jump
+            // target), not a jump to the step itself.
+            let cont = if l.is_for && *bb == l.cont_target {
+                None
+            } else {
+                Some(l.cont_target.clone())
+            };
+            ctx.entry(bb.clone()).or_insert((cont, l.end_block.clone()));
         }
     }
 

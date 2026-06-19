@@ -1,13 +1,20 @@
 //! List builtins, reusing `tcl_syntax::list` for split/merge semantics.
 
-use std::cmp::Ordering;
 use std::rc::Rc;
 
+use tcl_cmd_core::list as list_core;
 use tcl_runtime_api::Completion;
 
-use crate::command::resolve_index;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
+
+/// Map a portable `tcl-cmd-core` result onto the VM's `Completion`.
+fn adapt(result: Result<Value, tcl_cmd_core::CmdError>) -> Completion<Value> {
+    match result {
+        Ok(v) => ok(v),
+        Err(e) => err(e.into_message()),
+    }
+}
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("list", cmd_list);
@@ -31,68 +38,29 @@ fn as_list(v: &Value) -> Result<Rc<Vec<Value>>, Completion<Value>> {
     v.as_list().map_err(|e| err(e.message))
 }
 
-fn ilen(n: usize) -> i64 {
-    i64::try_from(n).unwrap_or(i64::MAX)
+fn cmd_list(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    ok(list_core::list(vm, args))
 }
 
-fn cmd_list(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    ok(Value::list(args.to_vec()))
-}
-
-fn cmd_llength(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_llength(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [l] => match as_list(l) {
-            Ok(items) => ok(Value::int(ilen(items.len()))),
-            Err(c) => c,
-        },
+        [l] => adapt(list_core::llength(vm, l)),
         _ => err("wrong # args: should be \"llength list\""),
     }
 }
 
-/// Resolve an index against `len`, returning `Some(i)` only when in range.
-fn in_range(spec: &str, len: usize) -> Option<usize> {
-    let idx = resolve_index(spec, len)?;
-    usize::try_from(idx).ok().filter(|&i| i < len)
-}
-
-fn cmd_lindex(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_lindex(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((list, idxs)) = args.split_first() else {
         return err("wrong # args: should be \"lindex list ?index ...?\"");
     };
-    let mut cur = list.clone();
-    for idx in idxs {
-        let items = match as_list(&cur) {
-            Ok(i) => i,
-            Err(c) => return c,
-        };
-        match in_range(&idx.to_str(), items.len()) {
-            Some(i) => cur = items[i].clone(),
-            None => return ok(Value::empty()),
-        }
-    }
-    ok(cur)
+    adapt(list_core::lindex(vm, list, idxs))
 }
 
-fn cmd_lrange(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_lrange(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, from, to] = args else {
         return err("wrong # args: should be \"lrange list first last\"");
     };
-    let items = match as_list(list) {
-        Ok(i) => i,
-        Err(c) => return c,
-    };
-    let len = items.len();
-    let lo = resolve_index(&from.to_str(), len).unwrap_or(0).max(0);
-    let hi = resolve_index(&to.to_str(), len).unwrap_or(0);
-    let lo = usize::try_from(lo).unwrap_or(0);
-    if hi < 0 || lo >= len {
-        return ok(Value::empty());
-    }
-    let hi = usize::try_from(hi).unwrap_or(0).min(len - 1);
-    if lo > hi {
-        return ok(Value::empty());
-    }
-    ok(Value::list(items[lo..=hi].to_vec()))
+    adapt(list_core::lrange(vm, list, from, to))
 }
 
 fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -100,31 +68,31 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"lappend varName ?value ...?\"");
     };
     let n = name.to_str();
-    let existing = vm.var_get(&n);
-    let mut items: Vec<Value> = match &existing {
-        Some(v) => match as_list(v) {
-            Ok(i) => (*i).clone(),
-            Err(c) => return c,
-        },
-        None => Vec::new(),
-    };
+    let cur = vm.var_get(&n);
     if vals.is_empty() {
         // `lappend var` with no values returns the variable's current value
-        // *unchanged*: Tcl shimmer-validates it as a list (the `as_list` above
-        // would have errored on a malformed value) but never re-renders the
-        // string representation. An unset variable is created as the empty
-        // string. Re-rendering here would canonically requote elements (e.g. a
-        // leading `#` → `{#}`), diverging from C Tcl.
-        return match existing {
-            Some(v) => ok(v),
+        // *unchanged*: Tcl shimmer-validates it as a list (so a malformed value
+        // errors) but never re-renders the string representation — re-rendering
+        // would canonically requote elements (a leading `#` → `{#}`), diverging
+        // from C Tcl. An unset variable is created as the empty string.
+        return match cur {
+            Some(v) => match as_list(&v) {
+                Ok(_) => ok(v),
+                Err(c) => c,
+            },
             None => match vm.var_set(&n, Value::empty()) {
                 Ok(()) => ok(Value::empty()),
                 Err(e) => e,
             },
         };
     }
-    items.extend(vals.iter().cloned());
-    let result = Value::list(items);
+    // The COW-aware list append (rebuild on the VM; in place on the WASM runtime)
+    // is shared via `tcl_cmd_core::var::lappend_value`; the single store fires the
+    // write trace once.
+    let result = match tcl_cmd_core::var::lappend_value(vm, cur, vals) {
+        Ok(v) => v,
+        Err(e) => return err(e.message()),
+    };
     if let Err(e) = vm.var_set(&n, result.clone()) {
         return e;
     }
@@ -154,207 +122,114 @@ fn cmd_lassign(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::list(rest))
 }
 
-fn cmd_lreverse(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_lreverse(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [l] => match as_list(l) {
-            Ok(items) => {
-                let mut v = (*items).clone();
-                v.reverse();
-                ok(Value::list(v))
-            }
-            Err(c) => c,
-        },
+        [l] => adapt(list_core::lreverse(vm, l)),
         _ => err("wrong # args: should be \"lreverse list\""),
     }
 }
 
-fn cmd_lrepeat(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_lrepeat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((count, elems)) = args.split_first() else {
         return err("wrong # args: should be \"lrepeat count ?value ...?\"");
     };
-    let n = match count.as_int() {
-        Ok(n) if n >= 0 => usize::try_from(n).unwrap_or(0),
-        Ok(_) => return err("bad count \"lrepeat\": must be >= 0"),
-        Err(e) => return err(e.message),
-    };
-    let mut v = Vec::with_capacity(n.saturating_mul(elems.len()));
-    for _ in 0..n {
-        v.extend(elems.iter().cloned());
-    }
-    ok(Value::list(v))
+    adapt(list_core::lrepeat(vm, count, elems))
 }
 
-fn cmd_linsert(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((list, tail)) = args.split_first() else {
+fn cmd_linsert(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [list, index, elems @ ..] = args else {
         return err("wrong # args: should be \"linsert list index ?element ...?\"");
     };
-    let Some((idx, elems)) = tail.split_first() else {
-        return err("wrong # args: should be \"linsert list index ?element ...?\"");
-    };
-    let mut items = match as_list(list) {
-        Ok(i) => (*i).clone(),
-        Err(c) => return c,
-    };
-    let at = resolve_index(&idx.to_str(), items.len())
-        .unwrap_or(0)
-        .clamp(0, isize::try_from(items.len()).unwrap_or(isize::MAX));
-    let at = usize::try_from(at).unwrap_or(0).min(items.len());
-    for (k, e) in elems.iter().enumerate() {
-        items.insert(at + k, e.clone());
-    }
-    ok(Value::list(items))
+    adapt(list_core::linsert(vm, list, index, elems))
 }
 
-fn cmd_lreplace(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_lreplace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, from, to, rest @ ..] = args else {
         return err("wrong # args: should be \"lreplace list first last ?element ...?\"");
     };
-    let mut items = match as_list(list) {
-        Ok(i) => (*i).clone(),
-        Err(c) => return c,
-    };
-    let len = items.len();
-    let lo = resolve_index(&from.to_str(), len).unwrap_or(0).max(0);
-    let lo = usize::try_from(lo).unwrap_or(0).min(len);
-    let hi = resolve_index(&to.to_str(), len).unwrap_or(-1);
-    let end = if hi < 0 {
-        lo
-    } else {
-        (usize::try_from(hi).unwrap_or(0) + 1).clamp(lo, len)
-    };
-    let replacement = rest.to_vec();
-    items.splice(lo..end, replacement);
-    ok(Value::list(items))
+    adapt(list_core::lreplace(vm, list, from, to, rest))
 }
 
-fn cmd_lsearch(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    // Minimal: lsearch ?-exact|-glob? list pattern  (default -glob).
-    let mut glob = true;
-    let mut rest = args;
-    while let Some(first) = rest.first() {
-        match &*first.to_str() {
-            "-exact" => {
-                glob = false;
-                rest = &rest[1..];
-            }
-            "-glob" => {
-                glob = true;
-                rest = &rest[1..];
-            }
-            s if s.starts_with('-') => rest = &rest[1..], // ignore unknown options (M3)
-            _ => break,
-        }
+/// `lsearch ?-option value ...? list pattern` — a thin adapter over the shared
+/// [`tcl_cmd_core::lsearch`] core, driven by the VM's `regex`-crate engine for
+/// `-regexp`. The VM previously had only a `-exact`/`-glob` stub; it now has the
+/// full option set (the Tcl errorCodes the core carries are dropped — the VM has
+/// no errorCode surface).
+fn cmd_lsearch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    match tcl_cmd_core::lsearch::lsearch::<Vm, crate::cmd_regexp::CrateEngine>(vm, args) {
+        Ok(v) => ok(v),
+        Err(e) => err(String::from_utf8_lossy(&e.message).into_owned()),
     }
-    let [list, pat] = rest else {
-        return err("wrong # args: should be \"lsearch ?options? list pattern\"");
+}
+
+/// `lsort ?-option value ...? list` — a thin adapter over the shared
+/// [`tcl_cmd_core::lsort`] core. The VM previously had only the comparison modes
+/// over a flat option set; it now has `-index`/`-stride`/`-indices` and
+/// `-command` (the comparator evaluates Tcl through `vm.dispatch`).
+fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
+    let mut job = match prepare(vm, args) {
+        Ok(Lsort::Done(v)) => return ok(v),
+        Ok(Lsort::Command(job)) => job,
+        Err(e) => return err(String::from_utf8_lossy(&e.message).into_owned()),
     };
-    let items = match as_list(list) {
-        Ok(i) => i,
-        Err(c) => return c,
+    // `-command`: split the comparison prefix into words, run the reentrant merge
+    // sort over the VM comparator (no `ValueOps` borrow during the eval), build.
+    let prefix = match job.cmd_prefix.as_list() {
+        Ok(w) => w,
+        Err(e) => return err(e.message),
     };
-    let p = pat.to_str();
-    for (i, item) in items.iter().enumerate() {
-        let s = item.to_str();
-        let hit = if glob {
-            tcl_syntax::glob::string_match(&p, &s)
-        } else {
-            *s == *p
-        };
-        if hit {
-            return ok(Value::int(ilen(i)));
-        }
+    if let Err(c) = sort_command(&mut job, |a, b| vm_compare(vm, &prefix, a, b)) {
+        return c;
     }
-    ok(Value::int(-1))
+    ok(build_command(vm, &job))
 }
 
-fn cmd_lsort(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let mut integer = false;
-    let mut decreasing = false;
-    let mut unique = false;
-    let mut rest = args;
-    while let Some(first) = rest.first() {
-        match &*first.to_str() {
-            "-integer" | "-real" => {
-                integer = true;
-                rest = &rest[1..];
-            }
-            "-ascii" | "-dictionary" => rest = &rest[1..],
-            "-decreasing" => {
-                decreasing = true;
-                rest = &rest[1..];
-            }
-            "-increasing" => {
-                decreasing = false;
-                rest = &rest[1..];
-            }
-            "-unique" => {
-                unique = true;
-                rest = &rest[1..];
-            }
-            s if s.starts_with('-') => rest = &rest[1..],
-            _ => break,
-        }
+/// The `lsort -command` comparator: invoke `<prefix words...> a b` and read its
+/// integer result as a sign. Uses `vm.dispatch` (argv-based — no re-parsing, so
+/// elements containing `$`/`[` are passed literally).
+fn vm_compare(
+    vm: &mut Vm,
+    prefix: &[Value],
+    a: &Value,
+    b: &Value,
+) -> Result<i32, Completion<Value>> {
+    use tcl_runtime_api::Commands;
+    let Some((name, pre_args)) = prefix.split_first() else {
+        return Err(err("-command comparison command is empty"));
+    };
+    let mut argv: Vec<Value> = pre_args.to_vec();
+    argv.push(a.clone());
+    argv.push(b.clone());
+    let comp = vm.dispatch(&name.to_str(), &argv);
+    if !comp.code.is_ok() {
+        return Err(comp);
     }
-    let [list] = rest else {
-        return err("wrong # args: should be \"lsort ?options? list\"");
-    };
-    let mut items = match as_list(list) {
-        Ok(i) => (*i).clone(),
-        Err(c) => return c,
-    };
-    items.sort_by(|a, b| {
-        let ord = if integer {
-            a.as_double()
-                .unwrap_or(0.0)
-                .partial_cmp(&b.as_double().unwrap_or(0.0))
-                .unwrap_or(Ordering::Equal)
-        } else {
-            (*a.to_str()).cmp(&b.to_str())
-        };
-        if decreasing { ord.reverse() } else { ord }
-    });
-    if unique {
-        items.dedup_by(|a, b| *a.to_str() == *b.to_str());
+    let r = comp.result.to_str();
+    match tcl_cmd_core::sort::parse_wide(r.as_bytes()) {
+        Some(v) => Ok(i32::try_from(v.signum()).unwrap_or(0)),
+        None => Err(err(format!(
+            "-command comparison script returned non-integer result: {r}"
+        ))),
     }
-    ok(Value::list(items))
 }
 
-fn cmd_concat(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let joined = args
-        .iter()
-        .map(|v| v.to_str().trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    ok(Value::string(joined))
+fn cmd_concat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    ok(list_core::concat(vm, args))
 }
 
-fn cmd_join(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let (list, sep) = match args {
-        [l] => (l, " ".to_string()),
-        [l, s] => (l, s.to_str().to_string()),
-        _ => return err("wrong # args: should be \"join list ?joinString?\""),
-    };
-    let items = match as_list(list) {
-        Ok(i) => i,
-        Err(c) => return c,
-    };
-    let parts: Vec<String> = items.iter().map(|v| v.to_str().to_string()).collect();
-    ok(Value::string(parts.join(&sep)))
+fn cmd_join(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    match args {
+        [l] => adapt(list_core::join(vm, l, None)),
+        [l, s] => adapt(list_core::join(vm, l, Some(s))),
+        _ => err("wrong # args: should be \"join list ?joinString?\""),
+    }
 }
 
-fn cmd_split(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let (s, chars) = match args {
-        [s] => (s.to_str(), " \t\n".to_string()),
-        [s, c] => (s.to_str(), c.to_str().to_string()),
-        _ => return err("wrong # args: should be \"split string ?splitChars?\""),
-    };
-    let pieces: Vec<Value> = if chars.is_empty() {
-        // Split into individual characters.
-        s.chars().map(|c| Value::string(c.to_string())).collect()
-    } else {
-        let set: Vec<char> = chars.chars().collect();
-        s.split(|c| set.contains(&c)).map(Value::string).collect()
-    };
-    ok(Value::list(pieces))
+fn cmd_split(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    match args {
+        [s] => ok(list_core::split(vm, s, None)),
+        [s, c] => ok(list_core::split(vm, s, Some(c))),
+        _ => err("wrong # args: should be \"split string ?splitChars?\""),
+    }
 }

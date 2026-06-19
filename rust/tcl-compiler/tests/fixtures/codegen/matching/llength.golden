@@ -1,0 +1,8 @@
+ByteCode ::top, 4 instructions, 5 bytes, 1 literals, 0 variables
+  Literals:
+    0: "lst"
+  Instructions:
+    (0) push1 0	# "lst"
+    (2) loadStk
+    (3) listLength
+    (4) done

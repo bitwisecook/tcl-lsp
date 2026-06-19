@@ -131,13 +131,16 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(c) => c,
         Err(e) => return err(e),
     };
+    // Portable subcommands now live in the shared command core (`tcl-cmd-core`);
+    // the VM is a thin adapter that maps `Result<Value, CmdError>` onto its
+    // `Completion`. Not-yet-ported subcommands fall through to the legacy arms.
+    if let Some(result) = tcl_cmd_core::string::dispatch_canon(vm, canon, rest) {
+        return match result {
+            Ok(v) => ok(v),
+            Err(e) => err(e.into_message()),
+        };
+    }
     match canon {
-        "length" => match rest {
-            [s] => ok(Value::int(ilen(s.to_str().chars().count()))),
-            _ => err("wrong # args: should be \"string length string\""),
-        },
-        "index" => string_index(rest),
-        "range" => string_range(rest),
         "equal" => str_compare(rest, true),
         "compare" => str_compare(rest, false),
         "match" => string_match(rest),
@@ -146,20 +149,9 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "tolower" => case_convert(rest, "tolower"),
         "toupper" => case_convert(rest, "toupper"),
         "totitle" => case_convert(rest, "totitle"),
-        "reverse" => map_str(rest, |s| s.chars().rev().collect()),
         "trim" => trim_str(rest, "trim", true, true),
         "trimleft" => trim_str(rest, "trimleft", true, false),
         "trimright" => trim_str(rest, "trimright", false, true),
-        "repeat" => match rest {
-            [s, n] => match n.as_int() {
-                Ok(c) if c >= 0 => ok(Value::string(
-                    s.to_str().repeat(usize::try_from(c).unwrap_or(0)),
-                )),
-                Ok(_) => ok(Value::empty()),
-                Err(e) => err(e.message),
-            },
-            _ => err("wrong # args: should be \"string repeat string count\""),
-        },
         "map" => match rest {
             [pairs, s] => string_map(pairs, &s.to_str(), false),
             [opt, pairs, s] if is_nocase(&opt.to_str()) => string_map(pairs, &s.to_str(), true),
@@ -177,46 +169,6 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // Resolved to a valid-but-unimplemented subcommand.
         other => err(format!("string {other} is not yet implemented in this VM")),
     }
-}
-
-/// `string index string charIndex` — the character at `charIndex`, or empty.
-fn string_index(rest: &[Value]) -> Completion<Value> {
-    let [s, i] = rest else {
-        return err("wrong # args: should be \"string index string charIndex\"");
-    };
-    let chars: Vec<char> = s.to_str().chars().collect();
-    let Some(idx) = resolve_index(&i.to_str(), chars.len()) else {
-        return bad_index(&i.to_str());
-    };
-    match usize::try_from(idx).ok().and_then(|x| chars.get(x)) {
-        Some(c) => ok(Value::string(c.to_string())),
-        None => ok(Value::empty()),
-    }
-}
-
-/// `string range string first last` — the substring `first..=last` (clamped).
-fn string_range(rest: &[Value]) -> Completion<Value> {
-    let [s, first, last] = rest else {
-        return err("wrong # args: should be \"string range string first last\"");
-    };
-    let chars: Vec<char> = s.to_str().chars().collect();
-    let len = chars.len();
-    let Some(lo) = resolve_index(&first.to_str(), len) else {
-        return bad_index(&first.to_str());
-    };
-    let Some(hi) = resolve_index(&last.to_str(), len) else {
-        return bad_index(&last.to_str());
-    };
-    let lo = lo.max(0);
-    let lo = usize::try_from(lo).unwrap_or(0);
-    if hi < 0 || lo >= len {
-        return ok(Value::empty());
-    }
-    let hi = usize::try_from(hi).unwrap_or(0).min(len - 1);
-    if lo > hi {
-        return ok(Value::empty());
-    }
-    ok(Value::string(chars[lo..=hi].iter().collect::<String>()))
 }
 
 /// `string replace string first last ?newstring?` — remove chars first..last
@@ -496,13 +448,6 @@ fn str_compare(rest: &[Value], equal: bool) -> Completion<Value> {
     }
 }
 
-fn map_str(rest: &[Value], f: impl Fn(&str) -> String) -> Completion<Value> {
-    match rest {
-        [s] => ok(Value::string(f(&s.to_str()))),
-        _ => err("wrong # args: should be \"string <op> string\""),
-    }
-}
-
 /// The default `string trim` set — every Unicode space character plus NUL
 /// (`tclDefaultTrimSet`, TIP #413).
 const DEFAULT_TRIM_SET: &[char] = &[
@@ -582,13 +527,20 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"append varName ?value ...?\"");
     };
     let n = name.to_str();
-    let mut s = vm
-        .var_get(&n)
-        .map_or_else(String::new, |v| v.to_str().to_string());
-    for v in vals {
-        s.push_str(&v.to_str());
+    if vals.is_empty() {
+        // `append x` with no values is a read: return the current value, erroring
+        // if the variable is unset (matching tclsh — the old VM wrongly created an
+        // empty variable here). `var_get` parses `a(k)`.
+        return match vm.var_get(&n) {
+            Some(v) => ok(v),
+            None => err(format!("can't read \"{n}\": no such variable")),
+        };
     }
-    let result = Value::string(s);
+    // The byte-exact concatenation is shared with the WASM runtime via
+    // `tcl_cmd_core::var::append_bytes`; the single store fires the write trace
+    // once. The VM's value model never grows in place, so the core rebuilds.
+    let cur = vm.var_get(&n);
+    let result = tcl_cmd_core::var::append_bytes(vm, cur, vals);
     if let Err(e) = vm.var_set(&n, result.clone()) {
         return e;
     }

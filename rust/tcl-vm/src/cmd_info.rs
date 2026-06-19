@@ -6,7 +6,6 @@
 //! painful when that metadata was missing.
 
 use tcl_runtime_api::Completion;
-use tcl_syntax::glob::string_match;
 
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
@@ -15,138 +14,75 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("info", cmd_info);
 }
 
-fn ilen(n: usize) -> i64 {
-    i64::try_from(n).unwrap_or(i64::MAX)
-}
-
-/// `info complete`: whether `script` has no unbalanced `{}`/`[]`/`"` and does
-/// not end in a line continuation — i.e. it is a syntactically complete command.
-fn is_complete(script: &str) -> bool {
-    let b = script.as_bytes();
-    let mut i = 0;
-    let n = b.len();
-    let mut brace = 0i32;
-    let mut bracket = 0i32;
-    let mut quote = false;
-    while i < n {
-        match b[i] {
-            b'\\' => i += 1, // skip the escaped char
-            b'{' if !quote => brace += 1,
-            b'}' if !quote => brace -= 1,
-            b'[' if !quote => bracket += 1,
-            b']' if !quote => bracket -= 1,
-            b'"' if brace == 0 => quote = !quote,
-            _ => {}
-        }
-        i += 1;
-    }
-    let trailing_backslash = b.last() == Some(&b'\\');
-    brace <= 0 && bracket <= 0 && !quote && !trailing_backslash
-}
-
-/// Filter + sort names by an optional glob pattern.
-fn filtered(mut names: Vec<String>, pat: Option<&str>) -> Value {
-    names.retain(|n| pat.is_none_or(|p| string_match(p, n)));
-    names.sort();
-    Value::list(names.into_iter().map(Value::string).collect())
-}
-
 #[allow(clippy::too_many_lines)]
 fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"info subcommand ?arg ...?\"");
     };
     match &*sub.to_str() {
+        // `info exists varName` — the shared Family-B core over `VarStore::exists`.
         "exists" => match rest {
-            [name] => ok(Value::bool(vm.exists_var(&name.to_str()))),
+            [name] => ok(tcl_cmd_core::info::exists(vm, name)),
             _ => err("wrong # args: should be \"info exists varName\""),
         },
         "complete" => match rest {
-            [script] => ok(Value::bool(is_complete(&script.to_str()))),
+            [script] => ok(Value::bool(tcl_cmd_core::info::complete(
+                script.to_str().as_bytes(),
+            ))),
             _ => err("wrong # args: should be \"info complete command\""),
         },
-        "level" => match rest {
-            [] => ok(Value::int(ilen(vm.current_level()))),
-            [n] => match n.as_int() {
-                // A positive number is an absolute stack level; zero or negative
-                // is relative to the current level (`info level 0` is the current
-                // procedure's invocation). Valid levels run 1..=current.
-                Ok(req) => {
-                    let cur = i64::try_from(vm.current_level()).unwrap_or(0);
-                    let abs = if req > 0 { req } else { cur + req };
-                    if abs >= 1 && abs <= cur {
-                        match vm.frame_argv(usize::try_from(abs).unwrap_or(0)) {
-                            Some(av) => ok(Value::list(av)),
-                            None => err(format!("bad level \"{}\"", n.to_str())),
-                        }
-                    } else {
-                        err(format!("bad level \"{}\"", n.to_str()))
-                    }
-                }
-                _ => err(format!("bad level \"{}\"", n.to_str())),
-            },
-            _ => err("wrong # args: should be \"info level ?number?\""),
-        },
-        "commands" => ok(filtered(
-            vm.command_names(),
-            rest.first().map(Value::to_str).as_deref(),
-        )),
-        "procs" => ok(filtered(
-            vm.proc_names(),
-            rest.first().map(Value::to_str).as_deref(),
-        )),
-        "vars" | "locals" => ok(filtered(
-            vm.local_scalar_names(),
-            rest.first().map(Value::to_str).as_deref(),
-        )),
-        "globals" => ok(filtered(
-            vm.global_names(),
-            rest.first().map(Value::to_str).as_deref(),
-        )),
+        // `info level ?number?` — the shared Family-B core over `Introspect`
+        // (`tcl_cmd_core::info::level`); the VM is a thin adapter mapping
+        // `Result<Value, CmdError>` onto its completion ABI.
+        "level" => {
+            let number = match rest {
+                [] => None,
+                [n] => Some(n),
+                _ => return err("wrong # args: should be \"info level ?number?\""),
+            };
+            match tcl_cmd_core::info::level(vm, number) {
+                Ok(v) => ok(v),
+                Err(e) => err(e.message()),
+            }
+        }
+        // commands/procs route through the shared namespace-aware core (over the
+        // `Namespaces` enumeration rungs), which gives the VM correct qualified
+        // patterns + global-scope visibility (it previously listed all keys flat).
+        "commands" => ok(tcl_cmd_core::info::command_list(vm, rest.first(), false)),
+        "procs" => ok(tcl_cmd_core::info::command_list(vm, rest.first(), true)),
+        // vars/locals/globals route through the shared variable-listing cores
+        // (namespace-aware over `Namespaces::vars_in` + the active-frame
+        // `Frames::var_names`/`in_proc`). This split `vars` from `locals` (the VM
+        // previously aliased them, so `info vars` in a proc dropped its links) and
+        // gave `info globals` the global-namespace-only filter.
+        "vars" => ok(tcl_cmd_core::info::vars(vm, rest.first())),
+        "locals" => ok(tcl_cmd_core::info::locals(vm, rest.first())),
+        "globals" => ok(tcl_cmd_core::info::globals(vm, rest.first())),
+        // body/args/default route through the shared `info` core over the `Procs`
+        // role trait; the var-write for `default` stays here (it is trace-aware).
         "body" => match rest {
-            [name] => match vm.proc_def(&name.to_str()) {
-                Some(p) => ok(p.body_src.clone()),
-                None => err(format!("\"{}\" isn't a procedure", name.to_str())),
+            [name] => match tcl_cmd_core::info::body(vm, name) {
+                Ok(v) => ok(v),
+                Err(e) => err(e.into_message()),
             },
             _ => err("wrong # args: should be \"info body procname\""),
         },
         "args" => match rest {
-            [name] => match vm.proc_def(&name.to_str()) {
-                Some(p) => ok(Value::list(
-                    p.params
-                        .iter()
-                        .map(|pp| Value::string(pp.name.as_str()))
-                        .collect(),
-                )),
-                None => err(format!("\"{}\" isn't a procedure", name.to_str())),
+            [name] => match tcl_cmd_core::info::args(vm, name) {
+                Ok(v) => ok(v),
+                Err(e) => err(e.into_message()),
             },
             _ => err("wrong # args: should be \"info args procname\""),
         },
         "default" => match rest {
-            [name, arg, var] => match vm.proc_def(&name.to_str()) {
-                Some(p) => {
-                    let an = arg.to_str();
-                    match p.params.iter().find(|pp| pp.name == *an) {
-                        Some(pp) => {
-                            if let Some(d) = &pp.default {
-                                if let Err(e) = vm.set_var(&var.to_str(), d.clone()) {
-                                    return e;
-                                }
-                                ok(Value::bool(true))
-                            } else {
-                                if let Err(e) = vm.set_var(&var.to_str(), Value::empty()) {
-                                    return e;
-                                }
-                                ok(Value::bool(false))
-                            }
-                        }
-                        None => err(format!(
-                            "procedure \"{}\" doesn't have an argument \"{an}\"",
-                            name.to_str()
-                        )),
+            [name, arg, var] => match tcl_cmd_core::info::default(vm, name, arg) {
+                Ok((val, has)) => {
+                    if let Err(e) = vm.set_var(&var.to_str(), val) {
+                        return e;
                     }
+                    ok(Value::bool(has))
                 }
-                None => err(format!("\"{}\" isn't a procedure", name.to_str())),
+                Err(e) => err(e.into_message()),
             },
             _ => err("wrong # args: should be \"info default procname arg varname\""),
         },

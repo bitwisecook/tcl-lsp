@@ -171,6 +171,18 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
         return make_call(cmd);
     }
 
+    // The variable NAME must be a compile-time literal. A *substituted* name
+    // (`set $x v`, `set [f] v`) is a dynamic store: folding it to a const/value
+    // assignment would create a local named after the source text (e.g. `${x}`)
+    // instead of storing through the runtime-resolved name. Fall back to the
+    // general command path, which emits `STORE_STK` over the substituted name.
+    if !matches!(
+        cmd.arg_kinds.first(),
+        Some(ArgTokenKind::Str | ArgTokenKind::Esc)
+    ) {
+        return make_call(cmd);
+    }
+
     let name = &cmd.args[0];
     let value = &cmd.args[1];
 

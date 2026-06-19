@@ -84,6 +84,8 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("auto_import", |_, _| ok(Value::empty()));
     crate::cmd_array::register(vm);
     crate::cmd_chan::register(vm);
+    crate::cmd_clock::register(vm);
+    crate::cmd_control::register(vm);
     crate::cmd_list::register(vm);
     crate::cmd_string::register(vm);
     crate::cmd_dict::register(vm);
@@ -92,12 +94,15 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_info::register(vm);
     crate::cmd_math::register(vm);
     crate::cmd_binary::register(vm);
+    crate::cmd_mathop::register(vm);
+    crate::cmd_lseq::register(vm);
     crate::cmd_prefix::register(vm);
     crate::cmd_namespace::register(vm);
     crate::cmd_package::register(vm);
     crate::cmd_regexp::register(vm);
     crate::cmd_switch::register(vm);
     crate::cmd_trace::register(vm);
+    crate::cmd_try::register(vm);
 }
 
 /// `set varName ?newValue?` — read or write a scalar.
@@ -105,8 +110,7 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
         [name] => {
             let n = name.to_str();
-            vm.var_get(&n)
-                .map_or_else(|| err(format!("can't read \"{n}\": no such variable")), ok)
+            vm.var_get(&n).map_or_else(|| err(vm.read_miss_msg(&n)), ok)
         }
         [name, value] => match vm.var_set(&name.to_str(), value.clone()) {
             Ok(()) => ok(value.clone()),
@@ -392,28 +396,28 @@ fn cmd_puts(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `incr varName ?increment?` — add to an integer variable (default 1; missing
-/// variable starts at 0).
+/// variable starts at 0). The numeric-tower addition goes through the shared
+/// [`ValueOps::int_add`](tcl_syntax::value::ValueOps::int_add) seam (the same one
+/// the bytecode `incr` opcodes and the WASM runtime use), so the number-model
+/// behaviour is identical everywhere: the VM has no bignum, so an overflowing
+/// `incr` reports `integer value too large to represent` instead of wrapping.
 fn cmd_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (name, amount) = match args {
-        [name] => (name.to_str(), 1),
-        [name, inc] => match inc.as_int() {
-            Ok(n) => (name.to_str(), n),
-            Err(e) => return err(e.message),
-        },
+        [name] => (name.to_str(), Value::int(1)),
+        [name, inc] => (name.to_str(), inc.clone()),
         _ => return err("wrong # args: should be \"incr varName ?increment?\""),
     };
-    let old = match vm.var_get(&name) {
-        Some(v) => match v.as_int() {
-            Ok(n) => n,
-            Err(e) => return err(e.message),
-        },
-        None => 0,
+    // `var_get`/`var_set` parse `base(key)` themselves; an unset variable reads
+    // as `None`, which `int_add` treats as zero.
+    let cur = vm.var_get(&name);
+    let sum = match tcl_syntax::value::ValueOps::int_add(vm, cur.as_ref(), &amount) {
+        Ok(v) => v,
+        Err(e) => return err(e.message()),
     };
-    let next = Value::int(old.wrapping_add(amount));
-    if let Err(e) = vm.var_set(&name, next.clone()) {
+    if let Err(e) = vm.var_set(&name, sum.clone()) {
         return e;
     }
-    ok(next)
+    ok(sum)
 }
 
 /// `expr arg ?arg ...?` — concatenate the args and evaluate as an expression.
@@ -496,11 +500,19 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(p) => p,
         Err(e) => return err(e),
     };
-    // Prefer the pre-compiled body; fall back to compiling a dynamically-built
-    // body at runtime (e.g. `proc $name $params [subst {…}]`).
-    let body = match vm.module_proc(&body_key) {
+    // The pre-compiled `module_procs` cache is keyed by name, and the compiler
+    // keeps only the *first* definition of a name, so it is stale for a
+    // *redefinition* (`proc p {} …` then `proc p {bar} …` — common in test
+    // suites). A redefinition therefore compiles the body actually supplied to
+    // this call; the first definition keeps the pre-compiled fast path (so
+    // loading a library does not recompile every proc body).
+    let body_str = body_text.to_str();
+    let pre = (!vm.is_proc_defined(&reg_name))
+        .then(|| vm.module_proc(&body_key))
+        .flatten();
+    let body = match pre {
         Some(b) => b,
-        None => match vm.compile_dynamic_body(&body_text.to_str()) {
+        None => match vm.compile_dynamic_body(&body_str) {
             Some(b) => b,
             None => return err(format!("proc \"{name_s}\": could not compile body")),
         },
@@ -516,18 +528,26 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
+/// Parse a `return -code` word: the named codes (`ok`/`error`/`return`/`break`/
+/// `continue`) or an integer (`return -code N`, which becomes [`Code::Other`] for
+/// N outside `0..=4`). An unparseable word falls back to `Ok`.
 fn parse_code(s: &str) -> Code {
     match s {
-        "error" | "1" => Code::Error,
-        "return" | "2" => Code::Return,
-        "break" | "3" => Code::Break,
-        "continue" | "4" => Code::Continue,
-        _ => Code::Ok,
+        "ok" | "0" => Code::Ok,
+        "error" => Code::Error,
+        "return" => Code::Return,
+        "break" => Code::Break,
+        "continue" => Code::Continue,
+        _ => Value::string(s)
+            .as_int()
+            .ok()
+            .and_then(|n| i32::try_from(n).ok())
+            .map_or(Code::Ok, Code::from_int),
     }
 }
 
 /// Build an options dict value `-code N -level L [-errorcode ..] [-errorinfo ..]`.
-fn options_dict(code: Code, level: i64, extra: &[(&str, Value)]) -> Value {
+pub(crate) fn options_dict(code: Code, level: i64, extra: &[(&str, Value)]) -> Value {
     let mut items = vec![
         Value::string("-code"),
         Value::int(code.as_int()),
@@ -541,8 +561,28 @@ fn options_dict(code: Code, level: i64, extra: &[(&str, Value)]) -> Value {
     Value::list(items)
 }
 
+/// An `ERROR` completion carrying an `-errorcode` (e.g. `TCL BINARY DECODE
+/// INVALID`), so `$errorCode` is set when the error propagates.
+pub(crate) fn err_with_code(message: impl Into<String>, code: &str) -> Completion<Value> {
+    let options = options_dict(Code::Error, 0, &[("-errorcode", Value::string(code))]);
+    Completion::new(Code::Error, Value::string(message.into()), options)
+}
+
+/// The options dict a completion exposes to `catch`/`try` (`Tcl_GetReturnOptions`):
+/// the carried dict when it has one, otherwise a faithful one built from the
+/// code — every completion reads back at least `-code N -level 0`, so an OK body
+/// yields `-code 0 -level 0` (not the empty value the bare completion carries).
+pub(crate) fn completion_options(comp: &Completion<Value>) -> Value {
+    let empty = comp.options.as_list().map_or(true, |l| l.is_empty());
+    if empty {
+        options_dict(comp.code, 0, &[])
+    } else {
+        comp.options.clone()
+    }
+}
+
 /// Look up a key in an options-dict value, returning the following element.
-fn opt_get(options: &Value, key: &str) -> Option<Value> {
+pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
     let items = options.as_list().ok()?;
     let mut i = 0;
     while i + 1 < items.len() {
@@ -588,10 +628,14 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     }
     let options = options_dict(ret_code, level, &extra);
-    // Plain `return` raises TCL_RETURN (absorbed at the proc boundary); an
-    // explicit non-OK -code takes effect immediately (M2 simplification: skip
-    // the -level countdown).
-    let final_code = if ret_code == Code::Ok {
+    // `-level 0` makes the requested `-code` take effect *immediately* (the
+    // completion IS that code, including `ok` — `return -level 0 -code N` is how
+    // `try`/`catch` produce an arbitrary return code). A positive level raises
+    // TCL_RETURN, absorbed at the proc boundary; an explicit non-OK `-code` at
+    // level ≥ 1 takes effect immediately (M2 simplification: skip the countdown).
+    let final_code = if level == 0 {
+        ret_code
+    } else if ret_code == Code::Ok {
         Code::Return
     } else {
         ret_code
@@ -600,17 +644,30 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `error message ?info? ?code?`.
-fn cmd_error(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((msg, rest)) = args.split_first() else {
+fn cmd_error(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if args.is_empty() || args.len() > 3 {
         return err("wrong # args: should be \"error message ?errorInfo? ?errorCode?\"");
-    };
-    let einfo = rest
-        .first()
-        .map_or_else(|| msg.to_str().to_string(), |v| v.to_str().to_string());
-    let ecode = rest
-        .get(1)
+    }
+    let msg = &args[0];
+    let ecode = args
+        .get(2)
         .cloned()
         .unwrap_or_else(|| Value::string("NONE"));
+    // A *non-empty* `info` argument *is* the errorInfo trace: seed it directly and
+    // suppress the `error` command's own `while executing` frame (C's
+    // `ERR_ALREADY_LOGGED`). An empty (or absent) `info` is treated as absent —
+    // the trace seeds from the message and the invoke site logs the frame as for
+    // any other command error (error-4.2/4.3).
+    let info = args.get(1).map(|v| v.to_str().to_string());
+    let info_nonempty = info.as_deref().is_some_and(|s| !s.is_empty());
+    if info_nonempty {
+        vm.seed_error_info(info.clone().unwrap_or_default());
+    }
+    let einfo = if info_nonempty {
+        info.unwrap_or_default()
+    } else {
+        msg.to_str().to_string()
+    };
     let options = options_dict(
         Code::Error,
         0,
@@ -649,17 +706,26 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return e;
     }
     if let Some(o) = optvar
-        && let Err(e) = vm.set_var(&o.to_str(), comp.options.clone())
+        && let Err(e) = vm.set_var(&o.to_str(), completion_options(&comp))
     {
         return e;
     }
     if comp.code == Code::Error {
-        let einfo = opt_get(&comp.options, "-errorinfo").map_or_else(
-            || comp.result.to_str().to_string(),
-            |v| v.to_str().to_string(),
-        );
+        // Prefer the accumulated `errorInfo` source trace (the message plus the
+        // `while executing` / `invoked from within` frames) over the bare
+        // `-errorinfo` the completion carried; fall back when nothing logged.
+        let einfo = vm.take_error_info().unwrap_or_else(|| {
+            opt_get(&comp.options, "-errorinfo").map_or_else(
+                || comp.result.to_str().to_string(),
+                |v| v.to_str().to_string(),
+            )
+        });
         let ecode = opt_get(&comp.options, "-errorcode").unwrap_or_else(|| Value::string("NONE"));
         vm.publish_error(&einfo, &ecode);
+    } else {
+        // A non-error completion ends any in-flight trace (e.g. an inner error
+        // that a deeper `catch` already consumed), so the next error is fresh.
+        let _ = vm.take_error_info();
     }
     ok(Value::int(comp.code.as_int()))
 }

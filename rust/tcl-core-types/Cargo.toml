@@ -1,0 +1,24 @@
+# Dependency-free shared vocabulary for the Tcl runtimes and command cores:
+# the completion `Code`, the generic `Completion<V>`, and the opaque arena
+# handles (`NsId`/`FrameId`/`CommandId`/`VarId`).
+#
+# Split out of `tcl-runtime-api` so consumers that only need these value-less
+# types (notably `tcl-cmd-core`'s pure command helpers) do not transitively
+# depend on `tcl-bytecode` — which `tcl-runtime-api` pulls in for
+# `CompileService::compile -> ModuleAsm`. This crate depends on **nothing**, so
+# it stays `wasm32`-clean and is a true leaf.
+#
+# See `docs/design/common-runtime-emitter-architecture.md` (§6, the dependency
+# diamond).
+[package]
+name = "tcl-core-types"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Dependency-free shared vocabulary (Code, Completion, opaque handles) for Tcl runtimes"
+
+[lints]
+workspace = true

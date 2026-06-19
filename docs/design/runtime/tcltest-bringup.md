@@ -161,6 +161,41 @@ test.
     Tcl-9 lone-surrogate (`\uD83D`) encoding (`append.test`), and C-only test/
     introspection commands (`testevalex`, `tcl::unsupported::representation`,
     `ledit`).
+- **M5 — basic-suite fidelity pass.** Driving the unmodified `*.test` files
+  through the interpreter directly (`cargo run --example run_script -- --init
+  <file>`, `TCL_LIBRARY` → real `init.tcl`/`tcltest.tcl`) and fixing the first
+  walls on the core suites:
+  - **No more crashes on deep recursion.** The recursive tree-walker uses native
+    stack per Tcl call level, so the 1000-deep `interp recursionlimit` (a
+    *catchable* error) could not fire on the default 8 MiB main stack — deep
+    recursion overflowed and aborted the process, zeroing a whole file's results
+    (`error-1.8`, the intentional infinite-recursion case). The dev driver now
+    runs eval on a 512 MiB-stack worker thread (the interp is `Rc`, single-thread)
+    like `tclsh`; deep recursion is now caught (`too many nested evaluations`).
+    `error.test` 0 (crash) → **309/309**.
+  - **`if` grammar** rewritten to C's `Tcl_IfObjCmd`: validate the whole
+    `?then?`/`elseif`/`else` structure before executing the matched branch, with
+    faithful `no expression after`/`no script following`/`extra words after
+    "else" clause` errors. `if.test` 59 → **69/73**.
+  - **`array set a {}`** materialises an empty array; an existing scalar accessed
+    with an index reports `variable isn't array`; `trace add|remove|info`
+    resolves its type word by unambiguous prefix (`var`→`variable`). `set.test`
+    53 → **59/64**.
+  - **`while`/`for` errorInfo frames + for-step break.** The interpreted
+    `Tcl_WhileObjCmd`/`Tcl_ForObjCmd` append `("while" body line N)` /
+    `("for" body line N)` on a body error (outside a proc, like `foreach`), plus
+    the no-line `("for" initial command)` / `("for" loop-end command)` frames for
+    the init/next scripts (new `Interp::append_frame_noline`); a `break` in the
+    for **step** clause now ends the loop cleanly (C `case TCL_BREAK: result =
+    TCL_OK`). `while.test` 45 → **46/46**, `for.test` 52 → **63/88**.
+  - Other basic suites run with high pass rates on this path: `list` 78/78,
+    `eval` 12/12, `unknown` 7/7, `error` 309/309, `while` 46/46, `switch`
+    112/113, `string` 681/705, `foreach` 39/43, `incr` 61/69, `var` 175/219. The
+    dominant remaining failure mode across files is the deferred incremental
+    `errorInfo` source-trace on non-control-flow paths and the trace/upvar detail
+    suites; next is the list-element-quoting / `"word"junk`
+    (`extra characters after close-quote`) parse-error fidelity in the runtime's
+    parser.
 
 ## Appendix — Zig-runtime discoveries to honour
 

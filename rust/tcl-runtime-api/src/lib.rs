@@ -13,98 +13,16 @@
 //!
 //! See `docs/design/common-runtime-emitter-architecture.md` §4 (Family B).
 
-use tcl_bytecode::ModuleAsm;
-
-/// A Tcl completion code (`TCL_OK` … `TCL_CONTINUE`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Code {
-    /// `TCL_OK` — normal completion.
-    Ok,
-    /// `TCL_ERROR` — an error; `result` is the message, `options` the dict.
-    Error,
-    /// `TCL_RETURN` — a `return` propagating to the enclosing proc boundary.
-    Return,
-    /// `TCL_BREAK` — a loop `break`.
-    Break,
-    /// `TCL_CONTINUE` — a loop `continue`.
-    Continue,
-}
-
-impl Code {
-    /// The integer completion code (`TCL_OK` = 0 … `TCL_CONTINUE` = 4) — what
-    /// `catch` returns and the `-code` options-dict entry uses.
-    #[must_use]
-    pub fn as_int(self) -> i64 {
-        match self {
-            Code::Ok => 0,
-            Code::Error => 1,
-            Code::Return => 2,
-            Code::Break => 3,
-            Code::Continue => 4,
-        }
-    }
-
-    /// Whether this is `TCL_OK`.
-    #[must_use]
-    pub fn is_ok(self) -> bool {
-        matches!(self, Code::Ok)
-    }
-}
-
-/// A command/script completion: a code, the result value, and the return
-/// options dict. The "result is not a string" contract — every dispatch yields
-/// this, never a bare string. Generic over the runtime's value type `V`.
-#[derive(Debug, Clone)]
-pub struct Completion<V> {
-    /// The completion code.
-    pub code: Code,
-    /// The result value (the message when `code == Error`).
-    pub result: V,
-    /// The return-options dict (carries `-code`/`-level`/`-errorinfo`/…).
-    pub options: V,
-}
-
-impl<V> Completion<V> {
-    /// Construct a completion from its parts.
-    pub fn new(code: Code, result: V, options: V) -> Self {
-        Self {
-            code,
-            result,
-            options,
-        }
-    }
-
-    /// Whether the completion is `TCL_OK`.
-    pub fn is_ok(&self) -> bool {
-        self.code.is_ok()
-    }
-}
-
-// -- Opaque handles --
-//
-// Arena indices into the runtime's storage; they cross the trait boundary, the
-// concrete storage behind them does not.
-
-/// A namespace handle (arena id).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NsId(pub u32);
-
-/// A call-frame handle (absolute level / arena id).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FrameId(pub usize);
-
-/// A command handle (arena id).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CommandId(pub u32);
-
-/// A variable-cell handle (arena id).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct VarId(pub u32);
-
-/// The global call frame (level 0) and root namespace handles.
-pub const GLOBAL_FRAME: FrameId = FrameId(0);
-/// The root (`::`) namespace handle.
-pub const ROOT_NS: NsId = NsId(0);
+// The value-less vocabulary (the completion `Code`, the generic `Completion<V>`,
+// and the opaque arena handles) lives in the dependency-free `tcl-core-types`
+// leaf crate. This crate's own only dependency is that leaf — the concrete
+// bytecode artifact is kept out of [`CompileService`] (an associated `Module`
+// type) precisely so a shared command-core crate (`tcl-cmd-core`) can depend on
+// these role traits without pulling in `tcl-bytecode`. Re-exported here so
+// existing `tcl_runtime_api::{Code, Completion, NsId, …}` consumers are unaffected.
+pub use tcl_core_types::{
+    Code, CommandId, Completion, FrameId, GLOBAL_FRAME, NsId, ROOT_NS, VarId,
+};
 
 // -- Compile service (the EVAL_STK / dynamic-code injection point) --
 
@@ -112,7 +30,7 @@ pub const ROOT_NS: NsId = NsId(0);
 #[derive(Debug, Clone)]
 pub struct CompileError(pub String);
 
-/// Compiles a Tcl source string to bytecode at runtime.
+/// Compiles a Tcl source string to a runtime-executable module at runtime.
 ///
 /// `eval`/`uplevel`/dynamic command names compile a string while the program
 /// runs, so a VM that supports them needs a compiler available during
@@ -120,9 +38,16 @@ pub struct CompileError(pub String);
 /// compiler-optional: the embedder wires a real (`tcl-compiler`-backed)
 /// implementation; a program that never hits `eval` can use a stub. Mirrors C
 /// Tcl always carrying its bytecode compiler.
+///
+/// The produced module is an associated type (e.g. the VM sets it to
+/// `tcl_bytecode::ModuleAsm`) so this contract crate stays free of any concrete
+/// bytecode dependency — see the crate-level note.
 pub trait CompileService {
-    /// Compile `src` to a [`ModuleAsm`], or report why it could not.
-    fn compile(&self, src: &str) -> Result<ModuleAsm, CompileError>;
+    /// The runtime-executable artifact produced (the bytecode VM's `ModuleAsm`).
+    type Module;
+
+    /// Compile `src` to a [`Module`](Self::Module), or report why it could not.
+    fn compile(&self, src: &str) -> Result<Self::Module, CompileError>;
 }
 
 // -- Family-B role traits --
@@ -146,6 +71,27 @@ pub trait VarStore {
     fn unset(&mut self, frame: FrameId, name: &str) -> bool;
     /// Whether a variable exists in `frame`.
     fn exists(&self, frame: FrameId, name: &str) -> bool;
+
+    // Array-element access. The `name` is the array *base* and `key` the element,
+    // already split from `base(key)` — runtimes differ on whether the by-name
+    // accessors parse `a(k)`, so element ops are explicit. Mirror the scalar ops.
+
+    /// Read array element `name(key)` in `frame`, following links.
+    fn get_elem(&self, frame: FrameId, name: &str, key: &str) -> Option<Self::Value>;
+    /// Write array element `name(key)` in `frame` (firing write traces).
+    fn set_elem(&mut self, frame: FrameId, name: &str, key: &str, value: Self::Value);
+    /// Remove array element `name(key)`; returns whether it existed.
+    fn unset_elem(&mut self, frame: FrameId, name: &str, key: &str) -> bool;
+    /// Whether array element `name(key)` exists.
+    fn exists_elem(&self, frame: FrameId, name: &str, key: &str) -> bool;
+
+    /// The element keys of array `name` in `frame`, in the runtime's storage
+    /// order, or `None` if `name` is not an array (a scalar, or unset). An array
+    /// with no elements yields `Some(vec![])` — the existence signal `array
+    /// exists`/`info exists` need. This is the **enumeration** surface the
+    /// otherwise-deliberately-listing-free state traits expose for the `array`
+    /// family (`names`/`get`/`size`/`exists`/`unset`).
+    fn array_keys(&self, frame: FrameId, name: &str) -> Option<Vec<String>>;
 }
 
 /// The call-frame stack: proc-call frames and the `uplevel` active-level dance.
@@ -160,6 +106,19 @@ pub trait Frames {
     /// Install a link (`upvar`/`global`/`variable`) in `here` to `target`'s
     /// variable `target_name`.
     fn link(&mut self, here: FrameId, target: FrameId, local: &str, target_name: &str);
+
+    // -- active-frame variable enumeration (backs the *frame-local* half of `info
+    // vars`/`info locals`, the namespace-free counterpart to `Namespaces::vars_in`).
+
+    /// Whether the active frame is a **procedure** activation (vs the global or a
+    /// `namespace eval` frame) — `info vars` lists the frame's own variables in a
+    /// proc, the current namespace's variables otherwise (C's `InfoVarsCmd`).
+    fn in_proc(&self) -> bool;
+    /// The variable names of the **active** frame. Genuine locals (scalars,
+    /// arrays) are always included; `upvar`/`global`/`variable` **links** are
+    /// included iff `include_links` — `info vars` lists links (by their local
+    /// alias), `info locals` does not.
+    fn var_names(&self, include_links: bool) -> Vec<String>;
 }
 
 /// The command table and dispatch: builtins, procs, aliases, imports,
@@ -168,18 +127,64 @@ pub trait Commands {
     /// The runtime's value type.
     type Value;
 
-    /// Dispatch a command by (already-resolved) name with its argv.
+    /// Dispatch a command by name with its argv, resolving the name in the
+    /// current context.
     fn dispatch(&mut self, name: &str, argv: &[Self::Value]) -> Completion<Self::Value>;
+
+    /// Dispatch a command already resolved to a [`CommandId`] (by
+    /// [`Namespaces::find_command`]) with its argv — the resolve-then-invoke
+    /// pairing (mirrors Tcl's `Tcl_GetCommandFromObj` + `Tcl_NRCallObjProc`). A
+    /// stale or fabricated id yields an error completion. This is what makes a
+    /// `CommandId` *do* something: resolve once via `find_command`, invoke here.
+    fn dispatch_id(&mut self, cmd: CommandId, argv: &[Self::Value]) -> Completion<Self::Value>;
 }
 
 /// The namespace tree and name resolution. Mirrors `runtime/zig`'s `tcl_ns.zig`
 /// / `runtime/rust`'s `namespace.rs`. (Contract surface; impls land in M2+.)
 pub trait Namespaces {
     /// Resolve `name` (qualified or unqualified) from context `cxt` to the
-    /// command it names, following the `cxt → namespace path → root` order.
+    /// command it names, following the `cxt → namespace path → root` order. The
+    /// returned handle is invoked via [`Commands::dispatch_id`].
     fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId>;
     /// The current namespace.
     fn current(&self) -> NsId;
+    /// The fully-qualified name of namespace `ns` (`"::"` for the global root) —
+    /// what `namespace current` reports.
+    fn name(&self, ns: NsId) -> String;
+    /// The fully-qualified name a [`CommandId`] names (the inverse of
+    /// [`find_command`](Self::find_command)), or `None` for a stale/unknown id —
+    /// backs `namespace which`.
+    fn command_name(&self, cmd: CommandId) -> Option<String>;
+
+    // -- namespace-tree navigation (mirrors C's `Namespace` struct: `nsId`
+    // identity, `parentPtr`, `childTable`). A namespace *is* a handle; its
+    // FQN/parent/children are queried from it. `name(ns)` (above) is its
+    // `fullName`. These back `namespace exists`/`parent`/`children`.
+
+    /// Resolve namespace `name` (qualified or unqualified) from context `cxt` to
+    /// its handle (`Tcl_FindNamespace`), or `None` if no such namespace exists.
+    fn find_namespace(&self, cxt: NsId, name: &str) -> Option<NsId>;
+    /// The handle of `ns`'s parent (`parentPtr`), or `None` for the global root.
+    fn parent(&self, ns: NsId) -> Option<NsId>;
+    /// The handles of `ns`'s direct child namespaces (`childTable`).
+    fn children(&self, ns: NsId) -> Vec<NsId>;
+
+    // -- command enumeration (a namespace's `cmdTable`; backs `info commands`/
+    // `info procs`). Direct members only — one level, not descendants — returned
+    // as **unqualified** tail names. This is the command-listing **enumeration**
+    // surface, the namespace analogue of `VarStore::array_keys`.
+
+    /// The unqualified names of commands defined **directly** in `ns`. Mirrors a
+    /// walk of `Namespace.cmdTable`; backs `info commands`.
+    fn commands_in(&self, ns: NsId) -> Vec<String>;
+    /// The unqualified names of **user procedures** defined directly in `ns` (the
+    /// `TclIsProc` subset of [`commands_in`](Self::commands_in)); backs `info procs`.
+    fn procs_in(&self, ns: NsId) -> Vec<String>;
+    /// The unqualified names of **variables** defined directly in `ns` (a walk of
+    /// `Namespace.varTable`); backs `info vars ::ns::*` and `info globals` (the
+    /// global namespace's variables). The variable analogue of
+    /// [`commands_in`](Self::commands_in).
+    fn vars_in(&self, ns: NsId) -> Vec<String>;
 }
 
 /// Variable traces (read/write/unset). Mirrors `runtime/zig`'s
@@ -204,4 +209,38 @@ pub trait Introspect {
     fn level(&self) -> usize;
     /// The argv of the call at `level` (`info level N`), if retained.
     fn level_argv(&self, level: usize) -> Option<Self::Value>;
+}
+
+/// Procedure introspection backing `info body`/`args`/`default`: the retained
+/// formal parameters (name + optional default) and source body of a user
+/// procedure. Mirrors the `Proc`/`CompiledLocal` chain C's `InfoBodyCmd`/
+/// `InfoArgsCmd`/`InfoDefaultCmd` walk.
+///
+/// The answer is plain owned bytes, **not** the runtime's `Value`: the contract
+/// stays value-agnostic, and the byte-oriented runtime avoids minting fresh
+/// refcounted result objects inside a `&self` query — the shared `info` core
+/// builds the result value from these bytes through `ValueOps`.
+pub trait Procs {
+    /// The formals + body of the user procedure `name` resolves to (following
+    /// `namespace import` redirects, exactly as a call would), or `None` if
+    /// `name` is not a user procedure (a builtin, alias, or unknown command).
+    fn proc_info(&self, name: &str) -> Option<ProcInfo>;
+}
+
+/// A user procedure's introspectable definition — the [`Procs::proc_info`] answer.
+#[derive(Debug, Clone)]
+pub struct ProcInfo {
+    /// The procedure body source (`info body`), byte-exact.
+    pub body: Vec<u8>,
+    /// The formal parameters, in declaration order (`info args`/`default`).
+    pub params: Vec<ProcParam>,
+}
+
+/// One formal parameter of a [`ProcInfo`]: a name with an optional default value.
+#[derive(Debug, Clone)]
+pub struct ProcParam {
+    /// The parameter name.
+    pub name: Vec<u8>,
+    /// The declared default value, if the parameter has one.
+    pub default: Option<Vec<u8>>,
 }

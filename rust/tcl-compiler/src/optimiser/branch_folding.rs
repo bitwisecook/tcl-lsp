@@ -422,6 +422,7 @@ mod tests {
         CompilationUnit {
             source: source.into(),
             ir_module: crate::ir::Module {
+                source: String::new(),
                 top_level: crate::ir::Script::new(),
                 procedures: HashMap::new(),
                 methods: HashMap::new(),
