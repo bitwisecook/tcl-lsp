@@ -1092,10 +1092,12 @@ Owns `tcl-compiler::codegen` (non-wasm).
 
 #### FE-DIAG — analyser diagnostics & dialect checks
 Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
-- **open** missing emitters: **E001** (missing subcommand), **W125** (orphaned
+- **done** missing emitters: **E001** (missing subcommand), **W125** (orphaned
   control-flow keyword), **IRULE5005** (direct proc call without `call`),
-  **IRULE1001** (command invalid/ineffective in event — high-impact,
-  registry-legality-matrix driven).
+  **IRULE1001** (command invalid/ineffective in event — registry-legality-matrix
+  driven, with the profile-info hint + "Available in" reasons). Verified
+  byte-for-byte against the Python emitters; E001/W125 cross-checked against
+  tclsh 8.4–9.0.
 - **open** snit OO support (`snit::type`/`widget`/`widgetadaptor` as ClassDef)
   and the OO body-walks Rust skips (`oo::class new`/`createWithNamespace`,
   `initialise` body, `property -get/-set` accessor bodies).
@@ -1120,10 +1122,17 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
 - **open** IRULE1201 / 1202 / 5002 / 5004 path-sensitivity — the emitters are
   linear-scan MVPs (single shared `responded` flag); add per-branch state and
   restore the dropped quick-fixes (the C44 follow-up).
-- **open** `DynamicNameLocal` reconciliation — Rust marks `scan`/`lassign`/
-  `regexp`/`regsub` out-vars `VarWrite` and omits the trait, which the archive
-  argues is benign; confirm whether withholding `VarWrite` changes caller-side
-  W211/W214 suppression, then either add the trait or close the row.
+- **done** `DynamicNameLocal` reconciliation — **row closed**. Withholding the
+  trait does *not* change caller-side W211/W214 suppression: that suppression is
+  driven by the interprocedural summary index (`build_proc_index_from_summaries`,
+  which models real `upvar` caller-frame write-back), not the shallow
+  `param_traits`, so the four out-var commands behave identically to Python on
+  the PR #498/#499 false-positive battery (verified differentially). A related
+  callee-side FP *was* found and fixed: a dynamic write target (`set $p 1`) was
+  modelled as a static def of `p` by `ssa::defs_of`; it now mirrors Python
+  `var_resolve::resolve_place` — no static def, and the name-bearing variable is
+  read (`ssa::is_dynamic_write_target`). Verified against tclsh 8.4–9.0 and a
+  Python differential, with zero change across the 79-file sample corpus.
 - **open** `when`-body dialect gating — under a non-iRules dialect the Rust
   server still descends into `when { … }` bodies and emits body diagnostics
   (e.g. `W210`) next to the correct `W002` ("'when' is disabled in the active

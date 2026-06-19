@@ -2759,6 +2759,74 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_name_write_does_not_dead_store_the_name_var() {
+        // `set $p 1` writes the variable *named by* `$p` and *reads* `p`
+        // (verified against tclsh 8.4–9.0).  It must not produce a spurious
+        // W220 dead-store on the parameter `p` itself.  Matches the Python
+        // analyser (which emits nothing here).
+        for body in ["set $p 1", "set ${p} 1", "set $p [expr {1}]"] {
+            let mut a = Analyser::new();
+            let r = a.analyse(&format!("proc ::f {{p}} {{ {body} }}\n"), "tcl");
+            assert!(
+                r.diagnostics
+                    .iter()
+                    .all(|d| !(matches!(d.code.as_str(), "W211" | "W220" | "W214")
+                        && d.message.contains("'p'"))),
+                "dynamic-name write `{body}` wrongly flagged `p`, got {:?}",
+                r.diagnostics,
+            );
+        }
+    }
+
+    #[test]
+    fn dynamic_name_out_var_does_not_suppress_caller_dead_store() {
+        // A param used only as a *dynamic name* out-var (`scan`/`lassign`/
+        // `regexp`/`regsub` target, or `set $p`) names a callee-local
+        // variable — it does NOT write back to the caller's frame, so a
+        // caller's literal arg is genuinely dead and must still fire W211 /
+        // W220 (the PR #498/#499 false-positive regression guard, verified
+        // against the Python analyser).
+        let cases = [
+            "proc maybe {target} { scan 42 %d $target }",
+            "proc maybe {target} { lassign {1} $target }",
+            "proc maybe {target} { regexp {(.)} a -> $target }",
+            "proc maybe {target} { regsub a a b $target }",
+            "proc maybe {target} { set $target 1 }",
+        ];
+        for callee in cases {
+            let src = format!("{callee}\nproc caller {{}} {{ set x 1; maybe x }}\n");
+            let mut a = Analyser::new();
+            let r = a.analyse(&src, "tcl");
+            assert!(
+                r.diagnostics
+                    .iter()
+                    .any(|d| (d.code == "W211" || d.code == "W220") && d.message.contains("'x'")),
+                "caller's dead `x` must still fire for `{callee}`, got {:?}",
+                r.diagnostics,
+            );
+        }
+    }
+
+    #[test]
+    fn upvar_writeback_still_suppresses_caller_dead_store() {
+        // Control: a genuine `upvar`-write-back callee DOES consume the
+        // caller's variable, so the dead-store is correctly suppressed.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc fill {outvar} { upvar $outvar out\nset out 42 }\n\
+             proc top {} { set result {}\nfill result\nreturn $result }\n",
+            "tcl",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .all(|d| !((d.code == "W211" || d.code == "W220") && d.message.contains("result"))),
+            "upvar write-back must suppress the caller dead-store, got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
     fn analyse_w128_fires_on_call_to_renamed_command() {
         // SYNC-JUN02b-4 (#519): a builtin renamed/deleted away earlier in
         // the file → the later call falls through to `unknown` → W128.
