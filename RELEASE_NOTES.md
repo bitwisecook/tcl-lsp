@@ -1,3 +1,44 @@
+# v1.11.3
+
+## New Features
+
+- **S110 — byte-array corruption detection.** A new correctness diagnostic
+  that warns when binary data (a `binary format`/`binary decode` result or an
+  iRules `*::payload` byte array) is forced through character-string semantics
+  and then written back as bytes, silently re-encoding every byte ≥ 0x80. This
+  catches the F5 payload-rewrite corruption bug (KB K22406348) and the
+  equivalent plain-Tcl `binary format` → string op → `binary scan` round-trip.
+  `*::payload` source/sink recognition is dialect-gated, so a plain-Tcl
+  document that merely names a `*::payload` command never trips the check.
+
+## Improvements
+
+- **S110 protocol coverage.** Payload-replace detection is now registry-driven
+  rather than hardcoded to the TCP/HTTP layout, so it correctly locates the
+  data operand for MQTT, DIAMETER and GTP `*::payload replace` sinks (including
+  the GTP `-message` flag shift). New payload commands stay correct by
+  declaring their layout, with no analyser changes needed.
+- **CI marketplace publishing.** VS Code and JetBrains extensions are now
+  published from CI behind protected, manually-approved environments, with the
+  released artefacts verified against the cosign-signed `SHA256SUMS` before
+  publishing. The laptop `make publish-*` targets remain as fallbacks.
+
+## Bug Fixes
+
+- **Zipapp dependencies on Python 3.10.** Marker-gated transitive dependencies
+  are now resolved against the minimum supported Python (3.10) rather than the
+  build interpreter, so the LSP server no longer dies with a
+  `ModuleNotFoundError` for `exceptiongroup` or `tomli` on a 3.10 host.
+- **Catch block flow analysis.** Fixed handling of `return` statements inside
+  `catch` blocks and the associated control-flow analysis.
+
+## Breaking Changes
+
+- The `registry-dump` verb has been removed from both the `tcl` and `f5` CLIs.
+  It exposed the internal JSON registry shape, which was never intended as a
+  committed CLI surface; the equivalent functionality now lives in internal
+  development tooling.
+
 # v1.11.2
 
 ## New Features
