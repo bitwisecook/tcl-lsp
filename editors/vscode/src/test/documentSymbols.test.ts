@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate } from "./helper";
+import { getDocUri, activate, pollUntil } from "./helper";
 
 suite("Document Symbols", () => {
   const docUri = getDocUri("procs.tcl");
@@ -8,9 +8,15 @@ suite("Document Symbols", () => {
   test("returns document symbols for proc definitions", async () => {
     await activate(docUri);
 
-    const symbols = (await vscode.commands.executeCommand(
-      "vscode.executeDocumentSymbolProvider",
-      docUri,
+    const symbols = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", docUri),
+      (r) => {
+        const syms = r as (vscode.DocumentSymbol[] | vscode.SymbolInformation[]) | undefined;
+        if (!syms || syms.length === 0) return false;
+        const names = syms.map((s) => s.name);
+        return names.some((n) => n.includes("fib")) && names.some((n) => n.includes("factorial"));
+      },
+      { timeout: 10_000, label: "document symbols for proc definitions" },
     )) as vscode.DocumentSymbol[] | vscode.SymbolInformation[];
 
     assert.ok(symbols, "Should return symbols");
@@ -30,9 +36,13 @@ suite("Document Symbols", () => {
   test("symbols have proper kinds", async () => {
     await activate(docUri);
 
-    const symbols = (await vscode.commands.executeCommand(
-      "vscode.executeDocumentSymbolProvider",
-      docUri,
+    const symbols = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", docUri),
+      (r) => {
+        const syms = r as (vscode.DocumentSymbol[] | vscode.SymbolInformation[]) | undefined;
+        return !!syms && syms.length > 0;
+      },
+      { timeout: 10_000, label: "document symbols (kinds)" },
     )) as vscode.DocumentSymbol[] | vscode.SymbolInformation[];
 
     assert.ok(symbols && symbols.length > 0, "Should return symbols");
@@ -52,9 +62,13 @@ suite("Document Symbols", () => {
   test("symbols have valid ranges", async () => {
     await activate(docUri);
 
-    const symbols = (await vscode.commands.executeCommand(
-      "vscode.executeDocumentSymbolProvider",
-      docUri,
+    const symbols = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", docUri),
+      (r) => {
+        const syms = r as vscode.DocumentSymbol[] | undefined;
+        return !!syms && syms.length > 0;
+      },
+      { timeout: 10_000, label: "document symbols (ranges)" },
     )) as vscode.DocumentSymbol[];
 
     assert.ok(symbols && symbols.length > 0, "Should return symbols");

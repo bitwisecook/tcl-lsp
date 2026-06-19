@@ -170,8 +170,14 @@ suite("Inlay Hints", () => {
           doc.uri,
           fullRange,
         )) as vscode.InlayHint[] | undefined;
-        // Stop as soon as the parameter hint (the readiness signal) lands.
-        if (hints && hints.some((h) => h.kind === vscode.InlayHintKind.Parameter)) {
+        // Wait for the *steady state* after both config changes propagate to
+        // the server: the parameter hint present AND the type hint gone.
+        // Breaking the moment a parameter hint appears would race the
+        // `inlayTypeHints=false` change — a previous test may have left type
+        // hints on, and they linger until the config update lands.
+        const hasParam = hints?.some((h) => h.kind === vscode.InlayHintKind.Parameter) ?? false;
+        const hasType = hints?.some((h) => h.kind === vscode.InlayHintKind.Type) ?? false;
+        if (hasParam && !hasType) {
           break;
         }
         await new Promise((r) => setTimeout(r, 250));
@@ -218,9 +224,13 @@ suite("Inlay Hints", () => {
           doc.uri,
           fullRange,
         )) as vscode.InlayHint[] | undefined;
-        // Stop as soon as the type hint lands rather than always burning the
-        // full deadline on redundant requests.
-        if (hints && hints.some((h) => h.kind === vscode.InlayHintKind.Type)) {
+        // Wait for the *steady state*: the type hint present AND parameter
+        // labels gone.  Breaking the moment a type hint appears would race
+        // the `inlayParameterHints=false` change — a previous test may have
+        // left parameter labels on until the config update propagates.
+        const hasType = hints?.some((h) => h.kind === vscode.InlayHintKind.Type) ?? false;
+        const hasParam = hints?.some((h) => h.kind === vscode.InlayHintKind.Parameter) ?? false;
+        if (hasType && !hasParam) {
           break;
         }
         await new Promise((r) => setTimeout(r, 250));

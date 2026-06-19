@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate } from "./helper";
+import { getDocUri, activate, pollUntil } from "./helper";
 
 suite("Find References", () => {
   const docUri = getDocUri("procs.tcl");
@@ -12,10 +12,10 @@ suite("Find References", () => {
     // proc fib {n} {
     const position = new vscode.Position(1, 6);
 
-    const locations = (await vscode.commands.executeCommand(
-      "vscode.executeReferenceProvider",
-      docUri,
-      position,
+    const locations = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeReferenceProvider", docUri, position),
+      (r) => Array.isArray(r) && r.length >= 1,
+      { timeout: 10_000, label: "references for proc" },
     )) as vscode.Location[];
 
     assert.ok(locations, "References result should not be null");

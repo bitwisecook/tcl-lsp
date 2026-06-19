@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate } from "./helper";
+import { getDocUri, activate, pollUntil } from "./helper";
 
 suite("Completion", () => {
   const docUri = getDocUri("completion.tcl");
@@ -11,10 +11,20 @@ suite("Completion", () => {
     // Position at end of "put" on line 2 (0-indexed)
     const position = new vscode.Position(2, 3);
 
-    const result = (await vscode.commands.executeCommand(
-      "vscode.executeCompletionItemProvider",
-      docUri,
-      position,
+    const result = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand("vscode.executeCompletionItemProvider", docUri, position),
+      (r) => {
+        const list = r as vscode.CompletionList | undefined;
+        return (
+          !!list &&
+          list.items.length > 0 &&
+          list.items.some(
+            (item) => (typeof item.label === "string" ? item.label : item.label.label) === "puts",
+          )
+        );
+      },
+      { timeout: 10_000, label: "command completions" },
     )) as vscode.CompletionList;
 
     assert.ok(result, "Completion result should not be null");
@@ -40,10 +50,20 @@ suite("Completion", () => {
 
     const position = new vscode.Position(2, 3);
 
-    const result = (await vscode.commands.executeCommand(
-      "vscode.executeCompletionItemProvider",
-      docUri,
-      position,
+    const result = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand("vscode.executeCompletionItemProvider", docUri, position),
+      (r) => {
+        const list = r as vscode.CompletionList | undefined;
+        if (!list) return false;
+        const labels = list.items.map((item) =>
+          typeof item.label === "string" ? item.label : item.label.label,
+        );
+        return labels.some((l) =>
+          ["puts", "set", "proc", "if", "while", "for", "foreach"].includes(l),
+        );
+      },
+      { timeout: 10_000, label: "proc name completions" },
     )) as vscode.CompletionList;
 
     assert.ok(result, "Completion result should not be null");
