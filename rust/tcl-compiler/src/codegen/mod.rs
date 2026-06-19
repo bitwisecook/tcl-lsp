@@ -110,6 +110,10 @@ pub struct CodegenCtx<'r> {
     /// lifetime of the context — codegen runs synchronously and the
     /// caller already holds the registry that lowering used.
     pub registry: &'r CommandRegistry,
+    /// The module's original source text, indexed by `current_span` to recover
+    /// each command's surface text for `errorInfo` (`while executing "…"`).
+    /// Empty when the caller did not supply it (hand-built test contexts).
+    source: std::rc::Rc<str>,
 }
 
 impl<'r> CodegenCtx<'r> {
@@ -145,6 +149,25 @@ impl<'r> CodegenCtx<'r> {
             current_source_line: 0,
             current_span: None,
             registry,
+            source: "".into(),
+        }
+    }
+
+    /// Set the module source text (see [`Self::source`]) so emitted instructions
+    /// carry their command's surface text for `errorInfo`.
+    pub fn set_source(&mut self, source: &str) {
+        self.source = source.into();
+    }
+
+    /// The surface text of the construct at `current_span`, for `errorInfo`.
+    /// Empty when no span is set or no source was supplied.
+    fn span_text(&self) -> String {
+        match self.current_span {
+            Some(sp) => {
+                let (s, e) = (sp.start() as usize, sp.end() as usize);
+                self.source.get(s..e).unwrap_or("").to_string()
+            }
+            None => String::new(),
         }
     }
 
@@ -153,6 +176,7 @@ impl<'r> CodegenCtx<'r> {
         let idx = self.instructions.len();
         let mut instr = Instruction::new(op, operands);
         instr.source_span = self.current_span;
+        instr.source_cmd_text = self.span_text();
         self.instructions.push(instr);
         idx
     }
@@ -163,6 +187,7 @@ impl<'r> CodegenCtx<'r> {
         let mut instr = Instruction::new(op, operands);
         comment.clone_into(&mut instr.comment);
         instr.source_span = self.current_span;
+        instr.source_cmd_text = self.span_text();
         self.instructions.push(instr);
         idx
     }

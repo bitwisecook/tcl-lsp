@@ -1091,7 +1091,12 @@ impl Vm {
                 match self.dispatch_words(f, &words) {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
-                    Err(c) => return Tick::Return(c),
+                    Err(c) => {
+                        let cmd_text = instr.source_cmd_text.clone();
+                        let msg = c.result.to_str().to_string();
+                        self.log_command_info(&cmd_text, &msg);
+                        return Tick::Return(c);
+                    }
                 }
             }
 
@@ -1124,7 +1129,12 @@ impl Vm {
                 match self.dispatch_words(f, &words) {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
-                    Err(c) => return Tick::Return(c),
+                    Err(c) => {
+                        let cmd_text = instr.source_cmd_text.clone();
+                        let msg = c.result.to_str().to_string();
+                        self.log_command_info(&cmd_text, &msg);
+                        return Tick::Return(c);
+                    }
                 }
             }
             Op::EXPR_STK => {

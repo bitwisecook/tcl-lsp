@@ -618,17 +618,24 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `error message ?info? ?code?`.
-fn cmd_error(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_error(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((msg, rest)) = args.split_first() else {
         return err("wrong # args: should be \"error message ?errorInfo? ?errorCode?\"");
     };
-    let einfo = rest
-        .first()
-        .map_or_else(|| msg.to_str().to_string(), |v| v.to_str().to_string());
     let ecode = rest
         .get(1)
         .cloned()
         .unwrap_or_else(|| Value::string("NONE"));
+    // A supplied `info` argument *is* the errorInfo trace: seed it directly and
+    // suppress the `error` command's own `while executing` frame (C's
+    // `ERR_ALREADY_LOGGED`). Without it, the trace seeds from the message and
+    // the invoke site logs the frame as for any other command error.
+    if let Some(info) = rest.first() {
+        vm.seed_error_info(info.to_str().to_string());
+    }
+    let einfo = rest
+        .first()
+        .map_or_else(|| msg.to_str().to_string(), |v| v.to_str().to_string());
     let options = options_dict(
         Code::Error,
         0,
@@ -672,12 +679,21 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return e;
     }
     if comp.code == Code::Error {
-        let einfo = opt_get(&comp.options, "-errorinfo").map_or_else(
-            || comp.result.to_str().to_string(),
-            |v| v.to_str().to_string(),
-        );
+        // Prefer the accumulated `errorInfo` source trace (the message plus the
+        // `while executing` / `invoked from within` frames) over the bare
+        // `-errorinfo` the completion carried; fall back when nothing logged.
+        let einfo = vm.take_error_info().unwrap_or_else(|| {
+            opt_get(&comp.options, "-errorinfo").map_or_else(
+                || comp.result.to_str().to_string(),
+                |v| v.to_str().to_string(),
+            )
+        });
         let ecode = opt_get(&comp.options, "-errorcode").unwrap_or_else(|| Value::string("NONE"));
         vm.publish_error(&einfo, &ecode);
+    } else {
+        // A non-error completion ends any in-flight trace (e.g. an inner error
+        // that a deeper `catch` already consumed), so the next error is fresh.
+        let _ = vm.take_error_info();
     }
     ok(Value::int(comp.code.as_int()))
 }

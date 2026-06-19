@@ -67,6 +67,22 @@ pub fn codegen_function_with_procs(
     generate::generate(&mut ctx, cfg, proc_defs)
 }
 
+/// Like [`codegen_function_with_procs`] but threading the module source text so
+/// each instruction carries its command's surface text for `errorInfo`.
+#[must_use]
+fn codegen_function_src(
+    cfg: &CfgFunction,
+    params: &[&str],
+    is_proc: bool,
+    proc_defs: &[IrProcedure],
+    registry: &CommandRegistry,
+    source: &str,
+) -> FunctionAsm {
+    let mut ctx = CodegenCtx::new(is_proc, params, registry);
+    ctx.set_source(source);
+    generate::generate(&mut ctx, cfg, proc_defs)
+}
+
 /// Generate bytecode assembly for an entire module.
 #[must_use]
 pub fn codegen_module(
@@ -74,7 +90,8 @@ pub fn codegen_module(
     ir_module: &IrModule,
     registry: &CommandRegistry,
 ) -> ModuleAsm {
-    let top = codegen_function(&cfg_module.top_level, &[], false, registry);
+    let src = &ir_module.source;
+    let top = codegen_function_src(&cfg_module.top_level, &[], false, &[], registry, src);
     let mut procs: HashMap<String, FunctionAsm> = HashMap::new();
     for (qname, cfg_func) in &cfg_module.procedures {
         let ir_proc = ir_module.procedures.get(qname);
@@ -90,7 +107,7 @@ pub fn codegen_module(
             .unwrap_or_default();
         procs.insert(
             qname.clone(),
-            codegen_function(cfg_func, &params, true, registry),
+            codegen_function_src(cfg_func, &params, true, &[], registry, src),
         );
     }
     ModuleAsm {

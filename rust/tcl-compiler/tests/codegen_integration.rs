@@ -755,6 +755,7 @@ fn codegen_module_with_no_procs() {
         procedures: HashMap::new(),
     };
     let ir_mod = IrModule {
+        source: String::new(),
         top_level: Script::new(),
         procedures: HashMap::new(),
         methods: HashMap::new(),

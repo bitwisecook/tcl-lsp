@@ -2025,6 +2025,7 @@ pub fn lower_to_ir_with_config(
     // module (cache-independent — see `extract_oo_methods_pass`).
     lowerer.extract_oo_methods_pass();
     let mut module = lowerer.module;
+    module.source = source.to_string();
     populate_trace_facts(&mut module);
     module
 }

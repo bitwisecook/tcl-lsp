@@ -649,6 +649,11 @@ impl MethodKind {
 /// methods during lowering.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Module {
+    /// The original source text this module was lowered from. Spans on the
+    /// lowered statements index into it, so codegen can recover each command's
+    /// surface text for `errorInfo` (`while executing "…"`). Empty when not
+    /// supplied (older construction paths / hand-built test modules).
+    pub source: String,
     /// Top-level script (code outside any procedure).
     pub top_level: Script,
     /// Named procedures.

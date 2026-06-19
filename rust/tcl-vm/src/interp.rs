@@ -112,6 +112,17 @@ pub struct Vm {
     /// `[subst]`ed command, a tcltest `-body` — compiles once instead of each
     /// time. This is the dominant cost in the tcltest workload.
     eval_cache: HashMap<String, Rc<ModuleAsm>>,
+    /// The accumulating `errorInfo` source trace (C's `iPtr->errorInfo`): the
+    /// error message followed by `while executing` / `invoked from within`
+    /// frames, built up as the error unwinds through commands. `None` until the
+    /// first frame is logged (which selects `while executing`). Consumed and
+    /// reset when an error is caught (`catch`) or published.
+    error_info: Option<String>,
+    /// C's `ERR_ALREADY_LOGGED`: set once the current command level has logged
+    /// its frame (so the same bytecode frame is not re-logged), cleared at a
+    /// real frame boundary (a nested `eval`/`[subst]`, a proc/control body) so
+    /// the enclosing command logs its own `invoked from within` frame.
+    error_logged: bool,
     /// Open I/O channels (file handles), keyed by channel id (`file3`, …). The
     /// predefined `stdin`/`stdout`/`stderr` are not stored here; commands
     /// special-case those names.
@@ -182,6 +193,8 @@ impl Vm {
             out,
             compiler: None,
             eval_cache: HashMap::new(),
+            error_info: None,
+            error_logged: false,
             channels: HashMap::new(),
             chan_counter: 2,
             script_stack: Vec::new(),
@@ -1279,6 +1292,66 @@ impl Vm {
         }
     }
 
+    /// Append one `while executing` / `invoked from within` frame for the
+    /// command `cmd_text` to the accumulating `errorInfo` trace (C's
+    /// `TclLogCommandInfo`). The first frame seeds the trace from the error
+    /// message `msg` and reads "while executing"; later frames read "invoked
+    /// from within". A command level already logged in the same bytecode frame
+    /// (`error_logged`) is not re-logged. Command text over 150 bytes is
+    /// truncated with `...`, as in C.
+    pub(crate) fn log_command_info(&mut self, cmd_text: &str, msg: &str) {
+        if self.error_logged {
+            return;
+        }
+        let started = self.error_info.is_some();
+        let info = self.error_info.get_or_insert_with(|| msg.to_string());
+        let verb = if started {
+            "invoked from within"
+        } else {
+            "while executing"
+        };
+        // Truncate at a UTF-8 boundary near 150 bytes (C truncates at 150).
+        let (slice, overflow) = if cmd_text.len() > 150 {
+            let mut end = 150;
+            while end > 0 && !cmd_text.is_char_boundary(end) {
+                end -= 1;
+            }
+            (&cmd_text[..end], true)
+        } else {
+            (cmd_text, false)
+        };
+        info.push_str("\n    ");
+        info.push_str(verb);
+        info.push_str("\n\"");
+        info.push_str(slice);
+        if overflow {
+            info.push_str("...");
+        }
+        info.push('"');
+        self.error_logged = true;
+    }
+
+    /// Clear `ERR_ALREADY_LOGGED` at a frame boundary (a nested `eval`/`[subst]`
+    /// returned an error), so the enclosing command logs its own frame.
+    pub(crate) fn clear_error_logged(&mut self) {
+        self.error_logged = false;
+    }
+
+    /// Seed the `errorInfo` trace with an explicit value and mark it logged —
+    /// C's `error msg info` / `return -errorinfo`, which set the trace directly
+    /// and suppress the command's own `while executing` frame.
+    pub(crate) fn seed_error_info(&mut self, info: String) {
+        self.error_info = Some(info);
+        self.error_logged = true;
+    }
+
+    /// Take the accumulated `errorInfo` trace (if any) and reset it for the next
+    /// error — used when `catch` reports an error.
+    pub(crate) fn take_error_info(&mut self) -> Option<String> {
+        self.error_logged = false;
+        self.error_info.take()
+    }
+
     /// Publish `errorInfo` / `errorCode` into the global frame.
     pub(crate) fn publish_error(&mut self, info: &str, code: &Value) {
         if let Some(g) = self.frames.first_mut() {
@@ -1370,7 +1443,14 @@ impl Vm {
                 m
             }
         };
-        Ok(self.run_module(&module))
+        let comp = self.run_module(&module);
+        // Crossing back out of a nested script is a frame boundary: clear
+        // `ERR_ALREADY_LOGGED` so the enclosing command (the `eval`/`[subst]`/
+        // proc call site) logs its own `invoked from within` frame.
+        if comp.code == Code::Error {
+            self.clear_error_logged();
+        }
+        Ok(comp)
     }
 }
 
