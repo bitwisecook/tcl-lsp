@@ -94,25 +94,35 @@ fn adjusted_delim_span(source: &str, tok: tcl_lexer::Token) -> Span {
     }
 }
 
-/// Parse switch options, returning `(first_non_option_index, mode, nocase)`.
-fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool) {
+/// Parse switch options, returning `(first_non_option_index, mode, nocase,
+/// unknown)`. `unknown` is set when a leading `-word` is not one of the options
+/// the compiler inlines (`-exact`/`-glob`/`-regexp`/`-nocase`/`--`) — an
+/// arg-taking `-indexvar`/`-matchvar`, or an invalid option such as `-foo`. The
+/// caller bails the whole switch to the runtime command, which validates the
+/// option set (tclsh rejects `-foo`) and handles the side-channel writes.
+fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool, bool) {
     let mut i = 0;
     let mut mode = SwitchMode::Exact;
     let mut nocase = false;
+    let mut unknown = false;
     while i < args.len() && args[i].starts_with('-') {
         match args[i].as_str() {
             "--" => {
                 i += 1;
                 break;
             }
+            "-exact" => mode = SwitchMode::Exact,
             "-glob" => mode = SwitchMode::Glob,
             "-regexp" => mode = SwitchMode::Regexp,
             "-nocase" => nocase = true,
-            _ => {}
+            _ => {
+                unknown = true;
+                break;
+            }
         }
         i += 1;
     }
-    (i, mode, nocase)
+    (i, mode, nocase, unknown)
 }
 
 impl Lowerer<'_> {
@@ -598,8 +608,13 @@ impl Lowerer<'_> {
             return Self::barrier(seg, "malformed switch");
         }
 
-        let (mut i, mode, nocase) = parse_switch_options(args);
+        let (mut i, mode, nocase, unknown) = parse_switch_options(args);
 
+        // An unrecognised / arg-taking option (`-foo`, `-matchvar`, …): bail to
+        // the runtime `switch`, which validates options and does the var writes.
+        if unknown {
+            return Self::barrier(seg, "switch with non-inlined option");
+        }
         if i >= args.len() {
             return Self::barrier(seg, "malformed switch options");
         }

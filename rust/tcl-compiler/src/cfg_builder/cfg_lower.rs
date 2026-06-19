@@ -542,6 +542,7 @@ impl CfgBuilder {
             default_body,
             default_span,
             mode,
+            nocase,
             ..
         } = stmt
         else {
@@ -558,7 +559,11 @@ impl CfgBuilder {
         // defaulting off). SSA reads of the subject + arm/default bodies are
         // recovered by `ssa::uses_of`'s `Statement::Switch` arm (Python's
         // `_switch_reads`); the switch contributes no defs (Python's `_defs`).
-        if *mode != SwitchMode::Exact || arms.iter().any(|arm| arm.fallthrough) {
+        // A `-nocase` exact switch must also stay opaque: the flattened form
+        // builds a `STR_EQ`/JUMP_TABLE dispatch that is case-sensitive, so the
+        // case-insensitive match has to run through the generic `switch`
+        // command (the VM/runtime `cmd_switch`).
+        if *mode != SwitchMode::Exact || *nocase || arms.iter().any(|arm| arm.fallthrough) {
             return self.lower_opaque_switch(stmt, block_name);
         }
 
