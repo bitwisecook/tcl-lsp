@@ -307,7 +307,7 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
             }
             b'\\' => {
                 saw_escape = true;
-                let escape = scan_escape(bytes, i, leading_resolved);
+                let escape = scan_escape(text, i, leading_resolved);
                 may |= escape.may_add;
                 must |= escape.must_add;
                 leading_resolved |= escape.starts_leading;
@@ -434,41 +434,110 @@ struct EscapeScan {
     starts_leading: bool,
 }
 
-fn scan_escape(bytes: &[u8], start: usize, leading_resolved: bool) -> EscapeScan {
-    let mut may_add = RenderedProperties::HAS_BACKSLASH;
-    let mut must_add = RenderedProperties::NONE;
-
-    let Some(&esc) = bytes.get(start + 1) else {
+fn scan_escape(text: &str, start: usize, leading_resolved: bool) -> EscapeScan {
+    let bytes = text.as_bytes();
+    // A bare trailing backslash renders to a literal `\`.
+    if start + 1 >= bytes.len() {
         return EscapeScan {
             advance: 1,
-            may_add,
-            must_add,
+            may_add: RenderedProperties::HAS_BACKSLASH,
+            must_add: RenderedProperties::NONE,
             starts_leading: false,
         };
-    };
-
-    // Recognise a handful of mapped escapes.
-    if matches!(esc, b'n' | b'r') {
-        may_add |= RenderedProperties::HAS_CRLF;
-    } else if esc == b'0' {
-        may_add |= RenderedProperties::HAS_NULL;
     }
 
-    // Rendered-text starts-with: take the escaped char as the first
-    // char when it is a mapped escape producing a printable char.
+    // Render the *exact* escape via the canonical backslash decoder, then
+    // derive the property bits from what it actually produces.  This is the
+    // key fix over the old hand-rolled table: a numeric / hex / unicode /
+    // octal escape (`\x2f`, `/`, `\057`) renders to `/` and therefore
+    // sets `HAS_FORWARD_SLASH` (its absence caused W201 false-negatives).
+    // Mirrors Python's `_render_esc_text` → per-rendered-char scan.
+    let advance = escape_byte_len(bytes, start);
+    let rendered = tcl_lexer::backslash_subst(&text[start..start + advance]);
+
+    let mut may_add = RenderedProperties::NONE;
+    for c in rendered.bytes() {
+        match c {
+            b'/' => may_add |= RenderedProperties::HAS_FORWARD_SLASH,
+            b'\\' => may_add |= RenderedProperties::HAS_BACKSLASH,
+            b'\r' | b'\n' => may_add |= RenderedProperties::HAS_CRLF,
+            0 => may_add |= RenderedProperties::HAS_NULL,
+            _ => {}
+        }
+    }
+
+    // Rendered-text starts-with: the escape's first rendered character is
+    // the first content char of the word when nothing precedes it.
+    let mut must_add = RenderedProperties::NONE;
     if !leading_resolved {
-        match esc {
-            b'/' => must_add |= RenderedProperties::STARTS_WITH_SLASH,
-            b'-' => must_add |= RenderedProperties::STARTS_WITH_DASH,
+        match rendered.as_bytes().first() {
+            Some(b'/') => must_add |= RenderedProperties::STARTS_WITH_SLASH,
+            Some(b'-') => must_add |= RenderedProperties::STARTS_WITH_DASH,
             _ => {}
         }
     }
 
     EscapeScan {
-        advance: 2,
+        advance,
         may_add,
         must_add,
-        starts_leading: true,
+        // An escape always renders at least one character, resolving the
+        // leading position (even when that char sets no must-bit).
+        starts_leading: !rendered.is_empty(),
+    }
+}
+
+/// Source-byte length of one Tcl backslash escape beginning at
+/// `bytes[start]` (which must be `\`).  Mirrors the per-escape consumption
+/// rules of [`tcl_lexer::backslash_subst`] so the exact escape can be
+/// sliced out and rendered.
+fn escape_byte_len(bytes: &[u8], start: usize) -> usize {
+    let Some(&esc) = bytes.get(start + 1) else {
+        return 1;
+    };
+    let count_digits = |max: usize, from: usize, ok: &dyn Fn(u8) -> bool| {
+        let mut n = 0;
+        while n < max && bytes.get(from + n).is_some_and(|c| ok(*c)) {
+            n += 1;
+        }
+        n
+    };
+    match esc {
+        // `\xHH` (1–2 hex), `\uHHHH` (1–4 hex), `\UHH..` (1–8 hex).
+        b'x' => 2 + count_digits(2, start + 2, &|c| c.is_ascii_hexdigit()),
+        b'u' => 2 + count_digits(4, start + 2, &|c| c.is_ascii_hexdigit()),
+        b'U' => 2 + count_digits(8, start + 2, &|c| c.is_ascii_hexdigit()),
+        // Octal `\NNN`: the first digit is at `start+1`; the cap is 3 for a
+        // leading 0–3, else 2 (matching `scan_octal_escape`).
+        b'0'..=b'7' => {
+            let max = if (b'0'..=b'3').contains(&esc) { 3 } else { 2 };
+            1 + count_digits(max, start + 1, &|c| (b'0'..=b'7').contains(&c))
+        }
+        // Line continuation: `\` + newline (+ optional LF after CR) + a run
+        // of spaces/tabs, collapsing to a single space.
+        b'\n' | b'\r' => {
+            let mut j = start + 2;
+            if esc == b'\r' && bytes.get(j) == Some(&b'\n') {
+                j += 1;
+            }
+            while bytes.get(j).is_some_and(|c| *c == b' ' || *c == b'\t') {
+                j += 1;
+            }
+            j - start
+        }
+        // Simple / unknown `\X` — backslash plus the (possibly multibyte
+        // UTF-8) char after it.
+        _ => 1 + utf8_char_len(esc),
+    }
+}
+
+/// Byte length of a UTF-8 character from its leading byte.
+fn utf8_char_len(first: u8) -> usize {
+    match first {
+        0xC0..=0xDF => 2,
+        0xE0..=0xEF => 3,
+        0xF0..=0xF7 => 4,
+        _ => 1,
     }
 }
 
@@ -960,6 +1029,48 @@ mod tests {
             p.must.contains(RenderedProperties::STARTS_WITH_DASH),
             "expected STARTS_WITH_DASH on '\\-flag', got {p:?}",
         );
+    }
+
+    /// A hex / octal / unicode escape that renders to `/` must set
+    /// `HAS_FORWARD_SLASH` — its absence caused W201 false-negatives.
+    #[test]
+    fn numeric_escapes_rendering_to_slash_set_forward_slash() {
+        for src in ["\\x2f", "\\x2Fetc", "\\057", "\\u002f", "\\U0000002f"] {
+            let p = scan_value_text(src);
+            assert!(
+                p.may.contains(RenderedProperties::HAS_FORWARD_SLASH),
+                "expected HAS_FORWARD_SLASH for {src:?}, got {p:?}",
+            );
+        }
+        // A leading `\x2f` also resolves the must-bit STARTS_WITH_SLASH.
+        let p = scan_value_text("\\x2fetc");
+        assert!(p.must.contains(RenderedProperties::STARTS_WITH_SLASH));
+    }
+
+    /// A hex escape that renders to a null / CRLF byte sets the matching
+    /// may-bit (it did not before, the table only knew `\0` and `\n`/`\r`).
+    #[test]
+    fn numeric_escapes_render_null_and_crlf() {
+        assert!(
+            scan_value_text("a\\x00b")
+                .may
+                .contains(RenderedProperties::HAS_NULL)
+        );
+        assert!(
+            scan_value_text("a\\x0db")
+                .may
+                .contains(RenderedProperties::HAS_CRLF)
+        );
+    }
+
+    /// A non-slash escape (`\t`) renders to a tab — none of the tracked
+    /// content bits should be set (the old table over-set `HAS_BACKSLASH`).
+    #[test]
+    fn tab_escape_sets_no_content_bits() {
+        let p = scan_value_text("a\\tb");
+        assert!(!p.may.contains(RenderedProperties::HAS_FORWARD_SLASH));
+        assert!(!p.may.contains(RenderedProperties::HAS_BACKSLASH));
+        assert!(!p.may.contains(RenderedProperties::HAS_CRLF));
     }
 
     #[test]

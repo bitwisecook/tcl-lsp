@@ -939,7 +939,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Lexer / segmenter / expr-lexer / CST | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | 🟢 | `${name}` brace-depth; quoted `\<nl>`; nested-body E202/E203 → **FE-LEX** |
 | IR / lowering / CFG / SSA | `tcl-compiler` | 🟢 | `IRUpFrame` clobber; dynamic-`uplevel` barrier; minor IR fields → **FE-DATAFLOW**, **FE-DIAG** |
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
-| Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟡 | shimmer severity+codes; expr-literal/`~`/object typing; ESC rendering; `is_pure_var_ref` set → **FE-TYPESHIM** |
+| Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟢 | **FE-TYPESHIM** landed; only precise TclOO `object_of` typing (needs `known_classes`) remains → **FE-DIAG** (its W307/W308 consumer) |
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
 | Optimiser passes | `tcl-compiler::optimiser` | 🟡 | O114/O108 gates; O104/O119 applied; O128/O130; O106 category+gates; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
@@ -1027,17 +1027,27 @@ Owns `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}`.
   `shimmer.py` (0 occurrences in Rust). Absence → runaway latency + over-optimistic
   interproc summaries on adversarial input.
 
-#### FE-TYPESHIM — type inference / shimmer / shapes
+#### FE-TYPESHIM — type inference / shimmer / shapes ✅
 Owns `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}`.
-- **open** shimmer: emit **S100 as Information** (not Warning,
-  `compiler_checks.rs:113`); compute the S100/S101 code from `in_loop`
-  (`phi.rs:146` / `expr.rs:273` hardcode it); port the loop-invariant
-  S101→S100 downgrade and the `incr`-amount check.
-- **open** expr-context literal typing (`0o`→INT, unknown→NUMERIC),
-  `~$double`→INT, and TclOO/scope-alias → OVERDEFINED widening.
-- **open** rendered-props ESC numeric/hex escape rendering (`\x2f`→`/`) — its
-  absence causes W201 false-negatives.
-- **open** `value_shapes::is_pure_var_ref` acceptance set (`$arr(idx)` / `${a(1)}`).
+All listed residuals have landed:
+- **done** shimmer: S100 now emits as **Information** (new
+  `compiler_checks::Severity::Info`, mapped to LSP `INFORMATION`); the
+  S100/S101 code is computed from `in_loop` in both `phi.rs` and `expr.rs`
+  (was hardcoded); the loop-invariant S101→S100 downgrade
+  (`use_site::LoopFacts`) and the `incr`-amount check are ported.
+- **done** expr-context literal typing (`expr_literal_type`: `0o`/`0x`/`0b`
+  → INT, unrecognised → NUMERIC), `~$double`→INT (`UnaryOp::BitNot`), and
+  scope-alias → OVERDEFINED widening (`global`/`variable`/`upvar`/`namespace
+  upvar`, registry-`CREATES_SCOPE_ALIAS`-driven). TclOO constructor results
+  already widen to OVERDEFINED; precise `object_of` typing stays gated on
+  threading `known_classes` (its only consumer is the FE-DIAG W307/W308
+  emitter).
+- **done** rendered-props ESC numeric/hex/octal/unicode escape rendering —
+  `scan_escape` now decodes via `tcl_lexer::backslash_subst`, so `\x2f` /
+  `\057` / `/` → `/` set `HAS_FORWARD_SLASH` (was a W201 false-negative).
+- **done** `value_shapes::is_pure_var_ref` accepts `$arr(idx)` (and the
+  backslash-escaped `$a(x\)y)` form); added `is_braced_whole_name_array_ref`
+  for `${a(1)}`.
 
 #### FE-VARESCAPE — var-escape wiring
 Owns `tcl-compiler::var_escape`.

@@ -27,6 +27,7 @@ use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
+use super::graph::loop_body_blocks;
 use super::{ShimmerWarning, type_name};
 
 /// Find expression-level shimmer warnings for a function.
@@ -46,6 +47,7 @@ pub(crate) fn find_expr_shimmers(
     executable_blocks: &HashSet<String>,
 ) -> Vec<ShimmerWarning> {
     let mut out = Vec::new();
+    let loop_blocks = loop_body_blocks(cfg);
 
     for block_name in cfg_order(cfg) {
         if !executable_blocks.contains(&block_name) {
@@ -54,13 +56,17 @@ pub(crate) fn find_expr_shimmers(
         let Some(ssa_block) = ssa.blocks.get(&block_name) else {
             continue;
         };
+        // An expr-operator shimmer inside a loop body re-converts the operand
+        // every iteration (S101); outside a loop it is one-time (S100).
+        // Mirrors Python `_find_expr_shimmers`' `in_loop = bn in loop_blocks`.
+        let in_loop = loop_blocks.contains(&block_name);
 
         // 1. SSA statements: AssignExpr and ExprEval.
         for ss in &ssa_block.statements {
             match &ss.statement {
                 Statement::AssignExpr { expr, span, .. }
                 | Statement::ExprEval { expr, span, .. } => {
-                    collect_expr_shimmers(expr, &ss.uses, types, *span, &mut out);
+                    collect_expr_shimmers(expr, &ss.uses, types, *span, in_loop, &mut out);
                 }
                 _ => {}
             }
@@ -80,6 +86,7 @@ pub(crate) fn find_expr_shimmers(
                 &ssa_block.exit_versions,
                 types,
                 branch_span,
+                in_loop,
                 &mut out,
             );
         }
@@ -93,6 +100,7 @@ fn collect_expr_shimmers(
     uses: &HashMap<String, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     stmt_span: Span,
+    in_loop: bool,
     out: &mut Vec<ShimmerWarning>,
 ) {
     match node {
@@ -100,8 +108,8 @@ fn collect_expr_shimmers(
             op, left, right, ..
         } => {
             // Recurse into children first.
-            collect_expr_shimmers(left, uses, types, stmt_span, out);
-            collect_expr_shimmers(right, uses, types, stmt_span, out);
+            collect_expr_shimmers(left, uses, types, stmt_span, in_loop, out);
+            collect_expr_shimmers(right, uses, types, stmt_span, in_loop, out);
 
             match op {
                 // Arithmetic, bitwise, logical, and *ordering* comparison
@@ -124,8 +132,8 @@ fn collect_expr_shimmers(
                 | BinOp::Le
                 | BinOp::Gt
                 | BinOp::Ge => {
-                    check_numeric_operand(left, uses, types, stmt_span, *op, out);
-                    check_numeric_operand(right, uses, types, stmt_span, *op, out);
+                    check_numeric_operand(left, uses, types, stmt_span, *op, in_loop, out);
+                    check_numeric_operand(right, uses, types, stmt_span, *op, in_loop, out);
                 }
 
                 // `==` / `!=` take the numeric-coercion path only when at least
@@ -136,8 +144,8 @@ fn collect_expr_shimmers(
                     if operand_looks_numeric(left, uses, types)
                         || operand_looks_numeric(right, uses, types)
                     {
-                        check_numeric_operand(left, uses, types, stmt_span, *op, out);
-                        check_numeric_operand(right, uses, types, stmt_span, *op, out);
+                        check_numeric_operand(left, uses, types, stmt_span, *op, in_loop, out);
+                        check_numeric_operand(right, uses, types, stmt_span, *op, in_loop, out);
                     }
                 }
 
@@ -148,8 +156,8 @@ fn collect_expr_shimmers(
                 | BinOp::StrLe
                 | BinOp::StrGt
                 | BinOp::StrGe => {
-                    check_string_operand(left, uses, types, stmt_span, *op, out);
-                    check_string_operand(right, uses, types, stmt_span, *op, out);
+                    check_string_operand(left, uses, types, stmt_span, *op, in_loop, out);
+                    check_string_operand(right, uses, types, stmt_span, *op, in_loop, out);
                 }
 
                 _ => {}
@@ -157,7 +165,7 @@ fn collect_expr_shimmers(
         }
 
         ExprNode::Unary { operand, .. } => {
-            collect_expr_shimmers(operand, uses, types, stmt_span, out);
+            collect_expr_shimmers(operand, uses, types, stmt_span, in_loop, out);
         }
 
         ExprNode::Ternary {
@@ -166,9 +174,9 @@ fn collect_expr_shimmers(
             false_branch,
             ..
         } => {
-            collect_expr_shimmers(condition, uses, types, stmt_span, out);
-            collect_expr_shimmers(true_branch, uses, types, stmt_span, out);
-            collect_expr_shimmers(false_branch, uses, types, stmt_span, out);
+            collect_expr_shimmers(condition, uses, types, stmt_span, in_loop, out);
+            collect_expr_shimmers(true_branch, uses, types, stmt_span, in_loop, out);
+            collect_expr_shimmers(false_branch, uses, types, stmt_span, in_loop, out);
         }
 
         _ => {}
@@ -233,14 +241,16 @@ fn expr_string_is_numeric(text: &str) -> bool {
     )
 }
 
-/// Emit S100 if `node` is a variable reference with a non-numeric type
-/// used in a numeric arithmetic context.
+/// Emit a shimmer if `node` is a variable reference with a non-numeric
+/// type used in a numeric arithmetic context.  The code is S101 inside a
+/// loop body (per-iteration conversion) and S100 outside one.
 fn check_numeric_operand(
     node: &ExprNode,
     uses: &HashMap<String, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     span: Span,
     op: BinOp,
+    in_loop: bool,
     out: &mut Vec<ShimmerWarning>,
 ) {
     let ExprNode::Var { name, .. } = node else {
@@ -263,16 +273,17 @@ fn check_numeric_operand(
     };
     // Only flag clearly non-numeric types (String, List, Dict).
     if matches!(current, TclType::String | TclType::List | TclType::Dict) {
+        let code = if in_loop { "S101" } else { "S100" };
         out.push(ShimmerWarning {
             span,
             variable: base.to_owned(),
             from_type: current,
             to_type: TclType::Numeric,
             command: format!("expr:{op:?}"),
-            in_loop: false,
-            code: "S100".to_owned(),
+            in_loop,
+            code: code.to_owned(),
             message: format!(
-                "S100: variable '{var}' has {from} intrep used in arithmetic \
+                "{code}: variable '{var}' has {from} intrep used in arithmetic \
                  expression (op {op:?})",
                 var = base,
                 from = type_name(current),
@@ -282,13 +293,15 @@ fn check_numeric_operand(
     }
 }
 
-/// Emit S100 if `node` is a numeric variable used in a string comparison.
+/// Emit a shimmer if `node` is a numeric variable used in a string
+/// comparison.  S101 inside a loop body, S100 outside one.
 fn check_string_operand(
     node: &ExprNode,
     uses: &HashMap<String, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     span: Span,
     op: BinOp,
+    in_loop: bool,
     out: &mut Vec<ShimmerWarning>,
 ) {
     let ExprNode::Var { name, .. } = node else {
@@ -314,16 +327,17 @@ fn check_string_operand(
         current,
         TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
     ) {
+        let code = if in_loop { "S101" } else { "S100" };
         out.push(ShimmerWarning {
             span,
             variable: base.to_owned(),
             from_type: current,
             to_type: TclType::String,
             command: format!("expr:{op:?}"),
-            in_loop: false,
-            code: "S100".to_owned(),
+            in_loop,
+            code: code.to_owned(),
             message: format!(
-                "S100: numeric variable '{base}' used in string comparison (op {op:?}); \
+                "{code}: numeric variable '{base}' used in string comparison (op {op:?}); \
                  consider using == or != instead"
             ),
             related: Vec::new(),
@@ -433,6 +447,24 @@ mod tests {
             has_shimmer,
             "expected Int-in-string-cmp shimmer in if-condition, got: {w:?}"
         );
+    }
+
+    /// An arithmetic shimmer inside a loop body is a per-iteration cost
+    /// (S101); the same shimmer outside a loop is one-time (S100).
+    #[test]
+    fn expr_shimmer_in_loop_is_s101() {
+        let cu = CompilationUnit::build_for(
+            "proc f {l} {\n  foreach x $l {\n    set y [expr {$x + 1}]\n  }\n}\n",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let s = w.iter().find(|sw| sw.variable == "x");
+        assert!(s.is_some(), "expected expr shimmer for x in loop: {w:?}");
+        let s = s.unwrap();
+        assert_eq!(s.code, "S101", "in-loop arithmetic shimmer must be S101");
+        assert!(s.in_loop);
     }
 
     /// A String literal compared with `eq` — no shimmer (String is correct type).
