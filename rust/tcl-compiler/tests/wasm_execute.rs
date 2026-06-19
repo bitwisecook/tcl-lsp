@@ -17,10 +17,23 @@
 //! condition is false: each `if` takes its else, each loop exits immediately, and
 //! the invoked `::top` terminates without needing a real interpreter.
 //!
-//! This is **Tier 0**: it proves *runnability*. Observing the eval-fallback
-//! command sequence (a host backed by a real `Interp`, asserting which branch
-//! ran) is the next tier and needs in-process host functions (the wasmtime
-//! embedder) or a WASI-writing stub.
+//! Two tiers, both over the wasmtime CLI (no embedder crate):
+//!
+//! - **Tier 0** ([`emitted_modules_run_under_wasmtime`]) — *runnability*: the
+//!   module instantiates and `::top` runs to completion without trapping, across
+//!   the full snippet set (incl. nested loops, break/continue, mid-return). The
+//!   host stub is generated from the compiler's own WASM IR.
+//! - **Tier 1** ([`emitted_control_flow_runs_the_right_commands`]) —
+//!   *correctness*: a WASI-writing host stub prints each eval-fallback command's
+//!   text to stdout, so the test asserts the **exact executed command sequence**
+//!   — proving the emitted control flow takes the right branch / iterates as
+//!   structured. Driving `tcl_expr_bool` to `0` vs `1` exercises both the false
+//!   (else / loop-exit) and true (then) wiring.
+//!
+//! Backing the host with a real `Interp` to observe actual Tcl *side effects*
+//! (not just the command texts) is the next tier and needs the wasmtime embedder
+//! crate; running against the real runtime wasm needs the shared-memory dynamic
+//! link (`__memory_base` relocation) — both later increments.
 
 use tcl_compiler::codegen::wasm::{
     ValType, WasmFunction, WasmInstruction, WasmModule, WasmOp, wasm_codegen_module,
@@ -156,4 +169,112 @@ fn emitted_modules_run_under_wasmtime() {
             String::from_utf8_lossy(&out.stderr),
         );
     }
+}
+
+/// A **WASI-writing host stub** (WAT): `tcl_obj_new_string` packs the
+/// `(offset, len)` of the boxed string into one i32 (`ptr << 16 | len`), which
+/// `tcl_eval` unpacks and writes — the command text followed by a newline — to
+/// stdout via `fd_write`, then returns. `tcl_expr_bool` returns the fixed
+/// `expr_result`, so the test controls which branch the emitted control flow
+/// takes. (The scratch iovec at `0xF000` and the newline iovec/byte at `0xF018`
+/// sit far above the emitted module's low-offset data — no collision.)
+fn wasi_recording_host(expr_result: u8) -> String {
+    format!(
+        r#"(module
+  (import "wasi_snapshot_preview1" "fd_write"
+    (func $fd_write (param i32 i32 i32 i32) (result i32)))
+  (memory (export "memory") 1)
+  (func (export "tcl_obj_new_string") (param i32 i32) (result i32)
+    local.get 0 i32.const 16 i32.shl local.get 1 i32.or)
+  (func (export "tcl_eval") (param i32) (result i32)
+    (i32.store (i32.const 0xF000) (i32.shr_u (local.get 0) (i32.const 16)))
+    (i32.store (i32.const 0xF004) (i32.and (local.get 0) (i32.const 0xFFFF)))
+    (drop (call $fd_write (i32.const 1) (i32.const 0xF000) (i32.const 1) (i32.const 0xF010)))
+    (drop (call $fd_write (i32.const 1) (i32.const 0xF018) (i32.const 1) (i32.const 0xF010)))
+    i32.const 0)
+  (func (export "tcl_obj_release") (param i32))
+  (func (export "tcl_expr_bool") (param i32) (result i32) i32.const {expr_result})
+  (data (i32.const 0xF018) "\20\f0\00\00\01\00\00\00\0a"))
+"#
+    )
+}
+
+/// Emit `src`'s `::top`, preload the WASI recording host, invoke it, and return
+/// the captured stdout (the newline-terminated sequence of eval-fallback command
+/// texts that actually executed).
+fn run_capture(src: &str, expr_result: u8, tag: &str) -> String {
+    let tmp = std::env::temp_dir();
+    let host = tmp.join(format!("tcl_e2e_wasi_{tag}.wat"));
+    let user = tmp.join(format!("tcl_e2e_wuser_{tag}.wasm"));
+    std::fs::write(&host, wasi_recording_host(expr_result)).expect("write host");
+    std::fs::write(&user, compile_user(src).to_bytes()).expect("write user module");
+    let out = std::process::Command::new("wasmtime")
+        .arg("run")
+        .arg("--preload")
+        .arg(format!("tcl={}", host.display()))
+        .arg("--invoke")
+        .arg("::top")
+        .arg(&user)
+        .output()
+        .expect("run wasmtime");
+    let _ = std::fs::remove_file(&host);
+    let _ = std::fs::remove_file(&user);
+    assert!(
+        out.status.success(),
+        "`{tag}` trapped:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8(out.stdout).expect("stdout is utf-8")
+}
+
+/// The emitted control flow executes the **right** commands: stdout is the exact
+/// sequence of eval-fallback texts for the branch/iteration the structure takes,
+/// with `tcl_expr_bool` forced to `0` (false) and `1` (true) to drive each side.
+#[test]
+fn emitted_control_flow_runs_the_right_commands() {
+    if !have_wasmtime() {
+        eprintln!("wasmtime CLI unavailable; skipping end-to-end execution");
+        return;
+    }
+
+    // ----- conditions false (else arms taken, loops exit immediately) -----
+    // Linear: both commands run, in order.
+    assert_eq!(
+        run_capture("set x 5\nputs $x\n", 0, "lin"),
+        "set x 5\nputs $x\n"
+    );
+    // if/else → the else arm.
+    assert_eq!(
+        run_capture("if {1} {puts a} else {puts b}\n", 0, "ifF"),
+        "puts b\n"
+    );
+    // if without else, condition false → only the trailing command.
+    assert_eq!(
+        run_capture("if {1} {puts a}\nputs after\n", 0, "ifNoF"),
+        "puts after\n"
+    );
+    // while, condition false → body never runs.
+    assert_eq!(run_capture("while {1} {puts body}\n", 0, "whF"), "");
+    // for: the init command runs, then the (false) guard exits before the body.
+    assert_eq!(
+        run_capture("for {set i 0} {1} {incr i} {puts body}\n", 0, "forF"),
+        "set i 0\n"
+    );
+
+    // ----- conditions true (then arms taken) -----
+    // if/else → the then arm.
+    assert_eq!(
+        run_capture("if {1} {puts a} else {puts b}\n", 1, "ifT"),
+        "puts a\n"
+    );
+    // if without else, condition true → the body then the trailing command.
+    assert_eq!(
+        run_capture("if {0} {puts first}\nputs after\n", 1, "ifNoT"),
+        "puts first\nputs after\n"
+    );
+    // An opaque `foreach` is one whole-command eval regardless of the guard.
+    assert_eq!(
+        run_capture("foreach x {a b c} {puts $x}\n", 0, "feF"),
+        "foreach x {a b c} {puts $x}\n"
+    );
 }
