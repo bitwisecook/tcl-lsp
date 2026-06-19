@@ -1129,13 +1129,20 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
   new]` / `[::ns::factory]` makes its result a non-literal-but-designed command
   target) is also ported as `Analyser::compute_factory_object_ranges`.
   **Residual (separate row, not object typing):** the 8 remaining W307
-  divergences on 4 tcllib files trace to two orthogonal gaps — `$var method`
-  dispatches *inside* command substitutions (`[$obj m]`) are not recorded as
-  var-command sites, so the multi-dispatch (≥2) suppression under-counts; and
-  `::oo::class` (leading-`::`) class definitions are recognised by neither the
-  analyser nor `signature_scan` (Python has the same `all_classes=[]` blind spot
-  there, so it is *not* an object-typing divergence). Both are analyser-walk /
-  class-extraction follow-ups, not part of the `object_of` typing item.
+  divergences on 4 tcllib files trace to two orthogonal gaps, both owned by
+  **FE-DIAG** (`tcl-compiler::analyser` + `signature_scan`):
+  1. **(real divergence — do under FE-DIAG)** `$var method` dispatches *inside*
+     command substitutions (`[$obj m]`) are not recorded as var-command sites,
+     so the multi-dispatch (≥2) suppression under-counts. Python's
+     `_process_command` recurses into command subs and records the inner head
+     (pca.tcl → 9 sites vs Rust's 1); mirror that in
+     `record_var_or_cmd_command_site`'s caller.
+  2. **(shared latent bug — parity-neutral, lowest priority)** `::oo::class`
+     (leading-`::`) class definitions are recognised by neither the analyser
+     (`handle_oo_class_command`) nor `signature_scan`'s walker. Python has the
+     *identical* `all_classes=[]` blind spot, so fixing it puts Rust ahead of
+     Python rather than closing a port gap — file it upstream against the Python
+     analyser too. Not an `object_of` typing divergence.
 - **done bar quick-fixes** IRULE1201 / 1202 / 5002 / 5004 path-sensitivity (the
   C44 follow-up). The linear scans are replaced by a shared path-sensitive
   walk over the structured IR (`irules_checks::walk_flow`) that threads
