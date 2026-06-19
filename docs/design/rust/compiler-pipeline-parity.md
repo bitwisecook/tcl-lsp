@@ -1097,19 +1097,24 @@ not a decision.
 
 ### P0 — Soundness / correctness (can produce a wrong answer; gate the shim flips)
 
-> **Reconciliation note (2026-06-19, post-publication).** Several P0 optimiser/
-> analyser rows below were re-checked against *landed* Rust work and corrected:
-> **#1 (O120) is withdrawn** — the numeric gate exists (`node_provably_numeric`,
-> `optimiser/helpers/expr_simplify.rs:54-97`, "Mirrors `_is_provably_numeric_expr_node`");
-> **#11 (DynamicNameLocal) is downgraded to a conflict** — Rust `param_traits.rs:479-482`
-> *does* mark `scan`/`lassign`/`regexp`/`regsub` out-vars `VarWrite`, and
-> `docs/rust-rewrite.md:2019` argues the trait is intentionally-not-ported-and-benign;
-> needs reconciliation, not a confirmed regression. The authoritative live
-> open-work set is maintained in [`../../rust-rewrite.md`](../../rust-rewrite.md).
+> **Reconciliation note (2026-06-19, post-publication).** Two P0 rows were
+> re-checked against *landed* Rust work: **#1 (O120) was briefly withdrawn then
+> re-confirmed OPEN** after a Codex review (PR #650) — the numeric gate
+> (`node_provably_numeric`, `optimiser/helpers/expr_simplify.rs:97`) exists but
+> guards only the operand-dropping identities; the string-compare promotion
+> `streq_promote_node` (`:1040`, called from `simplify_node_once` `:408` and
+> `try_strength_reduce_expr_typed` `:695`) takes **no** `NumericCtx` and fires on
+> any `==`/`!=` with a `String` operand, so `$x == "1"` → `$x eq "1"` is still
+> unsound. **#11 (DynamicNameLocal) is downgraded to a conflict** — Rust
+> `param_traits.rs:479-482` *does* mark `scan`/`lassign`/`regexp`/`regsub`
+> out-vars `VarWrite`, and `docs/rust-rewrite.md:2019` argues the trait is
+> intentionally-not-ported-and-benign; needs reconciliation, not a confirmed
+> regression. The authoritative live open-work set is maintained in
+> [`../../rust-rewrite.md`](../../rust-rewrite.md).
 
 | # | Subsystem | Gap | Evidence | Disposition |
 |---|---|---|---|---|
-| 1 | Optimiser §7 | ~~**O120** string-compare without numeric proof~~ **WITHDRAWN** — the gate exists | `optimiser/helpers/expr_simplify.rs:54-97` `node_provably_numeric` | No action — already at parity. |
+| 1 | Optimiser §7 | **O120** string-compare `==`→`eq` promotion fires on any `String` operand with **no non-numeric proof** → `$x == "1"` → `$x eq "1"` flips the result when `$x` is numeric | `streq_promote_node` (`optimiser/helpers/expr_simplify.rs:1040`, no `NumericCtx`); called `:408`/`:695`. Python gates both operands via `_is_provably_non_numeric_expr_node` (`_expr_simplify.py:484`) | Gate the promotion on provably-non-numeric operands (mirror Python's D5-O120). |
 | 2 | Optimiser §7 | **O114** incr idiom rewrites `set x [expr {$x+N}]`→`incr x N` gating only the literal, not `$x` numericity → suggests a rewrite that errors on float `$x` | pattern_recognition.rs:219 (no var gate) | Confirm whether Python gates the variable; add the gate if so. |
 | 3 | Optimiser §7 | **O108** ADCE treats every assignment as side-effect-free → can delete `set x [impureCmd]` | elimination.rs:740 | Verify against landed RHS-purity gate; restore if genuinely dropped. |
 | 4 | Value/SCCP §5 | SCCP omits **escaping-var widening** (`::g`/escaping names not forced OVERDEFINED) | sccp.rs `evaluate_def` (no guard; `escaping_var_names` lives in var_observability.rs, unused by SCCP) | Consult `escaping_var_names` in `evaluate_def`. |

@@ -1050,6 +1050,11 @@ Owns `tcl-compiler::var_escape`.
 
 #### FE-OPT — optimiser passes
 Owns `tcl-compiler::optimiser`, `tcl-compiler::inlining`.
+- **open** O120 string-compare (**soundness**) — `streq_promote_node`
+  (`helpers/expr_simplify.rs:1040`) promotes any `==`/`!=` with a `String`
+  operand to `eq`/`ne` with no non-numeric proof, so `$x == "1"` → `$x eq "1"`
+  flips the result when `$x` is numeric. Gate on provably-non-numeric operands,
+  mirroring Python's `_is_provably_non_numeric_expr_node` (`_expr_simplify.py:484`).
 - **open** O114 incr-idiom — add the variable-numericity (INT) gate
   (`pattern_recognition.rs:219` gates only the literal; unsound for float `$x`).
 - **open** O108 ADCE — restore the substitution / execution-intent purity gate
