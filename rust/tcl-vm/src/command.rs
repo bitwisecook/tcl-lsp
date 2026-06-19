@@ -498,11 +498,19 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(p) => p,
         Err(e) => return err(e),
     };
-    // Prefer the pre-compiled body; fall back to compiling a dynamically-built
-    // body at runtime (e.g. `proc $name $params [subst {…}]`).
-    let body = match vm.module_proc(&body_key) {
+    // The pre-compiled `module_procs` cache is keyed by name, and the compiler
+    // keeps only the *first* definition of a name, so it is stale for a
+    // *redefinition* (`proc p {} …` then `proc p {bar} …` — common in test
+    // suites). A redefinition therefore compiles the body actually supplied to
+    // this call; the first definition keeps the pre-compiled fast path (so
+    // loading a library does not recompile every proc body).
+    let body_str = body_text.to_str();
+    let pre = (!vm.is_proc_defined(&reg_name))
+        .then(|| vm.module_proc(&body_key))
+        .flatten();
+    let body = match pre {
         Some(b) => b,
-        None => match vm.compile_dynamic_body(&body_text.to_str()) {
+        None => match vm.compile_dynamic_body(&body_str) {
             Some(b) => b,
             None => return err(format!("proc \"{name_s}\": could not compile body")),
         },

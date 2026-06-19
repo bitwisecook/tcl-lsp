@@ -733,6 +733,12 @@ impl Vm {
         }
     }
 
+    /// Whether `name` is already a defined user proc — distinguishes a `proc`
+    /// redefinition (which must recompile its body) from a first definition.
+    pub(crate) fn is_proc_defined(&self, name: &str) -> bool {
+        matches!(self.lookup_command(name), Some(Command::Proc(_)))
+    }
+
     /// The invocation argv of the frame at absolute `level` (`info level N`).
     pub(crate) fn frame_argv(&self, level: usize) -> Option<Vec<Value>> {
         self.frames.get(level).map(|f| f.call_argv.clone())
