@@ -4347,6 +4347,77 @@ value without mutating `$v`).
 
 ---
 
+### FP-SH-11 — `*::payload replace` data-arg layout is per-protocol, not always index 3 (S110)
+
+- **Verdict:** TRUE POSITIVE (S110 coverage gap; iRules)
+- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_11_*`
+- **Codes:** S110
+- **Corpus:** non-TCP/HTTP payload rewrites — MQTT, DIAMETER, GTP `replace` sinks (PR #656 added S110; PR #658 review flagged the missed layouts).
+
+`<proto>::payload replace` does **not** share one argument layout, so the
+`<data>` operand sits at a different index per protocol.  Hardcoding index 3
+(the TCP/HTTP `replace OFFSET LENGTH DATA` shape) silently missed S110 at the
+other sinks:
+
+- **data at index 3** — `replace OFFSET LENGTH DATA`: TCP, SCTP, UDP, HTTP, ASM, REWRITE, RTSP, SIP, WS, XML
+- **data at index 1** — `replace DATA …`: MQTT (`replace <data> ?offset? ?length?`), DIAMETER (`replace PAYLOAD`)
+- **variable** — GTP `replace ('-message' MESSAGE)? OFFSET COUNT NEW_VALUE`: data at index 3 normally, index 5 when the optional `-message MESSAGE` flag is present
+
+#### Reproducer
+
+```tcl
+when MQTT_MESSAGE {
+    set p [MQTT::payload]
+    set bad "$p x"
+    MQTT::payload replace $bad
+}
+```
+
+#### Per-line reasoning
+
+1. `set p [MQTT::payload]` — `p` is the raw payload **byte array** (registry flag `byte_array_payload`).
+2. `set bad "$p x"` — double-quote interpolation decodes the bytes to latin-1 characters; `bad` is now a character STRING.
+3. `MQTT::payload replace $bad` — the data operand is `$bad` at **index 1** (`replace <data>`).  The sink re-encodes its character data as UTF-8, double-encoding every original byte `>= 0x80`.
+
+The documented fix (`binary scan $bad c* -` before the sink) re-binarifies the
+value and clears S110, exactly as for the index-3 sinks.
+
+#### Compiler evidence
+
+```
+--- FP-SH-11: *::payload replace data-arg layout is per-protocol, not always index 3 (S110)
+regen: python -m bench.fp_snippets --id FP-SH-11
+function ::when::MQTT_MESSAGE
+  block entry_1
+    [0] AssignValue 'p' value='[MQTT::payload]'  defs={p#1}  uses={}
+    [1] AssignValue 'bad' value='${p} x'  defs={bad#1}  uses={p#1}
+    [2] Call cmd='MQTT::payload'  defs={}  uses={bad#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  types
+    bad#1: STRING
+    p#1: TypeLattice.OVERDEFINED
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/shimmer.py`'s `_payload_replace_data_index` derives the data-operand
+position from `registry.byte_array_payload_layouts()` (a `BytePayloadSpec` per
+command) instead of hardcoding 3, so MQTT/DIAMETER (index 1) and GTP (index 3,
+shifted to 5 by `-message`) are all checked.  New payload commands stay correct
+by declaring their layout in `dialects/f5/irules/*__payload.py` — no change to
+`shimmer.py` is needed.
+
+#### Tests
+
+- `tests/test_fp_sh.py::test_FP_SH_11_mqtt_payload_layout_fires` (TP — index-1 MQTT sink)
+- `tests/test_fp_sh.py::test_FP_SH_11_gtp_message_flag_shift_fires` (TP — GTP `-message` index-5 shift)
+- `tests/test_fp_sh.py::test_FP_SH_11_binary_scan_fix_silent` (FP control — documented re-binarify fix)
+- `tests/test_fp_sh.py::test_FP_SH_11_gtp_offset_not_data_silent` (FP control — clean offset at the old index 3)
+
+---
+
 
 ## OBJ — object dispatch (W307/W308) + snit modelling
 

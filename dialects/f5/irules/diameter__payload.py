@@ -4,7 +4,14 @@
 from __future__ import annotations
 
 from compiler.registry._base import CommandDef, make_av
-from compiler.registry.models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from compiler.registry.models import (
+    BytePayloadSpec,
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    ValidationSpec,
+)
 from compiler.registry.namespace_models import EventRequires
 from compiler.registry.signatures import Arity
 from compiler.registry.taint_hints import TaintColour, TaintHint
@@ -27,7 +34,8 @@ class DiameterPayloadCommand(CommandDef):
         return CommandSpec(
             name="DIAMETER::payload",
             dialects=_IRULES_ONLY,
-            byte_array_payload=True,
+            # `DIAMETER::payload replace PAYLOAD` — data at index 1.
+            byte_array_payload=BytePayloadSpec(replace_data_index=1),
             hover=HoverSnippet(
                 summary="Gets or sets DIAMETER message payload.",
                 synopsis=("DIAMETER::payload ('replace' PAYLOAD)?",),

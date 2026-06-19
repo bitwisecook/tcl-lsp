@@ -684,6 +684,37 @@ class TestIrulesByteArrayCorruption:
         )
         assert "S110" not in _irules_codes(diags), _irules_codes(diags)
 
+    def test_mqtt_payload_roundtrip_fires_s110(self, lsp_server_irules, uri_factory):
+        # MQTT ``replace <data>`` puts the data operand at index 1, not 3 — the
+        # registry-driven layout must still fire S110 here (PR #658 review gap).
+        diags = self._deep_diags(
+            lsp_server_irules,
+            uri_factory,
+            "when MQTT_MESSAGE {\n"
+            "    set p [MQTT::payload]\n"
+            '    set bad "$p x"\n'
+            "    MQTT::payload replace $bad\n"
+            "}\n",
+        )
+        s110 = [d for d in diags if str(d.get("code")) == "S110"]
+        assert s110, _irules_codes(diags)
+        assert s110[0].get("severity") == 2  # DiagnosticSeverity.Warning
+
+    def test_diameter_payload_roundtrip_fires_s110(self, lsp_server_irules, uri_factory):
+        # DIAMETER ``replace PAYLOAD`` — data operand at index 1.
+        diags = self._deep_diags(
+            lsp_server_irules,
+            uri_factory,
+            "when DIAMETER_INGRESS {\n"
+            "    set p [DIAMETER::payload]\n"
+            '    set bad "$p x"\n'
+            "    DIAMETER::payload replace $bad\n"
+            "}\n",
+        )
+        s110 = [d for d in diags if str(d.get("code")) == "S110"]
+        assert s110, _irules_codes(diags)
+        assert s110[0].get("severity") == 2  # DiagnosticSeverity.Warning
+
 
 class TestIrulesWhenBodyAnalysed:
     """Dialect-gated ``when`` body recursion (PR #640), iRules side.
