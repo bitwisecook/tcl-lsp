@@ -218,6 +218,14 @@ impl Lowerer<'_> {
                 later_clauses_dead = true;
             }
             i += 1;
+            // After a clause, only `elseif` / `else` (or end) may follow. A bare
+            // word (`if 1<2 {a} elwood {b}`, `if 0 {a} {b}`) is "extra words
+            // after else clause" — the inline loop would otherwise mis-read it
+            // as another implicit clause. Bail to the runtime `if`, which
+            // reports the error faithfully.
+            if i < args.len() && args[i] != "elseif" && args[i] != "else" {
+                return Self::barrier(seg, "if with extra words");
+            }
         }
 
         if clauses.is_empty() {
