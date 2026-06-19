@@ -965,7 +965,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Lexer / segmenter / expr-lexer / CST | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | ✅ | FE-LEX complete — `${name}` brace-depth, quoted `\<nl>`, nested-body E202/E203 landed (see [history](rust-rewrite-history.md), 2026-06-19) |
 | IR / lowering / CFG / SSA | `tcl-compiler` | 🟢 | `IRUpFrame` clobber; dynamic-`uplevel` barrier; minor IR fields → **FE-DATAFLOW**, **FE-DIAG** |
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
-| Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | **FE-TYPESHIM** complete; precise TclOO `object_of` typing landed under **FE-DIAG** (its W307/W308 consumer) |
+| Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟢 | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) to port → **FE-TYPESHIM** |
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
 | Optimiser passes | `tcl-compiler::optimiser` | 🟡 | O114/O108 gates; O104/O119 applied; O128/O130; O106 category+gates; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
@@ -991,7 +991,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Stage | Track | Owns | Depends on | Size |
 |---|---|---|---|---|
 | FE | **FE-DATAFLOW** | `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}` | — | M |
-| FE | **FE-TYPESHIM** ✅ | `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}` | — | M |
+| FE | **FE-TYPESHIM** 🟢 | `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}` | — | M |
 | FE | **FE-VARESCAPE** | `tcl-compiler::var_escape` | (consumers in FE-OPT) | M |
 | FE | **FE-OPT** | `tcl-compiler::optimiser`, `inlining` | — | L |
 | FE | **FE-CODEGEN** | `tcl-compiler::codegen` (non-wasm) | — | M |
@@ -1044,6 +1044,34 @@ residuals have landed:
   (The interprocedural summary is IR-based, so it needs no guard — it never
   develops the over-optimistic empty-SSA summary the Python guard exists to
   prevent.)
+
+#### FE-TYPESHIM — type inference / shimmer / shapes / rendered-props
+Owns `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}`. The
+original scope (intrep typing, the S100/S101/S102 *performance* shimmer family,
+value-shape tracking, rendered-string properties) landed and stays green; the
+precise TclOO `object_of` typing the W307/W308 consumer needs landed under
+**FE-DIAG**. One new item has since landed on the Python side and needs porting:
+- **open** **S110** byte-array corruption detection (Python PR #656) — a new
+  *correctness* shimmer (distinct from the S100–S102 performance family). A
+  forward byte-provenance dataflow over the SSA graph tracks two states per
+  value — `BINARY` (a live byte array) and `DAMAGED` (binary-sourced but coerced
+  to a character string) — and flags binary data written back through a byte
+  sink, the canonical iRules `*::payload replace` double-encoding bug
+  ([F5 K22406348]). Two mechanisms: **intrinsic** corruption (`string
+  toupper`/`tolower`/`totitle`, `encoding convertto` reinterpret bytes ≥ 0x80 —
+  warn at the transform) and **round-trip** corruption (`string replace` /
+  `append` / interpolation / `format` preserve bytes as latin-1 but yield a
+  STRING; writing it to a byte sink re-encodes — warn at the sink). Binary
+  sources: `binary format` / `binary decode` / `encoding convertto` (plain Tcl,
+  always on) + `*::payload` getters (iRules-gated). Port: the byte-provenance
+  pass into `tcl-compiler::shimmer` alongside the existing detectors, a
+  `byte_array_payload` flag on the `*::payload` command specs in `tcl-registry`
+  + a `byte_array_payload_commands()` accessor, and the S110 wiring into the
+  analyser's shimmer-diagnostic emission. Verify byte-for-byte against the Python
+  `TestByteArrayCorruption` battery + the FP-SH-09/FP-SH-10 contracts, and
+  against real `tclsh` payload semantics (high-byte round-trip).
+
+[F5 K22406348]: https://my.f5.com/manage/s/article/K22406348
 
 #### FE-VARESCAPE — var-escape wiring
 Owns `tcl-compiler::var_escape`.
