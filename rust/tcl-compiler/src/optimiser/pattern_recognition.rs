@@ -1,20 +1,15 @@
 //! Pattern-recognition optimiser pass (C30g).
 //!
 //! Ported from
-//! `core/compiler/optimiser/_pattern_recognition.py`. Three
-//! entry points:
+//! `core/compiler/optimiser/_pattern_recognition.py`. Entry points:
 //!
 //! - **`optimise_incr_idioms`** (`O114`) — rewrite
 //!   `set x [expr {$x ± N}]` to `incr x N`.
-//! - **`optimise_string_build_chains`** (`O104`) — detect
-//!   accumulation chains `set s ""; append s …; append s …` and
-//!   emit a hint-only `O104` on the first `append` suggesting
-//!   a single-statement rewrite.  `O104` matches the Python
-//!   optimiser allocation and the canonical
-//!   `docs/generated/optimisation_codes.md` table; earlier Rust
-//!   commits emitted `O122` here, but `O122` is reserved for the
-//!   `tail_call` recursion-to-loop conversion and the collision
-//!   was fixed in the C* close-out audit.
+//! - **`optimise_end_offset_indexes`** (`O128`) — rewrite length
+//!   arithmetic index args to `end` / `end-N` (in [`super::end_offset`]).
+//! - **`optimise_string_build_chains`** (`O104` / `O130`) — fold
+//!   write-only `set`+`append`/`lappend` build chains into a single
+//!   `set` (in [`super::chain_fold`]).
 //! - **`optimise_multi_set_packing`** (`O119`) — detect three
 //!   or more contiguous `set` commands with safe-literal
 //!   values and emit a hint-only `O119` suggesting a
@@ -22,10 +17,9 @@
 //!   (appropriate on Tcl 8.5 / 8.6; Tcl 9.0 prefers individual
 //!   sets).
 //!
-//! O104 and O119 are hint-only. The source-level multi-statement
-//! deletion + re-emission the Python pass performs is tracked as
-//! a follow-up — emitting the hint is enough to surface the
-//! opportunity in editors / linters.
+//! O119 remains hint-only. O104/O130 now emit applied folds; the source
+//! span allocation matches the canonical
+//! `docs/generated/optimisation_codes.md` table.
 
 use std::collections::HashSet;
 
@@ -49,6 +43,9 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // O128 — end-offset index rewrites (its own segment-level walk over
     // the same source).
     super::end_offset::run(ctx, cu);
+    // O104 / O130 — applied write-only build-chain folds (replaces the old
+    // hint-only detector; owns its own per-function escape gate).
+    super::chain_fold::run(ctx, cu);
 }
 
 /// Names whose **every** SSA version is a known `TclType::Int`. A name absent
@@ -80,7 +77,6 @@ fn lattice_is_int(t: &TypeLattice) -> bool {
 
 fn walk_script(ctx: &mut PassContext<'_>, script: &Script, int_vars: &HashSet<String>) {
     detect_multi_set_packing(ctx, script);
-    detect_string_build_chain(ctx, script);
     for stmt in &script.statements {
         walk_statement(ctx, stmt, int_vars);
     }
@@ -127,55 +123,6 @@ fn detect_multi_set_packing(ctx: &mut PassContext<'_>, script: &Script) {
     }
 }
 
-/// O104: detect `set s ""` followed by two or more
-/// `append s …` to the same variable — a classic
-/// string-build pattern. Emit a hint on the first `append`.
-fn detect_string_build_chain(ctx: &mut PassContext<'_>, script: &Script) {
-    let stmts = &script.statements;
-    let mut i = 0;
-    while i < stmts.len() {
-        // Looking for `set s ""` as the anchor.
-        let Statement::AssignConst { name, value, .. } = &stmts[i] else {
-            i += 1;
-            continue;
-        };
-        if !value.is_empty() && value != "\"\"" && value != "{}" {
-            i += 1;
-            continue;
-        }
-        let var = name.clone();
-        // Count consecutive `append $var …` that follow.
-        let mut j = i + 1;
-        let mut appends = 0;
-        while j < stmts.len() {
-            match &stmts[j] {
-                Statement::Call { command, args, .. }
-                    if command == "append" && args.first() == Some(&var) =>
-                {
-                    appends += 1;
-                    j += 1;
-                }
-                _ => break,
-            }
-        }
-        if appends >= 2 {
-            let span_start = stmts[i].span().start();
-            let span_end = stmts[j - 1].span().end();
-            let span = tcl_lexer::Span::new(span_start, span_end);
-            let mut opt = Optimisation::new(
-                "O104",
-                format!("Replace `{appends}`-step append chain on '{var}' with a single set"),
-                span,
-                "",
-            );
-            opt.hint_only = true;
-            ctx.report(opt);
-            i = j;
-        } else {
-            i += 1;
-        }
-    }
-}
 
 fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, int_vars: &HashSet<String>) {
     match stmt {
@@ -464,22 +411,14 @@ mod tests {
     }
 
     #[test]
-    fn string_build_chain_hints_on_two_plus_appends() {
+    fn string_build_chain_folds_via_pattern_recognition() {
+        // The pass now emits an *applied* O104 fold (not hint-only) — the
+        // detailed behaviour lives in `chain_fold`'s own tests.
         let opts = run_pass("set s {}\nappend s foo\nappend s bar");
         assert!(
-            opts.iter().any(|o| o.code == "O104" && o.hint_only),
-            "expected O104 hint for string-build chain, got {opts:?}",
-        );
-    }
-
-    #[test]
-    fn string_build_chain_requires_empty_initial() {
-        // `set s foo` followed by appends is NOT the pattern —
-        // the initial value is non-empty.
-        let opts = run_pass("set s foo\nappend s bar\nappend s baz");
-        assert!(
-            opts.iter().all(|o| o.code != "O104"),
-            "non-empty initial should not emit O104, got {opts:?}",
+            opts.iter()
+                .any(|o| o.code == "O104" && !o.hint_only && o.replacement == "set s foobar"),
+            "expected applied O104 fold, got {opts:?}",
         );
     }
 

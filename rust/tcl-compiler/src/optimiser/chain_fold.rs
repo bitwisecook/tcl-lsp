@@ -1,0 +1,509 @@
+//! O104 / O130 — write-only build-chain folding.
+//!
+//! Ported (sound subset) from `optimise_string_build_chains` in
+//! `core/compiler/optimiser/_pattern_recognition.py`.
+//!
+//! Collapses a run of consecutive static writes to one variable into a
+//! single `set`:
+//!
+//! ```tcl
+//! set s ""        ;# →  set s "foobar"
+//! append s foo
+//! append s bar
+//! ```
+//! ```tcl
+//! set l {}        ;# →  set l {a b c}
+//! lappend l a
+//! lappend l b c
+//! ```
+//!
+//! `O104` folds string-concat (`append`) chains; `O130` folds list
+//! (`lappend`) chains. The fold emits a `set` rewrite over the *last*
+//! write and a paired deletion over each earlier one, all sharing one
+//! group so they apply atomically.
+//!
+//! ## Soundness gates
+//!
+//! - The writes must be **strictly consecutive** — no statement runs
+//!   between them, so no intermediate value can be observed (the
+//!   `var_observability` flow-sensitive read check Python performs is
+//!   subsumed: a read between writes would be a non-write statement and
+//!   ends the run).
+//! - Every value word must be a static literal (`Esc`/`Str` single-token
+//!   word); a `$var` / `[cmd]` operand ends the run.
+//! - The variable must not **escape** (be aliased via
+//!   `global`/`upvar`/`variable` or be under a `trace`) and must not be a
+//!   cross-event iRules state variable — folding would drop a trace
+//!   callback or a value a later scope / event observes.
+//!
+//! These gates make the fold conservative (it can miss a chain Python's
+//! flow-sensitive pass would fold) but never unsound.
+
+use std::collections::HashSet;
+
+use tcl_lexer::{Span, TokenType};
+
+use crate::compilation_unit::{CompilationUnit, FunctionUnit};
+use crate::ir::{Script, Statement};
+use crate::naming::normalise_var_name;
+use crate::var_observability::analyse_var_observability;
+
+use super::helpers::literals::render_static_string_word;
+use super::helpers::spans::full_rewrite_span;
+use super::{Optimisation, PassContext};
+
+/// Run the chain-fold pass over the whole compilation unit.
+pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
+    let cross = ctx.cross_event_vars.clone();
+    let top_protected = protected_vars(&cu.top_level, &cross);
+    fold_script(ctx, &cu.ir_module.top_level, &top_protected);
+    for (qname, proc) in &cu.ir_module.procedures {
+        let protected = cu
+            .procedures
+            .get(qname)
+            .map_or_else(|| cross.clone(), |fu| protected_vars(fu, &cross));
+        fold_script(ctx, &proc.body, &protected);
+    }
+}
+
+/// Variables that must never have a write-chain folded: those that escape
+/// the frame (aliased / traced) plus the iRules cross-event state set.
+fn protected_vars(fu: &FunctionUnit, cross_event: &HashSet<String>) -> HashSet<String> {
+    let mut set = analyse_var_observability(&fu.cfg).escaping_var_names();
+    set.extend(cross_event.iter().cloned());
+    set
+}
+
+/// Fold chains in `script`, then recurse into control-flow bodies (a
+/// chain never crosses a control-flow boundary, so each body is folded
+/// independently).
+fn fold_script(ctx: &mut PassContext<'_>, script: &Script, protected: &HashSet<String>) {
+    let stmts = &script.statements;
+    let mut i = 0;
+    while i < stmts.len() {
+        if let Some(consumed) = try_fold_chain_at(ctx, stmts, i, protected) {
+            i += consumed;
+        } else {
+            i += 1;
+        }
+    }
+    for stmt in stmts {
+        match stmt {
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                for c in clauses {
+                    fold_script(ctx, &c.body, protected);
+                }
+                if let Some(b) = else_body {
+                    fold_script(ctx, b, protected);
+                }
+            }
+            Statement::For {
+                init, next, body, ..
+            } => {
+                fold_script(ctx, init, protected);
+                fold_script(ctx, next, protected);
+                fold_script(ctx, body, protected);
+            }
+            Statement::While { body, .. }
+            | Statement::Catch { body, .. }
+            | Statement::Foreach { body, .. } => fold_script(ctx, body, protected),
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
+                fold_script(ctx, body, protected);
+                for h in handlers {
+                    fold_script(ctx, &h.body, protected);
+                }
+                if let Some(fb) = finally_body {
+                    fold_script(ctx, fb, protected);
+                }
+            }
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
+                for a in arms {
+                    if let Some(b) = &a.body {
+                        fold_script(ctx, b, protected);
+                    }
+                }
+                if let Some(b) = default_body {
+                    fold_script(ctx, b, protected);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// A single static write to a variable.
+enum Write {
+    /// `set var <static>` — establishes the chain's initial value.
+    Set { var: String, value: String },
+    /// `append var <static>…` — string-concat extension.
+    Append {
+        var: String,
+        word: String,
+        pieces: Vec<String>,
+    },
+    /// `lappend var <static>…` — list extension.
+    Lappend {
+        var: String,
+        word: String,
+        elements: Vec<String>,
+    },
+}
+
+/// Classify `stmt` as a static write, or `None` for anything else
+/// (dynamic operand, other command, control flow).
+fn classify_write(stmt: &Statement) -> Option<Write> {
+    match stmt {
+        Statement::AssignConst { name, value, .. } => Some(Write::Set {
+            var: normalise_var_name(name).to_owned(),
+            value: value.clone(),
+        }),
+        // `set s ""` / `set s foo` lower to `AssignValue`; only a static
+        // single-token literal value (no command/var substitution) anchors
+        // a foldable chain.
+        Statement::AssignValue {
+            name,
+            value,
+            value_needs_backsubst,
+            tokens,
+            ..
+        } => {
+            if *value_needs_backsubst {
+                return None;
+            }
+            let tokens = tokens.as_ref()?;
+            let kind = tokens.argv_kinds.get(2)?;
+            let single = tokens.single_token_word.get(2).copied()?;
+            if !single || !matches!(kind, TokenType::Esc | TokenType::Str) {
+                return None;
+            }
+            Some(Write::Set {
+                var: normalise_var_name(name).to_owned(),
+                value: value.clone(),
+            })
+        }
+        Statement::Call {
+            command,
+            args,
+            tokens,
+            ..
+        } if matches!(command.as_str(), "set" | "append" | "lappend") => {
+            let tokens = tokens.as_ref()?;
+            // Value words are argv index `vararg + 1 ..` (argv[0] is the
+            // command, argv[1] is the variable).
+            let var_word = args.first()?.clone();
+            let var = normalise_var_name(&var_word).to_owned();
+            let value_words = &args[1..];
+            let mut values = Vec::with_capacity(value_words.len());
+            for (j, val) in value_words.iter().enumerate() {
+                let argv_idx = j + 2; // skip command + variable
+                let kind = tokens.argv_kinds.get(argv_idx)?;
+                let single = tokens.single_token_word.get(argv_idx).copied()?;
+                if !single || !matches!(kind, TokenType::Esc | TokenType::Str) {
+                    return None;
+                }
+                values.push(val.clone());
+            }
+            match command.as_str() {
+                "set" if values.len() == 1 => Some(Write::Set {
+                    var,
+                    value: values.into_iter().next().unwrap(),
+                }),
+                "append" if !values.is_empty() => Some(Write::Append {
+                    var,
+                    word: var_word,
+                    pieces: values,
+                }),
+                "lappend" if !values.is_empty() => Some(Write::Lappend {
+                    var,
+                    word: var_word,
+                    elements: values,
+                }),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Attempt to fold a write-chain starting at `stmts[start]`. Returns the
+/// number of statements consumed (the run length) when a fold fires, else
+/// `None`.
+fn try_fold_chain_at(
+    ctx: &mut PassContext<'_>,
+    stmts: &[Statement],
+    start: usize,
+    protected: &HashSet<String>,
+) -> Option<usize> {
+    let Write::Set { var, value } = classify_write(&stmts[start])? else {
+        return None;
+    };
+
+    let mut chain_value = value;
+    let mut elements: Option<Vec<String>> = None;
+    let mut writes = vec![start];
+    let mut last_word: Option<String> = None;
+
+    let mut j = start + 1;
+    while j < stmts.len() {
+        match classify_write(&stmts[j]) {
+            Some(Write::Append { var: v, word, pieces }) if v == var && elements.is_none() => {
+                for p in pieces {
+                    chain_value.push_str(&p);
+                }
+                last_word = Some(word);
+                writes.push(j);
+                j += 1;
+            }
+            Some(Write::Lappend {
+                var: v,
+                word,
+                elements: els,
+            }) if v == var => {
+                if elements.is_none() {
+                    // First lappend after the set — reinterpret the current
+                    // string value as a list (bail if it is not one).
+                    let Ok(base) = tcl_syntax::list::split_list(&chain_value) else {
+                        break;
+                    };
+                    elements = Some(base.into_iter().map(std::borrow::Cow::into_owned).collect());
+                }
+                if let Some(list) = elements.as_mut() {
+                    list.extend(els);
+                }
+                last_word = Some(word);
+                writes.push(j);
+                j += 1;
+            }
+            _ => break,
+        }
+    }
+
+    if writes.len() < 2 || protected.contains(&var) {
+        return None;
+    }
+    // `last_word` is always set: a run of ≥2 writes has at least one
+    // append/lappend after the anchoring set.
+    let var_word = last_word?;
+
+    let (code, fold_msg, dead_msg, rendered) = if let Some(els) = &elements {
+        (
+            "O130",
+            "Fold write-only list build chain",
+            "Remove dead intermediate list write",
+            render_list_word(els),
+        )
+    } else {
+        (
+            "O104",
+            "Fold write-only string build chain",
+            "Remove dead intermediate string write",
+            render_static_string_word(&chain_value)?,
+        )
+    };
+
+    let source = ctx.source;
+    let group = ctx.alloc_group();
+
+    let last = *writes.last().unwrap();
+    let last_span = full_rewrite_span(source, stmts[last].span());
+    let mut fold = Optimisation::new(code, fold_msg, last_span, format!("set {var_word} {rendered}"));
+    fold.group = Some(group);
+    ctx.report(fold);
+
+    for &w in &writes[..writes.len() - 1] {
+        let full = full_rewrite_span(source, stmts[w].span());
+        let next_start = stmts.get(w + 1).map(|s| s.span().start() as usize);
+        let del_span = statement_delete_rewrite_range(source, full, next_start);
+        let mut del = Optimisation::new(code, dead_msg, del_span, "");
+        del.group = Some(group);
+        ctx.report(del);
+    }
+
+    Some(writes.len())
+}
+
+/// Render `elements` as the single `set` value-word that recreates the
+/// list — join into a canonical Tcl list, then quote that as one element.
+/// Mirrors `_render_list_word` (`tcl_list_quote(tcl_list_join(...))`); the
+/// joined string never begins with a bare `#` (the join already quotes a
+/// leading `#`), so `list_element`'s first-element rule is equivalent here.
+fn render_list_word(elements: &[String]) -> String {
+    tcl_syntax::list::list_element(&tcl_syntax::list::join_list(elements))
+}
+
+/// Compute the deletion range for an intermediate write, swallowing the
+/// trailing run of whitespace plus one statement separator (`\n` / `;`) so
+/// the surviving text closes up cleanly. Mirrors
+/// `_statement_delete_rewrite_range`.
+///
+/// `cmd_span` is the full command span (exclusive end); `next_start` is
+/// the byte offset of the next statement, or `None` at end-of-script.
+fn statement_delete_rewrite_range(
+    source: &str,
+    cmd_span: Span,
+    next_start: Option<usize>,
+) -> Span {
+    let Some(next) = next_start else {
+        return cmd_span;
+    };
+    let end = cmd_span.end() as usize;
+    if next <= end || next > source.len() {
+        return cmd_span;
+    }
+    let bytes = source.as_bytes();
+    let mut cursor = end;
+    while cursor < next && matches!(bytes[cursor], b' ' | b'\t' | b'\r') {
+        cursor += 1;
+    }
+    if cursor < next && matches!(bytes[cursor], b'\n' | b';') {
+        cursor += 1;
+        while cursor < next && matches!(bytes[cursor], b' ' | b'\t' | b'\r') {
+            cursor += 1;
+        }
+        if cursor > end
+            && let Ok(new_end) = u32::try_from(cursor)
+        {
+            return Span::new(cmd_span.start(), new_end);
+        }
+    }
+    cmd_span
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::interprocedural::InterproceduralAnalysis;
+    use tcl_registry::CommandRegistry;
+
+    fn registry() -> CommandRegistry {
+        CommandRegistry::build_default()
+    }
+
+    fn run_pass(source: &str) -> Vec<Optimisation> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        run(&mut ctx, &cu);
+        ctx.optimisations
+    }
+
+    /// Apply every grouped O104/O130 rewrite to `source` (reverse offset
+    /// order so earlier edits don't shift later spans) and return the
+    /// rewritten text.
+    fn apply(source: &str) -> String {
+        let mut opts: Vec<Optimisation> = run_pass(source)
+            .into_iter()
+            .filter(|o| o.code == "O104" || o.code == "O130")
+            .collect();
+        opts.sort_by_key(|o| std::cmp::Reverse(o.span.start()));
+        let mut out = source.to_owned();
+        for o in opts {
+            out.replace_range(o.span.start() as usize..o.span.end() as usize, &o.replacement);
+        }
+        out
+    }
+
+    #[test]
+    fn string_chain_folds_to_single_set() {
+        let opts = run_pass("set s \"\"\nappend s foo\nappend s bar");
+        let fold = opts
+            .iter()
+            .find(|o| o.code == "O104" && o.replacement.starts_with("set"))
+            .expect("expected an O104 fold");
+        assert_eq!(fold.replacement, "set s foobar");
+        // One fold + two deletions, all in one group.
+        let o104: Vec<_> = opts.iter().filter(|o| o.code == "O104").collect();
+        assert_eq!(o104.len(), 3);
+        let groups: HashSet<_> = o104.iter().filter_map(|o| o.group).collect();
+        assert_eq!(groups.len(), 1);
+    }
+
+    #[test]
+    fn string_chain_rewrite_applies_cleanly() {
+        assert_eq!(apply("set s \"\"\nappend s foo\nappend s bar"), "set s foobar");
+        assert_eq!(
+            apply("set s start\nappend s _mid\nappend s _end"),
+            "set s start_mid_end",
+        );
+    }
+
+    #[test]
+    fn list_chain_folds_with_lappend() {
+        assert_eq!(apply("set l {}\nlappend l a\nlappend l b c"), "set l {a b c}");
+    }
+
+    #[test]
+    fn list_chain_quotes_spacey_elements() {
+        // An element containing a space must be re-quoted as a list word.
+        assert_eq!(apply("set l {}\nlappend l {a b}\nlappend l c"), "set l {{a b} c}");
+    }
+
+    #[test]
+    fn single_write_does_not_fold() {
+        let opts = run_pass("set s \"\"\nappend s foo");
+        // set + one append = 2 writes → folds. (Mirrors Python's >= 2 gate.)
+        assert!(opts.iter().any(|o| o.code == "O104"));
+        // But a lone set is not a chain.
+        let opts = run_pass("set s foo");
+        assert!(opts.iter().all(|o| o.code != "O104"));
+    }
+
+    #[test]
+    fn dynamic_value_ends_the_run() {
+        // `append s $x` is dynamic — the chain stops before it, and the
+        // `set; append foo` prefix (2 writes) still folds.
+        let opts = run_pass("set s \"\"\nappend s foo\nappend s $x");
+        assert!(opts.iter().any(|o| o.code == "O104" && o.replacement == "set s foo"));
+    }
+
+    #[test]
+    fn intervening_read_ends_the_run_but_folds_prefix() {
+        // `puts $s` reads the accumulator, ending the run after `append s
+        // foo`. The consecutive prefix still folds to `set s foo` (the same
+        // value `puts` observes); the trailing `append s bar` is not folded
+        // into it. Matches Python's `finish_chain`-on-read behaviour.
+        let opts = run_pass("set s \"\"\nappend s foo\nputs $s\nappend s bar");
+        let folds: Vec<&str> = opts
+            .iter()
+            .filter(|o| o.code == "O104" && o.replacement.starts_with("set"))
+            .map(|o| o.replacement.as_str())
+            .collect();
+        assert_eq!(folds, ["set s foo"], "got {opts:?}");
+    }
+
+    #[test]
+    fn escaping_global_var_not_folded() {
+        // `s` is global — every write is visible to other scopes.
+        let opts = run_pass("proc ::f {} { global s\nset s \"\"\nappend s foo\nappend s bar }");
+        assert!(
+            opts.iter().all(|o| o.code != "O104"),
+            "global var must not fold, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn cross_event_var_not_folded() {
+        let src = "set s \"\"\nappend s foo\nappend s bar";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.cross_event_vars.insert("s".to_owned());
+        run(&mut ctx, &cu);
+        assert!(ctx.optimisations.iter().all(|o| o.code != "O104"));
+    }
+
+    #[test]
+    fn folds_inside_proc_body() {
+        assert_eq!(
+            apply("proc ::f {} {\n    set s \"\"\n    append s a\n    append s b\n}"),
+            "proc ::f {} {\n    set s ab\n}",
+        );
+    }
+}
