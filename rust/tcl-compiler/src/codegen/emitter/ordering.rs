@@ -271,10 +271,16 @@ pub fn reorder_bottom_tested(cfg: &CfgFunction, order: Vec<String>) -> Vec<Strin
 /// For `for` loops, continue jumps to the step block; for `while` and
 /// `foreach` loops, continue jumps to the header. Break always jumps
 /// to the end block.
+///
+/// The continue target is `None` for a `for` loop's *step* block: a
+/// `continue` in the `next` script propagates out of the loop rather than
+/// re-running the step (C's `Tcl_ForObjCmd` gives the step its own exception
+/// range with `continue -1`; a self-jump here would infinite-loop). The step
+/// keeps its break target, since `break` in the step exits the loop cleanly.
 #[must_use]
-pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (String, String)> {
+pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (Option<String>, String)> {
     let all_loop_headers: &[&str] = &["for_header_", "while_header_", "foreach_header_"];
-    let mut ctx: HashMap<String, (String, String)> = HashMap::new();
+    let mut ctx: HashMap<String, (Option<String>, String)> = HashMap::new();
 
     for (bname, blk) in &cfg.blocks {
         if !starts_with_any(bname, all_loop_headers) {
@@ -312,11 +318,19 @@ pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (String, String)
             bname.clone()
         };
 
-        // Collect body blocks (excluding exit).
+        // Collect body blocks (excluding exit). The for-step block is reachable
+        // from the body, so it lands in this set — but a `continue` there must
+        // propagate out (no jump target), not jump to the step itself.
         let mut body_blocks: HashSet<String> = HashSet::new();
         collect_loop_body(cfg, &body_start, bname, &mut body_blocks, Some(&end_block));
+        let is_for = bname.starts_with("for_header_");
         for bb in body_blocks {
-            ctx.insert(bb, (cont_target.clone(), end_block.clone()));
+            let cont = if is_for && bb == cont_target {
+                None // the step block: `continue` propagates out of the loop
+            } else {
+                Some(cont_target.clone())
+            };
+            ctx.insert(bb, (cont, end_block.clone()));
         }
     }
 

@@ -122,11 +122,11 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     for (hdr, info) in &complex_foreach {
         for bb in &info.body_blocks {
             if let Some((cont, _brk)) = loop_ctx.get(bb)
-                && cont == hdr
+                && cont.as_deref() == Some(hdr.as_str())
             {
                 loop_ctx.insert(
                     bb.clone(),
-                    (info.step_label.clone(), info.break_label.clone()),
+                    (Some(info.step_label.clone()), info.break_label.clone()),
                 );
                 complex_body_blocks.insert(bb.clone());
             }
@@ -174,9 +174,10 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             continue;
         }
 
-        // Update loop context for break/continue compilation.
+        // Update loop context for break/continue compilation. The continue
+        // target is `None` for a `for`-step block (continue propagates out).
         if let Some((cont, brk)) = loop_ctx.get(bname) {
-            ctx.continue_target = Some(cont.clone());
+            ctx.continue_target = cont.clone();
             ctx.break_target = Some(brk.clone());
         }
 
