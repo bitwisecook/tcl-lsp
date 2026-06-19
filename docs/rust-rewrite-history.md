@@ -1164,6 +1164,39 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
+Landed: 2026-06-19 — **FE-VARESCAPE complete** (branch
+`claude/great-ptolemy-kti1wz`). The two open var-escape items closed, and the
+analysis is wired to its first consumer (the inliner). The track's `####`
+section was dropped from `rust-rewrite.md` (now a ✅ row). What landed:
+
+- **Orchestrator** — new `var_escape::api` with `analyse_var_escape` (the
+  IR-only tree-walk path that populates `pure_leaf`, the one the inliner uses),
+  `analyse_var_escape_cu` (the flow-sensitive CFG/SSA path for codegen frame
+  analysis), and `cfg_result_to_summary` (`CfgEscapeResult → ProcEscapeSummary`,
+  "FRAME wins" collapse, `pure_leaf` left default on the CFG path per Python).
+  Threads the already-landed `analyse_script` / `analyse_cfg_function` /
+  `solve_interprocedural_escape` / `populate_local_slots` pieces. Re-exported
+  with `TOP_LEVEL_QNAME = "::top"`. Mirrors `_api.py`.
+- **`pure_leaf` family** — added the `pure_leaf` field to `ProcEscapeSummary`
+  plus the derived `safe_to_inline` (= `pure_leaf`), `safe_to_dce` (the base
+  predicate without the transitive-callee clause — the PR #237 DCE relaxation),
+  and `safe_for_frame_elision` (= `!frame_needed`) predicates. The walker
+  computes the intraprocedural base predicate (`!frame_needed && !has_fallback
+  && !has_call_fallback && upvar_source_names.is_empty() &&
+  !unbounded_upvar_source`); `with_escapes` clears it on a callee-induced
+  escape or pessimistic downgrade; `solve_interprocedural_escape` gained the
+  transitive fixpoint (`downgrade_non_pure_leaf_callers`) — a proc stays
+  `pure_leaf` only if every direct callee is itself `pure_leaf` or a known
+  frameless runtime builtin. Mirrors `_types.py` + `_propagation.py` +
+  `_interprocedural.py`.
+- **Inliner wiring** — `inlining::build_inlinable_map` now gates on the precise
+  `safe_to_inline` proof from this analysis (replacing the conservative
+  splice-eligibility-only approximation), connecting FE-VARESCAPE to its first
+  in-tree consumer.
+
+The interprocedural worklist and `pure_leaf` fixpoint were factored into the
+`propagate_transitive_sources` / `downgrade_non_pure_leaf_callers` helpers.
+
 Landed: 2026-06-19 — **FE-OPT soundness gates + correctness guards**
 (branch `claude/great-ptolemy-kti1wz`). The optimiser's miscompile-class
 gaps — the ones that block flipping the Rust optimiser default-on — are

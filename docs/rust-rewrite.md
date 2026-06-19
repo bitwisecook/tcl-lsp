@@ -966,7 +966,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | IR / lowering / CFG / SSA | `tcl-compiler` | 🟢 | `IRUpFrame` clobber; dynamic-`uplevel` barrier; minor IR fields → **FE-DATAFLOW**, **FE-DIAG** |
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟢 | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) to port → **FE-TYPESHIM** |
-| var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
+| var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
 | Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟡 | every O-code pass done — soundness gates (O120/O114/O108), O106 category, O123 guard, O110 boolify, O125 cross-event + already-covered guards, O101/O115 branch coverage, O103 rename gate, **all applied rewrites** (O104/O130/O119/O128), and the **inliner v0+verbatim** shapes landed; remaining: precise-flow extension; O106 trace+latch-dominance; O103 namespace-chain + O125 deepest-target precision; inliner **v3** (α-rename, gated on RT-WASM consumer + FE-VARESCAPE) → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005 (incl. nested `[…]` subs); snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108. Residuals: per-check config toggles + surfacing flow-warning fixes as code actions → **SRV-LSP**. Two review-found refinements (IRULE2001 3-arg `matchclass` fix, catch-`return` flow) are shared with Python → fixed Python-first, port pending → **FE-DIAG** |
@@ -992,7 +992,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 |---|---|---|---|---|
 | FE | **FE-DATAFLOW** | `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}` | — | M |
 | FE | **FE-TYPESHIM** 🟢 | `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}` | — | M |
-| FE | **FE-VARESCAPE** | `tcl-compiler::var_escape` | (consumers in FE-OPT) | M |
+| FE | **FE-VARESCAPE** ✅ | `tcl-compiler::var_escape` | — | M |
 | FE | **FE-OPT** | `tcl-compiler::optimiser`, `inlining` | — | L |
 | FE | **FE-CODEGEN** | `tcl-compiler::codegen` (non-wasm) | — | M |
 | FE | **FE-DIAG** ✅ | `tcl-compiler::analyser`, `irules_checks` | — | M |
@@ -1069,15 +1069,6 @@ precise TclOO `object_of` typing the W307/W308 consumer needs landed under
 
 [F5 K22406348]: https://my.f5.com/manage/s/article/K22406348
 
-#### FE-VARESCAPE — var-escape wiring
-Owns `tcl-compiler::var_escape`.
-- **open** top-level orchestrator + `CfgEscapeResult → ProcEscapeSummary` driver
-  (transfer functions are ported and tested but reachable only from their own
-  tests).
-- **open** the `pure_leaf` family (`safe_to_inline` / `safe_to_dce` /
-  `safe_for_frame_elision`) + its interprocedural fixpoint. *(gated on FE-OPT's
-  inliner / DCE consumers existing)*
-
 #### FE-OPT — optimiser passes
 Owns `tcl-compiler::optimiser`, `tcl-compiler::inlining`. The **soundness
 gates** (O120/O114/O108), the O106 profile-category registration, the O123
@@ -1110,19 +1101,18 @@ build-chain folds (`optimiser::chain_fold`), O119 multi-set packing
 - **partial** general proc inliner — the **v0 (empty-body) + v1/v2 (zero-param
   verbatim wrapper) shapes have landed** (`tcl-compiler::inlining`,
   2026-06-19): a statement-position call to an inlinable proc is replaced by
-  its spliced body (or removed), gated on `stmt_is_splice_eligible` (def-free
-  frame-independent allow-listed builtin calls, no `[cmd]` arg subst), which
-  subsumes `pure_leaf` for the verbatim shape. **Residual:** the **v3
+  its spliced body (or removed), gated on **both** the precise
+  `var_escape::safe_to_inline` (`pure_leaf`) proof — now wired (FE-VARESCAPE
+  complete) — and `stmt_is_splice_eligible` (def-free frame-independent
+  allow-listed builtin calls, no `[cmd]` arg subst). **Residual:** the **v3
   parameterised** shape (α-renaming via `_rename.py` over value strings / expr
   ASTs / defs-reads / foreach-catch bindings, variadic packing, parameter
-  defaults, trailing-vs-non-trailing `return` for/break wrapping), the precise
-  `var_escape::pure_leaf` profitability gate, and dead-proc elimination.
-  **Cross-track dependency (handoff):** the inliner's *only consumer is the
-  WASM codegen* (`compiler/codegen/wasm/api.py`), so end-to-end
-  (execution-differential) verification is gated on **RT-WASM** (🔴 unported);
-  and the precise `pure_leaf` tag is gated on **FE-VARESCAPE** wiring. The v3
-  rewriter is capture-sensitive (variable capture) and should land with that
-  execution-verification path rather than as IR-shape-only unit tests. *(large)*
+  defaults, trailing-vs-non-trailing `return` for/break wrapping) and dead-proc
+  elimination. **Cross-track dependency (handoff):** the inliner's *only
+  consumer is the WASM codegen* (`compiler/codegen/wasm/api.py`), so end-to-end
+  (execution-differential) verification of the capture-sensitive v3 rewriter is
+  gated on **RT-WASM** (🔴 unported) — v3 should land alongside that consumer
+  rather than as IR-shape-only unit tests. *(large)*
 
 #### FE-CODEGEN — bytecode codegen
 Owns `tcl-compiler::codegen` (non-wasm).
