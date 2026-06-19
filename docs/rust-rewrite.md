@@ -967,7 +967,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟢 | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) to port → **FE-TYPESHIM** |
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
-| Optimiser passes | `tcl-compiler::optimiser` | 🟡 | soundness gates (O120/O114/O108), O106 category, O123 guard, O110 boolify landed; remaining: O104/O119 applied rewrites; O128/O130; O106 trace+latch-dominance; O103/O125/O101/O115 precision; general inliner → **FE-OPT** |
+| Optimiser passes | `tcl-compiler::optimiser` | 🟡 | soundness gates (O120/O114/O108), O106 category, O123 guard, O110 boolify, O128 end-offset, O125 cross-event guard landed; remaining: O104/O119/O130 applied rewrites; O106 trace+latch-dominance; O103/O125 multi-branch/O101/O115 precision; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005 (incl. nested `[…]` subs); snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108. Residuals: per-check config toggles + surfacing flow-warning fixes as code actions → **SRV-LSP**. Two review-found refinements (IRULE2001 3-arg `matchclass` fix, catch-`return` flow) are shared with Python → fixed Python-first, port pending → **FE-DIAG** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
@@ -1090,17 +1090,20 @@ general inliner:
   flow-sensitive `var_observability` escape gate and the
   `_statement_delete_rewrite_range` delete-span logic so a folded chain's
   intermediate writes are removed with byte-exact ranges.
-- **open** O128 (end-offset index) and O130 (lappend chain) — implement
-  (profile entries only today). Both need a per-statement token re-parse
-  (`parse_single_command` over the statement's source slice, recursing into
-  nested `[…]` subs) to recover the index/element argument spans the IR
-  `Statement::Call { args: Vec<String> }` does not carry.
+- **open** O130 (lappend chain) — the list variant of the O104 chain fold,
+  implemented by the same applied-rewrite pass above (shares the observability
+  gate + delete-span logic). **O128 (end-offset index) has landed**
+  (`optimiser::end_offset`, 2026-06-19): a per-statement token re-parse over
+  the statement's source slice (recursing into nested `[…]` subs) recovers the
+  index argument's command-subst span the IR `Statement::Call { args:
+  Vec<String> }` does not carry.
 - **open** O106 precision — thread execution-trace facts into the GVN/LICM
   family and add the latch-dominance "runs every iteration" gate. (The
   profile-category omission that made the hint unsuppressable is fixed.)
 - **open** residuals: O103 namespace-chain resolution + rename gating; O125
-  cross-event-var + multi-branch sinking; O101/O115 branch-condition coverage
-  in `propagate_into_branches`. (The O110 instcombine gap is closed for the
+  multi-branch / deepest-target sinking + already-covered guard (the
+  **cross-event-var guard has landed**); O101/O115 branch-condition coverage in
+  `propagate_into_branches`. (The O110 instcombine gap is closed for the
   logical identities; the regex/glob→string-op rewrites remain, gated on the
   iRules `MatchesGlob`/`MatchesRegex` expr operators.)
 - **open** general proc inliner — port `compiler/inlining/` (the v0–v3 splice

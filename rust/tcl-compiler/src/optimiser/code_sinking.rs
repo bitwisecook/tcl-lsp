@@ -50,6 +50,13 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
         let Some((var, span)) = sinkable_assignment(stmt) else {
             continue;
         };
+        // A variable that carries state across `when <event>` boundaries
+        // (iRules) is observable after this event handler returns, so its
+        // definition must not be sunk into a branch that may not run.
+        // Mirrors Python's `var_name in ctx.cross_event_vars` guard.
+        if ctx.cross_event_vars.contains(&var) {
+            continue;
+        }
         let decision = &stmts[i + 1];
         if !is_decision(decision) {
             continue;
@@ -484,6 +491,23 @@ mod tests {
         assert!(
             opts.iter().any(|o| o.code == "O125"),
             "expected an O125 diagnostic, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn cross_event_var_is_not_sunk() {
+        // `x` carries state across iRules `when` events, so its definition
+        // must stay where every later event can observe it — never sunk
+        // into a branch that might not run.
+        let src = "proc ::f {flag} { set x 1; if {$flag} { puts $x } else { puts no } }";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.cross_event_vars.insert("x".to_owned());
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations.iter().all(|o| o.code != "O125"),
+            "cross-event var must not be sunk, got {:?}",
+            ctx.optimisations,
         );
     }
 

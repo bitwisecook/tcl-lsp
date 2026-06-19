@@ -1206,6 +1206,22 @@ general inliner). What landed:
   normalisation; the `!!x` collapse is gated the same way (was unconditional,
   mis-normalising `expr {!!2}`) and `~~x` on numericity. The regex/glob →
   string-op rewrites remain open.
+- **O128 (end-offset index)** — new `optimiser::end_offset` module. Rewrites
+  list/string index arguments written as length arithmetic
+  (`[expr {[llength $L] - N}]`) to Tcl's `end` / `end-N`. The IR `Statement`
+  carries only argv *texts*, so each statement's source slice is re-segmented
+  (`segment_commands_with_offset`) to recover the index argument's
+  command-substitution span, and nested `[…]` substitutions are walked
+  recursively. Covers `lindex`/`lrange`/`lreplace` (llength) +
+  `string index`/`range`/`replace` (string length); excludes `linsert` and
+  multi-index `lindex` tails; fires only when the length operand is textually
+  identical to the indexed container. Byte-exact spans + `end`/`end-N`
+  semantics verified against tclsh.
+- **O125 (code-sinking soundness)** — added the cross-event-var guard: an
+  assignment to a variable in `ctx.cross_event_vars` (iRules state carried
+  across `when <event>` boundaries) is never sunk into a branch, matching
+  Python's `var_name in ctx.cross_event_vars` skip. The multi-branch /
+  deepest-target descent + already-covered guard remain open.
 
 All verified against the Python reference algorithms in
 `compiler/optimiser/{_expr_simplify,_pattern_recognition,_elimination,_tail_call}.py`
