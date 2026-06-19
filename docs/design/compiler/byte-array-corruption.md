@@ -68,9 +68,14 @@ It emits S110 in two places, matching the two damage mechanisms:
   transform — the bytes are already corrupt.
 - **Round-trip** (`_STRING_VALUE_SUBS`, `_STRING_COERCING_COMMANDS`,
   interpolation, `append`, `expr`): mark the value DAMAGED and warn only when it
-  reaches a `<proto>::payload replace` sink. A `binary scan $v …` /
-  `binary format … $v` between the coercion and the sink re-binarifies `v` and
-  clears DAMAGED (the documented fix).
+  reaches a `<proto>::payload replace` sink. A `binary scan $v …` between the
+  coercion and the sink re-binarifies `v` *in place* and clears DAMAGED (the
+  documented fix). `binary format … $v` does **not** clear it — it returns a new
+  value and does not mutate `$v`; only the assigned form `set x [binary format
+  …]` re-binarifies (via the byte-array return type). The intrinsic checks also
+  apply to the **inline sink form** — `<proto>::payload replace …
+  [encoding convertto utf-8 $payload]` is DAMAGED, because `convertto`'s
+  byte-array return type must not mask that it is the corrupting op.
 
 ## Why provenance, not the type lattice
 

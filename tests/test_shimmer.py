@@ -1015,6 +1015,51 @@ class TestByteArrayCorruption:
         assert len(warnings) == 1
         assert "double-encode" in warnings[0].message
 
+    def test_inline_convertto_at_sink_fires(self):
+        # PR #656 review: an inline ``encoding convertto`` of a binary value at
+        # the sink is the double-encode bug too — convertto's byte-array return
+        # type must not mask it.
+        source = (
+            "when HTTP_REQUEST_DATA {\n"
+            "  set payload [HTTP::payload]\n"
+            "  HTTP::payload replace 0 100 [encoding convertto utf-8 $payload]\n"
+            "}\n"
+        )
+        assert len(self._irules(source)) == 1
+
+    def test_inline_case_fold_at_sink_fires(self):
+        source = (
+            "when CLIENT_DATA {\n"
+            "  set p [TCP::payload]\n"
+            "  TCP::payload replace 0 1 [string toupper $p]\n"
+            "}\n"
+        )
+        assert len(self._irules(source)) == 1
+
+    def test_binary_format_does_not_clear_provenance(self):
+        # PR #656 review: ``binary format a* $v`` returns a new value; it does
+        # NOT re-binarify ``$v`` in place, so the damaged value still reaches
+        # the sink and must still fire S110 (unlike ``binary scan``).
+        source = (
+            "when HTTP_REQUEST_DATA {\n"
+            "  set payload [HTTP::payload]\n"
+            '  set v "$payload more"\n'
+            "  binary format a* $v\n"
+            "  HTTP::payload replace 0 100 $v\n"
+            "}\n"
+        )
+        assert len(self._irules(source)) == 1
+
+    def test_clean_convertto_source_at_sink_silent(self):
+        # A convertto of NON-binary data is a legitimate byte source — silent.
+        source = (
+            "when HTTP_REQUEST_DATA {\n"
+            "  set s [HTTP::header value x-thing]\n"
+            "  HTTP::payload replace 0 100 [encoding convertto utf-8 $s]\n"
+            "}\n"
+        )
+        assert self._irules(source) == []
+
     # --- iRules-specific recognition must NOT leak into plain Tcl ---
 
     def test_payload_names_outside_irules_dialect_silent(self):

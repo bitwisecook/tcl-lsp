@@ -4335,8 +4335,9 @@ type lattice.)
 BINARY from the `HTTP::payload` getter (`registry.byte_array_payload_commands()`),
 propagates DAMAGED through the interpolation, and emits S110 at the
 `HTTP::payload replace` sink because the data argument is DAMAGED.  A
-`binary scan $v …` / `binary format … $v` between the coercion and the sink
-re-binarifies `v` and suppresses the warning.
+`binary scan $v …` between the coercion and the sink re-binarifies `v` in place
+and suppresses the warning (`binary format … $v` does not — it returns a new
+value without mutating `$v`).
 
 #### Tests
 

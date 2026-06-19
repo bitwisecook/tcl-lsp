@@ -1718,6 +1718,30 @@ def _arg_byte_prov(
     parsed = parse_command_substitution(a)
     if parsed is not None:
         cmd, cargs = parsed
+        # ``encoding convertto`` and ``string`` case-folding intrinsically
+        # corrupt a binary operand (double-encode / mangle high bytes).  These
+        # must be checked *before* the byte-array-return-type classification
+        # below: ``encoding convertto`` returns a byte array, but applied to a
+        # binary value it is the corrupting op — so the inline sink form
+        # ``<proto>::payload replace … [encoding convertto …]`` is DAMAGED, not
+        # a clean source.
+        if (cmd == "encoding" and cargs and cargs[0] == "convertto") or (
+            cmd == "string" and cargs and cargs[0] in _CASE_FOLD_STRING_SUBS
+        ):
+            operand = _join_prov([_arg_byte_prov(c, uses, prov, payload_cmds) for c in cargs[1:]])
+            if operand is not None and operand.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
+                return _ByteProvInfo(
+                    _ByteProv.DAMAGED,
+                    operand.source_range,
+                    operand.source_label,
+                    None,
+                    _coercion_label(cmd, cargs),
+                )
+            # ``encoding convertto`` of non-binary data is a legitimate byte
+            # source; case folding of non-binary data is untracked.
+            if cmd == "encoding":
+                return _ByteProvInfo(_ByteProv.BINARY, None, "encoding convertto")
+            return None
         if _is_payload_getter(cmd, cargs, payload_cmds) or _cmdsub_returns_bytearray(cmd, cargs):
             return _ByteProvInfo(_ByteProv.BINARY, None, _source_label(cmd, cargs))
         # A string transform applied to a binary operand inside the arg.
@@ -1985,18 +2009,19 @@ def _track_call(
     cmd, args = stmt.command, stmt.args
     uses = ssa_stmt.uses
 
-    # ``binary scan $v …`` / ``binary format … $v`` re-binarify their operands
-    # in place — the documented fix.  Clear DAMAGED on the referenced versions.
-    if cmd == "binary" and args and args[0] in ("scan", "format"):
-        for a in args[1:]:
-            if is_pure_var_ref(a):
-                nm = _normalise_var_name(a)
-                v = uses.get(nm, 0)
-                if v > 0 and (nm, v) in prov:
-                    old = prov[(nm, v)]
-                    prov[(nm, v)] = _ByteProvInfo(
-                        _ByteProv.BINARY, old.source_range, old.source_label
-                    )
+    # ``binary scan $v …`` re-binarifies its *value* operand in place (forces a
+    # byte-array intrep) — the documented fix.  ``binary format … $v`` does NOT
+    # mutate ``$v`` (it returns a new value), so it must not clear provenance
+    # here; the assigned form ``set x [binary format …]`` is re-binarified by
+    # _track_assign_value via the byte-array return type.
+    if cmd == "binary" and len(args) >= 2 and args[0] == "scan":
+        a = args[1]
+        if is_pure_var_ref(a):
+            nm = _normalise_var_name(a)
+            v = uses.get(nm, 0)
+            if v > 0 and (nm, v) in prov:
+                old = prov[(nm, v)]
+                prov[(nm, v)] = _ByteProvInfo(_ByteProv.BINARY, old.source_range, old.source_label)
         return
 
     # ``append v …`` coerces the target to a character string when either the
