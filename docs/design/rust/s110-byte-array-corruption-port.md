@@ -1,12 +1,16 @@
 # Porting S110 (byte-array corruption) to Rust
 
-> **Status:** spec / plan. The Python implementation landed in PR #656 (on
-> `main`); this document is the port spec for the Rust `tcl-compiler::shimmer`
-> subsystem. The owning track is **FE-TYPESHIM** in
+> **Status:** ✅ landed. The Python implementation landed in PR #656 (on
+> `main`); the Rust port lives in `tcl-compiler::shimmer::byte_array` (the
+> detector), `tcl-registry` (`BytePayloadSpec` + `CommandSpec::byte_array_payload`
+> + `CommandRegistry::byte_array_payload_layouts`), and is wired through
+> `compiler_checks::run_all_checks` (`push_shimmer_checks`) and the compiler
+> explorer's shimmer view. This document is retained as the port spec for the
+> Rust `tcl-compiler::shimmer` subsystem. The owning track is **FE-TYPESHIM** in
 > [`../../rust-rewrite.md`](../../rust-rewrite.md). The Python design rationale
 > (damage taxonomy, why provenance is separate from the type lattice) lives in
-> `docs/design/compiler/byte-array-corruption.md` (added by PR #656 — currently
-> on `main`, not yet on the `rust` branch); the FP contract is in
+> [`../compiler/byte-array-corruption.md`](../compiler/byte-array-corruption.md)
+> (ported alongside this work); the FP contract is in
 > [`../compiler/FP.md`](../compiler/FP.md) (FP-SH-09/10).
 
 S110 is a **correctness** shimmer, distinct from the S100/S101/S102

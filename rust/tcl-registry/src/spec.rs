@@ -28,6 +28,46 @@ use crate::types::TclType;
 /// `(arg_index, role)` pairs.
 pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
 
+/// Layout of a `<proto>::payload` byte-array command for the S110
+/// byte-array-corruption check.
+///
+/// The getter form (`TCP::payload`, no args) returns raw on-the-wire bytes —
+/// a binary source; the `replace` form rewrites them — a byte sink. The
+/// `replace` argument layout differs per protocol, so the index of the
+/// `<data>` operand is carried here instead of being hardcoded in the
+/// analyser. Mirrors the Python `BytePayloadSpec` dataclass
+/// (`compiler/registry/models.py`).
+///
+/// - `replace_data_index` — 0-based index, *within the args after the command
+///   name*, of the `<data>` operand in the `replace` form. `3` for the common
+///   `replace <offset> <length> <data>` layout (TCP/HTTP/…); `1` for
+///   `replace <data> …` (MQTT/DIAMETER).
+/// - `message_flag_shift` — when `true`, an optional leading `-message <value>`
+///   flag (GTP) shifts every positional `replace` operand by two, so the data
+///   index becomes `replace_data_index + 2` when the flag is present.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BytePayloadSpec {
+    /// 0-based index of the `<data>` operand in the `replace` form.
+    pub replace_data_index: u8,
+    /// Whether a leading `-message <value>` flag shifts the operands by two.
+    pub message_flag_shift: bool,
+}
+
+impl BytePayloadSpec {
+    /// The common layout — `replace <offset> <length> <data>` (data at 3),
+    /// no `-message` flag. Mirrors `BytePayloadSpec()` in Python.
+    pub const DEFAULT: Self = Self {
+        replace_data_index: 3,
+        message_flag_shift: false,
+    };
+}
+
+impl Default for BytePayloadSpec {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
 /// Unified command metadata — the single source of truth.
 ///
 /// Every consumer (compiler, analyser, codegen, LSP, formatter, diagram
@@ -320,6 +360,14 @@ pub struct CommandSpec {
     /// the deprecation code action. `None` = not deprecated. Mirrors
     /// Python `deprecated_replacement` (the resolved name).
     pub deprecated_replacement: Option<&'static str>,
+
+    /// `<proto>::payload` byte-array layout — `Some` when this command's
+    /// getter returns raw bytes (a binary source) and its `replace` form is a
+    /// byte sink, for the S110 byte-array-corruption check. `None` = not a
+    /// byte-array payload command. Mirrors Python
+    /// `CommandSpec.byte_array_payload` (a `bool | BytePayloadSpec`, where
+    /// `True` maps to the default layout).
+    pub byte_array_payload: Option<BytePayloadSpec>,
 }
 
 impl CommandSpec {
@@ -376,6 +424,7 @@ impl CommandSpec {
         xc_translatable: None,
         xc_operation: None,
         deprecated_replacement: None,
+        byte_array_payload: None,
     };
 
     /// Run this command's constant folder for `args` under the optimiser's

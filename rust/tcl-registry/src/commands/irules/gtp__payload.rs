@@ -36,6 +36,10 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Both,
         }],
         taint_source: Some(TaintColour::TAINTED),
+        byte_array_payload: Some(BytePayloadSpec {
+            message_flag_shift: true,
+            ..BytePayloadSpec::DEFAULT
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -114,6 +114,13 @@ use tower_lsp::{Client, LanguageServer};
 struct DocumentState {
     text: String,
     dialect: String,
+    /// The LSP `languageId` the client opened this document with (empty
+    /// for documents materialised from disk by the folder scan).  Retained
+    /// so a later dialect change — `workspace/didChangeConfiguration` from
+    /// `tclLsp.selectDialect` — can re-resolve the document's dialect with
+    /// the same precedence `dialect_for_open` applied at `didOpen` (an
+    /// explicit language id still wins over the new session default).
+    language_id: String,
     /// Monotonic local revision.  Incremented before each
     /// asynchronous analyser run so stale workers cannot publish
     /// analysis/cache state for an older edit.
@@ -129,6 +136,7 @@ impl DocumentState {
         Self {
             text,
             dialect,
+            language_id: String::new(),
             revision: 0,
             version: None,
         }
@@ -138,9 +146,17 @@ impl DocumentState {
         Self {
             text,
             dialect,
+            language_id: String::new(),
             revision: 0,
             version: Some(version),
         }
+    }
+
+    /// Record the LSP `languageId` the document was opened with (builder
+    /// form, so the existing constructors stay two-argument).
+    fn with_language_id(mut self, language_id: String) -> Self {
+        self.language_id = language_id;
+        self
     }
 
     fn bump_revision(&mut self, version: i32) {
@@ -832,6 +848,48 @@ impl Backend {
         self.db_files.lock().await.remove(uri);
     }
 
+    /// Re-resolve every open document's dialect after a session-default
+    /// change and reschedule diagnostics for those whose dialect actually
+    /// moved. An explicit `languageId` / BIG-IP basename / per-folder
+    /// override still wins (it did at `didOpen`), so only documents that
+    /// fell back to the session default change. Mirrors the Python
+    /// `_apply_merged_settings_now` re-resolve-and-reanalyse loop.
+    async fn reresolve_open_document_dialects(&self) {
+        // Snapshot `(uri, language_id, current dialect)` first — the async
+        // `dialect_for_open` calls lock `folder_dialects` / `default_dialect`,
+        // so they must not run while the `documents` lock is held.
+        let snapshot: Vec<(Url, String, String)> = {
+            let docs = self.documents.lock().await;
+            docs.iter()
+                .map(|(uri, doc)| (uri.clone(), doc.language_id.clone(), doc.dialect.clone()))
+                .collect()
+        };
+        for (uri, language_id, old_dialect) in snapshot {
+            let new_dialect = self.dialect_for_open(&uri, &language_id).await;
+            if new_dialect == old_dialect {
+                continue;
+            }
+            // Commit the new dialect to the live document + salsa input while
+            // holding `documents` (the same `documents` → `db` /
+            // `workspace_index` ordering `did_open` uses; `db_set_source`
+            // never locks `documents`, so the nesting is cycle-free).
+            {
+                let mut docs = self.documents.lock().await;
+                let Some(doc) = docs.get_mut(&uri) else {
+                    continue; // closed between snapshot and commit
+                };
+                doc.dialect.clone_from(&new_dialect);
+                let text = doc.text.clone();
+                self.db_set_source(&uri, text, new_dialect.clone()).await;
+                self.workspace_index
+                    .lock()
+                    .await
+                    .remove_document(uri.as_str());
+            }
+            self.schedule_diagnostics(uri, new_dialect).await;
+        }
+    }
+
     /// Mirror the editor analyser config (disabled diagnostics + non-ASCII
     /// mode) onto the salsa `AnalyserConfig` input.  The disabled set is
     /// sorted so the input value is stable (a `HashSet` iteration order change
@@ -1021,6 +1079,18 @@ impl Backend {
     ///    URLs, use the deepest-matching folder's dialect.
     /// 3. The session-wide ``default_dialect`` fallback.
     async fn dialect_for_open(&self, uri: &Url, language_id: &str) -> String {
+        // An explicit BIG-IP language id (`tcl-bigip`, advertised by the VS
+        // Code extension, or the canonical `f5-bigip`) selects the BIG-IP
+        // config dialect even when the basename is not a canonical
+        // `bigip*.conf` name — e.g. a user who manually picks the BIG-IP
+        // language mode on a differently-named config file. `f5-bigip` is a
+        // custom config format, not a `DialectSet`-parseable Tcl dialect, so it
+        // is resolved here rather than via `dialect_from_language_id` (which is
+        // restricted to Tcl dialects by its `debug_assert`). Mirrors the
+        // BIG-IP routing the `is_bigip_conf_name` basename branch below feeds.
+        if matches!(language_id, "tcl-bigip" | "f5-bigip") {
+            return "f5-bigip".to_owned();
+        }
         let lang_dialect = Self::dialect_from_language_id(language_id);
         // A canonical BIG-IP basename (``bigip.conf``, ``bigip_base.conf``,
         // …) routes to ``f5-bigip`` ahead of a *generic* Tcl ``languageId``,
@@ -2813,7 +2883,8 @@ impl LanguageServer for Backend {
             let mut docs = self.documents.lock().await;
             docs.insert(
                 uri.clone(),
-                DocumentState::with_version(params.text_document.text, dialect, version),
+                DocumentState::with_version(params.text_document.text, dialect, version)
+                    .with_language_id(params.text_document.language_id.clone()),
             );
             self.db_set_source(&uri, text.clone(), dialect_for_diags.clone())
                 .await;
@@ -2875,9 +2946,16 @@ impl LanguageServer for Backend {
         // Accept ``{"tclLsp": {"dialect": "<name>"}}`` in either the
         // VS Code-style nested shape or the flat ``{"dialect":
         // "<name>"}`` shape (used by the MCP bridge). Update the
-        // session default so newly opened documents pick up the
-        // change; existing documents keep the dialect they were
-        // opened with.
+        // session default so newly opened documents pick up the change,
+        // then re-resolve every already-open document under the new
+        // default and reschedule diagnostics for any whose dialect
+        // changed — `tclLsp.selectDialect` pushes a dialect-only config
+        // change for a buffer that is already open, and without this the
+        // buffer would keep being parsed/diagnosed under the dialect it
+        // was opened with until reopened. Mirrors the Python server's
+        // `_apply_merged_settings_now`, which snapshots each open
+        // document's resolved dialect and force-reanalyses the ones that
+        // change.
         let dialect = params
             .settings
             .get("tclLsp")
@@ -2886,7 +2964,18 @@ impl LanguageServer for Backend {
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned);
         if let Some(d) = dialect {
-            *self.default_dialect.lock().await = d;
+            let changed = {
+                let mut default = self.default_dialect.lock().await;
+                let was = std::mem::replace(&mut *default, d.clone());
+                was != d
+            };
+            // A document's resolved dialect only depends on the session
+            // default as a fallback (an explicit language id / BIG-IP
+            // basename / folder override still wins), so nothing changes
+            // when the default is unchanged.
+            if changed {
+                self.reresolve_open_document_dialects().await;
+            }
         }
         // W108 mode + disabled-diagnostics reconfiguration. Existing
         // documents pick the change up on their next analyse (the
@@ -7220,6 +7309,75 @@ mod tests {
         assert_eq!(
             backend.dialect_for_open(&doc, "plaintext").await,
             "f5-irules".to_owned(),
+        );
+    }
+
+    /// An explicit BIG-IP language id resolves to `f5-bigip` even when the
+    /// document basename is not a canonical `bigip*.conf` name — the
+    /// manual-language-mode case the `is_bigip_conf_name` basename branch
+    /// alone would miss.
+    #[tokio::test]
+    async fn dialect_for_open_maps_bigip_language_id() {
+        let backend = test_backend();
+        let doc = Url::parse("file:///workspace/device_config.txt").unwrap();
+        assert_eq!(
+            backend.dialect_for_open(&doc, "tcl-bigip").await,
+            "f5-bigip".to_owned(),
+        );
+        assert_eq!(
+            backend.dialect_for_open(&doc, "f5-bigip").await,
+            "f5-bigip".to_owned(),
+        );
+        // A generic Tcl language id on the same non-conf name does not get the
+        // BIG-IP dialect (no basename match, no explicit BIG-IP id).
+        assert_ne!(
+            backend.dialect_for_open(&doc, "tcl").await,
+            "f5-bigip".to_owned(),
+        );
+    }
+
+    /// A session-default dialect change (as `tclLsp.selectDialect` pushes via
+    /// `workspace/didChangeConfiguration`) re-resolves already-open documents:
+    /// one that fell back to the default moves to the new default, while one
+    /// opened with an explicit language id keeps its dialect.
+    #[tokio::test]
+    async fn dialect_config_change_reresolves_open_documents() {
+        let backend = test_backend();
+        *backend.default_dialect.lock().await = "tcl8.6".to_owned();
+
+        let plain = Url::parse("file:///plain.tcl").unwrap();
+        let irule = Url::parse("file:///app.irule").unwrap();
+        {
+            let mut docs = backend.documents.lock().await;
+            // No recognised language id → opened under the session default.
+            docs.insert(
+                plain.clone(),
+                DocumentState::new("set x 1\n".to_owned(), "tcl8.6".to_owned())
+                    .with_language_id("plaintext".to_owned()),
+            );
+            // An explicit iRules language id → resolved independently of the
+            // default.
+            docs.insert(
+                irule.clone(),
+                DocumentState::new("when HTTP_REQUEST {}\n".to_owned(), "f5-irules".to_owned())
+                    .with_language_id("tcl-irule".to_owned()),
+            );
+        }
+
+        // The user switches the session dialect to tcl9.0.
+        *backend.default_dialect.lock().await = "tcl9.0".to_owned();
+        backend.reresolve_open_document_dialects().await;
+
+        let docs = backend.documents.lock().await;
+        assert_eq!(
+            docs.get(&plain).unwrap().dialect,
+            "tcl9.0",
+            "a default-resolved document should follow the new session default",
+        );
+        assert_eq!(
+            docs.get(&irule).unwrap().dialect,
+            "f5-irules",
+            "an explicit-language-id document keeps its dialect",
         );
     }
 

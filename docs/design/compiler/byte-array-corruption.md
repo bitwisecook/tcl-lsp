@@ -1,0 +1,164 @@
+# Byte-array corruption detection (S110)
+
+`S110` flags binary data that is forced through character-string semantics in a
+way that corrupts it. It is a **correctness** check, distinct from the
+`S100`/`S101`/`S102` [shimmer](../../GLOSSARY.md#shimmer) *performance* family.
+This note records (a) the damage taxonomy that drives the check and (b) why
+byte-array provenance is tracked by a dedicated forward dataflow rather than in
+the type lattice.
+
+## Why a byte array gets damaged
+
+A Tcl value is logically a string, but caches one internal representation
+(intrep) at a time. A byte array stores raw bytes; a character string stores
+Unicode code points. When a byte array's string representation is generated,
+each byte `0x00`–`0xFF` becomes the latin-1 character `U+0000`–`U+00FF`. Two
+things can then go wrong:
+
+1. **Intrinsic corruption** — the operation mutates the bytes in its own
+   result, with no write-back required. Case folding maps a byte to a
+   different code point (`0xC3` → `0xE3`) or out of byte range entirely
+   (`0xFF` → `U+0178`); `encoding convertto` re-encodes the latin-1 characters
+   as UTF-8 (double-encoding). The damage is unconditional.
+2. **Round-trip corruption** — the operation preserves the bytes as latin-1
+   characters, so the *result* is byte-clean, but it is now a **string**.
+   Writing that string to a byte sink (`<proto>::payload replace`, or any
+   UTF-8 channel) re-encodes every byte `≥ 0x80`. The damage lands at the
+   write-back.
+
+### tclsh ground truth
+
+Applying each operation to the pure high-byte array `80 c3 ff fe` (no ASCII
+letters, so any change to a preserved byte is real corruption), then
+re-binarifying the result — identical on Tcl 8.6.14 and 9.0.3:
+
+| Operation | Result bytes | Category |
+|---|---|---|
+| `string toupper` | `80 c3 78 de` | **intrinsic** (case fold) |
+| `string tolower` | `80 e3 ff fe` | **intrinsic** (case fold) |
+| `string totitle` | `80 e3 ff fe` | **intrinsic** (case fold) |
+| `encoding convertto utf-8` | `c2 80 c3 83 c3 bf c3 be` | **intrinsic** (re-encode) |
+| `string reverse` / `range` / `map` / `trim` | `80 c3 ff fe` | round-trip |
+| `format %s` / `regsub` / `subst` | `80 c3 ff fe` | round-trip |
+| interpolation `"$x"` / `append` | `80 c3 ff fe` | round-trip |
+
+On Tcl 9 the round-trip back through `binary scan` of a case-folded value
+*raises* (`expected byte sequence but character … was 'Ŷ' (U+000178)`); on
+Tcl 8 it silently truncates. Either way the byte array is gone.
+
+This is the canonical iRules payload-rewrite bug
+([F5 KB K22406348](https://my.f5.com/manage/s/article/K22406348)); the
+`HTTP::payload replace` man page documents the same hazard and the
+`binary scan … c* throwaway` fix.
+
+## How the check maps to the taxonomy
+
+`compiler/shimmer.py::_find_byte_array_corruption` runs a small forward
+dataflow over the SSA graph, tracking a two-state provenance per value:
+
+- **BINARY** — currently a byte array (safe at a byte sink). Sources:
+  `binary format` / `binary decode` / `encoding convertto` return types (read
+  from the registry, the same metadata the type lattice uses), and `*::payload`
+  getters (registry flag `byte_array_payload`, dialect-gated).
+- **DAMAGED** — a binary-sourced value since coerced to a character string.
+
+It emits S110 in two places, matching the two damage mechanisms:
+
+- **Intrinsic** (`_CASE_FOLD_STRING_SUBS` and `encoding convertto`): warn at the
+  transform — the bytes are already corrupt.
+- **Round-trip** (`_STRING_VALUE_SUBS`, `_STRING_COERCING_COMMANDS`,
+  interpolation, `append`, `expr`): mark the value DAMAGED and warn only when it
+  reaches a `<proto>::payload replace` sink. A `binary scan $v …` between the
+  coercion and the sink re-binarifies `v` *in place* and clears DAMAGED (the
+  documented fix). `binary format … $v` does **not** clear it — it returns a new
+  value and does not mutate `$v`; only the assigned form `set x [binary format
+  …]` re-binarifies (via the byte-array return type). The intrinsic checks also
+  apply to the **inline sink form** — `<proto>::payload replace …
+  [encoding convertto utf-8 $payload]` is DAMAGED, because `convertto`'s
+  byte-array return type must not mask that it is the corrupting op.
+
+The `<proto>::payload replace` sink's `<data>` operand is **not** at a fixed
+argument index — `replace OFFSET LENGTH DATA` (TCP/HTTP/…, data at index 3),
+`replace DATA …` (MQTT/DIAMETER, index 1), and GTP's `replace ('-message'
+MESSAGE)? OFFSET COUNT NEW_VALUE` (index 3, shifted to 5 by the optional flag)
+all differ. The data position is therefore declared per command in the registry
+(`BytePayloadSpec` on `CommandSpec.byte_array_payload`) and read back via
+`byte_array_payload_layouts()`, so the pass stays correct for new payload
+commands without editing `shimmer.py`.
+
+## Why provenance, not the type lattice
+
+The type lattice already has `TclType.BYTEARRAY` and a `SHIMMERED(from, to)`
+state, so an obvious question is whether byte-corruption should be modelled
+there. It should not.
+
+1. **Type vs provenance are different questions.** The lattice answers *what
+   intrep does this value have at this point* — a per-program-point property
+   computed by join. Corruption is a *flow* property: did a value travel from a
+   binary source, through a string coercion, to a byte sink. `[string range
+   $ba 0 5]` **is** a `STRING` (the type is unambiguous); only its *origin* is
+   binary. The lattice correctly types it `STRING` and necessarily drops the
+   origin.
+2. **`SHIMMERED` is load-bearing and means something else.** `SHIMMERED(A, B)`
+   means a value's intrep is *ambiguous* (A on one path, B on another, or
+   oscillating across a loop) and it drives the `S100`/`S101`/`S102`
+   performance warnings. A byte-derived string is not ambiguous — it is
+   definitively a string. Re-tagging it `SHIMMERED(BYTEARRAY, STRING)` would be
+   semantically wrong and would fire spurious *performance* shimmer warnings on
+   every binary→string operation.
+3. **The damage condition needs reachability, not a join.** Round-trip
+   corruption is conditional on reaching a byte sink without an intervening
+   re-binarification. A join lattice cannot express "this value reaches
+   `payload replace` un-re-binarified"; a forward taint-style dataflow can. The
+   codebase already separates [taint](../../GLOSSARY.md#taint-analysis) from
+   type inference for exactly this reason, and byte-provenance is a specialised
+   taint ("binary-origin data").
+4. **The fix is a side-effect, not a redefinition.** `binary scan $v c* -`
+   re-binarifies `v` *in place* — it creates no new SSA version. An
+   SSA-versioned type lattice cannot model an intrep reset that has no def; the
+   provenance pass tracks it as a flow side-effect.
+
+The pass therefore *consumes* the lattice's binary-source signal (BYTEARRAY
+return types) but keeps the DAMAGED / round-trip reasoning in its own dataflow.
+
+### Why `*::payload` getters are not typed BYTEARRAY in the lattice
+
+The payload getters are typed OVERDEFINED by the lattice, not BYTEARRAY,
+because (a) a getter form that coexists with subcommands (`TCP::payload` vs
+`TCP::payload length`) has no representable return type in the current
+`TYPE_HINTS` model, and (b) typing every payload value BYTEARRAY globally risks
+new `S100`/`S101` performance-shimmer false positives with an uncertain blast
+radius. The S110 pass recognises payload sources from the registry flag
+instead, which keeps the change contained.
+
+## Dialect scoping
+
+`*::payload` source/sink recognition is iRules-specific. The command registry
+is process-global, so once any iRules document loads the f5-irules pack the
+payload commands stay registered for the rest of the session. The pass gates
+payload recognition on the **active** dialect (`REGISTRY.get(cmd, active_dialect())`),
+so a plain-Tcl document that merely names a `*::payload` command never trips
+S110. The dialect-agnostic binary sources (`binary format`, `encoding
+convertto`) stay enabled everywhere.
+
+## Pointers
+
+Python reference implementation:
+
+- `compiler/shimmer.py` — `_find_byte_array_corruption`, `_payload_replace_data_index`, and helpers
+- `compiler/registry/runtime.py` — `byte_array_payload_commands`, `byte_array_payload_layouts`
+- `compiler/registry/models.py` — `BytePayloadSpec`, `CommandSpec.byte_array_payload`
+- `dialects/f5/irules/*__payload.py` — `byte_array_payload=True` (default index-3 layout) or `=BytePayloadSpec(...)`
+
+Rust port (see [`../rust/s110-byte-array-corruption-port.md`](../rust/s110-byte-array-corruption-port.md)):
+
+- `rust/tcl-compiler/src/shimmer/byte_array.rs` — `find_byte_array_warnings`, the `ByteProv` lattice, `join_prov`, `payload_replace_data_index`, and the three transfer functions
+- `rust/tcl-registry/src/spec.rs` — `BytePayloadSpec`, `CommandSpec::byte_array_payload`
+- `rust/tcl-registry/src/registry.rs` — `CommandRegistry::byte_array_payload_layouts`
+- `rust/tcl-registry/src/commands/irules/*__payload.rs` — `byte_array_payload: Some(BytePayloadSpec…)`
+- `rust/tcl-compiler/src/compiler_checks.rs` — `push_shimmer_checks` lowering (dialect-gated)
+
+Shared:
+
+- `docs/design/compiler/FP.md` — FP-SH-09 (intrinsic), FP-SH-10 (round-trip)
+- `docs/kcs/features/kcs-feature-byte-array-corruption.md` — user-facing note

@@ -219,6 +219,13 @@ def infer_document_dialect(uri: str, source: str, language_id: str = "") -> str 
         return "f5-iapps"
     if lang == "expect":
         return "expect"
+    # An explicit BIG-IP language id (the VS Code extension's ``tcl-bigip``,
+    # or the canonical ``f5-bigip``) selects the BIG-IP config dialect even
+    # when the basename is not a canonical ``bigip*.conf`` name — e.g. a user
+    # who manually picks the BIG-IP language mode on a differently-named
+    # config file.  Mirrors the ``is_bigip_conf_name`` basename branch below.
+    if lang in {"f5-bigip", "tcl-bigip", "bigip"}:
+        return "f5-bigip"
 
     basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
     if basename.endswith(_IRULES_EXTENSIONS):
