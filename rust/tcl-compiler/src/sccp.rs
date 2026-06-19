@@ -228,6 +228,7 @@ pub struct SccpResult {
 /// and `None` to decline folding such ambiguous operands (the safe default
 /// for callers without dialect context).
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn sccp(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -244,6 +245,18 @@ pub fn sccp(
 
     seed_live_in_roots(cfg, ssa, &mut values);
 
+    // Global / namespace / upvar-aliased / traced variables are shared mutable
+    // state observable and writable from other scopes, traces, and source
+    // files. Their value is therefore never a compile-time constant: folding
+    // through one would be unsound across any opaque call (`set ::g 5; mut;
+    // expr {$::g + 1}` must NOT fold to 6 — `mut` may have rewritten `::g`).
+    // Force every such definition to OVERDEFINED so SCCP never propagates a
+    // constant through it; the read is still tracked for liveness. Mirrors
+    // Python's `_is_externally_mutable`, consulting the whole-function
+    // (flow-insensitive) view of the `var_observability` alias/trace lattice.
+    let escaping = crate::var_observability::analyse_var_observability(cfg).escaping_var_names();
+    let is_externally_mutable = |name: &str| name.starts_with("::") || escaping.contains(name);
+
     let mut executable_blocks: HashSet<String> = HashSet::new();
     let mut executable_edges: HashSet<(String, String)> = HashSet::new();
     if cfg.blocks.contains_key(&cfg.entry) {
@@ -251,92 +264,110 @@ pub fn sccp(
     }
     let order = cfg_order(cfg);
 
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for bn in &order {
-            if !executable_blocks.contains(bn) {
-                continue;
-            }
-            let Some(ssa_block) = ssa.blocks.get(bn) else {
-                continue;
-            };
-
-            let incoming_exec: Vec<String> = preds
-                .get(bn)
-                .map(|set| {
-                    set.iter()
-                        .filter(|p| executable_edges.contains(&((*p).clone(), bn.clone())))
-                        .cloned()
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            // Phi nodes (not at entry, only when some predecessor is
-            // executable).
-            for phi in &ssa_block.phis {
-                if bn == &cfg.entry {
+    // Optimistic fixpoint over the RPO sweep, followed by a finalising pass
+    // that forces both arms for any executable branch still stuck on an UNKNOWN
+    // condition (defensive: a value defined only in unreachable code could
+    // otherwise leave a successor spuriously unreachable). `finalizing` is
+    // monotone, so the outer loop runs at most twice. Mirrors Python's
+    // two-phase SCCP driver in `core_analyses.py`.
+    let mut finalizing = false;
+    loop {
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for bn in &order {
+                if !executable_blocks.contains(bn) {
                     continue;
                 }
-                if incoming_exec.is_empty() {
+                let Some(ssa_block) = ssa.blocks.get(bn) else {
                     continue;
-                }
-                let mut phi_val = LatticeValue::Unknown;
-                for pred in &incoming_exec {
-                    let incoming_ver = phi.incoming.get(pred).copied().unwrap_or(0);
-                    if incoming_ver == 0 {
+                };
+
+                let incoming_exec: Vec<String> = preds
+                    .get(bn)
+                    .map(|set| {
+                        set.iter()
+                            .filter(|p| executable_edges.contains(&((*p).clone(), bn.clone())))
+                            .cloned()
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                // Phi nodes (not at entry, only when some predecessor is
+                // executable).
+                for phi in &ssa_block.phis {
+                    if bn == &cfg.entry {
                         continue;
                     }
-                    let key: ValueKey = (phi.name.clone(), incoming_ver);
-                    let candidate = values.get(&key).cloned().unwrap_or(LatticeValue::Unknown);
-                    phi_val = join(&phi_val, &candidate);
-                }
-                if set_value(&mut values, (phi.name.clone(), phi.version), &phi_val) {
-                    changed = true;
-                }
-            }
-
-            // Statements.
-            for stmt_ssa in &ssa_block.statements {
-                if matches!(stmt_ssa.statement, Statement::Barrier { .. }) {
-                    // Barriers widen all currently-tracked values — EXCEPT
-                    // version-0 (parameter) seeds, which hold the caller's
-                    // literal and are immutable across the barrier (a barrier
-                    // that mutates the var produces a fresh version).  Mirrors
-                    // Python's SCCP barrier v0-preserve refinement so a callee
-                    // `dict with $param` still sees the interproc literal.
-                    let keys: Vec<ValueKey> = values.keys().cloned().collect();
-                    for k in keys {
-                        if k.1 == 0 {
+                    if incoming_exec.is_empty() {
+                        continue;
+                    }
+                    let mut phi_val = LatticeValue::Unknown;
+                    for pred in &incoming_exec {
+                        let incoming_ver = phi.incoming.get(pred).copied().unwrap_or(0);
+                        if incoming_ver == 0 {
                             continue;
                         }
-                        if set_value(&mut values, k, &LatticeValue::Overdefined) {
-                            changed = true;
-                        }
+                        let key: ValueKey = (phi.name.clone(), incoming_ver);
+                        let candidate = values.get(&key).cloned().unwrap_or(LatticeValue::Unknown);
+                        phi_val = join(&phi_val, &candidate);
                     }
-                    continue;
-                }
-                for (var, ver) in &stmt_ssa.defs {
-                    let val = evaluate_def(stmt_ssa, &values);
-                    if set_value(&mut values, (var.clone(), *ver), &val) {
+                    if set_value(&mut values, (phi.name.clone(), phi.version), &phi_val) {
                         changed = true;
                     }
                 }
-            }
 
-            // Terminator.
-            if sccp_process_terminator(
-                bn,
-                cfg,
-                ssa,
-                &values,
-                &mut executable_blocks,
-                &mut executable_edges,
-                octal,
-            ) {
-                changed = true;
+                // Statements.
+                for stmt_ssa in &ssa_block.statements {
+                    if matches!(stmt_ssa.statement, Statement::Barrier { .. }) {
+                        // Barriers widen all currently-tracked values — EXCEPT
+                        // version-0 (parameter) seeds, which hold the caller's
+                        // literal and are immutable across the barrier (a barrier
+                        // that mutates the var produces a fresh version).  Mirrors
+                        // Python's SCCP barrier v0-preserve refinement so a callee
+                        // `dict with $param` still sees the interproc literal.
+                        let keys: Vec<ValueKey> = values.keys().cloned().collect();
+                        for k in keys {
+                            if k.1 == 0 {
+                                continue;
+                            }
+                            if set_value(&mut values, k, &LatticeValue::Overdefined) {
+                                changed = true;
+                            }
+                        }
+                        continue;
+                    }
+                    for (var, ver) in &stmt_ssa.defs {
+                        let val = if is_externally_mutable(var) {
+                            LatticeValue::Overdefined
+                        } else {
+                            evaluate_def(stmt_ssa, &values)
+                        };
+                        if set_value(&mut values, (var.clone(), *ver), &val) {
+                            changed = true;
+                        }
+                    }
+                }
+
+                // Terminator.
+                if sccp_process_terminator(
+                    bn,
+                    cfg,
+                    ssa,
+                    &values,
+                    &mut executable_blocks,
+                    &mut executable_edges,
+                    octal,
+                    finalizing,
+                ) {
+                    changed = true;
+                }
             }
         }
+        if finalizing {
+            break;
+        }
+        finalizing = true;
     }
 
     let constant_branches =
@@ -399,9 +430,44 @@ fn seed_live_in_roots<S: std::hash::BuildHasher>(
     }
 }
 
+/// Optimistic (Wegman–Zadeck) deferral test for a non-constant branch.
+///
+/// Returns `true` when the condition *may still fold* on a later sweep:
+/// some operand defined in this function (SSA exit-version > 0) is still
+/// `Unknown` (not yet computed) and none is `Overdefined`. Such a branch
+/// opens neither arm until either the operand resolves to a constant or an
+/// `Overdefined` operand proves the condition genuinely non-constant.
+///
+/// Operands read at version 0 (proc parameters, globals, and other
+/// live-in roots) are excluded: [`seed_live_in_roots`] already seeds them
+/// `Overdefined`, so they are never "not yet computed". Mirrors Python's
+/// `_condition_use_versions` + the optimistic arm of `branch_targets`.
+fn branch_deferrable(
+    ssa_block: &crate::ssa::SsaBlock,
+    condition: &ExprNode,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> bool {
+    let mut any_operand = false;
+    let mut any_unknown = false;
+    for name in crate::var_refs::vars_in_expr(condition) {
+        let ver = ssa_block.exit_versions.get(&name).copied().unwrap_or(0);
+        if ver == 0 {
+            continue;
+        }
+        any_operand = true;
+        match values.get(&(name, ver)) {
+            Some(LatticeValue::Overdefined) => return false,
+            Some(LatticeValue::Unknown) | None => any_unknown = true,
+            _ => {}
+        }
+    }
+    any_operand && any_unknown
+}
+
 /// Process a block's terminator: mark the matching outgoing edges
 /// as executable.  Returns `true` when any new edge / block was
 /// added.  Extracted from [`sccp`].
+#[allow(clippy::too_many_arguments)]
 fn sccp_process_terminator(
     bn: &str,
     cfg: &CfgFunction,
@@ -410,6 +476,7 @@ fn sccp_process_terminator(
     executable_blocks: &mut HashSet<String>,
     executable_edges: &mut HashSet<(String, String)>,
     octal: Option<bool>,
+    finalizing: bool,
 ) -> bool {
     let mut changed = false;
     let Some(block) = cfg.blocks.get(bn) else {
@@ -438,10 +505,20 @@ fn sccp_process_terminator(
             let Some(ssa_block) = ssa.blocks.get(bn) else {
                 return changed;
             };
-            let decision = evaluate_branch(ssa_block, condition, values, octal);
+            let decision = branch_decision(cfg, ssa, bn, ssa_block, condition, values, octal);
             let targets: Vec<&str> = match decision {
                 Some(true) => vec![true_target.as_str()],
                 Some(false) => vec![false_target.as_str()],
+                // Optimistic (Wegman–Zadeck): while the condition may still
+                // fold on a later sweep (a not-yet-computed operand, no
+                // `Overdefined` one), open neither arm and let the fixpoint
+                // retry — this is what detects loop-carried constant
+                // conditions instead of pessimistically opening both arms
+                // forever. The finalising pass forces both arms for any
+                // branch still stuck this way.
+                None if !finalizing && branch_deferrable(ssa_block, condition, values) => {
+                    Vec::new()
+                }
                 None => vec![true_target.as_str(), false_target.as_str()],
             };
             for tgt in targets {
@@ -506,7 +583,7 @@ fn collect_constant_branches(
         let Some(ssa_block) = ssa.blocks.get(bn) else {
             continue;
         };
-        let decision = evaluate_branch(ssa_block, condition, values, octal);
+        let decision = branch_decision(cfg, ssa, bn, ssa_block, condition, values, octal);
         let cond_text = crate::expr_ast::expr_text(condition);
         match decision {
             Some(true) => constant_branches.push(ConstantBranch {
@@ -767,6 +844,70 @@ fn resolve_simple_var_ref(
             .cloned()
             .unwrap_or(LatticeValue::Unknown),
     )
+}
+
+/// Resolve a branch decision, preferring a *static-loop summary* when the
+/// branch's block is the exit of a bounded `for` loop.
+///
+/// SCCP alone cannot fold a branch that reads a loop-carried variable *after*
+/// the loop — the variable's post-loop phi is a CONSTSET or `Overdefined`, not
+/// a single constant. Simulating the loop instead yields its exact final
+/// values (`for {set i 0} {$i < 10} {incr i} {}` leaves `i == 10`), so a
+/// following `if {$i == 10}` folds. The summary is conservative: it bails to
+/// `None` on non-constant bounds, side effects, or runaway iteration, falling
+/// back to the lattice fold. Mirrors Python's `_barrier_aware_env_for_block`
+/// loop arm feeding `_evaluate_branch_decision`.
+fn branch_decision(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    bn: &str,
+    ssa_block: &crate::ssa::SsaBlock,
+    condition: &ExprNode,
+    values: &HashMap<ValueKey, LatticeValue>,
+    octal: Option<bool>,
+) -> Option<bool> {
+    loop_summary_decision(cfg, ssa, bn, condition, values)
+        .or_else(|| evaluate_branch(ssa_block, condition, values, octal))
+}
+
+/// Convert an SCCP [`ConstValue`] to the static simulator's
+/// [`crate::static_loops::StaticValue`].
+fn const_to_static(c: &ConstValue) -> crate::static_loops::StaticValue {
+    use crate::static_loops::StaticValue;
+    match c {
+        ConstValue::Int(i) => StaticValue::Int(*i),
+        ConstValue::Float(f) => StaticValue::Float(*f),
+        ConstValue::Bool(b) => StaticValue::Bool(*b),
+        ConstValue::String(s) => StaticValue::Str(s.clone()),
+    }
+}
+
+/// Fold `condition` via a static summary of the `for` loop whose exit block is
+/// `bn`, or `None` when `bn` is not a loop exit or the loop cannot be
+/// summarised. The simulation is seeded with the constants known at the
+/// pre-loop block's exit and run by [`crate::static_loops::summarise_for_statement`].
+fn loop_summary_decision(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    bn: &str,
+    condition: &ExprNode,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> Option<bool> {
+    let node = cfg.loop_nodes.get(bn)?;
+    let start_ssa = ssa.blocks.get(&node.entry_block)?;
+    let mut start_env = crate::static_loops::StaticEnv::new();
+    for (name, &ver) in &start_ssa.exit_versions {
+        if let Some(LatticeValue::Const(c)) = values.get(&(name.clone(), ver)) {
+            start_env.insert(name.clone(), const_to_static(c));
+        }
+    }
+    let summarised = crate::static_loops::summarise_for_statement(
+        &node.for_stmt,
+        &start_env,
+        crate::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS,
+    )?;
+    let v = crate::static_loops::evaluate_expr_with_constants(condition, &summarised)?;
+    Some(v != 0)
 }
 
 /// Evaluate a branch condition.
@@ -2017,5 +2158,122 @@ mod tests {
         let order = cfg_order(&f);
         assert!(order.contains(&"entry".to_string()));
         assert!(order.contains(&"dead".to_string()));
+    }
+
+    fn cu(src: &str) -> crate::compilation_unit::CompilationUnit {
+        crate::compilation_unit::CompilationUnit::build_for(
+            src,
+            &tcl_registry::CommandRegistry::build_default(),
+            false,
+        )
+    }
+
+    #[test]
+    fn sccp_folds_post_loop_branch_via_static_summary() {
+        // After `for {set i 0} {$i < 10} {incr i} {}` tclsh leaves `i == 10`,
+        // so the following `if {$i == 10}` is statically true. SCCP cannot fold
+        // a loop-carried phi, but the static-loop summary simulates the loop
+        // and folds the branch. Verified against tclsh 8.4-9.0 (i == 10, and
+        // the accumulator j == 5, hold after the loops).
+        let c = cu(
+            "proc ::p {} { for {set i 0} {$i < 10} {incr i} {}\n if {$i == 10} { return yes } else { return no } }",
+        );
+        let fu = c.function("::p").unwrap();
+        let r = sccp(&fu.cfg, &fu.ssa, None, None);
+        let cb = r
+            .constant_branches
+            .iter()
+            .find(|cb| cb.condition.contains("$i == 10"))
+            .expect("post-loop branch must fold via the static-loop summary");
+        assert!(cb.value, "i == 10 after the loop, so the branch is true");
+
+        // Body side effects are simulated too: j accumulates to 5.
+        let ca = cu(
+            "proc ::a {} { set j 0\n for {set k 5} {$k > 0} {incr k -1} { incr j }\n if {$j == 5} { return yes } else { return no } }",
+        );
+        let fa = ca.function("::a").unwrap();
+        let ra = sccp(&fa.cfg, &fa.ssa, None, None);
+        let cba = ra
+            .constant_branches
+            .iter()
+            .find(|cb| cb.condition.contains("$j == 5"))
+            .expect("accumulator branch must fold via the static-loop summary");
+        assert!(cba.value, "j == 5 after the loop");
+
+        // A loop with an unknown (parameter) bound cannot be summarised, so the
+        // post-loop branch stays unfolded (conservative).
+        let cq = cu(
+            "proc ::q {n} { for {set i 0} {$i < $n} {incr i} {}\n if {$i == 10} { return yes } else { return no } }",
+        );
+        let fq = cq.function("::q").unwrap();
+        let rq = sccp(&fq.cfg, &fq.ssa, None, None);
+        assert!(
+            !rq.constant_branches
+                .iter()
+                .any(|cb| cb.condition.contains("$i == 10")),
+            "an unknown loop bound must not fold the post-loop branch"
+        );
+    }
+
+    #[test]
+    fn branch_deferrable_optimism() {
+        let cond = ExprNode::Var {
+            text: "$x".into(),
+            name: "x".into(),
+            start: 0,
+            end: 2,
+        };
+        let mut sb = empty_ssa_block("b");
+        sb.exit_versions.insert("x".into(), 1);
+        let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
+
+        // Defined operand (version 1) not yet computed → defer.
+        assert!(branch_deferrable(&sb, &cond, &values));
+        values.insert(("x".into(), 1), LatticeValue::Unknown);
+        assert!(branch_deferrable(&sb, &cond, &values));
+
+        // An `Overdefined` operand proves the condition genuinely
+        // non-constant → never defer.
+        values.insert(("x".into(), 1), LatticeValue::Overdefined);
+        assert!(!branch_deferrable(&sb, &cond, &values));
+
+        // A constant operand folds via `evaluate_branch`, so the `None`
+        // arm is never reached → not deferrable here.
+        values.insert(("x".into(), 1), LatticeValue::Const(ConstValue::Int(1)));
+        assert!(!branch_deferrable(&sb, &cond, &values));
+
+        // Version-0 operands (parameters / globals / live-in roots) are
+        // already `Overdefined` and excluded from the deferral test.
+        let mut sb0 = empty_ssa_block("b");
+        sb0.exit_versions.insert("x".into(), 0);
+        assert!(!branch_deferrable(&sb0, &cond, &HashMap::new()));
+    }
+
+    #[test]
+    fn sccp_widens_global_aliased_var_to_overdefined() {
+        // A `global`-aliased variable is shared mutable state: SCCP must not
+        // fold a constant through it, so the `if {$g == 5}` branch stays
+        // unresolved (both arms executable, no constant branch). The matching
+        // *local* program does fold — proving the widening is what makes the
+        // difference, not an unrelated failure to evaluate.
+        let global_src =
+            "proc ::p {} { global g\n set g 5\n if {$g == 5} { return 1 } else { return 0 } }";
+        let local_src = "proc ::p {} { set x 5\n if {$x == 5} { return 1 } else { return 0 } }";
+
+        let cg = cu(global_src);
+        let fg = cg.function("::p").unwrap();
+        let rg = sccp(&fg.cfg, &fg.ssa, None, None);
+        assert!(
+            rg.constant_branches.is_empty(),
+            "global var must not fold a constant branch"
+        );
+
+        let cl = cu(local_src);
+        let fl = cl.function("::p").unwrap();
+        let rl = sccp(&fl.cfg, &fl.ssa, None, None);
+        assert!(
+            !rl.constant_branches.is_empty(),
+            "local var should still fold the constant branch"
+        );
     }
 }

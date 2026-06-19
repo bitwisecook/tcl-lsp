@@ -412,13 +412,16 @@ pub fn detect_namespace_variable(stmt: &Statement) -> Vec<String> {
 
 /// True if `stmt` may clobber arbitrary memory locations.
 ///
-/// Barriers always clobber. Calls clobber when their command name
-/// matches an explicit dynamic-dispatch name (`eval`, `uplevel`,
-/// `interp eval`, `namespace eval`).
+/// Barriers always clobber. A static-body [`Statement::UpFrame`]
+/// (barrier-relaxed `uplevel`) clobbers because its body runs in a
+/// caller's frame and can touch arbitrary caller locals or globals.
+/// Calls clobber when their command name matches an explicit
+/// dynamic-dispatch name (`eval`, `uplevel`, `interp eval`,
+/// `namespace eval`).
 #[must_use]
 pub fn is_clobber(stmt: &Statement) -> bool {
     match stmt {
-        Statement::Barrier { .. } => true,
+        Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
         Statement::Call { command, .. } => matches!(
             command.as_str(),
             "eval" | "uplevel" | "interp eval" | "namespace eval"
@@ -519,8 +522,13 @@ pub fn compute_aliases(ssa: &SsaFunction) -> Vec<AliasSet> {
             for (caller, local) in detect_upvar(stmt) {
                 let upvar_loc =
                     MemoryLocation::with_qualifier(MemoryLocationKind::Upvar, &local, &caller);
-                let caller_loc =
-                    MemoryLocation::with_qualifier(MemoryLocationKind::Upvar, &caller, &local);
+                // The caller-side node is keyed on the caller variable alone
+                // (empty qualifier) so two aliases of the *same* caller var —
+                // `upvar 1 x a; upvar 1 x b` — share this node and union-find
+                // merges `a` and `b` into one set. Encoding the local name in
+                // the qualifier would make each pair's caller node distinct and
+                // silently break transitive merging.
+                let caller_loc = MemoryLocation::new(MemoryLocationKind::Upvar, &caller);
                 uf.union(&upvar_loc, &caller_loc, "upvar");
             }
             for gname in detect_global(stmt) {
@@ -908,32 +916,24 @@ mod tests {
     }
 
     #[test]
-    fn compute_aliases_tracks_each_upvar_declaration() {
-        // `upvar 1 x a` and `upvar 1 x b` — two independent pair
-        // declarations. The pairs are keyed on the specific
-        // (caller, local) qualifier combinations so each upvar
-        // produces its own alias set even when they share the
-        // caller-side variable name.
+    fn compute_aliases_merges_shared_caller_upvars() {
+        // `upvar 1 x a` and `upvar 1 x b` alias the *same* caller
+        // variable `x`, so `a` and `b` may alias each other. The
+        // caller-side node is keyed on `x` alone, letting union-find
+        // collapse both declarations into a single alias set.
         let ssa = make_ssa_with_entry_stmts(vec![
             call("upvar", &["1", "x", "a"]),
             call("upvar", &["1", "x", "b"]),
         ]);
         let sets = compute_aliases(&ssa);
-        assert_eq!(sets.len(), 2);
-        // Both x↔a and x↔b show up somewhere in the returned
-        // alias sets.
-        let mut has_a = false;
-        let mut has_b = false;
-        for set in &sets {
-            if set.contains_name("a") && set.contains_name("x") {
-                has_a = true;
-            }
-            if set.contains_name("b") && set.contains_name("x") {
-                has_b = true;
-            }
-        }
-        assert!(has_a, "missing x↔a alias set");
-        assert!(has_b, "missing x↔b alias set");
+        assert_eq!(sets.len(), 1, "shared-caller upvars must merge");
+        let set = &sets[0];
+        assert!(set.contains_name("a"));
+        assert!(set.contains_name("b"));
+        assert!(set.contains_name("x"));
+
+        let m = build_memory_ssa(&ssa);
+        assert!(m.may_alias("a", "b"), "a and b share caller x");
     }
 
     #[test]
@@ -980,6 +980,24 @@ mod tests {
         assert_eq!(m.count_clobbers, 1);
         assert_eq!(m.memory_ops[0].kind, MemoryOpKind::Clobber);
         assert_eq!(m.memory_ops[0].location.name, "*");
+    }
+
+    #[test]
+    fn build_memory_ssa_emits_clobber_for_upframe() {
+        // A static-body `uplevel 1 {…}` lowers to `Statement::UpFrame`;
+        // its body runs in the caller's frame and clobbers aliased
+        // memory just like the dynamic `uplevel` barrier.
+        let upframe = Statement::UpFrame {
+            span: tcl_lexer::Span::new(0, 0),
+            frame_shift: 1,
+            body: crate::ir::Script::new(),
+            tokens: None,
+        };
+        assert!(is_clobber(&upframe));
+        let ssa = make_ssa_with_entry_stmts(vec![upframe]);
+        let m = build_memory_ssa(&ssa);
+        assert_eq!(m.count_clobbers, 1);
+        assert_eq!(m.memory_ops[0].kind, MemoryOpKind::Clobber);
     }
 
     #[test]

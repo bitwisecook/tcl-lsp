@@ -133,6 +133,13 @@ pub struct FunctionUnit {
     pub rendered_props: HashMap<ValueKey, RenderedValueProps>,
     /// Optional memory-SSA annotations (populated on demand).
     pub memory_ssa: Option<MemorySSAFunction>,
+    /// Single source of truth for the deep-analysis complexity guard: when
+    /// `true` (CFG block count **or** body bytes over the ceiling), `ssa` and
+    /// the dataflow lattices are trivial and **every** per-proc diagnostic /
+    /// optimiser pass must skip this function (consult the flag, not the cfg,
+    /// so byte-large-but-block-light generated bodies are guarded
+    /// consistently). Mirrors Python's `FunctionUnit.complexity_guarded`.
+    pub complexity_guarded: bool,
     /// Byte offset to add to this unit's (otherwise relative) spans to recover
     /// **absolute** source positions (Approach B — offset-aware consumers).
     ///
@@ -178,6 +185,16 @@ impl FunctionUnit {
             &std::collections::HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>,
         >,
     ) -> Self {
+        // Complexity guard (block-count half): a pathologically large body
+        // would cost seconds of SSA + dataflow for near-zero findings, so skip
+        // the deep analysis and flag the unit. The body-byte half is applied by
+        // the callers that have the body span (see `build_for_with_config`).
+        // Backstop for every path through here — `build`, methods, and the
+        // salsa `function_lattice` callbacks. Mirrors Python's `force_guard or
+        // is_complexity_guarded` short-circuit in `analyse_function`.
+        if crate::ssa::is_complexity_guarded(&cfg) {
+            return Self::trivial_guarded(name, cfg);
+        }
         let ssa = build_ssa(&cfg, registry);
         let def_use = build_def_use_chains(&ssa, Some(&cfg));
         // The registry encodes the analysis dialect's Tcl version, which fixes
@@ -225,6 +242,30 @@ impl FunctionUnit {
             taints,
             rendered_props,
             memory_ssa: None,
+            complexity_guarded: false,
+            base_offset: 0,
+        }
+    }
+
+    /// A trivial guarded unit for a body the complexity guard skips: trivial
+    /// SSA, empty dataflow lattices, `complexity_guarded = true`. Per-proc
+    /// diagnostic and optimiser passes consult the flag and skip it, so the
+    /// empty lattices are never read as real facts.
+    #[must_use]
+    pub fn trivial_guarded(name: impl Into<String>, cfg: CfgFunction) -> Self {
+        let ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry.clone());
+        Self {
+            name: name.into(),
+            cfg,
+            ssa,
+            def_use: DefUseResult::default(),
+            sccp: SccpResult::default(),
+            types: HashMap::new(),
+            return_type: TypeLattice::unknown(),
+            taints: HashMap::new(),
+            rendered_props: HashMap::new(),
+            memory_ssa: None,
+            complexity_guarded: true,
             base_offset: 0,
         }
     }
@@ -448,6 +489,23 @@ impl CompilationUnit {
             let param_constants =
                 params_constants_from_call_sites(params, &call_site_constants, qname);
             let proc = ir_module.procedures.get(qname);
+            // Complexity guard (block-count or body-byte half): skip both the
+            // memo and the deep analysis for an oversized body. A flat
+            // generated proc is block-light yet byte-huge, so the byte test is
+            // what catches it. Mirrors Python's `byte_guarded ||
+            // is_complexity_guarded(cfg)` in the compilation-unit build.
+            let body_bytes = proc.map_or(0usize, |p| {
+                p.span.end().saturating_sub(p.span.start()) as usize
+            });
+            if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES
+                || crate::ssa::is_complexity_guarded(cfg)
+            {
+                procedures.insert(
+                    qname.clone(),
+                    FunctionUnit::trivial_guarded(qname, cfg.clone()),
+                );
+                continue;
+            }
             let body_offset = proc.map_or(0, |p| p.span.start());
             // Encode the interprocedural seeds into the hashable form the memo
             // key carries.  The interproc `param_constants` are folded *into*
@@ -522,10 +580,18 @@ impl CompilationUnit {
                         upvar_procs.clone(),
                         proc_params.clone(),
                     );
-                    (
-                        mqname.clone(),
-                        FunctionUnit::build(mqname, cfg, &method.params, registry),
-                    )
+                    // Body-byte half of the complexity guard (the block-count
+                    // half is applied inside `build`); skip an oversized
+                    // generated method body the same way as a procedure.
+                    let body_bytes = method
+                        .span
+                        .map_or(0usize, |s| s.end().saturating_sub(s.start()) as usize);
+                    let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
+                        FunctionUnit::trivial_guarded(mqname, cfg)
+                    } else {
+                        FunctionUnit::build(mqname, cfg, &method.params, registry)
+                    };
+                    (mqname.clone(), fu)
                 })
                 .collect()
         };
@@ -697,6 +763,15 @@ impl CompilationUnit {
         let mut procs: Vec<&FunctionUnit> = self.procedures.values().collect();
         procs.sort_by(|a, b| a.name.cmp(&b.name));
         std::iter::once(&self.top_level).chain(procs)
+    }
+
+    /// Like [`Self::functions`] but skips the functions the complexity guard
+    /// excluded from deep analysis (oversized bodies). Per-proc diagnostic and
+    /// optimiser passes iterate this so a guarded body — whose `ssa` and
+    /// dataflow lattices are trivial — contributes no findings and costs no
+    /// CFG walk. The relative order of the remaining functions is unchanged.
+    pub fn analysable_functions(&self) -> impl Iterator<Item = &FunctionUnit> {
+        self.functions().filter(|fu| !fu.complexity_guarded)
     }
 }
 
@@ -906,6 +981,33 @@ mod tests {
                 .sccp
                 .executable_blocks
                 .contains(&cu.top_level.ssa.entry)
+        );
+    }
+
+    #[test]
+    fn complexity_guard_flags_byte_huge_proc() {
+        // A normal proc is analysed (not guarded), with real SSA + SCCP.
+        let normal = CompilationUnit::build_for("proc small {} { set x 1 }", &registry(), false);
+        let small = normal.function("::small").expect("::small built");
+        assert!(!small.complexity_guarded);
+        assert!(!small.ssa.blocks.is_empty());
+
+        // A block-light but byte-huge body (one statement with a ~270 KB
+        // literal) trips the body-byte half of the complexity guard: the unit
+        // is flagged and carries a trivial SSA, so the O(blocks·vars) walk and
+        // the dataflow passes never run on it.
+        let big_literal = "A".repeat(270_000);
+        let src = format!("proc big {{}} {{ set x \"{big_literal}\" }}");
+        let cu = CompilationUnit::build_for(&src, &registry(), false);
+        let big = cu.function("::big").expect("::big built");
+        assert!(big.complexity_guarded, "byte-huge body must be guarded");
+        assert!(big.ssa.blocks.is_empty(), "guarded unit has trivial SSA");
+        assert!(big.sccp.values.is_empty());
+        // Guarded functions are excluded from the analysable-function view the
+        // per-proc diagnostic and optimiser passes iterate.
+        assert!(
+            cu.analysable_functions().all(|fu| fu.name != "::big"),
+            "guarded ::big must be skipped by analysable_functions"
         );
     }
 

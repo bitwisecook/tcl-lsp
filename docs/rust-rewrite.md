@@ -1029,26 +1029,32 @@ Owns `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing`.
 - **open** nested-body E202/E203 detectors (top-level only today) and the
   precise `partial_delimiter` suffix field on `SegmentedCommand`. *(tiny)*
 
-#### FE-DATAFLOW — SCCP / intervals / memory-SSA precision
-Owns `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}`.
-- **open** SCCP escaping-var widening — force `::g` / escaping names to
-  OVERDEFINED; consult `var_observability::escaping_var_names` from
-  `sccp.rs::evaluate_def` (unsound const-prop without it).
-- **open** SCCP optimistic (Wegman–Zadeck) UNKNOWN deferral + finalising pass
-  (`sccp.rs` opens both arms immediately today).
-- **open** SCCP break-exit precompute (infinite-loop+break) and the
-  static-loop → SCCP/interval fold (wire `summarise_for_statement`, which has no
-  production caller; carry the `IRFor` on `LoopNode`).
-- **open** memory-SSA `IRUpFrame` clobber (`memory_ssa.rs::is_clobber` is missing
-  `Statement::UpFrame => true`) and the `upvar 1 x a; upvar 1 x b` may-alias
-  edge. *(1-line + edge)*
-- **open** W233 interval div-by-zero path — the production emitter is
-  SCCP-constant-only; the ported `find_divide_by_zero` is dead. Wire it or
-  document the simplification.
-- **open** `complexity_guard` (cross-cutting) — port the size-based escape hatch
-  Python applies in `ssa.py`, `taint/_api.py`, `optimiser/_manager.py`,
-  `shimmer.py` (0 occurrences in Rust). Absence → runaway latency + over-optimistic
-  interproc summaries on adversarial input.
+#### FE-DATAFLOW — SCCP / intervals / memory-SSA precision ✅
+Owns `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}`. All
+residuals have landed:
+- **done** SCCP escaping-var widening — `sccp` consults
+  `var_observability::escaping_var_names` and forces `::`-qualified / aliased /
+  traced definitions to OVERDEFINED (mirrors `_is_externally_mutable`).
+- **done** SCCP optimistic (Wegman–Zadeck) UNKNOWN deferral + monotone
+  finalising pass (`branch_deferrable`; the driver runs at most twice).
+- **done** static-loop → SCCP fold — `LoopNode` carries the `IRFor` and the
+  branch decision wires `summarise_for_statement`, folding a post-loop branch
+  on a loop variable. The break-exit case needs no SCCP precompute: the Rust
+  CFG builder already lowers `break` to a direct loop-exit edge, so the
+  post-loop block is reachable by construction.
+- **done** memory-SSA `IRUpFrame` clobber + the shared-caller upvar may-alias
+  edge (`upvar 1 x a; upvar 1 x b` merge into one alias set).
+- **done** W233 interval div-by-zero path — the production emitter now delegates
+  to the (previously dead) interval-based `find_divide_by_zero`, the single
+  canonical implementation; the SCCP-only copy is gone.
+- **done** `complexity_guard` — `ssa::{COMPLEXITY_GUARD_BLOCKS,
+  DEEP_ANALYSIS_BODY_BYTES, is_complexity_guarded}`, a trivial-SSA short-circuit
+  in `build_ssa`, a `FunctionUnit::complexity_guarded` flag set from the
+  block-count or body-byte ceiling, and `CompilationUnit::analysable_functions`
+  filtering guarded bodies out of every per-proc diagnostic / optimiser pass.
+  (The interprocedural summary is IR-based, so it needs no guard — it never
+  develops the over-optimistic empty-SSA summary the Python guard exists to
+  prevent.)
 
 #### FE-VARESCAPE — var-escape wiring
 Owns `tcl-compiler::var_escape`.

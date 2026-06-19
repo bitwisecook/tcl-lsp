@@ -141,7 +141,7 @@ pub fn find_shimmer_warnings_for_cu(
     registry: &CommandRegistry,
 ) -> Vec<ShimmerWarning> {
     let mut out = Vec::new();
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         out.extend(find_shimmer_warnings(
             &fu.cfg,
             &fu.ssa,
@@ -161,7 +161,7 @@ pub fn find_thunking_warnings_for_cu(
     cu: &crate::compilation_unit::CompilationUnit,
 ) -> Vec<ThunkingWarning> {
     let mut out = Vec::new();
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         out.extend(find_thunking_warnings(
             &fu.cfg,
             &fu.ssa,
