@@ -33,6 +33,20 @@ use crate::parsing::syntax::segment::segments_from_tree;
 use crate::segmenter::SegmentedCommand;
 
 use super::state::Analyser;
+use super::types::{CodeFix, Diagnostic, Severity};
+
+/// Parent command for a control-flow keyword that is only valid as an
+/// argument *within* a parent command, or `None` for any other name.
+///
+/// Mirrors `_ORPHANED_KEYWORDS` in
+/// `analyser/_analyser/_commands.py:118` — keyword → parent command.
+fn orphaned_keyword_parent(cmd_name: &str) -> Option<&'static str> {
+    match cmd_name {
+        "else" | "elseif" | "then" => Some("if"),
+        "on" | "trap" | "finally" => Some("try"),
+        _ => None,
+    }
+}
 
 impl Analyser {
     /// Re-segment a body script and dispatch each command at
@@ -322,6 +336,13 @@ impl Analyser {
             // (``_commands.py:182-198``).
             self.record_var_or_cmd_command_site(cmd_tok, args, scope_path);
 
+            // W125 (orphaned control-flow keyword) and IRULE5005 (direct
+            // iRules-proc call without `call`) — both key off whether the
+            // command head resolves to a user proc, so they share one
+            // resolution.  Mirrors the W125 / IRULE5005 blocks of
+            // ``_AnalyserCommandsMixin._process_command``.
+            self.emit_proc_resolution_diagnostics(cmd_name, args, cmd_tok, scope_path);
+
             // Record TclOO instance creation (`set v [Cls new]`,
             // `Cls create inst`) so the LSP providers can resolve
             // ``$v method`` / ``inst method`` call sites to the
@@ -461,6 +482,76 @@ impl Analyser {
         // walk so race-detection diagnostics see the event
         // name, mirroring the Python behaviour.
         self.dispatch_body_arguments(cmd_name, args, arg_tokens, arg_single, scope_path);
+    }
+
+    /// Emit the two diagnostics that key off whether the command head
+    /// resolves to a user proc:
+    ///
+    /// - **W125** (Warning) — an orphaned control-flow keyword
+    ///   (`else` / `elseif` / `then` / `on` / `trap` / `finally`) used as a
+    ///   standalone command.  This almost always means a misplaced newline
+    ///   split its parent `if` / `try` (`}\nelse {` instead of `} else {`).
+    ///   Suppressed when a user proc *or* a registry command of the same
+    ///   name shadows the keyword.
+    /// - **IRULE5005** (Error) — a user proc invoked directly inside an
+    ///   iRules event body, where Tcl-on-TMM requires `call PROC ARGS`.
+    ///   Ships a `call PROC`-rewrite [`CodeFix`].
+    ///
+    /// Mirrors the W125 (`analyser/_analyser/_commands.py:171`) and
+    /// IRULE5005 (`:228`) blocks of `_process_command`; the proc is
+    /// resolved once and shared between both checks.
+    pub(super) fn emit_proc_resolution_diagnostics(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        cmd_tok: Token,
+        scope_path: &[usize],
+    ) {
+        let resolves_to_proc = self.resolve_proc_call(cmd_name, scope_path).is_some();
+
+        if !resolves_to_proc
+            && let Some(parent) = orphaned_keyword_parent(cmd_name)
+            && self
+                .registry
+                .as_ref()
+                .is_none_or(|r| r.get(cmd_name).is_none())
+        {
+            self.result.diagnostics.push(Diagnostic {
+                code: "W125".to_string(),
+                span: cmd_tok.span,
+                message: format!(
+                    "\"{cmd_name}\" used as standalone command — should be part of \
+                     \"{parent}\" (check for misplaced newline)"
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+
+        if resolves_to_proc
+            && cmd_name != "call"
+            && self.current_event.is_some()
+            && self.dialect == "f5-irules"
+        {
+            let suffix = if args.is_empty() {
+                String::new()
+            } else {
+                format!(" {}", args.join(" "))
+            };
+            self.result.diagnostics.push(Diagnostic {
+                code: "IRULE5005".to_string(),
+                span: cmd_tok.span,
+                message: format!(
+                    "iRules procs must be invoked with 'call': call {cmd_name}{suffix}"
+                ),
+                severity: Severity::Error,
+                fixes: vec![CodeFix {
+                    span: cmd_tok.span,
+                    new_text: format!("call {cmd_name}"),
+                    description: format!("Use 'call {cmd_name}'"),
+                }],
+            });
+        }
     }
 
     /// Dispatch-site diagnostic emitters, run from
@@ -1837,5 +1928,100 @@ mod tests {
             &[],
         );
         assert!(a.command_aliases.contains_key("::myset"));
+    }
+
+    fn diag_codes(source: &str, dialect: &str) -> Vec<(String, String)> {
+        let mut a = Analyser::new();
+        let res = a.analyse(source, dialect);
+        res.diagnostics
+            .iter()
+            .map(|d| (d.code.clone(), d.message.clone()))
+            .collect()
+    }
+
+    fn has_code(source: &str, dialect: &str, code: &str) -> bool {
+        diag_codes(source, dialect).iter().any(|(c, _)| c == code)
+    }
+
+    #[test]
+    fn orphaned_keyword_parent_maps_keywords() {
+        assert_eq!(orphaned_keyword_parent("else"), Some("if"));
+        assert_eq!(orphaned_keyword_parent("elseif"), Some("if"));
+        assert_eq!(orphaned_keyword_parent("then"), Some("if"));
+        assert_eq!(orphaned_keyword_parent("on"), Some("try"));
+        assert_eq!(orphaned_keyword_parent("trap"), Some("try"));
+        assert_eq!(orphaned_keyword_parent("finally"), Some("try"));
+        assert_eq!(orphaned_keyword_parent("set"), None);
+    }
+
+    #[test]
+    fn w125_fires_for_orphaned_else() {
+        // A misplaced newline split the `if` — `else` lands as a standalone
+        // command with no parent.
+        assert!(has_code(
+            "if {$x} {\n  puts hi\n}\nelse {\n  puts bye\n}",
+            "tcl",
+            "W125"
+        ));
+    }
+
+    #[test]
+    fn w125_quiet_for_attached_else() {
+        // Properly attached `} else {` never segments `else` as a command.
+        assert!(!has_code(
+            "if {$x} {\n  puts hi\n} else {\n  puts bye\n}",
+            "tcl",
+            "W125"
+        ));
+    }
+
+    #[test]
+    fn w125_suppressed_when_user_proc_shadows_keyword() {
+        // A user proc named `finally` shadows the keyword — no warning.
+        assert!(!has_code(
+            "proc finally {} { return }\nfinally",
+            "tcl",
+            "W125"
+        ));
+    }
+
+    #[test]
+    fn irule5005_fires_for_direct_proc_call_in_event() {
+        let src = "proc helper {} { return 1 }\nwhen HTTP_REQUEST { helper }";
+        assert!(has_code(src, "f5-irules", "IRULE5005"));
+    }
+
+    #[test]
+    fn irule5005_quiet_with_call_prefix() {
+        let src = "proc helper {} { return 1 }\nwhen HTTP_REQUEST { call helper }";
+        assert!(!has_code(src, "f5-irules", "IRULE5005"));
+    }
+
+    #[test]
+    fn irule5005_quiet_outside_event_context() {
+        // Top-level direct call, no `when` block — not an iRules-event call.
+        let src = "proc helper {} { return 1 }\nhelper";
+        assert!(!has_code(src, "f5-irules", "IRULE5005"));
+    }
+
+    #[test]
+    fn irule5005_quiet_in_plain_tcl_dialect() {
+        let src = "proc helper {} { return 1 }\nwhen HTTP_REQUEST { helper }";
+        assert!(!has_code(src, "tcl", "IRULE5005"));
+    }
+
+    #[test]
+    fn irule5005_carries_call_rewrite_fix() {
+        let src = "proc helper {} { return 1 }\nwhen HTTP_REQUEST { helper x y }";
+        let mut a = Analyser::new();
+        let res = a.analyse(src, "f5-irules");
+        let d = res
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "IRULE5005")
+            .expect("IRULE5005 expected");
+        assert!(d.message.contains("call helper x y"));
+        assert_eq!(d.fixes.len(), 1);
+        assert_eq!(d.fixes[0].new_text, "call helper");
     }
 }
