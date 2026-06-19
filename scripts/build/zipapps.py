@@ -35,6 +35,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 
+# Minimum Python a shipped zipapp must run on — keep in lockstep with the
+# ``requires-python`` floor in pyproject.toml.  Bundled pip dependencies are
+# resolved *for this version* (not the build interpreter) so conditional,
+# marker-gated deps like ``exceptiongroup; python_version < "3.11"`` (a cattrs
+# requirement reached via pygls) get bundled even when the release is built on
+# a newer Python.  Without this, a 3.11+ build silently drops them and the
+# zipapp dies with ``ModuleNotFoundError`` on a 3.10 host.
+MIN_PYTHON = "3.10"
+
 # All seven concern packages — keep in dependency order (top-down).
 ALL_PACKAGES: tuple[str, ...] = (
     "shared",
@@ -155,6 +164,11 @@ def _pip_install_pure(stage: Path, packages: tuple[str, ...]) -> None:
             "install",
             "--target",
             str(stage),
+            # Resolve environment markers for the minimum supported Python
+            # rather than the (possibly newer) build interpreter, so
+            # version-gated transitive deps are bundled.  See MIN_PYTHON.
+            "--python-version",
+            MIN_PYTHON,
             "--quiet",
             *packages,
         ]
@@ -227,6 +241,16 @@ def build_profile(profile: Profile, version: str, output: Path) -> None:
 # (shared + compiler + dialects + analyser) plus a varying top end.
 _BASE_BACKEND = ("shared", "compiler", "dialects", "analyser")
 
+# ``tomli`` is the Python < 3.11 fallback for the stdlib ``tomllib``.  Shipped
+# modules in ``dialects`` (F5 bigip trailer / redact-map) and ``tooling`` (F5
+# remote auth) do ``import tomllib`` on 3.11+ else ``import tomli as tomllib``;
+# every profile bundles ``dialects`` (and ``tooling``), so every profile needs
+# it.  It is not a transitive dep of any other bundled package, so it must be
+# listed explicitly.  Bundling it unconditionally is safe: a 3.11+ *run* host
+# uses the stdlib ``tomllib`` and never touches this copy.  Mirrors the
+# ``tomli>=2.0; python_version < "3.11"`` runtime dep in pyproject.toml.
+_TOMLI_FALLBACK: tuple[str, ...] = ("tomli>=2.0",)
+
 PROFILES: dict[str, Profile] = {
     "explorer-cli": Profile(
         name="explorer-cli",
@@ -240,13 +264,13 @@ PROFILES: dict[str, Profile] = {
         # ``--text`` mode still works without these, so the CLI degrades
         # gracefully — but the default surface on an interactive TTY is
         # the TUI, so ship the deps.
-        pip_packages=("textual>=0.80",),
+        pip_packages=_TOMLI_FALLBACK + ("textual>=0.80",),
         entry_module="tooling.explorer.cli:main",
     ),
     "f5": Profile(
         name="f5",
         packages=_BASE_BACKEND + ("server", "tooling"),
-        pip_packages=("argcomplete>=3.0",),
+        pip_packages=_TOMLI_FALLBACK + ("argcomplete>=3.0",),
         entry_module="tooling.f5.main:main",
     ),
     "tcl": Profile(
@@ -254,7 +278,7 @@ PROFILES: dict[str, Profile] = {
         # The unified `tcl` CLI runs both the analyser stack and the VM,
         # so it ships everything except ai/.
         packages=_BASE_BACKEND + ("server", "tooling"),
-        pip_packages=("argcomplete>=3.0",),
+        pip_packages=_TOMLI_FALLBACK + ("argcomplete>=3.0",),
         entry_script=ROOT / "scripts" / "zipapp-main" / "tcl.py",
     ),
     "lsp": Profile(
@@ -262,25 +286,26 @@ PROFILES: dict[str, Profile] = {
         # server/ uses tooling/ for refactorings, formatter, codemods,
         # tclpkg — those have to ship with the LSP zipapp.
         packages=_BASE_BACKEND + ("server", "tooling"),
-        pip_packages=("pygls>=2.0", "lsprotocol>=2024.0.0"),
+        pip_packages=_TOMLI_FALLBACK + ("pygls>=2.0", "lsprotocol>=2024.0.0"),
         entry_script=ROOT / "scripts" / "zipapp-main" / "lsp.py",
     ),
     "ai": Profile(
         name="ai",
         packages=_BASE_BACKEND + ("server", "tooling", "ai"),
-        pip_packages=("jinja2>=3.1",),
+        pip_packages=_TOMLI_FALLBACK + ("jinja2>=3.1",),
         entry_script=ROOT / "scripts" / "zipapp-main" / "ai.py",
     ),
     "mcp": Profile(
         name="mcp",
         packages=_BASE_BACKEND + ("server", "tooling", "ai"),
-        pip_packages=("lsprotocol>=2024.0.0", "jinja2>=3.1"),
+        pip_packages=_TOMLI_FALLBACK + ("lsprotocol>=2024.0.0", "jinja2>=3.1"),
         entry_script=ROOT / "scripts" / "zipapp-main" / "mcp.py",
     ),
     "wasm": Profile(
         name="wasm",
         # The WASM compiler CLI doesn't need analyser, server, or ai.
         packages=("shared", "compiler", "dialects", "tooling"),
+        pip_packages=_TOMLI_FALLBACK,
         entry_module="tooling.wasm.main:main",
         bundle_wasm_runtime=True,
     ),
