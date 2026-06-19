@@ -269,6 +269,27 @@ mod tests {
     }
 
     #[test]
+    fn quoted_line_continuation_is_kept_as_a_word() {
+        // `puts "\<newline>"` — the quoted word is a single ESC whose text
+        // is exactly `\<newline>`. In C Tcl the `\<newline>` collapses to a
+        // space, so the word is a real (one-space) argument, NOT nothing:
+        // `puts "\<newline>"` runs `puts` with one argument. Verified
+        // against tclsh 8.6.14 and 9.0.3 (`llength $args` == 1 for that
+        // trailing word). The segmenter therefore keeps it: `puts` plus the
+        // quoted word == two words. (Was previously dropped — the
+        // build.rs/oracle backslash-newline divergence, now reconciled to
+        // `compiler/parsing/syntax/build.py`.)
+        let segs = cst_segments("puts \"\\\n\"");
+        assert_eq!(segs.len(), 1);
+        assert_eq!(segs[0].texts.len(), 2, "puts + the quoted word");
+        assert_eq!(segs[0].name(), "puts");
+
+        // `set y "a\<newline>b"` keeps the partial-continuation word too.
+        let segs2 = cst_segments("set y \"a\\\nb\"");
+        assert_eq!(segs2[0].texts.len(), 3, "set + y + the quoted word");
+    }
+
+    #[test]
     fn dangling_marker_command_discarded() {
         // A line whose only token is a literal `{*}` (not an expand) still
         // segments as a normal command; verify a real expand-only line is
