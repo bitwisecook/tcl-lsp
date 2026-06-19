@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum, auto
 
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
-from compiler.registry.runtime import TYPE_HINTS, byte_array_payload_commands
+from compiler.registry.models import BytePayloadSpec
+from compiler.registry.runtime import TYPE_HINTS, byte_array_payload_layouts
 from compiler.registry.type_hints import CommandTypeHint, SubcommandTypeHint
 from shared.codes import diag
 from shared.diagnostic import Range
@@ -1673,23 +1675,35 @@ def _cmdsub_returns_bytearray(cmd: str, args: tuple[str, ...]) -> bool:
     return False
 
 
-def _is_payload_getter(cmd: str, args: tuple[str, ...], payload_cmds: frozenset[str]) -> bool:
+def _is_payload_getter(
+    cmd: str, args: tuple[str, ...], payload_layouts: Mapping[str, BytePayloadSpec]
+) -> bool:
     """True when ``[cmd args]`` reads raw payload bytes (the getter form)."""
-    if cmd not in payload_cmds:
+    if cmd not in payload_layouts:
         return False
     return not args or args[0] not in _PAYLOAD_NON_GETTER_SUBS
 
 
 def _payload_replace_data_index(
-    cmd: str, args: tuple[str, ...], payload_cmds: frozenset[str]
+    cmd: str, args: tuple[str, ...], payload_layouts: Mapping[str, BytePayloadSpec]
 ) -> int | None:
-    """For a ``<proto>::payload replace <offset> <length> <data>`` sink, return
-    the index of the ``<data>`` argument; ``None`` if not a replace sink."""
-    if cmd not in payload_cmds:
+    """For a ``<proto>::payload replace … <data>`` sink, return the index of the
+    ``<data>`` argument; ``None`` if not a replace sink.
+
+    The data position is registry-driven (:class:`BytePayloadSpec`), so each
+    protocol's layout is correct without special-casing here: ``replace
+    <offset> <length> <data>`` (data at 3) vs ``replace <data> …`` (data at 1),
+    plus the GTP ``-message <value>`` flag that shifts the positional operands.
+    """
+    layout = payload_layouts.get(cmd)
+    if layout is None:
         return None
-    if len(args) >= 4 and args[0] == "replace":
-        return 3
-    return None
+    if not args or args[0] != "replace":
+        return None
+    idx = layout.replace_data_index
+    if layout.message_flag_shift and len(args) > 1 and args[1] == "-message":
+        idx += 2
+    return idx if len(args) > idx else None
 
 
 def _vars_in_text(text: str) -> list[str]:
@@ -1704,7 +1718,7 @@ def _arg_byte_prov(
     arg_text: str,
     uses: dict[str, int],
     prov: dict[SSAValueKey, _ByteProvInfo],
-    payload_cmds: frozenset[str],
+    payload_layouts: Mapping[str, BytePayloadSpec],
 ) -> _ByteProvInfo | None:
     """Byte provenance of a single argument expression (var ref, command
     substitution, or interpolation)."""
@@ -1728,7 +1742,9 @@ def _arg_byte_prov(
         if (cmd == "encoding" and cargs and cargs[0] == "convertto") or (
             cmd == "string" and cargs and cargs[0] in _CASE_FOLD_STRING_SUBS
         ):
-            operand = _join_prov([_arg_byte_prov(c, uses, prov, payload_cmds) for c in cargs[1:]])
+            operand = _join_prov(
+                [_arg_byte_prov(c, uses, prov, payload_layouts) for c in cargs[1:]]
+            )
             if operand is not None and operand.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
                 return _ByteProvInfo(
                     _ByteProv.DAMAGED,
@@ -1742,11 +1758,11 @@ def _arg_byte_prov(
             if cmd == "encoding":
                 return _ByteProvInfo(_ByteProv.BINARY, None, "encoding convertto")
             return None
-        if _is_payload_getter(cmd, cargs, payload_cmds) or _cmdsub_returns_bytearray(cmd, cargs):
+        if _is_payload_getter(cmd, cargs, payload_layouts) or _cmdsub_returns_bytearray(cmd, cargs):
             return _ByteProvInfo(_ByteProv.BINARY, None, _source_label(cmd, cargs))
         # A string transform applied to a binary operand inside the arg.
         inner = _join_prov(
-            [_arg_byte_prov(c, uses, prov, payload_cmds) for c in cargs],
+            [_arg_byte_prov(c, uses, prov, payload_layouts) for c in cargs],
         )
         if inner is not None and inner.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
             return _ByteProvInfo(
@@ -1828,9 +1844,11 @@ def _find_byte_array_corruption(
     # (``binary format`` / ``encoding convertto``) are dialect-agnostic and stay
     # on everywhere.
     dialect = active_dialect()
-    payload_cmds = frozenset(
-        c for c in byte_array_payload_commands() if REGISTRY.get(c, dialect) is not None
-    )
+    payload_layouts = {
+        c: layout
+        for c, layout in byte_array_payload_layouts().items()
+        if REGISTRY.get(c, dialect) is not None
+    }
     warnings: list[ShimmerWarning] = []
     prov: dict[SSAValueKey, _ByteProvInfo] = {}
 
@@ -1853,11 +1871,11 @@ def _find_byte_array_corruption(
             stmt = block.statements[idx]
 
             if isinstance(stmt, IRAssignValue):
-                _track_assign_value(stmt, ssa_stmt, prov, payload_cmds, warnings)
+                _track_assign_value(stmt, ssa_stmt, prov, payload_layouts, warnings)
             elif isinstance(stmt, IRAssignExpr):
                 _track_assign_expr(stmt, ssa_stmt, prov)
             elif isinstance(stmt, IRCall):
-                _track_call(stmt, ssa_stmt, prov, payload_cmds, warnings)
+                _track_call(stmt, ssa_stmt, prov, payload_layouts, warnings)
 
     return warnings
 
@@ -1866,7 +1884,7 @@ def _track_assign_value(
     stmt: IRAssignValue,
     ssa_stmt,
     prov: dict[SSAValueKey, _ByteProvInfo],
-    payload_cmds: frozenset[str],
+    payload_layouts: Mapping[str, BytePayloadSpec],
     warnings: list[ShimmerWarning],
 ) -> None:
     name = _normalise_var_name(stmt.name)
@@ -1880,13 +1898,15 @@ def _track_assign_value(
     parsed = parse_command_substitution(val)
     if parsed is not None:
         cmd, cargs = parsed
-        if _is_payload_getter(cmd, cargs, payload_cmds):
+        if _is_payload_getter(cmd, cargs, payload_layouts):
             prov[key] = _ByteProvInfo(_ByteProv.BINARY, stmt.range, cmd)
             return
         # encoding convertto of an already-binary value is the double-encode
         # bug — warn, then treat the (byte-array) result as binary.
         if cmd == "encoding" and cargs and cargs[0] == "convertto":
-            operand = _join_prov([_arg_byte_prov(c, uses, prov, payload_cmds) for c in cargs[1:]])
+            operand = _join_prov(
+                [_arg_byte_prov(c, uses, prov, payload_layouts) for c in cargs[1:]]
+            )
             if operand is not None and operand.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
                 warnings.append(
                     _byte_corruption_warning(
@@ -1906,7 +1926,9 @@ def _track_assign_value(
             return
         # string case-folding directly mangles a byte array.
         if cmd == "string" and cargs and cargs[0] in _CASE_FOLD_STRING_SUBS:
-            operand = _join_prov([_arg_byte_prov(c, uses, prov, payload_cmds) for c in cargs[1:]])
+            operand = _join_prov(
+                [_arg_byte_prov(c, uses, prov, payload_layouts) for c in cargs[1:]]
+            )
             if operand is not None and operand.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
                 warnings.append(
                     _byte_corruption_warning(
@@ -1928,7 +1950,7 @@ def _track_assign_value(
                 return
         # string value subcommands / other string-coercing commands derive a
         # character string from a (possibly binary) operand.
-        derived = _coerced_from_binary(cmd, cargs, uses, prov, payload_cmds)
+        derived = _coerced_from_binary(cmd, cargs, uses, prov, payload_layouts)
         if derived is not None:
             prov[key] = _ByteProvInfo(
                 _ByteProv.DAMAGED,
@@ -1966,14 +1988,14 @@ def _coerced_from_binary(
     cargs: tuple[str, ...],
     uses: dict[str, int],
     prov: dict[SSAValueKey, _ByteProvInfo],
-    payload_cmds: frozenset[str],
+    payload_layouts: Mapping[str, BytePayloadSpec],
 ) -> _ByteProvInfo | None:
     """If ``[cmd cargs]`` is a string-coercing op over a binary operand, return
     the originating binary provenance; else ``None``."""
     is_string_value_sub = cmd == "string" and cargs and cargs[0] in _STRING_VALUE_SUBS
     if not (is_string_value_sub or cmd in _STRING_COERCING_COMMANDS):
         return None
-    joined = _join_prov([_arg_byte_prov(c, uses, prov, payload_cmds) for c in cargs])
+    joined = _join_prov([_arg_byte_prov(c, uses, prov, payload_layouts) for c in cargs])
     if joined is not None and joined.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
         return joined
     return None
@@ -2003,7 +2025,7 @@ def _track_call(
     stmt: IRCall,
     ssa_stmt,
     prov: dict[SSAValueKey, _ByteProvInfo],
-    payload_cmds: frozenset[str],
+    payload_layouts: Mapping[str, BytePayloadSpec],
     warnings: list[ShimmerWarning],
 ) -> None:
     cmd, args = stmt.command, stmt.args
@@ -2032,7 +2054,7 @@ def _track_call(
         if new_ver is not None:
             old = prov.get((target, uses.get(target, 0)))
             operand = _join_prov(
-                [old] + [_arg_byte_prov(a, uses, prov, payload_cmds) for a in args[1:]]
+                [old] + [_arg_byte_prov(a, uses, prov, payload_layouts) for a in args[1:]]
             )
             if operand is not None and operand.state in (_ByteProv.BINARY, _ByteProv.DAMAGED):
                 prov[(target, new_ver)] = _ByteProvInfo(
@@ -2044,10 +2066,10 @@ def _track_call(
                 )
         return
 
-    # Sink: ``<proto>::payload replace <offset> <length> <data>``.
-    data_idx = _payload_replace_data_index(cmd, args, payload_cmds)
+    # Sink: ``<proto>::payload replace … <data>`` (data index is per-protocol).
+    data_idx = _payload_replace_data_index(cmd, args, payload_layouts)
     if data_idx is not None and data_idx < len(args):
-        info = _arg_byte_prov(args[data_idx], uses, prov, payload_cmds)
+        info = _arg_byte_prov(args[data_idx], uses, prov, payload_layouts)
         if info is not None and info.state is _ByteProv.DAMAGED:
             data_var = (
                 _normalise_var_name(args[data_idx]) if is_pure_var_ref(args[data_idx]) else ""

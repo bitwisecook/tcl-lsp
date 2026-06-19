@@ -1000,6 +1000,91 @@ class TestByteArrayCorruption:
         )
         assert len(self._irules(source)) == 1
 
+    # --- per-protocol ``replace`` data-arg layouts (registry-driven) ---
+    #
+    # ``<proto>::payload replace`` puts the data operand at a different index
+    # depending on the protocol, so S110 must derive it from the registry
+    # (BytePayloadSpec) rather than assuming the TCP/HTTP ``replace OFFSET
+    # LENGTH DATA`` layout.  Each test below damages payload bytes and writes
+    # them back through a sink whose data argument is *not* at index 3.
+
+    def test_mqtt_payload_replace_data_index_1_fires(self):
+        # MQTT: ``replace <data> ?offset? ?length?`` — data at index 1.
+        source = (
+            "when MQTT_MESSAGE {\n"
+            "  set p [MQTT::payload]\n"
+            '  set bad "$p x"\n'
+            "  MQTT::payload replace $bad\n"
+            "}\n"
+        )
+        warnings = self._irules(source)
+        assert len(warnings) == 1, warnings
+        assert "MQTT::payload replace" in warnings[0].message
+
+    def test_diameter_payload_replace_data_index_1_fires(self):
+        # DIAMETER: ``replace PAYLOAD`` — data at index 1.
+        source = (
+            "when DIAMETER_INGRESS {\n"
+            "  set p [DIAMETER::payload]\n"
+            '  set bad "$p x"\n'
+            "  DIAMETER::payload replace $bad\n"
+            "}\n"
+        )
+        warnings = self._irules(source)
+        assert len(warnings) == 1, warnings
+        assert "DIAMETER::payload replace" in warnings[0].message
+
+    def test_gtp_payload_replace_data_index_3_fires(self):
+        # GTP: ``replace OFFSET COUNT NEW_VALUE`` — data at index 3 (no flag).
+        source = (
+            "when CLIENT_ACCEPTED {\n"
+            "  set p [GTP::payload]\n"
+            '  set bad "$p x"\n'
+            "  GTP::payload replace 0 10 $bad\n"
+            "}\n"
+        )
+        warnings = self._irules(source)
+        assert len(warnings) == 1, warnings
+        assert "GTP::payload replace" in warnings[0].message
+
+    def test_gtp_payload_replace_message_flag_shifts_data_index(self):
+        # GTP: the optional ``-message MESSAGE`` flag shifts data to index 5.
+        source = (
+            "when CLIENT_ACCEPTED {\n"
+            "  set p [GTP::payload]\n"
+            '  set bad "$p x"\n'
+            "  GTP::payload replace -message $msg 0 10 $bad\n"
+            "}\n"
+        )
+        warnings = self._irules(source)
+        assert len(warnings) == 1, warnings
+        assert "GTP::payload replace" in warnings[0].message
+
+    def test_mqtt_payload_clean_writeback_silent(self):
+        # Pristine byte array written straight back — no coercion, no S110.
+        source = "when MQTT_MESSAGE {\n  set p [MQTT::payload]\n  MQTT::payload replace $p\n}\n"
+        assert self._irules(source) == []
+
+    def test_mqtt_payload_binary_scan_rebinarify_silent(self):
+        # The documented fix re-binarifies before the MQTT sink — silent.
+        source = (
+            "when MQTT_MESSAGE {\n"
+            "  set p [MQTT::payload]\n"
+            '  set bad "$p x"\n'
+            "  binary scan $bad c* -\n"
+            "  MQTT::payload replace $bad\n"
+            "}\n"
+        )
+        assert self._irules(source) == []
+
+    def test_gtp_payload_offset_not_treated_as_data(self):
+        # A clean (non-binary) offset at the old hardcoded index 3 must not be
+        # mistaken for the data operand under the GTP layout.
+        source = (
+            "when CLIENT_ACCEPTED {\n  set p [GTP::payload]\n  GTP::payload replace 0 10 $p\n}\n"
+        )
+        assert self._irules(source) == []
+
     # --- plain Tcl (dialect-agnostic binary sources) ---
 
     def test_plain_tcl_toupper_case_fold(self):

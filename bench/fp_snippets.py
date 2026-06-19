@@ -2868,6 +2868,41 @@ register(
 )
 
 
+register(
+    "FP-SH-11",
+    _Entry(
+        label="*::payload replace data-arg layout is per-protocol, not always index 3 (S110)",
+        proc="::when::MQTT_MESSAGE",
+        vars=("p", "bad"),
+        show=("ssa", "types"),
+        dialect="f5-irules",
+        notes=(
+            "PR #658 review gap: ``<proto>::payload replace`` does not share one\n"
+            "argument layout.  TCP/HTTP/SCTP/UDP use ``replace OFFSET LENGTH DATA``\n"
+            "(data at index 3), but MQTT (``replace <data> ?offset? ?length?``) and\n"
+            "DIAMETER (``replace PAYLOAD``) carry the data at index 1, and GTP\n"
+            "(``replace ('-message' MSG)? OFFSET COUNT NEW_VALUE``) shifts it from\n"
+            "index 3 to 5 when the optional ``-message`` flag is present.\n"
+            "\n"
+            "S110 derives the data-operand index from the registry\n"
+            "(``BytePayloadSpec`` on ``CommandSpec.byte_array_payload``) instead of\n"
+            "hardcoding 3, so the damaged interpolation reaches the MQTT sink and\n"
+            "fires.  The documented fix -- ``binary scan $bad c* -`` before the sink\n"
+            "-- re-binarifies and clears it, exactly as for the index-3 sinks."
+        ),
+        source=_dedent(
+            """
+            when MQTT_MESSAGE {
+                set p [MQTT::payload]
+                set bad "$p x"
+                MQTT::payload replace $bad
+            }
+            """
+        ),
+    ),
+)
+
+
 # ----------------------------------------------------------------------
 # STY family (01..08) -- style/usage suppressions
 # ----------------------------------------------------------------------
