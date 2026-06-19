@@ -228,6 +228,7 @@ pub struct SccpResult {
 /// and `None` to decline folding such ambiguous operands (the safe default
 /// for callers without dialect context).
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn sccp(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -263,96 +264,110 @@ pub fn sccp(
     }
     let order = cfg_order(cfg);
 
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for bn in &order {
-            if !executable_blocks.contains(bn) {
-                continue;
-            }
-            let Some(ssa_block) = ssa.blocks.get(bn) else {
-                continue;
-            };
-
-            let incoming_exec: Vec<String> = preds
-                .get(bn)
-                .map(|set| {
-                    set.iter()
-                        .filter(|p| executable_edges.contains(&((*p).clone(), bn.clone())))
-                        .cloned()
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            // Phi nodes (not at entry, only when some predecessor is
-            // executable).
-            for phi in &ssa_block.phis {
-                if bn == &cfg.entry {
+    // Optimistic fixpoint over the RPO sweep, followed by a finalising pass
+    // that forces both arms for any executable branch still stuck on an UNKNOWN
+    // condition (defensive: a value defined only in unreachable code could
+    // otherwise leave a successor spuriously unreachable). `finalizing` is
+    // monotone, so the outer loop runs at most twice. Mirrors Python's
+    // two-phase SCCP driver in `core_analyses.py`.
+    let mut finalizing = false;
+    loop {
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for bn in &order {
+                if !executable_blocks.contains(bn) {
                     continue;
                 }
-                if incoming_exec.is_empty() {
+                let Some(ssa_block) = ssa.blocks.get(bn) else {
                     continue;
-                }
-                let mut phi_val = LatticeValue::Unknown;
-                for pred in &incoming_exec {
-                    let incoming_ver = phi.incoming.get(pred).copied().unwrap_or(0);
-                    if incoming_ver == 0 {
+                };
+
+                let incoming_exec: Vec<String> = preds
+                    .get(bn)
+                    .map(|set| {
+                        set.iter()
+                            .filter(|p| executable_edges.contains(&((*p).clone(), bn.clone())))
+                            .cloned()
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                // Phi nodes (not at entry, only when some predecessor is
+                // executable).
+                for phi in &ssa_block.phis {
+                    if bn == &cfg.entry {
                         continue;
                     }
-                    let key: ValueKey = (phi.name.clone(), incoming_ver);
-                    let candidate = values.get(&key).cloned().unwrap_or(LatticeValue::Unknown);
-                    phi_val = join(&phi_val, &candidate);
-                }
-                if set_value(&mut values, (phi.name.clone(), phi.version), &phi_val) {
-                    changed = true;
-                }
-            }
-
-            // Statements.
-            for stmt_ssa in &ssa_block.statements {
-                if matches!(stmt_ssa.statement, Statement::Barrier { .. }) {
-                    // Barriers widen all currently-tracked values — EXCEPT
-                    // version-0 (parameter) seeds, which hold the caller's
-                    // literal and are immutable across the barrier (a barrier
-                    // that mutates the var produces a fresh version).  Mirrors
-                    // Python's SCCP barrier v0-preserve refinement so a callee
-                    // `dict with $param` still sees the interproc literal.
-                    let keys: Vec<ValueKey> = values.keys().cloned().collect();
-                    for k in keys {
-                        if k.1 == 0 {
+                    if incoming_exec.is_empty() {
+                        continue;
+                    }
+                    let mut phi_val = LatticeValue::Unknown;
+                    for pred in &incoming_exec {
+                        let incoming_ver = phi.incoming.get(pred).copied().unwrap_or(0);
+                        if incoming_ver == 0 {
                             continue;
                         }
-                        if set_value(&mut values, k, &LatticeValue::Overdefined) {
-                            changed = true;
-                        }
+                        let key: ValueKey = (phi.name.clone(), incoming_ver);
+                        let candidate = values.get(&key).cloned().unwrap_or(LatticeValue::Unknown);
+                        phi_val = join(&phi_val, &candidate);
                     }
-                    continue;
-                }
-                for (var, ver) in &stmt_ssa.defs {
-                    let val = if is_externally_mutable(var) {
-                        LatticeValue::Overdefined
-                    } else {
-                        evaluate_def(stmt_ssa, &values)
-                    };
-                    if set_value(&mut values, (var.clone(), *ver), &val) {
+                    if set_value(&mut values, (phi.name.clone(), phi.version), &phi_val) {
                         changed = true;
                     }
                 }
-            }
 
-            // Terminator.
-            if sccp_process_terminator(
-                bn,
-                cfg,
-                ssa,
-                &values,
-                &mut executable_blocks,
-                &mut executable_edges,
-                octal,
-            ) {
-                changed = true;
+                // Statements.
+                for stmt_ssa in &ssa_block.statements {
+                    if matches!(stmt_ssa.statement, Statement::Barrier { .. }) {
+                        // Barriers widen all currently-tracked values — EXCEPT
+                        // version-0 (parameter) seeds, which hold the caller's
+                        // literal and are immutable across the barrier (a barrier
+                        // that mutates the var produces a fresh version).  Mirrors
+                        // Python's SCCP barrier v0-preserve refinement so a callee
+                        // `dict with $param` still sees the interproc literal.
+                        let keys: Vec<ValueKey> = values.keys().cloned().collect();
+                        for k in keys {
+                            if k.1 == 0 {
+                                continue;
+                            }
+                            if set_value(&mut values, k, &LatticeValue::Overdefined) {
+                                changed = true;
+                            }
+                        }
+                        continue;
+                    }
+                    for (var, ver) in &stmt_ssa.defs {
+                        let val = if is_externally_mutable(var) {
+                            LatticeValue::Overdefined
+                        } else {
+                            evaluate_def(stmt_ssa, &values)
+                        };
+                        if set_value(&mut values, (var.clone(), *ver), &val) {
+                            changed = true;
+                        }
+                    }
+                }
+
+                // Terminator.
+                if sccp_process_terminator(
+                    bn,
+                    cfg,
+                    ssa,
+                    &values,
+                    &mut executable_blocks,
+                    &mut executable_edges,
+                    octal,
+                    finalizing,
+                ) {
+                    changed = true;
+                }
             }
         }
+        if finalizing {
+            break;
+        }
+        finalizing = true;
     }
 
     let constant_branches =
@@ -415,9 +430,44 @@ fn seed_live_in_roots<S: std::hash::BuildHasher>(
     }
 }
 
+/// Optimistic (Wegman–Zadeck) deferral test for a non-constant branch.
+///
+/// Returns `true` when the condition *may still fold* on a later sweep:
+/// some operand defined in this function (SSA exit-version > 0) is still
+/// `Unknown` (not yet computed) and none is `Overdefined`. Such a branch
+/// opens neither arm until either the operand resolves to a constant or an
+/// `Overdefined` operand proves the condition genuinely non-constant.
+///
+/// Operands read at version 0 (proc parameters, globals, and other
+/// live-in roots) are excluded: [`seed_live_in_roots`] already seeds them
+/// `Overdefined`, so they are never "not yet computed". Mirrors Python's
+/// `_condition_use_versions` + the optimistic arm of `branch_targets`.
+fn branch_deferrable(
+    ssa_block: &crate::ssa::SsaBlock,
+    condition: &ExprNode,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> bool {
+    let mut any_operand = false;
+    let mut any_unknown = false;
+    for name in crate::var_refs::vars_in_expr(condition) {
+        let ver = ssa_block.exit_versions.get(&name).copied().unwrap_or(0);
+        if ver == 0 {
+            continue;
+        }
+        any_operand = true;
+        match values.get(&(name, ver)) {
+            Some(LatticeValue::Overdefined) => return false,
+            Some(LatticeValue::Unknown) | None => any_unknown = true,
+            _ => {}
+        }
+    }
+    any_operand && any_unknown
+}
+
 /// Process a block's terminator: mark the matching outgoing edges
 /// as executable.  Returns `true` when any new edge / block was
 /// added.  Extracted from [`sccp`].
+#[allow(clippy::too_many_arguments)]
 fn sccp_process_terminator(
     bn: &str,
     cfg: &CfgFunction,
@@ -426,6 +476,7 @@ fn sccp_process_terminator(
     executable_blocks: &mut HashSet<String>,
     executable_edges: &mut HashSet<(String, String)>,
     octal: Option<bool>,
+    finalizing: bool,
 ) -> bool {
     let mut changed = false;
     let Some(block) = cfg.blocks.get(bn) else {
@@ -458,6 +509,16 @@ fn sccp_process_terminator(
             let targets: Vec<&str> = match decision {
                 Some(true) => vec![true_target.as_str()],
                 Some(false) => vec![false_target.as_str()],
+                // Optimistic (Wegman–Zadeck): while the condition may still
+                // fold on a later sweep (a not-yet-computed operand, no
+                // `Overdefined` one), open neither arm and let the fixpoint
+                // retry — this is what detects loop-carried constant
+                // conditions instead of pessimistically opening both arms
+                // forever. The finalising pass forces both arms for any
+                // branch still stuck this way.
+                None if !finalizing && branch_deferrable(ssa_block, condition, values) => {
+                    Vec::new()
+                }
                 None => vec![true_target.as_str(), false_target.as_str()],
             };
             for tgt in targets {
@@ -2041,6 +2102,40 @@ mod tests {
             &tcl_registry::CommandRegistry::build_default(),
             false,
         )
+    }
+
+    #[test]
+    fn branch_deferrable_optimism() {
+        let cond = ExprNode::Var {
+            text: "$x".into(),
+            name: "x".into(),
+            start: 0,
+            end: 2,
+        };
+        let mut sb = empty_ssa_block("b");
+        sb.exit_versions.insert("x".into(), 1);
+        let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
+
+        // Defined operand (version 1) not yet computed → defer.
+        assert!(branch_deferrable(&sb, &cond, &values));
+        values.insert(("x".into(), 1), LatticeValue::Unknown);
+        assert!(branch_deferrable(&sb, &cond, &values));
+
+        // An `Overdefined` operand proves the condition genuinely
+        // non-constant → never defer.
+        values.insert(("x".into(), 1), LatticeValue::Overdefined);
+        assert!(!branch_deferrable(&sb, &cond, &values));
+
+        // A constant operand folds via `evaluate_branch`, so the `None`
+        // arm is never reached → not deferrable here.
+        values.insert(("x".into(), 1), LatticeValue::Const(ConstValue::Int(1)));
+        assert!(!branch_deferrable(&sb, &cond, &values));
+
+        // Version-0 operands (parameters / globals / live-in roots) are
+        // already `Overdefined` and excluded from the deferral test.
+        let mut sb0 = empty_ssa_block("b");
+        sb0.exit_versions.insert("x".into(), 0);
+        assert!(!branch_deferrable(&sb0, &cond, &HashMap::new()));
     }
 
     #[test]
