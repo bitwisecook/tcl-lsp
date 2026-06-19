@@ -1106,6 +1106,24 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
 - **open** snit OO support (`snit::type`/`widget`/`widgetadaptor` as ClassDef)
   and the OO body-walks Rust skips (`oo::class new`/`createWithNamespace`,
   `initialise` body, `property -get/-set` accessor bodies).
+- **open** **W307 / W308** method-dispatch type checks + the precise TclOO
+  `object_of` typing they consume (handed off from **FE-TYPESHIM**, which
+  widens constructor results to OVERDEFINED today). The type lattice already
+  models `TypeLattice::object_of(class)` and the join widens mismatched
+  classes; what is missing is the *known-classes* set fed to
+  `type_infer::return_type_for_command` so `[Foo new]` / `[Foo create x]` /
+  `[Foo %AUTO%]` / `[Widget .path]` type as `OBJECT(::ns::Foo)` (relative
+  names resolved against the call-site namespace). Source the class set from
+  the analyser-layer `signature_scan` (the Rust IR keeps `namespace eval`
+  bodies as raw barriers, so the Python `class_names.extract_class_names`
+  IR-walk misses namespace-scoped classes — do **not** port it as-is), then
+  thread it through `FunctionUnit::build`→`propagate_types`/
+  `infer_function_return_type` and key the per-procedure lattice memo
+  (`LatticeRequest` + `tcl-lsp-db`) on it, mirroring Python's
+  `known_classes_fp`. Port `_return_type_for_command`'s constructor
+  recognition (`new`/`create`/`createWithNamespace`/`%AUTO%`/leading-`.`),
+  keeping the D4-F6 guard (no `object_of` from the `new` spelling alone when
+  the command is not a known class).
 - **open** IRULE1201 / 1202 / 5002 / 5004 path-sensitivity — the emitters are
   linear-scan MVPs (single shared `responded` flag); add per-branch state and
   restore the dropped quick-fixes (the C44 follow-up).
