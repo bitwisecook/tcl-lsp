@@ -1147,7 +1147,11 @@ impl Backend {
             "tcl8.5" => "tcl8.5",
             "tcl9.0" => "tcl9.0",
             "tcl-irule" | "f5-irules" => "f5-irules",
-            "tcl-iapp" | "f5-iapps" => "f5-iapps",
+            // `tcl-apl` is the APL (iApp presentation language) editor id — an
+            // iApp sublanguage that Python treats under the iApps extension
+            // set, so it analyses as `f5-iapps` rather than falling through to
+            // the default Tcl dialect.
+            "tcl-iapp" | "f5-iapps" | "tcl-apl" => "f5-iapps",
             "tcl-expect" | "expect" => "expect",
             "tcl-synopsys" | "synopsys-eda-tcl" => "synopsys-eda-tcl",
             "tcl-cadence" | "cadence-eda-tcl" => "cadence-eda-tcl",
@@ -5396,12 +5400,29 @@ fn is_skipped_scan_dir(path: &Path) -> bool {
     }
 }
 
-/// `true` when `path` has a Tcl source extension the analyser can
-/// usefully index (`.tcl` scripts and `.tm` Tcl modules).
+/// `true` when `path` has a Tcl-family source extension the analyser
+/// can usefully index.  Mirrors the Python scanner's `TCL_EXTENSIONS`
+/// (`server/workspace/scanner.py`) so the startup workspace scan picks
+/// up the same unopened files — otherwise cross-document definition /
+/// references / rename / call-hierarchy / workspace-symbols miss
+/// definitions that live in `.itcl`/`.irule`/`.iapp`/… files until they
+/// are opened.
 fn is_tcl_source(path: &Path) -> bool {
     matches!(
         path.extension().and_then(|e| e.to_str()),
-        Some("tcl" | "tm")
+        Some(
+            "tcl"
+                | "tk"
+                | "itcl"
+                | "tm"
+                | "irul"
+                | "irule"
+                | "iapp"
+                | "iappimpl"
+                | "impl"
+                | "exp"
+                | "apl"
+        )
     )
 }
 
@@ -6232,6 +6253,11 @@ mod tests {
         );
         assert_eq!(
             Backend::dialect_from_language_id("tcl-iapp"),
+            Some("f5-iapps"),
+        );
+        // APL presentation files are an iApp sublanguage → f5-iapps.
+        assert_eq!(
+            Backend::dialect_from_language_id("tcl-apl"),
             Some("f5-iapps"),
         );
         assert_eq!(Backend::dialect_from_language_id("tcl"), Some("tcl8.6"));
@@ -7220,9 +7246,16 @@ mod tests {
     }
 
     #[test]
-    fn is_tcl_source_matches_tcl_and_tm_only() {
-        assert!(is_tcl_source(Path::new("/a/b.tcl")));
-        assert!(is_tcl_source(Path::new("/a/b.tm")));
+    fn is_tcl_source_matches_the_full_tcl_family_extension_set() {
+        // Mirrors Python's `TCL_EXTENSIONS` (server/workspace/scanner.py).
+        for ext in [
+            "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl",
+        ] {
+            assert!(
+                is_tcl_source(Path::new(&format!("/a/b.{ext}"))),
+                "expected .{ext} to be a Tcl-family source",
+            );
+        }
         assert!(!is_tcl_source(Path::new("/a/b.txt")));
         assert!(!is_tcl_source(Path::new("/a/b")));
     }

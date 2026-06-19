@@ -622,7 +622,7 @@ impl Analyser {
         self.emit_irule2002_deprecated_command(cmd_name, cmd_tok);
         // IRULE2001: deprecated `matchclass` (f5-irules only).  Python
         // fires this alongside IRULE2002 at the same command-head span.
-        self.emit_irule2001_matchclass(cmd_name, args, arg_tokens, cmd_tok);
+        self.emit_irule2001_matchclass(cmd_name, arg_tokens, cmd_tok);
         // IRULE1003 / 1004 / 2101 / 4001 / 4003 / 5001 / 6001 —
         // analyser-level iRules event-context checks (f5-irules only).
         self.emit_irules_event_checks(cmd_name, args, arg_tokens, cmd_tok);

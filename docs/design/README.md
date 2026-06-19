@@ -20,6 +20,10 @@ rules for the KCS/documentation split live in
   emitter, and the runtimes/VM) to fix the right split and interface shapes: the
   two interface families (emitter vs runtime-state), why the bytecode VM is a
   reified-state runtime, and the WASM migration path (WASM engine untouched).
+- [family-b-routing.md](family-b-routing.md) — companion to the above (§4
+  Family B): the Family-B runtime contract as implemented on both runtimes,
+  which command families were lifted to shared cores, the bugs that surfaced,
+  and the boundaries where a command cannot be a shared body.
 - [example-script-walkthroughs.md](example-script-walkthroughs.md) — full
   pipeline traces for progressively complex Tcl scripts.
 - [code-importing-examples.md](code-importing-examples.md) — reference
