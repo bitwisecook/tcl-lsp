@@ -61,11 +61,6 @@
 
 # v1.11.1
 
-## New Features
-
-- **`tcl registry-dump` / `f5 registry-dump`.** Serialise the command,
-  event, profile, and object registries as canonical JSON.
-
 ## Improvements
 
 - **Unified secret input.** The UCS passphrase and auth-credential prompts now
