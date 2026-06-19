@@ -72,7 +72,7 @@ fn exec_command_capability() {
     vm.set_host(Rc::new(tcl_vm::host_native::NativeHost::sandboxed()));
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir("exec echo hello", &registry);
-    let cfg = build_cfg(&ir, false);
+    let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry);
     let c = vm.run_module(&asm);
     assert!(!c.code.is_ok(), "sandboxed exec should error, got ok");

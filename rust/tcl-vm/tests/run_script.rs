@@ -74,7 +74,7 @@ fn commands_dispatch_runs_proc() {
     let asm = {
         let src = "proc add {a b} { return [expr {$a + $b}] }";
         let ir = lower_to_ir(src, &registry);
-        let cfg = build_cfg(&ir, false);
+        let cfg = build_cfg_codegen(&ir, false);
         codegen_module(&cfg, &ir, &registry)
     };
 
