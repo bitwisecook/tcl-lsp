@@ -281,6 +281,12 @@ fn couple_propagated_const_dead_stores(
 
     let mut removals: Vec<Optimisation> = Vec::new();
     for fu in functions {
+        // Skip a function the complexity guard excluded from deep analysis:
+        // its lattices are trivial, so const/dead-store coupling has nothing
+        // sound to act on.
+        if fu.complexity_guarded {
+            continue;
+        }
         couple_const_dead_stores_in_function(fu, registry, source, selected, &mut removals);
     }
 

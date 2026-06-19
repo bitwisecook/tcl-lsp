@@ -1042,7 +1042,7 @@ mod tests {
         let r = registry();
         let cu = CompilationUnit::build_for(source, &r, false);
         let mut out: Vec<TaintWarning> = Vec::new();
-        for fu in cu.functions() {
+        for fu in cu.analysable_functions() {
             out.extend(find_uri_split_suggestions(
                 &fu.cfg,
                 &fu.ssa,

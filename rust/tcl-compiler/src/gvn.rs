@@ -1565,7 +1565,7 @@ pub fn find_redundancies_for_cu(
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
     let mut out = Vec::new();
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         out.extend(find_redundancies(registry, &fu.cfg, &fu.ssa, dialect));
     }
     out
@@ -1581,7 +1581,7 @@ pub fn find_partial_redundancies_for_cu(
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
     let mut out = Vec::new();
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         out.extend(find_partial_redundancies(
             registry, &fu.cfg, &fu.ssa, dialect,
         ));
@@ -1599,7 +1599,7 @@ pub fn find_loop_invariants_for_cu(
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
     let mut out = Vec::new();
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         out.extend(find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect));
     }
     out
