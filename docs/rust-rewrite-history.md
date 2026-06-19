@@ -1290,10 +1290,21 @@ general inliner). What landed:
   Mirrors Python's `already_covered` check. The multi-branch / deepest-target
   descent (sink into the deepest using branch in *each* body, not just one)
   remains the O125 residual.
-- **O103 (rename gate)** — the statement-form `try_fold_static_proc_call`
-  gained the `redefined_procedures` check the cmd-subst form already applied;
-  a redefined proc's calls are never folded. Namespace-chain resolution (a
-  bare call within its enclosing namespace) remains the O103 residual.
+- **O103 (rename gate + namespace-chain resolution)** — the statement-form
+  `try_fold_static_proc_call` gained the `redefined_procedures` check the
+  cmd-subst form already applied. Then the call-site namespace (derived from
+  the enclosing proc's qname) is threaded through the propagation walk, and
+  both fold forms resolve a bare call against the enclosing namespace chain
+  (`::ns::sub::word` out to `::word`) via the new `resolve_proc_qname`,
+  mirroring `_resolve_summary_proc_name` — a same-namespace helper call now
+  folds where the old naive `::word`-only resolution missed it.
+- **O125 (multi-branch deepest-target descent)** — the single-branch sink was
+  replaced by the recursive descent ported from `_find_deepest_sink_targets` /
+  `_try_deeper_sink`: a sinkable def is sunk into the deepest branch body that
+  uses it, in *every* branch that uses it (a var live in both arms duplicates
+  the def into each), descending through nested `if`/`switch` when a
+  single-use branch's lone consumer is itself a condition-clean decision. One
+  grouped delete + one prepend per target.
 - **General proc inliner — v0 + verbatim** — new self-contained
   `tcl-compiler::inlining` module porting the empty-body (v0) and zero-param
   verbatim-wrapper (v1/v2) shapes of `compiler/inlining/`. A

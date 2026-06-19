@@ -967,7 +967,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟢 | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) to port → **FE-TYPESHIM** |
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
-| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟡 | every O-code pass done — soundness gates (O120/O114/O108), O106 category, O123 guard, O110 boolify, O125 cross-event + already-covered guards, O101/O115 branch coverage, O103 rename gate, **all applied rewrites** (O104/O130/O119/O128), and the **inliner v0+verbatim** shapes landed; remaining: precise-flow extension; O106 trace+latch-dominance; O103 namespace-chain + O125 deepest-target precision; inliner **v3** (α-rename, gated on RT-WASM consumer + FE-VARESCAPE) → **FE-OPT** |
+| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | **every O-code pass done** — soundness gates (O120/O114/O108), O106 category, O123, O110 boolify, O125 (cross-event + already-covered + deepest-target), O101/O115 branch coverage, O103 (rename gate + namespace chain), **all applied rewrites** (O104/O130/O119/O128), and the **inliner v0+verbatim** (wired to FE-VARESCAPE `pure_leaf`); remaining: O106 latch-dominance gate, O104/O119/O130 precise-flow extension, inliner **v3** (α-rename, gated on the RT-WASM consumer for execution verification) → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005 (incl. nested `[…]` subs); snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108. Residuals: per-check config toggles + surfacing flow-warning fixes as code actions → **SRV-LSP**. Two review-found refinements (IRULE2001 3-arg `matchclass` fix, catch-`return` flow) are shared with Python → fixed Python-first, port pending → **FE-DIAG** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
@@ -1086,18 +1086,18 @@ build-chain folds (`optimiser::chain_fold`), O119 multi-set packing
   uses per-statement SSA reads; that is the residual. The applied rewrites
   are sound — they skip (never miscompile) a chain with an interleaved
   non-reading statement.
-- **open** O106 precision — thread execution-trace facts into the GVN/LICM
-  family and add the latch-dominance "runs every iteration" gate. (The
-  profile-category omission that made the hint unsuppressable is fixed.)
-- **open** residuals: O103 namespace-chain resolution (resolve a bare call
-  within its enclosing namespace; the **rename gate is now applied on both
-  the statement and cmd-subst forms**); O125 multi-branch / deepest-target
-  descent (the **cross-event-var and already-covered guards have landed**). The **O101/O115 branch-condition
-  coverage has landed** (`branch_cascade` + the O115 unwrap and O101 fold in
-  `propagate_into_branches`, which no longer early-returns on an empty
-  constant map). The O110 instcombine gap is closed for the logical
-  identities; the regex/glob→string-op rewrites remain, gated on the iRules
-  `MatchesGlob`/`MatchesRegex` expr operators.
+- **open** O106 precision — the trace-aware purity gate is present
+  (`is_pure_command_with_traces`); the remaining work is the latch-dominance
+  "runs every iteration" gate (only hoist a loop-invariant that the loop
+  latch dominates) and threading execution-trace facts deeper into the
+  GVN/LICM family. (The profile-category omission is fixed.)
+- **done** O103 (both the **rename gate** and **namespace-chain resolution**
+  via `resolve_proc_qname`), O125 (**cross-event-var**, **already-covered**,
+  and **multi-branch deepest-target descent**), O101/O115 branch coverage
+  (`branch_cascade` + the unwrap/fold in `propagate_into_branches`), and the
+  O110 logical-identity instcombine gap. The regex/glob→string-op O110
+  rewrites remain (gated on the iRules `MatchesGlob`/`MatchesRegex` expr
+  operators).
 - **partial** general proc inliner — the **v0 (empty-body) + v1/v2 (zero-param
   verbatim wrapper) shapes have landed** (`tcl-compiler::inlining`,
   2026-06-19): a statement-position call to an inlinable proc is replaced by
