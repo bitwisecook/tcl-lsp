@@ -563,7 +563,7 @@ fn collect_format_string_hints(
                 }
             }
             FormatArg::Binary(_) => {
-                collect_binary_hints(content, cstart, range, source, line_index, out)
+                collect_binary_hints(content, cstart, range, source, line_index, out);
             }
             FormatArg::Regsub(_) => {
                 for m in REGSUB_RE.captures_iter(content) {
