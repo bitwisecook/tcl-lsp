@@ -3154,7 +3154,18 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let ranges = tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, &registry);
+        // Pure-CPU tokenise/segment work; run on a worker so a parser panic
+        // is contained as a JSON-RPC error rather than unwinding the event
+        // loop (review-findings C3 — defence in depth).
+        let ranges = tokio::task::spawn_blocking(move || {
+            tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, &registry)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("folding worker panicked: {err}").into(),
+            data: None,
+        })?;
         Ok(Some(ranges.into_iter().map(lift_folding_range).collect()))
     }
 
@@ -3176,8 +3187,17 @@ impl LanguageServer for Backend {
         // (which would find nothing in non-Tcl config text). Nameless
         // singletons fall back to their kind label so no outline symbol
         // ever carries an empty `name` (#534).
+        // The two compute branches run pure-CPU on a worker so a parser
+        // panic is contained as a JSON-RPC error (review-findings C3).
         let symbols = if Self::is_bigip_dialect(&doc.dialect) {
-            core_bigip::document_symbols(&doc.text)
+            let text = doc.text.clone();
+            tokio::task::spawn_blocking(move || core_bigip::document_symbols(&text))
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("document_symbol worker panicked: {err}").into(),
+                    data: None,
+                })?
         } else if let Some(symbols) = self.db_document_symbols(&params.text_document.uri).await {
             // Served from the salsa query graph (memoised; reuses the tracked
             // file_analysis instead of re-running the full analyser).
@@ -3192,7 +3212,16 @@ impl LanguageServer for Backend {
                     doc.dialect.clone(),
                 )
                 .await;
-            core_symbols::document_symbols_from_analysis(&doc.text, &analysis)
+            let text = doc.text.clone();
+            tokio::task::spawn_blocking(move || {
+                core_symbols::document_symbols_from_analysis(&text, &analysis)
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("document_symbol worker panicked: {err}").into(),
+                data: None,
+            })?
         };
         let lifted: Vec<DocumentSymbol> = symbols.into_iter().map(lift_document_symbol).collect();
         Ok(Some(DocumentSymbolResponse::Nested(lifted)))
@@ -3940,7 +3969,18 @@ impl LanguageServer for Backend {
             tokens.data
         } else {
             let registry = self.registry_for_dialect(&doc.dialect).await;
-            core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
+            // Cold/cancelled fallback runs the tokeniser on a worker so a
+            // parser panic is contained as a JSON-RPC error (C3).
+            let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+            tokio::task::spawn_blocking(move || {
+                core_semantic_tokens::full(&text, &dialect, &registry).data
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("semantic_tokens worker panicked: {err}").into(),
+                data: None,
+            })?
         };
         let result_id = next_semantic_tokens_id();
         Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
@@ -3965,7 +4005,18 @@ impl LanguageServer for Backend {
             tokens.data
         } else {
             let registry = self.registry_for_dialect(&doc.dialect).await;
-            core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
+            // Cold/cancelled fallback runs the tokeniser on a worker so a
+            // parser panic is contained as a JSON-RPC error (C3).
+            let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+            tokio::task::spawn_blocking(move || {
+                core_semantic_tokens::full(&text, &dialect, &registry).data
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("semantic_tokens worker panicked: {err}").into(),
+                data: None,
+            })?
         };
         Ok(Some(SemanticTokensFullDeltaResult::Tokens(
             LspSemanticTokens {
@@ -3992,8 +4043,18 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let core_data =
-            core_semantic_tokens::range(&doc.text, &doc.dialect, core_range, &registry).data;
+        // Pure-CPU tokenisation on a worker so a parser panic is contained
+        // as a JSON-RPC error (review-findings C3).
+        let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+        let core_data = tokio::task::spawn_blocking(move || {
+            core_semantic_tokens::range(&text, &dialect, core_range, &registry).data
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("semantic_tokens_range worker panicked: {err}").into(),
+            data: None,
+        })?;
         Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
             result_id: None,
             data: lift_semantic_token_data(&core_data),
@@ -4079,8 +4140,18 @@ impl LanguageServer for Backend {
             .ok()
             .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
             .and_then(|p| p.to_str().map(str::to_owned));
-        let links =
-            core_document_links::document_links(&doc.text, &doc.dialect, workspace_root.as_deref());
+        // Pure-CPU segmentation on a worker so a parser panic is contained
+        // as a JSON-RPC error (review-findings C3).
+        let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+        let links = tokio::task::spawn_blocking(move || {
+            core_document_links::document_links(&text, &dialect, workspace_root.as_deref())
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("document_link worker panicked: {err}").into(),
+            data: None,
+        })?;
         if links.is_empty() {
             return Ok(None);
         }
@@ -4474,7 +4545,18 @@ impl LanguageServer for Backend {
         // An explicit client `FormattingOptions.tabSize` / `insertSpaces`
         // overrides the server's indentation by LSP contract.
         let config = formatter_config_from_options(&params.options);
-        let edits = core_formatting::formatting_with(&doc.text, &config, &registry);
+        // Pure-CPU formatting on a worker so a parser panic is contained as
+        // a JSON-RPC error (review-findings C3).
+        let text = doc.text.clone();
+        let edits = tokio::task::spawn_blocking(move || {
+            core_formatting::formatting_with(&text, &config, &registry)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("formatting worker panicked: {err}").into(),
+            data: None,
+        })?;
         if edits.is_empty() {
             return Ok(None);
         }
@@ -4503,12 +4585,23 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let edits = core_formatting::range_formatting(
-            &doc.text,
-            range,
-            &core_formatting::FormatterConfig::default(),
-            &registry,
-        );
+        // Pure-CPU formatting on a worker so a parser panic is contained as
+        // a JSON-RPC error (review-findings C3).
+        let text = doc.text.clone();
+        let edits = tokio::task::spawn_blocking(move || {
+            core_formatting::range_formatting(
+                &text,
+                range,
+                &core_formatting::FormatterConfig::default(),
+                &registry,
+            )
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("range_formatting worker panicked: {err}").into(),
+            data: None,
+        })?;
         if edits.is_empty() {
             return Ok(None);
         }
