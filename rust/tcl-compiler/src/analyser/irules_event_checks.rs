@@ -28,7 +28,9 @@
 use std::sync::OnceLock;
 
 use tcl_lexer::{Token, TokenType};
-use tcl_registry::events::EventRegistry;
+use tcl_registry::events::{EventProps, EventRegistry, EventRequires};
+use tcl_registry::prelude::DialectSet;
+use tcl_registry::profiles::ProfileRegistry;
 
 use super::state::Analyser;
 use super::types::{CodeFix, Diagnostic, Severity};
@@ -39,6 +41,75 @@ use super::types::{CodeFix, Diagnostic, Severity};
 fn event_registry() -> &'static EventRegistry {
     static REGISTRY: OnceLock<EventRegistry> = OnceLock::new();
     REGISTRY.get_or_init(EventRegistry::build)
+}
+
+/// Process-wide cached F5 profile registry.  Like [`event_registry`], the
+/// data is static, so building it once and sharing it avoids rebuilding the
+/// profile / protocol-namespace tables on every IRULE1001 check.
+fn profile_registry() -> &'static ProfileRegistry {
+    static REGISTRY: OnceLock<ProfileRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(ProfileRegistry::build)
+}
+
+/// `profile_info_description` — an informational hint string when a command's
+/// `required` profiles are not confirmed present on the file, or `None` when
+/// there is no requirement or the file's profile stack already covers it.
+/// Mirrors Python `profile_info_description`.
+fn profile_info_description(
+    required: &[&str],
+    file_profiles: &[&str],
+    profiles: &ProfileRegistry,
+) -> Option<String> {
+    if required.is_empty() || profiles.stack_satisfies(required, file_profiles) {
+        return None;
+    }
+    let mut sorted: Vec<&str> = required.to_vec();
+    sorted.sort_unstable();
+    Some(format!(
+        "assumes profile {} on the virtual server",
+        sorted.join(" or ")
+    ))
+}
+
+/// `missing_requirements_description` — a `; `-joined human-readable list of
+/// the protocol-stack requirements an `event` fails to satisfy for a command.
+/// Mirrors Python `missing_requirements_description`.
+fn missing_requirements_description(
+    props: &EventProps,
+    requires: &EventRequires,
+    profiles: &ProfileRegistry,
+) -> String {
+    if requires.init_only {
+        return "only valid in RULE_INIT".to_string();
+    }
+    let mut reasons: Vec<String> = Vec::new();
+    if requires.flow && !props.flow {
+        reasons.push("no active traffic flow (non-flow event)".to_string());
+    }
+    if requires.client_side && !props.client_side {
+        reasons.push("no client-side connection".to_string());
+    }
+    if requires.server_side && !props.server_side {
+        reasons.push("no server-side connection".to_string());
+    }
+    if let Some(t) = requires.transport
+        && !props.transport.contains(&t)
+    {
+        let actual = if props.transport.is_empty() {
+            "none".to_string()
+        } else {
+            props.transport.join("/")
+        };
+        reasons.push(format!("transport is {actual}, needs {t}"));
+    }
+    if !requires.profiles.is_empty()
+        && !profiles.stack_satisfies(requires.profiles, props.implied_profiles)
+    {
+        let mut sorted: Vec<&str> = requires.profiles.to_vec();
+        sorted.sort_unstable();
+        reasons.push(format!("requires profile {}", sorted.join(" or ")));
+    }
+    reasons.join("; ")
 }
 
 fn is_hot_event(event: &str) -> bool {
@@ -127,6 +198,9 @@ impl Analyser {
         }
         let event = self.current_event.clone();
         let event_ref = event.as_deref();
+        if let Some(ev) = event_ref {
+            self.emit_irule1001_command_event_validity(cmd_name, cmd_tok, ev);
+        }
         self.emit_irule1002_unknown_event(cmd_name, args, arg_tokens);
         self.emit_irule1003_deprecated_event(cmd_name, args, arg_tokens);
         self.emit_irule1004_when_missing_priority(cmd_name, args, cmd_tok);
@@ -140,6 +214,127 @@ impl Analyser {
         self.emit_irule5006_top_level_only(cmd_name, cmd_tok);
         self.emit_irule5007_event_context(cmd_name, cmd_tok, event_ref);
         self.emit_irule5003_loop_bound_inequality(cmd_name, args, arg_tokens);
+    }
+
+    /// Compute and cache the file-level profile stack for IRULE1001's
+    /// informational hint (Python `compute_file_profiles`).  No-op outside
+    /// the `f5-irules` dialect.  Called once from [`Self::analyse`] after the
+    /// registry is built; the result is read immutably by
+    /// [`Self::emit_irule1001_command_event_validity`].
+    pub(super) fn compute_irules_file_profiles(&mut self) {
+        if self.dialect != "f5-irules" {
+            return;
+        }
+        self.irules_file_profiles = Some(tcl_registry::profiles::compute_file_profiles(
+            &self.source,
+            event_registry(),
+            profile_registry(),
+        ));
+    }
+
+    /// **IRULE1001.** A command used in an iRules event where it is invalid or
+    /// ineffective — registry-legality-matrix driven (Python
+    /// `check_command_event_validity`):
+    ///
+    /// - **Warning** when the command is illegal in the event: either
+    ///   explicitly excluded (`'X' cannot be used in EVENT. Available in: …`)
+    ///   or its protocol-stack requirements are unmet (`'X' may not work in
+    ///   EVENT: <reasons>`).
+    /// - **Hint** when the command is legal but assumes a profile the file
+    ///   does not confirm (`'X' assumes profile Y on the virtual server`),
+    ///   driven either by the command's protocol namespace (`HTTP::` ⇒ HTTP)
+    ///   or its own `event_requires.profiles`.
+    ///
+    /// Only fires inside a `when EVENT` block; `emit_irules_event_checks`
+    /// supplies the enclosing `event`.
+    fn emit_irule1001_command_event_validity(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: Token,
+        event: &str,
+    ) {
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let Some(spec) = registry.get_for_dialect(cmd_name, DialectSet::IRULES) else {
+            return;
+        };
+        let events = event_registry();
+        let profiles = profile_registry();
+
+        if registry.is_irules_command_legal_in_event(cmd_name, event, events, profiles) {
+            // Legal — only an informational profile hint may fire.  Namespace
+            // profiles (`HTTP::respond` ⇒ HTTP) take precedence over the
+            // command's own `event_requires.profiles`, matching Python.
+            let file_profiles: Vec<&str> = self
+                .irules_file_profiles
+                .as_deref()
+                .unwrap_or(&[])
+                .iter()
+                .map(String::as_str)
+                .collect();
+            let hint = cmd_name
+                .split_once("::")
+                .and_then(|(prefix, _)| profiles.get_namespace(prefix))
+                .and_then(|ns| profile_info_description(ns.profiles, &file_profiles, profiles))
+                .or_else(|| {
+                    spec.event_requires.as_ref().and_then(|req| {
+                        profile_info_description(req.profiles, &file_profiles, profiles)
+                    })
+                });
+            if let Some(info) = hint {
+                self.result.diagnostics.push(Diagnostic {
+                    code: "IRULE1001".to_string(),
+                    span: cmd_tok.span,
+                    message: format!("'{cmd_name}' {info}."),
+                    severity: Severity::Hint,
+                    fixes: Vec::new(),
+                });
+            }
+            return;
+        }
+
+        // Illegal — produce a detailed warning.
+        if spec.excluded_events.contains(&event) {
+            let valid = registry.irules_events_for_command(cmd_name, events, profiles);
+            let mut hint = String::new();
+            if !valid.is_empty() {
+                let shown: Vec<&str> = valid.iter().take(5).copied().collect();
+                hint = format!(" Available in: {}", shown.join(", "));
+                if valid.len() > 5 {
+                    use std::fmt::Write as _;
+                    let _ = write!(hint, " (+{} more)", valid.len() - 5);
+                }
+                hint.push('.');
+            }
+            self.result.diagnostics.push(Diagnostic {
+                code: "IRULE1001".to_string(),
+                span: cmd_tok.span,
+                message: format!("'{cmd_name}' cannot be used in {event}.{hint}"),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+            return;
+        }
+
+        // Layer-based requirements — produce a reasoned warning.  An unknown
+        // event has no props to explain, so emit the generic form.
+        if let Some(req) = spec.event_requires.as_ref() {
+            let message = match events.get_props(event) {
+                None => format!("'{cmd_name}' may not work in {event}."),
+                Some(props) => {
+                    let desc = missing_requirements_description(props, req, profiles);
+                    format!("'{cmd_name}' may not work in {event}: {desc}.")
+                }
+            };
+            self.result.diagnostics.push(Diagnostic {
+                code: "IRULE1001".to_string(),
+                span: cmd_tok.span,
+                message,
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
     }
 
     /// **IRULE5003.** `while {$var != 0} { incr var -1 }` can miss zero.
@@ -1050,5 +1245,140 @@ mod tests {
         assert!(var_referenced_in("x", "log local0. ${x}"));
         assert!(!var_referenced_in("x", "log local0. $xyz"));
         assert!(!var_referenced_in("x", "no dollar here"));
+    }
+
+    // IRULE1001 — command-event-validity.  Messages and severities below are
+    // pinned against the Python `check_command_event_validity` oracle (run on
+    // the same snippets) and the registry legality matrix.
+
+    /// `(severity, message)` for every IRULE1001 diagnostic, whole-file.
+    fn irule1001(source: &str) -> Vec<(Severity, String)> {
+        let mut a = Analyser::new();
+        a.analyse(source, "f5-irules")
+            .diagnostics
+            .into_iter()
+            .filter(|d| d.code == "IRULE1001")
+            .map(|d| (d.severity, d.message))
+            .collect()
+    }
+
+    #[test]
+    fn irule1001_quiet_for_legal_command_with_inferred_profile() {
+        // HTTP_REQUEST infers the HTTP profile, so HTTP::respond is fully
+        // satisfied — no diagnostic at all.
+        assert!(irule1001("when HTTP_REQUEST { HTTP::respond 200 content \"ok\" }").is_empty());
+    }
+
+    #[test]
+    fn irule1001_warns_command_unmet_requirements() {
+        // HTTP::respond in CLIENT_ACCEPTED: the L4 event provides no HTTP
+        // profile, so it "may not work" with the missing-requirement reason.
+        let diags = irule1001("when CLIENT_ACCEPTED { HTTP::respond 200 content \"ok\" }");
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].0, Severity::Warning);
+        assert_eq!(
+            diags[0].1,
+            "'HTTP::respond' may not work in CLIENT_ACCEPTED: requires profile FASTHTTP or HTTP."
+        );
+    }
+
+    #[test]
+    fn irule1001_hints_unconfirmed_namespace_profile() {
+        // SSL::cipher is legal in HTTP_REQUEST but assumes an SSL profile the
+        // file doesn't confirm — an informational hint, OR-listed + sorted.
+        let diags = irule1001("when HTTP_REQUEST { SSL::cipher name }");
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].0, Severity::Hint);
+        assert_eq!(
+            diags[0].1,
+            "'SSL::cipher' assumes profile CLIENTSSL or PERSIST or SERVERSSL or \
+             SSL_PERSISTENCE on the virtual server."
+        );
+    }
+
+    #[test]
+    fn irule1001_warns_excluded_event_with_available_list() {
+        // HA::status is excluded from RULE_INIT; the "Available in: …" list is
+        // the first five (sorted) legal events plus a "(+N more)" tail.
+        let diags = irule1001("when RULE_INIT { HA::status }");
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].0, Severity::Warning);
+        assert!(
+            diags[0]
+                .1
+                .starts_with("'HA::status' cannot be used in RULE_INIT. Available in: "),
+            "{}",
+            diags[0].1
+        );
+        assert!(diags[0].1.contains("(+") && diags[0].1.ends_with("more)."));
+    }
+
+    #[test]
+    fn irule1001_hint_suppressed_by_profile_directive() {
+        // A leading `# profiles: CLIENTSSL` directive confirms the SSL stack,
+        // so SSL::cipher's profile hint is suppressed.
+        assert!(
+            irule1001("# profiles: CLIENTSSL\nwhen HTTP_REQUEST { SSL::cipher name }").is_empty()
+        );
+    }
+
+    #[test]
+    fn irule1001_hint_suppressed_by_inferred_event_profile() {
+        // A CLIENTSSL_HANDSHAKE handler in the file infers CLIENTSSL, which
+        // covers SSL::cipher's requirement — hint suppressed.
+        let src =
+            "when CLIENTSSL_HANDSHAKE { log local0. hi }\nwhen HTTP_REQUEST { SSL::cipher name }";
+        assert!(irule1001(src).is_empty());
+    }
+
+    #[test]
+    fn irule1001_quiet_at_top_level_without_event() {
+        // No enclosing `when` block ⇒ no event context ⇒ the check never runs.
+        assert!(irule1001("HTTP::respond 200").is_empty());
+    }
+
+    #[test]
+    fn irule1001_quiet_outside_f5_dialect() {
+        let mut a = Analyser::new();
+        let res = a.analyse("when CLIENT_ACCEPTED { HTTP::respond 200 }", "tcl");
+        assert!(!res.diagnostics.iter().any(|d| d.code == "IRULE1001"));
+    }
+
+    #[test]
+    fn profile_info_description_or_lists_sorted_unconfirmed() {
+        let profiles = profile_registry();
+        // No requirement → None.
+        assert_eq!(profile_info_description(&[], &[], profiles), None);
+        // Confirmed by file → None.
+        assert_eq!(
+            profile_info_description(&["HTTP"], &["HTTP"], profiles),
+            None
+        );
+        // Unconfirmed → sorted OR-list.
+        assert_eq!(
+            profile_info_description(&["HTTP", "FASTHTTP"], &[], profiles).as_deref(),
+            Some("assumes profile FASTHTTP or HTTP on the virtual server")
+        );
+    }
+
+    #[test]
+    fn missing_requirements_description_reports_init_only_and_profiles() {
+        let profiles = profile_registry();
+        let events = event_registry();
+        let init_req = EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &[],
+            init_only: true,
+            flow: false,
+            capability: None,
+        };
+        let props = events.get_props("HTTP_REQUEST").expect("known event");
+        assert_eq!(
+            missing_requirements_description(props, &init_req, profiles),
+            "only valid in RULE_INIT"
+        );
     }
 }

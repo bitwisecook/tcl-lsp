@@ -309,6 +309,13 @@ pub struct Analyser {
     /// it fell back to a full rebuild.  Read by perf/coverage probes; ignored by
     /// production callers (which only consume the returned `AnalysisResult`).
     pub took_fast_path: bool,
+    /// iRules file-profile cache for IRULE1001's informational profile hint:
+    /// the sorted, fully-expanded profile stack derived from any
+    /// `# profiles:` directive plus the profiles implied by the file's
+    /// `when` events (Python `compute_file_profiles`).  Computed once per
+    /// `analyse` run (only under the `f5-irules` dialect) and cleared at the
+    /// top of each run.  `None` outside an active iRules analysis.
+    pub(super) irules_file_profiles: Option<Vec<String>>,
 }
 
 /// W108 non-ASCII detection mode — mirrors the `tclLsp.style.nonAscii`
@@ -402,6 +409,7 @@ impl Analyser {
             probe_skip_enclosing_fallback: false,
             probe_skip_duplicate_fallback: false,
             took_fast_path: false,
+            irules_file_profiles: None,
         }
     }
 
@@ -472,6 +480,9 @@ impl Analyser {
         // ``core/analysis/_analyser/_core.py``.
         self.source = source.to_string();
         self.dialect = dialect.to_string();
+        // Clear the per-run iRules file-profile memo so a reused analyser
+        // instance recomputes it for the new source / dialect.
+        self.irules_file_profiles = None;
         // File-suppression pre-scan: merge codes from any
         // top-of-file ``# tcl-lsp: disable=CODE`` directives into
         // ``self.disabled_diagnostics`` so later emitter passes
@@ -534,6 +545,9 @@ impl Analyser {
             registry.load_dialect(d);
         }
         self.registry = Some(registry);
+        // Precompute the iRules file-profile stack (no-op off f5-irules) so
+        // the per-command IRULE1001 hint can consult it without recomputing.
+        self.compute_irules_file_profiles();
         // Precompute newline offsets once for ``O(log N)``
         // byte-offset → line-number lookup in
         // ``apply_preceding_noqa`` (which runs per command and
