@@ -209,7 +209,7 @@ impl CodegenCtx<'_> {
             .is_some_and(|ew| ew.iter().any(|&e| e));
         if has_expand {
             let ew = tokens.and_then(|t| t.expand_word.as_ref()).unwrap();
-            self.emit_expanded_call(command, args, ew);
+            self.emit_expanded_call(command, args, ew, tokens);
             *used_generic_invoke = true;
         } else {
             self.emit_call(command, args, tokens, used_generic_invoke);
@@ -433,13 +433,58 @@ impl CodegenCtx<'_> {
     }
 
     /// Emit a command call with `{*}` expansion on marked arguments.
-    pub fn emit_expanded_call(&mut self, cmd: &str, args: &[String], expand_word: &[bool]) {
+    /// Emit one command word: a braced single-token word (`{…}`) is pushed
+    /// verbatim (substitution suppressed — a `proc` body, or a `{*}`-expanded
+    /// braced list whose `[…]`/`$…` are data); a word whose only substitution
+    /// markers are backslash-escaped is decoded; otherwise it is interpolated.
+    /// Shared by the plain ([`emit_call`](Self::emit_call)) and `{*}`-expanded
+    /// ([`emit_expanded_call`](Self::emit_expanded_call)) word loops.
+    fn emit_word(&mut self, a: &str, braced: bool) {
+        if braced {
+            self.push_lit_verbatim(a);
+        } else if a.contains('\\') && !has_unescaped_subst(a) {
+            // A non-braced word whose only substitution markers are
+            // backslash-escaped (`\{`, `a\{b`, `\ x`, `x\$y`). If decoding it
+            // would (re)introduce a `[` / `${` — the word carries an escaped
+            // `\[` or `\${` — leave it raw so the runtime `subst_word` decodes
+            // it in one left-to-right pass; pre-decoding here would create a
+            // bare `[` the VM then mis-reads as a command substitution and
+            // double-decodes. Otherwise it is a pure compile-time literal:
+            // backslash-substitute it so the escapes don't reach the VM raw.
+            if a.contains('[') || a.contains("${") {
+                self.push_lit(a);
+            } else {
+                self.push_lit(&tcl_lexer::backslash_subst(a));
+            }
+        } else {
+            self.emit_value_interpolated(a);
+        }
+    }
+
+    /// Emit a `{*}`-expanded command call: push each word (braced words stay
+    /// verbatim — see [`emit_word`](Self::emit_word)), `EXPAND_STKTOP`-splitting
+    /// the ones flagged in `expand_word`, then `INVOKE_EXPANDED`.
+    pub fn emit_expanded_call(
+        &mut self,
+        cmd: &str,
+        args: &[String],
+        expand_word: &[bool],
+        tokens: Option<&crate::ir::CommandTokens>,
+    ) {
         self.emit_comment(Op::EXPAND_START, vec![], &format!("{cmd} (expanded)"));
         // Build full word list: [cmd, *args]
         self.emit_value_interpolated(cmd);
         let mut word_count: u32 = 1;
         for (i, arg) in args.iter().enumerate() {
-            self.emit_value_interpolated(arg);
+            // A braced single-token word stays verbatim even when expanded: the
+            // `{*}` splits its *list* elements without substituting them, so a
+            // `[…]`/`$…` inside `{*}{… [x] …}` is literal data (matches C, which
+            // expands the parsed list elements, not a re-substituted string).
+            let braced = tokens.is_some_and(|t| {
+                t.argv_kinds.get(i + 1) == Some(&tcl_lexer::TokenType::Str)
+                    && t.single_token_word.get(i + 1).copied().unwrap_or(false)
+            });
+            self.emit_word(arg, braced);
             word_count += 1;
             // expand_word[0] is the command itself, args start at [1]
             if expand_word.get(i + 1).copied().unwrap_or(false) {
@@ -496,27 +541,7 @@ impl CodegenCtx<'_> {
                 t.argv_kinds.get(i + 1) == Some(&tcl_lexer::TokenType::Str)
                     && t.single_token_word.get(i + 1).copied().unwrap_or(false)
             });
-            if braced {
-                self.push_lit_verbatim(a);
-            } else if a.contains('\\') && !has_unescaped_subst(a) {
-                // A non-braced word whose only substitution markers are
-                // backslash-escaped (`\{`, `a\{b`, `\ x`, `x\$y`). If decoding
-                // it would (re)introduce a `[` / `${` — i.e. the word carries an
-                // escaped `\[` or `\${` — leave it raw so the runtime
-                // `subst_word` decodes it in a single left-to-right pass;
-                // pre-decoding here would create a bare `[` the VM then mis-reads
-                // as a command substitution and double-decodes (`list a\[} b\]}`
-                // → `list a[} b]}`). Otherwise it is a pure compile-time literal:
-                // backslash-substitute it and push so the escapes don't reach
-                // the VM unchanged.
-                if a.contains('[') || a.contains("${") {
-                    self.push_lit(a);
-                } else {
-                    self.push_lit(&tcl_lexer::backslash_subst(a));
-                }
-            } else {
-                self.emit_value_interpolated(a);
-            }
+            self.emit_word(a, braced);
         }
         let arg_count = i32::try_from(1 + args.len())
             .expect("invoke argument count fits in i32 (bytecode limit)");
@@ -774,7 +799,7 @@ mod tests {
     fn emit_expanded_call_basic() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        ctx.emit_expanded_call("puts", &["hello".into()], &[false, true]);
+        ctx.emit_expanded_call("puts", &["hello".into()], &[false, true], None);
         let ops = opcodes(&ctx);
         assert!(ops.contains(&Op::EXPAND_START));
         assert!(ops.contains(&Op::EXPAND_STKTOP));
