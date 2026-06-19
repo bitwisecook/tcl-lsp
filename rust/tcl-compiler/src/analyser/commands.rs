@@ -1065,6 +1065,14 @@ impl Analyser {
         // substitutions and the W307/W308 emitters never see them — Python's
         // nested `run_all_checks` recursion records every one.
         self.record_var_or_cmd_command_site(cmd_tok, args, scope_path);
+        // W125 (orphaned keyword) and IRULE5005 (direct iRules-proc call
+        // without `call`) key off whether the head resolves to a user proc, so
+        // they must reach substitution commands too: `when HTTP_REQUEST { set x
+        // [helper] }` invokes `helper` directly inside a `[…]`, and without this
+        // the IRULE5005 emitter never sees it.  Mirrors the top-level
+        // `process_command` ordering (proc-resolution after site recording) and
+        // Python's `run_all_checks` recursion into nested commands.
+        self.emit_proc_resolution_diagnostics(&cmd_name, args, cmd_tok, scope_path);
     }
 
     /// The `[…]` substitution fragment tokens of a (possibly compound)
@@ -2013,6 +2021,14 @@ mod tests {
     #[test]
     fn irule5005_fires_for_direct_proc_call_in_event() {
         let src = "proc helper {} { return 1 }\nwhen HTTP_REQUEST { helper }";
+        assert!(has_code(src, "f5-irules", "IRULE5005"));
+    }
+
+    #[test]
+    fn irule5005_fires_for_direct_proc_call_in_command_substitution() {
+        // A direct proc call nested inside a `[…]` substitution still bypasses
+        // `call`, so IRULE5005 must reach it via the nested-segment walk.
+        let src = "proc helper {} { return 1 }\nwhen HTTP_REQUEST { set x [helper] }";
         assert!(has_code(src, "f5-irules", "IRULE5005"));
     }
 
