@@ -5673,8 +5673,7 @@ fn negotiate_position_encoding(params: &InitializeParams) -> Option<PositionEnco
         .as_ref()
         .and_then(|g| g.position_encodings.as_ref())?;
     supported
-        .iter()
-        .any(|enc| *enc == PositionEncodingKind::UTF16)
+        .contains(&PositionEncodingKind::UTF16)
         .then_some(PositionEncodingKind::UTF16)
 }
 

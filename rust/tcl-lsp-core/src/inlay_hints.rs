@@ -328,7 +328,7 @@ fn clock_short(c: char) -> Option<&'static str> {
     Some(match c {
         'Y' => "year",
         'y' => "yr",
-        'm' => "month",
+        'm' | 'B' => "month",
         'd' | 'e' => "day",
         'H' | 'k' => "hour",
         'I' | 'l' => "hour12",
@@ -340,15 +340,13 @@ fn clock_short(c: char) -> Option<&'static str> {
         'a' => "wday",
         'A' => "weekday",
         'b' => "mon",
-        'B' => "month",
         'c' => "datetime",
-        'D' => "date",
+        'D' | 'x' => "date",
         'j' => "yday",
         'u' | 'w' => "wday#",
         'U' | 'W' => "week",
         'V' => "isoweek",
         'z' | 'Z' => "tz",
-        'x' => "date",
         'X' => "time",
         'C' => "century",
         'g' | 'G' => "isoyear",
@@ -485,7 +483,7 @@ fn push_format_hint(
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
 ) {
-    let pos = line_index.position_at_utf16(abs_byte as u32, source);
+    let pos = line_index.position_at_utf16(u32::try_from(abs_byte).unwrap_or(u32::MAX), source);
     if pos.line < range.start_line || pos.line > range.end_line {
         return;
     }
