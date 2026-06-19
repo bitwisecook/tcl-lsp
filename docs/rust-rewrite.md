@@ -969,7 +969,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
 | Optimiser passes | `tcl-compiler::optimiser` | 🟡 | O114/O108 gates; O104/O119 applied; O128/O130; O106 category+gates; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
-| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005/IRULE1001; snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108. Remaining bits (per-check config toggles, surfacing flow-warning fixes as code actions) are **SRV-LSP** consumer wiring → **FE-DIAG** |
+| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005 (incl. nested `[…]` subs); snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108. Residuals: per-check config toggles + surfacing flow-warning fixes as code actions → **SRV-LSP**. Two review-found refinements (IRULE2001 3-arg `matchclass` fix, catch-`return` flow) are shared with Python → fixed Python-first, port pending → **FE-DIAG** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | TclOO; clock/encoding/interp/IO/after; CLI/REPL binary → **RT-VM** |
@@ -1118,7 +1118,11 @@ Owns `tcl-compiler::codegen` (non-wasm).
 Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`. Every diagnostic
 family is ported and verified; the two parenthetical residuals below
 (per-check config toggles, surfacing the IRULE5002/5004 flow-warning fixes as
-editor code actions) are **SRV-LSP** consumer wiring, not analyser work.
+editor code actions) are **SRV-LSP** consumer wiring, not analyser work. Two
+review-found correctness refinements (IRULE2001 3-arg `matchclass` fix,
+catch-caught `return` flow) are *shared with the Python reference* and are being
+corrected Python-first, then ported here in lockstep — see **Lockstep
+follow-ups** at the end of this section.
 - **done** missing emitters: **E001** (missing subcommand), **W125** (orphaned
   control-flow keyword), **IRULE5005** (direct proc call without `call`),
   **IRULE1001** (command invalid/ineffective in event — registry-legality-matrix
@@ -1229,6 +1233,47 @@ editor code actions) are **SRV-LSP** consumer wiring, not analyser work.
   analyser and W108 `non_ascii_mode` (`NonAsciiMode`, dialect-resolved). The
   **residual** is the GAP-C1 per-check feature-config toggles wiring, which
   lives in the server config layer (**SRV-LSP**), not the analyser.
+- **done** **IRULE5005 inside command substitutions** (PR #660 review
+  follow-up). `dispatch_nested_segment` now runs `emit_proc_resolution_diagnostics`
+  after site recording, so a direct iRules-proc call nested in a `[…]`
+  substitution (`when HTTP_REQUEST { set x [helper] }`) is flagged — previously
+  only the dispatch / expr / site-recording calls reached nested segments.
+  Mirrors Python's `run_all_checks` recursion into nested commands (verified:
+  the Python analyser emits the same `IRULE5005 … call helper` for this form).
+
+**Lockstep follow-ups (Python-first).** A review of the port (PR #660) surfaced
+two *shared* correctness bugs — present identically in the canonical Python
+analyser — so, exactly like **S110**, the fix lands on the Python reference
+first and the Rust port follows. Porting the Rust side ahead of Python would
+make it diverge from the very differential oracle this track is verified against,
+so both are deliberately gated on the upstream Python correction:
+- **port pending** **IRULE2001 `matchclass` 3-arg quick-fix** corruption. Both
+  the Rust emitter (`analyser::diagnostics::emit_irule2001_matchclass`) and
+  Python (`analyser/irules_checks.py::check_matchclass`) gate on `args.len() >= 2`
+  and always rewrite to `class match <item> equals <class>` from
+  `arg_tokens[0]`/`arg_tokens[1]`, so the documented 3-arg form
+  `matchclass <item> <operator> <class>` (e.g. `matchclass [HTTP::uri]
+  starts_with $::admin_paths`) drops its class and is forced to `equals`
+  (→ `class match [HTTP::uri] equals starts_with`). The fix: offer the
+  default-`equals` rewrite only for *exactly* two args, rewrite the 3-arg form
+  verbatim (`matchclass` → `class match` is a 1:1 rename), and offer no fix for
+  other arities. Diagnostic text is unchanged. Port once the Python correction
+  lands.
+- **port pending** **catch-caught `return` flow**. Tcl `catch` swallows the
+  return code, so execution continues after the `catch` body even when it
+  `return`s — but the shared path-sensitive flow walk drops the post-catch path.
+  This is a limitation of the shared algorithm present in Python too
+  (`compiler/irules_flow.py` `_analyse_script` ~486 / `_walk` ~951 extend with
+  the catch-body walk and lose the path when the body returns; the sibling
+  `IRTry` arms already fall back to `[st]`). The Rust twin
+  (`irules_checks::flow_step`, `Statement::Catch`) faithfully mirrors this. It
+  affects IRULE1201/1202 (HTTP-after-respond) and IRULE5002/5004 (unguarded
+  drop / DNS::return) for code that still runs after the catch. Being resolved
+  Python-first — the semantics decision (minimal incoming-state fallback like
+  `IRTry`, vs. capturing the at-return state so e.g. a `HTTP::respond` before the
+  catch-internal `return` still flags the post-catch command) is made on the
+  reference; Rust `walk_flow`/`flow_step` then mirrors the corrected catch
+  handling.
 
 #### FE-DIAG-F5 — F5 dialect diagnostics
 Owns new analyser slices on `tcl-bigip` / `tcl-xc` and the tk dialect.
