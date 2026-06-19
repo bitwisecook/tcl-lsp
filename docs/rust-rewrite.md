@@ -1098,9 +1098,14 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
   driven, with the profile-info hint + "Available in" reasons). Verified
   byte-for-byte against the Python emitters; E001/W125 cross-checked against
   tclsh 8.4–9.0.
-- **open** snit OO support (`snit::type`/`widget`/`widgetadaptor` as ClassDef)
-  and the OO body-walks Rust skips (`oo::class new`/`createWithNamespace`,
-  `initialise` body, `property -get/-set` accessor bodies).
+- **done** snit OO support (`snit::type`/`widget`/`widgetadaptor` as ClassDef,
+  with method / typemethod / constructor / destructor / typeconstructor /
+  onconfigure / oncget bodies analysed in method scopes seeded with the
+  instance / type variables + snit implicits) and the OO body-walks Rust
+  skipped: `oo::class new`/`createWithNamespace` (widened subcommand gate), the
+  `initialise` body, and `property -get/-set` accessor bodies. Verified
+  byte-for-byte against the Python analyser and against real `tclsh8.6` +
+  tcllib.
 - **open** **W307 / W308** method-dispatch type checks + the precise TclOO
   `object_of` typing they consume (handed off from **FE-TYPESHIM**, which
   widens constructor results to OVERDEFINED today). The type lattice already
