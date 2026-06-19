@@ -123,6 +123,10 @@ pub struct Vm {
     /// real frame boundary (a nested `eval`/`[subst]`, a proc/control body) so
     /// the enclosing command logs its own `invoked from within` frame.
     error_logged: bool,
+    /// The 1-based source line of the innermost command logged into the current
+    /// `errorInfo` trace (C's `iPtr->errorLine`) — the line the `(procedure …
+    /// line N)` / `("while" body line N)` frames report.
+    error_line: u32,
     /// Open I/O channels (file handles), keyed by channel id (`file3`, …). The
     /// predefined `stdin`/`stdout`/`stderr` are not stored here; commands
     /// special-case those names.
@@ -195,6 +199,7 @@ impl Vm {
             eval_cache: HashMap::new(),
             error_info: None,
             error_logged: false,
+            error_line: 1,
             channels: HashMap::new(),
             chan_counter: 2,
             script_stack: Vec::new(),
@@ -1299,9 +1304,14 @@ impl Vm {
     /// from within". A command level already logged in the same bytecode frame
     /// (`error_logged`) is not re-logged. Command text over 150 bytes is
     /// truncated with `...`, as in C.
-    pub(crate) fn log_command_info(&mut self, cmd_text: &str, msg: &str) {
+    pub(crate) fn log_command_info(&mut self, cmd_text: &str, msg: &str, line: u32) {
         if self.error_logged {
             return;
+        }
+        // The innermost logged command's line drives the enclosing `(procedure …
+        // line N)` / `("while" body line N)` frames (C's `iPtr->errorLine`).
+        if line != 0 {
+            self.error_line = line;
         }
         let started = self.error_info.is_some();
         let info = self.error_info.get_or_insert_with(|| msg.to_string());
@@ -1329,6 +1339,22 @@ impl Vm {
         }
         info.push('"');
         self.error_logged = true;
+    }
+
+    /// Append a `("<label>" body line N)` frame to the trace — the frame an
+    /// *uncompiled* `while`/`for`/`foreach` (the runtime command form) adds when
+    /// its body errors (C's interpreted `Tcl_WhileObjCmd` &c). `N` is the
+    /// innermost logged command's line. Clears `error_logged` so the enclosing
+    /// command then logs its own `invoked from within` frame.
+    pub(crate) fn append_body_frame(&mut self, label: &str) {
+        let line = self.error_line;
+        let info = self.error_info.get_or_insert_with(String::new);
+        info.push_str("\n    (\"");
+        info.push_str(label);
+        info.push_str("\" body line ");
+        info.push_str(&line.to_string());
+        info.push(')');
+        self.error_logged = false;
     }
 
     /// Clear `ERR_ALREADY_LOGGED` at a frame boundary (a nested `eval`/`[subst]`

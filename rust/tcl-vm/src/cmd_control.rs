@@ -138,7 +138,12 @@ fn cmd_while(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         match c.code {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
-            _ => return c, // error / return / Other propagate
+            Code::Error => {
+                // The uncompiled `while` adds a `("while" body line N)` frame.
+                vm.append_body_frame("while");
+                return c;
+            }
+            _ => return c, // return / Other propagate
         }
     }
     ok(Value::empty())
@@ -171,6 +176,10 @@ fn cmd_for(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         match c.code {
             Code::Ok | Code::Continue => {} // `continue` still runs `next`
             Code::Break => break,
+            Code::Error => {
+                vm.append_body_frame("for");
+                return c;
+            }
             _ => return c,
         }
         let c = eval_body(vm, &next);
@@ -251,7 +260,11 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
             }
             Code::Continue => {} // skip collection, keep looping
             Code::Break => break,
-            _ => return c, // error / return / Other propagate
+            Code::Error => {
+                vm.append_body_frame(name);
+                return c;
+            }
+            _ => return c, // return / Other propagate
         }
     }
     if collect {

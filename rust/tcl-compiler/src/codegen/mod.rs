@@ -171,12 +171,27 @@ impl<'r> CodegenCtx<'r> {
         }
     }
 
+    /// The 1-based line of `current_span` within the module source — the line a
+    /// command reports in `errorInfo` (`(procedure … line N)` / `("while" body
+    /// line N)`). `0` when no span / source is available.
+    fn span_line(&self) -> u32 {
+        match self.current_span {
+            Some(sp) => {
+                let start = sp.start() as usize;
+                let prefix = self.source.get(..start).unwrap_or("");
+                1 + u32::try_from(prefix.bytes().filter(|&b| b == b'\n').count()).unwrap_or(0)
+            }
+            None => 0,
+        }
+    }
+
     /// Append an instruction, returning its index in the stream.
     pub fn emit(&mut self, op: Op, operands: Vec<Operand>) -> usize {
         let idx = self.instructions.len();
         let mut instr = Instruction::new(op, operands);
         instr.source_span = self.current_span;
         instr.source_cmd_text = self.span_text();
+        instr.source_line = self.span_line();
         self.instructions.push(instr);
         idx
     }
@@ -188,6 +203,7 @@ impl<'r> CodegenCtx<'r> {
         comment.clone_into(&mut instr.comment);
         instr.source_span = self.current_span;
         instr.source_cmd_text = self.span_text();
+        instr.source_line = self.span_line();
         self.instructions.push(instr);
         idx
     }

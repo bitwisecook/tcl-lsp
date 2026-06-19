@@ -1135,7 +1135,8 @@ impl Vm {
                     Err(c) => {
                         let cmd_text = instr.source_cmd_text.clone();
                         let msg = c.result.to_str().to_string();
-                        self.log_command_info(&cmd_text, &msg);
+                        let line = instr.source_line;
+                        self.log_command_info(&cmd_text, &msg, line);
                         return Tick::Return(c);
                     }
                 }
@@ -1173,7 +1174,8 @@ impl Vm {
                     Err(c) => {
                         let cmd_text = instr.source_cmd_text.clone();
                         let msg = c.result.to_str().to_string();
-                        self.log_command_info(&cmd_text, &msg);
+                        let line = instr.source_line;
+                        self.log_command_info(&cmd_text, &msg, line);
                         return Tick::Return(c);
                     }
                 }
