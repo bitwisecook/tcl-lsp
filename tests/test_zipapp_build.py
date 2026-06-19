@@ -1,25 +1,27 @@
-"""Zipapp build packs marker-gated transitive deps for the minimum Python.
+"""Zipapp builds pack marker-gated transitive deps for the minimum Python.
 
 Regression for #657: the release ``.pyz`` is built on a newer interpreter
 (3.11+), but must run on the ``requires-python`` floor (3.10).  ``uv pip
 install --target`` evaluates environment markers against the *build*
-interpreter, so a version-gated dep like ``exceptiongroup; python_version <
-"3.11"`` (a cattrs requirement reached via pygls) was silently dropped, and
-the LSP server died on a 3.10 host with ``ModuleNotFoundError: No module named
-'exceptiongroup'``.
+interpreter, so version-gated deps were silently dropped and the server died
+on a 3.10 host with ``ModuleNotFoundError``:
 
-The fix pins resolution to ``MIN_PYTHON`` via ``--python-version``.  These
-tests assert the flag is wired through (fast, no install) and — when ``uv`` is
-available — that the floor actually pulls the marker-gated dep (slow, network).
+* ``exceptiongroup`` (a cattrs requirement reached via pygls / lsprotocol,
+  gated on ``python_version < "3.11"``) — the symptom reported in #657.
+* ``tomli`` (the ``tomllib`` fallback ``import``ed by shipped ``dialects`` /
+  ``tooling`` modules on < 3.11) — never a transitive dep of a bundled
+  package, so each profile must list it explicitly.
+
+The fix pins marker resolution to ``MIN_PYTHON`` via ``--python-version`` and
+adds ``tomli`` to every profile.  These tests stay offline (no PyPI access):
+they assert the resolution flag is wired through and that ``tomli`` is bundled
+everywhere, without performing a real install.
 """
 
 from __future__ import annotations
 
-import shutil
 import sys
 from pathlib import Path
-
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -64,14 +66,17 @@ def test_pip_install_noop_for_empty_packages(monkeypatch, tmp_path):
     assert not called
 
 
-@pytest.mark.skipif(shutil.which("uv") is None, reason="uv not available")
-def test_min_python_floor_bundles_exceptiongroup(tmp_path):
-    """End-to-end: the minimum-Python floor pulls in the gated cattrs dep.
-
-    Guards the actual #657 failure mode — on a 3.11+ build host, the default
-    marker resolution drops ``exceptiongroup`` from the pygls/cattrs chain.
-    """
-    zipapps._pip_install_pure(tmp_path, ("pygls>=2.0",))
-    assert (tmp_path / "exceptiongroup").is_dir(), (
-        "exceptiongroup must be bundled for Python 3.10 hosts (see #657)"
-    )
+def test_every_profile_bundles_tomli_fallback():
+    """Each profile ships ``dialects`` (and ``tooling``), which import ``tomli``
+    as the ``tomllib`` fallback on Python < 3.11.  ``tomli`` is not a
+    transitive dep of any bundled package, so every profile must list it
+    explicitly or 3.10 hosts hit ``ModuleNotFoundError: No module named
+    'tomli'`` (e.g. parsing an F5 iRule trailer)."""
+    for name, profile in zipapps.PROFILES.items():
+        # ``dialects`` carries the tomllib-fallback modules; assert the
+        # invariant the bundling relies on, then that tomli is listed.
+        assert "dialects" in profile.packages, name
+        assert any(pkg.startswith("tomli") for pkg in profile.pip_packages), (
+            f"profile {name!r} ships dialects/tooling (which import tomli on "
+            f"Python < 3.11) but does not bundle tomli"
+        )
