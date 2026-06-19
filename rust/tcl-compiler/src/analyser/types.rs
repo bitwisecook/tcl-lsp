@@ -95,25 +95,15 @@ impl ScopeKind {
     }
 }
 
-/// A suggested fix for a [`Diagnostic`] — maps to an LSP
-/// `TextEdit`.
+/// A suggested fix for a [`Diagnostic`] — maps to an LSP `TextEdit`.
 ///
-/// Mirrors ``CodeFix`` in ``core/analysis/semantic_model.py``.
-/// Populated by emitters that know exactly *what* the user
-/// should change (E101 inserts a missing ``{``, E103 inserts a
-/// missing ``}``, W123 may suggest a similarly-named command,
-/// etc.).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CodeFix {
-    /// Source span the replacement applies to.  An insertion
-    /// is a zero-width span anchored at the insertion point.
-    pub span: Span,
-    /// Text to replace ``span`` with.
-    pub new_text: String,
-    /// Human-readable description of the fix
-    /// (e.g. ``"Insert missing '{'"``).  Empty when omitted.
-    pub description: String,
-}
+/// Re-exported from [`crate::irules_checks`] (the canonical, lower-level
+/// definition shared with the iRules-flow / compiler-checks layer) so the
+/// analyser and those passes speak one `CodeFix` type.  Mirrors ``CodeFix`` in
+/// ``core/analysis/semantic_model.py``.  Populated by emitters that know
+/// exactly *what* the user should change (E101 inserts a missing ``{``, E103
+/// inserts a missing ``}``, W123 may suggest a similarly-named command, etc.).
+pub use crate::irules_checks::CodeFix;
 
 /// Diagnostic emitted by the analyser.
 ///

@@ -481,6 +481,78 @@ const BINARY_INT_SPECIFIERS: &[u8] = b"csSiInTwWmrR";
 /// statements outside any proc body (mirrors Python's `_TOP_SCOPE`).
 const W307_TOP_SCOPE: &str = "::top";
 
+/// The variable named by a single `$var` / `${var}` substitution, or `None`.
+///
+/// Mirrors the `_extract` closure in Python `_last_return_var`: the text must
+/// be exactly one bare or braced variable reference whose name is made of
+/// word / namespace characters.  Anything else (literals, command subs,
+/// composite words) yields `None`.
+fn extract_dollar_var(value: &str) -> Option<String> {
+    let v = value.trim();
+    let rest = v.strip_prefix('$')?;
+    let is_name = |s: &str| {
+        !s.is_empty()
+            && s.bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
+    };
+    if let Some(inner) = rest.strip_prefix('{').and_then(|r| r.strip_suffix('}')) {
+        // Braced `${name}` — reject nested braces (Python's `count("{") == 1`).
+        if !inner.contains('{') && is_name(inner) {
+            return Some(inner.to_string());
+        }
+        return None;
+    }
+    is_name(rest).then(|| rest.to_string())
+}
+
+/// The variable returned by a proc's **last** `return $var`, or `None`.
+///
+/// Walks every block's statements and terminator (returns can lower to either
+/// an `IRReturn` statement or a `Return` terminator) and keeps the last whose
+/// value is a single `$var`.  Mirrors Python's `_last_return_var`, used by the
+/// object-returning-proc inference: a proc returning `$X` where `X` was
+/// assigned from a factory is itself an object factory.
+fn last_return_var_of(cfg: &crate::cfg::Function) -> Option<String> {
+    use crate::cfg::Terminator;
+    use crate::ir::Statement;
+    let mut last = None;
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            if let Statement::Return { value: Some(v), .. } = stmt
+                && let Some(name) = extract_dollar_var(v)
+            {
+                last = Some(name);
+            }
+        }
+        if let Some(Terminator::Return { value: Some(v), .. }) = &block.terminator
+            && let Some(name) = extract_dollar_var(v)
+        {
+            last = Some(name);
+        }
+    }
+    last
+}
+
+/// Every return value (statement + terminator) a proc body can produce, as raw
+/// text.  Mirrors the G4 "collect ALL returns" loop in Python's
+/// object-returning-proc seed.
+fn return_values_of(cfg: &crate::cfg::Function) -> Vec<String> {
+    use crate::cfg::Terminator;
+    use crate::ir::Statement;
+    let mut out = Vec::new();
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            if let Statement::Return { value: Some(v), .. } = stmt {
+                out.push(v.clone());
+            }
+        }
+        if let Some(Terminator::Return { value: Some(v), .. }) = &block.terminator {
+            out.push(v.clone());
+        }
+    }
+    out
+}
+
 /// Mask-octet values that can appear in a contiguous subnet mask.
 /// Mirrors `_VALID_MASK_OCTETS`.
 const VALID_MASK_OCTETS: &[u32] = &[0, 128, 192, 224, 240, 248, 252, 254, 255];
@@ -3550,7 +3622,28 @@ Consider capturing the result: catch {\u{2026}} result"
                 // unknown-subcommand path is handled separately by
                 // [`Self::emit_w001_unknown_subcommand`].
                 let Some(sub_name) = args.first() else {
-                    // Missing subcommand — Python's E001 path; not here.
+                    // **E001.** A subcommand-dispatch command invoked with no
+                    // subcommand at all (`string` / `dict` / `info` on its
+                    // own).  Mirrors the empty-`args` arm of `_check_arity`
+                    // (`compiler_checks.py:740-750`).  Queued as a
+                    // `pending_arity` candidate so an earlier shadowing user
+                    // proc / class / alias / ensemble / stub suppresses it,
+                    // exactly like the E002 / E003 paths and Python's
+                    // `_resolves_to_user_command` gate on `_check_arity`.
+                    let ns = self.command_resolution_namespace(scope_path);
+                    let enforce_order = !self.scope_path_in_proc_body(scope_path);
+                    self.pending_arity.push((
+                        cmd_name.to_string(),
+                        ns,
+                        enforce_order,
+                        super::types::Diagnostic {
+                            code: "E001".to_string(),
+                            span: cmd_tok.span,
+                            message: format!("'{cmd_name}' requires a subcommand"),
+                            severity: Severity::Error,
+                            fixes: Vec::new(),
+                        },
+                    ));
                     return;
                 };
                 // A `{*}`-expanded subcommand word resolves to an unknown
@@ -5019,10 +5112,38 @@ matching time on crafted input."
     /// command head): `matchclass` carries both a `deprecated_replacement`
     /// (→ IRULE2002) and the dedicated `check_matchclass` rule (→
     /// IRULE2001).  Mirrors `irules_checks.py::check_matchclass`.
-    pub(super) fn emit_irule2001_matchclass(&mut self, cmd_name: &str, cmd_tok: tcl_lexer::Token) {
+    pub(super) fn emit_irule2001_matchclass(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        cmd_tok: tcl_lexer::Token,
+    ) {
         if self.dialect != "f5-irules" || cmd_name != "matchclass" {
             return;
         }
+        // Auto-fix the `matchclass <item> <class>` form →
+        // `class match <item> equals <class>`, replacing the whole command.
+        // The raw source slices of the argument words preserve `$var` / `[cmd]`
+        // substitutions verbatim (the substituted `args` values would drop
+        // them).  Mirrors the IRULE2001 `CodeFix` in `analyser/irules_checks.py`.
+        let fixes = if args.len() >= 2 && arg_tokens.len() >= 2 {
+            let raw = |t: &tcl_lexer::Token| {
+                self.source[t.span.start() as usize..t.span.end() as usize].to_string()
+            };
+            let item = raw(&arg_tokens[0]);
+            let cls = raw(&arg_tokens[1]);
+            let end = arg_tokens
+                .last()
+                .map_or(cmd_tok.span.end(), |t| t.span.end());
+            vec![super::types::CodeFix {
+                span: tcl_lexer::Span::new(cmd_tok.span.start(), end),
+                new_text: format!("class match {item} equals {cls}"),
+                description: "Replace with 'class match'".to_string(),
+            }]
+        } else {
+            Vec::new()
+        };
         self.result.diagnostics.push(super::types::Diagnostic {
             code: "IRULE2001".to_string(),
             span: cmd_tok.span,
@@ -5030,7 +5151,7 @@ matching time on crafted input."
 Use 'class match <item> <operator> <class>' instead."
                 .to_string(),
             severity: Severity::Warning,
-            fixes: Vec::new(),
+            fixes,
         });
     }
 
@@ -7811,6 +7932,197 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
+    /// Per-proc `(body_start, body_end, factory_local_vars)` ranges — the
+    /// variables that hold an *object factory* result, so a `$var method`
+    /// dispatch on them suppresses W307 (an object handle is a designed,
+    /// non-literal command target, not a static error).
+    ///
+    /// Mirrors the `object_returning_procs` / `factory_locals_by_proc` fixpoint
+    /// in Python `_diag_var_command.py`.  A factory local is a `set X [head …]`
+    /// where `head` is object-returning: a known `TclOO` class command, a
+    /// namespaced factory (the documented tcllib `::ns::cmd` convention, minus
+    /// known user procs and registry commands with a non-OBJECT return type),
+    /// or another proc proven object-returning by the fixpoint.  This tracks
+    /// *no* class identity — it only suppresses W307 (it never enables W308),
+    /// matching Python (a factory-return var validates no method).
+    #[allow(clippy::too_many_lines)]
+    // A single fixpoint algorithm (classify heads → collect factory locals →
+    // seed → propagate → extend → materialise ranges) whose phases share local
+    // state; splitting it would only scatter that state behind extra args.
+    fn compute_factory_object_ranges(
+        &self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Vec<(u32, u32, HashSet<String>)> {
+        use crate::ir::Statement;
+
+        let class_qnames: HashSet<&String> = self.result.all_classes.keys().collect();
+        let class_tails: HashSet<&str> = class_qnames
+            .iter()
+            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t))
+            .filter(|t| !t.is_empty())
+            .collect();
+        let is_user_proc = |head: &str| {
+            self.result.all_procs.contains_key(head)
+                || self.result.all_procs.contains_key(&format!("::{head}"))
+        };
+        // A command head whose value-returning invocation yields an object
+        // handle (excluding user procs, which the fixpoint classifies).
+        let is_object_returning_head = |head: &str| -> bool {
+            if class_tails.contains(head) || class_qnames.contains(&format!("::{head}")) {
+                return true;
+            }
+            if head.contains("::") {
+                let qualified = if head.starts_with("::") {
+                    head.to_string()
+                } else {
+                    format!("::{head}")
+                };
+                // A known user proc defers to the fixpoint (returns false here).
+                if self.result.all_procs.contains_key(&qualified) {
+                    return false;
+                }
+                // A registered command with an explicit non-OBJECT return type
+                // (http::*, clock::*, …) is not a factory.
+                if let Some(spec) = registry.get(head).or_else(|| registry.get(&qualified))
+                    && let Some(rt) = spec.return_type
+                    && rt != tcl_registry::TclType::Object
+                {
+                    return false;
+                }
+                // Unregistered `::pkg::cmd` — treat as a factory (the tcllib
+                // convention; documented heuristic).
+                return true;
+            }
+            false
+        };
+
+        // All analysable units: top level + procedures (not methods, which are
+        // `in_method`-suppressed for W307 anyway).
+        let units: Vec<(&str, &crate::compilation_unit::FunctionUnit)> =
+            std::iter::once(("::top", &cu.top_level))
+                .chain(cu.procedures.iter().map(|(q, fu)| (q.as_str(), fu)))
+                .collect();
+
+        // Per-proc: factory-local vars (non-user-proc factory heads), the last
+        // returned var, and the `{var -> rhs command head}` assignment map.
+        let mut factory_locals: HashMap<String, HashSet<String>> = HashMap::new();
+        let mut return_var: HashMap<String, Option<String>> = HashMap::new();
+        let mut assigns: HashMap<String, HashMap<String, String>> = HashMap::new();
+        let mut object_returning: HashSet<String> = HashSet::new();
+        for (qname, fu) in &units {
+            let mut names = HashSet::new();
+            let mut amap = HashMap::new();
+            for block in fu.cfg.blocks.values() {
+                for stmt in &block.statements {
+                    let Statement::AssignValue { name, value, .. } = stmt else {
+                        continue;
+                    };
+                    let Some((head, _)) =
+                        crate::value_shapes::parse_command_substitution(value.trim())
+                    else {
+                        continue;
+                    };
+                    amap.insert(name.clone(), head.clone());
+                    if is_object_returning_head(&head) && !is_user_proc(&head) {
+                        names.insert(name.clone());
+                    }
+                }
+            }
+            factory_locals.insert((*qname).to_string(), names);
+            assigns.insert((*qname).to_string(), amap);
+            return_var.insert((*qname).to_string(), last_return_var_of(&fu.cfg));
+            // Seed: a proc whose every return value is a namespaced
+            // object-returning cmd-sub is itself object-returning (G4: ALL
+            // returns must qualify, so a string-returning branch disqualifies).
+            let rvs = return_values_of(&fu.cfg);
+            if !rvs.is_empty()
+                && rvs.iter().all(|rv| {
+                    crate::value_shapes::parse_command_substitution(rv.trim())
+                        .is_some_and(|(head, _)| is_object_returning_head(&head))
+                })
+            {
+                object_returning.insert((*qname).to_string());
+            }
+        }
+        // A proc returning one of its own factory locals is object-returning.
+        for (qname, rv) in &return_var {
+            if let Some(rv) = rv
+                && factory_locals.get(qname).is_some_and(|s| s.contains(rv))
+            {
+                object_returning.insert(qname.clone());
+            }
+        }
+
+        // Bare-name → qualified-name index for resolving relative call heads.
+        let mut bare_to_qnames: HashMap<&str, Vec<&str>> = HashMap::new();
+        for qname in cu.ir_module.procedures.keys() {
+            let bare = qname.rsplit_once("::").map_or(qname.as_str(), |(_, t)| t);
+            bare_to_qnames.entry(bare).or_default().push(qname.as_str());
+        }
+        let resolve_candidates = |head: &str| -> Vec<String> {
+            let mut c = vec![head.to_string(), format!("::{head}")];
+            if let Some(qs) = bare_to_qnames.get(head) {
+                c.extend(qs.iter().map(|s| (*s).to_string()));
+            }
+            c
+        };
+
+        // Fixpoint: a proc whose returned var is assigned `[other]` where
+        // `other` is a proven object-returning user proc is itself one.
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for (qname, rv) in &return_var {
+                let Some(rv) = rv else { continue };
+                if object_returning.contains(qname) {
+                    continue;
+                }
+                let Some(rhs) = assigns.get(qname).and_then(|m| m.get(rv)) else {
+                    continue;
+                };
+                if resolve_candidates(rhs)
+                    .iter()
+                    .any(|c| object_returning.contains(c))
+                {
+                    object_returning.insert(qname.clone());
+                    changed = true;
+                }
+            }
+        }
+        // Extend factory locals: `set X [user_proc]` where the proc is now
+        // proven object-returning makes `X` a factory local too.
+        for (qname, amap) in &assigns {
+            let mut add = HashSet::new();
+            for (var, head) in amap {
+                if factory_locals.get(qname).is_some_and(|s| s.contains(var)) {
+                    continue;
+                }
+                if resolve_candidates(head)
+                    .iter()
+                    .any(|c| object_returning.contains(c))
+                {
+                    add.insert(var.clone());
+                }
+            }
+            factory_locals.entry(qname.clone()).or_default().extend(add);
+        }
+
+        // Materialise ranges (top level spans the whole source).
+        let mut ranges = Vec::new();
+        for (qname, names) in factory_locals {
+            if names.is_empty() {
+                continue;
+            }
+            if qname == "::top" {
+                ranges.push((0, u32::MAX, names));
+            } else if let Some(p) = cu.ir_module.procedures.get(&qname) {
+                ranges.push((p.span.start(), p.span.end(), names));
+            }
+        }
+        ranges
+    }
+
     /// W307 — non-literal command name (variable / command-sub
     /// used as command head) and W308 (unknown method on object).
     ///
@@ -7952,6 +8264,33 @@ file; this call falls through to the 'unknown' handler."
         // Drain sites so we can borrow self.result mutably below.
         let sites = std::mem::take(&mut self.var_command_sites);
         let objdefined_vars = self.objdefined_vars.clone();
+        // Object-factory locals: vars holding a factory result (`set x [Class
+        // new]` / `set x [::ns::factory]` / `set x [object_returning_proc]`).
+        // A `$x method` dispatch on one suppresses W307 (designed object usage).
+        let factory_object_ranges = self.compute_factory_object_ranges(cu, registry);
+        let is_factory_local = |var: &str, off: u32| -> bool {
+            factory_object_ranges
+                .iter()
+                .any(|(s, e, names)| *s <= off && off <= *e && names.contains(var))
+        };
+        // Snit / OO instance-variable dispatch: `$mytree get` where `mytree` is
+        // a class instance variable and the dispatch sits inside the class body
+        // (including non-method helper `proc`s that `upvar` it). An instance var
+        // holds a component / sub-object, so dispatching on it is designed usage
+        // — suppress W307. Mirrors Python's `is_snit_member` / `snit_var_ranges`
+        // (built from every `ClassDef`'s body span + declared `variables`).
+        let snit_var_ranges: Vec<(u32, u32, &Vec<String>)> = self
+            .result
+            .all_classes
+            .values()
+            .filter(|cd| !cd.variables.is_empty())
+            .map(|cd| (cd.body_span.start(), cd.body_span.end(), &cd.variables))
+            .collect();
+        let is_snit_member = |var: &str, off: u32| -> bool {
+            snit_var_ranges
+                .iter()
+                .any(|(s, e, vars)| *s <= off && off <= *e && vars.iter().any(|v| v == var))
+        };
 
         // **Proc-parameter / multi-dispatch object-dispatch suppression**
         // (mirrors `_diag_var_command.py:807-859`).  A dispatch on a proc
@@ -8172,6 +8511,17 @@ file; this call falls through to the 'unknown' handler."
             {
                 continue;
             }
+            // Object-factory provenance: `$var` holds a factory result in this
+            // scope — a designed object handle, so the dispatch is not a static
+            // error.  Mirrors Python's `is_factory_object` W307 exemption.
+            if is_factory_local(&site.var_name, site.cmd_span.start()) {
+                continue;
+            }
+            // Class instance-variable dispatch inside the class body (component
+            // / sub-object). Mirrors Python's `is_snit_member` exemption.
+            if is_snit_member(&site.var_name, site.cmd_span.start()) {
+                continue;
+            }
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "W307".to_string(),
                 span: site.cmd_span,
@@ -8271,7 +8621,17 @@ file; this call falls through to the 'unknown' handler."
                     class_name: Some(class_qn.clone()),
                 }
             } else {
-                crate::type_infer::return_type_for_command(registry, head, &arg_strs)
+                // The constructor case is already handled inline above using the
+                // analyser's authoritative class set, so the registry fallback
+                // only needs to recognise registered built-ins here — pass an
+                // empty class set / root namespace.
+                crate::type_infer::return_type_for_command(
+                    registry,
+                    head,
+                    &arg_strs,
+                    &std::collections::HashSet::new(),
+                    "::",
+                )
             };
 
             // ``Object`` return type — suppress W307; if the
@@ -9664,6 +10024,50 @@ mod tests {
     }
 
     #[test]
+    fn e001_fires_for_bare_subcommand_command() {
+        // A subcommand-dispatch command (`string`, `dict`, `info`) invoked
+        // with no subcommand at all is E001.
+        for snippet in ["string", "dict", "info"] {
+            let mut a = Analyser::new();
+            let result = a.analyse(snippet, "tcl8.6");
+            let e001: Vec<&Diagnostic> = result
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == "E001")
+                .collect();
+            assert_eq!(
+                e001.len(),
+                1,
+                "expected one E001 for {snippet:?}: {result:?}",
+            );
+            assert_eq!(
+                e001[0].message,
+                format!("'{snippet}' requires a subcommand")
+            );
+            assert_eq!(e001[0].severity, Severity::Error);
+        }
+    }
+
+    #[test]
+    fn e001_quiet_when_subcommand_present() {
+        let mut a = Analyser::new();
+        let result = a.analyse("string length abc", "tcl8.6");
+        assert!(!result.diagnostics.iter().any(|d| d.code == "E001"));
+    }
+
+    #[test]
+    fn e001_suppressed_by_shadowing_user_proc() {
+        // A user proc named `string` shadows the builtin ensemble — a bare
+        // `string` call resolves to the proc, so no E001.
+        let mut a = Analyser::new();
+        let result = a.analyse("proc string {} { return x }\nstring", "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == "E001"),
+            "shadowing proc should suppress E001: {result:?}"
+        );
+    }
+
+    #[test]
     fn e002_fires_on_too_few_args() {
         // `regsub` requires at least 3 args (exp string subSpec).
         let mut a = Analyser::new();
@@ -10001,6 +10405,10 @@ mod tests {
             "proc f {n} {\n  set acc 0\n  for {set i 0} {$i < $n} {incr i} { set acc [expr {$acc + $i}] }\n  return $acc\n}\nproc g {} { set z 9; set z 10; return $z }\n",
             "namespace eval n {\n  proc p {a} { set b $a; return $b }\n}\nset r [n::p 3]\n",
             "oo::class create K {\n  method m {a} { set n $a; return $n }\n}\nproc top {} { set q 1; set q 2 }\n",
+            // Constructor object typing through the memo: `set o [K new]` types
+            // `o` as OBJECT(::K), so `$o gone` is validated (W308). Exercises
+            // the `known_classes` thread on `LatticeRequest` + the memo key.
+            "oo::class create K {\n  method m {} { return 1 }\n}\nproc top {} { set o [K new]; $o gone }\n",
         ];
         for src in snippets {
             let mut registry = tcl_registry::CommandRegistry::build_default();
@@ -10023,9 +10431,11 @@ mod tests {
                     tcl_lexer::LexerConfig::default(),
                     "tcl",
                     &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
+                        // Key + build mirror the db's `function_lattice` query,
+                        // including the whole-unit `known_classes` fingerprint.
                         let key = format!(
-                            "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
-                            req.qname, req.body, req.params, req.param_constants
+                            "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
+                            req.qname, req.body, req.params, req.param_constants, req.known_classes
                         );
                         if let Some(fu) = cache.get(&key) {
                             return fu.clone();
@@ -10039,12 +10449,15 @@ mod tests {
                         );
                         let pc =
                             crate::compilation_unit::decode_param_constants(req.param_constants);
-                        let fu = FunctionUnit::build_with_param_constants(
+                        let known_classes: std::collections::HashSet<String> =
+                            req.known_classes.iter().cloned().collect();
+                        let fu = FunctionUnit::build_with_param_constants_and_classes(
                             req.qname,
                             cfg,
                             req.params,
                             &registry,
                             pc.as_ref(),
+                            &known_classes,
                         );
                         cache.insert(key, fu.clone());
                         fu
@@ -11463,6 +11876,160 @@ mod tests {
         );
     }
 
+    /// Object-`of` constructor typing — the FE-DIAG W307/W308 item.  Every
+    /// case is verified byte-for-byte against the Python analyser oracle
+    /// (`analyser._analyser.analyse` under `dialect_scope("tcl")`); the
+    /// expected codes below are exactly what Python emits.
+    fn w30x_codes(src: &str) -> Vec<String> {
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        let mut codes: Vec<String> = r
+            .diagnostics
+            .iter()
+            .map(|d| d.code.clone())
+            .filter(|c| c.starts_with("W30"))
+            .collect();
+        codes.sort();
+        codes.dedup();
+        codes
+    }
+
+    #[test]
+    fn w308_transitive_alias_of_constructor_object() {
+        // `set b $a` copies the OBJECT(Dog) type through the lattice, so the
+        // unknown method on `$b` is validated (W308), matching Python.
+        let src = "oo::class create Dog { method bark {} {return woof} }\n\
+                   set a [Dog new]\nset b $a\n$b fly";
+        assert_eq!(w30x_codes(src), vec!["W308".to_string()]);
+    }
+
+    #[test]
+    fn w308_transitive_alias_known_method_silent() {
+        let src = "oo::class create Dog { method bark {} {return woof} }\n\
+                   set a [Dog new]\nset b $a\n$b bark";
+        assert!(w30x_codes(src).is_empty());
+    }
+
+    #[test]
+    fn w308_constructor_create_named_and_auto() {
+        // `Dog create rex` / `Dog create %AUTO%` are constructor spellings too.
+        for src in [
+            "oo::class create Dog { method bark {} {return woof} }\nset a [Dog create rex]\n$a fly",
+            "oo::class create Dog { method bark {} {return woof} }\nset a [Dog create %AUTO%]\n$a fly",
+        ] {
+            assert_eq!(w30x_codes(src), vec!["W308".to_string()], "src: {src}");
+        }
+    }
+
+    #[test]
+    fn w308_namespace_scoped_class_constructor() {
+        // Class defined in a namespace; the relative constructor head inside
+        // that namespace resolves to the qualified class (OBJECT(::ns::Dog)).
+        let qualified = "namespace eval ns { oo::class create Dog { method bark {} {return woof} } }\n\
+                         set a [ns::Dog new]\n$a fly";
+        assert_eq!(w30x_codes(qualified), vec!["W308".to_string()]);
+        let relative = "namespace eval ns {\n oo::class create Dog { method bark {} {return woof} }\n \
+                        proc mk {} { set a [Dog new]; $a fly }\n}";
+        assert_eq!(w30x_codes(relative), vec!["W308".to_string()]);
+    }
+
+    #[test]
+    fn w307_suppressed_for_object_returning_proc_factory() {
+        // A proc returning `[Dog new]` is an object factory; a `$o method`
+        // dispatch on its result suppresses W307 (Python tracks no class for
+        // factory-return vars, so there is never a W308 either).
+        for method in ["bark", "fly"] {
+            let src = format!(
+                "oo::class create Dog {{ method bark {{}} {{return woof}} }}\n\
+                 proc mk {{}} {{ return [Dog new] }}\nset o [mk]\n$o {method}"
+            );
+            assert!(
+                w30x_codes(&src).is_empty(),
+                "factory-return dispatch must be silent (method {method}); got {:?}",
+                w30x_codes(&src)
+            );
+        }
+    }
+
+    #[test]
+    fn w307_nested_command_sub_dispatch_counts_for_multidispatch() {
+        // `$x` is dispatched once at statement level and once inside a `[…]`
+        // command substitution.  The substitution dispatch must be recorded as
+        // a var-command site too, so the multi-dispatch (≥2) suppression sees
+        // both and stays silent (a single recorded dispatch would fire W307).
+        // Matches Python (which records every nested dispatch).
+        let src = "set x [getCmd]\nputs [$x foo]\n$x foo\n";
+        assert!(
+            w30x_codes(src).is_empty(),
+            "multi-dispatch (one nested in `[…]`) must suppress W307; got {:?}",
+            w30x_codes(src)
+        );
+    }
+
+    #[test]
+    fn w308_double_colon_oo_class_constructor() {
+        // `::oo::class` is the fully-qualified spelling of `oo::class`; the
+        // class must be recognised so the constructor types as OBJECT and the
+        // method is validated (W308 for the unknown one, silence for the known).
+        let unknown = "::oo::class create ::Dog { method bark {} {return woof} }\n[::Dog new] fly";
+        assert_eq!(w30x_codes(unknown), vec!["W308".to_string()]);
+        let known = "::oo::class create ::Dog { method bark {} {return woof} }\n[::Dog new] bark";
+        assert!(w30x_codes(known).is_empty());
+    }
+
+    #[test]
+    fn w307_suppressed_for_braced_namespace_var_proc_param() {
+        // `${namespace}::define::…` — the dispatched variable is the *braced*
+        // name `namespace` (a proc parameter), not the whole composite head.
+        // The var-name extraction must isolate `namespace` so the proc-param
+        // dispatch suppression fires (a mangled name defeats it → false W307).
+        let src = "proc Define {namespace class args} {\n  \
+                   ${namespace}::dynamic_methods $class\n  \
+                   ${namespace}::define::[lindex $args 0] {*}[lrange $args 1 end]\n}\n";
+        assert!(
+            w30x_codes(src).is_empty(),
+            "braced-namespace-var proc-param dispatch must suppress W307; got {:?}",
+            w30x_codes(src)
+        );
+    }
+
+    #[test]
+    fn w307_suppressed_for_snit_instance_var_in_helper_proc() {
+        // `mytree` is a snit instance variable dispatched inside a non-method
+        // helper `proc` in the type body (`upvar`'d component object).  The
+        // dispatch falls in the class body range and names an instance var, so
+        // `is_snit_member` suppresses W307.
+        let src = "snit::type T {\n  variable mytree\n  \
+                   proc Check {id} { upvar 1 mytree mytree; if {![$mytree exists $id]} { return } }\n}\n";
+        assert!(
+            w30x_codes(src).is_empty(),
+            "snit instance-var dispatch in a helper proc must suppress W307; got {:?}",
+            w30x_codes(src)
+        );
+    }
+
+    #[test]
+    fn irule2001_carries_matchclass_replacement_fix() {
+        // `matchclass <item> <class>` → `class match <item> equals <class>`,
+        // replacing the whole command. Raw source slices preserve `$var`. The
+        // fix span is independent of the diagnostic span (which is the head).
+        let mut a = Analyser::new();
+        let r = a.analyse("matchclass $u ::lib\n", "f5-irules");
+        let d = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "IRULE2001")
+            .expect("IRULE2001");
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        let fix = &d.fixes[0];
+        assert_eq!(fix.new_text, "class match $u equals ::lib");
+        assert_eq!(fix.description, "Replace with 'class match'");
+        // Fix range spans the whole command (head + both args), not just the
+        // diagnostic's head span.
+        assert_eq!(fix.span.start(), d.span.start());
+        assert!(fix.span.end() > d.span.end());
+    }
+
     #[test]
     fn analyse_w307_emitted_for_cmd_substitution_with_unknown_return_type() {
         // ``[bogus_cmd] foo`` — the inner command isn't in the
@@ -11850,6 +12417,48 @@ foo
         assert!(
             got.iter().any(|m| m.contains("'v'")),
             "switch-no-default + return must fire W210; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn when_body_not_analysed_under_plain_tcl() {
+        // `when` is an iRules-only builtin; under plain Tcl it is a disabled
+        // foreign-dialect command whose braced argument is opaque *data*, not a
+        // handler script.  The body must not be scanned: only W002 (disabled) +
+        // W123 (unknown-in-dialect) on `when` itself — no W210 on the body's
+        // `$undefvar`, no W123 naming the body command.  Matches Python.
+        let mut a = Analyser::new();
+        let r = a.analyse("when HTTP_REQUEST {\n    boguscmd $undefvar\n}\n", "tcl");
+        let codes: Vec<&str> = r.diagnostics.iter().map(|d| d.code.as_str()).collect();
+        assert!(
+            !codes.contains(&"W210"),
+            "disabled `when` body must not be analysed (no W210); got {:?}",
+            r.diagnostics
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == "W123" && d.message.contains("boguscmd")),
+            "disabled `when` body command must not draw W123; got {:?}",
+            r.diagnostics
+        );
+        // The `when` head itself is still flagged disabled + unknown-in-dialect.
+        assert!(codes.contains(&"W002"), "expected W002; got {codes:?}");
+    }
+
+    #[test]
+    fn when_body_analysed_under_irules() {
+        // Under the iRules dialect `when` IS enabled, so its body is a real
+        // handler script and the read-before-set inside it fires (the inverse
+        // of `when_body_not_analysed_under_plain_tcl`).
+        let mut a = Analyser::new();
+        let r = a.analyse("when HTTP_REQUEST {\n    set x $undefvar\n}\n", "f5-irules");
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == "W210" && d.message.contains("undefvar")),
+            "iRules `when` body must be analysed (W210 on $undefvar); got {:?}",
+            r.diagnostics
         );
     }
 

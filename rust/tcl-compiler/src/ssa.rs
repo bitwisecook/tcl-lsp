@@ -172,6 +172,28 @@ pub fn defs_of(stmt: &Statement) -> Vec<String> {
     defs_of_with_registry(stmt, None)
 }
 
+/// Whether an IR assignment target `name` (as written) is a *dynamic* write
+/// target — its variable name is computed at runtime from a substitution
+/// (`set $p …`, `set ${tok} …`, `set a$b(k) …`).  Such a target is opaque
+/// (no static def) and *reads* the substituted name-bearing variable(s).
+///
+/// Mirrors Python `compiler/var_resolve.py::resolve_place`: a leading `$`
+/// marks a substituted write-target name, and a substitution in the array
+/// *base* (`a$b(k)`) is dynamic too.  A bare array element (`arr($i)`) keeps
+/// its static base `arr` (only the index is dynamic), so it is **not** a
+/// dynamic target here.
+#[must_use]
+pub fn is_dynamic_write_target(name: &str) -> bool {
+    if name.starts_with('$') {
+        return true;
+    }
+    let base = match name.find('(') {
+        Some(i) => &name[..i],
+        None => name,
+    };
+    base.is_empty() || base.contains('$') || base.contains('[')
+}
+
 /// SYNC4: registry-aware `defs_of`.
 ///
 /// Mirrors Python's post-`01326b40` shape — barrier defs route through
@@ -190,6 +212,16 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
         | Statement::AssignExpr { name, .. }
         | Statement::AssignValue { name, .. }
         | Statement::Incr { name, .. } => {
+            // A write-target whose *name* is value-substituted (`set $p …`,
+            // `set ${tok}(k) …`) denotes the variable named by the
+            // substitution's value — a place that cannot be pinned down, so it
+            // is **not** a static def of the name-bearing variable.  Mirrors
+            // Python `compiler/var_resolve.py::resolve_place` returning
+            // `unknown(name_reads=…)` for these targets.  `uses_of` records the
+            // name read separately.
+            if is_dynamic_write_target(name) {
+                return Vec::new();
+            }
             vec![normalise_var_name(name).to_owned()]
         }
         Statement::Call { defs, .. } if !defs.is_empty() => defs.clone(),
@@ -685,6 +717,23 @@ pub(crate) fn structural_body_indices(
 ) -> HashSet<usize> {
     use tcl_registry::{ArgRole, BodyKind};
 
+    // A foreign-dialect builtin disabled in the active dialect — known in some
+    // dialect but absent from the active registry's `by_name` (the analyser
+    // loads only the active dialect, so an iRules `when` / `log` / `session`
+    // misses under plain Tcl) — is an unknown would-be user command here. Tcl
+    // never substitutes inside its braced arguments, so every braced arg is
+    // opaque *data*, not analysable script/expr; scanning it would read its
+    // `$vars` and emit spurious findings (W210). Skip them. Mirrors Python's
+    // `command_is_disabled_in_active_dialect` body-recursion gate. A command
+    // unknown in *every* dialect (`get` miss *and* not known-in-any) — a real
+    // user proc / TclOO body / recovery artefact — is NOT skipped: its braced
+    // body still recurses, matching Python.
+    if registry.get(command).is_none() && registry.known_in_any_dialect(command) {
+        return (0..args.len())
+            .filter(|&idx| is_braced_arg(tokens, idx))
+            .collect();
+    }
+
     // SYNC2: the registry-declared `body_kind` on each spec /
     // subcommand tells us whether body args run in the caller's
     // frame (`Plain`) or in a separate definition / dispatch context
@@ -761,27 +810,49 @@ pub fn uses_of(
             vars_found.extend(vars_in_expr(expr));
         }
 
+        // An assignment to a *dynamic* target name (`set $p …`) reads the
+        // name-bearing variable(s) — the genuine read the dead-store / unused
+        // checks need (`defs_of` already withholds the static def).  Mirrors
+        // Python `resolve_place`'s `name_reads`.
+        Statement::AssignConst { name, .. } => {
+            if is_dynamic_write_target(name) {
+                vars_found.extend(scanner.scan_word(name, registry));
+            }
+        }
+
         Statement::AssignExpr { name, expr, .. } => {
             vars_found.extend(vars_in_expr(expr));
-            let norm = normalise_var_name(name);
-            if !norm.is_empty() && vars_found.contains(norm) {
-                reads_own_def.insert(norm.to_owned());
+            if is_dynamic_write_target(name) {
+                vars_found.extend(scanner.scan_word(name, registry));
+            } else {
+                let norm = normalise_var_name(name);
+                if !norm.is_empty() && vars_found.contains(norm) {
+                    reads_own_def.insert(norm.to_owned());
+                }
             }
         }
 
         Statement::AssignValue { name, value, .. } => {
             vars_found.extend(scanner.scan_word(value, registry));
-            let norm = normalise_var_name(name);
-            if !norm.is_empty() && vars_found.contains(norm) {
-                reads_own_def.insert(norm.to_owned());
+            if is_dynamic_write_target(name) {
+                vars_found.extend(scanner.scan_word(name, registry));
+            } else {
+                let norm = normalise_var_name(name);
+                if !norm.is_empty() && vars_found.contains(norm) {
+                    reads_own_def.insert(norm.to_owned());
+                }
             }
         }
 
         Statement::Incr { name, amount, .. } => {
-            let norm = normalise_var_name(name);
-            if !norm.is_empty() {
-                vars_found.insert(norm.to_owned());
-                reads_own_def.insert(norm.to_owned());
+            if is_dynamic_write_target(name) {
+                vars_found.extend(scanner.scan_word(name, registry));
+            } else {
+                let norm = normalise_var_name(name);
+                if !norm.is_empty() {
+                    vars_found.insert(norm.to_owned());
+                    reads_own_def.insert(norm.to_owned());
+                }
             }
             if let Some(amt) = amount {
                 vars_found.extend(scanner.scan_word(amt, registry));
@@ -1534,10 +1605,50 @@ mod tests {
     fn defs_of_assign_const() {
         let stmt = Statement::AssignConst {
             span: Span::new(0, 10),
-            name: "$x".into(),
+            name: "x".into(),
             value: "1".into(),
         };
         assert_eq!(defs_of(&stmt), vec!["x"]);
+    }
+
+    #[test]
+    fn defs_of_dynamic_target_name_has_no_static_def() {
+        // `set $p 1` / `set ${p} 1` write the variable *named by* `$p`, not
+        // `p` itself — an opaque place, so there is no static def.  Matches
+        // Python `resolve_place`'s `unknown(name_reads=…)`.
+        for name in ["$p", "${p}", "a$b", "[gen]"] {
+            let stmt = Statement::AssignValue {
+                span: Span::new(0, 10),
+                name: name.into(),
+                value: "1".into(),
+                value_needs_backsubst: false,
+                tokens: None,
+            };
+            assert!(
+                defs_of(&stmt).is_empty(),
+                "dynamic target {name:?} must not be a static def"
+            );
+        }
+        // A static array element keeps its concrete base as the def.
+        let arr = Statement::AssignValue {
+            span: Span::new(0, 10),
+            name: "arr(idx)".into(),
+            value: "1".into(),
+            value_needs_backsubst: false,
+            tokens: None,
+        };
+        assert_eq!(defs_of(&arr), vec!["arr"]);
+    }
+
+    #[test]
+    fn is_dynamic_write_target_classifies_names() {
+        assert!(is_dynamic_write_target("$p"));
+        assert!(is_dynamic_write_target("${p}"));
+        assert!(is_dynamic_write_target("a$b"));
+        assert!(is_dynamic_write_target("[gen]"));
+        assert!(!is_dynamic_write_target("p"));
+        assert!(!is_dynamic_write_target("arr(idx)"));
+        assert!(!is_dynamic_write_target("ns::var"));
     }
 
     #[test]

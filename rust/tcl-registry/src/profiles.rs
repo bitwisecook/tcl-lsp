@@ -173,6 +173,120 @@ impl ProfileRegistry {
     }
 }
 
+/// Profiles attached to a file — Python `compute_file_profiles`.
+///
+/// Combines an explicit `# profiles: …` directive (scanned from the leading
+/// comment block) with the profiles implied by every `when EVENT` handler
+/// present, then expands the transitive profile stack.  Returns the sorted,
+/// uppercased, fully-expanded profile set.
+#[must_use]
+pub fn compute_file_profiles(
+    source: &str,
+    events: &crate::events::EventRegistry,
+    profiles: &ProfileRegistry,
+) -> Vec<String> {
+    let mut seed: HashSet<String> = parse_profile_directive(source);
+    for event in scan_file_events(source) {
+        if let Some(props) = events.get_props(&event) {
+            seed.extend(props.implied_profiles.iter().map(|p| p.to_uppercase()));
+        }
+    }
+    let seed_refs: Vec<&str> = seed.iter().map(String::as_str).collect();
+    let mut expanded: Vec<String> = profiles
+        .expand_profile_stack(&seed_refs)
+        .into_iter()
+        .collect();
+    expanded.sort_unstable();
+    expanded
+}
+
+/// Parse a leading `# profiles: HTTP, CLIENTSSL` directive — Python
+/// `parse_profile_directive`.  Scans at most the first 20 lines and stops at
+/// the first non-comment, non-blank line.  Names are uppercased and split on
+/// commas/whitespace.
+#[must_use]
+pub fn parse_profile_directive(source: &str) -> HashSet<String> {
+    let mut out = HashSet::new();
+    for line in source.split('\n').take(20) {
+        let stripped = line.trim();
+        if stripped.is_empty() {
+            continue;
+        }
+        if !stripped.starts_with('#') {
+            break;
+        }
+        if let Some(payload) = profile_directive_payload(stripped) {
+            for token in payload.split(|c: char| c == ',' || c.is_whitespace()) {
+                if !token.is_empty() {
+                    out.insert(token.to_uppercase());
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Match `# profiles? :` (case-insensitive) at the head of an already-trimmed
+/// comment line and return the payload after the colon.  Mirrors the Python
+/// `_PROFILE_DIRECTIVE_RE` (`^\s*#\s*profiles?\s*:\s*(.+)`).
+fn profile_directive_payload(stripped_line: &str) -> Option<&str> {
+    let after_hash = stripped_line.strip_prefix('#')?.trim_start();
+    let lower = after_hash.to_ascii_lowercase();
+    // `profiles?` — the optional trailing `s`; longest match first.
+    let kw_len = if lower.starts_with("profiles") {
+        "profiles".len()
+    } else if lower.starts_with("profile") {
+        "profile".len()
+    } else {
+        return None;
+    };
+    // The keyword is ASCII, so the byte length is the same on `after_hash`.
+    let payload = after_hash[kw_len..].trim_start().strip_prefix(':')?.trim();
+    (!payload.is_empty()).then_some(payload)
+}
+
+/// Event names from every `when EVENT` occurrence — Python `scan_file_events`
+/// (`\bwhen\s+([A-Z_][A-Z0-9_]*)`).  The event name is upper-case-led, so a
+/// lower-cased `when foo` does not match (matching the Python regex's case
+/// sensitivity for the captured group).
+#[must_use]
+pub fn scan_file_events(source: &str) -> HashSet<String> {
+    let bytes = source.as_bytes();
+    let mut out = HashSet::new();
+    for (pos, _) in source.match_indices("when") {
+        // `\b` before `when`: the preceding byte must be a non-word char.
+        if pos > 0 && is_word_byte(bytes[pos - 1]) {
+            continue;
+        }
+        let mut j = pos + "when".len();
+        // `\s+` — at least one whitespace byte after `when`.
+        let ws_start = j;
+        while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+            j += 1;
+        }
+        if j == ws_start {
+            continue;
+        }
+        // `[A-Z_]` — event name must start upper-case or underscore.
+        if j >= bytes.len() || !(bytes[j] == b'_' || bytes[j].is_ascii_uppercase()) {
+            continue;
+        }
+        let name_start = j;
+        while j < bytes.len()
+            && (bytes[j] == b'_' || bytes[j].is_ascii_uppercase() || bytes[j].is_ascii_digit())
+        {
+            j += 1;
+        }
+        out.insert(source[name_start..j].to_string());
+    }
+    out
+}
+
+/// Tcl word byte: alphanumeric or underscore (regex `\w`).
+const fn is_word_byte(b: u8) -> bool {
+    b == b'_' || b.is_ascii_alphanumeric()
+}
+
 // Full static data — auto-generated from Python namespace_data.py
 
 // AUTO-GENERATED from Python namespace_data.py — do not edit manually
@@ -1574,6 +1688,65 @@ mod tests {
         let http_ns = reg.get_namespace("HTTP").unwrap();
         assert!(http_ns.profiles.contains(&"HTTP"));
         assert_eq!(http_ns.layer, "application");
+    }
+
+    #[test]
+    fn parse_profile_directive_comma_and_space() {
+        let got = parse_profile_directive("# profiles: HTTP, clientssl serverssl\nset x 1\n");
+        let mut v: Vec<&str> = got.iter().map(String::as_str).collect();
+        v.sort_unstable();
+        assert_eq!(v, ["CLIENTSSL", "HTTP", "SERVERSSL"]);
+    }
+
+    #[test]
+    fn parse_profile_directive_singular_and_stops_at_code() {
+        // Singular `profile:` is accepted; scanning stops at the first
+        // non-comment line, so a later directive is ignored.
+        let got = parse_profile_directive("# profile : TCP\nset x 1\n# profiles: HTTP\n");
+        let v: Vec<&str> = got.iter().map(String::as_str).collect();
+        assert_eq!(v, ["TCP"]);
+    }
+
+    #[test]
+    fn parse_profile_directive_rejects_non_directive_comments() {
+        assert!(parse_profile_directive("# just a comment\nwhen HTTP_REQUEST {}\n").is_empty());
+    }
+
+    #[test]
+    fn scan_file_events_finds_uppercase_events() {
+        let evs = scan_file_events("when HTTP_REQUEST {\n}\nwhen CLIENT_ACCEPTED { }\n");
+        let mut v: Vec<&str> = evs.iter().map(String::as_str).collect();
+        v.sort_unstable();
+        assert_eq!(v, ["CLIENT_ACCEPTED", "HTTP_REQUEST"]);
+    }
+
+    #[test]
+    fn scan_file_events_respects_word_boundary_and_case() {
+        // `awhen` is not a `when` keyword; a lower-cased event name does not
+        // match the upper-case-led capture group.
+        assert!(scan_file_events("awhen HTTP_REQUEST {}").is_empty());
+        assert!(scan_file_events("when http_request {}").is_empty());
+    }
+
+    #[test]
+    fn compute_file_profiles_unions_directive_and_inferred() {
+        let events = crate::events::EventRegistry::build();
+        let profiles = ProfileRegistry::build();
+        // CLIENTSSL_HANDSHAKE infers CLIENTSSL; the directive adds HTTP.  Both
+        // expand transitively to include TCP (the parent of each).
+        let got = compute_file_profiles(
+            "# profiles: HTTP\nwhen CLIENTSSL_HANDSHAKE { }\n",
+            &events,
+            &profiles,
+        );
+        assert!(got.contains(&"HTTP".to_string()));
+        assert!(got.contains(&"CLIENTSSL".to_string()));
+        assert!(
+            got.contains(&"TCP".to_string()),
+            "transitive parent: {got:?}"
+        );
+        // Sorted output.
+        assert!(got.windows(2).all(|w| w[0] <= w[1]));
     }
 
     #[test]

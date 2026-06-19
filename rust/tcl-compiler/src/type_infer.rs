@@ -24,6 +24,7 @@
 //! implicitly `Unknown`.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use tcl_registry::{CommandRegistry, TclType, Traits};
 
@@ -111,6 +112,55 @@ fn expr_literal_type(text: &str) -> TypeLattice {
     TypeLattice::of(TclType::Numeric)
 }
 
+/// The enclosing namespace of a (possibly qualified) function name —
+/// `"::ns::Foo"` → `"::ns"`, `"::Foo"` / `"::top"` → `"::"`.  Used to resolve
+/// a relative constructor head against its call-site namespace.
+fn function_namespace(qname: &str) -> String {
+    match qname.rsplit_once("::") {
+        Some((ns, _)) if !ns.is_empty() => ns.to_string(),
+        _ => "::".to_string(),
+    }
+}
+
+/// Type a `TclOO` / snit constructor call (`Foo new` / `Foo create x` /
+/// `Foo %AUTO%` / `Widget .path`) as `OBJECT(class)` when its head resolves
+/// to a known class, else `OVERDEFINED`.  Mirrors the constructor arm of
+/// Python `_return_type_for_command`.  The relative head is resolved as-is,
+/// `::`-prefixed, and against the call-site `namespace` (so `[Foo new]` inside
+/// `namespace eval ns` types as `OBJECT(::ns::Foo)`).
+fn constructor_object_type(
+    command: &str,
+    args: &[&str],
+    known_classes: &HashSet<String>,
+    namespace: &str,
+) -> TypeLattice {
+    let is_ctor_spelling = args
+        .first()
+        .is_some_and(|a| matches!(*a, "new" | "create") || *a == "%AUTO%" || a.starts_with('.'));
+    if is_ctor_spelling && !known_classes.is_empty() {
+        if known_classes.contains(command) {
+            return TypeLattice::object_of(command);
+        }
+        let qualified = if command.starts_with("::") {
+            command.to_string()
+        } else {
+            format!("::{command}")
+        };
+        if known_classes.contains(&qualified) {
+            return TypeLattice::object_of(qualified);
+        }
+        if namespace != "::" && !command.starts_with("::") {
+            let ns_qualified =
+                crate::naming::normalise_qualified_name(&format!("{namespace}::{command}"));
+            if known_classes.contains(&ns_qualified) {
+                return TypeLattice::object_of(ns_qualified);
+            }
+        }
+    }
+    // D4-F6: do not infer `object_of` from the `new` spelling alone.
+    TypeLattice::overdefined()
+}
+
 /// Return the type produced by a known command's return value.
 ///
 /// Checks the command spec's `return_type` field, with subcommand
@@ -122,9 +172,16 @@ pub(crate) fn return_type_for_command(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],
+    known_classes: &HashSet<String>,
+    namespace: &str,
 ) -> TypeLattice {
     let Some(spec) = registry.get(command) else {
-        return TypeLattice::overdefined();
+        // Not a registered built-in — recognise a TclOO / snit constructor
+        // (`Foo new` / `Foo create x` / `Foo %AUTO%` / `Widget .path`) whose
+        // head names a known class, typing it `OBJECT(::ns::Foo)`.  Mirrors
+        // Python `_return_type_for_command`'s constructor arm + the D4-F6
+        // guard (no `object_of` from the `new` spelling alone).
+        return constructor_object_type(command, args, known_classes, namespace);
     };
 
     // Subcommand commands: check sub's return_type.
@@ -350,6 +407,8 @@ fn evaluate_type_def(
     uses: &HashMap<String, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     registry: &CommandRegistry,
+    known_classes: &HashSet<String>,
+    namespace: &str,
 ) -> TypeLattice {
     match stmt {
         Statement::AssignConst { value, .. } => literal_type(value),
@@ -390,7 +449,13 @@ fn evaluate_type_def(
                 && let Some((cmd, args)) = parse_command_substitution(stripped)
             {
                 let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                return return_type_for_command(registry, &cmd, &arg_refs);
+                return return_type_for_command(
+                    registry,
+                    &cmd,
+                    &arg_refs,
+                    known_classes,
+                    namespace,
+                );
             }
             // String interpolation or complex value.
             if value.contains('$') || value.contains('[') {
@@ -408,7 +473,7 @@ fn evaluate_type_def(
             ..
         } if !defs.is_empty() => {
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            return_type_for_command(registry, command, &arg_refs)
+            return_type_for_command(registry, command, &arg_refs, known_classes, namespace)
         }
 
         // `ExprEval`, `Barrier`, and structured statements that survive as
@@ -424,14 +489,19 @@ fn evaluate_type_def(
 /// Returns a map from `(variable_name, ssa_version)` to inferred
 /// `TypeLattice`. Values absent from the map are implicitly `Unknown`.
 #[must_use]
+#[allow(clippy::implicit_hasher)] // `known_classes` is always the default-hasher set built by the CU.
 pub fn propagate_types(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     sccp: &SccpResult,
     registry: &CommandRegistry,
+    known_classes: &HashSet<String>,
 ) -> HashMap<ValueKey, TypeLattice> {
     let preds = cfg.predecessors();
     let order = crate::sccp::cfg_order(cfg);
+    // Constructor heads written `[Foo new]` inside this function resolve
+    // relative names against the function's own namespace.
+    let namespace = function_namespace(&cfg.name);
 
     let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
 
@@ -516,7 +586,14 @@ pub fn propagate_types(
                     } if !defs.is_empty() && is_scope_alias_call(registry, command, args) => {
                         TypeLattice::overdefined()
                     }
-                    _ => evaluate_type_def(stmt, &ssa_stmt.uses, &types, registry),
+                    _ => evaluate_type_def(
+                        stmt,
+                        &ssa_stmt.uses,
+                        &types,
+                        registry,
+                        known_classes,
+                        &namespace,
+                    ),
                 };
                 for (var, &ver) in &ssa_stmt.defs {
                     let key = (var.clone(), ver);
@@ -562,7 +639,9 @@ pub(crate) fn infer_function_return_type(
     sccp: &SccpResult,
     types: &HashMap<ValueKey, TypeLattice>,
     registry: &CommandRegistry,
+    known_classes: &HashSet<String>,
 ) -> TypeLattice {
+    let namespace = function_namespace(&cfg.name);
     // Collapse the versioned type map to a name-keyed map by joining
     // every version of each name — the over-approximation noted above.
     let mut var_types: HashMap<String, TypeLattice> = HashMap::new();
@@ -583,7 +662,7 @@ pub(crate) fn infer_function_return_type(
                 if let Some(expr) = expr {
                     infer_expr_type(expr, &var_types)
                 } else if let Some(value) = value {
-                    infer_return_value_type(value, &var_types, registry)
+                    infer_return_value_type(value, &var_types, registry, known_classes, &namespace)
                 } else {
                     // Bare `return` yields the empty string.
                     TypeLattice::of(TclType::String)
@@ -610,6 +689,8 @@ fn infer_return_value_type(
     value: &str,
     var_types: &HashMap<String, TypeLattice>,
     registry: &CommandRegistry,
+    known_classes: &HashSet<String>,
+    namespace: &str,
 ) -> TypeLattice {
     let stripped = value.trim();
     // Pure variable reference: inherit the source type.
@@ -626,7 +707,7 @@ fn infer_return_value_type(
         && let Some((cmd, args)) = parse_command_substitution(stripped)
     {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        return return_type_for_command(registry, &cmd, &arg_refs);
+        return return_type_for_command(registry, &cmd, &arg_refs, known_classes, namespace);
     }
     // String interpolation or other complex value.
     if value.contains('$') || value.contains('[') {
@@ -701,7 +782,7 @@ mod tests {
                 exit_versions: HashMap::new(),
             },
         );
-        let types = propagate_types(&f, &ssa, &sccp, &registry());
+        let types = propagate_types(&f, &ssa, &sccp, &registry(), &HashSet::new());
         assert_eq!(
             types.get(&("x".to_owned(), 1)),
             Some(&TypeLattice::of(TclType::Int))
@@ -716,7 +797,14 @@ mod tests {
             amount: None,
             safe_on_uninit: false,
         };
-        let t = evaluate_type_def(&stmt, &HashMap::new(), &HashMap::new(), &registry());
+        let t = evaluate_type_def(
+            &stmt,
+            &HashMap::new(),
+            &HashMap::new(),
+            &registry(),
+            &HashSet::new(),
+            "::",
+        );
         assert_eq!(t, TypeLattice::of(TclType::Int));
     }
 
@@ -806,7 +894,7 @@ mod tests {
         sccp.executable_edges
             .insert(("entry".into(), "exit".into()));
 
-        let types = propagate_types(&cfg, &ssa, &sccp, &registry());
+        let types = propagate_types(&cfg, &ssa, &sccp, &registry(), &HashSet::new());
         // x@1 (entry) should be Int.
         assert_eq!(
             types.get(&("x".to_owned(), 1)),

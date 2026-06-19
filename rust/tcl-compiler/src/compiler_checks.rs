@@ -15,7 +15,7 @@ use tcl_lexer::Span;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::gvn::{find_loop_invariants, find_partial_redundancies, find_redundancies};
 use crate::irules_checks::{
-    IrulesCheckWarning, find_collect_flow_warnings, find_generic_static_name_warnings,
+    CodeFix, IrulesCheckWarning, find_collect_flow_warnings, find_generic_static_name_warnings,
     find_hoistable_set_warnings, find_http_flow_warnings, find_unguarded_drop_warnings,
     find_unnormalised_getter_warnings,
 };
@@ -89,6 +89,12 @@ pub struct Diagnostic {
     /// fix or could not build one. Consumers that surface code actions
     /// (LSP `CodeAction`, CLI auto-fix) should plumb this through.
     pub replacement: Option<String>,
+    /// Suggested fixes whose range is independent of `span` — insertions or
+    /// out-of-span replacements that `replacement` (a same-span rewrite) cannot
+    /// express (e.g. the IRULE5002/5004 "insert `return`" fixes). Empty when the
+    /// check has no such fix. Consumers emit one `TextEdit` per fix at its own
+    /// `span`.
+    pub fixes: Vec<CodeFix>,
 }
 
 impl Diagnostic {
@@ -106,6 +112,7 @@ impl Diagnostic {
                 cb.block, cb.value, cb.taken_target
             ),
             replacement: None,
+            fixes: Vec::new(),
         }
     }
 
@@ -124,6 +131,7 @@ impl Diagnostic {
             },
             message: w.message.clone(),
             replacement: None,
+            fixes: Vec::new(),
         }
     }
 
@@ -135,6 +143,7 @@ impl Diagnostic {
             severity: Severity::Warning,
             message: w.message.clone(),
             replacement: None,
+            fixes: Vec::new(),
         }
     }
 
@@ -146,6 +155,7 @@ impl Diagnostic {
             severity: Severity::Error,
             message: w.message.clone(),
             replacement: w.replacement.clone(),
+            fixes: Vec::new(),
         }
     }
 
@@ -157,6 +167,7 @@ impl Diagnostic {
             severity: Severity::Warning,
             message: w.message.clone(),
             replacement: w.replacement.clone(),
+            fixes: w.fixes.clone(),
         }
     }
 
@@ -168,6 +179,7 @@ impl Diagnostic {
             severity: Severity::Suggestion,
             message: r.message.clone(),
             replacement: None,
+            fixes: Vec::new(),
         }
     }
 
@@ -179,6 +191,7 @@ impl Diagnostic {
             severity: Severity::Warning,
             message: w.message.clone(),
             replacement: w.replacement.clone(),
+            fixes: Vec::new(),
         }
     }
 }

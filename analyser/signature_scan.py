@@ -136,7 +136,7 @@ def _scan(
                 _handle_source(texts, argv, result)
             case "interp":
                 _handle_interp(texts, result)
-            case "oo::class":
+            case "oo::class" | "::oo::class":
                 _handle_oo_class(texts, argv, ns_prefix, result)
             case "itcl::class" | "::itcl::class":
                 _handle_itcl_class(texts, argv, ns_prefix, result)

@@ -117,6 +117,13 @@ class TestOOClass:
         )
         assert "::geom::Point" in result.all_classes
 
+    def test_fully_qualified_oo_class_head(self):
+        # `::oo::class` is the fully-qualified spelling of the same global
+        # command, so a class declared with it must be recognised too.
+        result = extract_signatures("::oo::class create ::Shape { method area {} {} }")
+        assert "::Shape" in result.all_classes
+        assert result.all_classes["::Shape"].name == "Shape"
+
 
 class TestItclClass:
     def test_itcl_class(self):

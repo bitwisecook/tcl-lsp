@@ -2485,6 +2485,18 @@ class TestTclOOClassExtraction:
         cd = result.all_classes["::Logger"]
         assert cd.metaclass == "oo::singleton"
 
+    def test_fully_qualified_oo_class_metaclass(self):
+        """`::oo::class` (fully-qualified head) is recognised like `oo::class`,
+        and the recorded metaclass is normalised to the bare form."""
+        source = textwrap.dedent("""\
+            ::oo::class create ::Dog {
+                method bark {} { return woof }
+            }
+        """)
+        result = analyse(source)
+        cd = result.all_classes["::Dog"]
+        assert cd.metaclass == "oo::class"
+
     def test_method_body_variables_in_scope(self):
         """Instance variables declared via class-level 'variable' are available in method bodies."""
         source = textwrap.dedent("""\
