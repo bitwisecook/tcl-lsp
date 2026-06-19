@@ -159,7 +159,16 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         match interp.eval_control_body(body) {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
-            other => return other, // return / error propagate
+            Code::Error => {
+                // `("while" body line N)` — the interpreted `Tcl_WhileObjCmd`
+                // frame, added only outside a proc (Tcl inlines `while` when it
+                // compiles a proc body, so no frame there; see `foreach`).
+                if !interp.in_proc() {
+                    interp.append_body_frame(b"while");
+                }
+                return Code::Error;
+            }
+            other => return other, // return propagates
         }
     }
     interp.set_result_bytes(b"");
@@ -180,6 +189,13 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // the body. (Their result is discarded; only their completion code matters.)
     match interp.eval_control_body(init) {
         Code::Ok => {}
+        Code::Error => {
+            // `("for" initial command)` (no line) — interpreted `Tcl_ForObjCmd`.
+            if !interp.in_proc() {
+                interp.append_frame_noline(b"\"for\" initial command");
+            }
+            return Code::Error;
+        }
         other => return other,
     }
     loop {
@@ -191,10 +207,29 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         match interp.eval_control_body(body) {
             Code::Ok | Code::Continue => {} // `continue` still runs `next`
             Code::Break => break,
+            Code::Error => {
+                // `("for" body line N)` (interpreted `Tcl_ForObjCmd`), outside a
+                // proc only — as for `while`/`foreach`.
+                if !interp.in_proc() {
+                    interp.append_body_frame(b"for");
+                }
+                return Code::Error;
+            }
             other => return other,
         }
         match interp.eval_control_body(next) {
             Code::Ok => {}
+            // A `break` in the step clause ends the loop cleanly (C's
+            // `Tcl_ForObjCmd`: `case TCL_BREAK: result = TCL_OK`), unlike
+            // `continue`/`return`, which propagate.
+            Code::Break => break,
+            Code::Error => {
+                // `("for" loop-end command)` (no line) — interpreted `Tcl_ForObjCmd`.
+                if !interp.in_proc() {
+                    interp.append_frame_noline(b"\"for\" loop-end command");
+                }
+                return Code::Error;
+            }
             other => return other,
         }
     }

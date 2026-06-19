@@ -3049,6 +3049,26 @@ impl Interp {
         buf.push(b')');
     }
 
+    /// Append a frame with no `line N` suffix — `"\n    (<text>)"`, e.g.
+    /// `("for" initial command)` / `("for" loop-end command)` (C's
+    /// `Tcl_AddErrorInfo` for the `for` init/next scripts) — seeding errorInfo
+    /// from the result if needed, then clear `already_logged` so the enclosing
+    /// command logs its own `invoked from within` frame.
+    pub(crate) fn append_frame_noline(&mut self, text: &[u8]) {
+        if self.exc.borrow().info.is_none() {
+            let msg = self.result_bytes();
+            self.exc.borrow_mut().info = Some(msg);
+        }
+        {
+            let mut exc = self.exc.borrow_mut();
+            let buf = exc.info.as_mut().expect("seeded above");
+            buf.extend_from_slice(b"\n    (");
+            buf.extend_from_slice(text);
+            buf.push(b')');
+        }
+        self.exc.borrow_mut().already_logged = false;
+    }
+
     /// The current accumulated `errorInfo` (for `catch`'s `-errorinfo`): the
     /// trace if any frame was logged, else the bare error message.
     pub(crate) fn error_info(&self) -> Vec<u8> {
