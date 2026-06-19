@@ -104,13 +104,14 @@ to the operation, so no write-back is needed.
 
 ## File-path anchors
 
-- `compiler/shimmer.py` — `_find_byte_array_corruption`
-- `compiler/registry/runtime.py` — `byte_array_payload_commands`
-- `dialects/f5/irules/*__payload.py` — `byte_array_payload=True`
+- `compiler/shimmer.py` — `_find_byte_array_corruption`, `_payload_replace_data_index`
+- `compiler/registry/runtime.py` — `byte_array_payload_commands`, `byte_array_payload_layouts`
+- `compiler/registry/models.py` — `BytePayloadSpec`
+- `dialects/f5/irules/*__payload.py` — `byte_array_payload=True` or `=BytePayloadSpec(...)`
 
 ## Test anchors
 
 - `tests/test_shimmer.py::TestByteArrayCorruption`
-- `tests/test_fp_sh.py::test_FP_SH_09_*`, `::test_FP_SH_10_*`
+- `tests/test_fp_sh.py::test_FP_SH_09_*`, `::test_FP_SH_10_*`, `::test_FP_SH_11_*`
 - `tests/lsp_e2e/test_irules_e2e.py::TestIrulesByteArrayCorruption`
 - `docs/design/compiler/FP.md` — FP-SH-09, FP-SH-10
