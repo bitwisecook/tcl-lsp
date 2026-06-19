@@ -37,34 +37,69 @@ data and corrupts in production with binary traffic.
 - A `binary format`, `binary decode`, or `encoding convertto` result run
   through `string toupper`/`tolower`/`totitle` or `encoding convertto`.
 
-## Example
+## Examples
+
+### iRules — the `*::payload` round-trip
+
+This is the canonical bug. A request payload carrying a UTF-8 `ó` (the wire
+bytes `c3 b3`) is read, joined into a string, and written back — so the two
+bytes are decoded as the latin-1 characters `Ã` and `³`, then re-encoded as
+UTF-8 (`c3 83` and `c2 b3`). The single `ó` becomes the four bytes
+`c3 83 c2 b3` — the mojibake `Ã³`.
 
 ```tcl
 # ✗ S110 — the payload is decoded to a string, then re-encoded on write-back.
 when HTTP_REQUEST_DATA {
     set body [HTTP::payload]
-    set body "$body INJECTED"
-    HTTP::payload replace 0 100 $body
+    append body " — appended"
+    HTTP::payload replace 0 [HTTP::payload length] $body
 }
 
 # ✓ Fix — re-binarify before the sink so the write is byte-for-byte.
 when HTTP_REQUEST_DATA {
     set body [HTTP::payload]
-    set body "$body INJECTED"
+    append body " — appended"
     binary scan $body c* -
-    HTTP::payload replace 0 100 $body
+    HTTP::payload replace 0 [HTTP::payload length] $body
 }
 ```
 
-The diagnostic points at the write-back, with related markers on the source
-(`HTTP::payload`) and the string coercion. Adding the `binary scan` re-binarify
-clears it.
+The diagnostic points at the `HTTP::payload replace` write-back, with related
+markers on the source (`HTTP::payload`) and the string coercion (`append`).
+The `binary scan` forces a byte-array internal representation, so the write is
+byte-for-byte; that clears the warning.
+
+### Plain Tcl — case folding a byte array
+
+Outside iRules the same hazard appears whenever a `binary format`,
+`binary decode`, or `encoding convertto` value is run through a character-string
+operation. Case folding is the clearest: it reinterprets each byte as a Unicode
+code point, so `0xFF` (`ÿ`) upper-cases to `U+0178` (`Ÿ`) — no longer a single
+byte.
+
+```tcl
+# ✗ S110 — string toupper mangles the high bytes of a byte array.
+set packet [binary format c* {0x80 0xC3 0xFF}]
+set upper  [string toupper $packet]
+#                          80 c3 ff  ->  80 c3 78   on Tcl 8.x (silent),
+#                                        a runtime error on Tcl 9.x
+
+# ✓ Fix — keep binary data binary; do not apply string transforms to it.
+set packet [binary format c* {0x80 0xC3 0xFF}]
+set header [binary format a* "PKT"]
+set frame  $header$packet            ;# byte-array concatenation stays binary
+```
+
+S110 fires at the `string toupper` use site here — the corruption is intrinsic
+to the operation, so no write-back is needed.
 
 ## How to use
 
-- **Editor**: the warning appears automatically on the `replace`/transform line.
+- **Editor**: the warning appears automatically on the `replace`/transform line,
+  with related markers on the binary source and the string coercion.
 - **Settings**: toggle with `tclLsp.diagnostics.S110`.
-- **Suppress**: `;# tcl-lsp: disable-line S110` on the flagged line (see
+- **Suppress**: put `# noqa: S110` on the line above the flagged command, or
+  `# tcl-lsp: disable=S110` at the top of the file (see
   [Suppressing diagnostics](../kcs-howto-suppress-diagnostics.md)).
 
 ## File-path anchors
