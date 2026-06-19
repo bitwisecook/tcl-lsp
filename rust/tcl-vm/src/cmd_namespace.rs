@@ -142,8 +142,23 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             ok(Value::empty())
         }
+        // `namespace delete ?ns ...?` — destroy each namespace (and its
+        // descendants, commands, and variables). An unknown namespace errors,
+        // after deleting any that preceded it (matching tclsh).
+        "delete" => {
+            for n in rest {
+                let canon = canon_ns(vm, &n.to_str());
+                if !vm.delete_namespace(&canon) {
+                    return err(format!(
+                        "unknown namespace \"{}\" in namespace delete command",
+                        n.to_str()
+                    ));
+                }
+            }
+            ok(Value::empty())
+        }
         // Accepted no-ops (metadata only, for now).
-        "forget" | "delete" | "ensemble" | "unknown" => ok(Value::empty()),
+        "forget" | "ensemble" | "unknown" => ok(Value::empty()),
         other => err(format!(
             "unknown or ambiguous subcommand \"{other}\": must be \
              children, current, eval, exists, export, parent, qualifiers, or tail"

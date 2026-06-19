@@ -474,6 +474,30 @@ impl Vm {
         imported
     }
 
+    /// Delete namespace `canonical` (no leading `::`) and every descendant,
+    /// removing their commands/procs, namespace variables, export patterns, and
+    /// interned ids. Returns `false` (deleting nothing) when the namespace does
+    /// not exist — the caller reports `unknown namespace`. The global namespace
+    /// (`""`) is never deletable.
+    pub(crate) fn delete_namespace(&mut self, canonical: &str) -> bool {
+        if canonical.is_empty() || !self.namespaces.contains(canonical) {
+            return false;
+        }
+        let prefix = format!("{canonical}::");
+        let in_tree = |k: &str| k == canonical || k.starts_with(&prefix);
+        // Commands and namespace variables are keyed by their fully-qualified
+        // (unrooted) name, so a member of the namespace or a descendant begins
+        // with `canonical::`.
+        self.commands.retain(|k, _| !k.starts_with(&prefix));
+        if let Some(g) = self.frames.first_mut() {
+            g.locals.retain(|k, _| !k.starts_with(&prefix));
+        }
+        self.namespaces.retain(|n| !in_tree(n));
+        self.ns_exports.retain(|k, _| !in_tree(k));
+        self.ns_intern.retain(|k, _| !in_tree(k));
+        true
+    }
+
     /// Immediate child namespaces of `parent` (canonical names).
     pub(crate) fn child_namespaces(&self, parent: &str) -> Vec<String> {
         let prefix = if parent.is_empty() {
