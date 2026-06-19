@@ -12371,6 +12371,48 @@ foo
     }
 
     #[test]
+    fn when_body_not_analysed_under_plain_tcl() {
+        // `when` is an iRules-only builtin; under plain Tcl it is a disabled
+        // foreign-dialect command whose braced argument is opaque *data*, not a
+        // handler script.  The body must not be scanned: only W002 (disabled) +
+        // W123 (unknown-in-dialect) on `when` itself — no W210 on the body's
+        // `$undefvar`, no W123 naming the body command.  Matches Python.
+        let mut a = Analyser::new();
+        let r = a.analyse("when HTTP_REQUEST {\n    boguscmd $undefvar\n}\n", "tcl");
+        let codes: Vec<&str> = r.diagnostics.iter().map(|d| d.code.as_str()).collect();
+        assert!(
+            !codes.contains(&"W210"),
+            "disabled `when` body must not be analysed (no W210); got {:?}",
+            r.diagnostics
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == "W123" && d.message.contains("boguscmd")),
+            "disabled `when` body command must not draw W123; got {:?}",
+            r.diagnostics
+        );
+        // The `when` head itself is still flagged disabled + unknown-in-dialect.
+        assert!(codes.contains(&"W002"), "expected W002; got {codes:?}");
+    }
+
+    #[test]
+    fn when_body_analysed_under_irules() {
+        // Under the iRules dialect `when` IS enabled, so its body is a real
+        // handler script and the read-before-set inside it fires (the inverse
+        // of `when_body_not_analysed_under_plain_tcl`).
+        let mut a = Analyser::new();
+        let r = a.analyse("when HTTP_REQUEST {\n    set x $undefvar\n}\n", "f5-irules");
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == "W210" && d.message.contains("undefvar")),
+            "iRules `when` body must be analysed (W210 on $undefvar); got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
     fn w210_interproc_dict_with_caller_literal() {
         // A caller passing a literal dict propagates to the callee's
         // `dict with $param` key check (interproc constant propagation).

@@ -1172,12 +1172,18 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
   `var_resolve::resolve_place` — no static def, and the name-bearing variable is
   read (`ssa::is_dynamic_write_target`). Verified against tclsh 8.4–9.0 and a
   Python differential, with zero change across the 79-file sample corpus.
-- **open** `when`-body dialect gating — under a non-iRules dialect the Rust
-  server still descends into `when { … }` bodies and emits body diagnostics
-  (e.g. `W210`) next to the correct `W002` ("'when' is disabled in the active
-  dialect profile"); Python emits `W002` only and does not analyse the body
-  (`tests/lsp_e2e/test_diagnostics_e2e.py::TestWhenBodyDialectGatingE2E::
-  test_when_body_not_analysed_under_plain_tcl`).
+- **done** `when`-body dialect gating — a foreign-dialect builtin disabled in
+  the active dialect (known in *some* dialect but absent from the active
+  registry's `by_name` — iRules `when` / `log` / `session` under plain Tcl) is
+  an unknown would-be user command whose braced argument is opaque *data*, not a
+  handler script. `ssa::structural_body_indices` now skips every braced arg of
+  such a command from the SSA var scan (mirroring Python's
+  `command_is_disabled_in_active_dialect` body gate), so `when EVENT { … }` under
+  plain Tcl draws only `W002` + `W123` on `when` itself — no spurious `W210` /
+  `W123` on the body. A command unknown in *every* dialect (user proc / TclOO
+  body / recovery artefact) still recurses, and the iRules path still analyses
+  the body. Verified against the Python analyser + the `TestWhenBodyDialectGatingE2E`
+  e2e (now green) with no change across the 400-file differential corpus.
 - **done bar config toggles** source-style pass + W108 `non_ascii_mode`. The
   source-style checks are all ported in `tcl-lsp-core::source_style` — W111
   (line length), W112 (trailing whitespace), W115 (comment continuation), W118

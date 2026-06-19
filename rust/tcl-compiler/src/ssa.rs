@@ -717,6 +717,23 @@ pub(crate) fn structural_body_indices(
 ) -> HashSet<usize> {
     use tcl_registry::{ArgRole, BodyKind};
 
+    // A foreign-dialect builtin disabled in the active dialect — known in some
+    // dialect but absent from the active registry's `by_name` (the analyser
+    // loads only the active dialect, so an iRules `when` / `log` / `session`
+    // misses under plain Tcl) — is an unknown would-be user command here. Tcl
+    // never substitutes inside its braced arguments, so every braced arg is
+    // opaque *data*, not analysable script/expr; scanning it would read its
+    // `$vars` and emit spurious findings (W210). Skip them. Mirrors Python's
+    // `command_is_disabled_in_active_dialect` body-recursion gate. A command
+    // unknown in *every* dialect (`get` miss *and* not known-in-any) — a real
+    // user proc / TclOO body / recovery artefact — is NOT skipped: its braced
+    // body still recurses, matching Python.
+    if registry.get(command).is_none() && registry.known_in_any_dialect(command) {
+        return (0..args.len())
+            .filter(|&idx| is_braced_arg(tokens, idx))
+            .collect();
+    }
+
     // SYNC2: the registry-declared `body_kind` on each spec /
     // subcommand tells us whether body args run in the caller's
     // frame (`Plain`) or in a separate definition / dispatch context
