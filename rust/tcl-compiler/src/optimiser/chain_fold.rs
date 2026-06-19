@@ -41,7 +41,7 @@
 
 use std::collections::HashSet;
 
-use tcl_lexer::{Span, TokenType};
+use tcl_lexer::TokenType;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Script, Statement};
@@ -49,7 +49,7 @@ use crate::naming::normalise_var_name;
 use crate::var_observability::analyse_var_observability;
 
 use super::helpers::literals::render_static_string_word;
-use super::helpers::spans::full_rewrite_span;
+use super::helpers::spans::{full_rewrite_span, statement_delete_rewrite_range};
 use super::{Optimisation, PassContext};
 
 /// Run the chain-fold pass over the whole compilation unit.
@@ -338,44 +338,6 @@ fn try_fold_chain_at(
 /// leading `#`), so `list_element`'s first-element rule is equivalent here.
 fn render_list_word(elements: &[String]) -> String {
     tcl_syntax::list::list_element(&tcl_syntax::list::join_list(elements))
-}
-
-/// Compute the deletion range for an intermediate write, swallowing the
-/// trailing run of whitespace plus one statement separator (`\n` / `;`) so
-/// the surviving text closes up cleanly. Mirrors
-/// `_statement_delete_rewrite_range`.
-///
-/// `cmd_span` is the full command span (exclusive end); `next_start` is
-/// the byte offset of the next statement, or `None` at end-of-script.
-fn statement_delete_rewrite_range(
-    source: &str,
-    cmd_span: Span,
-    next_start: Option<usize>,
-) -> Span {
-    let Some(next) = next_start else {
-        return cmd_span;
-    };
-    let end = cmd_span.end() as usize;
-    if next <= end || next > source.len() {
-        return cmd_span;
-    }
-    let bytes = source.as_bytes();
-    let mut cursor = end;
-    while cursor < next && matches!(bytes[cursor], b' ' | b'\t' | b'\r') {
-        cursor += 1;
-    }
-    if cursor < next && matches!(bytes[cursor], b'\n' | b';') {
-        cursor += 1;
-        while cursor < next && matches!(bytes[cursor], b' ' | b'\t' | b'\r') {
-            cursor += 1;
-        }
-        if cursor > end
-            && let Ok(new_end) = u32::try_from(cursor)
-        {
-            return Span::new(cmd_span.start(), new_end);
-        }
-    }
-    cmd_span
 }
 
 #[cfg(test)]

@@ -29,7 +29,8 @@ use crate::ir::{Script, Statement};
 use crate::naming::normalise_var_name;
 use crate::types::{TclType, TypeKind, TypeLattice};
 
-use super::helpers::spans::full_rewrite_span;
+use super::helpers::literals::{is_safe_word, is_static_var_word};
+use super::helpers::spans::{full_rewrite_span, statement_delete_rewrite_range};
 use super::{Optimisation, PassContext};
 
 /// Run the pattern-recognition pass.
@@ -82,44 +83,138 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script, int_vars: &HashSet<St
     }
 }
 
-/// O119: find three or more consecutive `set VAR LITERAL`
-/// statements with bare-literal values; emit a hint-only
-/// rewrite suggestion.
+/// Minimum number of `set`s to pack into a `lassign` / `foreach`.
+const SET_PACK_MIN_GROUP: usize = 3;
+
+/// O119 — pack three or more consecutive `set VAR LITERAL` statements
+/// (distinct variables, safe literal values) into one `lassign` (Tcl
+/// 8.5 / 8.6) or `foreach {…} {…} {break}` (8.4), emitting the applied
+/// rewrite plus paired deletions. Skipped on Tcl 9.0, where individual
+/// `set`s are faster. Mirrors `optimise_multi_set_packing` for the
+/// strictly-consecutive case (Python additionally reorders interspersed
+/// candidates; that flow-sensitive extension is the residual).
 fn detect_multi_set_packing(ctx: &mut PassContext<'_>, script: &Script) {
+    // Tcl 9.0 prefers individual `set`s; 8.5 / 8.6 get `lassign`; older
+    // (and dialect-unset) fall back to the universally-valid `foreach`.
+    if ctx.dialect == Some("tcl9.0") {
+        return;
+    }
+    let use_lassign = matches!(ctx.dialect, Some("tcl8.5" | "tcl8.6"));
+    let stmts = &script.statements;
+
     let mut i = 0;
-    while i < script.statements.len() {
-        let start = i;
-        let mut vars: Vec<String> = Vec::new();
-        while i < script.statements.len() {
-            let Statement::AssignConst { name, value, .. } = &script.statements[i] else {
+    while i < stmts.len() {
+        // Gather a maximal run of consecutive static sets with distinct,
+        // non-cross-event variables.
+        let mut run: Vec<(usize, String, String)> = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut j = i;
+        while j < stmts.len() {
+            let Some((var_key, var_word, value)) = static_packing_set(&stmts[j]) else {
                 break;
             };
-            if value.contains(['$', '[', '\\', ' ', '\n', '\r']) {
+            if ctx.cross_event_vars.contains(&var_key) || !seen.insert(var_key) {
                 break;
             }
-            vars.push(name.clone());
-            i += 1;
+            run.push((j, var_word, value));
+            j += 1;
         }
-        if vars.len() >= 3 {
-            // Span the entire run.
-            let span_start = script.statements[start].span().start();
-            let span_end = script.statements[i - 1].span().end();
-            let span = tcl_lexer::Span::new(span_start, span_end);
-            let mut opt = Optimisation::new(
-                "O119",
-                format!(
-                    "Pack {} consecutive literal sets into `lassign`",
-                    vars.len()
-                ),
-                span,
-                "",
-            );
-            opt.hint_only = true;
-            ctx.report(opt);
+        if run.len() >= SET_PACK_MIN_GROUP {
+            emit_set_pack(ctx, stmts, &run, use_lassign);
         }
-        if i == start {
-            i += 1;
+        i = if j > i { j } else { i + 1 };
+    }
+}
+
+/// Extract a packable static `set var literal` as `(var_key, var_word,
+/// value)`. Handles both lowering shapes: an integer literal lowers to
+/// `AssignConst`, other static literals to `AssignValue` (whose value word
+/// must be a single static `Esc`/`Str` token with no back-substitution).
+fn static_packing_set(stmt: &Statement) -> Option<(String, String, String)> {
+    let (name, value) = match stmt {
+        Statement::AssignConst { name, value, .. } => (name, value),
+        Statement::AssignValue {
+            name,
+            value,
+            value_needs_backsubst,
+            tokens,
+            ..
+        } => {
+            if *value_needs_backsubst {
+                return None;
+            }
+            let tokens = tokens.as_ref()?;
+            let kind = tokens.argv_kinds.get(2)?;
+            if !tokens.single_token_word.get(2).copied().unwrap_or(false)
+                || !matches!(kind, tcl_lexer::TokenType::Esc | tcl_lexer::TokenType::Str)
+            {
+                return None;
+            }
+            (name, value)
         }
+        _ => return None,
+    };
+    if !is_static_var_word(name) || !is_safe_word(value) {
+        return None;
+    }
+    Some((normalise_var_name(name).to_owned(), name.clone(), value.clone()))
+}
+
+/// Emit the O119 pack rewrite (over the last set) + deletions of the
+/// earlier sets, sharing one group.
+fn emit_set_pack(
+    ctx: &mut PassContext<'_>,
+    stmts: &[Statement],
+    run: &[(usize, String, String)],
+    use_lassign: bool,
+) {
+    let source = ctx.source;
+    let group = ctx.alloc_group();
+    let var_words = run
+        .iter()
+        .map(|(_, w, _)| w.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let value_words = run
+        .iter()
+        .map(|(_, _, v)| v.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let (replacement, pack_msg, del_msg) = if use_lassign {
+        (
+            format!("lassign {{{value_words}}} {var_words}"),
+            "Pack set statements into lassign",
+            "Remove packed set (moved to lassign)",
+        )
+    } else {
+        (
+            format!("foreach {{{var_words}}} {{{value_words}}} {{break}}"),
+            "Pack set statements into foreach",
+            "Remove packed set (moved to foreach)",
+        )
+    };
+
+    let last_idx = run.last().unwrap().0;
+    let mut pack = Optimisation::new(
+        "O119",
+        pack_msg,
+        full_rewrite_span(source, stmts[last_idx].span()),
+        replacement,
+    );
+    pack.group = Some(group);
+    ctx.report(pack);
+
+    for (idx, _, _) in &run[..run.len() - 1] {
+        let full = full_rewrite_span(source, stmts[*idx].span());
+        let next_start = stmts.get(idx + 1).map(|s| s.span().start() as usize);
+        let mut del = Optimisation::new(
+            "O119",
+            del_msg,
+            statement_delete_rewrite_range(source, full, next_start),
+            "",
+        );
+        del.group = Some(group);
+        ctx.report(del);
     }
 }
 
@@ -392,11 +487,50 @@ mod tests {
     }
 
     #[test]
-    fn multi_set_packing_hints_with_three_or_more_literal_sets() {
+    fn multi_set_packing_applies_pack_rewrite() {
+        // No dialect set → universally-valid `foreach` packing, applied.
         let opts = run_pass("set a 1\nset b 2\nset c 3");
+        let pack = opts
+            .iter()
+            .find(|o| o.code == "O119" && !o.replacement.is_empty())
+            .expect("expected an applied O119 pack");
+        assert_eq!(pack.replacement, "foreach {a b c} {1 2 3} {break}");
+        // One pack + two deletions, one group.
+        let o119: Vec<_> = opts.iter().filter(|o| o.code == "O119").collect();
+        assert_eq!(o119.len(), 3);
+    }
+
+    #[test]
+    fn multi_set_packing_uses_lassign_on_tcl86() {
+        let cu = CompilationUnit::build_for("set a 1\nset b 2\nset c 3", &registry(), false);
+        let mut ctx = super::super::PassContext::with_dialect(
+            &cu.source,
+            InterproceduralAnalysis::default(),
+            Some("tcl8.6"),
+        );
+        run(&mut ctx, &cu);
         assert!(
-            opts.iter().any(|o| o.code == "O119" && o.hint_only),
-            "expected O119 hint for multi-set packing, got {opts:?}",
+            ctx.optimisations
+                .iter()
+                .any(|o| o.code == "O119" && o.replacement == "lassign {1 2 3} a b c"),
+            "expected lassign pack on 8.6, got {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn multi_set_packing_skipped_on_tcl9() {
+        let cu = CompilationUnit::build_for("set a 1\nset b 2\nset c 3", &registry(), false);
+        let mut ctx = super::super::PassContext::with_dialect(
+            &cu.source,
+            InterproceduralAnalysis::default(),
+            Some("tcl9.0"),
+        );
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations.iter().all(|o| o.code != "O119"),
+            "Tcl 9.0 must not pack sets, got {:?}",
+            ctx.optimisations,
         );
     }
 
