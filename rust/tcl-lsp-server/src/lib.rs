@@ -665,8 +665,8 @@ impl FeatureToggles {
         // Inlay hints split into two independently-toggled families
         // (PR #643): inferred-type hints and parameter-name hints.  Both
         // default **off** (see `DEFAULT_OFF`).  The retired `inlayHints`
-        // key is accepted on input as an alias for `inlayParameterHints`
-        // — the family the Rust provider actually implements (see `apply`).
+        // key is accepted on input as an alias for `inlayTypeHints`
+        // (matching the Python server — see `apply`).
         "inlayTypeHints",
         "inlayParameterHints",
         "callHierarchy",
@@ -714,20 +714,19 @@ impl FeatureToggles {
     /// Merge an editor-supplied `features` object, setting only the
     /// keys it carries (absent keys keep their last-applied value).
     ///
-    /// The retired `inlayHints` key is a backward-compatible alias.  The
-    /// Rust provider implements only parameter-name hints and gates
-    /// requests on `inlayParameterHints`, so the legacy key maps to that
-    /// family — keeping the existing editor setting
-    /// (`tclLsp.features.inlayHints`, still the only inlay key the
-    /// packaged VS Code extension sends on this branch) working instead of
-    /// silently producing no hints.  Applied first so an explicit new
-    /// `inlayParameterHints` in the same object wins.
+    /// The retired `inlayHints` key is a backward-compatible alias for
+    /// `inlayTypeHints` (matching the Python server's
+    /// `_FEATURE_TOGGLE_KEYS`): an existing explicit opt-in keeps showing
+    /// the useful inferred-variable-type hints after the rename, while the
+    /// verbose parameter-name hints stay off.  Applied first so an
+    /// explicit new `inlayTypeHints` in the same object always wins when a
+    /// config carries both.
     fn apply(&mut self, features: &serde_json::Map<String, serde_json::Value>) {
         if let Some(flag) = features
             .get("inlayHints")
             .and_then(serde_json::Value::as_bool)
         {
-            self.set.insert("inlayParameterHints".to_owned(), flag);
+            self.set.insert("inlayTypeHints".to_owned(), flag);
         }
         for (key, value) in features {
             if key == "inlayHints" {
@@ -2289,21 +2288,21 @@ impl Backend {
             .is_enabled_default_off("willSaveWaitUntil")
     }
 
-    /// Whether inlay hints should be produced for the document at `uri`.
+    /// Whether the given opt-in inlay family is enabled for `uri`.
     ///
     /// Inlay hints are opt-in and default **off**, matching the Python
-    /// server's default-off contract (PR #643).  The Rust provider emits
-    /// only parameter-name hints (`InlayHintKind::Parameter`), so this gates
-    /// on the `inlayParameterHints` family — which the retired `inlayHints`
-    /// key is normalised to on input (see [`FeatureToggles::apply`]), so the
-    /// existing editor setting keeps producing hints.  Resolves per folder
-    /// like [`Self::feature_enabled`] so a folder-scoped opt-in works in a
-    /// multi-root workspace.
-    async fn inlay_parameter_hints_enabled(&self, uri: &Url) -> bool {
+    /// server's default-off contract (PR #643).  The two families —
+    /// `inlayTypeHints` (inferred variable types + format-string specifier
+    /// labels) and `inlayParameterHints` (call-site parameter-name labels)
+    /// — gate independently; the retired `inlayHints` key is normalised to
+    /// `inlayTypeHints` on input (see [`FeatureToggles::apply`]).  Resolves
+    /// per folder like [`Self::feature_enabled`] so a folder-scoped opt-in
+    /// works in a multi-root workspace.
+    async fn inlay_family_enabled(&self, uri: &Url, family: &str) -> bool {
         {
             let configs = self.folder_configs.lock().await;
             if let Some(fc) = longest_folder_match(&configs, uri)
-                && let Some(flag) = fc.feature_toggles.set.get("inlayParameterHints").copied()
+                && let Some(flag) = fc.feature_toggles.set.get(family).copied()
             {
                 return flag;
             }
@@ -2311,7 +2310,7 @@ impl Backend {
         self.feature_toggles
             .lock()
             .await
-            .is_enabled_default_off("inlayParameterHints")
+            .is_enabled_default_off(family)
     }
 
     /// Handle `tcl-lsp.listSubcommands`: subcommand metadata for `command`
@@ -4106,11 +4105,16 @@ impl LanguageServer for Backend {
 
     async fn inlay_hint(&self, params: InlayHintParams) -> jsonrpc::Result<Option<Vec<InlayHint>>> {
         let uri = params.text_document.uri.clone();
-        // Inlay hints are opt-in (default off).  The provider must still answer
-        // with a well-formed (empty) list — never an error or `null` — when the
-        // feature is disabled, mirroring the Python default-off contract
-        // (`on_inlay_hint` returns `[]`).
-        if !self.inlay_parameter_hints_enabled(&uri).await {
+        // Inlay hints are opt-in (default off), with the type-hint and
+        // parameter-hint families gated independently.  The provider must
+        // still answer with a well-formed (empty) list — never an error or
+        // `null` — when both are disabled, mirroring the Python default-off
+        // contract (`on_inlay_hint` returns `[]`).
+        let type_hints = self.inlay_family_enabled(&uri, "inlayTypeHints").await;
+        let parameter_hints = self
+            .inlay_family_enabled(&uri, "inlayParameterHints")
+            .await;
+        if !type_hints && !parameter_hints {
             return Ok(Some(Vec::new()));
         }
         let Some(doc) = self.read_document(&uri).await else {
@@ -4126,13 +4130,12 @@ impl LanguageServer for Backend {
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        // Build analysis on a worker so the inlay-hints
-        // provider can surface parameter-name hints at user-
-        // proc call sites (`S-inlay-hints-rich`) plus built-in
-        // command synopsis hints.  When the analyser surfaces an
-        // empty all_procs map (no user procs in the document),
-        // the provider still returns built-in hints from the
-        // registry.
+        // Build analysis on a worker so the inlay-hints provider can surface
+        // inferred-type hints (`inlayTypeHints`) and parameter-name hints at
+        // user-proc call sites plus built-in command synopsis hints
+        // (`inlayParameterHints`).  When the analyser surfaces an empty
+        // all_procs map (no user procs in the document), the provider still
+        // returns built-in hints from the registry.
         let hints = tokio::task::spawn_blocking(move || {
             core_inlay_hints::inlay_hints(
                 &doc.text,
@@ -4140,6 +4143,8 @@ impl LanguageServer for Backend {
                 range,
                 Some(&analysis),
                 Some(&registry),
+                type_hints,
+                parameter_hints,
             )
         })
         .await
@@ -4159,10 +4164,13 @@ impl LanguageServer for Backend {
                     character: h.position_character,
                 },
                 label: InlayHintLabel::String(h.label),
-                kind: Some(InlayHintKind::PARAMETER),
+                kind: Some(match h.kind {
+                    core_inlay_hints::InlayHintKind::Type => InlayHintKind::TYPE,
+                    core_inlay_hints::InlayHintKind::Parameter => InlayHintKind::PARAMETER,
+                }),
                 text_edits: None,
                 tooltip: None,
-                padding_left: None,
+                padding_left: h.padding_left.then_some(true),
                 padding_right: None,
                 data: None,
             })
@@ -4185,13 +4193,14 @@ impl LanguageServer for Backend {
         // count reflects workspace-wide usage.
         let workspace = self.workspace_index.lock().await.clone();
         let uri_str = uri.to_string();
+        let worker_uri = uri_str.clone();
         let lenses = tokio::task::spawn_blocking(move || {
             core_code_lens::code_lenses(
                 &doc.text,
                 &doc.dialect,
                 Some(&analysis),
                 Some(&workspace),
-                &uri_str,
+                &worker_uri,
             )
         })
         .await
@@ -4207,7 +4216,13 @@ impl LanguageServer for Backend {
             .into_iter()
             .map(|l| CodeLens {
                 range: lift_lsp_range(l.range),
-                data: (!l.qname.is_empty()).then(|| serde_json::json!({ "qname": l.qname })),
+                // Carry the qualified name *and* the document URI so
+                // `codeLens/resolve` can recompute the count against the live
+                // workspace (mirrors Python's `_LensData{kind, uri, qname}`).
+                // Method / class-member lenses have no qname and stay
+                // informational (their eager title is authoritative).
+                data: (!l.qname.is_empty())
+                    .then(|| serde_json::json!({ "qname": l.qname, "uri": uri_str.clone() })),
                 command: Some(tower_lsp::lsp_types::Command {
                     title: l.command_title,
                     command: l.command,
@@ -4216,6 +4231,64 @@ impl LanguageServer for Backend {
             })
             .collect();
         Ok(Some(lifted))
+    }
+
+    /// Resolve a code lens to its authoritative reference-count title.
+    ///
+    /// Rust port of `server.py::on_code_lens_resolve` /
+    /// `code_lens.py::resolve_code_lens`.  The server advertises lenses
+    /// eagerly with a count, but the client calls `codeLens/resolve`
+    /// before display; recomputing here against the *current* document and
+    /// workspace keeps the title consistent with Find All References even
+    /// when the workspace changed since the lens was produced (issue #637).
+    ///
+    /// A lens with no `{qname, uri}` data (the informational method /
+    /// class-member lenses) is returned unchanged — its eager title stands.
+    async fn code_lens_resolve(&self, lens: CodeLens) -> jsonrpc::Result<CodeLens> {
+        let Some((qname, uri)) = lens
+            .data
+            .as_ref()
+            .and_then(serde_json::Value::as_object)
+            .and_then(|data| {
+                let qname = data.get("qname").and_then(serde_json::Value::as_str)?;
+                let uri = data.get("uri").and_then(serde_json::Value::as_str)?;
+                Some((qname.to_owned(), Url::parse(uri).ok()?))
+            })
+        else {
+            return Ok(lens);
+        };
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(lens);
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let workspace = self.workspace_index.lock().await.clone();
+        let uri_str = uri.to_string();
+        let lenses = tokio::task::spawn_blocking(move || {
+            core_code_lens::code_lenses(
+                &doc.text,
+                &doc.dialect,
+                Some(&analysis),
+                Some(&workspace),
+                &uri_str,
+            )
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("code_lens_resolve worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let mut lens = lens;
+        if let Some(matching) = lenses.into_iter().find(|l| l.qname == qname) {
+            lens.command = Some(tower_lsp::lsp_types::Command {
+                title: matching.command_title,
+                command: matching.command,
+                arguments: None,
+            });
+        }
+        Ok(lens)
     }
 
     #[allow(clippy::too_many_lines)]
@@ -5539,7 +5612,7 @@ fn build_server_capabilities() -> ServerCapabilities {
         }),
         inlay_hint_provider: Some(OneOf::Left(true)),
         code_lens_provider: Some(CodeLensOptions {
-            resolve_provider: Some(false),
+            resolve_provider: Some(true),
         }),
         code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
         call_hierarchy_provider: Some(CallHierarchyServerCapability::Simple(true)),
@@ -5977,29 +6050,29 @@ mod tests {
     }
 
     #[test]
-    fn legacy_inlay_hints_key_maps_to_implemented_parameter_family() {
-        // The Rust provider implements only parameter-name hints and gates
-        // on `inlayParameterHints`, so the retired `inlayHints` key maps to
-        // that family — keeping the existing editor setting functional
-        // rather than enabling an unimplemented type-hint family (PR #646
-        // review).
+    fn legacy_inlay_hints_key_maps_to_type_family() {
+        // The retired `inlayHints` key maps to `inlayTypeHints` (matching the
+        // Python server): an existing explicit opt-in keeps showing the
+        // inferred-variable-type hints after the rename, while the verbose
+        // parameter-name hints stay off.
         let mut toggles = FeatureToggles::default();
         toggles.apply(serde_json::json!({"inlayHints": true}).as_object().unwrap());
-        assert!(toggles.is_enabled("inlayParameterHints"));
-        // It does not touch the (unimplemented) type-hint family.
-        assert!(!toggles.is_enabled("inlayTypeHints"));
+        assert!(toggles.is_enabled("inlayTypeHints"));
+        // It does not touch the parameter-name family.
+        assert!(!toggles.is_enabled("inlayParameterHints"));
     }
 
     #[test]
     fn explicit_new_inlay_key_wins_over_legacy_alias() {
-        // When a config carries both, the explicit new key takes precedence.
+        // When a config carries both, the explicit new `inlayTypeHints` key
+        // takes precedence over the `inlayHints` alias.
         let mut toggles = FeatureToggles::default();
         toggles.apply(
-            serde_json::json!({"inlayHints": true, "inlayParameterHints": false})
+            serde_json::json!({"inlayHints": true, "inlayTypeHints": false})
                 .as_object()
                 .unwrap(),
         );
-        assert!(!toggles.is_enabled("inlayParameterHints"));
+        assert!(!toggles.is_enabled("inlayTypeHints"));
     }
 
     #[test]
