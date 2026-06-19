@@ -1,0 +1,10596 @@
+# Python → Rust rewrite — landed history (archive)
+
+> **This is the archived chunk-log history.** It captures the full
+> dated audit trail (every `SYNC-*` / `GAP-AUDIT` / `ARCH*` / `C*` /
+> `S*` entry) of work that has **landed**. It is preserved for
+> provenance — to answer "when and why did X change?" — and is **not** a
+> work plan. The live remaining-work plan, organised into parallel
+> tracks, lives in [`rust-rewrite.md`](rust-rewrite.md). When in doubt
+> about current status, trust `rust-rewrite.md` and the source, not this
+> archive (several rows here were superseded by later entries).
+
+tcl-lsp is ~360K lines of Python, organised since the May-2026
+reorganisation into seven concern packages — `shared/`, `compiler/`,
+`dialects/`, `analyser/`, `server/`, `tooling/`, and `ai/` — plus
+`scripts/` and `tests/`.  (It previously lived under `core/`, `lsp/`,
+`vm/`, `debugger/`, `fuzzing/`, `explorer/`, and `tclpkg/`; older path
+references in this document map through the table in
+[Python source layout](#python-source-layout-seven-concern-reorganisation)
+below.)  We're rewriting **all of it** in Rust. The end goal is a repo whose
+runtime, LSP server, bytecode VM, formatter, minifier, debugger,
+refactoring engine, code-action surface, compiler explorer, iRule test
+framework, BigIP / APL config parsers, and even the build/release
+scripts run as Rust code, with **zero** Python in the shipping product.
+
+A small, deliberately-scoped PyO3 surface survives the transition — but
+not for the repo's own internals. Once everything ports across, the
+PyO3 bindings exist purely as a **public API for downstream users**:
+plugin authors who want to write custom analyses, embed the analyser
+in their own pipeline, build alternative VMs, or extend the diagnostic
+catalogue. That public surface is a separate, designed product — not a
+catch-all for whatever the in-tree Python layer happened to call.
+
+This is a multi-year project. Every step is a PR-sized change that
+leaves `make prep-pr` green and every editor extension working. There
+is no "big bang" branch, no pauses for rewrites, and no points at
+which the Python build is intentionally broken.
+
+This document explains what we're doing, how we're doing it, and —
+most importantly — what a good port looks like. Read it before
+touching anything under `rust/`, the PyO3 bindings, or the
+native-extension bits of the zipapp builder.
+
+## Python source layout (seven-concern reorganisation)
+
+The Python source was reorganised (May 2026) from the old
+`core/` + `lsp/` + `vm/` + `explorer/` + `fuzzing/` + `tclpkg/` +
+`debugger/` shape into **seven concern packages** with a fixed
+dependency direction enforced by `import-linter` (`.importlinter` at
+the repo root, gated in `make ci-fast`).  **This matters for the Rust
+rewrite because the enforced Python DAG is exactly the crate-boundary
+DAG the Rust workspace already targets** — porting in dependency order
+now means porting concern-by-concern, and a Python module's concern
+tells you which crate its Rust port belongs in.
+
+| Concern | Role | Old location(s) | Target Rust crate |
+|---|---|---|---|
+| `shared/` | Leaf utilities: Range/Token/SourcePosition, document buffer, source-map, ranges, codes, naming, `docstrings`, dialect-agnostic text | `core/common/` | `tcl-lexer` (span/tokens/line_index) + small shared mods |
+| `compiler/` | Lexer, parser, IR, lowering, passes, optimiser, codegen (`codegen/bytecode/`, `codegen/wasm/`), WASM emitter, compiler-internal analyses (taint, var_escape, interprocedural, proc_arg_traits, var_scoping), command-registry **runtime**, position lookup, `Dialect` | `core/parsing/`, `core/compiler/` | `tcl-lexer`, `tcl-compiler`, `tcl-registry` (runtime) |
+| `dialects/` | Per-dialect command **spec packs** + dialect data: `tcl/`, `tcllib/`, `expect/`, `eda/<vendor>`, `f5/{bigip,irules,iapps,query,xc}/`, `tk/` | `core/commands/registry/<dialect>/`, `core/bigip/` | `tcl-registry` (`commands/<dialect>/*.rs`) + F5/BigIP crates |
+| `analyser/` | IDE-facing semantic model + checks: `semantic_model`, `proc_lookup`, `signature_scan`, `class_hierarchy`, MRO, `checks/`, `_analyser/`, `compiler_checks` | `core/analysis/` | `tcl-compiler` analyses + `tcl-lsp-core` |
+| `server/` | LSP protocol surface: pygls wiring, `features/`, `workspace/`, diagnostics pipeline, `_lsp_conv` | `lsp/` | `tcl-lsp-core` + `tcl-lsp-server` |
+| `tooling/` | Developer tools over the compiler stack: `tcl`/`f5`/`wasm` CLIs, `vm/`, `explorer/`, `debugger/`, `fuzzing/`, `tclpkg/`, `formatter/`, `minifier/`, `refactoring/`, `diagram/`, `irule_test/` | `vm/`, `explorer/`, `fuzzing/`, `tclpkg/`, `debugger/`, scattered | per-subsystem crates (`tcl-vm`, formatter, …) |
+| `ai/` | AI integrations: Claude skills, MCP server, iRule context | `ai/` | binding-layer / out of scope for core crates |
+
+**Registry mechanics vs. spec data is now a hard split** (the most
+load-bearing change for the rewrite): the registry *engine* and runtime
+data model live in `compiler/registry/` (`models.py`, `runtime.py`,
+`command_registry.py`, `signatures.py`, `namespace_registry.py`), while
+the *dialect command spec packs* live in `dialects/<dialect>/`.  This
+mirrors the intended `tcl-registry` crate split exactly: registry types
+are the crate's structs; dialect packs are `commands/<dialect>/*.rs`
+data modules a utility can inspect without pulling compiler or LSP code.
+
+### Dependency contracts (the crate-boundary DAG)
+
+`shared → compiler → dialects → analyser → server/tooling → ai`, with
+seven `import-linter` contracts.  As of this branch there are **zero
+upward carve-outs in the analyser and dialects contracts** — both were
+removed during PyO3-readiness work (see below).  The remaining
+documented carve-outs are narrow and intentional:
+
+- `dialects/` may import `compiler.registry` / `compiler.parsing` /
+  pure-data compiler modules only (two carve-outs: the F5 XC translator
+  consumes IR/lowering because it *is* an iRules→XC compiler; the
+  vanilla const-fold spec uses `compiler.tcl_expr_eval`).
+- `tooling/` ↛ `server`/`ai` (two carve-outs: the `f5-query irule
+  context` verb lazy-imports `ai.shared.irule_context`; the incremental
+  reparse fuzzer drives `server.workspace.DocumentState` as its test
+  subject).
+
+Read `docs/design/contracts/project-layout.md` (Python tree) for the
+authoritative contract text — it is the spec the Rust crate graph
+should not violate either.
+
+### PyO3-readiness changes already made on the Python side
+
+These are *Python* changes that pre-shape the eventual binding surface;
+the Rust ports should preserve their shape:
+
+- **Ambient-free F5 query session.** `dialects.f5.query` now exposes
+  `QueryOptions` (frozen) + `QuerySession` + `prepare_query_session()` +
+  `run_query_in_session()`.  The runner still uses `ContextVar`s
+  internally, but the *public* surface is an explicit session a caller
+  builds once and reuses — this is the shape `query_bigip` /
+  `QuerySession` should own in Rust (own a parsed-config session, run
+  many queries without reparsing).  `run_query()` and the fluent `q()`
+  remain thin wrappers.
+- **Upward dependencies inverted.** The proc-doc fallback extractor
+  moved to the leaf `shared.docstrings` (was `tooling.formatter`); the
+  iRule-simulation bridge moved to `tooling.f5.irule_simulation` and
+  `dialects.f5.bigip.explain_flow` now takes an injected
+  `IruleSimulator` instead of importing the test framework.  Net: the
+  analyser and dialects crates will have **no edge into tooling**.
+- **Module splits that map to crate modules.**
+  `tooling.cli.pipeline` → `tooling.explorer.pipeline` (argparse-free,
+  source-in/result-out); `compiler.codegen.wasm.__init__` (763 lines) →
+  `api.py` + `proc_scan.py` with a re-export-only `__init__`;
+  `dialects.f5.bigip.explain_flow` (2572 lines) → a `flow/` subpackage
+  (`_model`, `packets`, `sessions`, `tshark`) for the config-agnostic
+  half, leaving config-aware matching/policy/report in the parent.
+
+### Recommended PyO3 facade surface (not yet built in Python)
+
+The terminal public API (see *PyO3 public-API surface* below) should be
+a small set of narrow facades — source/bytes/options in, structured
+result out — over the layered crates, **not** a re-export of the whole
+graph.  Suggested signatures, all returning the existing structured
+result types rather than new `Any`-shaped dicts:
+
+```text
+parse_tcl(source, options)        -> tokens / parse tree
+compile_tcl(source, options)      -> CompilationUnit
+analyse_tcl(source, options)      -> AnalysisResult        (analyser.analyse today)
+format_tcl(source, options)       -> String                (tooling.formatter.format_tcl today)
+parse_bigip_config(source, opts)  -> BigipConfig            (dialects.f5.bigip.parser.parse_bigip_conf)
+query_bigip(sources, query, opts) -> QueryResult            (run_query_in_session)
+```
+
+Pair with a typed public error hierarchy (`TclLspError` base →
+`TclParseError` / `TclCompileError` / `TclAnalysisError` /
+`BigipParseError` / `BigipQueryError` / `UnsupportedFeatureError`), each
+carrying a stable code + message + optional URI/range, translated at the
+facade boundary.  These facades + the error hierarchy are deliberately
+**not** built in the Python tree yet (no consumer until the Rust binding
+lands) — they are the design the binding crate should implement.
+
+## What we're doing
+
+The eventual end state is:
+
+- **All** runtime logic lives in the Rust workspace under `rust/`. No
+  Python is shipped or executed by the LSP server, the editor
+  extensions, the zipapp, the compiler explorer, the MCP server, the
+  debugger CLI, or any other entry point in this repository.
+- The LSP server is a standalone Rust binary.
+- The bytecode VM is a Rust crate. The Zig WASM runtime stays as the
+  out-of-process runtime for compiled scripts; the VM is the in-process
+  interpreter the analyser, debugger, and iRule test framework drive.
+- The compiler explorer ships as a Rust → WASM web app (no Pyodide,
+  no Python at runtime).
+- The formatter, minifier, refactoring engine, code-action surface,
+  iRule test framework, and BigIP / APL parsers are all Rust crates.
+- Build / release scripts under `scripts/` are rewritten as
+  `cargo xtask` subcommands or shell scripts, eliminating the Python
+  toolchain dependency entirely.
+- The **only** Python that lives on after the transition is the
+  `tcl-lsp-py` crate's surface: a documented, semver-stable
+  binding intended for downstream users to embed the analyser /
+  compiler / VM in their own Python tooling. This API is **not** a
+  shim for in-tree code; the in-tree code is Rust.
+- All Python test suites get ported to Rust as cargo unit + integration
+  tests. The legacy `tests/` directory shrinks to zero by the final
+  retirement chunk.
+
+We get there by porting the codebase bottom-up, in dependency order:
+
+1. **Lexer.** `core/parsing/` (lexer, token types, backslash escapes,
+   expression sub-lexer). This is the foundation everything else sits on.
+2. **Compiler.** `core/compiler/` (IR, CFG, SSA, lowering, codegen, the
+   optimiser passes). Each pass can be its own chunk.
+3. **LSP server.** `lsp/` (pygls handlers, workspace orchestration,
+   feature providers). Once this flips, the zipapp becomes a thin shim.
+4. **Remainder.** `vm/`, `core/commands/`, `core/analysis/`,
+   `core/formatting/`, `core/minifier/`, `core/irule_test/`, the
+   debugger, fuzzing harnesses, the compiler explorer, and CLI tooling.
+   First analysis chunk landed: **C40** ports
+   `core/analysis/signature_scan.py` (~862 LOC, used by every
+   non-OPEN document for cross-file workspace symbols, `package
+   require` resolution, and command-usage counts) to
+   `rust/tcl-compiler/src/signature_scan/` behind a default-off
+   `TCL_LSP_RUST_SIGNATURE_SCAN=1` env-var gate.
+5. **Python-facing surface** is reduced to the bits that genuinely want
+   to stay in Python (AI skills, MCP, scripts).
+
+`editors/zed/` is already a standalone Rust crate targeting WASM and is
+unrelated to this rewrite. It's intentionally excluded from the main
+Cargo workspace and should be left alone.
+
+## Complete porting inventory
+
+This is the master checklist for the rewrite. The terminal state has
+exactly **one** Python-importable artifact — the `tcl-lsp-py` PyO3
+wheel — and **zero** Python executed by any in-repo entry point. Every
+Python package below either (a) becomes a Rust crate, (b) folds into an
+existing crate, or (c) is deleted once its consumers move to Rust. The
+PyO3 surface is then re-derived from the Rust crates as a *designed
+public API*, not a transcription of whatever the in-tree Python used to
+call.
+
+### The boundary rule
+
+> Internal callers never import `tcl_lsp_py`. If in-tree Python imports
+> the binding crate, that import is a porting TODO, not an architecture.
+> When the last internal importer is gone, the remaining `#[pyfunction]`
+> exports are reviewed against the public-API design (below) and the
+> soft-dependency shims are deleted.
+
+Today 12 in-tree Python modules still import the binding crate (the
+soft-dependency rollout). Each is a delegation seam that disappears when
+its Python owner is ported — six product modules: `core/parsing/lexer.py`,
+`core/analysis/signature_scan.py`, `core/compiler/gvn.py`,
+`core/compiler/interprocedural.py`, `core/compiler/optimiser/_manager.py`,
+`lsp/features/document_symbols.py` — plus the six differential test
+harnesses under `tests/`. (`core/compiler/rust_spans.py` was previously
+listed here but imports only `bisect` / `os` / `semantic_model` /
+`tokens`, not the binding crate — GAP-AUDIT-JUN05 §E5.)
+
+### Subsystem coverage matrix
+
+LOC are approximate Python source sizes at the time of writing. Status:
+✅ ported (Rust is the implementation), 🟡 partial (Rust exists but has
+parity gaps or Python is still primary), 🔴 not started.
+
+| Python subsystem | LOC | Target Rust crate | Status | Notes |
+|---|---|---|---|---|
+| `core/parsing/` (lexer, segmenter, expr sub-lexer, backslash) | 3.8K | `tcl-lexer`, `tcl-compiler::segmenter` | ✅ | Foundation; PyO3-exposed and differentially fuzzed. |
+| `core/compiler/` (IR, CFG, SSA, lowering, optimiser passes) | 58.6K | `tcl-compiler` | 🟡 | Most passes ported (lowering, SSA, GVN, SCCP, var_escape, inline_uplevel, side-effects, taint, type_infer). Remaining: a few optimiser passes and full IR-disasm parity. **Bytecode** codegen (`tcl-compiler::codegen`, ~10.2K LOC) is now larger than the Python bytecode codegen (~7.1K LOC, the non-`wasm` half of `core/compiler/codegen`) and carries no `todo!`/`unimplemented!` stubs — verify completeness against the `bytecode-compare` gate rather than assuming it lags. The **`codegen/wasm/` emitter (~14K LOC in Python) is entirely unported** (zero Rust files) — that, not bytecode, is the open codegen block. |
+| `core/commands/` (command-spec registry data) | 110.8K | `tcl-registry` | 🟡 | Registry infra + ~2070 spec files ported; behavioural-trait stamping and dialect-shadow parity tracked under "Command-spec tracking". Long tail of per-spec fields. |
+| `core/analysis/` (analyser, scope, var-refs, signature_scan, taint hints) | 17K | `tcl-compiler::analyser`, `::signature_scan` | 🟡 | `signature_scan` ported (C40); analyser core in progress (C41). Scope/var-ref/diagnostic providers partially landed. |
+| `core/minifier/` | 3.4K | `tcl-lsp-core::minify` | ✅ | Aggressive + compact tiers, unminify, registry-driven skip lists. |
+| `core/formatting/` | 2.0K | `tcl-lsp-core::formatting` | ✅ | Token-aware engine + `FormatterConfig`; full-doc and range share the engine. |
+| `lsp/` (server + feature providers) | 19.3K | `tcl-lsp-server`, `tcl-lsp-core` | 🟡 | Rust server binary exists; most providers ported (hover, definition, references, rename, symbols, completion, code-lens, semantic tokens, folding, formatting, inlay hints, selection/linked-editing range, call/type hierarchy, workspace index, F5 BIG-IP `.conf` outline + general-Tcl-diagnostic suppression). Remaining: diagnostics pipeline, workspace orchestration/lifecycle, the server flip to default. |
+| `core/refactoring/` | 1.9K | `tcl-lsp-core` (code-actions) or new `tcl-refactor` | 🔴 | Mechanical transforms shared by code-actions, MCP, AI skills. Decide: fold into `tcl-lsp-core` vs. standalone crate (MCP/AI want it independent of the LSP layer). |
+| `core/bigip/` (BIG-IP object model, APL parser, SCF/config) | 41.5K | `tcl-bigip` | 🟡 | **Object model + config parser ported** to the `tcl-bigip` crate: the value layer (`types/*.py` — addresses, networks, the full `Destination` grammar, `BigipList`, attachments), the 169 model dataclasses, the `parse_bigip_conf` driver (block extraction, registry-driven header resolution, partition-prefixing, the full named/singleton/minimal/family typed dispatch), and the 19 bespoke structural parsers (pool/snatpool members, virtual destination+lists, monitor/profile families, policy, gtm pool/wideip/topology, sys ntp/snmp, net route/self). Most structs + scalar parsers + dispatch are **codegen** from the Python source (`scripts/codegen/gen_bigip_model_rust.py`). A canonical-JSON bridge (`tcl-bigip::canonical` + `dialects/f5/bigip/parser/_rust_bridge.py`) reconstructs the existing Python dataclasses, so the **`f5` command consumes the Rust parser via PyO3** (`bigip_parse_conf_json`); `parse_bigip_conf` delegates to it when the wheel is present. A differential-parity gate (`tests/test_bigip_rust_parity.py`) asserts `rebuild(rust_json) == python_parse` byte-for-byte across **24 sample configs** (the full `samples/**` corpus incl. the multitier / apm / gtm / security configs and the non-ASCII `.scf`). The **iApp APL parser** (`tcl-bigip::apl` — `parse_apl` + `AplModel`) is also ported with its own PyO3 binding (`apl_parse_json`) + bridge (`rebuild_apl`) and parity gate; `.scf` single-config files use the same `parse_bigip_conf` (no separate code). The **LSP config-outline slice** also lands in `tcl-lsp-core::bigip` (#534 / #571). **Completeness is gated two ways:** a per-kind synthetic differential (`scripts/bigip_kind_differential.py`) reports **0 field gaps** across every dispatched kind (not just the corpus), and a registry-completeness test (`tests/test_bigip_registry_parity.py`) asserts the Rust object registry carries every Python-declared property for all ~741 headers (fixing the once-shadowed client-ssl / server-ssl profile specs). Remaining: broadening the real-config corpus, and the long tail of registry *superset* props (Rust carries a few reference-edge props beyond the Python projection). |
+| `core/xc/` (iRule → F5 Distributed Cloud translation) | 2.5K | new `tcl-xc` | 🔴 | Depends on `tcl-bigip` + analyser. |
+| `core/irule_test/` (TMM event-simulation test framework) | 1.7K | new `tcl-irule-test` | 🔴 | Drives a real Tcl interp today; in Rust it drives `tcl-vm`. |
+| `core/common/`, `core/help/`, `core/diagram/`, `core/packages/`, `core/tk/` | ~4K | fold into existing crates | 🟡 | Utilities + diagram extraction (`DIAGRAM_ACTION` trait already in registry) + help text + package metadata. Port piecemeal alongside their consumers. |
+| `vm/` (bytecode VM, interp, OO, scopes, REPL) | 21.9K | new `tcl-vm` | 🔴 | The in-process interpreter the analyser, debugger, and iRule-test framework drive. Zig WASM runtime stays as the out-of-process runtime. |
+| `debugger/` (DAP) | 1.7K | new `tcl-debugger` | 🔴 | Debug-adapter protocol server over `tcl-vm`. |
+| `explorer/` (compiler explorer) | 7.4K | new `tcl-explorer` (Rust → WASM) | 🔴 | Replace the Pyodide web app with a Rust→WASM build; no Python at runtime. |
+| `ai/` (MCP server, skills glue) | 5.3K | new `tcl-mcp` (binary) | 🔴 | MCP server becomes a Rust binary consuming the analyser/refactor crates. AI *skill prompts* are content, not code, and stay as docs. |
+| `fuzzing/` (differential fuzzer harness) | 4.3K | new `tcl-fuzz` (xtask/bin) | 🔴 | Today compares Python vs. Rust vs. tclsh; as Python retires it compares Rust vs. tclsh. Port the harness last. |
+| `tclpkg/` (zipapp / package tooling) | 2.7K | `xtask` + `tcl-vm` package loader | 🔴 | Native-extension packaging; folds into the build tooling. |
+| `scripts/` (build, release, dev tooling) | 13.8K | `cargo xtask` + shell | 🔴 | Eliminates the Python toolchain dependency. |
+| `tests/` (pytest suites) | large | per-crate `#[test]` + integration | 🟡 | Ported incrementally with each subsystem; differential harnesses retire when Python does. |
+
+**Per-subsystem gap caveats (GAP-AUDIT-JUN05, 2026-06-05).**  The ✅ / 🟡
+above are *coverage* statuses; a deep audit found specific undocumented
+gaps that refine them.  `core/parsing/` ✅ omits the ghost-token recovery
+engine (GAP-A1) and Tcl 9 expr backslash-newline continuation (GAP-B7);
+`core/compiler/` 🟡 omits O127 forwarding (GAP-B1), mislabels GVN
+O106/O107 (GAP-B2), and degrades expr type inference (GAP-B4);
+`core/analysis/` 🟡 omits the `_security` / `_confusables` / `_bounds` /
+`_syntax` check families (GAP-A2/A3/A4/A6); `core/commands/` 🟡 omits the
+`pattern_type` / `format_string_type` / `options` / granular-taint spec
+fields (GAP-D1/D2); `lsp/` 🟡 ships type-definition / implementation /
+declaration as definition-aliases (GAP-B3), surfaces only base-analyser
+diagnostics (GAP-C1), and is missing four providers (GAP-A9);
+`core/formatting/` ✅ omits several config knobs (GAP-C4).  Full list with
+fix context is in the **GAP-AUDIT-JUN05** section.
+
+### Crates that exist vs. crates to create
+
+Existing workspace crates (`rust/`): `tcl-lexer`, `tcl-registry`,
+`tcl-compiler`, `tcl-lsp-core`, `tcl-lsp-server`, `tcl-lsp-py` (PyO3),
+and `tcl-lsp-rust` (legacy `#[pymodule]` alias — retire once downstream
+imports move to `tcl_lsp_py`).
+
+Crates still to stand up, roughly in dependency order:
+
+1. **`tcl-vm`** — bytecode VM + interpreter + OO/scope model (from `vm/`).
+   Unlocks the debugger and iRule-test framework.
+2. **`tcl-bigip`** — BIG-IP object model + APL parser + config (from
+   `core/bigip/`). Unlocks XC translation and richer iRule analysis.
+3. **`tcl-refactor`** — mechanical refactors (from `core/refactoring/`),
+   consumed by code-actions, MCP, and skills.
+4. **`tcl-irule-test`** — TMM event simulation over `tcl-vm`.
+5. **`tcl-xc`** — iRule → XC translation over `tcl-bigip`.
+6. **`tcl-debugger`** — DAP server over `tcl-vm`.
+7. **`tcl-mcp`** — MCP server binary over the analyser/refactor crates.
+8. **`tcl-explorer`** — compiler-explorer Rust→WASM app.
+9. **`xtask`** — build/release tooling (from `scripts/`), plus the
+   zipapp/package work from `tclpkg/`.
+10. **`tcl-fuzz`** — differential fuzzer harness (retires Python last).
+
+Codegen note: bytecode **codegen** lives in `tcl-compiler::codegen`
+(~10.2K LOC) and is the more mature half — it already exceeds the
+Python bytecode codegen (~7.1K LOC, the non-`wasm` part of
+`core/compiler/codegen`) in size and carries no `todo!` /
+`unimplemented!` / `unsupported` markers. Treat its remaining gaps as
+parity items to confirm against the `bytecode-compare` gate against
+tclsh, not as a from-scratch build. The genuinely unported block is the
+**WASM emitter**: `core/compiler/codegen/wasm/` is ~14K LOC of Python
+with **no Rust counterpart at all**. Bytecode codegen plus `tcl-vm`
+unblock the analyser/debugger/iRule-test in-process runtime; the WASM
+emitter port is what feeds the Zig out-of-process runtime.
+
+### PyO3 public-API surface (terminal state)
+
+When the internal porting is done, audit `tcl-lsp-py` against this
+intended public API and **delete** anything that was only a
+soft-dependency shim (e.g. `gvn_redundancies`, raw `interprocedural`
+internals, `compilation_unit` handles) unless it earns a place as a
+documented, semver-stable entry point. The designed surface is, roughly:
+
+- **Parsing** — tokenise (command + expr), segment, backslash subst.
+- **Registry** — command-spec lookup + trait/role/dialect queries.
+- **Analysis** — `analyse(source, dialect) -> AnalysisResult`, signature
+  scan, scope/var-ref queries, diagnostics.
+- **Compile** — source → IR → bytecode (+ disassembly).
+- **VM** — execute bytecode / eval a script with a controllable
+  environment (the embedding hook downstream users actually want).
+- **Transform** — format, minify/unminify, refactor edits.
+- **Each entry point is a stable struct-in / struct-out**, version-gated,
+  with no Python object-shape mimicry leaking into the crate APIs (the
+  crates stay `pyo3`-free; only `tcl-lsp-py` knows about Python).
+
+This list is the contract for downstream embedders; the in-tree code
+reaches the same functionality through the pure crates directly.
+
+### Suggested phase ordering
+
+The bottom-up dependency order (lexer → compiler → LSP → remainder) from
+"What we're doing" still holds. The remaining large blocks sequence as:
+
+1. **Finish the analyser + diagnostics** (`core/analysis`) and **flip the
+   Rust LSP server on by default** — this is the highest-leverage user-
+   facing milestone and lets `lsp/` retire.
+2. **Complete bytecode codegen** in `tcl-compiler`, then **`tcl-vm`** —
+   unblocks the debugger, iRule-test, and the explorer's run feature.
+3. **`tcl-bigip`** (and the APL parser) — unblocks XC + iRule depth.
+4. **`tcl-refactor`, `tcl-irule-test`, `tcl-xc`, `tcl-debugger`,
+   `tcl-mcp`** — the domain/tooling layer, parallelisable once their
+   shared deps (`tcl-vm`, `tcl-bigip`, `tcl-refactor`) land.
+5. **`tcl-explorer`** (Rust→WASM) and **`xtask`/`tcl-fuzz`** — replace the
+   last Python at the edges (web app, build scripts, fuzz harness).
+6. **Retire `tests/` and the soft-dependency shims**; re-derive and
+   document the `tcl-lsp-py` public API; delete `tcl-lsp-rust`.
+
+## Non-negotiable principles
+
+Two architectural constraints that every chunk is measured against.
+They override local simplicity when they conflict; if you find
+yourself working around them, stop and raise the design question.
+
+### 0. C Tcl 9.0.3 is the reference standard
+
+The Rust lexer, compiler, and eventual LSP server must produce
+behaviour identical to **C Tcl 9.0.3** (the current stable release
+of the upstream Tcl reference implementation). Every escape
+sequence, quoting rule, brace-nesting edge case, and
+backslash-continuation behavior is measured against what
+`tclsh9.0` produces. The Python lexer was already built to match
+C Tcl; the differential test harness (`tests/test_upstream_parse.py`
++ the dynamic corpus harvester) verifies the Rust lexer matches the
+Python lexer, which transitively validates against C Tcl. The
+`tests/test_upstream_parse.py` suite is ported from Tcl's official
+`tests/parse.test`; any Tcl-version-specific behaviours (e.g. `{*}`
+expansion was added in 8.5, not present in 8.4) are gated on
+`LexerConfig` dialect flags.
+
+### 1. Performance to first semantic tokens is paramount
+
+The single user-visible latency metric that matters for the LSP
+experience is **time from `textDocument/didOpen` to the first
+`textDocument/semanticTokens/full` response**. That's what the user
+sees as "how long until syntax highlighting shows up" when they open
+a file. Every other performance consideration — throughput,
+incremental update latency, memory footprint — is subordinate to
+this one until time-to-first-tokens is in the single-digit
+milliseconds for a typical file.
+
+Consequences for every chunk:
+
+- **Benchmark against `perf_track.py` before and after.** The
+  chunk commit message cites the numbers. Regressions (beyond run
+  noise) are a blocker; absence of improvement is OK as long as no
+  regression lands.
+- **The open → first-tokens path is hot.** Anything on that path
+  gets optimised first — lexer, AST build, semantic-token encoding,
+  JSON-RPC write. Anything off that path (incremental edits,
+  diagnostics beyond the first batch, hover, completion) is
+  secondary.
+- **No lazy initialisation on the hot path.** Anything the first
+  tokens response needs is eagerly computed on open, in parallel
+  with the response construction where possible.
+- **No blocking I/O, no DB roundtrips, no cross-process calls on
+  the hot path.** If a feature needs them, it runs in the
+  background and feeds results in when ready — it does not gate the
+  first tokens response.
+- **Measure before optimising.** The L3 benchmark showed that at
+  the LSP pipeline level, L1-L3 haven't moved the needle because
+  the lexer isn't wired in yet. That's expected; the point is that
+  we _have_ the measurement and can see when each chunk starts
+  showing up.
+
+### 2. Async through and through
+
+The Rust LSP server is async-first from the protocol handler down
+to the analysis pipeline. Every layer above the raw lexer is
+`async fn`, runs on Tokio, yields cooperatively, and composes with
+cancellation. This is how we get responsiveness: a fresh
+`textDocument/semanticTokens/full` request while an older one is
+still computing should cancel the older one cleanly, not wait for
+it to finish.
+
+Consequences for every chunk:
+
+- **`tower-lsp` is the LSP framework.** Ratified in the "Chosen
+  libraries" section below — it gives us `async fn` handlers for
+  every LSP method out of the box, built on Tokio.
+- **`ropey` is the document buffer.** Also ratified below. Ropes
+  are the standard async-friendly document storage: cheap clone
+  (`Arc<Rope>`), O(log n) slicing, built-in line indexing,
+  incremental-edit-friendly.
+- **The lexer itself is synchronous** (fast, CPU-bound, a few μs
+  per typical file), **but it is `Send`**, holds no thread-local or
+  `static mut` state, and is trivially safe to call from any async
+  task. For files large enough that lexing would block the
+  executor for more than a frame (rare for Tcl, possible for
+  generated iRules bundles), the caller moves the call into
+  `tokio::task::spawn_blocking` or splits the work across chunks —
+  a decision taken by the caller, not baked into the lexer.
+- **The analysis pipeline (above the lexer) is async.** Each pass
+  is `async fn` even when its body is CPU-bound, so it composes
+  with cancellation tokens and can yield between phases. Long
+  CPU-bound phases call `tokio::task::yield_now().await` at
+  coarse-grained checkpoints so the executor stays responsive.
+- **Document store updates use `tokio::sync` primitives.** No
+  `std::sync::Mutex` on paths that can be held across `.await`,
+  no blocking read locks. `RwLock<Arc<DocumentState>>` is the
+  common pattern; read-heavy operations clone the `Arc` and drop
+  the lock immediately.
+- **No globals, no thread-locals, no singletons.** Anything that
+  looks like state lives on an owned struct that the task holds or
+  is passed in as a parameter. The Python lexer's `_thread_local`
+  for `strict_quoting` is an explicit anti-pattern here; the Rust
+  equivalent is a field on `LexerConfig`.
+- **Diagnostics, semantic tokens, hover, completion, definition,
+  references, formatting, code actions, inlay hints — every
+  `async fn` handler.** Cancellation propagates via
+  `tokio::select!` with the LSP cancellation token. No handler
+  body blocks for more than a few μs without an `.await`.
+
+These are non-negotiable because the whole point of the rewrite is
+to be faster and more responsive than the Python server. Ignoring
+either principle wastes the rewrite.
+
+## Chosen libraries and data structures
+
+The library choices below are selected **specifically** to serve
+the two principles above: time-to-first-tokens and async-to-the-core.
+Each entry notes why it wins for those criteria.
+
+- **Buffer storage (LSP layer): [`ropey`](https://crates.io/crates/ropey).**
+  Rope for the document store. Used by Helix, chosen for the Rust
+  rewrite because: (a) O(log n) slicing means the time-to-first-
+  tokens path can flatten a rope range into a `&str` and hand it
+  to the lexer without an O(n) full-source copy — critical for
+  large iRules bundles; (b) rope handles are cheaply shareable via
+  `Arc<Rope>`, so async tasks that need to read the document
+  concurrently don't contend on a lock; (c) built-in line indexing
+  via `Rope::byte_to_line` / `Rope::line_to_byte` means we don't
+  rebuild `LineIndex` on every edit in steady state. Adopted when
+  the LSP server chunks land (R*). The lexer itself does **not**
+  take a `Rope` — see the "Position infrastructure" section below.
+- **LSP framework: [`tower-lsp`](https://crates.io/crates/tower-lsp).**
+  Chosen for async-to-the-core: every LSP method is an `async fn`
+  on the `Backend` trait, dispatched on Tokio, so cancellation
+  composes trivially with `tokio::select!` and the LSP
+  cancellation token. The alternatives were considered and
+  rejected: `lsp-server` (from rust-analyzer) is synchronous and
+  would force us to build our own async layer on top; `async-lsp`
+  is also async but has a smaller ecosystem and less momentum.
+  `tower-lsp` is the default modern choice and the one with the
+  most production deployments (taplo, wat, nixd, …).
+- **Error types: [`thiserror`](https://crates.io/crates/thiserror) in
+  library crates, [`anyhow`](https://crates.io/crates/anyhow) in
+  binaries.** Already in use in `tcl-lexer` for `LexError`.
+- **Python bindings: [`PyO3`](https://pyo3.rs) + [`maturin`](https://maturin.rs).**
+  Already in place for the soft-dependency build.
+- **CLI argument parsing (when CLI tools arrive):
+  [`clap`](https://crates.io/crates/clap) with `derive`.**
+- **Logging: [`tracing`](https://crates.io/crates/tracing) + `tracing-subscriber`.**
+
+### Spans threaded through everything
+
+The single most important architectural invariant of the Rust side:
+**every positional entity carries a [`Span`], not inline position
+data**. Tokens today; IR nodes, CFG nodes, diagnostics, refactoring
+ranges, semantic-token outputs, and everything else tomorrow. A
+[`Span`] is just two `u32`s — an inclusive start and an exclusive
+end, byte offsets into the source. It's 8 bytes, `Copy`, no
+lifetime, trivially storable in containers.
+
+To go from a span back to anything human-readable — text, line
+number, LSP `Position`, etc. — callers thread a [`SourceMap`] (a
+`&str` source buffer bundled with a [`LineIndex`]) and ask it:
+
+```rust
+let source_map = SourceMap::new(source);
+let tokens = Lexer::new(source).tokenise_all()?;
+for tok in &tokens {
+    let text = source_map.text(tok.span);
+    let (start, end) = source_map.range_positions(tok.span);
+    println!("{:?} {:?} {}-{}", tok.kind, text, start.line, end.line);
+}
+```
+
+This matches the design used by rust-analyzer (`TextRange`), swc
+(`Span`), and tree-sitter (`Range`). It keeps entities tiny, keeps
+position lookups in one place, and means a future incremental story
+can invalidate spans without touching every downstream struct.
+
+Consequences of the rule:
+
+- **Tokens have no lifetime.** `pub struct Token { kind, span,
+  in_quote }` is 16 bytes and `Copy`. A `Vec<Token>` is a plain
+  buffer; it can be serialised, sent across threads, cached, and
+  diffed without lifetime bookkeeping.
+- **IR / CFG nodes (future chunks) carry `Span`s, not
+  `SourcePosition`s.** Passes rewrite nodes freely; positions stay
+  deferred to the `SourceMap` and are computed only at the point of
+  diagnostic emission or LSP response formatting.
+- **Diagnostics carry `Span`s.** LSP `Range` values are derived on
+  publish, not stored on the diagnostic.
+- **Sub-lexing** (L5 command substitution, future expression
+  re-lexing) inherits the parent `SourceMap`. It never builds its
+  own line index; the spans it produces are offsets into the same
+  top-level buffer, so downstream consumers see one coherent
+  coordinate system.
+- **Positional parity with Python is a [`SourceMap`] concern.** If
+  we ever need UTF-16 column parity with the LSP specification, we
+  fix it once inside [`LineIndex::position_at`] and every
+  downstream entity gets correct positions for free.
+
+### Position infrastructure — lexer vs. document layer
+
+The Python side has a single `DocumentBuffer` type that holds the
+source text plus a `line_starts` tuple. In Rust we split the concern
+along the same span-threading principle above:
+
+- **At the lexer layer** (`rust/tcl-lexer/`), the lexer consumes a
+  `&'src str` slice and produces `Token` values that carry only a
+  `Span`. It owns a [`SourceMap`] — a zero-allocation wrapper over
+  `(source, LineIndex)` — that any consumer can borrow via
+  `Lexer::source_map()` or take over via `Lexer::into_source_map()`.
+  [`LineIndex`] itself is a pure-Rust `Box<[u32]>` with O(log n)
+  `partition_point` lookups — not a port of `DocumentBuffer`, just
+  the minimum needed to resolve spans to positions.
+- **At the LSP server layer** (future `rust/tcl-lsp-server/`), the
+  Document store is a [`ropey::Rope`]. The rope has its own internal
+  line index; when the document layer needs to lex a chunk it
+  flattens the affected rope range into a `&str` (cheap: most ranges
+  are a single contiguous chunk), wraps it in a [`SourceMap`], and
+  hands the `SourceMap` to the lexer via `Lexer::with_source_map`.
+  No `LineIndex` gets built twice, and no rope reference leaks into
+  `tcl-lexer`.
+- The seam between the two layers is one cheap flatten plus a
+  [`SourceMap`]. When we need to avoid even that, a future
+  `LineIndex::from_rope_slice` adapter will skip the linear scan and
+  pull line offsets straight out of the rope's B-tree.
+
+The key point: the **lexer's public API is `&str`-based**, the
+**document store's public API is rope-based**, and the seam between
+them is a cheap rope → `&str` flatten plus a shared [`SourceMap`].
+No rope references leak into `tcl-lexer`, no `LineIndex` leaks into
+the document store (beyond the rope adapter).
+
+[`Span`]: ../rust/tcl-lexer/src/span.rs
+[`LineIndex`]: ../rust/tcl-lexer/src/line_index.rs
+[`LineIndex::position_at`]: ../rust/tcl-lexer/src/line_index.rs
+[`SourceMap`]: ../rust/tcl-lexer/src/source_map.rs
+[`ropey::Rope`]: https://docs.rs/ropey
+
+### Deferred work (lexer)
+
+The L0–L11 lexer migration is complete: every token kind is
+implemented in Rust, the expression sub-lexer is ported, and
+`TclLexer.tokenise_all()` dispatches to Rust for the default
+config. **L12 (remove the Python lexer fallback)** is blocked on
+the items below — each one is a feature the Python lexer supports
+that the Rust lexer does not yet, causing the Python fallback to
+kick in for specific configurations.
+
+**Remaining Python fallback trigger** (after L13):
+
+- **Ghost-token insertion for error recovery.** The Python lexer's
+  `virtual_insertions: dict[int, str]` parameter injects **ghost
+  tokens** — zero-width synthetic delimiters (`}`, `]`, `{`) at chosen
+  offsets — so downstream passes see a well-formed structure. **Ghost
+  tokens** is the canonical name for this concept in the Rust codebase
+  (do not carry the Python "virtual" spelling across). This is the
+  public surface of `core/parsing/recovery.py`'s ghost-token engine
+  (`compute_virtual_insertions` / `segment_with_recovery`), which is
+  **not a single edge case**: it runs on **every analysed body** — the
+  analyser (`_analyser/_core.py:473`), OO bodies (`_oo.py:154`), and
+  semantic tokens (`_semantic_tokens/_collect.py:550`) — and emits the
+  **E201-E206** recovery diagnostics with their `CodeFix` quick-fixes.
+  The Rust `Lexer` has no equivalent (Rust emits only E101/E103/E200).
+  Porting it is **GAP-A1** in the GAP-AUDIT-JUN05 section (a
+  `ghost_tokens` lex parameter + a `tcl-compiler` recovery module +
+  E201-E206 emitters); until then the Python fallback covers it.
+
+**Non-blocking deferred items (can be fixed independently):**
+
+- **`\<CR>` line tracking.** [LANDED — superseded by SYNC-JUN08-1]
+  `LineIndex::new` counts **only `\n`** as a line break: `\r\n` breaks
+  on its trailing LF, and a **lone `\r` is horizontal whitespace, not
+  an EOL** (`line_index.rs:10`, comment line 39). This matches post-fix
+  Python (`shared/source_map.py::_build_line_starts`) and the red CST
+  overlay (`red.rs::build_line_starts`). An earlier revision of this
+  note wrongly claimed bare `\r` was a line break; SYNC-JUN08-1
+  established the `\n`-only rule as the sound, C-Tcl-faithful behaviour
+  (a token after a lone CR was landing on the wrong line). See the
+  `SYNC-JUN08-1` row + its lone-CR / CRLF / mixed-ending tests.
+- **UTF-16 column parity.** [LANDED] New
+  `LineIndex::position_at_utf16(offset, source: &str) ->
+  SourcePosition` method returning the LSP-compliant column
+  counted in UTF-16 code units (BMP characters cost one,
+  supplementary-plane characters cost two via surrogate-pair
+  encoding). Existing `position_at` keeps Python-parity byte-
+  column behaviour for current callers; LSP handlers should
+  switch to the UTF-16 variant before they ship. 4 new unit
+  tests covering ASCII parity, BMP non-ASCII characters,
+  supplementary-plane emoji, and offset-at-line-boundary.
+- **`LineIndex::from_rope_slice`.** Adapter that pulls line
+  offsets from the rope's B-tree instead of scanning a flattened
+  `&str`. Deferred until the first rope-backed consumer lands.
+- **Performance measured.** L11 benchmark shows **1.8–2.4×
+  speedup** on the full open-to-semantic-tokens LSP pipeline
+  (from ~220 ms to ~130 ms) and **~10× speedup** at the
+  primitive lexer level through the PyO3 bridge. Further gains
+  come from porting the compiler and analyser to Rust (eliminating
+  the Python→Rust→Python round-trip for each token).
+
+## How we're doing it
+
+### Layered crates, not shim-owned features
+
+The Rust workspace has three kinds of crates:
+
+- **Pure library crates** own product behaviour. They do not depend on
+  `pyo3`, do not mimic Python object shapes, and are the crates the
+  eventual Rust LSP server and CLI binaries link against directly.
+- **Binding crates** expose Rust behaviour to Python. They contain
+  `#[pyclass]`, `#[pyfunction]`, `PyErr` conversion, tuple/dict
+  materialisation, env-var compatibility, and back-compat shims only.
+- **Binary crates** provide entry points such as the native LSP server,
+  debugger, compiler explorer helpers, and release tooling. They depend
+  on pure crates, not on PyO3 bindings.
+
+The current transitional binding crate is `rust/tcl-lsp-rust/` because
+the Python shims already import the `tcl_lsp_rust` extension module. Treat
+that crate as a compatibility wrapper. It must not own compiler, analyser,
+registry, or LSP feature logic. When the public Python API is designed,
+the stable binding crate becomes `rust/tcl-lsp-py/` and
+`tcl-lsp-rust` either disappears or stays as a one-release import alias.
+
+Target dependency direction:
+
+1. `tcl-lexer` owns source text, spans, line indexes, and tokenisation.
+2. `tcl-registry` owns command, dialect, argument, taint, effect,
+   documentation, and hook metadata.
+3. `tcl-compiler` owns parsing above the lexer, IR, CFG, SSA, analysis,
+   lowering, optimisation, and codegen algorithms.
+4. `tcl-lsp-core` owns pure LSP feature providers: folding, document
+   symbols, hover, completion, references, rename, semantic tokens,
+   diagnostics projection, and code actions.
+5. `tcl-lsp-server` owns the `tower-lsp` binary, async document store,
+   request routing, cancellation, progress, and editor-facing protocol
+   plumbing.
+6. `tcl-lsp-py` owns the public PyO3 API for downstream users.
+
+No LSP feature provider lands directly in a PyO3 crate. If Python needs
+to call a new Rust feature during the migration, put the implementation
+in `tcl-lsp-core` first and expose it through a small binding wrapper.
+
+### Python compatibility lives only in the binding layer
+
+If the current Python API demands something awkward — thread-local flags,
+class-level mutable state, stringly-typed kwargs, magic singleton modules
+— the binding crate implements the awkwardness and hides it from the
+pure crate. The pure crate gets clean `&Config` parameters or equivalent,
+returns `Result<T, Error>`, and never has to apologise for Python.
+
+This rule is non-negotiable. A pure crate that imports `pyo3` "just for
+this one function" is a sign that the binding crate needs another wrapper
+type, not that the rule should bend.
+
+### Command facts live in the registry
+
+The command registry is the source of truth for command facts. The
+compiler, analyser, LSP feature providers, and diagnostics may own
+algorithms, but they must not own independent command tables.
+
+Registry-owned facts include:
+
+- command names, aliases, dialects, arity, subcommands, option forms,
+  and command forms;
+- argument roles, including dynamic role resolvers for count-dependent
+  and subcommand-dependent calls;
+- lowering and codegen hook identifiers;
+- taint sources, taint sinks, sanitiser roles, setter constraints, and
+  protocol-specific sink shapes;
+- side-effect summaries, variable read/write summaries, and storage
+  effects;
+- help snippets, hover text, examples, KCS links, and editor setting
+  catalogue facts.
+
+Compiler and analyser code should ask the registry a precise question:
+"what command form is this call?", "which argument indices are bodies?",
+"does this call write a variable?", "which lowering hook applies?",
+"which taint sink shape applies?". A hardcoded `HashSet` of command names
+or a `match cmd.name` dispatcher outside registry-owned routing is a
+design debt item, not a pattern to copy.
+
+Hook identifiers are part of the registry contract. They should be typed
+enums or strongly-typed generated constants, not public bare `u16`
+values. The compiler maps hook identifiers to algorithms; the registry
+decides which identifier applies to a command form.
+
+### Restructure before new surface area
+
+Before adding more migrated feature surface, pay down the architectural
+debt exposed by the review. Land the restructure in small, shippable
+chunks:
+
+1. Create `tcl-lsp-core` and move pure LSP provider logic out of
+   `tcl-lsp-rust`. Start with folding because it is already isolated.
+2. Rename the PyO3 boundary in documentation and code ownership terms:
+   `tcl-lsp-rust` is transitional compatibility; `tcl-lsp-py` is the
+   intended public binding crate.
+3. Expand `tcl-registry` so command forms, hook IDs, taint metadata,
+   side effects, and option/form knowledge are registry data.
+4. Replace compiler/analyser name dispatch with registry-driven
+   resolution. The first consumer should be lowering/codegen hooks, then
+   structured command lowering, then taint/iRules diagnostics, then
+   side-effect classification.
+5. Add a current-state architecture doc once the split starts. It should
+   say which Rust paths are authoritative, which Python supplements still
+   exist, and which fallbacks are planned for removal.
+
+### Always shippable, small chunks
+
+Every PR leaves the extension fully working. The CI gate is the same gate
+as every other PR in the repo: `make prep-pr` must pass, all editor
+packages must still build, and no existing test is allowed to regress.
+
+One chunk = one logical surface. Good examples:
+
+- "Port `backslash_subst`." (~100 LOC Python → Rust + PyO3 wrapper + shim.)
+- "Port `TokenType` / `SourcePosition` / `Token`."
+- "Port brace-string lexing in the Rust lexer."
+- "Port the branch-folding optimiser pass."
+
+Bad examples:
+
+- "Port the whole lexer." (Too big, parity can't be reviewed.)
+- "Rewrite `core/parsing/`." (Even worse.)
+- "Port the lexer and the compiler IR together because they share a
+  data structure." (Split the data structure out first.)
+
+Each chunk that replaces real logic needs a differential test: run the
+Python and Rust implementations in parallel on every fixture and assert
+identical output. The lexer chunk (L3 onward) introduces
+`tests/test_rust_lexer_differential.py` for this. Use the same pattern
+for the compiler.
+
+### Soft dependency during rollout
+
+Until a chunk explicitly flips the default, the Python code imports the
+Rust wheel via `try: from tcl_lsp_rust import … except ImportError`.
+A missing wheel is a performance no-op, not a regression. This lets a
+developer work on fresh clones without `make rust-build`, and it lets
+releases ship even if a platform wheel fails to build.
+
+Once a chunk flips the default (the Rust implementation becomes the
+preferred path and the Python fallback is just there as a safety valve),
+the pure-Python fallback is kept for exactly one release cycle and then
+removed outright in a follow-up chunk. Do not let fallbacks accumulate.
+
+### Packaging and CI
+
+- The main `pyproject.toml` stays on `hatchling`. The Rust wheel is built
+  by `maturin` from its own binding-crate `pyproject.toml` and is a
+  **separate** distribution. During the transition that crate is
+  `rust/tcl-lsp-rust/`; after the public API split it is
+  `rust/tcl-lsp-py/`. No mixed hatchling/maturin hybrid.
+- Rust wheels ship as GitHub release artifacts on tagged releases, not
+  PyPI. `scripts/build_zipapp.py` fetches them at packaging time and
+  bundles them alongside the zipapp.
+- `scripts/build_zipapp.py::_pip_install_pure` preserves native
+  extensions whose package name is in `_RUST_NATIVE_PACKAGES` and strips
+  everything else. Extend that set rather than widening the strip.
+- PR CI builds a single linux x86_64 wheel and runs the Python test
+  suite against it. Tagged releases build the full matrix: linux
+  x86_64, linux aarch64, macOS x86_64, macOS arm64, windows x86_64.
+- The Rust toolchain tracks `stable` floating via `rust-toolchain.toml`.
+
+## What a good port looks like
+
+The point of moving to Rust is to benefit from enums, lifetimes,
+iterators, `Result`, zero-copy slices, and an ownership model that
+catches bugs at compile time. A port that preserves every Python data
+shape and pattern has missed the point.
+
+Reshape the design. Rename things. Split or merge modules. Use Rust
+idioms even when they diverge sharply from the Python layout. The
+binding layer absorbs any Python-facing API drift.
+
+Some concrete rules of thumb:
+
+### Data structures
+
+- Use **enums** for sum types. Python `Enum` with `auto()` becomes a
+  Rust enum with explicit variants. `str` sentinels and `isinstance`
+  checks become `match`.
+- Use **structs with named fields** for product types. Python dataclasses
+  become Rust structs. Frozen dataclasses become `#[derive(Clone, Copy,
+  Debug, Eq, PartialEq, Hash)]` as appropriate.
+- **Positional entities carry a `Span`, not inline positions.**
+  Tokens, IR nodes, CFG nodes, diagnostics — anything that refers to
+  a region of source — stores a byte range, not a start/end
+  `SourcePosition` pair. Text and `(line, character)` positions are
+  resolved on demand via a `SourceMap`. This keeps entities tiny,
+  centralises position lookups, and lets the whole rewrite inherit
+  the same coordinate system. See the "Spans threaded through
+  everything" section above.
+- Use **`&str` and `Cow<'_, str>`** instead of `String` wherever you can
+  borrow. The caller usually owns the buffer; a new allocation per
+  token is a waste. The PyO3 wrapper clones on the way out if needed.
+- Use **`Option<T>`** for "may be absent", **`Result<T, E>`** for "may
+  fail". Do not invent sentinel values.
+- Prefer **`SmallVec`**, **`Cow`**, **`Arc`** where they genuinely help.
+  Don't reach for them by default.
+
+### Control flow
+
+- Prefer **iterators** over stateful classes. A lexer becomes an
+  `Iterator<Item = Result<Token<'src>, LexError>>`, not an object with
+  a `get_token()` method. The PyO3 wrapper presents the stateful API
+  Python expects.
+- Prefer **`match`** over `if let` chains, and prefer exhaustive matches
+  over wildcard arms that silently swallow future variants.
+- Keep function bodies flat. Early returns are fine. Deeply nested
+  conditionals almost always want to be split into helpers.
+
+### Errors
+
+- All errors go through **`thiserror::Error`** in the pure crate. No
+  panics for recoverable conditions, no `Option` where `Result` is
+  meaningful.
+- The binding crate converts the pure-crate error type into a matching
+  Python exception. Preserve message text and position information.
+- Warnings (non-fatal diagnostics) are collected into a `Vec` on the
+  result value, not mutated onto a global. The Python-facing wrapper
+  exposes them as an attribute on the returned object if the Python API
+  previously did so.
+
+### Configuration
+
+- Global, thread-local, and class-level flags from Python become **fields
+  on a `Config` struct** passed to constructors. No `lazy_static`, no
+  `thread_local!`, no module-level mutable state in the pure crate.
+- The binding crate may keep a thread-local or class-attribute façade if
+  that's what Python callers depended on, and translate it into a fresh
+  `Config` on each call. The pure crate stays pure.
+
+### Modules and naming
+
+- Split by responsibility, not by a line-count budget. A module with one
+  300-line function is fine; a module with eight unrelated 50-line
+  functions usually wants to split.
+- **Do not reproduce Python's mixin composition in Rust.** Python
+  codebases like `core/compiler/codegen/_emitter.py` compose a single
+  class from 7 mixins via multiple inheritance. The Rust port does not
+  need to preserve that shape — use multiple `impl CodegenCtx` blocks
+  across separate files, one file per responsibility (parsing,
+  emission, control flow, block ordering, …). The mixin boundary is a
+  Python artefact, not an architectural principle.
+- **Break monster functions into per-case handlers.** Python's
+  `generate()` is a ~450-line block-type dispatch loop. In Rust, lift
+  each `if bname.startswith("foreach_header_")` branch into its own
+  named handler function. The top-level loop should read as a
+  dispatcher, not a state-machine implementation. Keep deferred-label
+  state in an explicit struct (`GenerateState`) rather than
+  ten loose local maps.
+- Use UK spelling (`normalise`, `optimiser`, `analyse`) in identifiers
+  and comments, matching the rest of the repo.
+- Doc comments describe invariants and non-obvious decisions. Don't
+  paraphrase the code. Don't add banner-style dividers.
+- Every public item gets a doc comment. `#![deny(missing_docs)]` is on.
+
+### Tests
+
+- Unit tests live next to the code they cover (`#[cfg(test)] mod tests`).
+  Integration tests go under `tests/` inside the crate when they need
+  multiple modules.
+- Every chunk that replaces real Python logic ships with a differential
+  test harness: feed the same inputs through both implementations and
+  assert identical outputs. Do not flip any default until the
+  differential harness is green across the whole corpus.
+- Avoid golden-file tests for things that are cheap to compute. Prefer
+  assertions that state the actual invariant.
+- **Test audit.** Every chunk classifies the pytest tests it touches as
+  **ported** (Rust has equivalent coverage), **bridge-only** (Python-
+  specific behaviour — kept in pytest, not ported), **remove at end**
+  (low-value, flagged inline with an `AUDIT:` comment and tracked for
+  deletion when the Python layer is retired), or **deferred** (covered
+  by a later chunk). The living audit lives in
+  [`rust-rewrite-test-audit.md`](rust-rewrite-test-audit.md); update
+  the relevant section in the same commit that lands the chunk. No
+  pytest test is deleted during the rewrite — the Python suite is the
+  behavioural oracle for every chunk, and only comes out when the
+  Python layer itself comes out.
+
+### What a bad port looks like
+
+If your port has any of these, reshape it before asking for review:
+
+- A `#[pyclass]` in the pure crate.
+- An IR node, CFG node, or diagnostic that stores `start:
+  SourcePosition, end: SourcePosition` instead of a `Span`. Positions
+  belong on the `SourceMap`, not on every entity.
+- A second line-index implementation. There is one `LineIndex`, owned
+  by the `SourceMap`. Everything else borrows it.
+- A `String` field where `&'src str` would borrow from the caller's
+  buffer.
+- A translation of Python's class-level `strict_quoting = False` into a
+  `static mut` or `lazy_static`.
+- A match arm that reproduces a three-arm `if/elif/else` ladder verbatim
+  when two of the arms have the same body.
+- A function signature that takes `Option<Option<T>>` because Python used
+  `None` as both "absent" and "error".
+- An `unwrap()` anywhere in a hot path.
+- A panic in a pure parser crate for malformed input. Malformed input is
+  a `Result`, not a crash.
+- Pure LSP provider logic in a PyO3 crate. Bindings wrap providers; they
+  do not implement them.
+- A command-name table in the compiler, analyser, LSP layer, or
+  diagnostics layer when the same fact belongs in `tcl-registry`.
+- A comment that says "TODO: make this idiomatic later". Do it now.
+
+## Reference file layout
+
+```
+Cargo.toml                               workspace manifest
+rust-toolchain.toml                      channel = "stable"
+rust/
+  tcl-lexer/                             pure Rust lexer crate
+    Cargo.toml
+    src/
+      lib.rs
+      substitution.rs                    backslash_subst (L1)
+      tokens.rs                          Token, TokenType, SourcePosition (L2)
+      span.rs                            Span — byte range (L3)
+      line_index.rs                      LineIndex — byte offset → line/col (L3)
+      source_map.rs                      SourceMap — source + LineIndex (L3)
+      lexer.rs                           Lexer skeleton (L3)
+  tcl-compiler/                          pure Rust compiler crate
+    Cargo.toml
+    src/
+      lib.rs
+      analyses.rs                        LatticeValue, FunctionAnalysis, ModuleAnalysis (C5)
+      cfg.rs                             Block, Function, CfgModule, Terminator (C2)
+      codegen/                           bytecode emitter directory module
+        mod.rs                           Op, Instruction, LiteralTable, CodegenCtx (C4)
+        helpers.rs                       list/dict/format folding helpers (C11)
+        values.rs                        push_lit, load/store_var, emit_incr (C11)
+        expressions.rs                   emit_expr for ExprNode variants (C11)
+        statements.rs                    emit_stmt dispatch (C12)
+        peephole.rs                      post-emission cleanups (C13)
+        layout.rs                        jump shrinking + byte offsets (C14)
+        format.rs                        disassembly rendering (C14)
+        cmd_subst.rs                     [cmd ...] inline dispatch (C15)
+        control_flow.rs                  catch/try inline emission (C16)
+        emitter/                         main emitter loop (C17)
+          mod.rs                         module glue + public API
+          ordering.rs                    linearise, loop body, branch folding
+          terminator.rs                  CFG terminator emission
+          proc_defs.rs                   proc def interleaving
+          loop_blocks.rs                 foreach/while/for block handlers
+          try_blocks.rs                  try/finally CFG detection
+          generate.rs                    main generate() dispatcher
+          bytecoded.rs                   registry-backed codegen hooks
+      expr_ast.rs                        ExprNode, BinOp, UnaryOp, render_expr (C0)
+      expr_parser.rs                     Pratt parser: ExprToken → ExprNode (C1)
+      ir.rs                              Statement, Script, Procedure, Module (C0)
+      naming.rs                          normalise_var_name (C1)
+      ssa.rs                             Phi, SsaBlock, SsaFunction, dominators (C3)
+      types.rs                           TypeLattice, type_join (C5, re-exports TclType from registry)
+  tcl-registry/                          command registry — single source of truth (R0)
+    Cargo.toml
+    src/
+      lib.rs                             crate root, prelude
+      arg_role.rs                        ArgRole enum (12 variants)
+      arity.rs                           Arity { min, max }
+      traits.rs                          Traits bitflags (u64, 38 flags)
+      dialects.rs                        DialectSet bitflags
+      types.rs                           TclType (canonical home)
+      spec.rs                            CommandSpec, SubCommand
+      registry.rs                        CommandRegistry facade
+      hover.rs                           HoverSnippet, OptionSpec, FormSpec
+      side_effects.rs                    SideEffect, StorageType
+      hooks.rs                           typed LoweringHookId / CodegenHookId, ArgTypeHint
+      forms.rs                           command / subcommand form descriptors
+      taint.rs                           taint source/sink/sanitiser metadata
+      commands/tcl/*.rs                  one file per Tcl command (114 ported)
+      commands/irules/*.rs               one file per iRules command (1015 ported)
+  tcl-lsp-core/                          pure Rust LSP feature providers
+    Cargo.toml
+    src/
+      lib.rs                             feature module exports
+      folding.rs                         folding range provider
+      diagnostics.rs                     diagnostic projection helpers
+      symbols.rs                         document/workspace symbol providers
+  tcl-lsp-rust/                          transitional PyO3 binding crate
+    Cargo.toml
+    pyproject.toml                       maturin build backend
+    src/
+      lib.rs                             #[pymodule] tcl_lsp_rust
+      folding_binding.rs                 wrapper around tcl-lsp-core::folding
+  tcl-lsp-py/                            final public PyO3 API crate
+    Cargo.toml
+    pyproject.toml                       maturin build backend
+    src/
+      lib.rs                             #[pymodule] tcl_lsp_py
+  tcl-lsp-server/                        tower-lsp binary
+    Cargo.toml
+    src/
+      main.rs                            Tokio runtime + stdio transport
+      server.rs                          Backend implementation
+      document_store.rs                  ropey-backed async document state
+scripts/
+  build_zipapp.py                        _RUST_NATIVE_PACKAGES strip rule
+.github/workflows/ci.yml                 rust job + release wheel matrix
+Makefile                                 rust-build/test/lint/format
+tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
+```
+
+## Tracking `main`
+
+The rust workstream lives on a long-running `rust` branch that is
+*ahead* of `main` on rust-rewrite work and *behind* `main` on every
+other workstream landing in parallel (Python core, runtime/Zig,
+WASM AOT, vscode/config, release plumbing).  Because the two
+histories overlap on a small but load-bearing set of files —
+mostly the analyser, the registry, the IR/CFG/SSA passes, and the
+expression evaluator — we have to keep the rust branch's view of
+those files current with `main`, or the rust analyser silently
+drifts away from the canonical Python behaviour it is meant to
+mirror.
+
+This section is the living record of that drift.  Treat it as a
+work surface: every chunk should start by reviewing the
+**Outstanding** table below, porting whatever is required for the
+chunk's scope, and either resolving or re-scoping the row before
+moving on.  Empty is the goal.
+
+### Branch model
+
+Three file classes:
+
+- **rust-only** — files that exist only on the rust branch and
+  have no `main` counterpart.  The `rust/` Cargo workspace,
+  `Cargo.{toml,lock}`, `rust-toolchain.toml`, the three rust
+  docs (`docs/rust-rewrite*.md`, `docs/design/rust/`,
+  `docs/rust-optimiser-parity.md`), `core/compiler/rust_spans.py`,
+  `tests/test_rust_*.py`, `tests/test_tokens.py`,
+  `scripts/check_command_spec_coverage.py`.  These never need to
+  track `main` — they *are* the rust workstream.
+- **rust-modified** — files that exist on both branches but carry
+  rust-specific edits on the rust side.  The Python-side dispatch
+  shims (`TCL_LSP_RUST_OPTIMISER` / `_GVN` / `_INTERPROC` env
+  gates in `core/compiler/{optimiser/_manager,gvn,interprocedural}.py`),
+  the rust primary path in the four `core/parsing/` lexer-adjacent
+  files, the `rust-build` / `rust-test` / `rust-lint` /
+  `rust-format` targets in `Makefile`, the rust job in
+  `.github/workflows/ci.yml`.  Audits of these files have to
+  preserve the rust shim while merging in `main`'s parallel
+  changes.
+- **main-tracked** — everything else.  The rust branch carries
+  *no* edits here; it should always equal `main`'s content.  Any
+  divergence is either (a) unmerged main commits we still need to
+  pick up, or (b) a stale rust-side delta that should have been
+  pushed up to `main` instead.  Both are bugs the audit catches.
+
+### When to audit
+
+Run the audit at three trigger points:
+
+1. **Starting a new chunk on the rust branch.**  Before cutting
+   the chunk's `claude/<slug>` branch, run `git fetch origin && git
+   log --oneline origin/rust..origin/main -- core/ rust/ tests/` and
+   refresh the **Outstanding** table below if anything new has
+   landed on `main`.  If the chunk's scope overlaps an outstanding
+   row, port that row in the same PR (or split it out and land it
+   first); otherwise note "no overlap" and proceed.
+2. **Before any chunk that itself rewrites rust history**
+   (rebase-audit chunks, cleanup chunks that touch the workspace
+   root, etc.).  These chunks risk amplifying any drift, so the
+   table must be empty or every outstanding row must be either
+   landed or explicitly deferred-to-after-this-chunk in the chunk
+   description.
+3. **Whenever a `SYNC*` family is opened** (see below).  A
+   `SYNC*` family is the heavy-handed form of this audit — a
+   single audit point that batches dozens of `main` commits into
+   a tracked sub-chunk list.  The May 2026 family
+   (`SYNC-MAY26`) is the worked example.
+
+### Audit workflow
+
+```
+git fetch origin
+git log --oneline origin/rust..origin/main                                     # main commits not on rust
+git diff --name-only --diff-filter=M origin/main..origin/rust                  # rust-side diverged files
+git diff --stat origin/rust...origin/main -- core/ tests/test_rust_*.py        # in-scope file impact
+```
+
+For each `main` commit in the first list, classify by primary
+touchpoint:
+
+- **Out of scope** — runtime/Zig, WASM AOT, vscode, release,
+  pure-doc.  No Rust mirror exists; record and skip.
+- **In scope, low-touch** — registry table edits, single-file
+  bugfixes in a pass already ported to Rust.  Add a row to
+  **Outstanding** with the source commit + the Rust file(s) to
+  update.
+- **In scope, structural** — new pass, new IR variant, new
+  vocabulary enum, new analysis surface.  Add a row plus a
+  pointer to the Rust crate(s) that need extension; if the
+  extension is non-trivial, promote it to a numbered chunk in
+  the chunk log.
+
+Two catch-up modes, picked per chunk:
+
+- **Port-individually.**  Each outstanding row lands as its own
+  PR against `rust`, narrowly scoped, no force-push.  Default
+  mode.  Preserves chunk granularity and keeps open
+  `claude/*` PRs unaffected.
+- **Full rebase.**  Hard-reset the `rust` branch pointer to
+  `origin/main`, re-apply every rust-only file, re-apply the
+  rust shims into the new copies of rust-modified files, fix
+  any path renames `main` introduced (e.g. the
+  `core/analysis/analyser.py` → `_analyser/` split absorbed by
+  `SYNC-MAY26`), and force-push.  Used when (a) the
+  outstanding list has grown past ~15 in-scope rows, (b)
+  `main` has had a path-renaming refactor, or (c) the rust
+  branch is materially behind on infrastructure (Makefile
+  targets, CI matrix, toolchain).  Open `claude/*` chunk
+  branches all need to rebase afterwards (`git rebase
+  origin/rust && git push --force-with-lease`).
+
+### Outstanding
+
+Re-audited: 2026-06-12 against `origin/main`@`bfc636d2` (prior anchor
+`a287d4a6`, #586). First ordinary `git merge origin/main` since the
+`SYNC-JUN11-rebase` re-parenting — see the **SYNC-JUN12 family** below.
++2 `main` commits, both analyser-scoped: #592 (three read-before-set
+soundness bugs) is **already in parity** — the fixes were rust-first
+(landed in #591), so #592 is Python catching up to us; verified green
+in rust mode, no row. #587 (style-check FP suppressions) opens five
+in-scope rows — W105 single-bare-var body, W113 overridable
+library-procs, W201 prose/request-line path-concat, W212 braced
+indirect array-element, all single-predicate carve-outs in ported
+passes; plus **W216** (`${name}(idx)`), the only structural one — the
+brace-then-paren diagnostic has no rust home yet. W306 (also in #587)
+is already at parity. Tracked as `SYNC-JUN12-2`.
+
+Re-audited: 2026-06-01 (refresh) against `origin/main`@`59c770f6`
+(prior anchor `52726510`).  +4 `main` commits in a same-day flurry:
+#510 (inlay hints + new `infer_return_type` joining `CFGReturn`
+terminators), #508 (server-side reposition cache for moved
+procedures), #507 (compiler-explorer CLI / GUI install — out of
+scope, `EXP*`), #511 (cross-ecosystem dependency refresh —
+mechanical).  In-scope rows captured as `SYNC-MAY31-10` (#510) and
+`SYNC-MAY31-11` (#508 — closes with `S*`) in the family section
+below.
+
+Re-audited: 2026-06-01 against `origin/main`@`52726510` (prior
+anchor `7d8a4d8f`). +24 `main` commits; the majority are out of
+scope (release plumbing, CodeQL/security, Sublime/JetBrains/explorer
+front-ends, WASM runtime + Tcl 9 features in #482, the seven-concern
+Python reorganisation in #449 — already captured by the **Python
+source layout** section above).  New in-scope rows captured in the
+**SYNC-MAY31 family** below: #498 (parser/compiler algorithmic
+improvements + W210-W214 / W220-W211 / S100-S102 / O107 / T102 / W101
+precision fixes — the largest single landing since the rust branch
+was cut), #502 (info-exists / array-exists folding), #501 (W127 +
+BODY role on `clientside`/`serverside`/`after` nesting scripts),
+#480 (green token tree + shared tokenisation memo), #478 (centralised
+RPO + Cooper-Harvey-Kennedy idoms), #474 (switch `-regexp` →
+`IRSwitch` instead of `IRBarrier`), #473 (`ExprRaw` switch-subject
+read recovery for W214), #494 (folding ranges for backslash
+line-continuations), #475 (namespace-aware arity-suppression refinement).
+
+Re-audited: 2026-05-21 against `origin/main`@`7d8a4d8f` (prior
+anchor `01d83642`). +27 `main` commits; almost all out of scope
+(Zig/WASM runtime + emitter, JetBrains/explorer front-end, CI /
+release / CodeQL). New in-scope rows captured in the
+**SYNC-MAY21 family** below: #470 (range closing-delimiter
+widening), #468 (`-loop` / external `.tcl.stubs`), #460 (E003
+leading-option false positives), #464 (analyser diagnostic-range
+fixes). #461 (array-index rename) already landed on the Rust side;
+#469 (stdlib-prelude bundling) deferred to the codegen/`tcl-vm`
+workstream.
+
+Refreshed: 2026-05-19 (chunk-log + queue reconciliation
+after the SYNC-MAY26 family + SYNC-JUN-FRAME356-population +
+SYNC-JUN-CFG-upvar-info + C44-irules-flow + C43-partial
+landings carried by PR #389 — the prior 2026-05-19 refresh
+captured the in-scope `SYNC-MAY19-*` family but kept the
+chunk-log rows for SYNC1–SYNC10, C44, and C43 marked
+`planned`).  Re-audited against `origin/main`@`01d83642`,
+`origin/rust`@`c99ba1f8`; previous anchor was
+`33ba8df7` / `a76977a2`.
+
+`main` carries 186 commits past the last rust-side rebase
+point.  Since the previous anchor (`a76977a2` / #378) +75 PRs
+have landed — five releases (v1.8.1 → v1.10.5), the
+`f5 query` jq DSL feature stack (#405 / #411 / #412 / #418),
+the multi-folder dialect + extraCommands + libraryPaths +
+style.nonAscii LSP work (#407+#408), Tcl 9.0 ensemble + const
+variables (#428), the Tcl 9.0 command sweep + per-option
+dialect gating + W003/W004 diagnostics (#433), bytecode-
+identity parity (#393), editor packaging across JetBrains /
+VS Code / Zed / Helix / Neovim / Sublime, supply-chain CI
+hardening, and a long tail of Tcl 9 WASM-runtime / codegen
+fixes (#381 / #382 / #384 / #390 / #391 / #413 / #426 / #430-
+runtime).  Note: histories between `rust` and `main` diverge
+fully (`git merge-base origin/rust origin/main` returns
+nothing) — "resync" here means the **per-file audit** the
+sections above describe, not a git rebase.
+
+The bulk of the new commits are out of scope.  Grouped by
+exit point (so future sweeps don't re-investigate each row):
+
+- **Zig WASM runtime / WASM emitter** (≈ 35 PRs) — #381
+  Tier-5 `string is` / `format` parity, #382 Tier-2 trap
+  stems (parse / error / cmdAH / cmdIL / list / proc-recurse
+  watchdog), #384 for/mathop control flow + shift count cap,
+  #390 dynamic var names in WASM codegen, #391 array-ref
+  codegen + 9.0 bytecode refs, #393 bytecoded codegen
+  (`_cmd_subst.py` / `_emitter.py` / `bytecoded/*.py` —
+  only `cfg.py` + `lowering.py` are in scope, tracked
+  below), #413 Tcl 9 tcltest WASM sweep baseline + codegen
+  fixes, #426 `string` / `list` / `array` / `namespace`
+  codegen + runtime parity, #428-runtime ensemble + const +
+  `info args` AOT raw-bytes sidecar + array-set parent-ns
+  check, #430-runtime `info default` raw-bytes / empty-name
+  proc lookup / `info library` / `info_dispatch`
+  abbreviation, #433-runtime Tcl 9.0 stub registrations.
+  Mirror is the Zig workstream + future Rust WASM emitter;
+  none of these have a Rust analyser hook.
+- **LSP server, editors, config** — #407+#408 per-workspace-
+  folder dialect / extraCommands / libraryPaths
+  (analyser-side `_diag_var_command.py`, `checks/_domain.py`,
+  `checks/_style.py`, and `lexer.py` ContextVar wiring are
+  in-scope and tracked below; the LSP plumbing closes with
+  `S*`), #414 per-folder config race, #415 eglot painter
+  tolerance, #416 JetBrains 2024.1+ compat, #427 config
+  precedence + `[global]`/`[project]` sections, #438
+  JetBrains LSP restart on settings change.  All close with
+  `S*`.
+- **BIG-IP / `f5` verb stack** — #392 M2-M5 verbs (stats,
+  graph, explain, diff, validate, lint, fetch, extract,
+  pull, push, convert, rename, redact, split, merge), #395
+  enrich-pcapng / enrich-wireshark, #396 explain-pcap, #397
+  LTM policy parser, #398 explain-flow as Claude skill,
+  #399 `f5 irule` format/minify/context verbs, #403 tmsh in
+  `f5 diff`, #404 shell-completion verb cleanup, #405 +
+  #411 + #412 + #418 jq-flavoured `query` DSL + typed BIG-IP
+  registry, #406 BIG-IP port-name resolution, #410-stub-kcs
+  KCS docs.  Close with `BIG*` / `F*` / `AI*`.  None touches
+  `core/parsing/` / `core/compiler/` / `core/analysis/_analyser/`
+  in a rust-mirrored way.
+- **Release plumbing, CI, supply-chain** — v1.8.1 / v1.9.0
+  / v1.10.0-#5 version bumps + release notes (#387, #388,
+  #389, #394, fa635fe, 8130e479, etc.), #416 + #425 +
+  #436 + #437 marketplace publishing, b6aa00e7 + #431 CI
+  checkout / scorecard SHA fixes, #419 GitHub Actions
+  hardening, #434 `ty==0.0.37` + TS 6.0 + gradle bumps,
+  bbd01dc5 installer smoke test, ceb97883 + d612e683
+  `probePython` discovery hardening, 397312ec + 46cbcfd5
+  JetBrains plugin polish, c24f48a2 multi-editor publishing.
+  Mechanical; no Rust mirror.
+- **Tests, docs, KCS** — #401 + #402 + #417 install /
+  scripts docs, #410-kcs-docs annotate-commands-with-stubs +
+  add-command-registry-package KCS pages, #406 + #421
+  cookbook docs, 0cfa61d1 sysadmin queries.  Docs only.
+
+In-scope after the 2026-05-19 reconciliation against
+`origin/rust`@`c99ba1f8` — the SYNC-MAY26 family
+(SYNC1–SYNC10), SYNC-JUN-FRAME356-population, the core half
+of SYNC-JUN-CFG-upvar-info, the full nine-code C44-irules-flow
+emitter set, and C43-partial (`_barrier_gate` + structured-
+hook-ID stamping) all landed via PR #389.  Both halves of
+`SYNC-JUN-CFG-uplevel-literal-set` (direct-call + embedded-
+substitution) landed in follow-up commits on top of the upvar-
+info core module: `UpvarInfo::caller_side_defs` +
+`CfgBuilder::apply_upvar_invalidation` + the embedded-form
+text scan via `upvar_defs_from_text` / `words_from_text` +
+the synthetic `<upvar-invalidate>` Call prepended before
+`AssignValue` hosts.  The remaining outstanding rows below
+carry the open `SYNC-MAY19-*` work blocking on `S*` plus the
+deferred bytecode-codegen flag.
+
+| Status | Source on `main` | Scope summary | Rust mirror to update | Suggested chunk handle |
+|---|---|---|---|---|
+| substantially landed — strips 1-6 (`S*`) | `7a9f9b36` (#407+#408) | **Per-folder dialect ContextVar for lexer.** Python `core/parsing/lexer.py` replaced the class-level `expand_syntax` / iRules-brace flags with per-request resolution: `_expand_syntax_active()` reads `_dialect_var` (a registry `ContextVar`) and intersects it with `dialects_since("tcl8.5")`; `_irules_brace_separator_active()` reads it too; `expand_syntax_disabled_scope()` is a thread-local override the VM's `subst` machinery uses to disable `{*}` expansion regardless of dialect.  `core/analysis/checks/_style.py` does the same for `_non_ascii_mode` (W108) via `non_ascii_mode_scope`.  **Rust mirror gap (constructor landed, wiring not — pinpointed 2026-06-04):** the `LexerConfig::for_dialect(&str)` constructor now exists in `rust/tcl-lexer/src/lexer.rs` (sets `expand_syntax` off for 8.4 / iRules, `irules_brace_separator` on for iRules) **but has zero callers anywhere in the workspace.**  The real lex site that ignores dialect is the **analyser's segmenter** — `rust/tcl-compiler/src/segmenter.rs::segment_commands_local` builds `LexerConfig::default()` unconditionally — not the server document-state builder, so the earlier "call it from the document-state builder" plan was misdirected and the "no analyser-crate changes" note was wrong.  The server resolves the per-folder dialect only into `registry_for_dialect`; the lexer flags never follow.  **Strip 1 (2026-06-04) closed this for the primary analyser path** (see the priority-6 queue row): `segment_commands*` gained `_and_config` variants, `Analyser::lexer_config()` derives the config from `self.dialect`, and the top-level + body + OO segmentation sites use it; the server already passed `doc.dialect` into `analyse()`, so analyser-based features are now dialect-aware end-to-end.  **Strip 2 (2026-06-05) closed the free-fn analyser sites**: `param_traits` got `infer_param_traits{,_deep}_with_config` (existing fns delegate with the default) threading `config` through `scan_commands` / `scan_deep` / `extract_commands`, called from `handlers.rs` with `self.lexer_config()`; the `diagnostics.rs` W304 set-finder was threaded for consistency.  **Strips 3-6 (2026-06-05) closed the rest**: lowering (`Lowerer` config + `lower_to_ir_with_config` / `build_for_with_config`, wired through `optimise_*`), `interprocedural`, and **all eight `tcl-lsp-core` LSP feature modules** (`semantic_tokens` / `folding` / `inlay_hints` / `document_links` / `references` / `rename` / `call_hierarchy` / `code_lens`) — each with a `dialect` param and server wiring.  Every direct `segment_commands*` site is now dialect-aware; only the documented dialect-insensitive leaves (lowering free-fns, `optimiser::elimination`, `place_bridge`, `specialise_factories`, W304) and the no-production-caller `signature_scan` / `analyse_chunked` reparse remain on the default.  W108's `non_ascii_mode` has no Rust mirror at all (the W108 check itself is not yet ported). | `rust/tcl-lexer/src/lexer.rs` — `LexerConfig::for_dialect(&str)` constructor **(done)**; `segment_commands*` `_and_config` wiring + threading through the analyser (strips 1-2), the lowering / optimiser pipeline (strips 3-4), and all eight LSP feature modules (strips 5-6) — **all done**.  Per-dialect regression covered by `e003_arity_is_dialect_aware_via_expand_syntax` + `config_variant_threads_dialect_expand_syntax` + `trait_inference_is_dialect_aware_via_expand_syntax` + `lowering_is_dialect_aware_via_expand_syntax` + `semantic_tokens_are_dialect_aware_via_expand_syntax`.  W108: closes with the `_style.py` port (no separate row needed). | `SYNC-MAY19-dialect-contextvar` |
+| landed | `7578a480` (#410) | **Stub signature overlay + deep param-trait inference — all three sub-strips landed.** (a) **Landed via `6487a4f`** — `rust/tcl-registry/src/stub_overlay.rs` carries `StubOverlay` + `StubSig` + `StubArg` + `StubSigFlags` (bit layout identical to `analyser::types::StubFlags`); `StubCommandDef::to_stub_sig` and `build_stub_overlay` glue analyser records to the overlay; `Analyser::stub_overlay` populates during `analyse()`; `infer_param_traits` / `_deep` thread it through, unioning the registry's and overlay's role tables.  Includes subcommand-stub / dynamic-resolver hooks (the `_args` parameter on `StubOverlay::arg_indices_for_role` is reserved for that follow-up).  (b) `scan_expr_for_calls` ExprBinary/ExprString + BODY recursion landed 2026-05-19.  (c) **Landed via `c945baa`** — `infer_param_traits_deep` + `merge_traits` ported with `MAX_DEPTH = 8`; `Analyser::deep_param_traits` plumbed through `handle_proc_command`.  Cache-key integration of `StubOverlay::fingerprint()` lands alongside the `S*` call-graph / interproc summary builders. | landed | `SYNC-MAY19-stub-overlay` |
+| open (deferred) | `0fc2d6a9` (#393) | **Switch fallthrough → STR_EQ chain for bytecode `jumpTable`.** `core/compiler/cfg.py::_CFGBuilder` adds an `expand_fallthrough_switch` constructor flag.  When true, `-exact` switches whose arms include fallthrough (`a - b - c {body}`) are lowered to a real STR_EQ dispatch chain so the bytecode codegen can fold it into a `jumpTable` instruction; WASM keeps the IRSwitch statement form because the multi-predecessor shared-body topology can't be expressed in WASM structured control flow.  **Rust mirror gap:** `rust/tcl-compiler/src/cfg.rs` + `cfg_builder/` carry no `expand_fallthrough_switch` flag.  **Defer until a Rust bytecode codegen exists** — the Rust path doesn't emit Tcl bytecode today (only WASM via codegen + the in-process IR), so the flag has no consumer.  The companion `lowering.rs` Var-token const-map extension landed under `SYNC-MAY19-proc-body-const-map` (committed 2026-05-19). | `rust/tcl-compiler/src/cfg.rs` + `cfg_builder/` — add the `expand_fallthrough_switch` flag once a Rust bytecode codegen is added. | `SYNC-MAY19-switch-fallthrough-cfg` |
+
+Three `SYNC-MAY19-*` rows remain open after the 2026-05-19
+sweep landed nine of the original eleven gaps as PR-sized
+commits (`SYNC-MAY19-surrogate-pair`, `-word-piece-array`,
+`-empty-name-proc`, `-tail-call-dialect`, `-proc-body-const-map`,
+`-option-dialects`, `-tcl9-commands`, `-foreachLine-lowering`,
+`-W003-W004`, and `-stub-overlay` sub-strip (b)).  The
+`SYNC-MAY19-dialect-contextvar` row is now **substantially landed**
+(strips 1-6, 2026-06-04/05): the server already threaded the
+per-folder `doc.dialect` into `analyse()`, so the work was to carry
+that dialect into every `segment_commands*` re-segmentation across
+the analyser, lowering / optimiser pipeline, and the eight LSP
+feature modules; the `-stub-overlay` (a)+(c) sub-strips also landed
+(`6487a4f` / `c945baa`).  The `-switch-fallthrough-cfg` row is
+deferred until a Rust bytecode codegen exists.
+
+The two remaining `SYNC-JUN-*` rows above carry the wiring
+half of the upvar / literal-set work; the `SYNC-JUN-FRAME356-
+population` row closed (landed via PR #389 — `EscapeState` and
+`CfgState` now carry `barriers: Vec<Barrier>` + `tag_reasons:
+HashMap<String, Vec<EscapeReason>>` populated by `record_barrier`
+/ `escape_with_reason` calls at the informative `handle_upvar`
+/ `handle_info` / `handle_dynamic_name_first` / `handle_eval`
+/ `{*}`-expand sites, with `analyse_script` copying both into
+`ProcEscapeSummary`).
+
+When `main` next force-pushes a rebase point or when this list
+crosses the ~15-row threshold, open a fresh `SYNC*` family
+section in the chunk log (mirror `SYNC-MAY26`'s shape) and link
+it from the **Outstanding** rows it absorbs.
+
+## SYNC-MAY21 family — main audit (2026-05-21)
+
+Re-audited `origin/main`@`7d8a4d8f` against the prior anchor
+`origin/main`@`01d83642` (the 2026-05-19 refresh point). `main`
+landed **27** commits since then. The histories still diverge
+fully (no merge-base), so this is the per-file audit, not a git
+rebase.
+
+The large majority are **out of scope** (no Rust mirror — record
+and skip), grouped by exit point:
+
+- **Zig / WASM runtime + WASM emitter** — #443 (Tcl 9 `string`
+  semantics), #447 (`list` validation + `lsearch` bisect, all in
+  `codegen/wasm/_emitter`), #451 (alias-loop detection +
+  cross-interp upvar — entirely in the WASM emitter), #452 (expr
+  error messages + boolean context — WASM emitter), #453 (TclObj
+  refcount leaks), #456 (mathop → `tcl_arith` delegation), #457
+  (`return -code break/continue` through compiled proc calls),
+  #439 (`fire_in_list` trace double-free), #462 (`zig fmt`), #444
+  (double-free counters / sample capture), #469 (`uplevel -0`
+  signed-level parsing + variable traces through `upvar` aliases —
+  all in the Zig interp / WASM emitter).
+- **Editors / JetBrains / explorer front-end** — #448, #450,
+  #467, #260-era plugin fixes, and the explorer-serialiser half of
+  #470.
+- **CI / release / security** — #440 + #445 + #117 (CodeQL gate +
+  alert fixes), #442 / #463 / #465 (release notes), #466 + #073
+  (CI Zig setup), #459 / #076 (build-artefact ignores), #446
+  (`RedactReport` field rename — redaction isn't ported).
+
+**Forward dependency (not yet actionable):** #469 also adds
+`core/compiler/stdlib_prelude.py` (a 502-line bundle of stdlib proc
+definitions wired into `wasm_link` at compile time). There is no
+Rust codegen/VM mirror to attach it to today, but an equivalent
+stdlib prelude will be needed when bytecode **codegen** completes
+and **`tcl-vm`** lands — track it there, not as a standalone row.
+
+In-scope rows (mirror these into the Rust workstream):
+
+### SYNC-MAY21-1 — Highlight / selection ranges drop closing delimiters (#470)
+
+`main` fixed braced/quoted word ranges that dropped their closing
+`}` / `]` / `"`. Root cause is the codebase's "inner-end" range
+convention (the closer is excluded; the optimiser, SCCP,
+structure-elimination, code-sinking and minifier all rely on it),
+so the fix lives in the **consumers**, not in lowering: the
+explorer serialiser and `textDocument/selectionRange` now widen to
+the closer (`widen_range_for_closer` / `widen_for_highlight`), and
+the segmenter's whole-command range now includes its last word's
+closer via a token-tree `range_from_word_token`.
+
+This is the same convention the Rust side hit in the `${arr(idx)}`
+rename work — the lexer's `Var` token span excludes the closing
+brace. **Rust mirror:** `tcl-compiler::segmenter` whole-command
+range should include the last word's closer. The audit on `main`
+confirmed hover (no range), folding (line-based), and semantic
+tokens (length-encoded) are unaffected — so scope is
+selection-range + segmenter range only. Classify: in-scope,
+low/medium. Files: `selection_range.rs`, `segmenter.rs`, the span
+→ LSP-range helpers.
+
+**Landed (segmenter) — `claude/tcl-lsp-rust-rewrite-lNRRS`.**
+`segmenter.rs` now derives the whole-command span via a new
+`command_span` / `widen_word_end` pair (mirroring Python's
+`_command_range` → `range_from_word_token`): the final word's
+exclusive end is extended by one byte when the last token is a
+`Str` / `Cmd` whose closer (`}` / `]`, derived from the token
+*type*) sits at `span.end()`. The single source byte at
+`span.end()` is inspected only to skip the degenerate `{}` / `[]`
+forms, whose span already covers the closer (the lexer extends
+those by one). Tests: braced / bracketed / multi-line / degenerate
+/ plain-word final words.
+
+**`selection_range` — no applicable hook (divergence noted).** The
+doc premise above ("`tcl-lsp-core::selection_range` … currently
+builds `Range(tok.start, tok.end)` raw") describes the *Python*
+structure. The Rust port diverged: its chain is word-at-cursor →
+single-line `;`-aware command-segment scan → line → enclosing
+bodies → document, and **none** of those links is built from a raw
+lexer `Str` / `Cmd` token — so none drops a closer (the line scan
+already runs to the `;` / EOL, past any closer). The closer-drop
+fix Python applies to its per-argument *token* link therefore has
+nothing to attach to until the deferred token-based command-segment
+machinery lands (tracked under `S-signature-help-rich`); when that
+strip ports the per-argument link, it must widen those token ranges
+to the closer (use a `widen_range_for_closer`-style helper).
+
+### SYNC-MAY21-2 — `-loop` stubs + external `.tcl.stubs` files (#468)
+
+New stub-overlay capability: ingest external `.tcl.stubs` files
+and support `-loop` stub forms. Threaded through the analyser core
+(`_analyser/_core`, `_diag_commands`), `checks/_domain`,
+`stub_comments`, `registry/{runtime,signatures}`,
+`compilation_unit`, and `lowering`. **Rust mirror:** the
+`StubOverlay` already consumed by `param_traits` /
+`resolve_arg_roles` needs the external-stub-file ingestion path and
+the `-loop` stub form, plus the `tcl-registry` signature side.
+Classify: in-scope, **structural** → promote to a numbered chunk
+when the analyser-core port (C41) reaches diagnostics.
+
+**Verified Rust state (2026-05-21, branch
+`claude/tcl-lsp-rust-rewrite-lNRRS`).** The inline `-loop` stub
+*flag* is **already present**: `tcl-registry::stub_overlay`
+declares `StubSigFlags::LOOP` (bit 1) and the analyser parses /
+carries it onto each `StubSig`. What #468 actually adds on top of
+the flag is **structural and still blocked**:
+(1) routing a `-loop` stub call through real loop *lowering* (the
+Python `_lower_stub_loop`) so the loop variable stays defined and
+the body is analysed in iteration order — the Rust lowering's
+structured-hook dispatch doesn't yet consult the stub overlay for a
+loop shape; (2) external `.tcl.stubs` *file* ingestion + the ambient
+(cross-file) stub scope + bounded workspace discovery + the
+W002/W123 interplay + cache-fingerprint merge + subprocess-pool
+forwarding — none of which has a Rust home yet (workspace stub
+discovery lives in the not-yet-ported LSP-server/workspace-state
+layer). Net: the overlay data model is ready; the loop-lowering and
+workspace-ingestion consumers ride with C41 / the `S*` server port.
+
+### SYNC-MAY21-3 — E003 false positives: switches before positional args (#460 / #455)
+
+`_with_roles` dropped a command's declared `leading_options` when
+merging a `CommandSig` role hint, so leading switches (`regsub
+-all`/`-line`, `vwait -variable`) were counted as positional args
+and tripped a false E003 "too many arguments". The fix also
+dialect-filters `leading_options` (`switch_names()` threaded with
+the dialect) so 9.0-only switches (`vwait -variable`, `regsub
+-command`) don't leak into 8.x signatures and get wrongly skipped
+during arity counting. **Rust mirror:** the registry role-hint
+merge + dialect-scoped switch filtering in `tcl-registry`, and the
+E003 arity check (`compiler_checks` / analyser arity validation).
+Classify: in-scope, low-touch.
+
+**Landed — `claude/tcl-lsp-rust-rewrite-lNRRS`.** The Rust analyser
+had **no general arity emitter at all** (no live `E001`/`E002`/`E003`
+— the only prior `E002` occurrences were test fixtures for the E101
+de-dup pass), so this row ported the simple-command arity check from
+scratch rather than mirroring a 3-line Python delta:
+
+- **`tcl-registry`:** `CommandSpec::switch_names(dialect)` mirrors
+  Python's `models.py::switch_names` — declared option names across
+  `options` + `command_forms[].options`, dialect-filtered via
+  `OptionSpec::supports_dialect`, deduped in declaration order.
+- **`analyser::dispatch`:** `CommandSig` gains `leading_options:
+  BTreeSet<String>`, populated from `switch_names(Some(dialect))` for
+  the simple branch (the SubcommandSig branch leaves it empty —
+  per-subcommand arity is a follow-up).
+- **`analyser::diagnostics`:** `emit_arity_diagnostics` mirrors
+  `_check_simple_arity` — skip leading declared options (dialect-
+  filtered), then compare the positional count to the arity bounds
+  (E002 too few / E003 too many). `{*}`-expanded words are excluded
+  from the positional lower bound (expansion threaded through
+  `process_command`), exactly as Python does.
+- **Post-walk flush + shadowing guard:** candidates are collected
+  during the walk and emitted in `flush_arity_diagnostics` (called
+  beside `emit_unresolved_command_diagnostics`), which drops any
+  command name shadowed by a user proc / class / alias / ensemble /
+  inline stub. This is **ahead of Python's inline check** and was
+  driven by validation (below): without it, a namespace that defines
+  `proc ::ns::close {...}` and calls `close ...` with the proc's
+  wider arity false-fired E003 against the *builtin* `close` arity.
+  The post-walk timing makes the guard order-independent (the proc
+  may be defined after its call site).
+
+**Validation.** Analysed the full Tcl 8.6 standard library and the
+entire tcllib 2.0 module tree with the live `tcl8.6` path:
+**0 E002/E003 false positives** in both (the 2 tcllib hits found in
+an intermediate build — both `::websocket::close` — were what
+motivated the shadowing guard, and are gone). Regression tests cover
+the #455 leading-switch cases (`regsub -all …`), #460 dialect
+filtering (`regsub -command` 9.0-only), genuine over/under-arity,
+and `{*}`-expansion suppression.
+
+**Documented parity gaps (intentional):** (1) like Python's name-only
+`leading_options`, the *value* of a value-taking leading option is
+not skipped (Python's value-aware `skip_options` is used only for
+arg-role resolution, not arity); (2) statically-resolvable literal
+`{*}` expansions are not refined to their element count — the
+conservative form can miss a genuine over-arity but never invents a
+false positive; (3) subcommand-dispatch arity is deferred (W001
+already covers unknown subcommands).
+
+**Out-of-scope finds (pre-existing, flagged):** the analyser stack-
+overflows on `tcl8.6.16/library/http/http.tcl` and hangs on a few
+tcllib files (`fumagic/filetypes.tcl`, `nettool/*`,
+`textutil/build/*/wcswidth.tcl`) — unrelated to arity (a flat
+emitter can't recurse); worth a separate investigation.
+
+### SYNC-MAY21-4 — Analyser diagnostic-range coverage + product fixes (#464)
+
+Test-suite hardening for diagnostic-range coverage surfaced real
+product fixes across `_analyser/{_diag_var_lifecycle,_oo,_proc,
+_scope,_utils}` and `checks/_bounds` (diagnostic span accuracy +
+the var-lifecycle / OO / proc / scope behaviours the new range
+tests exposed). **Rust mirror:** fold into the in-progress
+analyser-core port (C41) — diagnostic spans plus the specific
+lifecycle/scope fixes. Classify: in-scope, medium; tracked under
+C41.
+
+**Partially landed — `claude/tcl-lsp-rust-rewrite-lNRRS`.** One
+concrete, already-ported piece was mirrored: **W302** (catch without
+result var) now anchors at just the `catch` command token instead of
+the whole `catch {…}` statement (which also dropped the closing brace
+under the lexer's inner-end convention) —
+`emit_w302_catch_no_result_var` uses `cmd_tok.span`; test updated to
+assert the narrow span.
+
+The remaining #464 range-narrowing is **blocked / architectural**:
+- **W210 / W211** (read-before-set, set-but-never-used) are not ported
+  to `tcl-compiler::analyser` at all — part of the var-lifecycle
+  surface still under C41.
+- **W213 / W220** *are* live but emit from the CFG/SSA pass with
+  `stmt.span()` (whole statement); narrowing them to the variable
+  token needs the target-variable token span plumbed through the IR
+  statements / SSA use-sites — an IR/lowering change, not a local
+  emitter tweak. Fold into C41.
+- The refactoring-fidelity fixes (extract-variable `[expr {…}]`
+  wrapping, token-based inline-variable, inline-proc brace
+  preservation, extract-proc edit-overlap merge) live in the
+  refactoring/code-action subsystem (`tcl-lsp-core`), a separate
+  chunk from the analyser-core port.
+
+### SYNC-MAY21-5 — Preserve array indices when renaming base variables (#461)
+
+**Already landed on the Rust side this session.** `main`'s #461
+patched `lsp/features/rename.py` to keep `$arr(idx)` indices when
+renaming the base array variable; the Rust port did the same in
+`tcl-lsp-core::rename` (`build_var_ref_replacement` preserves the
+array suffix) **and** went further to cover the braced `${arr(idx)}`
+form in both the replacement and cursor resolution
+(`hover::braced_var_around`). No action — recorded for traceability;
+Rust is at or ahead of `main` here.
+
+## SYNC-MAY31 family — main audit (2026-05-31)
+
+Re-audited `origin/main`@`52726510` against the prior anchor
+`origin/main`@`7d8a4d8f` (the 2026-05-21 refresh point). `main`
+landed **24** commits since then — including the seven-concern
+Python reorganisation (`#449`, already captured by the dedicated
+**Python source layout** section near the top of this document) and
+the largest single product PR since the rust branch was cut (`#498`,
+165 commits of parser/compiler algorithmic work squashed into one
+landing).  Histories still diverge fully (no merge-base), so this
+remains a per-file audit, not a git rebase.
+
+The bulk of the new commits are **out of scope** (no Rust mirror —
+record and skip), grouped by exit point:
+
+- **Release / version bumps / CI / supply-chain** — `f1b58f06`
+  (v1.10.10 notes), `daedf8d6` (pre-release fixes: test-ext flake,
+  CodeQL, npm vulns), `9bd83a4f` (v1.10.9 notes), `281cb0be`
+  (publish-script ROOT path), `0e63f6c9` (CI duplicate jobs), `733df928`
+  (v1.10.8 notes), `eb38223f` (CodeQL alerts + npm pinning +
+  `esc()` hardening), `308d5247` (dependency / GHA upgrades).
+  Mechanical; no Rust mirror.
+- **f5 / query / editor / explorer** — `647fc482` (f5/query ping
+  fallback — `tooling/f5/query/` Python only), `2a371ebf` (Sublime
+  Text key bindings + context menu), `67ed9b97` + `40d3f1f1`
+  (compiler-explorer LSP server wait — `tooling/explorer/`).  All
+  close with `F*` / `EXP*` / editor-specific chunks.
+- **Zig WASM runtime + WASM emitter** — `#482` execution traces /
+  array defaults / Tcl 9 features lives almost entirely in the
+  Zig interp + WASM emitter (`source -encoding/-nopkg`, child interp
+  `Tcl_Init`, `Tcl_VarTraceInfo` round-trip, array element defaults
+  in the runtime).  Mirror is the Zig workstream + the future Rust
+  WASM emitter; none of it has a Rust analyser hook.
+- **Docs / KCS / package reorganisation** — `#449` (seven-concern
+  Python tree split — captured by the **Python source layout**
+  section above; the old `core/`/`lsp/`/`vm/` paths in earlier
+  chunk-log rows map through the table there), `52726510` (FP.md
+  catalog + Doc 2-5 review-finding closures).  No code change in
+  rust-mirrored modules.
+
+In-scope rows (mirror these into the Rust workstream):
+
+### SYNC-MAY31-1 — Parser/compiler algorithmic improvements (#498)
+
+The largest single landing since the rust branch was cut: 165
+squashed commits delivering Phases 0-9 of the parser/compiler
+algorithmic work plus a long tail of precision fixes across W210 /
+W213 / W214 / W220 / W211 / S100-S102 / O107 / T102 / W101 / W105 /
+W242.  **Rust mirror cost:** this is a structural multi-strip port
+(its own SYNC family by the time it lands).  Several of the items
+land in Rust *only* with the analyser-core port (C41) or the
+`S*` LSP-server work; record the structural pieces here so the chunk
+plan picks them up explicitly.
+
+Structural new surfaces (no Rust mirror today):
+
+- **Phase 3 — interval domain + dynamic bounds (W230-W233).**
+  `compiler/intervals.py` adds an integer-interval abstract domain
+  (CONST/RANGE/OVERDEFINED lattice with loop-header widening +
+  guard-driven narrowing); `compiler/interval_bounds.py` carries
+  per-SSA-version literal list-length + string-length maps;
+  `_analyser/_diag_interval_bounds.py` emits W230 (lindex smell),
+  W231 (lset error / append-slot-aware), W232 (string index out of
+  range), W233 (divide-by-zero — including forced-arm
+  detection through constant guards on `&&` / `||` / `?:`).  **Rust
+  mirror:** new `tcl-compiler::intervals` + `tcl-compiler::interval_bounds`
+  modules + W230-W233 emitters in `analyser/diagnostics.rs`.  Tracked
+  as a multi-strip port; classify in-scope, structural.
+  **(GAP-AUDIT-JUN05 §E2 clarifier, 2026-06-05):** these three files
+  (`compiler/intervals.py` / `interval_bounds.py` /
+  `_diag_interval_bounds.py`) and `W233` are **main-side and not
+  present in the rust-branch tree** — and W233 is not in this tree's
+  `shared/codes.py` catalog.  The bounds checks actually shipping in
+  this tree are the token/regex `checks/_bounds.py` (W230-W232 +
+  W240-W242, no W233 — see **GAP-A4**).  The C41d3/d4 file→code map
+  (below) compounds this: it assigns "W230..W239" to
+  `_diag_var_command.py` and "W120..W122 / W242" to
+  `_diag_commands.py`, but in this tree those files emit only
+  W002/W307/W308 and W123.  Port `checks/_bounds.py` for present-tree
+  parity; the interval domain is the later main-parity target.
+- **Phase 8 — place model + ARRAY_ELEM precision (8A/8B/8E/8G).**
+  `compiler/place.py` adds a `Place(kind, ns, name, index, keys,
+  owner, observed, dynamic)` value with `PlaceKind ∈ SCALAR /
+  ARRAY_ELEM / ARRAY_WHOLE / DICT_PATH / INSTANCE_VAR / UPVAR_ALIAS
+  / UNKNOWN`, an overlap relation, and `places_read_to_form`;
+  `compiler/var_resolve.py` adds a `resolve_place` + `ResolveContext`
+  pair mirroring `lowering._canonicalise_command`; `compiler/place_bridge.py`
+  threads the model through `def_places` / `read_places` /
+  `terminator_read_places`.  Refines `set a(k) 1; set a(j) 2; puts
+  $a(k)` so `a(k)` no longer false-fires dead-store (W220 −88, W211
+  −2, O109 −66).  **Rust mirror:** new `tcl-compiler::place` +
+  `tcl-compiler::var_resolve` modules; the W220 / W211 / O109
+  emitters reroute through `places_read_to_form` instead of plain
+  variable-name comparison.  Classify in-scope, structural — fold
+  into the C41 analyser-core port or land as its own follow-up.
+
+  **Landed (rust) — `SYNC-MAY31-1b`, complete.**  Per the
+  `docs/design/compiler/phase8-place-migration.md` ledger, the headline
+  ARRAY_ELEM precision win on `main` was achieved with the *suppress-only*
+  `overlap` relation + the 8E refinement, **without** the full 8F versioned
+  substrate — so the Rust port mirrors that: port `place` / `var_resolve`
+  / `place_bridge`, then reroute the W220 / O109 consumers through
+  `overlap` (W211 / O126 turned out to already be at parity — see below).
+  Staged, output-equivalent until the consumer reroute:
+  - **Stage 1 (done): `tcl-compiler::place`.**  Faithful port of
+    `place.py` — `Place` / `Index` / `PlaceKind` / `IndexKind`,
+    constructors, `base` / `is_global`, the over-approximating `overlap`
+    (with the 8E dynamic-*index*-vs-dynamic-*alias* split), and
+    `places_read_to_form`.  Self-contained (stdlib only); 13
+    discriminating unit tests including the `a(k)` ≠ `a(j)` disjointness
+    and the gregorian-style dynamic-alias precision case.  No consumer
+    wired yet → corpus byte-identical.
+  - **Stage 2 (done): `tcl-compiler::var_resolve`.**  Faithful port of
+    `var_resolve.py` — `ResolveContext`, `resolve_place` (scalar /
+    array-elem / whole-array / dynamic-name → UNKNOWN), and
+    `resolve_dict_path`, reusing a new `naming::split_array_name` and the
+    existing `VarReferenceScanner` for dynamic-index/name reads.  11 unit
+    tests (local/global/ns binding, literal vs dynamic element, upvar
+    alias owner, trace→observed, the `a(k)`≠`a(j)` resolve→overlap
+    integration).  No consumer wired yet → output-equivalent.
+  - **Stage 3 (done): `tcl-compiler::place_bridge`.**  Faithful port of
+    `place_bridge.py` — `build_resolve_context` (scans the CFG for
+    `global` / `variable` / `upvar` / `trace` decls), `def_places`,
+    `read_places` (element-granular `$`-refs via a new
+    `var_refs::scan_var_ref_forms` *forms* scanner; VAR_READ-role name
+    args incl. whole-array `array get`; `places_read_to_form` for
+    dynamic index/name reads; structural proc/method bodies skipped by
+    reusing `ssa::structural_body_indices`), and `terminator_read_places`
+    (branch conditions + non-braced returns).  New helpers:
+    `var_refs::{scan_var_ref_forms, command_subst_texts}` and
+    `ExprNode::command_texts`.  5 bridge tests + helper tests, including
+    the end-to-end check that `set a(k) 1; set a(j) 2; puts $a(k)`
+    produces an `a(k)` def observed by a read while `a(j)` is observed by
+    none.  No consumer wired yet → output-equivalent.
+  - **Stage 4 (done): reroute the W220 dead-store consumer through
+    `overlap`.**  Both the analyser (W220) and the optimiser (O109 —
+    `Eliminate dead store`) now consult one shared helper,
+    `place_bridge::element_writes_observed_by_reads`: for each function it
+    builds the `ResolveContext`, collects every read place (statements +
+    terminators), and reports each **array-element / dict-path** write
+    whose def place `overlap`s a read.  The consumer then suppresses those
+    candidates.  Scalars keep their precise name-level verdict (the
+    suppression is element-granular only), and a cheap "has array-element
+    assign" pre-check keeps non-array functions cost-free.  So
+    `set a(k) 1; set a(j) 2; puts $a(k)` no longer false-fires W220/O109 on
+    `a(k)`, while `set x 1; set x 2; puts $x` (scalar) and
+    `set a(k) 1; set a(j) 2; puts $a(j)` (a(k) genuinely dead) still do.
+    The optimiser path threads the registry to the elimination pass via a
+    new `PassContext::registry` (set by the `optimise*` entry points;
+    `None` on the bare `run_pass` test path — so existing optimiser tests
+    are unaffected).  Four discriminating tests (analyser + optimiser ×
+    {array suppressed, genuine still fires}); the suppressed ones verified
+    to fail without the reroute.  Note: O109 emits an *optimisation
+    suggestion*, not bytecode — and it is a **separate** computation from
+    W220 (unlike Python's shared `analysis.dead_stores`), so there is no
+    shared-list desync and no VM-equivalence concern.  The rare
+    same-element reassignment dead store is intentionally not recovered
+    (needs the versioned 8F substrate), matching `main`'s suppress-only
+    stage.
+
+  **W211 / O126 (unused variable) — already at parity, no reroute needed.**
+  Investigated and confirmed a no-op in Rust: the def-use builder tracks
+  reads at the name level (so `array get a`, `puts $a(k)`, dynamic-index,
+  `eval`, expr command-subs are all already seen as uses of base `a`), and
+  W211/O126 are name-level-granular (fire only when the *whole* variable
+  has no live version).  The cross-scope upvar cases Python's place model
+  removed there (−2) are already handled in Rust by the `scope_aliases`
+  filter.  Wiring the place model in (verified against the suite) changed
+  no output, so it was reverted rather than ship effect-less code with no
+  discriminating test.
+- **Phase 0 / 1 / 6 / 7 — shared infrastructure.**  Phase 0:
+  registry-aware green-tree descent (`descend_command`) single-sources
+  body role-resolution.  Phase 1: shared loop-nesting forest
+  (`compiler/loops.py`) — natural-loop detection promoted from GVN;
+  also drives an explorer loops view.  Phase 6: deep-analysis
+  complexity guard (`_COMPLEXITY_GUARD_BLOCKS`, byte-size guard) +
+  per-proc dependency-fingerprint foundation + body-local diagnostic
+  memoization.  Phase 7: algorithm-reference doc + shared CFG
+  edge-routing model.  **Rust mirror:** the `compiler::loops` natural-
+  loop forest already exists in `tcl-compiler::optimiser::helpers`
+  + `gvn` (used by both GVN-O107 and the partial-redundancy O106
+  pass) — promote to a shared `tcl-compiler::loops` module for the
+  forthcoming interval-domain dominator-tree walks.  The complexity
+  guard is consumer-side (only the per-document pipeline needs it,
+  and the Rust analyser doesn't have a deep-analysis fork today);
+  defer until S*/diagnostics worker.
+- **W1 / W2 — persistent analysis worker model.**  Per-document
+  single-writer asyncio lock, per-uri `_publish_latest_version`
+  supersession, deep-pass `ProcessPoolExecutor` with crash recovery,
+  separate cold-build + deep-diagnostic pools.  **Rust mirror:** the
+  whole worker model closes with the `S*` LSP-server port — `tower-lsp`
+  + a Tokio cancellation token + a per-document `RwLock<Arc<DocumentState>>`
+  achieve the same shape natively.  Defer to the `S*` chunk.
+- **Incremental analysis staleness cluster (#481).**  Chunk hash
+  includes start offset; proc-cache key carries start line/char/offset
+  + known_classes fingerprint; analyser snapshots are independent for
+  TclOO; dialect-change forces full rebuild; persisted partial state
+  round-trips ensemble + objdefine.  Rope-backed DocumentBuffer +
+  AnchorTable foundation + process-stable BLAKE2b chunk-hash +
+  signature-overlay-keyed `VarReferenceScanner` cache.  **Rust
+  mirror:** the rope is already chosen for the `S*` document store
+  (see "Chosen libraries"), and the chunk-hash + signature-overlay
+  cache-keying belongs in the same chunk.  Defer to `S*`.
+
+Precision fixes catalogued by check code (each a self-contained
+analyser-rule port; size 5-30 LOC each):
+
+- **W210 / W213 / W214** read-before-set: `info exists` / `array
+  exists` guards (also see SYNC-MAY31-3 below); catch / regexp / scan
+  command-sub write recovery (incl. inside expr bodies); frozen
+  while/for body recovery; upvar dynamic-target alias; dynamic
+  `namespace eval` body analysis; qualified-variable aliases
+  (`variable ${name}::tail`); for-init / regexp captures in switch
+  arms; eval / `namespace eval` literal-body reads; qualified-builtin
+  loops (`::foreach` / `::lmap` / `::for` / `::while`).  Also: W210
+  exempts `vwait varName` (the canonical "wait for set" idiom is the
+  *whole point* of vwait); `dict for` / `dict map` bodies recognised
+  as un-lowered loop bodies (currently lower to opaque `IRBarrier`);
+  return-value / branch-condition `[set X …]` cmd-sub write recovery
+  (the classic open-read-close idiom).
+- **W220 / W211** dead-store / unused: return-value reads counted;
+  cmd-sub read-modify-write recovery; expr-sub read recovery;
+  traced-var exclusion (soundness); param-as-variable-NAME counts as
+  read.  Plus: **call-by-name suppression via `ProcDef.param_traits`**
+  — a caller-local passed by literal name to a user proc whose
+  parameter has the `VAR_READ` / `VAR_WRITE` trait is read/written by
+  alias.  Suppresses W211/W220/O109/O126 (the four lifecycle codes
+  share the helper).  Extended to scan inside `IRAssignValue.value`
+  cmd-subs + `IRAssignExpr.expr` / `IRReturn.expr` / `ExprCommand`
+  subtrees.  **The four-code suppression is a Rust gap right now —
+  see the "lattice-driven precision fixes" subsection below.**
+- **W307 / W308** object dispatch + Snit modelling: `$self` /
+  `$type` / `$selfns` / `$win` self-reference suppression;
+  `snit::type` / `snit::widget` bodies modelled as ClassDef with real
+  method scopes; in-method commands joined the Snit known set;
+  object-provenance for local Snit, namespaced factories, instance-var
+  / component dispatch; TclOO method resolution with namespace-aware
+  FQ class names.  Plus the W307 precision sweep: proc-param
+  dispatcher heuristic, multi-dispatch local rule (≥ 2 dispatches),
+  taint-aware safety guard (`gets`/`exec`/`$env(USER_CMD)` reachable
+  taint vetoes the suppression), switch-style + callback-suffix
+  array-element key (`-command` / `cmd` / `callback` / `handler` /
+  `hook` / `proc`), namespaced ensemble (`${var}::method` and
+  `[cmd]::method`), interprocedural object-factory tracking
+  (transitive fixpoint over user procs that return
+  `[ns::cmd]` / `[user_obj_factory]`), top-level `::top` scope, W307
+  / W101 dedup on `eval $cmd`.  Recognise `::proc` as proc
+  declaration.  None of W307 / W308 is ported to Rust today (W307
+  emitter is "deferred to C41" per `analyser/commands.rs:10`); the
+  fixes are inherited at the time the matching Rust emitter lands.
+- **S100 / S101 / S102** shimmer: loop accumulator FPs suppressed
+  (≥ 2 KNOWN types or entry-type re-introduction); empty-literal
+  branch-merge FPs; scope-alias declarations typed OVERDEFINED (not
+  STRING); hash-seed-independent phi joins.  Plus: **loop-invariance
+  lattice for S100/S101 classification** (one-time vs per-iteration
+  via the shared loop forest); **per-loop body_types for S102**
+  (eliminates the sibling-loop pollution where loop A's STRING
+  binding + loop B's LIST binding triggered S102 at *either* loop's
+  phi); destructure-foreach exclusion (`foreach VARS LIST break` is a
+  single-iteration multi-assign, not a loop); hex / binary integer
+  literal typing (`0x80`, `0b1010` → INT not STRING — matches
+  `Tcl_GetIntFromObj`); loop-invariant oscillation between distinct
+  intrep targets in the loop body keeps in-loop classification (every
+  iteration re-thunks).
+- **O106** LICM loop-invariant detector now recurses into command
+  substitutions for the purity check — an outer pure `format` call
+  whose arg is `[incr counter]` or `[read $fh 512]` is **not** loop-
+  invariant.  Rust's `gvn.rs::is_pure_command` only consults the
+  outer command's registry traits — real Rust gap.
+- **O107** reachability: break-reachability fix (`break` feeds the
+  innermost-loop-exit edge to SCCP); try body→handler control flow
+  modelled as SSA exception edges (handlers inherit correct versions,
+  not v0).
+- **O109 / O126** call-by-name suppression — same helper as W211 /
+  W220 above (shared `collect_call_by_name_reads` +
+  `build_proc_index_from_summaries` in `compiler/proc_arg_traits`).
+- **O110** InstCombine: pure-whitespace rewrites are now suppressed
+  (`_strip_ws(combined) != _strip_ws(input)` guard on the
+  `expression_args` / `expr_substitutions` / `branch_folding` paths);
+  mixed-bitwise/shift parens are kept (`(a >> 4) ^ b` does not strip
+  to `a >> 4 ^ b`); pure commutative operand reorders are suppressed
+  when no real simplification would result.
+- **O116** quick-fix: `[list]` (empty form) folds to `{}` not `""`
+  (the latter produced a syntactically-valid READ when applied to
+  `set r [list]`).  N/A for Rust today — no O116 emitter (O116 sits
+  in the priority table but no Rust emitter exists yet).
+- **T102** option-injection: position-aware scan-region (fires only
+  for vars inside the `--switch` scan region until the first arg that
+  can't begin with `-`).
+- **T100 / T101** taint sink filters: T100 limits to *direct* expr
+  operands (excludes vars inside cmd-sub interiors that re-evaluate
+  before reaching the expr operand layer); T101 filters `puts` to
+  output-string position only (the channel-id arg is a destination
+  handle, not emitted bytes).
+- **W101** quick-fix: `eval "..."` → `eval [list ...]`.  W105 don't
+  flag command-substitution `eval` / `uplevel` bodies; W242 don't
+  flag cmd-sub-condition loops; W201 URL / HTML / XML suppression
+  refinements; W104 (display-string vs list-build), W113, W120
+  (self-call from `package provide` file), W122 / W124 (skip dotted
+  OID chains like LDAP / SNMP MIBs), W123, W126, W302 (fire-and-
+  forget catch idiom + subcommand-aware tier), W306 (escaped `\[`
+  and literal end-anchor in regexp patterns), I230 idiom-recognition
+  tweaks.
+
+### A-series algorithmic optimisations (#498)
+
+Distinct from precision fixes — these are *performance* optimisations
+on top of existing algorithms.  Each was verified output-preserving
+on the Python side.
+
+- **A0 — O(1) `dominates()` via Euler-tour interval labels.**  Add
+  `dom_in` (preorder index) + `dom_out` (max `dom_in` in the subtree)
+  per block during one linear iterative DFS over the already-built
+  dominator tree.  `dominates(d, n)` becomes the interval test
+  `dom_in[d] <= dom_in[n] <= dom_out[d]` — no idom-chain walk.  Called
+  inside nested loops by the interval / bounds (refine_interval),
+  loop-forest, and GVN-LICM passes, so the previous O(depth) per call
+  degraded toward cubic on wide guard-chained procs.  **Rust gap:**
+  `rust/tcl-compiler/src/gvn.rs::dominates` (line 1030) still walks
+  the idom chain via `ssa.idom.get(&curr)`.  Same shape as Python's
+  pre-A0 implementation.  Port: compute Euler-tour labels in
+  `compute_idom_fast` and add an `O(1) dominates()` variant gated on
+  their presence (fallback to the chain walk when absent for
+  complexity-guarded trivial SSA).  Standalone, output-preserving,
+  applies right now.
+- **A1 / A2 — interval-bounds shared infrastructure.**  Build a
+  per-function guard index `(name, version) → branch-blocks-that-
+  constrain` once per function (A1); compute the interval fixpoint
+  once for both bounds + divide-by-zero passes (A2).  N/A for Rust
+  until the interval domain itself ports (`SYNC-MAY31-1a`).
+- **A4 / A5 — element-observed overlap scan bucketed by base + shared
+  index.**  Build the read set into `(wildcard?, by_base[(ns,name)] →
+  reads, dynamic_nonwild)` so element-overlap queries answer from the
+  same-base bucket plus wildcard / dynamic checks (A4); share the
+  predicate between dead-store (W220) and unused-variable (W211)
+  passes so the read_places walk runs once per function (A5).
+  **Landed (rust) via `SYNC-MAY31-1b`:** the predicate is shared between
+  the analyser's W220 and the optimiser's O109 through
+  `place_bridge::element_writes_observed_by_reads` (one read_places walk
+  per function).  The Rust port uses a full-scan `overlap` rather than the
+  bucketed `by_base` index — semantically equivalent (UNKNOWN /
+  UPVAR_ALIAS reads overlap every element either way); the bucketing is a
+  deferred perf optimisation, not a correctness gate.  W211 needs no share
+  (already at parity — see the `SYNC-MAY31-1b` section).
+- **A6 — shimmer per-name indices computed once per function.**
+  `_find_phi_shimmers` and `_find_thunking` previously called
+  `_empty_literal_versions(ssa, name)` + `_loop_body_def_types(...)`
+  *per phi*.  Precompute both as function-wide name-keyed maps
+  (`_build_shimmer_name_index`) once and pass through.  **Rust gap:**
+  `rust/tcl-compiler/src/shimmer/` exists and has working phi /
+  thunking detection — port the index pre-pass.  Standalone, applies
+  right now.
+- **A7 — share one green-tree intern index across `compile_source`.**
+  Wrap `_compile_source_inner` in `green_tree_scope` (reentrant —
+  callers that already opened a scope just reuse it).  Closes with
+  the `S*` LSP-server / document-state work; see SYNC-MAY31-6 on the
+  token cache.
+- **A10 — incremental segmentation reuses the spliced rope + brace-
+  safe body splice.**  Lifts `update_source_quick` on the giant
+  single-command files (filetypes.tcl: ~184 ms → ~5 ms per edit).
+  Closes with `S*` — the rope + DocumentState live in the server
+  layer.
+- **A11 — compute non-local names + def-sites in one `build_ssa`
+  pass.**  Phi placement used to walk reachable blocks twice:
+  `_nonlocal_names` collected upward-exposed-use names, then
+  `_phi_vars` walked again to build def-sites.  Merged into one walk
+  (`_nonlocal_names_and_defsites`).  **Rust gap:**
+  `rust/tcl-compiler/src/ssa.rs::compute_phi_vars` (line 461) walks
+  all reachable blocks for `defsites` *and* then runs the dominance-
+  frontier worklist over **every variable**, not just non-local
+  ones.  See A19 — they ship together.
+- **A18 — LoopForest sharing.**  The loop forest is the single
+  natural-loop source for GVN/LICM + the interval domain's widening
+  points, but **not** cached once globally — re-derived per consumer
+  (cheap now that dominance is O(1) — depends on A0).  Shimmer keeps
+  its separate any-cycle detector because try→handler exception
+  edges break dominance-based natural-loop classification.  N/A for
+  Rust until the shared loop forest lands (SYNC-MAY31-1c) + A0.
+- **A19 — semi-pruned SSA ON by default.**  Place phis only for
+  non-local names (variables that have an upward-exposed use across
+  some block boundary).  Local-only variables get no phi.  The
+  output-equivalence blocker (false W220/W211 from reads the
+  use-tracker missed, e.g. `$w` in `::tcl::idna::punydecode`) was
+  closed by the structural read-recovery work.  **Rust gap:**
+  `compute_phi_vars` is **full SSA** today — every variable in
+  `defsites` gets phi placement at its dominance frontier, regardless
+  of upward-exposed-use locality.  Port: extend the merged
+  `compute_phi_vars` to compute non-local names in the same pass (A11)
+  and filter the phi placement to that set (A19).  Standalone,
+  applies right now.
+
+**Rust mirror plan (refined):**
+
+The structural pieces (Phases 3 / 8 / 1) promote to numbered sub-
+chunks (`SYNC-MAY31-1a` / `-1b` / `-1c`) — none of those are
+correctness blockers, just precision gains.
+
+The lattice-driven precision fixes that have a *current* Rust
+emitter consumer split into their own row:
+
+### SYNC-MAY31-1e — Lattice-driven precision fixes (apply right now)
+
+These are fixes from #498 that target diagnostics Rust *already*
+emits, so they're standalone follow-ups rather than waiting for the
+structural sub-chunks:
+
+- **A0 — O(1) `dominates()` via Euler-tour interval labels** on the
+  Rust SSA.  Drops the idom-walk hot path used by GVN-LICM
+  (gvn.rs:1167 + the interval pass once it lands).
+- **A11 + A19 — semi-pruned SSA.**  Merge non-local-name detection
+  into the existing `compute_phi_vars` walk and filter phi placement
+  to upward-exposed-use names.  Reduces phi count substantially on
+  any function with many locally-confined variables.
+- **A6 — shimmer per-name index pre-pass.**  Compute empty-literal
+  versions + loop-body def types once per function instead of per
+  phi.
+  **Rust state for A0 / A11 / A19 / A6: deferred as performance
+  chunks.**  These are *output-preserving* algorithmic speedups (O(1)
+  dominance, fewer phis, hoisted shimmer pre-pass) — they do not change
+  any diagnostic or optimisation output, so they are a poor fit for the
+  rewrite's "one discriminating test per strip that FAILS without the
+  change" discipline (there is no observable behaviour to assert) and
+  they carry real regression risk in the dominator / SSA-construction /
+  shimmer cores.  They want their own perf-focused chunk gated by a
+  benchmark + a full output-equivalence sweep, not a feature strip.
+- **W211 / W220 / O109 / O126 call-by-name suppression.**  Port
+  `collect_call_by_name_reads` + `build_proc_index_from_summaries`
+  to `rust/tcl-compiler/src/interprocedural.rs`; consume from the four
+  emitters in `analyser/diagnostics.rs` (W211 / W220) and
+  `optimiser/{elimination,unused_procs}.rs` (O109 / O126).
+  **Rust state: (a) trait inference LANDED; (b) / (c) pending.**
+  - **(a) — LANDED.**  `ProcArgTrait` gained `VarRead` / `VarWrite`
+    variants, and `interprocedural::scan_statement` now ports
+    `proc_arg_traits.py::_handle_upvar`: `upvar ?level? $param local`
+    marks the source `$param` `VarRead`, and — only for the default
+    level 1, which writes back to the caller's frame — records a
+    `local → param` alias (`LocalFacts.upvar_aliases`) so a later `set`
+    / `incr` / `append` / `lappend` (Assign / Incr `name` or a Call
+    `def`, excluding `upvar`'s own defining `defs`) upgrades the param to
+    `VarWrite`.  `upvar #0` / `0` / level ≥ 2 stay `VarRead` (a non-caller
+    frame — no write-back).  A `$param` *local*-name binding is itself a
+    `VarWrite`.  The `DYNAMIC_NAME_LOCAL` refinement is intentionally
+    *not* ported: it exists to *exclude* `set $param` (dynamic
+    callee-local name) params from suppression, but the Rust inference
+    simply doesn't detect those as `VarRead`/`VarWrite` in the first
+    place (only the `upvar`-alias path marks them), so the same — correct
+    — "no suppression" result falls out without the extra trait.  3-case
+    discriminating test `call_by_name_param_traits_inferred`.
+  - **(b) — LANDED.**  `interprocedural::build_proc_index_from_summaries`
+    (a `command → (params, param_traits)` lookup keyed by both qualified
+    and bare names) + `collect_call_by_name_reads(cfg, index)`, which
+    scans direct `Call` / `Barrier` statements *and* a whole-value
+    `[cmd …]` substitution of an `AssignValue` / `AssignExpr` / `Return`
+    (the dominant tcllib shape `set len [asnPeekTag data tag type
+    dummy]`), recording each literal-name arg that lands on a callee
+    param carrying `VarRead` / `VarWrite`.
+  - **(c) — W211 + W220 LANDED.**  The analyser's `emit_cfg_ssa_
+    diagnostics` builds the proc-index once (from a fresh interproc
+    summary), and per function merges `collect_call_by_name_reads` into
+    the dead-store suppression set.  `emit_cfg_ssa_diagnostics_for_
+    function_full` then folds that set into *both* the W220 dead-store
+    path (`cross_event_vars`) and — newly — the W211 unused-variable
+    path (`textually_referenced`), which also closes a pre-existing gap
+    where iRules `cross_event_vars` didn't suppress W211 (Python threads
+    it through both).  `set tag init; set tag x; fill tag` no longer
+    flags `tag` W211/W220; a genuinely-unused local still does.
+    Discriminating tests `call_by_name_var_not_flagged_unused_or_dead`
+    (analyser) + `collect`/`build` coverage via the trait test.
+  - **(c) — O109 / O126 LANDED.**  `optimiser::elimination::run` builds
+    the proc-index once (from `ctx.interproc`) and threads it into
+    `emit_dead_stores_and_unused`, which computes the per-function
+    `collect_call_by_name_reads` and skips a dead-store (O109) / unused
+    (O126) verdict for any suppressed name — the same loop covers both.
+    Discriminating test `o109_o126_suppressed_for_call_by_name_var`
+    (a call-by-name `upvar` callee suppresses a dead store a plain
+    callee leaves intact).  **All four consumers (W211 / W220 / O109 /
+    O126) now honour call-by-name.**  Long tail (own follow-ups): the
+    full `proc_arg_traits.py` handler set the trait inference still skips
+    — `foreach`/`while`/`for`/`after` body-var writes, `scan`/`lassign`/
+    `regexp`/`regsub` variadic var-writes, and the `DYNAMIC_NAME_LOCAL`
+    refinement (only needed if `set $param` dynamic-name detection is
+    ever added).
+- **O110 InstCombine whitespace guard.**  Add the
+  `strip_ws(combined) != strip_ws(input)` guard to
+  `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs::instcombine_expr`
+  (currently `rendered != trimmed` — character-level structural).
+  Also add the mixed-bitwise/shift paren preservation in
+  `render_expr` and the commutative-no-op reassoc skip.
+  **Landed (rust):** the whitespace guard — `instcombine_expr` now
+  computes `changed = strip_ws(&rendered) != strip_ws(trimmed)` via a
+  new module-local `strip_ws` (port of Python's `_propagation._strip_ws`,
+  all-whitespace removal), so a spacing-only re-render (`$x<0` →
+  `$x < 0`) no longer fires O110 in either the standalone-`expr` path
+  (`expr_simplify.rs`) or the branch-condition path (`branch_folding.rs`
+  consumes the same `changed` flag); structural rewrites still fire
+  because they alter non-whitespace characters.  Two discriminating
+  tests (`instcombine_whitespace_only_rerender_is_not_a_change`,
+  `strip_ws_removes_all_whitespace`).  The other two halves of this
+  bullet are **N/A in Rust** (investigated, no bug shape): (a) the mixed
+  bitwise/shift paren preservation — Rust's
+  `expr_ast::needs_parens_for_binary_child` + its precedence table are
+  byte-identical to `main`'s `_needs_parens_for_binary_child` /
+  `_PRECEDENCE`, so `render_expr` is already at paren parity; (b) the
+  commutative-no-op reassoc skip — the Rust instcombine
+  (`simplify_node_once`) performs **no** commutative reassociation (only
+  identity folds, strength-reduction, strlen / streq promotion, and
+  DeMorgan reductions), so there is no no-op reassoc to skip.  The O110
+  `-1e` bullet is therefore fully addressed.
+- **O106 LICM purity recursion into command substitutions.**  Extend
+  `gvn::is_pure_command` to lex its `args` for nested `[…]` tokens
+  and verify each is also pure — an outer pure call wrapping
+  `[incr counter]` is not loop-invariant.  **Landed (rust):**
+  `is_pure_command` and `is_pure_with_procs_core` now recurse into
+  `scan_bracketed_commands(arg)` (shared `arg_substitutions_pure`
+  helper) and reject any invocation with an impure nested subst;
+  `is_pure_command_with_traces` inherits it via its `is_pure_command`
+  delegation.
+- **S100 / S101 shimmer loop-invariance lattice.**  Walk loop blocks
+  once and collect every variable name ever defined; classify
+  loop-invariant uses (name *not* in the set) as S100 (one-time),
+  not S101 (per-iteration).  Per-iteration target-set check stays
+  on S101 when a loop-invariant variable has ≥ 2 distinct intrep
+  targets inside the loop body.
+- **S102 per-loop body_types** (sibling-loop pollution fix).
+  Build a per-header `body_types` map using the natural-loop forest
+  instead of a function-wide union; eliminates the false oscillation
+  detection on `foreach a { set x "str" }; foreach b { set x [list] }`.
+  Also: destructure-foreach (`foreach VARS LIST break`) is excluded
+  from the loop_body_types contribution.
+  **Rust state: bug present, but not a body_types port — promote to its
+  own chunk.**  The Rust S102 (`shimmer/thunking.rs`) does **not** use a
+  `body_types` map; it flags a loop-header phi whose `TypeLattice` is
+  `Shimmered`.  A probe confirms the sibling-loop case *does*
+  false-positive (`foreach a {…} { set x "str" }; foreach b {…} { set x
+  [list 1 2] }` reports `x` oscillating String/List at loop b's header).
+  The root cause differs from Python's: loop b's header phi merges the
+  *entry* value (`"str"`, carried from loop a) with the *back-edge*
+  value (`[list]`), and the detector treats any entry-vs-back-edge type
+  difference as oscillation.  This is structurally identical to the
+  *passing* `thunking_detected_for_int_string_oscillation` case
+  (`set x 0; while {…} { set x "hello" }` — Int entry, String back-edge),
+  so the fix is **not** the per-loop `body_types` rework but an
+  architecture-specific refinement: distinguish a one-time entry→body
+  conversion (back-edge type uniform across iterations) from genuine
+  per-iteration oscillation.  Risky precision rework that could change
+  the existing passing case — own chunk, not a quick win.
+- **Hex / binary literal INT typing** in the shimmer type lattice.
+  `_literal_type` matches `0x...` / `0b...` patterns as INT (matches
+  Tcl 9's `Tcl_GetIntFromObj` semantics).  Avoids spurious S101 on
+  `variable n 0x80; for {…} {…} {incr n}` (tcllib idna idiom).
+  **Landed (rust):** matched `main`'s actual shape — `0x80` still types
+  as `String` (Rust `literal_type` uses `i64::from_str`, which rejects
+  hex, same as Python's `_literal_type`), so the fix is the
+  `value_is_int_literal_string` SCCP-value guard in
+  `shimmer::use_site`: the `incr` S100/S101 detector now threads
+  `fu.sccp.values` and skips the warning when the variable's CONST
+  value is a hex/oct/bin integer-literal string (mirrors
+  `_value_is_int_literal_string`, not a `_literal_type` change).
+
+Classify all of `-1e`: in-scope, low-touch each (5-50 LOC + tests);
+no structural / dependency blockers.  Suitable for PR-sized
+incremental commits.
+
+**Rust mirror plan:**
+
+The precision fixes do not all need to land before the analyser-core
+port (C41) flips on by default — they only need to land before the
+relevant *check* is ported.  Strategy:
+
+1. Catalogue each fix against the existing C41-default-on-followups-*
+   rows in the chunk log; add new rows for codes not yet
+   represented.
+2. Port the structural pieces (intervals, place model, shared loop
+   forest) as their own numbered chunks once C41 reaches the
+   var-lifecycle + diagnostic-range surface.
+3. Inherit the precision tweaks at the time the matching Rust
+   emitter lands.  None of these are "already-failing-in-Rust"
+   regressions — the Rust analyser has no live caller as of
+   2026-05-08 (`tests/test_rust_analyser_differential.py` was
+   deleted by `SYNC-JUN-DIFF-harness-delete`), so they are
+   forward-looking parity targets, not bug fixes.
+
+Classify: in-scope, **family-sized**.  Promote each Phase to its own
+numbered chunk (`SYNC-MAY31-1a` interval domain, `-1b` place model,
+`-1c` loop forest promotion, `-1d` precision-fix sweep) once a
+contributor picks it up.
+
+### SYNC-MAY31-2 — `switch -regexp` keeps `IRSwitch` (#474)
+
+`main` changed `compiler/lowering.py::_lower_switch` to lower
+`switch -regexp` as a structured `IRSwitch` (the same shape glob
+switches already used) instead of collapsing to an `IRBarrier`.
+After #474, **both** `-glob` and `-regexp` flow through the
+structured path with the matched mode preserved on `IRSwitch.mode`;
+only the malformed-options / missing-arms / odd-pattern-count
+sanity checks still bail to `IRBarrier`.  This lets SSA recover the
+subject and arm-body variable reads (so W214 sees parameters used
+by a regex switch as reads) and lets the bytecode backend emit a
+generic `invokeStk` matching tclsh 9.0's un-compiled approach.
+The WASM backend re-invokes `switch` through the runtime eval
+fallback since `_emit_switch` has no regex matcher.
+
+**Rust mirror gap.** `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`
+collapses **every** non-Exact mode to a Barrier
+(`if *mode != SwitchMode::Exact { … Statement::Barrier … return }`),
+so `switch -glob` and `switch -regexp` are both opaque on the Rust
+side today — a wider parity gap than #474 alone implies, since
+glob switches were *already* structured on main before #474 landed.
+The Rust analyser already records literal regexp / glob patterns
+via `record_switch_regexp_pattern` (`analyser/handlers.rs`), so the
+analyser-side recovery is partially in place — what's missing is the
+**lowering** keeping the structured switch for both modes.
+
+Files: `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs::lower_switch`
+— drop the mode-based barrier short-circuit entirely and reuse the
+exact-mode arm-dispatch path for `Glob` and `Regexp` (with the
+`SwitchMode` carried through so downstream consumers can choose
+between an inline `STR_EQ` chain for Exact and a runtime
+`invokeStk` fallback for Glob/Regexp).  The matching
+`Statement::Switch` arm in `lowering` already records `mode` so no
+upstream change is needed.  Classify: in-scope, low-touch.
+
+**Landed (rust).**  `cfg_lower.rs::lower_switch` dropped the
+mode-based barrier short-circuit; all three modes now build the
+structured arm-dispatch + arm-body + default blocks, so SSA recovers
+the subject *and* arm-body variable reads (the W214/W210 path).  Exact
+arms keep a foldable `STR_EQ(subject, pattern)` (the backend still
+builds a real jump table); glob/regexp arms branch on a *non-foldable*
+`ExprNode::Raw { text: subject }` — string equality is the wrong
+predicate for those modes, and a foldable condition would let SCCP
+spuriously kill arms.  A glob/regexp dispatch is recorded in the new
+`cfg::Function::switch_dispatches` map (entry block → `SwitchDispatch
+{ mode, raw_args, end_block, member_blocks }`); codegen
+(`emitter/generate.rs`) consults it to emit a generic `switch` invoke
+(as the old barrier did) and skip the analyser-only member blocks,
+matching tclsh's un-compiled approach for those modes.  (Note: the
+single-braced-body arm form is still lowered to an empty `Script` for
+*every* mode — a separate pre-existing Rust lowering gap, tracked as
+`SYNC-JUN-switch-braced-body` below and untouched here; the multi-arg
+arm form lowers bodies and is what exercises the SSA recovery.)  Tests: `switch_glob_creates_branches` /
+`switch_regexp_creates_branches` (cfg_lower), `switch_glob_arm_body_
+read_counts_as_param_use` (compilation_unit), and
+`switch_glob_emits_generic_invoke_not_jump_table` (codegen
+integration).
+
+### SYNC-JUN-switch-braced-body — single-braced `switch` arm bodies not lowered to the CFG (Rust gap)
+
+Discovered while landing `SYNC-MAY31-2`.  **Rust-only; not a Python
+parity gap — no backport needed.**
+
+The canonical `switch` form `switch $x { a {body1} b {body2} }` (a
+single braced word holding every pattern/body pair) lowers its arm
+bodies to an **empty `IRScript`** on the Rust side, for *all* modes.
+The multi-arg form `switch $x a {body1} b {body2}` lowers bodies
+correctly.  Root cause: in
+`rust/tcl-compiler/src/lowering/structured.rs`, the single-braced path
+in `lower_switch` (the `i == args.len() - 1` branch) builds each
+`SwitchPair` with `body_arg_idx: None` because the per-body tokens live
+*inside* the braced word, not in `arg_tokens`.  `build_switch_arms`
+then calls `lower_body_from_tok(text, None, …)`, which returns
+`Script::new()` whenever the token is `None`.
+
+**Scope of impact.**  The gap is in the **CFG-lowering** path only, so
+it degrades everything downstream of the CFG for single-braced switch
+arm bodies: SSA / def-use / SCCP, the CFG-SSA diagnostics
+(W210/W211/W214/W220, dead-store, I230 — including the
+`SYNC-MAY31-2/-3` recoveries when the arm uses the braced form), and
+bytecode codegen of those bodies (emitted as empty).  The **analyser
+tree-walk** is a *separate* path and already handles the braced form
+correctly — `analyser/handlers.rs::handle_switch_command` extracts
+per-element tokens via `parse_switch_body_elements(body_text, body_tok)`
+and calls `analyse_body` on each, so W123 / semantic tokens / the
+regexp-pattern recording are unaffected.  (This split is why the
+existing `handle_switch_form2_braced_body_walks_each_arm` test passes
+while the lowering test at `structured.rs:771` discards its result with
+a "single braced body may not be fully parsed yet" comment.)
+
+**Python parity.**  `core/compiler/lowering.py::_lower_switch` handles
+the braced form: `_switch_body_elements` returns extracted *Tokens*,
+each body pair carries a non-`None` `body_tok`, and `_lower_body_arg`
+recursively `_lower_script`s it.  Python is correct, so this is a Rust
+catch-up only.
+
+**Fix sketch.**  The single-braced path already relocates each body's
+span into outer-source coordinates (`body_span`), so the simplest fix
+is to drop the token requirement for this case and lower from the
+offset directly — call `lower_body(text, content_offset, namespace)`
+(`lowering/mod.rs::lower_body`) with `content_offset = body_span.start()
++ 1` (skip the opening `{`), since the element text is already the
+brace-stripped content.  Alternatively, mirror the analyser by
+extracting real per-element sub-tokens (`parse_switch_body_elements`)
+and threading them through `SwitchPair` so `lower_body_from_tok` gets a
+non-`None` token — this also fixes any content-offset / encoding-flag
+nuances the bare-offset path would have to replicate.  Files:
+`rust/tcl-compiler/src/lowering/structured.rs`
+(`lower_switch` single-braced branch + `build_switch_arms`); reference
+`analyser/handlers.rs::handle_switch_command` as the working
+precedent and replace the discarded-result `switch_exact` lowering
+test with a real assertion.  Classify: in-scope, low-touch; affects
+all switch modes equally.
+
+**Landed (rust).**  `build_switch_arms` now lowers the single-braced
+arm body from its `body_span` when there is no arg token (the
+multi-arg form keeps the token path).  Rather than restructuring the
+element parser, it reuses the existing relocated, brace-inclusive
+`body_span`: the content offset is recovered as `body_span.start() +
+(span_len − body_text.len())/2`, which skips a leading `{` / `"`
+delimiter (and is `0` for a bare-word body) — matching the offset
+`lower_body_from_tok` derives from a token's `content_offset`.  So the
+canonical `switch $x { a {body} … }` form now flows real arm-body IR
+into SSA / def-use / SCCP / the CFG-SSA diagnostics and bytecode
+codegen (and, combined with `SYNC-MAY31-2`, the glob/regexp recovery
+now fires for the braced syntax too).  The `switch_exact` lowering
+test's discarded result is now a real assertion, plus
+`switch_single_braced_body_is_lowered`.
+
+### SYNC-MAY31-3 — Fold `info exists` / `array exists` in guarded regions (#502)
+
+`main` reclassifies `[info exists X]` / `[array exists X]` as
+**existence checks**, not value reads.  Three deltas:
+
+1. **W210 suppression for the existence reference itself** — the
+   query word does not raise read-before-set.
+2. **SCCP folds the predicate both ways.**  When the variable is
+   provably set (definite assignment dominates the call) the
+   predicate folds to `1`; when it's provably unset (no def reaches)
+   it folds to `0`.  The fold surfaces the existing I230 (constant
+   condition) + DCE pipeline.
+3. **Read narrowing inside guarded regions.**  Inside the `if-true`
+   arm of `if {[info exists X]} { ... }` (and the `if-false` arm of
+   `if {![info exists X]} { ... }`), the SSA renaming now treats
+   reads of `X` as guarded and excludes them from W210.
+
+**Rust mirror gap.**  `rust/tcl-compiler/src/var_escape/` already
+treats `info exists` literally + symbolically (handlers.rs +
+walker.rs + slot_resolution.rs), but the SCCP folding +
+guarded-region read narrowing are not present.  Files:
+`rust/tcl-compiler/src/sccp.rs::evaluate_def` (`Statement::Call`
+arm with `info exists` / `array exists` — fold against the SSA-versioned
+lattice + the `executable_blocks` set); `rust/tcl-compiler/src/analyser/diagnostics.rs::emit_*_w210*`
+(suppress the query word + suppress reads in the guarded arms); the
+matching `compiler_checks::run_all_checks` wiring.  Classify:
+in-scope, medium.
+
+**Landed (rust).**  All three deltas, re-targeted to the Rust IR
+(where `[info exists X]` lowers to an opaque `ExprNode::Command`, *not*
+a `Statement::Call`, so the doc's `evaluate_def` pointer doesn't
+apply).  A shared `expr_ast::existence_query_var` recognises
+`[info exists X]` / `[array exists X]` (and `![…]`).  (1) **W210
+suppression for the query word** — `emit_read_before_set_diagnostics`
+skips a use whose statement is an existence query for that var (bare
+`info exists X` call *and* the `set y [info exists X]` command-sub
+form).  (2) **Guarded read narrowing** — reads of `X` in any block
+dominated (via the SSA `idom` chain) by the true target of
+`[info exists X]` (or the false target of `![info exists X]`) are
+excluded from W210.  This is done at emit time rather than by
+injecting a synthetic SSA def, which would create a spurious merge phi
+and perturb W214/W211.  (3) **Predicate fold → I230 + O101/DCE** —
+`sccp::existence_constant_branches(cfg, params)` folds the two
+false-positive-free cases (a *parameter* always exists → true; a
+never-defined non-parameter simple local never exists → false),
+gated on a barrier-free function and skipping `unset` params, array
+elements, and namespaced/global names.  The fold runs as a post-pass
+(SCCP proper has neither parameter nor existence facts): the analyser's
+`emit_existence_constant_branch_diagnostics` emits the I230 from it, and
+`FunctionUnit::build` appends the same `ConstantBranch`es to
+`sccp.constant_branches` so the optimiser's `branch_folding` surfaces an
+O101 constant-fold / DCE suggestion — unifying both consumers on one
+helper (mirroring the Python "I230 + DCE pipeline").  Emitting I230
+directly avoids a double-emit: `emit_constant_branch_diagnostics` gates
+on the not-taken arm being unreachable in `executable_blocks`, which the
+post-pass folds don't update, so it skips them.  Tests: the
+`info_exists_*` cluster in `analyser/diagnostics.rs` plus
+`optimiser::manager::tests::info_exists_fold_surfaces_o101`.
+
+### SYNC-MAY31-4 — W127 closed-value command argument + BODY role on iRules nesting scripts (#501)
+
+Two deltas:
+
+1. **BODY role on `clientside` / `serverside` / `peer` / `after`
+   nesting scripts.**  These iRules commands accept a nested body
+   that the analyser must descend into.  `clientside` / `serverside`
+   / `peer` run synchronously in the caller's scope
+   (`BodyKind.INLINE` in Python = `BodyKind::Plain` in Rust); `after`
+   's timer-form trailing script runs deferred from a timer wakeup
+   (`BodyKind.STRUCTURAL` in Python = `BodyKind::Structural` in
+   Rust — the body executes in its own dispatch context, not the
+   caller's frame).  The Python registry tagged all four bodies as
+   values, so the nested script wasn't recursively analysed (no
+   nested diagnostics, no semantic tokens, no scope handling); adding
+   the `ArgRole.BODY` tag plus the matching `BodyKind` makes them
+   lower to `IRBarrier`/`Statement::Barrier` (the standard
+   body-bearing-command shape), and the iRules-flow side-tracking
+   was extended to descend into the new bodies.  `peer` also flips
+   the side context (clientside body in a serverside event satisfies
+   a CLIENT_DATA payload requirement); `clientside`/`serverside`
+   keep their fixed side.  Arities tightened to `Arity(0, 1)` for
+   all three side-switches.  **Rust mirror:**
+   `rust/tcl-registry/src/commands/irules/{clientside,serverside,peer,after}.rs`
+   set the body argument's `arg_role = ArgRole::Body` + the matching
+   `body_kind` (`Plain` for clientside/serverside/peer, `Structural`
+   for after).  Add `is_side_switch = true` on the three
+   side-switches; teach the iRules-flow check (`irules_checks.rs`)
+   that `peer` flips side.  The existing recursion in
+   `analyser::commands.rs::process_command` will pick up the body
+   role automatically once it's set.  (BodyKind reminder: the two
+   variants on both sides are Python's `INLINE` / `STRUCTURAL` and
+   Rust's `Plain` / `Structural` — there is no `Deferred` variant in
+   either enum.)
+2. **W127** — new analyser warning for command arguments whose value
+   is provably "closed" (lattice = `Const` / `ConstSet` with all
+   elements known at compile time, the call doesn't write the
+   variable, no alias escapes the scope) but the user-provided
+   command treats the value as if it might change.  Pairs with W126
+   (related closed-value heuristic).  **Rust mirror:** a new
+   `analyser/diagnostics.rs::emit_w127_*` emitter, fed by the SCCP
+   lattice + the existing `places_read_to_form` machinery (the latter
+   landed only on `main` with SYNC-MAY31-1's place model, so this row
+   depended on `-1b` — **now landed**, so the emitter is unblocked).
+
+Classify: BODY-role piece is in-scope, low-touch (registry edit +
+tests).  W127 emitter is in-scope; its `-1b` place-model dependency has
+landed (emitter itself still to do).
+
+**Landed (rust) — BODY-role piece only.**  The four registry specs now
+declare the nesting script:
+`clientside` / `serverside` set `arg_roles = &[(0, ArgRole::Body)]` with
+arity `Arity::new(0, 1)` (bare query form or one body, default
+`BodyKind::Plain`); `peer` gains `Traits::IS_SIDE_SWITCH`,
+`arg_roles = &[(0, ArgRole::Body)]`, the synopsis `peer NESTING_SCRIPT`,
+and the required-body arity `Arity::new(1, 1)`; `after` gains an
+`arg_role_resolver` (mirroring `_after_arg_roles` — the trailing timer
+script, never `-periodic`, never the `cancel`/`info` forms) plus
+`body_kind = BodyKind::Structural` (the timer body runs deferred in its
+own dispatch context).  A new `CommandRegistry::is_side_switch` mirrors
+Python's helper.  The analyser's generic `dispatch_body_arguments`
+recursion picks the role up automatically, so problems nested in these
+bodies are now flagged (verified: a nested zero-arg `set` trips E002
+inside each of the four bodies).  The collect/release/payload flow
+check (`irules_checks.rs::find_collect_flow_warnings`) now descends into
+side-switch bodies with the switched side — `clientside`/`serverside`
+fixed, `peer` flipped to the *opposite* of the current side — so a
+`clientside { TCP::collect }` satisfies a `CLIENT_DATA` requirement and
+a `peer { TCP::collect }` in a client event satisfies `SERVER_DATA` (not
+`CLIENT_DATA`).  Six discriminating tests (registry roles/arity, two
+collect-flow behaviours, body recursion across all four), each verified
+to fail without the change.  **Still deferred:** the W127 emitter — its
+`-1b` place-model dependency (`places_read_to_form`) has now **landed**,
+so it is unblocked (emitter itself still to do).
+
+### SYNC-MAY31-5 — Dataflow fixpoint algorithmic improvements (#478)
+
+`main` consolidated three layers of algorithmic improvement into one
+PR:
+
+**(a) Shared iterative RPO + Cooper-Harvey-Kennedy idoms.**  Replaced
+duplicated block-ordering helpers + the naive O(N²)-memory dominator
+fixpoint with one shared `CFGFunction.reverse_postorder()` (explicit
+work stack) + direct idom via Cooper-Harvey-Kennedy.
+
+**(b) Super-linear hotspot fixes (output-preserving):**
+
+- `gvn.py` partial-redundancy availability moved from per-block hash
+  sets to integer bitmasks (init O(B) vs O(U·B); meet/join is single
+  word-ops).
+- SCCP barrier widening tracks a `non_overdefined` key set so a
+  barrier only widens the not-yet-widened values instead of
+  re-scanning the full value map every fixpoint visit.
+- `interprocedural.py` purity + effect-region fixpoints driven by a
+  **reverse-call-graph worklist** (re-enqueue only callers of a
+  changed proc), not round-robin over every proc (was O(P²·fanout)).
+- `_diag_var_command.py` rebuilds the diagnostics list in one pass
+  when dropping suppressed W307s (O(N) vs O(R·N) tail shifts).
+- `_scope.py` caches resolved namespace-qualified variables by
+  `(namespace, var)` (skip the full scope-tree walk on repeated
+  reads).
+
+**(c) Worklist-driven SSA dataflow** for forward type / rendered-
+property / taint propagations and backward liveness — replaces the
+round-robin "while changed: for every block" sweeps with worklists
+seeded by `value_use_blocks()` (the SSA def→use map).  Outputs
+unchanged (lattice meets are monotone, so least fixpoint is
+visit-order independent).  SCCP is **intentionally** kept on the
+round-robin RPO sweep — it marks CFG edges executable as it goes
+and never un-marks them; a value-driven worklist could visit a
+branch before its condition resolves and lose precision.
+
+**Rust mirror state — wider than the row originally implied:**
+
+- **(a) Already landed** on the rust branch via PR #472 / SYNC-MAY21
+  (commit `97aefd0b` — the *"analyser: fix taint recursion overflow
+  and dominator blowup"* + *"cfg: make reverse_postorder iterative"*
+  strips).  `CfgFunction::reverse_postorder` (rust/tcl-compiler/src/cfg.rs:232)
+  is the shared iterative RPO; `compute_idom_fast` (rust/tcl-compiler/src/ssa.rs)
+  is Cooper-Harvey-Kennedy.  `cfg_order` (sccp.rs:48) is the canonical
+  caller wrapper used by sccp / gvn / rendered_properties / irules_checks
+  and the optimiser passes.  No action.
+- **(b1) GVN partial-redundancy bitmask — Rust gap.**
+  `rust/tcl-compiler/src/gvn.rs::run_partial_redundancy_fixpoint`
+  (line 1308+) still uses `HashSet<ExprKey>` for may_in / must_in /
+  may_out / must_out.  Port to a bitmask (key intern table → `u64`
+  bitmask, or a dense `BitVec` for >64 keys) — same shape Python
+  landed.
+- **(b2) SCCP barrier non-overdefined-key tracking — Rust gap.**
+  `rust/tcl-compiler/src/sccp.rs` (line 290-298) handles barriers
+  by collecting `values.keys().cloned()` and widening *every* key
+  on every fixpoint visit, exactly the O(K²) cost Python eliminated.
+  Track a `non_overdefined: HashSet<ValueKey>` alongside `values`
+  and only widen its members (remove from the set as they go
+  Overdefined).
+- **(b3) Interproc reverse-call-graph worklist — Rust gap.**
+  `rust/tcl-compiler/src/interprocedural.rs::fixpoint_purity`
+  (line 381) and `fixpoint_effects` (line 413) sweep round-robin
+  over every proc each pass.  Build a `callers: HashMap<String, Vec<String>>`
+  reverse map (already implied by the existing `direct_calls`
+  forward map) and drive both fixpoints from a `VecDeque<String>`
+  worklist seeded with all procs, re-enqueuing only callers of a
+  changed callee.
+- **(b4 / b5) W307 list rebuild + scope variable cache** — both
+  live in the Python analyser layer.  Their Rust mirrors close
+  with C41 (W307 emitter) / `S*` (scope-tree cache lives on the
+  per-document analysis snapshot).  No standalone Rust port today.
+- **(c) SSA worklist propagation — Rust gap on all four passes.**
+  Round-robin sweeps confirmed:
+  - `rust/tcl-compiler/src/type_infer.rs::propagate_types`
+    (line 292: `while changed { for block in ... }`).
+  - `rust/tcl-compiler/src/rendered_properties.rs::propagate_rendered_props`
+    (line 636).
+  - `rust/tcl-compiler/src/taint.rs::propagate_taints` (line 738) —
+    intra-procedural propagation.
+  - **Backward liveness** has no Rust port today (live-variable
+    analysis is implicit in def-use chains; if the Rust analyser
+    later grows an explicit liveness pass it should start
+    worklist-driven).
+  Shared infrastructure for the port: add `cfg::value_use_blocks(ssa)`
+  helper (mirrors Python's SSA def→use map), then port each pass
+  one at a time keeping the round-robin form behind a debug-assert
+  cross-check until parity is verified.  Each pass closes with the
+  matching Rust consumer (taint already lives in `compiler_checks`;
+  type / rendered-props feed analyser diagnostics + the optimiser).
+
+Classify: **family-sized**.  Split as `SYNC-MAY31-5a` (GVN bitmask
++ SCCP non-overdefined-key), `-5b` (interproc reverse-call-graph
+worklist), `-5c` (SSA worklist propagation across the four passes)
+when picked up.  None of the (b) / (c) items are *correctness*
+blockers — outputs are unchanged — but they are real performance
+gaps on the same large-CFG files (#481 generated 85k-line procs)
+where the rust branch's SYNC-MAY21 perf fix was already needed.
+
+### SYNC-MAY31-6 — Green token tree + shared tokenisation memo (#477 / #480)
+
+`main` introduces `core/parsing/token_cache.py`: a per-analysis
+`ContextVar`-scoped cache keyed by
+`(base_offset, base_line, base_col, insidequote, text)` →
+`(tokens, warnings)`.  Replaces 3-4× redundant re-lexing across the
+segmenter, lowerer, compiler-checks, and `VarReferenceScanner`.
+Reports ~10-22 % faster analysis on real corpora (~22 % on
+filetypes.tcl, the worst case for repeated re-lexing).  Output-
+preserving: byte-identical diagnostics across 14744 tests.
+
+**Rust mirror state + plan.**  The Rust lexer is fast enough at the
+**primitive** level that the L11 measurement showed ~10× speedup at
+the PyO3 bridge — but the same anti-pattern (each subsystem builds its
+own `Lexer` over the same bytes) reproduces inside the Rust workspace
+once the analyser, compiler-checks, and segmenter all run in Rust.
+The right shape is **not** a `ContextVar` memo (we don't use
+`ContextVar` in Rust): it's an explicit `&TokenCache` reference
+threaded through the analysis pipeline, or an `Arc<TokenCache>`
+field on the per-document state.  Implementation belongs in the
+`S*` LSP-server chunk where the document-store + analysis driver
+land together; the Rust caches naturally form around the `Arc<Rope>`
++ analysis snapshots.  Classify: in-scope, defer to `S*` (no point
+caching today — the Rust analyser has no production driver).
+**Superseded direction (2026-06-05):** #477 here is a token *cache* whose
+tokens carry absolute positions; the later #533 (`SYNC-JUN06`) built the
+red-green **CST** this row's "green token tree" deliberately declined to —
+position-independent green nodes, lazy red positions.  The real
+shared-representation work now lives under the `CST-PORT` queue row.
+
+### SYNC-MAY31-7 — `ExprRaw` switch-subject variable scan (#473)
+
+`main` fixed a W214 false positive: a parameter read only as a
+switch subject (e.g. `switch -- $col`) was wrongly reported as
+unused because the IR lowering preserves the subject as an
+`ExprRaw` node and `vars_in_expr_node` returned no variables for
+`ExprRaw`.  The fix scans `ExprRaw.text` for `$var` references via
+the lexer so liveness / DCE / unused-parameter detection sees the
+read.
+
+**Rust mirror gap.**  `rust/tcl-compiler/src/expr_ast.rs::ExprNode`
+includes a `Raw { text }` variant (used for the same switch-subject
+shape and for the catch-condition fallback noted in C18's "case 5"
+narrative).  The Rust `vars_of_expr` helpers (in
+`rust/tcl-compiler/src/var_refs.rs` and `expr_ast.rs`) need to scan
+`Raw.text` for `$var` references — same fix Python applied.
+Files: `rust/tcl-compiler/src/expr_ast.rs::ExprNode::vars`,
+`rust/tcl-compiler/src/var_refs.rs`.  Classify: in-scope, low-touch
+(5-15 LOC).
+
+**Landed (rust).**  `ExprNode::collect_vars`'s `Self::Raw { text }`
+arm now re-lexes the text via the lexer and collects top-level `$var`
+references (new `collect_raw_vars` helper reusing
+`normalise_var_name`), consistent with the `Self::Command` policy of
+stopping at command-substitution boundaries.  A `compilation_unit`
+integration test proves the `switch -- $col` subject's parameter
+def-use chain is live (verified to fail without the fix).  Note: this
+is no longer "forward-looking" — the LSP server's
+`publish_analyser_diagnostics` calls `Analyser::analyse()`, so the
+W214/W220 precision this restores is user-facing.
+
+### SYNC-MAY31-8 — Folding for backslash line-continuation commands (#494)
+
+`main` adds folding ranges for commands spread across multiple
+physical lines via `\<NL>` continuations (long proc calls with each
+argument on its own line).  Restores the legacy Tcl editor plugin's
+"collapse multi-line command to first line" behaviour (#493).
+
+The new continuation collector tokenises the source and treats each
+backslash-newline `SEP` join as evidence that a line continues.
+
+**Rust mirror state.**  `rust/tcl-lsp-core/src/folding.rs` is the
+Rust folding-range provider (used by `S-folding`).  Audit confirms
+no `continuation` / `backslash` handling today — it folds proc /
+namespace / comment / multi-line bodies via the segmenter, not
+backslash joins.  Files: `rust/tcl-lsp-core/src/folding.rs` — add
+a continuation pass mirroring the Python collector (re-tokenise via
+`tcl-lexer`, group consecutive `SEP` tokens whose text contains a
+backslash-newline pair into one folding range starting at the
+*first* line and ending at the *last* continued line).  Classify:
+in-scope, low-touch.
+
+**Landed (rust).**  `collect_continuation_folds` in `folding.rs`
+re-lexes the source, collects the lines bearing a backslash-newline
+`Sep` (which starts at the `\`, distinguishing it from ordinary
+whitespace), and folds each maximal run of consecutive continued
+lines into one `Region` from the first continued line through the
+line after the last continuation.  Wired into `folding_ranges` before
+`normalise_overlaps`; 4 tests.
+
+### SYNC-MAY31-9 — Namespace-aware arity-suppression refinement (#475)
+
+`main` refined the builtin-arity-check shadowing guard: a user proc
+`::ns::close` no longer suppresses E002/E003 on a *global* `close`
+call.  The check now resolves each call Tcl-style (call-site
+namespace → global, with a proc body resolving in the proc's
+defining namespace) and only skips the builtin arity check when the
+call truly resolves to a user-defined command.  Follow-up commit
+also "gates arity suppression on reachable, in-order proc
+definitions" — a top-level `close x y z` before a later `proc close`
+is no longer silenced.
+
+**Rust mirror state.**  The Rust shadowing guard (landed under
+SYNC-MAY21-3) is **already namespace-aware** — `command_resolution_namespace`
++ `resolve_command_qualified_name` in `analyser/diagnostics.rs`
+mirror the Tcl resolution order (current namespace → global) and only
+suppress the check when the qualified call resolves to a user
+`proc` / class / alias / ensemble.  The validation note in
+SYNC-MAY21-3 confirmed 0 E002/E003 false positives across tcllib 2.0
++ the Tcl 8.6 standard library with this shape.
+
+Classify: in-scope, low-touch refinement.  Rust was ~90 % at parity
+already; the remaining in-order gate is described below.
+
+**Landed (rust).**  The in-order half of the refinement now ports.
+`emit_arity_diagnostics` captures an `enforce_order` flag per candidate
+— `true` for top-level calls (module body, `namespace eval` bodies,
+conditionals), `false` for proc-body calls — derived from a new
+`scope_path_in_proc_body` helper (any `ScopeKind::Proc` on the
+call's scope path means the call resolves after load, so order is not
+enforced).  `flush_arity_diagnostics` now splits the suppression set:
+classes / aliases / ensembles / inline stubs always exist at run time
+and stay un-gated, while a shadowing **proc** silences a top-level call
+only when its definition (`ProcDef::name_span` start) lexically precedes
+the call.  So a top-level `close x y z` *before* a later `proc close`
+again fires E003 against the builtin, while the namespace-scoped guard
+(SYNC-MAY21-3) and proc-body forward-references stay suppressed.  Three
+discriminating analyser tests (call-before-def fires, call-after-def
+suppressed, proc-body call un-gated), each verified to fail without the
+gate.  Deferred (matches the old note): *excluding* conditionally
+defined procs from the shadow set needs the CFG dominator model, so a
+conditional `proc close` before the call still suppresses — no worse
+than the prior behaviour and no new false positives.
+
+### SYNC-MAY31-10 — Inlay hints `is_optional` synopsis tagging + `infer_return_type` (#510)
+
+Two in-scope changes:
+
+1. **Inlay hints — optional positional handling.**  Python's synopsis
+   parser now tags each positional with `is_optional`; the emitter
+   counts positional args first, decides how many optional slots to
+   fill (`max(0, n_positional - n_required)`), and skips the rest.
+   `puts ?-nonewline? ?channelId? string` called with one arg now
+   labels it `string:` (the required trailing positional), not
+   `channelId:` (the first optional in source order).  Also drops the
+   `?options?` / `?switches?` documentation placeholders — those are
+   "the command's flag group", not real positional params, and the
+   actual flags are already handled per-call by the registry option
+   table.  Affects ~30 commands (`puts`, `lsearch`, `regsub`,
+   `uplevel`, `encoding convert*`, `tcltest::test`, …).
+
+   **Rust mirror gap.**
+   `rust/tcl-lsp-core/src/inlay_hints.rs::param_names_from_synopsis`
+   (lines 204-238) emits a flat `Vec<String>` of names with no
+   `is_optional` tagging — required and optional positionals are
+   interleaved in source order, so the same FP family Python just
+   fixed reproduces in Rust verbatim.  `?options?` / `?switches?`
+   are also accepted as plain optional names today (the
+   `is_empty() || contains(char::is_whitespace)` guard at line 220
+   rejects multi-word `?...?` groups but not the single-word
+   placeholder names).  Port: change the return type to
+   `Vec<(String, bool)>` (name + `is_optional`), update the emitter
+   loop in `inlay_hints.rs::emit_for_segment` (~lines 162-194) to
+   count positional args first and pick the slots accordingly, and
+   filter `?options?` / `?switches?` literal placeholders.
+
+2. **`infer_return_type` on `FunctionAnalysis`.**  Python adds a
+   parallel `return_type: TypeLattice | None` field computed by
+   joining every executable `CFGReturn` terminator: `expr`-form
+   returns go through `infer_expr_type` (operator-implied),
+   `[cmd …]` returns consult the registry hint, literals are
+   classified, substitutions fall back to STRING.  For
+   `return $x`, the lattice joins types of every known version of
+   `x` (sound over-approximation when SSA reaching defs at
+   terminators aren't tracked).  Surfaces in the explorer's Types
+   tab + the per-function inferred-types summary as a `(return)`
+   row.
+
+   **Rust mirror gap.**
+   `rust/tcl-compiler/src/type_infer.rs::return_type_for_command`
+   (line 72) consults the registry's *declared* `return_type` for a
+   given command name — but there's no equivalent
+   `infer_function_return_type` that joins types over the function's
+   own `Terminator::Return` sites.  `FunctionUnit` has `cfg` / `ssa`
+   / `def_use` / `sccp` / `memory_ssa` but no `return_type` field.
+   Port: walk `CfgFunction.blocks` over executable blocks, match
+   `Terminator::Return { expr, value }`, dispatch through the
+   existing `infer_expr_type` /
+   `infer_type_for_command_substitution` / literal classifier
+   helpers, and `type_join` the results.  Standalone, applies right
+   now to `tcl-compiler::FunctionUnit`.
+
+Classify: in-scope, both items low-touch.  Item 1 (~30 LOC + tests,
+inlay-hints emitter); item 2 (~50 LOC + tests, new
+`infer_function_return_type` in `type_infer.rs` + field on
+`FunctionUnit`).
+
+**Landed (rust) — both items.**  Item 1:
+`param_names_from_synopsis` now returns `Vec<(String, bool)>`
+(name + `is_optional`) and drops `?options?` / `?switches?`
+placeholders; `emit_builtin_hints` splits into
+`collect_positional_args` + `select_param_names`, which fills
+optional slots only up to `max(0, n_positional - n_required)` so a
+single-arg `puts hello` labels `string:` not `channelId:`.  Item 2:
+`FunctionUnit` carries a `return_type: TypeLattice` populated in
+`build` by `type_infer::infer_function_return_type` (pub(crate),
+matching `return_type_for_command`), joining the result type of every
+executable exit — explicit `Return` terminators *and* fall-through
+exits.  A reachable terminator-`None` block is a fall-through (control
+runs off the end → Tcl returns the last command's result, not
+modelled here) and contributes `Overdefined`, so partial-return procs
+like `if {$c} { return 1 }` don't report an overconfident `Int`
+(caught in PR #512 review).  `infer_return_value_type` mirrors the
+`AssignValue` arm of `evaluate_type_def`; var reads join over all
+known versions of each name (sound over-approximation).  11 tests
+total.
+
+### SYNC-MAY31-11 — Reposition cache for moved procedures (#508)
+
+`main` adds two extensions to the proc-cache infrastructure:
+
+1. **`call_site_constants_fp`** on `_proc_cache_key` — when a caller
+   passes a literal arg (`foo 1` → `foo 0`), the proc's SCCP /
+   unreachable-branch facts change even though the proc's own text
+   and position are unchanged.  The cache key now folds in a
+   fingerprint of all literal call-site constants so the cached unit
+   invalidates correctly.
+2. **`_proc_reposition_key`** — a position-independent variant of
+   the proc-cache key.  When a proc moves (e.g. a new proc inserted
+   above it, shifting line/char/offset) without its body changing,
+   the reposition cache lets the document-state machinery re-attach
+   the existing `FunctionUnit` at the new position instead of
+   re-running the full analysis pipeline.  Driven by a new
+   `tooling/fuzzing/reposition_campaign.py` differential harness
+   (mirroring `incremental_diff` — same dev-only test-subject
+   rationale).
+
+**Rust mirror.**  The Rust compiler has no incremental analysis
+caching at all today — `CompilationUnit::build_for` (in
+`compilation_unit.rs`) re-runs `lower_to_ir` → `build_cfg` →
+per-function `FunctionUnit::build` on every call, with no
+proc-cache key, no class-fingerprint, no call-site-constants
+fingerprint, and no reposition adapter.  This is consistent with
+how the Rust analyser has no live caller post-#241 — incremental
+caching only matters when a long-lived document-state driver is
+calling the analyser repeatedly.
+
+**Defer to `S*`.**  The whole proc-cache + reposition-cache stack is
+part of the `S*` LSP-server document-state work (see SYNC-MAY31-1's
+"Incremental analysis staleness cluster (#481)" item).  When the
+Rust server gains an `Arc<DocumentState>` + per-document
+re-analysis loop, the cache infrastructure ports as a single piece:
+proc-cache key + class fingerprint (already documented under
+SYNC-MAY31-1) + call-site-constants fingerprint (this row's first
+piece) + reposition adapter (this row's second piece) +
+`buffer_for_version` (rope-version registry per SYNC-MAY31-1).
+
+Classify: in-scope, **structural**, closes with `S*`.  No standalone
+Rust port today.
+
+## SYNC-JUN02 family — main audit (2026-06-02)
+
+Re-audited `origin/main`@`8aeaf1cd` against the prior anchor
+`origin/main`@`59c770f6` (the SYNC-MAY31 refresh point).  `main` landed
+**5** commits since then.  Histories still diverge fully (no merge-base),
+so this remains a per-file audit, not a git rebase.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **Explorer / optimiser-lens tooling** — `a31d018d` (#517, offset-free
+  diff for the optimiser lens — `tooling/explorer/cli.py`), `7d5479d5`
+  (#513, Unicode box-drawing IR / callout trees — `tooling/explorer/` +
+  `editors/vscode/`).  Pure explorer / editor UI; close with `EXP*` /
+  editor-specific chunks.
+- **WASM emitter + Zig runtime (bulk of #516)** — `8aeaf1cd` is mostly a
+  WASM-codegen concat-aliasing fix (a shared `_emit_concat_chain` seeds
+  each multi-operand chain with a *null* accumulator so a borrowed `$var`
+  read — refcount 1 — is never mutated in place mid-expression; fixes
+  `set t $t$t$t$t` doubling) plus Tcl 9 command semantics in the Zig
+  interp (`lseq` doubles, `scan` charset / float, `binary` unsigned
+  formats, `apply` defaults).  The Rust port emits no WASM and runs no Zig
+  VM, so the codegen / runtime bulk has no Rust analyser hook — mirror is
+  the Zig workstream + the future Rust WASM emitter.  But #516 *also*
+  carries two in-scope lowering / registry slivers — see `SYNC-JUN02-3`.
+
+In-scope rows (mirror these into the Rust workstream):
+
+### SYNC-JUN02-1 — Lower TclOO method bodies to FunctionUnits + O126 method purity (#506)
+
+`main` populates `ir_module.methods` during lowering: `oo::class create` /
+`oo::define` bodies are descended and each method / constructor / destructor
+body is lifted to an `IRMethodDef` (**analysis-only** — codegen still sees
+the same `IRBarrier`, so bytecode is byte-identical).  `compile_source`
+lowers those to per-method `FunctionUnit`s in a separate
+`CompilationUnit.methods` dict; `analyse_interprocedural_ir` summarises them
+into `InterproceduralAnalysis.methods` (conservative purity: pure iff no
+local side effect and every proc callee pure; `my` / `next` self-dispatch
+surfaces as an unknown call → impure).  The optimiser then iterates method
+bodies with the owning class as `enclosing_class`, so the previously-inert
+SF-2 wiring in `_elimination.py` fires — `set unused [my <pure-method>]`
+folds to an O126 deletion while an impure-method RHS is preserved (flips
+FP-OPT-12 PARTIAL → FIXED).  A second commit hardens the **W307**
+VAR-as-command suppression to per-SSA-version precision
+(`set c notacommand; set c parse; $c x` must keep W307 alive for the
+dispatch, since the command-valued version reaches it).
+
+**Rust state — partial scaffolding, the real wiring is the gap.**
+`tcl-compiler::ir` already declares `Module.methods: HashMap<String,
+MethodDef>` and the `MethodDef` struct, and `interprocedural` declares a
+`MethodSummary` + `InterproceduralAnalysis.methods` map — but all three are
+**inert placeholders**: lowering never populates `Module.methods` (a unit
+test asserts it stays empty), `CompilationUnit` has no `methods` field and
+builds no per-method `FunctionUnit`s, the interproc `methods` map is
+initialised empty, and `optimiser::elimination` has no `enclosing_class` /
+method-body iteration (so O126-method / SF-2 never fires).  Note the
+analyser already has a *separate* OO model in `analyser/oo.rs` (its own
+`MethodDef`, for the OO W-codes) — this row is the *compiler / optimiser*
+method-FunctionUnit path, not that one.  **Rust mirror:** (1) lowering
+descends `oo::class create` / `oo::define` bodies → populate
+`Module.methods`; (2) `CompilationUnit` gains a `methods` map of per-method
+`FunctionUnit`s; (3) `build_interprocedural_analysis` summarises method
+purity into `InterproceduralAnalysis.methods`; (4) `elimination::run`
+iterates method bodies with `enclosing_class` so O126 fires on a
+pure-method RHS; (5) the W307 per-SSA-version suppression fix in
+`analyser/diagnostics.rs`.  Classify in-scope, **structural** — a
+multi-strip port.
+
+**Landed (rust) — strips 1, 2, 3, 4a, 4b, 5.**
+- **Strip 1** (`lower TclOO method bodies to Module.methods`): a
+  cache-independent `Lowerer::extract_oo_methods_pass` post-pass walks
+  the assembled module for `oo::class create` / `oo::define` barriers
+  and lifts each `method` / `classmethod` / `constructor` / `destructor`
+  body to `ir::MethodDef`.  `MethodDef` gained `instance_vars` and
+  `Module` gained `redefined_methods`.  A `Lowerer.suppress_proc_register`
+  guard keeps a `proc` defined inside a method body out of
+  `module.procedures` (codegen safety).  **Divergence:** the Rust
+  lowerer evaluates a `namespace eval` body inline and discards it
+  (emitting a `Barrier`, not Python's `IRBlock`), so the post-pass
+  re-segments the barrier's preserved body token to find classes
+  defined directly inside a namespace (`walk_segments_for_oo`).
+- **Strip 2** (`CompilationUnit.methods`): per-method `FunctionUnit`s
+  built via a new `build_cfg_function_with_upvars` (methods stay out of
+  `cfg_module.procedures`); gated on a non-empty method set.
+- **Strip 3** (interproc): `build_method_summaries` populates
+  `InterproceduralAnalysis.methods`; the Rust interproc scans the IR
+  directly, so no pre-built `method_units` are threaded.  `my` / `next`
+  carry no registry trait → `fallback_unknown_write` → unknown-state
+  effect write → impure (same *result* as Python's unknown-call path).
+- **Strip 4a** (RHS-purity gate): the C30d-era
+  `_assignment_safe_to_delete` / `_word_has_observable_side_effect` /
+  `_expr_has_observable_side_effect` guard had **never** been ported —
+  the Rust O109/O126 fired on any dead chain, so `set unused [puts hi]`
+  was deleted with its side effect.  Ported now (with `interproc_pure`
+  for user procs + the SF-2 pure-`my`-dispatch hook), gating both
+  O109 and O126.  This is the gate #506 relies on.
+- **Strip 4b** (method iteration): `elimination::run` iterates
+  `cu.methods` with `enclosing_class`; instance vars are fed through the
+  `cross_event_vars` escaping channel.  `set unused [my pureMethod]`
+  now folds to O126, impure preserved (FP-OPT-12 → FIXED).
+- **Strip 5** (W307 §A): `w307_precise_cmd_values` reads the SCCP value
+  at the dispatch's exact SSA use-version, fixing the merged-set FP on a
+  variable reassigned from a non-command to a command before the
+  dispatch.
+
+### SYNC-JUN02-2 — Profile-guided branch reordering (PGO) (#515)
+
+A new, opt-in, **off-by-default** `compiler/pgo/` subsystem: an `occurrence`
+execution-occurrence model (unifies C Tcl `trace add execution` /
+`TCL_COMPILE_STATS` opcode counts with the F5 BIG-IP rule-profiler log), a
+`profile_data` rollup, two importers (`trace_parser` — F5 profiler log;
+`tclsh_capture` — per-line `enterstep` + `info frame` capture under a local
+tclsh), and a `reorder` analysis whose `find_pgo_suggestions` emits
+**hint-only P100** `Optimisation` suggestions (with a materialised
+replacement for opt-in `--apply`) reordering mutually-exclusive,
+side-effect-free equality if/elseif (and switch) dispatch chains so the
+hottest branch is tested first.
+
+**Rust mirror:** a new `tcl-compiler::pgo` (occurrence + profile_data +
+reorder) plus a `P100` emitter.  **Lower priority / largely deferred:** it
+is opt-in and hint-only (no behavioural change when off), and the importers
+lean on profile sources that are tooling-side (F5 profiler logs, a captured
+tclsh) rather than the analyser core — so the portable slice is the
+`reorder` equality-chain analysis + the occurrence / profile data model; the
+importers classify with `F*` / tooling.  Classify in-scope, structural,
+deferred.
+
+### SYNC-JUN02-3 — in-scope slivers of #516 (switch `patterns_braced` + Tcl 9 registry facts)
+
+The WASM / Zig bulk of #516 is out of scope (above), but two pieces are not:
+
+- **`IRSwitch.patterns_braced` (lowering / IR — correctness).**  `main` adds
+  a `patterns_braced` flag to `IRSwitch`: `True` when the arms came from a
+  single braced `{pat body …}` block (patterns are literal list elements —
+  no substitution), `False` when supplied as separate words
+  (`switch $s $pat {body}`), where each pattern undergoes normal `$var` /
+  `[cmd]` runtime substitution before matching.  **Rust gap:** the Rust
+  `Statement::Switch` (and `SwitchArm`) has **no** `patterns_braced` field —
+  the term appears nowhere in `rust/`.  Without it, the analyser cannot tell
+  a literal-pattern switch from one whose patterns substitute, which matters
+  for any pattern-as-variable read tracking and for matching the C-Tcl
+  substitution semantics.  Add the flag to `tcl-compiler::ir::Statement::Switch`,
+  set it in `lowering` (braced-body form → `true`; separate-words form →
+  `false`), and thread it where switch patterns are interpreted.  Classify
+  in-scope, low-touch, **correctness**.  **Landed (rust):**
+  `Statement::Switch.patterns_braced` added; `lower_switch` sets it
+  (single-braced branch → `true`, separate-words branch → `false`).  No
+  consumer threading was needed — every Rust pass matches `Switch` with
+  `..` or mutates arm bodies in place (none reconstruct), so the flag is
+  preserved automatically; the WASM-codegen consumers that read it in
+  `main` are out of scope.
+- **Tcl 9 command-spec facts (registry — low-touch).**  The new / extended
+  Tcl 9 surfaces (`lseq`, `scan` charset/float, `binary` unsigned formats,
+  `apply` defaults) want matching `tcl-registry` command-spec facts (arity /
+  arg-roles / dialect).  Fold into the `SYNC-MAY19-tcl9-commands` +
+  Command-spec tracking rows when those commands are next touched.
+
+## SYNC-JUN02b family — main audit (2026-06-02, PR #519)
+
+Re-audited `origin/main`@`31d3aac8` against the prior anchor
+`origin/main`@`8aeaf1cd`.  `main` landed **1** commit — but #519 is a
+mega-PR (101 files, +4780/-1711) bundling ~17 distinct sub-changes
+across the optimiser, interproc, SCCP / expr-eval, two new
+flow-sensitive lattices, a new diagnostic, and the WASM / bytecode
+backends.  Histories still diverge fully (no merge-base) — per-file
+audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **WASM codegen** rename-gating + canonical-quoting migration
+  (`compiler/codegen/wasm/*`) and the **bytecode backend** quoting
+  migration (`compiler/codegen/bytecode/*`) — the Rust port emits
+  neither.
+- **Zig VM** list/escape consolidation (`tooling/vm/*`), the minifier,
+  and the iRule-test bridge.
+- **`shared/tcl_list.py` + `shared/tcl_subst.py` consolidation** — a
+  Python DRY refactor collapsing ~13 duplicate list/quote/backslash
+  re-implementations into one canonical home.  The Rust side already
+  owns its quoting in `tcl-lexer` / `segmenter`, so the consolidation
+  itself is Python-internal.  *But* the canonical quoter
+  (`tcl_list_quote`, a `TclScanElement` / `TclConvertElement` port) is a
+  prerequisite for the O100 Rust port — see `SYNC-JUN02b-1`.
+- `editors/*` catalogues, `samples/*`, `tests/*`, `.test-slow.stamp`,
+  `.importlinter`.
+
+In-scope rows:
+
+### SYNC-JUN02b-1 — O100 multi-word string-constant propagation + canonical quoter (#519)
+
+`main`'s O100 (`optimise_constant_var_refs`) used to bail whenever a
+constant value contained Tcl metacharacters (whitespace / `$` / `[` /
+`\`).  #519 re-renders the constant as a single self-contained word via
+the canonical `tcl_list_quote` (bare / brace-quoted / backslash-escaped,
+verified against Tcl's `list`), so a non-escaping local like `set msg
+{Hello World}; return $msg` collapses to `return {Hello World}`.
+**Rust:** needs (a) a `tcl_list_quote` port (`TclScanElement` /
+`TclConvertElement`) as a shared leaf, then (b) the O100
+single-token-whole-word re-render in the propagation pass.  Classify
+in-scope, **low-touch feature** (the quoter is ~80 LOC; the O100 hook is
+small).  **Rust state: LANDED.**  The canonical quoter already existed as
+`codegen::helpers::tcl_list_element` — a faithful `TclConvertElement`
+port (its special-char set `[ \t\n\r{}"\\;$[]]` matches the reference
+`tclUtil.c::TclScanElement` TYPE_SUBS / TYPE_BRACE / TYPE_SPACE switch,
+and it is already validated by the C20 codegen differential harness), so
+no new leaf was needed (`render_static_string_word` bailed on unbalanced
+braces / backslash; `tcl_list_element` brace-quotes when balanced and
+backslash-escapes otherwise).  The O100 re-render is a new
+`propagation.rs::render_propagation_word` helper — a safe bare word
+(int / `[A-Za-z0-9_./:+-]`) is emitted verbatim (preserving the existing
+parity-tested fast path), everything else routes through
+`tcl_list_element`.  Wired into both O100 sites:
+`visit_simple_var_word` (command-argument position) and
+`try_fold_return_terminator` (`return` value position), each of which
+previously bailed at `is_value_safe_bare_word`.  `set msg {Hello World};
+return $msg` → `return {Hello World}`; `set m {a$b}; puts $m` →
+`puts {a$b}` (literal — braces suppress the would-be substitution).
+Discriminating test `o100_multi_word_constant_renders_via_quoter`.
+
+### SYNC-JUN02b-2 — optimiser variable-aliasing & trace soundness fixes (#519)
+
+Differential fuzzing surfaced correctness bugs where the optimiser
+propagated a stale constant past a call that mutates an outer-scope
+variable, plus a trace bug.  Three fixes:
+- `interprocedural.py` — `writes_global` now recognises writes through a
+  `global` / `variable` / `upvar #0` *alias* (not just literal
+  `::`-qualified names), via the `var_scoping` grammar.
+- `optimiser/_manager.py` — a call whose callee writes a global, or
+  whose effects are unbounded (`uplevel` / `eval` barrier / unknown
+  call), kills the caller's constant knowledge of every outer-scope
+  variable at the call site.
+- `optimiser/_pattern_recognition.py` — O104 string-build-chain folding
+  no longer collapses writes to an escaping / traced variable.
+Classify in-scope, **soundness** — these patch Rust code that already
+exists (interproc summaries + constant propagation + the elimination /
+pattern passes).  **Rust state:**
+- `writes_global` aliases — **LANDED** (`interprocedural.rs`:
+  `LocalFacts.global_aliases` + `global_alias_names`; `scan_statement`
+  tracks `global` / `variable` / `upvar #0` decls and flags later bare
+  writes to aliased / `::`-qualified names).
+- call-site constant kill — **N/A**: the Rust propagation pass uses a
+  *whole-function* SCCP constant map (a var is constant only if every
+  SSA version agrees), so a callee mutating an outer-scope var the
+  caller thinks constant cannot arise — there is no statement-stepped
+  kill-site logic to patch.  (Becomes relevant only if a stepped
+  propagation lands; tracked under `-6`.)
+- O104 escaping/traced guard — **N/A**: the Rust O104 is **hint-only**
+  (it never collapses the chain to a single `set`), so there is no
+  unsound rewrite to gate.  Re-evaluate if an applicable O104 rewrite
+  lands (then it needs the `-3` observability lattice).
+
+### SYNC-JUN02b-3 — `var_observability` flow-sensitive escape/trace lattice (#519)
+
+New `compiler/var_observability.py`: a forward data-flow `EscapeFlag`
+lattice (GLOBAL / NAMESPACE / UPVAR aliasing + TRACED) per variable per
+program point.  `FunctionAnalysis.observability` carries it; the
+flow-insensitive `_escaping_var_names` is rewritten as its whole-function
+union; O104 consults it point-wise.  Classify in-scope, **structural** —
+a multi-strip new subsystem (foundation for flow-sensitive alias/trace
+in memory-SSA + SCCP/GVN).  Defer to its own chunk; the SYNC-JUN02b-2
+soundness fixes are the conservative whole-function approximation that
+this later refines.  **Rust state: lattice LANDED** as
+`rust/tcl-compiler/src/var_observability.rs` (genuinely new — the
+existing `var_escape/cfg_propagation/` answers the *codegen
+slot-resolution* question `Local` vs `Frame` and has no `TRACED` flag).
+`EscapeFlag` is a `bitflags` set-union lattice (GLOBAL / NAMESPACE /
+UPVAR / TRACED; `empty()` = ⊥, join = bitwise OR) with `aliased` /
+`writes_outer_scope` / `is_traced` accessors.  `stmt_gen` reuses the
+shared `var_scoping` grammar (`global_declaration_indices` →
+GLOBAL, `variable_declaration_indices` → NAMESPACE,
+`upvar_local_declaration_indices` → UPVAR / GLOBAL (`#0`/`0`) /
+NAMESPACE (`namespace upvar`), `trace add variable` → TRACED).
+`analyse_var_observability` is a monotonic RPO forward fixpoint with
+union merge; `VarObservability` borrows the cfg and answers `flag_at` /
+`is_escaping_at` / `is_traced_at` point-wise plus `escaping_var_names`
+(the whole-function union that replaces the old flow-insensitive
+`_escaping_var_names`).  5 unit tests pin global-marks-following /
+variable-namespace / trace-observable / upvar-level-0-vs-N /
+private-local-empty.  **No optimiser consumer yet** — the Rust O104 is
+hint-only (SYNC-JUN02b-2), so this is landed as the foundation an
+applicable O104 (and memory-SSA / SCCP / GVN alias-trace reasoning)
+will consume.  Minor precision gap: the Rust
+`upvar_local_declaration_indices` rejects a `$`-dynamic caller *or*
+local var (Python's `allow_dynamic_target=True` tolerates a dynamic
+caller); harmless while O104 stays hint-only.
+
+### SYNC-JUN02b-4 — `command_binding` lattice + `command_trust` + W128 (#519)
+
+New `compiler/command_binding.py`: a forward data-flow lattice tracking
+what each command name resolves to (BUILTIN / PROC / ALIAS / OPAQUE /
+UNKNOWN) at every program point, modelling `rename` / proc-redefinition
+/ `interp alias` flow-sensitively.  `command_trust.py` derives a
+scoped builtin-trust verdict; the optimiser gates every const-fold /
+proc-fold / incr-idiom on `builtin_is_trusted` so a rebound command is
+never folded with its original semantics.  A new flow-sensitive
+diagnostic **W128** (call to a command renamed/deleted earlier in the
+file) is backed by the same lattice.  Classify in-scope, **structural**
+— a large new subsystem + a new W-code.  Defer to its own chunk(s); the
+WASM/bytecode dispatch-gating half is out of scope.  **Rust state:
+lattice LANDED; W128 + trust-gating pending.**
+- **`command_binding` lattice — LANDED** as
+  `rust/tcl-compiler/src/command_binding.rs`: `BindingKind`
+  (Bottom / Builtin / Proc / Alias / Opaque / Unknown), `Binding`,
+  a sparse per-name `State` with a `wildcard` flag, the `stmt_gen`
+  transfer (`proc` (re)def → Proc; `rename OLD NEW` → OLD Opaque, NEW
+  inherits; `rename OLD {}` deletion → Opaque; `interp alias` → Alias;
+  dynamic `$`/`[` forms → wildcard ⊤), `join_binding` / `merge_preds`
+  (per-name join over predecessors, default-vs-⊥ sparsity), and the RPO
+  `analyse_command_binding` fixpoint seeded by a caller-supplied
+  `&[(String, Binding)]` (the W128 seed = module procs).  `CommandBinding`
+  borrows the cfg + registry and answers `binding_at` /
+  `is_original_builtin_at` / `rebound_names` / `has_wildcard` by replaying
+  gen from each block entry.  Predecessors come from terminator
+  successors only — the Rust CFG has no explicit exception edges (catch
+  is opaque), which can only *miss* a rebinding at a handler, never
+  invent one (sound for a warning).  6 unit tests pin the
+  builtin-default / rename-deletion-flow-sensitive / rename-redirect /
+  proc-redef / dynamic-wildcard / seed cases.
+- **W128 emitter — LANDED** (`analyser/diagnostics.rs::
+  emit_w128_renamed_command`, dispatched from the
+  `emit_cfg_ssa_diagnostics` orchestrator).  Seeds the lattice with
+  `cu.ir_module.procedures` as `Proc`, runs it over `cu.top_level.cfg`,
+  and flags each `Call` (in reverse-postorder, for deterministic
+  output) whose resolved binding is `Opaque` *and* whose name is in
+  `rebound_names()` — skipping the mutating commands themselves
+  (`rename` / `interp` / `proc`).  A merely-undefined external command
+  (always opaque, never rebound) does not fire; a dynamic mutation
+  collapses the lattice to the wildcard ⊤ (every binding `Unknown`, not
+  `Opaque`), so W128 conservatively goes quiet.  `rename string {};
+  string toupper x` → W128 on the `string` call.  3-case discriminating
+  test `analyse_w128_fires_on_call_to_renamed_command`.
+- **`command_trust` + fold gating — LANDED** (initial gate: O129).
+  `ModuleCommandMutations { names, dynamic }` + `trusts()` +
+  `scan_module_command_mutations` (a CFG-free recursive IR walk over the
+  top-level + every proc / method body, applying the shared `stmt_gen`
+  and collecting *tampered-with core builtins* — a freshly-defined user
+  proc, default `Opaque` → `Proc`, is excluded) ported into
+  `command_binding.rs`.  `PassContext` gained a `command_mutations`
+  field (Default = trust everything, so the bare `PassContext::new` test
+  path is unaffected); `optimise_raw` fills it via
+  `scan_module_command_mutations`.  The **O129** fold now gates on
+  `mutations.trusts(head)` — a command renamed / redefined anywhere in
+  the module (top-level *or* a proc body, flow-insensitively) is no
+  longer folded with its builtin semantics (`rename string {}; puts
+  [string toupper foo]` no longer folds).  3-case discriminating test
+  `o129_trust_gate_suppresses_fold_for_rebound_builtin` +
+  `module_mutations_distrust_rebound_builtins_only`.  **Follow-up:**
+  extend the gate to the SCCP hand-rolled cmd-sub folds
+  (`sccp::try_fold_cmd_subst`, which would need the mutations threaded
+  into SCCP) and the incr-idiom; the WASM/bytecode dispatch-gating half
+  stays out of scope.
+
+### SYNC-JUN02b-5 — string-comparison folding in the constant expr evaluator (#519)
+
+`tcl_expr_eval.py` — `eq` / `ne` / `lt` / `gt` / `le` / `ge` now compare
+operands *as strings* (a dedicated `_apply_string_compare`), matching C
+Tcl 9 (`5 eq 5.0` → 0, `"x" ne "y"` → 1).  Previously only numeric
+evaluation, so string-only constant comparisons never folded.  Classify
+in-scope, **low-touch correctness**.  **Rust state: LANDED** — the Rust
+`tcl_expr_eval::eval_binary` had the identical numeric-only gap
+(`StrEq`/`StrNe`/… fell through to numeric `eval`, so a bare-string
+operand yielded `None`).  Now routed through `eval_as_string` +
+`apply_string_compare`; the now-unreachable `apply_binary` arms fold
+into its `None` group.
+
+### SYNC-JUN02b-6 — new optimiser const-folds (#519)
+
+A family of missed-optimisation closures, mostly **new folds** rather
+than fixes:
+- **O129** — general fold of any pure builtin command substitution with
+  constant args via the registry `const_fold` callbacks (`string
+  length`, `join`, `format`, `llength`, `dict get`, `concat`, `split`,
+  `string map`, …).
+- **format folding fix** — `fold_format` honours flags / width /
+  precision (`%03d 7` → `007`); `fold_cmd_subst_to_string` keeps the
+  exact string (no numeric coercion that drops a leading space).
+- **O130** — `lappend` list-build chains fold to a single `set var {…}`
+  (canonical list quoting), guarded by the same escaping/observability
+  check as O104.
+- **scan** `const_fold` for the inline (no-varName) form.
+- **list / lindex** folding routed through the registry (O116 / O118 /
+  O129) — drops the hand-rolled single-element-only folders, picking up
+  multi-element + special-char cases.
+- **O105** — string-constant interpolation (`set x hello; puts "v=$x"` →
+  `puts "v=hello"`), same-block + no-intervening-call gate.
+- **O115** — unwrap redundant nested `[expr {[expr {E}]}]` in value
+  positions (return / set), not just EXPR-role args.
+- direct-`[expr {$x …}]` constant propagation (the SSA use-collector
+  hides expr-cmd-sub reads, so `puts [expr {$x + 1}]` folds via a
+  reaching-version augmentation).
+Classify in-scope, **features** — each its own incremental strip.
+**Rust state: FOLD_HINTS mechanism + O129 LANDED (initial folds);
+O130 / scan / registry-routed list-lindex deferred.**  The registry
+`const_fold` mechanism is now wired: pure builtins expose a
+`ConstFoldFn` (already a field on `CommandSpec` / `SubCommand`), and the
+optimiser's `propagation::try_o129_fold` resolves a cmd-sub head to its
+spec (or subcommand), checks every arg is a clean literal via
+`literal_words`, calls the `const_fold`, and renders the result through
+`render_propagation_word` (so a multi-word fold result is brace-quoted).
+Emitted as **O129** from `visit_call_cmd_subst_folds`, before the O103
+interproc bail (so it fires with no interproc summary).  This is the
+optimiser-side diagnostic only — it consults `ctx.registry` and does
+**not** thread the registry into SCCP, so the SCCP lattice fold
+(`try_fold_cmd_subst`) is untouched (the two are complementary: O129 is
+the user-facing rewrite, SCCP feeds the constant lattice).  **Folds
+landed:** `string toupper` / `tolower` / `reverse` / `length` (all
+ASCII-restricted for exact Tcl parity — non-ASCII case-maps and the
+UTF-16-vs-USV length divergence make them bail).  `string length` is
+main's headline O129 example (`puts [string length abcde]` → `5`); it
+coexists with SCCP's hand-rolled `string length` lattice fold (different
+positions, complementary — verified the full suite stays green).
+**Deferred follow-ups** (same mechanism, add a `const_fold` per
+command): `join`, `format`, `concat`, `dict get`, `string map`,
+`string repeat`; and the list-returning folds (`split`, `lrange`,
+`lreverse`) which render their result list through the
+`tcl_list_element` quoter.  O130 (`lappend` chain → single `set`) and
+the inline `scan` fold are still their own strips.  Per-fold notes:
+- **O115 value-position unwrap** — **LANDED.**  A redundant double-expr
+  cmd-sub `[expr {[expr {E}]}]` now collapses to `[expr {E}]` in
+  command-argument positions (`propagation::visit_call_cmd_subst_folds`)
+  and `return` positions (`try_fold_return_terminator`), via a shared
+  `o115_redundant_nested_expr` helper that double-unwraps to confirm the
+  inner is itself an `[expr {…}]` (sound — a plain `[expr {$x+1}]` or an
+  `[expr {[other]}]` is left untouched).  **`set` value-position
+  cmd-sub folds now wired** — `walk_statement` grew a `Statement::
+  AssignValue` arm that runs `visit_call_cmd_subst_folds` over the
+  set's value words, so `set y [::answer]` folds the pure-proc cmd-sub
+  to its constant return (O103) just like `puts [::answer]` does
+  (discriminating test `o103_cmd_subst_fires_on_set_value_target`).
+  **Finding:** the *canonical* `set x [expr {[expr {E}]}]` does **not**
+  reach this arm — `extract_single_expr_arg` strips the outer `expr` at
+  lowering time, so it becomes an `AssignExpr` whose `ExprCommand` holds
+  the inner `[expr {E}]`; the AssignValue arm therefore unlocks O103 (and
+  O100 / O115 for the rarer AssignValue forms that retain a nested-expr
+  cmd-sub word), while the user-visible O115 *source suggestion* for the
+  pre-collapsed `set x [expr {[expr {E}]}]` would need a separate
+  AssignExpr-side check (deferred — not the documented quick win).  Only
+  the cmd-sub fold path is wired (not bare-`$var` `visit_call_tokens`): a
+  `set y $c` RHS is SCCP / load-forwarding territory.
+- **O105 string-constant interpolation** — **already present** in Rust
+  (`propagation::visit_string_interpolation`, emitted as O100); only a
+  minor `return "…$x…"` completeness gap remains.
+- **format flags** — Rust `codegen/helpers::try_format_fold` folds only
+  `%s` / `%d` / `%%` and returns `None` otherwise, so the Python *bug*
+  (dropping flags) does **not** exist (safe but incomplete); porting the
+  full printf-compatible `%` is a completeness upgrade, low urgency.
+- **list / lindex** — `fold_list_cmd` exists; there is **no
+  `fold_lindex`** and no O116 / O118 emission; routing through the
+  registry waits on the fold-hints mechanism.
+
+### SYNC-JUN02b-7 — per-use-site DCE + braced-scalar SCCP marker (#519)
+
+- **per-use-site DCE** — DCE tracked consumed reads per *statement*, so
+  folding one var on a line wrongly suppressed liveness of the line's
+  other vars (diamond dead-store bug).  Now keyed per use-site
+  (block / idx / name / version).  Classify in-scope, **soundness** —
+  patches the Rust DCE if it shares the per-statement tracking.
+- **braced-scalar `${name}` SCCP marker** — `set x ${a(1)}` reads scalar
+  `a(1)`; the reconstructed `$={name}` marker text must be treated as a
+  (conservatively overdefined) variable reference, not folded as a
+  literal.  Classify in-scope, low-touch.
+**Rust state: both N/A.**
+- per-use-site DCE — the Rust DCE (`elimination.rs`, O109 / O126) works
+  off `def_use` chains + SCCP purity, not the Python propagation→liveness
+  handshake (`propagated_expr_stmts`); the diamond-DCE bug shape this
+  fixes does not exist in the Rust architecture.
+- braced-scalar marker — Rust has **no `$=` marker** (grep-empty) and
+  does **not** mis-fold the braced scalar: a probe confirms `set x
+  ${a(1)}; return $x` produces *no* O100 / O102 / O103 fold on `x` (it is
+  treated as a var-read → overdefined), so there is nothing to patch.
+
+## SYNC-JUN02c family — main audit (2026-06-02)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`31d3aac8`.  `main` landed **3** commits; advances the
+anchor to `origin/main`@`e64aff29`.  Histories still diverge fully (no
+merge-base) — per-file audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#523** (`80bc2b0e`) — *test(vscode): de-flake variable-context
+  completion probes and deep-diagnostics waits.*  Touches only
+  `editors/vscode/src/test/*` + `.test-slow.stamp`.  Pure VS Code
+  extension test hardening (poll-until instead of fixed sleeps).
+  **Out of scope** (editors / tests).
+- **#520** (`b2ef4480`) — *Support encrypted (OpenPGP) UCS archives
+  with passphrase decryption.*  F5 tooling: `tooling/f5/f5_remote/*`
+  (new `_aes.py` / `_openpgp.py` symmetric-decrypt + `ucs.py` rework)
+  and `tooling/f5/verbs/*`.  **Out of scope** (F5 / BigIP tooling — the
+  `BIG*` / `F*` Python-retirement chunks, not analyser / compiler /
+  registry / optimiser).
+- **#522** (`e64aff29`) — *Tcl 9 compatibility: scan / format / string
+  / regex / proc / flow fixes.*  The bulk is **out of scope**: WASM
+  codegen (`compiler/codegen/wasm/{_imports,_scan,api,proc_scan}.py`),
+  the **Zig VM / WASM runtime** (`runtime/zig/cmds/{flow,list,proc,scan,
+  tcl_cmd_interp,tcl_mathfunc}.zig`, `runtime/zig/interp/*`,
+  `runtime/zig/parse/tcl_parse.zig`, `runtime/zig/valtypes/{tcl_format,
+  tcl_regex,tcl_string}.zig`), the WASM execution test suite
+  (`tests/test_wasm_*.py`), the parity baseline
+  (`tests/baselines/wasm_command_parity.json`), generated editor
+  catalogues, and the `tooling/irule_test` registry-data regen.
+
+In-scope rows:
+
+### SYNC-JUN02c-1 — `timerate` command spec (#522)
+
+`main` #522 added `dialects/tcl/timerate.py` — a command spec for the
+`timerate` debugging command (measure the rate of execution of a
+script; `timerate ?-direct? ?-calibrate? ?-overhead double? command
+?time ?max-count??`).  It is a sibling of `time`: `arg_roles={0: BODY}`,
+`arg_types={1: INT shimmers}`, unbounded arity (`Arity(1)`), a
+`STRING` return, an `UNKNOWN`-target read+write side-effect (the body
+runs arbitrary code), and `dialects=DIALECTS_EXCEPT_IRULES`.  Classify
+in-scope, **low-touch feature** (a single new registry command spec).
+**Rust state: LANDED** — ported as
+`rust/tcl-registry/src/commands/tcl/timerate.rs` and registered in the
+tcl pack `mod.rs` (`mod timerate;` + `timerate::spec()`).  Mirrors the
+Python fields exactly except the dialect set: the Rust tcl pack uses
+`dialects: None` for vanilla commands (its sibling `time` does too) and
+mirrors iRules exclusion via the separate iRules pack rather than
+per-command, so the `DIALECTS_EXCEPT_IRULES` restriction is a
+pack-wide, pre-existing fidelity property — not specific to this strip.
+One discriminating registry test pins the BODY role / INT hint /
+unbounded arity / STRING return / UNKNOWN read+write effect
+(`timerate_registered_with_body_and_int_hint`).
+
+## SYNC-JUN02d family — main audit (2026-06-02, PR #525)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`e64aff29`.  `main` landed **2** commits; advances the
+anchor to `origin/main`@`40278cc0`.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#524** (`da16799b`) — *Add KCS guides for migration verification and
+  encrypted UCS handling.*  F5 query builtins + KCS docs + UCS crypto
+  (`dialects/f5/query/*`, `docs/kcs/*`, `tooling/f5/*`).  **Out of
+  scope** (F5 tooling / docs).
+- **#525 Part A** (`40278cc0`) — the command-binding codegen follow-ups
+  (bytecode rename-gate on `_try_bytecoded` / inline cmd-subst dispatch;
+  WASM value/tail-position `IRIncr` rename-gate; interp→compiled-proc
+  dispatch).  **Out of scope** — `compiler/codegen/bytecode/*`,
+  `compiler/codegen/wasm/*`; the Rust port emits neither backend.
+
+In-scope rows (#525 Part B — "missed optimisations", all reuse **O129**;
+no new codes):
+
+### SYNC-JUN02d-1 — registry `const_fold` callback library (#525)
+
+`main` added `dialects/tcl/const_fold.py` — the canonical FOLD_HINTS
+data: ~40 `const_fold` callbacks (`fold_list` / `concat` / `join` /
+`split` / `lindex` / `lrange` / `llength` / `lreverse` / `lrepeat`; the
+`string` subcommand family `cat` / `compare` / `equal` / `first` /
+`index` / `is` / `last` / `length` / `map` / `range` / `repeat` /
+`replace` / `reverse` / `tolower` / `totitle` / `toupper` / `trim` /
+`trimleft` / `trimright`; the `dict` family `create` / `exists` / `get`
+/ `keys` / `merge` / `size` / `values`; plus `format`, `subst`, `scan`)
+wired onto the `const_fold` field of the matching `CommandSpec` /
+`SubCommand`.  Consumed by SCCP + the O129 fold.  Classify in-scope,
+**features** — each its own incremental strip on top of the FOLD_HINTS
+mechanism already landed (SYNC-JUN02b-6).  **Rust state: partial.**  The
+mechanism + `string toupper` / `tolower` / `reverse` / `length` landed
+under SYNC-JUN02b-6.  The Rust folds reuse `render_propagation_word`
+(quote-via-`tcl_list_element`) so a special-char result is brace-quoted
+as a single word rather than rejected (sound — Rust folds *more* than
+main's reject-on-special-char guard, both correct; the analyser is not
+byte-gated against Python).  String folds are ASCII-restricted for exact
+Tcl parity (Rust/Tcl case-map + length agree on ASCII; non-ASCII bails —
+conservative).  **Landed so far:** the full pure-`string`-subcommand family — `toupper`
+/ `tolower` / `reverse` / `length` (SYNC-JUN02b-6); `cat` / `repeat` /
+`trim` / `trimleft` / `trimright` / `totitle`; and the index/comparison
+ops `index` / `range` / `replace` / `first` / `last` / `compare` /
+`equal` (via a `parse_index` + `clamp_range` port, ASCII-restricted).
+The **list ops** (`list` / `concat` / `join` / `split` / `lindex` /
+`lrange` / `llength` / `lreverse` / `lrepeat`) and **`dict` ops**
+(`get` / `exists` / `keys` / `merge` / `size` / `values` / `create`)
+also landed, in a new registry-leaf `tcl-registry/src/const_fold.rs`
+module carrying a self-contained validating `split_list` (bails on
+unbalanced braces / unterminated quote / trailing junk / backslash), a
+`list_element` / `list_join` quoter (mirrors
+`tcl-compiler::codegen::helpers::tcl_list_element`), and the canonical
+`parse_index` / `clamp_range` shared with the `string` folds.  List
+results are re-quoted element-wise (`lreverse {a b} c` → `c {a b}`),
+then the O129 path wraps the whole result as one word.  `dict create` /
+`merge` de-dup keys last-wins with position preserved (Tcl 9
+`Tcl_DictObjPut`).  **`string map`** (greedy left-to-right replace,
+`-nocase`, ASCII-restricted, byte-exact) and **`subst`** (B4) also
+landed — `subst` folds only a substitution-free string (bails on `$` /
+`[` / `\`), a *stricter* subset of Python's fold since the Rust O129
+path passes raw literal args with no upstream `$var` resolution (that is
+the deferred B2 work; folding `subst {$x}` verbatim would be unsound).
+**`string is` — LANDED** (`string_::fold_is`, registered on the `is`
+subcommand with `pure: true`).  Implemented as **Tcl-faithful class
+predicates**, deliberately *not* a transcription of Python's `str`-method
+fold (whose semantics diverge — e.g. `str.islower("abc1")` is `True` but
+Tcl's `string is lower abc1` is `0`).  Covers: the ASCII character
+classes `alpha` / `alnum` / `digit` / `lower` / `upper` / `xdigit` /
+`space` / `control` / `graph` / `print` / `punct` / `wordchar` (each
+applies the predicate to *every* char and **bails on non-ASCII** input —
+Unicode membership isn't modelled, a missed fold never a wrong one),
+`ascii` (the membership test itself, defined for any input), and
+`boolean` / `true` / `false` via the exact `Tcl_GetBoolean` keyword +
+unique-prefix set (`t` / `ye` / `of` resolve; `o` — ambiguous between
+`on`/`off` — does not).  `list` also folds: `split_list` returns `Some`
+only for a valid (backslash-free) list and `None` for a malformed one,
+so a backslash-free string folds (`Some` → 1, `None` → 0) and a
+backslash-bearing one bails (split_list conservatively rejects any
+backslash, but `a\ b` is still a valid list).  `-strict` is honoured
+(only the empty-string result differs); `-failindex` and any unknown
+option bail.  Two registry tests
+(`string_is_folds_tcl_faithful_classes`,
+`string_is_subcommand_carries_const_fold`) + O129 optimiser cases.
+**Version-aware const-fold mechanism — LANDED** (SYNC-JUN03 follow-up).  The
+registry is the single source of truth for dialect-dependence: a new
+`hooks::TclVersion` (`V8_4`…`V9_0`, with `from_dialect`), a
+`VersionedConstFoldFn(args, version)` type, and a `const_fold_versioned`
+field on `CommandSpec`/`SubCommand`, dispatched by
+`{CommandSpec,SubCommand}::run_const_fold(args, dialect)` (versioned first,
+mapping the dialect → version internally; else the invariant `const_fold`).
+The optimiser's `fold_builtin_cmd_subst_raw` just forwards `ctx.dialect`; all
+the Tcl-version interpretation lives in the registry.
+
+**`string is integer` / `wideinteger` / `entier` / `double` / `dict` — all
+LANDED, version-aware** (`fold_is`, registered on `const_fold_versioned`),
+verified against `tclsh8.4`/`8.5`/`8.6`/`9.0`.  **Verification methodology**
+(applies to every "verified against the four tclsh" claim below): the
+per-version caps / availability / value-interpretation were determined and
+checked against all four interpreters during development — the older three
+built from `tmp/` — and are pinned as hard-coded expectations in the Rust
+*unit* tests (`string_is_number_classes_are_version_aware`,
+`format_d_value_is_version_aware`, …).  The committed **differential harness**
+(`tcl-registry/tests/differential_fold.rs`) runs folds against the live
+`tclsh9.0` reference only (the older releases aren't on `PATH` in CI; the Python
+`tests/test_const_fold_vs_tcl.py` on `main` carries the multi-version matrix).
+The number-class form is restricted to plain decimals
+(no leading zero / `0x`/`0o`/`0b` — those bail, the form being
+version-sensitive), so only the *magnitude cap* and *class availability*
+vary by version:
+* `integer` caps at `2³²-1` on 8.x (above → `0`) but is unbounded on 9.0;
+  with no known version the divergent range bails.  `fold_is`'s option
+  parsing was also corrected to Tcl's grammar (the **last** arg is the
+  value, so `string is integer -7` → `1`).
+* `wideinteger` *raises* on 8.4 (bail), accepts the unsigned-64-bit range on
+  8.5/8.6 and the signed-64-bit range on 9.0 (`2⁶³` → `1` on 8.6 but `0` on
+  9.0; `2⁶⁴` → `0`); `entier` raises on 8.4/8.5, unbounded on 8.6/9.0;
+  `dict` is 9.0-only, an even-length well-formed list.  A class that raises
+  in the target version bails — even the empty-string shortcut is gated, and
+  `version == None` (unversioned dialect) treats them all as unavailable.
+* `double` defers to Rust's `f64::from_str` (after trimming), which agrees
+  with Tcl exactly on the decimal / scientific / `Inf` / `NaN` forms across
+  8.4 → 9.0 (`5.e3` / `.5` / `inf` → 1; `1e` / `.` / `1.2.3` → 0); a `_`
+  separator, a `0x`/`0o`/`0b` prefix, a `nan(payload)`, and non-ASCII bail
+  (version-divergent or Rust-rejected — a future version-aware extension can
+  fold the 9.0-only `_` separator).
+
+**`format`** — the **`%s` / `%d` / `%i` plus
+the flag / width / precision matrix LANDED** for the decimal-integer and
+string conversions (`format_::fold_format`, SYNC-JUN03 follow-up).  The
+flags `-` / `+` / space / `0`, an optional width, and a `.precision`
+(minimum digits for ints, max chars for strings) all fold; pinned
+byte-identical to tclsh by the new Rust-side differential-fold harness
+(`tcl-registry/tests/differential_fold.rs`).  Soundness: `%d` / `%i`
+fold only the **dialect-invariant** decimal-arg subset — plain decimal,
+no leading zero (octal in 8.x, decimal in 9.0: `%d 010` → `8` vs `10`),
+in the signed 32-bit range (9.0 wraps `%d` to 32 bits, 8.6 doesn't:
+`%d 2147483648` → `-2147483648` vs `2147483648`); `%#d` bails (Tcl 9
+`0d42` vs 8.6 `42`); `%s` width/precision over a non-ASCII value bails
+(char-count diverges 8.x ↔ 9.0).  The **radix** conversions **`%x` / `%X` / `%o`** also **LANDED** (same
+SYNC-JUN03 follow-up) for a **non-negative** dialect-invariant arg, with
+flags / width / precision; the version-divergent edges bail — a negative
+value (two's-complement digit count is 32-bit in 9.0, 64-bit in 8.6:
+`%x -1` → `ffffffff` vs `ffffffffffffffff`), `%#X` (`0xFF` vs `0XFF`),
+`%#o` (`0o10` vs `010`), and `%#x 0` (`0` vs `0x0`).  **`%c`** (codepoint →
+character) **LANDED** too, restricted to a **printable-ASCII** codepoint
+(space..=`~`) with width / `-` justify — that range is byte-identical
+across versions; a codepoint ≥ 128 diverges (8.6 emits a byte, 9.0
+raises), control chars / DEL are unsafe to splice into source, and a
+negative codepoint raises — all bail.  **`scan` — LANDED**
+(`scan_::fold_scan`, same follow-up): the *inline* (no-`varName`) form, with
+scanf semantics modelled **directly on tclsh** — deliberately **not**
+transcribed from main's `_tcl_scan`, which is itself *unsound* (it reads no
+`0x` prefix and folds `scan 0xff %x` to `0` where every tclsh gives `255`).
+Folds `%d` / `%o` / `%x` / `%X` / `%s` / `%c` / `%%`, each numeric result
+bounded to the signed-32-bit range every release shares (`[-2³¹, 2³¹-1]` —
+8.4 wraps, 8.5/8.6 widen, 9.0 clamps/bignums above it, so even
+`scan 2147483648 %d` is three-way-divergent and bails).  A `0x`-prefixed
+`%x` input (the case main mis-folds; its sign handling also diverges in
+8.4), a `%s` run needing list-quoting, `%i` / `%u`, the float conversions,
+a width / `*` / `%[set]` / size modifier / positional spec, a literal
+mismatch, and a partial / failed / empty match all bail.  Verified across
+`tclsh8.4`/`8.5`/`8.6`/`9.0` (see the verification methodology above).  **The `format` float
+conversions `%f` / `%F` / `%e` / `%E` / `%g` / `%G` — all LANDED**
+(`render_float` + `fmt_sci` / `fmt_general`, same follow-up): Rust's float
+formatter is byte-identical to C/Tcl on the exact binary value — the same
+round-half-to-even (verified across a rounding-heavy matrix: `2.5`→`2`,
+`0.125`→`0.12`, `2.675`→`2.67`, `99.995`→`100.00`).  `%e`/`%g` reshape Rust's
+exponential / shortest-form to C's: `%e` rewrites the exponent as a sign +
+≥2 digits (`3.140000e+04`); `%g` picks `%f` or `%e` by the decimal exponent
+(`-4 ≤ X < P`) and strips trailing zeros (`1000000`→`1e+06`, `100000`→`100000`,
+`9999999`→`1e+07`).  The argument is parsed as a double over the `string is
+double` subset; precision defaults to 6, and unlike `%d` the `0` flag
+zero-pads even with a precision.  A non-finite value (`Inf`/`NaN` — spelling
+is version-edgy) and the `#` alternate form (it suppresses `%g`'s
+trailing-zero stripping) both bail.  **`format %u` — LANDED** too
+(`render_unsigned`): a plain non-negative decimal in the unsigned-32-bit
+range every release shares (`[0, 2³²-1]` — `2147483648` agrees, `%u -1`
+and `4294967296` diverge), with flag / width / precision (the `+`/space
+flags don't apply to an unsigned value).  This completes the foldable
+`format` conversion matrix.  **`%b` — LANDED, version-gated** (SYNC-JUN03
+follow-up): `format` was made version-aware via the same registry mechanism
+as `string is` (`fold_format` registered on `const_fold_versioned`).  `%b`
+routes through `render_radix` like `%x` (non-negative, `0b` for `%#b`), but
+only on **8.6+** — it raises in 8.4/8.5, so the fold bails there (and for an
+unversioned dialect), verified across the four tclsh (per the methodology above).
+**`%d` / `%i` value interpretation — now version-aware too**
+([`parse_format_int`]): a leading zero is octal on 8.x but decimal on 9.0
+(`%d 010` → `8` on 8.6, `10` on 9.0; an octal-invalid `08` raises on 8.x →
+bail), and 9.0 wraps to a signed 32-bit int while 8.x keeps the full 64-bit
+value (`%d 2147483648` → that value on 8.x, `-2147483648` on 9.0;
+`%d 5000000000` → `705032704` on 9.0).  8.x bails beyond i64 (the >2⁶³
+behaviour diverges — 8.5 mis-converts 2⁶³); a `0x`/`0o`/`0b` prefix bails; an
+unversioned dialect keeps the invariant plain-decimal i32 subset.  The
+**radix (`%x` / `%X` / `%o` / `%b`) value interpretation is now version-aware
+too** (`render_radix` shares `parse_format_int`): the same leading-zero +
+wrap semantics, and a negative renders as the dialect-width two's complement
+(`%x -1` → `ffffffff` on 9.0 but `ffffffffffffffff` on 8.6; `%x 010` → `8` on
+8.x but hex `a` on 9.0; `%x 5000000000` → `12a05f200` on 8.x, wrapped
+`2a05f200` on 9.0); an unversioned dialect keeps the non-negative i32 subset.
+**`%u` is version-aware too** (`render_unsigned`, sharing `parse_format_int`):
+the unsigned decimal of the bit pattern at the dialect width — `%u -1` →
+`4294967295` on 9.0 but `18446744073709551615` on 8.6, `%u 4294967296` → `0`
+vs `4294967296`.  So **every `format` integer conversion**
+(`%d`/`%i`/`%x`/`%X`/`%o`/`%b`/`%u`) is now version-aware.  **Still deferred**:
+**`format` size modifiers (`%ld`) / `*` / positional specs**, and — notably —
+**`scan`'s numeric bounds beyond i32**: its large-value semantics are
+*inconsistent across versions* (8.4 vs 9.0 clamp-vs-wrap differently, 8.5 has
+conversion bugs), so it is soundly foldable only within the shared i32 range,
+as now.  (The duplicated
+`split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
+deliberate trade-off — the canonical Tcl list-string codec should
+consolidate into a shared leaf like `tcl-lexer`; tracked.)
+
+### SYNC-JUN02d-2 — embedded / nested cmd-sub fold gaps (#525 B1/B2/B3)
+
+The consumer-side optimisation gaps #525 closes:
+- **B1** — fold a pure builtin / `[expr {…}]` substitution embedded
+  *inside* an interpolation string (`puts "v=[string length abc]"` →
+  `puts "v=5"`); the replacement is spliced raw (not list-quoted) since
+  it lands inside the `"…"`.
+- **B2** — thread the reaching-version SCCP constants into the registry
+  cmd-sub folder so a nested read folds (`puts [expr {[string length
+  $s]}]` → `puts 3`), gated to same-block straight-line defs for
+  soundness (semi-pruned SSA omits a phi for hidden join reads).
+- **B3** — a pure proc returning a multi-word string folds, list-quoted
+  (the O103 fold + the canonical quoter).
+Classify in-scope, **features** — consumer-logic ports on top of the
+fold library.  **Rust state: B1 LANDED; B2 / B3 deferred.**
+- **B1 — LANDED** (`propagation::visit_string_interpolation_cmd_subs`,
+  dispatched from `visit_call_tokens`).  Scans an interpolation string
+  for embedded `[cmd …]` subs (UTF-8-safe byte scan with bracket
+  nesting + `\[` escape handling), folds each pure-builtin sub via the
+  shared `fold_builtin_cmd_subst_raw` (the raw, *un*-quoted O129 core),
+  and splices the result into the surrounding `"…"` — `puts
+  "v=[string length abc]"` → `puts "v=5"`.  Guards: a whole-word `[…]`
+  is skipped (handled by `visit_call_cmd_subst_folds` — avoids a
+  duplicate O129); a fold result that would re-introduce a substitution
+  into the `"…"` (`$` / `[` / `]` / `\` / `"`) is left unfolded; at
+  least one successful fold is required to emit.  Discriminating test
+  `o129_folds_embedded_cmd_subst_in_interpolation`.
+- **B3 — LANDED.**  Two pieces: (a) `interprocedural::classify_return`
+  now treats a substitution-free return value (no `$` / `[` / `\`) as a
+  `Literal` — `return {a b c}` / `return "a b c"` both lower to the
+  value `a b c` (delimiters stripped), which previously fell through to
+  `Other` and blocked the fold; (b) the cmd-sub O103 `Str` arm renders
+  the constant return via `render_propagation_word` (the canonical
+  quoter) instead of bailing on a non-bare-word, so `proc ::greet {} {
+  return "a b c" }; puts [::greet]` folds to `puts {a b c}`.
+  Discriminating test `o103_folds_multi_word_string_return_list_quoted`.
+- **B2 — LANDED.**  `literal_words` now resolves a single-token `$var`
+  argument to its constant value (via the SCCP `constants` map threaded
+  through `visit_call_cmd_subst_folds` → `try_o129_fold` →
+  `fold_builtin_cmd_subst_raw`, and through the B1 interpolation path),
+  keeping a multi-word value as **one** argument so it isn't re-split.
+  `set s abcde; puts [string length $s]` → `puts 5`; `set s {a b}; puts
+  [llength $s]` → `puts 2`; combined with B1, `set s abc; puts
+  "len=[string length $s]"` → `puts "len=3"`.  **Soundness:** Python
+  needed same-block straight-line def gating because its reaching-version
+  is per-point (semi-pruned SSA omits a phi for hidden join reads); the
+  Rust SCCP `constants` map is *whole-function* (a var is present only if
+  every reaching def agrees), so substituting from it is sound
+  everywhere with no gating.  A composite word (`foo$bar`), an array
+  element (`$a(1)`), or a non-constant var bails.  Discriminating test
+  `o129_resolves_constant_var_args_b2`.  **Still deferred:** the
+  `[expr {[string length $s]}]` *expr-wrapper* nesting (the outer
+  `[expr {…}]` routes through the expr path, not the const_fold path) —
+  a further follow-up.
+
+## SYNC-JUN03 family — main audit (2026-06-03, PR #528)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`40278cc0` (SYNC-JUN02d).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`ca7bba21`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#528** (`ca7bba21`) — *Fix regexp/regsub empty-subject matching and
+  lset index bounds.*  Three Tcl 9 **WASM / Zig-VM** runtime fixes plus a
+  WASM-gate refresh: (1) `eval_regexp_cmd`'s `-all` loop tested
+  `offset >= stringLength` at the top of the loop, so an empty subject
+  (`offset == length == 0`) never attempted a single match and every
+  capture-bearing form returned 0 against `""` — now mirrors
+  `Tcl_RegexpObjCmd` (attempt the match first, break only after recording
+  it and advancing past the end); (2) `eval_regsub_cmd`'s metacharacter-free
+  `-all` + literal-`subSpec` string-map fast path uses the exclusive bound
+  so an empty pattern matches strictly between characters
+  (`regsub -all {} foo bar` → `barfbarobaro`, `regsub -all {} {} bar` → `""`),
+  while a `&` / `\` in the subSpec disqualifies the fast path; (3)
+  `lset_recurse` now raises on an out-of-range index and appends at length
+  (`lset {a b} 2 c`), mirroring `TclLsetFlat`; plus a `%`-bignum `format`
+  fix.  Touches only the **Zig VM**
+  (`runtime/zig/valtypes/{tcl_regex,tcl_list,tcl_format}.zig`,
+  `runtime/zig/cmds/list.zig`), the **WASM tcltest baselines / gate**
+  (`tests/baselines/tcl9-tcltest-wasm/**`,
+  `tests/test_wasm_tcl9_core_baseline.py` harness-path fix +
+  refreshed `summary.json`), the **WASM execution tests**
+  (`tests/test_wasm_{regexp_empty_match,lset,regexp_about,format_bignum}.py`),
+  and `.test-slow.stamp`.  **Out of scope** — the Zig VM, the WASM emitter,
+  and the WASM test suite are all explicitly outside the rewrite scope; the
+  commit carries no analyser / compiler / lowering / CFG-SSA / registry /
+  optimiser surface, and no `rust/` change.
+
+No in-scope rows — the single commit is entirely VM / WASM runtime + tests.
+
+## SYNC-JUN04 family — main audit (2026-06-04, PR #530)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`ca7bba21` (SYNC-JUN03).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`43812a60`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#530** (`43812a60`) — *Fix concat trailing whitespace trimming and
+  empty proc names.*  Three Tcl 9 **WASM / Zig-VM** runtime fixes plus a
+  WASM-gate refresh: (1) **`concat` trailing backslash-space** — match
+  `Tcl_ConcatObj`'s rule: trim all trailing whitespace, then re-expose one
+  byte when the trim lands on a backslash, *regardless of backslash-run
+  parity*.  The old code stopped at the first odd-backslash-escaped space, so
+  it trimmed the exposed space away for even runs
+  (`concat a {b\\   } c` → `a b\\  c`, util-4.3).  (2) **empty command name**
+  — a single command word that evaluates to `""` is a genuine invocation of a
+  command literally named `""`: dispatch it to a user-defined `""` proc when
+  one exists, else fall through to the canonical `invalid command name ""`
+  (proc-3.7, proc-old-9.1); previously a silent no-op.  A follow-up sub-commit
+  dropped the `simple_len == 0` guard in `proc_register_compiled` so the static
+  codegen path registers empty-named procs too (matching the interpreted path).
+  (3) **proc wrong-args** — list-element-quote the invoked name in the
+  `wrong # args: should be "…"` message (`Tcl_WrongNumArgs` runs each word
+  through `TclScanElement` / `TclConvertElement`), so an empty proc name renders
+  as `{}` and a whitespaced name as `{a b}` (proc-3.7).  Touches only the
+  **Zig VM** (`runtime/zig/interp/{tcl_interp,tcl_procs}.zig`,
+  `runtime/zig/valtypes/tcl_string.zig`), the **WASM tcltest baselines / gate**
+  (`tests/baselines/tcl9-tcltest-wasm/**` — util 2→1, proc 2→1, proc-old 13→12
+  failing; refreshed `summary.json`), the **WASM execution tests**
+  (`tests/test_wasm_concat_trim.py`, `tests/test_wasm_proc_validate.py`), and
+  `.test-slow.stamp`.  **Out of scope** — the Zig VM, the WASM emitter, and the
+  WASM test suite are all explicitly outside the rewrite scope; the commit
+  carries no analyser / compiler / lowering / CFG-SSA / registry / optimiser
+  surface, and no `rust/` change.
+
+In-scope follow-up (confirmation, no behaviour change):
+
+- **`fold_concat` differential confirmation — CONFIRMED SOUND, no change
+  needed.**  #530's VM fix raised the question of whether the registry
+  `const_fold` for `concat` (`const_fold::fold_concat`) needs the same
+  trailing-backslash re-expose rule.  It does not, because the Rust fold never
+  receives a backslash-bearing word.  `fold_concat` is a **faithful, byte-
+  identical port** of main's `dialects/tcl/const_fold.py::fold_concat`
+  (`" ".join(a.strip() for a in args if a.strip())`); neither models the
+  re-expose rule, so both are unsound *in isolation* for a
+  trailing-backslash-whitespace word (`concat a {b\ } c` would fold to the
+  6-byte `a b\ c`, but Tcl 9.0 gives the 7-byte `a b\  c`).  Soundness is
+  upheld upstream, at **different stages** in the two pipelines:
+  **Rust gates on the input word** — the optimiser's `literal_words`
+  (`tcl-compiler/src/optimiser/propagation.rs`) bails on **any**
+  backslash-bearing word (it does not decode escapes), so `fold_concat` never
+  sees one; **main gates on the fold result** —
+  `fold_cmd_subst_to_string` (`compiler/core_analyses.py`) rejects any result
+  containing `;\n[$"\\`.  For `concat` these are **outcome-equivalent**: a
+  backslash in any input word is non-whitespace, so it always survives the
+  trim into the result, and both pipelines decline the fold.  Pinned by a new
+  discriminating regression test
+  (`o129_concat_trailing_backslash_space_word_is_not_folded` in
+  `propagation.rs`) — it folds a clean `concat` for contrast and asserts the
+  backslash forms (incl. the exact #530 `concat a {b\\   } c` shape) are left
+  unfolded; deleting the `literal_words` backslash bail makes it fail (the
+  cmd-sub would fold to a wrong literal).  A note added beside the
+  `differential_fold.rs` `concat` cases records why that harness — which drives
+  the registry fold directly, bypassing `literal_words` — must not feed a
+  backslash word.
+
+## SYNC-JUN05 family — main audit (2026-06-05, PR #532)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`43812a60` (SYNC-JUN04).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`77215e87`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#532** (`77215e87`) — *Fix dict exists, try exception chaining, and
+  related interpreter bugs.*  A cluster of Tcl 9 **Zig-VM / WASM-codegen**
+  runtime fixes against the tcl9-tcltest-wasm core slice: (1) **`dict exists
+  DICT KEY ?KEY ...?`** now walks the whole key chain (returning false on a
+  missing key or non-dict intermediate without raising, matching
+  `tclDictObj.c::DictExistsCmd`) instead of consulting only the first key —
+  fixed in the Zig runtime (`runtime/zig/cmds/dict.zig`) and the WASM codegen
+  value / statement / command-substitution / expr paths
+  (`compiler/codegen/wasm/_emitter/{cmds/dict_,_values,_statements,_expressions}.py`),
+  which route the multi-key form through the eval fallback; (2) **`try …
+  on/trap … finally` `-during` exception chaining** mirrors `TryPostHandler`
+  (`runtime/zig/cmds/flow.zig`); (3) **`apply` anonymous-lambda parity** —
+  formal-param validation (array-element / qualified-name rejection), the
+  `(parsing lambda expression …)` `::errorInfo` frame, and `info level 0`
+  inside the body (`runtime/zig/interp/tcl_interp.zig`); plus `incr`
+  bad-increment-frame, `unset` array-element, regexp option-abbrev, and
+  array/scalar-conflict fixes across `runtime/zig/{cmds/var,interp/tcl_frames,
+  interp/tcl_ns,valtypes/tcl_array,valtypes/tcl_regex}.zig`.  Touches only the
+  **Zig VM**, the **WASM emitter** (`compiler/codegen/wasm/_emitter/**`), the
+  **WASM tcltest baselines / gate** (`tests/baselines/tcl9-tcltest-wasm/**`),
+  the **WASM execution tests** (`tests/test_wasm_*.py`), and `.test-slow.stamp`.
+  **Out of scope** — the Zig VM, the WASM emitter, and the WASM test suite are
+  all explicitly outside the rewrite scope; the commit carries no analyser /
+  compiler / lowering / CFG-SSA / registry / optimiser surface, and no `rust/`
+  change.
+
+No in-scope rows — the single commit is entirely Zig VM / WASM codegen +
+runtime tests.
+
+## SYNC-JUN06 family — main audit (2026-06-05, PR #533)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`77215e87` (SYNC-JUN05).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`4092ab31`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+**In scope — a major new parsing-frontend structure with no Rust mirror yet.**
+
+- **#533** (`4092ab31`) — *Introduce canonical red-green concrete syntax
+  tree (CST).*  A multi-cycle PR (93 files, **0 `rust/`**) landing the
+  single lossless representation the segmenter / formatter / minifier / AOT
+  lowering / per-command tooling are meant to share.  Three strands:
+  - **The red-green CST** — new `compiler/parsing/syntax/` package, the
+    Roslyn / rust-analyzer split **#477's "green token tree" deliberately
+    declined to build** (see `SYNC-MAY31-6`; #477 is a token *cache* whose
+    tokens carry absolute positions): `green.py` (position-independent — a
+    node knows only its width + children, so identical subtrees are shareable
+    and an edit shifts a subtree for free; trivia attached to the adjacent
+    token so a command is pure syntax while every byte round-trips); `red.py`
+    (anchors a green tree, resolves absolute positions lazily — reproduces the
+    lexer's exact Token offsets / lines / UTF-16 columns); `build.py`
+    (re-shapes the existing lexer stream into the tree — *no second parser* —
+    via start-to-start tiling, replicating the segmenter's word-boundary rule
+    incl. the stale-`{*}` quirk and its comment accumulation); `segment.py`
+    (derives `SegmentedCommand` from the tree — argv compound-word merge,
+    texts, all_tokens, range, preceding_comment, expand_word); `descend.py`
+    (cycle 2 — lazy descent: `descend_token` builds a child CST for a braced
+    body / `[…]` sub anchored one byte past the opener; `descend_command`
+    descends registry-resolved `ArgRole.BODY` args via `iter_body_arguments`).
+    `command_segmenter._segment_raw` now builds the tree and derives segments
+    from it — the **150-line token loop + `_command_range` are removed**.
+    Verified byte-identical (losslessness, position-equivalence vs the lexer,
+    field-for-field `SegmentedCommand` parity) over the 157-file 8.6/9.0
+    corpus + 120k randomised differential cases + nested-body anchoring.
+    Design doc: `docs/design/compiler/syntax-tree.md`.
+  - **Authoritative span/range accessors** — `shared/ranges.py` gains
+    `word_closer_offset` / `word_end_position` (derive a word's closing
+    `}`/`]`/`"` from the lexer's content geometry instead of re-deriving
+    `tok.end.offset + 1`, which overshoots an empty `{}`/`[]`/`""`); the
+    segmenter's command range is now token-only (`start, boundary − 1` off the
+    post-word SEP/EOL), making the empty-delimiter overshoot *structurally
+    impossible*.
+  - **Diagnostic fixes riding along** — the #527 **E102** false positive
+    (empty trailing `{}` swallowing the enclosing `}`) and a **W304**
+    `_last_literal_set_value_for_var` "inside proc body?" guard restored on
+    the faithful range; plus a `compiler-explorer` skill with `slices` /
+    `tokens` views.
+  **Rust mirror state + plan.**  *In scope* (parsing frontend →
+  `tcl-lexer` / `tcl-compiler`).  **PORTED 2026-06-04 — all six strips
+  landed; see the `CST-PORT` priority-queue row for the full ledger.**  The
+  Rust CST lives in `rust/tcl-compiler/src/parsing/syntax/` + `rust/tcl-lexer/
+  src/ranges.rs`, and `segment_commands_local` is rebased onto it
+  byte-identically (the token loop is gone).  Original plan (now done):  The Rust side has the lexer
+  (`tcl-lexer`) + a token-loop segmenter
+  (`tcl-compiler/src/segmenter.rs::segment_commands_local`) — the same one
+  just made dialect-aware (`SYNC-MAY19-dialect-contextvar`).  The faithful
+  porting target is a Rust red-green CST (a new `tcl-cst` module / crate, or
+  in `tcl-compiler::parsing`) with the green/red split + `build` + `segment`
+  + `descend`, then rebasing `segment_commands*` to derive from it (the
+  `_and_config` dialect plumbing carries over — the tree's `build` consumes
+  the same dialect-configured `Lexer`).  Lower-risk sub-items portable first:
+  the `shared/ranges.py` authoritative-closer accessors.  The Rust segmenter's
+  `widen_word_end` / `command_span` already byte-check the degenerate `{}` /
+  `[]` closer (segmenter.rs:147-172), so the #527-class overshoot is likely
+  *already absent* on the Rust side — audit + a parity test before assuming so.
+  Relation: this supersedes the deferred `SYNC-MAY31-6` direction (token cache,
+  not a tree) and feeds the same `S*` document-store / incremental-reparse work
+  (a red-green tree is the natural incremental-edit substrate).  Tracked as a
+  new priority-queue row (`CST-PORT`).
+
+## SYNC-JUN07 family — main audit (2026-06-04, PR #534)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`4092ab31` (SYNC-JUN06).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`73492e98`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+**No in-scope rows.**
+
+- **#534** (`73492e98`) — *Fix empty symbol names in BigIP document
+  outline.*  The VS Code client rejects the **entire** document outline when
+  any `DocumentSymbol.name` is falsy, and the BigIP global-singleton objects
+  (`auth password-policy`, `net self-allow`, `sys diags ihealth`, …) have an
+  empty path key (`""`).  The fix falls back to the object's `kind` label as
+  its effective identity (`full_path or kind`) in
+  `server/features/_bigip_symbols.py::get_bigip_document_symbols`, with a
+  `tests/test_document_symbols.py` regression.  Rides along: a cosmetic
+  raw-string docstring fix in `compiler/taint/_sinks.py`
+  (`_direct_expr_operand_names` — a `"""` → `r"""` change so an embedded
+  backslash in the prose no longer triggers an invalid-escape warning; **no
+  behavioural change**) and a `.test-slow.stamp` refresh.  **Out of scope** —
+  the document-outline feature lives in the Python **LSP server**
+  (`server/features/**`), explicitly outside the rewrite scope; the
+  `taint/_sinks.py` touch is a docstring-only edit with no analyser /
+  compiler / lowering / CFG-SSA / registry / optimiser semantics, and the
+  commit carries no `rust/` change.
+
+The single commit is an LSP-server outline fix plus a docstring tweak — no
+parsing-frontend, analyser, compiler, or registry surface to mirror.
+
+## SYNC-JUN08 family — main audit (2026-06-04, PRs #536/#537/#539)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`73492e98` (SYNC-JUN07).  `main` landed **3** commits;
+advances the anchor to `origin/main`@`de6e9815`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+**One in-scope parsing-frontend soundness fix (#537); the other two are
+out-of-scope or no-delta.**
+
+- **#537** (`26e1e79c`) — *Fix lexer line tracking for lone CR
+  continuations.*  **In scope** (parsing frontend → lexer + CST build +
+  incremental).  Fuzzing the new red-green CST (#533) for losslessness /
+  position-equivalence / segment validity / descent / anchoring /
+  incremental reparse (1.15M checks) surfaced three tracking bugs:
+  - **Strand 1 — lexer lone-CR line tracking.**  A backslash-CR
+    continuation (`\<CR>`, old-Mac line ending) bumped the lexer's
+    incremental line counter, but the `\n`-only line-start index that
+    `_pos_at` / `_advance` / the red CST overlay all use never recorded
+    it — so the token *after* a `\<CR>` reported its `start` one line
+    below its own `end` (a backwards range).  A lone CR is now a *column*
+    advance, not a line break, at five fast-path continuation sites; a
+    CRLF still breaks on its LF.  The canonical resolution: **a bare `\r`
+    is not a line break — only `\n` (incl. the LF of CRLF) is** (matches
+    `compiler/parsing/lexer.py::_build_line_starts` and
+    `shared/source_map.py`, both `\n`-only).  **→ this is the chunk
+    (`SYNC-JUN08-1`), smallest-first + soundness.**
+  - **Strand 2 — CST build dropped quoted backslash-newline content.**
+    A `\<newline>` that is a quoted word's *content* (`"\<newline>"`) is
+    lexed as an `ESC` fragment, but `build.py` folded every `ESC`
+    `\<newline>` into trivia — dropping the word's only fragment.  The
+    `ESC` trivia branch is removed (separators are `SEP`, folded
+    elsewhere).  **Maps to `rust/.../syntax/build.rs`'s `handle_trivia`
+    ESC arm — needs a behaviour audit against the Rust lexer/segmenter
+    before deciding whether it is a real Rust divergence** (the Rust port
+    deliberately mirrors the *token-loop segmenter*'s `Esc if text ==
+    "\\\n"` fold, which may already differ from main; tracked under
+    `SYNC-JUN08-1` as a candidate follow-up strip).
+  - **Strand 3 — incremental reparse recovery bail.**  `incremental_top_
+    level_chunks` (window re-segmented with recovery disabled) now bails
+    when any old command is partial.  **N/A on the Rust side — there is
+    no Rust incremental-reparse path yet** (deferred to the `S*`
+    document-store rows; `incremental_top_level_chunks` has no mirror).
+  The formatter/minifier idempotency strands riding along are **out of
+  scope** (Python `tooling/`).
+- **#536** (`af0a0c86`) — *Consolidate token-scanning helpers into
+  canonical green-tree module.*  **Mixed.**  The bulk is **out of scope**
+  (four Tcl 9 WASM-runtime fixes in `runtime/zig/**` — `unset
+  -nocomplain` parsing, `subst` array-index errors, `return -options`
+  merge/leak, `array set` through a top-level `upvar 0` alias — plus the
+  WASM tcltest baselines).  The in-scope strands carry **no behavioural
+  delta to port**: (1) a pure Python-internal consolidation moving
+  `word_piece` + the token scanners into a new
+  `compiler/parsing/token_scanning.py` (`command_segmenter._word_piece`
+  becomes a thin wrapper over `token_scanning.word_piece(tok,
+  bare_arrays_split=False)` — *same* bare-array round-trip logic the Rust
+  `segmenter.rs::word_piece` already has via `SYNC-MAY19-word-piece-array`);
+  (2) a per-scope segmentation memo on `GreenTreeScope` (perf only — the
+  algorithm is "unchanged (renamed to `_segment_commands_uncached`)").
+  No `rust/` mirror needed; flagged the new `bare_arrays_split` two-mode
+  split as a thing to watch if a future divergence surfaces.
+- **#539** (`de6e9815`) — *Docs: Update API references and add new
+  diagnostic KCS notes.*  **Out of scope.**  A repo-wide docs/KCS veracity
+  sweep + editor-catalog regeneration (`.kt` / `.ts` / `package.json`) +
+  two new diagnostic-catalog entries in `analyser/_analyser/_utils.py`
+  (`I230` constant-branch / `I231` constant-switch-arm unreachability
+  hints).  The catalog `diag(...)` calls register description metadata
+  only — the **emitters already exist** in both main
+  (`analyser/_analyser/_diag_branches.py`) and the Rust port
+  (`rust/tcl-compiler/src/analyser/diagnostics.rs`, "✅ landed: I230 /
+  I231").  No analyser / compiler / lowering / CFG-SSA / registry /
+  optimiser semantics changed; no `rust/` change.
+
+### SYNC-JUN08-1 — lexer lone-CR line tracking (#537 strand 1)
+
+**In scope, soundness.**  Post-fix main establishes the canonical line
+model unambiguously: **a lone `\r` is not a line break** — every Python
+line index (`compiler/parsing/lexer.py::_build_line_starts`,
+`shared/source_map.py`) counts only `\n` (the LF of a CRLF counts; a bare
+`\r` is horizontal whitespace, a `Sep`, in Tcl).  The Rust port diverged:
+`rust/tcl-lexer/src/line_index.rs::LineIndex::new` counted a bare `\r` as
+a line break (pinned by `bare_cr_counts_as_line_break` /
+`mixed_line_endings`), citing the *pre-fix incremental counter*.  But the
+Rust lexer is span-based — token (line, char) is resolved **only** through
+`SourceMap::position_at` → `LineIndex::position_at` (there is no separate
+incremental counter to disagree with), and the red CST overlay's own
+`build_line_starts` (`red.rs`) already counts `\n`-only.  So
+`LineIndex`'s CR-counting disagreed with both post-fix Python **and** the
+red overlay: for `"a\rb"`, `LineIndex` put `b` on line 1 while the red
+overlay (and Python) put it on line 0 — the exact position-equivalence
+inconsistency the #537 CST fuzzing exposed.
+
+**Blast radius** (audited): the CR-counting convention lived **only** in
+`LineIndex::new`.  `red.rs::build_line_starts` and the sole `with_parts`
+caller (`descend.rs`, which passes `build_line_starts(inner)`) are already
+`\n`-only; no other Rust site assumes bare-CR-as-line-break (`cr_is_
+separator_not_eol` already pins `\r` as a `Sep`).
+
+**Strip 1 — LANDED (2026-06-04).**  `LineIndex::new` now counts `\n`
+only (mirroring `red.rs::build_line_starts` and Python `_build_line_
+starts` byte-for-byte; CRLF still breaks on its LF, unchanged).  Inverted
+the two unit tests (`bare_cr_counts_as_line_break` →
+`bare_cr_is_not_a_line_break`; `mixed_line_endings` recomputed to the
+`\n`-only line set), pinning the explicit post-fix-Python positions.
+**Discriminating cross-layer test** (`red.rs`):
+`lexer_line_index_agrees_with_red_overlay_on_lone_cr` resolves every
+offset of a battery of bare-CR / CRLF / mixed sources through the lexer's
+`SourceMap` and asserts it equals the red overlay's **independent**
+`build_line_starts` index — a genuine cross-check (red's index is frozen
+on the `\n`-only convention, not a self-comparison), FAILS pre-fix
+(`(1,0)` vs `(0,2)` for `b` in `"a\rb"`).  `cargo test --workspace`
+green, clippy/fmt clean.
+
+**Strand 2 (CST build quoted `\<newline>`)** — **audited: a real but
+narrow divergence, deferred as its own coordinated strip.**  Post-#537
+`build.py` removed the `ESC` trivia branch so a `\<newline>` that is a
+quoted word's *whole content* (`"\<newline>"`, token text exactly
+`"\\\n"`) falls through to the **fragment** path (kept); only a `SEP`
+`\<newline>` between/after words folds to trivia.  The Rust port instead
+folds *both* (`build.rs::handle_trivia`'s `Sep | Esc if … "\\\n"` arm) to
+stay byte-identical with the **token-loop segmenter** — and the frozen
+differential oracle does the same (`differential_segment.rs:393`,
+`Esc if token_text == "\\\n" => fold`), so the CST and the oracle are in
+lockstep (pinned by the M1 cases `puts "\<newline>"` / `puts "$x\<newline>"`).
+The Rust side is therefore *internally* consistent but drops a token
+post-#537 Python keeps — a known, documented decision, not a silent
+paper-over.  Reconciling needs a **coordinated** change moving the live
+token-loop segmenter, the frozen oracle, and the `build.rs` arm together
+(else the byte-identical rebase breaks) plus a re-think of how the frozen
+oracle stays an independent cross-check across a deliberate behaviour
+change — its own strip with its own behavioural bar, not folded in here.
+**Strand 3 (incremental reparse)** — N/A (no Rust path yet; deferred to
+the `S*` document-store rows).
+
+## SYNC-JUN09 family — main audit (2026-06-05, PRs #540/#541/#546/#547)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`de6e9815` (SYNC-JUN08).  `main` landed **4** commits;
+advances the anchor to `origin/main`@`08babde2` (#546, the last of the
+four merged — #540 → #541 → #547 → #546 in merge order).  Histories still
+diverge fully (no merge-base) — per-file audit.
+
+**Two in-scope rows, both parsing-frontend / IDE-feature and both
+behaviour-preserving *alignments* rather than new analyses: #540
+(`SYNC-JUN09-1` / `-2` — lowering body-descent unification + closer-geometry
+consolidation) and #541 (`SYNC-JUN09-3` — depth-recursive line-continuation
+folding).  The other two commits are out of scope (LSP-server / infra and
+Tcl 9 WASM-runtime).**
+
+- **#540** (`a268b143`) — *Consolidate command parsing and fix switch
+  pattern span bugs.*  **In scope** (parsing frontend → `shared/ranges.py`
+  + `compiler/parsing/**` + lowering body-descent).  Six sub-changes — two
+  with an in-scope Rust mirror to update, four already-satisfied / N/A:
+  - **Closer geometry consolidated onto one helper (→ `SYNC-JUN09-2`).**
+    `word_closer_offset` gains a region-relative `base_offset`, and a new
+    boolean sibling `closer_present_in_region` becomes the single source of
+    "is this delimited word terminated"; `descend._terminated` and
+    `green_tree._delimiter_terminated` both delegate to it (three hand-rolled
+    copies → one).  The motivating bug — `iter_switch_case_list` deriving a
+    braced/quoted pattern's raw-span end as `tok.end+1`, landing *on* the
+    closer so the exclusive slice dropped it and the **minifier** re-emitted
+    `switch $x {}` (tclsh "missing close-brace") — is fixed by deriving the
+    end from `word_closer_offset`.  **Rust state:** `rust/tcl-lexer/src/
+    ranges.rs::word_closer_offset(sm, tok)` has no `base_offset` and no
+    `closer_present_in_region`; `rust/.../syntax/descend.rs::terminated`
+    rolls its own length-based check (`span.start()+1+token_text.len()`)
+    instead of delegating.  The minifier itself is **not ported** (Python
+    `tooling/`), so the switch-pattern span *bug* has no Rust consumer — and
+    the Rust CST already derives switch spans via `command_span` /
+    `word_end_position` with the empty-`{}` non-overshoot pinned by CST-PORT
+    strip 1 (`widen_word_end_does_not_overshoot_empty_brace_before_enclosing_
+    closer`).  So the only in-scope work is the **dedup/parity** convergence
+    — see `SYNC-JUN09-2`.
+  - **Lowering body re-parse routed through `descend_token` (→ `SYNC-JUN09-1`).**
+    Python `_Lowerer._segment_body` now descends a real **braced `STR`** body
+    token through `descend_token` — the same entry point the analyser's
+    `compiler_checks` uses — instead of a second `segment_commands` call, so
+    lowering and the checks share one body-descent path; `CMD` (`[…]` command
+    substitution) / `VAR` / quoted / top-level / synthesised bodies fall back
+    to `segment_commands`.  The full document source is threaded onto
+    `_Lowerer` (via `lower` / `lower_commands`) so a body token's absolute
+    offsets resolve.  Byte-identical by construction (recovery is skipped for
+    bodies).  **Rust state:** `rust/tcl-compiler/src/lowering/mod.rs::
+    {lower_script,lower_body}` always re-segment via
+    `segment_commands_with_offset_and_config` — lowering and the analyser run
+    *different* body-descent paths.  In-scope alignment — see `SYNC-JUN09-1`.
+  - **`{*}` modelled as a word-prefix marker in the `token_scanning`
+    fallback grouping helpers** (`parse_single_command` / `iter_region_words`):
+    treat EXPAND as a word boundary so the following real token is the word's
+    representative with `single=True` + `expand_word=True`, matching the CST
+    (C Tcl `tclParse.c` `TCL_TOKEN_EXPAND_WORD`).  **No active Rust gap:** the
+    Rust CST / segmenter already models `{*}` as a separate `Expand` marker
+    with `single_token_word=true` (CST-PORT strip 5, `expand_word_flags`
+    test).  The fallback `_parse_single_command_from_range` /
+    `_parse_cmd_token_contents` are **deliberately not yet ported** (the Rust
+    `optimiser/helpers` pulls token-parsing helpers in per-consumer) —
+    recorded so that when they land they treat EXPAND as a word boundary, not
+    a folded fragment.
+  - **`GreenNode` → `TokenRegion` rename** in `green_tree.py` (the
+    tokenisation **memo** node, disambiguated from the CST's structural
+    `GreenNode` in `syntax/green.py`).  **N/A for Rust:** the shared
+    tokenisation memo (`SYNC-MAY31-6`) was superseded by `CST-PORT` and never
+    ported, so no Rust naming collision exists; the Rust CST `GreenNode`
+    (`syntax/green.rs`) is already unambiguous.
+  - The `optimiser/_helpers` + `optimiser/_pattern_recognition` + `var_refs`
+    re-pointing onto the canonical `token_scanning` helpers (the `piece` /
+    `base_offset` injectables on `parse_single_command`) is a Python-internal
+    dedup (~64 fewer lines, byte-identical) continuing #536; the Rust
+    optimiser already centralises through the segmenter / CST.  No row.
+- **#541** (`1e3a71b7`) — *Add regression tests and line continuation
+  folding support.*  **In scope** (IDE feature → folding).  Adds
+  `_collect_continuation_folds`, which folds a command stretched across
+  physical lines by `\`-continuations (issue #493) **at every nesting depth**
+  — it tokenises each level and **recurses into multi-line `STR` / `CMD`
+  tokens**, anchoring content one byte past the opener, so a continuation
+  inside a braced/bracketed body folds too; `_is_continuation_sep` matches
+  both `\<LF>` and `\<CRLF>` joins; `_emit_continuation_run` trims trailing
+  blank / past-EOF lines so a dangling `foo \` at EOF doesn't fold over empty
+  space.  **Rust state:** `rust/tcl-lsp-core/src/folding.rs::
+  collect_continuation_folds` (SYNC-MAY31-8) scans only the **top-level**
+  token stream — continuations inside nested bodies are invisible — and always
+  emits `prev+1` (no dangling-tail trim).  CRLF is already handled (the Rust
+  check keys on the leading `\` byte).  In-scope extension — see
+  `SYNC-JUN09-3`.  (The two-sided issue-regression suite riding along —
+  `tests/test_issue_regressions_two_sided.py` — is Python test infra; the
+  behaviours it pins are existing, no new Rust mirror.)
+- **#547** (`36470ac6`) — *Remove lsp/ directory from gitignore and update
+  import path.*  **Out of scope.**  A `.gitignore` cleanup (the historical
+  `lsp/` ignore predated the seven-concern move to `server/`), a one-line
+  import-path fix in `server/server.py`, and a new pytest **LSP end-to-end
+  harness** (`tests/lsp_e2e/{harness,conftest}.py` + a server-version smoke
+  test) that drives the Python server over stdio JSON-RPC.  LSP-server / test
+  infra; closes with the `S*` server port.  No analyser / compiler / registry
+  / optimiser surface, no `rust/` change.
+- **#546** (`08babde2`) — *Add Tcl 9 WASM full-suite classification and
+  failure analysis.*  **Out of scope.**  Two dev scripts
+  (`scripts/dev/{classify_tcl9_wasm_failures,gen_tcl9_wasm_classification}.py`)
+  plus the per-category `tests/.../baselines/tcl9-tcltest-wasm/categories/
+  *.toml` classification tables over the Tcl 9 tcltest WASM suite.  Tcl 9
+  WASM-runtime / Zig workstream; the mirror is the future Rust WASM emitter,
+  not the analyser.  No `rust/` analyser hook.
+
+### SYNC-JUN09-1 — lowering body re-parse via the CST descent (#540)
+
+**In scope, alignment (byte-identical target).**  Python #540 gave lowering
+and the analyser's `compiler_checks` **one** body-descent path:
+`_Lowerer._segment_body(text, body_token)` descends a real **braced `STR`**
+body token (`type is STR`, opener `{`, token indexes into the threaded
+document `self._source`) through `descend_token` and reads
+`segments_from_tree(...)`; every other body — `CMD` (`[…]` command
+substitution, whose inner text is *not* a script), `VAR`, quoted, the top
+level (no token), and synthesised const-mapped / `[list]`-built bodies whose
+token doesn't index into the document — falls back to `segment_commands`.
+The braced-`STR`-only guard (PR #540 review fix) mirrors the analyser's
+`descend_command`, which skips non-`STR` bodies; admitting a `[foo bar]` body
+would read it as the script `foo bar` and emit phantom diagnostics.
+
+**Rust state.**  `rust/tcl-compiler/src/lowering/mod.rs::lower_script` and
+`::lower_body` re-segment unconditionally via
+`segment_commands_with_offset_and_config(text, base_offset, self.config)`;
+the descent (`descend_token` / `descend_command`, CST-PORT strip 6) has the
+analyser as its only caller (`CST-CONSUMERS`).  So lowering and the analyser
+run two body-descent paths in Rust just as Python did pre-#540.
+
+**Port.**  Thread the document `&str` onto `Lowerer` (mirroring Python's
+`_source`), add `Lowerer::segment_body(text, base_offset, body_tok)` that
+descends a braced-`STR` body token through `descend_token` (the lowerer
+already works in absolute-`base_offset` space via `lower_body_from_tok`, so it
+has the offset and needs only the source), gated identically (kind `Str`,
+source byte at the token start is `{`, offset in range), and route
+`lower_script` / `lower_body`'s `segment_commands*` calls through it.  CMD /
+VAR / quoted / top-level / synthesised bodies keep `segment_commands*`.
+Target: byte-identical segments — recovery is skipped for bodies, so the CST
+descent equals `segment_commands(body_text, body_token)`, the per-token
+property CST-PORT strip 6 already proved.  Medium-touch; depends only on
+`descend_token` (landed) and the dialect `config` it already threads.
+
+### SYNC-JUN09-2 — delimited-word closer-geometry consolidation (#540)
+
+**In scope, parity / dedup (behaviour-preserving).**  Python #540 collapsed
+three copies of the delimited-word closer geometry onto one helper:
+`shared.ranges.word_closer_offset` gained a region-relative `base_offset`, and
+`closer_present_in_region(tok, text, base_offset)` is the boolean sibling that
+`descend._terminated` (and `green_tree._delimiter_terminated`) now delegate to,
+so "where is the closer" and "is the word terminated" can never drift apart.
+
+**Rust state.**  `rust/tcl-lexer/src/ranges.rs::word_closer_offset(sm, tok)`
+returns an absolute offset only (no `base_offset`); there is no
+`closer_present_in_region`; and `rust/.../syntax/descend.rs::terminated`
+computes its own length-based check (`span.start()+1+token_text.len()`, with a
+`}`/`]` discriminant).  This is the same "three independent copies" shape #540
+removed on the Python side — the Rust `terminated` agrees with
+`word_closer_offset` today by construction, not by delegation.
+
+**Port.**  Add `closer_present_in_region` to `tcl-lexer::ranges` as the
+boolean sibling — the Rust `word_closer_offset` already keys emptiness on
+`SourceMap::token_text` (the faithful predicate landed in CST-PORT strip 1),
+so it is a thin wrapper — give `word_closer_offset` the region-relative
+`base_offset` if/when a substring caller needs it, and have
+`descend.rs::terminated` delegate.  Pure parity; pin with the existing
+empty-`{}` / unterminated-braced cases (`descend_empty_brace_is_terminated`,
+`descend_unterminated_brace_is_recovered`).  Small; land alongside
+`SYNC-JUN09-1` (touches the same two files).
+
+### SYNC-JUN09-3 — nested + dangling-tail line-continuation folding (#541)
+
+**In scope, IDE-feature extension.**  The Rust continuation folder
+(`collect_continuation_folds`, SYNC-MAY31-8, mirroring #494) folds runs of
+top-level `\`-continued lines, but #541 makes the Python folder **depth-
+recursive**: a continuation join inside a braced/bracketed body is one opaque
+`STR` / `CMD` token at the enclosing level, so `_collect_continuation_folds`
+re-tokenises each multi-line `STR` / `CMD` token (anchored one byte past the
+opener, like the segmenter) and emits continuation folds at every depth (cap
+20, matching `_collect_body_folds`).  It also trims trailing blank / past-EOF
+lines so a dangling `foo \` at EOF folds to its last real line instead of over
+empty space.
+
+**Port.**  Make `collect_continuation_folds` recurse: after collecting the
+top-level continued-line runs, iterate the lexed tokens and, for each
+multi-line `Str` / `Cmd` token, recurse into `token_text` anchored at
+`tok.span.start()+1` (depth-capped at 20), reusing the existing `push_unique`
+dedup so an inner run already claimed at the outer level is skipped; add the
+dangling-tail trim (walk the run end down past blank / past-EOF lines) to
+match `_emit_continuation_run`.  CRLF needs no change (the Rust check keys on
+the leading `\` byte, covering `\<LF>` and `\<CRLF>`).  Self-contained, off
+the hot keystroke path; pin with a nested-body continuation case + a
+dangling-`\`-at-EOF case.
+
+## SYNC-JUN10 family — full rebase onto main HEAD + whole-workspace audit (2026-06-10)
+
+**This is a `Full rebase` (the heavy catch-up mode documented under
+[Audit workflow](#audit-workflow)).**  The `rust` branch had only been
+kept current via the documentary anchor process since main's May-2026
+seven-concern reorganisation — its working tree still carried the *old*
+Python layout (`core/`, `lsp/`, `vm/`, `fuzzing/`, `explorer/`,
+`debugger/`, `tclpkg/`).  Per the Full-rebase trigger "(b) `main` has had
+a path-renaming refactor", the branch tree was reset onto
+`origin/main`@`0becf577` and the Rust workstream re-applied on top:
+
+- **Kept from `origin/main` (the new base):** the entire seven-concern
+  Python tree (`shared/`, `compiler/`, `dialects/`, `analyser/`,
+  `server/`, `tooling/`), the reorganised `tests/` (which is how the
+  **`tests/lsp_e2e/` end-to-end LSP suite** — #547 + #556 — now rides on
+  the branch), `bench/`, `.importlinter`, and all shared infra.  Main's
+  Makefile/CI were **already Rust-aware** (`test-rust` / `check-rust` /
+  `ensure-rust-deps`, guarded on a top-level `Cargo.toml`; `/target/` +
+  `rust/tcl-lsp-rust/.venv/` already in `.gitignore`; the CI `Set up
+  Rust` step), so no infra merge was needed — the overlaid workspace
+  plugs straight in.
+- **Re-applied from `origin/rust` (the Rust workstream):** the `rust/`
+  Cargo workspace (eight member crates), `runtime/rust` + `runtime/rust-spike`,
+  `Cargo.toml` / `Cargo.lock` / `rust-toolchain.toml` / `deny.toml`, the
+  Rust-only design/perf docs (`docs/design/{rust,runtime}/…`,
+  `docs/perf/wasm-tcl9-parity/…`), `rust-rewrite-registries.md`, and this
+  document.
+- **Conformed to main ("follow main"):** seven shared `docs/design/runtime/*.md`
+  files were restored to main's versions (the branch had stale-or-divergent
+  copies — e.g. a pre-reorg `scripts/check_refcount_contract.py` path).  The
+  Python↔Rust opt-in **shim** was re-threaded onto the new layout rather than
+  dropped — see *Shim re-thread* below.
+
+Advances the anchor from `origin/main`@`08babde2` (SYNC-JUN09) to
+`origin/main`@`0becf577` (#571).  Histories remain unrelated (no
+merge-base) — per-file audit of the **9** intervening commits:
+
+> **SYNC-JUN10b follow-up — anchor → `origin/main`@`6d7c4a06` (#570).**
+> Main then landed #570 (*resolve all CodeQL alerts — break import cycles by
+> lifting, plus forward-only cleanups*, 78 files across `compiler/`, `server/`,
+> `analyser/`, `dialects/`, `tooling/` + `.importlinter`).  Absorbed onto the
+> branch by cherry-picking #570 (its parent is exactly the `0becf577` anchor,
+> so it 3-way-merged cleanly).
+>
+> **Audited for Rust relevance — none.**  Every CodeQL fix category is
+> behaviour-preserving: `py/ineffectual-statement` (`...` → `pass`,
+> `await task` → `_ = await task`), `py/unused-import` / `-global` / `-local`
+> (dead-code removal), `py/uninitialized-local-variable` (distinct match/case
+> capture names), `py/mixed-returns` (explicit `return` after an *exhaustive*
+> match — no path change), `py/empty-except` (comments only), `py/cyclic-import`
+> (deferred / lifted imports), and one JS `var data` declaration.  No analyser,
+> compiler, optimiser, or runtime **semantics** changed, so there is **no Rust
+> port row**; the import-cycle lifts merely validate the crate-boundary DAG the
+> Rust workspace already enforces by construction.
+>
+> One Python→Rust **mapping breadcrumb** for future audits: the SCCP/GVN lattice
+> types `LatticeKind` / `LatticeValue` (+ `UNKNOWN` / `OVERDEFINED` / `const` /
+> `constset` / `_to_set`) were relocated verbatim from `core_analyses.py` to the
+> new `compiler/analysis_types.py` — the Rust lattice in `tcl-compiler` is
+> independent and unchanged; only the Python source path moved.
+>
+> Tree parity: among all core Python concern dirs the branch is byte-identical
+> to `origin/main`@`6d7c4a06` except the four intentional Rust-workstream edits
+> (`compiler/parsing/lexer.py` shim — auto-merged, hook still calls
+> `_expand_syntax_active()` / `_irules_brace_separator_active()`;
+> `compiler/rust_spans.py`; the two `tests/lsp_e2e` harness files).
+> `shared.diagnostic` / `shared.tokens` were untouched, so
+> `compiler/rust_spans.py` stays contract-legal (`import-linter` 7/7 kept).
+> The rebased branch therefore tracks main's new head `6d7c4a06`.
+
+| # | commit | classification |
+|---|---|---|
+| #551 | `186f0fbd` | `{*}` expansion truncation + list scaling O(N²) — **out of scope** (WASM/Zig VM; the Rust CST already models `{*}` as an `Expand` marker, CST-PORT strip 5). |
+| #554 | `63434bb6` | variable-trace error wrapping + qualified `foreach` fallback — **in scope** → `SYNC-JUN10-2`. |
+| #556 | `4d17155f` | migrate in-process tests to end-to-end LSP suite — **test infra**; now present on the branch via the rebase (`tests/lsp_e2e/`).  Closes with the `S*` server port. |
+| #559 | `cf3e7a76` | FD leak in WASM test runner — **out of scope** (Zig/WASM runner). |
+| #558 | `7df56eff` | metadata headers on KCS docs — **out of scope** (pure doc). |
+| #560 | `242406e5` | veto inert close-bracket insertions in E201 recovery — **already landed + improved** in Rust (`rust/tcl-lexer/src/structural_index.rs::is_inert` / `inert_for_insert`); the Rust structural-inert-spans map subsumes Python's per-insert check. |
+| #569 | `c0d40285` | dependency bumps — **mechanical**. |
+| #564 | `504cadda` | variable-trace + `info exists` on unset — **out of scope** (bytecode-VM semantics; mirror lands in the future `tcl-vm` crate, tracked T-FIRE / T-COMMIT). |
+| #571 | `0becf577` | suppress general Tcl diagnostics for `f5-bigip` config files — **in scope** → `SYNC-JUN10-1`. |
+
+### Whole-workspace audit (rust code ⇄ main Python ⇄ this doc)
+
+A five-way parallel audit (frontend, mid-end, registry+dialects,
+LSP+analyser, runtime) cross-checked every "landed" claim against the
+actual Rust code and against main's current Python.  Outcome: **the doc
+is broadly accurate** — all of CST-PORT / CST-CONSUMERS / GAP-A1 (frontend),
+the eleven SYNC-MAY31/JUN02 mid-end rows, the registry parity set
+(timerate, const-fold callback library, stub overlay, ~1016 iRules + iApps
+specs), ~90% of the E/W/O diagnostic catalogue + all eight dialect-aware LSP
+feature modules, and the entire T1.1–T1.5 + M1–M4 runtime port verified
+present in code.  Four doc-staleness corrections and two new drift rows:
+
+**Doc-stale (corrected in place where load-bearing):**
+- **SYNC-JUN09-2 is closed-by-design, not an open gap.** Rust reached
+  closer-geometry parity by *delegation*, not by adding the planned
+  `closer_present_in_region` sibling: `rust/.../syntax/descend.rs::terminated`
+  already calls `word_closer_offset` internally (reads the exact predicted
+  bytes), and `rust/tcl-lexer/src/ranges.rs::word_closer_offset` faithfully
+  ports `shared/ranges.py`.  The "three independent copies" shape #540
+  removed on the Python side never existed in Rust.  No sibling needed unless
+  a substring caller later wants the region-relative `base_offset`.
+- **GAP-D1 (lsort options) is closed.** All twelve `OptionSpec` entries are
+  present in `rust/tcl-registry/src/commands/tcl/lsort_.rs`; only the inline
+  comment claiming they were dropped is stale.
+- **Runtime T1.3** uses `Drop` on `VarTable` rather than the
+  explicit-release the doc describes — a post-doc-write safety improvement,
+  not a gap.
+- **`tcl-registry` has no `f5-bigip` dialect** in `dialects.rs` (the bitflags
+  carry `IRULES`/`IAPPS` only; `parse("f5-bigip")` → `None`; no
+  `commands/bigip/`).  This underlies `SYNC-JUN10-1`.
+
+**New drift rows** (`SYNC-JUN10-1`, `SYNC-JUN10-2`) and re-confirmed
+carry-forward deferrals (`SYNC-JUN09-1`, `SYNC-JUN09-3`) below.
+
+### SYNC-JUN10-1 — suppress general Tcl diagnostics for `f5-bigip` configs (#571)
+
+**In scope, behaviour-preserving filter (LSP-server).**  Python #571
+(`server/diagnostics_pipeline.py`) returns an empty analysis result
+**before running the analyser** when the resolved dialect is `f5-bigip`, so
+encrypted BIG-IP config markers (`$M$…$`) are not misread as Tcl variable
+references and a `bigip.conf` does not light up with spurious Tcl
+diagnostics.
+
+**Rust state.**  `rust/tcl-lsp-server/src/lib.rs::publish_analyser_diagnostics`
+(and the `analysis_for` path it calls) run the analyser unconditionally —
+there is **no `dialect == "f5-bigip"` early-return** — so the native server
+publishes the exact spurious diagnostics #571 suppresses.  Confirmed
+independently by the registry and LSP audits.
+
+**Port.**  Add the dialect guard at the top of `publish_analyser_diagnostics`
+(return an empty diagnostic set for `f5-bigip`), mirroring the Python
+pipeline.  Pair it with the missing `f5-bigip` registry dialect (see the
+doc-stale note above) so dialect resolution and diagnostic suppression agree.
+Small; LSP-server only.
+
+### SYNC-JUN10-2 — qualified-`foreach` fallback to `IRBarrier` (#554)
+
+**In scope, lowering correctness.**  Python #554 added a `tokens` field to
+`IRForeach` and routes a namespace-qualified loop variable
+(`foreach ::ns::v $list body`) to an `IRBarrier` instead of a structured
+`IRForeach`, because the structured loop cannot bind a qualified target.
+
+**Rust state.**  `rust/tcl-compiler/src/lowering` has **no `tokens` field on
+`IRForeach`** and **no qualified-foreach check** — a qualified loop var falls
+through to a structured loop that binds nothing and runs zero iterations
+(surfacing downstream as a WASM trap when the never-bound variable is read).
+Confirmed by the mid-end audit.
+
+**Port.**  Add the `tokens` field to the Rust `IRForeach`, detect a
+namespace-qualified loop variable in the foreach lowering, and emit an
+`IRBarrier` fallback in that case (mirroring Python).  Pin with a
+`foreach ::g $l {…}` regression.  Medium; lowering + IR vocabulary.
+
+### SYNC-JUN09-1 / SYNC-JUN09-3 — re-confirmed still open
+
+The two parsing-frontend deferrals from SYNC-JUN09 remain unported and were
+re-verified against the current Rust tree: **SYNC-JUN09-1** (lowering body
+re-parse via `descend_token` — `rust/tcl-compiler/src/lowering/mod.rs::
+{lower_script,lower_body}` still re-segment unconditionally) and
+**SYNC-JUN09-3** (depth-recursive + dangling-tail continuation folding —
+`rust/tcl-lsp-core/src/folding.rs::collect_continuation_folds` is still
+top-level-only).  Both stay open with the port recipes given in the
+SYNC-JUN09 section.
+
+### Shim re-thread — Python↔Rust opt-in delegation onto the seven-concern layout
+
+The branch's opt-in shim (the `TCL_LSP_RUST_*`-gated delegations that route
+Python through the `tcl_lsp_rust` wheel when installed) lived in old-layout
+files (`core/parsing/lexer.py`, `core/compiler/{gvn,interprocedural,
+optimiser/_manager,rust_spans}.py`, `core/analysis/signature_scan.py`,
+`lsp/features/document_symbols.py`).  Re-threaded as part of this rebase:
+
+- **Landed:** `compiler/rust_spans.py` (the shared offset→`Range`
+  resolver + `rust_shim_enabled`), with its imports corrected to the
+  contract-legal `shared.diagnostic.Range` / `shared.tokens.SourcePosition`
+  (the old `analysis.semantic_model` import would now violate the
+  `compiler ↛ analyser` import-linter contract).  And the **lexer
+  fast-path** in `compiler/parsing/lexer.py::tokenise_all` — adapted to
+  main's per-call dialect resolution (`_expand_syntax_active()` /
+  `_irules_brace_separator_active()`) since the class-level `expand_syntax`
+  attribute was removed by `SYNC-MAY19-dialect-contextvar`.  Both are
+  `try/except`-guarded, so a wheel-less environment (CI, the test venv)
+  degrades to pure Python with no behaviour change.
+- **Outstanding (`SYNC-JUN10-shim`):** the remaining five gated
+  delegations — GVN (`compiler/gvn.py`), interprocedural
+  (`compiler/interprocedural.py`), optimiser manager
+  (`compiler/optimiser/_manager.py`), `signature_scan`
+  (`analyser/signature_scan.py`, default-on on the old branch) and
+  `document_symbols` (`server/features/document_symbols.py`) — are **not yet
+  re-threaded**.  Each take main's current implementation as the base
+  (which since the anchor diverged from the old-branch copies), add the
+  `try/except` wheel import + materialiser + the env-gated dispatch, and use
+  `compiler.rust_spans.build_position_resolver` for span conversion.  Land as
+  one reviewable chunk; default-off (and `signature_scan` default-on only
+  when the wheel is installed) keeps `make prep-pr` green meanwhile.
+
+### SYNC-JUN10 verification run — both backends + native-server e2e
+
+Post-rebase test run on the branch:
+
+| suite | result |
+|---|---|
+| `cargo test --workspace --all-features` | **3719 passed, 0 failed** (30 crate test binaries) |
+| `runtime/rust` (`cargo test`) | **213 passed, 0 failed** |
+| `tests/lsp_e2e` against the **Python** server | **356 passed** |
+| `tests/lsp_e2e` against the **native Rust** server | **220 passed / 136 failed** (after the snapshot-built marker landed — see below) |
+
+**Server-backend selection landed (test infra).**  The e2e harness, the VS
+Code extension, the `lsp-client` skill, and the Makefile now select the
+backend uniformly: `TCL_LSP_SERVER_KIND=python|rust` (+ `TCL_LSP_SERVER_BIN`
+/ `tclLsp.serverKind` / `tclLsp.rustServerPath`), with the native binary
+located at `target/{release,debug}/tcl-lsp-server` or built via `make
+rust-server`.  This is what lets the same JSON-RPC battery drive either
+backend.
+
+### SYNC-JUN10-e2e — native-server logging + e2e parity baseline
+
+**Native-server `window/logMessage` instrumentation — LANDED.**  The native
+server now emits a `[timing] workspace_state.update …ms (uri=…, lines=…,
+diags=…)` marker via `window/logMessage` once a document's analysis snapshot
+is cached, the workspace index refreshed, and diagnostics published
+(`rust/tcl-lsp-server/src/lib.rs::publish_analyser_diagnostics`) — mirroring
+the Python server's `[timing]` lines so the same logs surface in editors' LSP
+output channels.  This also made the e2e harness backend-neutral: its
+`open_document` readiness barrier (`await_log("workspace_state.update", uri)`)
+now resolves against either server, so `TCL_LSP_SERVER_KIND=rust` drives the
+full battery (previously every `open_document` waited out the timeout).
+
+**Parity baseline (native Rust server vs the 356-test e2e battery): 220
+passed / 136 failed.**  Per feature:
+
+| feature | pass/total | feature | pass/total |
+|---|---|---|---|
+| definition | 8/8 ✅ | diagnostics | 7/7 ✅ |
+| document_symbols | 17/17 ✅ | edit_tracking_stress | 17/17 ✅ |
+| navigation | 6/6 ✅ | structure (folding/sel) | 7/7 ✅ |
+| document_highlight | 6/7 | hover | 27/37 |
+| references | 10/13 | recovery | 13/16 |
+| editor_features | 6/9 | semantic_tokens | 26/40 |
+| signature_help | 9/14 | rename | 10/19 |
+| navigation_extras | 3/6 | code_actions | 13/30 |
+| irules | 19/43 | completion | 15/49 |
+| commands (execute) | 1/9 | server_version | 0/2 † |
+
+† `test_server_version` asserts the **pyz** build version; the native server
+reports its crate version (`0.1.0`).  Harness-specific — skip in rust mode.
+
+**Native-server parity backlog** (the real feature gaps the failures map to,
+roughly worst-first): **completion** (15/49), **execute-command surface**
+(`commands` 1/9), **code actions** (13/30), **iRules dialect features**
+(19/43), **rename** (10/19), and the long tails on semantic_tokens /
+signature_help / hover.  These are the native server's feature-completeness
+backlog — each should be triaged into the relevant `tcl-lsp-core` provider and
+turned into a tracked row as it's picked up.  The harness is no longer the
+blocker; this is genuine provider parity work.
+
+### SYNC-JUN10-runtests — both suites re-verified end-to-end on the Rust backend
+
+Re-ran both test batteries against a fresh `make rust-server` build to confirm
+they execute to completion against the native server (the prerequisite for the
+parity work below).  Both run clean — no collection abort, no indefinite hang:
+
+| suite | rust-backend result |
+|---|---|
+| `tests/lsp_e2e` (`make test-lsp-e2e-rust`) | **220 passed / 135 failed / 1 skipped** |
+| VS Code integration (`make test-ext-rust`) | **325 passed / 50 failed** (runner exit-timeout cleanup handles electron's headless non-exit; `make` exits 0) |
+
+**Infra landed this run:**
+- Two opt-in Makefile targets — `test-lsp-e2e-rust` and `test-ext-rust` — build
+  the native server (`PROFILE=release`) and export `TCL_LSP_SERVER_KIND=rust` +
+  `TCL_LSP_SERVER_BIN` so the existing backend-neutral harnesses drive the Rust
+  binary.  Default `make test-py` / `test-ext` / CI stay on Python until the
+  default-flip milestone.
+- `tests/lsp_e2e/test_server_version.py::test_initialize_reports_packaged_build_version`
+  now `skipif(server_kind()=="rust")` — the banner is pyz-specific (the native
+  server reports `CARGO_PKG_VERSION`), so it would otherwise be a known red.
+- **Server-identity fix:** the native server reported `serverInfo.name =
+  "tcl-lsp-server"`; corrected to `"tcl-lsp"` to match the Python server / editor
+  expectations (`rust/tcl-lsp-server/src/lib.rs`).  Fixes
+  `test_server_version.py::test_server_info_name`.
+
+**Refreshed per-feature lsp_e2e failure tally (worst-first — the Phase-1
+worklist):** completion 34, irules 24, code_actions 17, semantic_tokens 14,
+hover 10, rename 9, commands (executeCommand) 8, signature_help 5, references 4,
+recovery 3, navigation_extras 3, editor_features 3, document_highlight 1.
+
+### SYNC-JUN10-phase1 — provider parity increments (lsp_e2e 220→280 passing)
+
+Worst-first provider fixes against the above baseline (each landed with crate
+unit tests + clippy/fmt clean, no regressions):
+
+- **semantic_tokens 14→3.** Bareword argument words now classify as `string`
+  (`classify_arg_token` ESC fallback, mirroring Python `_classify_token`).
+  **Recursive tokenisation** ported (`collect_script` / `collect_expr`):
+  `ArgRole::Body` braced bodies are re-segmented, `ArgRole::Expr` braced
+  exprs go through the expression sub-lexer (variable/number/operator/
+  function/bool, math fns carry `defaultLibrary`), and `[…]` command
+  substitutions recurse — driven by the registry's `arg_indices_for_role`
+  (incl. the dynamic `if`/`dict`/`foreach` resolvers). BigIP object-ref
+  overlay now wins over the generic bareword `string`. Operator command
+  heads (`+ 3 4`) classify as `operator`. Recognised `-option` switches →
+  `decorator`; known subcommand words → `keyword`+`defaultLibrary`;
+  namespace-qualified heads (`oo::class`, `::set`) split into a `namespace`
+  prefix + command token. *Remaining (3): proc-name `definition` modifier,
+  `switch -regexp` arm patterns, bareword backslash-escape sub-tokens.*
+- **completion 34→14.** Added the `textEdit` architecture (`CompletionEdit` →
+  LSP `CompletionTextEdit`): variable completion computes the `$`→token-end
+  replace range (brace/`\X`-aware), switch completion the dash→cursor range;
+  scope-aware variable enumeration (`visible_variable_names`); option/builtin
+  `documentation`; unsubstitutable-name filtering. *Remaining (14): array
+  element completion (needs `VarDef.array_indices`), cross/same-namespace
+  qualification, scope-binding aliases (dict for/with/update, upvar, namespace
+  upvar, try on-error, uplevel) — all analyser-depth.*
+- **signature_help 5→0.** Line-end cursor clamp, arg-position guard, Python-
+  faithful proc label (short name, `?name?` optionals), unknown-subcommand →
+  none, summary+snippet documentation.
+- **rename 9→2.** Definition-site variable rename, var/proc collision gates,
+  namespace-qualifier preservation. *Remaining (2): namespaced-proc decl
+  short-form; one shared-server flaky.*
+- **executeCommand 8→2.** Wired `describeIruleEvent` / `describeIruleCommand`
+  / `listIruleEvents` / `diagramData` / `getEffectiveConfig`. *Remaining (2):
+  `fixAllSafeIssues`, `optimiseDocument` (code-action fix-all + optimiser-
+  applied source).*
+- **editor_features 3→0.** Code-lens `data.qname`; document-link tooltips +
+  `package require` links.
+- **hover 10→7.** Hover on command `-option` tokens. *Remaining (7):
+  namespace-var, binary-spec, regexp-literal, alias hover — provider depth.*
+- **navigation_extras 3→0** (short call-hierarchy names);
+  **document_highlight 1→0** (proc/class/method use `Text`); **server
+  identity** `serverInfo.name` → `tcl-lsp`.
+
+**Second wave (the remaining-75 push): 280 → 321 passed** (40 more closed).
+Landed: completion array-element + scope-binding (upvar / namespace upvar /
+dict for/with/update / try on-error via new analyser handlers + `array_indices`
++ multi-assignment var refs); code-action `kind`/`command` infra + `only`
+filter; refactor/source families (W115 continuation, IPv4↔IPv6, De Morgan,
+invert, generate-docstring); iRules taint encode-wrap quick-fixes (IRULE3001 /
+IRULE3002 / T103 / T106 + helper-proc insertion); iRules `# Profiles:` header
+source action; class superclass/mixin reference spans; semantic-token
+proc-name `definition` modifier; hover var scope-offset bug-fix; one UTF-16
+column bug-fix in the continuation edit.
+
+**Current native-server e2e: 321 passed / 34 failed / 1 skipped** (from
+220/135 — **+101**). The remaining 34 map to subsystems the plan scopes as
+distinct large efforts (Phase 1's gate defers genuinely-unported domain
+features):
+
+- **iRules 7** — IRULE1005/1006 collect-bootstrap actions + dialect-data
+  completion (timing keywords / `HTTP::respond` options / arg-value docs) +
+  profile-requirement hover. The remaining `tcl-bigip` / dialect-data depth.
+- **code_actions 5** — extract-proc / inline-proc (the `tcl-refactor`
+  variable-extraction + body-substitution engine) and `eval`→`[list …]`
+  (needs the GAP-A2 W101 security check).
+- **completion 5** — cross-namespace qualified enumeration, `global`
+  both-forms, `uplevel #0` scope semantics, read-only array index.
+- **hover 7** — namespace-var, `binary` spec table, regexp-literal,
+  command-alias hover (provider sub-language depth).
+- **recovery 2** (nested ghost-token recovery — parser depth),
+  **semantic_tokens 2** (`switch -regexp` arm patterns, bareword
+  backslash-escape sub-tokens), **rename 2** (namespaced-proc decl form + one
+  shared-server flaky), **references 2** (namespace-scoped unqualified-call
+  resolution + a flaky), **commands 2** (`fixAllSafeIssues` /
+  `optimiseDocument`).
+
+### SYNC-JUN10-phase1-complete — native-server lsp_e2e parity reached (355/355)
+
+The native Rust server now passes the **entire** `tests/lsp_e2e` battery:
+**355 passed, 1 skipped** (the skip is the pyz-only version-banner assertion),
+**0 failed** — up from the 220 baseline.  `cargo test --workspace
+--all-features` is **3726 passed, 0 failed**; workspace clippy (`--all-targets`)
+and fmt are clean.
+
+Final increments closing the tail (each with crate unit tests + clippy/fmt
+clean, no regressions):
+
+- **iRules completion** — command-level positional arg-value completion.
+  Added `CommandSpec::arg_values` (mirroring `SubCommand.arg_values`,
+  flattening the Python `FormSpec.arg_values` to positional indices);
+  populated `when EVENT timing enable|disable` (gated on the preceding
+  `timing` keyword so `priority N` isn't offered timing values) and
+  `HTTP::respond <status> content|noserver|version`.
+- **semantic_tokens** — `switch -regexp { pat body … }` braced case lists now
+  sub-tokenise the patterns as regexes and recurse the bodies
+  (`ArgOverride::SwitchRegexpCaseList`, flattening words across the
+  possibly-multiline list, even=pattern / odd=body).
+- **completion** — `uplevel #0 { … }` modelled as an `ScopeKind::Uplevel`
+  global-frame scope; `visible_variable_names` drops the enclosing proc's
+  locals inside it, `command_resolution_namespace` resets to `::`.
+- **cross-document correctness** — rename aborts wholesale when the
+  in-document result is empty (collision / unsafe target) instead of leaking
+  partial sibling edits; `resolve_workspace_symbol`'s index fallback is gated
+  on the cursor sitting on a command-invocation head (`position_is_command_head`)
+  so a coincidental bareword (`puts hello`) no longer resolves against a
+  sibling proc.  These were the two "shared-server flaky" rows — now genuine
+  fixes, not isolation artifacts.
+- **recovery (E201)** — `segment_with_recovery` iterates the ghost-`]`
+  insertion to a fixpoint (multi-break: `set a [foo` … `set c [bar` … `proc`
+  now recovers the tail proc), and `analyse_body` runs the
+  unterminated-bracket detector so an unterminated `[` inside a braced body is
+  flagged.
+- **code_actions (W101)** — the `eval "cmd $a"` → `eval [list cmd $a]` rewrite
+  CodeFix is attached to the W101 diagnostic.
+- **commands (`optimiseDocument`)** — added `apply_optimisations` +
+  `optimise_source_multipass` to the optimiser manager and wired the
+  `tcl-lsp.optimiseDocument` workspace command; O129 now folds nested constant
+  command substitutions (`puts [llength [list a b c]]` → `puts 3`).
+
+### SYNC-JUN10-phase2 — analyser precision parity (fp / ground-truth battery)
+
+**Measurement harness landed.** `tests/rust_diag_bridge.py` drives the native
+server over a single reused document and shapes its published diagnostics into
+the `.code`/`.message`/`.range` objects the `test_fp_*` /
+`test_ground_truth_tn_fn` battery reads; `server.features.diagnostics.get_diagnostics`
+routes through it when `TCL_LSP_DIAG_BACKEND=rust` (no-op otherwise). This lets
+the existing 377-test precision battery certify the **Rust** analyser unchanged.
+Run it with:
+
+```
+TCL_LSP_DIAG_BACKEND=rust TCL_LSP_SERVER_KIND=rust \
+  TCL_LSP_SERVER_BIN=$(pwd)/target/release/tcl-lsp-server \
+  uv run --extra dev pytest tests/test_fp_*.py tests/test_ground_truth_tn_fn.py
+```
+
+**Baseline (the 11 `get_diagnostics`-based files, 316 tests): 216 → 223
+passing** after this strip. The two `analyse()`-based object files
+(`test_fp_obj*`, 61 tests) aren't yet routed (they read `analyse().diagnostics`
+directly, the analyser-only path).
+
+**Closed this strip:**
+- **taint (TNT) family — 18/18.** Position-aware sink filtering: T101 only the
+  `puts` content arg (not a channel id); T104 only the
+  `taint_network_sink_args` network-address positional slots (a tainted
+  `-headers $hdr` option value no longer fires); T100/T105 suppress
+  `eval`/`uplevel`/`interp eval [list <known-cmd> $v …]` (literal command word).
+- **W210 condition-substitution out-vars (fp_rbs 17 → 14).** `catch`/`regexp`/
+  `scan` substitutions in `if`/`while` conditions now record their result
+  variables as CFG defs (`condition_command_out_vars`), so a read in the
+  guarded body isn't a false read-before-set.
+
+**Remaining precision backlog (≈93 failing, itemised by family):**
+
+| family | failing | nature |
+|---|---|---|
+| ground_truth | 31 | W210 path-merge **true-positives** (Rust under-fires: def-on-one-path, switch-no-default, use-after-unset), W307 var-as-command resolution (snit/TclOO), interproc dict/mixed-caller |
+| fp_rbs | 14 | remaining W210 RBS (regexp switch shapes, qualified `foreach`/`for`, `namespace eval`, frozen-while) + TP controls |
+| fp_sty | 11 | source-style knobs (W111/W112/W115/W118 thresholds) |
+| fp_ds | 10 | dead-store (O109/W220) flow precision |
+| fp_bnd | 9 | bounds checks |
+| fp_nab | 5 | not-a-bug suppression |
+| fp_rch | 5 | reachability |
+| fp_sh | 4 | shimmer (S10x) |
+| fp_opt | 3 | O116 empty-list fold replacement, O106 LICM purity, O109 dead-store |
+| fp_inj | 1 | T102 (needs iRules dialect taint source — harness-dialect artifact) |
+
+The dominant remaining theme is **path-sensitive dataflow precision** (W210
+must fire on a merge where a def reaches on only one path, while *not* firing
+on the catch/regexp-guarded reads above) — TP and FP requirements are in direct
+tension, so each is a careful CFG/SSA flow fix verified against tclsh 9.0.3
+ground truth, not a single switch. These are tracked here as the Phase-2
+worklist; the harness is the regression gate.
+
+### SYNC-JUN10-phase5 — gating note (default-flip + Python retirement)
+
+Phase 5 (make `rust` the default backend; delete the named Python LSP/analysis
+stack) is **gated on Phase-2 parity** — the plan's own "*Once Phases 1-2 close
+parity*" precondition and the explicit project decision to *flip default-on
+after parity*. With ≈93 analyser-precision deltas still open (mostly
+user-facing false-positive/false-negative diagnostics vs the tclsh-locked
+ground truth), flipping the default now would ship those as regressions, and
+deleting `server/`/`analyser/` would remove the reference implementation **and**
+the harness that measures parity. Phase 5 therefore stays gated until the
+fp/ground-truth battery is green against the Rust backend.
+
+### SYNC-JUN11-rebase — catch up to main HEAD + re-baseline against the hardened lsp_e2e suite
+
+**Rebase.** `main`'s history was rewritten (see `backup/pre-history-rewrite`),
+so `rust` shares **no literal common ancestor** with `origin/main` — every prior
+rebase-attempt branch (`claude/rebase-rust-main-*`, `claude/rust-branch-sync-*`,
+…) likewise reports `merge-base = NONE`. A plain `git rebase origin/main` would
+replay all 748 rust commits onto a disjoint base; per the project decision that
+`rust` *history is disposable* (it squash-merges at the end), the catch-up was
+done as a **content 3-way merge** instead: the pre-rewrite old-main tip
+`0becf577` (the base PR #573 last synced rust onto — referenced only in that
+commit's message, not an actual ancestor) supplies the merge-base **tree**, and
+`origin/main`'s tree (`a287d4a6`, #586) is merged on top. The result is a single
+merge commit whose parents are the real `rust` tip and the real `origin/main`,
+so `rust` now genuinely descends from `origin/main` and the *next* catch-up is an
+ordinary `git merge origin/main`.
+
+Conflicts (6 files; kept main's newly-merged tests verbatim, re-applied the
+rust-side changes around them):
+- `Makefile` — unioned `.PHONY`; removed the duplicate `test-lsp-e2e-rust` and
+  `rust-server` recipes that both sides had added in non-overlapping regions
+  (kept main's env-driven `test-lsp-e2e-rust` + the real `rust-server` builder;
+  kept rust's `test-ext-rust`); de-duped `PROFILE ?= release`.
+- `tests/lsp_e2e/{conftest,harness,test_server_version}.py` — took main's
+  hardened both-backend wording; dropped a duplicated docstring paragraph and a
+  redundant `from .harness import server_kind` import; kept `import pytest`.
+- `tooling/explorer/cli.py` — took main's later refactor (adds `report.py` +
+  `resolve_views`); rust's `_render.py` extraction is byte-identical to main's
+  and merged cleanly.
+- `.test-slow.stamp` — took main's (regenerated by `make test-slow`).
+
+Verified green: `cargo build --workspace`, `cargo test --workspace
+--all-features` (30 result groups, 0 fail), `cargo clippy --workspace
+--all-targets` (0 warnings), `cargo fmt --check`.
+
+**Re-baseline.** Before #586 the native server passed the whole pre-hardening
+`lsp_e2e` battery (355/355 — `SYNC-JUN10-phase1-complete`). #586 ("Harden
+lsp_e2e: config injection, invariants, both backends") added ~130 tests that
+probe contracts the Python reference satisfies but the Rust server does not yet.
+New scoreboard against the merged suite (`make test-lsp-e2e-rust`):
+
+| `tests/lsp_e2e` backend | result |
+|---|---|
+| native **Rust** server (post-#586) | **441 passed / 46 failed / 1 skipped** |
+
+The 1 skip is the pyz-only version-banner assertion. The Python server remains
+the reference (main's CI gate). The 46 fresh parity gaps, worst-first by file:
+
+| file | failing | nature (added to the Phase-2 / provider worklist) |
+|---|---|---|
+| `test_config_e2e` | 14 | **`getEffectiveConfig` returns only `{uri, dialect}` — no resolved `features` map, no per-feature disable, no optimiser switch / indent round-trip.** The native server honours no `tclLsp.features.*` toggle. Largest single cluster; well-scoped server work (see below). |
+| `test_diagnostics_e2e` | 7 | W210 path-merge TP (read-before-set-on-merge, use-after-unset), W307 opaque-dispatch silence, W220 dead-store fires/silent, clean-dataflow no-FP — **same path-sensitive dataflow precision as the existing Phase-2 W210/W220/W307 backlog**, now also gated e2e. |
+| `test_commands_e2e` | 7 | command-surface gaps: `listSubcommands` / `listKnownPackages` / `suggestPackagesForSymbol` shapes, `exportConfig` file write, core-command advertisement, `minify` switch-braced-quoted-pattern closer. |
+| `test_diagnostic_matrix_e2e` | 5 | E003 arity, W210 / W220 fire-on-defect + silent-on-corrected, constant-expr fold — diagnostic-matrix counterparts of the dataflow + optimiser backlog. |
+| `test_bigip_e2e` | 4 | BigIP outline symbol names (nameless-singleton kind fallback), encrypted-marker + bare-`set`-arity diagnostic suppression on `.conf`. |
+| `test_recovery_e2e` | 3 | inert-bracket veto: brace word-break still flags + recovers without duplicate diagnostics; mid-word delimiter recovery. |
+| `test_semantic_tokens_e2e` | 2 | token invariants — non-overlap on a dense line, `unicode_after_var` satisfies invariants. |
+| `test_invariants_e2e` | 2 | provider-range well-formedness + adversarial-survival on the `clean` fixture. |
+| `test_irules_e2e` | 1 | IRULE3102 taint source→HTTP sink (iRules dialect taint). |
+| `test_editor_features_e2e` | 1 | inlay-hint optional-positional labels (no documentation-placeholder labels). |
+
+The diagnostic clusters (`test_diagnostics_e2e`, `test_diagnostic_matrix_e2e`,
+`test_irules_e2e`) are the **same** W210/W220/W307/taint precision deltas already
+tracked as the Phase-2 worklist above — closing them closes both gates at once.
+The `test_config_e2e` cluster is the cleanest standalone next increment: the
+native `get_effective_config_command` (`rust/tcl-lsp-server/src/lib.rs`) must
+grow a resolved `features` map + scalar round-trip mirroring
+`server/commands.py::on_get_effective_config`, and each provider must consult its
+feature toggle (the server tracks only `disabled_diagnostics` + `non_ascii_mode`
+today — no `tclLsp.features.*` state). The fp/ground-truth precision battery is
+unaffected by the rebase (no analyser source changed); its `223/316` baseline
+stands.
+
+#### SYNC-JUN11-config — `getEffectiveConfig` + per-feature toggles (lsp_e2e 46→32 failing)
+
+Closed the whole `test_config_e2e` cluster (14 tests). The native server now
+pulls the resolved `tclLsp` section via `workspace/configuration`:
+
+- `Backend` gained `feature_toggles` (a default-on `FeatureToggles` map mirroring
+  Python's `_FEATURE_TOGGLE_KEYS`), `optimiser_enabled`, and `line_length` state.
+- A new `pull_and_apply_config` issues a `workspace/configuration` request for the
+  `tclLsp` section and applies `features.*` / `optimiser.enabled` /
+  `formatting.lineLength` / dialect / W108 mode / disabled codes — *merging* only
+  the keys the reply carries (absent → unchanged, matching the config-pull
+  restore contract). It runs on `initialized` and on every
+  `didChangeConfiguration` (the editor/harness push an empty payload as the
+  re-pull signal; the inline `params.settings` path still covers the flat
+  MCP-bridge shape).
+- `get_effective_config_command` now returns the resolved `features` map +
+  `optimiser_enabled` + `line_length` + `non_ascii_mode` + `disabled_diagnostics`
+  alongside `dialect`.
+- The nine toggleable providers (hover, completion, documentSymbols, definition,
+  references, signatureHelp, folding, selectionRange, documentLinks) consult
+  `feature_enabled(...)` and return empty/None when disabled.
+- `formatting` honours the request's `tabSize` / `insertSpaces`
+  (`formatter_config_from_options` → `core_formatting::formatting_with`).
+
+Result: **lsp_e2e against the Rust server 441→455 passed, 46→32 failed, 1
+skipped**; no regressions. 7 new server unit tests + the
+`core_formatting::formatting_with` split; `cargo test`/`clippy`/`fmt` clean. The
+remaining 32 are the diagnostic-precision clusters (W210/W220/W307/taint —
+shared with the Phase-2 battery), command-surface shapes (`test_commands_e2e`),
+BigIP outline/suppression, bracket-recovery veto, and token/range invariants.
+
+#### SYNC-JUN11-w307 — proc-parameter / multi-dispatch W307 suppression (lsp_e2e 32→31 failing)
+
+Ported the proc-parameter object-dispatch W307 suppression from
+`analyser/_analyser/_diag_var_command.py:807-859`, which the Rust
+`emit_var_command_diagnostics` had not yet implemented (the analyser fired W307
+on *every* non-literal command head, including opaque dispatch idioms). The rule
+suppresses W307 when the dispatched variable is **a parameter of the enclosing
+proc** (any dispatch count — `proc walk {tree} { $tree visit }` documents the
+contract) or **a non-parameter local dispatched ≥2 times** in the same scope —
+with a **taint carve-out** (a tainted command name is an injection risk and
+still fires regardless of count). `::top` is the sentinel scope for top-level
+statements.
+
+Closes `test_w307_silent_for_opaque_dispatch_target` (`$self configure` in a
+vanilla proc). The previously-passing `test_w307_known_literal_non_command_fires`
+(`set cmd foo; $cmd bar` — a non-param local, single dispatch, value not a
+command) still fires. The old `analyse_w307_var_as_command` unit test asserted
+the un-ported behaviour (W307 on a *param* dispatch) and was corrected to a
+non-param case; +3 new unit tests (param suppression, multi-dispatch
+suppression, taint-still-fires).
+
+**Precision-battery gate:** `tests/test_fp_*.py + test_ground_truth_tn_fn.py` in
+rust mode = **284 passed / 93 failed**, the 93 failures byte-identical to the
+documented `SYNC-JUN10-phase2` backlog (ground_truth 31, fp_rbs 14, fp_sty 11,
+fp_ds 10, fp_bnd 9, fp_nab 5, fp_rch 5, fp_sh 4, fp_opt 3, fp_inj 1) — **no
+regression**. The ground_truth W307 residue is the snit/TclOO
+instance-variable/component resolution, a distinct path from proc-parameter
+dispatch. `cargo test -p tcl-compiler`/`clippy`/`fmt` clean.
+
+#### SYNC-JUN11-commands — command-surface parity (lsp_e2e 31→25 failing)
+
+Wired four missing `executeCommand` handlers in `tcl-lsp-server`, mirroring
+`server/commands.py`, and added them to the advertised `executeCommandProvider`
+list:
+- `tcl-lsp.listSubcommands` — registry-driven subcommand metadata
+  (`{name, detail, synopsis, pure, mutator, deprecated}`, sorted; empty list for
+  an unknown command). This was the only missing **core** command, so it also
+  closes `test_core_commands_are_advertised`.
+- `tcl-lsp.listKnownPackages` / `tcl-lsp.suggestPackagesForSymbol` — shape-correct
+  (`{packages: []}` / `{symbol, suggestions: []}`); the native server has no
+  on-disk `package require` resolver yet (a documented follow-up), so they report
+  the empty set rather than fabricating data.
+- `tcl-lsp.exportConfig` — writes the resolved feature / optimiser / style /
+  disabled-diagnostic state to `$XDG_CONFIG_HOME/tcl-lsp/config.ini`
+  (INI, the format the server reads) and returns `{success, path}`.
+
+Closes the `test_commands_e2e::TestCommandSurface` cluster (6 tests:
+core-advertised, listSubcommands shape + unknown-empty, listKnownPackages shape,
+suggestPackagesForSymbol shape, exportConfig writes a file). +3 server unit
+tests; `cargo test`/`clippy`/`fmt` clean.
+
+Also fixed the minifier switch-pattern bug (#540) that was the last
+`test_commands_e2e` failure: `minify_switch_case_list` reconstructed each
+pattern word per-token via `reconstruct_raw`, which re-wraps a braced `{a b}`
+`Str` token but strips the delimiters off a quoted `"c d"` word (the lexer lexes
+quoted content as bare `Esc`/`Var`/`Cmd` tokens) — so `"c d"` collapsed to two
+bare words and unbalanced the case list. The word builder now records whether a
+word opened on a `"` and re-quotes it (and any quoted body) on re-emission. +1
+minify unit test. **lsp_e2e 31→24 failing; the whole `test_commands_e2e` file
+(17 tests) is green.**
+
+#### SYNC-JUN11 scoreboard — cumulative
+
+Across the JUN11 increments the native server moved **lsp_e2e 46→24 failing
+(441→463 passing, 1 skipped)** with **no regressions** and the precision battery
+held at its documented baseline (284 passed / 93 failed, byte-identical
+families). Workspace gate green throughout: `cargo test --workspace
+--all-features` (30 groups, 0 fail), `cargo clippy --workspace --all-targets`
+(0 warnings), `cargo fmt`.
+
+| increment | closed | running total failing |
+|---|---|---|
+| `config` (`getEffectiveConfig` + toggles) | 14 | 46→32 |
+| `w307` (proc-param / multi-dispatch suppression) | 1 | 32→31 |
+| `commands` (listSubcommands/listKnownPackages/suggestPackages/exportConfig) | 6 | 31→25 |
+| `minify` (#540 quoted switch-pattern) | 1 | 25→24 |
+
+Remaining 24, by cluster (worst-first, all pre-existing):
+- **path-sensitive dataflow precision** (`test_diagnostics_e2e` 6 +
+  `test_diagnostic_matrix_e2e` 5 = 11) — W210 path-merge TP (read on a
+  partial-def merge currently mis-folds to O100/O102; `unset` doesn't kill the
+  reaching def), W220 dead-store flow precision (misses the real dead store,
+  false-fires the live one), E003 **subcommand** arity (needs per-subcommand
+  option-aware skipping — the `SubCommand.options` set is in the registry but
+  the arity path is still `Simple`-only), and the clean-dataflow no-FP control.
+  This is the documented `SYNC-JUN10-phase2` core and is **battery-locked** —
+  each is a careful CFG/SSA/optimiser-interaction fix, not a switch.
+- **BigIP `.conf`** (4) — needs canonical-basename detection
+  (`bigip.conf`/`bigip_base.conf`/…) routing to a BigIP-config parse/outline
+  path that suppresses general Tcl diagnostics (W123/E002 currently leak); a
+  sizeable feature port, not yet started on the native server.
+- **recovery** (3) — the bracket-recovery inert-offset veto (#560): the ghost-`]`
+  insertion must veto offsets inside a balanced brace word (the brace path
+  already does).
+- **semantic tokens** (2) — token-invariant edge cases (non-overlap on a dense
+  line, `unicode_after_var`).
+- **invariants** (2) — `[clean]` malformed-range; **order-dependent** (passes in
+  isolation), a shared-server state-leak artifact rather than a provider bug.
+- **irules taint** (1, IRULE3102) and **inlay-hint optional-positional labels**
+  (1).
+
+#### SYNC-JUN11-precision — analyser FP-suppression increments (battery 284→290)
+
+Six targeted false-positive / true-positive precision fixes ported from the
+Python reference into the native Rust analyser, each verified against the
+fp/ground-truth battery in **rust mode** with no regression and gated on the
+full workspace (`cargo test --workspace --all-features`, `clippy
+--all-targets`, `fmt`).  All are name-/CFG-local registry-driven suppressions,
+**not** the path-sensitive dataflow core (that remains the dominant open
+cluster — see below).
+
+- **W124 OID-chain skip** (FP-STY-06) — an IPv4-shaped dotted quad that is a
+  slice of a longer dotted-digit chain (LDAP/SNMP OIDs like
+  `1.3.6.1.4.1.4203.1.11.3`) no longer fires; detect a preceding or following
+  `.<digit>`.  `DottedQuad` now carries its end offset.
+- **W302 catch fire-and-forget** (FP-STY-05) — suppress "catch without result
+  variable" on a single-statement catch body whose head is a destructive
+  builtin (`close`/`unset`/`rename`) or a documented destructive ensemble
+  subcommand (`after cancel`, `chan close`, `array`/`dict unset`,
+  `interp`/`namespace`/`file delete`).  Constructive subcommands still fire.
+- **W214 empty-body stub + quoted-keyword marker** (FP-STY-08) — an empty-body
+  proc (`proc stub {a b} {}`) is a signature placeholder (early-return on a
+  zero-statement body); a param whose name is itself a quoted literal
+  (snit `{"as" ""}`) is a positional keyword marker, not a variable read.
+- **W304 two-arg braced switch** (FP-NAB-05 / `_style.py` G12) — the
+  unambiguous `switch $x { pat body … }` form (exactly two args, trailing
+  brace-enclosed `Str`) is exempt; the split (3+ arg) form still fires.  The
+  existing `analyse_w304_constant_propagation_emits_info_with_origin` unit
+  test (which used the now-exempt braced switch as its vehicle) was re-pointed
+  at `exec $var` so it still exercises the INFO-downgrade + origin path.
+
+**Battery (rust mode):** `tests/test_fp_*.py + test_ground_truth_tn_fn.py` =
+**290 passed / 87 failed** (from 284/93), byte-identical families otherwise —
+fp_sty 11→6, fp_nab 5→4, no other family moved, no regression.  `make
+test-lsp-e2e-rust` held at **463 passed / 24 failed / 1 skipped** (unchanged
+baseline).  +14 analyser unit tests.
+
+**Attempted and reverted — phi-from-undef W210 (Stage A1/A2).** A def-use-chain
+extension that fired W210 when a use's SSA version traces (transitively, over
+the phi DAG restricted to SCCP-executable predecessors) to an undefined /
+`unset`-killed origin.  The mechanism worked but is **not** safely landable as
+a chain-based increment: the dominant target reads (`return $v` after a
+partial-def merge) are **`Terminator::Return` reads**, not statement/def-use
+uses, so they were missed; and firing on the phi/killed versions surfaced FPs
+(`incr` on an unset var = `safe_on_uninit`; `dict with` known-key unpacking;
+`unset`-then-return option propagation) that require the **full**
+`_read_before_set` suppression suite. Reverted to hold the no-regression gate.
+The faithful port (walk SSA statement uses **and** `Terminator::Return`/branch
+conditions via `exit_versions`, with the complete dict-with-key / safe-uninit /
+existence-narrowing suppression set — ~core_analyses.py:2788-3450) is the
+correct next Stage-A increment and should land worst-first as its own verified
+series.
+
+#### SYNC-JUN11-precision scoreboard
+
+| increment | family delta | battery total |
+|---|---|---|
+| W124 OID + W302 fire-and-forget | fp_sty 11→8 | 284→287 |
+| W214 empty-body + quoted-keyword | fp_sty 8→6 | 287→289 |
+| W304 braced switch | fp_nab 5→4 | 289→290 |
+
+Remaining 87, by family: ground_truth 31, fp_rbs 14, fp_ds 10, fp_bnd 9,
+fp_sty 6, fp_rch 5, fp_nab 4, fp_sh 4, fp_opt 3, fp_inj 1.  The dominant theme
+is still **path-sensitive dataflow precision** (phi-from-undef W210, `unset`
+kill, W220 dead-store flow, `while 1`+`break` reachability) — each a CFG/SSA
+fix, not a switch.
+
+#### SYNC-JUN11-phi-undef — phi-from-undef W210 on return reads (battery 290→302)
+
+The Stage-A core, ported faithfully from `core_analyses.py::_read_before_set`
+(referencing the Python throughout; the `test_fp_*` / `test_ground_truth_*` /
+`FP.md` triples are the correctness oracle).
+
+**Root cause found via the explorer.** The def-use builder records statement +
+branch-condition uses but **not** `Terminator::Return` value reads
+(`def_use.rs:248-270` only walks `Terminator::Branch`).  So a partial-def merge
+read in a `return $v` — the dominant W210 path-merge true-positive shape — was
+never a recorded use, and the existing `DefKind::Parameter` emitter (version-0
+reads only) could not see it.  Confirmed against the SSA: `if {$x>0} {set v 1};
+return $v` builds `phi v#1 <- if_next:v#0, if_then:v#2` and the return reads the
+phi `v#1`, whose `if_next` incoming is undef.
+
+**Two landed pieces:**
+
+1. **Registry — dynamic arg-role resolver (D4-F2, `c54764be`).** `scan` /
+   `lassign` / `binary scan` hard-coded `VarWrite` for a finite slot count
+   (≤19); calls with more varName args left the tail vars unmodelled as
+   writes, so a read of var 19+ looked read-before-set.  Replaced the fixed
+   slot lists with the `arg_role_resolver` hook (already wired through
+   `registry.rs::arg_indices_for_role` and the lowering's VarWrite def walk),
+   classifying every trailing positional as `VarWrite` — `scan` args[2..],
+   `lassign` args[1..], `binary scan` args[2..].  Mirrors
+   `dialects/tcl/{scan,lassign,binary}.py`.  Root-cause fix for the many-var
+   FP-STY-11 / `test_TN_*_many_vars` false positives.
+
+2. **Analyser — `emit_return_phi_undef_w210` (`03f43e6e`).** A new pass over
+   each executable block's `Terminator::Return` value (word substitutions +
+   nested `[...]` via `VarReferenceScanner`, plus a parsed expr), firing W210
+   when the read's exit-version `phi_can_undef`:
+   - **`phi_can_undef`** — transitive trace over the phi DAG restricted to
+     SCCP-executable predecessors; version-0 / `unset`-killed origins are
+     undef, concrete defs are not, cycles (loop-header phis) resolve to
+     not-undef, per-predecessor existence guards prune.  Mirrors `_phi_can_undef`.
+   - **`unset` kill** — a *literal* `unset v` kills `v`'s reaching version; a
+     dynamic `unset $name` does **not** (it targets the named-by-value var,
+     though the IR still records a def for the bare name — the conservative
+     literal-only gate avoids that FP).
+   - **Full suppression suite** (`build_return_undef_suppression`): params,
+     `_IMPLICIT_VARS`, `::`-qualified names, scope aliases, qualified
+     `variable ns::tail` / `variable ${name}::tail` alias tails
+     (`_qualified_variable_alias_tails`), and **key-aware** `dict with` /
+     `dict update` unpacking — an empty/known-keys dict only suppresses the
+     names it unpacks (so `set d {}; dict with d {}; return $missing` still
+     fires) while an unknown-shape dict falls back to a blanket suppression.
+
+**Closed (12, no regression):** the 6 W210 merge TPs (`if`-arm-only-def,
+`switch`-no-default, dead-`if {0}`-body, loop-body-only-init, use-after-unset,
+empty-`dict with`), `test_TP_W210_array_element_read_before_any_set`, FP-DS-08
+empty-dict-fires, the FP-RBS-01/04/08 bare-read TP controls, and FP-STY-11
+scan-fewer-specifiers.  **Battery 290→302 passing / 87→75 failing**; `make
+test-lsp-e2e-rust` 24→22 failing (the W210/clean-dataflow canaries).  +14
+analyser unit tests; workspace `cargo test`/`clippy`/`fmt` clean.
+
+**Method/insight for the next increment.** The faithful approach is: read the
+Python (`_read_before_set` is the spec), verify the IR/SSA shape with the
+`compiler-explorer` skill, and treat every `test_fp_*`/`FP.md` pair as a TP+FP
+tension to satisfy — TP and FP move together, so each suppression
+(`dict`-key, alias-tail, `safe_on_uninit`, scan-resolver) is a separate
+verified piece.  The remaining W210 work is the **statement-use** phi-from-undef
+path (non-return reads — e.g. `puts $v` after a merge), which needs the same
+trace wired through the statement-use loop with the regexp/scan `provably_unset`
+suppression (`_read_before_set:3251+`) to stay sound.
+
+Updated remaining 75, by family: ground_truth 24, fp_rbs 11, fp_bnd 9, fp_ds 9,
+fp_rch 5, fp_sty 5, fp_nab 4, fp_sh 4, fp_opt 3, fp_inj 1 (the W210 merge family
+is the bulk of the ground_truth/fp_rbs drop).
+
+#### SYNC-JUN11-precision-2 — continued precision increments (battery 290→316)
+
+A further worst-first sweep, each a faithful Python port verified against the
+fp/ground-truth battery with **no regression** and the full workspace gate
+(`cargo test --workspace`, `clippy --all-targets`, `fmt`; `make
+test-lsp-e2e-rust` held at 22 failing throughout).  Eleven landed increments:
+
+- **W124 OID-chain / W302 fire-and-forget / W214 empty-body+quoted-keyword /
+  W304 braced-switch** (`294d1986`, `0392e5b0`, `2d48079a`) — registry-/CFG-
+  local FP suppressions (fp_sty 11→6, fp_nab 5→4).
+- **phi-from-undef W210 on return reads + D4-F2 scan/lassign/binary-scan
+  resolver** (`c54764be`, `755d0f9c`) — see SYNC-JUN11-phi-undef.
+- **shared dict-with/alias RBS suppression** (`2487d04d`) — thread the
+  `UndefSuppression` (dict-with keys, qualified-`variable` alias tails) through
+  the version-0 statement emitter too; a `dict with` value is resolved via SCCP
+  (interproc-empty literal) then a same-block `set`.  The statement path uses a
+  strict **known-keys-only** variant (an unknown-shape dict still fires so a
+  genuine missing-key read isn't hidden); the return path keeps the blanket
+  variant for the unknown-dict return TN.
+- **W301 single pure-var uplevel body** (`01ed4871`) — `uplevel 1 $body` (one
+  Var token) is the safe single-substitution idiom.
+- **W233 divide/modulo by a provably-zero divisor** (`8a644493`) — new pass
+  over every `[expr …]` AST (AssignExpr / branch condition / `return [expr …]`)
+  on SCCP-executable blocks; literal-`0` or SCCP-const-`0` divisor fires.
+  Reachability-aware: short-circuit `&&`/`||` and ternary arms are only walked
+  when the guard provably selects them (`0 && 1/0` silent, `1.0 && 1/0` fires).
+- **case-insensitive expr boolean lexer** (`d0036739`) — `True`/`YES`/`Off`
+  are booleans per `Tcl_GetBoolean` (was lowercase-only, so `True` lexed as a
+  function name).
+- **dispatch-protocol W214 suppression** (`88fc229b`) — port
+  `_dispatch_protocol_signatures`: ≥3 namespace peers sharing a leading-param
+  signature + an arity-compatible `$cmd` dispatcher (added `argc` to
+  `VarCommandSite`) make those params an external contract, not unused.
+- **`incr` on an uninit var** (`390124d0`) — the version-0 read `incr z`
+  records is a safe self-initialisation (8.5+), not RBS; the `safe_on_uninit`
+  skip now also covers `Statement::Incr`.
+- **CFG post-terminator dead code** (`717ff8ac`) — `lower_script` routes
+  statements after a `return` (and the `error`/`throw`/`exit`
+  `TERMINATES_BLOCK` set, promoted to a `Return` terminator) into an orphan
+  unreachable block instead of dropping them, so SCCP marks them unreachable
+  and **O107** fires; a `main_terminated` flag preserves the no-fall-through
+  contract for nested branch bodies.
+- **CFG break/continue edges** (`bdde0f62`) — a loop-target stack lowers
+  `break`/`continue` to a `Goto` of the loop exit / continue block, so a
+  constant-condition loop's exit (`while 1 { … break }`) stays reachable and
+  O107 no longer false-fires on the post-loop code (fp_rch RCH-01).
+
+**Battery 290→319 passing / 87→58 failing** across the JUN11 sweep (session
+total from the 284 baseline: **284→319**, +35, zero regressions — every
+remaining failure is a strict subset of the original backlog).  +~30
+analyser/lexer unit tests.  Remaining 58, by family: ground_truth 17, fp_rbs
+11, fp_ds 9, fp_nab 4, fp_sh 4, fp_bnd 3, fp_opt 3, fp_sty 4, fp_rch 2,
+fp_inj 1.
+
+**Open clusters (each a feature, not a switch), with the porting path:**
+- **regexp/scan `provably_unset`** (~8: fp_rbs RBS-02/12, fp_sty STY-10,
+  scan_genuine) — needs the `_read_before_set:3251+` post-pass that runs a real
+  regex match / `scan_provably_no_match` on literal pattern+input and marks the
+  output vars undef.  The `regexp` VarWrite resolver is coupled to this: alone
+  it fixes the nocase/with-options TNs but regresses the no-match TPs (output
+  becomes an unconditional def), so the two must land together.
+- **interproc dict const propagation** (~5: fp_ds DS-09, ground_truth interproc)
+  — needs `_collect_call_site_constants` + the SCCP barrier v0-preserve so a
+  callee `dict with $param` sees the caller's literal.
+- **W307 var-as-command** (4) — nested-`[…]`-command diagnostic dispatch +
+  array-element/return-literal command resolution.
+- **bounds W231/W232** — SCCP list-value resolution + nested-command dispatch
+  (`return [string index …]`).
+- **fp_rch break-edge reachability** (5) — model `break`/`continue` as CFG
+  edges so a `while 1 { … break }` post-loop block stays reachable.
+- **fp_ds W220 array-element place-model** (~3), **fp_sh shimmer S10x** (4),
+  **fp_opt O106/O109/O116** (3), and the residual misc (namespace-ensemble
+  resolution, `eval [list set …]` def recognition, S101 intrep-thrash).
+
+2. **E003 subcommand arity** (closes `test_diagnostic_matrix_e2e[E003]` +
+   `test_diagnostics_e2e::test_file_link_too_many_positionals_is_e003`).
+   `analyser/diagnostics.rs::emit_arity_diagnostics` previously returned early
+   for `WithSubcommands`; it now ports the Python `_check_arity` →
+   `_check_simple_arity` path (`analyser/compiler_checks.py:783-797`) by
+   extracting a shared `check_simple_arity` helper and running it on `args[1:]`
+   against the resolved subcommand's `CommandSig`. The per-subcommand option set
+   (`SubCommand.options`, e.g. `-symbolic`/`-hard` on `file link`,
+   `-nocase` on `string match`) is now threaded into the subcommand
+   `CommandSig.leading_options` via a new `SubCommand::switch_names`
+   (mirroring `_subcommand_switch_names`), so option-aware skipping matches.
+   Stays silent on `file link -symbolic $a $b`, `file link -hard $a $b`,
+   `string match -nocase $a $b`; fires on `string length a b c` and
+   `file link $a $b $c`. Shadowing-proc suppression and `{*}`-expansion handling
+   carry over unchanged (the candidate still flows through
+   `flush_arity_diagnostics` keyed on the base command name). lsp_e2e
+   463→465 passing; precision battery held at 284/93.
+
+3. **semantic_tokens non-overlap after `$var`** (closes
+   `test_semantic_tokens_e2e::TestTokenInvariants::test_tokens_strictly_non_overlapping_dense_line`
+   + `…test_tokens_satisfy_invariants[unicode_after_var]`). The tcl-lexer
+   `parse_quoted` *empty-content clamp* extends a quoted `Esc` fragment's span
+   by one byte over the `$` / `[` that introduces the next substitution token
+   (so `token_text` stays empty while `span.end` lands on the terminator). The
+   semantic-token emitter (`semantic_tokens.rs::push_token`) used that raw span
+   verbatim, so the opening fragment of `"$x …"` spanned `"$` and overlapped the
+   `$x` Variable token — a client "Overlapping semantic tokens detected"
+   violation. `push_token` now recognises a clamped-empty `Esc`
+   (`span_len == content_offset + 1` with a `$` / `[` last byte) and trims it to
+   just its leading delimiter (the opening `"`, or nothing for an empty ESC
+   between adjacent `$a$b`). Also collapsed the pre-existing `E::Function`
+   `if` into a match guard so the file is clippy-pedantic clean. lsp_e2e
+   465→467 passing; precision battery unchanged.
+
+4. **invariants[clean] shared-server document leak** (closes
+   `test_invariants_e2e::TestRangeInvariants::test_all_provider_ranges_well_formed[clean]`
+   + `…TestRobustnessAdversarial::test_server_survives_and_responds[clean]`).
+   Order-dependent: passed in isolation, failed in the full suite. The
+   `lsp_server` fixtures are session-scoped and tests never closed the
+   documents they opened, so the native server's **cross-document references**
+   feature (a Rust enhancement Python lacks) surfaced a leftover
+   `proc greet` from `test_hover_e2e::test_proc_multiline_doc` (where `greet`
+   sits at line 2 col 5) in the unrelated `clean` document's references —
+   out of bounds for the clean source's one-char line 2, tripping the range
+   invariant. Fix is the leak, not the assertion: `LspServerClient` now tracks
+   open URIs, and a function-scoped autouse fixture closes every test's
+   documents on all live servers during teardown, so the shared servers start
+   each test with no foreign documents open. Test-harness only (no analyser /
+   server change); full Python-backend e2e suite still green (488 passed),
+   native lsp_e2e 467→469 passing.
+
+5. **inlay-hint optional-positional labels for `?option ...?` synopses**
+   (closes `test_editor_features_e2e::TestInlayHintOptionalPositionals::test_no_documentation_placeholder_labels`).
+   `lsearch`'s registry hover synopsis is `lsearch ?option ...? list pattern`.
+   `param_names_from_synopsis` checked the bare-varargs stop (`if
+   group.contains("...") { break; }`) *before* the optional-group handling, so
+   the `?option ...?` flag-group placeholder was mistaken for a hard varargs
+   terminator and the parse aborted — dropping the real `list` / `pattern`
+   positionals (zero hints emitted). The optional `?...?` branch now runs
+   first, so an optional flag/repeat placeholder carrying `...` is skipped
+   (multi-word inner → not a plain name) while the trailing positionals are
+   still labelled; a *non-optional* `...` repeat marker still stops the parse
+   after its preceding positional. lsp_e2e 469→470 passing; precision battery
+   unchanged.
+
+6. **IRULE3102 unnormalised getter nested in a sink argument** (closes
+   `test_irules_e2e::TestIrulesTaintDiagnostics::test_taint_source_in_http_sink_fires_irule3102`).
+   `find_unnormalised_getter_warnings` only inspected top-level `Call`
+   (command *is* the getter) and `AssignValue` RHS (`set u [HTTP::uri]`)
+   statements. In `HTTP::respond 200 content [HTTP::uri]` the `[HTTP::uri]`
+   getter stays a literal `Cmd` *argument* of the outer sink call rather than
+   a separate statement, so it was never flagged. The `Call` arm now also
+   walks each argument: a command-substitution arg (`[…]`) is parsed via
+   `parse_command_substitution` and checked with `is_unnormalised_getter`,
+   anchoring the diagnostic on the argument token's own span. Stays silent on
+   a constant (`"static body"`) and on the `-normalized` form. lsp_e2e
+   470→471 passing; precision battery unchanged.
+
+7. **Bracket-recovery brace-word bail** (#560; closes 2/3 of
+   `test_recovery_e2e::TestInertBracketVeto` —
+   `test_brace_word_break_still_flags_and_recovers` and
+   `test_brace_word_break_no_duplicate_diagnostics`). For
+   `set x [foo {bar\nproc …}` the command-break heuristic's after-`bar`
+   boundary is inert (inside the `{bar …}` brace word), so it was vetoed and
+   the analyser fell through to the `e201_at_brace` fallback, which inserted a
+   ghost `]` *before* the `{` — folding the swallowed `proc` / `puts` into a
+   brace-word argument (hidden from analysis, spurious E003/W123 on a 3-arg
+   `set`). `e201_at_command` now reports when a *known* command was swallowed
+   into an inert span; `detect_e201` then suppresses the brace-break fallback
+   and bails to the fix-less fallback, so no ghost is inserted, the
+   scan-to-next recovery's partial command stands (generic E200), and the tail
+   `proc` / trailing `set` are analysed as real code (symbol recovered; E002
+   on the bare `set`). Matches the Python analyser + C Tcl 9.0.3
+   (`info complete {set x [foo {bar]}` == 0). lsp_e2e 471→473; precision
+   battery held at 284/93; workspace tests + clippy green.
+
+   **Remaining (3rd test, `test_midword_delimiter_still_recovers`):** the
+   mid-word-`"` case `set x [foo abc"\nproc …` needs the *bracket interior*
+   re-lex to treat a mid-word `"` as a literal (C Tcl completes
+   `set x [foo abc"]`). The lexer's command-substitution scanner
+   (`scan_cmd_sub` / `Lexer::scan_command_substitution`) toggles quote on any
+   `"` at `blevel == 0` regardless of word-start, so a ghost `]` inserted
+   after `abc"` lands "inside the quote" and never closes the bracket. Closing
+   this needs the command-sub quote handling aligned to the word-start rule
+   `scan_top` already uses — a core-lexer change deferred to its own strip to
+   keep this batch's regression surface small.
+
+## SYNC-JUN12 family — main audit (2026-06-12, PRs #587 / #592)
+
+**Catch-up.** First ordinary `git merge origin/main` since the
+`SYNC-JUN11-rebase` re-parenting made `origin/main` a real ancestor of `rust`
+— no content 3-way gymnastics needed any more. `rust@1450bd65` (#593) merged
+`origin/main@bfc636d2` (#592); the merge is a single commit whose parents are
+the real `rust` tip and the real `origin/main`. Two `main` commits were behind:
+
+| commit | title | classification |
+|---|---|---|
+| #587 `3ebefb2a` | Fix false positives in style checks (W105, W113, W212, W216 — and, undocumented in the title, **W201 + W306**) | **in scope** — analyser FP suppressions; mirror required |
+| #592 `bfc636d2` | Fix three latent soundness bugs in the Python analyser | **in scope, already-rust** — the fixes were *rust-first*; Python was catching up to us |
+
+One conflict: `.test-slow.stamp` (modify/delete) — `rust` deleted it in #591
+when the test-slow CI gate was dropped from this branch; kept deleted (the
+stamp's fingerprint can't be honoured on the rust branch). No rust source
+conflicted. **Gate green post-merge:** `cargo build --workspace`, `cargo test
+--workspace --all-features` (32 result groups, 0 fail), `cargo clippy
+--workspace --all-targets`, `cargo fmt --check`.
+
+**Toolchain currency.** The session bumped rustc 1.94.1 → 1.96.0, whose
+`clippy::pedantic` newly flags one pre-existing `format_push_string` in
+`rust/tcl-registry/examples/dump_bigip_registry.rs` (untouched by the merge).
+Fixed in place (`writeln!(out, …)` via `std::fmt::Write`) so the clippy gate
+stays clean under the new toolchain.
+
+### SYNC-JUN12-1 — #592 soundness fixes: **already in parity** (rust-first)
+
+#592's own message says it best: *"Three read-before-set/reachability
+soundness bugs surfaced while reviewing the Rust port were fixed on the Rust
+side; this ports the fixes to the Python analyser."* All three landed on `rust`
+in #591 (`ebd44863`); #592 is `main` catching up to us, not the other way
+round. Verified by re-running #592's own regression battery against the **native
+Rust** analyser (`TCL_LSP_DIAG_BACKEND=rust`):
+
+| #592 fix | rust home | rust-mode tests |
+|---|---|---|
+| 1. omitted call-site arg → poison the slot (interproc const) | `compilation_unit.rs::collect_call_site_constants` (the `for i in args.len()..nparams { …unknown = true }` tail) | green |
+| 2. `-expanded` not unconditionally no-match-safe | `analyser/diagnostics.rs:880-895` (`expanded && pat.has(ws|'#')` ⇒ bail) | green |
+| 3. try-body throw keeps its on-error edge — incl. the second-commit tightening (every throw point at its own SSA versions; nested-caught not attributed outward) | `cfg_builder/cfg_lower.rs` exception-edge sourcing | green |
+
+`tests/test_checks.py` soundness set in rust mode = **8 passed / 0 failed**,
+including `test_try_body_unconditional_throw_keeps_handler_defs` (single throw
+after a set stays silent), `test_try_body_earlier_conditional_throw_still_warns`
+(the conditional-early-throw TP), and
+`test_try_nested_caught_throw_not_attributed_to_outer`. **No port needed; no
+new gap.** (The six `lsp_e2e` mirrors of these tests came in with the merge and
+exercise the same paths — they fold into the existing diagnostics-precision
+e2e cluster, not a new one.)
+
+### SYNC-JUN12-2 — #587 style FP suppressions: five new rust gaps (W306 already parity)
+
+#587's title lists four codes but the diff also touches `compiler/parsing/lexer.py`
+(W306 dollar-anchor) and `compiler/{rendered_properties,taint/_path_concat}.py`
+(W201) — **six** FP families, each with a verbatim `FP-STY-NN` reproducer.
+Measured against the native Rust analyser (`TCL_LSP_DIAG_BACKEND=rust`,
+`tests/test_fp_sty.py` = **12 failed / 49 passed**; was ~4 failing at
+`SYNC-JUN11`). Outcome per family:
+
+| family | reproducer | rust status | gap |
+|---|---|---|---|
+| **W306** (STY-15) | `regsub … {…\$} …` / `"…\\\$"` dollar-anchor in a quoted word | **already parity** — STY-15 all green | none |
+| **W105** (STY-14) | `eval $cmd`, `after 0 $coro`, `proc $n $a $body` — a body that is a *single bare var* is a script-valued reference, not an inline block | gap | `analyser/commands.rs` W105 (unbraced body) lacks the `_word_is_single_var` exemption (`analyser/checks/_style.py::_word_is_single_var`) |
+| **W113** (STY-13) | redefining `unknown` / `auto_*` / `history` / `parray` / `pkg_mkIndex` / `tcl_*` word-break helpers — Tcl *library* procs are user-replaceable overlays, not C built-ins | gap (C-builtin TPs still fire correctly) | `analyser/handlers.rs:291-321` shadow check lacks the `_OVERRIDABLE_LIBRARY_PROCS` set (`analyser/_analyser/_proc.py`) |
+| **W212** (STY-12) | `set ${token}(status) …` — braced indirect *array-element* idiom, not a name-vs-value typo | gap | `analyser/diagnostics.rs:2614+` (W212) lacks the `is_braced_indirect_array_ref` exemption (new `shared/naming.py` helper) |
+| **W216** (STY-12) | `${name}(idx)` in a *variable-name* position (`set`/`unset`/`incr`/`info exists`) is the indirect idiom | gap — **diagnostic entirely unimplemented in rust** (both the FP-suppression *and* the TP cases fail; no `W216` string exists in the rust crate) | port the whole brace-then-paren emitter (`analyser/_analyser/_diag_brace_then_paren.py`) incl. the `_varname_word_indices` name-position table |
+| **W201** (STY-16) | `"CONNECT $host:$port HTTP/1.1"`, `"see $dir/readme for help"` — HTTP request lines / prose that merely mentions a path are not `[file join]` candidates | gap (genuine path-concat + command-sub TPs still fire) | `rust/tcl-compiler/src/{path_concat,rendered_properties}.rs` lack the prose / request-line / cmd-sub exemptions (`compiler/taint/_path_concat.py` + `compiler/rendered_properties.py`) |
+
+Five of six are clean, self-contained FP suppressions — each a faithful port of
+the same-named Python predicate, gated on the new `FP-STY-12…16` reproducers
+that arrived with the merge. **W216 is the only structural item** (a whole
+diagnostic with no rust home yet); the other four are single-predicate carve-outs
+in passes already ported. None affects a TP — every "still fires" case in
+`test_fp_sty.py` is green in rust mode, so closing these is strictly
+FP-reduction. Captured as `SYNC-JUN12` rows in **Outstanding** below.
+
+### SYNC-JUN12-impl — style FP cluster closed + EOF-span crash fix (battery 30→19, lsp_e2e 12→6)
+
+Re-baselined the rust-mode precision battery against a freshly built
+`target/release/tcl-lsp-server`: **30 failed / 373 passed** (the mission's "~358/19"
+is against the older suite shape). Closed the whole `FP-STY` style cluster plus a
+latent server-crash, with zero regressions:
+
+- **W113 (STY-13) — overridable library procs.** `handlers.rs` now computes a
+  `shadow_name: Option<String>` and drops it when the matched name is
+  namespace-qualified (`::base64::encode`) *or* in the new
+  `OVERRIDABLE_LIBRARY_PROCS` set (`unknown` / `history` / `auto_*` / `parray` /
+  `pkg_mkIndex` / `tcl_*` word helpers). Mirrors `_proc.py:129-143`. Corrected two
+  pre-existing rust unit tests that encoded behaviour Python doesn't produce
+  (verified against the Python analyser): `proc HTTP::respond` never fires W113
+  (namespace-qualified), so the dialect-specific test now uses the *unqualified*
+  iRules command `pool`.
+- **W105 (STY-14) — single bare-var body.** Threaded `arg_single` into
+  `dispatch_body_arguments` → `emit_w105_unbraced_body`; a body word that is a
+  single `Var` token (`eval $cmd`, `proc $n $a $body`, `after 0 $coroName`) is a
+  script-valued reference and is exempt, while a quoted interpolated body
+  (`eval "do $script"`) still fires. Mirrors `_word_is_single_var`. Corrected the
+  `while {$cond} $body` unit test (Python emits no W105 there — verified).
+- **W212 + W216 (STY-12) — braced indirect array idiom.** Added
+  `is_braced_indirect_array_ref` and `is_bare_var_name` to `tcl-syntax::naming`.
+  W212 now skips `${name}(idx)` in a name position. **W216 is newly implemented**
+  (`emit_w216_brace_then_paren` in `diagnostics.rs`, wired at both
+  `process_command` call sites) — a faithful port of
+  `_diag_brace_then_paren.py`: Pattern (1) `${arr}(foo)` and Pattern (2)
+  `${arr($foo)}`, with the `_varname_word_indices` name-position suppression and
+  the `[file join]`/bare-form replacement. Value-position `puts ${arr}(x)` fires;
+  name-position `set ${token}(status)` is silent.
+- **W201 (STY-16) — prose / request-line / URL path-concat.** Added a
+  `HAS_LITERAL_SPACE` may-property to `rendered_properties.rs` (set on a top-level
+  word break, not on spaces inside a `[cmd]`/`${var}` hole) and the `://`/`<`/`>`
+  markup skip + literal-space suppression to `path_concat.rs`. Mirrors
+  `_path_concat.py:101-152`. Genuine `"$dir/$name"` and command-sub-segment
+  `"$dir/[file tail $path]"` still fire.
+- **EOF-span crash (root cause of an apparent server hang).** A W210 diagnostic on
+  a final unbraced `$body` word (no trailing newline) carried a span ending two
+  bytes past EOF; `LineIndex::position_at_utf16` panicked on the out-of-range
+  slice, which killed the `spawn_blocking` diagnostic worker so the server
+  published *nothing* for that document — surfacing as a 30 s timeout in the
+  bridge. Fixed by clamping the slice end to `source.len()`, mirroring Python's
+  `_offset_to_position`'s `min(offset, len)` guard. This was a pre-existing latent
+  bug the W105 fix merely exposed (the old test failed earlier, before reaching
+  the foreach reproducer).
+
+`cargo test --workspace --all-features` + `clippy --all-targets` + `fmt` clean;
+each fix carries a ported unit test. **lsp_e2e 12→6 failed**; the remaining battery
+(19) and e2e (6) failures are the W210 path-sensitive dataflow, W220 dead-store,
+W307 non-literal-command, S101, O106 LICM, T102 taint, W001-arity, and the two
+diag-bridge limitations (FP_NAB_10 dialect, FP_OPT_02 quick-fix data).
+
+### SYNC-JUN12-w307a — array-set + known-class-new const harvest (battery 19→17)
+
+Closed two of the six W307 non-literal-command cases by harvesting more static
+evidence into `emit_var_command_diagnostics` (`diagnostics.rs`), mirroring
+`_diag_var_command.py`:
+
+- **`array set arr {k v …}` literal element values** → keyed `arr(key)` in the
+  constset map, so `$arr(-command)` dispatch checks the actual value against the
+  known-command set. `array set state {-command puts}` → silent; `{-command
+  notACommand}` → still fires. (Bug caught in dev: the IR `array` command's
+  `command` field is `"array"`, not the canonical `"::array"`.)
+- **`set x [Cls new]` / `[Cls create name]` for a known TclOO class** → records
+  `x`'s Object class so a later `$x method` dispatch resolves through the W308
+  method check instead of firing W307.
+
+Two ported unit tests; `cargo test`/`clippy`/`fmt` clean.
+
+### SYNC-JUN12-w307b — interproc dict-with const harvest (battery 17→16)
+
+Closed a third W307 case: `dict with d { $cmd hi }` where the caller passes
+`{cmd puts}`.  `d`'s call-site literal is already propagated to its v0 SCCP
+const by the Rust interproc pass, so a `harvest_dict_with` (mirroring
+`_diag_var_command.py:380-420`) splits that literal and binds each key→value
+into the constset map — `$cmd`→`puts` (known) suppresses, `notACommand` fires.
+One ported unit test.
+
+### SYNC-JUN12-w307c — namespaced-ensemble composed-name resolution (battery 16→15)
+
+Closed a fourth W307 case.  `${ns}::tail` / `$ns::tail` (the tcllib logger /
+namespaced-ensemble idiom) is detected from the dispatch-site source slice
+(`parse_namespaced_ensemble`); when `ns` is an SCCP const and *every* composed
+name `<value>::tail` resolves to a known command/proc/class, the dispatch is
+statically resolvable and W307 is suppressed.  An unresolvable composition
+(`${ns}::unknownproc`, or `set ns nope; ${ns}::missing`) still fires.  (The
+earlier note that `namespace eval` procs aren't registered was a buggy probe —
+`::mypkg::dowork` *is* in `all_procs`.)  One ported unit test with both the TN
+and the composed-unknown TP control.
+
+### SYNC-JUN12-w307d — TclOO method-scope foundation (W307 cluster complete; battery 15→13)
+
+Built the deferred **C41e method scope** so the analyser walks TclOO method
+bodies, closing the final two W307 cases (`format_in_method`, `my_method`) with
+no battery/e2e regressions.
+
+- **`ScopeKind::Method`** added (`types.rs`); `command_resolution_namespace`
+  treats it like a proc (class-namespace prefix), `scope_path_in_proc_body`
+  counts it (call-time arity resolution), and a new `scope_path_in_method_body`
+  derives the `in_method` flag for recorded dispatch sites (`scope.rs`).
+- **Two-phase `parse_oo_definition_body`** (`oo.rs`): phase 1 populates the
+  `ClassDef` and collects each method body (`collect_method_body` for
+  `method` / `classmethod` / `constructor` / `destructor`); phase 2 walks each
+  body via a new `walk_method_body` in a fresh `Method` scope with the formal
+  parameters *and* the class's instance `variable`s pre-bound as
+  defined-not-warned locals — so reads of them don't false-fire W210/W214.
+  Mirrors Python's `_extract_method_def` `method_scope` + `_analyse_body`.
+- **`record_var_or_cmd_command_site`** derives `in_method` from the scope path
+  instead of hardcoding `false`.
+- **W307 cmd-site path** (`diagnostics.rs`): dropped the blanket `in_method`
+  suppression (Python's F4 closure) — an in-method `[cmd] method` dispatch
+  earns silence only from a known OBJECT return type or `my`/`self`
+  self-dispatch.  `my <method>` / `self <method>` is refined by
+  `oo_self_method_returns_literal`: it resolves the method in the enclosing
+  class (dispatch offset within the class `body_span`) and fires W307 when the
+  method body is a simple `return <literal>` (string), while a `return [D new]`
+  (object) stays suppressed.  Mirrors `_diag_var_command.py`'s D3-P4 closure.
+- The W307 const harvest closures were extracted into
+  `harvest_array_set_constants` / `harvest_dict_with_constants` /
+  `harvest_constructor_object_types` for readability.
+
+Three ported unit tests; `cargo test --workspace` / `clippy --all-targets` /
+`fmt` clean; battery **15→13**, e2e steady at 6 — **W307 cluster fully closed
+(6/6)**.
+
+### SYNC-JUN12-w210a — frame-aware W210 read recovery (battery 13→9)
+
+Closed three W210/RBS false-positives and one true-negative (W214) by mirroring
+Python's read-recovery precision, with no regressions:
+
+- **FP-RBS-03 (`gets` in a loop condition).** `[gets $fp line]` writes `line`;
+  added `gets` to `cmd_substitution_out_vars` (`ir_helpers.rs`) so the while
+  condition records `line` as a CFG def and the body's `$line` reads are
+  covered.
+- **FP-RBS-06 (`catch` inside `expr`).** `set e [expr {[catch {…} tmp] || $tmp}]`
+  writes `tmp` during expr evaluation.  Added a `cmd_sub_writes` skip-set to
+  `UndefSuppression` (`diagnostics.rs`), populated from each `AssignExpr`'s expr
+  via `condition_command_out_vars` — name-level suppress, mirroring
+  `command_sub_write_names`'s contribution to the `skip` set in
+  `_read_before_set`.
+- **FP-RBS-10 / FP-DS-07 (`namespace eval` frame).** The body runs in the
+  namespace frame, so `$x` there is not a read of the caller's param `x`.
+  Marked the `namespace eval` / `inscope` subcommands `BodyKind::Structural`
+  (`tcl-registry`), so `structural_body_indices` excludes their bodies from
+  caller-frame SSA use recovery — W214 (unused param) now fires, and the
+  textual W214 fallback `body_references_param` was made segment-aware to skip
+  `namespace eval` bodies while still recovering same-frame `eval` reads.
+  Mirrors Python's `_block_local_reads` `caller_scope=False` early-return.
+
+Three ported unit tests (incl. the `eval`-same-frame control).
+
+### SYNC-JUN12-w210b — dynamic-target upvar possibly-unset model (battery 9→8)
+
+Closed the last W210 battery case, `upvar 1 $varName local; puts $local`.  A
+dynamic `$name` / `[cmd]` upvar target may resolve to a non-existent caller
+variable, so the local is *possibly-unset* and an unconditional read errors
+(tclsh: `can't read "local": no such variable`).
+
+- **`lower_upvar`** (`lowering_hooks.rs`) now records a `local` as a clean def
+  only when its *caller target* is a literal name — a dynamic target yields no
+  def, so the read resolves to version-0 and the read-before-set pass sees it.
+  This aligns the upvar `Call.defs` with `upvar_local_declaration_indices`
+  (which already excluded dynamic targets) and Python's behaviour.
+- A new `scan_dynamic_upvar_locals` (`optimiser/elimination.rs`) collects those
+  locals into `UndefSuppression.dynamic_upvar_locals`; the W210 read-before-set
+  pass *overrides* the scope-alias suppression for them (an unconditional read
+  fires) while a literal-target upvar, an `[info exists local]` guard, and a
+  *write* through the alias (observable, never a dead store) all stay correct.
+  Mirrors Python's dynamic-target handling in `_collect_upvar_targets` /
+  `_read_before_set`.
+
+One ported unit test with all four controls (dynamic fires, literal/guarded
+suppressed, dynamic write not a W220 dead store).  **W210 cluster fully closed.**
+
+### SYNC-JUN12-w220 — RMW read recovery + must-alias array-element kill (battery 8→6)
+
+Closed the W220 dead-store pair, both faithful ports of Python's precision:
+
+- **FP-DS-01 (read-modify-write in a substitution).** `lappend r [incr i $j]`
+  reads `i`'s prior value, so the feeding `set i 0` is alive.  Added an
+  `include_reads_before_write` option to `VarReferenceScanner`: when set, a
+  `READS_BEFORE_WRITE`-trait command (`incr` / `append` / `lappend`) reports its
+  `VarWrite` target as a read too.  A new
+  `collect_rmw_hidden_reads` (`optimiser/elimination.rs`) runs that deep scan
+  over each statement's substitution-bearing words and unions the recovered
+  names into the dead-store / unused suppression set for *both* the analyser
+  (W211/W220) and the optimiser (O109/O126).  Kept out of SSA `uses` so
+  read-before-set versioning is unperturbed — mirrors Python's
+  `expr_substitution_read_names` / `_DEEP_RMW_VAR_REF_SCANNER`.
+- **FP-DS-06 (must-alias kill).** `set a(k) 1; set a(k) 2; return $a(k)` — the
+  first write is dead (the later-version read sees the second write).  Added
+  `must_alias_killed_in_block` (`place_bridge.rs`): for a literal-key
+  `ArrayElem` / `DictPath` write, walk the block forward for an intervening read
+  of the *exact* same element (cancels the kill) or a later write to it
+  (must-alias kill).  `element_writes_observed_by_reads` now reports — rather
+  than suppresses — a killed write, overriding the over-approximating
+  element-observed suppression.  Mirrors Python's `_must_alias_killed_in_block`
+  (PR #498 G15).
+
+Two ported unit tests with all controls (genuine dead store still fires;
+different keys / intervening read don't).  **W220 dead-store pair closed.**
+
+### SYNC-JUN12-misc — Tk W001, W002, O116 fold, LICM purity, bridge dialect (battery 6→2)
+
+Closed four self-contained battery gaps plus two diag-bridge limitations:
+
+- **FP-STY-01 (W001 on Tk `grid`).** `grid bogus .x` must fire W001.  Tk
+  commands weren't in the default registry — `build_default` now loads the Tk
+  pack (Python's base registry includes Tk; W001 fires under every dialect).
+  The W001 emitter folds `TK` into its dialect set and adds the geometry-manager
+  window-path shortcut (`grid .a .b` → no W001), mirroring `compiler_checks.py`.
+- **FP-NAB-10 (W002 command-disabled-in-dialect).** Implemented the missing
+  W002 emitter: a *literal* command head that exists in the registry but not for
+  the active dialect (`dict` under `tcl8.4`) fires, unless an earlier
+  unconditional user proc shadows it.  DISALLOWED = `get(name)` Some but
+  `get_for_dialect(name, dialect)` None, mirroring Python's `command_status`.
+- **FP-OPT-02 (O116 empty-list fold).** The const-fold now picks the code by
+  head (`list`→O116, `lindex`→O118, else O129) and the server lifts the fold
+  `replacement` into the diagnostic `data` (`{replacement, startOffset,
+  endOffset}`), mirroring `_propagation.py`.  `set x [list]` → O116 with
+  `data.replacement == "{}"`.
+- **FP-OPT-03 (LICM purity).** `[format %04d [incr testnum]]` is not
+  loop-invariant — the inner `[incr testnum]` mutates per iteration.  Fixed
+  `split_cmd_text` (`gvn.rs`) to keep a nested `[…]` / `{…}` region as one word
+  so `is_pure_command`'s recursive purity check sees the impure inner cmd-sub
+  (it was splitting `[incr testnum]` on the space and losing it).
+- **Diag-bridge dialect threading.** `tests/rust_diag_bridge.py` now opens the
+  probe document with the active `dialect_scope` dialect as the `languageId`
+  (re-opening on change), so dialect-sensitive batteries (W002, taint) analyse
+  under the right dialect.  `_to_diagnostic` surfaces the server's `data` so the
+  O116 quick-fix `replacement` is assertable.
+
+Ported unit tests for W001 window-shortcut, W002 (disabled/enabled/shadowed),
+O116/O118 fold codes, and LICM nested-impurity.  `cargo test --workspace`
+(2533) / clippy / fmt clean; no e2e regressions.  Remaining battery (2): T102
+path-prefix taint (INJ-04) and S101 per-iteration shimmer.
+
+### SYNC-JUN12-remaining2 — the last two battery gaps (large analyses)
+
+Two battery failures remain (battery now **2 / 401**); both require new
+analysis subsystems, not focused carve-outs, and a partial implementation would
+regress passing controls:
+
+- **FP-INJ-04 (T102 path-prefix taint).** `set foo "-[HTTP::path]"; regexp $foo
+  test` must fire T102 (the literal `-` breaks `HTTP::path`'s `/`-anchoring),
+  while the INJ-03 controls (`[HTTP::path]` alone, `"path_[HTTP::path]"`) must
+  stay silent.  The Rust taint seeds an HTTP getter as plain `TAINTED` only —
+  it does **not** carry the `PATH_PREFIXED` / `STARTS_WITH_SLASH` colours, does
+  not recognise iRules taint sources outside the `IRULES` dialect (Python's
+  `is_taint_source` uses `command_names("f5-irules")` unconditionally — verified
+  Python fires T102 under `tcl8.6`), and `emit_option_injection` has no
+  `T102_SAFE` gate.  Needs: (1) drop the dialect gate in
+  `irules_dialect_only_source`, (2) seed HTTP getters with the path-anchor
+  colours, (3) propagate them through string interpolation with a leading-`-`
+  carve-out that clears the anchor, (4) a `T102_SAFE` gate in
+  `emit_option_injection`.  Items 1–3 are exactly what keeps INJ-03 green, so it
+  is all-or-nothing.
+- **TP-S101 (per-iteration intrep thrash).** `foreach x $l { string length $x;
+  lindex $x 0 }` must fire S100/S101/S102.  The Rust use-site shimmer already
+  emits S101 in-loop, but only for a variable with a **known** intrep type — a
+  `foreach` loop variable is currently `Unknown`, so nothing fires.  Needs
+  foreach-variable intrep type inference (`x` → `List` from the list-of-lists
+  source) plus the `loop_use_targets` distinct-target classification (a
+  loop-invariant var coerced to ≥2 types per iteration is S101, not S100), as
+  in `compiler/shimmer.py:270-285`.
+
+## Testing strategy — porting the 14k-test pytest suite to Rust
+
+Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
+decide, per file, where each belongs after the rewrite.  Four buckets; counts
+are approximate (some files straddle two buckets — `test_checks.py` is the
+canonical split candidate, ~half diagnostic-output → E2E, ~half internal
+bounds/escape analysis → Rust unit):
+
+| bucket | ~files | ~tests | destination |
+|---|---|---|---|
+| **RUST-UNIT** | ~170 | ~6,500 | Rust crate unit tests (source-in → structured-out) |
+| **PY-INTERNAL / VM-INTEGRATION** | ~190 | ~6,000 | Python-product/tooling, or runtime-port + WASM differential |
+| **E2E** | ~70 | ~1,800 | `tests/lsp_e2e` (JSON-RPC; validates *either* backend) |
+| **COVERED / meta** | ~18 | ~250 | already differential (`test_rust_*`) / e2e / catalog meta-tests |
+
+### RUST-UNIT — the bulk; port as crate unit tests
+
+Pure `source → IR / analysis / codegen` logic with no server or Python-only
+API.  Map to crates:
+
+- **`tcl-lexer`** — `test_lexer`, `test_lexer_cursor_state`, `test_expr_lexer`,
+  `test_command_segmenter`, `test_token_scanning*`, `test_parser_edge_cases`
+  (upstream-ported vs C Tcl 9.0), `test_tcl_parse`, `test_recovering_lexer_differential`.
+- **`tcl-syntax`** — `test_green_tree`, `test_syntax_tree`, `test_recovery`,
+  `test_incremental_reparse`.
+- **`tcl-compiler`** — `test_codegen*`, `test_complex_codegen`, `test_ir_lowering`,
+  `test_cfg`, `test_ssa`, `test_core_analyses`, `test_optimiser*` (incl. the
+  O100–O127 coverage + tclsh-equivalence batteries), `test_gvn`, `test_licm`,
+  `test_memory_ssa`, `test_intervals`, `test_interval_bounds`, `test_inline*`,
+  `test_interprocedural`, `test_place*`, `test_shimmer*`, `test_side_effects`,
+  `test_dce`, `test_def_use`, `test_dataflow_graph`, `test_taint` (~291),
+  `test_type_propagation` / `test_type_lattice` / `test_expr_types`,
+  `test_expr_parser` (~216), `test_tcl_expr_eval` (~325), `test_tcl_parse_expr`,
+  `test_scan_format`, `test_proc_arg_traits`, `test_proc_fingerprint`, `test_pgo_*`,
+  `test_specialise_factories`.
+- **`tcl-registry`** — `test_command_registry` (~155), `test_event_registry`,
+  `test_event_tree`, `test_event_flow_chains`, `test_dialect_profiles`,
+  `test_irules_call`, `test_irule_context`, `test_stub_*`, `test_signature_scan`,
+  `test_package_loading` / `test_package_resolver`, `test_detect_dialect`,
+  `test_tcllib` (registry parts), `test_stdlib_registry` (registry parts).
+- **analyser checks (in `tcl-compiler` / `tcl-lsp-core`)** — `test_analyser`
+  (~280), the `test_checks` internal half, `test_semantic_tokens` (token typing),
+  `test_mro`, `test_semantic_graph`, `test_existence_checks`, `test_class_hierarchy`,
+  `test_proc_lookup`, and — **highest value** — the **false-positive / ground-truth
+  battery**: `test_ground_truth_tn_fn` + the twelve `test_fp_*` files (`_obj`,
+  `_ds`, `_nab`, `_inj`, `_opt`, `_bnd`, `_rbs`, `_sty`, `_sh`, `_rch`, `_tnt`,
+  …), all locked against tclsh 9.0.  These are the analyser's correctness
+  contract and the Rust analyser must carry them verbatim.
+
+### E2E — replicate over JSON-RPC (backend-neutral)
+
+LSP-observable behaviour that should move to `tests/lsp_e2e` so it certifies
+*either* server: `test_completion`, `test_diagnostics*` / `test_diagnostic_ranges`
+/ `test_diagnostic_phases`, `test_definition`, `test_declaration`,
+`test_document_symbols`, `test_folding`, `test_inlay_hints`, `test_hover`,
+`test_semantic_tokens*` (incl. delta), `test_selection_range`, `test_refactoring*`
+(code actions), `test_code_lens`, `test_signature_help`, `test_call_hierarchy`,
+`test_rename`, `test_references`, `test_server_commands`, `test_pull_diagnostics`,
+`test_per_folder_config*`, `test_snippet_templates`, `test_suppression_layers`,
+`test_workspace_*`, `test_precision_lifecycle_lsp`, `test_will_save`,
+`test_irules_checks` (the diagnostics half).  Many already have an `*_e2e.py`
+sibling; the white-box variants should fold into the e2e suite once the
+harness is backend-neutral (`SYNC-JUN10-e2e-harness`).
+
+### PY-INTERNAL / VM-INTEGRATION — keep, port-the-behaviour, or drop
+
+- **Python VM** (`test_vm_*`, ~16 files / ~850 tests) — exercise `tooling.vm.interp`
+  (the in-process Python Tcl interpreter).  The **behaviours** they pin are the
+  `runtime/rust` port's job: mirror as `runtime/rust` unit tests (213 today) +
+  the WASM differential-vs-tclsh suite, not as API-for-API ports.
+- **WASM execution / codegen integration** (~49 files / ~1,200 tests) — compile
+  Tcl → WASM and run in wasmtime against the Zig runtime.  Neither unit nor LSP;
+  become Rust-CLI-driven integration tests as the Rust codegen/runtime matures.
+  Their tclsh-differential semantics are critical to preserve.
+- **F5 / BigIP tooling** (~30+ files; `test_f5_query` ~552, `test_irule_test_framework`
+  ~161, BigIP parser/policy/registry, `tmsh` parse/emit, pcap/tshark/UCS-crypto) —
+  Python-product tooling.  The **F5 query DSL** and **BigIP SCF parser** could
+  become Rust crates *if* F5 support ships in Rust (the registry specs already
+  live in `tcl-registry`); the network/pcap/tshark/crypto/MCP/web-explorer halves
+  are Python-product-only with no core Rust analogue.
+- **Formatter / minifier** (`test_formatter` ~181, `test_minifier` ~191) — the
+  pure rule logic (indent/brace/spacing; symbol collection/renaming) is portable
+  to Rust tooling crates; the LSP/CLI request layer stays Python until those
+  subsystems port.
+- **Pure Python-product** (no Rust analogue): compiler-explorer CLI + Flask web
+  app, debugger backends/hooks, fuzzing harness, `tclpkg` CLI / Docker
+  generation (version/manifest logic *could* port), KCS-DB build, MCP/AI tools,
+  `import-linter`, pyz packaging, editor-surface JSON, process pools, progress,
+  rope integration, settings-scope merge.
+
+### Coverage gaps flagged (no Rust tests exist yet)
+
+- **Server config parsing** (`test_user_config` ~56, `test_server_config` ~20):
+  `.tcl-lsp.ini` / `tclLsp.*` schema + merge — **untested in the Rust server**;
+  add `tcl-lsp-core` unit tests.
+- **BigIP dialect** (parser / policy / object-ref index) — no Rust tests at all.
+- **WASM-runtime command dispatch** — only `runtime/rust`'s 213 + the Python VM;
+  no Rust unit coverage of per-builtin dispatch yet.
+- **Tk dialect extraction** (`test_tk_extract`) — confirm a Rust impl + tests exist.
+- **The e2e harness itself** is not yet backend-portable (`SYNC-JUN10-e2e-harness`).
+
+This section is an audit, not a work order: no tests were ported.  The
+port order should follow the crate DAG (lexer → syntax → compiler → registry
+→ analyser → lsp-core), landing each file's Rust unit tests alongside the port
+of the code it covers, with the `test_fp_*` / ground-truth battery as the
+analyser's acceptance gate.
+
+## CST-CONSUMERS — give the landed CST descent a production caller (candidate a)
+
+**Opened 2026-06-04 (post-CST-PORT; the #538 review's L1 finding).**  The
+CST landed with `descend_token` / `descend_command` and the
+`tcl-lexer::ranges` accessors (`word_closer_offset` / `word_end_position`)
+but **no production caller** — flagged L1 in #538.  Main's syntax-tree
+roadmap makes the descent the single re-lex primitive (cycles 2-3:
+`analyser/compiler_checks.py::_recurse_nested_commands` /
+`_recurse_body_arguments` descend every cmd-sub / body via `descend_token`
+/ `descend_command`).  This chunk folds the Rust analyser's hand-rolled
+re-lex/scan sites onto the CST descent, smallest-first, behaviour-verified
+against main.
+
+**Audit of the unused-consumer artifacts:**
+- `descend_token` / `descend_command` — no production caller (tests only).
+- `tcl-lexer::ranges` accessors — only re-exported.  Their faithful main
+  callers are `irules_checks.py` (quick-fix word round-trip) and
+  `checks/_style.py` (W108).  But the **Rust** irules checks are
+  IR/`Span`-based with `replacement` always `None`, and `_style.py` / W108
+  is unported — so there is no faithful Rust caller to fold them onto
+  *yet* (deferred until those land).  The descent is the actionable
+  consumer first.
+
+### Strip 1 — `descend_token` first production consumer: nested cmd-sub invocations (LANDED 2026-06-04)
+
+`analyser/commands.rs::record_invocations_from_cmd_token` records the
+nested command invocations the LSP server consumes
+(`analysis.command_invocations` → references / call-hierarchy /
+`tcl-lsp-server` `lib.rs:2606`, + the PyO3 analyser binding) via a
+**hand-rolled flat scan** (`first_command_head` = the *first* head only,
+plus `scan_nested_command_heads` for nested `[...]`).  It dropped every
+command after the first within a substitution: `set x [foo; bar]` recorded
+only `foo`, where main records `{foo, bar, set}` (verified by running
+main's analyser).  Rebased onto the CST: a new `collect_substitution_heads`
+calls `descend_token` (**the first production caller — resolves the L1
+finding for the descent**) → `segments_from_tree`, records every inner
+command's single-token bareword head, and recurses into nested `[...]`
+substitutions — mirroring main's `_recurse_nested_commands`.  Strict
+superset of the old scan (also fixes deeply-`;`-nested heads, e.g.
+`[foo [bar; baz]]` → `baz`, which the old scan's first-head-only recursion
+dropped).  The word-token path (`record_invocations_from_word_token`,
+braced-expr-arg unwrap pinned by `analyse_braced_expr_arg_records_inner_
+substitution`) is untouched, and var / `"quote"` / compound heads keep the
+old filter — a **deliberate, no-regression scope line**: the old scan also
+skipped `$`/`"` heads, whereas main records them word_piece-normalised
+(`$cmd`→`${cmd}`, `"q"`→`q`); matching that is a tracked fidelity follow-up
+(strip 2).  Discriminating test `analyse_records_every_command_in_a_
+substitution` (4 cases drawn from main's battery) FAILS pre-rebase
+(`missing "bar"`).  `cargo fmt` / `clippy -D warnings` clean; full
+workspace test green (3339).
+
+**Follow-up fix — compound-word over-read (2026-06-04, Codex P2 on #542).**
+When a `[…]` substitution is the *first fragment* of a compound word
+(`puts [foo]bar`, `set x [foo]$suffix`, head `[foo]bar hi`),
+`segments_from_tree` widens the merged argv token's span from the first
+fragment's start to the *last* fragment's end — so `record_invocations_from_
+cmd_token` descended `[foo]bar` and re-lexed the trailing literal as a
+script, recording a bogus head (`foo]bar` at the whole-word range) instead
+of `foo`.  The descent-internal `record_command_invocations` was already
+correct (it iterates the unmerged `seg.all_tokens`); only this top-level
+entry used the merged `argv`.  Fix: a `cmd_fragments` helper re-lexes the
+word slice and descends *each* `[…]` `Cmd` fragment (mirroring main's
+unmerged token walk), so `[foo]bar[baz]` records both `foo` and `baz` and
+`[aa; bb]cc` keeps strip-1's `;`-separation — falling back to the token
+as-given on any lex error.  Pinned by `compound_cmd_word_descends_
+substitution_fragments_only`.  (An `Esc`-first compound like `a[foo]` — the
+substitution *not* first — flows through the untouched word-scanner path and
+is outside this fix's scope; the command-invocations differential vs. main
+stays green.)  `cargo fmt` / `clippy -D warnings` clean.
+
+### Strip 2 — var / `"quote"` / compound head fidelity (LANDED 2026-06-04)
+
+`collect_substitution_heads` recorded only single-token bareword heads;
+main records `argv_texts[0]` for *every* command in its `word_piece`
+form.  Switched the head source to the segment's `texts[0]`, so a `$var`
+head is recorded as `${var}`, a `"quoted"` head unquoted, and a compound
+`$x$y` head reconstructed — `set x [$cmd a; bar]` → `{${cmd}, bar, set}`
+(was `{bar, set}`), matching main.  A `[subst]` head is left to the
+substitution recursion; a `{brace}` head is data.  Verified against main's
+analyser on a 7-case battery (extended the discriminating test).
+
+### Strip 3 — `descend_command` first production consumer: body args within substitutions (LANDED 2026-06-04)
+
+A control-flow command *inside* a substitution has body arguments whose
+commands are inner invocations too (`[if {$c} {puts hi}]` → main records
+`if` **and** `puts`); the walker recorded only the head.  Extended
+`record_command_invocations` to resolve each command's body arguments
+through **`descend_command`** (the registry's `arg_indices_for_role` /
+`iter_body_arguments`) — its **first production caller, resolving the L1
+finding for `descend_command`** — and recurse into each body's commands,
+mutually with the substitution recursion (`_recurse_nested_commands` +
+`_recurse_body_arguments` combined).  `[eval {one; two}]` → `{eval, one,
+two}`, `[foreach a $l {log $a}]` → `{foreach, log}` — both matching main.
+**Soundness:** the `switch … {pat body …}` list-form arg is a Tcl *list*,
+not a script (the registry still marks it `Body`); descending it as one
+mis-recorded a pattern as a head (`[switch $v {a {cmd1} …}]` → spurious
+`a`).  Mirrored main's `_switch_list_body_index` to skip that body
+(`switch_list_body_index`), pinned by
+`analyse_does_not_record_switch_patterns_as_commands`.  Validated **Rust ⊆
+main** (no false invocation) across a 14-case battery run through both
+analysers; every case is exact or a clean subset.  Full workspace test
+green (3340).
+
+### Strip 4 — `ranges` accessors — BLOCKED on consumers (not landed)
+
+`word_closer_offset` / `word_end_position` still have no production
+caller, but **none can be added faithfully yet**: their main consumers are
+`irules_checks.py`'s quick-fix word round-trip and `checks/_style.py`
+(W108), and on the Rust side the irules checks are IR/`Span`-based with
+`replacement` always `None`, `_style.py` / W108 is unported, and the
+code-action layer consumes pre-computed diagnostic-fix spans (it never
+reconstructs a word's source incl. its closer).  Audited `rename.rs` /
+`code_actions.rs` — neither re-derives a word closer.  Wiring the
+accessors now would be a contrived, non-faithful caller, so this stays
+deferred until the irules quick-fixes / `_style.py` land (then the fold is
+direct).  **The L1 finding for the *descent* is fully resolved** (strips 1
++ 3); only the range accessors remain, gated on their consumers.
+
+### Strip 5 — expr-arg command substitutions in the recursion (LANDED 2026-06-04)
+
+A command substitution inside an *expr* argument of a command nested in a
+substitution is an invocation too (`[if {[acl_ok]} {fwd}]` → `acl_ok`);
+`record_command_invocations` recorded the head + bodies but skipped expr
+args (`descend_command` deliberately excludes `Expr`).  Added
+`collect_expr_substitutions`: for each `ArgRole::Expr` arg (resolved via
+the registry) the braced expression is re-lexed as a script (which still
+tokenises a `[…]` as `Cmd`) and every `Cmd` token descended — only the
+substitutions, never the expression's operands (`$x`, `+`, literals) or a
+spurious expr "head" — mirroring main's `_recurse_expression_subcommands`.
+`[if {[check]} {fwd}]` → `{if, check, fwd}`, `[expr {[bar]+1}]` →
+`{expr, bar}`, `[while {[cond]} {act}]` → `{while, cond, act}` — all
+matching main (verified on the 9-context expr/data battery; the only
+remaining divergence is the pre-existing top-level `{[noeval]}`
+over-record, follow-up (a) below).  Discriminating test extended (FAILS
+pre-strip: `missing "check"`).
+
+### Strip 6 — braced-data over-record + command-substitution heads (LANDED 2026-06-04)
+
+At the *top level* `record_invocations_from_word_token` stripped braces
+and scanned **every** `Str` arg, so a braced *data* word over-recorded
+(`set x {[noeval]}` → spurious `noeval`; main records nothing) — a false
+invocation (the one Rust ⊄ main case left after strip 5).  Restructured
+`record_nested_invocations_from_args` to dispatch by role: a braced `Str`
+arg is scanned only when it is an `ArgRole::Expr` argument (via
+`record_invocations_from_expr_token` → `collect_expr_substitutions`); a
+non-expr braced word stays opaque (a `Body` braced word is covered by
+`analyse_body`).  This surfaced — and the same strip fixes — a *dual*
+gap: a command whose **name** is a substitution (`[x] hi`) was descended
+only as a side effect of the now-removed braced scan; main's
+`_recurse_nested_commands` iterates the head token too, so the dispatcher
+now descends a `Cmd` **head** explicitly.  Verified **exact** parity with
+main on a 9-case top-level expr/data battery (incl. `set x {[noeval]}` →
+`{set}`, `proc p {} {[x] hi}` → `{proc, [x], x}`, `if {[chk]} {puts ok}`
+→ `{if, chk, puts}`).  Discriminating test
+`analyse_braced_data_word_is_not_over_recorded`.  **command_invocations is
+now Rust-`==`-main across every battery case exercised** (exact, not just
+subset).
+
+### Strip 7 — switch-arm bodies inside a substitution (LANDED 2026-06-04)
+
+Strip 3 skipped the `switch … {pat body …}` list-body (a Tcl list, not a
+script) to avoid mis-recording a pattern as a head — a clean subset, but
+`[switch $v {a {cmd1} b {cmd2}}]` then missed the arm commands `cmd1` /
+`cmd2` that main records (the *top-level* switch already recorded them via
+`handle_switch_command`).  Now, instead of skipping, the recursion parses
+the list into pattern/body pairs (reusing `handlers::parse_switch_body_
+elements`, made `pub(super)`) and descends each *odd-indexed* arm **body**
+— the patterns (incl. `default`) and a `-` fall-through are not descended,
+mirroring main's `_recurse_switch_list_body`.  Verified **exact** parity
+with main: `{a {cmd1} b {cmd2}}` → `{cmd1, cmd2, …}`, `{a {cmd1} default
+{cmd3}}` → `{cmd1, cmd3, …}`, `{a - b {cmd2}}` → `{cmd2, …}`.  Test
+renamed to `analyse_records_switch_arm_bodies_not_patterns`.
+
+**`command_invocations` is now Rust-`==`-main on every case in the
+combined battery** (substitution / head / body / expr / switch / data),
+exact, with no over- or under-records of the kinds exercised.
+
+### Strip 8 — Cmd/Str head names inside a substitution (LANDED 2026-06-04)
+
+The recursion's head filter recorded only bareword / `$var` / `"quote"`
+heads, skipping a `[subst]` or `{braced}` head — but main records
+`argv_texts[0]` for **every** command regardless of head kind.  Dropped
+the `Cmd | Str` exclusion: a `[gen]` head is now recorded **and** descended
+(`[gen]` + `gen`), and a `{braced}` head records its inner text.  Verified
+exact parity: `[[gen] arg]` → `{[gen], gen, set}`, `[{braced} arg]` →
+`{braced, set}`, `puts [[a] [b]]` → `{[a], a, b, puts}`.  No over-record
+(a head is always a command name).
+
+**`command_invocations` is now Rust-`==`-main across the entire combined
+battery** (substitution / head-of-every-kind / body / expr / switch / data
+/ head-as-substitution) — the analyser's nested-invocation recording is a
+faithful port of main's `_recurse_nested_commands` +
+`_recurse_expression_subcommands` + `_recurse_body_arguments` +
+`_recurse_switch_list_body`, all routed through the CST descent.
+
+### Optional fold (`analyse_body` → descent) — PROTOTYPED + DEFERRED (2026-06-04)
+
+The one remaining item — folding `analyse_body` / `rename.rs`'s body
+re-segmentation onto `descend_token` for "single descent primitive"
+fidelity — was prototyped against a new byte-identity gate and **deferred**
+as a net-negative trade.  Findings:
+- **Byte-identical, zero behavioural change.** `descend_token` on a body
+  `Str` token + `segments_from_tree` is **field-identical** to
+  `segment_commands_with_offset_and_config(body_text, start +
+  content_offset, …)` — pinned (kept) by
+  `segment::tests::descend_token_body_matches_segment_with_offset` over a
+  body battery (`;`/newline-separated, nested `[...]`, quoted last word,
+  `{*}`, comments, line continuation, empty/degenerate) × 3 base offsets.
+  So the fold buys **no** behavioural fidelity (`segment_commands*` is
+  already the CST: `build_document` + `segments_from_document`).
+- **It breaks a useful contract.** `analyse_body(body_text, body_tok, …)`
+  is self-contained — it segments the *passed* `body_text`.  Routing it
+  through `descend_token(SourceMap::new(&self.source), body_tok)` couples
+  it to `self.source` containing the body token's absolute span; **~36
+  handler unit tests** construct a `body_tok` + pass `body_text` *without*
+  setting `self.source`, and panic (`byte index … out of bounds of \`\``)
+  under the fold.  Fixing them = 36 tests rebuilt around a real source, for
+  zero functional gain.
+- **Decision:** reverted the fold; kept the equivalence test.  The fold is
+  only worth doing if `analyse_body`'s contract is deliberately reworked to
+  be source-coupled (e.g. as part of the incremental-reparse / document-
+  store substrate, where a single descent primitive over a shared rope is
+  the natural design).  Tracked there, not as a standalone churn strip.
+
+**CST-CONSUMERS is complete**: L1 resolved (production callers for
+`descend_token` + `descend_command`), `command_invocations` is exact-match
+with main across the combined battery, and the only deferred items are the
+blocked `ranges` accessors (strip 4) and this net-negative fold.
+
+## GAP-AUDIT-JUN05 — deep Rust-vs-Python audit (2026-06-05)
+
+A focused audit comparing the in-tree Python (`core/` + `lsp/`) against
+the Rust workspace for **algorithmic and structural gaps the SYNC /
+C\* per-commit tracking above does not capture** — things that predate
+the rust-branch cut, or sit orthogonal to any single `main` commit, so
+no audit row ever opened for them.  Every finding was verified by
+reading both sides; the `file:line` citation is the verification
+anchor.  Anchored at `origin/rust`@`1abc0d3` (#542); the recent
+doc-touching commits (#542 CST-CONSUMERS, #538 CST-PORT, #535 dialect
+threading, #531 const-fold) do not overlap any row below.
+
+Status legend: **absent** (no Rust code), **mislabelled** (ported under
+the wrong code or a degraded algorithm — silently passes as "done"),
+**unwired** (Rust code exists but no production caller surfaces it).
+The in-place doc corrections this audit also applied are listed in
+**§E**.
+
+### A. Missing structures (no Rust home)
+
+**GAP-A1 — `core/parsing/recovery.py` ghost-token error recovery
+(809 LOC) — absent.**  This is the **third** of three Python recovery
+mechanisms, and the only one unported.  (The other two *are* ported:
+`command_segmenter.py`'s scan-to-next-known-command →
+`segmenter.rs::segment_commands_with_recovery`; and
+`_analyser/_recovery.py`'s stray-`]` / missing-`{` / stolen-`}` repairs
+→ `analyser/recovery.rs`.)  `recovery.py` inserts **ghost tokens**
+(Python calls them `virtual_insertions: dict[int, str]`; the Rust
+codebase's convention is **ghost tokens** — see the "Deferred work
+(lexer)" note) — zero-width synthetic delimiters at chosen offsets — via
+`compute_virtual_insertions` / `segment_with_recovery`, re-lexes to a
+clean command stream, and emits **E201/E202/E203** (comment-break /
+command-break / brace-break heuristics) and **E204/E205/E206** with
+`CodeFix` quick-fixes.  It is **not** a niche path: `segment_with_recovery`
+is the body entry point for the analyser (`_analyser/_core.py:473`
+`_analyse_body_inner`, runs on the whole document **and every recursive
+body**), OO bodies (`_oo.py:154`), and semantic tokens
+(`lsp/features/_semantic_tokens/_collect.py:550`).  Rust emits **only**
+E101/E103/E200; `VirtualToken` / `compute_virtual_insertions` have zero
+presence in `rust/`.  **Fix:** port the ghost-token engine into
+`tcl-lexer` (a `ghost_tokens: &[(u32, &str)]` lex parameter — keep the
+`Span`-only token shape; ghosts get a zero-width span at their insertion
+offset) plus a `tcl-compiler` recovery module mirroring
+`compute_virtual_insertions`, then add E201-E206 emitters + their
+`CodeFix` actions to `analyser/diagnostics.rs` and route
+`segment_commands_with_recovery`'s body callers through it.  Rust
+`SegmentedCommand` also lacks Python's `partial_delimiter:
+UnclosedDelimiter` field (`command_segmenter.py:76`); `recovery.rs:469`
+re-derives the delimiter kind heuristically from the last token — add the
+field so the precise E200 suffix and stolen-brace routing match.
+**Doc defect corrected (§E1):** the "Deferred work (lexer)" note
+(now corrected) had called this a "single edge case" handled by the
+Python fallback.
+
+**LANDED (strip 1 — E201 detectors, 2026-06-05).**  The user-facing E201
+diagnostic (unterminated `[` command substitution → "missing
+close-bracket") is ported into `analyser/syntax_checks.rs::
+unterminated_bracket_diagnostics`, wired into the `Analyser::analyse`
+loop alongside the E100 / E102 stray-closer checks (via the new
+`emit_syntax_recovery_diagnostics` helper).  An unterminated `Cmd` token
+(`is_unterminated_cmd` — no `]` at the token's inner end) picks where the
+`]` belongs in priority order — before a `#` comment line
+(`e201_at_comment`), before a known-command line (`e201_at_command` —
+needs the registry), or before a `{` (`e201_at_brace`) — else anchors at
+the bare `[` with no fix; the heuristic forms attach a `]`-insertion
+`CodeFix` whose description (`before comment` / `before command` /
+`before '{'`) is byte-identical to Python.  Verified against the live
+Python analyser (EOF fallback; comment / brace heuristics with fixes);
+3 unit tests.  **Remaining strips:** (2) the at-known-command case where
+the Rust **recovery** segmenter splits at the next command and emits E200
+before the detector sees the full token — closing this needs the
+ghost-token re-lex so the split produces a clean stream (and suppresses
+the E200), which is also (3) the `virtual_insertions` lexer engine +
+`compute_virtual_insertions` recovery module; (4) the E202 / E203
+detectors (conservative, rarely fire in the live pipeline); (5) the
+`SegmentedCommand.partial_delimiter` field.
+
+**LANDED (strip 2 — E204 / E205 / E206 lexer-warning codes,
+2026-06-05).**  `Analyser::emit_lexer_warning_diagnostics` runs the
+dialect-aware lexer's `tokenise_all_with_warnings` over the document and
+maps each `LexWarning` to its recovery code: "extra characters after
+close-brace" → **E204**, "… after close-quote" → **E205**, "missing
+close-brace for variable name" → **E206** (the `_lexer_warnings_to_
+diagnostics` E204-E206 slice).  The E200 / E201-E203 "missing closer"
+messages are skipped — owned by the existing E200 path and the recovery
+detectors respectively (mirrors `_RECOVERY_HANDLED_MESSAGES`).  Verified
+against the live Python analyser (`{abc}def` → E204, `"abc"def` → E205,
+`${foo` → E206; well-formed input silent); 1 unit test; full suite green.
+
+**LANDED (strip 3a — the lexer ghost-token engine, 2026-06-05).**  The
+`tcl-lexer` `Lexer` now carries a `ghosts: BTreeMap<u32, u8>` of
+zero-width closing delimiters (offset → byte) and a `with_ghosts`
+builder.  `current_byte` / `current_char` report a ghost at `pos` before
+the real byte, and `parse_command`'s `]` close consumes a ghost
+*zero-width* (removes the entry without advancing `pos`), so an
+unterminated `[foo bar` re-lexes as a terminated command and a swallowed
+following command (`[foo bar\nputs done`) splits into a clean
+`[foo bar]` + `puts done` stream **with every downstream offset intact**
+(no source-shifting).  Char access was already concentrated in
+`current_byte` / `current_char` and a recovery ghost only ever appears as
+the closing `]` the scanner is already looking for, so the change is one
+read-path + one consume site — all 234 existing lexer tests unchanged.
+3 unit tests (zero-width terminate; swallowed-command split with intact
+offsets; empty-ghosts == plain lexing).
+
+**LANDED (strip 3b — the recovery module, 2026-06-05).**
+`build::build_document_with_ghosts` threads a ghost map into the CST
+builder's lexer, and `segmenter::segment_with_recovery(source, config,
+registry)` is the `recovery.py::segment_with_recovery` command-stream
+port: it does a first plain parse, derives ghost `]` offsets from the
+strip-1 E201 heuristics (`syntax_checks::bracket_ghost_insertions` — the
+comment / known-command / brace cases, whose E201 fix offset *is* the
+ghost offset; the bare fallback yields none), and re-lexes with those
+ghosts.  A swallowed following command splits cleanly:
+`set x [foo bar` + `puts done` → `[set x [foo bar]]` + `[puts done]`,
+**byte-identical to Python**; clean input is an exact no-op.  2 unit
+tests.
+
+**LANDED (strip 3c — analyser integration; GAP-A1 complete, 2026-06-05).**
+`Analyser::apply_ghost_recovery` runs *only* when the scan-to-next
+recovery left a `is_partial` command (the shape that emits E200) — so the
+common clean/fallback path never pays a second parse.  When a heuristic
+ghost applies it replaces the command stream with the ghost-recovered one
+and emits the E201 diagnostics from `segment_with_recovery` (now
+`(commands, diagnostics)`), and the per-command strip-1 E201 detector is
+skipped (a ghost-terminated command looks unterminated against the
+*original* bytes, so re-running it would double-report).  Result: the
+at-known-command case now emits a single **E201 instead of E200** and
+analyses `puts done` as a real command — matching Python; the bare
+fallback (`set x [foo`) still emits E201 via the strip-1 detector, and
+all other input is byte-unchanged (full suite green, 2496).  3 unit /
+integration tests across the segmenter + analyser.  **GAP-A1 is
+complete** for the in-pipeline behaviour: E201 + E204-E206 diagnostics,
+the zero-width ghost lexer engine, the recovery module, and the analyser
+integration.
+
+**LANDED (E202 / E203 unterminated-`"` / `{` detectors, 2026-06-05).**
+`syntax_checks::unterminated_delimiter_diagnostics` ports the E202 /
+E203 detectors of `recovery.py` (`_is_suspicious_quote` +
+`_detect_missing_quote_*`, `_is_suspicious_str` +
+`_detect_missing_brace_*`).  An unterminated `"` at end-of-line that
+swallows the rest of the document emits **E202** (`missing "`) — with a
+`"`-after-the-opener insertion fix when the next non-blank line starts
+with a known command, else the fix-less fallback; an unterminated
+multi-line `{` with no closing `}` emits **E203** (`missing close-brace`)
+— with a `}`-insertion fix at the newline before a de-indented
+known-command line (gated on balanced preceding braces), else the
+fallback.  Wired into the analyser for both the partial-command path
+(replacing the generic E200 when a delimiter-recovery diagnostic applies)
+and the non-partial path (for quote runs below the segmenter's
+recovery line threshold), honouring the disable set.  Cross-checked
+against the live analyser (heuristic + fallback for each); 3 unit tests,
+full compiler suite green (2512).  **Remaining (low-value):** nested-body
+E202/E203 (the detectors run top-level only today, mirroring the E201
+nesting scope) and the `SegmentedCommand.partial_delimiter`
+precise-E200-suffix field.  **GAP-A1 recovery is now feature-complete at
+the top level** (E201/E202/E203 + E204-E206 + the ghost engine).
+
+**GAP-A2 — `core/analysis/checks/_security.py` — 8 of 9 security checks
+absent.**  Only W101 (`eval` string-concat) is ported (`diagnostics.rs`).
+Absent (all verified with zero `rust/` emitter): **W102** subst injection
+(`_security.py:76`), **W103** `open` pipe-from-variable command injection
+(`:310`), **W300** `source` with variable arg (`:385`), **W301**
+`uplevel` string-built script injection (`:230`), **W303** regexp ReDoS /
+catastrophic backtracking (`:432`), **W309** `eval`/`uplevel` + `subst`
+double substitution (`:141`), **W310** hardcoded credentials (`:478`),
+**W312** `interp eval` / `invokehidden` injection (`:576`).  These are the
+highest-severity checks in the product; none is mentioned in this file.
+**Fix:** port each as an `analyser/diagnostics.rs` emitter driven by the
+registry taint facts (see GAP-D2 — several need the granular taint-sink
+fields that are also unported).  **Not previously documented.**
+
+**LANDED (W300 / W301 / W309 / W312 injection family, 2026-06-05).**  Four
+of the eight absent security checks are ported into
+`analyser/diagnostics.rs` as dispatch-site emitters (run from
+`emit_dispatch_site_diagnostics` alongside the existing W101), mirroring
+`core/analysis/checks/_security.py`: **W300** `source` with a `$var` path
+(`check_source_variable` — skips a leading `-encoding ENC` pair),
+**W309** `eval`/`uplevel` with `[subst …]` double-substitution
+(`check_eval_subst_double_decode`, ERROR), **W301** `uplevel`
+string-built-script injection (`check_uplevel_injection` — multi-arg
+concat or single unbraced substituted word, `[list …]` recognised as the
+safe idiom), and **W312** `interp eval` / `interp invokehidden` injection
+(`check_interp_eval_injection`).  All four are pure syntactic checks (no
+taint dataflow): they reuse the W101 substitution probe (representative
+`Var`/`Cmd` token kind + brace-aware span scan, the documented
+`all_tokens[1:]` approximation) via the shared `args_have_substitution`
+helper, plus `is_canonical_list_substitution` for the `[list …]` safe
+form.  Every message is byte-identical to Python and each fixture is
+cross-checked against the live analyser; 5 unit tests, full compiler suite
+green (2502).
+
+**LANDED (W102 / W103 syntactic injection checks, 2026-06-05).**  Two
+more `_security.py` checks land as dispatch-site emitters: **W102**
+`subst` on a `$var` template (`check_subst_injection` — the message lists
+exactly the substitution kinds still active and is suppressed when both
+`-nocommands` and `-novariables` are present; ported the
+`_parse_subst_flags` helper) and **W103** `open` with a `|`-pipeline
+(`check_open_pipeline` — `|`-prefixed + substituted → WARNING, literal
+`|`-pipeline → HINT, bare `$var` argument → WARNING).  Both reuse the
+shared `args_have_substitution` probe; messages are byte-identical to
+Python and cross-checked against the live analyser.  4 unit tests, full
+compiler suite green (2505).
+
+**LANDED (W303 regexp ReDoS, 2026-06-05).**  Ports
+`check_redos` + `_find_regex_patterns_in_command`: `emit_w303_redos`
+collects every *literal* regex pattern from `regexp` / `regsub` (the
+option-skipping first positional) and `switch -regexp` (inline pattern
+arms or a single braced case list — re-segmented via the existing
+`parse_switch_body_elements`), then flags any pattern matching the exact
+`_REDOS_PATTERN` (a nested quantifier `…+)+` / `…*)*` or an overlapping
+alternation `(a|a)+`) via the `regex` crate.  Variable / command-
+substituted patterns are left alone (the as-written literal text never
+matches the detector — Python's literal-only behaviour).  2 unit tests,
+full compiler suite green (2507).
+
+**LANDED (W310 hardcoded credentials — generic path, 2026-06-05).**
+`emit_w310_hardcoded_credentials` ports the Strategy-1 generic path of
+`check_hardcoded_credentials`: a default credential option flag
+(`-password` / `-pass` / `-secret` / `-token` / `-apikey`,
+case-insensitive) followed by a *literal* value (not `$var` / `[cmd]`)
+emits one W310 per command, message naming the option as written.  Runs
+for every command (no `cmd_name` guard, like the Python check).
+**Deferred (registry-gated):** the per-command credential options unioned
+from `REGISTRY.credential_options` and the Strategy-2 subcommand
+credential headers (`REGISTRY.subcommand_credential_info`) — the registry
+doesn't yet expose those surfaces (the registry chat / PR #550 may add
+them).  2 unit tests, full compiler suite green (2509).  **GAP-A2 is now
+substantially complete:** all eight previously-absent security checks
+(W102, W103, W300, W301, W303, W309, W310, W312) emit; only W310's
+registry-augmented option set + subcommand-credential path remain.
+
+**LANDED (W310 registry-augmented — GAP-A2 complete, 2026-06-09).**  With
+the registry surface merged, `emit_w310_hardcoded_credentials` takes both
+remaining strategies: **Strategy 1** unions the command's registry
+`credential_options` (e.g. `http::geturl`'s `-headers`) into the default
+flag set; **Strategy 2** reads a subcommand's `credential_arg` +
+`sensitive_headers` to flag a literal value at a sensitive header (e.g.
+`HTTP::header insert authorization "Bearer …"`).  Both verified against
+the live analyser; 2 added unit tests.  **GAP-A2 is complete** — all nine
+`_security.py` checks (W101 + the eight ported) now emit.  (Also fixed a
+latent SSA bug surfaced by the merge: PR #550 correctly added
+`CREATES_DYNAMIC_BARRIER` to `trace` to match Python, exposing that
+`ssa.rs::defs_of_with_registry` gated its `VarWrite`-skip on the
+dynamic-barrier trait instead of `CREATES_SCOPE_ALIAS`.  Python gates on
+`scope_alias_commands()` (`ssa.py:102`), so `trace add variable x` must
+still surface its def; corrected the Rust gate to `CREATES_SCOPE_ALIAS`.)
+
+**GAP-A3 — `core/analysis/checks/_confusables.py` (1792 LOC) + the W108
+algorithm — absent.**  The 1776-entry Unicode confusables table
+(`CONFUSABLE_TO_ASCII` / `CONFUSABLE_CODEPOINTS`) and the four-mode W108
+check (`_style.py:967-1090`: strict / confusables / common / off, with
+`unicodedata.category` benign-Unicode classification, zero-width / BOM /
+directional detection, and an `_AUTO_FIX_MAP`).  No `confusable` /
+`homoglyph` / `non_ascii` data anywhere in `rust/`.  **Partially
+documented:** the W108 *check* is acknowledged as unported (closes with
+the `_style.py` port), but the 1776-entry table and the
+category-based algorithm — the bulk of the porting cost — are never
+mentioned.  **Fix:** generate the confusables table as a Rust `const`
+(or `phf`) map from the same Unicode source, port the four-mode
+classifier + `non_ascii_mode` dialect knob, and wire W108.
+
+**LANDED (confusables / strict / off modes, 2026-06-05).**  Generated
+`analyser/confusables_table.rs` — `CONFUSABLE_TO_ASCII` (sorted
+`&[(char, &str)]` + binary-search `confusable_to_ascii`) and
+`AUTO_FIX_MAP` (`auto_fix_for`) — from `_confusables.py` /
+`_AUTO_FIX_MAP`.  **Discovered + worked around a real Python source
+bug:** 985 of the 1776 `CONFUSABLE_TO_ASCII` keys for supplementary-plane
+confusables use malformed 5-hex-digit `\uXXXXX` escapes, which Python
+parses as a BMP char + a literal digit (a 2-char key) — so they never
+match in the char-by-char scan and are **dead in Python too**.  The Rust
+table includes the **791 functional single-codepoint entries** (parity
+with Python's *effective* behaviour) + 108 auto-fix artifacts.
+`emit_w108_non_ascii` ports `check_non_ascii`: scans each argument
+token's source for non-ASCII chars (`is_standard_ascii` = the negated
+`_NON_ASCII_RE`), and in the default **confusables** mode flags only
+confusables / auto-fix artifacts, in **strict** mode (the F5 iRules /
+iApps default) flags every non-ASCII char, with an ASCII-replacement
+quick-fix where known; one diagnostic per char, deduped per token,
+multi-line braced bodies skipped, the command word not scanned (matching
+Python).  Verified against the live Python analyser (smart quotes / NBSP
+/ em-dash fire with fixes; `é` is silent under confusables but flagged
+under iRules strict; a Cyrillic command word is not scanned); 3 unit
+tests.  **LANDED (common mode + `non_ascii_mode` knob, 2026-06-09).**  All
+four modes now ship: `NonAsciiMode::{Default, Off, Strict, Confusables,
+Common}` on `Analyser` (`with_non_ascii_mode`), resolved per-dialect at
+emit time (`Default` → strict for `f5-irules`/`f5-iapps`, confusables
+otherwise — mirrors `_non_ascii_mode` + the iRules override).  **common**
+mode allows intentional Unicode (letters / numbers / marks / symbols /
+punctuation in any script) and flags only confusables, auto-fix
+artifacts, and non-benign characters (control / format / separator /
+surrogate / private-use / unassigned) via `is_benign_unicode` — a faithful
+port of `_is_benign_unicode` using the `unicode-general-category` crate
+(pure-Rust, pyo3-free), cross-checked against the live Python predicate (é
+/ ° / 中 / − benign; ZWSP / NBSP / bell / RLO non-benign).  5 unit tests
+(off / explicit-strict / common-allows / common-flags-non-benign /
+benign-reference).  **Server config plumbing LANDED (2026-06-09).**  The
+server now threads analyser config end-to-end: `Backend` holds
+`non_ascii_mode` + `disabled_diagnostics`, populated from
+`initializationOptions` and `workspace/didChangeConfiguration` (both the
+nested `{"tclLsp":{"style":{"nonAscii":…},"diagnostics":{"W…":false}}}`
+and flat-dotted `{"tclLsp.style.nonAscii":…,"tclLsp.diagnostics.W…":false}`
+shapes), and `analysis_for` / `publish_analyser_diagnostics` build their
+`Analyser` via `configured_analyser(disabled, mode)`.  The disabled set is
+also unioned into the source-style pass so `tclLsp.diagnostics.W111/112/
+115/118 = false` take effect.  (Index-builder analyses — cross-doc
+references / call-hierarchy / workspace scan — keep the default config:
+their diagnostics are discarded, only proc/ref data is consumed.)  4
+server tests pin the parse helpers + the `configured_analyser` threading.
+
+**GAP-A4 — `core/analysis/checks/_bounds.py` (961 LOC) — absent +
+mistracked.**  Index-bounds + loop-termination checks: **W230/W231/W232**
+(constant list / `lset` / string index out of range, `:115/:253/:415`)
+and **W240/W241/W242** (loop const-false / provably-infinite / unprovable
+termination, `:642/:648/:657`), token+regex based, wired live via
+`checks/_orchestrator.py`.  No Rust emitter for any of the six.
+**Doc defect (§E2):** the only bounds-tracking in this file is the
+"Phase 3 — interval domain (W230-W233)" row (line ~1585), which
+describes `compiler/intervals.py` / `interval_bounds.py` /
+`_diag_interval_bounds.py` + a `W233` — **main-side files not present
+in the rust-branch tree, and W233 is not in this tree's `shared/codes.py`
+catalog** — and the C41d3/d4 map (line ~5427) assigns "W230..W239" to
+`_diag_var_command.py` and "W120..W122 / W242" to `_diag_commands.py`,
+but in this tree those files emit only W002/W307/W308 and W123
+respectively.  A contributor cannot locate the real checks from the doc.
+**Fix:** port `checks/_bounds.py` as-is (token/regex, the shippable form
+in this tree) to `analyser/diagnostics.rs`; treat the interval-domain
+row as the *eventual* main-parity target, not the present one.  A
+clarifying note was added at the Phase 3 row (§E2).
+
+**LANDED (W240 / W241 loop-termination, 2026-06-05).**  New
+`analyser/bounds_checks.rs::loop_termination_diagnostics` ports the
+constant-condition arm of `check_loop_termination`: a `while` / `for`
+whose condition is a constant-false literal → **W240** (body never
+executes); a constant-true literal whose body has no `break` / `return`
+/ `error` / `exit` → **W241** (provably infinite).  Ports
+`condition_constant` (`_TRUE_LITERALS` / `_FALSE_LITERALS` /
+`strip_braces` + float-parse) and `body_may_exit` (the
+`(break|return|error|exit)` keyword scan; Rust regex has no look-behind,
+so the `:` / `-` prefix exclusion of `_BREAK_RE` is a post-filter on each
+`\b`-anchored match).  Wired into `emit_dispatch_site_diagnostics`;
+verified against the live Python analyser; 4 unit tests.
+**LANDED (W230 lindex + W232 string-index, 2026-06-05).**
+`list_index_diagnostics` ports the `lindex` arm of
+`check_list_index_out_of_range` (a constant list literal indexed by a
+constant out-of-range index → **W230**), and `string_index_diagnostics`
+the `string index` arm of `check_string_index_out_of_range` (a literal
+string indexed out of range, or a plain negative literal → **W232**, with
+the backslash-aware runtime-length back-off).  Ports the shared index
+helpers `is_literal_index` / `resolve_index` (`end` / `end±N` / strict
+`-?\d+`) / `describe_index` / `is_braced_or_esc` / `has_subst`, reusing
+`tcl_expr_eval::split_tcl_list` (now `pub(crate)`); verified across a
+battery against the live Python analyser; 3 unit tests.
+**LANDED (W230 lrange/lreplace + W232 range/replace, 2026-06-05).**  The
+`(first, last)` pair arms now fire when the slice is provably empty — a
+shared `pair_slice_empty` (both-below / both-above / clamped-first >
+clamped-last / empty container) drives both `lrange` / `lreplace`
+(W230, with the prepend/append/touches-no-element verb) and
+`string range` / `replace` (W232, with the both-negative-literal
+early-fire even on a dynamic string and the backslash-aware length
+back-off); `describe_index_string` ported.  Verified against the live
+Python analyser; 3 unit tests.
+**LANDED (W241 `for`-step heuristic, 2026-06-05).**  When a `for`
+condition is non-constant, `for_is_provably_infinite` proves the narrow
+`for {set v INT} {$v OP INT} {incr v INT}` shape never terminates —
+step-zero with the condition true on entry, a wrong-direction step, or a
+`!=` bound the step skips — provided the body doesn't write the counter
+or exit.  Ports `parse_simple_for_cond` (the `$v OP n` / `n OP $v`
+counter regexes + the compound-marker guard, with the lone-`!` look-behind
+done manually), `parse_init_var_value`, `parse_step_incr`,
+`body_writes_var`, `cond_true_at`.  Verified against the live Python
+analyser; 2 unit tests.
+
+**LANDED (W231 `lset` + W242 unprovable termination — GAP-A4 complete,
+2026-06-05).**  `lset_index_diagnostics` ports `check_lset_index_out_of_
+range`: an `lset` with a plain-negative literal index always errors
+(fires even for nested multi-index forms), and — when the list length is
+recovered from a recent literal `set var {…}` (the
+`_infer_list_length_from_recent_set` regex + brace-depth /
+scope-marker `_scope_is_flat` guard, both ported) — an index past the
+append slot (`> length`) or below zero errors too (`lset` allows the
+append slot `index == length`, unlike `lindex`).  `loop_termination_
+diagnostics` gains the **W242** arm (`_extract_counter_name` +
+`_loop_modifies_var`): a counter `$var` in the condition that neither the
+step nor the body provably modifies → a HINT.  Like Python's
+`core.analysis.analyse`, the analyser always emits W242; its default-off
+opt-in is a consuming-layer (LSP/config) concern, consistent with how the
+Rust analyser has only the opt-out `disabled_diagnostics`.  Every message
+is byte-identical to Python and cross-checked against the live analyser; 6
+unit tests, full compiler suite green (2518).  **GAP-A4 is now complete**
+for the shippable token/regex form (W230-W232 + W240-W242); the
+interval-domain W233 remains the eventual main-parity target (§E2), not a
+present gap.
+
+**LANDED (W231 proc-scoped length recovery — battery 2026-06-12).**  The
+GAP-A4 `_infer_list_length_from_recent_set` port had quietly diverged: it
+recovered the list length by *top-level* command segmentation instead of
+Python's line-anchored `_LIST_SET_RE` + `_scope_is_flat` text scan.  That
+divergence silently dropped the common case where the `set var {…}` and the
+`lset` sit in the *same* `proc` body (neither is a top-level command), so
+`proc f {} { set l {a b c}; lset l 99 X }` never fired W231.  Re-ported to
+mirror Python exactly: a hand-rolled scan for `(?:^|\n)\s*set\s+(\w+)\s+
+(\{[^{}]*\})\s*(?=\n|$|;)` (no regex crate in the workspace), accepted only
+when the between-text stays at brace depth zero and crosses no
+`proc`/`namespace eval`/`apply`/`try` boundary (`scope_is_flat` +
+`has_scope_marker`).  Now recovers a same-scope `set` nested in a `proc`
+body while still rejecting cross-scope leaks; 2 unit tests, battery W231
+proc-body TPs (`lset l 99 X`, `lset l end X` on `{}`) now pass.
+
+**LANDED (bounds checks recurse into `[…]` substitutions — battery
+2026-06-12).**  The main analyser walk descends proc / control-flow
+*bodies* (so their commands run the per-command syntactic checks) but
+treats a `[cmd …]` substitution as an opaque value and never descends it
+— so `set x [string index abc 99]` / `return [lindex {a b c} 9]` escaped
+the index-bounds family entirely.  Added `run_nested_bounds_diagnostics`
+(+ free `collect_substitution_bounds` / `run_segment_bounds`), the bounds
+companion of the existing `collect_substitution_heads` W123/W307 walk:
+for each `[…]` word it descends the substitution and runs W230 / W231 /
+W232 + W240-W242 on every inner command, recursing into nested `[…]` and
+the inner commands' own bodies.  Mirrors main's `_recurse_nested_commands`
+re-running `run_all_checks`.  Only `[…]` regions are entered, so a command
+the main walk already checked never double-fires (verified by a
+count-of-one unit test).  Battery `TP_W232_string_index_past_end_is_smell`
+and `FP_NAB_02_lindex_oor_smell_fires` now pass; 1 unit test.  The
+remaining `$var`-indexed bounds TPs (`FP_BND_01`/`FP_BND_03`) still need
+the interval domain (§E2), not this syntactic path.
+
+**LANDED (full per-command dispatch on `[…]` substitutions — battery
+2026-06-12).**  Generalised the substitution recursion above from the
+bounds family to the whole per-command dispatch
+(`emit_dispatch_site_diagnostics`: security W101-W312, bounds W230-W242,
+W001 / W004 / W304, arity E002-E003, …), matching Python's
+`_recurse_nested_commands` re-running the full `run_all_checks`.
+`run_nested_command_diagnostics` collects the descended substitution
+commands as owned `SegmentedCommand`s (so the immutable source borrow ends
+before the `&mut self` dispatch) and runs the dispatch on each, with the
+enclosing command's `scope_path` (a substitution shares its embedding
+command's frame).  Only `[…]` regions are entered, so the main walk's
+already-checked commands never double-fire.  Battery
+`FP_NAB_06_open_variable_pipe_fires_w103` (`set fh [open "|$cmd" r]`) now
+passes; zero battery / e2e regressions; +1 unit test.
+
+**LANDED (W304 stops at a shadowing proc param — battery 2026-06-12).**
+`last_literal_set_value_for_var` (the W304 "currently resolves to …"
+value-recovery) segmented the prefix at top level and walked backward, so
+`set path -force` at top level was wrongly attributed to the inner `$path`
+use in `proc useit {path} { file delete $path }`.  Ported the
+`_last_literal_set_value_for_var` cross-scope guard: when the backward
+scan reaches the truncated-unclosed `proc` containing the use
+(`span.end()+1 >= before_offset`) and that proc's parameter list contains
+`var_name`, stop — the parameter shadows the outer scope.  A *complete*
+proc before a top-level use ends earlier and does not shadow (control
+preserved).  Battery `FP_NAB_05_w304_lexical_does_not_cross_proc_boundary`
+now passes; 1 unit test.
+
+**LANDED (W306 literal-expected `regexp`/`regsub` pattern — battery
+2026-06-12).**  Ported the `regexp` / `regsub` arm of
+`_domain.py::check_literal_expected` (the whole check was previously
+absent in Rust).  `emit_w306_literal_expected` finds the pattern arg
+(`regexp_pattern_index` — skip options, `-start` consumes a value, `--`
+terminates), and fires when it carries a *live* substitution Tcl expands
+before the regex engine sees it: a quoted `"$var"` / `"[cmd]"` or an
+unbraced `[cmd]`.  Exemptions match Python: a braced `{…}` pattern
+(substitution suppressed), a bare single `$var` word (the canonical
+parameterised-pattern idiom, no braced equivalent), and `\[` / `\$` in a
+quoted pattern (literal regex chars — checked against the raw source slice
+via `raw_has_live_substitution`, since the resolved text can't distinguish
+an escaped bracket from a live command sub).  The `class match`/`search`
+arm (f5-irules) is not ported (no battery driver).  Battery
+`FP_STY_02_live_cmdsub_in_quoted_pattern_still_fires` and
+`FP_STY_02_live_dollar_in_quoted_pattern_still_fires` now pass; 1 unit
+test; no battery / e2e regressions.
+
+**LANDED (W105 exempts a command-substitution body — battery
+2026-06-12).**  `emit_w105_unbraced_body` treated a whole-word `[…]` body
+as a substitution-bearing unbraced body and fired W105 at ERROR, diverging
+from `check_unbraced_body` which skips a `TokenType.CMD` body *before* the
+substitution test.  A `[list …]` / `[buildScript]` body is the recommended
+*safe* form — produced dynamically, parsed once, no double-substitution
+risk, and it cannot be braced (`eval {[list …]}` changes the meaning).
+Added the `Cmd`-token exemption (a `Var` body like `while {$cond} $body`
+is still flagged — only `Cmd` words are exempt).  Battery
+`TN_safe_eval_with_list_form` (`eval [list set y $x]`) now passes; 1 unit
+test.
+
+**LANDED (interval abstract domain + dynamic index bounds — battery
+2026-06-12).**  Ported `compiler/intervals.py` → `intervals.rs` (the integer
+interval lattice: `join`/`widen`/`add`/`sub`/`mul`/`intersect`, abstract
+`eval_expr`, constant-bound guard narrowing `refine_interval` +
+`build_guard_index`, and the widening forward fixpoint `compute_intervals`
+seeded from SCCP constants) and the bounds-finding portion of
+`compiler/interval_bounds.py::find_interval_bounds` → `interval_bounds.rs`.
+`emit_interval_bounds_diagnostics` runs it per function over SCCP-reachable
+blocks and fires **W230 / W231 / W232** on a `$var` index whose
+guard-narrowed interval *proves* the access is wholly out of range against a
+statically-recovered container length — the dynamic cases the syntactic
+bounds checks deliberately skip (so the two never double-fire).  One
+divergence handled for parity: Rust's SSA inserts a loop-header phi for a
+list `lset` mutates (Rust's `lset` *reads* the list), which Python's pruned
+SSA does not; `resolve_list_length` follows that phi to the length its known
+incomings agree on, ignoring the unknown length-preserving back-edge, so
+`for {set j 4} {$j < 9} {incr j} { lset l $j $v }` recovers length 3 and
+fires W231 exactly as Python does.  Battery `FP_BND_01` (loop counter past
+append) and `FP_BND_03` (×2, `string index $s $i` with a const-var index)
+now pass; 6 unit tests; zero battery / e2e regressions.
+
+**LANDED (traced variables excluded from W211/W220 — battery
+2026-06-12).**  `scan_scope_aliases` (the dead-store / unused-variable
+observability gate) recognised `global` / `variable` / `upvar` / `namespace
+upvar` aliases but not `trace`.  A write trace fires its callback on every
+`set`, so the traced variable is observable and must never be a dead store
+(W220) or set-but-never-used (W211).  Added a `trace` arm recognising both
+`trace add variable NAME …` (8.5+) and the 8.4 `trace variable NAME …`
+spelling (a dynamic `$`-target names no static local and is skipped).
+Battery `FP_DS_04_traced_var_no_w220` and `FP_DS_04_84_form_also_excluded`
+now pass; 1 unit test; no regressions.
+
+**LANDED (hex / binary literals typed INT — battery 2026-06-12).**
+`type_infer::literal_type` typed only decimal integers as INT (`parse::<i64>`),
+so `set n 0x80` was STRING and `incr n` looked like a per-iteration
+string→int shimmer (false S101/S102).  Matched `core_analyses._literal_type`:
+a `0x`/`0X` hex or `0b`/`0B` binary form (optionally signed) is INT — one
+clean parse, the canonical tcllib idiom — while `0o` octal stays STRING.
+Battery `FP_SH_04_hex_literal_increment_no_shimmer` now passes; 1 unit test;
+no regressions.
+
+**LANDED (S102 requires genuine per-iteration oscillation — battery
+2026-06-12).**  The thunking pass fired S102 on *any* SHIMMERED loop-header
+phi, so a one-time promotion (`set r {}`; `foreach … {lappend r …}` — STRING
+once then LIST forever) and sibling loops with different per-loop type
+effects on the same name produced false positives.  Ported `_find_thunking`'s
+refined condition: classify the phi's incomings into entry vs body
+(back-edge) types, exclude the empty-literal reset, and fire only when the
+body re-introduces an entry type (`entry ∩ body`) or itself produces ≥2
+distinct types.  Body types are scoped to each header's *natural loop* (a
+back-edge-driven block walk, the Rust analogue of `build_loop_forest`) so a
+sibling loop never pollutes the check; destructure-foreach (`foreach … break`)
+blocks are excluded.  Battery `FP_SH_05_destructure_foreach_no_s102` and
+`FP_SH_06_sibling_loops_no_s102` now pass; the existing one-time-promotion TP
+test (a Rust over-fire Python suppresses) was corrected to a genuine
+two-type-body case; 3 unit tests; no regressions.
+
+**GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
+— absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
+by `codegen/wasm/__init__.py:424`), `decision.py` (ALWAYS / IF_SINGLE_CALL
+/ NEVER eligibility policy), `_rename.py` (α-renaming for spliced bodies).
+Rust's `inline_uplevel.rs` is a **different, narrower** pass (the C34 port
+of `inline_uplevel.py` — whole-callee uplevel passthrough only), not the
+general inliner.  These are WASM-codegen IR transforms; **moot only if
+the Rust path never targets WASM codegen — but that rationale is nowhere
+recorded for `inlining/`**, unlike the bytecode-codegen deferral which is
+explicit.  **Fix:** record the deferral explicitly (tie it to the
+WASM-emitter workstream), or port alongside a future Rust WASM codegen.
+**Not previously documented.**
+
+**GAP-A6 — `core/analysis/checks/_syntax.py` E100/E102 token checks —
+absent (different mechanism in Rust).**  Python emits **E100** (unmatched
+`]`, `:14`) and **E102** (unmatched `}`, `:113`) as targeted token checks
+with quick-fixes.  Rust only has parser-recovery **E200** for unclosed
+braces (`recovery.rs:481`) — different code, no `]` handling, no
+quick-fix.  **Fix:** add E100/E102 token-scan emitters + `CodeFix`
+actions.  **Not previously documented** (the two E102 doc hits are about
+a *Python* false-positive fix, unrelated).
+
+**LANDED (2026-06-05).**  New `analyser/syntax_checks.rs` ports both
+checks: `stray_closer_diagnostics` scans a command's `all_tokens` for a
+bare `}` (**E102**) or a first-unescaped `]` (**E100**) in an `Esc` token
+that is *not* in a double-quoted word — quoted context classified
+byte-for-byte as `classify_quoted_contexts` (`in_quote` flag +
+content-shift).  E100 attaches the `[`-insertion fix from a faithful
+`find_bracket_insertion_point` port (known-command-name prefix / backward
+scan / enclosing-command arity-overflow heuristics); E102 attaches the
+`stray_brace_fix` line-deletion when the `}` owns its line.  Wired into the
+production `Analyser::analyse` loop on the *original* token stream, before
+the recovery clone mutates it — **coexisting** with the recovery path
+(which repairs unclosed *openers*; a stray *closer* previously went
+unreported, confirmed by running both the live Python and Rust analysers:
+`puts foo]` → E100, `\n}` → E102+W123, `puts "a ]"` → none).  4 unit tests
+pin the parity (stray `]`/`}`, quoted-literal skip, balanced
+substitution).  **Remaining:** nested-body recursion (the check runs at the
+top level today; Python runs it on every analysed body) and the
+`analyse_commands_inner` chunked path — both follow-ups.
+
+**GAP-A7 — `core/compiler/source_inliner.py` (472 LOC) — absent (low
+urgency).**  Compile-time static `source FILE` splicing for
+self-contained WASM (`inline_static_sources`, matches bare-literal and the
+`source [file join [file dirname [info script]] …]` tcltest idiom,
+`max_depth=5` cycle-guarded).  **Dead in the live pipeline** — referenced
+only by itself + `tests/test_wasm_real_tcl.py` — so impact is low today,
+but it is the single largest fully-absent module with zero doc mention.
+**Fix:** port only if/when WASM AOT codegen is promoted from test-only;
+otherwise record as an explicit non-port.
+
+**GAP-A8 — `core/analysis/checks/_style.py` mid-tier codes — absent, not
+itemised.**  Ported from `_style.py`: W105 / W110 / W304 (+ W122).
+**W114 LANDED (2026-06-05)** — `emit_w114_redundant_nested_expr` +
+`first_nested_expr` (the `_NESTED_EXPR_RE = \[\s*expr\s` pattern + a
+depth scan for the matching `]`) wired into `dispatch_expr_arguments`
+alongside W110 / W003; fires one warning per EXPR-role arg that nests a
+`[expr …]` (`expr {[expr {…}]}`, `if {[expr …]}`), skips the
+command-substitution-value form (`set y [expr …]`) and plain braced
+exprs — verified against the live Python analyser; 4 unit tests.  **W212 LANDED
+(2026-06-05)** — `emit_w212_name_vs_value` + the `name_arg_indices`
+resolver (port of `_NAME_ARG_INDICES` + `_first_arg_name` /
+`_unset_name_args` / `_info_exists_arg` / `_upvar_local_name_args`) wired
+into `emit_dispatch_site_diagnostics`; fires when a name-position
+argument (`set $x`, `incr $x`, `info exists $x`, `upvar 1 a $b`) is a
+`Var` token, skipping plain names and `$`-values in value positions —
+verified against the live Python analyser; 3 unit tests.  **W100 LANDED
+(2026-06-05)** — `emit_w100_unbraced_expr` ports `check_unbraced_expr`:
+for each EXPR-role argument that is not braced (`Str` token) and not a
+substitution-free numeric/boolean literal (`is_safe_literal` /
+`is_safe_literal_expr`, the latter via `tokenise_expr`), emit W100 —
+ERROR when a `$`/`[` substitution is present, else WARNING — with a
+brace-wrapping fix (dropping the outer quotes for `expr "…"`).  Wired
+into `dispatch_expr_arguments` (covering the `expr 1 + 2` multi-word
+full-span case and the `if`/`while`/`for` single-arg case); verified
+across a 10-case battery against the live Python analyser; 3 unit tests.
+**W104 + W106 LANDED (2026-06-05)** — `emit_w104_append_list` (an
+`append` value padded with a leading/trailing space looks like list
+construction → HINT, first match only) and `emit_w106_unbraced_switch_body`
+(an unbraced `switch` body in the single-trailing or alternating
+pattern/body form → ERROR under substitution / `-regexp`, else WARNING;
+braced bodies and `-` fall-through skipped), with shared `is_braced_word`
+/ `has_substitution` helpers; verified against the live Python analyser;
+2 unit tests.  **Note:** the W200 *exec-result-not-captured* half is a
+no-op stub in Python too (`check_exec_not_captured` returns `[]`), so it
+is intentionally **not** ported.  **W121 + W200 + W311 LANDED
+(2026-06-05)** — `emit_w121_invalid_subnet_mask` (a dotted-quad that
+looks like a mask but has non-contiguous bits → WARNING, with a
+`nearest_valid_mask` "did you mean" suggestion; `is_valid_subnet_mask` /
+`looks_like_subnet_mask` / `nearest_valid_mask` ported), `emit_w200_binary_format_modifiers`
+(a `u`/`s` modifier on a `binary format`/`scan` integer specifier under
+8.4-based dialects → WARNING — dialect-gated to `tcl8.4`/`f5-irules`/
+`f5-iapps`), and `emit_w311_encoding_mismatch` (`-encoding binary` with a
+non-binary `-translation` on `fconfigure`/`chan configure` → WARNING);
+verified against the live Python analyser (W121/W311) and the documented
+8.5 semantics (W200); 5 unit tests.  **GAP-A8 is now complete** — all
+eight mid-tier `_style.py` codes (W100/W104/W106/W114/W121/W200/W212/W311)
+are ported (the W200 exec-result-not-captured half is a no-op in Python
+and intentionally skipped).  The doc gestures at "the `_style.py` port"
+generically (tied to W108) but none of these is itemised, so they are
+easy to drop.  **Fix:** itemise + port each as a `diagnostics.rs`
+emitter.
+
+**GAP-A9 — four LSP feature providers absent (no Rust home, no
+capability).**  `lsp/features/snippet_templates.py` (401 LOC — snippet
+completion items), `package_suggestions.py` (30 — fuzzy `package require`
+catalogue), `irules_context.py` (87 — iRules event / command context
+enrichment), and `workspace_file_ops.py` (160 —
+`willCreate` / `willRename` / `willDeleteFiles` edits) have no Rust
+provider, and `build_server_capabilities` advertises no
+`workspace.fileOperations` or snippet support (verified absent across
+`rust/tcl-lsp-core` + `rust/tcl-lsp-server`).  **Fix:** port snippet
+templates into `completion.rs`; add a `fileOperations` capability +
+handler set; fold the iRules-context enrichment into hover / completion
+(see GAP-C5).  **Documented only as a dismissive "no-op rollup"** — the
+user-visible snippet / file-rename-edit / iRules-context content is not
+acknowledged.
+
+**LANDED (snippet provider — Tcl-core templates, 2026-06-05).**  New
+`tcl-lsp-core/src/snippets.rs` ports the Tcl-core half of
+`snippet_templates.py`: the 11 templates (`tcl-proc` / `namespace` /
+`package` / `class` / `if` / `foreach` / `for` / `switch` / `catch` /
+`try` / `dict-for`) and `snippet_completions` (the `get_snippet_completions`
+filter — dialect + typed `tcl-…` prefix → a `Snippet`-kind item whose
+`insert_text` is the generated VS Code snippet body with tabstops
+`${1:…}` / `$0` / choice lists, `filter_text` the prefix, `Z0_…` sort).
+`CompletionItem` gained `is_snippet` + `filter_text`; the server lift maps
+those to `InsertTextFormat.Snippet` + `CompletionItemKind::SNIPPET`
+(snippet support is a *client* capability, so nothing new is advertised).
+Wired into the completion provider's command-position fallback only (never
+`$var` / `-option` contexts), with a dash-aware partial extractor so
+`tcl-pr` matches `tcl-proc`; `_var_choices` offers in-scope variables as
+`${n|choices|}` for `foreach` / `dict for`.  4 unit tests + an end-to-end
+provider check.  **Remaining:** the iRules event templates
+(`RULE_INIT` / `HTTP_REQUEST` / … — need the enclosing `when` event +
+file-event scan), the `workspace_file_ops` rename-edit provider + a
+`fileOperations` capability (needs the workspace reverse-dependency
+index), the `package_suggestions` fuzzy-catalogue code action (needs the
+registry `required_package` surface the registry chat is restoring), and
+the `irules_context` hover/completion enrichment (folds into GAP-C5).
+
+**LANDED (workspace_file_ops — source-rewrite on rename, 2026-06-05).**
+Ports `workspace_file_ops.py` (the `willRename` / `didRename` rename-edit
+provider) in two strips.  **Strip 1** (core): `WorkspaceIndex` now records
+every `source FILE` target (`WorkspaceSource { uri, raw_path, range,
+is_literal }`, seeded from `AnalysisResult.source_targets` in
+`add_document`), and `tcl-lsp-core/src/file_ops.rs::compute_rename_edits`
+(old_uri, new_uri, index) → `Vec<RenameEdit { uri, span, new_text }>`
+scans every *literal* `source` target, resolves it against its own
+document's path, and — when it points at the renamed file — emits a
+byte-span edit replacing the literal with the new path (preserving
+absolute-vs-relative style via posix `dirname` / `join` / `normpath` /
+`relpath` reimplemented for the Linux test env; substituted `$var` /
+`[cmd]` paths are left alone).  **Strip 2** (server): the
+`will_rename_files` handler runs `compute_rename_edits` for every
+`FileRename` in the batch, resolves each byte span to an LSP range against
+the dependent's current text (open buffer or on-disk fallback), and
+assembles a `WorkspaceEdit` of `document_changes` (one `TextDocumentEdit`
+per dependent — matching Python's `compute_batch_rename_edits`); the
+`did_rename_files` handler reindexes the moved file (drop old URI, re-scan
+new path from disk).  `build_server_capabilities` now advertises
+`workspace.fileOperations.{willRename,didRename}` with the
+`**/*.{tcl,tm,itcl,irule,irul}` glob (`file` scheme), matching the Python
+`_RENAME_FILE_OPERATION_OPTIONS`.  4 core unit tests + 3 server handler
+tests (relative + absolute rewrite, no-dependent → `None`, didRename
+reindex).  **GAP-A9 update:** the iRules event snippet templates, the
+`package_suggestions` fuzzy catalogue, and the snippet-completion half of
+the `irules_context` enrichment have since landed (see the LANDED notes
+below); GAP-A9's remainder folds into GAP-C5.
+
+**LANDED (completion provenance detail — `required_package`, 2026-06-09).**
+Now the merged registry populates `required_package` (369 specs) and
+`tcllib_package` (206), `builtin_completions` tags each built-in command
+item with its provenance via a `command_detail` port of
+`completion.py::_command_detail`: `tcllib (PKG)` (tcllib takes
+precedence) / `stdlib (PKG)` / `Tk` / `built-in`.  Previously every
+built-in completion had `detail: None`.  2 unit tests (provenance string
+per command kind).  The fuzzy `package_suggestions` catalogue (the
+unknown-command → `package require` code action) remains a follow-up.
+
+**LANDED (hover `**Requires**` import hint, 2026-06-09).**
+`builtin_command_hover_text` now appends `**Requires**: `package require
+PKG`` when the hovered command's spec carries a `required_package` the
+document hasn't imported (the active set comes from
+`AnalysisResult.package_requires`, the `package require NAME` scan that
+also drives W120).  Gated on the dialect supporting `package require` at
+all (`registry.get("package").is_some()` — iRules has no package system).
+Mirrors `hover.py:1032-1038`.  3 unit tests (hint shown when missing,
+suppressed once imported, never for a core built-in).
+
+**LANDED (iRules event snippet templates — GAP-A9 tail, 2026-06-06).**
+`tcl-lsp-core/src/snippets.rs` now ports the five `f5-irules` event
+templates from `snippet_templates.py:209-304` (`irule-rule-init`,
+`irule-http-request`, `irule-redirect-https`, `irule-collect-release`,
+`irule-class-lookup`) alongside the 11 Tcl-core ones.  `SnippetContext`
+gained `current_event: Option<&str>` and `file_events: &[String]`, and
+`Template` gained `requires_top_level`; generators decline by returning
+`""` (the port of Python's `str | None`) — each `when`-event template
+drops out when its event is already declared in the file
+(`HTTP_REQUEST` / `RULE_INIT` / `HTTP_REQUEST_DATA`), and
+`collect-release` emits only the half whose event is missing.  The
+top-level guard (`requires_top_level && current_event.is_some()`)
+suppresses event templates inside an enclosing `when` block.
+`completion::completions` now takes a `dialect: &str` (threaded from the
+document's dialect by the server) so iRules templates surface only in
+`f5-irules`.  6 snippet unit tests (dialect gating, decline-on-declared,
+top-level guard, collect/release split).
+
+**LANDED (iRules `when`-context for snippet completion — GAP-A9, 2026-06-06).**
+The `current_event` / `file_events` that the snippet templates above
+consumed as v1 stubs (`None` / `&[]`) are now real, supplied by a new
+`tcl-lsp-core/src/irules_context.rs` — a port of
+`irules_context.py::find_enclosing_when_event` +
+`namespace_data.py::scan_file_events`.  `find_enclosing_when_event(source,
+line, dialect)` segments the source and descends only into `when` bodies
+(mirroring Python's `_scan_when_context`) to return the innermost
+enclosing `when EVENT` whose braced body's line range contains the cursor
+(uppercased; the body word is the first `Str` arg token, barewords being
+`Esc`).  `scan_file_events(source, dialect)` walks the segmenter into
+*every* braced word — collecting all `when EVENT` at any nesting (sorted,
+deduped).  `completions` now calls both (only for the `f5-irules` dialect,
+so plain Tcl skips the extra segmentation) and feeds the result to the
+snippet context, so the top-level guard and duplicate-event decline fire
+on the real document.  **Two documented divergences:** the conf-wrapped
+`embedded_rules` mode isn't modelled (Rust analyses the raw iRule body);
+and `scan_file_events` is segmenter-driven rather than Python's
+`\bwhen\s+…` regex (the project never parses Tcl with regex) — both find
+`when` at any brace nesting, differing only on the literal text `when X`
+in a non-command position, which the parse-accurate walk correctly skips.
+8 `irules_context` unit tests + 4 end-to-end completion tests (surface at
+top level, decline declared event, suppress inside `when` body, hidden in
+plain Tcl).  This is the completion half of the `irules_context`
+enrichment; the **hover** "Valid events" / event-ordering list and the
+event-aware command *ranking* (`_event_bucket`) remain under GAP-C5.
+
+**GAP-A9 status:** the `package_suggestions` fuzzy `package require`
+catalogue is **already landed** (`code_actions.rs::package_require_actions`
++ `rank_package_suggestions` + `package_catalogue`, wired into the
+server's `code_action` handler) — the earlier "remaining" note was stale.
+What is left of GAP-A9 folds entirely into GAP-C5 (hover event enrichment
++ event-aware completion ranking).
+
+### B. Algorithmic divergences (ported but degraded / mislabelled)
+
+**GAP-B1 — O127 store-to-load forwarding — functionally absent,
+mislabelled as ported.**  Python `optimise_load_forwarding`
+(`optimiser/_propagation.py:716-1046`) forwards **computed** exprs
+(`set x [cmd]` inlined to `[set x [cmd]]` at the single use site, then
+deletes the original) with full memory-SSA aliasing, side-effect, and
+SSA-version safety — emitting **O127**.  Rust `run_load_forwarding`
+(`optimiser/propagation.rs:99-189`) forwards **literals only** and emits
+**O102** — none of the computed-expr machinery.  O127 is never emitted in
+Rust (the apparent "O127 present" is a range comment, `mod.rs:66` /
+`gvn.rs:60`).  The C30f-final chunk-log row calls this "ported (O102…)",
+hiding the algorithm + code change.  **Fix:** port the computed-expr
+forwarding with its memory-SSA/effect gating and emit O127; keep the
+literal path as O102.
+
+**LANDED (2026-06-05).**  `optimiser/propagation.rs::run_store_to_load_forwarding`
+ports the O127 path (`_propagation.py:716-1046`) alongside the existing
+literal-only O102 `run_load_forwarding`.  For a *computed* assignment
+(`set x [cmd]` — `AssignValue` with `[` or `AssignExpr` whose expr
+`expr_has_command_subst`) with exactly one `Operand` use of `$x` later in
+the same executable block, it emits a grouped rewrite: **O127** inline
+`[set x [cmd]]` at the use word + **O127** delete of the store (empty
+replacement, shared group id).  The safety gates mirror Python: single
+operand use; same block; use after def; not SCCP-`Const`; the def name and
+every name the expr reads are non-aliased (memory-SSA `aliased_names`, with
+a `compute_aliases` fallback); no intervening barrier / impure call
+(`is_pure_command_with_traces`, trace-aware via `Module.traced_commands` /
+`has_dynamic_trace`) / command-sub assignment / redefinition of a read
+name; and no command substitution before `$x` in the use word list unless
+the expr reads nothing.  Runs on procedure bodies only (Python's
+`is_top_level` guard).  4 unit tests (positive forward; intervening
+side-effect; multiple uses; literal→no O127).  Now also surfaces through
+the GAP-C1 server diagnostics path.  **Note** the literal path stays O102.
+(Related code-identity drift: Python's
+`optimise_expr_substitutions` **O116** `[list …]` and **O118**
+`[lindex …]` folds are now performed generically under Rust's
+new **O129** rather than their canonical codes; the chunk-log notes
+saying "no O116 emission" / "no `fold_lindex`" are stale now that
+`fold_list` / `fold_lindex` are wired.  Decide whether O129 subsumes
+O116/O118 deliberately, and record it.)
+
+**GAP-B2 — GVN O106/O107 code collision — ported under the wrong codes.**
+Canonical (`docs/kcs/codes/`: `o106-loop-invariant-code-motion`,
+`o107-unreachable-dead-code`) and Python `gvn.py:851` agree: **O106 =
+loop-invariant**.  Rust `gvn.rs:1224` emits **O107 for loop-invariant**
+and `gvn.rs:1503` emits **O106 for partial redundancy** — so Rust's
+loop-invariant hint surfaces under O107, which canonically means
+"unreachable dead code".  Rust's own doc-comment (`gvn.rs:60-61`)
+presents the wrong mapping as intentional, and claims "Matches the
+Python".  Any test / editor keying on O106/O107 gets semantically wrong
+results.  **Fix:** swap to canonical codes (loop-invariant → O106,
+partial-redundancy → its canonical family) and correct the comment;
+re-snapshot any O-code baselines.
+
+**LANDED (2026-06-05).**  Confirmed against the canonical KCS catalog
+(`o106-loop-invariant-code-motion`, `o107-unreachable-dead-code`) and
+Python `core/compiler/gvn.py`: **full *and* partial redundancy both emit
+O105** (`_full_redundancy_message` / `_partial_redundancy_message` use the
+`O105` default), **loop-invariant emits O106** (`code="O106"`, gvn.py:944),
+and **O107 is unreachable dead code owned by the elimination pass** —
+never by GVN.  Rust now matches: `find_loop_invariants` emits **O106**
+(was O107) and `find_partial_redundancies` emits **O105** (was O106); the
+`RedundantComputation.code` doc-comment, the two function doc-comments, and
+the `tcl-lsp-py/src/gvn.rs` bridge doc-comments are corrected, and the two
+unit tests pin the canonical codes.  This was a genuine cross-layer
+differential bug: `gvn.py` delegates to the `_rust_gvn_*` bridge when
+present, so the Rust-accelerated path had been returning O107/O106 while
+the pure-Python fallback (and `tests/test_gvn.py`, which asserts O106 for
+loop-invariant) returned O106/O105.  No O-code baseline re-snapshot was
+needed — the only fixtures keying on these were already canonical.
+
+**GAP-B3 — `goto_type_definition` / `goto_implementation` return wrong
+results (correctness bug).**  Both alias `compute_definition`
+(`tcl-lsp-server/src/lib.rs:1437`, `:1454`), yet `type_definition_provider`
+is advertised (`:2842`).  Python `type_definition.py` resolves a
+variable's inferred class via the type lattice (`TypeLattice.object_of`)
+→ the `ClassDef`; `implementation.py` returns the TclOO subclass /
+override fan-out.  Rust returns the plain definition location for both.
+`goto_declaration` (`lib.rs:1410`) **also** aliases `compute_definition`,
+dropping Python `declaration.py`'s distinct `variable` / `global` /
+`upvar` declaration-site walk — same class of bug, lower severity.
+**Fix:** implement the lattice→ClassDef jump (type-def) and the
+subclass/override walk (implementation) over the analyser's class
+hierarchy (`analyser/class_hierarchy.rs` / `mro.rs` already exist).
+
+**LANDED (strip 1 — `goto_implementation`, 2026-06-05).**  New
+`tcl-lsp-core/src/implementation.rs` ports
+`implementation.py::get_implementations`: cursor on a **class name** →
+the classes listing it among `superclasses` / `mixins` (direct
+subclasses); cursor on a **method name outside any class** → every class
+defining that method; cursor on a **method inside a class body** → the
+enclosing class's own def + the overrides in its *descendants* (ancestors
+omitted — go-to-definition reaches those).  The Rust analyser has no
+`ScopeKind::Method` (classes/methods are `ClassDef.body_span`s), so the
+enclosing class is the innermost `body_span` containing the cursor — the
+same test `definition.rs::lookup_class_member` uses.  `goto_implementation`
+in `tcl-lsp-server` no longer aliases `compute_definition`; it calls the
+new provider on a `spawn_blocking` worker.  Bare/qualified `::` spellings
+unify via a `strip_colons` tail compare; results are de-duplicated +
+ordered by start offset (`BTreeSet`).  4 unit tests (class subclasses;
+method all-definers; method self+descendant-override; unknown word).
+**LANDED (strip 2 — `goto_type_definition`, 2026-06-05).**  New
+`tcl-lsp-core/src/type_definition.rs` ports
+`type_definition.py::get_type_definition`: a **variable receiver** (`$obj`)
+jumps to its inferred class via `AnalysisResult::instance_classes` (the
+Rust analyser's equivalent of Python's `TypeLattice.object_of` /
+`class_name` — populated for `set v [C new]` / `set v [C create n]` /
+`C create v`), and a **method receiver** (a bare word inside a class body
+that names one of that class's methods) jumps to the enclosing class's
+definition.  `goto_type_definition` no longer aliases `compute_definition`.
+4 unit tests (var→class; var-without-class→empty; method-word-in-body→
+class; unrelated word→empty).
+
+**LANDED (strip 3 — `goto_declaration`, 2026-06-05).**  New
+`tcl-lsp-core/src/declaration.rs` ports `declaration.py::get_declaration`:
+for a `$var` it scans the **visible scope body regions**
+(`definition::scope_body_spans_at`, now exposed) for the `global` /
+`variable` / `upvar` / `namespace upvar` statement that declares the name,
+using the analyser's `var_scoping` index helpers
+(`global_declaration_indices` / `variable_declaration_indices` /
+`upvar_local_declaration_indices` — the same gates the memory-SSA pass
+uses, so a `$`-substituted upvar caller is correctly *not* a static
+declaration), filtered by lexical visibility; for any other symbol (or a
+var with no declaration) it falls back to go-to-definition.  A scope
+`body_span` keeps its delimiters, so each region is brace-stripped before
+segmentation (the bug that had the `global`/`variable` cases silently
+passing through the definition fallback).  The server handler defers to
+the cross-document index when the in-document walk is empty (preserving
+the old cross-doc behaviour for sibling-file procs).  4 unit tests
+(global-in-proc; variable-in-namespace; upvar local alias;
+non-var→definition fallback).  **GAP-B3 complete** (all three providers).
+Cross-document subclass/override fan-out (Python's `workspace_classes`)
+for `goto_implementation` remains a follow-up on the single-document
+base.
+
+**GAP-B4 — `type_infer.rs` over-approximates three expr classes to
+`Overdefined`.**  Where Python infers a type, Rust returns
+`TypeLattice::overdefined()`: (a) **math-function calls** — `ExprNode::Call
+{..} => overdefined()` (`type_infer.rs:195`), so `expr {sqrt($x)}` is
+DOUBLE in Python, untyped in Rust; (b) **the six iRules string
+predicates** `Contains` / `StartsWith` / `EndsWith` / `StrEquals` /
+`MatchesGlob` / `MatchesRegex` fall through `_ => overdefined()`
+(`:171`), BOOLEAN in Python; (c) **bitwise** `& | ^ << >>` can yield
+`Numeric` instead of `Int` (`:128-152`).  Root cause: `expr_registry.py`'s
+`EXPR_FUNC_REGISTRY` (sqrt→DOUBLE, int→INT, abs identity, max/min
+variadic-join) + the `OpKind.BITWISE`/`COMPARISON` tables were collapsed
+on port.  Affects LSP hover / inlay / type-definition — including the
+core iRules dialect.  **Fix (single follow-up):** port `EXPR_FUNC_REGISTRY`
+into a Rust table consulted from `ExprNode::Call`, restore the
+COMPARISON→Boolean arm for the iRules predicates, and force INT for
+bitwise ops.  **Not previously documented.**
+
+**LANDED (2026-06-05).**  `type_infer.rs::infer_expr_type` now: (a)
+resolves `ExprNode::Call` through a new `expr_call_type` table porting
+`EXPR_FUNC_REGISTRY` — the Int conversions (`int` / `round` / `ceil` /
+`floor` / `isqrt` / `wide` / `entier`), the Double family (`sqrt` / `sin`
+/ … / `pow` / `hypot` / `fmod` / `rand` / `srand`), the Boolean predicates
+(`bool` / `isnan` / `isinf`), `abs` as identity (operand type), and
+`max` / `min` as a variadic type-join, with an unknown function falling
+back to Numeric (matching Python, not overdefined); (b) gives the six
+iRules string predicates (`contains` / `starts_with` / `ends_with` /
+`equals` / `matches_glob` / `matches_regex`) plus the word-logical `and`
+/ `or` the COMPARISON/LOGICAL→Boolean arm (the `_ => overdefined()`
+fall-through is gone — the `BinOp` match is now exhaustive); (c) forces
+Int for the bitwise / shift ops (`& | ^ << >>`), split out of the
+arithmetic group.  As an adjacent precision win the arithmetic arm now
+ports `_arithmetic_result` (INT op INT → INT, DOUBLE anywhere → DOUBLE,
+else NUMERIC), so `3 + 2.0` is Double instead of Numeric.  Four unit
+tests pin (a)/(b)/(c) + the Double promotion; full `tcl-compiler` lib
+suite green (2442).
+
+**GAP-B5 — `auto_path_eval.py` static evaluator (172 LOC) — degraded.**
+Rust `signature_scan/handlers.rs::handle_auto_path` records the **raw
+literal** of each `lappend auto_path` / `set auto_path` entry only.
+Python `evaluate_auto_path_expr` is a tokenise/parse/resolve mini-eval
+that statically resolves the dynamic idiom `lappend auto_path [file join
+[file dirname [info script]] ..]` to an absolute path.  The module is
+listed in the R\* remainder bucket, so the partial Rust port masks that
+the idiom-resolver is missing.  **Fix:** port the `[file join]` /
+`[file dirname]` / `[info script]` / `~` mini-evaluator and feed resolved
+paths to the workspace/package index.
+
+**LANDED (2026-06-05).**  New `tcl-compiler/src/auto_path_eval.rs` ports
+`evaluate_auto_path_expr` — the tokenise → parse → eval mini-evaluator
+over the supported subset (`[info script]`, `[file dirname …]`, `[file
+join …]`, literal words, `~` expansion), with faithful posix
+`dirname` / `join` / `expanduser` / `abspath` (`normpath` collapsing
+`..`/`.`/`//`) helpers so `lappend auto_path [file join [file dirname
+[info script]] ..]` resolves to the script's parent directory.  Variable
+substitutions and unsupported commands return `None` (never guesses).
+Exposed to the Python consumer via the `auto_path_eval` PyO3 binding
+(`tcl-lsp-py/src/signature_scan.rs`), matching the rewrite's
+Python-delegates-to-Rust transitional pattern; the native
+workspace/package-index consumer adopts it when the Rust path-resolution
+side lands.  12 unit tests (the parent-dir idiom, nested `dirname`,
+literal/`~`/unsupported/`$`-substitution cases, posix-helper parity).
+
+**GAP-B6 — no whole-pipeline fixpoint.**  Python iterates passes to
+fixpoint (`optimiser/_manager.py:532`, `max_iterations=5` — the aggressive
+profile loops propagation → fold → DCE).  Rust `optimiser/manager.rs:46`
+runs each pass **once**, so e.g. a `set` left dead after `$x→42` folding
+is never removed.  Noted in `docs/design/rust/rust-optimiser-parity.md`
+but **not in this doc**.  **Fix:** add a bounded multipass driver around
+the pass list.
+
+**ASSESSED — deferred as architecturally N/A in the current Rust
+optimiser (2026-06-05).**  Python's fixpoint exists because it *applies*
+transforms (mutating the IR) for codegen, so each iteration exposes new
+cascading opportunities.  The Rust optimiser is a **suggestion engine**:
+`run_passes(&mut ctx, cu, …)` takes `cu` *immutably* and every pass only
+*reports* `Optimisation`s into `ctx.optimisations` — nothing rewrites the
+IR between passes.  A bounded multipass loop over the same unchanged `cu`
+would therefore re-emit byte-identical suggestions (modulo the existing
+`select_non_overlapping` dedup), not find new ones — the `set` left dead
+after a fold is never *applied* dead in the first place, so DCE could not
+see it regardless of iteration count.  A genuine fixpoint requires first
+making the passes IR-mutating (apply → rebuild CFG/SSA → re-run), which is
+the WASM/bytecode-codegen redesign that is explicitly deferred elsewhere.
+Recorded as a deliberate non-port until that workstream lands, rather than
+adding a loop that cannot change output.
+
+**GAP-B7 — expr sub-lexer drops Tcl 9 backslash-newline continuation.**
+Python's expr whitespace scanner treats `\<newline>` as whitespace
+(`expr_lexer.py:147` — Tcl 9 collapses it to a single space; matters for
+multi-line `if {…\<NL> || …}` conditions in tcltest).  Rust's whitespace
+branch (`expr_lexer.rs:192`) matches only ` \t\n\r`; a `\` before a
+newline falls through, sets `unknown=true`, and `parse_expr` returns
+`ExprNode::Raw` — so a `\`-continued braced expr loses *all* structured
+analysis (type inference, const-fold, expr W-codes).  A safe fallback,
+but a real fidelity loss on a common idiom.  **Fix:** add the
+`\<newline>` case to the expr whitespace skip.  **Not previously
+documented** (the doc covers backslash-newline only for folding ranges
+and the CST builder, never the expr sub-lexer).
+
+**LANDED (2026-06-05).**  `tcl-lexer/src/expr_lexer.rs`'s `Inner::run`
+whitespace branch now also enters on — and its inner scan consumes — a
+`\<LF>` line continuation (new `is_backslash_nl` helper, 2-byte advance),
+mirroring the Python `expr_lexer.py` scan (LF only; a `\` before `\r\n` is
+not a continuation).  A `\`-continued multi-line braced condition lexes as
+whitespace instead of an Unknown token, so `parse_expr` keeps the
+structured AST (type inference / const-fold / expr W-codes) rather than
+degrading to `ExprNode::Raw`.  2 unit tests (continuation → structured
+`Number Operator Number`, no unknown; a lone `\` not before LF stays
+unknown).
+
+### C. Integration gaps (Rust code exists, not surfaced by the server)
+
+**GAP-C1 — the native server publishes ONLY base-analyser diagnostics.**
+`publish_analyser_diagnostics` (`tcl-lsp-server/src/lib.rs:1090`) calls
+only `Analyser::analyse()` and lifts `analysis.diagnostics`.  The optimiser
+O-codes, taint (W201 / W2xx), iRules-flow (IRULE1xxx/3xxx/4xxx/5xxx),
+shimmer, GVN redundancies, **and all source-level style checks**
+(line-length, trailing-whitespace, line-endings, comment-continuation,
+missing-package-require) are never surfaced.  `compiler_checks::run_all_checks`
+and `optimiser::find_optimisations` are **implemented in `tcl-compiler`**
+but have no server/core caller — only the PyO3 bridge.  This is the
+single biggest user-facing gap: the analyses are *done*, just unwired.
+Documented vaguely as `S-diagnostics-pipeline` "minimal scaffolding"; the
+specific omissions are not enumerated.  **Fix:** extend
+`publish_analyser_diagnostics` to run `run_all_checks` + `find_optimisations`
+(+ a source-style pass) and merge their diagnostics, behind the existing
+feature-config toggles.
+
+**LANDED (strip 1, 2026-06-05).**  `publish_analyser_diagnostics`
+(`tcl-lsp-server/src/lib.rs`) now resolves the per-document dialect-aware
+registry via `registry_for_dialect`, moves an `Arc<CommandRegistry>` clone
+into the `spawn_blocking` worker, and merges a new
+`lift_compiler_diagnostics(text, &registry, &dialect)` into the published
+set.  That helper builds a `CompilationUnit` (`build_for_with_config` +
+`with_interprocedural`, mirroring the `compiler_checks_run_all` PyO3
+bridge), runs `compiler_checks::run_all_checks` (GVN redundancies, shimmer /
+thunking, taint W2xx / T1xx, iRules-flow IRULE1xxx-5xxx, SCCP constant
+branches) **and** `optimiser::optimise_with_dialect` (the O-codes, surfaced
+as HINT-severity), lifting each through the shared `lift_span` offset →
+`Range` helper that `lift_analyser_diagnostics` now also uses.  Two server
+unit tests pin the wiring (an O100 constant-branch fold; an IRULE3001
+HTTP::uri→HTTP::respond taint flow on the dialect-aware registry).
+**Remaining (strip 2):** the source-level style pass (line-length /
+trailing-whitespace / line-endings / comment-continuation / missing
+`package require`) has no Rust home yet — it lands with the GAP-A8 / GAP-A4
+`_style.py` / `_bounds.py` ports; and a feature-config toggle surface
+(currently the checks run unconditionally, matching the Python server which
+publishes them by default).  The double lowering (checks build a CU; the
+optimiser builds its own) is a known follow-up for the document-store
+era.
+
+**GAP-C2 — semantic tokens: 7 of 53 token types, 0 of 4 modifiers.**
+`semantic_tokens.rs:79-97` returns `keyword / function / variable / string
+/ number / comment / namespace` and `legend_token_modifiers() ->
+Vec::new()`.  Python `_semantic_tokens/_constants.py` defines ~53 types
+(incl. `operator` / `parameter` / `regexp` / `event` / `escape` + the
+full BIG-IP suite + regex / binary / sprintf / clock / APL sub-tokens) and
+4 modifiers (`declaration` / `definition` / `readonly` / `defaultLibrary`).
+`encode_entries` pushes `0` for modifiers unconditionally
+(`semantic_tokens.rs:400`); the `_bigip.py` (667 LOC) + `_format_args.py`
+(943 LOC) sub-tokenisers have no Rust equivalent.  The
+`S-semantic-tokens-rich` row says "format-string / BigIP taxonomy
+deferred" but understates by ~46 types **and all modifiers**.  **Fix:**
+extend the legend + `classify_arg_token` incrementally; the modifiers are
+cheap and high-value (`defaultLibrary` / `readonly`).
+
+**LANDED (token modifiers — legend + `defaultLibrary` on builtins,
+2026-06-09).**  `legend_token_modifiers` now returns the full Python set
+(`declaration` / `definition` / `readonly` / `defaultLibrary`, order
+load-bearing — `defaultLibrary` = bit 3) and the server advertises it
+unchanged (it builds the capability from this function).  The token-entry
+pipeline (`collect_entries` → `push_token` → `encode_entries`) now threads
+a per-token modifier bitmask instead of hard-coding `0`, and a command
+head that resolves to a registry built-in carries `defaultLibrary`
+(mirrors `_collect.py:913-920`: `is_cmd_name && function && builtin`;
+user-defined procs and language keywords stay unmodified).  5 unit tests.
+**Remaining (need the arg-role-aware classifier the minimal port lacks):**
+`definition` on proc-name args, `declaration` on format-arg captures,
+`defaultLibrary` on expr-function / known-subcommand tokens, plus the
+absent token *types* — see the next note.
+
+**LANDED (token types — `regexp` + `event`, 2026-06-09).**  Two more
+token types join the legend (indices 7 / 8): the regex-pattern argument of
+a `pattern_type == Regex` command (`regexp` / `regsub`, option-skipped
+positional) classifies as **`regexp`**, and an iRules `when EVENT`
+event-name argument (ESC token matching `^[A-Z][A-Z0-9_]+$`) as
+**`event`** — both via a registry-driven `special_arg_kinds` override map
+keyed on the representative token's offset (mirrors `_collect.py`'s event
+arm + the `pattern_type` taxonomy).  4 unit tests.  **Remaining (the
+~1600-LOC deferred bulk):** the per-component regex sub-tokens
+(`regexpGroup` / `regexpCharClass` / …), the format-string component
+highlighting (`%Y` / `\1` inside `clock format` / `regsub`), the full
+`BigIP` object taxonomy (`pool` / `profile` / `ipAddress` / …), and the
+`operator` / `parameter` / `escape` / `decorator` types — all needing
+per-component sub-tokenisation the minimal port doesn't do.
+
+**GAP-C3 — code actions: refactors + ~12 quick-fix families dropped,
+`context.only` filtering absent.**  Rust `code_actions.rs` emits only
+`QuickFix` from W302 / W213 / `diag.fixes`.  Beyond the 🔴 `tcl-refactor`
+crate (extract/inline var, if→switch, switch→dict, extract-datagroup,
+brace-expr, extract/inline proc), the inline families in `code_actions.py`
+are unported: O-code optimiser fixes (with `groupEdits`), taint fixes, IP
+conversions, expr/demorgan rewrites, package-require / tclpkg-install,
+irules-collect bootstrap, docstring / profile generation.  Rust also
+ignores `context.only`.  **Fix:** honour `context.only`; add the
+optimiser-fix and taint-fix families (they reuse the diagnostics from
+GAP-C1).
+
+**GAP-C4 — formatter config surface incomplete.**  Rust `FormatterConfig`
+(`tcl-lsp-core/src/formatting/config.rs`) exposes **16** knobs vs Python's
+~24 (`core/formatting/config.py` — `pub`-field count 16 vs ~40 raw
+attribute lines).  Docstring reflow (`core/formatting/docstring.py`,
+330 LOC) is acknowledged-deferred (F\* row + `mod.rs`/`config.rs` notes),
+but several behaviour toggles are silently absent and **not flagged**:
+`replace_semicolons_with_newlines` (semicolon splitting is hardcoded-on in
+Rust), `min_body_commands_for_expansion`, `align_comments_to_code`, and
+`enforce_braced_expr`; `BraceStyle` carries only `KAndR`.  **Fix:** add
+the missing config fields + thread them through `formatting/engine.rs`.
+
+**LANDED (2026-06-05) — with a correction to the gap framing.**  All four
+fields are now on the Rust `FormatterConfig` with Python-matching defaults
+(`enforce_braced_expr=false`, `align_comments_to_code=true`,
+`min_body_commands_for_expansion=2`, `replace_semicolons_with_newlines=
+true`).  **Correction:** these four are **config-surface-only in Python
+too** — declared in `config.py` and exposed in the editor settings JSON
+schema, but *never consumed by the Python formatter engine* (verified:
+zero `config.<field>` reads across `core/formatting/`).  The behaviours
+are hardcoded on **both** sides, so the original "hardcoded-on in Rust"
+framing was half-right: Rust matched Python's *behaviour* and only lagged
+its *config surface*.  Adding the fields restores surface parity (and
+keeps settings deserialisation forward-compatible); **threading them is
+deliberately not done** — it would diverge from Python.  Real behaviour
+for any of these is a future formatter feature to land on both sides at
+once.  `BraceStyle` needs no new variant — Python's enum is also
+`K_AND_R`-only (the audit overstated that).  Docstring-reflow fields stay
+acknowledged-deferred.
+
+**GAP-C5 — hover / completion iRules enrichment + `HoverSnippet::brief()`
+field loss.**  (a) Python hover appends a "**Valid events**" list and
+`when EVENT` event-ordering / multiplicity notes (`hover.py:1039-1164`);
+Rust `hover.rs` has none (verified — no "Valid events" / event-order
+string).  (b) Completion's cross-file RULE_INIT / `static::` variable
+enumeration (`completion.py:223,263`) is acknowledged-deferred in Rust
+(`completion.rs:45`) but unbuilt.  (c)
+`tcl-registry/src/hover.rs::HoverSnippet::brief()` sets `snippet` /
+`examples` / `return_value` to `""` (lines 33-36), so every spec built via
+`brief()` serves a hover with no usage snippet, examples, or
+return-value — a registry-data richness loss across the brief-constructed
+spec corpus.  **Fix:** port the event-list / ordering hover, the RULE_INIT
+enumeration, and populate the `brief()`-dropped fields where the spec
+carries them.  **Partially landed (2026-06-06):** the `irules_context`
+`when`-context detection (`find_enclosing_when_event` / `scan_file_events`)
+now exists in `tcl-lsp-core/src/irules_context.rs` and drives the
+snippet-completion `current_event` / `file_events` (see the GAP-A9 LANDED
+note).  Still open here: the **hover** "Valid events" / event-ordering list,
+the cross-file RULE_INIT / `static::` enumeration, the event-aware command
+*ranking* (`_event_bucket` / `commands_for_event`), and the `brief()`
+field loss.
+
+### D. Registry data-model gaps (`CommandSpec` fields with no Rust field)
+
+**GAP-D1 — structured spec fields absent tree-wide** (zero occurrences in
+`rust/tcl-registry/`): **`pattern_type`** (GLOB/REGEX — drives regexp /
+regsub / lsearch / switch pattern highlighting + validation),
+**`format_string_type`** (SPRINTF/CLOCK/BINARY/REGSUB — inlay-hint format
+parsing), **`arg_type_resolver`**, plus `validation_hook`,
+`keyword_completions`, `deprecated_replacement` / `deprecation_fixer`,
+`tcllib_package` / `warn_missing_import` (W120 package gating),
+`is_namespace_exported`, `xc_translatable` / `xc_operation`.  Variable-
+layout commands silently lose `forms` / `options` — e.g. **`lsort` carries
+0 of its 12 options** in Rust (`commands/tcl/lsort_.rs` vs
+`registry/tcl/lsort_.py`), so option completion + `resolve_lsort` type
+resolution are gone.  **Fix:** add the fields to `tcl-registry::spec`
+(several are enums — straightforward) and restamp the affected specs;
+`pattern_type` / `format_string_type` unblock GAP-C2's regex/format
+sub-tokens.  **Not previously documented.**
+
+**GAP-D2 — granular taint / security fields collapsed; T106 + W313
+sub-analyses absent.**  Rust keeps only coarse `TAINT_SINK` / `TAINT_SOURCE`
+traits + `taint.rs` subcommand facts, losing Python's `taint_output_sink`
+/ `taint_log_sink` / `taint_network_sink_args` / `taint_transform` /
+`taint_double_encode_colour` / `taint_sink_safe_colour` /
+`credential_options` / `credential_arg` / `sensitive_headers`.  (Most of
+these granular fields have since been merged into the registry and are now
+consumed — see the registry-unblocked LANDED note below — including
+**T106** double-encoding *and* **W313** destructive-file-on-tainted-path,
+both now implemented.)  The setter
+-constraint table is also hardcoded (2 entries, `taint.rs:1262`) vs
+Python's registry-driven `TAINT_HINTS`.  **Fix:** these are the data
+substrate for GAP-A2's security checks — port the granular fields first,
+then T106 / W313 + the security emitters consume them.
+
+**LANDED (registry-unblocked consumers, 2026-06-09).**  With PR #550's
+registry merge the granular D1/D2 fields now exist, and the consumers that
+were waiting on them have landed: **W310** Strategy-1 `credential_options`
++ Strategy-2 `credential_arg`/`sensitive_headers` (GAP-A2 complete);
+**completion** provenance detail from `required_package`/`tcllib_package`;
+**hover** `**Requires**: package require X` from `required_package`;
+semantic-token **`defaultLibrary`** modifier from registry built-in
+membership; and the **T104 SSRF** (`taint_network_sink_args`) / **T105
+cross-interp** (`taint_interp_eval_subcommands`) taint sinks; plus
+**IRULE2002** deprecated-iRules-command warning from
+`deprecated_replacement`; and **T106** double-encoding — which needed the
+missing engine piece too: `transform_colour` now stamps a command's
+`taint_transform` colour onto its tainted result during `propagate_taints`
+(e.g. `uri::encode` → `URL_ENCODED`), and `emit_double_encode_warnings`
+flags a value re-entering a command whose `taint_double_encode_colour` it
+already carries; and **W313** destructive-file-on-tainted-path
+(`find_destructive_file_warnings`: `file delete`/`rename`/`mkdir` with a
+variable path, suppressed when the path is normalised *and* bounds-checked
+via the `[string match …]` branch-guard analysis — `taint`-diagnostic
+severity is uniformly `Error` in Rust, a pre-existing convention).
+Subsequently landed: the GAP-C2 `regexp`/`event` **token types**
+(registry-driven `special_arg_kinds`); **W313** destructive-file-on-
+tainted-path (the branch-guard taint pass); and the hover **"Valid
+events"** list — `valid_events` ports `events_matching` + `event_satisfies`
++ `profile_stack_satisfies` + `expand_profile_stack` over the registry's
+event / profile graphs (the `effective_event_requires` namespace-profile
+augmentation is a no-op here — the Rust specs already bake the profiles
+into `event_requires`).  Also landed: the **`package_suggestions`** fuzzy catalogue
+(`code_actions::package_require_actions`) — `rank_package_suggestions`
+ranks the registry-derived package catalogue (`required_package` /
+`tcllib_package`) against the cursor word's `::`-prefix and offers
+`Add 'package require <pkg>'` (skipping already-required packages); the
+workspace `package_resolver`'s *installed*-package set is the only
+deferred piece (locally-installed-but-unregistered packages aren't
+suggested).  Also landed: the GAP-C2 **regex sub-tokens** —
+`push_regex_subtokens` splits a `regexp`/`regsub` pattern argument into
+ARE components (`regexpGroup` / `regexpCharClass` / `regexpQuantifier` /
+`regexpAnchor` / `regexpEscape` / `regexpBackref` / `regexpAlternation`),
+porting `_collect_regex_pattern_tokens` + `_REGEX_PART_RE` (the one
+malformed BRE-quantifier branch, dead in Python too, is omitted).
+The **sprintf `format`/`scan`** (`push_sprintf_subtokens` → `formatPercent`
+/ `formatSpec` / `formatFlag` / `formatWidth`) and **`clock format`/`scan`**
+(`push_clock_subtokens` → `clockPercent` / `clockSpec` / `clockModifier`,
+the `-format` value) component sub-tokens have also landed — all
+command-name gated since `format_string_type` is never stamped.  The
+**`binary format`/`scan`** (`push_binary_subtokens` → `binarySpec` /
+`binaryCount` / `binaryFlag`, `u`/`s` modifier dialect-gated to 8.5+) and
+**`regsub`-replacement** (`push_regsub_subtokens` → `\1`-`\9` → `number`,
+`\&` → `operator`) sub-tokens have landed too — every format / regex
+dialect is now done.  The **BIG-IP object taxonomy** (the code-relevant
+half) has also landed: a new `irules_object_refs` module ports
+`extract_irules_object_references` (the recursive walk recognising
+`pool` / `snatpool` / `virtual` / `node` / `class` / `persist` / …
+references by name + arg shape, recursing into `when`/`if` bodies and
+`[…]` substitutions), and the semantic-tokens provider overlays an
+`object` token at each name span under the `f5-irules` dialect (skipping
+any that would overlap an existing token, so the stream stays
+overlap-free).  **GAP-C2 sub-tokens are complete** for Tcl/iRules *code*;
+the only remaining piece is the separate BIG-IP **config-file** /
+**APL** document mode (`is_bigip_conf` — partition paths / IP / port
+literals in `.conf` text + embedded-Tcl detection), which runs on a
+different document type, not on command arguments.
+
+### E. Doc defects corrected in place by this audit
+
+- **§E1 — recovery "single edge case" (the "Deferred work (lexer)"
+  ghost-character note).**  Rewritten: `recovery.py`'s
+  `segment_with_recovery` runs on every analysed body (GAP-A1), not a
+  single call site; the note now names the **ghost-token** convention and
+  the E201-E206 family it drives.
+- **§E2 — interval-domain Phase-3 row + C41d3/d4 file→code map.**  Added a
+  clarifier at the Phase-3 row noting its files are main-side and absent
+  from the rust-branch tree, and that the actual W230-W242 checks live in
+  `checks/_bounds.py` (GAP-A4); the C41d3/d4 map's "W230..W239 →
+  `_diag_var_command.py`" / "W120..W122 / W242 → `_diag_commands.py`"
+  is wrong for this tree (those files emit W002/W307/W308 and W123).
+- **§E3 — CR line-break contradiction.**  The "Deferred work (lexer)"
+  `[LANDED]` note claimed bare `\r` counts as a line break; corrected to
+  match `line_index.rs:10` (`\n`-only) and SYNC-JUN08-1, which is the
+  shipped + correct behaviour.
+- **§E4 — stale `analyses.rs:6` comment** ("analysis algorithms deferred")
+  contradicts the implemented `sccp.rs` / `type_infer.rs`; flagged for a
+  one-line code fix (not a doc edit).
+- **§E5 — soft-dependency list** named `core/compiler/rust_spans.py` as a
+  binding-crate importer; it imports only `bisect` / `os` /
+  `semantic_model` / `tokens`.  Corrected.
+
+## Next-up priority queue
+
+When a contributor sits down to pick up the next chunk, work
+through this list top-to-bottom.  Items higher up are smaller,
+better-scoped, and unblock more downstream work.  Each row links
+to the chunk-log entry that has the full spec.
+
+| Priority | Chunk | Why now |
+|---|---|---|
+| — | `GAP-C1` (wire deep diagnostics into the native server) | **Opened 2026-06-05 by GAP-AUDIT-JUN05; strip 1 LANDED 2026-06-05.**  `publish_analyser_diagnostics` (`tcl-lsp-server/src/lib.rs`) now merges `lift_compiler_diagnostics` — `compiler_checks::run_all_checks` (taint / iRules-flow / shimmer / thunking / GVN / SCCP) **and** `optimiser::optimise_with_dialect` (O-codes, HINT severity) — over the per-document dialect-aware registry, alongside the base `Analyser::analyse()` set.  Two unit tests pin it (O100 fold; IRULE3001 taint flow).  **Strip 2 remaining:** the source-style pass (line-length / trailing-whitespace / line-endings / comment-continuation / missing-`package require`) lands with the GAP-A8 `_style.py` port; feature-config toggles (checks currently run unconditionally — Python default); CU-sharing to avoid the double lowering.  See GAP-AUDIT-JUN05 §C1. |
+| — | `GAP-B3` (DONE) | **LANDED in full 2026-06-05 (strips 1-3).**  `goto_implementation` (`implementation.rs` — TclOO subclass / method-override fan-out), `goto_type_definition` (`type_definition.rs` — `$obj`→inferred class via `instance_classes`, method→owning class), and `goto_declaration` (`declaration.rs` — visible `global`/`variable`/`upvar`/`namespace upvar` declaration walk via the `var_scoping` index helpers, with cross-doc fallback) are all real; none aliases `compute_definition`.  12 unit tests.  Cross-document subclass/override fan-out for `goto_implementation` is the only follow-up.  See §B3. |
+| — | `GAP-B1` / `GAP-B2` (DONE) | **Both LANDED 2026-06-05.**  B2: canonical GVN codes (loop-invariant→O106, partial→O105, O107 = elimination dead-code only; fixed a cross-layer differential).  B1: `run_store_to_load_forwarding` ports the O127 computed-expr forward — `set x [cmd]` with a single same-block operand use inlines `[set x [cmd]]` and deletes the store (grouped), gated on single-use / alias / intervening-effect / SSA-version safety (memory-SSA + `is_pure_command_with_traces`); literal path stays O102.  4+2 unit tests; surfaces via GAP-C1.  See §B1 / §B2. |
+| — | `GAP-A2` + `GAP-D2` (security-check family + granular taint fields) | **Highest-severity checks silently absent** (injection / ReDoS / hardcoded credentials).  Port the granular taint-sink `CommandSpec` fields, then the W102/W103/W300/W301/W303/W309/W310/W312 emitters (+ T106 / W313).  See §A2 / §D2. |
+| — | `GAP-B4` (expr type inference — `EXPR_FUNC_REGISTRY`) | **LANDED 2026-06-05.**  `type_infer.rs::infer_expr_type` now ports `EXPR_FUNC_REGISTRY` (`expr_call_type` — Int/Double/Boolean families + `abs` identity + `max`/`min` join), gives the iRules string predicates + word-logical ops the Boolean arm (`BinOp` match now exhaustive — no `overdefined()` fall-through), forces Int for bitwise/shift, and ports `_arithmetic_result` (DOUBLE promotion).  Four unit tests; lib suite green.  See §B4. |
+| — | `GAP-AUDIT-JUN05` (remainder: A1, A3-A9, B5-B7, C2-C5, D1) | Structural gaps with full context + fix steps in the GAP-AUDIT-JUN05 section — ghost-token E201-E206 recovery, confusables/bounds/syntax/style checks, four absent LSP providers (snippet / package-suggest / irules-context / file-ops), semantic-token taxonomy + modifiers, code-action families, formatter config knobs, hover/completion iRules enrichment, registry `pattern_type`/`format_string_type`/`options`, `auto_path` static eval, expr backslash-newline, multipass fixpoint. |
+| — | `SYNC-JUN08-1` (lexer lone-CR line tracking) | **Opened 2026-06-04 by `SYNC-JUN08` / #537; strip 1 LANDED.**  In scope, **soundness**: post-fix main counts only `\n` in every line index (a lone `\r` is horizontal whitespace, not an EOL), but the Rust `rust/tcl-lexer/src/line_index.rs::LineIndex::new` counted a bare `\r` as a line break — disagreeing with both post-fix Python (`_build_line_starts` / `shared/source_map.py`) and the red CST overlay's `build_line_starts`, so a token after a lone CR resolved to the wrong line (the position-equivalence inconsistency #537's CST fuzzing exposed).  **Strip 1:** `LineIndex::new` is now `\n`-only (mirrors `red.rs::build_line_starts` byte-for-byte; CRLF still breaks on its LF); the two unit tests are inverted to pin the post-fix-Python positions; a cross-layer test (`red.rs::lexer_line_index_agrees_with_red_overlay_on_lone_cr`) asserts the lexer's `SourceMap` positions equal the red overlay's **independent** index over bare-CR / CRLF / mixed sources (FAILS pre-fix).  Remaining candidate: **strand 2** (CST build quoted `\<newline>` content in `build.rs::handle_trivia`) pending a behaviour audit; **strand 3** (incremental reparse) N/A.  See the `SYNC-JUN08` family section + `SYNC-JUN08-1`. |
+| — | `SYNC-JUN09-1` (lowering body re-parse via the CST descent) | **Opened 2026-06-05 by `SYNC-JUN09` / #540.**  In scope, **alignment** (byte-identical target): Python #540 routed lowering's braced-`STR` body re-segmentation through `descend_token` — the analyser's `compiler_checks` body-descent path — so the two share one descent; the Rust `rust/tcl-compiler/src/lowering/mod.rs::{lower_script,lower_body}` still re-segment via `segment_commands_with_offset_and_config`, a second path the `descend_token` (CST-PORT strip 6) caller-set doesn't include.  Thread the document `&str` onto `Lowerer`, add `segment_body` gated to braced-`STR` body tokens (kind `Str`, source byte `{`, offset in range — CMD/VAR/quoted/top-level/synthesised fall back), route the two `segment_commands*` body sites through it.  Recovery is skipped for bodies ⇒ byte-identical to today.  See the `SYNC-JUN09` family section + `SYNC-JUN09-1`. |
+| — | `SYNC-JUN09-2` (delimited-word closer-geometry consolidation) | **Opened 2026-06-05 by `SYNC-JUN09` / #540.**  In scope, **parity / dedup** (behaviour-preserving): Python #540 collapsed three copies of the closer geometry onto `word_closer_offset` (now region-relative via `base_offset`) + a boolean sibling `closer_present_in_region` that `descend._terminated` delegates to; the Rust `rust/.../syntax/descend.rs::terminated` still rolls its own length-based check (`span.start()+1+token_text.len()`) independent of `tcl-lexer::ranges::word_closer_offset`.  Add `closer_present_in_region` to `tcl-lexer::ranges`, have `terminated` delegate (the Rust `word_closer_offset` already keys emptiness on `token_text`, so this is a thin wrapper).  Pin with the existing empty-`{}` / unterminated cases.  Pairs with `SYNC-JUN09-1` (same two files).  See the `SYNC-JUN09` family section + `SYNC-JUN09-2`. |
+| — | `SYNC-JUN09-3` (nested + dangling-tail line-continuation folding) | **Opened 2026-06-05 by `SYNC-JUN09` / #541.**  In scope, **IDE-feature extension**: Python #541 made `\`-continuation folding depth-recursive (a continuation inside a braced/bracketed body — one opaque `STR`/`CMD` token at the enclosing level — re-tokenised one byte past the opener, cap 20) with trailing blank/past-EOF trimming for a dangling `foo \` at EOF; the Rust `rust/tcl-lsp-core/src/folding.rs::collect_continuation_folds` (SYNC-MAY31-8) scans only top-level tokens and always emits `prev+1`.  Make it recurse into multi-line `Str`/`Cmd` tokens (reusing `push_unique`) and add the dangling-tail trim.  CRLF needs no change (keys on the leading `\` byte).  Self-contained, off the hot path.  See the `SYNC-JUN09` family section + `SYNC-JUN09-3`. |
+| — | `CST-CONSUMERS` (candidate a — give the CST descent / ranges accessors a production caller) | **Opened 2026-06-04 (the #538 L1 finding); strips 1-3 + 5-6 LANDED — L1 resolved for the descent; `command_invocations` now `==` main across the exercised battery.**  `descend_token` / `descend_command` and the `tcl-lexer::ranges` accessors landed with the CST but had **no production caller**.  The nested cmd-sub invocation walker in `analyser/commands.rs` (consumed by the LSP server's references / call-hierarchy via `analysis.command_invocations`) was a hand-rolled first-head-only scan; rebased onto the CST descent across six strips: **(1)** `descend_token` + `segments_from_tree` records every command in a substitution (`[foo; bar]` → `{foo, bar}`) — first caller of `descend_token`; **(2)** head fidelity via `texts[0]` (`$cmd`→`${cmd}`, `"q"`→`q`); **(3)** `descend_command` resolves body args (`[if {$c} {puts hi}]` → `if, puts`) — first caller of `descend_command`, `switch` list-bodies skipped; **(5)** expr-arg substitutions (`[if {[chk]} …]` → `chk`, `[expr {[bar]+1}]` → `bar`) via `collect_expr_substitutions` (`_recurse_expression_subcommands`); **(6)** fixed the last over-record — a braced *data* word (`set x {[noeval]}`) is no longer scanned (role-gated dispatch), and a `Cmd` **head** (`[x] hi`) is now descended; **(7)** switch-arm bodies inside a substitution (`[switch $v {a {cmd1} …}]` → `cmd1`/`cmd2`) via `parse_switch_body_elements` (`_recurse_switch_list_body`), patterns / `default` / `-` not descended; **(8)** record a `[subst]` / `{braced}` **head** name (`[[gen] arg]` → `[gen]`+`gen`) — main records `argv_texts[0]` for every command.  **`command_invocations` is now Rust-`==`-main (exact) over the entire combined battery** (substitution / every head kind / body / expr / switch / data / head-as-subst).  **Strip 4** (the `ranges` accessors) is **blocked**: no faithful Rust caller until the irules quick-fixes / `_style.py` W108 land.  Only optional structural folds remain (`analyse_body` / `rename.rs` body re-segmentation onto the descent — not a parity gap).  See the `CST-CONSUMERS` section. |
+| — | `CST-PORT` (red-green concrete syntax tree) | **Opened 2026-06-05 by `SYNC-JUN06` / #533; all six strips LANDED 2026-06-04 on `claude/awesome-newton`.**  The full Rust red-green CST lives in `rust/tcl-compiler/src/parsing/syntax/{green,red,build,segment,descend}.rs` (+ `rust/tcl-lexer/src/ranges.rs`), and `segment_commands_local` is rebased onto it (the ~150-line token loop is gone), byte-identical over all 256 Tcl 8.4/8.5/8.6/9.0 corpus files (`tests/differential_segment.rs`).  Main landed the canonical lossless red-green CST (`compiler/parsing/syntax/{green,red,build,segment,descend}.py`) and rebased the segmenter onto it (the 150-line token loop is gone).  In scope, unported.  Port target: a Rust green/red split + `build` (reshapes the existing dialect-configured `Lexer` stream, no second parser) + `segment` (derives `SegmentedCommand` byte-identically) + `descend` (lazy body / cmd-sub children), then rebase `segment_commands*` onto it — the `_and_config` dialect plumbing carries over.  Large + foundational, but **not urgent**: the Rust token-loop segmenter works and was just made dialect-aware, and main proved the migration byte-identical.  Supersedes the deferred token-cache direction (`SYNC-MAY31-6`) and is the natural incremental-edit substrate for the `S*` document store.  See the `SYNC-JUN06` family section + `docs/design/compiler/syntax-tree.md`.  **Strip sequence (smallest-first):** (1) `shared/ranges.py` authoritative-closer accessors **— DONE** (2026-06-04); (2) green tree **— DONE** (2026-06-04); (3) red tree **— DONE** (2026-06-04); (4) `build` **— DONE** (2026-06-04); (5) `segment` + rebase `segment_commands*` **— DONE** (2026-06-04); (6) `descend` **— DONE** (2026-06-04).  **Strip 6 landed:** `rust/tcl-compiler/src/parsing/syntax/descend.rs` ports `descend.py` — lazy descent into braced bodies / `[…]` substitutions.  `descend_token(sm, token, config)` re-lexes an opaque `Str` / `Cmd` token's inner text as a child CST anchored **one byte past the opener** (`start.offset+1`, `character+1`) via `build_document` + `SyntaxTree::with_parts`, so the child owns the delimiter-excluding interior with absolute positions; a length-based `terminated` check (`start+1+text.len()`, not `end+1`) classifies an empty `{}`/`[]` correctly (#527) and flags an unterminated region as *recovered*.  `descend_command(registry, sm, cmd_name, args, arg_tokens, config)` resolves `ArgRole::Body` arguments through `CommandRegistry::arg_indices_for_role` (the Rust `iter_body_arguments`) and descends each non-empty `Str` body — `Expr` args stay with the expr lexer.  Python's `insidequote` param is not threaded (no production caller descends a quoted region).  6 tests: braced/cmd-sub/empty/unterminated descent, multi-level descent (a `[…]` inside a descended body, positions absolute), and `for`-loop body-vs-expr resolution.  **Strip 5 landed:** `rust/tcl-compiler/src/parsing/syntax/segment.rs` ports `segment.py` (adapted to the Rust `SegmentedCommand` shape) and **rebases `segment_commands_local` onto the CST** — the ~150-line `SegmenterState` token loop + `flush_eol_or_eof` are gone, replaced by `build_document` + `segments_from_document`.  `segments_from_tree` walks the red tree and derives every field: `argv` (compound-word merge — kind/`content_offset`/`in_quote` from the first fragment, span widened to the last), `texts` (`word_piece` per fragment), `single_token_word`, `all_tokens` (fragments + `{*}` markers in document order via `cmd.tokens()`), `expand_word`, `preceding_comment`.  **Key divergence handled:** the Rust oracle derives the command **span** via `command_span`/`widen_word_end` (which deliberately does *not* widen a quoted `"…"` final word over its closing quote), whereas main's `segment.py` uses the green `range_end_rel` (`word_boundary` rule, which *does* include the quote) — the two differ by one byte only for a quoted last word.  To keep the public behaviour byte-identical, the Rust derivation computes the span with `command_span` over the derived `all_tokens` (same fn + inputs as the oracle ⇒ identical by construction); `range_end_rel` stays in the green tree as the main-faithful range for future consumers.  **Differential harness** `tests/differential_segment.rs` asserts the production (CST) segmenter == an **independent oracle** field-for-field + losslessness + position-equivalence over an edge table (×3 dialects), a non-zero-base shift, and **all 256 Tcl 8.4/8.5/8.6/9.0 corpus files**.  Post-review (H2): the oracle is a **frozen byte-for-byte copy of the pre-CST token loop** (snapshotted from `3410dd4e` into the test's `frozen_oracle` module) — not the live `segment_commands_local`, which is now CST-backed and would make the test a tautology — so the byte-identity is a genuine cross-check, not a self-comparison.  The recovery post-process (`segment_commands_with_recovery`) is unchanged and re-verified.  Full `cargo test --workspace` byte-identical.  `command_span` made `pub(crate)`.  **Strip 4 landed:** `rust/tcl-compiler/src/parsing/syntax/build.rs` ports `build.py` — `build_document(source, config)` reshapes the dialect-configured `Lexer` stream into the green tree (no second parser) via start-to-start tiling (`raw = source[tok[i].start .. tok[i+1].start]`, delimiters included, sidestepping the inner-end/#527 convention).  Lexes in local-offset space (base 0, like `segment_commands_local`) since green is position-independent — anchoring is the red layer's job.  A `Builder` mirrors the segmenter's `nonlocal` state: command/word grouping, `{*}` marker handling (stale-boundary quirk — EXPAND advances `prev_type` to SEP without touching `word_boundary`), backslash-newline continuation, comment accumulation across dangling-`{*}` commands + blank-line reset, the `word_boundary` range rule (token-only `start, boundary-1`, making the #527 overshoot structural), and terminator-trivia attachment.  Verified **byte-lossless over all 256 Tcl 8.4/8.5/8.6/9.0 source files** (`full_text == source`) plus 12 unit tests.  Added `with_trailing` / `with_last_child_trailing` green mutation helpers (recompute cached width) and exported `tcl_lexer::LexWarning`.  **Strip 3 landed:** `rust/tcl-compiler/src/parsing/syntax/red.rs` ports `red.py` — the lazy red overlay: `SyntaxTree` anchors a green root at `(base_offset, base_line, base_col)` and resolves a region offset to an absolute `SourcePosition` via a line index built from the tree's *own* reconstructed text (`build_line_starts`), reproducing the lexer's `_pos_at` (region-relative line bisect, then shift line by `base_line` and the first line's column by `base_col`).  `SyntaxToken` / `SyntaxNode` are cheap borrowed views (no `parent` back-pointer — Python's is unused); `raw_start` skips leading trivia, `start_position` / `end_position` reproduce the lexer's `Token.start` / inner-end `Token.end` (#527) via `end_rel`, and `to_token` rebuilds the exact span-based Rust `Token` (span = `raw_start..raw_start+end_rel+1`, with the `{*}` `Expand` marker special-cased to its zero-width ghost span).  Required carrying `content_offset` on `GreenToken` (the Rust `Token` is span+`content_offset` where Python's is text+start+end) — a justified Rust-specific addition.  12 tests including cross-checks that `to_token` byte-matches `Lexer` output (braced/empty-brace/var/braced-var/cmd-sub/bare/quoted/multiline/expand) field-for-field.  **Strip 2 landed:** `rust/tcl-compiler/src/parsing/syntax/green.rs` ports `green.py` — the position-independent green layer: `TriviaKind` / `SyntaxKind` enums, `GreenTrivia`, `GreenToken` (twin `text`/`raw` fields + `end_rel` + attached leading/trailing trivia + cached `full_width`), `GreenElement` (`Node`|`Token`), and `GreenNode` (`Document`/`Command`/`Word` with `expand_markers`, dangling `trailing`, `range_end_rel`, `preceding_comment`).  `full_text` round-trips byte-for-byte (losslessness); cached widths are pure functions of the other fields so they don't perturb structural equality (the shareability property).  Widths are byte lengths (matching the Rust lexer's byte-offset convention) where Python uses codepoint `len`.  Module tree `parsing/syntax/` mirrors the Python package layout.  10 tests.  **Strip 1 landed:** `rust/tcl-lexer/src/ranges.rs` ports `word_closer_offset` / `word_end_position` (derive the closing `}` / `]` / `"` from the lexer's content geometry — correct for empty `{}` / `[]` / `""` and backslash-bearing quoted `"a\"b"` / escaped-brace `{a\}}` words; emptiness keys on `SourceMap::token_text`, the Python `tok.text` discriminator, not a source byte), exported from `tcl-lexer`, 16 tests.  Audit of the segmenter's `widen_word_end` / `command_span`: the prior byte-check (`source[span.end()] == closer`) was robust for the *current* local-slice segmenter (an empty `{}` never sees an enclosing closer at `span.end()`) but would re-introduce the #527 overshoot once the CST rebase computes command spans against the full buffer (`a {}}` → the byte one past the empty `{}` *is* the enclosing `}`); rebased onto the faithful text-empty predicate (mirrors `range_from_word_token`'s `span_extra`) — behaviour-preserving for every existing input, robust for the rebase, pinned by `widen_word_end_does_not_overshoot_empty_brace_before_enclosing_closer`.  `cargo test --workspace` green (3337), clippy/fmt clean.  **CST-PORT complete.** |
+| — | `SYNC-MAY26` family (`SYNC1` … `SYNC11`) | Landed via PR #389 — SYNC1 (minimum-viable, multi-role via duplicate rows; full `ArgRoleSet` type widening deferred), SYNC2 (`BodyKind`), SYNC3 (`body_arg_implicit_args`), SYNC4 (registry-driven trace defs), SYNC5 (`CREATES_DYNAMIC_BARRIER` guard), SYNC6 (`reads_own_def` for dict), SYNC7 (canonical-command field, type surface only), SYNC8 (GVN trace-aware purity), SYNC9 (Module trace facts), SYNC10 (LRU-cached `parse_expr`).  SYNC11 (hover debounce / cache / worker-offload contract) is deferred to `S-hover-sync11` since it builds on the cached-analysis surface that `S-diagnostics` lands later — see the `S-hover` chunk-log row. |
+| 1 | `C41-default-on-followups-postpass` (= ``C42``) | **Code-side: every post-pass W code (W105, W110, W302, W001, E004, W304, W101, W220-IR-paths) has landed as a Rust-side emitter in ``rust/tcl-compiler/src/analyser/diagnostics.rs``.** The Python override the chunk was supposed to retire (`_merge_rust_with_python_supplement` in `core/analysis/_analyser/__init__.py`) was silently deleted at PR #241 (`cd7a8441`, 2026-04-30) when `__init__.py` was simplified from 535 LOC to 47 — there is now nothing left to flip. The Rust analyser is in `rust/tcl-compiler/src/analyser/` and as of 2026-05-08 has no live caller — the lone consumer (`tests/test_rust_analyser_differential.py`) was deleted by `SYNC-JUN-DIFF-harness-delete` because it had been silently broken since #241.  Closes with the ``S*`` LSP-server port, which replaces the consumers of `analyse()` with Rust-native callers. |
+| 2 | `C41-default-on-followups-structural` | Naturally closes with the ``S*`` LSP-server port.  Lower priority for direct work — the structural-triple override survives only because Python consumers depend on object identity; rewriting them in Rust eliminates the question.  Status sibling of the postpass row: the override the chunk was supposed to flip is gone since #241; the work closes with `S*`. |
+| — | `C44-irules-flow` | Landed via PR #389 — all nine codes (IRULE1005 / 1006 / 1007 / 1008 / 1201 / 1202 / 3102 / 4004 / 5002 / 5004) have working Rust emitters in `irules_checks.rs`.  Two targeted follow-ups remain (path-sensitive coverage on IRULE1201 / 1202; branch-aware reassign tracking on IRULE4004) — see chunk-log row. |
+| — | `C43` | **Landed in full via PR #389 + 4 follow-up sub-strips.** `_barrier_gate.py` ported as `body_has_dynamic_barrier`; a new typed `LoweringHookId::ForeachLine` rounds out the structured set (15 variants: `Proc`, `When`, `NamespaceEval`, `If`, `Switch`, `For`, `While`, `Foreach`, `Lmap`, `ForeachLine`, `Catch`, `Try`, `Dict`, `Eval`, `Uplevel`); every relevant `CommandSpec` carries its hook stamp.  `Lowerer::try_dispatch_structured_hook` routes all 15 through `resolve_call().lowering_hook`, and `lower_command`'s former `match cmd_name` string-pattern block is gone — commands that the registry doesn't know about (or whose hook is `None`) flow straight to `lower_default`.  **Sub-strip sequencing:** (1) `eval`, `uplevel`; (2) `if`, `switch`, `for`, `while`, `catch`, `try`; (3) `proc`, `namespace eval`, `foreach`, `lmap`, `dict`; (4) `when`, `foreachLine` — the last sub-strip also fixed latent test-harness misconfigurations (4 helpers were lowering iRule code against a vanilla `build_default()` registry; the previous string-match arm masked the bug). |
+| 4 | clippy-cleanup Chunk D (`too_many_lines`) | After waves 1–7 (PR #380 first wave + PR #389 waves 2–6 + wave 7 retiring `Lowerer::lower_proc`) the running total is **14 of 27 fn-level allows retired** plus 2 stale file-level allows permanently removed — **the 50% milestone is met**.  13 fn-level allows remain — mostly codegen emitters (`codegen::expressions` / `format` / `mod` / `statements` / `values` / `cmd_subst` / `control_flow` / `emitter::generate`), optimiser passes (`gvn::find_redundancies`, `sccp::run_sccp_pass`, `interprocedural::propagate_summaries`, `optimiser::elimination`), and large registry-list functions (`stdlib_command_specs` / `tcllib_command_specs` / `irules_command_specs`).  These remaining cases are genuinely complex match dispatchers where extracting arms loses register-allocation context — lower priority. |
+| — | `SYNC-MAY19-option-dialects` | Landed 2026-05-19 — `OptionSpec.dialects` field + `supports_dialect` method; `SubCommand::destructive` field removed. |
+| — | `SYNC-MAY19-W003-W004` | Landed 2026-05-19 — emitters in `rust/tcl-compiler/src/analyser/diagnostics.rs`, wired into `commands.rs` alongside W110 / W304. |
+| — | `SYNC-MAY19-tcl9-commands` | Landed 2026-05-19 — six new `rust/tcl-registry/src/commands/tcl/` modules (`foreachline.rs`, `readfile.rs`, `writefile.rs`, `lpop.rs`, `tcl_idna.rs`, `tcl_process.rs` — the last two registered under both qualified and unqualified names) plus the existing `const_.rs`. |
+| — | `SYNC-MAY19-foreachLine-lowering` | Landed 2026-05-19 — single-iterator `Statement::Foreach` lowering in `rust/tcl-compiler/src/lowering/structured.rs::lower_foreach_line`. |
+| — | `SYNC-MAY19-stub-overlay` | **Landed in full** via sub-strips (b) (2026-05-19), (c) (`c945baa`), and (a) (`6487a4f`).  (a) added `rust/tcl-registry/src/stub_overlay.rs` carrying `StubOverlay` + `StubSig` + `StubArg` + `StubSigFlags` (with `arg_indices_for_role` mirroring the registry's shape and a deterministic `fingerprint()` for cache-key plumbing); `StubCommandDef::to_stub_sig` and `build_stub_overlay` glue the analyser-side records to the registry-side overlay; `Analyser::stub_overlay` populates via `build_stub_overlay(&stub_cmds)` after the stub-pre-scan, and `infer_param_traits` / `infer_param_traits_deep` thread the overlay through their internal helpers so role-driven trait inference unions the registry's and the overlay's tables at every call site. |
+| — | `SYNC-MAY19-tail-call-dialect` | Landed 2026-05-19 — `TAILCALL_DIALECTS` / `LASSIGN_DIALECTS` constants in `rust/tcl-compiler/src/optimiser/tail_call.rs`. |
+| — | `SYNC-JUN02-1` (TclOO method FunctionUnits) | **Landed (#506)** — strips 1/2/3/4a/4b/5.  `Lowerer::extract_oo_methods_pass` populates `Module.methods`; `CompilationUnit.methods` builds per-method `FunctionUnit`s; `build_method_summaries` fills `InterproceduralAnalysis.methods`; `elimination::run` iterates method bodies with `enclosing_class` so `set unused [my <pure-method>]` folds to O126 (impure preserved — FP-OPT-12 → FIXED); W307 reads the precise SSA use-version.  Strip 4a additionally ported the C30d `_assignment_safe_to_delete` RHS-purity gate that the Rust O109/O126 had been missing (it had fired on `set unused [puts hi]`).  See the `SYNC-JUN02` family section. |
+| — | `SYNC-JUN02-2` (PGO branch reordering) | **Deferred** (#515).  Opt-in, off-by-default `compiler/pgo/` subsystem emitting hint-only P100 suggestions to reorder side-effect-free equality dispatch chains by profile frequency.  No behavioural change when off, and the profile importers (F5 profiler log / tclsh capture) are tooling-side; the portable slice is the `reorder` analysis + occurrence/profile model.  Listed for tracking. |
+| — | `SYNC-MAY19-dialect-contextvar` | Thread the per-folder dialect into the **lexer config** so mixed-dialect workspaces tokenise correctly.  **Substantially landed (strips 1-6, 2026-06-04/05) — every direct `segment_commands*` site is dialect-aware; only dialect-insensitive leaves + dormant APIs remain.**  Strip 1: `segment_commands*` gained `_and_config` variants (`segment_commands_with_offset_and_config` / `_with_recovery_and_config`) carrying a `LexerConfig`; the existing functions delegate with `LexerConfig::default()` (zero churn).  `Analyser::lexer_config()` returns `LexerConfig::for_dialect(&self.dialect)` and is threaded into the three primary tokenisation sites — top-level (`state::analyse`), body recursion (`commands::analyse_body`, covers every body-walking handler), and OO bodies (`oo::parse_oo_definition_body`).  The server already passes the resolved `doc.dialect` into `analyse()`, so its analyser-based features (diagnostics, document symbols, hover, …) are now dialect-aware end-to-end — verified by `e003_arity_is_dialect_aware_via_expand_syntax` (8.4 `{*}` literal → E003; 9.0 expands → none).  **Strip 2 (2026-06-05): the free-fn analyser sites.**  `param_traits` gained `infer_param_traits_with_config` / `infer_param_traits_deep_with_config` (the existing fns delegate with `LexerConfig::default()`); `config` threads through `scan_commands` / `scan_deep` / `extract_commands`, and `handlers.rs` calls them with `self.lexer_config()` — so trait inference re-segments per-dialect (verified by `trait_inference_is_dialect_aware_via_expand_syntax`: `eval {*}$p` → `p` is `Eval` on 9.0, not on 8.4).  The `diagnostics.rs` W304 set-finder (`last_literal_set_value_for_var`) was threaded too, for consistency.  **Strip 3 (2026-06-05): lowering.**  `Lowerer` carries a `config` field; `lower_to_ir_with_config` / `CompilationUnit::build_for_with_config` thread it (existing entry points delegate with the default); `optimise_with_dialect` / `optimise_raw` build the CU with `for_dialect(dialect)`, so optimiser O-codes + CFG-SSA diagnostics + iRules flow are dialect-aware end-to-end (verified by `lowering_is_dialect_aware_via_expand_syntax`: `if {*}$cond {…}` → `Statement::Barrier` on 9.0, structured `if` on 8.4).  **Strip 4 (2026-06-05): `interprocedural::scan_source_for_calls`** threaded (it already carried `dialect`).  **Deliberately left on the default config (dialect-insensitive in practice — documented, not threaded):** the lowering leaf free-fns `body_has_dynamic_barrier` / `eval_list_literal_body`; `optimiser::elimination`'s embedded-cmd-sub purity classifier (its sibling `Lexer::new` is also default); `place_bridge::command_reads`; `specialise_factories`'s `subst -nocommands` template extractor — all operate on command-name / barrier / template shapes that `{*}`/`}{` don't change.  `signature_scan::extract_signatures` has **no production caller** (dormant public API — thread it when the `S*` workspace-index consumer lands).  **Strips 5 + 6 (2026-06-05): the `tcl-lsp-core` LSP feature modules — all eight LANDED.**  Group A (genuinely dialect-relevant, scan general bodies): `semantic_tokens` / `folding` / `inlay_hints` / `document_links` gained a `dialect` param (folding already had one) threaded to their body-segmentation sites; verified by `semantic_tokens_are_dialect_aware_via_expand_syntax` (`foo {*}$x` → longer token stream on 8.4).  Group B (`references` / `rename` / `call_hierarchy` / `code_lens`): same `dialect`-param threading, but these scan **TclOO method/class** bodies only — OO is 8.6+ where `for_dialect` is the default, and reference/call detection keys on command-head words that `{*}`/`}{` don't change, so it is consistency-threading with no behavioural change (no discriminating test constructible).  The server passes `&doc.dialect` to every one.  **All direct `segment_commands*` sites across the analyser, compiler pipeline, and LSP feature layer are now dialect-aware.**  Only non-production / dialect-insensitive leaves remain (documented above): the lowering / elimination / place_bridge / specialise / W304 leaves; `signature_scan::extract_signatures` and the server `analyse_chunked` reparse, both with no production caller yet.  W108's `non_ascii_mode` still has no Rust mirror (closes with the `_style.py` port). |
+| — | `SYNC-MAY19-empty-name-proc` | Landed 2026-05-19 — trailing-`::` proc-name → `Statement::Barrier` short-circuit in `rust/tcl-compiler/src/lowering/mod.rs::lower_proc`. |
+| — | `SYNC-MAY19-proc-body-const-map` | Landed 2026-05-19 — Var-token const-map materialisation + `arg_single_token` multi-token-word check in `lower_proc`. |
+| — | `SYNC-MAY19-word-piece-array` | Landed 2026-05-19 — bare `$arr($idx)` round-trip in `rust/tcl-compiler/src/segmenter.rs::word_piece` gated on `tok.content_offset`. |
+| — | `SYNC-MAY19-surrogate-pair` | Landed 2026-05-19 — `scan_unicode_escape` in `rust/tcl-lexer/src/substitution.rs` combines `\uHHHH \uLLLL` pairs into supplementary-plane codepoints. |
+| 7 | `SYNC-MAY19-switch-fallthrough-cfg` | Add `expand_fallthrough_switch` to `rust/tcl-compiler/src/cfg.rs` + `cfg_builder/`.  **Deferred** — the Rust path doesn't emit Tcl bytecode today, so this flag has no consumer.  Listed for tracking only. |
+| — | `SYNC-JUN-switch-braced-body` | **Landed.** `build_switch_arms` lowers single-braced `switch $x { a {body} … }` arm bodies from their `body_span` (was an empty `IRScript`), so CFG-SSA diagnostics + codegen now cover the canonical switch form for every mode.  See the `SYNC-JUN-switch-braced-body` section. |
+| — | `SYNC-JUN-FRAME356-population` | Landed via PR #389 — `EscapeState` and `CfgState` carry `barriers: Vec<Barrier>` + `tag_reasons: HashMap<String, Vec<EscapeReason>>` populated by `record_barrier` / `escape_with_reason` calls at the informative handler sites; `analyse_script` copies both into `ProcEscapeSummary`. |
+| — | `SYNC-JUN-CFG-uplevel-literal-set` + `SYNC-JUN-CFG-upvar-info` wiring + embedded-substitution form | **Landed.** Direct-call form: `UpvarInfo::caller_side_defs(call_args, params)` resolves every upvar declaration against a call site (literal / param / args-tail); `CfgBuilder::apply_upvar_invalidation` augments `Statement::Call::defs` from the `other =>` arm in `lower_script`; `prepare_cfg_context` / `detect_upvar_procs` free helpers scan every procedure and register both qualified and short name keys.  Embedded-substitution form: `upvar_defs_from_text(text)` re-lexes via `tcl-lexer`, walks `[command_substitution]` tokens, and accumulates defs from any embedded upvar proc calls; `apply_upvar_invalidation` either merges into the host Call's defs or emits a synthetic `<upvar-invalidate>` Call before non-Call hosts.  28 new tests cover the resolver, the wiring, and both substitution forms. |
+| — | `C45-uri-split` | Landed 2026-05-08 — see chunk log. |
+| — | `ARCH0` … `ARCH9` | Landed.  Initial crate-and-registry cleanup (ARCH0–ARCH4) plus the post-cleanup follow-ups (ARCH5–ARCH9): pure LSP feature crate, typed hook IDs, registry-driven hook dispatch, registry-owned diagnostics facts, codegen registry threading, `SubCommand::traits` for subcommand-shaped facts, `tcl-lsp-rust` binding-only audit, `tcl-lsp-server` bootstrap, and `tcl-lsp-py` public binding crate.  See chunk log and `docs/design/rust/current-architecture.md`. |
+| — | `S*` (LSP server) | Per-feature ports — **broadly landed** (audited 2026-06-04 on `rust`).  ARCH8 landed the `tcl-lsp-server` bootstrap; the providers have since been filled in one at a time and `build_server_capabilities` now advertises ~27 capabilities, every one backed by a real `tcl-lsp-core` implementation: folding, document symbols, hover, completion, signature help, definition / declaration / type-definition / implementation, references, document highlight, rename (+prepare), selection range, formatting (+range), document link, inlay hint, code lens, code action, call hierarchy (incoming/outgoing, +cross-document), semantic tokens (full / delta / range, cached), workspace symbol, linked editing range, pull diagnostics, and `executeCommand` (minify).  Per-folder dialect → registry selection, workspace-folder indexing, and cross-document resolution are wired.  **What genuinely remains** is cross-cutting structural, not new providers: (1) the dialect → **lexer-config** threading (priority 6 below — the analyser segments with `LexerConfig::default()`, so iRules / 8.4 brace-and-`{*}` tokenisation is dialect-blind); (2) the document-store / incremental-reparse / scope-cache / reposition-cache / green-token-tree rows deferred here (SYNC-MAY31-1/-6/-11, the rope-backed `DocumentState`); (3) the hover debounce / cache / worker-offload contract (SYNC11 → `S-hover-sync11`).  Smallest-first still applies for any newly surfaced gap. |
+| — | `VM*`, `F*`, `REF*`, `IT*`, `DBG*`, `EXP*`, `AI*`, `BIG*`, `APL*`, `TK*`, `DIAG*`, `PKG*`, `XK*`, `SCR*` | The other top-level Python-retirement chunks.  See the chunk-log rows for scope. |
+| — | `PYO3-API` | After every consumer above ports.  Defines the public binding surface; in practice the work was done by ARCH9 (`tcl-lsp-py`). |
+| — | `TEST-MIGRATE` | Per-file commits — port test, delete the matching ``test_*.py`` in the same commit.  Picks up incrementally as each port lands. |
+| — | `PYTHON-RETIRE` | Final chunk; deletes ``core/`` / ``lsp/`` / ``vm/`` / ``debugger/`` / ``explorer/`` / ``ai/`` / ``scripts/``.  v2.0 release. |
+
+ARCH0–ARCH9 have all landed.  The C* aggregate row is also
+closed (2026-05-07 close-out).  `C45-uri-split` landed
+2026-05-08, `C44-irules-flow` landed in PR #389 (all nine
+codes), and `C43` is **fully landed** as of sub-strip 4 —
+PR #389 brought the registry-side hook-ID stamps +
+`_barrier_gate`; the four follow-up sub-strips migrated all
+15 structured forms to registry-driven dispatch in
+`Lowerer::try_dispatch_structured_hook` and retired the
+`match cmd_name` block in `lower_command`.  Reading the
+priority queue:
+
+* **Priorities 1 / 2** (`C41-default-on-followups-postpass` /
+  `-structural`) — tracked here, but each row's chunk-log entry
+  notes the work closes with the `S*` LSP-server port.  No direct
+  work is pending today; the rows persist as the audit trail for
+  the post-#241 dispatch removal.
+* **Priority 3** (`C43`) — **closed.**  All 15 structured
+  command forms (`Proc`, `When`, `NamespaceEval`, `If`,
+  `Switch`, `For`, `While`, `Foreach`, `Lmap`, `ForeachLine`,
+  `Catch`, `Try`, `Dict`, `Eval`, `Uplevel`) now route
+  through `Lowerer::try_dispatch_structured_hook` calling
+  `resolve_call().lowering_hook`; the string-pattern
+  `match cmd_name` block in `lower_command` is gone.  Sub-
+  strip 4 closed the row by adding the new
+  `LoweringHookId::ForeachLine` variant, stamping it on the
+  Tcl 9.0 `foreachLine` spec, and migrating `when` /
+  `foreachLine` to the registry-driven path — fixing four
+  test helpers that were lowering iRule code against a
+  vanilla `build_default()` registry along the way.  The
+  row drops out of the active priority queue.
+* **Priority 4** (clippy Chunk D, `too_many_lines`) — mechanical
+  hygiene continuing the cleanup from PRs #340 / #342 / #350 /
+  #380 / #389 plus wave 7 (`Lowerer::lower_proc` split).
+  **14 of 27 fn-level allows retired — 50% milestone met.**
+  Remaining 13 are genuinely complex match dispatchers (codegen
+  emitters, optimiser passes, registry-list functions); lower
+  priority.
+* **`SYNC-MAY19-*` family** — landed 2026-05-19: nine of the
+  eleven rust-mirror gaps surfaced by the resync against
+  `main`@`01d83642` (option-dialects, W003/W004, tcl9-commands,
+  foreachLine-lowering, tail-call-dialect, empty-name-proc,
+  proc-body-const-map, word-piece-array, surrogate-pair, and
+  the (b) sub-strip of stub-overlay).  The (c) sub-strip of
+  stub-overlay landed via `c945baa` (deep `infer_param_traits`
+  + `merge_traits` + `Analyser::deep_param_traits` flag), and
+  the (a) sub-strip landed via `6487a4f`
+  (`rust/tcl-registry/src/stub_overlay.rs` + `StubOverlay`
+  threaded through `infer_param_traits` /
+  `infer_param_traits_deep`), which **closes
+  `SYNC-MAY19-stub-overlay` entirely**.  Of the two formerly
+  open: priority 6 (dialect-contextvar) is now **substantially
+  landed** (strips 1-6, 2026-06-04/05 — every direct
+  `segment_commands*` site is dialect-aware); only priority 7
+  (switch-fallthrough-cfg — deferred until a Rust bytecode
+  codegen exists) remains open.
+* **`SYNC-MAY26` family** — landed via PR #389: SYNC1
+  (minimum-viable), SYNC2 / SYNC3 (registry shape), SYNC4 /
+  SYNC5 / SYNC6 (SSA fallout), SYNC7 (canonical-command type
+  surface), SYNC8 / SYNC9 (GVN trace-aware purity + Module
+  trace facts), SYNC10 (LRU-cached `parse_expr`).  SYNC11
+  closes with `S-hover-sync11` (depends on `S-diagnostics`).
+* **`SYNC-JUN-FRAME356-population`** — landed via PR #389.
+* **`SYNC-JUN-CFG-uplevel-literal-set`** +
+  **`SYNC-JUN-CFG-upvar-info`** wiring + embedded-substitution
+  form — all landed.  `CfgBuilder::apply_upvar_invalidation`
+  augments `Statement::Call::defs` for every direct call to a
+  known upvar proc, scans `AssignValue.value` and `Call.args`
+  text for `[upvar_proc arg]` substitutions, and either merges
+  the resolved caller-side defs into the host Call or prepends
+  a synthetic `<upvar-invalidate>` Call before a non-Call host.
+* **`SYNC-MAY31` family** — opened 2026-06-01 against
+  `origin/main`@`52726510`; refreshed same day to
+  `origin/main`@`59c770f6` (+4 commits, 2 in-scope folded in as
+  `-10` / `-11`).  Eleven in-scope rows captured: #498 (Phases 0-9
+  parser/compiler work — promotes to its own `SYNC-MAY31-1a` /
+  `-1b` / `-1c` / `-1d` sub-family once a contributor picks up the
+  interval domain / place model / loop forest / precision sweep,
+  plus the new `-1e` "lattice-driven precision fixes" row catching
+  A0 dominator-tree Euler-tour labels, A11 + A19 semi-pruned SSA,
+  A6 shimmer per-name index pre-pass, W211 / W220 / O109 / O126
+  call-by-name suppression via `param_traits`, O110 InstCombine
+  whitespace guard, O106 LICM purity recursion into cmd-subs, S100
+  / S101 loop-invariance lattice, S102 per-loop body_types, hex /
+  binary INT typing — all standalone and applicable today), #502
+  (info-exists / array-exists folding), #501 (W127 + iRules
+  BODY-role), #480 (token cache — closes with `S*`), #478 (dataflow
+  fixpoint algorithmic improvements — the Cooper-Harvey-Kennedy /
+  shared-RPO half is already in Rust via SYNC-MAY21's `97aefd0b`,
+  but the GVN bitmask availability + SCCP non-overdefined-key
+  tracking + interproc reverse-call-graph worklist + SSA worklist
+  propagation across type_infer / rendered_properties / taint are
+  real performance gaps — promotes to `SYNC-MAY31-5a` / `-5b` /
+  `-5c` when picked up), #474 (switch `-regexp` → `IRSwitch`), #473
+  (`ExprRaw` switch-subject scan), #494 (folding ranges for
+  backslash line-continuations), #475 (namespace-aware
+  arity-suppression — Rust already at ~90% parity from SYNC-MAY21-3,
+  the *reachable, in-order* refinement is a follow-up), #510 (inlay
+  hints `is_optional` synopsis tagging + new `infer_return_type`
+  joining `CFGReturn` terminators — both apply right now; the
+  inlay-hints fix mirrors the same FP family Python just fixed),
+  #508 (server-side reposition cache for moved procedures — closes
+  with `S*`).  **Landed (rust):** `SYNC-MAY31-7` (#473 `ExprRaw`
+  var scan), `-8` (#494 backslash-continuation folding), `-10`
+  (#510 inlay-hint optional positionals + `infer_function_return_type`),
+  `-2` (#474 glob/regexp `switch` keeps structured dispatch), `-3`
+  (#502 `info exists` / `array exists` guard narrowing + W210
+  suppression + I230 fold), `-9` (#475 in-order builtin-arity
+  suppression refinement), `-4` (#501 iRules BODY-role + peer side
+  flip — the W127 emitter half is still pending, now unblocked by
+  `-1b`), and `-1b` (#498 Phase 8 place model — `place` /
+  `var_resolve` / `place_bridge` ported and the W220 / O109 consumers
+  rerouted through `overlap`; W211 / O126 already at parity) — see
+  those family sections.  Of the remainder, none are
+  *correctness* blockers for the analyser flip.  **Correction to a
+  stale note:** earlier rows said "the Rust analyser has no live
+  caller post-#241" — that referred to the deleted differential
+  harness; the `tcl-lsp-server` `publish_analyser_diagnostics` now
+  calls `Analyser::analyse()` and publishes diagnostics, so analyser
+  precision fixes (e.g. `-7`'s W214/W220) *are* user-facing.  The
+  `-1e` lattice-driven row and the `-5a` / `-5b` / `-5c` algorithmic
+  items remain output-preserving and can land any time without
+  coordination with the analyser-flip plan.
+* **`SYNC-JUN02` family** — opened 2026-06-02; advances the anchor from
+  `origin/main`@`59c770f6` to `origin/main`@`8aeaf1cd` (+5 commits).
+  Three in-scope rows.  **`SYNC-JUN02-1` (#506) — LANDED** (strips
+  1/2/3/4a/4b/5): TclOO method bodies lower to `Module.methods` +
+  per-method `FunctionUnit`s, interproc summarises method purity, the
+  optimiser fires O126 on `set unused [my <pure-method>]` (impure
+  preserved — FP-OPT-12 → FIXED), and W307 reads the precise SSA
+  use-version.  Strip 4a also closed a pre-existing Rust gap: the C30d
+  RHS-purity gate (`_assignment_safe_to_delete`) had never been ported,
+  so O109/O126 had been deleting side-effecting `set unused [cmd]`.
+  `SYNC-JUN02-3`'s switch `patterns_braced` IR flag is **also landed**
+  (`Statement::Switch.patterns_braced`, set in `lower_switch`); its Tcl 9
+  registry-fact half stays folded into `SYNC-MAY19-tcl9-commands` (touch
+  when those commands are next worked).  `SYNC-JUN02-2` (#515 — opt-in
+  PGO branch-reordering subsystem emitting hint-only P100; structural)
+  remains **deferred** (off-by-default, importers are tooling-side).  Out
+  of scope: #517 / #513 (explorer + optimiser-lens UI) and the
+  WASM-emitter / Zig-runtime bulk of #516.  See the `SYNC-JUN02` family
+  section.
+* **`SYNC-JUN02b` family** — opened 2026-06-02; advances the anchor from
+  `origin/main`@`8aeaf1cd` to `origin/main`@`31d3aac8` (+1 commit, the
+  #519 optimiser mega-PR).  Seven in-scope rows.  **Applied now** (the
+  two clean soundness/correctness fixes to existing Rust):
+  **`-5` — LANDED** (string comparisons `eq`/`ne`/`lt`/`gt`/`le`/`ge`
+  fold as strings in `tcl_expr_eval`), **`-2` — LANDED** (interproc
+  `writes_global` recognises `global`/`variable`/`upvar #0` aliases),
+  and **`-1` — LANDED** (O100 multi-word constant re-renders via the
+  existing `codegen::helpers::tcl_list_element` `TclConvertElement`
+  quoter — no new leaf needed — wired into both O100 propagation sites
+  via `render_propagation_word`).
+  **`-6` — FOLD_HINTS mechanism + O129 LANDED (initial folds).**  The
+  registry `const_fold` mechanism is wired: `propagation::try_o129_fold`
+  resolves a cmd-sub head to its spec/subcommand, checks all args are
+  clean literals, calls the `const_fold`, and emits **O129** with the
+  result rendered as a single word.  Folds landed: `string toupper` /
+  `tolower` / `reverse` (ASCII-restricted).  Also from `-6`: the O115
+  value-position unwrap is **LANDED** (cmd-arg + `return` + the `set`
+  AssignValue follow-up — caveat: the canonical `set x [expr {[expr
+  {E}]}]` lowers to `AssignExpr`, pre-collapsing the outer `expr`, so
+  O115's *suggestion* for that exact shape is a separate AssignExpr-side
+  follow-up), and O105 is already present.  Deferred follow-ups (same
+  mechanism): more `const_fold`s (`string length`, `join`, `format`,
+  `concat`, `dict get`, `string map`, the list-returning folds), O130
+  (`lappend` chain fold), and the inline `scan` fold.
+  **`-3` — lattice LANDED** (`var_observability.rs`: the
+  `EscapeFlag` GLOBAL/NAMESPACE/UPVAR/TRACED set-union lattice +
+  `analyse_var_observability` fixpoint + `escaping_var_names` union;
+  no optimiser consumer yet since the Rust O104 is hint-only — landed
+  as the foundation).  **`-4` — LANDED** (`command_binding` lattice +
+  W128 diagnostic + `command_trust` `ModuleCommandMutations` gate on
+  O129; SCCP-fold gating + incr-idiom are follow-ups).
+  **N/A** (Rust architecture differs, bug shape absent): `-2`'s call-site
+  constant-kill (whole-function SCCP) + O104 guard (Rust O104 is
+  hint-only), and **`-7`** (per-use-site DCE; braced-scalar `$=` marker —
+  Rust has none and doesn't mis-fold `${a(1)}`, probe-confirmed).  Out of
+  scope: the WASM/bytecode dispatch-gating + canonical-quoting migration
+  and the `shared/tcl_list` Python consolidation.  See the `SYNC-JUN02b`
+  family section.
+* **`SYNC-JUN02c` family** — opened 2026-06-02; advances the anchor from
+  `origin/main`@`31d3aac8` to `origin/main`@`e64aff29` (+3 commits).  One
+  in-scope row.  **`SYNC-JUN02c-1` — LANDED**: the `timerate` command
+  spec (#522) ported to `rust/tcl-registry/src/commands/tcl/timerate.rs`.
+  Out of scope: #523 (VS Code test de-flaking), #520 (F5 OpenPGP UCS
+  decryption — `tooling/f5`), and the WASM-codegen / Zig-runtime / WASM-
+  test bulk of #522.  See the `SYNC-JUN02c` family section.
+* **`SYNC-JUN02d` family** — opened 2026-06-02 (PR #525); advances the anchor
+  from `origin/main`@`e64aff29` to `origin/main`@`40278cc0` (+2 commits).  Two
+  in-scope rows, both reusing **O129** (no new codes).  **`SYNC-JUN02d-1`
+  (registry `const_fold` callback library) — LANDED**: the full
+  pure-`string`-subcommand family, the list ops (`list` / `concat` / `join` /
+  `split` / `lindex` / `lrange` / `llength` / `lreverse` / `lrepeat`), the
+  `dict` ops (`get` / `exists` / `keys` / `merge` / `size` / `values` /
+  `create`), `string map`, `subst` (B4), `string is` (Tcl-faithful
+  char-class / boolean / list predicates), `format` (the `%s` / `%d` /
+  `%i` / `%u` integer + string conversions, the `%x` / `%X` / `%o` / `%b`
+  (8.6+) radix conversions, `%c`, and the full float family
+  (`%f`/`%F`/`%e`/`%E`/`%g`/`%G`)
+  — the complete foldable matrix, each with the
+  flag / width / precision matrix on its dialect-invariant subset; landed in
+  the SYNC-JUN03 follow-up and pinned by the new differential-fold harness),
+  `scan` (the inline form, `%d`/`%o`/`%x`/`%X`/`%s`/`%c`, modelled on tclsh
+  with 32-bit result bounds — *not* main's `_tcl_scan`, which mis-folds
+  `scan 0xff %x`), and the **version-aware** `string is` number classes
+  (`integer` / `wideinteger` / `entier` / `double` / `dict`, via the registry's
+  new `const_fold_versioned` + `TclVersion` threaded from the dialect — caps
+  and class-availability per release, verified across tclsh 8.4–9.0 — dev-time
+  + pinned in unit tests; the committed harness runs the 9.0 reference)
+  — all in the new `tcl-registry/src/const_fold.rs` leaf + per-command modules.
+  `format %b` is version-gated (8.6+), and `format` `%d`/`%i`/`%x`/`%X`/`%o`/`%b`
+  value interpretation is version-aware (octal leading-zero on 8.x vs decimal on
+  9.0; 9.0's 32-bit wrap vs 8.x's full i64; radix negatives at the dialect's
+  two's-complement width) — all via `const_fold_versioned`.  **Still deferred**:
+  `format` size modifiers (`%ld`) / `*` / positional specs, and `scan`'s
+  numeric bounds beyond i32 — its large-value semantics are *inconsistent*
+  across versions (8.4/9.0 clamp-vs-wrap differently, 8.5 has conversion bugs),
+  so not soundly foldable even per-dialect.  (Every `format` integer
+  conversion — `%d`/`%i`/`%x`/`%X`/`%o`/`%b`/`%u` — is now version-aware.)
+  **`SYNC-JUN02d-2`
+  (embedded /
+  nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**
+  (interpolation-embedded cmd-sub fold; constant-var arg resolution from the
+  whole-function SCCP map; pure-proc multi-word string return).  Out of
+  scope: #524 (F5 query + KCS docs + UCS crypto) and #525 Part A (bytecode /
+  WASM codegen dispatch-gating).  See the `SYNC-JUN02d` family section.
+* **`SYNC-JUN03` family** — opened 2026-06-03 (PR #528); advances the anchor
+  from `origin/main`@`40278cc0` to `origin/main`@`ca7bba21` (+1 commit).
+  **No in-scope rows** — #528 is entirely Tcl 9 **WASM / Zig-VM** runtime
+  (regexp/regsub empty-subject matching, `lset` out-of-range bounds, a
+  `format` bignum fix) plus a WASM tcltest-gate refresh and new WASM
+  execution tests; no analyser / compiler / registry / optimiser surface and
+  no `rust/` change.  See the `SYNC-JUN03` family section.
+* **`SYNC-JUN04` family** — opened 2026-06-04 (PR #530); advances the anchor
+  from `origin/main`@`ca7bba21` to `origin/main`@`43812a60` (+1 commit).
+  #530 itself is entirely Tcl 9 **WASM / Zig-VM** runtime (`Tcl_ConcatObj`
+  trailing-backslash re-expose, empty-command-name dispatch, `Tcl_WrongNumArgs`
+  name-quoting) plus a WASM tcltest-gate refresh and new WASM execution tests —
+  **out of scope**, no `rust/` change.  It did prompt one **in-scope
+  confirmation**: the registry `fold_concat` const-fold is **already sound** for
+  the trailing-backslash-space edge and needs no change — it is a byte-identical
+  port of main's simple trim+join model, and the optimiser's `literal_words`
+  input gate bails on any backslash-bearing word before the fold runs (main
+  reaches the same outcome via a result-side guard; outcome-equivalent for
+  `concat`).  Pinned by a new regression test in `propagation.rs`.  See the
+  `SYNC-JUN04` family section.
+* **`SYNC-JUN05` family** — opened 2026-06-05 (PR #532); advances the anchor
+  from `origin/main`@`43812a60` to `origin/main`@`77215e87` (+1 commit).
+  **No in-scope rows** — #532 is entirely Tcl 9 **Zig-VM / WASM-codegen**
+  runtime (multi-key `dict exists`, `try … finally` `-during` exception
+  chaining, `apply` lambda formal-param validation + `errorInfo` frame +
+  `info level 0`, plus `incr` / `unset` / regexp / array-scalar fixes) with a
+  WASM tcltest-gate refresh and new WASM execution tests; no analyser /
+  compiler / registry / optimiser surface and no `rust/` change.  See the
+  `SYNC-JUN05` family section.
+* **`SYNC-JUN06` family** — opened 2026-06-05 (PR #533); advances the anchor
+  from `origin/main`@`77215e87` to `origin/main`@`4092ab31` (+1 commit).
+  **In scope, unported** — #533 introduces the canonical **red-green
+  concrete syntax tree** (`compiler/parsing/syntax/{green,red,build,segment,
+  descend}.py`), the Roslyn / rust-analyzer split #477's "green token tree"
+  declined to build, and rebases the segmenter onto it byte-identically
+  (150-line token loop removed); plus `shared/ranges.py` authoritative-closer
+  accessors and the #527 E102 / W304 span fixes.  Parsing frontend → a new
+  Rust port target (`CST-PORT` priority-queue row); the existing token-loop
+  segmenter (just made dialect-aware) is the thing it eventually replaces.
+  See the `SYNC-JUN06` family section + `docs/design/compiler/syntax-tree.md`.
+* **`SYNC-JUN07` family** — opened 2026-06-04 (PR #534); advances the anchor
+  from `origin/main`@`4092ab31` to `origin/main`@`73492e98` (+1 commit).
+  **No in-scope rows** — #534 fixes the BigIP document outline (a falsy
+  `DocumentSymbol.name` made the VS Code client reject the whole outline) in
+  the Python **LSP server** (`server/features/_bigip_symbols.py`), rides along
+  a docstring-only `r"""` fix in `compiler/taint/_sinks.py`, and refreshes
+  `.test-slow.stamp`; no analyser / compiler / registry / optimiser surface
+  and no `rust/` change.  See the `SYNC-JUN07` family section.
+* **`SYNC-JUN08` family** — opened 2026-06-04 (PRs #536/#537/#539); advances
+  the anchor from `origin/main`@`73492e98` to `origin/main`@`de6e9815`
+  (+3 commits).  **One in-scope soundness row** — #537 (`SYNC-JUN08-1`)
+  fixes lexer lone-CR line tracking; the Rust port's `LineIndex::new`
+  counted a bare `\r` as a line break, disagreeing with post-fix Python
+  (`\n`-only) and the red CST overlay, so a token after a lone CR landed
+  on the wrong line.  **Strip 1 LANDED** (`LineIndex` now `\n`-only;
+  cross-layer position-equivalence test).  #536 (token-scanning
+  consolidation + seg memo) carries no behavioural delta; #539 (docs/KCS +
+  I230/I231 catalog metadata, emitters already ported) is out of scope.
+  See the `SYNC-JUN08` family section.
+* **`SYNC-JUN09` family** — opened 2026-06-05 (PRs #540/#541/#546/#547);
+  advances the anchor from `origin/main`@`de6e9815` to
+  `origin/main`@`08babde2` (+4 commits).  **Two in-scope rows, both
+  behaviour-preserving alignments.**  #540 (`SYNC-JUN09-1` / `-2`)
+  consolidates command parsing: lowering now descends braced bodies through
+  the shared `descend_token` (the analyser's path) instead of a second
+  `segment_commands`, and the delimited-word closer geometry collapses onto
+  `word_closer_offset` + a new `closer_present_in_region` sibling — the Rust
+  lowerer still re-segments via `segment_commands*`, and `descend.rs::terminated`
+  still rolls its own closer check.  #541 (`SYNC-JUN09-3`) makes
+  line-continuation folding depth-recursive (continuations inside nested
+  bodies) with dangling-tail trimming — the Rust `collect_continuation_folds`
+  scans only top-level tokens.  The `{*}`-fallback-parse and
+  `GreenNode`→`TokenRegion` strands of #540 are already-satisfied / N/A on the
+  Rust side (the CST models `{*}` as a separate marker; the tokenisation memo
+  was never ported).  #547 (LSP-server gitignore / import-path / e2e harness)
+  and #546 (Tcl 9 WASM-suite classification) are out of scope.  See the
+  `SYNC-JUN09` family section.
+
+After the queue drains, per-feature LSP server ports (`S*`) build
+on the `tcl-lsp-server` bootstrap.
+
+## Chunk log
+
+| Chunk | Scope | Status |
+|-------|-------|--------|
+| L0    | Rust workspace bootstrap: two crates, hello-world `tcl_lsp_rust`, CI, packaging plumbing | landed |
+| L1    | `core/parsing/substitution.py::backslash_subst` → `rust/tcl-lexer/src/substitution.rs` with PyO3 bridge and Python fallback | landed |
+| L2    | `core/parsing/tokens.py` → `rust/tcl-lexer/src/tokens.rs` (`TokenType`, `SourcePosition`, `Token<'src>`) plus PyO3 wrappers preserving singleton/identity semantics; new `tests/test_tokens.py` contract test | landed |
+| L3    | Rust `Lexer` skeleton (EOF/SEP/EOL/COMMENT/plain ESC) + span-first architecture (`Span`, `LineIndex`, `SourceMap`) + differential test harness + committed library choices (`ropey`, `tower-lsp`, `thiserror`/`anyhow`, `clap`, `tracing`) | landed |
+| L4    | Variable substitution in the Rust lexer (`$name`, `${name}`, `$arr(idx)`, `$ns::var`, bare `$`) + `SourceMap::token_text` for Python-parity text extraction + try/catch-based differential harness filter | landed |
+| L5    | Command substitution in the Rust lexer (`[…]` with bracket nesting, brace/quote aware, embedded `${…}` sub-scan, backslash-pair escapes) + per-kind content stripping in `SourceMap::token_text` | landed |
+| L6    | Braced strings in the Rust lexer (`{…}` at word boundaries, balanced nesting, backslash-pair escapes, Python-parity `newword` predicate) + `token_text` `Str` stripping + dynamic harness harvesting ~200 new L6-eligible inputs | landed |
+| L7    | Quoted strings in the Rust lexer (`"…"` with `$` / `[` interpolation, `in_quote` propagation, mid-word quote as bare word) + `Token::content_offset` for per-kind prefix stripping | landed |
+| L8    | `{*}` expansion prefix + `LexerConfig::expand_syntax` dialect flag | landed |
+| L9    | Backslash escapes in bare words, quoted strings, and comments — drains the last deferred character. Warning collection and ghost-character-insertion are deferred to a later pass. | landed |
+| L10   | `core/parsing/expr_lexer.py` → Rust. Rust implementation ported and tested; Python dispatch wraps Rust `PyExprToken` into Python-native `ExprToken` (via value→enum-member dict) so downstream `tok.type is ExprTokenType.X` works. | landed |
+| L11   | Flip `TclLexer.tokenise_all()` to Rust for the default config (~17× speedup). Non-default configs (virtual insertions, strict quoting, base offsets, `expand_syntax=False`) fall back to the Python lexer. | landed |
+| L12   | Expand Rust lexer coverage: base offsets, `expand_syntax=False`, `irules_brace_separator` (ghost SEP injection), warning/strict infrastructure, `lexer_tokenise_with_config` PyO3 entry point. | landed |
+| L13   | Wire strict-quoting emission points: `warn_or_error` calls in `parse_var`, `parse_command`, `parse_brace`, `parse_quoted` for all 14 Python strict-mode raise sites. `ValueError` → `TclParseError` conversion in the Python shim. Python fallback now only triggers for virtual insertions. | landed |
+| C0    | **Compiler crate bootstrap + IR data structures.** `rust/tcl-compiler/` crate: expression AST (`BinOp`, `UnaryOp`, `ExprNode` enum with `vars()`, `render_expr`, `expr_text`), IR types (`Statement` enum with 15 variants, `Script`, `Procedure`, `Module`, `CommandTokens`, helper types). Every IR node carries a `Span` (not inline `SourcePosition` pairs). 41 unit tests. Wired into `tcl-lsp-rust` binding crate via `compiler_version()`. | landed |
+| C1    | **Expression parser.** Pratt parser (`core/parsing/expr_parser.py`) → `rust/tcl-compiler/src/expr_parser.rs`. Converts expression token stream (from L10 Rust lexer) into `ExprNode` AST (from C0). Includes `naming::normalise_var_name`. 53 Rust unit tests + 85-case Python differential test harness (`test_rust_expr_parser_differential.py`). PyO3 bindings: `parse_expr_render`, `parse_expr_vars`, `parse_expr_tag`. Full ExprNode bridging deferred until lowering moves to Rust. | landed |
+| C2    | **CFG data structures + graph utilities.** Control-flow graph types: `Terminator` (Goto/Branch/Return), `Block`, `Function`, `CfgModule`, `LoopNode`. Utility methods: `predecessors()`, `reachable_blocks()`, `reverse_postorder()`, `successors()`. 18 Rust unit tests covering diamond/loop/unreachable topologies. CFG builder (with command-registry dependencies) deferred to a later chunk. | landed |
+| C3    | **SSA data structures + dominator algorithms.** SSA types: `Phi`, `SsaStatement`, `SsaBlock`, `SsaFunction`. Algorithms: `compute_dominators` (iterative dataflow), `compute_idom` (immediate dominators), `compute_dominance_frontier`, `build_dom_tree`, `compute_phi_vars` (iterated DF algorithm), `defs_of` (variable definition extraction from IR statements). 22 Rust unit tests covering linear/diamond/loop topologies. Full SSA rename pass deferred until `_uses` scanner is ported. | landed |
+| C4    | **Codegen types.** `Op` enum (150+ Tcl 9.0.2 bytecode opcodes), `Instruction`, `Operand`, `LiteralTable` (dedup intern pool), `LocalVarTable` (slot interning), `FunctionAsm`, `ModuleAsm`. Operator mapping (`BinOp`/`UnaryOp` → `Op`), index parsing (`parse_tcl_index`), `string is` class tables. 15 Rust unit tests. | landed |
+| C5    | **Type lattice + analysis result types.** `TclType` (10 intrep variants), `TypeLattice` (Unknown/Known/Shimmered/Overdefined), `type_join` with numeric promotions. SCCP lattice: `LatticeValue` (Unknown/Const/ConstSet/Overdefined), `ConstValue`. Diagnostic types: `DeadStore`, `ConstantBranch`, `ReadBeforeSet`, `UnusedVariable`. Composite: `FunctionAnalysis`, `ModuleAnalysis`. 21 Rust unit tests. | landed |
+| R0    | **Command registry crate.** `rust/tcl-registry/` — single source of truth for all command metadata. `CommandSpec` with `Traits` bitflags (u64, 38 bits replacing ~35 booleans), `SubCommand`, `ArgRole` (12 variants), `Arity`, `DialectSet` bitflags, `HoverSnippet`, `SideEffect`, hook IDs, `CommandRegistry` facade with trait-indexed queries and `arg_indices_for_role`. `TclType` moved here from `tcl-compiler` (canonical home). 11 command specs ported (for, if, while, foreach, set, incr, puts, proc, eval, expr, dict with 19 subcommands). 15 registry tests. Compiler re-exports `TclType`. | landed |
+| R2    | **iRules dialect.** 1,015 iRules commands auto-generated from Python specs. `CommandRegistry::load_irules()` for lazy dialect loading. `DialectSet::IRULES` on all specs. Namespace separator `::` mapped to `__` in module names with `#![allow(non_snake_case)]`. Collision handling for duplicate Rust names. 3 new registry tests (load, dialect filter, idempotent). | landed |
+| C6    | **Variable-reference scanner + SSA rename pass.** `VarReferenceScanner` (`core/compiler/var_refs.py`) → `rust/tcl-compiler/src/var_refs.rs`: LRU-cached scanner extracting variable names from Tcl words/scripts via the Rust lexer, with optional `ArgRole::VarRead` resolution. `uses_of()` function: determines which variables each IR statement reads, handling expression vars, word substitutions, body exclusion, and `dict with/update` special cases. `build_ssa()`: completes the SSA rename pass — iterative dominator-tree walk assigning version numbers to definitions and uses, filling phi-node incoming edges. `ir_helpers.rs`: recursive `defs_from_ir_script` (walks structured IR for catch/try merge-point invalidation) and `defs_from_expr` (extracts VarWrite defs from expression command substitutions via registry queries). 26 new Rust unit tests (scanner caching, SSA rename on linear/diamond/loop CFGs, uses_of per statement type, IR def extraction). | landed |
+| C7    | **CFG builder.** `core/compiler/cfg.py::_CFGBuilder` → `rust/tcl-compiler/src/cfg_builder/` (directory module with `mod.rs` + `cfg_lower.rs`). `CfgBuilder` struct with block allocation, terminator management, and `lower_script` dispatch. Per-construct flattening: `lower_if` (cascaded branches), `lower_for` (init→header→body→step loop with `LoopNode` metadata), `lower_while` (header→body loop), `lower_foreach` (synthetic iteration-variable defs + opaque branch), `lower_switch` (exact-mode chain of `StrEq` branches; glob/regexp → barrier), `lower_try` (body→handlers→finally→end). Opaque handlers for `catch` (always-opaque with recursive `defs_from_ir_script`), `dict for/map` (qualified-command barrier), deferred `try` (top-level opaque call). Public API: `build_cfg(module, defer_top_level)` and `build_cfg_function(name, script, inline_loops)`. 14 new Rust unit tests. | landed |
+| C8    | **Lowering foundations: naming, alias, hooks.** `normalise_qualified_name` added to `naming.rs` (Tcl namespace normalisation). `alias.rs`: `detect_interp_alias`, `resolve_alias`, `expr_alias_names` — alias detection and namespace-aware resolution. `lowering_hooks.rs`: `LoweringCommand` context type, `ArgTokenKind` enum, `try_lower_hook` dispatch for 9 commands: `expr` (→ `ExprEval`), `return` (→ `Return`/`Barrier`), `set` (→ `AssignConst`/`AssignExpr`/`AssignValue`), `incr` (→ `Incr`), `append`/`lappend`/`unset`/`global`/`variable`/`upvar` (→ `Call` with defs). `extract_single_expr_arg` and `parse_decimal_int` helpers. 26 new Rust unit tests, 245 total. | landed |
+| C9    | **Command segmenter.** `core/parsing/command_segmenter.py` → `rust/tcl-compiler/src/segmenter.rs`. `SegmentedCommand` type with per-word text, tokens, single-token flags, expansion markers. `segment_commands` splits flat token stream into per-command structures at EOL boundaries, reconstructing word text (VAR→`${name}`, CMD→`[text]`). `segment_commands_with_offset` for body scripts with base-offset lexing. 12 Rust unit tests. | landed |
+| C10   | **Lowering engine.** `core/compiler/lowering.py` → `rust/tcl-compiler/src/lowering/` (directory module with `mod.rs` + `structured.rs`). `Lowerer` struct with `lower_to_ir` public API, `lower_script`/`lower_body`/`lower_segmented` pipeline, `lower_command` dispatch (hooks → structured → default). Structured lowerings: `lower_if` (cascaded if/elseif/else clauses), `lower_for` (init/cond/next/body), `lower_while`, `lower_foreach`/`lmap`, `lower_catch`, `lower_try` (on/trap handlers + finally), `lower_switch` (options parsing, pattern/body pairs, fallthrough), `lower_dict` (for/map/set/unset/append/lappend/incr/update/with). `lower_proc` (procedure registration + body lowering), `lower_when` (iRules event handlers with priority numbering), `lower_namespace_eval`. Default lowering with registry-based `ArgRole` queries and alias resolution. 26 new Rust unit tests, 283 total. | landed |
+| C11   | **Codegen emitter foundation.** `codegen.rs` refactored into `codegen/` directory module. `CodegenCtx` emission context (literal/LVT tables, instruction stream, label management). `helpers.rs`: `split_list_simple`, `tcl_string_hash`, `tcl_hash_table_order`, `tcl_list_element`, `parse_subst_template`, `regexp_to_glob`, `fold_cmd_args`/`fold_list_cmd`/`fold_dict_create_cmd`, `try_format_fold`. `values.rs`: `push_lit`/`push_lit_no_dedup`, `begin_command`/`end_command`, `split_array_ref`/`is_array_ref`/`is_qualified`, `load_var`/`store_var` (LVT vs stack-based), `emit_incr` (immediate/large/variable amounts), `parse_simple_var_ref`/`parse_braced_scalar_ref`. `expressions.rs`: `emit_expr` (literal validation, string delimiters + backslash escapes, variable loading, short-circuit `&&`/`||`, all binary/unary operator dispatch, ternary branch-around, math function calls as `invokeStk`, `ExprRaw`/`ExprCommand` fallbacks). 98 new Rust unit tests, 381 total. | landed |
+| C12   | **Statement emission.** `statements.rs`: `emit_stmt_with_start_cmd` (startCommand wrapping with deferred end labels, generic-invoke tagging), `emit_stmt` (dispatch for all IR statement types: `AssignConst`/`AssignValue`/`AssignExpr`/`Incr`/`ExprEval`/`Call`/`Barrier`/`Return`), `emit_call` (generic command invocation with break/continue loop jumps), `emit_expanded_call` (`{*}` expansion via `expandStart`/`expandStkTop`/`invokeExpanded`), `emit_value_interpolated` (simplified value emission with `${var}` resolution, list/dict constant folding), `push_var_ref` (array key handling for store ops). `CodegenCtx` gains `break_target`/`continue_target` fields for loop compilation. 13 new Rust unit tests. | landed |
+| C13   | **Peephole optimisations.** `peephole.rs`: `remove_trailing_pop` (collapse final `pop; done`), `fold_const_push_pop_nops` (constant-folded `push; pop` → 3 nops matching tclsh), `dedup_push_literals` (re-dedup after nop folding), `fold_tail_return_to_done` (proc tail `returnImm 0 0` → `done`), `strip_unused_start_cmd` (remove all startCommand when no generic invoke exists), `fixup_top_level_start_cmd` (remove generic-tagged startCommand in top-level), `strip_nodedup_tags` (clean internal comment markers). 9 new Rust unit tests. | landed |
+| C14   | **Layout and formatting.** `Op::size()` — instruction byte sizes for all 150+ opcodes (1/2/3/5/6/9 bytes). `layout.rs`: `optimise_jumps` (iterative 4-byte→1-byte jump shrinking), `resolve_layout` (assign byte offsets, resolve labels). `format.rs`: `esc` (Tcl-compatible literal escaping), `format_function_asm` (full disassembly rendering with literals, LVT, instruction stream, labels, jump targets, jumpTable entries), `format_module_asm`. 14 new Rust unit tests, 417 total. | landed |
+| C15   | **Command substitution inline emission.** `core/compiler/codegen/_cmd_subst.py` → `rust/tcl-compiler/src/codegen/cmd_subst.rs`. Static helpers: `unroll_nested_set`, `is_pure_cmd_subst`, `has_command_separator`, `parse_cmd_parts` (quoted/braced/nested argument parsing). `CodegenCtx` methods: `emit_cmd_subst_arg`, `emit_generic_cmd_subst`, `emit_value` (full interpolation with `parse_subst_template` + `STR_CONCAT1`), `emit_inline_cmd_subst` dispatch for `expr`, `incr`, `info exists`, `string` (index/range/equal/compare/length/is/replace), `lindex`, `lrange`, `lreplace`, `linsert`, `regexp`, `list`, `array exists`/`names`/`size`, `dict get`, `catch`. Multi-command scripts fall back to runtime `EVAL_STK`. 22 new Rust unit tests. | landed |
+| C16   | **Catch/try control flow emission.** `core/compiler/codegen/_control_flow.py` → `rust/tcl-compiler/src/codegen/control_flow.rs`. `emit_catch_inline` with `beginCatch4`/`endCatch` nesting depth tracking; `emit_catch_body` dispatch for `return`/`error`/`break`/`continue`/`expr`/`try`; `emit_catch_return`/`emit_catch_error` for return-code dispatch; `emit_try_on_error_inline` with nested catch ranges and `-during` option merging; `emit_try_handler_body`; `emit_try_finally_inline` with exception-path merging; `emit_try_body_stmt`/`emit_try_finally_stmt` (no trailing pop); `detect_const_expr_error` for compile-time divide-by-zero. New `CodegenCtx` fields: `catch_depth`, `seen_generic_invoke`, `used_generic_invoke`, `used_inline_cmd_subst`, `expr_func_depth`, `pending_cond_end_label`, `proc_exit_label`, `pending_join_labels`, `current_source_line`. 8 new Rust unit tests. | landed |
+| C17   | **Emitter main loop + public API.** `core/compiler/codegen/_emitter.py`, `_bytecoded.py` → `rust/tcl-compiler/src/codegen/emitter/` (directory module). Split by responsibility rather than reproducing Python's mixin composition: `ordering.rs` (`fold_const_branch`, `linearise` RPO + dead-branch elimination, `collect_loop_body`, `reorder_bottom_tested`, `build_loop_context`); `terminator.rs` (`emit_term` for CFG Goto/Branch/Return, `emit_proc_return` with startCommand wrapping + dead-code jumps, `try_emit_jump_table` with Tcl-hash-ordered switch dispatch); `proc_defs.rs` (`is_static_proc`, `emit_one_proc_def`, `emit_pending_proc_defs`, `flush_proc_defs`); `loop_blocks.rs` (`detect_foreach` + `ForeachInfo`, `detect_complex_foreach` + `ComplexForeach` for bodies with Branch terminators); `try_blocks.rs` (`detect_try_finally` CFG pattern detection feeding `emit_try_finally_inline` from C16); `generate.rs` (top-level dispatcher + `GenerateState` struct with `skip_blocks`, `while_end_labels`, `for_init_end_labels`; foreach opcode compilation with complex-body variant emitting step/end at the foreach_end block plus continue/break relabelling and back-edge suppression; while-loop + for-init startCommand wrapping with deferred end labels at the loop-end pop; join-block pops; arm-result preservation); `bytecoded.rs` (registry-backed codegen hook dispatch stub — no hooks wired yet). Public API: `codegen_function`, `codegen_module` re-exported from `codegen::`. Handles: straight-line code, if/else diamonds, switch jump-table dispatch, foreach/while/for-init with the core startCommand wrapping cases, complex-foreach bodies (if/break/continue as first statement), proc returns with dead-code skip jumps, try/finally CFG patterns, constant branch folding. 13 integration tests under `tests/codegen_integration.rs` + per-module unit tests (~488 total). Known layout-precision gaps deferred to C18–C21 (see below). | landed |
+| C18   | **startCommand placement precision.** `GenerateState` gains three per-run maps: `foreach_end_labels`, `for_body_end_labels`, and `pending_join_labels`. **Case 1** — foreach startCommand wrapping: when the foreach is not the first command (`cmd_index > 0`), emit a `startCommand` with `fresh_label("cmd_end")` before loading the list args and defer the end label to the `foreach_end` block's trailing pop. **Case 2** — for-body startCommand: a `for_body_*` block whose terminator is a Branch (first statement is an `if`) gets a startCommand whose end label is threaded through the true-branch successor to the `if_end_*` join pop. **Case 3** — complex-foreach if-condition wrapping: body blocks inside a complex foreach with a Branch terminator also get per-body startCommand, with the end label deferred to the `if_end_*` or `if_next_*` join. **Case 4** — constant-folded `if {1}` startCommand in non-proc scripts: in `generate.rs`, before calling `emit_term`, detect branch terminators whose condition folds to `Some(true)` and whose true-branch goto points at `if_end_*`; emit a `startCommand` + defer the end label into `pending_join_labels` keyed by the join block so it is placed before the join pop. This preserves tclsh's "command boundary survives even when the branch is dead" behaviour — `set x 1; if {1} { puts hello }` now byte-matches Python output (9 instructions, 22 bytes, with `startCommand -6 1` at pc 6). **Case 5** — `<cond>` synthetic statement handling: `ir_helpers::expr_has_command` inspects an `ExprNode` for `ExprNode::Command` substitutions; `cfg_lower.rs::lower_if` appends a synthetic `Statement::Call { command: "<cond>", … }` to the dispatch block when the branch condition contains a command substitution; `generate.rs` detects this statement and sets `ctx.pending_cond_end_label` before calling `emit_stmt_with_start_cmd` with the deferred label; `expressions.rs::emit_expr` places that pending label right after emitting an `ExprNode::Command` so the startCommand covers the whole command-substitution body. New fixtures: `foreach-after-set.tcl` (case 1), `for-body-break.tcl` (case 2 — already existed), `if-const-true.tcl` (case 4). The `if-catch-cond.tcl` divergent fixture tracks the pre-existing ExprCommand inline-emission gap (`emit_expr` falls back to `exprStk` with the raw command text as a literal instead of inlining the catch bytecode). Differential harness now reports 20/20 matching (8 exact, 12 semantic, 0 divergent in matching corpus) plus 1 divergent fixture tracking the ExprCommand inline gap. | landed |
+| C19   | **Value emission extras.** `CodegenCtx::try_list_expand_concat` (~30 LOC in `codegen/cmd_subst.rs`) compiles `[list {*}$a {*}$b]` as `loadStk a; loadStk b; listConcat`, only matching the exact two-argument form. `CodegenCtx::try_inline_list_with_break_continue` (~60 LOC) compiles `[list arg ... [break] ...]` / `[list arg ... [continue] ...]` as inline jumps with stack cleanup when a loop target is in scope, degrading to literal emission when no target is active (Python-parity). The existing `helpers::try_format_fold` is wired into both `emit_value` (`codegen/cmd_subst.rs`) and `emit_value_interpolated` (`codegen/statements.rs`) so `[format "..." lit ...]` folds to the computed string via `push_lit_no_dedup`. Both paths are also added to `emit_value_interpolated` because Rust's `AssignValue` lowering goes through the interpolated path, not the full `emit_value`. 7 new unit tests (2-var match, single/three-var reject, non-expanded reject, break w/o target, break with target, three-arg list with break). Promoted `list-expand-concat.tcl` and `format-literal.tcl` fixtures from `divergent/` to `matching/`; the differential harness now reports 18/18 corpus entries matching (8 exact, 10 semantic) with an empty divergent corpus. 507 total tests. | landed |
+| C20   | **Differential codegen test harness.** `rust/tcl-compiler/tests/differential_codegen.rs` feeds a corpus of Tcl scripts through both the Python emitter (subprocess invocation of `core.compiler.codegen.codegen_module` via `python3 -c`, with `current_dir` set to the repo root) and the Rust pipeline (`lower_to_ir` → `build_cfg` → `codegen_module` → `format_module_asm`). Three-tier equivalence classifier: **Exact** (byte-for-byte match including label names), **Semantic** (matches after stripping `  # label:` comment lines — internal label names differ but bytecode, literals, LVT, and resolved jump PCs agree), and **Divergent** (real codegen gap). Corpus split across two directories: `tests/fixtures/codegen/matching/` (16 fixtures asserted to at least semantic-match) and `tests/fixtures/codegen/divergent/` (2 fixtures tracking known C19 gaps — `list-expand-concat`, `format-literal`). A dedicated progress-reporter test lists divergent fixtures that now match so they can be promoted. Python-oracle probe is cached via `OnceLock`; if `core.compiler.codegen` can't be imported the harness logs a skip and returns `Ok` so the test stays green on sandboxes without the Python build. 9 new integration tests (2 corpus runners + 6 classifier unit tests + 1 pipeline smoke), 500 total. Drives test-coverage for C17 + C18 + C19 and every later codegen-adjacent chunk. | landed |
+| C21   | **Registry codegen hooks.** `tcl-registry::CommandSpec` already carries `codegen_hook: Option<CodegenHookId>` from R0 — that infrastructure is left in place for a future ID-indexed dispatch migration, but this chunk follows the same name-based pattern as `lowering_hooks::try_lower_hook`: `codegen/emitter/bytecoded.rs::try_bytecoded(ctx, cmd, args, used_generic_invoke) -> bool` match-dispatches on `cmd` to per-command handlers. Wired into `statements.rs::emit_call` before the generic `invokeStk` fallback. Initial hooks ported from `core/compiler/codegen/bytecoded/`: `lassign list var...` (load list; per-var: push name + `OVER 1` + `LIST_INDEX_IMM i` + `STORE_STK` + `POP`; final `LIST_RANGE_IMM N end` + `POP`); `llength list` (load + `LIST_LENGTH` + `POP`); `array names` / `array size` in non-proc context (invoke fully-qualified `::tcl::array::<sub>` rather than the generic `array` dispatcher). The differential-harness Python driver now calls `core.compiler.codegen.bytecoded.register_all()` before lowering so the Python oracle produces the specialised bytecode too. 7 new unit tests (lassign arity rejection + expected opcode sequence, llength single arg + arity reject, array names FQ emission, array in proc context reject, unknown command fallback). 3 new fixtures (`lassign.tcl`, `llength.tcl`, `array-names.tcl`) in `matching/`. Differential harness now reports 23/23 matching (11 exact, 12 semantic). Additional hooks (`lset`, `linsert`, `lrange`, `dict incr` multi-key, more of the `_dict.py` / `_string.py` family) are left as incremental follow-ups that add one hook + one fixture per commit. | landed |
+| C24a  | **Def-use chains over SSA.** `core/compiler/def_use.py` → `rust/tcl-compiler/src/def_use.rs`. `DefKind` (Statement/Phi/Parameter), `UseKind` (Operand/PhiIncoming/Terminator), `DefSite`, `UseSite`, `DefUseChain`, `DefUseResult` keyed by `(variable, version)`. Two-pass `build_def_use_chains(ssa, Option<&CfgFunction>)`: pass 1 collects definitions from phis and statements; pass 2 collects uses from statement operand maps, phi incoming edges, and — when a CFG is supplied — branch-condition reads (via `ExprNode::vars()` and `exit_versions`). Unknown uses synthesise a `Parameter` chain (version 0) or a `Statement` placeholder rooted at the entry block, matching the Python behaviour. Query helpers: `chain_for`, `uses_of`, `is_dead`, `reaching_defs`, `dead_chains`, `total_defs`, `total_uses`. 6 unit tests (empty function, dead def, def with use, phi def with two incoming uses, reaching_defs over multiple versions, synthesised parameter chain). Memory SSA (the second half of the original C24) is deferred. | landed |
+| C22   | **Tcl expression evaluator (core subset).** `core/compiler/tcl_expr_eval.py` → `rust/tcl-compiler/src/tcl_expr_eval.rs`. Constant-folding evaluator over `ExprNode`: `TclValue` (Int/Float), `EnvValue` (Int/Float/Str for variable bindings), `Env` (`HashMap<String, EnvValue>`) for the caller-supplied environment. Dispatch covers literals (decimal, hex `0x…`, octal `0o…`, binary `0b…`, all Tcl boolean spellings), variable resolution, all arithmetic with correct int/float promotion, division and modulo with floor-division semantics matching C Tcl 9.0.2 (`r.signum() != y.signum()` correction, sign-follows-divisor for `%`), integer exponentiation with the special `|base| ≤ 1` and negative-exponent rules + overflow-checked square-and-multiply, shifts and bitwise (int-only), numeric and string comparison returning Int(0)/Int(1), short-circuit `&&` / `||` / `and` / `or`, ternary, unary `-` / `+` / `~` / `!` / `not`, and `format_tcl_value` for rendering results back to source text (including the `.0` suffix for integer-valued floats). Math-function dispatch landed in the follow-up commit: `abs`, `int` / `entier` / `wide`, `double`, `bool`, `round` (ties away from zero, matching C Tcl), `ceil` / `floor` (float-returning), variadic `min` / `max` (preserving int width unless a float operand forces promotion), `isqrt` (int-only), `isinf` / `isnan` / `isfinite`, unary-float (`sqrt`, `exp`, `log`, `log10`, `sin`/`cos`/`tan`/`asin`/`acos`/`atan`/`sinh`/`cosh`/`tanh`), and binary-float (`atan2`, `hypot`, `fmod`, `pow`) via concise `unary_float` / `binary_float` closures with domain-error → `None` handling. `rand` / `srand` always return `None` so callers cannot constant-fold a non-deterministic result. Unknown function names also return `None`. Deferred: iRules-specific word operators (`contains`, `starts_with`, `ends_with`, `str_equals`, `matches_glob`, `matches_regex`, `in`, `ni`) — all return `None` so callers fall through to the runtime path. 22 + 16 = 38 unit tests covering literal parsing, arithmetic/float promotion, division by zero, floor-division corner cases, exponentiation rules, comparisons, short-circuit, ternary, unary, bitwise, shifts, variable resolution, command-substitution opacity, and overflow. 529 total tests. | landed |
+| C23   | **Side-effects + execution intent (six strips).** Ports `core/compiler/side_effects.py` (`rust/tcl-compiler/src/side_effects.rs`) and `core/compiler/execution_intent.py` (`rust/tcl-compiler/src/execution_intent.rs`) in six commits, each self-contained so the tree is green at every step. **C23a** — vocabulary enums: `StorageType` (5 variants), `StorageScope` (14 variants covering Tcl, iRules, and external-I/O scopes), `ConnectionSide` (5 variants), `SideEffectTarget` (30+ variants spanning variable mutation, iRules data stores, HTTP/TCP/SSL/UDP state, response lifecycle, load balancing, external I/O, DNS, classification/DoS, flow management, application protocols, statistics, F5 security modules, BIG-IP configuration, and interpreter state), and `EffectRegion` bitflags (HTTP_STATE / RESPONSE_LIFECYCLE / GLOBAL_STATE / UNKNOWN_STATE) plus `target_to_region` mapper. **C23b** — `SideEffect` (target, reads, writes, storage_type, scope, connection_side, namespace, dialect, key, subtable) and `CommandSideEffects` (effects Vec, pure/deterministic/dynamic_barrier flags, dialect) with `pure()`/`unknown_write()`/`dynamic_barrier()` constructors and `reads_any`/`writes_any`/`affects_target`/`reads_target`/`writes_target`/`effects_in_scope`/`effects_on_side`/`to_effect_regions` query helpers. **C23c** — `scope_from_varname` routes `static::`/`::var`/`::ns::var`/bare names to the correct scope + namespace; `storage_type_for_command` lifts the registry's 3-variant `StorageType` (Dict/List/Array) into the richer 5-variant compiler-side enum, falling back to Scalar. **C23d** — `classify_side_effects(registry, cmd, args, dialect, callee_summary)` dispatches on callee_summary bridge (EffectRegion → structured effects), registry miss, EVALUATES_CODE/CREATES_BARRIER (dynamic_barrier), PURE/PURE_EVALUATION, assigns_variable_at (Variable effect with inferred scope, storage type, connection side for iRules dialect, read-before-write heuristic for incr/append/lappend), DEFINES_PROCEDURE (ProcDefinition), DESTROYS_VARIABLE (Variable write with scope from first arg), and conservative unknown fallback. `CalleeSummary` struct provides the interprocedural shim. **C23e** — execution-intent enums (`InvocationShape`, `SubstitutionCategory`, `SideEffectClass`, `EscapeClass`) and structs (`CommandSubstitutionIntent`, `FunctionExecutionIntent` keyed by `(block_name, statement_index)`). **C23f** — builders: `categorise_arg` classifies literal/scalar-var/array-var/nested-command/mixed; `shimmer_pressure` weights 1 per var ref, 2 per nested/mixed; `classify_side_effect` bridges to C23d and collapses onto the two-value Pure/MaySideEffect lattice; `classify_escape` consults CREATES_BARRIER trait and argument categories; `parse_command_substitution` uses the Rust lexer to tokenise the inner body of `[…]`, skipping SEP/COMMENT, terminating on EOL/EOF, and rejecting multi-command bodies; `build_function_execution_intent` walks every block's `Statement::AssignValue` and records successful parses. Subcommand-form resolution, structured registry `side_effect_hints` iteration, and protocol-namespace classification (`HTTP::`, `SSL::`, `TCP::`, …) are deferred — they require more registry API surface than the Rust tcl-registry currently exposes. 44 new unit tests total (6+7+7+13+4+15) across the two files. 610 total tests. | landed |
+| C24b  | **Memory-SSA (three strips).** Ports `core/compiler/memory_ssa.py` into `rust/tcl-compiler/src/memory_ssa.rs`. **C24b1** — location vocabulary: `MemoryLocationKind` (Local/Upvar/Global/NamespaceVar/ArrayElement/InstanceVar/Unknown), `MemoryLocation` with `new`/`with_qualifier`/`display`, and `AliasSet` (BTreeSet of locations + reason) with `may_alias`/`contains_name`/`names`. **C24b2** — operation types and function container plus alias-detection helpers: `MemoryOpKind` (Def/Use/Phi/Clobber), `MemoryOp` with `new_def`/`new_use`/`new_phi`/`new_clobber` constructors, `MemorySSAFunction` with `aliased_names`/`aliases_for`/`may_alias`, and `detect_upvar` (handles `upvar var local`, `upvar #N var local`, `upvar INT var local`, and `namespace upvar NS …` pair grammars), `detect_global`, `detect_namespace_variable`, `is_clobber`. The Python port defers upvar grammar to `core.analysis.var_scoping`; this Rust port inlines a simplified grammar so the strip lands without the var_scoping port. **C24b3** — `compute_aliases(ssa)` uses union-find with per-root reason aggregation (iterative path compression, `BTreeSet` for reason merges) and `build_memory_ssa(ssa)` walks the dominator tree producing versioned MemoryOps: a memory phi per aliased scalar phi at merge points, a Clobber op on is_clobber statements, a Def per aliased variable defined, and a Use per aliased variable read (with reaching_version = current counter). 21 unit tests covering display parity, detection pair grammars, alias set merging, clobber emission, and full build over a three-statement sequence. 631 tests total. | landed |
+| C25   | **SCCP + dataflow graph (four strips).** Ports the SCCP driver (`core/compiler/core_analyses.py::_sccp`) and the dataflow-graph extractors (`core/compiler/dataflow_graph.py`). **C25a** — lattice-join helpers: `compute_predecessors` and `cfg_order` (RPO with unreachable-block append), `join(old, new)` widening to `Overdefined` when either side is Overdefined or when the union exceeds `MAX_CONSTSET_SIZE`, `set_value` generic over `BuildHasher`, plus `cv_eq`/`cv_key` deterministic `ConstValue` comparison. **C25b** — `sccp(cfg, ssa, param_constants)` fixed-point driver returning `SccpResult { values, executable_blocks, executable_edges, constant_branches }`. Processes phis for non-entry blocks using executable incoming predecessors; `Statement::Barrier` widens every tracked value to Overdefined; other statements dispatch through `evaluate_def` (covers AssignConst and AssignExpr via the C22 evaluator with an `Env` built from the current lattice — other statement kinds yield Overdefined). `Terminator::Branch` consults `evaluate_branch` to decide which edges become executable. Post-fixed-point sweep emits `ConstantBranch` diagnostics for reachable branches that fold. **C25c** — dataflow-graph data types: `EdgeKind` (Direct/Phi/Alias/Clobber with `as_str` for stable ser/de), `DataFlowNode`, `DataFlowEdge` (with `direct`/`phi` constructors), `AliasInfo`, `FunctionDataFlowGraph`, and `DataFlowGraph` module container with `total_defs`/`total_uses`/`total_aliases` summaries. **C25d** — `extract_function_dataflow(name, ssa, du, sccp, mem)` builds a `FunctionDataFlowGraph` from the per-function analysis outputs: one node per def-use chain key (sorted for determinism) with lattice rendered as `CONST(value)` / `CONSTSET(…)` / `OVERDEFINED` / `UNKNOWN`, one edge per use site (Direct for Operand/Terminator, Phi for PhiIncoming), AliasInfo records from memory-SSA with stable (kind, name, qualifier) ordering, and pre-computed totals. Deferred: full `extract_dataflow_graph(module)` entry point (needs a CompilationUnit aggregator); `IRAssignValue` + `IRIncr` + foreach-constset evaluation in `evaluate_def`. 31 new unit tests (10+7+5+4 across the four strips). 657 tests total. | landed |
+| C26   | **GVN (four strips).** Ports `core/compiler/gvn.py` into `rust/tcl-compiler/src/gvn.rs` as four self-contained strips. **C26a** — value-table types: `ExprKey` alias, `RedundantComputation` diagnostic, `ValueEntry`, `ExprOccurrence`, and `ScopedValueTable` — stack of `ExprKey → ValueEntry` maps with `push_scope`/`pop_scope`/`lookup` (innermost-first)/`insert`/`kill_all`/`scope_depth`/`total_entries`. **C26b** — canonicalisation helpers: `canonicalise_word` uses a left-to-right scanner (avoiding the Python `.replace` chain's `${x}` re-matching quirk — scanner exactly-once replacement with identifier-grammar awareness for both `$name` and `${name}` forms), `build_call_key` assembles `["call", cmd, args…]` keys, `format_expression_text` renders human-readable text, and the three diagnostic-message builders (`full_redundancy_message`, `partial_redundancy_message`, `loop_invariant_message`) return the Python message strings verbatim. **C26c** — statement-level helpers: `is_pure_command` bridges to C23d's `classify_side_effects` and checks `.pure`; `is_worth_reporting` consults the `CSE_CANDIDATE` trait; `statement_writes_state` returns true for `Statement::Barrier` and for `Statement::Call` whose `to_effect_regions` writes set is non-`NONE`; `statement_occurrences` emits one `ExprOccurrence` per pure CSE-candidate `Statement::Call`. **C26d** — `find_redundancies(registry, cfg, ssa, dialect)` walks the dominator tree iteratively (WalkStep Enter/Leave work stack so deep dominator trees don't blow the Rust call stack), pushes/pops `ScopedValueTable` scopes around each block, invokes `statement_writes_state` to call `kill_all` on mutators, and emits `RedundantComputation { code: "O105", … }` diagnostics whenever a lookup hits. Deferred: embedded command-substitution scanning inside argument text (needs TclLexer integration with span tracking); partial-redundancy (O106); loop-invariant (O107); interprocedural pure-proc detection. 29 new unit tests across the four strips (8+8+6+5). 684 tests total, up from 610 at the start of this chunk sequence. | landed |
+| C21e  | **Registry codegen hook extensions.** Four follow-up strips on the C21 dispatcher. **C21e (lrange/linsert/lset)**: `lrange list first last` with constant `parse_tcl_index`-able indices emits `LIST_RANGE_IMM`; non-constant indices fall back. `linsert list index element…` emits `LREPLACE4 N 2`. `lset varname ?index…? newvalue` uses `loadScalar1 SLOT; LSET_LIST|LSET_FLAT; storeScalar1 SLOT` in proc context and the stack-based `OVER depth; LOAD_STK; LSET_LIST; STORE_STK` form otherwise. **C21e4 (dict subcommands)** in proc context with a simple (non-qualified) variable name: `dict set var k1 ?k2…? value` → `DICT_SET N slot`, `dict unset var k1 ?k2…?` → `DICT_UNSET N slot`, `dict incr var key ?amount?` → `DICT_INCR_IMM amt slot` (rejects non-integer literal amounts), `dict append var key value` → `DICT_APPEND slot`, `dict lappend var key value` → `DICT_LAPPEND slot`. 6 new fixtures in `matching/`; differential harness now reports 29/29 matching (16 exact, 13 semantic). 16 new unit tests. | landed |
+| C22i  | **iRules string operators + list membership + regex.** Completes the full `BinOp::Contains` / `StartsWith` / `EndsWith` / `StrEquals` / `MatchesGlob` / `MatchesRegex` / `In` / `Ni` surface in `tcl_expr_eval.rs` under the `f5-irules` dialect. Module-private helpers: `strip_string_delimiters`, `eval_as_string`, `split_tcl_list`, `glob_match` (inline `*`/`?`/`[abc]` matcher — no external dep), `regex_matches` (via the `regex` crate with a `contains_are_only_feature` guard that bails to `None` on Tcl ARE-specific metacharacters — `\y`/`\Y`/`\A`/`\Z`/`\m`/`\M` word-boundary markers, `(?=…)`/`(?!…)`/`(?<…)` lookaround, and `(?q…)`/`(?c…)`/`(?e…)`/`(?b…)` embedded options so callers fall through to the runtime regex engine for those patterns). 21 new unit tests total across the three strips (i1 + i2 + i3). | landed |
+| C24b4 | **var_scoping grammar.** `core/analysis/var_scoping.py` → `rust/tcl-compiler/src/var_scoping.rs`. Public helpers returning *indices* so both the LSP declaration provider and memory-SSA share one source of truth: `global_declaration_indices(args)` filters bare names; `variable_declaration_indices(args)` takes every-other-arg starting at 0 with `$`-filter; `upvar_local_declaration_indices(command, args)` handles `upvar`, `upvar LEVEL`, `upvar #N`, `upvar -N`, lowered `namespace upvar` (args[0]=="upvar") and pre-composed `"namespace upvar"` forms, skipping pairs where either side is a substituted reference. `memory_ssa.rs::detect_upvar`/`detect_global`/`detect_namespace_variable` now call through; signatures unchanged. 15 new unit tests. | landed |
+| C25e  | **SCCP / dataflow extensions.** Four strips on top of C25. **C25e1** — `evaluate_def` for `Statement::Incr`: folds through the lattice when base is `Const(Int)` and the amount is absent (+1), a decimal literal (positive or negative), or a `$var`/`${var}` ref that resolves to another `Const(Int)`; overflow / non-integer widens to `Overdefined`. New `resolve_simple_var_ref` bare+braced parser. **C25e2** — foreach/lmap constset extraction: `extract_foreach_elements(list_text)` splits literal `{…}` / `"…"` / bare-word lists (returns `None` for `$`/`[` operands); `resolve_foreach_list_via_lattice(list_text, uses, values)` reads `$var` from the lattice. `evaluate_def`'s `Call` arm for `foreach`/`lmap` with one def + one list arg folds the iteration variable to `Const(String)` (singleton) or `ConstSet` (multiple), widening through `LatticeValue::constset`. **C25e3** — `extract_dataflow_graph(inputs)` module aggregator taking `&[FunctionInputs<'_>]`, sorting by `function_name` for deterministic output. **C25e4** — `Statement::AssignValue` folding: new `fold_assign_value` (plain literal → Const, simple var ref → lattice lookup, command substitution → `try_fold_cmd_subst`) and `try_fold_cmd_subst` (`[list …]` via `fold_list_cmd`, `[format …]` via `try_format_fold`, `[llength LIST]` via foreach-element helpers, `[string length "…"]`, `[expr {EXPR}]` via `parse_expr` + `eval_tcl_expr`). Helper pair `split_head` / `strip_one_level`. 26 new unit tests. | landed |
+| C26e  | **GVN extensions.** Four strips on top of C26. **C26e1** — embedded command-substitution scanning: `scan_bracketed_commands(text)` walks argument text left-to-right, skipping braced regions as opaque and handling `\[`/`\]` escapes; `split_cmd_text(inner)` splits into `(cmd, args)` preserving `{…}` / `"…"` delimiters. `statement_occurrences` now also scans `Statement::Call` args and `Statement::AssignValue` value text, emitting an `ExprOccurrence` per pure + CSE-candidate nested command. **C26e2** — loop-invariant detection (O107): `find_loop_invariants(registry, cfg, ssa, dialect)` uses `reachable_from` + `natural_loop_blocks` + `dominates(ssa, ancestor, node)` to enumerate natural loops per back edge, merges loop blocks sharing a header, and reports any pure occurrence whose `variable_uses` are all defined outside the loop with code `"O107"`. **C26e3** — partial-redundancy detection (O106): `OccurrenceEvent::{Occur, Kill}` per-statement events, `collect_function_occurrence_events` walks the function, `transfer_occurrence_keys` applies events to an availability set, and `find_partial_redundancies` runs the classic may/must availability fixed-point then replays events to report occurrences that are may-available but not must-available with code `"O106"`. **C26e4** — intra-module pure-proc detection: `PureProcs` set, `find_pure_procs(registry, cfg_module, dialect)` iterative fixed-point classifier that starts with every user proc assumed pure and drops any proc whose body has an impure statement (handles mutual recursion correctly, propagates impurity through callers), plus `is_pure_with_procs` and `is_worth_reporting_with_procs` that consult the set before falling through to registry metadata. 21 new unit tests. | landed |
+| C27a  | **value_shapes.** `core/compiler/value_shapes.py` → `rust/tcl-compiler/src/value_shapes.rs`. `is_pure_var_ref(text)` / `parse_command_substitution(text)` helpers shared by later passes. 7 unit tests. | landed |
+| C27b  | **static_loops — bounded iteration inference.** `StaticValue` (Int/Float/Bool/Str), `StaticEnv`, `DEFAULT_MAX_STATIC_LOOP_ITERS=4096`. `evaluate_expr_with_constants` bridges to C22; `simple_var_ref`, `parse_literal_value`, `strip_word_delimiters`, `resolve_switch_subject/pattern` helpers. `exec_statement` handles AssignConst / AssignExpr / AssignValue / Incr / If / Switch; calls / barriers / loops abort. `summarise_static_for(init, cond, next, body, initial, max_iters)` + `summarise_for_statement` convenience wrapper. 11 unit tests. | landed |
+| C27c  | **rendered_properties — string content lattice + SSA walk.** `RenderedProperties` bitflags (6 may-bits + 3 provenance-bits + 2 must-bits), `RenderedValueProps { may, must }` with `bottom()` / `top()` / default. `rendered_join(a, b)` (may ∪, must ∩), `analyse_literal(text)` for slash/backslash/CRLF/null + starts-with-slash/dash, `apply_unescape` / `apply_normalised` provenance transitions. **C27c follow-up** — `propagate_rendered_props(cfg, ssa, sccp, registry)` fixed-point SSA walk ordered by `cfg_order`, evaluating AssignConst/AssignValue/AssignExpr/Incr/Call defs plus `Barrier`-widens-to-top. Call dispatch consults `IS_UNESCAPE` (WAS_UNESCAPED + double-escape escalation), `UNNORMALISED_HTTP_GETTER` + `-normalized` arg (FULLY_NORMALISED), and `RETURNS_PATH` (HAS_FORWARD_SLASH) traits. `evaluate_value` handles copy-propagation through pure var refs (version-0 reads widen to `unknown_top()` — all may-props possible — so callers can't treat missing bits as absence); opaque command substitutions start from `unknown_top()` baseline and refine with registry hints. Phi-joins include version-0 incomings modelled as `unknown_top()` so enclosing-scope / undefined-on-this-path values do not narrow the merge. `scan_value_text` scans literal + interpolation segments for leading-char must-bits (STARTS_WITH_SLASH / STARTS_WITH_DASH, including backslash-escaped `\-`). Wired into `FunctionUnit::rendered_props` in `compilation_unit.rs`. 17 unit tests. | landed |
+| C27d  | **shimmer — diagnostic types + cycle detection.** *Initial-strip history (kept for the audit trail):* `ShimmerWarning`, `ThunkingWarning` with `"S100"`/`"S101"`/`"S102"` codes; `loop_body_blocks(cfg)` via BFS-from-successors-intersected-with-predecessors-of-start (matches Python two-pass algorithm); `blocks_reaching`, `build_successors`; 5 unit tests landed with the initial strip; `find_shimmer_warnings` / `find_thunking_warnings` were initially stubs pending the TypeLattice follow-up.  **Current state (audited 2026-05-07) — full shimmer detection landed.** `shimmer/` is now a multi-file module (`mod.rs` / `use_site.rs` / `phi.rs` / `expr.rs` / `thunking.rs` / `graph.rs` / `span.rs` / `hints.rs`).  `find_shimmer_warnings` dispatches to all three sub-passes: (1) `use_site::find_use_site_shimmers` walks every executable block, checks each statement's argument words against the registry's `arg_types`, and emits a `ShimmerWarning` for each type mismatch (S100 outside loops, S101 inside loops); (2) `phi::find_phi_shimmers` walks every phi node in every executable block and emits S101 when the phi's `TypeLattice` is `Shimmered` (i.e. control-flow merges differently-typed versions); (3) `expr::find_expr_shimmers` walks `Statement::ExprEval` / `AssignExpr` for arithmetic / comparison operators used with the wrong operand type (S100).  `find_thunking_warnings` walks loop bodies via `graph::loop_body_blocks` and emits S102 when a variable oscillates between two intrep types across iterations.  Audited 2026-05-07; no remaining stubs in the shimmer module.  Closes the C27d entry of the C* aggregate row. | landed |
+| C28   | **Interprocedural summaries + call resolver.** *Initial-strip history (kept for the audit trail):* `Arity { min, max }`, `ProcArgTrait` enum, `ConstantReturn`, `ProcSummary` (qualified_name, params, arity, transitive calls, has_barrier/has_unknown_calls/writes_global/pure, effect_reads/effect_writes, returns_constant/constant_return/return_depends_on_params/return_passthrough_param, can_fold_static_calls, per-param traits) + `ProcSummary::unknown(name)` conservative stub, `MethodSummary` (class_name/method_kind/instance vars/calls_my/calls_next), `InterproceduralAnalysis { procedures, methods }`. `resolve_internal_call(command, caller_qname, known)` walks the caller's namespace for bare names, resolves absolute / global-relative names directly. `resolve_call_target` convenience. `namespace_parts_from_proc`. 10 unit tests landed with the initial strip; the summary-building pipeline (body walk + effect tracking + constant-return inference) was initially deferred to a follow-up.  **Current state (audited 2026-05-07) — full summary-building pipeline landed.** `interprocedural::build_interprocedural_analysis` runs the five-phase Python pipeline (`scan_all_procs` → transitive closure → purity fixpoint → effect-region fixpoint → `materialise_summaries`) and `CompilationUnit::with_interprocedural` is the public façade.  Return-value inference (`returns_constant` / `constant_return` / `return_passthrough_param` / `return_depends_on_params` / `can_fold_static_calls`) and per-parameter trait inference (`param_traits`) both populated via `finalise_param_traits`.  See the C30 row narrative for the chunk history (C28x / C28x-return / C28x-param-traits sub-strips).  Audited 2026-05-07.  Closes the C28 summary-building entry of the C* aggregate row. | landed |
+| C29   | **Taint analysis — lattice + diagnostic + propagation + inter-proc.** `TaintColour` bitflags (15 colours: TAINTED + 14 mitigating), constant masks `ALL` / `T102_SAFE` / `CRLF_SAFE`, `TaintLattice { colours }` with `clean()` / `tainted()` / `is_tainted` / `join` (taint ∪, mitigations ∩) / `with(colour)` / `sanitised`, `TaintWarning { span, variable, sink_command, code, message, replacement }` (the `replacement` field was added in the IRULE3001–3004 follow-up below). Full `propagate_taints(cfg, ssa, sccp, registry, rendered_props, interproc, dialect)` intra-procedural worklist with SCCP-edge-executability phi semantics, T100/T101/T102 sink detection via `find_taint_warnings`, registry-driven sanitiser / source classification (`EVALUATES_CODE`, `TAINT_SINK`, `UNNORMALISED_HTTP_GETTER`, `WARN_WITHOUT_TERMINATOR`). **C29 follow-up (landed)** — (1) `rendered_props` colouring: `colour_from_rendered` enriches each SSA lattice with `PATH_PREFIXED` + `NON_DASH_PREFIXED` on positive `STARTS_WITH_SLASH` evidence *only*; absence-implies-safe heuristics (CRLF_FREE / NON_DASH_PREFIXED from missing bits) were removed as unsound under phi-joins and opaque command subs. (2) Inter-procedural passthrough transfer via `InterproceduralAnalysis::procedures` + `return_passthrough_param` + `resolve_internal_call`; callers cache a `known_procs` set on `TaintCtx`. Global-write seeding is scoped to procs actually reachable from the current function (via the caller's transitive `calls` closure or a CFG walk of direct callees for `::top`), and seeds only `::`-prefixed names that the function actually reads via `collect_global_reads` (scans every block's entry_versions + statement uses + phi incomings for version-0 reads). (3) iRules dialect sources: when `dialect ∈ {"f5-irules","irules"}`, `HTTP::`/`URI::`/`IP::`/`TCP::`/`UDP::`/`SSL::`/`STREAM::` namespace-prefixed commands are treated as taint sources. `CompilationUnit::with_interprocedural(registry, dialect)` now re-runs `propagate_taints` on every FunctionUnit with the fresh interproc summary + dialect. The inner helpers share a `TaintCtx { registry, interproc, known_procs, caller_qname, dialect }` bundle; join-accumulator uses `Option<TaintLattice>` so mitigations are preserved on first insertion; phi joins include version-0 incomings so the merge stays sound across enclosing-scope reads. 15 unit tests. **C29 follow-up (landed) — path-concat heuristic (W201).** `path_concat.rs::find_path_concat_warnings(cfg, ssa, rendered_props, taints, executable_blocks)` emits `PathConcatWarning { span, variable, code, message, replacement }` for every `Statement::AssignValue` whose SSA def carries both `HAS_FORWARD_SLASH` / `HAS_BACKSLASH` and `HAS_INTERPOLATION` in its rendered-properties may-mask. Pure `$var` aliases and pure `[cmd …]` subs are skipped (structural, not concatenation). Suppression: `PATH_NORMALISED` / `PATH_BOUNDED` on the taint lattice, or a forward-scan of the same block finding the next same-variable assignment equal to `[file normalize $var]` (bare or braced form, optionally quoted). `build_file_join_fix` rebuilds a `[file join segments…]` suggestion when every `/`-split segment is either a simple identifier (`[A-Za-z0-9_.-]+`) or a simple `$var` / `${var}` reference — RHSes with `[`/`]`/`;`/whitespace or mixed segments (e.g. `$name.log`) return `None`. Span preference is argv[2] (the value token) falling back to the full statement span. Wired into `compiler_checks::run_all_checks` as category `"taint"` severity `Warning`. 19 new unit tests (8 file-join-fix forms, 4 file-normalize-of matching, 6 end-to-end detection/suppression, 1 compilation-unit integration via `run_all_checks`). URI-split heuristics and iRules-specific sink codes (IRULE3001–3004) remain for a follow-up. **C29 follow-up (landed) — iRules security sinks (IRULE3001–3004 / 3101 / 3102).** `taint.rs::classify_sink` extended to take `(command, args, dialect)` and delegate to a private `classify_irules_sink` helper under `dialect ∈ {"f5-irules","irules"}`. Emits IRULE3001 on `HTTP::respond` body taint (suppressed by `HTML_ESCAPED`), IRULE3002 on `HTTP::header` / `HTTP::cookie` `insert`|`replace` value taint (suppressed by `CRLF_SAFE`, plus `HEADER_TOKEN_SAFE` when the tainted var occupies arg-index 1 — the header/cookie name position), IRULE3003 on `log` taint (suppressed by `CRLF_SAFE`), IRULE3004 on `HTTP::redirect` URL taint (new `TaintColour::REDIRECT_SAFE = PATH_PREFIXED | PATH_NORMALISED` mask). `find_taint_warnings` gains a `dialect` parameter plumbed through `compiler_checks::run_all_checks`. Per-code suppression runs via `irules_sink_suppressed(code, lattice)` + the `irule3002_name_position_safe` helper. New `find_setter_constraint_warnings(cfg, ssa, taints, executable_blocks)` emits IRULE3101 for `HTTP::uri` / `HTTP::path` setter calls whose value does not start with `/`, with three-case Python parity: literal (no `$`, no `[`) → prefix check; pure var-ref → tainted-and-safe-colour suppression via `PATH_PREFIXED | PATH_NORMALISED | PATH_BOUNDED`; dynamic (interpolation / command sub) → always warns. Command + prefix table hardcoded as `SETTER_CONSTRAINTS`. New sibling module `irules_checks.rs::find_unnormalised_getter_warnings(cu, registry, dialect)` handles the non-taint AST check IRULE3102 (`HTTP::uri` / `HTTP::path` / `HTTP::query` getter without `-normalized`, dialect-gated). Scans `Statement::Call` + `Statement::AssignValue`-with-RHS-command-sub; getter-vs-setter approximation: `args.is_empty() || args.iter().all(|a| a.starts_with('-'))` (TODO noted pending a Rust-side `FormKind` port). `TaintWarning` gains `replacement: Option<String>` (always `None` today, wired through `Diagnostic::from_taint` for future rich-fix support). `Diagnostic::from_irules_check` lowers IRULE3102 as category `"irules"` severity `Warning`; sinks + setter-constraint stay in category `"taint"` severity `Error`. Sink / setter / IRULE3102 command lists are hardcoded pending a Rust-side `CommandSpec::taint_hints` + `OptionSpec` port; IRULE3103 URI-split remains deferred with W202/W203; T103 / T104 / T105 stay deferred. 34 new unit + integration tests (7 classifier / mask, 10 end-to-end sink, 6 setter constraint, 7 IRULE3102, 4 `run_all_checks` integration). 1145 tests total (from 1111). | landed |
+| C30   | **Optimiser — types, priorities, pass registry.** `Optimisation { code, message, span, replacement, group, hint_only }` + `new()` constructor, `PassContext<'a> { source, optimisations, interproc }` with `report()`. `opt_priority(code)` table (10-0 scale matching Python `_OPT_PRIORITY`). `PassId` enum (9 variants: BranchFolding / Elimination / ExprSimplify / PatternRecognition / Propagation / StructureElimination / TailCall / UnusedProcs / CodeSinking) with `all()` canonical order + `as_str()`. `run_passes` stub. 6 unit tests. Individual pass bodies deferred (10 follow-up strips). **C30a** — branch-folding pass: split `optimiser.rs` into `optimiser/{mod.rs,branch_folding.rs}`, port `core/compiler/optimiser/_branch_folding.py::optimise_constant_branches` as `branch_folding::run(ctx, cu)` emitting `O101` ("Fold constant expression") for every SCCP-proved [`ConstantBranch`] with the condition replaced by `{1}`/`{0}` (bare `1`/`0` when the source condition is unbraced). Skips switch-dispatch probes (`BinOp::StrEq` + `switch_next_*` block/target names). `run_passes(ctx, cu, passes)` dispatches `PassId::BranchFolding` to the new body; other pass ids remain deferred no-ops. 9 new unit tests covering constant-true / constant-false / nested folds / mixed lattice / Overdefined no-fold / bare condition / switch-dispatch skip / run_passes smoke-test. `optimise_branch_proc_calls` (re-runs expression simplification on branches SCCP can't resolve) is deferred — depends on `expr_simplify` + `propagation` pass bodies. **C30x1** — extend `PassContext` with per-function propagation scratch (`proc_cfgs`, `propagated_branch_uses`, `propagated_use_groups`, `propagated_expr_stmts`, `cross_event_vars`, `next_group` + `alloc_group()`, `ir_module`, `dialect`) + `reset_function_state()` helper. 5 new unit tests. **C30x2** — port `core/compiler/optimiser/_helpers.py` into `optimiser/helpers/{naming, literals, constants, select, tokens, expr_simplify}.rs`; each concern in its own submodule. `naming`: namespace_parts, namespace_from_qualified, resolve_summary_proc_name. `literals`: is_safe_word, is_static_var_word, is_plain_literal, literal_from_constant_str (Literal tag), render_folded_literal, render_static_string_word, format_constant. `constants`: constants_from_versions / _uses / _exit_versions projecting SCCP lattice into a name→Tcl-literal dict. `select`: select_non_overlapping — sort by (start, -priority, -length), drop overlapping rewrites, clear group ids on surviving siblings whose group lost a member. `tokens`: extract_body_text + column_of_offset for source-level body re-indentation. `expr_simplify`: try_fold_expr (via eval_tcl_expr), try_unwrap_expr_in_expr (O115 body detect), substitute_expr_constants (tokenise_expr-driven `$var` replacement with numeric/quoted-string emission), expr_has_command_subst; plus stubs for the deferred AST rewriters (instcombine, strength reduction, strlen / streq simplification) matching the production signatures. 43 new unit tests. **C30b** — port `_unused_procs.py` as `optimiser::unused_procs::run(ctx, cu)`: O124 commenting-out of iRules procs unreachable from any event handler, gated on dialect ∈ {f5-irules, irules}; library-iRule skip; barrier escape hatch; 13 new unit tests. **C30c** — port `_structure_elimination.py` as `optimiser::structure_elimination::run(ctx, cu)`: O112 for constant-condition if / while / for elimination (and switch with literal subject — gated on IR arm/default spans, a pre-existing lowering limitation). Projects SCCP lattice into an `Env` for `eval_tcl_expr`; handles fall-through switch chains. 16 new unit tests. **C30d** (partial) — port the O107 slice of `_elimination.py`: unreachable-block dead-code reporting. O108 / O109 / O126 deferred behind the liveness analyser that's not yet landed. 7 new unit tests. **C30e** (partial) — port the entry-point + three landed helpers of `_expr_simplify.py`: constant folding (O101) + redundant nested-expr unwrap (O115) on standalone `expr` statements; 4 AST-level simplification rewriters (instcombine / strength reduction / strlen / streq) remain stubs. 21 new unit tests. **C28x** (partial) — port the structural half of `interprocedural.py::analyse_interprocedural_ir` as `interprocedural::build_interprocedural_analysis` + `CompilationUnit::with_interprocedural` façade: five-phase pipeline (scan_all_procs → transitive closure → purity fixpoint → effect-region fixpoint → materialise_summaries) populating `calls` (transitively closed), `has_barrier`, `has_unknown_calls`, `writes_global`, `pure`, `effect_reads`, `effect_writes`. Return-value inference + param-trait fields deferred. 9 new unit tests. **C30f** (partial) — port `_propagation.py::optimise_constant_var_refs` as `optimiser::propagation::run(ctx, cu)`: O100 replacement of single-token `$var` call arguments with their SCCP-proved literals, guarded by an integer-or-safe-word value filter that refuses to inline Tcl metacharacter-containing values. Six other propagation modes deferred. 7 new unit tests. **C30a'** — complete the `optimise_branch_proc_calls` half of `_branch_folding.py`: for each branch SCCP could not fold, unwraps one level of `{…}`, runs `substitute_expr_constants` against the per-function lattice, and emits O100 when a substitution produced a text change. 2 new unit tests. **C30g** (partial) — port `_pattern_recognition.py::optimise_incr_idioms` as `optimiser::pattern_recognition::run(ctx, cu)`: O114 rewriting of `set x [expr {$x ± N}]` (commutative Add) to `incr x [N]`, working directly off the AssignExpr AST shape. O119 + O122 deferred. 9 new unit tests. **C30h** (partial) — port the bare-call slice of `_tail_call.py` as `optimiser::tail_call::run(ctx, cu)`: O121 for every proc that ends in a bare self-call (including inside if/switch tail positions). Return-subst variant + O122 loop conversion + O123 accumulator deferred. 5 new unit tests. **C30i** (scaffolding) — `_code_sinking.py` entry point + IR walker. No O125 diagnostics yet — blocked on side-effect classification + per-statement variable-use scanning. 2 new unit tests. **C30j** — port `_manager.py` as `optimiser::manager::{optimise, optimise_with_dialect, optimise_raw}`: thin façade that builds a CompilationUnit, populates interprocedural summaries, runs every landed PassId in PassId::all() canonical order, and applies select_non_overlapping. 6 new unit tests. **C30d-complete** — O109 dead stores + O126 unused-variable assignments using the C24 def-use chains. Distinguishes O109 (later version of the same var has live consumers — the write is shadowed) from O126 (no version has any read, via a textual `$var` scan that catches Return / string-interpolation uses the def-use builder does not track). Scope-alias commands (`global` / `variable` / `upvar` / `namespace upvar`) and cross-event vars are skipped. **C30e4-7** — the four AST-level expression rewriters: `instcombine_expr` (fixpoint over a bottom-up `simplify_node_once`, capped at 16 iterations), `try_strength_reduce_expr` (x+0, x-0, x*0, x*1, x/1, x**2 → x*x, x%pow2 → x & (pow2-1)), `try_strlen_simplify_expr` ([string length OP] == 0 → OP eq ""), `try_eq_ne_string_compare_simplify_expr` (`==`/`!=` against an ExprNode::String literal → `eq`/`ne`). `branch_folding::propagate_into_branches` now cascades substitute → strength_reduce → strlen → streq → instcombine with the first rewriter that changes text winning its diagnostic code (O113 / O117 / O120 / O110 / O100). **C28x-return** — return-value inference: per-proc return classifications (Literal / Passthrough / UsesParam / Other) collapse into `returns_constant` / `constant_return` / `return_passthrough_param` / `return_depends_on_params` / `can_fold_static_calls`. Unlocks proc-call folding in propagation. **C30d-O108** — ADCE fixpoint: a statement-level def is transitively dead when side-effect-free AND every statement-level consumer is itself in the removed set; iterates on top of the O109/O126 baseline. Phi-incoming / terminator uses keep the def alive unconditionally. **C30h-return-subst** — `return [self args]` variant of O121: inspects Return values for a `[cmd args…]` shape whose head matches a self-name variant. **C30f-remainder** — O103 static-proc-call folding (pure procs with constant returns) + O104 return-terminator folding (`return $v` → `return K` when v is SCCP-constant). **C30i-full** — O125 code-sinking detection (hint-only). Pattern: `set X V; <decision>` where the decision condition doesn't reference X, at least one decision body reads X, and no later statement reads X. Walks the IR at the statement level (avoiding the local-offset span issue with re-lowered proc bodies). **C30g-remainder** — O119 multi-set packing hint (3+ consecutive literal `set`) + O122 string-build chain hint (`set s ""` followed by 2+ same-var `append`). Both hint-only. **C28x-param-traits** — per-parameter trait inference (Unused / UsedInCondition / ForwardedToCallee / Passthrough) populating `ProcSummary::param_traits`. Observed via note_params_in_expr (conditions + ExprEval) + text_references_name (Call args), finalised with Passthrough inherited from return_passthrough_param. **C30f-final** — optimise_string_interpolation_var_refs (O100 inlining SCCP constants into `"$x"` arg text) + optimise_load_forwarding (O102 forwarding the single reaching literal def to each Operand use site via def-use chains — fires even when SCCP is Overdefined). optimise_expression_args / optimise_expr_substitutions are subsumed by branch_folding::propagate_into_branches and expr_simplify::run; no separate port needed. **C30h-final** — O122 loop-conversion hint (every self-call is in tail position) + O123 accumulator-candidate hint (non-tail self-call embedded in an expression substitution). Both hint-only. **C30i-multi-opt** — promote O125 from hint-only to a grouped pair of real rewrites: one deletion on the original `set` span, one insertion at the first target-body statement that reads the sunk variable, with the original set's source text + `; ` prepended. Both share a group id via PassContext::alloc_group. Falls back to hint-only when the original statement's span is local (e.g. re-lowered proc body). 1008 cargo test -p tcl-compiler --lib passing; clippy clean. | landed |
+| C31   | **compilation_unit facade + compiler_checks aggregator.** `FunctionUnit { name, cfg, ssa, def_use, sccp, memory_ssa }` with `build(name, cfg, registry)` driving the landed pipeline (SSA + def-use + SCCP) and `with_memory_ssa()` on demand. `CompilationUnit { source, ir_module, cfg_module, top_level, procedures, interproc }` with `build_for(source, registry, defer_top_level)` running `lower_to_ir` → `build_cfg` → per-function `FunctionUnit::build`. `function(name)` lookup + `functions()` iterator. `Severity` (Hint/Suggestion/Warning/Error) + unified `Diagnostic { span, code, category, severity, message }`. `run_all_checks(cu, registry, dialect)` collects from SCCP (constant branches), GVN (full + partial + loop-invariant), shimmer + thunking, taint. 8 unit tests. | landed |
+| C32   | **Python shim retirement — optimiser entry points.** Landed: PyO3 bindings in `rust/tcl-lsp-rust/src/optimiser.rs` exposing `optimiser_find_optimisations(source, dialect)` / `optimiser_find_optimisations_raw(source, dialect)` / `optimiser_opt_priority(code)` — thin wrappers over `tcl_compiler::optimiser::{optimise_with_dialect, optimise_raw, opt_priority}`. The Python `core.compiler.optimiser._manager::find_optimisations` accepts delegation via `TCL_LSP_RUST_OPTIMISER=1` (opt-in — default keeps the Python pipeline so exact-message and overlap-arbitration tests do not regress during the parity-testing phase). `_materialise_rust_optimisations` helper converts the Rust `(code, message, start, end, replacement, group, hint_only)` tuples back to Python `Optimisation` dataclasses with `Range` / `SourcePosition` values built from a local line-start index. 2 new PyO3 smoke tests. Remaining Python-shim work (the `compiler_checks` / `find_*` analyser entry points, flipping the default once parity is verified) is tracked as a follow-up. **C32-shim (Phase 1)** — PyO3 binding `compiler_checks_run_all(source, dialect)` in `rust/tcl-lsp-rust/src/compiler_checks.rs` exposes `tcl_compiler::compiler_checks::run_all_checks`, returning diagnostic tuples `(code, category, severity, message, start_offset, end_offset)`. Infrastructure only: not wired into a Python consumer yet because (a) shimmer / taint Rust implementations are still stubs (C27d / C29 deferred), (b) the Python compiler-diagnostics pipeline is distributed across several modules (`semantic_graph.py`, `core_analyses.py`, per-check entry points) with no single aggregator to swap 1:1, and (c) the optimiser parity gap (~131 test_optimiser.py failures under `TCL_LSP_RUST_OPTIMISER=1`) indicates broader Rust-side analysis parity work is still pending. 2 new PyO3 smoke tests. Follow-ups: land shimmer / taint Rust bodies, add analyser-level entry points, then flip consumers behind per-class opt-in env vars. | landed |
+| C*    | **Compiler migration — deferred analysis bodies.** Aggregate row covering deferred bodies on landed chunks.  **Audited 2026-05-07** against the actual Rust tree.  Items closed (status updated in their own rows): full shimmer use-site / phi-shimmer / thunking detection (see C27d row); interprocedural summary-building pipeline (see C28 row + C30 narrative for C28x / C28x-return / C28x-param-traits); taint propagation + path-concat W201 + iRules sinks IRULE3001-3004 / 3101 / 3102 (see C29 row); ten optimiser passes (see C30 row); `connection_scope` (`rust/tcl-compiler/src/connection_scope.rs` — `cross_event_defs` / `cross_event_imports` / `racy_static_defs` consumed by W220 in `analyser/diagnostics.rs`).  **Items genuinely outstanding, each promoted to its own row:** C29 follow-up URI-split / IRULE3103 (~959 LOC) + T103 / T104 / T105 → see **C45-uri-split** row; C28 follow-up iRules-flow port (~1634 LOC, IRULE1005-1008 / 1201 / 1202 / 4004 / 5002 / 5004) → see **C44-irules-flow** row; registry-driven codegen + lowering hooks → see **C43** row.  C* aggregate retires once each promoted row is either landed or has a referenced closure path. | landed (closures referenced; see C44-irules-flow / C45-uri-split / C43 rows for outstanding sub-ports) |
+| S*    | **LSP server migration.** `lsp/` (pygls handlers, workspace orchestration, feature providers) → `rust/tcl-lsp-server/` on `tower-lsp`. This is when `ropey` enters the picture as the document store, the whole pipeline becomes async, and the server ships as a standalone Rust binary. | planned |
+| R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), the rest of `core/analysis/` (`_analyser/` package + `auto_path_eval` / `class_hierarchy` / `irules_checks` / `mro` / `namespace_imports` / `proc_arg_traits` / `proc_lookup` / `semantic_graph` / `semantic_model` / `source_resolver` / `stub_comments` / `var_scoping` — `signature_scan.py` already landed under C40), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
+| C40-followups | **Follow-ups for the C40 `signature_scan` port.** Six items from the post-merge code review.  **Audited 2026-05-07.** Status of each: (1) **landed quietly** — no `#![allow(dead_code)]` remains in any `signature_scan/` submodule; (2) **landed quietly** — no "filled in by Cnnnn" doc comments remain; (3) **deferred (perf nicety, non-blocking)** — `CommandRegistry::build_default()` is still called from a handful of production paths (notably `analyser/state.rs::Analyser::analyse` builds a dialect-aware registry per analyse, and `analyser/oo.rs::extract_unknown_proc_info` builds one for the W123-suppression body lower) in addition to many `#[cfg(test)]` helpers.  An `OnceLock` cache would amortise both the production and per-test reconstruction, but the analyser side mutates the registry (`load_dialect`) so the cache would need a per-dialect map or a clone-on-load wrapper.  Not a C* close-out blocker — tracked separately if anyone picks it up; (4) **landed (PR #352)** — `_extract_signatures_python` / `_rust_extract` / `_materialise_rust_signatures` / dispatcher restored in `core/analysis/signature_scan.py`; the four dispatcher tests now run green; (5) **landed (PR #352)** — `C40-default-on` banner in `docs/rust-rewrite-test-audit.md` refreshed from the post-#241 "historical record only" framing to the restored state; (6) **landed quietly** — `docs/kcs/kcs-qa-rust-shim-env-vars.md` already lists `TCL_LSP_RUST_SIGNATURE_SCAN` under "Default-on (Rust by default; opt out via `=0`)" with the C40-default-on flip recorded.  Five of six items closed; (3) is a perf nicety tracked outside C*. | landed |
+| C40-default-on | **Flip the C40 default.** `extract_signatures` now dispatches to Rust by default whenever the `tcl_lsp_rust` binding is importable; the gate becomes `TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out. Shared helper `core.compiler.rust_spans.rust_shim_enabled` gained a `default: bool = False` keyword so the same helper handles both polarities. After a release cycle, delete `_extract_signatures_python` and the env var entirely.  **Post-#241 reality (audited 2026-05-07):** `core/analysis/signature_scan.py` is now pure Python — no Rust dispatch, no `_extract_signatures_python` fallback, no `TCL_LSP_RUST_SIGNATURE_SCAN` env-var read. The dispatch was deleted (no commit-log entry tracks it; happened in the same wave as the C41 dispatch removal). The Rust signature-scan port (`tcl_compiler::signature_scan`) still exists as a library but isn't invoked from production Python. Closes with the `S*` LSP-server port. | landed (de facto retired at #241; closes with `S*`) |
+| C41-default-on | **Flip the C41 default — landed.** `core.analysis._analyser.analyse` now dispatches through the Rust port by default whenever the `tcl_lsp_rust` binding is importable; the gate becomes `TCL_LSP_RUST_ANALYSER=0` opt-out. Reuses the shared `rust_shim_enabled` helper with `default=True`. The work landed across the strips below: (a) the two Python parity bugs (`::::ns::foo` double-prefix quirk; `nested_namespace_eval` outer-namespace-drop) fixed in `_proc.py` + `_oo.py`, plus the Rust-side mirror of the `oo::define ::ns::Cls` bug in `analyser/handlers.rs`; (b) the differential corpus expanded from 40 shape-only fixtures to 92 (53 shape-only + 34 tcl field-parity + 5 iRules field-parity + 4 dispatcher gating), with a strict `_compare_fields` helper comparing per-fixture `all_procs` / `all_classes` / `all_variables` qualified-name sets, bare `name` / `params` / `name_range` / `body_range`, per-class `methods` / `class_methods` / `superclasses` / `mixins`, and the recursive scope-tree shape; (c) `_materialise_rust_analysis` extended to populate every side-channel field the Rust dict carries (`command_invocations` with Python-side `resolved_qualified_name` resolution, `command_aliases`, `package_requires`, `source_targets`, `namespace_imports`, `package_provides`, `has_dynamic_providers`, `auto_path_entries`, `regex_patterns`, `stub_commands`, `stub_expr_defs`, `suppressed_lines`); (d) `_merge_rust_with_python_supplement` in the dispatch shim runs a Python supplementary pass alongside Rust to fill in the side channels Rust doesn't emit yet (`regex_patterns` always; `stub_commands` / `stub_expr_defs` / `auto_path_entries` / `namespace_imports` / `source_targets` / `command_aliases` only when Rust returned empty) plus the `run_compiler_checks` post-pass diagnostics (W110 / W220 / W304); (e) Rust `analyser/handlers.rs::handle_for_command` and `handle_foreach_command` recurse into init / next / body; (f) `Analyser` gained a `registry: Option<CommandRegistry>` field populated at the top of `analyse()` so `process_command` runs a registry-driven `ArgRole::Body` loop for `if` / `while` / `when` / `eval` / `uplevel` / `subst` / etc., setting `current_event` for `when EVENT { body }` and bumping `conditional_depth` for `if` / `try`; (g) post-flip ports landed in subsequent commits — `oo::abstract` / `oo::singleton` / `oo::configurable` metaclass recognition, `MethodDef.params` populated, per-scope `Scope.classes` threading, preceding-comment + body-docstring extraction (`SegmentedCommand.preceding_comment` field + `extract_body_docstring` port), `package provide` + `has_dynamic_providers`, `source_targets`, `namespace_imports` (with current-namespace tagging), `auto_path_entries`, `regex_patterns` (literal forms), `stub_commands` / `stub_expr_defs` (name + range + expr-func/op kind), per-line `# noqa: CODE` suppression, file-wide `# tcl-lsp: disable=` directive sentinel under `suppressed_lines[-1]`, iRules `call PROC` indirection in `command_invocations`. Verified: `make prep-pr` green at default-on, 78s (vs 70s baseline default-off — no measurable performance regression). The hybrid Python supplement still absorbs nine specific Rust-side feature gaps catalogued as the `C41-default-on-followups-*` rows below; each is its own focused port that removes one or more `rust.X = python.X` lines from `_merge_rust_with_python_supplement`. After at least one release cycle of soak time + the followup ports, a final chunk deletes the Python `_AnalyserBase` mixin set and the env var entirely.  **Post-#241 reality (audited 2026-05-07):** the dispatch shim, `_materialise_rust_analysis`, `_merge_rust_with_python_supplement`, the `TCL_LSP_RUST_ANALYSER` env var, and every `rust.X = python.Y` supplement assignment were silently removed when `core/analysis/_analyser/__init__.py` was simplified from 535 LOC to 47 during the merge resolution of PR #241 (`cd7a8441`, 2026-04-30). No commit-log entry tracks the deletion. The current `analyse()` is the pure Python mixin chain calling `run_compiler_checks(...)` directly via `_diagnostics.py:143`. The Rust analyser exists in `rust/tcl-compiler/src/analyser/` and as of 2026-05-08 has no live caller — the lone consumer (`tests/test_rust_analyser_differential.py`) was deleted by `SYNC-JUN-DIFF-harness-delete` because it had been silently broken since #241. The final-cleanup paragraph above is half done — the env var is gone, the `_AnalyserBase` mixin set still exists. The override flip the row was tracking is moot. Closes with `S*`. | landed (de facto retired at #241; closes with `S*`) |
+| C41-default-on-followups-* | **Family banner — post-#241 reality (audited 2026-05-07; refreshed 2026-05-08).** Every row below describes a Rust-side port that landed, *plus* a corresponding edit to the Python `_merge_rust_with_python_supplement` function (retiring an override line, deleting a guard, flipping a fallback, etc.). The Python edits are all moot: the function, `_materialise_rust_analysis`, and the dispatch shim were silently removed when `core/analysis/_analyser/__init__.py` was simplified from 535 LOC to 47 during PR #241's merge resolution (`cd7a8441`, 2026-04-30). The **Rust-side** ports listed in each row still hold (verified by their cargo tests), but they don't affect any production diagnostic — the Rust analyser has no live caller as of 2026-05-08 (`tests/test_rust_analyser_differential.py`, the lone consumer, was deleted by `SYNC-JUN-DIFF-harness-delete`). Read each row as: "Rust-side work: still landed. Python override-retirement: doesn't apply, override is already gone." The whole family closes with `S*` (LSP server port replaces the `analyse()` consumers with Rust-native callers). | banner only |
+| C41-default-on-followups-recovery | **Command-break recovery in segmenter (E201).** Port the Python `_find_command_break_offset` heuristic (in `core/parsing/command_segmenter.py::segment_commands_with_recovery`) so an unclosed `[` / `{` mid-command lets the next line start a fresh segmented command. Surfaces in `tests/test_recovery.py::TestE201CommandBreak::test_command_break_analyser_integration` — Python sees `set X [lindex … 0\nset Y …` as two `set` invocations, Rust currently sees one. Implementation: in `rust/tcl-compiler/src/segmenter.rs::segment_commands_with_recovery`, after the existing `_has_suspicious_token` check for unclosed `{` / `[` / `"`, run a `_find_command_break_offset` pass that scans the suspicious token's inner text line-by-line for the next known-command head and re-segments from there with absolute spans. Unblocks removing the `rust.command_invocations = python.command_invocations` line from `_merge_rust_with_python_supplement` (in combination with the nested-cmdsubst port below). | landed (`_find_recovery_offset` had already been ported as the Rust `find_recovery_offset` in `segmenter.rs`; investigation surfaced two real residual gaps and closed them: (1) iRules ``when EVENT { body }`` body recursion was a no-op because ``rust/tcl-registry/src/commands/irules/when.rs`` lacked an ``arg_role_resolver`` — added ``when_arg_roles`` mirroring ``_when_arg_roles`` in ``core/commands/registry/irules/when.py``; (2) the nested-``[cmd]`` scanner in ``analyser/commands.rs::process_command`` skipped braced expr args (``if { [HTTP::uri] eq "/foo" }``) opaquely because the outer ``{...}`` triggered the scanner's brace-skip path — now strips the surrounding ``{...}`` for ``Str`` tokens via ``content_offset`` before scanning.  Two new cargo tests pin both fixes.  The ``command_invocations`` merge stays for now: scope-aware ``resolved_qualified_name`` resolution (``helper`` inside ``namespace eval a`` → ``::a::helper``) is still Python-only, verified by ``test_qualified_calls_do_not_cross_namespace``; the merge retires together with the ``S*`` LSP-server / ``structural`` chunk.) |
+| C41-default-on-followups-cmdsubst | **Nested `[cmd ...]` substitution invocation walking — landed.** ``commands.rs::process_command`` now scans every argument token's source slice via ``scan_nested_command_heads`` + ``first_command_head`` helpers, recording each ``[cmd ...]`` substitution's command head as its own ``CommandInvocation``.  Skips braced regions opaquely, respects backslash escapes, recurses into multi-level nests like ``[outer [inner $x]]``, handles the ``Cmd``-token case (whole-arg ``[helper $foo]`` substitutions) by stripping the leading ``[`` via ``content_offset``.  Eight cargo unit tests pin the scanner's boundary semantics.  The hybrid supplement now merges Rust + Python invocations deduplicated by ``(name, span)`` — Python first so ``resolved_qualified_name`` annotations win; Rust contributes the nested-substitution heads. The full ``rust.command_invocations = python.X`` retirement still waits on the **recovery** chunk above (Python's virtual-insertion recovery surfaces invocations Rust skips when the partial command is marked partial). | landed (commit 600f695) |
+| C41-default-on-followups-switch-regexp | **`switch -regexp` body walker for regex patterns.** Python's `_handle_switch` walks the braced body of a `switch -regexp` command and records each pattern arm as a `RegexPattern` (with `command="switch"`).  The Rust port records `regexp` / `regsub` literals only, so `switch -regexp` pattern coverage drops on the Rust path. Port: in `rust/tcl-compiler/src/analyser/handlers.rs::handle_regex_pattern_capture` (or a sibling `handle_switch_regexp_capture`), recognise `switch ?-flag…? -regexp ARG BODY` shapes, segment the braced body, and emit a `RegexPattern` per pattern token. Unblocks part of the `rust.regex_patterns = python.regex_patterns` override. Landed: extended `handle_switch_command` in `analyser/handlers.rs` to record literal pattern arms (Form 1 inline pairs + Form 2 braced body via `parse_switch_body_elements`) as `RegexPattern { command = "switch" }` when the `-regexp` flag is set; mirrors `_proc.py::_handle_switch` lines 233-252.  Skips the `default` keyword (Tcl's catch-all) and Var / Cmd-substitution patterns — those are deferred to `regex-vars` where const-string propagation will resolve them.  The `rust.regex_patterns = python.regex_patterns` override stays for now (var-driven patterns are still Python-only); `regex-vars` will retire it.  5 new cargo tests in `analyser::state::tests` covering Form 1 / Form 2 / default-arm-skip / no-flag-no-record / var-pattern-skip. | landed |
+| C41-default-on-followups-regex-vars | **Regex variable propagation.** Python tracks `set p "..."` constants and resolves `regexp $p`, `switch -regexp -- $p`, and similar `$var`-driven patterns to the underlying literal so `RegexPattern` covers indirect uses. Depends on a constant-set propagation table parallel to the lexer / segmenter — the `_const_strings` map in `core/analysis/_analyser/_scope.py`. Port: thread an analogous `const_strings: HashMap<scope_id, HashMap<var_name, (literal, range)>>` map through `rust/tcl-compiler/src/analyser/state.rs`; populate it in `handle_set_command`; consult it in the regex-capture handlers when the pattern arg is a pure `$var` token. Closes the rest of the `rust.regex_patterns = python.regex_patterns` override. Landed: extracted `record_regex_pattern_token` shared helper in `analyser/handlers.rs`; `handle_regex_pattern_capture` now consults `lookup_const_string_with_span` for `Var` tokens, records the use site + the defining `set` value's range (mirrors `_record_defining_set_as_regex` in `_scope.py:58-79`), and updates `regex_vars`. `record_switch_regexp_pattern` delegates to the same helper.  `-start INDEX` flag now correctly consumes its value word.  The unconditional `rust.regex_patterns = python.regex_patterns` override retired — Rust is now authoritative for `regex_patterns`. 5 new cargo tests (regexp/regsub/switch var resolution + unresolved-skip + regex_vars side-effect). | landed |
+| C41-default-on-followups-stub-args | **Stub `{ARGS}` brace-block + flag parsing.** The Rust `scan_source_for_stubs` records command-stub names + ranges; Python additionally parses the `{…}` arg block into a `tuple[StubArgDef, ...]` and the trailing `?-flag…?` run into the boolean fields on `StubCommandDef` (`barrier`, `loop`, `pure`, `mutator`, `unsafe`, `scope_alias`). Port: extend `rust/tcl-compiler/src/analyser/utils.rs::scan_source_for_stubs` (or hoist the parser into a sibling) to mirror Python's `_parse_args` / `_parse_flags` helpers from `core/analysis/stub_comments.py`. New backing `StubArgDef` type on the Rust side. Unblocks moving `stub_commands` / `stub_expr_defs` from "Python if Rust empty" guard to "no override". Landed: `StubArgDef` added to `analyser::types`; `StubCommandDef` extended with `args` + the six flag bools; `StubExprDef` extended with `arity`; `parse_command_stub` + `parse_stub_args` + `parse_stub_flags` ported from `_parse_args` / `_parse_flags`; `parse_expr_stub` extracts arity (function default 1, operator default 2); PyO3 serialiser emits the new fields; the materialiser threads them through; the two `if not rust.stub_commands` / `if not rust.stub_expr_defs` guards retired from `_merge_rust_with_python_supplement`; 19 cargo tests added mirroring `tests/test_stub_comments.py::TestParseStubLine` + `TestParseExprStubLine`. | landed |
+| C41-default-on-followups-postpass | **`run_compiler_checks` post-pass integration (W110 / W220 / W304).** The Python `Analyser._emit_cfg_ssa_diagnostics` integrates `run_compiler_checks` to add style + SSA-based diagnostics on top of the analyser's own emission set: W110 (style — `==` / `!=` vs `eq` / `ne` for strings), W220 (SSA-based dead-store hint), W304 (style — unused-global declaration), plus W101 / W105 from the param-trait paths and W116 / W117 from stub-shadow detection. The Rust analyser doesn't run any post-pass equivalent. Port: this is the largest remaining chunk because it depends on the IR / CFG / SSA pipeline being reachable from the Rust analyser. Either (a) expose a Rust-side `compiler_checks::run_all_checks(cu, registry, dialect)` entry point and call it from `analyser::state::analyse` after the main walk, or (b) keep `run_compiler_checks` Python-side but make it consume a Rust-built `CompilationUnit` so the dispatcher only runs the post-pass instead of the full Python `Analyser.analyse`. Either approach lets `rust.diagnostics = python.diagnostics` retire. | partial — empirical probe surfaced the post-pass W codes Python uniquely emits (W110 / W101 / W105 / W220 / E004) and the strategy: each code ports as an analyser-side emitter; once Rust covers the full set, `rust.diagnostics = python.diagnostics` retires.  **W105 ported** as the first concrete emitter (`emit_w105_unbraced_body` in `analyser/diagnostics.rs`, dispatched from the registry-driven body iteration in `commands.rs::process_command`); 3 cargo tests pin the substitution-bearing-error / braced-skip / dynamic-var-skip cases.  A naive dedup-by-(code,span) merge of `python.diagnostics ∪ rust.diagnostics` was tested and **rejected** — it re-surfaces records Python's main pass had already suppressed via context the Rust path doesn't see yet (~41 test failures across the W123 / regexp-var / unused-param suppression paths).  Suppression-context parity is its own follow-up gate.  The override stays as wholesale-replace until each post-pass W code lands as a Rust emitter AND Rust mirrors Python's suppression context — at that point the override flips to no-op and retires.  **W110 ported** (`emit_w110_string_eq_ne` in `analyser/diagnostics.rs`, dispatched via a new registry-driven `dispatch_expr_arguments` over `ArgRole::Expr` indices in `commands.rs::process_command`); helper functions `find_string_eq_ne_ops` / `count_eq_ne_ops` walk the C1 `ExprNode` tree (collecting `==`/`!=` ops with at least one `ExprString` operand), plus `rewrite_string_compare_ops` ports the Python regex-based code-fix manually (negative look-around for `==`, plain `!=`, run-of-2+-ws collapse).  `expr ARG ARG ...` multi-arg form uses the source slice (post-substitution arg values lose `"…"` quote delimiters); single-braced-arg form uses `args[idx]` directly.  14 cargo tests in `analyser::state::tests` cover string-eq / string-ne / numeric-clean / eq-operator-clean / has-fix / variable-only-clean / numeric-string / boolean-string / unary-negation / mixed-no-fix / while-condition / expr-top-level / expr-multi-arg / for-clean.  **W302 ported** (`emit_w302_catch_no_result_var` in `analyser/diagnostics.rs`, dispatched from `commands.rs::process_command` before the early-returning `handle_catch_command` — same dispatch placement rationale as W110); fires `Severity::Hint` when `catch BODY` is invoked with only the body argument (no `RESULTVAR`), mirroring the IRCatch arm of `_check_statement` in `core/compiler/compiler_checks.py:491-504`.  Gates on `arg_single[0] == true` to mirror Python's `_lower_catch` IRBarrier "catch with dynamic body" suppression — multi-token-word bodies (e.g. `catch pre$x`) drop to IRBarrier in Python and never reach the W302 check.  Diagnostic anchors at the catch keyword through the body argument's end (mirrors `stmt.range`).  5 cargo tests pin the no-result-var-fires / has-result-var-suppresses / has-options-var-suppresses / multi-token-body-suppresses / span-anchors-at-command-range cases.  **W001 ported** (`emit_w001_unknown_subcommand` in `analyser/diagnostics.rs`, dispatched from `commands.rs::process_command` before the early-returning handlers — same dispatch placement rationale as W110 / W302); fires `Severity::Warning` for registry-known SubcommandSig commands (`string` / `dict` / `info` / `namespace` / …) whose first arg isn't a member of the dialect's subcommand set, gated by `!sig.allow_unknown` and a literal-text gate skipping `$` / `[`-bearing values; "did you mean…?" suggestion via `crate::text::suggest_similar` (max 1 suggestion within edit distance 3) plus a code-fix that rewrites the subcommand token; diagnostic span anchors at the command-head through the subcommand-arg end.  Known minor parity gap: Python additionally skips when the subcommand position is `{*}`-expanded (`arg_expand[0]`) — Rust `process_command` doesn't currently thread the expansion flag, so `{*}LITERAL` for an unknown literal name will fire on the Rust side; documented inline as deferred until expand-flag plumbing lands as its own chunk.  9 cargo tests in `analyser::state::tests` cover string-bogus-fires / typo-suggestion-with-fix / known-subcommand-clean / dynamic-subcommand-skip / command-substitution-skip / simple-command-skip / unknown-command-skip / span-anchors-at-cmd-plus-subcommand / dict-also-fires.  **E004 ported** (`emit_e004_malformed_if` in `analyser/diagnostics.rs`, dispatched from `commands.rs::process_command` when `cmd_name == "if"` — same dispatch placement rationale as W110 / W302 / W001, though `if` has no early-returning handler so dispatch ordering is consistency-only); fires `Severity::Error` on the structural shapes that produce an `IRBarrier` from Python's `_lower_if` (`core/compiler/lowering.py:645-753`): empty arg list (`"Malformed 'if' command"`), bare `else` keyword without a following body (`"Malformed 'if' command"`), `else BODY <extra...>` (`'Extra words after "else" clause in "if" command'`), condition (with or without `then`) without a following body (`"Malformed 'if' command"`), and post-walk no-clauses cases like `if else BODY` where the else-only walk produces no condition+body clause (`"Malformed 'if' command"`).  Detection re-implements the structural shape parse rather than walking lowered IR — matches the W302 / W001 dispatch-site pattern; the analyser layer doesn't lower.  Side effect: closes a latent parity gap in `lowering/structured.rs::lower_if`, which currently doesn't produce an "extra words after else" barrier at all (Python `lowering.py:686-693` vs Rust `structured.rs:147-162`); the analyser-side check covers that shape independently of whether the lowerer is fixed.  Span anchors at the command-head token through the last arg-token end (mirrors Python's `cmd.range`).  No code fixes (Python emits none).  10 cargo tests cover extra-words-after-else / bare-else-without-body / condition-without-body / then-keyword-without-body / if-with-only-else / valid-if / valid-if-else / valid-if-elseif-chain / if-with-then-keyword / span-anchors-at-full-command-range.  **W304 ported** (corrected from the chunk-log's wrong "unused-global declaration" description — the real W304 is "missing option terminator (`--`) on option-bearing commands", per `core/analysis/checks/_style.py:506-679`).  Lands in two pieces: (a) registry plumbing in `tcl-registry/src/registry.rs` — new `ResolvedTerminator` value type, `CommandRegistry::resolve_option_terminator(name, args, dialect) -> Option<ResolvedTerminator>` which looks up subcommand-scoped `OptionSpec(name="--")` first then falls back to form-level options, and a `collect_options_with_values` helper that lifts `OptionSpec.takes_value`; ``Traits::WARN_WITHOUT_TERMINATOR`` was already present pre-chunk, set on `regexp` only.  Per-command spec extensions: `exec` and `load` gained `options: &[…, "--", …]` to match the Python registry (the analyser-side test surface needs them); other `--`-bearing commands (`regexp` / `regsub` / `switch` / `unset` / `glob` / `file` / `interp`) already had the option declared.  6 cargo tests in `tcl-registry::registry::tests` pin the resolver's unknown-command / no-`--` / form-level-regexp / subcommand-scoped-file-delete / subcommand-without-`--` / warn-flag-off-for-non-regexp cases.  (b) Analyser-side emitter `emit_w304_missing_option_terminator` in `analyser/diagnostics.rs`, dispatched from `commands.rs::process_command` before the early-returning handlers (so option-bearing commands with their own handler — e.g. `switch` — still get checked); two module-level helpers `first_positional_without_terminator` (option-skip scan, advances past option-value pairs via `profile.options_with_values`) and `last_literal_set_value_for_var` (port of Python's helper using the existing `crate::segmenter::segment_commands`).  Tristate severity matches Python's `_style.py:565-627` shape: OFF (no diagnostic) for non-dynamic non-`-`-prefixed values, INFO (`Severity::Suggestion`) for dynamic values without proof of leading `-`, WARNING for literals starting with `-` and for variables whose constant-propagated `set …` value starts with `-`.  Constant-prop INFO path emits a second "origin" diagnostic anchored at the resolved literal's range.  Code fix: prepends `"-- "` to the positional arg's span; `Cmd` (`[…]`) tokens get a one-byte span extension so the closing `]` is included.  17 cargo tests pin regexp-pattern-variable / safe-literal-pattern-skip / literal-dash-pattern / regexp-with-`--`-clean / regexp-with-option-value-then-variable / regsub-variable / subst-not-checked / exec-variable / exec-with-`--`-clean / glob-safe-literal-clean / string-match-not-checked / lsearch-not-checked / file-delete-variable / file-delete-with-`--`-clean / load-variable / constant-prop-INFO-with-origin / constant-prop-dash-WARN / code-fix-inserts-terminator.  Note: `warn_without_terminator` is plumbed onto `ResolvedTerminator` for API parity with Python but Python's `_style.py` doesn't actually consume the flag — the OFF gate fires uniformly regardless of trait.  Documented inline.  **W101 ported** (`emit_w101_eval_string_concat` in `analyser/diagnostics.rs`, dispatched from `commands.rs::process_command` for `cmd_name == "eval"` — same dispatch placement rationale as the other postpass emitters); fires `Severity::Warning` on `eval` invocations whose arguments could carry substitution-driven injection, mirroring `core/analysis/checks/_security.py:19-73::check_eval_string_concat`.  Suppression for the `eval {script}` / `eval {a} {b}` braced-script form (every arg's representative token is `Str`); suppression for the `eval [list ...]` / `eval [linsert ...]` / `eval [split ...]` canonical-list-idiom form via a new registry-side `CommandRegistry::is_canonical_list_command(name) -> bool` mirroring Python's runtime.py-level `canonical_list_commands()` (derived from `return_type == TclType::List`, with `concat` explicitly excluded); 2 cargo tests in `tcl-registry::registry::tests` pin the resolver including the compound `cmd subcmd` key shape.  Substitution detection on the analyser side is a sound approximation of Python's `all_tokens[1:]` walk: any `Var` / `Cmd` representative token plus any multi-token-word (single_token_word == false) implies inner substitution — `process_command` doesn't currently thread the full token stream, but the per-arg representative token kind plus the multi-token-word flag together cover every shape the Python check fires on.  Documented inline.  12 cargo tests pin eval-with-variable / braced-script-clean / multiple-braced-clean / command-subst-fires / literal-no-subst-clean / list-idiom-clean / linsert-idiom-clean / split-idiom-clean / concat-idiom-still-warns / non-eval-commands-skip / first-arg-anchor / multi-command-subscript-rejected.  **W220-IR-paths ported** (extends the C41d2 `emit_dead_store_diagnostics` in `analyser/diagnostics.rs` with the IR-path filters Python's `_dead_stores` (`core/compiler/core_analyses.py:1105-1156`) bakes in plus the dispatcher-level `cross_event_vars` thread Python's `_diagnostics.py:147-167` carries).  Four new filters layered onto the existing `is_dead` / `scope_aliases` / `any_other_live` set: (1) `::`-prefixed globals skipped (externally consumed); (2) SCCP-unreachable blocks skipped via `fu.sccp.executable_blocks` (O107 already reports the whole block as dead); (3) `cross_event_vars` skipped — for `pkgIndex.tcl` files the top-level dispatcher passes `{"dir"}` (the package loader assigns `$dir` before the script runs), and for `::when::*` procs the dispatcher passes `cu.connection_scope.cross_event_defs ∪ cross_event_imports`; (4) IR-statement type filter — only `AssignConst`, `AssignValue` whose value doesn't contain `[`, and `AssignExpr` whose tree has no command call qualify, mirroring Python's `_dead_stores:1149-1155`; `Call.defs` (e.g. `lassign`), `Incr`, and other side-effecting writes drop because removing the assignment would also drop the side effect.  Dispatcher API: `emit_cfg_ssa_diagnostics_for_function_full(fu, ir_module, extra_known_defined, cross_event_vars)` is the new full-context entry point; the existing `..._with_extra` and the simple two-arg `..._for_function` call through with `cross_event_vars=&HashSet::new()` to preserve API.  10 new cargo tests added (`emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var` / `_skips_command_substitution_value` / `_skips_expr_with_command_call` / `_skips_incr_writes` / `_skips_call_defs` / `_pkgindex_dir_var_suppressed` / `_dir_var_not_suppressed_outside_pkgindex` / `_irules_cross_event_var_suppressed` / `_irules_proc_local_still_flagged` / `_skips_unreachable_block`) plus the existing positive control `emit_cfg_ssa_diagnostics_w220_dead_store_overwritten`.  All `cargo fmt` / `cargo clippy --workspace --all-targets -- -D warnings` / `cargo test --workspace` (1962+ tests) green.  This is the last post-pass W code; the C41-default-on-followups graduation point (flipping `rust.diagnostics = python.diagnostics` from wholesale-replace to no-op + retiring the override) is now unblocked and tracked as a separate follow-up chunk. |
+| C41-default-on-followups-tcllib-imports | **tcllib-style `X::import` wrapper detection.** Python's namespace-import recorder also recognises tcllib-style wrapper calls (`term::ansi::send::import …` and similar) and records them as conjectured imports (`NamespaceImport.conjectured = True`). The Rust port handles direct `namespace import` only. Port: extend `handle_namespace_import_command` (or a sibling `handle_tcllib_import_call`) to consult a tcllib wrapper allow-list (lifted from `core/analysis/namespace_imports.py`'s `_TCLLIB_WRAPPER_RE`) and emit conjectured imports for matching calls. Unblocks moving `namespace_imports` from "Python if Rust empty" to "no override". Landed: `handle_tcllib_import_wrapper` added in `analyser/handlers.rs` and dispatched from `process_command`; mirrors the `cmd_name.endswith("::import") and len(args) == 1` branch of `_record_command_invocation` (and `_maybe_handle_import_wrapper` in `signature_scan.py`); strips the trailing `::import`, prepends `::` if missing, qualifies the alias against the current namespace (`::outer::vt` not `::vt` inside `namespace eval outer`); rejects substituted aliases (`$var` / `[cmd]`) and multi-arg calls; the `if not rust.namespace_imports` supplement guard retired; 7 new cargo tests in `state.rs` covering conjectured-emission, relative / absolute alias qualification, substituted-alias drop, single-arg shape, source-namespace prefixing, and the `namespace import` non-trip case. | landed |
+| C41-default-on-followups-alias-chains | **Cross-namespace `interp alias` chain resolution.** Python's `interp alias` recorder follows multi-step alias chains across namespace boundaries (`A` aliases to `B`, `B` aliases to `C`; references-to-`C` should also find references-to-`A`). The Rust port records each `interp alias` call independently. Port: after the main walk, run a fixpoint pass that resolves each `command_aliases[name].target` through the same map until a fixed point or a cycle is detected; record the resolved chain on the alias entry. Mirrors `core/analysis/_analyser/_handlers.py::_resolve_alias_chain`. Unblocks moving `command_aliases` from "Python if Rust empty" to "no override". Landed: investigation surfaced that the chunk-log description was overstated — Python's `_handle_interp_alias` records each `interp alias {} NAME {} TARGET ?ARGS?` declaration independently, with no fixpoint or chain resolution, and `tests/test_analyser.py::test_alias_chain_not_resolved` explicitly pins the no-transitive-chain behaviour (`a -> b -> expr` stays recorded as two independent entries, not one collapsed `a -> expr`).  `core/analysis/_analyser/_handlers.py::_resolve_alias` is a single-step lookup at use-site for arg-role propagation; it doesn't update `command_aliases`. The Rust port already matches this shape exactly. Action taken: retired the `for qname, alias in python.command_aliases.items(): rust.command_aliases[qname] = alias` unconditional merge in `_merge_rust_with_python_supplement` and added five cargo tests in `analyser::state::tests` pinning the no-chain / redefinition-overwrites / dynamic-name-skip / qualified-name / prepended-args cases that mirror `tests/test_analyser.py`. | landed |
+| C41-default-on-followups-param-traits | **`infer_param_traits` port — LANDED (shallow + deep).** Ports `core/analysis/proc_arg_traits.py::infer_param_traits` to `analyser/param_traits.rs` (1099 LOC): the shallow top-level command scan (`infer_param_traits`), the recursive `infer_param_traits_deep` descent, and `merge_traits` (shallow ∪ deep union).  `ProcArgTrait` mirrors Python's enum; `ProcDef.param_traits` is populated in `handle_proc_command` (`infer_proc_param_traits`, gated `deep_param_traits` for the recursive pass) and threaded through the PyO3 binding + materialiser.  Per-command handlers cover `upvar` (alias → `VarWrite`/`VarRead`), `foreach` / `lmap` loop vars, `while` / `for` bodies, `after`, `scan` / `lassign` variadic var-writes, `regexp` / `regsub` match vars, plus the registry `ArgRole`-driven `Body` / `Expr` / `VarWrite` / `VarRead` marking and the stub-overlay union (`SYNC-MAY19-stub-overlay`).  The earlier W214 `[expr {$param}]` over-emit fix (`b9620ad`, `body_references_param`) stays.  24 cargo tests in `analyser::param_traits::tests`. | landed (shallow + deep + merge; `analyser/param_traits.rs`) |
+| C41-default-on-followups-structural | **Structural-triple supplement retirement** (``global_scope`` / ``all_variables`` / ``all_procs`` / ``unknown_proc_info``).  These four fields are still copied wholesale from Python in ``_merge_rust_with_python_supplement``.  ``global_scope`` / ``all_procs`` form a consistent triple (the same ``ProcDef`` instances are referenced from both) that consumers (declaration / references / rename / hover) cross-look-up between by object identity.  Rust populates both with structural parity per the differential corpus, but the Python objects identity-compare; switching consumers to qualified-name lookup retires the triple.  ``unknown_proc_info`` is patched in some Python tests via ``lower_to_ir`` mocking; the Rust extractor uses a separate IR pipeline that doesn't honour those patches.  Two paths to retirement: (a) audit Python consumers for object-identity dependencies and convert to qname lookup; (b) the LSP-server port (``S*``) replaces every consumer with a Rust equivalent that uses the native struct, eliminating identity questions entirely.  Path (b) is the right end-state.  Closes the four remaining unconditional ``rust.X = python.X`` lines in the supplement once the LSP server lands. | planned (closes naturally with the ``S*`` LSP server port) |
+| C41-default-on-followups-noop-guards | **Conservative-fallback supplement guards** (``stub_commands`` / ``stub_expr_defs`` / ``auto_path_entries`` / ``namespace_imports`` / ``source_targets`` / ``command_aliases``).  These six fields use the ``if not rust.X: rust.X = python.X`` shape — a conservative fallback when Rust's scanner returns an empty list.  Verify with a coverage probe whether the fallback actually fires on any tracked corpus / sample fixture; if it never does, the guards can be deleted unconditionally.  Each guard either retires (when the corresponding emitter port is verified complete — ``stub-args`` / ``tcllib-imports`` / ``alias-chains`` cover three) or stays as documented insurance until the LSP server port replaces the consumers. | landed (the four ports above already retired ``stub_commands`` / ``stub_expr_defs`` / ``namespace_imports`` / ``command_aliases`` / ``regex_patterns``; this chunk audited the remaining two — ``auto_path_entries`` and ``source_targets`` — by deleting them and running the full pytest suite (12,519 tests + 206 skipped + 2 xfailed) which passed unchanged.  The guards were dead code on the tracked corpus; deleted unconditionally.  ``_merge_rust_with_python_supplement`` no longer carries any conservative-fallback guards — only the structural-triple wholesale copies remain (waiting on `S*` / `structural`).) |
+| Seg1  | **Segmenter argv-widening parity.** The Python `core/parsing/command_segmenter.py` widens `argv[i].end` to the end of the whole Tcl word for multi-token words (e.g. `$var/literal.tcl`); the Rust `rust/tcl-compiler/src/segmenter.rs` kept it at the first sub-token's end. Surfaced as a `Range` mismatch on `source $script_dir/init.tcl`-style fixtures. Fix: in `segment_commands_local`, the `else if let Some(last_text) = …` branch now also widens `argv.last_mut().unwrap().span` to `Span::new(prev.span.start(), tok.span.end())`. New `segmenter::tests::multi_token_word_argv_spans_full_word` unit test pins the new behaviour. The previously-omitted `source_substituted_path` fixture (`source $script_dir/init.tcl`) is now part of the differential corpus in `tests/test_rust_signature_scan_differential.py`. | landed |
+| Seg2  | **Segmenter error recovery.** Port the Python `_has_suspicious_token` + `_find_recovery_offset` heuristics from `core/parsing/command_segmenter.py` to the Rust segmenter as `segment_commands_with_recovery(source, &known_commands)`. After raw segmentation, the last command is inspected for an unclosed `{` (`Str` token reaching EOF, line span ≥ 3), `[` (any `Cmd` token reaching EOF), or `"` (`Esc` token reaching EOF, line span ≥ 3); on a hit the suspicious token's inner text is scanned line-by-line for the next known-command name and the slice from there is re-segmented and appended (with absolute spans). The signature_scan walker threads the registry's `command_names()` set through to the top-level call only — body recursion never recovers, mirroring Python. Prerequisite for C40-default-on: without recovery, flipping the dispatcher to Rust would silently regress workspace indexing for any file mid-edit with an unclosed brace. | landed |
+| C41   | **Analyser core port.** `core/analysis/_analyser/` package — ~5,074 LOC across 17 files (`_core.py`, `_commands.py`, `_proc.py`, `_diagnostics.py` + 7 `_diag_*.py` sub-files, `_oo.py`, `_handlers.py`, `_recovery.py`, `_scope.py`, `_snapshot.py`, `_utils.py`). Six sub-strip families: **C41a** (skeleton + types + utils, 5 strips) — **landed**; **C41b** (per-command handlers, 8 strips) — **landed**; **C41c** (proc-body analysis, 4 strips) — **landed**; **C41d** (diagnostic emitters, 7 strips) — **landed** (d7 closed alongside the `ConnectionScope` port to `rust/tcl-compiler/src/connection_scope.rs` + `EventRegistry::variable_scope_note`); **C41e** (OO + recovery, 5 strips) — **landed** (e0 class_hierarchy + mro pure-Rust port; e1-e2 class-body walker + oo::define extension; e3 property defs + `UnknownProcInfo` + the W123 unknown-proc gate + package-require recording + top-level RBS via `globals_written_by_procs`; e4 stray-close-bracket recovery + switch-case helper; e5 missing-open-brace recovery + stolen-close-brace detection + generic E200 emitter); **C41f** (public entry + PyO3 + harness, 6 strips) — **landed** (f1-f4, f6 from earlier; f5 differential-fuzzer corpus + 4 dispatcher gating tests landed in `tests/test_rust_analyser_differential.py`). Default-off PyO3 env-var gate (`TCL_LSP_RUST_ANALYSER=1`); `C41-default-on` flips polarity in a separate chunk after the differential corpus has baked. **Carry-overs landed alongside the C41 close-out:** `CodeFix` payload on `Diagnostic` + populated for E101/E103/W123; `suggest_similar` (Levenshtein) port + W123 "did you mean…?" suggestions; `stub_commands` name extraction (used by W123 candidate set + suppression); `unknown_proc_info.dispatch_targets` added to W123 candidate / suppression sets; `_fold_interpolation_set` + `_resolve_interpolated_commands` (CONSTSET-driven W123 suppression for partial-interpolation heads like `foo$suffix`); W307 `cmd_command_sites` suppression via return-type analysis (`my` / `self` self-dispatch suppress; in_method suppress; Object return type triggers W308 method-validation against the class hierarchy; otherwise W307 fires). **Outstanding (own chunk):** `infer_param_traits` port — **LANDED** (shallow + deep + `merge_traits`) as `analyser/param_traits.rs`; see the `C41-default-on-followups-param-traits` row.  **Post-#241 reality (audited 2026-05-07):** the `TCL_LSP_RUST_ANALYSER` env var and the dispatch shim were silently removed at `cd7a8441`; the `_AnalyserBase` mixin set still exists. The Rust analyser library is intact (`rust/tcl-compiler/src/analyser/`) but the production `analyse()` is the pure Python mixin chain. Final cleanup (deleting the mixins) is now sequenced behind the `S*` LSP-server port — when `S*` lands, the consumers move off `analyse()` and the mixin set has no callers left. | landed (Rust analyser library complete; Python dispatch retired at #241; mixin retirement waits on `S*`) |
+| Sync  | **Rebase the rust rewrite branch onto main HEAD.** The rewrite branch had disjoint history from main; this sync hard-resets the branch pointer to `origin/main` and re-applies every rust-rewrite-unique file (the `rust/` workspace, `Cargo.{toml,lock}`, `rust-toolchain.toml`, the three rust docs, `core/compiler/rust_spans.py`, the `tests/test_rust_*.py` + `tests/test_tokens.py` set) plus the Python-side dispatch shims (`TCL_LSP_RUST_OPTIMISER` / `_GVN` / `_INTERPROC` envs in `core/compiler/{optimiser/_manager,gvn,interprocedural}.py`, the rust primary path in the four `core/parsing/` lexer-adjacent files), splices the `rust-build` / `rust-test` / `rust-lint` / `rust-format` targets into main's `Makefile`, and fixes a stale `core/analysis/analyser.py` reference (split into `_analyser/` on main) plus an out-of-date `core/irule_test/tcl/_registry_data.tcl` codegen output. Also ports main's IEEE 754 special-literal fix (`Inf` / `NaN` / `Infinity` tokenise as `NUMBER` not `FUNCTION`) into `rust/tcl-lexer/src/expr_lexer.rs::Lexer::ident` so the Rust expr-lexer stays parity with the Python fallback. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo test --workspace` + `make rust-build` + `make prep-pr` all green at the sync commit. | landed |
+| R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
+| C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |
+| C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | landed |
+| C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | landed |
+| C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | landed (C37b only; C37a is a Zig-runtime concern, N/A for Rust compiler) |
+| C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | landed (data layer; codegen consumer deferred) |
+| C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | landed |
+| C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | landed |
+| C40   | **`signature_scan.py` Rust port (5 sub-strip families, 37 strips).** See the C40 sub-plan below. | landed (default-on; `TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out) |
+| **SYNC1** | **Registry — multi-role `arg_role_resolver` return type.** Mirror `#252` (`8c95c2ee` / `38d90003` / `91daf5c2`).  Widen `ArgRoleResolver` from `fn(&[&str]) -> Vec<(u8, ArgRole)>` to `fn(&[&str]) -> Vec<(u8, ArgRoleSet)>` (or equivalent multi-role return) and migrate static `arg_roles` arrays so an index can declare multiple roles (e.g. `dict with $var` arg 0 → `{VarRead, VarWrite}`) without the deleted `VarReadWrite` role.  See the SYNC1 sub-plan below. | landed (minimum-viable via PR #389) — `dict with` / `dict update` arg 0 declares both `VarRead` and `VarWrite` via duplicate `(idx, role)` rows in `dict_last_arg_body` (`commands/tcl/dict.rs`).  `arg_indices_for_role` collects all matching rows so the observable behaviour matches Python's `frozenset({VAR_READ, VAR_WRITE})`.  **Deferred:** the full `ArgRoleSet` type widening (71-literal sweep + new `BitFlags` type) — the multi-role acceptance tests in `registry.rs` pin the observable behaviour consumers depend on. |
+| **SYNC2** | **Registry — `BodyKind::STRUCTURAL` marking on OO/snit/uri.** Mirror `#246`/`#250` (`88970edc` + `91daf5c2`).  Add a `BodyKind` enum to `tcl-registry` with `Plain`/`Structural`/… variants and stamp `Structural` on the bodies of `oo::class`, `oo::abstract`, `oo::singleton`, `oo::configurable`, `oo::define`, `oo::objdefine`, `snit::method`, `snit::typemethod`, and `uri::register` so SSA suppresses scanning those bodies as caller-scope flow.  See the SYNC2 sub-plan below. | landed (PR #389) — new `body_kind` module + `body_kind: BodyKind` field on `CommandSpec` / `SubCommand`; stamped `Structural` on `proc`, `oo::class`, `oo::define`, `oo::objdefine`, `snit::method`, `snit::typemethod`, `uri::register`, and iRules `when`.  `structural_body_indices` in `ssa.rs` is now generic — consults the registry's `body_kind` (subcommand-aware) instead of the old `command == "when" || command == "proc"` string match. |
+| **SYNC3** | **Registry — `body_arg_implicit_args` field.** Mirror `#308` (`e30b6ae9`).  New optional `body_arg_implicit_args: u8` on `CommandSpec` / `SubCommand` recording how many runtime-supplied args a `Body` argument receives (e.g. `fileutil::updateInPlace` callback gets the file contents appended).  Analyser threads it through `_check_proc_call_arity` so command-prefix appended args don't trip E002.  See the SYNC3 sub-plan below. | landed (registry side, PR #389) — `body_arg_implicit_args: u8` field added with default 0; stamped `=1` on `fileutil::updateInPlace`.  **Deferred:** the analyser-side proc-call arity-check consumer — the Rust analyser doesn't currently emit E002 for proc-call arity, so this lands as a registry-side data point for the future arity-check port. |
+| **SYNC4** | **SSA — registry-driven `trace add variable` VAR_WRITE.** Mirror `#249` (`01326b40`).  Drop the `command == "trace" && args[0] == "add" && args[1] == "variable"` string match in `rust/tcl-compiler/src/ssa.rs:130–134` and route the def discovery through `CommandRegistry::arg_indices_for_role(_, _, ArgRole::VarWrite)` (depends on SYNC1).  See the SYNC4 sub-plan below. | landed (PR #389) — `defs_of` routes barrier defs through the registry's `ArgRole::VarWrite` query; `trace add` / `trace remove` subcommands gained an `arg_role_resolver` that declares arg 1 as `VarWrite` only when `args[0] == "variable"` (so `trace add execution` / `trace add command` correctly produce no defs).  `defs_of_with_registry` added for SSA construction sites; legacy `defs_of` retained as a string-match fallback for unit-test callers. |
+| **SYNC5** | **SSA — scope-alias barrier guard.** Mirror `f87bc090`.  Skip `global` / `variable` (and any spec carrying `creates_dynamic_barrier=true`) when materialising VAR_WRITE defs from the registry, so vararg `global x y z` doesn't produce partial defs.  See the SYNC5 sub-plan below. | landed (PR #389) — new `Traits::CREATES_DYNAMIC_BARRIER` flag (bit 40) stamped on `global` / `variable` / `upvar`; `defs_of_with_registry` early-returns empty for any spec carrying the trait so vararg shapes don't produce partial defs.  The analyser's `var_scoping` pass handles the full per-arg list separately. |
+| **SYNC6** | **SSA — `dict with` / `dict update` `reads_own_def` flag.** Mirror `75d841e8`.  After SYNC4 plumbs the registry-driven dict-var def, also insert it into `reads_own_def` so the closing `(!defs.contains(v) || reads_own_def.contains(v))` filter at `ssa.rs:552` doesn't drop the dict variable.  See the SYNC6 sub-plan below. | landed (PR #389) — `reads_own_def.insert(dict_var)` added to the `dict with` / `dict update` arm in `ssa.rs`.  Preemptive but matches Python parity and sequences cleanly with the SYNC4 registry-driven barrier defs path; without it SYNC4 would re-introduce the false unused-parameter diagnostic on `dict with $param {}`. |
+| **SYNC7** | **IR — canonical command name on `Statement::Call` / `Statement::Barrier`.** Mirror `#246` (`a042271a` + `9bd77464` + `1c8c4d98`).  Add a `canonical_command: Option<String>` field next to `command` on the two IR variants, populate it in `lowering` from the registry's canonical spelling, and consume it in places that currently re-resolve from source text (e.g. analyser var helpers, codegen hook lookup).  Unblocks the rest of the `#246` body-kind canonicalisation in the Rust pipeline.  See the SYNC7 sub-plan below. | landed (type surface, PR #389) — `canonical_command: Option<String>` field on `Statement::Call` + `Statement::Barrier`; `canonical_command_or_source(&self) -> &str` dispatch helper.  17 construction sites updated to populate `None` mechanically.  **Deferred:** lowerer-side population (the `interp alias {} foo {} ::ns::bar; foo 1 2` → `Call { canonical_command: Some("::ns::bar") }` resolution) is incremental — downstream consumers (codegen hook lookup, side-effect classification, GVN purity, `var_escape` handlers) can adopt the helper one by one. |
+| **SYNC8** | **GVN — trace-aware purity.** Mirror `979883c2` + `8a6f4d58` + `6252aae1`.  Currently `rust/tcl-compiler/src/gvn.rs` has zero `trace`-related logic — it would mark traced commands as redundant and emit bogus `O105`/`O106` diagnostics under `trace add execution`.  Thread `traced_commands` and `has_dynamic_trace` from a new `IrModule`-equivalent into `is_pure_command` so calls to traced commands are never classified pure.  Depends on SYNC9 for the side-effect feed.  See the SYNC8 sub-plan below. | landed (PR #389) — new `is_pure_command_with_traces` gate in `gvn.rs` that returns `false` when `has_dynamic_trace` is set OR the canonical command name appears in `traced_commands`.  **Deferred:** threading the trace facts into `is_pure_command` / `find_redundancies` / partial-redundancy / loop-invariant passes — mechanical follow-up once optimiser consumers adopt the module-aware purity gate. |
+| **SYNC9** | **Side-effects — propagate `trace add execution`.** Mirror `8a6f4d58`.  Update `rust/tcl-compiler/src/side_effects.rs` to lift `trace add execution` registrations into a per-module set so SYNC8 can read it, mirroring Python's IR capture.  See the SYNC9 sub-plan below. | landed (PR #389) — new `Module::traced_commands: BTreeSet<String>` + `Module::has_dynamic_trace: bool` fields populated by a post-lower `populate_trace_facts(&mut Module)` pass that walks the top-level script + every procedure body looking for `trace add execution NAME enter|leave HANDLER`.  Literal names land in `traced_commands` (`::`-stripped); non-literal targets flip `has_dynamic_trace`.  `trace add variable` is intentionally not picked up — that channel goes through SYNC4's registry-driven defs path. |
+| **SYNC10** | **`expr_parser` — LRU-cached `parse_expr`.** Mirror `5056effe`.  Wrap `rust/tcl-compiler/src/expr_parser.rs:347 parse_expr` in a 4096-entry LRU keyed on `(source, dialect)`.  `ExprNode` is already cheaply cloneable (Arc-shareable) so the cached AST is safe to share.  Less urgent than SYNC1–SYNC9 — Python's hit was a VM-loop hot path; the Rust expr parser is currently driven by analyser one-shot calls — but worth landing before the VM port (`VM*`) starts driving it from a tight loop.  See the SYNC10 sub-plan below. | landed (PR #389) — hand-rolled `parse_expr_cached(source, dialect) -> Arc<ExprNode>` (4096 entries, move-to-back on hit, evict-front on overflow) backed by `OnceLock<Mutex<ExprCache>>` in `expr_parser.rs`.  The existing un-cached `parse_expr` stays — analyser callers are one-shot, the cache exists for the future `VM*` tight loop.  Four tests pin identity / dialect-distinct / whitespace-sensitive / capacity-eviction. |
+| **SYNC11** | **LSP server — hover debounce / cache / worker offload contract.** Mirror `#301` (`95db2a70` + `c9c73a45` + `bfd3ed68`).  When the `S-hover` chunk lands on `tcl-lsp-server`, ship it with the same shape Python now treats as the documented contract: 30 ms debounce, `(uri, version, line, character)` LRU (256 entries), `tokio::task::spawn_blocking` offload, `Ok(None)` early-return when the cached analysis is missing, and `[timing] hover …` debug logs.  See the SYNC11 sub-plan below. | partial (PR #383 minimal `S-hover` ships `spawn_blocking` worker offload; the full debounce / LRU-256 / `Ok(None)`-on-missing-cache / `[timing]` contract is **deferred to `S-hover-sync11`** because it builds on the cached-analysis surface that `S-diagnostics` lands later — see the `S-hover` chunk-log row). |
+| **C42** | **Reserved alias for `C41-default-on-followups-postpass`.** The `run_compiler_checks` post-pass integration is tracked under that row to keep the C41 followups co-located.  Stays in this list as a discoverable cross-reference. | see `C41-default-on-followups-postpass` |
+| **C43** | **Codegen + lowering hooks port** (`core/compiler/lowering_hooks/`, `core/compiler/codegen/_helpers.py`).  Rust workspace already has `lowering/` and `codegen/` directories carrying the bulk of the pipeline (C7-C21).  This chunk closes the remaining gaps by using registry-declared hook IDs, not command-name dispatch.  Each command form's hook is its own commit. | **landed.**  PR #389 ported `_barrier_gate.py` as `body_has_dynamic_barrier(body_text)` (wired into `try_lower_eval_static` + `try_lower_uplevel_static`); `_var.py` (set / incr / append / lappend / unset / global / variable / upvar) and `_control.py` (expr / return) were already present as typed `LoweringHookId` variants in `lowering_hooks.rs`.  Four follow-up sub-strips migrated all 15 structured-command variants (`Proc`, `When`, `NamespaceEval`, `If`, `Switch`, `For`, `While`, `Foreach`, `Lmap`, `ForeachLine` [NEW], `Catch`, `Try`, `Dict`, `Eval`, `Uplevel`) to `Lowerer::try_dispatch_structured_hook`, which routes each through `resolve_call().lowering_hook`.  The `match cmd_name` string-pattern block in `lower_command` is gone — commands the registry doesn't know about flow straight to `lower_default`.  Sub-strip 4 also fixed four latent test-harness misconfigurations (`optimiser::unused_procs::tests::run_pass`, `optimiser::manager::tests::registry`, `connection_scope::tests::cu`, and two `analyser::diagnostics::tests::*_irules_*` tests with mistyped dialect strings) that had been lowering iRule code against a vanilla `build_default()` registry; the previous string-match arm had masked the bug. |
+| **C44-irules-flow** | **Port `core/compiler/irules_flow.py`** (~1634 LOC) — iRules control-flow checker. Emits IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008 (`*::collect` / `*::release` / `*::payload` / `*_DATA` event mismatch); IRULE1201 / IRULE1202 (HTTP-after-respond / multi-respond on different branches); IRULE5002 / IRULE5004 (`drop` / `reject` / `discard` / `DNS::return` without termination); IRULE4004 (per-request `set` hoistable to once-per-connection event).  Walks the IR / CFG / SSA from the C28-follow-up event-flow base (`connection_scope.rs` already lands `cross_event_defs` / `cross_event_imports` / `racy_static_defs`).  Promoted from the C28-follow-up mention in the original C* aggregate row. | landed (PR #389) — all nine codes (IRULE1005 / 1006 / 1007 / 1008 / 1201 / 1202 / 3102 / 4004 / 5002 / 5004) have working Rust emitters in `rust/tcl-compiler/src/irules_checks.rs` via `find_unguarded_drop_warnings` (5002/5004), `find_collect_flow_warnings` (1005-1008), `find_http_flow_warnings` (1201/1202), `find_hoistable_set_warnings` (4004), and the existing `find_unnormalised_getter_warnings` (3102).  **Deferred (targeted follow-ups):** path-sensitive coverage on IRULE1201 / 1202 (branches of `if` / `switch` / `try` walked separately with state merged at joins) and branch-aware reassign tracking on IRULE4004 (currently flags conservatively — a few false positives on rare reassign-in-same-event patterns). |
+| **C45-uri-split** | **Port `core/compiler/taint/_uri_split.py`** (~959 LOC) — IRULE3103 detection of `*::uri` getter + manual decomposition patterns (`split $uri "?"`, `[HTTP::uri] starts_with "/path"`, `string match "/api/*" $uri`, …) plus the URI-family discovery that generalises to any registry-known `*::uri` command with sibling `*::path` / `*::query` commands.  T103 / T104 / T105 sink codes were *not* part of `_uri_split.py` (they live in `_sinks.py`); the original aggregate row over-bundled them, so they remain as separate follow-up strips listed in `taint.rs`'s preamble.  **Audited 2026-05-08:** landed as `rust/tcl-compiler/src/uri_split.rs` (~960 LOC + 26 unit tests covering split / expression-operator / `string match` / `string first` / branch-condition / glob+regex classifier / dedup paths + a registry-derived `uri_families()` discovery that generalises to any iRules-dialect `*::uri` with siblings).  Wired into `compiler_checks.rs::run_all_checks` under the existing `is_irules_dialect` gate alongside `find_setter_constraint_warnings`.  Workaround included: `walk_expr` re-parses any `ExprNode::Raw` condition under `Some("f5-irules")` to recover iRules-only operators (`starts_with` / `ends_with` / `contains` / `matches_glob` / `matches_regex` / `equals`), since the lowering currently calls `parse_expr(&cond, None)` and those operators tokenise as unknown without a dialect — tracked separately as a pre-existing limitation. | landed |
+| **ARCH0** | **LSP core crate split.** Create `rust/tcl-lsp-core/` as the pure LSP feature crate and move folding-range logic out of `rust/tcl-lsp-rust/`. The PyO3 crate keeps only the wrapper and Python materialisation. | landed |
+| **ARCH1** | **Registry command-form and typed-hook model.** Replace bare hook IDs with typed registry identifiers, add command/subcommand form descriptors, and expose resolved-call query APIs that compiler/analyser consumers can use without matching command strings. | landed |
+| **ARCH2** | **Registry-driven compiler hooks.** Move lowering/codegen hook selection to registry metadata. Remove ad-hoc `match cmd.name` routing for hooks and make the compiler map typed hook IDs to algorithms. | landed |
+| **ARCH3** | **Registry-owned diagnostics command facts.** Move taint sources/sinks/sanitisers, iRules normalised-option facts, setter constraints, and side-effect summaries into `tcl-registry`; make taint, iRules checks, and side-effect classification consume registry APIs. | landed |
+| **ARCH4** | **Current architecture documentation.** Add a short current-state Rust architecture document covering crate ownership, authoritative Rust paths, Python supplements, default-on/default-off shims, and planned fallback removals. Update KCS shim-env-var documentation to match reality. | landed |
+| **ARCH5** | **Thread `&CommandRegistry` through codegen.** Drop the `OnceLock<CommandRegistry>` static from `codegen::emitter::bytecoded`; plumb the registry through `CodegenCtx::emit_call` so dialect-loaded specs drive codegen-hook resolution. | landed |
+| **ARCH6** | **`SubCommand::traits` for fine-grained taint and effect facts.** Add a `Traits` field to `SubCommand`, stamp `TAINT_SOURCE` on `chan gets` / `chan read` / `encoding convertfrom`, and replace the registry-side `match command` pattern with pure trait dispatch on the matched subcommand. | landed |
+| **ARCH7** | **`tcl-lsp-rust` audit and binding-only enforcement.** Per-file audit of `tcl-lsp-rust/src/`; migrate any leaked algorithm into the matching pure crate (`tcl-compiler` or `tcl-lsp-core`).  One sub-PR per binding; smallest first.  After landing, `tcl-lsp-rust` compiles with `#![deny(missing_docs)]`. | landed |
+| **ARCH8** | **Bootstrap `tcl-lsp-server` with the folding provider.** Stand up `rust/tcl-lsp-server/` as a `tower-lsp` binary linking `tcl-lsp-core`, `tcl-compiler`, and `tcl-registry`.  Wire folding ranges end-to-end so the crate boundary has two real consumers. | landed |
+| **ARCH9** | **`tcl-lsp-py` public binding crate.** Freeze the public Python API in `rust/tcl-lsp-py/`; convert `tcl-lsp-rust` to a re-export shim so existing wheel consumers keep working for one release cycle, then retire `tcl-lsp-rust` in a follow-up. | landed |
+| **S-document-symbols** | **Wire the document-symbol provider end-to-end in `tcl-lsp-server`.** First feature port on top of the ARCH8 bootstrap. The pure provider already lived in `tcl-lsp-core::document_symbols::document_symbols(source, dialect)` (PR #232); this chunk advertises `documentSymbolProvider` in `initialize`, implements `LanguageServer::document_symbol` to call into the core provider for the matching cached `Backend` document, and lifts the core `DocumentSymbol` / `LineRange` / `SymbolKind` shapes onto `tower_lsp::lsp_types`. Adds `tests/document_symbols_smoke.rs` (in-memory `LspService` smoke that drives `initialize` → `didOpen` → `documentSymbol` and asserts the `Function`-kind `demo` symbol comes back), plus two `lib.rs` unit tests pinning the kind-mapping exhaustiveness and the children-empty → `None` lift behaviour. | landed |
+| **S-folding-extend** | **Close the `lsp/features/folding.py` parity gap by porting `_normalise_overlaps` into `tcl-lsp-core::folding`.** ARCH8 left overlap-normalisation in the Python dispatcher with a comment that the algorithm "would need to move to Rust when the LSP server stops going through Python"; the Rust LSP server (`tcl-lsp-server`) calls `tcl_lsp_core::folding::folding_ranges` directly and so wasn't running the post-pass. This chunk lifts the algorithm into a public `normalise_overlaps(ranges) -> Vec<FoldingRange>` in `tcl-lsp-core::folding`, applies it as the final step of `folding_ranges()`, and pins the contract with four new unit tests (shared-boundary trim, dedup-after-trim, idempotence, empty-input smoke) — the first two mirror `test_folding.py::test_normalise_overlaps_*` 1:1. The pass is idempotent so the Python dispatcher's existing `_normalise_overlaps` over the `PyO3`-binding output stays harmless for the legacy path, keeping every existing pytest fixture green while the Rust server now gets a properly disjoint/nested fold tree without a Python round-trip. | landed |
+| **S-hover** | **Wire a minimal hover provider end-to-end in `tcl-lsp-server`.**  Adds proc-name / class-name / `$var` lookups against the analyser's `AnalysisResult`.  **`S-hover-rich` pieces landed:** (1) clock-format hover (`30821f0`); (2) sprintf format hover (`6bb220e`); (3) binary format + regsub backref hovers (`f6c565a`); (4) glob + regex pattern hovers (`afe0a23`); (5) IPv4 / IPv6 address hover (`1ca71ff`); (6) built-in command + subcommand registry hovers (`11af1a0`).  `hover()` now accepts `Option<&CommandRegistry>` so the server threads its per-dialect cached registry through.  Format-string detection shares the `string_literal_with_percent_at` / `string_literal_at` helpers.  Subcommand hover uses single-line tokenisation to detect the `cmd subcmd` pair.  64 new unit tests across the six pieces. **`S-hover-rich` binary byte-ruler diagram landed** (`783f42bd`, 2026-05-19): `binary format` / `binary scan` hovers now render the box-drawing diagram with a numeric byte ruler plus a 4-column Spec/Variable/Type/Bytes detail table; field labels prefer trailing args (`binary scan "cI" byte word` → fields labelled `byte` / `word`); diagram gated on every field having a known size, no backward seek, total ≤ 32 bytes; bracket/quote-aware `binary_trailing_args` skips over the format-string token itself. 10 new tests. **Inferred-intrep / taint annotations on `$var` hovers landed** (cross-doc-workspace session): when a registry is supplied, `core_hover::hover` builds a compiler `CompilationUnit` and reads the per-variable type / taint lattices, appending `**Inferred intrep**` / `**Taint**` lines (ports Python's `_infer_var_type` / `_infer_var_taint` agreement + colour-label logic). **Still deferred to further `S-hover-rich` sub-strips:** method-body context lookups (Python's `scope.kind == "method"` path). **Deferred to `S-hover-sync11`:** the SYNC11 debounce / LRU-256 cache / `Ok(None)`-on-no-cached-analysis / `[timing] hover` debug-log shaping — that contract is fundamentally tied to the cached-analysis surface that `S-diagnostics` lands later. | landed (hover-rich clock + sprintf + binary + regsub + glob + regex + IP + builtin-command + subcommand hovers landed; binary byte-ruler diagram landed `783f42bd`; intrep / taint / method-body deferred) |
+| **S-completion** | **Wire a minimal completion provider end-to-end in `tcl-lsp-server` with `spawn_blocking` worker offload.** Adds `tcl-lsp-core::completion` (~280 LOC + 8 unit tests) covering: `$prefix` / `${prefix}` variable-trigger detection, identifier-partial extraction at the cursor, variable completions sourced from the analyser's global scope, and proc-name completions sourced from `analysis.all_procs`. Server side advertises `completionProvider` with `$` as a trigger character, implements `LanguageServer::completion` via `tokio::task::spawn_blocking`, lifts the core `CompletionItem { label, insert_text, kind }` shape onto `tower_lsp::lsp_types::CompletionItem` (kind mapped via `lift_completion_kind`: `Variable → VARIABLE`, `Function → FUNCTION`), and ships `tests/completion_smoke.rs` (in-memory `LspService` `initialize → didOpen → completion` smoke that asserts both proc names surface). **`S-completion-rich` pieces landed:** (1) `b2657cd` — built-in command completions sourced from `tcl_registry::CommandRegistry`; `completions()` grows an `Option<&CommandRegistry>` parameter; `SKIP_BUILTIN_NAMES` filters Tcl 9 `tcl::mathop` operators.  (2) `17c5a0a` — subcommand completion (cursor at word index 1 of a command with non-empty `subcommands` lists subcommand names) + switch completion (partial preceded by `-` on the same line lists matching `spec.options`).  `command_context_on_line` helper + `switch_partial_at_position` reconstructor handle the cursor-context detection.  12 new unit tests across both pieces. **`S-completion-rich` iRules `when EVENT` enumeration landed** (`79522de9`, 2026-05-19): commands carrying `Traits::IS_EVENT_HANDLER` at word-index 1 now offer every event from the shared `EventRegistry` (registry built lazily inside the call rather than threaded through the public signature); items carry detail `F5 iRules event`; 4 new tests. **Still deferred to further `S-completion-rich` sub-strips:** argument-value completion (registry-driven, including subcommand-scoped values like `string is <class>`), iRules `call proc_name` first-arg context (needs `Traits::INVOKES_USER_PROC` or equivalent), workspace-wide proc / RULE_INIT-var enumeration. **Cross-document proc enumeration landed** (cross-doc-workspace session): `completions()` now takes `Option<&WorkspaceIndex>` and surfaces procs defined in sibling documents (deduped against the in-document set). (Usage-bucket sort-text and `_proc_signature_str` rendering have landed — see S-progress.) | landed (built-in + subcommand + switch + iRules-event + cross-doc proc completion landed; arg-values / `call` deferred) |
+| **S-signature-help** | **Wire a minimal signature-help provider end-to-end in `tcl-lsp-server` with `spawn_blocking` worker offload.** Adds `tcl-lsp-core::signature_help` (~250 LOC + 6 unit tests) covering: a single-line command-context detection (first whitespace-delimited token is the command, subsequent tokens count toward the active parameter), proc lookup against `analysis.all_procs`, parameter-list rendering with default-value brackets (`{name default}`), and active-parameter clamping to the last known param. Server side advertises `signatureHelpProvider` with `" "` as the trigger character, implements `LanguageServer::signature_help` via `tokio::task::spawn_blocking`, lifts the core `SignatureHelp / SignatureInformation / ParameterInformation` shapes onto the matching `tower_lsp::lsp_types` records, and ships `tests/signature_help_smoke.rs` (in-memory `LspService` smoke that asserts both the proc name and first parameter label surface). **`S-signature-help-rich` first piece landed via `133d0d7`:** built-in command signatures from `tcl_registry::CommandRegistry` — `signature_help()` grows an `Option<&CommandRegistry>` parameter; when no user proc matches, `builtin_signature_help(spec, active_param)` renders the spec's first `hover.synopsis` entry as the signature label, with parameters split from synopsis tokens after the leading command word, and `hover.summary` becoming the documentation.  User-proc lookup wins so `proc puts {...}` still surfaces the user's signature.  5 new unit tests pin the behaviour. **Still deferred to further `S-signature-help-rich` sub-strips:** multi-line command segments (Python's `find_command_context_details_at_position` understands continuation lines, embedded `[…]` / `{…}` token nesting, and `;` command separators), command-alias resolution (`lookup_alias_for_word`), subcommand-scoped signatures (`SubcommandSig` path that picks the right shape based on `args[0]`), and `_signature_documentation` rich doc-comment rendering. | landed (built-in signatures landed via S-signature-help-rich first piece; other -rich sub-strips deferred) |
+| **S-definition** (covers `S-declaration` / `S-type-definition` / `S-implementation`) | **Wire the goto-definition family end-to-end in `tcl-lsp-server`.** All four LSP methods share `Backend::compute_definition`. **`S-definition-rich` first piece landed via `8d9cc5d`:** command-alias resolution — when the cursor's word matches an `interp alias {} ALIAS {} TARGET` recorded in `analysis.command_aliases`, the provider jumps to the target proc's definition.  Mirrors Python's `lookup_alias_for_word` shape (literal name + `::name` qualified form).  Returns empty for aliases that target built-in commands (no `ProcDef` to point to).  3 new tests. **Class-member lookup landed** (`e823d1e7`, 2026-05-19): when the cursor sits inside a class body and the word matches a method, classmethod, property, or the `constructor`/`destructor` keyword, the provider jumps to the member's declaration. Constructor/destructor fall back to `body_span` when `name_span` is empty (analyser doesn't store a name token for these). 4 new tests. **Still deferred to further `S-definition-rich` sub-strips:** scope-chain descent for `$var` (currently only the global scope is searched), `$obj method` resolution at call sites *outside* the class body (needs variable-class tracking), `BigIP` definition (`get_bigip_definition` keyed on iRules dialect). | landed (alias resolution + class-member lookup landed; scope-chain / `$obj method` / BigIP deferred) |
+| **S-references** (covers `S-document-highlight`) | **Wire find-references and document-highlight end-to-end in `tcl-lsp-server`.** `S-document-highlight-rich` landed via `4c153fd` (Read/Write kind tagging on `VarDef.definition_span` / `references`; procs / classes → `Write` / `Text`).  **`S-references-rich` first piece landed via `c2553b3`:** `SignatureCommandInvocation` grows `resolved_qualified_name: Option<String>`; the analyser populates it during the body walk via `Analyser::resolve_command_qualified_name` (joins simple names with the nearest enclosing namespace scope).  The references / rename / call-hierarchy providers all consult the new field so call sites that use a relative form (`greet` inside `namespace eval ::myns { ... }`) match the proc declaration's qualified name (`::myns::greet`).  The signature scanner leaves the field `None` (background-file remit). **Class-member references + highlights landed** (`5f2d9f02`, 2026-05-19): when the cursor sits on a method / classmethod / property name inside the class body, both `references()` and `document_highlights()` surface the declaration plus every call site discovered by re-segmenting sibling method bodies (the analyser's `command_invocations` only carries top-level invocations). 3 new tests. **Cross-document references landed** (cross-doc-workspace session): the server maintains a `WorkspaceIndex` of per-document proc/class definitions *and* invocation sites; `references()` merges the in-document hits with `invocations_of(...)` across sibling documents and dedups. **Still deferred to `S-references-rich` follow-up:** `$obj method` call sites outside the class body (needs variable-class tracking). Tracking `$x` reads in `VarDef.references` for global scope is its own analyser-side follow-up — once landed, the `document_highlights` provider will surface every `$x` site as `Read` without further plumbing. | landed (document-highlight-rich + references-rich resolved-qualified-name + class-member references landed; cross-doc / `$obj method` deferred) |
+| **S-rename** | **Wire the rename provider end-to-end in `tcl-lsp-server`.** **`S-rename-rich` pieces landed:** (1) `19aed1d` — symbol-validity gating: `is_safe_symbol_name` + `is_builtin_command_name`; `rename()` accepts `Option<&CommandRegistry>`.  (2) `33c68f8` — namespace-aware proc renames: `namespace_prefix_of(qualified)` extracts the prefix; the declaration's name span gets the qualified rewrite when the proc lives in a namespace; each invocation gets the form matching the source text (qualified rewrite when caller used `::ns::name`, short rewrite when caller used `name` inside a `namespace eval`).  4 new tests pin the namespace-aware behaviour. **Class rename landed** (`602ae1dc`, 2026-05-19): when the cursor sits on an `oo::class create ClassName` declaration name (or any `ClassName new` / `ClassName create instance` invocation head), the provider rewrites the declaration's name span plus every matching invocation; same `is_safe_symbol_name` / `is_builtin_command_name` safety gates; `prepare_rename` also grows the class case.  The top-level `rename` dispatcher now reads as a linear var → proc → class fan-out (`rename_var` / `rename_proc` / `rename_class` helpers, plus shared `qualified_and_decl_text` / `invocation_replacement`).  5 new tests.  Variable-name escaping for `${name}` braced references also landed previously (see S-progress).  **Method / classmethod / property rename landed** (`0eb744c3`, 2026-05-19): when the cursor sits on a member name inside the class body, the provider rewrites the declaration's name span plus every same-name command invocation discovered by re-segmenting sibling method bodies via `segment_commands_with_offset`. `prepare_rename` grows the class-member case. 5 new tests. **Cross-document rename landed** (cross-doc-workspace session): `core_rename::cross_document_symbol_edits` produces namespace-aware `(uri, span, new_text)` intents across every indexed sibling document; the server converts each span to a range against its target document and emits a multi-file `WorkspaceEdit`. **Still deferred to further `S-rename-rich` sub-strips:** `$obj method` call sites *outside* the class body (needs variable-class tracking). | landed (safety gating + namespace-aware proc renames + brace-ref escaping + class rename + method rename landed; cross-doc / `$obj method` deferred) |
+| **S-selection-range** | **Wire the selection-range provider end-to-end in `tcl-lsp-server` with `spawn_blocking` worker offload.** Adds `tcl-lsp-core::selection_range` (~120 LOC + 3 unit tests) that builds a three-link chain: word at cursor → enclosing line → entire document, parents always strictly contain children by construction. The flat `Vec<SelectionRange { range, parent_index }>` shape lifts to the recursive `tower_lsp::lsp_types::SelectionRange` tree via `materialise_selection_range` (bottom-up wrapping). Advertises `selectionRangeProvider`. **`S-selection-range-rich` first piece landed via `b78cb33`:** command-segment link inserted between the word and the line.  Private `command_segment_on_line(line_text, character)` walks left to the most recent `;` (or start of line) and right to the next `;` (or end), then trims surrounding whitespace.  Suppressed when the segment would coincide with the line range so the chain stays strictly outward-growing.  6 new unit tests. **Still deferred to further `S-selection-range-rich` sub-strips:** enclosing-body ranges (proc / class / namespace) between command segment and document — needs the analyser's body-span index — and multi-line command segments. | landed (command-segment link landed via S-selection-range-rich first piece; body-enclosing ranges deferred) |
+| **S-formatting** | **Wire formatting / range-formatting capabilities in `tcl-lsp-server` with a stub provider.** Adds `tcl-lsp-core::formatting` (~60 LOC + 2 unit tests) that returns an empty edit list — the actual formatter port lives under the separate `F*` track (`tcl-formatter` crate, per `core/formatting/`). Server side advertises `documentFormattingProvider` and `documentRangeFormattingProvider`, implements `LanguageServer::formatting` and `range_formatting` to call into the stub. The capabilities are advertised so editors know the request is supported, and the no-op return tells them the document is already-formatted (no changes needed) — once the `F-tcl-formatter` crate lands, the stub becomes a thin LSP adapter. **`F-tcl-formatter` engine landed** (formatter-minifier session): `core/formatting/engine.py` ported to `tcl_lsp_core::formatting::engine` (token-aware recursive formatter — K&R braces, `space_between_braces`, comment normalisation, blank-line policy, param-list normalisation, switch pattern/body formatting, `&&`/`||` expression wrapping, backslash-continuation line splitting) plus `FormatterConfig` (from `config.py`). `formatting()` now threads the per-dialect `CommandRegistry` and drives the engine; `range_formatting` keeps the line-based path. Validated against the Python reference (24 parity tests + tcllib differential, 0 panics over 300 files). **Still deferred:** docstring rewriting, `enforce_braced_expr`, `align_comments_to_code`. | landed (token-aware engine landed; docstring/expr-brace knobs deferred) |
+| **S-document-links / S-inlay-hints / S-code-lens / S-code-actions** | **Wire four LSP capability surfaces with stub `tcl-lsp-core` providers, then upgrade each to a real `*-rich` implementation.** **All four rich follow-ups landed this session:** `S-inlay-hints-rich` (`09bd3c2`) — parameter-name hints at user-proc call sites via per-request re-segmentation; `S-code-lens-rich` (`6977b94`) — per-proc reference-count lenses anchored at the proc's `name_span`, mirrors the existing references/match logic and excludes the proc's own declaration site (cross-document reference counts added in the cross-doc-workspace session via `code_lenses(source, analysis, workspace, current_uri)`); `S-document-links-rich` (`6954653`) — `source <path>` link resolution, absolute paths surface as `file://` URIs, relative paths join against a caller-supplied workspace root (the server passes the document's enclosing directory), skips `-encoding NAME` / `--` flags and dynamic-path args; `S-code-actions-rich` (`f7168d0`) — lifts each `Diagnostic.fixes` entry into a `CodeAction` with `QuickFix` kind and a ready-to-apply `WorkspaceEdit`, filters by range overlap. **Still deferred** to further follow-ups: inlay hints for built-in commands (needs the registry's argument-name surface) and type / inferred-trait annotations; class / method lenses; `package require <pkg>` link resolution (needs auto_path / pkgIndex.tcl scan); package-suggestion code actions and catch-result-variable actions. | landed (all four rich follow-ups landed this session) |
+| **S-call-hierarchy / S-type-hierarchy** | **Wire call-hierarchy end-to-end and prepare the type-hierarchy core provider for future LSP wiring.** Adds `tcl-lsp-core::call_hierarchy` (~90 LOC + 2 unit tests initially) and `tcl-lsp-core::type_hierarchy` (~80 LOC + 1 unit test). **`S-call-hierarchy-rich` landed via `549ccae`:** incoming/outgoing call enumeration entirely in-document (no workspace call-graph index needed).  `incoming_calls(source, item, analysis)` walks `analysis.command_invocations` that target the proc, groups by enclosing proc (smallest-enclosing-body for nested procs), buckets top-level calls under a synthetic `<top-level>` caller.  `outgoing_calls(source, item, analysis)` walks calls inside the proc's body span, resolves each to a target user proc, groups by target.  Built-in commands are skipped (no `CallHierarchyItem` to point to).  6 new unit tests pin the grouping / bucketing / filter behaviour. **Cross-document call hierarchy landed** (cross-doc-workspace session): incoming calls run `incoming_calls_for_target` over every other indexed document and tag each result with its URI; outgoing calls feed the in-body call sites whose callee isn't local (`unresolved_outgoing_calls`) to the workspace index to resolve sibling-file definitions. **Deferred to `S-type-hierarchy-rich`:** tower-lsp upgrade plus supertype / subtype walks (the analyser's `superclasses` / `mixins` fields exist but aren't yet threaded into the provider). | landed (call-hierarchy-rich incoming/outgoing landed via 549ccae; cross-doc + type-hierarchy LSP wiring deferred) |
+| **S-semantic-tokens** | **Wire the semantic-tokens capability with a stub `tcl-lsp-core::semantic_tokens` provider.** Adds the `tcl-lsp-core::semantic_tokens` module (~50 LOC + 2 unit tests) that returns empty token data and an empty legend.  Server side advertises `semanticTokensProvider` with empty `token_types` / `token_modifiers` arrays and `full = true` / `range = false`, implements `LanguageServer::semantic_tokens_full` returning empty data.  This is LSP-spec-compliant ("I support semantic tokens but have nothing to highlight right now") and gives the `S-semantic-tokens-rich` follow-up a concrete server-side hook. **Deferred to `S-semantic-tokens-rich`:** the full port of `lsp/features/_semantic_tokens/` — `_api.py` / `_collect.py` / `_format_args.py` / `_bigip.py` / `_primitives.py` / `_constants.py` (~3370 LOC of token classification covering command heads, argument roles, format-string components, BigIP URI segments, etc.) plus delta encoding for `semanticTokens/full/delta` and `semanticTokens/range`. **Range variant + true minimal `full/delta` edit-diff landed** (cross-doc-workspace session): `core_semantic_tokens::diff` computes a single token-aligned prefix/suffix edit; the server emits one `SemanticTokensEdit` when the client's `previousResultId` matches the cached stream and falls back to a full stream otherwise. **Still deferred:** format-string component + BigIP-URI segment classification. | landed (range + minimal delta-diff landed; format-string / BigIP taxonomy deferred) |
+| **S-workspace-symbols** | **Wire the workspace-symbols provider end-to-end.** Adds `tcl-lsp-core::workspace_symbols` (~110 LOC + 2 unit tests) covering: query filtering (substring match, case-insensitive, empty query returns all), proc + class enumeration from `analysis.all_procs` and `analysis.all_classes`, and `container_name` derivation from the qualified name's namespace prefix. Server-side `LanguageServer::symbol` walks every cached document in the `Backend` document store, runs the provider via `tokio::task::spawn_blocking` per-document, and aggregates the `SymbolInformation` results into a single response. **Workspace-index + on-disk folder scan landed** (cross-doc-workspace session): the `Backend` owns a `WorkspaceIndex` updated incrementally on open / change / close, and on `initialized` scans the workspace folders for unopened `.tcl` / `.tm` files (capped, skipping vendor/hidden dirs) so cross-document features see the whole project, not just open tabs; `read_document` gained an on-disk fallback so sibling spans resolve for unopened files. The `symbol` handler itself still walks the live document store. | landed (workspace-index + folder scan landed; symbol-handler index integration optional follow-up) |
+| **S-linked-editing-range / S-snippet-templates** | **Advertise `linkedEditingRangeProvider` (returning `None` for now); snippet templates are emitted by `S-completion`.** Adds the `LanguageServer::linked_editing_range` impl returning `Ok(None)` so editors that ask the server about linked-editing pairs get the LSP-spec "no link known here" answer rather than a `MethodNotFound` error.  Snippet templates (`lsp/features/snippet_templates.py`) are CompletionItem snippets in the Python implementation; the minimal `S-completion` port emits plain insert-text items today and rich snippet rendering is deferred to `S-completion-rich`, so we don't need a separate LSP method for it. **Deferred to `S-linked-editing-range-rich`:** the `lsp/features/linked_editing_range.py` port that pairs proc declarations with their call sites so renaming one updates the other live. | landed |
+| **S-symbol-resolution / S-irules-context / S-package-suggestions / S-workspace-file-ops** | **No-op chunks — these are internal helpers, not LSP method surfaces.** `lsp/features/symbol_resolution.py` is a shared helper module already partially ported into `tcl-lsp-core::hover` (the `find_word_span_at_position` / `find_var_at_position` helpers); the rest is `find_command_context_*` which lives inside `tcl-lsp-core::signature_help` and `tcl-lsp-core::completion`. `lsp/features/irules_context.py` surfaces iRules-dialect-specific event/command context to other features; the Rust counterpart pieces will land alongside the per-feature rich follow-ups (`S-hover-rich`, `S-completion-rich`) since they're consumers, not standalone LSP methods. `lsp/features/package_suggestions.py` is a hint-emitter folded into `S-completion-rich` and `S-code-actions-rich`. `lsp/features/workspace_file_ops.py` covers `workspace/willCreateFiles`, `willRenameFiles`, `willDeleteFiles` notifications — none of which the Python implementation produces editor-affecting edits for; advertising the capabilities is therefore deferred until the workspace-index chunk lands and there's something useful to surface. All four "chunks" are tracked so the chunk-log row exists; the actual work either has already merged inside other chunks or is rolled into rich follow-ups. | landed (no-op rollup) |
+| **S-diagnostics / S-lifecycle / S-commands / S-settings / S-workspace-init / S-state / S-diagnostics-pipeline / S-async-diagnostics** | **Cross-cutting infrastructure — minimal scaffolding lands here; rich diagnostics surface lands in a dedicated follow-up.** S-lifecycle (already in place: `initialize` / `initialized` / `shutdown` / `did_open` / `did_change` / `did_close` are wired with full document-state mutation). S-settings: defaults to `tcl8.6` dialect; richer per-document dialect detection lives in `S-workspace-init`. S-commands: the `executeCommand` LSP method isn't advertised — Python's command surface (rule-init refresh, package-cache rebuild) is internal. S-state: the `Backend` document store is a `Mutex<HashMap<Url, DocumentState>>`; a future ropey-backed incremental store lands in `S-state-rich`. S-workspace-init: workspace-folder enumeration and per-folder dialect classification land alongside `S-workspace-symbols-rich`. **Deferred to `S-diagnostics`:** publish-diagnostics on `did_open` / `did_change` (the analyser already runs on every request via the per-method `spawn_blocking` paths; pushing diagnostics needs a separate `Client::publish_diagnostics` call once the cached-analysis surface lands). **Deferred to `S-diagnostics-pipeline` / `S-async-diagnostics`:** the asynchronous diagnostic-streaming contract that batches updates and replaces the per-method analysis runs with a Backend-cached `Analysis` per document — this is the keystone chunk every other rich follow-up depends on. The current minimal port runs the analyser fresh on every request (a few ms per call); for documents up to ~10K LOC this is acceptable, and the architecture is forward-compatible with the cached surface. | landed (minimal scaffolding) |
+| **PYTHON-RETIRE-LSP** | **Final chunk — *partially done; deletion still blocked.*** Goal: delete `lsp/` once `make prep-pr` passes against the Rust binary as the only LSP server.  **Phases landed in this run:** (Phase 1) relocated the build-generated `lsp/_build_info.py` to `core/_build_info.py` so the version banner consumed by explorer/, ai/mcp/, and the zipapp entry points survives the LSP feature-tree retirement.  Updated Makefile `BUILD_INFO`, `.gitignore`, `pyproject.toml` coverage-omit, and the eight importer call sites.  (Phase 2) inlined `find_proc_call_sites` from `lsp.features.references` into `core/minifier/minifier.py` to remove the `core → lsp` dependency leak.  **Phases still blocking deletion:** (Phase 3) `core/common/codes_all.py` still imports `lsp.features.diagnostics` to register five style-only diagnostic codes (W111 / W112 / W115 / W118 / W120) that several tests under `tests/` reference (`test_analyser.py`, `test_incremental_update.py`, `test_tcllib.py`, `test_diagnostic_phases.py`, `test_code_actions.py`).  Removing the import without first relocating those `@diag` registrations to a non-lsp module would break those tests.  (Phase 4) `ai/mcp/tcl_mcp_server.py` imports `lsp.features.{hover, completion, definition, references, document_symbols, code_actions, diagnostics, rename}` for eight MCP tools — these need to either be migrated to drive the Rust binary over JSON-RPC, rewired through the `tcl-lsp-py` PyO3 binding, or removed.  (Phase 5) `scripts/memprof_workspace.py` imports `lsp.workspace.{scanner, workspace_index}` and `scripts/profile_semantic_tokens.py` imports `lsp.features.semantic_tokens_full` plus `lsp.workspace.document_state` for benchmarks; both need rewriting against the Rust binary.  (Phase 6) `lsp/server.py` and `lsp/__main__.py` need replacing with thin shims that exec the Rust binary, then the editor extensions repointed.  (Phase 7) the **64 `tests/test_*.py` files** that import from `lsp.*` need either porting to drive the Rust binary or deletion (the equivalent feature behaviour is exercised by Cargo integration tests in `rust/tcl-lsp-server/tests/`).  Until phases 3-7 complete, `lsp/` cannot be removed.  This chunk needs another dedicated autonomous run that focuses on phases 3-7 in order. | **partially landed — phases 1+2 done, 3-7 outstanding** |
+| **VM\*** | **Bytecode VM port** (`vm/` — 36 files / 22K LOC).  Rewrite the Tcl bytecode interpreter as a Rust crate (`tcl-vm`).  Should integrate with the Zig WASM runtime so the same opcode table drives both.  Test parity via the existing `test_vm_*.py` suite (~658 cases) ported to cargo integration tests.  Sub-chunks: VM core (interpreter loop + dispatch), VM commands (`info`, `interp`, `namespace`, …), VM error-info / error-trace, VM trace machinery, VM safe-mode, VM OO bridge, VM regexp engine, VM I/O channel adapters. | planned (per-area chunks) |
+| **S\*** | **LSP server migration** (`lsp/` — 52 files / 19K LOC).  Replace the `pygls` server with a `tower-lsp`-based Rust binary.  Sub-chunks: server bootstrap + capability advertising, document store via `ropey`, request routing, every feature provider (hover, completion, definition, references, rename, code actions, code lens, document symbols / highlight / links, folding, inlay hints, signature help, semantic tokens (+delta), workspace symbols, call hierarchy, linked editing range, selection range, refactoring, snippets, will-save, workspace file ops, workspace index, incremental update, progress, async / pull diagnostics).  Each feature is its own commit; tests port from the matching `test_*.py` (710 cases total) into cargo integration tests against an in-memory test server. | planned (per-feature chunks) |
+| **F\*** | **Formatter + minifier + docstring** (`core/formatting/`, `core/minifier/`, `core/help/` — 10 files / 5.8K LOC + tests).  **Formatter engine + basic-tier minifier landed** in `tcl_lsp_core::formatting::engine` and `tcl_lsp_core::minify` (in the LSP-core crate rather than standalone `tcl-formatter` / `tcl-minifier` crates — they reuse the lexer/registry the providers already depend on).  The minifier covers the **default tier** (comment strip, whitespace/semicolon collapse, recursive body + command-subst minification, safe quote stripping, `${var}`→`$var`, expr whitespace compression + AST shrinking, switch case-list bodies, template dedup, ensemble-subcommand abbreviation; its expr tokeniser fixes the Python reference's comma/brace-dropping corruption), the **compact-names tier** (`minify_tcl_compact` — local var / param / proc / static-array-member renaming with a `SymbolMap`, gated on dynamic-barrier scopes), and the **aggressive tier** (`minify_tcl_aggressive` — optimiser rewrites → compact → minify, `MinifyResult`).  The aggressive tier additionally runs SCCP static-substring folding (phase 1.5), and command / argument / string-literal-substring aliasing (phases 2.5–2.7, suffix-array based, collision-safe-seeded against the compacted names — a fix for a latent corruption bug in the Python reference).  Safe variable renaming required an analyser enhancement (committed): `VarDef.references` now tracks `$var` reads inside `[…]` substitutions and braced `expr` bodies, which also closes the references / document-highlight expr-body gap.  `unminify_error` (name back-translation + proportional line remapping) and both `tcl-lsp.minifyDocument` / `tcl-lsp.unminifyError` `workspace/executeCommand` handlers are wired end-to-end.  **Still planned:** docstring (`core/help/` KCS DB); and within static-substring folding, compile-time evaluation of pure command substitutions (`[string]`/`[format]`/`[expr]`) + dead-`set` elimination. | minifier complete (default/compact/aggressive tiers + both LSP commands + analyser ref enhancement); docstring planned |
+| **REF\*** | **Refactoring engine** (`core/refactoring/` — 8 files / 1.9K LOC).  Rust `tcl-refactoring` crate exposing the rename-symbol / extract-variable / extract-proc / inline-variable / inline-proc / convert-if-to-switch transformations.  Tests port from `test_refactoring.py` / `test_refactoring_consumers.py` / `test_refactoring_skills.py`. | planned |
+| **IT\*** | **iRule test framework** (`core/irule_test/` — 5 files / 1.6K LOC).  Rust `irule-test` crate that simulates the F5 TMM event orchestrator for testing iRules without hardware.  Includes the `Event Orchestrator` test-script generator (currently a Claude skill).  Tests port from `test_irule_test_framework.py` (~161 cases) + `test_irule_test_codegen_mock_stubs.py`. | planned |
+| **DBG\*** | **Debugger** (`debugger/` — 10 files / 1.7K LOC).  Rust `tcl-debugger` binary with VM / tclsh / tkinter (over X protocol or DAP) backends.  Tests port from `test_debugger_*.py` (~24 cases). | planned |
+| **EXP\*** | **Compiler explorer rewrite** (`explorer/` — 23 files / 7.4K LOC).  Replace the Pyodide-based GUI with a Rust → WebAssembly web app (using `wasm-bindgen` + the existing `tcl-compiler` / `tcl-vm` crates compiled to `wasm32-unknown-unknown`).  No Python at runtime.  Tests port from `test_compiler_explorer*.py` (~68 cases). | in progress — thin `tcl-explorer` aggregator + serialiser. The contract is being *re-shaped to the Rust compiler*, not mirrored from Python: the `greentree` view is **dropped** (Rust's parser produces a single red-green CST — no separate legacy green tree — so `cst` is the sole parse-tree tab), leaving every other contract key emitted; `wasm`/`wasmOptimised` degrade to `null` until the emitter chunk. Differential parity harness vs Python `serialise_result` (bridging intentional Rust↔Python divergences), `tcl explore` CLI verb (`--json` / `--text` box-drawing tree renderer / summary), feature-gated `ratatui` TUI (`tcl explore --tui`), the `tcl-explorer-wasm` `cdylib` + Pyodide→wasm-bindgen `worker.js` swap, and **in-webview WASM compile bundled into the VS Code / JetBrains panels** (no LSP `executeCommand` roundtrip; degrades to host-brokered compile when the module is absent). `eventOrder` reuses the new `EventRegistry::{order_events, event_multiplicity}` and matches Python byte-for-byte. The view set has been re-shaped to Rust: dead stores are surfaced from the optimiser's O109 findings (`cfgPostSsa`/`stats`/callouts), and three **Rust-native views** with no Python counterpart were added — `optimiserPasses` (the pass pipeline), `structuralIndex` (the lexer structural pre-scan), and `sourceMap` (the `LineIndex` span model). The full per-view audit + parity classification lives in `docs/design/contracts/explorer-view-audit.md`. Remaining: the 🐞 capability gaps it tracks (gvn under-detect, renderedProperties over-report, bounds W233, taint order) and the WASM emitter (`tcl-vm`). |
+| **AI\*** | **AI / MCP integrations** (`ai/` — 12 files / 4.8K LOC).  Rewrite the MCP server, claude-skill scaffolds, and editor-adapter surfaces as Rust binaries (or Rust libraries with a thin shell wrapper).  These were the original "small Python surface" reasons; once the analyser / compiler are in Rust they can call the public PyO3 API directly OR be rewritten as native Rust applications.  Goal: zero Python in the shipping product. | planned |
+| **BIG\*** | **BigIP config parsers** (`core/bigip/` — 767 files / 41K LOC, mostly grammar / spec data + a small pure-Python parser).  Rust `bigip-config` crate.  Most of the bulk is data tables that can be auto-generated from the Python sources during the port.  Tests port from `test_bigip_*.py` + `test_xc_translator.py` (~310 cases). | planned |
+| **APL\*** | **APL parser** (F5 BIG-IP Application Policy Language; sub-tree under `core/apl/`).  Rust `bigip-apl` crate.  Tests port from `test_apl_*.py` (~47 cases). | planned |
+| **TK\***  | **Tk integration** (`core/tk/` — 5 files / 0.5K LOC).  Rust `tcl-tk-extract` crate for Tcl/Tk widget / event extraction (used by the diagnostic + GUI-detection paths).  Tests port from `test_tk_*.py` (~51 cases). | planned |
+| **DIAG\*** | **Diagram extraction** (`core/diagram/` — 2 files / 329 LOC).  Rust `tcl-diagram` crate for the call-graph / event-flow diagram output.  Tests port from `test_diagram_extract.py`. | planned |
+| **PKG\*** | **Package loading + auto-path resolution** (`core/packages/` + `core/analysis/auto_path_eval.py` + `core/analysis/source_resolver.py` + `core/analysis/tcllib.py` + `core/analysis/stub_comments.py`).  Rust `tcl-packages` crate.  Tests port from `test_package_*.py` / `test_auto_*.py` / `test_source_resolver.py` / `test_tcllib.py` / `test_stub_comments.py` (~286 cases). | planned |
+| **XC\*** | **BigIP XC translator** (`core/xc/` — 7 files / 2.5K LOC).  Rust `bigip-xc` crate.  Tests port from `test_xc_translator.py`. | planned |
+| **SCR\*** | **Build / release scripts** (`scripts/` — 31 files / 10K LOC).  Migrate to `cargo xtask` subcommands or POSIX shell scripts.  Eliminates the Python toolchain dependency from CI / release tooling.  Includes the registry codegen (`gen-editor-settings`, `snapshot-wasm-parity`, `check-wasm-parity`), zipapp builders, version bumping, marketplace publishing. | planned |
+| **PYO3-API** | **Public PyO3 surface design + freeze.**  Define the **single** documented PyO3 binding crate (`tcl-lsp-py`) intended for downstream users.  Surface scope: `Analyser` (analyse a source string, get diagnostics + symbol table), `Compiler` (lower / build CFG / SSA / codegen on demand), `VM` (run bytecode in-process), `Registry` (look up command specs), `Diagnostic` / `CodeFix` types.  Versioned (semver-stable from 1.0).  All in-tree consumers (Claude skills, MCP server, ad-hoc scripts) **either** rewrite as Rust (preferred) **or** dogfood this public API.  Documented in `docs/python-public-api.md`.  CI gates that no in-tree code outside the public-API crate imports `tcl_lsp_rust` private modules. | planned |
+| **TEST-MIGRATE** | **Python test migration sweep.**  Port every `tests/test_*.py` to a cargo integration / unit test under `rust/*/tests/` or the per-crate `mod tests` blocks.  Each commit migrates one file; the matching Python file gets deleted in the same commit (no parallel Python+Rust test for the same scenario).  When `tests/` is empty, the legacy harness retires.  Tests for the public PyO3 API stay as `tests/integration/` Rust tests using `pyo3` from the host. | planned (per-file chunks; ~9,400 test functions across 231 files) |
+| **PYTHON-RETIRE** | **Final retirement.**  After every chunk above lands, delete `core/`, `lsp/`, `vm/`, `debugger/`, `explorer/`, `ai/`, `scripts/` (Python source).  Keep the public PyO3 binding crate.  Update `pyproject.toml` so the wheel only ships the binding + Rust-native zipapp launcher.  Update editor extensions to invoke the Rust binary directly.  `make` retires; `cargo` becomes the only build entry point.  README / AGENTS / docs all reflect the Rust-only state.  This is the last chunk before the project's "v2.0" release. | planned |
+
+Keep this table current. Mark a row as `landed` in the same commit that
+lands the chunk.
+
+## Command-spec tracking
+
+The Rust command registry is the single source of truth for
+command-specific facts (ARCH0–ARCH3). As the rewrite picks up
+more diagnostic / compiler / LSP feature surface, individual
+command specs need targeted updates: hook IDs, taint traits,
+form descriptors, option lists, dynamic argument-role resolvers.
+This section is the running checklist — every new spec edit
+should appear under one of these categories so we can tell at a
+glance what's still outstanding.
+
+When a row is "complete", it means the closed list is fully
+covered. When a row is "ongoing", it means the surface is
+open-ended (e.g. taint sinks across every iRules dialect) and new
+items should be added here as they're identified rather than
+stamped silently in spec files.
+
+### A. Compiler-hook stamping
+
+ARCH2 made hook selection registry-driven. Each
+[`tcl_registry::hooks::LoweringHookId`] /
+[`tcl_registry::hooks::CodegenHookId`] variant has exactly one
+spec mapping; the lists below ARE the source of truth and should
+match the dispatcher arms in
+`tcl_compiler::lowering_hooks::dispatch_lowering_hook` /
+`tcl_compiler::codegen::emitter::bytecoded::dispatch_codegen_hook`.
+
+| Hook | Command(s) | Status |
+|---|---|---|
+| `LoweringHookId::Expr` | `expr` | landed |
+| `LoweringHookId::Return` | `return` | landed |
+| `LoweringHookId::Set` | `set` | landed |
+| `LoweringHookId::Incr` | `incr` | landed |
+| `LoweringHookId::AppendOrLappend` | `append`, `lappend` | landed |
+| `LoweringHookId::Unset` | `unset` | landed |
+| `LoweringHookId::Global` | `global` | landed |
+| `LoweringHookId::Variable` | `variable` | landed |
+| `LoweringHookId::Upvar` | `upvar` | landed |
+| `CodegenHookId::Lassign` | `lassign` | landed |
+| `CodegenHookId::Llength` | `llength` | landed |
+| `CodegenHookId::Lrange` | `lrange` | landed |
+| `CodegenHookId::Linsert` | `linsert` | landed |
+| `CodegenHookId::Lset` | `lset` | landed |
+| `CodegenHookId::Dict` | `dict` | landed |
+| `CodegenHookId::Array` | `array` | landed |
+
+**Status: complete.** Adding a new hook means adding a new enum
+variant **and** a row here in the same commit.
+
+### B. Taint trait stamping
+
+[`tcl_registry::taint::is_taint_source`] /
+[`tcl_registry::taint::is_sanitiser`] consume registry traits.
+Top-level command sources flow through `Traits::TAINT_SOURCE` on
+the [`CommandSpec`]; subcommand-shaped sources flow through
+`Traits::TAINT_SOURCE` on the matched [`SubCommand`] (ARCH6).
+iRules namespace-prefixed getters fall back to the prefix table
+if no explicit trait is present.
+
+| Trait | Stamped on | Status |
+|---|---|---|
+| `Traits::TAINT_SOURCE` (CommandSpec) | `gets`, `read`, `exec`, `socket` | landed |
+| `Traits::TAINT_SOURCE` (SubCommand) | `chan gets`, `chan read`, `encoding convertfrom` | landed |
+| `Traits::TAINT_SINK` | `expr`, `eval`, `subst`, `exec`, `uplevel`, `puts` | partial — audit `core/compiler/taint/_sinks.py` and `TAINT_HINTS` for the rest |
+| `Traits::UNNORMALISED_HTTP_GETTER` | iRules HTTP path/uri/query/header getters that return raw user input | partial — see `core/commands/registry/irules/http_*.py` |
+| `Traits::IRULES_DATA_GETTER` | (none yet — prefix fallback covers everything) | optional |
+
+**Status: ongoing.** When porting a Python diagnostic that reads
+`TAINT_HINTS`, audit the matching Rust spec and stamp the trait
+in the same commit.
+
+### C. Dialect-shadow parity audit
+
+A dialect-specific spec (`dialects: Some(...)`) with the same
+name as a Tcl spec **shadows** the Tcl version when its dialect
+is loaded into the registry — `CommandRegistry::get(name)`
+returns the last-inserted spec. Dialect overrides that drop
+`arg_roles` silently break the role-aware diagnostics. Each row
+must mirror the Tcl `arg_roles` (or carry an
+`arg_role_resolver`) when the structural shape matches.
+
+| Command | Tcl spec | Overrides | Parity |
+|---|---|---|---|
+| `proc` | `tcl/proc_.rs` (Name / ParamList / Body) | `irules/proc.rs` | landed |
+| `close` | `tcl/close_.rs` (Channel) | `irules/close.rs`, `expect/close.rs` | iRules landed; `expect/close.rs` is a flag-shaped variant (`-slave` / `-i spawn_id`) — leaving `arg_roles` empty is correct, document the variance |
+| `event` | (none — Tcl `event` is not in the spec set today) | `tk/event.rs`, `irules/event.rs` | n/a |
+| `exit` | `tcl/exit_.rs` | `expect/exit.rs` | n/a (no Tcl `arg_roles`) |
+| `send` | (none) | `expect/send.rs`, `irules/send.rs` | n/a |
+| `virtual` | (none) | `eda_mentor/virtual_.rs`, `irules/virtual_.rs` | n/a |
+| `when` | (none) | `eda_mentor/when.rs`, `irules/when.rs` (resolver) | n/a |
+
+EDA dialect commands (`check_design`, `report_timing`, etc.)
+shadow each other across EDA dialects, never a Tcl spec, and
+none currently set `arg_roles` — they're not flagged here. Add
+them when a diagnostic starts requiring role-aware metadata.
+
+**Status: complete for the structural-shadow class.** New rows
+land here whenever a dialect override of an existing Tcl command
+is added.
+
+### D. Outer OO `arg_role_resolver`
+
+The TclOO definition family (`oo::class`, `oo::define`,
+`oo::objdefine`) carries body argument indices in an
+`arg_role_resolver`. Inner OO commands (`method`, `constructor`,
+`destructor`, `self`, `private`, `initialise/initialize`,
+`property`) stay context-sensitive in the folding walker (a
+top-level user proc named `method` must not be mis-folded as an
+OO method definition).
+
+| Spec | Resolver | Status |
+|---|---|---|
+| `oo::class` | `create` / `new` / `createWithNamespace` body indices | landed |
+| `oo::define` | script form + subcommand-driven shape (constructor / destructor / method / classmethod / initialise / initialize / private / self / property) | landed |
+| `oo::objdefine` | shares `oo::define`'s resolver | landed |
+
+**Status: complete.**
+
+### E. OptionSpec coverage on iRules sinks / getters
+
+[`tcl_registry::CommandSpec::options`] is the structural source
+of truth for option-driven diagnostics (ARCH3 added the pattern
+for `-normalized`).
+
+| Command | Options stamped | Status |
+|---|---|---|
+| `HTTP::uri`, `HTTP::path`, `HTTP::query` | `-normalized` | landed |
+| `HTTP::respond` | `-version`, `-status`, `-noserver` | landed |
+| `HTTP::header` | `-noupdate` | landed |
+| `HTTP::redirect` | (no flag options today) | n/a |
+| `log` (iRules) | (no flag options today) | n/a |
+| Other iRules sinks (IRULE3001-3004 surface) | — | ongoing — extend as diagnostic ports demand |
+
+**Status: ongoing.** Adding a new option-driven check requires
+declaring the option in the spec's `OptionSpec` slice **and**
+listing the command here.
+
+### F. `command_forms` / `subcommand_forms` populated
+
+ARCH1 added the slices; they're populated lazily as form-shaped
+diagnostics need them.
+
+| Command | Forms populated | Status |
+|---|---|---|
+| `incr` | `implicit` (arity 1), `explicit` (arity 2) | landed |
+| `lset` | `replace` (arity 2), `single_index` (arity 3), `flat_path` (arity ≥4) | landed |
+| Everything else | empty | deliberate — extend when a diagnostic needs them |
+
+**Status: ongoing.** First real consumer of multi-form
+descriptors will be the per-feature LSP server ports (S*).
+
+### G. Per-command checklist
+
+The categorical tables A-F track *features* (a hook variant, an
+option flag, a trait); the per-command checklist below tracks
+*coverage* — what each individual `CommandSpec` /
+`SubCommand` should carry. The
+`scripts/check_command_spec_coverage.py`
+audit runs this checklist over every spec under
+`rust/tcl-registry/src/commands/` and writes
+[`docs/generated/command-spec-coverage.md`](generated/command-spec-coverage.md)
+with the result. `make codegen` regenerates the report;
+`make check-command-spec-coverage` is the CI-side gate that
+fails when the report would change.
+
+#### Universal items (every spec)
+
+Every command spec in the registry must carry:
+
+- [ ] **verified against canonical source.** Add a
+      `// VERIFIED: <source>` doc-line (anywhere in the spec
+      file) attesting that the spec matches the canonical
+      reference: Tcl manpage, F5 iRules wiki, vendor SDK docs,
+      etc. Examples:
+      ```rust
+      //! `incr` — increment a variable.
+      //!
+      // VERIFIED: Tcl 9.0.3 manpage incr(n) (man3/incr.n).
+      ```
+      The audit reads the line and surfaces unverified specs.
+- [ ] **`name`** — matches the Tcl / dialect command name
+      exactly (case-sensitive, namespace-qualified for iRules).
+- [ ] **`arity`** — `Arity::exact(n)` / `at_least(n)` /
+      `new(min, max)` / `any()`.
+- [ ] **`hover`** — at least
+      `HoverSnippet::brief(summary, &[synopsis], source)`.
+- [ ] **module-level doc comment** — the leading `//!` block
+      summarises any non-obvious quirk (subcommand sensitivity,
+      F5-only behaviour, deprecation, …).
+
+#### Conditional items (set when applicable)
+
+- [ ] **`traits`** — every Python boolean predicate has a
+      `Traits` flag equivalent. Adding a diagnostic that reads
+      a trait requires stamping it on the matching spec.
+- [ ] **`arg_roles`** — static positional roles (`Body`,
+      `Expr`, `VarWrite`, `VarRead`, `Channel`, …).
+- [ ] **`arg_role_resolver`** — dynamic resolver for
+      arity-dependent or subcommand-dependent role layouts
+      (e.g. `if` / `oo::define`).
+- [ ] **`options`** — every flag the diagnostic / formatter /
+      completer reads must appear as an `OptionSpec`.
+- [ ] **`subcommands`** — populated for ensemble commands
+      (`dict`, `string`, `info`, `chan`, …).
+- [ ] **`command_forms` / `subcommand_forms`** — populated
+      when arity-keyed shapes drive routing.
+- [ ] **`return_type`** — when the return value has a fixed
+      Tcl type the analyser can rely on.
+- [ ] **`arg_types`** — `ArgTypeHint` per index, for type
+      inference / shimmer detection.
+- [ ] **`assigns_variable_at`** — for variable-assigning
+      commands.
+- [ ] **`safe_on_uninit`** — for variable-assigning commands
+      that are safe on the uninit'd variable in some dialects.
+- [ ] **`inferred_storage_type`** — `Dict` / `List` / `Array`
+      for commands that establish that shape.
+- [ ] **`side_effects`** — `SideEffect` list for the side-
+      effect classifier.
+- [ ] **`required_package`** — for tcllib / package-loading
+      commands.
+- [ ] **`excluded_events`** — for iRules commands not valid
+      in certain `when` events.
+
+#### Runtime-only items
+
+These hooks are **not applicable** to dialects without a
+runtime — iRules, iApps, Tk, Expect, and the EDA family
+(synopsys / cadence / xilinx / quartus / mentor / sdc_base).
+The audit shows `n/a` for those rows.
+
+- [ ] **`lowering_hook`** — set when the IR lowering pass has
+      a per-command specialisation. Variant must exist on
+      [`tcl_registry::hooks::LoweringHookId`] and the matching
+      arm must exist in
+      `tcl_compiler::lowering_hooks::dispatch_lowering_hook`.
+- [ ] **`codegen_hook`** (TclVM bytecode) — set when the
+      bytecode emitter has a per-command specialisation.
+      Variant must exist on
+      [`tcl_registry::hooks::CodegenHookId`] and the matching
+      arm must exist in
+      `tcl_compiler::codegen::emitter::bytecoded::dispatch_codegen_hook`.
+      Despite the bare name, this is specifically the
+      *TclVM* hook (the path that matches C Tcl 9's
+      bytecode output).
+- [ ] **`wasm_codegen_hook`** — set when the WASM-runtime
+      emitter has a per-command specialisation. Variant must
+      exist on [`tcl_registry::hooks::WasmCodegenHookId`]
+      (currently empty — no command has a WASM-specific
+      emitter yet) and the matching arm must exist in the
+      WASM dispatcher when that lands. The field exists today
+      so the audit can already track WASM hook stamping
+      without a follow-up registry change.
+
+#### Per-spec maintenance prompts
+
+When porting a Python diagnostic / pass / feature that consults
+command facts:
+
+1. Identify which spec(s) the diagnostic queries.
+2. Walk the universal + conditional + runtime checklist above
+   for each spec.
+3. Stamp anything missing in the same commit. If you
+   audited the spec against the canonical source, add the
+   `// VERIFIED: <source>` line.
+4. Re-run `make codegen` so
+   `docs/generated/command-spec-coverage.md` reflects the new
+   coverage. `make check-command-spec-coverage` will fail in
+   CI otherwise.
+5. Update the matching categorical table in §A-F if a
+   cross-cutting feature surface gained a new entry (a new
+   hook variant, a new trait stamping, a new OptionSpec
+   pattern).
+
+### H. Generated coverage report
+
+[`docs/generated/command-spec-coverage.md`](generated/command-spec-coverage.md)
+is the auto-generated truth-table. Each row is one spec; each
+column is one item from the checklist above. Status legend:
+
+* `✓` — field is set on the spec.
+* `—` — field is left at `..CommandSpec::DEFAULT`. The audit
+  cannot tell if the default is correct or just unstamped —
+  treat as *not yet verified*.
+* `n/a` — column does not apply for this dialect (e.g. runtime
+  hooks for the no-runtime dialects).
+
+The report opens with a per-dialect summary (e.g. `tcl: 39/117
+arg_roles stamped`) so you can see at a glance which dialects
+have the most gaps. The detailed per-command table follows.
+
+## Pending chunks — detailed sub-plans
+
+The chunks below are scoped follow-ups to the `Sync` rebase. Each
+table row above maps to one of the sections here. The order now starts
+with the crate-boundary and registry cleanup because those chunks prevent
+new Rust surface area from copying the old Python-era dispatch shape.
+
+### ARCH0-ARCH4 — crate and registry cleanup
+
+These chunks turn the review findings into executable work. They should
+land before new Rust LSP features and before more command-specific hooks
+are added to the compiler.  All five landed in the initial cleanup
+sequence; the specs are kept here as the contract for `landed` rows
+in the chunk log and as orientation for ARCH5-ARCH9 below.
+
+**ARCH0 — LSP core crate split.**
+
+Create `rust/tcl-lsp-core/` with `#![deny(missing_docs)]` and
+`#![forbid(unsafe_code)]`. Move the pure folding types and algorithm out
+of `rust/tcl-lsp-rust/src/folding.rs` into `tcl-lsp-core::folding`. Keep
+`rust/tcl-lsp-rust/src/folding_binding.rs` as the only Python-facing
+layer: it imports the core function, converts Python inputs to Rust
+types, and materialises Python outputs.
+
+Acceptance criteria:
+
+- `tcl-lsp-core` has no `pyo3` dependency.
+- `tcl-lsp-rust` contains no folding decision logic beyond conversion.
+- Existing folding PyO3 smoke tests still pass.
+- The reference layout in this document matches the new workspace.
+
+**ARCH1 — registry command-form and typed-hook model.**
+
+Replace public bare hook IDs with typed identifiers. Add registry data
+for command forms and subcommand forms, including form-specific arity,
+argument roles, lowering hook, codegen hook, options, and dialect
+applicability. Add a resolved-call API that accepts a command head and
+argument words and returns the matched command form plus derived roles.
+
+Acceptance criteria:
+
+- Hook identifiers cannot be arbitrary `u16` values at public call sites.
+- Existing command specs compile with explicit typed hook values or an
+  explicit "no hook" value.
+- The registry exposes one API for resolving top-level command forms and
+  subcommand forms.
+- The registry docs no longer claim O(1) trait indexes unless the
+  indexes exist.
+
+**ARCH2 — registry-driven compiler hooks.**
+
+Change lowering and codegen to ask the registry which hook applies to a
+call. The compiler still owns hook algorithms, but hook selection comes
+from `CommandSpec` / form metadata. Remove direct command-name dispatch
+from `lowering_hooks.rs` and bytecoded command-substitution emission as
+each hook moves across.
+
+Acceptance criteria:
+
+- Adding a lowering/codegen hook for a command requires changing the
+  command spec and the compiler hook implementation, not a separate
+  compiler dispatch table.
+- Direct `match cmd.name` routing is limited to registry-owned generated
+  routing or temporary code marked with the owning `ARCH2` follow-up.
+- Cargo tests pin at least `expr`, `set`, `incr`, `llength`, one `dict`
+  subcommand, and one iRules command form.
+
+**ARCH3 — registry-owned diagnostics command facts.**
+
+Move command facts used by taint, iRules checks, and side-effect
+classification into `tcl-registry`. This includes taint sources, taint
+sinks, sanitiser roles, setter constraints, normalised-option facts,
+getter/setter command forms, and side-effect summaries. Compiler
+diagnostic passes consume registry queries instead of local command-name
+sets.
+
+Acceptance criteria:
+
+- `taint.rs`, `irules_checks.rs`, and `side_effects.rs` no longer own
+  independent command fact tables.
+- iRules normalised-option and getter/setter checks are derived from
+  registry form/option metadata.
+- Security diagnostics have tests that prove the registry metadata drives
+  at least one Tcl core source, one iRules sink, and one setter
+  constraint.
+
+**ARCH4 — current architecture documentation.**
+
+Add `docs/design/rust/current-architecture.md` with the current crate
+graph, ownership rules, and migration status. It must distinguish:
+
+- authoritative Rust paths;
+- Rust paths that are default-on but still Python-supplemented;
+- default-off Rust shims;
+- Python fallbacks that are planned for deletion;
+- the intended `tcl-lsp-core`, `tcl-lsp-server`, and `tcl-lsp-py`
+  boundaries.
+
+Update the KCS note for Rust shim environment variables in the same
+chunk so user-facing docs do not describe default-on shims as opt-in
+experiments.
+
+### ARCH5-ARCH9 — registry-driven follow-ups
+
+These chunks finish the binding-layer slimming and bring up the
+remaining crates from the reference layout (`tcl-lsp-server`,
+`tcl-lsp-py`). All of them depend on ARCH0-ARCH4 being in place. The
+recommended landing order is `ARCH6` → `ARCH5` → `ARCH7` (per-file)
+→ `ARCH8` → `ARCH9`: ARCH6 and ARCH5 are mechanical; ARCH7 splits
+into one PR per binding file; ARCH8 and ARCH9 add new crates and
+should land after the binding layer has been audited.
+
+**ARCH5 — thread `&CommandRegistry` through codegen.**
+
+`codegen::emitter::bytecoded` previously consulted a private
+`OnceLock<CommandRegistry>` to look up each call's `codegen_hook`.
+The static instance held only the default registry, so dialect-
+loaded commands (iRules / Tk / EDA) could never resolve their
+codegen hooks correctly. Thread a `&CommandRegistry` reference
+through codegen, drop the static, and verify dialect-resolved hook
+lookup end-to-end.
+
+As landed, `CodegenCtx` grew a `registry: &'r CommandRegistry`
+field and a lifetime parameter; `CodegenCtx::new` now takes the
+registry as a required argument. `codegen_function` /
+`codegen_function_with_procs` / `codegen_module` thread the same
+registry the lowering pass used. This was the simplest way to
+keep `try_bytecoded` and the per-call helpers reading from the
+same instance without re-introducing a static. The earlier
+"signature unchanged" goal proved unworkable once the call chain
+was fully audited — the registry needs to reach `try_bytecoded`
+without a private cache, and ctx state was the only path that
+didn't fan a registry argument across hundreds of helper sites.
+
+Acceptance criteria:
+
+- No `OnceLock` / `LazyLock` / `static …: CommandRegistry` anywhere
+  under `rust/tcl-compiler/src/codegen/`.
+- `CodegenCtx` holds the registry on the context (with a `'r`
+  lifetime parameter); `CodegenCtx::new` takes it as a required
+  argument. The codegen public API
+  (`codegen_function` / `codegen_module`) takes a
+  `&CommandRegistry`.
+- A cargo test loads `DialectSet::IRULES` and proves the loaded-
+  dialect spec drives codegen-hook selection.
+- Existing `bytecoded` and `statements` tests stay green.
+
+**ARCH6 — `SubCommand::traits` for fine-grained taint and effect facts.**
+
+`tcl_registry::taint::is_taint_source` still pattern-matches
+`match command { "chan" | "encoding" => … }` for subcommand-shaped
+sources because `SubCommand` has no `Traits` field. Add one, stamp
+`Traits::TAINT_SOURCE` on `chan gets`, `chan read`, and
+`encoding convertfrom`, and replace the pattern with pure trait
+dispatch on the matched subcommand spec.
+
+Acceptance criteria:
+
+- `SubCommand` carries a `traits: Traits` field that defaults to
+  `Traits::empty()`.
+- No `match command` arm in `tcl-registry/src/taint.rs`.
+- Adding a new subcommand-shaped taint source is a one-line trait
+  edit on the existing `SubCommand` entry — no registry-side helper
+  changes.
+- Existing positive/negative taint-source tests still pass; add one
+  positive (`encoding convertfrom`) and one negative
+  (`encoding system`) test for the new dispatch path.
+
+**ARCH7 — `tcl-lsp-rust` audit and binding-only enforcement.**
+
+ARCH0 only relocated folding. Every other file in
+`rust/tcl-lsp-rust/src/` (`analyser.rs`, `signature_scan.rs`,
+`compiler_checks.rs`, `interprocedural.rs`, `gvn.rs`, `optimiser.rs`,
+`compilation_unit.rs`, plus the `Token` / `Lexer` / `ExprParser` PyO3
+wrappers) needs a per-file pass that classifies each function as
+"binding glue" or "leaked algorithm" and migrates the second group
+to the matching pure crate. Land one file per PR (smallest first to
+validate the template) so each migration is reviewable in isolation.
+
+Acceptance criteria:
+
+- Every non-`lib.rs` file in `tcl-lsp-rust/src/` consists of
+  `#[pyfunction]` / `#[pyclass]` definitions, Python type-conversion
+  helpers, and delegations to pure-crate functions.
+- No binding file holds an algorithm body, a per-command table, or
+  a `match` on a command name.
+- Each migrated function gains a pure-crate unit test in addition
+  to the pre-existing PyO3 smoke / differential test.
+- After all sub-PRs land, `tcl-lsp-rust` compiles with
+  `#![deny(missing_docs)]` enabled.
+
+**ARCH8 — bootstrap `tcl-lsp-server` with the folding provider.**
+
+Stand up `rust/tcl-lsp-server/` as a `tower-lsp` binary linking
+`tcl-lsp-core`, `tcl-compiler`, and `tcl-registry`. Wire one
+provider end-to-end (folding ranges) so `tcl-lsp-core` finally has
+two consumers and the crate boundary is exercised under realistic
+dispatch. Every other LSP method returns `MethodNotFound` until a
+later chunk grows the provider set.
+
+Acceptance criteria:
+
+- `rust/tcl-lsp-server/` is a workspace member with a `[[bin]]`
+  entry and no `pyo3` dependency (verified via `cargo tree`).
+- `cargo run -p tcl-lsp-server` accepts an LSP client over stdio,
+  serves `initialize` and `textDocument/foldingRange` correctly,
+  and rejects every other method cleanly.
+- An integration smoke test under `rust/tcl-lsp-server/tests/`
+  drives the binary through `tower-lsp`'s test harness and asserts
+  one folding range for a multi-line `proc` body.
+- The reference layout in this document matches the new crate.
+
+**ARCH9 — `tcl-lsp-py` public binding crate.**
+
+Freeze the public Python API in `rust/tcl-lsp-py/`. Move the
+`#[pyfunction]` / `#[pyclass]` definitions that the public API
+contract captures into the new crate; convert `tcl-lsp-rust` to a
+re-export shim so existing wheel consumers keep working for one
+release cycle, then retire `tcl-lsp-rust` in a follow-up.
+
+Acceptance criteria:
+
+- `rust/tcl-lsp-py/` is a maturin-built crate exposing
+  `#[pymodule] tcl_lsp_py`. Both `import tcl_lsp_py` and
+  `import tcl_lsp_rust` succeed and resolve to the same underlying
+  Rust functions.
+- `cargo tree -p tcl-lsp-py | grep tcl-lsp-rust` returns nothing —
+  the new crate does not depend on the old.
+- `tcl-lsp-rust/src/lib.rs` body is exclusively
+  `pub use tcl_lsp_py::…` re-exports plus the
+  `#[pymodule] tcl_lsp_rust` glue.
+- `scripts/build_zipapp.py::_RUST_NATIVE_PACKAGES` includes
+  `tcl_lsp_py`; `make rust-build` produces both wheels.
+- The reference layout and
+  `docs/design/rust/current-architecture.md` reflect the new crate
+  and mark `tcl-lsp-rust` as a transitional alias retiring in
+  vNext.
+
+### C40 — `signature_scan.py` Rust port
+
+Port `core/analysis/signature_scan.py` (~862 LOC, single
+self-contained module) to `rust/tcl-compiler/src/signature_scan/`.
+Mirrors the Python implementation 1:1 at the segmenter level —
+**not** the IR level — so the Rust port stays as fast as Python's
+"avoid the lowering pass for background-indexed files" design
+intent.
+
+The port is organised across five sub-strip families with one
+commit per strip; each commit is `≤100` LOC of source + tests and
+green under `cargo fmt --all && cargo clippy --workspace
+--all-targets -- -D warnings && cargo test -p tcl-compiler --lib
+&& make rust-build && make prep-pr`.
+
+Sub-strip families:
+
+- **C40a (7 strips)** — types: scaffold module, `ParamDef` +
+  `parse_param_list`, eight record types, `SignatureScanResult`
+  aggregator, internal `ScanCtx` + `FactoryCandidate` +
+  `ProcBodyInfo` + `FACTORY_SKIP_HEADS`.
+- **C40b (11 strips)** — per-command handlers: `qualify`,
+  `emit_class`, `handle_proc`, `handle_namespace` +
+  `handle_namespace_import`, `handle_package`, `handle_source`,
+  `handle_interp`, `handle_oo_class` + `handle_itcl_class`,
+  `handle_auto_path`, `maybe_handle_import_wrapper`,
+  `maybe_record_factory_candidate`.
+- **C40c (7 strips)** — walker: top-level `scan` +
+  `maybe_recurse_body` scaffold, namespace-eval body recursion,
+  `handle_if` body recursion, `handle_catch` body recursion,
+  `handle_try` body recursion (on/trap/finally),
+  `scan_factory_candidates` + `scan_factory_structural`, wire
+  factory walker into `handle_proc`.
+- **C40d (4 strips)** — factory resolution + entry: `is_factory_body`,
+  `lookup_factory`, `resolve_factory_defs`, public
+  `extract_signatures(source, registry)` entry point.
+- **C40e (8 strips)** — PyO3 binding + Python shim + differential
+  harness: PyO3 scaffold + `register_with` + smoke tests; PyDict
+  emission of every collection in two strips; Python
+  `_materialise_rust_signatures` helper; Python env-var dispatch
+  shim (`TCL_LSP_RUST_SIGNATURE_SCAN=1`); differential harness
+  scaffold; differential corpus (~25 fixtures); chunk-log row →
+  landed.
+
+The Rust signature `extract_signatures(source: &str, _registry:
+&CommandRegistry) -> SignatureScanResult` plumbs a registry param
+through (currently unused) for consistency with every other
+tcl-compiler analysis entry point.
+
+**Landed outcome.** All 37 strips landed across the C40a–C40e
+families. Final commit count: 37 (+ 1 amend on C40a2 + 1 fold of
+the lookup_factory return-type fix into C40d3).
+
+The Rust scanner ports every per-command handler the Python
+implementation has — `proc`, `oo::class create`, `itcl::class`,
+`namespace eval` / `namespace import`, `package require`,
+`source`, `interp alias`, `lappend auto_path` / `set auto_path`,
+the tcllib `<NS>::import <ALIAS>` wrapper idiom, and the tcllib
+`DEFC name args body` / `proc $name $args $body` factory-wrapper
+synthesis pattern (with two-pass `is_factory_body` / `lookup_factory`
+/ `resolve_factory_defs` resolution). Body recursion covers
+`namespace eval`, `if` (then/elseif/else), `catch`, and `try`
+(on/trap/finally) — all branches marked `conditional=true`.
+
+The PyO3 binding emits a `dict` keyed on the eight collection
+names (`procs`, `classes`, `command_invocations`,
+`package_requires`, `source_targets`, `command_aliases`,
+`namespace_imports`, `auto_path_entries`) with spans encoded as
+`(start, end)` `u32` tuples. The Python materialiser
+(`_materialise_rust_signatures` in `core/analysis/signature_scan.py`)
+converts those tuples back into LSP `Range` values via
+`core/compiler/rust_spans.py::build_position_resolver`. The Python
+dispatch shim gates the Rust path on
+`TCL_LSP_RUST_SIGNATURE_SCAN=1`, falling back to the Python
+implementation on any exception.
+
+The differential harness
+(`tests/test_rust_signature_scan_differential.py`) parametrises
+the corpus across every handler family; the Python and Rust paths
+produce field-equal `AnalysisResult` records on every fixture. The
+`source $script_dir/init.tcl` shape that previously diverged on the
+multi-token argv word (`Range` mismatch from the segmenter) is now
+covered by the `source_substituted_path` fixture; the fix landed
+in the segmenter (Seg1) before C40-default-on flipped the default.
+
+Test counts: 70+ Rust unit tests across the `signature_scan/`
+sub-modules; 3 PyO3 smoke tests in
+`tests/test_rust_bindings_smoke.py`; differential parity tests in
+`tests/test_rust_signature_scan_differential.py`. Full
+`make prep-pr` green at every commit.
+
+Default-on flip **landed** as C40-default-on: the dispatcher
+defaults to Rust whenever the binding is importable; the env var
+becomes opt-out (`TCL_LSP_RUST_SIGNATURE_SCAN=0` keeps the Python
+path active). After a release cycle, `_extract_signatures_python`
+and the env var both retire.
+
+### C40-followups — post-merge clean-up for the `signature_scan` port
+
+The post-merge code review for C40 surfaced six follow-up items. None
+are correctness-blocking; all are landable as one small commit each
+(continuing the strip-by-strip discipline).
+
+- **C40-fu1 — drop stale `#![allow(dead_code)]`.** `handlers.rs:12`,
+  `walker.rs:14`, `factory.rs:17`, `ctx.rs:13`. Every type these
+  attributes guarded is wired in by C40c7/d3/d4. The blanket allow
+  now silently masks any future genuinely-dead code.
+- **C40-fu2 — sweep "filled in by Cnnnn" doc rot.** `mod.rs:19–22`,
+  `types.rs:5`, `ctx.rs:7–9`, `handlers.rs:6–8`, `walker.rs:10–12`
+  (module doc) + `walker.rs:106–107` (section header), `factory.rs:15`.
+  Replace the strip-plan references with descriptions of the
+  current architecture.
+- **C40-fu3 — cache `CommandRegistry::build_default()` in a
+  `OnceLock`.** Currently rebuilds the full ~118-spec command
+  registry on every call across all five PyO3 bindings
+  (`signature_scan.rs`, `interprocedural.rs`, `optimiser.rs`,
+  `compiler_checks.rs`, `gvn.rs`, `compilation_unit.rs`). For the
+  signature scanner (called per non-OPEN document, 1000+ files in a
+  real workspace) this is the worst offender. Land as a shared
+  helper in `rust/tcl-lsp-rust/src/registry.rs` that all five
+  bindings consume.
+- **C40-fu4 — dispatcher tests.** `tests/test_rust_signature_scan_differential.py`
+  currently bypasses the env-var gate by calling
+  `_materialise_rust_signatures(source, signature_scan_extract(source))`
+  directly. Add three tests against `extract_signatures(source)`:
+  no-binding-fallback, env-var-on, exception-fallback (Rust path
+  raises → Python takes over).
+- **C40-fu5 — `docs/rust-rewrite-test-audit.md` C40 row.** The audit
+  has been dormant since L7; C40 should at minimum be listed even
+  if a full backfill of C0–C39 is deferred.
+- **C40-fu6 — KCS Q&A note for `TCL_LSP_RUST_SIGNATURE_SCAN`.**
+  Currently undocumented for users / contributors who grep for the
+  env var. Same gap exists for the other Rust shims
+  (`TCL_LSP_RUST_OPTIMISER`, `_INTERPROC`, `_GVN`); a single
+  `kcs-qa-rust-shim-env-vars.md` covering all five would be cheaper
+  than per-shim notes.
+
+### Seg2 — Segmenter error recovery (landed)
+
+The Python `core/parsing/command_segmenter.py::segment_commands`
+includes an error-recovery pass that catches the common case where
+an unclosed `{` / `[` / `"` causes the lexer to consume the rest of
+the file as one giant token, dropping every later top-level
+declaration on the floor. The pass:
+
+1. Detects a "suspicious" token in the last command — `Str` (`{`)
+   or `Esc` (`"`) reaching EOF with a line span ≥ 3, or any `Cmd`
+   (`[`) reaching EOF.
+2. Scans the suspicious token's inner text line-by-line for a line
+   whose first word is a known command name.
+3. Marks the broken command `is_partial = true` and re-segments
+   the source slice from the recovery point so later declarations
+   still surface.
+
+Without recovery on the Rust side, flipping the C40 default to
+Rust would silently regress workspace indexing for any file
+mid-edit with an unclosed brace — so Seg2 is a hard prerequisite
+for C40-default-on.
+
+Landed shape:
+
+- `rust/tcl-compiler/src/segmenter.rs` gains
+  `segment_commands_with_recovery(source: &str,
+  known_commands: &HashSet<&str, S>) -> Vec<SegmentedCommand>`,
+  generic over the `BuildHasher` so callers can pass any
+  `HashSet`. Internal helpers `find_suspicious_token` and
+  `find_recovery_offset` mirror the Python `_has_suspicious_token`
+  / `_find_recovery_offset` 1:1, including the
+  `RECOVERY_LINE_THRESHOLD = 3` constant and the first-word
+  delimiter set (`' '`, `'\t'`, `'\n'`, `'\r'`, `';'`, `'{'`,
+  `'['`).
+- `rust/tcl-compiler/src/signature_scan/walker.rs::scan` threads
+  a `&HashSet<&str>` parameter through to the top-level call;
+  body recursion (`maybe_recurse_body`) keeps passing the same
+  set but uses `segment_commands_with_offset` (no recovery) since
+  recovery only fires at the top level.
+- `extract_signatures` builds the known-commands set from the
+  registry's `command_names()` once per call.
+- 8 new Rust unit tests in `segmenter::recovery_tests` pin every
+  branch (brace recovery, bracket recovery, line-threshold skip,
+  empty known-commands set, no-op on closed input, picks-first
+  recovery point, indented-line skipping, absolute-offset shape).
+
+Recovery offset arithmetic difference from Python: Rust's `Span`
+includes the opening delimiter (`{` / `[` / `"`); Python's
+`Token.text` excludes it. The Rust port strips the leading
+delimiter via the token's `content_offset` before passing the
+inner text to `find_recovery_offset`, so the offset arithmetic
+matches.
+
+Differential-harness parity for recovered procs is *not*
+asserted in the corpus — Python rebases recovered tokens'
+line/character to 0 via a synthetic body_token, which is a
+position-rebasing bug that surfaces only when both
+implementations run side-by-side. Offsets agree; line/character
+disagree. Once C40-default-on flips the dispatcher to Rust, the
+bug silently goes away (Rust uses absolute positions throughout).
+Fixing the Python rebase is tracked as a separate follow-up
+since main hasn't seen this issue.
+
+### Seg1 — Segmenter argv-widening parity (landed)
+
+The Python `core/parsing/command_segmenter.py` widens
+`argv[-1].end = tok.end` whenever a sub-token is appended to the
+current word, so a multi-token word like `$var/literal.tcl` carries
+a single `argv` Token whose span covers the entire reconstructed
+word. The Rust `rust/tcl-compiler/src/segmenter.rs:227–238`
+previously only extended `texts[-1]` and `single[-1]`, leaving
+`argv[-1]` at the first sub-token's span.
+
+Visible symptom: `source $script_dir/init.tcl` produced different
+`SourceTarget.range.end` between Python (end-of-word) and Rust
+(end-of-`$script_dir`), surfaced by the C40e7 differential corpus.
+
+Landed fix: in `segment_commands_local`, the `else if let
+Some(last_text) = texts.last_mut()` branch now also bumps
+`argv.last_mut().unwrap().span` to `Span::new(prev.span.start(),
+tok.span.end())`. The Rust-side
+`segmenter::tests::multi_token_word_argv_spans_full_word` unit
+test pins the new behaviour against the canonical
+`source $script_dir/init.tcl` shape, and the
+`source_substituted_path` fixture is part of the
+`tests/test_rust_signature_scan_differential.py` corpus.
+
+### C41 — Analyser core port (in progress)
+
+Ports `core/analysis/_analyser/` (~5,074 LOC across 17 files) to
+`rust/tcl-compiler/src/analyser/`. The natural next chunk after
+C40 — `signature_scan` was the lead-in, and most of the analyser's
+data dependencies (CFG, SSA, def-use, SCCP, rendered_props,
+interproc summaries) already have Rust ports landed in
+**C2** / **C3** / **C7** / **C24** / **C26** / **C27c** / **C28** /
+**C29**. The analyser ports translate to "wire up the existing
+Rust analyses behind the analyser dispatch table".
+
+**Architectural choice (decided in C41a1).** Python uses
+cooperative multiple inheritance — every mixin shares `self` state
+via the `_AnalyserBase` constructor. The Rust port uses a single
+`Analyser` struct in `analyser/state.rs` with all 22 state fields,
+and groups handler methods by concern (`commands.rs`, `proc.rs`,
+`oo.rs`, `diagnostics/`, …). The mixin trait pattern is **not**
+ported — it'd add ceremony with no parity benefit. Each Python
+`self._field` becomes a Rust struct field one-for-one.
+
+Six sub-strip families:
+
+- **C41a — Skeleton + types + utils** (5 strips):
+  - **C41a1** — module scaffold: `analyser/{mod, state, types,
+    snapshot, utils}.rs`. `Analyser` struct + 22 state fields +
+    `new()` + stub `analyse()`. **Landed.**
+  - **C41a2** — port `_utils.py` free functions
+    (`parse_file_suppression`, `format_literal_for_message`,
+    `argv_with_word_spans`, `possible_paste_fingerprint`,
+    `irules_top_level_only`); re-export `parse_param_list` from
+    `signature_scan/params.rs`.
+  - **C41a3** — `AnalyserSnapshot` + `Analyser::snapshot()` /
+    `restore()` (deep-copy fast-path mirroring
+    `AnalysisResult.copy_for_snapshot`).
+  - **C41a4** — port `_scope.py` scope-graph helpers
+    (`set_const_string`, `clear_const_string`,
+    `lookup_const_string`, `record_defining_set_as_regex`,
+    `define_vars_from_list`, `namespace_from_scope`,
+    `record_var_read`, `walk_scopes`, `define_var`).
+  - **C41a5** — `_signature_for_command` registry-lookup helper
+    (returns `Option<CommandSig | SubcommandSig>`).
+- **C41b — Per-command handlers** (8 strips). Mirrors
+  `_handlers.py` 1:1: `set` / `var-decl` / `incr` (b1);
+  `proc` entry (b2); `namespace eval` / `ensemble` (b3);
+  `foreach` / `for` / `switch` (b4); `catch` / `try` (b5);
+  `interp alias` / `oo objdefine` / `resolve_alias` (b6);
+  `_process_command` central dispatch (b7);
+  `_run_command_special_cases` (b8).
+- **C41c — Proc-body analysis** (4 strips). `_proc.py`:
+  `_handle_proc` body walker + `_arg_count_bounds` +
+  `_check_proc_call_arity` (c1); `_handle_set` /
+  `_handle_switch` / `_parse_switch_body` (c2); `_handle_try` /
+  `_resolve_proc_call` / `_resolve_expansion_count` (c3).
+- **C41d — Diagnostic emitters** (7 strips). The biggest
+  sub-family: `_diagnostics.py` orchestrator (d1);
+  `_diag_var_lifecycle.py` — read-before-set / unused-var /
+  dead-store / paste-error (d2); `_diag_var_command.py` —
+  W230..W239 (d3); `_diag_commands.py` — W120..W122 / W242 (d4);
+  `_diag_branches.py` + `_diag_channel.py` (d5);
+  `_diag_ip.py` (d6); `_diag_racy.py` (d7).
+- **C41d7 — IRULE4005 (racy `static::` cross-event flow)** —
+  *landed*.  Ported `core/compiler/connection_scope.py` to
+  `rust/tcl-compiler/src/connection_scope.rs` (~280 LOC),
+  added `EventRegistry::variable_scope_note` to
+  `rust/tcl-registry/src/events.rs`, gave `CompilationUnit` a
+  `connection_scope: Option<ConnectionScope>` field, and
+  wired the IRULE4005 emitter
+  (`Analyser::emit_racy_static_diagnostics`) into
+  `emit_cfg_ssa_diagnostics`.  The emitter only fires for
+  non-`RULE_INIT` `::when::*` procedures and consults
+  `ConnectionScope::racy_static_defs`.  One simplification
+  vs. Python: `_extract_event_summary`'s branch-condition
+  scan via `vars_in_expr_node` is omitted — SSA statement
+  uses already cover the common case.
+- **C41e — OO + recovery** (5 strips). `_oo.py`:
+  `handle_oo_class_command` + `extract_method_def` (e1 — landed);
+  `handle_oo_define_command` (e2 — landed);
+  `extract_property_defs` + `extract_unknown_proc_info` (e3 —
+  landed, including the full `ClassDef` field set: `metaclass`,
+  `constructors`, `destructor`, `variables`, `properties`,
+  `filters`, `exports`, `unexports`, `doc`; W123 gate +
+  package-require recording + top-level RBS landed alongside).
+  `_recovery.py`: `_recover_stray_close_bracket` +
+  `_looks_like_switch_case` (e4 — landed in
+  `analyser/recovery.rs`, wired into both top-level walk and
+  body-walk dispatcher); `_recover_missing_open_brace` +
+  `_detect_stolen_close_brace` + the generic E200 emitter
+  (e5 — landed; ``CodeFix`` payload deferred until the
+  ``Diagnostic`` struct gains a ``CodeFix`` field).
+- **C41f — Public entry + PyO3 + harness** (6 strips).
+  `analyse_chunked` + `analyse_commands` orchestration (f1);
+  public `analyse` entry + `_check_stub_shadows` +
+  `_dedupe_diagnostics` (f2); PyO3 binding
+  `analyser_analyse(source, dialect)` + 3 smoke tests (f3);
+  Python dispatch shim with `TCL_LSP_RUST_ANALYSER=1` (f4);
+  differential harness with starting corpus (40 fixtures + 4
+  dispatcher gating tests) — landed (f5); KCS Q&A + test-audit
+  row + chunk-log status flip (f6).
+
+**Risks flagged up front:**
+
+1. *Snapshot/restore semantics* (C41a3) — the deep-copy + scope-id
+   remap is subtle. Rust uses an index-path scope addressing
+   scheme rather than Python's `id(scope)` keys, so the remap
+   simplifies to "copy the result tree" — but a heavy round-trip
+   test corpus should land in C41a3 itself.
+2. *`_process_command` dispatch table* (C41b7) — Python uses an
+   if/elif chain plus runtime command-name lookup. Rust should
+   use a hash-map dispatch over a precomputed `&'static [(&str,
+   fn(&mut Analyser, ...))]` slice; benchmark before committing
+   to a shape.
+3. *Recovery integration* (C41e4-e5) — the analyser invokes the
+   segmenter at sub-command granularity, not just at the top
+   level. May surface a need for a more flexible
+   `segment_commands_with_recovery` API than what Seg2 landed.
+4. *W242 interpolated-command resolution* (C41d4) — depends on
+   `rendered_props` (already ported in C27c). Parity bugs in
+   earlier chunks may surface as analyser diagnostic mismatches.
+5. *OO class hierarchy* (C41e1-e3) — `_oo.py` references
+   `core/analysis/class_hierarchy.py` and `mro.py` (still
+   Python). C41e may need to either port those two too, or
+   thread Python callbacks across the PyO3 boundary. **Decide
+   in C41e1.**
+
+Default-off PyO3 env-var gate (`TCL_LSP_RUST_ANALYSER=1`) at C41f.
+After the differential corpus has baked, `C41-default-on` flips
+the polarity (same shape as `C40-default-on`).
+
+> **Historical note (audited 2026-05-07):** the dispatch shim
+> and `TCL_LSP_RUST_ANALYSER` env var described above were
+> silently removed at PR #241 (`cd7a8441`, 2026-04-30). The
+> Rust analyser library is intact but no longer reachable from
+> the production `analyse()` path. See the post-#241 banner on
+> the `C41-default-on` chunk-log row for full context.
+
+### C39 — Small codegen fixes from main
+
+Audit each main-side codegen / lowering / parser fix landed since
+the rewrite branch was created and decide one of three outcomes:
+
+- **Port** — applies to the Tcl-bytecode codegen path that
+  `rust/tcl-compiler/` targets. Add a fixture under
+  `rust/tcl-compiler/tests/fixtures/codegen/matching/` and a unit
+  test next to the change.
+- **WASM-only** — the fix lives in `core/compiler/codegen/wasm/`
+  and only affects the runtime-interpreter dispatch. Note the
+  reason in the per-strip commit message and skip.
+- **Already covered** — the Rust port already does the right
+  thing; add a regression fixture and skip the port.
+
+Strips (one commit per audit + port):
+
+- **C39a** — `fix(codegen): foreach binds every loop variable per
+  iteration` (main `d5437ea0`). Audit
+  `rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs::detect_foreach`
+  + the foreach emitter — confirm whether the multi-var step uses
+  `len(loop_vars)` or `1`. WASM patch was the obvious case; bytecode
+  emit *should* already be correct via `FOREACH_START4` / `STEP4`
+  semantics, but add a fixture (`foreach-multi-var-step.tcl`) to
+  prove it.
+- **C39b** — `fix(codegen): continue in a for loop runs the
+  next-script before looping` (main `ef4806c5`). Audit
+  `codegen/emitter/generate.rs` for-loop dispatch — verify the
+  continue target jumps to the post-body / pre-test edge that
+  emits the `next` script. Add fixture `for-continue-runs-next.tcl`.
+- **C39c** — `fix(codegen): dict create folds key/value pairs into
+  the result` (main `74669d92`). The Rust port already has a
+  `dict_create` constant-folder in `codegen/helpers.rs::fold_dict_create_cmd`.
+  Add fixture proving `[dict create k1 v1 k2 v2]` folds, and a
+  matching unit test.
+- **C39d** — `fix(codegen): switch -glob dispatches inline via
+  tcl_string_match` (main `147a4a74`). WASM-only — the Tcl bytecode
+  path already emits `JUMP_TABLE` / `STR_MATCH` opcodes natively.
+  Add a fixture proving exact-mode `switch` falls through
+  correctly, mark the entry "WASM-only port skipped".
+- **C39e** — `fix(codegen): expr min/max variadic, int/entier/wide,
+  bool, pow` (main `3cf8f713`). Cross-check
+  `codegen/expressions.rs::emit_expr` math-function dispatch —
+  ensure variadic `min` / `max` and the int-coercion family emit
+  matching `invokeStk` patterns. C22i in the existing chunk log
+  already ports the constant-folding side; this strip is the
+  emitter side.
+- **C39f** — `fix(codegen): expr in/ni list-membership operators`
+  (main `89f8e43c`). The C22i chunk in
+  `tcl_expr_eval.rs` evaluates `in` / `ni`. Verify
+  `codegen/expressions.rs` emits the expected `STR_FIND` / `STR_EQ`
+  + `LIST_INDEX` sequence for unfolded operands. Fixture:
+  `expr-in-list-runtime.tcl`.
+- **C39g** — `fix(codegen): accept 0x/0o/0b expr literals via
+  int(value, 0)` (main `fdc1ee70`). Confirm
+  `tcl_expr_eval.rs::parse_literal` already handles all three
+  prefixes (it does — see C22 chunk log). Fixture:
+  `expr-radix-prefixes.tcl`.
+- **C39h** — `fix(codegen): lsort with options targets the trailing
+  list arg` (main `e43a7985`). Audit `codegen/emitter/bytecoded.rs`
+  for an `lsort` hook (none today). Either add a registry
+  codegen-hook that picks the trailing arg as the list, or note as
+  generic-invoke fallback.
+- **C39i** — `fix(codegen): pack args-tail when calling a proc from
+  a value context` (main `d341e74f`). Trace
+  `codegen/cmd_subst.rs::emit_generic_cmd_subst` — verify the
+  `INVOKE_STK4` form is reached when value-context receives ≥4
+  args.
+- **C39j** — `fix(codegen): double() cast in expr` (main
+  `f5506f10`). Verify the `double` math function in
+  `tcl_expr_eval.rs::eval_math_function`.
+
+Done definition: each strip lands a fixture or a unit test, the
+differential codegen harness still reports zero new divergent
+fixtures, and `cargo test -p tcl-compiler --lib` stays green.
+
+**Landed outcome.** Five new matching fixtures added
+(`foreach-multi-var.tcl`, `for-continue-runs-next.tcl`,
+`dict-create-fold.tcl`, `expr-double-cast.tcl`, plus the existing
+single-var `foreach-simple.tcl` already covering C39a's bytecode
+path). One new divergent fixture filed:
+`divergent/expr-radix-fold.tcl` — `expr {0xFF + 1}` parses but the
+Rust pipeline does not constant-fold the binary op (Rust emits 18
+instructions, Python 12). Filed as a follow-up, not blocking C39.
+Differential matching corpus: 33/33 passing (17 exact + 16
+semantic), divergent corpus: 2 (was 1). All other C39 strips fall
+into "WASM-only port skipped" (C39d) or "audit confirms parity
+already in place" (C39a/b/c/e/f/h/i/j) — a fixture in
+`matching/` is the proof for each.
+
+### C35 — Const-propagate-uplevel
+
+**Order swap.** C35 originally listed before C34, but it has a
+hard dependency on C34's `IRUpFrame` IR node (the static-body
+uplevel case lowers to `IRUpFrame { body: Script, frame_shift: 1 }`
+which doesn't exist until C34 lands). Execute C34 first, then
+return to C35. The strips below stand unchanged.
+
+Port the const-propagation half of main PR #185 — specifically:
+
+- `lower(barrier): const-propagate braced-literal bodies through
+  uplevel/eval` (main `b5e18ce2`)
+- `lower(barrier): inherit const-map across nested script scopes`
+  (main `c30203da`)
+- `lower(barrier): extend eval relaxation to [list ...] shape`
+  (main `a080c8d7`)
+
+Affects `rust/tcl-compiler/src/lowering/structured.rs` (the
+`lower_eval` / `lower_uplevel` paths) and the const-map carried on
+`Lowerer` state.
+
+Strips (one commit each):
+
+- **C35a** — [LANDED] `Lowerer::const_map_stack: Vec<HashMap<String,
+  String>>` and `Lowerer::proc_depth: u32` fields. `lower_script`
+  pushes a fresh scope; `lower_body` pushes a *clone* of the
+  parent scope (matching main `c30203da`). `lower_proc` and
+  `lower_when` bump `proc_depth` around their body lowering so
+  the const-map is gated to proc / event-handler scopes only —
+  top-level / `namespace eval` writes are globals or namespace
+  vars whose values can be observed and mutated by other code,
+  which would make const-propagating them unsound. `lower_segmented`
+  invokes `update_const_map(seg, &stmt)` after each command —
+  populates a literal binding for `set name {literal}` shapes
+  (rejecting array refs, namespace-qualified names, substituted
+  values), invalidates the named entry on assignment-style
+  writes, clears the whole map on `Statement::Barrier` /
+  `Statement::Block` / `Statement::UpFrame` / structured IR.
+  Module-level helpers `set_literal_body` and
+  `invalidate_const_map_for` mirror Python's `_set_literal_body`
+  and `_invalidate_const_map_for`. 6 unit tests covering disable
+  at top level, single-set+resolve, eval-brace lowering, eval-var
+  lowering, invalidation on re-assignment, and inheritance into
+  catch body.
+- **C35b** — [LANDED] `try_lower_uplevel_static` (C34a) gains a
+  `TokenType::Var` branch: when the body argument is a `$var`
+  that resolves via the const-map to a brace-string literal,
+  re-lower the literal as the inlined body. Mirrors main
+  `b5e18ce2`'s `_can_relax_uplevel` + `_relax_uplevel` change.
+  New `try_lower_eval_static` mirrors the same shape for `eval`,
+  producing `Statement::Block` rather than `Statement::UpFrame`
+  (eval doesn't shift frames). Wired into `lower_command` as a
+  new `"eval"` arm. Two existing interprocedural tests that
+  relied on `eval {}` being a barrier were updated to use
+  `eval $dyn` since `eval {literal}` is no longer a barrier
+  (it's a `Block`). Same change applied to
+  `tests/test_rust_interprocedural_delegation.py`.
+- **C35c** — [LANDED] `eval_list_literal_body(cmd_text)` parses
+  the inner-command of an `eval [list ...]` callsite via
+  `segment_commands`, verifies the head is `list` and every arg
+  is a single-token literal (`Esc` without `$` / `[`, or `Str`
+  which gets re-braced in the synthesised body), and returns
+  the joined body text. `try_lower_eval_static` gains a
+  `TokenType::Cmd` branch that calls the helper and re-lowers
+  the result as a `Statement::Block`. Mirrors main commit
+  `a080c8d7`. 3 unit tests: `[list set x 42]` accepted,
+  `[list set x $v]` rejected, `[foo arg]` rejected.
+
+Done: a new differential fixture per strip in
+`rust/tcl-compiler/tests/fixtures/codegen/matching/`.
+
+### C34 — `inline_uplevel` pass
+
+Port `core/compiler/inline_uplevel.py` (main `25a4340e`, 621 LOC)
+to `rust/tcl-compiler/src/inline_uplevel.rs` plus an IR addition
+for `IRUpFrame` (currently absent from the Rust port).
+
+Strips:
+
+- **C34a — IRUpFrame IR node.** [LANDED] Adds the
+  `Statement::UpFrame { span, frame_shift, body, tokens }` variant
+  to `rust/tcl-compiler/src/ir.rs`. The lowering dispatch
+  (`lowering::mod::lower_command`) routes `uplevel ?level? {body}`
+  through `try_lower_uplevel_static` for the static-body case
+  (level is a decimal int or `#N`, body is a brace-string token);
+  dynamic forms fall through to default lowering. Codegen emits a
+  NOP placeholder with comment `# unhandled: IRUpFrame` matching
+  the Python pipeline's expectation that the inline_uplevel pass
+  consumes IRUpFrame before codegen runs. Interprocedural analysis
+  treats it as a barrier and walks the body. Code-sinking matches
+  it alongside `Statement::Catch` for body-walking. 6 unit tests +
+  1 matching fixture (`uplevel-static-body.tcl`). Clippy +
+  differential corpus + `make prep-pr` clean.
+- **C34b — Static (zero-param) passthrough detection.** [LANDED]
+  New crate module `rust/tcl-compiler/src/inline_uplevel.rs`.
+  `detect_static_passthrough(&Module) -> HashMap<String, Script>`
+  for the static-only convenience and the richer
+  `detect_passthrough_candidates(&Module) -> HashMap<String,
+  PassthroughShape>` for both shapes. Gate matches main's four
+  conditions: zero params, body is one `Statement::UpFrame`,
+  `frame_shift == 1`, no nested uplevel/upvar/info-frame
+  (recursive `body_has_frame_reach` walks if/for/while/foreach/
+  catch/try/switch). 6 unit tests.
+- **C34c — Single-body-param passthrough detection.** [LANDED]
+  Extends the detector with the `ParamBody { param_name }` shape
+  (`proc dispatcher {body} { uplevel ?1? $body }`). Recognises both
+  the implicit-level (`uplevel $body`) and explicit-level
+  (`uplevel 1 $body`) forms; rejects mismatched param names and
+  multi-param dispatchers. 4 unit tests.
+- **C34d — Per-callsite rewriter.** [LANDED]
+  `inline_uplevel_passthrough(&mut Module, &CommandRegistry)` walks
+  every script in the module and replaces matched zero-param
+  passthrough callsites with `Statement::Block { body, namespace,
+  tokens, .. }`. Recurses into structured statements via
+  `walk_nested_scripts` so callsites inside if/for/while/foreach/
+  catch/try/switch bodies are rewritten too. Idempotent:
+  already-inlined callsites no longer match. Adds a new IR
+  variant: `Statement::Block { span, body, namespace, tokens }` —
+  flat splice of an inline body without a new scope (mirrors
+  Python's `IRBlock`). 6 unit tests covering rewriter behaviour
+  + idempotency. The ParamBody rewrite path landed in a
+  follow-up that added `CommandTokens::argv_kinds` (the per-word
+  `tcl_lexer::TokenType`); the rewriter consults it to confirm
+  the sole arg was a brace-string token before splicing. 5
+  additional unit tests covering the brace-literal rewrite,
+  dynamic-arg skip, command-subst-arg skip, frame-reach skip,
+  and `{*}`-expansion skip.
+- **C34e — Pipeline integration.** [LANDED]
+  `CompilationUnit::build_for` runs
+  `inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry)`
+  immediately after `lower_to_ir` and before `build_cfg`. The
+  CFG builder gains an explicit `Statement::Block` arm that
+  recursively flattens the body's statements into the current
+  control-flow stream so SSA / def-use / codegen see them
+  inline. The codegen `emit_stmt` arm walks the block body
+  emitting each statement in turn. Differential corpus stays
+  green (matching: 34/34, divergent: 2 — unchanged).
+
+Done: 6 fixtures (3 static, 3 param-body), ~25 unit tests.
+Differential harness reports same exact-match count as Python
+(matching/divergent split unchanged or improved).
+
+### C37 — Parse-cache address-keying + const-map isolation
+
+Port main's two parse-cache fixes (`b64d7a5f`, `49f90130`) into the
+Rust lowering layer.
+
+The Rust lowering already has a per-function const-map (see
+`Lowerer::const_map`). Main's fix:
+
+- **C37a — Address-keyed body cache.** N/A for the Rust compiler.
+  Main commit `b64d7a5f` retitles a Zig runtime cache
+  (`runtime/zig/parse_cache.zig`) — there's no analogous Python
+  body-cache port, and the Rust lowering registers each procedure
+  exactly once into `module.procedures` so re-lowering is not
+  observable. The audit confirmed no Rust-side gap.
+- **C37b — Fresh const-map for nested procs.** [LANDED]
+  `lower_proc` and `lower_when` now push an empty `HashMap` on
+  `const_map_stack` around the body lowering (in addition to the
+  existing `proc_depth` bump). `lower_body` clones the parent
+  scope on entry, so pushing an empty parent first gives the
+  nested proc / event-handler body a clean slate independent of
+  the outer scope's tracked literals. Mirrors main commit
+  `49f90130`. New unit test
+  `const_prop_does_not_leak_into_nested_proc` asserts the inner
+  `uplevel 1 $body` stays a `Call` / `Barrier` even when the
+  outer proc bound `body` to a brace literal.
+
+Done: per-strip fixture; `cargo test -p tcl-compiler --lib`
+clean.
+
+### C38 — Namespace-import compile-time resolution
+
+Port `perf(codegen): resolve namespace-import calls at compile time`
+(main `ea155a5c`) and `lower/codegen: gate namespace_imports
+shortcut on namespace export` (main `2f5cb008`) and `lower:
+suppress namespace import/export in dead if branches` (main
+`06f42efa`).
+
+Strips:
+
+- **C38a** — [LANDED] `Lowerer::namespace_imports: Vec<(String,
+  String)>` plus a detection block in `lower_command` that
+  matches `namespace import ?-force? pattern...`, skips
+  `{*}`-expanded calls, filters relative patterns, and records
+  `(context_namespace, absolute_pattern)` pairs. Surfaced on
+  `Module::namespace_imports` at the end of `Lowerer::lower`.
+  Mirrors main commit `ea155a5c`'s lowering-side change.
+- **C38b** — [LANDED] `Lowerer::namespace_exports` + a
+  `namespace export` arm in the same dispatch block. Skips
+  `-clear` / option flags, records `(context_namespace, pattern)`
+  pairs, surfaces on `Module::namespace_exports`. The codegen-
+  side gate (using exports to decide whether an import shortcut
+  fires) belongs to a future strip when the Rust compiler grows
+  a namespace-import-resolution path; the data layer is in place
+  for that consumer. Mirrors main commit `2f5cb008`'s
+  lowering-side change.
+- **C38c** — [LANDED] `Lowerer::dead_code_depth: u32` counter +
+  `static_bool(expr_text)` helper. `lower_if` (in
+  `lowering/structured.rs`) detects clauses whose condition is a
+  literal `0`/`false`/`no`/`off` or `1`/`true`/`yes`/`on` and
+  brackets the dead body with `dead_code_depth += 1` /
+  `dead_code_depth -= 1`. A static-true clause latches the flag
+  so every later clause + the `else` branch is dead. The
+  `namespace import` / `namespace export` collection is gated on
+  `dead_code_depth == 0`. Mirrors main commit `06f42efa`. 6 unit
+  tests covering recording, relative-pattern skip, `-force` flag,
+  export recording, dead `if{0}` branch suppression, dead `else`
+  after `if{1}` suppression.
+
+Done: 3 fixtures, ~10 unit tests, differential harness no
+regressions.
+
+### C36 — Factory specialisation + `subst -nocommands`
+
+Port the largest single PR-185 component: the factory pass
+(`core/compiler/passes/specialise_factories.py`, 559 LOC) plus its
+parser dependency (`core/parsing/subst_nocommands.py`, 233 LOC) and
+the lowering-layer plumbing (`d4d2cdd5` "materialise [subst
+-nocommands {…}] bodies", `2ad4efc9` "resolve `proc \$var body` via
+lowering const-map").
+
+Strips:
+
+- **C36a — `subst_nocommands` parser.** [LANDED] New crate
+  module `rust/tcl-compiler/src/subst_nocommands.rs`. Implements
+  `subst_nocommands(template, &const_map) -> Option<String>` — a
+  compile-time evaluator for `[subst -nocommands {template}]` that
+  resolves `$var` / `${var}` against the supplied const-map,
+  decodes `\…` escapes via `tcl_lexer::backslash_subst`, keeps
+  `[…]` literal (the `-nocommands` flag), and refuses (returns
+  `None`) for missing vars, array refs, namespace-qualified
+  names, unbalanced brackets. Mirrors Python's
+  `core/parsing/subst_nocommands.py`. 13 unit tests covering
+  every refusal condition + happy paths.
+- **C36b — Lowering: `proc $var body` resolution.** [LANDED]
+  `lower_proc` first checks for the `$var` shape (proc name
+  contains `$`, doesn't contain `[`, single-token VAR, name
+  resolves via `const_map_lookup`) and substitutes the literal
+  before continuing as a normal static-name proc. Multi-token
+  names (`foo_$x`, `$a$b`) and command-substitution names
+  (`$name[suffix]`) stay on the runtime / barrier path. The
+  inner proc registers under the resolved FQN. Mirrors main
+  commit `2ad4efc9`. 4 unit tests covering the resolved /
+  no-binding / command-sub / latest-set-wins shapes.
+- **C36c — Lowering: materialise `[subst -nocommands {…}]`
+  bodies.** [LANDED] New `Lowerer::eval_subst_nocommands_body`
+  helper: parses the inner CMD-token text via `segment_commands`,
+  verifies `subst` head + a `-nocommands` flag (rejecting
+  `-nobackslashes` / `-novariables` whose semantics differ),
+  finds the single STR-token positional template, then delegates
+  to `crate::subst_nocommands::subst_nocommands` against the
+  current const-map. Wired into `lower_proc` alongside the
+  existing body-lowering path: when the body is a CMD token and
+  the helper succeeds, lower the substituted text via
+  `lower_script` instead of `lower_body`. Mirrors main
+  `d4d2cdd5`. 3 unit tests covering the happy path,
+  missing-var refusal, and `-nobackslashes` refusal.
+- **C36d — Factory shape detector.** [LANDED] New crate module
+  `rust/tcl-compiler/src/specialise_factories.rs`. `FactoryShape
+  { qualified_name, params, name_param, child_params,
+  child_body_template }` plus
+  `detect_factory_shape(&Procedure) -> Option<FactoryShape>`.
+  Recognises the canonical `proc Configure {name default
+  description} { proc $name {…} [subst -nocommands {…}] }`
+  pattern by matching the proc body's single
+  `Statement::Barrier { reason: "dynamic proc name", command:
+  "proc", … }` and verifying the `${name}` / `$name` shape, the
+  literal child params, and the brace-template body via a
+  reused `extract_subst_nocommands_template` helper. 3 unit
+  tests: canonical shape detected, multi-statement rejected,
+  non-param name rejected.
+- **C36e — Per-call factory specialiser.** [LANDED]
+  `specialise_factories(&mut Module, &CommandRegistry)` walks
+  the module's top-level + each procedure body, recognising
+  call sites of any detected factory. For each match it:
+  1. resolves the target via namespace-qualified or root
+     lookup;
+  2. extracts literal arg bindings (`STR` braced text or `ESC`
+     bareword without `$`/`[`);
+  3. feeds the bindings through `subst_nocommands` against the
+     factory's body template;
+  4. lowers the materialised body to an `IRScript` via a fresh
+     `Lowerer`;
+  5. registers a synthesised `Procedure` under the bound
+     `name_param` value;
+  6. replaces the call site with a no-op `Statement::Block`.
+  Recurses into `Statement::Block` containers; structured IR
+  (if / for / while / foreach / catch / try / switch) is left
+  alone, matching Python's gate. 3 unit tests covering
+  successful synthesis, dynamic-arg skip, and multi-call
+  recursion.
+- **C36f — Per-factory specialisation cap.** [LANDED]
+  `DEFAULT_FACTORY_CAP = 64` constant +
+  `specialise_factories_with_cap(module, registry, cap)` entry
+  point. A `counts: HashMap<String, usize>` tracks per-factory
+  rewrites; once a factory's count reaches *cap* further call
+  sites stay on the runtime dispatch path. Wired through the
+  default `specialise_factories` so existing callers get the
+  cap automatically. Pipeline integration: the pass runs
+  immediately after `lower_to_ir` in
+  `CompilationUnit::build_for`, before the `inline_uplevel`
+  pass and before `build_cfg`, so the synthesised procs appear
+  in `module.procedures` for every downstream consumer. 1 unit
+  test asserts the third call past `cap=2` does not synthesise.
+
+Done: 6 fixtures + 14+ unit tests; the `tcltest` Option pattern
+specialises end-to-end through the pipeline.
+
+### C33 — `var_escape` flow-sensitive analysis
+
+Port `core/compiler/var_escape/` (2,243 LOC across 7 files in main)
+to `rust/tcl-compiler/src/var_escape/`. This is the single biggest
+remaining chunk. Five strips, one per Python sub-module:
+
+- **C33a — Types + lattice (`_types.py`).** [LANDED] New crate
+  module `rust/tcl-compiler/src/var_escape/{mod,types}.rs`.
+  `EscapeTag` enum (`Local` / `Frame`), `join` lattice operator
+  (`Frame` dominates), and `ProcEscapeSummary` carrying
+  per-name tags, `dynamic_barrier`, `frame_needed`,
+  `upvar_source_names`, `unbounded_upvar_source`,
+  `direct_callees`, `has_fallback`, `has_call_fallback`, and
+  per-SSA-version `ssa_tags`. Methods: `tag` (defaults to
+  `Local`, returns `Frame` when the barrier is set),
+  `is_frame`, `with_escapes(extra, pessimistic)` for
+  callee-induced escape propagation. Mirrors Python's
+  `core/compiler/var_escape/_types.py`. 6 unit tests covering
+  the lattice + summary API.
+- **C33b — Static rule audit (`_propagation.py`).** [LANDED]
+  Ported as 5 sub-strips (b1 helpers, b2 EscapeState, b3
+  collect_known_names, b4 per-call handlers, b5/b6/b7 walker
+  combined). The walker runs the intra-procedural rule engine
+  over an IR script: per-Statement transfer functions for
+  AssignConst/AssignValue/AssignExpr/Incr (with literal-binding
+  alias tracking), Call (dispatched to upvar / global / variable
+  / namespace upvar / info / dynamic-name-first handlers and a
+  generic callee-recording fallback), Barrier / UpFrame (with
+  eval / uplevel-#0 special cases that recursively escape every
+  name touched in the literal body), structured statements
+  (if / for / while / foreach / catch / try / switch),
+  Statement::Block (transparent splice or eval-relaxed), and
+  value/expr scans for embedded `[info ...]` hazards or
+  non-frameless command substitutions. Public entry point:
+  `var_escape::analyse_script(body, params) -> ProcEscapeSummary`.
+  Mirrors `core/compiler/var_escape/_propagation.py` (979 LOC of
+  Python). 50 unit tests across the 5 strips covering helpers,
+  state, known-name collection, per-call handlers, and the
+  walker's end-to-end shapes.
+- **C33c — `info` subcommand audit (`_info_subcommands.py`).**
+  [LANDED] New crate module
+  `rust/tcl-compiler/src/var_escape/info_subcommands.rs` with
+  the two const-slice allow-lists (`FRAME_INSPECTING_SUBCOMMANDS`,
+  `INTERPRETER_GLOBAL_SUBCOMMANDS`) plus the
+  `is_safe_info_subcommand` / `is_frame_inspecting_info_subcommand`
+  predicates. Mirrors the Tcl 9.0 audit Python's
+  `_info_subcommands.py` documents. 4 unit tests covering
+  pessimistic detection, safe detection, unknown-subcommand
+  fall-through, and the disjoint-sets invariant.
+- **C33d — Interprocedural propagation
+  (`_interprocedural.py`).** [LANDED] New crate module
+  `rust/tcl-compiler/src/var_escape/interprocedural.rs`.
+  `solve_interprocedural_escape(&HashMap<String,
+  ProcEscapeSummary>) -> HashMap<String, ProcEscapeSummary>`
+  runs a worklist fixpoint over the static call graph built
+  from each proc's `direct_callees`. Resolves bare callees via
+  Tcl's namespace-walking lookup
+  (`name_candidates` walks the caller's namespace then enclosing
+  namespaces then global then bare); after convergence each
+  proc's `upvar_source_names` is the union of its own + every
+  transitive callee's. `unbounded_upvar_source` propagates the
+  same way and triggers `dynamic_barrier` on callers (the
+  interprocedural pessimism rule). `has_fallback` is downgraded
+  per proc when every recorded callee resolves to a tracked
+  proc (compiled-callee dispatch doesn't hit the eval
+  fallback). Mirrors
+  `core/compiler/var_escape/_interprocedural.py`. 12 unit
+  tests covering caller-namespace walking, name-candidates
+  ordering, transitive chains, unbounded propagation,
+  has-call-fallback downgrade vs preserve, self-recursion.
+- **C33e — Flow-sensitive SSA-version propagation
+  (`_cfg_propagation.py`).** [LANDED] Ported as 6 sub-strips:
+  e1 (CfgEscapeResult + CfgState — SSA-version-aware
+  accumulator), e2 (collect_known_names_from_cfg — SSA-block
+  walker), e3 (per-call handlers — cfg variants taking the
+  defs map), e4/e5/e6 combined walker
+  (escape_every_name_touched_tree + handle_call dispatcher +
+  value/expr scans + handle_statement + walk_block + block_order
+  + analyse_cfg_function entry point). New crate module:
+  `rust/tcl-compiler/src/var_escape/cfg_propagation/`. The
+  walker iterates blocks in CFG reverse-postorder, processes
+  each SsaStatement via per-Statement transfer functions
+  (assign with literal-binding alias tracking, call routed to
+  per-command handlers, barrier / UpFrame / eval-Block routed
+  to handle_barrier with literal-body recursion through
+  escape_every_name_touched_tree, structured statements
+  recursing into nested scripts), and additionally scans each
+  block's terminator branch condition for embedded
+  ``[info ...]`` hazards. The `into_result()` collapse
+  produces both `ssa_tags: HashMap<(String, Version),
+  EscapeTag>` (authoritative) and `name_tags: HashMap<String,
+  EscapeTag>` (per-name view: Frame iff any version was
+  tagged). Wired into `var_escape::analyse_cfg_function`.
+  Mirrors `core/compiler/var_escape/_cfg_propagation.py` (686
+  LOC of Python). 38 unit tests across the 4 sub-modules.
+
+Each strip is independently committable and individually green
+under `make prep-pr`. Wire the analysis into
+`compiler_checks::run_all_checks` only after C33e lands so
+intermediate strips don't leak into Python diagnostics. The
+public-API `_api.py` module ports as part of C33e.
+
+### SYNC-MAY26 family — main rebase audit (2026-04-30 → 2026-05-01)
+
+**Status:** SYNC1–SYNC10 landed via PR #389 in a single
+stacked commit series (2026-05-09); SYNC11 is deferred to
+`S-hover-sync11` because the contract builds on the cached-
+analysis surface that `S-diagnostics` introduces.  The per-
+chunk sub-plans below are preserved for audit reference and
+for the deferred halves (full `ArgRoleSet` type widening on
+SYNC1, lowerer-side population on SYNC7, threading the trace
+facts into the optimiser passes on SYNC8).
+
+These eleven sub-chunks track parity gaps surfaced by rebasing
+the rust workstream onto `main` after the 253-commit burst that
+landed between `6104b8a5` (2026-04-30) and `3e110b44`
+(2026-05-01).  All eleven items have a Rust mirror that is now
+stale; the rest of `main`'s landing themes (WASM AOT staircase
+S0–S6, WASM runtime, clock subsystem, Zig-runtime tests,
+fuzzing 4th backend, misc string/scan/io fixes) are out of scope
+because the corresponding Rust crates don't exist yet.
+
+Order taken in PR #389: `SYNC1 → SYNC6 → SYNC10` (first stack),
+then `SYNC2 → SYNC3 → SYNC4 → SYNC5` (registry + SSA stack),
+then `SYNC-JUN-FRAME356-population`, then `SYNC-JUN-CFG-upvar-
+info` (core only), then `SYNC9 → SYNC8` (Module trace facts +
+GVN purity), then `SYNC7` (canonical-command type surface).
+`SYNC1` was the registry-shape change every SSA fix depended
+on; `SYNC7` unblocked the body-kind canonicalisation surface;
+`SYNC9` fed `SYNC8`.
+
+Each sub-chunk landed as its own commit and kept `make prep-pr`
+green at every step.  None of the sub-chunks flipped a Python
+override on its own — the override retirement happens later,
+alongside the C41 followup family, when the Rust analyser
+surface matches Python's full post-`#246` shape.
+
+#### SYNC1 — Registry: multi-role `arg_role_resolver` return type
+
+**Source on main:** `8c95c2ee` (resolver returns
+`dict[int, frozenset[ArgRole]]`), `38d90003` (static `arg_roles`
+shape unification on 163 entries), `2db09231` (Copilot review
+follow-up).
+
+**Why:** Python deleted the `ArgRole.VAR_READ_WRITE` enum value
+along with the role-subsumption table at the query layer.  An
+argument that plays multiple roles now declares them directly as
+a frozenset.  `dict with` / `dict update` arg 0 is the canonical
+case: `frozenset({VAR_READ, VAR_WRITE})` instead of the old
+combined `VAR_READ_WRITE` value plus a subsumption-table lookup.
+The Rust `ArgRole` enum (`rust/tcl-registry/src/arg_role.rs`) is
+already correct in not having a `VarReadWrite` variant, but the
+resolver and the static `arg_roles` arrays still carry one role
+per index.
+
+**Steps:**
+
+1. **Type widening.**  `rust/tcl-registry/src/types.rs` —
+   change
+   ```rust
+   pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
+   ```
+   to either an explicit set type
+   ```rust
+   #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+   pub struct ArgRoleSet(u16);
+   impl ArgRoleSet { pub fn insert(&mut self, role: ArgRole); pub fn contains(&self, role: ArgRole) -> bool; pub fn iter(&self) -> impl Iterator<Item = ArgRole>; }
+   pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRoleSet)>;
+   ```
+   or a thin newtype around `enumflags2::BitFlags<ArgRole>`.
+   Prefer the bit-set form — `ArgRole` has 13 variants today,
+   well within a `u16`, and the comparison/contains/iter cost is
+   the same as for `frozenset[ArgRole]` on the Python side.
+2. **Enum repr.**  Change `ArgRole` to `#[derive(enumflags2::BitFlags)]`
+   or assign explicit power-of-two `#[repr(u16)]` discriminants
+   for hand-rolled set storage.  Keep the existing variant names
+   so the rest of the workspace doesn't churn.
+3. **Static arrays.**  `rust/tcl-registry/src/spec.rs` and
+   `rust/tcl-registry/src/forms.rs` —
+   ```rust
+   pub arg_roles: &'static [(u8, ArgRole)],
+   ```
+   becomes
+   ```rust
+   pub arg_roles: &'static [(u8, ArgRoleSet)],
+   ```
+   Add a `const fn ArgRoleSet::single(role: ArgRole) -> Self`
+   so the existing per-spec literals can rewrite as
+   `(0, ArgRoleSet::single(ArgRole::Body))` without touching
+   200+ command files at once.  Land the type widening + the
+   constructor in commit 1; do the literal sweep across
+   `rust/tcl-registry/src/commands/**` in commit 2 (mostly a
+   `sed`).  Keep dispatch using the new shape from the start —
+   no temporary `From<(u8, ArgRole)>` conversion hop.
+4. **`arg_indices_for_role` rewrite.**
+   `rust/tcl-registry/src/registry.rs:142`.  Current shape
+   filters with `*r == role`; new shape filters with
+   `r.contains(role)`.  All four code paths (top-level static,
+   top-level resolver, subcommand static, subcommand resolver)
+   need the same edit.  No call-site change downstream — the
+   public method signature is unchanged.
+5. **`dict with` / `dict update` resolver.**  Locate the
+   existing `dict` resolver (search
+   `rust/tcl-registry/src/commands/tcl/dict.rs`) and update arg 0
+   for the `with` and `update` subcommands to declare both
+   `VarRead` and `VarWrite`.  This is the regression test fixture
+   for the type widening.
+6. **Tests.**
+   - New `tcl-registry::registry::tests::arg_indices_for_role_multirole`
+     pinning `dict with $var {}` arg 0 returns from both
+     `arg_indices_for_role(_, _, ArgRole::VarRead)` and
+     `arg_indices_for_role(_, _, ArgRole::VarWrite)`.
+   - Rename or extend the existing `arg_roles_for_static_command`
+     / `arg_roles_for_expr` tests.
+   - Add a roundtrip test that
+     `ArgRoleSet::single(ArgRole::Body).contains(ArgRole::Body)
+      && !ArgRoleSet::single(ArgRole::Body).contains(ArgRole::Expr)`.
+
+**Acceptance:**
+
+- `cargo check --workspace` clean, `cargo test --workspace`
+  green.
+- `dict with` / `dict update` arg 0 returns both reads-role and
+  writes-role from `arg_indices_for_role`.
+- No remaining single-role `Vec<(u8, ArgRole)>` in the public
+  `tcl-registry` surface.
+
+**Unblocks:** SYNC4, SYNC5, SYNC6.
+
+#### SYNC2 — Registry: `BodyKind::STRUCTURAL` marking on OO/snit/uri
+
+**Source on main:** `88970edc` (mark OO + snit + uri::register
+bodies as STRUCTURAL), `91daf5c2` (extend STRUCTURAL marking to
+`oo::objdefine` and remaining snit forms).  Closes `#250`,
+second slice of `#246`'s body-kind canonicalisation.
+
+**Why:** Bodies of `oo::class` (and the sister metaclasses
+`oo::abstract`, `oo::singleton`, `oo::configurable`),
+`oo::define`, `oo::objdefine`, `snit::method` /
+`snit::typemethod`, and `uri::register` run in a definition or
+dispatch context that is *not* the caller's scope.  Without
+`BodyKind::STRUCTURAL` SSA scans those bodies as part of the
+enclosing block's data flow — variable references inside a
+method body appear as reads/writes against the surrounding
+scope.
+
+The Rust registry has **no** `BodyKind` enum yet; the only
+mention of "Structural" in the Rust workspace is the doc comment
+on `rust/tcl-registry/src/commands/irules/proc.rs:3`.
+
+**Steps:**
+
+1. **`BodyKind` enum.**  New module
+   `rust/tcl-registry/src/body_kind.rs`:
+   ```rust
+   #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+   #[non_exhaustive]
+   pub enum BodyKind {
+       #[default]
+       /// Body runs in the caller's frame; SSA should scan it as
+       /// part of the enclosing block's data flow.
+       Plain,
+       /// Body runs in a definition or dispatch context that is
+       /// not the caller's scope. SSA must skip the body when
+       /// scanning the enclosing block (the body still gets
+       /// analysed as its own scope).
+       Structural,
+   }
+   ```
+   Re-export from `lib.rs`.  Mirror the Python `BodyKind` enum's
+   variant names.  Resist adding more variants up front — Python
+   still only ships the two.
+2. **Spec field.**  Add `pub body_kind: BodyKind` to both
+   `CommandSpec` and `SubCommand` in
+   `rust/tcl-registry/src/spec.rs` (and the matching
+   `CommandForm` if `forms.rs` needs it for sub-form bodies).
+   Default to `BodyKind::Plain` in the `const`-empty constructors
+   so the existing 200+ specs don't need touching.  When/where a
+   spec already declares `arg_roles` containing
+   `(_, ArgRole::Body)`, the new field is the body's *kind* for
+   that index.
+3. **OO + snit + uri stamps.**  Update the affected specs:
+   - `rust/tcl-registry/src/commands/tcl/oo_class.rs` —
+     `body_kind: BodyKind::Structural` on the `create`, `new`,
+     and `createWithNamespace` subcommands.
+   - `rust/tcl-registry/src/commands/tcl/oo_define.rs` — the
+     script-form body and every script-bearing subcommand
+     (`constructor`, `destructor`, `method`, `classmethod`,
+     `initialise`, `initialize`, `private`, `self`, `property`).
+   - `rust/tcl-registry/src/commands/tcl/oo_objdefine.rs` (or
+     wherever the spec lives — `oo::objdefine` shares
+     `oo::define`'s resolver per the doc table at line 1034).
+   - Snit: locate or add specs for `snit::method` /
+     `snit::typemethod`; if they don't exist, this chunk also
+     adds them with `arg_roles: ArgRole::Body` on the body slot
+     plus `body_kind: BodyKind::Structural`.
+   - Add `uri::register` similarly (`tcllib` dialect — check
+     `rust/tcl-registry/src/commands/tcllib/`).
+4. **SSA consumer.**  In
+   `rust/tcl-compiler/src/ssa.rs::uses_of_in_block` (currently
+   around line 525 where `body_indices.contains(&idx)` skips
+   body args), the body-arg skip must additionally consult the
+   resolved spec's `body_kind`.  The simplest way: have
+   `uses_of_in_block` ask the registry not just *which indices
+   are bodies* but also *which body indices are structural*; for
+   the structural ones, the body content is excluded as it is
+   today, but the body's own scope analysis happens elsewhere
+   (already the case today via the OO analyser /
+   `_handle_oo_class_command` Python equivalent).  No change to
+   the Python-shim materialiser is needed — Rust just stops
+   double-counting var refs inside method bodies.
+5. **Tests.**
+   - `tcl-registry::tests::body_kind_default_plain` — every
+     non-OO/snit/uri spec defaults to `Plain`.
+   - `tcl-registry::tests::body_kind_oo_class_method_structural`
+     and one each for `oo::define::method`, `snit::method`,
+     `snit::typemethod`, `uri::register`.
+   - `tcl-compiler::ssa::tests::structural_body_excluded_from_uses` —
+     a fixture invoking `oo::class create C { method m {} { set x
+     1 } }` outside a `proc` and asserting `x` is *not* in the
+     enclosing scope's `uses_of` result.
+
+**Acceptance:**
+
+- The OO/snit/uri body args no longer flow var refs into the
+  enclosing block's SSA analysis.
+- `cargo test --workspace` green.
+- Differential corpus
+  (`tests/test_rust_analyser_differential.py` /
+  `tests/test_rust_signature_scan_differential.py`) shows no
+  regression.
+
+#### SYNC3 — Registry: `body_arg_implicit_args` field
+
+**Source on main:** `e30b6ae9` ("analyser: account for
+command-prefix appended args in proc arity check").  Fixes `#308`.
+
+**Why:** `fileutil::updateInPlace ?options? path cmd` invokes
+`cmd` as a command prefix with the file contents appended at
+runtime.  Treating `cmd` as a literal Tcl script body causes
+E002 to fire on the first command of the body when its proc
+requires parameters that the runtime supplies implicitly.
+
+The Rust spec for `fileutil::updateInPlace` exists
+(`rust/tcl-registry/src/commands/tcllib/fileutil__updateinplace.rs`)
+but doesn't carry the new field, so the Rust analyser will keep
+mis-firing E002.
+
+**Steps:**
+
+1. **Spec field.**  Add
+   `pub body_arg_implicit_args: u8` (default 0) to both
+   `CommandSpec` and `SubCommand`.  Document: "How many runtime-
+   supplied positional args the body's first command receives.
+   Used by `_check_proc_call_arity` to relax static arity bounds
+   on a Body-marked argument.".  Default 0 keeps every existing
+   spec correct.
+2. **Stamp `fileutil::updateInPlace`.**  Set
+   `body_arg_implicit_args: 1` on the existing spec.
+3. **Analyser plumb-through.**  `rust/tcl-compiler/src/analyser/`
+   — locate the proc-call arity check (search
+   `_check_proc_call_arity` equivalent in `commands.rs` or
+   `handlers.rs`).  When dispatching into a Body argument, look
+   up the parent spec's `body_arg_implicit_args` and stash it on
+   a one-shot carry slot before the first top-level command of
+   the body is processed.  Nested bodies do **not** inherit the
+   offset (per the Python implementation —
+   `core/analysis/_analyser/_core.py`).  The arity check
+   consumes the carry slot and adds the implicit count to the
+   actual-arg-count when comparing against the proc's static
+   arity bounds.
+4. **Tests.**
+   - `tcl-registry::tests::body_arg_implicit_args_default_zero`.
+   - `tcl-registry::tests::body_arg_implicit_args_fileutil_updateinplace`.
+   - `tcl-compiler::analyser::tests::body_arg_implicit_args_relaxes_arity` —
+     define a single-arg proc, invoke
+     `fileutil::updateInPlace foo procname`, assert no E002 on
+     `procname` (without `body_arg_implicit_args` it would fire
+     because the proc's required arity is 1 and the call site
+     passes 0 args).
+5. **Python parity check (one-off).**
+   - Mirror `tests/test_analyser.py` for `#308`'s shape if the
+     Rust analyser test surface allows; otherwise leave it to
+     the differential corpus.
+
+**Acceptance:**
+
+- `fileutil::updateInPlace` callback procs no longer trigger E002
+  in the Rust analyser.
+- Other Body-marked arguments still get standard arity-checked.
+
+#### SYNC4 — SSA: registry-driven `trace add variable` VAR_WRITE
+
+**Source on main:** `01326b40` ("ssa: route `trace add variable`
+defs through registry for #249").
+
+**Why:** `rust/tcl-compiler/src/ssa.rs:130–134` still
+string-matches:
+```rust
+Statement::Barrier { command, args, .. } => {
+    if command == "trace" && args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
+        defs.insert(normalise_var_name(&args[2]).to_owned());
+    }
+    …
+}
+```
+This was the last hardcoded command-name special case left in
+Python's `ssa.py` and `01326b40` retired it by declaring the def
+on the spec itself: `trace add variable name ops body` registers
+a hook whose body can rewrite `name` at runtime, so SSA must see
+`name` as a definition site, and the spec is the right place to
+say so.  The Rust SSA needs the same treatment so future trace
+spellings (`::trace`, alias forms, any new dialect spelling)
+flow through the registry without code edits.
+
+**Depends on:** SYNC1 (multi-role resolver).
+
+**Steps:**
+
+1. **Spec stamp.**  In the trace spec
+   (`rust/tcl-registry/src/commands/tcl/trace.rs`), declare arg
+   2 (the variable name) of the `add variable` subcommand as
+   `ArgRole::VarWrite`.  After SYNC1 this is just an
+   `arg_roles: &[(2, ArgRoleSet::single(ArgRole::VarWrite))]`
+   on the relevant subcommand entry.
+2. **`defs_of` rewrite.**  In `rust/tcl-compiler/src/ssa.rs`
+   replace the trace-string-match arm with a registry-driven
+   query:
+   ```rust
+   Statement::Barrier { command, args, .. } => {
+       for idx in registry.arg_indices_for_role(command, &args.iter().map(|s| s.as_str()).collect::<Vec<_>>(), ArgRole::VarWrite) {
+           if let Some(arg) = args.get(idx) {
+               let name = normalise_var_name(arg);
+               if !name.is_empty() { defs.insert(name.into_owned()); }
+           }
+       }
+       // dict for/map barriers stay as a separate match arm —
+       // their iteration variables come from a structured-body
+       // scan, not from a registry role.
+   }
+   ```
+   The `dict for` / `dict map` arms stay as today (they extract
+   iteration variable names from a structured body, not from a
+   role-tagged arg).
+3. **Plumb the registry.**  `defs_of` is currently registry-less
+   (signature `defs_of(stmt: &Statement) -> Vec<String>`).  Add a
+   `&CommandRegistry` parameter; update call sites in `ssa.rs`,
+   `def_use.rs`, `cfg_builder/`, and `ir_helpers.rs` to thread
+   the registry in.  This is the same plumbing pattern ARCH5 used
+   for codegen.
+4. **Tests.**
+   - `tcl-compiler::ssa::tests::trace_add_variable_defines_via_registry` —
+     replaces the existing trace-string-match test.  Asserts
+     `defs_of` returns `["x"]` for the `Statement::Barrier`
+     produced by `trace add variable x write …`.
+   - `tcl-compiler::ssa::tests::trace_alias_forms_define` —
+     asserts `::trace add variable x …` produces the same def
+     (proves the registry routing covers alias spellings).
+
+**Acceptance:**
+
+- Zero string-matches on `"trace"` in `ssa.rs::defs_of`.
+- The differential corpus
+  (`tests/test_rust_lexer_warnings.py` /
+  `tests/test_rust_signature_scan_differential.py`) shows no
+  regression.
+
+**Unblocks:** SYNC6.
+
+#### SYNC5 — SSA: scope-alias barrier guard
+
+**Source on main:** `f87bc090` ("ssa: skip scope-alias barriers
+in registry VAR_WRITE def-tracking").  Review concern on `#256`.
+
+**Why:** Once SYNC4 routes barrier defs through the registry, a
+naive `for idx in arg_indices_for_role(_, _, VarWrite)` walk
+would *also* walk `global` and `variable` barriers — both
+declare `arg_roles={0: VAR_WRITE}` plus
+`creates_dynamic_barrier=true`.  The static role only points at
+arg 0, which would silently produce **partial** defs for the
+vararg forms: `global x y z` would mark `x` and miss `y` / `z`.
+
+The right discriminator is `creates_dynamic_barrier` — those
+barriers describe arbitrary-arity scope aliasing; the analyser
+already handles them through `var_scoping` (`C24b4`'s
+`global_declaration_indices` /
+`variable_declaration_indices`).  SSA should skip them.
+
+**Steps:**
+
+1. **Trait check.**  In `rust/tcl-compiler/src/ssa.rs::defs_of`
+   (the new SYNC4 form), gate the registry walk on
+   ```rust
+   if spec.traits.contains(Traits::CREATES_DYNAMIC_BARRIER) {
+       // var_scoping handles the per-arg list; SSA must not
+       // produce partial defs from arg_roles[0].
+       return;
+   }
+   ```
+   Verify `Traits::CREATES_DYNAMIC_BARRIER` exists in
+   `tcl-registry::Traits`; if not, add it (the bit is already
+   declared on the Python side as `creates_dynamic_barrier=True`
+   on the relevant specs).  Stamp it on `global`, `variable`,
+   `upvar`, and any other spec that already carried the
+   equivalent in Python.
+2. **Tests.**
+   - `tcl-compiler::ssa::tests::global_vararg_no_partial_defs` —
+     `global x y z` produces *no* defs from the registry path
+     (the var_scoping handler picks up all three separately).
+   - `tcl-compiler::ssa::tests::variable_vararg_no_partial_defs`
+     for the `variable` form.
+3. **Optional cross-check.**  Confirm
+   `core/compiler/ssa.py::_defs` for the Python parity behaviour
+   and copy-paste the relevant comment into the Rust source so
+   the next reader doesn't re-introduce the partial-def bug.
+
+**Acceptance:**
+
+- No partial defs from `global` / `variable` barriers in SSA.
+- Existing var_scoping-driven tests for
+  `global` / `variable` / `upvar` still pass.
+
+#### SYNC6 — SSA: `dict with` / `dict update` `reads_own_def` flag
+
+**Source on main:** `75d841e8` ("ssa: dict with/update — flag
+dict var as reads-own-def to avoid filter").
+
+**Why:** The `dict with` / `dict update` arg-0 dict variable
+carries both `ArgRole::VarRead` and `ArgRole::VarWrite`.  Once
+SYNC1 unifies the resolver shape and SYNC4 routes barrier defs
+through the registry, the IRBarrier `_uses` path will correctly
+add the variable to `vars_found` via the VarRead query, *and*
+correctly add it to `defs` via the VarWrite query.  But the
+closing filter at `ssa.rs:552`
+(`!defs.contains(v) || reads_own_def.contains(v)`) will then
+drop it because the same name appears in both sets and was never
+marked as reads-own-def.  Result: a proc whose only reference to
+a parameter is `dict with $param {}` produces a false unused-
+parameter diagnostic.
+
+**Depends on:** SYNC1, SYNC4.
+
+**Steps:**
+
+1. **Insert into `reads_own_def`.**  In
+   `rust/tcl-compiler/src/ssa.rs:533` (the existing
+   `dict with` / `dict update` branch), keep the existing
+   `vars_found.insert(dict_var)` and *also* add
+   `reads_own_def.insert(dict_var)`.  After SYNC4 the same
+   information could be expressed as "any arg whose
+   `ArgRoleSet` contains both VarRead and VarWrite implies
+   reads-own-def" — pick whichever expression matches the
+   existing `incr` / `append` / `lappend` reads-own-def emission
+   in `defs_of`'s call arm.  The role-set form is preferred
+   because it generalises beyond `dict`, but the local
+   special-case is acceptable as a scoped fix.
+2. **Tests.**
+   - `tcl-compiler::ssa::tests::dict_with_param_not_unused` — a
+     proc body of `dict with $param {}` should *not* produce an
+     unused-parameter diagnostic for `param`.  Mirrors the
+     Python regression test added in `75d841e8`.
+3. **Comment.**  Inline reference: `// Mirrors the
+   reads-own-def hop on dict with/update — see ssa.py
+   _uses for the Python-side comment.`.
+
+**Acceptance:**
+
+- The unused-parameter false positive on `dict with $param {}`
+  is gone.
+
+#### SYNC7 — IR: canonical command name on `Statement::Call` / `Statement::Barrier`
+
+**Source on main:** `a042271a` ("canonicalisation: stamp
+canonical command names on IRCall/IRBarrier (#246)"),
+`9bd77464` ("route get_wasm_hook through bare-name fallback"),
+`1c8c4d98` ("split source vs canonical command in WASM emit"),
+plus the two follow-up matrices `b5549b03` and `a03235fe`.
+
+**Why:** Python's `IRCall` / `IRBarrier` now carry a `command`
+*plus* a separate `canonical_command` field.  `command` is the
+spelling that appeared in the source (so diagnostics can render
+the original surface form); `canonical_command` is the
+registry's canonical name (so codegen / analyser / var helpers
+all dispatch through one stable string).  This split was needed
+because the same command can reach the IR via multiple
+spellings — bare name, `::`-qualified, alias-resolved,
+namespace-imported — and downstream consumers want one stable
+key without re-resolving from text on every lookup.
+
+The Rust `Statement::Call` and `Statement::Barrier` (`ir.rs:205`
+and `ir.rs:241`) only carry a single `command: String`.  Today
+the rest of the Rust pipeline re-resolves canonical names on
+demand; once canonical-name-aware code starts landing
+(structural body-kind dispatch, taint trait lookup,
+trace-aware GVN), each of those sites would re-resolve
+independently and drift.
+
+**Steps:**
+
+1. **IR field.**  Add
+   `pub canonical_command: Option<String>` next to `command` on
+   both `Statement::Call` and `Statement::Barrier`.  `Option`
+   so the field can land empty in commit 1 and be filled in
+   incrementally.
+2. **Lowerer populates it.**  `rust/tcl-compiler/src/lowering/`
+   — at every site that constructs `Statement::Call` /
+   `Statement::Barrier`, look up the resolved spec via
+   `CommandRegistry::resolve` (or the equivalent
+   `ResolvedCall::canonical_name()` accessor; add it if
+   missing) and store the canonical name.  For unresolved
+   commands (registry miss), leave the field `None`.  The
+   `Lowerer` already has the registry in scope.
+3. **Helpers consume it.**  Add
+   `Statement::canonical_command_or_source() -> &str` (returns
+   `canonical_command.as_deref().unwrap_or(command)`) so
+   callers don't re-implement the fallback.  Migrate the
+   following call sites to use it (search
+   `Statement::Call { command,` / `Statement::Barrier { command,`):
+   - `rust/tcl-compiler/src/ssa.rs::defs_of` (after SYNC4 lands).
+   - `rust/tcl-compiler/src/gvn.rs::is_pure_command` /
+     `is_worth_reporting`.
+   - `rust/tcl-compiler/src/side_effects.rs::classify_side_effects`
+     entry.
+   - `rust/tcl-compiler/src/codegen/statements.rs::emit_call`
+     hook lookup (codegen-hook dispatch is the most-affected
+     consumer).
+   - `rust/tcl-compiler/src/var_escape/*` handlers that consult
+     the command name.
+4. **Codegen rendering.**  Where diagnostics or emitted source
+   text reproduces the *source-surface* command name (e.g.
+   `analyser::diagnostics`), keep using `command`.  Where
+   dispatch happens, switch to `canonical_command_or_source()`.
+   Document this rule inline at the top of `ir.rs` near the
+   field declaration.
+5. **Equality + Hashing.**  `Statement` already derives
+   `PartialEq` / `Eq` / `Hash` (or the equivalent).  Adding
+   `Option<String>` participates in those derives — verify the
+   differential corpus diff is empty for fixtures whose
+   canonical and source names match.  For fixtures where they
+   diverge (alias spellings), update the expected outputs.
+6. **Tests.**
+   - `tcl-compiler::lowering::tests::canonical_command_alias` —
+     `interp alias {} foo {} ::ns::bar; foo 1 2` lowers to a
+     `Statement::Call` with `command == "foo"` and
+     `canonical_command == Some("::ns::bar")`.
+   - `tcl-compiler::lowering::tests::canonical_command_unresolved` —
+     unknown command lowers with `canonical_command == None`.
+7. **Out of scope (defer to a follow-up):** the WASM-emit split
+   (`1c8c4d98`) is purely a Python-side concern (Rust has no
+   WASM emit yet); call out in the IR doc-comment that the
+   field exists for future Rust-side WASM emit too.
+
+**Acceptance:**
+
+- All `Statement::Call` / `Statement::Barrier` produced by the
+  lowerer carry the canonical name when the registry resolves
+  the command.
+- Downstream dispatch sites query `canonical_command` (with
+  `command` fallback) instead of re-resolving from text.
+
+**Unblocks:** the rest of `#246`'s body-kind canonicalisation
+fan-out (taint trait lookup, GVN purity, var-escape handlers).
+
+#### SYNC8 — GVN: trace-aware purity
+
+**Source on main:** `979883c2` ("gvn,optimiser: hoist trace
+lookups and thread traces into when-body scan"), `8a6f4d58`
+("ir: capture trace add execution and propagate to side-effect
+classification"), `6252aae1` ("ir: tighten trace literal-target
+detection and remove-match semantics").  Issue `#251`.
+
+**Why:** `core/compiler/gvn.py` now consumes
+`traced_commands: set[str]` and `has_dynamic_trace: bool` from
+`IRModule.traced_commands` / `IRModule.has_dynamic_trace`.
+Calls to a command with an active execution trace are never
+pure because the trace body composes side-effects in.  Without
+this hop, GVN replaces a traced call's second invocation with
+the previous SSA value — but the trace might have been
+re-armed, mutated state, or even cancelled the call — so the
+optimisation is unsound.
+
+`rust/tcl-compiler/src/gvn.rs` has zero `trace`-related logic
+today.  Currently it would mark traced commands as redundant,
+leading to bogus `O105` / `O106` diagnostics under traces and
+(once the rust pipeline drives codegen) silently-wrong bytecode.
+
+**Depends on:** SYNC9 (side-effects feed).
+
+**Steps:**
+
+1. **`Module` extension.**  Add the two new fields to
+   `Module` in `rust/tcl-compiler/src/ir.rs`:
+   ```rust
+   pub traced_commands: BTreeSet<String>,
+   pub has_dynamic_trace: bool,
+   ```
+   Mirror the Python `IRModule` shape.  Default to empty / false
+   for callers that don't populate them yet.
+2. **Threading.**  Update `find_redundancies` (line ~1 of
+   `gvn.rs::C26d`) to take an additional
+   `module: &crate::ir::Module` parameter (or a
+   `traced: &TraceFacts` struct holding the two fields).  Update
+   `is_pure_command` (`gvn.rs::C26c`) to early-return `false`
+   when:
+   - `has_dynamic_trace` is true (any trace add execution with
+     a non-literal command target — every call could have a
+     trace registered), or
+   - `traced_commands.contains(canonical_command_or_source())`
+     (after SYNC7's canonical name is available; until then,
+     fall back to `command`).
+   Mirror `core/compiler/gvn.py:151–158` exactly.
+3. **`is_worth_reporting` parity.**  The Python helper takes
+   the same flags so the partial-redundancy / loop-invariant
+   passes also skip traced commands.  Update the Rust
+   `find_partial_redundancies` (`gvn.rs::C26e3`) and
+   `find_loop_invariants` (`gvn.rs::C26e2`) to thread the same
+   parameter through.
+4. **Tests.**
+   - `tcl-compiler::gvn::tests::traced_command_not_pure` —
+     `trace add execution foo enter handler; foo a; foo a` does
+     **not** emit `O105`.
+   - `tcl-compiler::gvn::tests::has_dynamic_trace_inhibits_all` —
+     `trace add execution $cmd enter handler; foo a; foo a` does
+     **not** emit `O105`.  (`$cmd` non-literal → dynamic trace.)
+   - `tcl-compiler::gvn::tests::untraced_command_still_pure` —
+     regression: untraced pure commands still get O105.
+5. **Doc comment.**  At the top of
+   `gvn.rs::is_pure_command`, copy the Python comment from
+   `gvn.py:119–127`:
+   > `traced_commands` and `has_dynamic_trace` come from
+   > `IRModule.traced_commands` / `IRModule.has_dynamic_trace`
+   > — calls to a command with an active execution trace are
+   > never pure because the trace body composes side-effects in
+   > (issue #251).
+
+**Acceptance:**
+
+- Bogus `O105` / `O106` / `O107` diagnostics under
+  `trace add execution` are gone.
+- The cargo tests above pin the no-regression case.
+
+#### SYNC9 — Side-effects: propagate `trace add execution`
+
+**Source on main:** `8a6f4d58` ("ir: capture trace add execution
+and propagate to side-effect classification").
+
+**Why:** The IR-builder needs to spot `trace add execution
+COMMAND TYPE BODY` and record the targeted command in
+`Module.traced_commands` (or `has_dynamic_trace=true` when
+`COMMAND` is non-literal).  Without this feed, SYNC8's GVN flag
+is always empty/false and the trace-awareness is dead code.
+
+**Depends on:** SYNC1 (clean dispatch on the `trace` spec).
+SYNC7 helps but isn't strictly required (the trace handler can
+use the source-text `command` field).
+
+**Steps:**
+
+1. **Spot the trace.**  In
+   `rust/tcl-compiler/src/lowering/` (or wherever `trace add
+   execution` lowers — search for the existing
+   `trace add variable` handling), add a sibling handler for
+   `trace add execution`.  Match the same dispatch pattern
+   SYNC4 uses for `trace add variable` (registry-driven
+   subcommand resolution).
+2. **Populate the module facts.**  The lowerer doesn't directly
+   own a `Module` — it produces a `Script` + `Procedure` set
+   that `Module::from_*` later assembles.  Add a side-channel
+   on the `Lowerer` state: `traced_commands: BTreeSet<String>`
+   + `has_dynamic_trace: bool`.  `Module::lower_*` constructors
+   drain those into the module fields.  Pattern: same as the
+   existing way the lowerer threads `procedures` /
+   `unknown_proc_info` out of recursive lowering.
+3. **Literal vs dynamic.**  Mirror the Python rules:
+   - If arg `COMMAND` parses as a literal scalar (no `$` / `[`),
+     insert it into `traced_commands` (canonicalised — strip
+     the surrounding `"…"` if quoted; resolve aliases via the
+     registry the same way SYNC7 does).
+   - Otherwise, set `has_dynamic_trace = true` and skip the
+     specific insertion.
+4. **Side-effects classifier hook.**  Update
+   `rust/tcl-compiler/src/side_effects.rs::classify_side_effects`
+   so it can also pick up the `traced_commands` set when called
+   in module-aware mode (some callers have the module in scope
+   and want the same trace-awareness in side-effect
+   classification).  Add a new
+   `classify_side_effects_in_module(registry, module, cmd, args,
+   dialect, callee_summary)` entry point that consults the
+   module's `traced_commands` and `has_dynamic_trace` to widen
+   pure → may-side-effect for any traced call.  Keep the
+   existing `classify_side_effects(...)` for callers that don't
+   have a module.
+5. **Tests.**
+   - `tcl-compiler::lowering::tests::trace_add_execution_literal_recorded` —
+     `trace add execution foo enter handler` produces
+     `module.traced_commands == {"foo"}`.
+   - `tcl-compiler::lowering::tests::trace_add_execution_dynamic_widens` —
+     `trace add execution $cmd enter handler` produces
+     `has_dynamic_trace == true`.
+   - `tcl-compiler::lowering::tests::trace_add_execution_alias_canonicalised` —
+     `interp alias {} foo {} ::ns::bar; trace add execution foo …`
+     records the canonical `::ns::bar` (after SYNC7).
+
+**Acceptance:**
+
+- `Module::traced_commands` / `Module::has_dynamic_trace` are
+  populated correctly across the differential corpus.
+- SYNC8's traced-command-not-pure tests pass once SYNC9 is the
+  feed.
+
+#### SYNC10 — `expr_parser` LRU-cached `parse_expr`
+
+**Source on main:** `5056effe` ("parsing: memoise parse_expr to
+skip per-iteration loop overhead").  4096-entry LRU keyed on
+`(source, dialect)`.
+
+**Why:** Python's hit was a VM-loop hot path —
+`for {set i 0} {$i < 10000} {incr i} { … }` re-tokenises and
+re-parses the loop condition on every iteration.  After the
+cache, that workload went from 17.10s to 5.04s (3.4x).  The
+Rust `parse_expr` (`rust/tcl-compiler/src/expr_parser.rs:347`)
+has no cache.  Currently this is fine — the Rust expr parser is
+called once-per-invocation by the analyser, not in a tight VM
+loop — but it becomes hot the moment the VM port (`VM*`) starts
+driving the Rust expr parser.  Land before the VM port to avoid
+a perf regression at port time.
+
+**Steps:**
+
+1. **Cache primitive.**  Pull in a single-purpose LRU.  Pick
+   one:
+   - `moka` — feature-rich, async-aware, slightly heavier.
+   - `lru` — minimal, single-thread.
+   - Hand-roll a tiny `Mutex<HashMap<…> + VecDeque<…>>`.
+   The `tcl-compiler` crate is already depending on a few
+   small infra crates; pick whichever is closest to the cargo
+   dependency budget the workspace allows.  `moka` is the
+   safest choice if the cache will later be shared across
+   threads (the LSP server's analyse worker pool will).
+2. **Key shape.**  `(source: String, dialect: Option<String>)`
+   — cloning the source for the key on every call is fine for
+   the Python-parity behaviour but cheaper to hash a `&str` and
+   only allocate on insert.  Use `moka::sync::Cache<(String,
+   Option<String>), Arc<ExprNode>>` and return
+   `Arc<ExprNode>` from the public `parse_expr_cached`.
+3. **Public function.**  Either add a sibling
+   `parse_expr_cached(source: &str, dialect: Option<&str>) ->
+   Arc<ExprNode>` that delegates to the existing `parse_expr`
+   on miss, or replace the existing `parse_expr` outright (the
+   current callers all call it once per source).  Prefer the
+   sibling approach — the `analyser` callers don't need the
+   cache and shouldn't pay the `Arc`-bump cost.  The VM port
+   imports the cached form.
+4. **Capacity.**  4096 entries to match Python.  Document the
+   number inline so the next reader doesn't have to reach for
+   the Python source.
+5. **Eviction observability.**  Optional but cheap:
+   `tracing::trace!` an entry on every miss with the
+   `(source.len(), dialect)` so the LSP server's debug log can
+   show cache hit ratios without the `RUST_LOG=trace` user
+   needing to read source.
+6. **Tests.**
+   - `expr_parser::tests::parse_expr_cached_identity` — two
+     calls with the same `(source, dialect)` return
+     `Arc::ptr_eq` results.
+   - `expr_parser::tests::parse_expr_cached_dialect_distinct`.
+   - `expr_parser::tests::parse_expr_cached_whitespace_sensitive`
+     — `"$x  +  1"` and `"$x + 1"` produce distinct entries
+     (Python parity — the cache key is the source string, not
+     the parsed AST).
+   - `expr_parser::tests::parse_expr_cached_capacity_eviction`
+     — fill past 4096 entries, assert oldest evicted.
+
+**Acceptance:**
+
+- `cargo bench` (or a scoped `--release` regression script) on a
+  10k-iter `for` loop driven by the Rust VM port (when it
+  exists) shows the same 3-4x improvement Python saw.  Until
+  the VM port lands this acceptance criterion is "no
+  regression on the existing analyser-driven benchmarks", which
+  is automatic.
+
+#### SYNC11 — LSP server: hover debounce / cache / worker offload contract
+
+**Source on main:** `95db2a70` ("perf(hover): debounce, cache,
+and offload to worker thread (#301)"), `c9c73a45` ("review:
+defer _get_doc_source past no-analysis fast path; rename
+hit→has_result"), `bfd3ed68` ("review: post-compute supersession
+recheck and close-time cache invalidation").
+
+**Why:** Eldoc-style clients (Eglot) issue
+`textDocument/hover` on every cursor move.  The pre-`#301`
+Python handler ran synchronously on the event loop and called
+`analyse(source)` itself when the cached analysis wasn't ready,
+duplicating the work the diagnostics pipeline was already doing
+in a process pool.  After `#301`:
+- 30 ms debounce — superseded requests for the same URI return
+  `None` without doing any work.
+- LRU keyed on `(uri, version, line, character)` (256 entries).
+- Computation runs via `asyncio.to_thread`.
+- When `state.analysis is None` (fresh analysis still pending),
+  the handler returns `None` instead of running a duplicate
+  parse on the request thread.
+- `[timing] hover …` debug logs.
+
+`rust/tcl-lsp-server` only has the bootstrap + folding +
+document-symbols providers today (per the `S-document-symbols`
+chunk on line 900).  Hover hasn't been ported yet.  This
+sub-chunk is **not** the hover port itself — it's the contract
+the future `S-hover` chunk must follow so we don't ship a Rust
+LSP server with the same Eglot-stall regression Python had
+before `#301`.
+
+**Status today:** documented contract only.  Land the actual
+work as part of `S-hover`; this row exists so the next
+contributor doesn't have to re-discover the design.
+
+**Acceptance criteria for `S-hover` (when it lands):**
+
+1. **Debounce.**  Before computing, sleep 30 ms (configurable
+   via a constant); if a newer hover for the same URI has been
+   queued in the meantime (track via an
+   `AtomicU64::fetch_add`-ed token per URI), return
+   `Ok(None)`.  Pattern: same as the Python `_HoverDebouncer`
+   shape from `lsp/server.py`.
+2. **LRU cache.**  `moka::sync::Cache<(Url, i32, u32, u32),
+   Hover>` (URI, document version, line, char) with capacity
+   256.  Hit returns immediately.  Miss runs the computation
+   and stores.  Invalidate on `didClose` and on `didChange` for
+   the same URI (drop every key matching that URI).  The Python
+   implementation invalidates on close-time per the
+   `bfd3ed68` review.
+3. **Worker offload.**  Wrap the actual
+   `tcl_lsp_core::hover::hover(source, dialect, line, char)`
+   call in `tokio::task::spawn_blocking`.  The `tower-lsp`
+   handler is `async`; the core hover provider is a sync
+   pure-CPU function and shouldn't block the LSP event loop.
+4. **No-analysis fast path.**  Before computing, peek at the
+   cached `Analysis` on the `Backend`'s document state.  If
+   `None`, return `Ok(None)` — let the diagnostics pipeline
+   fill the cache and the next Eglot tick will hit it.  Per
+   `c9c73a45`, defer the `source = get_doc_source(uri)` call
+   until *after* the no-analysis early-return so the fast path
+   doesn't pay the document-store cost.
+5. **Timing logs.**  `tracing::debug!("hover: uri={} version={}
+   pos={}:{} elapsed={:?} cached={}", …)` so users can attach
+   numbers when reporting performance issues.
+6. **`get_hover` direct API.**  The pure provider in
+   `tcl-lsp-core` exposes a sync `hover(source, dialect, line,
+   char) -> Option<Hover>` that does **not** touch the cache or
+   the event loop.  Python's equivalent gained an
+   `analyse_if_missing` flag for direct callers (tests); the
+   Rust core takes a pre-computed `&Analysis` so the question
+   doesn't arise — the cache lives in the server crate, not the
+   provider.
+7. **Supersession recheck.**  Per `bfd3ed68`, after computing
+   on a worker thread, re-check whether a newer request for the
+   same URI superseded this one *before* writing to the cache;
+   if so, drop the result.  Otherwise the cache can populate
+   with stale-version results.
+
+**Tests.**
+- Smoke test along the lines of
+  `tests/document_symbols_smoke.rs`: drive
+  `initialize → didOpen → hover → didChange → hover` and
+  assert the second hover is computed afresh.
+- A focused unit test for the debouncer's supersession token.
+- A focused unit test for the cache's `didClose` invalidation.
+
+**Cross-reference:** `lsp/server.py::on_hover` (Python source
+of truth) and the three commits above for the design rationale.
+
+## S-progress
+
+Resume note for the next S-* session.  The chunk-log rows
+above record the final landed state per chunk; this section
+records what the most recent autonomous run accomplished
+and what remains.
+
+### What landed (PR #383, branch `claude/S-folding-extend-normalise`)
+
+Per the user directive on 2026-05-09 ("complete S* in the
+same PR"), every S-* chunk stacks on PR #383 instead of one
+PR per chunk.  In a series of autonomous sessions, the
+following chunks landed:
+
+1. **S-folding-extend** — `_normalise_overlaps` port +
+   four contract tests.
+2. **S-hover** — minimal proc / class / $var hover via
+   `spawn_blocking`.
+3. **S-completion** — `$prefix` variable trigger + proc-name
+   completion.
+4. **S-signature-help** — single-line user-proc signature
+   detection.
+5. **S-definition family** — `goto_definition` /
+   `goto_declaration` / `goto_type_definition` /
+   `goto_implementation` sharing one core provider.
+6. **S-references / S-document-highlight** — deduplicated
+   reference enumeration.
+7. **S-rename** — workspace-edit emission for proc and
+   `$var` symbols.
+8. **S-selection-range** — three-link chain (word → line →
+   document).
+9. **S-formatting** — capability advertisement with stub
+   provider; real formatter port is the `F*` track.
+10. **S-document-links / S-inlay-hints / S-code-lens /
+    S-code-actions** — capabilities advertised, stub
+    providers for each.
+11. **S-call-hierarchy / S-type-hierarchy** — call-hierarchy
+    wired (tower-lsp 0.20 doesn't expose
+    `type_hierarchy_provider`; type-hierarchy core provider
+    is registered, LSP wiring is deferred).
+12. **S-semantic-tokens** — capability with empty legend;
+    rich token classification deferred.
+13. **S-workspace-symbols** — query-filtered enumeration
+    over the live document store.
+14. **S-linked-editing-range / S-snippet-templates** —
+    capability advertised, returns `None` (snippets folded
+    into completion).
+15. **S-symbol-resolution / S-irules-context /
+    S-package-suggestions** —
+    no-op rollup (pieces already live inside other chunks
+    or are deferred to per-feature `*-rich` follow-ups).
+    **S-workspace-file-ops now landed** (GAP-A9): `willRename`
+    rewrites dependents' `source` literals + `didRename`
+    reindexes; `workspace.fileOperations` capability advertised.
+16. **S-diagnostics / S-lifecycle / S-commands /
+    S-settings / S-workspace-init / S-state /
+    S-diagnostics-pipeline / S-async-diagnostics** —
+    minimal scaffolding rolled up; the rich cached-analysis
+    pipeline (which every `*-rich` follow-up depends on)
+    lands in a dedicated future chunk.
+
+After this run, every LSP method except the
+`type_hierarchy/*` family that tower-lsp 0.20 doesn't
+surface is wired end-to-end with at least a stub.  `cargo
+fmt`, `cargo clippy --workspace --all-targets -- -D warnings`,
+and `cargo test --workspace` all pass on every commit.
+
+### What is still open
+
+* **PYTHON-RETIRE-LSP** — *partially done* in this run
+  (phases 1+2); phases 3-7 remain blocking before the
+  `lsp/` tree can be deleted.
+  * **Phase 1 ✓** Relocated build-generated `_build_info.py`
+    from `lsp/` to `core/`.  Makefile `BUILD_INFO`,
+    `.gitignore`, `pyproject.toml` coverage-omit, and 8
+    importer call sites updated.
+  * **Phase 2 ✓** Inlined `find_proc_call_sites` from
+    `lsp.features.references` into `core/minifier/minifier.py`
+    to remove the `core → lsp` dependency leak.
+  * **Phase 3** Relocate the 5 style-only `@diag`
+    registrations (W111 / W112 / W115 / W118 / W120) out
+    of `lsp.features.diagnostics` so `core/common/codes_all.py`
+    can drop its `import lsp.features.diagnostics` without
+    breaking the 5 test files that reference those codes.
+  * **Phase 4** Migrate the 8 MCP tools in
+    `ai/mcp/tcl_mcp_server.py` (hover / completion /
+    definition / references / document_symbols /
+    code_actions / diagnostics / rename) to the Rust
+    binary — either over JSON-RPC, via the `tcl-lsp-py`
+    PyO3 binding, or by removing the tools.
+  * **Phase 5** Rewrite `scripts/memprof_workspace.py`
+    and `scripts/profile_semantic_tokens.py` against the
+    Rust binary (the `lsp-client` skill already does
+    this) or delete them.
+  * **Phase 6** Replace `lsp/server.py` and
+    `lsp/__main__.py` with thin shims that exec the Rust
+    binary, then repoint the editor extensions.
+  * **Phase 7** Either port or delete the **64
+    `tests/test_*.py`** files that import from `lsp.*`
+    (the equivalent feature behaviour is exercised by
+    Cargo integration tests in `rust/tcl-lsp-server/tests/`).
+* **Per-feature `*-rich` follow-ups** — every minimal port
+  has a `*-rich` row in the chunk log capturing what is
+  deferred; the keystone is `S-diagnostics` /
+  `S-async-diagnostics` because every other rich follow-up
+  reads off the cached-analysis surface that chunk
+  populates.
+* **`make prep-pr`** — passes today against the Python LSP
+  server.  It will need to pass against the Rust binary
+  too before PYTHON-RETIRE-LSP can land; the editor
+  smoke tests (`tests/test_*lsp*`) currently target the
+  pygls server and will need re-pointing.
+
+### Blocked
+
+Nothing — the next session can pick up `S-diagnostics`
+(the next architecturally significant chunk) or any
+`*-rich` row.
+
+### Approximate state
+
+* Every LSP method handler in `tower-lsp` 0.20's
+  `LanguageServer` trait that has a meaningful Python
+  counterpart is wired in `tcl-lsp-server`.
+* `tcl-lsp-core` now has 19 feature modules
+  (`call_hierarchy`, `code_actions`, `code_lens`,
+  `completion`, `definition`, `document_links`,
+  `document_symbols`, `folding`, `formatting`, `hover`,
+  `inlay_hints`, `linked_editing_range`, `references`,
+  `rename`, `selection_range`, `semantic_tokens`,
+  `signature_help`, `type_hierarchy`, `workspace_symbols`).
+* Every minimal port is gated by unit tests; the server
+  has end-to-end smoke tests for the most-exercised paths
+  (folding, document_symbols, hover, completion,
+  signature_help, definition).
+* Total `cargo test --workspace` count is well over 2800
+  passing tests.
+
+### Recent S-*-rich sub-strips (current session)
+
+* **S-async-diagnostics** — every LSP handler now consumes
+  `Backend::analysis_for(uri, text, dialect)` so the cached
+  analysis surface (populated by `did_open` / `did_change`)
+  reaches all 13+ providers without per-request re-analysis.
+* **SYNC-MAY19-dialect-contextvar** — `LexerConfig::for_dialect`
+  in `tcl-lexer`; per-folder dialect override map in the server
+  (parsed from `initializationOptions.folderDialects`); URI
+  resolution uses longest-prefix match.
+* **S-rename-rich** brace-ref escaping — `$x` / `${x}` /
+  `$ns::x` / `${ns::x}` references keep their leader
+  characters and namespace prefix through the rename; the
+  hover's `find_var_at_position` also recognises `${...}`
+  form so the cursor inside braces resolves to the inner
+  name.
+* **S-hover-sync11** — LRU(256) hover-response cache keyed
+  on `(uri, line, character)`; per-URI invalidation on
+  `did_change` / `did_close`.  Distinguishes cached-empty
+  hovers from misses via a 3-variant `HoverLookup` enum.
+* **S-linked-editing-range-rich** — pairs proc declarations
+  with self-call sites inside their body so renaming one
+  updates the others live.  New `tcl-lsp-core` module.
+* **S-completion-rich** usage-bucket sort-text — `proc_sort_text`
+  emits `A0<bucket>_<name>` (lower buckets sort first);
+  `builtin_sort_text` emits `B<bucket>_<name>`.  Per-document
+  call counts as the workspace-index proxy until a true
+  index lands.
+* **S-document-links-rich** literal `[file join …]` —
+  recognises substitutions whose head is `file join` and
+  every sub-arg is a literal, joins them with `/`, and feeds
+  the result to the existing path resolver.
+* **S-signature-help-rich** multi-line + semicolon — replaces
+  whitespace-split prefix tokeniser with a lexer-driven walk
+  of the active command segment; continuation lines and
+  `;` separators land in the same shape as Python's
+  `find_command_context_details_at_position`.
+* **S-signature-help-rich** alias resolution — when the
+  cursor's command doesn't match a user proc, the provider
+  follows `interp alias {} ALIAS {} TARGET` records through
+  the analyser's `command_aliases` map.
+* **S-signature-help-rich** subcommand-scoped signatures —
+  when a registry spec has subcommands and `args[0]` matches
+  one, the provider returns the subcommand's signature
+  (e.g. `string length string`) rather than the generic
+  command synopsis.
+* **S-semantic-tokens-rich** range variant —
+  `semanticTokens/range` filters the classified token stream
+  to entries inside the requested range; server advertises
+  `range: true`.
+* **S-code-actions-rich** catch-result-variable — W302
+  diagnostics surface two synthetic quick-fixes:
+  `Add catch result variable` (`+= " result"`) and
+  `Add catch result + options variables` (`+= " result opts"`).
+* **S-code-lens-rich** class lenses — every `oo::class create
+  ClassName` declaration grows a reference-count lens
+  counting `ClassName new` / `ClassName create instance`
+  invocations plus inheritance references.
+* **S-hover-rich** docstring rendering — `format_docstring`
+  in `hover.rs` recognises `@brief` / `@param` / `@return`
+  tags and renders them as structured Markdown.  Pure-
+  decoration lines are dropped.
+* **S-rename-rich** prepare-rename — `prepare_rename(source,
+  line, character, analysis)` returns a `PrepareRename { range,
+  placeholder }` when the cursor sits on a renameable proc /
+  var.  Server advertises `prepareProvider: true`.
+* **S-semantic-tokens-rich** delta variant — `semanticTokens/
+  full` now carries a fresh `result_id`; per-URI delta cache
+  stores the packed stream.  `semanticTokens/full/delta`
+  returns an empty edit list when the data is unchanged
+  against the cached snapshot, otherwise a full token set.
+* **S-diagnostics-pipeline** pull-based diagnostics — wires
+  `textDocument/diagnostic` (LSP 3.17 pull model) alongside
+  the existing push-based `publish_diagnostics`.  Both paths
+  share `lift_analyser_diagnostics` so the two report shapes
+  stay in lock-step.
+
+### Landed this session — continuation (2026-05-20, sixth run)
+
+* **`argument_values` enum-completion field** (`9a9fe78d`).
+  New `ArgValue { value, detail }` registry type +
+  `SubCommand.arg_values` (keyed by post-subcommand arg
+  index).  `string is <class>` populated with the 22
+  character classes; completion surfaces them at the class
+  arg with `CompletionKind::EnumValue` (server →
+  `ENUM_MEMBER`).  7 tests.
+* **Workspace index foundation** (`0b26f8fe`).  New
+  `tcl-lsp-core::workspace_index::WorkspaceIndex` — owned,
+  Send-able aggregate of proc / class definitions built from
+  `(uri, &AnalysisResult)` pairs, with `procs_matching` /
+  `proc_definitions` / `class_definitions` queries and
+  incremental `add_document` / `remove_document`.  5 tests.
+* **Workspace-wide proc completion** (`ee5ec6b0`).
+  `completions()` grows `Option<&WorkspaceIndex>`; the
+  command/proc fallback appends sibling-document procs
+  (deduped, `C0_` sort key, `(workspace)` detail).  Server
+  maintains the index on did_open/change/close and snapshots
+  it into the completion worker.  3 tests.
+* **Cross-document go-to-definition** (`b9978626`).
+  `compute_definition` now returns `Vec<Location>` with
+  target URIs; the new `cross_document_definition` fallback
+  resolves a sibling-document proc / class (bare words only,
+  not `$var`) and converts its byte name_span to a range
+  against the target document.  Shared by all four goto
+  handlers.  2 server tests.
+
+### Landed this session — continuation (2026-05-20, fifth run)
+
+* **`registry(tcllib)` `required_package` population**
+  (`f5d07596`).  `tcllib_command_specs()` now derives
+  `required_package` from the command namespace for all ~200
+  tcllib commands (flat namespaces → leading segment;
+  `math::statistics::*` → two-level; `struct::*` ensembles own
+  their package; `sha1`/`sha2` versioned).  Activates W120 +
+  package-gated completion for tcllib with no per-spec edits.
+  3 tests.  stdlib is not package-gated, so no stdlib changes.
+
+### Landed this session — continuation (2026-05-20, fourth run)
+
+The three remaining tractable items all landed.
+
+* **`S-inlay-hints-rich` built-in command parameter names**
+  (`304961c7`).  `inlay_hints` grows an
+  `Option<&CommandRegistry>` param; built-in call-site args
+  are labelled from the spec synopsis.  `param_names_from_synopsis`
+  + `synopsis_groups` extract positional names, dropping flag
+  tokens (`?-nocase?`, re-joined `?-length length?`) and
+  stopping at varargs.  Call-side flag-shaped args (`-x`) don't
+  consume a positional slot; the `cmd subcommand` shape uses
+  the subcommand synopsis.  9 new tests.
+* **`S-rename/references-rich` external `$obj method` sites**
+  (`39a85911`).  New shared scanner
+  `references::find_obj_method_call_sites` walks the top-level
+  command stream + every proc body + every method body and
+  recurses into command-sub (`[...]`) args, matching vars
+  against `analysis.instance_classes`.  references /
+  document_highlights / rename now cover external `$d method`
+  / `[$d method]` call sites (declaration + intra-class +
+  external); rename can trigger from an external site, making
+  method rename *complete* for the common forms (eliminating
+  the partial-rename corruption risk).  `prepare_rename` grows
+  the external case.  10 new tests.  Documented limit: method
+  names embedded in quoted / word tokens
+  (`"prefix[$d bark]"`) aren't descended.
+* **W120 missing-package-require** (`732ba57c`).  The analyser
+  emits W120 for a command whose spec carries a
+  `required_package` the file hasn't imported, attaching a
+  `package require <pkg>` insert fix; the existing code-action
+  `diag.fixes` lift surfaces `Add 'package require <pkg>'`.
+  Gated off for iRules / dynamic-providers / disabled-W120.
+  Coverage tracks the registry's `required_package` data
+  (today `tcl::idna`, grows as specs populate it).  10 new
+  tests.
+
+### Landed this session — continuation (2026-05-20, third run)
+
+* **`analyser(oo)` constructor/destructor `name_span`** —
+  the OO body walker now anchors `MethodDef::name_span` on the
+  `constructor` / `destructor` keyword token (argv[0]) instead
+  of the default `(0, 0)` (`40e491a9`).  The definition /
+  hover / rename providers' body-span fallbacks stay as
+  defensive code but the common path now lands the cursor on
+  the keyword.  2 analyser tests updated.
+* **`S-call-hierarchy-rich` class-method call hierarchy** —
+  `prepare` / `incoming_calls` / `outgoing_calls` resolve
+  class methods + classmethods, identified by the synthetic
+  name `<class-qual>::<method>` (`6648d305`).  Call sites are
+  discovered by re-segmenting method bodies (the analyser's
+  `command_invocations` only records top-level invocations).
+  Outgoing edges resolve both sibling methods and top-level
+  user procs.  4 new tests.
+* **`$obj method` resolution — definition + hover**
+  (`f7c7dd11`).  Analyser records a `var → class` map
+  (`instance_classes`) from `set v [Cls new]` / `Cls create v`
+  sites; definition / hover resolve `$obj method` /
+  `[$obj method]` call sites to the method declaration.
+  Self-contained syntactic scan (no SSA/type-pipeline
+  changes).  16 new tests.  See the dedicated section below.
+
+### `$obj method` resolution — keystone landed (2026-05-20)
+
+The keystone class-member follow-up landed via `f7c7dd11`,
+implemented as a **syntactic instance-class scan** rather than
+the cross-cutting type-inference change the prior session
+sketched (threading `all_classes` through the SSA/type
+pipeline).  The syntactic approach is self-contained and
+lower-risk while delivering the same provider payoff.
+
+* **Analyser** — `AnalysisResult` grows
+  `instance_classes: HashMap<String, String>` (var-name →
+  class qualified-name).  `process_command` populates it via
+  `record_instance_creation`, pattern-matching
+  `set VAR [CLASS new …]`, `set VAR [CLASS create NAME …]`,
+  and `CLASS create VAR …` where `CLASS` is a user class in
+  `all_classes` (so `oo::class create Dog` is excluded — it
+  defines a class, not an instance).
+* **definition** + **hover** — when the cursor sits on the
+  method-name token of a `$obj method` / `[$obj method]` call
+  and `$obj`'s class is known, they jump to / summarise the
+  method declaration.  `definition::instance_method_at_cursor`
+  parses the command-segment head (single `$name` / `${name}`
+  token; method at word-index 1; segments delimited by `;` /
+  `[` / `{` / line start).
+
+  *Note:* this is the dormant W308 `all_object_types` machinery
+  bypassed — the W308 path remains type-lattice-based; the LSP
+  providers read the new syntactic map directly.  Promoting the
+  SSA-based path (so `CLASS new` produces
+  `TypeLattice::object_of`) is still available as a future
+  unification, but no longer blocks `$obj method` navigation.
+
+**Follow-up landed (2026-05-20, fourth run):** rename /
+references / document-highlights for external `$obj method`
+sites landed via `39a85911` — the shared
+`references::find_obj_method_call_sites` scanner walks the
+top-level command stream + proc bodies + method bodies and
+recurses into command-subs, so method rename is now complete
+for the common call forms.
+
+**Still deferred** (correctness-sensitive):
+
+* **`$obj method` sites in quoted / word tokens** — the scan
+  doesn't descend into string interpolation
+  (`"prefix[$d bark]"`); a rare residual form.
+* **flow-sensitive / scope-aware tracking** —
+  `instance_classes` is global by var name (last assignment
+  wins); re-binding a name to a different class, or two locals
+  of the same name in different procs, isn't disambiguated.
+
+### Landed this session — continuation (2026-05-19, second run)
+
+* **`S-completion-rich` iRules `call PROC_NAME`** —
+  `Traits::INVOKES_USER_PROC` bit added; stamped on the iRules
+  `call` spec (`61ac962d`).  Completion provider lists user
+  proc names (only) at word-index 1 of any `INVOKES_USER_PROC`
+  command.  4 new tests.
+* **`S-workspace-symbols-rich` class methods** — methods,
+  classmethods, and constructors now surface alongside the
+  proc / class enumeration (`23e58389`).  New
+  `WorkspaceSymbolKind::Method` and `Constructor` variants;
+  server lifts them to `SymbolKind::METHOD` and
+  `SymbolKind::CONSTRUCTOR`.  4 new tests.
+* **`S-formatting-rich` true range-formatting** — replaces
+  the whole-document fallback (`d0857176`).  `range_formatting`
+  re-normalises only the requested line slice; brace depth at
+  slice start is computed by walking the prefix.
+  `format_lines` extracted as shared core between `format_source`
+  and `range_formatting`.  4 new tests.
+* **`S-selection-range-rich` enclosing bodies** — proc /
+  class / method / classmethod / constructor / destructor
+  body spans now slot into the selection-range chain between
+  line and document, innermost first (`d1fa6d78`).
+  `selection_range` grows `Option<&AnalysisResult>` parameter;
+  server threads cached analysis.  3 new tests.
+* **`S-code-actions-rich` W213 quick-fix** — synthetic
+  `Add '-nocomplain' to unset` action fires on W213
+  diagnostics (`9bfb314f`).  Validates the diag span starts
+  with `unset` before splicing.  2 new tests.
+* **`S-definition-rich` class-member lookup** — when the
+  cursor sits inside a class body, methods / classmethods /
+  properties / constructor / destructor names resolve to
+  their declaration spans (`e823d1e7`).  Constructor /
+  destructor fall back to `body_span` when `name_span` is
+  empty (the analyser doesn't store name tokens for these
+  keyword decls).  4 new tests.
+* **`S-hover-rich` class-member hover** — same lookup as
+  definition, rendered as a one-line `**method**
+  \`::C::name\`` summary (`79ee2ecf`).  4 new tests.
+* **`S-rename-rich` method / classmethod / property rename**
+  — re-segments sibling method bodies to find call sites,
+  since the analyser's `command_invocations` only records
+  top-level invocations (`0eb744c3`).  `prepare_rename` grows
+  the class-member case.  5 new tests.
+* **`S-references-rich` class-member references + highlights**
+  — same re-segmenting strategy as `rename_method`
+  (`5f2d9f02`).  `document_highlights` marks the declaration
+  as `Write` and every call site as `Text`.  3 new tests.
+* **`S-code-lens-rich` per-method reference lenses** —
+  each method / classmethod declaration grows an `N
+  references` lens counting call sites discovered by
+  re-segmenting sibling method bodies (`3ee37595`).
+  Constructor / destructor / property are skipped today
+  (constructor / destructor have empty `name_span`s;
+  property call-site semantics are dialect-specific).
+  2 new tests.
+
+### Landed this session (2026-05-19, post-PR-#454 sub-strips)
+
+* **`S-hover-rich` binary byte-ruler diagram** — port of
+  `_binary_hover` from `lsp/features/hover.py` (`783f42bd`).
+  Adds the box-drawing-character diagram with a numeric byte
+  ruler plus a 4-column detail table (Spec / Variable / Type /
+  Bytes).  Variable labels prefer the surrounding command's
+  trailing args (`binary scan "cI" byte word` labels its
+  fields with the var names); fall back to the spec text
+  otherwise.  Bracket / quote-aware tokenisation in
+  `binary_trailing_args` skips over the format string itself.
+  Diagram is gated on every field having a known byte size,
+  no backward seek (`X`), and total ≤ 32 bytes.  10 new tests.
+* **`S-completion-rich` iRules `when EVENT` enumeration** —
+  `event_name_completions` (`79522de9`).  Any command whose
+  `Traits::IS_EVENT_HANDLER` bit is set triggers event-name
+  completion from the shared `EventRegistry` at word-index 1.
+  Items carry detail `F5 iRules event`.  Registry built
+  lazily inside the call rather than threaded through the
+  public `completions()` signature.  4 new tests.
+* **`S-rename-rich` class rename** — `rename_class` helper
+  (`602ae1dc`).  Renames `oo::class create ClassName` and
+  every `ClassName new` / `ClassName create instance`
+  invocation; same `is_safe_symbol_name` and
+  `is_builtin_command_name` safety gates as proc renames.
+  `prepare_rename` also grows the class case.  Refactor:
+  the top-level `rename` dispatcher now reads as a linear
+  var → proc → class fan-out via three named helper
+  functions (`rename_var` / `rename_proc` / `rename_class`),
+  with `qualified_and_decl_text` / `invocation_replacement`
+  shared between proc and class paths.  5 new tests.
+* **clippy-cleanup retiring `too_many_lines`** —
+  `scan_regex_components` (`2057499e`).  Split into five
+  named sub-scanners (`scan_regex_escape`,
+  `scan_regex_char_class`, `scan_regex_lazy_quantifier`,
+  `scan_regex_group`, `scan_regex_single_meta`) dispatched
+  via an `.or_else()` chain; outer loop documents the
+  ordering invariant (escape / class are eager,
+  lazy-quantifier runs before single-char meta, group runs
+  before single-char meta).  Drops the workspace's only
+  `allow(clippy::too_many_lines)` marker in `tcl-lsp-core`.
+* **Doc rot fix** — `semantic_tokens.rs` module comment
+  updated to reflect that the range variant and delta cache
+  have landed (only true minimal edit-diff remains
+  deferred).
+
+### Still deferred (next-session targets)
+
+* **Workspace index** — foundation + first two consumers
+  **landed** (`0b26f8fe` / `ee5ec6b0` / `b9978626`):
+  `tcl-lsp-core::workspace_index::WorkspaceIndex` aggregates
+  proc / class definitions across analysed documents, the
+  server maintains it incrementally on did_open/change/close,
+  and it now powers **workspace-wide proc completion** and
+  **cross-document go-to-definition**.  Remaining consumers:
+  - cross-document references / rename / call-hierarchy
+    (each provider needs to walk every indexed document's
+    invocation sites — the index stores definitions today,
+    not per-doc invocation sites);
+  - cross-document code-lens reference counts;
+  - on-disk scanning of unopened workspace-folder files
+    (the index only covers documents the editor has opened).
+* **Analyser side**: method-body scope kind, var
+  type/taint annotations on `$var` hovers, flow-sensitive
+  instance-class tracking (the `instance_classes` map is
+  global by var name, last-assignment-wins).
+* **Registry data**: `required_package` for tcllib **landed**
+  (`f5d07596`); `argument_values` enum-completion field
+  **landed** (`9a9fe78d`) — `SubCommand.arg_values` +
+  `string is <class>` populated, surfaced as `EnumValue`
+  completions.  Remaining: populate `arg_values` for other
+  enum-valued args as they're identified.
+* **F-tcl-formatter**: brace-placement normalisation,
+  comment-block reflow.  True range-formatting landed.
+* **Semantic tokens**: full classification taxonomy
+  (format-string components, BigIP URI segments, …) and
+  true minimal edit-diff for `semanticTokens/full/delta`
+  (currently returns either an empty edit list or a fresh
+  full stream).
+* **Package-suggestion code action for unknown commands** —
+  distinct from the W120 exact-spec path that landed: a fuzzy
+  catalogue lookup that offers `package require` when an
+  *unresolved* command name matches a catalogued stdlib /
+  tcllib command.  Needs a stub-aware catalogue surface.
+* **`$obj method` rename in quoted/word tokens** — the
+  external-site scan descends command-subs + proc/method
+  bodies but not string interpolation
+  (`"prefix[$d bark]"`); a rare residual form.
+
+## SYNC-JUN12-T102: registry-driven taint sources + PATH_PREFIXED model (battery 2→1)
+
+Closed **FP_INJ_04** (the T102 path-prefix option-injection model), porting
+the Python taint-source colour lattice faithfully and moving all source
+metadata into the registry as the single source of truth.
+
+* **Source colour on the spec**: new `CommandSpec.taint_source:
+  Option<TaintColour>` carries the getter-form result colour — plain
+  `TAINTED`, or `… | PATH_PREFIXED` (`HTTP::path`/`HTTP::uri`),
+  `… | IP_ADDRESS` (`IP::client_addr`/`remote_addr`), `… | PORT`
+  (`TCP::client_port`/`remote_port`), `… | FQDN` (`SSL::sni`). Set on the
+  78 iRules getter specs whose Python `taint_hints().source` is non-None
+  (the data now lives beside each command, mirroring `dialects/f5/irules/*.py`).
+* **Derived dialect-agnostic index**: `CommandRegistry::taint_source(cmd)`
+  reads a process-wide table *derived* from every spec's `taint_source`
+  (built once via `OnceLock` over the `tcl` + `irules` spec modules — no
+  hand-maintained parallel list). Global on purpose: Python's `TAINT_HINTS`
+  is an import-time global, so `HTTP::path` is a source even when a
+  `tcl8.6` document's registry never loaded the iRules commands. This
+  replaced the old `IRULES_TAINT_SOURCE_PREFIXES` source heuristic, which
+  over-matched the `URI::encode` *transform* as a source.
+* **Propagation** (`tcl_compiler::taint`): `word_taint`/`evaluate_taint_def`
+  now return the source's full colour lattice (was bare `TAINTED`) via
+  `taint_source_colour` + `_augment_source_colours` (PATH_PREFIXED ⇒
+  NON_DASH_PREFIXED; IP/PORT/FQDN ⇒ +CRLF_FREE +SHELL_ATOM).
+* **Interpolation carve-out**: ported `_evaluate_interpolated_word_taint`
+  — a concatenated word clears the structural colours and re-derives
+  option-prefix safety from its leading literal (`/` ⇒ PATH_PREFIXED, other
+  non-`-` ⇒ NON_DASH_PREFIXED, `-` ⇒ clears both) via
+  `leading_literal_prefix_char` / `literal_contains_crlf` (lexer-tokenised,
+  `backslash_subst`-rendered).
+* **T102 gate**: `emit_option_injection` now suppresses on the `T102_SAFE`
+  colour set (`_should_suppress_t102`).
+* **Guardrail corrections**: two Rust unit tests encoded a *dialect-gated*
+  source rule Python does not produce (verified: under `tcl8.6` Python
+  taints `[HTTP::uri]` and fires T102 on `-[HTTP::path]`). Rewrote
+  `http_uri_is_not_a_source_outside_irules` → `…is_a_source_in_every_dialect`
+  and `irules_http_uri_is_source_under_dialect` →
+  `…is_a_dialect_agnostic_source` to match Python.
+
+Battery: `402 passed / 1 failed` (only the pre-existing S101 intrep-thrash
+gap remains). `make test-lsp-e2e-rust` unaffected.
+
+## SYNC-JUN13 — S101 foreach-variable per-iteration intrep thrash
+
+The last battery gap (`test_TP_S101_per_iteration_mixed_intrep_thrash`):
+`foreach x $l { set b [lindex $x 0] }` did not fire S101 in Rust.
+
+* **Root cause** (not a missing pass — a missing *dispatch* arm): a
+  `foreach` element variable is already typed `String` in Rust (the
+  `foreach` spec carries `return_type = String`, and `evaluate_type_def`
+  types the loop-var def via `return_type_for_command`, exactly like
+  Python's `_return_type_for_command("foreach", …)`). The shimmer detector
+  only failed to *check* the use, because `set b [lindex $x 0]` lowers to a
+  `Statement::AssignValue` whose value is a `[cmd …]` substitution, and
+  `check_statement` handled only `Statement::Call` / `Statement::Incr`.
+  Python's `_find_use_site_shimmers` has an explicit `IRAssignValue` arm
+  (parse the command substitution, run `_check_args_for_shimmer`).
+* **Fix** (`shimmer/use_site.rs`): factored the `Call` arg-shimmer body into
+  `check_invocation` and added a `Statement::AssignValue` arm that parses the
+  value as a command substitution and runs the same check — a faithful port
+  of Python's dispatch. Also ported Python's per-block `already_coerced`
+  ledger so a second use coercing the same `(var, ver)` to the same intrep in
+  one block is not double-counted.
+* **Reverted** an earlier exploratory `find_loop_intrep_thrash` use-vs-use
+  pass — it was the wrong model (Python is type-lattice driven; the
+  `String→List` conflict here is between the inferred type and one use, not
+  between two uses).
+
+Battery (rust backend): **403 passed / 0 failed**. `cargo test --workspace
+--all-features` green; `cargo clippy --workspace --all-targets` clean.
+
+## SYNC-JUN13-2 — midword-quote bracket recovery (last e2e failure)
+
+`test_midword_delimiter_still_recovers`: `set x [foo abc"\nproc … {} {}`
+left the tail `proc` unrecovered (absent from document symbols).
+
+* **Root cause**: both the Rust *and* Python lexers toggle the
+  command-substitution `in_quotes` counter on **every** `"` at `blevel == 0`
+  (faithful to each other — the structural-index faithfulness battery pins
+  this). A mid-word `"` (`abc"`) therefore opens a phantom quoted run that
+  swallows the rest of the document. The E201 recovery already derived a
+  ghost `]` at the right offset (before `proc`), but the re-lex ignored it:
+  `parse_command`'s `]` arm is gated on `!in_quotes`, so the ghost was eaten
+  as quoted text and the bracket stayed open to EOF.
+* **Fix** (`tcl-lexer/src/lexer.rs`): a recovery **ghost** `]` now closes the
+  command unconditionally — it is checked at the top of the `parse_command`
+  loop, before the quote/brace guards. A ghost is a deliberate recovery
+  insertion already vetoed from inert (brace / escape / `${…}`) positions
+  when derived, so it is always a sound structural closer. This touches only
+  the `with_ghosts` re-lex path; the no-ghost structural-index faithfulness
+  test is unaffected (still green over its 8000-case corpus).
+* Python recovers the same tail via its fix-less scan-to-next partial-command
+  path (it emits E201-no-fix + E200); the Rust GAP-A1 ghost mechanism reaches
+  the same observable outcome (the `proc` symbol) via the already-derived
+  E201-with-fix.
+
+`make test-lsp-e2e-rust`: **511 passed / 1 skipped / 0 failed**. Battery
+(rust backend): **403 / 0**. `cargo test --workspace --all-features` green;
+`cargo clippy --workspace --all-targets` clean.
+
+## SYNC-JUN13-3 — Pillar C: native Rust server is now the default backend
+
+The native Rust `tcl-lsp-server` is the out-of-the-box backend; the Python
+reference server is an explicit opt-out (`TCL_LSP_SERVER_KIND=python`, or an
+editor's `serverKind` setting). Per the user's direction ("we're trying to
+replace the Python; the lsp-e2e tests are there to help Rust"), the test
+layout was reorganised so the suites name their backend.
+
+* **Backend selector** (`tests/lsp_e2e/harness.py:server_kind`): unset →
+  native when a binary is available, else Python (a bare checkout still runs);
+  `TCL_LSP_SERVER_KIND=rust`/`native` forces native; `=python` forces Python.
+  This mirrors the launcher and VS Code fallback semantics exactly.
+* **`tcl-lsp` console-script launcher** (new `server/launcher.py`, wired in
+  `pyproject.toml`): resolves the native binary (`TCL_LSP_SERVER_BIN`, then
+  `PATH`, then `target/{release,debug}/`) and `os.execv`s it; falls back to the
+  in-process Python server when none is found; `=python` forces Python; an
+  explicit `=rust` with no binary errors out. *Switchover decision*: the
+  console script stays a thin Python shim (so binary-less `pip install`s keep
+  working) that prefers native — the smallest sound change, no wheel-packaging
+  of platform binaries required.
+* **Test layout**: `make test-py` now *excludes* `tests/lsp_e2e` (it covers the
+  PyO3 surfaces + tooling); `make test-rust` runs the cargo workspace tests and
+  then builds the native server and drives the `lsp_e2e` suite against it
+  (`rust-server` + `test-lsp-e2e-rust`). `make test-lsp-e2e` (Python reference)
+  and the `ci-fast` e2e subset are pinned to `TCL_LSP_SERVER_KIND=python` so
+  the Python reference is still exercised deterministically.
+* **Editors**: VS Code `serverKind` defaults to `rust` with a graceful Python
+  fallback when no native binary is found (only an *explicit* `rust` errors);
+  the Neovim/Emacs/Helix config snippets default to the native binary with the
+  Python invocation kept as a documented opt-out. The `.claude` `lsp_client`
+  CLI default flipped to `rust`. README + editor READMEs updated.
+  *Deferred* (compiled / framework-driven, not buildable in this environment):
+  the Zed (Rust/WASM) and JetBrains (Kotlin) extensions and the Sublime LSP
+  plugin still launch the bundled Python `.pyz`; flipping those to a native
+  default + bundling per-platform binaries is a packaging/CI task tracked
+  separately.
+
+Gates: `make test-py` green (16615 passed); `make test-lsp-e2e-rust` green
+(511 passed / 1 skipped); battery (rust) 403/0; default-mode `lsp_e2e`
+(no env vars) resolves to the native server and passes 511/1.
+
+## SYNC-JUN13-4 — PR #595 Codex review fixes
+
+* **VS Code default fallback (P1)**: with the `serverKind` schema default now
+  `"rust"`, `config.get("serverKind", "")` returned `"rust"` even when the user
+  never set it, so the missing-binary path treated the default as an *explicit*
+  Rust request and errored instead of falling back to Python. Fixed: use
+  `config.inspect()` and read only the user/workspace/folder values, so an
+  unset `serverKind` is distinguishable from an explicit one.
+* **`try` handler exception edges (P2)**: the Rust discriminator keyed on
+  "does the body contain an explicit throw?", but Python keys on "does the body
+  have a normal fall-through?" (`body_terminal`). They diverge for a body that
+  both throws *and* falls through (`if {$c} {error e}; set y 2`): the handler
+  can be entered by an abnormal completion at any point, so `y` is only
+  maybe-defined. Rewrote to mirror Python — discriminate on `body_tail.is_none()`
+  and track a `last_terminal_block` for the no-explicit-throw fallback.
+* **Bare `$ns::cmd` (P2)**: `parse_namespaced_ensemble` split the *bare*
+  `$prefix::tail` form, suppressing W307 when `<prefix>::tail` resolved to a
+  known command. But Tcl lexes `$ns::run` as a single variable `ns::run` — only
+  the *braced* `${ns}::tail` composes a command path (Python's
+  `is_namespaced_ensemble` only fires after a `${…}` close brace). Restricted
+  the parser to the braced form; bare `$ns::run` now fires W307, matching Python.
+* **Optimiser disables in diagnostics (P2)**: `tclLsp.optimiser.enabled=false`
+  and per-code `tclLsp.optimiser.O1xx=false` were parsed/holdable but never
+  folded into the diagnostics path (only the profile was). Now the master switch
+  and per-code overrides gate every O-code, including the ones emitted by
+  `run_all_checks` (e.g. the constant-branch `O100`), mirroring Python's
+  `optimiser_enabled` + `disabled_optimisations`.
+
+Battery (rust) 403/0; `make test-lsp-e2e-rust` 511/1; `cargo test`/`clippy`
+clean.
