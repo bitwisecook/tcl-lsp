@@ -1034,14 +1034,17 @@ All listed residuals have landed:
   `compiler_checks::Severity::Info`, mapped to LSP `INFORMATION`); the
   S100/S101 code is computed from `in_loop` in both `phi.rs` and `expr.rs`
   (was hardcoded); the loop-invariant S101→S100 downgrade
-  (`use_site::LoopFacts`) and the `incr`-amount check are ported.
+  (`use_site::LoopFacts`), the `incr`-amount check, and the per-statement
+  `(span, var)` expr-shimmer de-duplication (Python's `seen` set) are ported.
 - **done** expr-context literal typing (`expr_literal_type`: `0o`/`0x`/`0b`
   → INT, unrecognised → NUMERIC), `~$double`→INT (`UnaryOp::BitNot`), and
   scope-alias → OVERDEFINED widening (`global`/`variable`/`upvar`/`namespace
   upvar`, registry-`CREATES_SCOPE_ALIAS`-driven). TclOO constructor results
-  already widen to OVERDEFINED; precise `object_of` typing stays gated on
-  threading `known_classes` (its only consumer is the FE-DIAG W307/W308
-  emitter).
+  already widen to OVERDEFINED; precise `object_of` typing is left to
+  **FE-DIAG**, which owns both the analyser-layer class extraction (the Rust
+  IR keeps `namespace eval` bodies as raw barriers, so the class set comes
+  from `signature_scan`, not an IR walk) and the W307/W308 emitter that is
+  its only consumer.
 - **done** rendered-props ESC numeric/hex/octal/unicode escape rendering —
   `scan_escape` now decodes via `tcl_lexer::backslash_subst`, so `\x2f` /
   `\057` / `/` → `/` set `HAS_FORWARD_SLASH` (was a W201 false-negative).
