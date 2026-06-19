@@ -23,7 +23,14 @@ from shared.ranges import word_closer_offset
 from shared.tokens import Token, TokenType
 
 from .command_registry import REGISTRY
-from .models import CommandSpec, DialectStatus, PatternType, SubCommand, ValidationSpec
+from .models import (
+    BytePayloadSpec,
+    CommandSpec,
+    DialectStatus,
+    PatternType,
+    SubCommand,
+    ValidationSpec,
+)
 from .signatures import ArgRole, Arity, BodyKind, CommandSig, SubcommandSig
 from .taint_hints import TaintColour, TaintHint
 from .type_hints import CommandTypeHint, SubcommandTypeHint
@@ -224,6 +231,7 @@ def _invalidate_runtime_caches(loader_keys: list[str]) -> None:
     normalized_flag_commands.cache_clear()
     variable_writing_commands.cache_clear()
     byte_array_payload_commands.cache_clear()
+    byte_array_payload_layouts.cache_clear()
     loop_list_header_commands.cache_clear()
     scope_alias_commands.cache_clear()
     options_with_value.cache_clear()
@@ -390,6 +398,25 @@ def byte_array_payload_commands() -> frozenset[str]:
             if spec.byte_array_payload:
                 names.add(name)
     return frozenset(names)
+
+
+@lru_cache(maxsize=1)
+def byte_array_payload_layouts() -> dict[str, BytePayloadSpec]:
+    """Return ``{command: BytePayloadSpec}`` for ``*::payload`` byte commands.
+
+    The layout describes where the ``replace`` form's ``<data>`` operand lives
+    (it differs per protocol), so the S110 byte-corruption check stays
+    registry-driven instead of hardcoding the TCP/HTTP layout.  A bare
+    ``byte_array_payload=True`` maps to the default :class:`BytePayloadSpec`.
+    """
+    layouts: dict[str, BytePayloadSpec] = {}
+    for name, specs in REGISTRY.specs_by_name.items():
+        for spec in specs:
+            flag = spec.byte_array_payload
+            if not flag:
+                continue
+            layouts[name] = flag if isinstance(flag, BytePayloadSpec) else BytePayloadSpec()
+    return layouts
 
 
 @lru_cache(maxsize=1)

@@ -77,6 +77,15 @@ It emits S110 in two places, matching the two damage mechanisms:
   [encoding convertto utf-8 $payload]` is DAMAGED, because `convertto`'s
   byte-array return type must not mask that it is the corrupting op.
 
+The `<proto>::payload replace` sink's `<data>` operand is **not** at a fixed
+argument index — `replace OFFSET LENGTH DATA` (TCP/HTTP/…, data at index 3),
+`replace DATA …` (MQTT/DIAMETER, index 1), and GTP's `replace ('-message'
+MESSAGE)? OFFSET COUNT NEW_VALUE` (index 3, shifted to 5 by the optional flag)
+all differ. The data position is therefore declared per command in the registry
+(`BytePayloadSpec` on `CommandSpec.byte_array_payload`) and read back via
+`byte_array_payload_layouts()`, so the pass stays correct for new payload
+commands without editing `shimmer.py`.
+
 ## Why provenance, not the type lattice
 
 The type lattice already has `TclType.BYTEARRAY` and a `SHIMMERED(from, to)`
@@ -134,8 +143,9 @@ convertto`) stay enabled everywhere.
 
 ## Pointers
 
-- `compiler/shimmer.py` — `_find_byte_array_corruption` and helpers
-- `compiler/registry/runtime.py` — `byte_array_payload_commands`
-- `dialects/f5/irules/*__payload.py` — `byte_array_payload=True`
+- `compiler/shimmer.py` — `_find_byte_array_corruption`, `_payload_replace_data_index`, and helpers
+- `compiler/registry/runtime.py` — `byte_array_payload_commands`, `byte_array_payload_layouts`
+- `compiler/registry/models.py` — `BytePayloadSpec`, `CommandSpec.byte_array_payload`
+- `dialects/f5/irules/*__payload.py` — `byte_array_payload=True` (default index-3 layout) or `=BytePayloadSpec(...)`
 - `docs/design/compiler/FP.md` — FP-SH-09 (intrinsic), FP-SH-10 (round-trip)
 - `docs/kcs/features/kcs-feature-byte-array-corruption.md` — user-facing note

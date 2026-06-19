@@ -433,3 +433,56 @@ def test_FP_SH_10_binary_scan_fix_silent():
         "}\n"
     )
     assert _irule_codes(src, ["S110"]) == [], "documented binary-scan fix must not fire S110"
+
+
+# FP-SH-11 — per-protocol ``payload replace`` data-arg layout (registry-driven S110)
+
+
+FP_SH_11_REPRO = """\
+when MQTT_MESSAGE {
+    set p [MQTT::payload]
+    set bad "$p x"
+    MQTT::payload replace $bad
+}
+"""
+
+
+def test_FP_SH_11_mqtt_payload_layout_fires():
+    """TP: ``MQTT::payload replace <data>`` puts the data operand at index 1,
+    not the TCP/HTTP index 3.  S110 must derive the position from the registry
+    (PR #658 review gap) and still fire on the damaged write-back."""
+    assert _irule_codes(FP_SH_11_REPRO, ["S110"]), "MQTT payload round-trip must fire S110"
+
+
+def test_FP_SH_11_binary_scan_fix_silent():
+    """FP control: the documented ``binary scan $v c* -`` re-binarify before the
+    MQTT sink clears S110 — proves the index-1 sink is still provenance-gated."""
+    src = (
+        "when MQTT_MESSAGE {\n"
+        "    set p [MQTT::payload]\n"
+        '    set bad "$p x"\n'
+        "    binary scan $bad c* -\n"
+        "    MQTT::payload replace $bad\n"
+        "}\n"
+    )
+    assert _irule_codes(src, ["S110"]) == [], "documented binary-scan fix must not fire S110"
+
+
+def test_FP_SH_11_gtp_message_flag_shift_fires():
+    """TP: GTP ``replace -message MSG OFFSET COUNT NEW_VALUE`` shifts the data
+    operand to index 5; the layout flag must track it so S110 still fires."""
+    src = (
+        "when CLIENT_ACCEPTED {\n"
+        "    set p [GTP::payload]\n"
+        '    set bad "$p x"\n'
+        "    GTP::payload replace -message $msg 0 10 $bad\n"
+        "}\n"
+    )
+    assert _irule_codes(src, ["S110"]), "GTP -message-shifted replace must fire S110"
+
+
+def test_FP_SH_11_gtp_offset_not_data_silent():
+    """FP control: under the GTP layout a clean numeric OFFSET sitting at the
+    old hardcoded index 3 must not be mistaken for the data operand."""
+    src = "when CLIENT_ACCEPTED {\n    set p [GTP::payload]\n    GTP::payload replace 0 10 $p\n}\n"
+    assert _irule_codes(src, ["S110"]) == [], "clean GTP offset must not fire S110"

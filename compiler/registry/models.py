@@ -612,6 +612,28 @@ class SubCommand:
         return dialect in parent_dialects
 
 
+@dataclass(frozen=True, slots=True)
+class BytePayloadSpec:
+    """Layout of a ``<proto>::payload`` byte-array command for the S110 check.
+
+    The getter form returns raw on-the-wire bytes (a binary source); the
+    ``replace`` form rewrites them (a byte sink).  ``replace`` argument layouts
+    differ per protocol, so the index of the ``<data>`` operand is carried here
+    instead of being hardcoded in the analyser:
+
+    - ``replace_data_index`` — 0-based index, *within the args after the command
+      name*, of the ``<data>`` operand in the ``replace`` form.  ``3`` for the
+      common ``replace <offset> <length> <data>`` layout (TCP/HTTP/…); ``1`` for
+      ``replace <data> …`` (MQTT/DIAMETER).
+    - ``message_flag_shift`` — when True, an optional leading ``-message
+      <value>`` flag (GTP) shifts every positional ``replace`` operand by two,
+      so the data index becomes ``replace_data_index + 2`` when present.
+    """
+
+    replace_data_index: int = 3
+    message_flag_shift: bool = False
+
+
 @dataclass(slots=True)
 class CommandSpec:
     """Unified command metadata for completion/hover/registry lookup."""
@@ -651,9 +673,10 @@ class CommandSpec:
     has_destructive_ops: bool = False  # file, namespace, chan
     is_irules_event_handler: bool = False  # when
     is_unnormalized_http_getter: bool = False  # HTTP::path, HTTP::uri, HTTP::query
-    byte_array_payload: bool = (
-        False  # *::payload — getter returns raw bytes, `replace` rewrites them
-    )
+    # ``*::payload`` — getter returns raw bytes, ``replace`` rewrites them.
+    # ``True`` uses the default replace layout (data at index 3); pass a
+    # :class:`BytePayloadSpec` to describe a protocol-specific layout.
+    byte_array_payload: bool | BytePayloadSpec = False
 
     # Command-classification traits sourced by tooling instead of
     # consumer-local name lists (single source of truth = the spec).
