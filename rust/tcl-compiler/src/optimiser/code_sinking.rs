@@ -57,6 +57,15 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
         if ctx.cross_event_vars.contains(&var) {
             continue;
         }
+        // Already-covered guard: a statement an earlier pass already rewrites
+        // (e.g. O109 / O126 dead-store elimination, which runs before code
+        // sinking) must not also be sunk — the two rewrites would conflict.
+        // Mirrors Python's `already_covered` check over `ctx.optimisations`.
+        if ctx.optimisations.iter().any(|o| {
+            o.span.start() <= span.start() && o.span.end() >= span.end() && !span.is_empty()
+        }) {
+            continue;
+        }
         let decision = &stmts[i + 1];
         if !is_decision(decision) {
             continue;
@@ -491,6 +500,28 @@ mod tests {
         assert!(
             opts.iter().any(|o| o.code == "O125"),
             "expected an O125 diagnostic, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn already_covered_statement_is_not_sunk() {
+        // When an earlier pass already rewrites the `set x 1` statement,
+        // code sinking must leave it alone.
+        let src = "set x 1\nif {$cond} { puts $x } else { puts no }";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        // Simulate an earlier O109 dead-store rewrite covering `set x 1`.
+        ctx.report(Optimisation::new(
+            "O109",
+            "dead store",
+            tcl_lexer::Span::new(0, 7),
+            "",
+        ));
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations.iter().all(|o| o.code != "O125"),
+            "already-covered statement must not be sunk, got {:?}",
+            ctx.optimisations,
         );
     }
 
