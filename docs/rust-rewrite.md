@@ -967,7 +967,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟢 | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) to port → **FE-TYPESHIM** |
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
-| Optimiser passes | `tcl-compiler::optimiser` | 🟡 | soundness gates (O120/O114/O108), O106 category, O123 guard, O110 boolify, O125 cross-event + already-covered guards, O101/O115 branch coverage, O103 rename gate, and **all applied rewrites** (O104/O130 chain folds, O119 packing, O128 end-offset) landed; remaining: precise-flow extension; O106 trace+latch-dominance; O103 namespace-chain + O125 deepest-target precision; general inliner → **FE-OPT** |
+| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟡 | every O-code pass done — soundness gates (O120/O114/O108), O106 category, O123 guard, O110 boolify, O125 cross-event + already-covered guards, O101/O115 branch coverage, O103 rename gate, **all applied rewrites** (O104/O130/O119/O128), and the **inliner v0+verbatim** shapes landed; remaining: precise-flow extension; O106 trace+latch-dominance; O103 namespace-chain + O125 deepest-target precision; inliner **v3** (α-rename, gated on RT-WASM consumer + FE-VARESCAPE) → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005 (incl. nested `[…]` subs); snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108. Residuals: per-check config toggles + surfacing flow-warning fixes as code actions → **SRV-LSP**. Two review-found refinements (IRULE2001 3-arg `matchclass` fix, catch-`return` flow) are shared with Python → fixed Python-first, port pending → **FE-DIAG** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
@@ -1107,8 +1107,22 @@ build-chain folds (`optimiser::chain_fold`), O119 multi-set packing
   constant map). The O110 instcombine gap is closed for the logical
   identities; the regex/glob→string-op rewrites remain, gated on the iRules
   `MatchesGlob`/`MatchesRegex` expr operators.
-- **open** general proc inliner — port `compiler/inlining/` (the v0–v3 splice
-  inliner, ~1900 LOC); only the narrow uplevel-inline idiom exists. *(large)*
+- **partial** general proc inliner — the **v0 (empty-body) + v1/v2 (zero-param
+  verbatim wrapper) shapes have landed** (`tcl-compiler::inlining`,
+  2026-06-19): a statement-position call to an inlinable proc is replaced by
+  its spliced body (or removed), gated on `stmt_is_splice_eligible` (def-free
+  frame-independent allow-listed builtin calls, no `[cmd]` arg subst), which
+  subsumes `pure_leaf` for the verbatim shape. **Residual:** the **v3
+  parameterised** shape (α-renaming via `_rename.py` over value strings / expr
+  ASTs / defs-reads / foreach-catch bindings, variadic packing, parameter
+  defaults, trailing-vs-non-trailing `return` for/break wrapping), the precise
+  `var_escape::pure_leaf` profitability gate, and dead-proc elimination.
+  **Cross-track dependency (handoff):** the inliner's *only consumer is the
+  WASM codegen* (`compiler/codegen/wasm/api.py`), so end-to-end
+  (execution-differential) verification is gated on **RT-WASM** (🔴 unported);
+  and the precise `pure_leaf` tag is gated on **FE-VARESCAPE** wiring. The v3
+  rewriter is capture-sensitive (variable capture) and should land with that
+  execution-verification path rather than as IR-shape-only unit tests. *(large)*
 
 #### FE-CODEGEN — bytecode codegen
 Owns `tcl-compiler::codegen` (non-wasm).

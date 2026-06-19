@@ -1257,6 +1257,27 @@ general inliner). What landed:
   Mirrors Python's `already_covered` check. The multi-branch / deepest-target
   descent (sink into the deepest using branch in *each* body, not just one)
   remains the O125 residual.
+- **O103 (rename gate)** — the statement-form `try_fold_static_proc_call`
+  gained the `redefined_procedures` check the cmd-subst form already applied;
+  a redefined proc's calls are never folded. Namespace-chain resolution (a
+  bare call within its enclosing namespace) remains the O103 residual.
+- **General proc inliner — v0 + verbatim** — new self-contained
+  `tcl-compiler::inlining` module porting the empty-body (v0) and zero-param
+  verbatim-wrapper (v1/v2) shapes of `compiler/inlining/`. A
+  statement-position call to an inlinable proc is replaced by its spliced body
+  (or removed), recursing through control-flow bodies. Soundness rests on
+  `stmt_is_splice_eligible` (def-free frame-independent allow-listed builtin
+  calls, no `[cmd]` arg subst), which subsumes `var_escape::pure_leaf` for the
+  verbatim shape, so no escape summary is needed; redefined procs are never
+  inlined and recursion cannot occur. **Architectural finding:** the inliner's
+  *only consumer is the WASM codegen* (`compiler/codegen/wasm/api.py`), so the
+  module is exposed but not yet wired — end-to-end execution-differential
+  verification is gated on **RT-WASM** (unported). The **v3 parameterised**
+  shape (α-renaming via `_rename.py`, variadic packing, defaults,
+  return-wrapping), the precise `pure_leaf` profitability tag (**FE-VARESCAPE**),
+  and dead-proc elimination are the residual — the capture-sensitive v3
+  rewriter should land alongside the RT-WASM consumer that can execution-verify
+  it, not as IR-shape-only unit tests.
 
 All verified against the Python reference algorithms in
 `compiler/optimiser/{_expr_simplify,_pattern_recognition,_elimination,_tail_call}.py`
