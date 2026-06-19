@@ -364,6 +364,30 @@ fn count_bracket_self_calls(text: &str, self_names: &HashSet<String>) -> usize {
     count
 }
 
+/// Whether `value` (a `return` argument) is an accumulator-eligible
+/// non-tail self-recursion. Mirrors Python's `_is_accumulator_pattern`
+/// plus the `first_word == "expr"` wrapper gate:
+///
+/// 1. the argument is an `[expr {…}]` command substitution (not a plain
+///    `[self …]` tail call, which O121 already handles);
+/// 2. it embeds **exactly one** self-call — tree recursion like
+///    `fib` (`[fib …] + [fib …]`, two calls) is *not* a simple
+///    accumulator and must not fire;
+/// 3. it contains an associative operator (`+` / `*`) so introducing an
+///    accumulator parameter is meaningful.
+fn is_accumulator_pattern(value: &str, self_names: &HashSet<String>) -> bool {
+    let Some((head, _)) = parse_return_subst(value) else {
+        return false;
+    };
+    if head != "expr" {
+        return false;
+    }
+    if count_bracket_self_calls(value, self_names) != 1 {
+        return false;
+    }
+    value.contains('+') || value.contains('*')
+}
+
 /// Detect a non-tail self-call embedded in an expression body
 /// or a return's command substitution — the accumulator pattern.
 fn non_tail_self_call_in_expression(script: &Script, self_names: &HashSet<String>) -> bool {
@@ -387,18 +411,10 @@ fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
             if *braced {
                 return false;
             }
-            // Pure `return [self …]` — that's a tail return-
-            // subst, already handled by O121, not accumulator.
-            if let Some((head, _)) = parse_return_subst(v)
-                && self_names.contains(&head)
-                && !v.trim_start().contains("[expr")
-            {
-                return false;
-            }
-            count_bracket_self_calls(v, self_names) > 0
-                && !matches!(parse_return_subst(v), Some((h, _)) if self_names.contains(&h))
+            is_accumulator_pattern(v, self_names)
         }
-        Statement::AssignValue { value, .. } => count_bracket_self_calls(value, self_names) > 0,
+        // Python's `_find_accumulator_sites` inspects `return` statements
+        // only, so an assignment never contributes an O123 candidate.
         Statement::If {
             clauses, else_body, ..
         } => {
@@ -815,6 +831,32 @@ mod tests {
         assert!(
             opts.iter().any(|o| o.code == "O123" && o.hint_only),
             "expected O123 accumulator hint, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn o123_does_not_fire_on_tree_recursion() {
+        // `fib` has TWO self-calls in the expression, so it is not a
+        // simple accumulator pattern — O123 must not fire.
+        let opts = run_pass(
+            "proc ::fib {n} { if {$n < 2} { return $n } else { return [expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}] } }",
+        );
+        assert!(
+            opts.iter().all(|o| o.code != "O123"),
+            "tree recursion must not emit O123, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn o123_requires_associative_operator() {
+        // A single embedded self-call with no `+`/`*` operator is not an
+        // accumulator candidate (e.g. a wrapping `[expr {-[f $n]}]`).
+        let opts = run_pass(
+            "proc ::g {n} { if {$n <= 0} { return 0 } else { return [expr {-[g [expr {$n - 1}]]}] } }",
+        );
+        assert!(
+            opts.iter().all(|o| o.code != "O123"),
+            "non-associative wrapper must not emit O123, got {opts:?}",
         );
     }
 

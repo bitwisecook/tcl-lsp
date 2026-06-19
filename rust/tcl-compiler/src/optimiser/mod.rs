@@ -33,8 +33,10 @@
 //!   façade that runs every `PassId::all()` in canonical order.
 
 pub mod branch_folding;
+pub mod chain_fold;
 pub mod code_sinking;
 pub mod elimination;
+pub mod end_offset;
 pub mod expr_simplify;
 pub mod helpers;
 pub mod manager;

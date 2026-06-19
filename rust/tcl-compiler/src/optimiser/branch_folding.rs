@@ -37,9 +37,9 @@ use crate::sccp::ConstantBranch;
 use tcl_lexer::Span;
 
 use super::helpers::expr_simplify::{
-    instcombine_expr_typed, numeric_var_names, substitute_expr_constants,
+    instcombine_expr_typed, numeric_var_names, substitute_expr_constants, try_fold_expr,
     try_eq_ne_string_compare_simplify_expr, try_strength_reduce_expr_typed,
-    try_strlen_simplify_expr,
+    try_strlen_simplify_expr, try_unwrap_expr_in_expr,
 };
 use super::helpers::literals::format_constant;
 use super::{Optimisation, PassContext};
@@ -103,10 +103,12 @@ fn brace_corrected_span(source: &str, span: Span) -> Span {
 /// the condition text via [`substitute_expr_constants`]. Emits
 /// `O100` on any text change.
 fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
+    // Note: `constants` may be empty — the cascade (strength-reduce, streq,
+    // instcombine) and the O115 redundant-`expr` unwrap still apply to a
+    // branch condition with no propagable constants, matching Python's
+    // `propagate_into_branches` (which does not gate on a non-empty constant
+    // map). Substitution is simply a no-op in that case.
     let constants = sccp_constants_for(fu);
-    if constants.is_empty() {
-        return;
-    }
     // Numeric-type context so identity rewrites (`$x + 0` → `$x`, etc.) on a
     // branch condition fire only when the dropped operand is provably numeric.
     let numeric = numeric_var_names(fu);
@@ -155,57 +157,99 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         } else {
             (cond_text, false)
         };
-
-        // Cascade: substitute → strength-reduce → strlen → streq
-        // → instcombine. Each transform is a text → (text, changed)
-        // helper; the first one that changes the text wins its
-        // diagnostic code. Mirrors `optimise_branch_proc_calls`'s
-        // priority order in the Python source.
-        let (code, message, final_text) = {
-            let sub = substitute_expr_constants(inner, &constants, ctx.dialect);
-            let working = if sub.changed {
-                sub.text.clone()
+        let rewrap = |text: &str| {
+            if braced {
+                format!("{{{text}}}")
             } else {
-                inner.to_owned()
-            };
-
-            let (sred, sred_changed) = try_strength_reduce_expr_typed(&working, Some(&numeric));
-            if sred_changed {
-                ("O113", "Strength-reduce expression", sred)
-            } else {
-                let (slen, slen_changed) = try_strlen_simplify_expr(&working);
-                if slen_changed {
-                    ("O117", "Simplify string length zero-check", slen)
-                } else {
-                    let (streq, streq_changed) = try_eq_ne_string_compare_simplify_expr(&working);
-                    if streq_changed {
-                        ("O120", "Use eq/ne for string comparison", streq)
-                    } else {
-                        let (combined, combined_changed) =
-                            instcombine_expr_typed(&working, true, Some(&numeric));
-                        if combined_changed {
-                            ("O110", "Canonicalise expression (InstCombine)", combined)
-                        } else if sub.changed {
-                            (
-                                "O100",
-                                "Propagate constants into branch expression",
-                                sub.text,
-                            )
-                        } else {
-                            continue;
-                        }
-                    }
-                }
+                text.to_owned()
             }
         };
 
-        let replacement = if braced {
-            format!("{{{final_text}}}")
+        // O115: a branch condition that is itself a redundant `[expr {…}]`
+        // wrapper (`if {[expr {$x}]} …`) unwraps to its inner expression.
+        // Checked before the constant cascade, mirroring the Python order.
+        if let Some(unwrapped) = try_unwrap_expr_in_expr(inner)
+            && unwrapped != inner
+        {
+            ctx.report(Optimisation::new(
+                "O115",
+                "Remove redundant nested expr",
+                span,
+                rewrap(&unwrapped),
+            ));
+            continue;
+        }
+
+        // Cascade: substitute → strength-reduce → strlen → streq →
+        // instcombine, with an O101 fold short-circuit. Mirrors
+        // `optimise_branch_proc_calls`'s priority order in the Python source.
+        let sub = substitute_expr_constants(inner, &constants, ctx.dialect);
+        let working = if sub.changed {
+            sub.text.clone()
         } else {
-            final_text
+            inner.to_owned()
         };
-        ctx.report(Optimisation::new(code, message, span, replacement));
+
+        // O101: if constant propagation makes the whole condition fold to a
+        // literal (`if {$flag > 0}` with `flag == 1` → `1`), emit the fold in
+        // preference to the partial-canonicalisation codes. Mirrors Python's
+        // `_try_fold_expr(combined)` branch.
+        if sub.changed
+            && let Some(folded) = try_fold_expr(&working, ctx.dialect)
+            && folded != inner
+        {
+            ctx.report(Optimisation::new(
+                "O101",
+                "Fold constant expression",
+                span,
+                rewrap(&folded),
+            ));
+            continue;
+        }
+
+        let Some((code, message, final_text)) =
+            branch_cascade(&working, sub.changed, &sub.text, &numeric)
+        else {
+            continue;
+        };
+        ctx.report(Optimisation::new(code, message, span, rewrap(&final_text)));
     }
+}
+
+/// The branch-condition simplification cascade: the first transform that
+/// changes `working` wins its diagnostic code. Returns `None` when nothing
+/// applies. `sub_changed`/`sub_text` carry the constant-substitution result
+/// so a pure substitution (no further simplification) still emits O100.
+fn branch_cascade(
+    working: &str,
+    sub_changed: bool,
+    sub_text: &str,
+    numeric: &HashSet<String>,
+) -> Option<(&'static str, &'static str, String)> {
+    let (sred, sred_changed) = try_strength_reduce_expr_typed(working, Some(numeric));
+    if sred_changed {
+        return Some(("O113", "Strength-reduce expression", sred));
+    }
+    let (slen, slen_changed) = try_strlen_simplify_expr(working);
+    if slen_changed {
+        return Some(("O117", "Simplify string length zero-check", slen));
+    }
+    let (streq, streq_changed) = try_eq_ne_string_compare_simplify_expr(working);
+    if streq_changed {
+        return Some(("O120", "Use eq/ne for string comparison", streq));
+    }
+    let (combined, combined_changed) = instcombine_expr_typed(working, true, Some(numeric));
+    if combined_changed {
+        return Some(("O110", "Canonicalise expression (InstCombine)", combined));
+    }
+    if sub_changed {
+        return Some((
+            "O100",
+            "Propagate constants into branch expression",
+            sub_text.to_owned(),
+        ));
+    }
+    None
 }
 
 fn is_switch_dispatch_cond(cond: &ExprNode) -> bool {
@@ -874,5 +918,25 @@ mod tests {
             "expected an O101 fold via run_passes, got {:?}",
             ctx.optimisations,
         );
+    }
+
+    #[test]
+    fn branch_condition_redundant_expr_emits_o115() {
+        // `if {[expr {$x}]} …` — the condition is a redundant `[expr {…}]`
+        // wrapper; it unwraps to `$x`. Exercised at top level (proc bodies
+        // with a returning branch collapse to a straight CFG).
+        let cu = CompilationUnit::build_for(
+            "if {[expr {$x}]} { puts a } else { puts b }",
+            &registry(),
+            false,
+        );
+        let mut ctx = build_ctx(&cu.source);
+        super::super::run_passes(&mut ctx, &cu, &[PassId::BranchFolding]);
+        let o115 = ctx
+            .optimisations
+            .iter()
+            .find(|o| o.code == "O115")
+            .expect("expected an O115 unwrap on the branch condition");
+        assert_eq!(o115.replacement, "{$x}");
     }
 }

@@ -1164,6 +1164,183 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
+Landed: 2026-06-19 — **FE-VARESCAPE complete** (branch
+`claude/great-ptolemy-kti1wz`). The two open var-escape items closed, and the
+analysis is wired to its first consumer (the inliner). The track's `####`
+section was dropped from `rust-rewrite.md` (now a ✅ row). What landed:
+
+- **Orchestrator** — new `var_escape::api` with `analyse_var_escape` (the
+  IR-only tree-walk path that populates `pure_leaf`, the one the inliner uses),
+  `analyse_var_escape_cu` (the flow-sensitive CFG/SSA path for codegen frame
+  analysis), and `cfg_result_to_summary` (`CfgEscapeResult → ProcEscapeSummary`,
+  "FRAME wins" collapse, `pure_leaf` left default on the CFG path per Python).
+  Threads the already-landed `analyse_script` / `analyse_cfg_function` /
+  `solve_interprocedural_escape` / `populate_local_slots` pieces. Re-exported
+  with `TOP_LEVEL_QNAME = "::top"`. Mirrors `_api.py`.
+- **`pure_leaf` family** — added the `pure_leaf` field to `ProcEscapeSummary`
+  plus the derived `safe_to_inline` (= `pure_leaf`), `safe_to_dce` (the base
+  predicate without the transitive-callee clause — the PR #237 DCE relaxation),
+  and `safe_for_frame_elision` (= `!frame_needed`) predicates. The walker
+  computes the intraprocedural base predicate (`!frame_needed && !has_fallback
+  && !has_call_fallback && upvar_source_names.is_empty() &&
+  !unbounded_upvar_source`); `with_escapes` clears it on a callee-induced
+  escape or pessimistic downgrade; `solve_interprocedural_escape` gained the
+  transitive fixpoint (`downgrade_non_pure_leaf_callers`) — a proc stays
+  `pure_leaf` only if every direct callee is itself `pure_leaf` or a known
+  frameless runtime builtin. Mirrors `_types.py` + `_propagation.py` +
+  `_interprocedural.py`.
+- **Inliner wiring** — `inlining::build_inlinable_map` now gates on the precise
+  `safe_to_inline` proof from this analysis (replacing the conservative
+  splice-eligibility-only approximation), connecting FE-VARESCAPE to its first
+  in-tree consumer.
+
+The interprocedural worklist and `pure_leaf` fixpoint were factored into the
+`propagate_transitive_sources` / `downgrade_non_pure_leaf_callers` helpers.
+
+Landed: 2026-06-19 — **FE-OPT soundness gates + correctness guards**
+(branch `claude/great-ptolemy-kti1wz`). The optimiser's miscompile-class
+gaps — the ones that block flipping the Rust optimiser default-on — are
+closed; the track stays 🟡 for the remaining feature-completeness work
+(applied O104/O119 rewrites, the unimplemented O128/O130 detectors, O106
+trace/latch-dominance precision, O103/O125/O101/O115, and the ~1900 LOC
+general inliner). What landed:
+
+- **O120 (soundness)** — `streq_promote_node` (`helpers/expr_simplify.rs`)
+  now promotes `==`/`!=` to `eq`/`ne` only when at least one operand is a
+  *provably non-numeric* string literal (neither numeric nor a Tcl boolean
+  word), mirroring `_is_provably_non_numeric_expr_node`. Previously it fired
+  on any string literal, so `$x == "1"` → `$x eq "1"` flipped the result for
+  numeric `$x`. The variable-with-SCCP-CONST refinement Python also accepts
+  is conservatively skipped (a missed rewrite, never an unsound one).
+- **O114 (soundness)** — the `set x [expr {$x ± N}]` → `incr x` rewrite is
+  gated on `x` being provably `TclType::Int` at the use point (a
+  function-level INT join over `FunctionUnit::types`, the same shape
+  `numeric_var_names` uses), mirroring the Python INT-type proof. Float-typed
+  and untyped vars no longer rewrite (`incr` errors where `expr` promotes).
+  `pattern_recognition::run` now walks each script paired with its
+  `FunctionUnit` to derive the INT set.
+- **O108 (soundness)** — the ADCE fixpoint (`elimination::run_adce_fixpoint`)
+  routes through the existing `assignment_safe_to_delete` purity gate, so a
+  transitively-dead assignment whose RHS has an observable side effect (an
+  impure `[cmd …]`) is kept rather than removed. Replaced the
+  `is_side_effect_free_assignment` stub that treated every assignment as pure.
+- **O106 (category)** — `("O106", CodeMotion)` added to
+  `profiles.rs::OPT_CATEGORIES`, so the LICM hint is suppressable under
+  non-full profiles (matching Python's 31-entry `opt_category` table).
+- **O123 (over-fire)** — the accumulator hint is gated on Python's
+  `_is_accumulator_pattern`: an `[expr {…}]` return wrapper with **exactly
+  one** embedded self-call and an associative operator (`+`/`*`). Tree
+  recursion (`fib`'s two self-calls) and non-associative wrappers no longer
+  fire; assignments are no longer scanned (returns only).
+- **O110 (logical identities)** — the previously-unused `bool_context` is
+  threaded through the expr simplifier. `x && 1` / `x || 0` return the
+  operand bare only when it is already a `0`/`1` boolean or consumed in a
+  boolean context, else wrap as `!!x` (boolify) to preserve Tcl's `0`/`1`
+  normalisation; the `!!x` collapse is gated the same way (was unconditional,
+  mis-normalising `expr {!!2}`) and `~~x` on numericity. The regex/glob →
+  string-op rewrites remain open.
+- **O128 (end-offset index)** — new `optimiser::end_offset` module. Rewrites
+  list/string index arguments written as length arithmetic
+  (`[expr {[llength $L] - N}]`) to Tcl's `end` / `end-N`. The IR `Statement`
+  carries only argv *texts*, so each statement's source slice is re-segmented
+  (`segment_commands_with_offset`) to recover the index argument's
+  command-substitution span, and nested `[…]` substitutions are walked
+  recursively. Covers `lindex`/`lrange`/`lreplace` (llength) +
+  `string index`/`range`/`replace` (string length); excludes `linsert` and
+  multi-index `lindex` tails; fires only when the length operand is textually
+  identical to the indexed container. Byte-exact spans + `end`/`end-N`
+  semantics verified against tclsh.
+- **O125 (code-sinking soundness)** — added the cross-event-var guard: an
+  assignment to a variable in `ctx.cross_event_vars` (iRules state carried
+  across `when <event>` boundaries) is never sunk into a branch, matching
+  Python's `var_name in ctx.cross_event_vars` skip. The multi-branch /
+  deepest-target descent + already-covered guard remain open.
+- **O104 / O130 (applied build-chain folds)** — new `optimiser::chain_fold`
+  replaces the hint-only string-build detector. A run of strictly-consecutive
+  static writes to one variable (`set` anchor + `append`/`lappend`) folds into
+  a single `set`: O104 for string-concat, O130 for `lappend` lists (the
+  initial string value is re-split into list elements via `split_list`). The
+  fold rewrites the last write and emits paired deletions over the earlier
+  ones, all in one group. Soundness gates: strictly-consecutive (no
+  intermediate read), every value word a static `Esc`/`Str` literal, and the
+  variable neither escaping (`var_observability::escaping_var_names`) nor a
+  cross-event var. Conservative vs Python's flow-sensitive read tracking (an
+  interleaved non-reading statement ends the run early) but never unsound;
+  list rendering reuses `tcl_syntax::list::{join_list,list_element}` and the
+  `_statement_delete_rewrite_range` delete-span logic is ported verbatim.
+  Fold semantics + byte-exact rewrite application verified against tclsh.
+- **O119 (applied multi-set packing)** — converted the hint-only detector to
+  an applied rewrite: 3+ consecutive static `set var literal` statements
+  (distinct vars, `is_safe_word` values) pack into one `lassign {vals} vars`
+  (Tcl 8.5/8.6) or `foreach {vars} {vals} {break}` (8.4 / dialect-unset),
+  skipped on Tcl 9.0. Handles both lowering shapes (integer →
+  `AssignConst`, other static → `AssignValue`) and gates on cross-event
+  vars. `statement_delete_rewrite_range` moved to `helpers::spans` (shared
+  with `chain_fold`). Pack semantics verified against tclsh.
+- **O101 / O115 (branch-condition coverage)** — `propagate_into_branches` no
+  longer early-returns on an empty SCCP constant map, so the simplification
+  cascade (extracted as `branch_cascade`) and two new emitters apply to all
+  branch conditions: O115 unwraps a redundant `[expr {…}]` wrapper
+  (`if {[expr {$x}]}` → `if {$x}`), and O101 folds a condition that constant
+  substitution collapses to a literal. Mirrors the Python order
+  (unwrap → fold → cascade).
+- **O125 (already-covered guard)** — code sinking now skips a statement an
+  earlier pass already rewrites (e.g. an O109/O126 dead-store deletion;
+  `Elimination` runs before `CodeSinking`), preventing conflicting rewrites.
+  Mirrors Python's `already_covered` check. The multi-branch / deepest-target
+  descent (sink into the deepest using branch in *each* body, not just one)
+  remains the O125 residual.
+- **O103 (rename gate + namespace-chain resolution)** — the statement-form
+  `try_fold_static_proc_call` gained the `redefined_procedures` check the
+  cmd-subst form already applied. Then the call-site namespace (derived from
+  the enclosing proc's qname) is threaded through the propagation walk, and
+  both fold forms resolve a bare call against the enclosing namespace chain
+  (`::ns::sub::word` out to `::word`) via the new `resolve_proc_qname`,
+  mirroring `_resolve_summary_proc_name` — a same-namespace helper call now
+  folds where the old naive `::word`-only resolution missed it.
+- **O125 (multi-branch deepest-target descent)** — the single-branch sink was
+  replaced by the recursive descent ported from `_find_deepest_sink_targets` /
+  `_try_deeper_sink`: a sinkable def is sunk into the deepest branch body that
+  uses it, in *every* branch that uses it (a var live in both arms duplicates
+  the def into each), descending through nested `if`/`switch` when a
+  single-use branch's lone consumer is itself a condition-clean decision. One
+  grouped delete + one prepend per target.
+- **O106 (latch-dominance gate)** — `find_loop_invariants` now tracks each
+  loop's back-edge tails (latches) and reports a pure loop-invariant only in a
+  block that dominates *every* latch — one guaranteed to run on every
+  iteration. An invariant behind an in-loop branch is no longer flagged for
+  hoisting, matching Python's "runs every iteration" check. (The trace-aware
+  purity gate `is_pure_command_with_traces` was already present.)
+- **O104 / O130 / O119 (precise-flow)** — the applied build-chain folds now
+  continue across an interleaved *static-literal write to a different
+  variable*: `classify_write` only matches single-token `Esc`/`Str` value
+  words with no substitution, so such a statement provably cannot read or
+  write the accumulator, has no side effect, and is not a barrier. The
+  interleaved statement stays in place; readers / dynamic statements / barriers
+  (`classify_write` → `None`) still end the run. Mirrors Python's
+  skip-non-reading-statement chain rule.
+- **General proc inliner — v0 + verbatim** — new self-contained
+  `tcl-compiler::inlining` module porting the empty-body (v0) and zero-param
+  verbatim-wrapper (v1/v2) shapes of `compiler/inlining/`. A
+  statement-position call to an inlinable proc is replaced by its spliced body
+  (or removed), recursing through control-flow bodies. Soundness rests on
+  `stmt_is_splice_eligible` (def-free frame-independent allow-listed builtin
+  calls, no `[cmd]` arg subst), which subsumes `var_escape::pure_leaf` for the
+  verbatim shape, so no escape summary is needed; redefined procs are never
+  inlined and recursion cannot occur. **Architectural finding:** the inliner's
+  *only consumer is the WASM codegen* (`compiler/codegen/wasm/api.py`), so the
+  module is exposed but not yet wired — end-to-end execution-differential
+  verification is gated on **RT-WASM** (unported). The **v3 parameterised**
+  shape (α-renaming via `_rename.py`, variadic packing, defaults,
+  return-wrapping), the precise `pure_leaf` profitability tag (**FE-VARESCAPE**),
+  and dead-proc elimination are the residual — the capture-sensitive v3
+  rewriter should land alongside the RT-WASM consumer that can execution-verify
+  it, not as IR-shape-only unit tests.
+
+All verified against the Python reference algorithms in
+`compiler/optimiser/{_expr_simplify,_pattern_recognition,_elimination,_tail_call}.py`
+and `_helpers.py`; full `tcl-compiler` lib suite green (2762 tests).
+
 Landed: 2026-06-19 — **FE-TYPESHIM: S110 byte-array corruption ported**
 (branch `claude/elegant-cray-qm13dj`). The last FE-TYPESHIM residual — the
 S110 *correctness* shimmer added to Python in PR #656 — is now on the `rust`

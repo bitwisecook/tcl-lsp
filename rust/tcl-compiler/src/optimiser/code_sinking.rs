@@ -50,6 +50,22 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
         let Some((var, span)) = sinkable_assignment(stmt) else {
             continue;
         };
+        // A variable that carries state across `when <event>` boundaries
+        // (iRules) is observable after this event handler returns, so its
+        // definition must not be sunk into a branch that may not run.
+        // Mirrors Python's `var_name in ctx.cross_event_vars` guard.
+        if ctx.cross_event_vars.contains(&var) {
+            continue;
+        }
+        // Already-covered guard: a statement an earlier pass already rewrites
+        // (e.g. O109 / O126 dead-store elimination, which runs before code
+        // sinking) must not also be sunk — the two rewrites would conflict.
+        // Mirrors Python's `already_covered` check over `ctx.optimisations`.
+        if ctx.optimisations.iter().any(|o| {
+            o.span.start() <= span.start() && o.span.end() >= span.end() && !span.is_empty()
+        }) {
+            continue;
+        }
         let decision = &stmts[i + 1];
         if !is_decision(decision) {
             continue;
@@ -127,10 +143,13 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
     }
 }
 
-/// Emit the O125 sink. When the original statement's source
-/// text can be recovered, emits a grouped pair of rewrites
-/// (delete original + prepend to target body's first statement).
-/// Otherwise falls back to a single hint-only diagnostic.
+/// Emit the O125 sink. The assignment is sunk into the **deepest** branch
+/// body that uses `var`, in **every** branch that uses it (a decision with
+/// the var live in both arms duplicates the def into each). When the
+/// original source text can be recovered, emits a grouped delete + one
+/// prepend per target; otherwise falls back to a single hint-only
+/// diagnostic. Mirrors Python's `_find_deepest_sink_targets` /
+/// `_emit_sinking_opts`.
 fn emit_sink(
     ctx: &mut PassContext<'_>,
     original: &Statement,
@@ -138,33 +157,37 @@ fn emit_sink(
     decision: &Statement,
     var: &str,
 ) {
-    let source_text = extract_source(ctx.source, original_span);
-    let target_first_stmt = find_target_first_stmt(decision, var);
-
     let _ = original;
-    if let (Some(set_text), Some(first)) = (source_text, target_first_stmt) {
+    let targets = decision_sink_targets(decision, var);
+    let target_spans: Vec<tcl_lexer::Span> = targets.iter().map(|s| s.span()).collect();
+
+    if let Some(set_text) = extract_source(ctx.source, original_span)
+        && !target_spans.is_empty()
+        && target_spans
+            .iter()
+            .all(|s| extract_source(ctx.source, *s).is_some())
+    {
         let group = ctx.alloc_group();
         let mut del = Optimisation::new(
             "O125",
-            format!("Sink '{var}' into its single consumer — delete original"),
+            format!("Sink '{var}' into the branch(es) that use it — delete original"),
             original_span,
             "",
         );
         del.group = Some(group);
         ctx.report(del);
 
-        // Prepend the original set statement's source text
-        // plus a separator to the target body's first stmt.
-        let first_span = first.span();
-        let first_text = extract_source(ctx.source, first_span).unwrap_or_default();
-        let mut ins = Optimisation::new(
-            "O125",
-            format!("Sink '{var}' into its single consumer — prepend in branch"),
-            first_span,
-            format!("{set_text}; {first_text}"),
-        );
-        ins.group = Some(group);
-        ctx.report(ins);
+        for span in target_spans {
+            let first_text = extract_source(ctx.source, span).unwrap_or_default();
+            let mut ins = Optimisation::new(
+                "O125",
+                format!("Sink '{var}' into branch — prepend in target body"),
+                span,
+                format!("{set_text}; {first_text}"),
+            );
+            ins.group = Some(group);
+            ctx.report(ins);
+        }
     } else {
         // Fallback: hint-only.
         let mut opt = Optimisation::new(
@@ -175,6 +198,106 @@ fn emit_sink(
         );
         opt.hint_only = true;
         ctx.report(opt);
+    }
+}
+
+/// Collect the sink-target anchor statements for `decision`: for each
+/// branch body that uses `var`, the deepest first-using statement (a
+/// single-use branch whose lone consumer is itself a decision descends
+/// further). Mirrors the per-branch `_find_deepest_sink_targets` fan-out.
+fn decision_sink_targets<'a>(decision: &'a Statement, var: &str) -> Vec<&'a Statement> {
+    let mut targets = Vec::new();
+    for body in decision_branch_bodies(decision) {
+        targets.extend(find_deepest_targets(body, var));
+    }
+    targets
+}
+
+/// The branch bodies of a decision statement (if clauses + else; switch
+/// arms + default).
+fn decision_branch_bodies(decision: &Statement) -> Vec<&Script> {
+    let mut bodies = Vec::new();
+    match decision {
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            for c in clauses {
+                bodies.push(&c.body);
+            }
+            if let Some(b) = else_body {
+                bodies.push(b);
+            }
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            for a in arms {
+                if let Some(b) = &a.body {
+                    bodies.push(b);
+                }
+            }
+            if let Some(b) = default_body {
+                bodies.push(b);
+            }
+        }
+        _ => {}
+    }
+    bodies
+}
+
+/// Deepest sink targets within a single body. When exactly one statement
+/// uses `var` (and no earlier statement redefines it), and that statement
+/// is itself a decision the var's condition does not read, descend into
+/// its branches; otherwise anchor at the first using statement of this
+/// body. Mirrors `_find_deepest_sink_targets`.
+fn find_deepest_targets<'a>(body: &'a Script, var: &str) -> Vec<&'a Statement> {
+    let using: Vec<usize> = body
+        .statements
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| statement_uses_var(s, var))
+        .map(|(i, _)| i)
+        .collect();
+    let Some(&first) = using.first() else {
+        return Vec::new();
+    };
+    if using.len() == 1 {
+        let no_prior_redefine = !body.statements[..first]
+            .iter()
+            .any(|s| statement_defines_var(s, var));
+        if no_prior_redefine && is_decision(&body.statements[first]) {
+            let deeper = try_deeper_sink(&body.statements[first], var);
+            if !deeper.is_empty() {
+                return deeper;
+            }
+        }
+    }
+    vec![&body.statements[first]]
+}
+
+/// Descend into a decision's branches for a deeper sink — but only when
+/// the var's value is not read by any condition (which would make sinking
+/// past it unsound). Mirrors `_try_deeper_sink`.
+fn try_deeper_sink<'a>(stmt: &'a Statement, var: &str) -> Vec<&'a Statement> {
+    if decision_condition_uses_var(stmt, var) {
+        return Vec::new();
+    }
+    let mut targets = Vec::new();
+    for body in decision_branch_bodies(stmt) {
+        targets.extend(find_deepest_targets(body, var));
+    }
+    targets
+}
+
+/// Whether `stmt` writes `var` (an assignment to it, or a call whose
+/// `defs` include it).
+fn statement_defines_var(stmt: &Statement, var: &str) -> bool {
+    match stmt {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::AssignExpr { name, .. } => name == var,
+        Statement::Call { defs, .. } => defs.iter().any(|d| d == var),
+        _ => false,
     }
 }
 
@@ -189,54 +312,6 @@ fn extract_source(source: &str, span: tcl_lexer::Span) -> Option<String> {
     Some(source[range].to_owned())
 }
 
-/// Walk `decision` looking for the first statement of any
-/// branch body that references `var`. Returns a reference to
-/// that statement (used by `emit_sink` to anchor the insertion
-/// rewrite).
-fn find_target_first_stmt<'a>(decision: &'a Statement, var: &str) -> Option<&'a Statement> {
-    match decision {
-        Statement::If {
-            clauses, else_body, ..
-        } => {
-            for c in clauses {
-                if let Some(s) = first_stmt_using(&c.body, var) {
-                    return Some(s);
-                }
-            }
-            if let Some(b) = else_body
-                && let Some(s) = first_stmt_using(b, var)
-            {
-                return Some(s);
-            }
-            None
-        }
-        Statement::Switch {
-            arms, default_body, ..
-        } => {
-            for a in arms {
-                if let Some(b) = &a.body
-                    && let Some(s) = first_stmt_using(b, var)
-                {
-                    return Some(s);
-                }
-            }
-            if let Some(b) = default_body
-                && let Some(s) = first_stmt_using(b, var)
-            {
-                return Some(s);
-            }
-            None
-        }
-        _ => None,
-    }
-}
-
-fn first_stmt_using<'a>(script: &'a Script, var: &str) -> Option<&'a Statement> {
-    script
-        .statements
-        .iter()
-        .find(|s| statement_uses_var(s, var))
-}
 
 /// Return `Some((var_name, stmt_span))` if `stmt` is a
 /// side-effect-free assignment whose defined variable is
@@ -484,6 +559,82 @@ mod tests {
         assert!(
             opts.iter().any(|o| o.code == "O125"),
             "expected an O125 diagnostic, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn sinks_into_both_using_branches() {
+        // `$x` is used in *both* the if-body and the else-body, so the def
+        // is sunk (duplicated) into each — two grouped inserts + one delete.
+        let opts = run_pass(
+            "proc ::f {flag} { set x 1; if {$flag} { puts $x } else { puts $x } }",
+        );
+        let inserts = opts
+            .iter()
+            .filter(|o| o.code == "O125" && o.replacement.contains("set x 1"))
+            .count();
+        assert_eq!(inserts, 2, "expected a sink into each branch, got {opts:?}");
+        // Exactly one delete of the original.
+        let deletes = opts
+            .iter()
+            .filter(|o| o.code == "O125" && o.replacement.is_empty() && !o.hint_only)
+            .count();
+        assert_eq!(deletes, 1);
+    }
+
+    #[test]
+    fn sinks_deeper_into_nested_decision() {
+        // `$x` is used only inside a nested `if` within the outer if-body —
+        // the def sinks all the way into the inner branch.
+        let opts = run_pass(
+            "proc ::f {a b} { set x 1; if {$a} { if {$b} { puts $x } } else { puts no } }",
+        );
+        // The deepest insert target is the inner `puts $x`; the sunk text
+        // must be prepended there (its slice contains the inner puts).
+        let deep = opts.iter().any(|o| {
+            o.code == "O125"
+                && o.replacement.starts_with("set x 1;")
+                && o.replacement.contains("puts $x")
+        });
+        assert!(deep, "expected a deep sink into the inner branch, got {opts:?}");
+    }
+
+    #[test]
+    fn already_covered_statement_is_not_sunk() {
+        // When an earlier pass already rewrites the `set x 1` statement,
+        // code sinking must leave it alone.
+        let src = "set x 1\nif {$cond} { puts $x } else { puts no }";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        // Simulate an earlier O109 dead-store rewrite covering `set x 1`.
+        ctx.report(Optimisation::new(
+            "O109",
+            "dead store",
+            tcl_lexer::Span::new(0, 7),
+            "",
+        ));
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations.iter().all(|o| o.code != "O125"),
+            "already-covered statement must not be sunk, got {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn cross_event_var_is_not_sunk() {
+        // `x` carries state across iRules `when` events, so its definition
+        // must stay where every later event can observe it — never sunk
+        // into a branch that might not run.
+        let src = "proc ::f {flag} { set x 1; if {$flag} { puts $x } else { puts no } }";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.cross_event_vars.insert("x".to_owned());
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations.iter().all(|o| o.code != "O125"),
+            "cross-event var must not be sunk, got {:?}",
+            ctx.optimisations,
         );
     }
 

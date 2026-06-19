@@ -301,7 +301,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         None,
         &proc_index,
     );
-    emit_adce(ctx, &cu.top_level, &baseline);
+    emit_adce(ctx, &cu.top_level, &baseline, &interproc_pure, &pure_methods, None);
 
     for fu in cu.procedures.values() {
         emit_unreachable(ctx, fu);
@@ -314,7 +314,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             None,
             &proc_index,
         );
-        emit_adce(ctx, fu, &baseline);
+        emit_adce(ctx, fu, &baseline, &interproc_pure, &pure_methods, None);
     }
 
     // SF-2 (#506): optimise TclOO method bodies as functions too,
@@ -342,7 +342,14 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             enclosing_class,
             &proc_index,
         );
-        emit_adce(ctx, fu, &baseline);
+        emit_adce(
+            ctx,
+            fu,
+            &baseline,
+            &interproc_pure,
+            &pure_methods,
+            enclosing_class,
+        );
     }
     ctx.cross_event_vars = saved_cross;
 }
@@ -586,7 +593,14 @@ fn emit_dead_stores_and_unused(
 }
 
 /// Emit **O108** (transitively dead code) — the ADCE fixpoint.
-fn emit_adce(ctx: &mut PassContext<'_>, fu: &FunctionUnit, baseline: &HashSet<(String, u32)>) {
+fn emit_adce(
+    ctx: &mut PassContext<'_>,
+    fu: &FunctionUnit,
+    baseline: &HashSet<(String, u32)>,
+    interproc_pure: &HashSet<String>,
+    pure_methods: &HashSet<String>,
+    enclosing_class: Option<&str>,
+) {
     let (consumer_stmt_keys, keep_forever) = build_adce_consumers(fu);
     let stmt_to_defs = build_stmt_to_defs(fu);
     let removed = run_adce_fixpoint(
@@ -595,6 +609,10 @@ fn emit_adce(ctx: &mut PassContext<'_>, fu: &FunctionUnit, baseline: &HashSet<(S
         &consumer_stmt_keys,
         &keep_forever,
         &stmt_to_defs,
+        ctx.registry,
+        interproc_pure,
+        pure_methods,
+        enclosing_class,
     );
     emit_adce_reports(ctx, fu, baseline, &removed);
 }
@@ -646,12 +664,17 @@ fn build_stmt_to_defs(fu: &FunctionUnit) -> StmtDefsMap {
     out
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_adce_fixpoint(
     fu: &FunctionUnit,
     baseline: &HashSet<(String, u32)>,
     consumer_stmt_keys: &ConsumerMap,
     keep_forever: &HashSet<(String, u32)>,
     stmt_to_defs: &StmtDefsMap,
+    registry: Option<&CommandRegistry>,
+    interproc_pure: &HashSet<String>,
+    pure_methods: &HashSet<String>,
+    enclosing_class: Option<&str>,
 ) -> HashSet<(String, u32)> {
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     let mut removed = baseline.clone();
@@ -677,7 +700,20 @@ fn run_adce_fixpoint(
             let Some(stmt) = block.statements.get(idx) else {
                 continue;
             };
-            if !is_side_effect_free_assignment(stmt) {
+            // O108 purity gate: a transitively-dead assignment can only be
+            // removed when its RHS has no observable side effect — an
+            // embedded `[cmd …]` that mutates state or escapes must keep the
+            // statement live. Mirrors Python's `_is_adce_removable_statement`
+            // (the execution-intent PURE/NO_ESCAPE check), reusing the same
+            // gate O109/DSE applies rather than treating every assignment as
+            // pure.
+            if !assignment_safe_to_delete(
+                stmt,
+                registry,
+                interproc_pure,
+                pure_methods,
+                enclosing_class,
+            ) {
                 continue;
             }
             let empty: Vec<(String, usize)> = Vec::new();
@@ -735,16 +771,6 @@ fn emit_adce_reports(
             "",
         ));
     }
-}
-
-fn is_side_effect_free_assignment(stmt: &Statement) -> bool {
-    matches!(
-        stmt,
-        Statement::AssignConst { .. }
-            | Statement::AssignValue { .. }
-            | Statement::AssignExpr { .. }
-            | Statement::Incr { .. }
-    )
 }
 
 /// Scan every statement's source slice for `$var` / `${var}`
@@ -1262,6 +1288,26 @@ mod tests {
         assert!(
             o108 >= 1,
             "expected at least one O108 in transitive dead chain, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn adce_preserves_impure_link_in_dead_chain() {
+        // `b` is read only by the dead `set c $b`, so the transitive
+        // chain `set a [puts hi]` → `set b $a` → `set c $b` is dead by
+        // def-use. But `set a [puts hi]` still prints — the O108 purity
+        // gate must keep it, deleting at most the pure links.
+        let src = "proc ::f {} { set a [puts hi]; set b $a; set c $b; return 7 }";
+        let opts = crate::optimiser::optimise(src, &registry());
+        let removes_puts_line = opts.iter().any(|o| {
+            matches!(o.code.as_str(), "O108" | "O109" | "O126")
+                && src
+                    .get(o.span.start() as usize..o.span.end() as usize)
+                    .is_some_and(|slice| slice.contains("puts"))
+        });
+        assert!(
+            !removes_puts_line,
+            "impure `set a [puts hi]` must survive ADCE, got {opts:?}",
         );
     }
 

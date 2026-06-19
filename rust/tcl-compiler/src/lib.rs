@@ -98,6 +98,7 @@ pub use tcl_syntax::expr::ast as expr_ast;
 pub use tcl_syntax::expr::parser as expr_parser;
 pub mod gvn;
 pub mod inline_uplevel;
+pub mod inlining;
 pub mod interprocedural;
 pub mod interval_bounds;
 pub mod intervals;

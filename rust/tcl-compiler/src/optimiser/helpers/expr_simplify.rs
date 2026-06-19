@@ -377,32 +377,44 @@ fn strip_ws(expr: &str) -> String {
 /// Apply one pass of local simplifications to `node`, returning
 /// the rewritten subtree. Used as the step function in
 /// [`simplify_to_fixpoint`].
-fn simplify_node_once(node: &ExprNode, numeric: NumericCtx<'_>) -> ExprNode {
-    // First, recurse into children — bottom-up rewriting.
+fn simplify_node_once(node: &ExprNode, bool_context: bool, numeric: NumericCtx<'_>) -> ExprNode {
+    use crate::expr_ast::UnaryOp;
+    // First, recurse into children — bottom-up rewriting. The boolean
+    // context propagates only where the operand's *value* is consumed as a
+    // truth value: the operands of `&&`/`||`/`!` and a ternary condition.
+    // Comparison/arithmetic operands consume the operand's full value, so
+    // they reset the context to `false`. Mirrors the per-position
+    // `bool_context` threading in Python's `_simplify_expr_node`.
     let lowered = match node {
-        ExprNode::Binary { op, left, right } => ExprNode::Binary {
-            op: *op,
-            left: Box::new(simplify_node_once(left, numeric)),
-            right: Box::new(simplify_node_once(right, numeric)),
-        },
-        ExprNode::Unary { op, operand } => ExprNode::Unary {
-            op: *op,
-            operand: Box::new(simplify_node_once(operand, numeric)),
-        },
+        ExprNode::Binary { op, left, right } => {
+            let child_bool = matches!(op, BinOp::And | BinOp::Or | BinOp::WordAnd | BinOp::WordOr);
+            ExprNode::Binary {
+                op: *op,
+                left: Box::new(simplify_node_once(left, child_bool, numeric)),
+                right: Box::new(simplify_node_once(right, child_bool, numeric)),
+            }
+        }
+        ExprNode::Unary { op, operand } => {
+            let child_bool = matches!(op, UnaryOp::Not | UnaryOp::WordNot);
+            ExprNode::Unary {
+                op: *op,
+                operand: Box::new(simplify_node_once(operand, child_bool, numeric)),
+            }
+        }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => ExprNode::Ternary {
-            condition: Box::new(simplify_node_once(condition, numeric)),
-            true_branch: Box::new(simplify_node_once(true_branch, numeric)),
-            false_branch: Box::new(simplify_node_once(false_branch, numeric)),
+            condition: Box::new(simplify_node_once(condition, true, numeric)),
+            true_branch: Box::new(simplify_node_once(true_branch, bool_context, numeric)),
+            false_branch: Box::new(simplify_node_once(false_branch, bool_context, numeric)),
         },
         other => other.clone(),
     };
 
     // Apply local rewrites at this level in priority order.
-    if let Some(rewritten) = strength_reduce_node(&lowered, numeric) {
+    if let Some(rewritten) = strength_reduce_node(&lowered, bool_context, numeric) {
         return rewritten;
     }
     if let Some(rewritten) = streq_promote_node(&lowered) {
@@ -576,10 +588,10 @@ fn build_mul_expr(terms: &[ExprNode], constant: i64) -> ExprNode {
 }
 
 /// Run [`simplify_node_once`] until the AST stops changing.
-fn simplify_to_fixpoint(node: &ExprNode, _bool_context: bool, numeric: NumericCtx<'_>) -> ExprNode {
+fn simplify_to_fixpoint(node: &ExprNode, bool_context: bool, numeric: NumericCtx<'_>) -> ExprNode {
     let mut cur = node.clone();
     for _ in 0..16 {
-        let next = simplify_node_once(&cur, numeric);
+        let next = simplify_node_once(&cur, bool_context, numeric);
         if render_expr(&next) == render_expr(&cur) {
             return next;
         }
@@ -608,7 +620,9 @@ pub fn try_strength_reduce_expr_typed(expr: &str, numeric: NumericCtx<'_>) -> (S
     if matches!(parsed, ExprNode::Raw { .. }) || expr_has_command_subst(&parsed) {
         return (expr.to_owned(), false);
     }
-    let Some(rewritten) = strength_reduce_node(&parsed, numeric) else {
+    // A standalone strength-reduce has no enclosing boolean context — the
+    // expression's full value is consumed.
+    let Some(rewritten) = strength_reduce_node(&parsed, false, numeric) else {
         return (expr.to_owned(), false);
     };
     let rendered = render_expr(&rewritten);
@@ -707,15 +721,21 @@ pub fn try_eq_ne_string_compare_simplify_expr(expr: &str) -> (String, bool) {
 /// One pass of strength reduction. Returns `None` when no
 /// rewrite applies. Conservative — only obviously-safe rewrites
 /// (no overflow / divide-by-zero concerns).
-fn strength_reduce_node(node: &ExprNode, numeric: NumericCtx<'_>) -> Option<ExprNode> {
+fn strength_reduce_node(
+    node: &ExprNode,
+    bool_context: bool,
+    numeric: NumericCtx<'_>,
+) -> Option<ExprNode> {
     match node {
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => reduce_ternary(condition, true_branch, false_branch),
-        ExprNode::Unary { op, operand } => reduce_unary(*op, operand, numeric),
-        ExprNode::Binary { op, left, right } => reduce_binary(*op, left, right, numeric),
+        ExprNode::Unary { op, operand } => reduce_unary(*op, operand, bool_context, numeric),
+        ExprNode::Binary { op, left, right } => {
+            reduce_binary(*op, left, right, bool_context, numeric)
+        }
         _ => None,
     }
 }
@@ -738,6 +758,7 @@ fn reduce_ternary(
 fn reduce_unary(
     op: crate::expr_ast::UnaryOp,
     operand: &ExprNode,
+    bool_context: bool,
     numeric: NumericCtx<'_>,
 ) -> Option<ExprNode> {
     use crate::expr_ast::UnaryOp;
@@ -748,13 +769,30 @@ fn reduce_unary(
         return Some(operand.clone());
     }
 
-    // `~~x` → `x`, `!!x` → `x`, `not not x` → `x`.
-    if matches!(op, UnaryOp::BitNot | UnaryOp::Not | UnaryOp::WordNot)
+    // `!!x` → `x` / `not not x` → `x` — only sound when `x` already yields a
+    // `0`/`1` boolean or the result is consumed in a boolean context;
+    // otherwise the double-negation is the very normalisation that turns a
+    // non-`0`/`1` value into `0`/`1` (`expr {!!2}` is `1`). Mirrors Python's
+    // gated `!!x` collapse.
+    if matches!(op, UnaryOp::Not | UnaryOp::WordNot)
         && let ExprNode::Unary {
             op: inner_op,
             operand: inner_operand,
         } = operand
-        && op == *inner_op
+        && matches!(inner_op, UnaryOp::Not | UnaryOp::WordNot)
+        && (bool_context || is_boolean_expr(inner_operand))
+    {
+        return Some((**inner_operand).clone());
+    }
+
+    // `~~x` → `x` — drops both bitwise negations, so `x` must be provably
+    // numeric or the coercion error would be lost.
+    if matches!(op, UnaryOp::BitNot)
+        && let ExprNode::Unary {
+            op: UnaryOp::BitNot,
+            operand: inner_operand,
+        } = operand
+        && node_provably_numeric(inner_operand, numeric)
     {
         return Some((**inner_operand).clone());
     }
@@ -823,6 +861,7 @@ fn reduce_binary(
     op: BinOp,
     left: &ExprNode,
     right: &ExprNode,
+    bool_context: bool,
     numeric: NumericCtx<'_>,
 ) -> Option<ExprNode> {
     // Self-comparison tautologies for pure variable references.
@@ -838,7 +877,7 @@ fn reduce_binary(
         .or_else(|| reduce_mod(op, left, lit_right, numeric))
         .or_else(|| reduce_shift(op, left, lit_right, numeric))
         .or_else(|| reduce_bitwise(op, left, right, lit_left, lit_right, numeric))
-        .or_else(|| reduce_logical(op, lit_left, lit_right))
+        .or_else(|| reduce_logical(op, left, right, lit_left, lit_right, bool_context))
 }
 
 /// `$x <cmp> $x` collapses to 0/1 when both sides are the same variable.
@@ -1019,37 +1058,150 @@ fn reduce_bitwise(
     }
 }
 
-/// Logical absorbing reductions for `&&` / `||`.
+/// Logical reductions for `&&` / `||` (O110).
 ///
-/// Identities like `x && 1 → x` are *unsafe* in Tcl because `&&`/`||`
-/// return the normalised boolean (`0`/`1`), not the operand value
-/// (`expr {2 && 1}` is `1`, not `2`). Only absorbing cases are folded
-/// because they collapse to the correct boolean regardless of the
-/// other operand.
-fn reduce_logical(op: BinOp, lit_left: Option<i64>, lit_right: Option<i64>) -> Option<ExprNode> {
+/// Absorbing cases collapse to a constant boolean: `x && 0 → 0`,
+/// `x || 1 → 1`. The identity cases (`x && 1`, `x || 0`) are subtler —
+/// Tcl's `&&`/`||` return the normalised boolean (`0`/`1`), **not** the
+/// operand value (`expr {2 && 1}` is `1`, not `2`), so the operand can be
+/// returned bare only when its result is already a `0`/`1` boolean or is
+/// consumed in a boolean context (where truthiness suffices). Otherwise it
+/// is wrapped as `!!x` to preserve the `0`/`1` normalisation. Mirrors the
+/// `&&`/`||` identity arms of Python's `_simplify_expr_node`.
+fn reduce_logical(
+    op: BinOp,
+    left: &ExprNode,
+    right: &ExprNode,
+    lit_left: Option<i64>,
+    lit_right: Option<i64>,
+    bool_context: bool,
+) -> Option<ExprNode> {
+    // `x && y` where y is a non-`1` literal keeps absorbing behaviour;
+    // the `WordAnd`/`WordOr` spellings share the same semantics.
     match op {
-        BinOp::And if lit_right == Some(0) || lit_left == Some(0) => Some(make_int_literal(0)),
-        BinOp::Or if lit_right == Some(1) || lit_left == Some(1) => Some(make_int_literal(1)),
+        BinOp::And | BinOp::WordAnd => {
+            if lit_right == Some(0) || lit_left == Some(0) {
+                return Some(make_int_literal(0));
+            }
+            if lit_right == Some(1) {
+                return Some(normalise_bool(left, bool_context));
+            }
+            if lit_left == Some(1) {
+                return Some(normalise_bool(right, bool_context));
+            }
+            None
+        }
+        BinOp::Or | BinOp::WordOr => {
+            if lit_right == Some(1) || lit_left == Some(1) {
+                return Some(make_int_literal(1));
+            }
+            if lit_right == Some(0) {
+                return Some(normalise_bool(left, bool_context));
+            }
+            if lit_left == Some(0) {
+                return Some(normalise_bool(right, bool_context));
+            }
+            None
+        }
         _ => None,
     }
 }
 
-/// One pass of eq/ne-promotion: if the RHS (or LHS) of `==` /
-/// `!=` is a string literal (`ExprNode::String` — braced or
-/// quoted), rewrite to the string operator.
+/// Return `node` bare when it already yields a `0`/`1` boolean (or its
+/// truthiness is all the surrounding `bool_context` needs); otherwise wrap
+/// it as `!!node` so the logical operator's normalised result is preserved.
+/// Mirrors Python's `_boolify` / `_is_boolean_expr` gate.
+fn normalise_bool(node: &ExprNode, bool_context: bool) -> ExprNode {
+    if bool_context || is_boolean_expr(node) {
+        node.clone()
+    } else {
+        boolify(node)
+    }
+}
+
+/// Wrap `node` in `!!node` to canonicalise it to a `0`/`1` result.
+fn boolify(node: &ExprNode) -> ExprNode {
+    use crate::expr_ast::UnaryOp;
+    ExprNode::Unary {
+        op: UnaryOp::Not,
+        operand: Box::new(ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand: Box::new(node.clone()),
+        }),
+    }
+}
+
+/// Whether `node` is known to produce a boolean (`0`/`1`) result — a
+/// comparison / logical operator, a logical negation, or a boolean
+/// literal. Mirrors Python's `_is_boolean_expr` / `_BOOLEAN_OPS`.
+fn is_boolean_expr(node: &ExprNode) -> bool {
+    use crate::expr_ast::UnaryOp;
+    match node {
+        ExprNode::Binary { op, .. } => matches!(
+            op,
+            BinOp::And
+                | BinOp::Or
+                | BinOp::WordAnd
+                | BinOp::WordOr
+                | BinOp::Eq
+                | BinOp::Ne
+                | BinOp::Lt
+                | BinOp::Le
+                | BinOp::Gt
+                | BinOp::Ge
+                | BinOp::StrEq
+                | BinOp::StrNe
+                | BinOp::StrLt
+                | BinOp::StrLe
+                | BinOp::StrGt
+                | BinOp::StrGe
+                | BinOp::In
+                | BinOp::Ni
+                | BinOp::Contains
+                | BinOp::StartsWith
+                | BinOp::EndsWith
+                | BinOp::StrEquals
+                | BinOp::MatchesGlob
+                | BinOp::MatchesRegex
+        ),
+        ExprNode::Unary { op, .. } => matches!(op, UnaryOp::Not | UnaryOp::WordNot),
+        ExprNode::Literal { text, .. } => {
+            let t = text.trim();
+            t == "0"
+                || t == "1"
+                || matches!(
+                    t.to_ascii_lowercase().as_str(),
+                    "true" | "false" | "yes" | "no" | "on" | "off"
+                )
+        }
+        _ => false,
+    }
+}
+
+/// One pass of eq/ne-promotion: rewrite `==` / `!=` to `eq` / `ne`
+/// **only when at least one operand is provably non-numeric**.
+///
+/// D5-O120 soundness gate. Tcl's `==`/`!=` parse *both* operands as a
+/// number first and only fall through to a string compare when at least
+/// one parse fails — so the promotion is sound iff one operand can never
+/// be a number. A bare string literal is not enough: `$x == "1"` must
+/// stay numeric (`"1"` parses as the integer 1), or the rewrite flips the
+/// result when `$x` is numeric. We require a string literal whose
+/// delimiter-stripped text does **not** parse as a number, mirroring
+/// Python's `_is_provably_non_numeric_expr_node`. The variable-with-SCCP-
+/// CONST refinement Python also accepts needs lattice values not threaded
+/// here, so it is conservatively skipped (a missed rewrite, never an
+/// unsound one).
 fn streq_promote_node(node: &ExprNode) -> Option<ExprNode> {
     let ExprNode::Binary { op, left, right } = node else {
         return None;
     };
-    let (new_op, ordered) = match op {
-        BinOp::Eq => (BinOp::StrEq, true),
-        BinOp::Ne => (BinOp::StrNe, true),
+    let new_op = match op {
+        BinOp::Eq => BinOp::StrEq,
+        BinOp::Ne => BinOp::StrNe,
         _ => return None,
     };
-    let _ = ordered;
-    let has_string_lit = matches!(left.as_ref(), ExprNode::String { .. })
-        || matches!(right.as_ref(), ExprNode::String { .. });
-    if !has_string_lit {
+    if !node_provably_non_numeric(left) && !node_provably_non_numeric(right) {
         return None;
     }
     Some(ExprNode::Binary {
@@ -1057,6 +1209,37 @@ fn streq_promote_node(node: &ExprNode) -> Option<ExprNode> {
         left: left.clone(),
         right: right.clone(),
     })
+}
+
+/// Whether `node` is provably **not** a number for `expr` — the dual of
+/// [`node_provably_numeric`], used to gate the eq/ne string-compare
+/// promotion (O120). Only a string literal whose stripped text is neither
+/// numeric nor a boolean word qualifies; everything else (variables, command
+/// substitutions, arithmetic) is conservatively rejected. Mirrors
+/// `_is_provably_non_numeric_expr_node` minus the SCCP-CONST variable case.
+fn node_provably_non_numeric(node: &ExprNode) -> bool {
+    matches!(node, ExprNode::String { text, .. } if !is_numeric_or_boolean_string(text))
+}
+
+/// Whether the (delimiter-stripped) text parses as a number **or** is one of
+/// Tcl's boolean words (`true`/`false`/`yes`/`no`/`on`/`off`,
+/// case-insensitive). Mirrors Python's `_is_numeric_string_value`, which `==`
+/// promotion treats as "could still be a number" and so refuses to promote.
+/// Kept separate from [`is_numeric_string`] (used by the arithmetic-identity
+/// gate, where a boolean word is *not* a valid arithmetic operand).
+fn is_numeric_or_boolean_string(text: &str) -> bool {
+    if is_numeric_string(text) {
+        return true;
+    }
+    let stripped = text
+        .trim()
+        .trim_start_matches(['"', '{'])
+        .trim_end_matches(['"', '}'])
+        .trim();
+    matches!(
+        stripped.to_ascii_lowercase().as_str(),
+        "true" | "false" | "yes" | "no" | "on" | "off"
+    )
 }
 
 /// Extract an integer literal from an [`ExprNode::Literal`],
@@ -1352,7 +1535,68 @@ mod tests {
         assert_eq!(out, "$x == 5");
     }
 
+    #[test]
+    fn streq_promotion_with_numeric_string_literal_is_unsound_noop() {
+        // D5-O120: `$x == "1"` must stay numeric. `"1"` parses as a
+        // number, so Tcl runs the numeric compare; promoting to `eq`
+        // would flip the result when `$x` is numeric (e.g. `1.0`).
+        // `"1"`/`"3.5"` are numeric; `"yes"` is a Tcl boolean word that
+        // `==` still treats as number-ish — none may promote.
+        for input in ["$x == \"1\"", "$x != \"3.5\"", "$x == \"yes\""] {
+            let (out, changed) = try_eq_ne_string_compare_simplify_expr(input);
+            assert!(!changed, "{input:?} should not promote to eq/ne");
+            assert_eq!(out, input);
+        }
+    }
+
+    #[test]
+    fn streq_promotion_with_nonnumeric_string_literal() {
+        // At least one operand is a provably non-numeric string literal,
+        // so the string-compare path is guaranteed — promotion is sound.
+        for input in ["$x == \"foo\"", "\"a\" != $y", "$x == \"\""] {
+            let (_out, changed) = try_eq_ne_string_compare_simplify_expr(input);
+            assert!(changed, "{input:?} should promote to eq/ne");
+        }
+    }
+
     // -- instcombine_expr (composite) --------------------------------------
+
+    #[test]
+    fn o110_logical_identity_boolifies_outside_bool_context() {
+        // `$x && 1` at expression-value position must normalise to `0`/`1`,
+        // not the operand value — so it becomes `!!$x`, never bare `$x`.
+        let (out, changed) = instcombine_expr("$x && 1", false);
+        assert!(changed);
+        assert_eq!(out.trim(), "!!$x");
+        let (out, changed) = instcombine_expr("$x || 0", false);
+        assert!(changed);
+        assert_eq!(out.trim(), "!!$x");
+    }
+
+    #[test]
+    fn o110_logical_identity_drops_in_bool_context() {
+        // In a boolean context the truthiness is all that is consumed, so
+        // `$x && 1` collapses to bare `$x`.
+        let (out, changed) = instcombine_expr("$x && 1", true);
+        assert!(changed);
+        assert_eq!(out.trim(), "$x");
+    }
+
+    #[test]
+    fn o110_logical_identity_keeps_boolean_operand_bare() {
+        // `($a < $b) && 1` — the operand is already a `0`/`1` comparison,
+        // so it stays bare even outside a boolean context.
+        let (out, changed) = instcombine_expr("$a < $b && 1", false);
+        assert!(changed);
+        assert_eq!(out.trim(), "$a < $b");
+    }
+
+    #[test]
+    fn o110_logical_absorbing_still_folds() {
+        // The absorbing cases must keep folding to a constant.
+        assert_eq!(instcombine_expr("$x && 0", false).0.trim(), "0");
+        assert_eq!(instcombine_expr("$x || 1", false).0.trim(), "1");
+    }
 
     #[test]
     fn instcombine_composes_multiple_rewrites() {
