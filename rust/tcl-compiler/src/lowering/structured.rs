@@ -657,6 +657,11 @@ impl Lowerer<'_> {
             let body_base = outer_arg_span.start().saturating_add(content_shift);
 
             let elements = switch_body_elements(body_text);
+            // An empty arm list (`switch x {}`) is a "wrong # args" error, not a
+            // no-op — bail to the runtime command, which reports it.
+            if elements.is_empty() {
+                return Self::barrier(seg, "switch with no arms");
+            }
             if !elements.len().is_multiple_of(2) {
                 return Self::barrier(seg, "switch odd pattern count");
             }
