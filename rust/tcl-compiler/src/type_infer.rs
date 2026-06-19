@@ -25,7 +25,7 @@
 
 use std::collections::HashMap;
 
-use tcl_registry::{CommandRegistry, TclType};
+use tcl_registry::{CommandRegistry, TclType, Traits};
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
@@ -81,6 +81,36 @@ fn literal_type(text: &str) -> TypeLattice {
     TypeLattice::of(TclType::String)
 }
 
+/// Classify a literal's type in **expr context**, mirroring
+/// `expr_types._literal_type_from_text`.
+///
+/// The expr parser tokenises every integer spelling — decimal, hex
+/// (`0xff`), octal (`0o15`), and binary (`0b1010`) — as an integer
+/// (`Tcl_GetInt` accepts them), so they all map to `Int`. This is the key
+/// divergence from the set-statement [`literal_type`], where `0o…` stays
+/// `String` (its canonical stringified intrep differs from the source
+/// text). An unrecognised literal degrades to `Numeric` — an `expr`
+/// always yields a number — rather than to `String`.
+fn expr_literal_type(text: &str) -> TypeLattice {
+    let s = text.trim();
+    let low = s.to_ascii_lowercase();
+    // Boolean first (matches Python's ordering).
+    if BOOL_LITERALS.contains(&low.as_str()) {
+        return TypeLattice::of(TclType::Boolean);
+    }
+    // Every integer-form spelling tokenises to int in expr context.
+    if low.starts_with("0x") || low.starts_with("0o") || low.starts_with("0b") {
+        return TypeLattice::of(TclType::Int);
+    }
+    if s.parse::<i64>().is_ok() {
+        return TypeLattice::of(TclType::Int);
+    }
+    if s.parse::<f64>().is_ok() {
+        return TypeLattice::of(TclType::Double);
+    }
+    TypeLattice::of(TclType::Numeric)
+}
+
 /// Return the type produced by a known command's return value.
 ///
 /// Checks the command spec's `return_type` field, with subcommand
@@ -125,7 +155,7 @@ pub(crate) fn return_type_for_command(
 #[must_use]
 fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) -> TypeLattice {
     match node {
-        ExprNode::Literal { text, .. } => literal_type(text),
+        ExprNode::Literal { text, .. } => expr_literal_type(text),
 
         ExprNode::String { .. } => TypeLattice::of(TclType::String),
 
@@ -194,7 +224,13 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
         }
 
         ExprNode::Unary { op, operand, .. } => match op {
-            UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot => infer_expr_type(operand, var_types),
+            // Arithmetic sign is identity (same intrep as the operand);
+            // bitwise NOT always coerces to `Int` (`~$double` → Int);
+            // logical NOT yields `Boolean`.  Mirrors `expr_types`'
+            // `UnaryOpKind` BITWISE arm (GAP-B4: `~` was grouped with
+            // the identity ops and leaked the operand's `Double`).
+            UnaryOp::Neg | UnaryOp::Pos => infer_expr_type(operand, var_types),
+            UnaryOp::BitNot => TypeLattice::of(TclType::Int),
             UnaryOp::Not | UnaryOp::WordNot => TypeLattice::of(TclType::Boolean),
         },
 
@@ -283,6 +319,28 @@ fn expr_call_type(
         // Unknown function — conservative (matches Python's NUMERIC).
         _ => TypeLattice::of(TclType::Numeric),
     }
+}
+
+/// True when `command` (with `args`) creates a scope alias — `global`,
+/// `variable`, `upvar`, or the `namespace upvar` compound.
+///
+/// Such a statement imports an externally-determined variable whose intrep
+/// lives in another scope, so its def must widen to `Overdefined` rather
+/// than take the command's nominal (`String`) return type — otherwise a
+/// use-site / merge shimmer check fires on a nominally-`String`-typed
+/// alias.  Derived from the registry's `CREATES_SCOPE_ALIAS` trait
+/// (top-level commands) and the per-subcommand `creates_scope_alias` flag
+/// (`namespace upvar`), mirroring Python's `scope_alias_commands()`.
+fn is_scope_alias_call(registry: &CommandRegistry, command: &str, args: &[String]) -> bool {
+    let Some(spec) = registry.get(command) else {
+        return false;
+    };
+    if spec.traits.contains(Traits::CREATES_SCOPE_ALIAS) {
+        return true;
+    }
+    args.first()
+        .and_then(|sub| spec.subcommand(sub))
+        .is_some_and(|sub| sub.creates_scope_alias)
 }
 
 /// Infer the type produced by `stmt` under the current `types` map.
@@ -441,36 +499,35 @@ pub fn propagate_types(
             // Statements.
             for ssa_stmt in &ssa_block.statements {
                 let stmt = &ssa_stmt.statement;
-                match stmt {
-                    Statement::Barrier { .. } => {
-                        for (var, &ver) in &ssa_stmt.defs {
-                            let key = (var.clone(), ver);
-                            let old = types
-                                .get(&key)
-                                .cloned()
-                                .unwrap_or_else(TypeLattice::unknown);
-                            let merged = type_join(&old, &TypeLattice::overdefined());
-                            if merged != old {
-                                types.insert(key, merged);
-                                changed = true;
-                            }
-                        }
+                // A barrier widens every def to OVERDEFINED (it may have
+                // mutated them arbitrarily); a scope-alias declaration
+                // (`global`/`variable`/`upvar`/`namespace upvar`) likewise
+                // widens its defs — the imported variable's intrep is
+                // external and unknown.  Mirrors `_type_propagation`'s
+                // barrier + `alias_cmds` arms.  Every def of one statement
+                // gets the same inferred type, so compute it once.
+                let inferred = match stmt {
+                    Statement::Barrier { .. } => TypeLattice::overdefined(),
+                    Statement::Call {
+                        command,
+                        args,
+                        defs,
+                        ..
+                    } if !defs.is_empty() && is_scope_alias_call(registry, command, args) => {
+                        TypeLattice::overdefined()
                     }
-                    _ => {
-                        for (var, &ver) in &ssa_stmt.defs {
-                            let inferred =
-                                evaluate_type_def(stmt, &ssa_stmt.uses, &types, registry);
-                            let key = (var.clone(), ver);
-                            let old = types
-                                .get(&key)
-                                .cloned()
-                                .unwrap_or_else(TypeLattice::unknown);
-                            let merged = type_join(&old, &inferred);
-                            if merged != old {
-                                types.insert(key, merged);
-                                changed = true;
-                            }
-                        }
+                    _ => evaluate_type_def(stmt, &ssa_stmt.uses, &types, registry),
+                };
+                for (var, &ver) in &ssa_stmt.defs {
+                    let key = (var.clone(), ver);
+                    let old = types
+                        .get(&key)
+                        .cloned()
+                        .unwrap_or_else(TypeLattice::unknown);
+                    let merged = type_join(&old, &inferred);
+                    if merged != old {
+                        types.insert(key, merged);
+                        changed = true;
                     }
                 }
             }
@@ -866,5 +923,76 @@ mod tests {
         assert_eq!(infer_str("3 + 2.0").tcl_type, Some(TclType::Double));
         // int + int → Int.
         assert_eq!(infer_str("3 + 4").tcl_type, Some(TclType::Int));
+    }
+
+    #[test]
+    fn expr_context_literal_typing() {
+        // Every integer spelling tokenises to Int in expr context — including
+        // octal `0o…`, which the set-statement classifier keeps as String.
+        assert_eq!(infer_str("0o17").tcl_type, Some(TclType::Int));
+        assert_eq!(infer_str("0xff").tcl_type, Some(TclType::Int));
+        assert_eq!(infer_str("0b1010").tcl_type, Some(TclType::Int));
+        assert_eq!(infer_str("42").tcl_type, Some(TclType::Int));
+        assert_eq!(infer_str("3.14").tcl_type, Some(TclType::Double));
+        // The set-statement classifier still keeps octal as String.
+        assert_eq!(literal_type("0o17"), TypeLattice::of(TclType::String));
+        // An unrecognised literal degrades to Numeric in expr context
+        // (the set-statement classifier would say String).
+        assert_eq!(expr_literal_type("nope").tcl_type, Some(TclType::Numeric));
+    }
+
+    #[test]
+    fn bitnot_coerces_to_int() {
+        // `~$x` always yields Int, regardless of the operand's type
+        // (was leaking the operand type via the identity arm).
+        assert_eq!(infer_str("~$x").tcl_type, Some(TclType::Int));
+        assert_eq!(infer_str("~3.5").tcl_type, Some(TclType::Int));
+    }
+
+    #[test]
+    fn scope_alias_commands_detected() {
+        let reg = registry();
+        let one = |s: &str| vec![s.to_owned()];
+        assert!(is_scope_alias_call(&reg, "global", &one("g")));
+        assert!(is_scope_alias_call(&reg, "variable", &one("v")));
+        assert!(is_scope_alias_call(
+            &reg,
+            "upvar",
+            &["0".into(), "x".into(), "y".into()]
+        ));
+        assert!(is_scope_alias_call(
+            &reg,
+            "namespace",
+            &["upvar".into(), "ns".into(), "x".into(), "y".into()]
+        ));
+        // A plain command (and `namespace eval`) is not a scope alias.
+        assert!(!is_scope_alias_call(&reg, "set", &["x".into(), "1".into()]));
+        assert!(!is_scope_alias_call(
+            &reg,
+            "namespace",
+            &["eval".into(), "ns".into(), "body".into()]
+        ));
+    }
+
+    #[test]
+    fn scope_alias_def_widens_to_overdefined() {
+        use crate::compilation_unit::CompilationUnit;
+        // `variable counter` imports an externally-determined variable; its
+        // def must be OVERDEFINED, not the nominal return type of `variable`.
+        let cu = CompilationUnit::build_for(
+            "proc ::f {} { variable counter\n return $counter }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let widened = fu
+            .types
+            .iter()
+            .any(|((n, _), t)| n == "counter" && t.kind == TypeKind::Overdefined);
+        assert!(
+            widened,
+            "scope-aliased 'counter' should be OVERDEFINED: {:?}",
+            fu.types
+        );
     }
 }

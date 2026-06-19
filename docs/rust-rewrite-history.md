@@ -1164,6 +1164,46 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
+Landed: 2026-06-19 — **FE-TYPESHIM complete** (PR #651, branch
+`claude/compassionate-cray-35tuvt`). The four owned modules
+(`tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}`)
+finished their precision/soundness residuals; the track's detailed
+section was dropped from `rust-rewrite.md` (now a ✅ row only). What
+landed:
+
+- **shimmer** — S100 emits as LSP `Information` via a new
+  `compiler_checks::Severity::Info` variant (server maps it to
+  `INFORMATION`); S101/S102 stay `Warning` (mirrors Python
+  `_SHIMMER_SEVERITY`). The S100/S101 code is computed from `in_loop` in
+  `phi.rs` and `expr.rs` (both had hardcoded it). Ported the
+  loop-invariant S101→S100 downgrade (`use_site::LoopFacts` — a
+  loop-invariant variable coerced to a single intrep converts once), the
+  `incr`-amount shimmer check (previously skipped when the target was
+  already int), and the per-statement `(span, var)` expr-shimmer
+  de-duplication (Python's per-block `seen` set).
+- **type_infer** — added an expr-context literal classifier
+  (`expr_literal_type`: `0o`/`0x`/`0b` → INT, unrecognised → NUMERIC),
+  distinct from the set-statement classifier; `~$double` → INT
+  (`UnaryOp::BitNot` no longer leaks the operand type); scope-alias defs
+  (`global`/`variable`/`upvar`/`namespace upvar`) widen to OVERDEFINED,
+  driven by the registry `CREATES_SCOPE_ALIAS` trait.
+- **rendered_properties** — `scan_escape` decodes via
+  `tcl_lexer::backslash_subst`, so numeric/hex/octal/unicode escapes that
+  render to `/` set `HAS_FORWARD_SLASH` (was a W201 false-negative);
+  null/CRLF likewise.
+- **value_shapes** — `is_pure_var_ref` accepts `$arr(idx)` (escape-aware
+  index, faithful port of `_scan_pure_var_ref`); added
+  `is_braced_whole_name_array_ref` for `${a(1)}`.
+
+Verified against tclsh 8.4 / 8.5 / 8.6 / 9.0 (escape rendering, expr
+literal typing, bitwise-not, array refs; `0o`/`0b` confirmed 8.5+-only).
+**Handoff:** precise TclOO `object_of` typing was *not* ported here — the
+Rust IR keeps `namespace eval` bodies as raw barriers, so the class set
+must come from the analyser-layer `signature_scan` (not the Python
+`class_names.extract_class_names` IR-walk), and the only consumer is the
+W307/W308 emitter. Both belong to **FE-DIAG**, where the residual is now
+tracked in `rust-rewrite.md`.
+
 Re-audited: 2026-06-12 against `origin/main`@`bfc636d2` (prior anchor
 `a287d4a6`, #586). First ordinary `git merge origin/main` since the
 `SYNC-JUN11-rebase` re-parenting — see the **SYNC-JUN12 family** below.
