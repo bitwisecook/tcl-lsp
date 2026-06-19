@@ -1839,6 +1839,18 @@ mod tests {
     }
 
     #[test]
+    fn var_braced_name_ending_in_brace() {
+        // `${a{b}}` — the inner `{b}` balances, so the name is `a{b}` and it
+        // *ends* with the inner `}`; the outer `}` is the closer.
+        // `token_text` must keep that trailing `}` (regression: it used to be
+        // stripped unconditionally, yielding `a{b`). Verified against tclsh
+        // 9.0.3 (`${a{b}}` reads var `a{b}`).
+        let (rows, _) = var_token_text("${a{b}}");
+        assert_eq!(rows[0], (TokenType::Var, "a{b}".into()));
+        assert_eq!(rows.len(), 2); // VAR + synthetic EOL, no stray `}` word
+    }
+
+    #[test]
     fn var_braced_newline_in_name() {
         // A bare newline inside `${…}` is ordinary name content (it is not
         // a delimiter and not a backslash). Name = `a\nb`. Mirrors the

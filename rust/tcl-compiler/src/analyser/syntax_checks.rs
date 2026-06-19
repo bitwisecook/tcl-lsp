@@ -342,6 +342,19 @@ fn is_suspicious_quote(
     if !text.starts_with('\n') || text[1..].trim().is_empty() {
         return false;
     }
+    // Properly closed: the byte at the token's inner end is the closing `"`
+    // *within* the region. A closed multi-line quoted word that happens to
+    // sit at the very end of a body — `proc p {} {set x "\nhello"}`, where
+    // the closing `"` is the body's last byte so the command still "reaches
+    // EOF" — must NOT be flagged. (The inner-end span convention puts the
+    // closer at `span.end()`; an unterminated quote instead runs to
+    // `region_end`, so its `span.end()` is not `< region_end`.) Mirrors the
+    // analogous `}` guard in `is_suspicious_str`.
+    if (tok.span.end() as usize) < region_end
+        && source.as_bytes().get(tok.span.end() as usize) == Some(&b'"')
+    {
+        return false;
+    }
     // A properly closed quote wouldn't run to the end of the region.
     if let Some(last) = cmd.all_tokens.last()
         && (last.span.end() as usize) < region_end.saturating_sub(1)
@@ -1102,6 +1115,21 @@ mod tests {
         );
         // A well-formed quoted string inside a body stays silent.
         assert!(recovery_diags("proc p {} {\n    set x \"hello\"\n}\n", "E202").is_empty());
+    }
+
+    #[test]
+    fn e202_not_emitted_for_closed_multiline_quote_at_body_end() {
+        // A *closed* multi-line quoted word whose closing `"` is the body's
+        // last byte — `proc p {} {set x "\nhello"}` — must not be flagged:
+        // the command "reaches EOF" only because the body ends there, but the
+        // quote is terminated (`info complete` == 1 in tclsh 8.6/9.0, and the
+        // Python analyser emits nothing). Regression guard for the body scan.
+        assert!(recovery_diags("proc p {} {set x \"\nhello\"}\n", "E202").is_empty());
+        // The unterminated counterpart in the same shape still fires.
+        assert_eq!(
+            recovery_diags("proc p {} {set x \"\nhello\n}\n", "E202"),
+            vec![("missing \"".to_string(), 0)],
+        );
     }
 
     #[test]
