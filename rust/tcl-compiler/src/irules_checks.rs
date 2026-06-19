@@ -115,7 +115,7 @@ pub fn find_unnormalised_getter_warnings(
         return out;
     }
 
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         for bn in cfg_order(&fu.cfg) {
             if !fu.sccp.executable_blocks.contains(&bn) {
                 continue;
@@ -238,7 +238,7 @@ pub fn find_unguarded_drop_warnings(
         return out;
     }
 
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         // Only `::when::EVENT` proc bodies are iRules event handlers.
         if !fu.name.starts_with("::when::") {
             continue;
@@ -542,7 +542,7 @@ pub fn find_collect_flow_warnings(
     // Pass 1: classify across all when bodies.
     let mut state = CollectFlowState::default();
     let mut events_seen: Vec<String> = Vec::new();
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         if let Some(event) = fu.name.strip_prefix("::when::") {
             let bare = event.split('#').next().unwrap_or(event).to_string();
             events_seen.push(bare.clone());
@@ -688,7 +688,7 @@ pub fn find_http_flow_warnings(
     if !is_irules_dialect(dialect) {
         return out;
     }
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         let Some(event) = fu.name.strip_prefix("::when::") else {
             continue;
         };
@@ -813,7 +813,7 @@ pub fn find_hoistable_set_warnings(
     if !is_irules_dialect(dialect) {
         return out;
     }
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         let Some(event) = fu.name.strip_prefix("::when::") else {
             continue;
         };
@@ -942,7 +942,7 @@ pub fn find_generic_static_name_warnings(
         return out;
     }
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         if !fu.name.starts_with("::when::") {
             continue;
         }

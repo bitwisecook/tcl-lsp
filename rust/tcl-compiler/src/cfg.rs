@@ -144,6 +144,10 @@ pub struct LoopNode {
     pub entry_block: String,
     /// Source span of the original `for` statement.
     pub span: Span,
+    /// The original `for` statement ([`Statement::For`]), retained so SCCP can
+    /// statically summarise a bounded loop and fold a branch that reads a
+    /// loop-carried variable *after* the loop (the static-loop → SCCP fold).
+    pub for_stmt: Statement,
 }
 
 /// A complete control-flow graph for a single procedure or top-level script.
@@ -573,6 +577,22 @@ mod tests {
             LoopNode {
                 entry_block: "for_header_1".into(),
                 span: Span::new(0, 30),
+                for_stmt: Statement::For {
+                    span: Span::new(0, 30),
+                    init: crate::ir::Script::new(),
+                    init_span: Span::new(0, 0),
+                    condition: crate::expr_ast::ExprNode::Literal {
+                        text: "1".into(),
+                        start: 0,
+                        end: 0,
+                    },
+                    condition_span: Span::new(0, 0),
+                    next: crate::ir::Script::new(),
+                    next_span: Span::new(0, 0),
+                    body: crate::ir::Script::new(),
+                    body_span: Span::new(0, 0),
+                    raw_args: Vec::new(),
+                },
             },
         );
         assert!(func.loop_nodes.contains_key("for_end_1"));

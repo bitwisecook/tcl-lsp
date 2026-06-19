@@ -109,6 +109,51 @@ pub struct SsaFunction {
     pub dominator_tree: HashMap<String, Vec<String>>,
 }
 
+impl SsaFunction {
+    /// A trivial SSA shell — no blocks, no dominance information — used when
+    /// the complexity guard skips the expensive SSA build for an oversized
+    /// body. Downstream dataflow passes run over zero blocks (a cheap no-op),
+    /// and the compilation-unit builder flags the function so per-proc
+    /// diagnostic passes skip it entirely.
+    #[must_use]
+    pub fn trivial(name: impl Into<String>, entry: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            entry: entry.into(),
+            blocks: HashMap::new(),
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: HashMap::new(),
+        }
+    }
+}
+
+/// CFG block ceiling above which deep analysis (SSA / dataflow) is skipped.
+///
+/// A pathologically large body — almost always machine-generated, e.g. a
+/// tens-of-thousands-of-block nested-if dispatch tree — would cost seconds of
+/// SSA + SCCP / type / taint / liveness dataflow for near-zero useful
+/// findings, and an unbounded analysis also lets interprocedural summaries
+/// grow over-optimistic on adversarial input. Mirrors Python's
+/// `_COMPLEXITY_GUARD_BLOCKS`.
+pub const COMPLEXITY_GUARD_BLOCKS: usize = 20_000;
+
+/// Body-size (bytes) ceiling for the deep-analysis complexity guard. A flat
+/// generated command list is block-light — so [`COMPLEXITY_GUARD_BLOCKS`]
+/// never fires — yet byte-huge, and the O(blocks·vars) SSA walk plus
+/// SCCP / taint / liveness still costs seconds. Mirrors Python's
+/// `DEEP_ANALYSIS_BODY_BYTES` (256 KiB).
+pub const DEEP_ANALYSIS_BODY_BYTES: usize = 262_144;
+
+/// True when `func` is large enough that deep analysis (SSA / dataflow) is
+/// skipped. This is the block-count half of the guard; the body-byte half is
+/// applied by the compilation-unit builder, which has the body span. Mirrors
+/// Python's `is_complexity_guarded`.
+#[must_use]
+pub fn is_complexity_guarded(func: &cfg::Function) -> bool {
+    func.blocks.len() > COMPLEXITY_GUARD_BLOCKS
+}
+
 // Variable definition extraction
 
 /// Extract variable names defined by an IR statement.
@@ -1109,6 +1154,15 @@ enum RenamePhase {
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunction {
+    // Complexity guard: skip the O(blocks·vars) phi placement + rename walk
+    // for a pathologically large (usually generated) body. Returns a trivial
+    // SSA; the compilation-unit builder likewise produces a trivial analysis
+    // and flags the function so per-proc diagnostic passes skip it. Mirrors
+    // Python's `build_ssa` block-count short-circuit.
+    if is_complexity_guarded(func) {
+        return SsaFunction::trivial(func.name.clone(), func.entry.clone());
+    }
+
     // 1. Compute dominance information.  Use the Cooper-Harvey-
     //    Kennedy immediate-dominator algorithm directly — it is
     //    O(N) memory, where the set-based `compute_dominators` is
@@ -2158,5 +2212,29 @@ mod tests {
         assert_eq!(ssa.blocks.len(), 1);
         assert!(ssa.blocks["entry"].phis.is_empty());
         assert!(ssa.blocks["entry"].statements.is_empty());
+    }
+
+    #[test]
+    fn complexity_guard_skips_oversized_ssa() {
+        let reg = default_registry();
+        // A small function is below the ceiling and analysed normally.
+        let small = Function::new("::small", "entry");
+        assert!(!is_complexity_guarded(&small));
+
+        // A function above the block ceiling is guarded: `build_ssa` returns a
+        // trivial SSA without running the O(blocks·vars) dominator + phi walk
+        // that would cost seconds on a pathological generated body.
+        let mut big = Function::new("::big", "b0");
+        for i in 0..=COMPLEXITY_GUARD_BLOCKS {
+            big.blocks
+                .insert(format!("b{i}"), Block::new(format!("b{i}")));
+        }
+        assert!(big.blocks.len() > COMPLEXITY_GUARD_BLOCKS);
+        assert!(is_complexity_guarded(&big));
+
+        let ssa = build_ssa(&big, &reg);
+        assert!(ssa.blocks.is_empty(), "guarded SSA must be trivial");
+        assert_eq!(ssa.name, "::big");
+        assert_eq!(ssa.entry, "b0");
     }
 }

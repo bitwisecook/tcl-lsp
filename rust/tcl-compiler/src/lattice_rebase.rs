@@ -38,6 +38,7 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     }
     for loop_node in fu.cfg.loop_nodes.values_mut() {
         shift(&mut loop_node.span, delta);
+        rebase_statement(&mut loop_node.for_stmt, delta);
     }
     // SSA holds its own clones of the IR statements; some emitters read spans
     // from them (`stmt.statement.span()`), so rebase those too.

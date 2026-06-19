@@ -66,7 +66,7 @@ use super::{Optimisation, PassContext};
 ///   variables whose every tracked version agrees on a single
 ///   `Const` value participate.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         fold_constant_branches(ctx, fu);
         propagate_into_branches(ctx, fu);
     }
@@ -412,6 +412,7 @@ mod tests {
             taints: std::collections::HashMap::new(),
             rendered_props: std::collections::HashMap::new(),
             memory_ssa: None,
+            complexity_guarded: false,
             base_offset: 0,
         }
     }

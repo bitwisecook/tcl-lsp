@@ -1680,7 +1680,7 @@ pub fn find_taint_warnings_for_cu(
 ) -> Vec<TaintWarning> {
     let mut out = Vec::new();
     let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
-    for fu in cu.functions() {
+    for fu in cu.analysable_functions() {
         let exec = &fu.sccp.executable_blocks;
         let taints = solved.taints_for(&fu.name, &fu.taints);
         out.extend(find_taint_warnings(
@@ -3455,7 +3455,7 @@ mod tests {
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, Some("f5-irules"));
         let mut out: Vec<TaintWarning> = Vec::new();
-        for fu in cu.functions() {
+        for fu in cu.analysable_functions() {
             out.extend(find_taint_warnings(
                 &fu.cfg,
                 &fu.ssa,
@@ -3792,7 +3792,7 @@ mod tests {
             cu = cu.with_interprocedural(&registry, dialect);
         }
         let mut out: Vec<TaintWarning> = Vec::new();
-        for fu in cu.functions() {
+        for fu in cu.analysable_functions() {
             out.extend(find_setter_constraint_warnings(
                 &registry,
                 &fu.cfg,
@@ -3923,7 +3923,7 @@ mod tests {
         let cu = CompilationUnit::build_for("set x [gets stdin]\neval $x", &registry, false)
             .with_interprocedural(&registry, None);
         let mut warnings: Vec<TaintWarning> = Vec::new();
-        for fu in cu.functions() {
+        for fu in cu.analysable_functions() {
             warnings.extend(find_taint_warnings(
                 &fu.cfg,
                 &fu.ssa,
