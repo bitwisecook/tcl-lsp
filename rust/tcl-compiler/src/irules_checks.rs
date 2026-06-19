@@ -399,6 +399,7 @@ pub fn find_unguarded_drop_warnings(
             &mut out,
             &leaf,
             &dedupe_drop_states,
+            None,
         );
         for st in finals {
             if st.dropped
@@ -840,6 +841,7 @@ pub fn find_http_flow_warnings(
             &mut out,
             &leaf,
             &dedupe_flow_states,
+            None,
         );
     }
     out
@@ -921,12 +923,26 @@ fn apply_http_flow_command(
 /// into `out`).  Shared by the IRULE1201/1202 and IRULE5002/5004 analyses —
 /// they differ only in their state type, `leaf`, and `dedupe`.  Mirrors Python
 /// `irules_flow._analyse_script` / `_walk`.
+///
+/// `return_sink` is the nearest enclosing `catch` body's collection point.
+/// Tcl `catch` swallows `TCL_RETURN`, so a `return` inside a catch body does
+/// not stop the rule — control continues past the catch carrying the state as
+/// of the swallowed `return`.  When `return_sink` is `Some`, a `return` hands
+/// its at-return states there (so e.g. a committed response, or a pending
+/// drop, survives past the catch) instead of discarding them; the [`Catch`]
+/// arm folds them back into the continuing paths.  It is threaded through every
+/// nested walk so a `return` buried in an `if`/`switch`/loop/`try` inside the
+/// catch body still propagates out.  At event/proc scope it is `None` and a
+/// `return` terminates the path.
+///
+/// [`Catch`]: Statement::Catch
 fn walk_flow<S, L, D>(
     script: &Script,
     in_states: &[S],
     out: &mut Vec<IrulesCheckWarning>,
     leaf: &L,
     dedupe: &D,
+    mut return_sink: Option<&mut Vec<S>>,
 ) -> Vec<S>
 where
     S: Clone,
@@ -936,8 +952,15 @@ where
     let mut states = in_states.to_vec();
     for stmt in &script.statements {
         // `None` ⇒ the statement terminates every current path (`return`).
-        match flow_step(stmt, &states, out, leaf, dedupe) {
-            None => return Vec::new(),
+        match flow_step(stmt, &states, out, leaf, dedupe, return_sink.as_deref_mut()) {
+            None => {
+                // Hand the at-return states to the enclosing catch (if any) so
+                // flow resumes past it, then terminate this script's path.
+                if let Some(sink) = return_sink {
+                    sink.extend(states);
+                }
+                return Vec::new();
+            }
             Some(next) => states = next,
         }
     }
@@ -947,12 +970,17 @@ where
 /// Transfer one structured statement over the flow-state set, or `None` when
 /// it (`return`) terminates the current paths.  Control-flow arms recurse
 /// through [`walk_flow`]; leaf statements go through `leaf`.
+// One cohesive `match` dispatcher over the statement kinds — splitting the arms
+// into separate generic helpers would only scatter the shared `<S, L, D>`
+// signature without aiding readability.
+#[allow(clippy::too_many_lines)]
 fn flow_step<S, L, D>(
     stmt: &Statement,
     states: &[S],
     out: &mut Vec<IrulesCheckWarning>,
     leaf: &L,
     dedupe: &D,
+    mut return_sink: Option<&mut Vec<S>>,
 ) -> Option<Vec<S>>
 where
     S: Clone,
@@ -968,10 +996,24 @@ where
             let mut next = Vec::new();
             for st in states {
                 for clause in clauses {
-                    next.extend(walk_flow(&clause.body, one(st), out, leaf, dedupe));
+                    next.extend(walk_flow(
+                        &clause.body,
+                        one(st),
+                        out,
+                        leaf,
+                        dedupe,
+                        return_sink.as_deref_mut(),
+                    ));
                 }
                 if let Some(eb) = else_body {
-                    next.extend(walk_flow(eb, one(st), out, leaf, dedupe));
+                    next.extend(walk_flow(
+                        eb,
+                        one(st),
+                        out,
+                        leaf,
+                        dedupe,
+                        return_sink.as_deref_mut(),
+                    ));
                 } else {
                     // condition-false path keeps the incoming state.
                     next.push(st.clone());
@@ -988,11 +1030,25 @@ where
                 next.push(st.clone());
                 for arm in arms {
                     if let Some(body) = &arm.body {
-                        next.extend(walk_flow(body, one(st), out, leaf, dedupe));
+                        next.extend(walk_flow(
+                            body,
+                            one(st),
+                            out,
+                            leaf,
+                            dedupe,
+                            return_sink.as_deref_mut(),
+                        ));
                     }
                 }
                 if let Some(db) = default_body {
-                    next.extend(walk_flow(db, one(st), out, leaf, dedupe));
+                    next.extend(walk_flow(
+                        db,
+                        one(st),
+                        out,
+                        leaf,
+                        dedupe,
+                        return_sink.as_deref_mut(),
+                    ));
                 }
             }
             dedupe(next)
@@ -1003,14 +1059,34 @@ where
             let mut next = Vec::new();
             for st in states {
                 next.push(st.clone()); // zero iterations
-                next.extend(walk_flow(body, one(st), out, leaf, dedupe));
+                next.extend(walk_flow(
+                    body,
+                    one(st),
+                    out,
+                    leaf,
+                    dedupe,
+                    return_sink.as_deref_mut(),
+                ));
             }
             dedupe(next)
         }
         Statement::Catch { body, .. } => {
             let mut next = Vec::new();
             for st in states {
-                next.extend(walk_flow(body, one(st), out, leaf, dedupe));
+                // `catch` swallows TCL_RETURN: both the body's normal exits and
+                // any at-return states continue past the catch.  Fall back to
+                // the incoming state if the body yields nothing.  Mirrors
+                // Python `IRCatch`: `next_states.extend(body_out + catch_returns
+                // or [st])`.
+                let mut catch_returns = Vec::new();
+                let mut body_out =
+                    walk_flow(body, one(st), out, leaf, dedupe, Some(&mut catch_returns));
+                body_out.append(&mut catch_returns);
+                if body_out.is_empty() {
+                    next.push(st.clone());
+                } else {
+                    next.extend(body_out);
+                }
             }
             dedupe(next)
         }
@@ -1022,14 +1098,29 @@ where
         } => {
             let mut next = Vec::new();
             for st in states {
-                let mut branch = walk_flow(body, one(st), out, leaf, dedupe);
+                let mut branch =
+                    walk_flow(body, one(st), out, leaf, dedupe, return_sink.as_deref_mut());
                 for handler in handlers {
-                    branch.extend(walk_flow(&handler.body, one(st), out, leaf, dedupe));
+                    branch.extend(walk_flow(
+                        &handler.body,
+                        one(st),
+                        out,
+                        leaf,
+                        dedupe,
+                        return_sink.as_deref_mut(),
+                    ));
                 }
                 if let Some(fb) = finally_body {
                     let mut final_out = Vec::new();
                     for mid in &branch {
-                        final_out.extend(walk_flow(fb, one(mid), out, leaf, dedupe));
+                        final_out.extend(walk_flow(
+                            fb,
+                            one(mid),
+                            out,
+                            leaf,
+                            dedupe,
+                            return_sink.as_deref_mut(),
+                        ));
                     }
                     branch = final_out;
                 }
@@ -1042,7 +1133,7 @@ where
             dedupe(next)
         }
         // A grouping block (namespace/uplevel body) runs in sequence.
-        Statement::Block { body, .. } => walk_flow(body, states, out, leaf, dedupe),
+        Statement::Block { body, .. } => walk_flow(body, states, out, leaf, dedupe, return_sink),
         _ => {
             let mut next = Vec::with_capacity(states.len());
             for st in states {
@@ -1591,6 +1682,60 @@ mod tests {
         );
     }
 
+    #[test]
+    fn irule5002_drop_and_return_inside_catch_still_warns() {
+        // `catch` swallows the `return`, so it does NOT stop iRule processing —
+        // the unguarded `drop` still leaks past the catch and must be flagged.
+        // Mirrors Python `test_drop_and_return_inside_catch_still_warns`.
+        let ws = drop_warnings("when CLIENT_ACCEPTED {\n    catch { drop; return }\n}");
+        let hits: Vec<_> = ws.iter().filter(|w| w.code == "IRULE5002").collect();
+        assert_eq!(hits.len(), 1, "expected one IRULE5002, got {ws:?}");
+        assert!(
+            hits[0].message.contains("drop"),
+            "expected the unguarded drop to be flagged, got {:?}",
+            hits[0].message,
+        );
+    }
+
+    #[test]
+    fn irule5002_catch_body_without_return_still_warns_drop() {
+        // A catch whose body does not return continues normally and the
+        // unguarded drop still leaks out.  Mirrors Python
+        // `test_catch_body_without_return_still_warns_drop`.
+        let ws = drop_warnings("when CLIENT_ACCEPTED {\n    catch { drop }\n}");
+        assert_eq!(
+            ws.iter().filter(|w| w.code == "IRULE5002").count(),
+            1,
+            "expected one IRULE5002, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule5002_catch_without_drop_no_warning() {
+        // A benign catch body must not spuriously warn.  Mirrors Python
+        // `test_catch_without_drop_no_warning`.
+        let ws = drop_warnings("when CLIENT_ACCEPTED {\n    catch { set x 1; return }\n}");
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE5002"),
+            "no IRULE5002 expected for a benign catch, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule5004_dns_return_and_return_inside_catch_still_warns() {
+        // `catch` swallows the `return` so it does not stop processing — the
+        // unguarded `DNS::return` still leaks out.  Mirrors Python
+        // `test_dns_return_and_return_inside_catch_still_warns`.
+        let ws = drop_warnings("when DNS_REQUEST {\n    catch { DNS::return; return }\n}");
+        let hits: Vec<_> = ws.iter().filter(|w| w.code == "IRULE5004").collect();
+        assert_eq!(hits.len(), 1, "expected one IRULE5004, got {ws:?}");
+        assert!(
+            hits[0].message.contains("DNS::return"),
+            "expected the unguarded DNS::return to be flagged, got {:?}",
+            hits[0].message,
+        );
+    }
+
     // -- IRULE1005 / 1006 / 1007 / 1008 -------------------------------
 
     fn flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
@@ -1786,6 +1931,62 @@ mod tests {
             !ws.iter()
                 .any(|w| w.code == "IRULE1201" || w.code == "IRULE1202"),
             "no IRULE1201/1202 expected, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule1201_respond_then_return_inside_catch_warns() {
+        // `catch` swallows the `return`, so control continues past the catch
+        // with the response already committed — the post-catch HTTP::header
+        // insert must still be flagged, and the at-catch-return `responded`
+        // state must propagate out.  Mirrors Python
+        // `test_respond_then_return_inside_catch_warns`.
+        let ws = http_warnings(
+            "when HTTP_REQUEST {\n\
+            \x20   catch { HTTP::respond 200 content ok; return }\n\
+            \x20   HTTP::header insert X-Debug \"yes\"\n\
+            }",
+        );
+        let hits: Vec<_> = ws.iter().filter(|w| w.code == "IRULE1201").collect();
+        assert_eq!(hits.len(), 1, "expected one IRULE1201, got {ws:?}");
+        assert!(
+            hits[0].message.contains("HTTP::header"),
+            "expected the post-catch HTTP::header to be flagged, got {:?}",
+            hits[0].message,
+        );
+    }
+
+    #[test]
+    fn irule1201_catch_body_without_return_still_continues() {
+        // A catch whose body does not return continues normally, carrying the
+        // responded state to flag the post-catch command.  Mirrors Python
+        // `test_catch_body_without_return_still_continues`.
+        let ws = http_warnings(
+            "when HTTP_REQUEST {\n\
+            \x20   catch { HTTP::respond 200 content ok }\n\
+            \x20   HTTP::header insert X-Debug \"yes\"\n\
+            }",
+        );
+        assert_eq!(
+            ws.iter().filter(|w| w.code == "IRULE1201").count(),
+            1,
+            "expected one IRULE1201, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule1201_catch_without_respond_no_warning() {
+        // A benign catch body must not spuriously flag post-catch HTTP
+        // commands.  Mirrors Python `test_catch_without_respond_no_warning`.
+        let ws = http_warnings(
+            "when HTTP_REQUEST {\n\
+            \x20   catch { set x 1; return }\n\
+            \x20   HTTP::header insert X-Debug 1\n\
+            }",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE1201"),
+            "no IRULE1201 expected for a benign catch, got {ws:?}",
         );
     }
 
