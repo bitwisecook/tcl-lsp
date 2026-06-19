@@ -21,6 +21,19 @@ use crate::ir::Module;
 /// Block type byte for a structured op (`block`/`loop`/`if`) yielding no value.
 const BLOCK_VOID: u8 = 0x40;
 
+/// Default linear-memory base for the emitted module's constant pool: the
+/// **reserved region** the whole-program runtime leaves free.
+///
+/// In the shared-memory link the emitted module and the runtime share one linear
+/// memory. The runtime's shadow stack occupies the bottom of memory (it grows
+/// **down** from its top), so the emitted module cannot place its data at offset
+/// 0 — a deep eval's stack would overwrite it. The runtime is therefore built
+/// with its data/heap pushed above a reserved gap (`wasm-ld --global-base`),
+/// leaving `[RESERVED_DATA_BASE, runtime data)` free; the emitter relocates its
+/// constant pool into that gap. `0x10_0000` (1 MiB) is the runtime's default
+/// shadow-stack top, so the gap begins there.
+pub const RESERVED_DATA_BASE: i64 = 0x10_0000;
+
 /// Indices of the `"tcl"` host imports the emitted module calls.
 struct Imports {
     /// `(ptr, len) -> obj` — box a data-section string as a `TclObj`.
@@ -234,9 +247,20 @@ fn add_tcl_import(m: &mut WasmModule, name: &str, params: &[ValType], results: &
 
 /// Lower a module's top-level script to a WASM module (eval-fallback tier +
 /// structured control flow). `source` is the original Tcl text, sliced for
-/// command / expression text.
+/// command / expression text. The constant pool is placed at offset 0 — valid
+/// for a standalone module (own memory) or one whose host keeps low memory free.
 #[must_use]
 pub fn wasm_codegen_module(module: &Module, source: &str) -> WasmModule {
+    wasm_codegen_module_based(module, source, 0)
+}
+
+/// As [`wasm_codegen_module`], but relocate the constant pool to `data_base` so
+/// it lands in the runtime's reserved region (see [`RESERVED_DATA_BASE`]) when
+/// the emitted module shares the runtime's linear memory in the whole-program
+/// link. Both the data segments and the `i32.const` offsets the module passes to
+/// `tcl_obj_new_string` are based at `data_base`.
+#[must_use]
+pub fn wasm_codegen_module_based(module: &Module, source: &str, data_base: i64) -> WasmModule {
     let mut wasm = WasmModule::new();
     let imports = Imports {
         obj_new_string: add_tcl_import(
@@ -254,7 +278,7 @@ pub fn wasm_codegen_module(module: &Module, source: &str) -> WasmModule {
         imports,
         body: Vec::new(),
         data: Vec::new(),
-        data_offset: 0,
+        data_offset: data_base,
         ctrl_depth: 0,
         loops: Vec::new(),
     };

@@ -5,7 +5,9 @@
 //! assert the emitted structure; `wasmtime compile` (run below where the CLI is
 //! present) validates the bytes for full structural validity.
 
-use tcl_compiler::codegen::wasm::{WasmModule, wasm_codegen_module};
+use tcl_compiler::codegen::wasm::{
+    RESERVED_DATA_BASE, WasmModule, wasm_codegen_module, wasm_codegen_module_based,
+};
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
@@ -14,6 +16,43 @@ fn compile_wasm(source: &str) -> WasmModule {
     let registry = CommandRegistry::build_default();
     let module = lower_to_ir(source, &registry);
     wasm_codegen_module(&module, source)
+}
+
+/// As [`compile_wasm`], but relocate the constant pool to `data_base`.
+fn compile_wasm_based(source: &str, data_base: i64) -> WasmModule {
+    let registry = CommandRegistry::build_default();
+    let module = lower_to_ir(source, &registry);
+    wasm_codegen_module_based(&module, source, data_base)
+}
+
+/// With a non-zero data base, both the data segments and the `i32.const` offsets
+/// the module hands to `tcl_obj_new_string` are relocated into the runtime's
+/// reserved region — so the emitted constant pool does not collide with the
+/// runtime's shadow stack in the shared-memory whole-program link.
+#[test]
+fn data_pool_relocates_to_reserved_base() {
+    let mut m = compile_wasm_based("set x 5\nputs $x\n", RESERVED_DATA_BASE);
+    let wat = m.to_wat();
+    // First string sits at the base, the second right after it (base + 7).
+    assert!(
+        wat.contains(&format!(
+            "(data (i32.const {RESERVED_DATA_BASE}) \"set x 5\")"
+        )),
+        "{wat}"
+    );
+    let second = RESERVED_DATA_BASE + i64::try_from("set x 5".len()).unwrap();
+    assert!(
+        wat.contains(&format!("(data (i32.const {second}) \"puts $x\")")),
+        "{wat}"
+    );
+    // The body pushes the *based* offset (not 0) before calling tcl_obj_new_string.
+    assert!(
+        wat.contains(&format!("i32.const {RESERVED_DATA_BASE}")),
+        "{wat}"
+    );
+    // Still a valid module, and offset 0 no longer carries data.
+    assert_eq!(&m.to_bytes()[0..4], b"\0asm");
+    assert!(!wat.contains("(data (i32.const 0)"), "{wat}");
 }
 
 /// A linear top-level script: each command is eval-fallback'd in order, results

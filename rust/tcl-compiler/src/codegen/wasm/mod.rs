@@ -22,7 +22,7 @@ pub mod backend;
 mod encoding;
 mod ir;
 
-pub use backend::wasm_codegen_module;
+pub use backend::{RESERVED_DATA_BASE, wasm_codegen_module, wasm_codegen_module_based};
 pub use ir::{
     SectionId, ValType, WasmData, WasmFunction, WasmImport, WasmInstruction, WasmModule, WasmOp,
 };
