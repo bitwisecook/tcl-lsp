@@ -17,7 +17,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use tcl_compiler::cfg_builder::build_cfg;
+use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::codegen::format::format_module_asm;
 use tcl_compiler::lowering::lower_to_ir;
@@ -27,7 +27,7 @@ use tcl_registry::CommandRegistry;
 fn rust_disasm(source: &str) -> String {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(source, &registry);
-    let cfg = build_cfg(&ir, false);
+    let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry);
     format_module_asm(&asm)
 }
