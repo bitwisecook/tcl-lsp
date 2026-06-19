@@ -168,7 +168,7 @@ stored, is a design conversation: it requires updating this contract and
 
 - [`Makefile`](../../../Makefile) — `publish-vsix`, `publish-jetbrains`,
   `publish-sublime`, `publish-zed`, `publish-all`, `publish-verify`,
-  `publish-flow`, `release-tag`, `release-codeql-gate`.
+  `publish-flow`, `release-tag`.
 - [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml) —
   builds artefacts, attests them, attaches them to the Release, and runs
   the two marketplace publish jobs.  Every `secrets.*` reference sits in a

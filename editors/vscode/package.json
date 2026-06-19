@@ -4991,6 +4991,7 @@
     "@vscode/vsce": {
       "@azure/msal-node": "^5.1.5"
     },
-    "lodash": "^4.18.1"
+    "lodash": "^4.18.1",
+    "undici": "^7.28.0"
   }
 }
