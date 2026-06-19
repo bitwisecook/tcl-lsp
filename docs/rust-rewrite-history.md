@@ -1236,7 +1236,14 @@ general inliner). What landed:
   list rendering reuses `tcl_syntax::list::{join_list,list_element}` and the
   `_statement_delete_rewrite_range` delete-span logic is ported verbatim.
   Fold semantics + byte-exact rewrite application verified against tclsh.
-  O119 multi-set packing stays hint-only.
+- **O119 (applied multi-set packing)** — converted the hint-only detector to
+  an applied rewrite: 3+ consecutive static `set var literal` statements
+  (distinct vars, `is_safe_word` values) pack into one `lassign {vals} vars`
+  (Tcl 8.5/8.6) or `foreach {vars} {vals} {break}` (8.4 / dialect-unset),
+  skipped on Tcl 9.0. Handles both lowering shapes (integer →
+  `AssignConst`, other static → `AssignValue`) and gates on cross-event
+  vars. `statement_delete_rewrite_range` moved to `helpers::spans` (shared
+  with `chain_fold`). Pack semantics verified against tclsh.
 
 All verified against the Python reference algorithms in
 `compiler/optimiser/{_expr_simplify,_pattern_recognition,_elimination,_tail_call}.py`
