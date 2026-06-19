@@ -327,7 +327,7 @@ body {
 .shimmer-item.highlighted { background: var(--highlight-strong); }
 .shimmer-item .shimmer-code { font-weight: 600; min-width: 32px; display: inline-block; }
 .shimmer-S100 .shimmer-code, .shimmer-S101 .shimmer-code { color: var(--yellow); }
-.shimmer-S102 .shimmer-code { color: var(--red); }
+.shimmer-S102 .shimmer-code, .shimmer-S110 .shimmer-code { color: var(--red); }
 .gvn-item {
   padding: 4px 6px;
   border-radius: 4px;

@@ -49,6 +49,7 @@ _SHIMMER_SEVERITY = {
     "S100": types.DiagnosticSeverity.Information,
     "S101": types.DiagnosticSeverity.Warning,
     "S102": types.DiagnosticSeverity.Warning,
+    "S110": types.DiagnosticSeverity.Warning,
 }
 
 _TAINT_SEVERITY = {

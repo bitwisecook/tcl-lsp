@@ -34,6 +34,7 @@ class GtpPayloadCommand(CommandDef):
         return CommandSpec(
             name="GTP::payload",
             dialects=_IRULES_ONLY,
+            byte_array_payload=True,
             hover=HoverSnippet(
                 summary="Returns the entire payload for G-PDU message.",
                 synopsis=(

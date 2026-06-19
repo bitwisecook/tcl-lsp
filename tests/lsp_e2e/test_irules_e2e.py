@@ -609,6 +609,82 @@ class TestIrulesTaintDiagnostics:
         assert "IRULE3102" not in _irules_codes(diags), _irules_codes(diags)
 
 
+class TestIrulesByteArrayCorruption:
+    """S110 byte-array corruption on the wire (F5 KB K22406348).
+
+    Reading a ``*::payload`` byte array, coercing it to a character string,
+    and writing it back with ``<proto>::payload replace`` double-encodes every
+    byte >= 0x80.  These pin the must-fire / must-stay-silent contract for the
+    byte-array round-trip, end-to-end against the packaged server.
+    """
+
+    # A deep-tier iRules code that fires for every ``*::payload`` body here
+    # (payload accessed without a matching collect).  Its presence proves the
+    # deep diagnostics publish has landed, so S110 (also deep) is decidable.
+    _DEEP_MARKER = "IRULE1006"
+
+    @classmethod
+    def _deep_diags(cls, server, uri_factory, source: str) -> list[dict]:
+        """Open *source* and return the final (basic + deep) publish.
+
+        Shimmer (S110) is a *deep* diagnostic: the server publishes the fast
+        tier first, then a second publish with the deep tier.  Poll the latest
+        publish until the deep marker lands so we never race the fast tier.
+        """
+        import time as _time
+
+        uri = uri_factory("irule")
+        server.open_ready(uri, source, language_id="tcl-irule")
+        deadline = _time.monotonic() + 25.0
+        diags: list[dict] = []
+        while _time.monotonic() < deadline:
+            diags = server.await_diagnostics(uri, version=1)
+            if any(str(d.get("code")) == cls._DEEP_MARKER for d in diags):
+                return diags
+            _time.sleep(0.2)
+        raise AssertionError(
+            f"deep diagnostics ({cls._DEEP_MARKER}) never published; saw {_irules_codes(diags)}"
+        )
+
+    def test_payload_string_roundtrip_fires_s110(self, lsp_server_irules, uri_factory):
+        diags = self._deep_diags(
+            lsp_server_irules,
+            uri_factory,
+            "when HTTP_REQUEST_DATA {\n"
+            "    set original_data [HTTP::payload]\n"
+            '    set new_data "$original_data MODIFIED"\n'
+            "    HTTP::payload replace 0 100 $new_data\n"
+            "}\n",
+        )
+        s110 = [d for d in diags if str(d.get("code")) == "S110"]
+        assert s110, _irules_codes(diags)
+        assert s110[0].get("severity") == 2  # DiagnosticSeverity.Warning
+
+    def test_clean_payload_writeback_silent(self, lsp_server_irules, uri_factory):
+        diags = self._deep_diags(
+            lsp_server_irules,
+            uri_factory,
+            "when HTTP_REQUEST_DATA {\n"
+            "    set original_data [HTTP::payload]\n"
+            "    HTTP::payload replace 0 100 $original_data\n"
+            "}\n",
+        )
+        assert "S110" not in _irules_codes(diags), _irules_codes(diags)
+
+    def test_binary_scan_fix_silent(self, lsp_server_irules, uri_factory):
+        diags = self._deep_diags(
+            lsp_server_irules,
+            uri_factory,
+            "when HTTP_REQUEST_DATA {\n"
+            "    set original_data [HTTP::payload]\n"
+            '    set new_data "$original_data MODIFIED"\n'
+            "    binary scan $new_data c* -\n"
+            "    HTTP::payload replace 0 100 $new_data\n"
+            "}\n",
+        )
+        assert "S110" not in _irules_codes(diags), _irules_codes(diags)
+
+
 class TestIrulesWhenBodyAnalysed:
     """Dialect-gated ``when`` body recursion (PR #640), iRules side.
 

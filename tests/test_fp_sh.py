@@ -27,6 +27,15 @@ def _codes(source: str, codes: list[str]):
     return [d for d in get_diagnostics(source) if d.code in codes]
 
 
+def _irule_codes(source: str, codes: list[str]):
+    """Diagnostics matching any code in *codes*, analysed in the f5-irules
+    dialect (``*::payload`` source/sink recognition is dialect-gated)."""
+    from compiler.registry.dialect import dialect_scope
+
+    with dialect_scope("f5-irules"):
+        return [d for d in get_diagnostics(source) if d.code in codes]
+
+
 SHIMMER_CODES = ["S100", "S101", "S102"]
 
 
@@ -353,3 +362,74 @@ def test_FP_SH_07_pure_numeric_if_no_shimmer():
     assert "S100" not in codes and "S101" not in codes, (
         f"pure-numeric if must not fire shimmer; got {codes}"
     )
+
+
+# FP-SH-09 — byte array case-folded / re-encoded by a string op corrupts high bytes (S110)
+
+
+FP_SH_09_REPRO = """\
+# binary format -> string toupper -> corrupted bytes (S110).
+set ba [binary format c* {128 195 255}]
+set up [string toupper $ba]
+"""
+
+
+def test_FP_SH_09_toupper_byte_array_fires():
+    """TP: ``string toupper`` on a ``binary format`` byte array reinterprets
+    bytes as Unicode and mangles every byte >= 0x80 — a correctness shimmer
+    (S110, Warning).  Ground truth: tclsh 8.6 silently corrupts 80c3ff->80c378,
+    tclsh 9.0 raises on the byte scan-back."""
+    assert _codes(FP_SH_09_REPRO, ["S110"]), (
+        "byte array case-folded by string toupper must fire S110"
+    )
+
+
+def test_FP_SH_09_toupper_plain_string_silent():
+    """FP control: ``string toupper`` on a plain string has no byte source, so
+    S110 must stay silent (proves S110 is provenance-gated, not blanket)."""
+    src = 'set s "hello world"\nset u [string toupper $s]\n'
+    assert _codes(src, ["S110"]) == [], "string op on a non-binary value must not fire S110"
+
+
+# FP-SH-10 — *::payload round-trip: string-coerced binary written back corrupts it (S110)
+
+
+FP_SH_10_REPRO = """\
+when HTTP_REQUEST_DATA {
+    set original_data [HTTP::payload]
+    set new_data "$original_data MODIFIED"
+    HTTP::payload replace 0 100 $new_data
+}
+"""
+
+
+def test_FP_SH_10_payload_roundtrip_fires():
+    """TP: HTTP::payload read, string-interpolated, then written back with
+    HTTP::payload replace — the canonical F5 KB K22406348 double-encode bug."""
+    assert _irule_codes(FP_SH_10_REPRO, ["S110"]), "payload string round-trip must fire S110"
+
+
+def test_FP_SH_10_clean_payload_writeback_silent():
+    """FP control: writing the byte array straight back (no string coercion)
+    is binary-safe — S110 must stay silent."""
+    src = (
+        "when HTTP_REQUEST_DATA {\n"
+        "    set original_data [HTTP::payload]\n"
+        "    HTTP::payload replace 0 100 $original_data\n"
+        "}\n"
+    )
+    assert _irule_codes(src, ["S110"]) == [], "clean byte-array writeback must not fire S110"
+
+
+def test_FP_SH_10_binary_scan_fix_silent():
+    """FP control: the documented fix — ``binary scan $v c* -`` re-binarifies
+    the value before the sink — must clear S110."""
+    src = (
+        "when HTTP_REQUEST_DATA {\n"
+        "    set original_data [HTTP::payload]\n"
+        '    set new_data "$original_data MODIFIED"\n'
+        "    binary scan $new_data c* -\n"
+        "    HTTP::payload replace 0 100 $new_data\n"
+        "}\n"
+    )
+    assert _irule_codes(src, ["S110"]) == [], "documented binary-scan fix must not fire S110"
