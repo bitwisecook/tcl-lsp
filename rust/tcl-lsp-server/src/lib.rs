@@ -2836,6 +2836,21 @@ impl LanguageServer for Backend {
         self.apply_workspace_folders(&params).await;
         self.apply_initialization_options(&params).await;
         let position_encoding = negotiate_position_encoding(&params);
+        if client_lacks_utf16_support(&params) {
+            // The client advertised position encodings without UTF-16. The
+            // server emits UTF-16 columns only, so it proceeds in UTF-16
+            // regardless (rather than failing the session over a baseline
+            // every conformant client supports) — but warn so a genuine
+            // UTF-8/UTF-32-only client's mis-mapped non-ASCII ranges are
+            // diagnosable instead of silent.
+            self.client
+                .log_message(
+                    MessageType::WARNING,
+                    "client advertised position encodings without UTF-16; this server \
+                     emits UTF-16 columns and will use UTF-16 regardless",
+                )
+                .await;
+        }
         Ok(InitializeResult {
             capabilities: build_server_capabilities(position_encoding),
             server_info: Some(ServerInfo {
@@ -5674,6 +5689,25 @@ fn negotiate_position_encoding(params: &InitializeParams) -> Option<PositionEnco
         .then_some(PositionEncodingKind::UTF16)
 }
 
+/// True when the client advertised a non-empty `general.positionEncodings`
+/// list that omits UTF-16.
+///
+/// This is the one case the server cannot satisfy cleanly: every provider
+/// emits UTF-16 columns, so a client that explicitly excludes UTF-16 would
+/// mis-map any non-ASCII range.  The server still proceeds in UTF-16 (the
+/// LSP default for an omitted server `positionEncoding`) rather than
+/// refusing the session — UTF-16 is the universal LSP baseline and no
+/// real client ships without it — but [`Backend::initialize`] logs a
+/// warning so the mismatch is not silent.
+fn client_lacks_utf16_support(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .general
+        .as_ref()
+        .and_then(|g| g.position_encodings.as_ref())
+        .is_some_and(|encs| !encs.is_empty() && !encs.contains(&PositionEncodingKind::UTF16))
+}
+
 /// Build the `ServerCapabilities` advertised in the response
 /// to `initialize`.  Kept as a free function so the
 /// `LanguageServer::initialize` handler stays focused on
@@ -6130,7 +6164,7 @@ mod tests {
     #[test]
     fn position_encoding_negotiation() {
         use tower_lsp::lsp_types::{ClientCapabilities, GeneralClientCapabilities};
-        let with_encodings = |encs: Option<Vec<PositionEncodingKind>>| {
+        let params_with = |encs: Option<Vec<PositionEncodingKind>>| {
             let mut params = InitializeParams::default();
             params.capabilities = ClientCapabilities {
                 general: Some(GeneralClientCapabilities {
@@ -6139,7 +6173,10 @@ mod tests {
                 }),
                 ..ClientCapabilities::default()
             };
-            negotiate_position_encoding(&params)
+            params
+        };
+        let with_encodings = |encs: Option<Vec<PositionEncodingKind>>| {
+            negotiate_position_encoding(&params_with(encs))
         };
         // Client offers UTF-16 → advertise it explicitly.
         assert_eq!(
@@ -6154,6 +6191,24 @@ mod tests {
             negotiate_position_encoding(&InitializeParams::default()),
             None
         );
+
+        // `client_lacks_utf16_support`: only true for a non-empty list that
+        // omits UTF-16 — the case `initialize` warns about.
+        assert!(client_lacks_utf16_support(&params_with(Some(vec![
+            PositionEncodingKind::UTF8
+        ]))));
+        assert!(client_lacks_utf16_support(&params_with(Some(vec![
+            PositionEncodingKind::UTF8,
+            PositionEncodingKind::UTF32,
+        ]))));
+        // A list containing UTF-16, an empty list, and no list at all are all
+        // fine — UTF-16 is available (or defaulted) so no warning fires.
+        assert!(!client_lacks_utf16_support(&params_with(Some(vec![
+            PositionEncodingKind::UTF8,
+            PositionEncodingKind::UTF16,
+        ]))));
+        assert!(!client_lacks_utf16_support(&params_with(Some(vec![]))));
+        assert!(!client_lacks_utf16_support(&InitializeParams::default()));
     }
 
     #[test]
