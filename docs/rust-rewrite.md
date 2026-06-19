@@ -967,7 +967,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟢 | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) to port → **FE-TYPESHIM** |
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
-| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | **every O-code pass done** — soundness gates (O120/O114/O108), O106 category, O123, O110 boolify, O125 (cross-event + already-covered + deepest-target), O101/O115 branch coverage, O103 (rename gate + namespace chain), **all applied rewrites** (O104/O130/O119/O128), and the **inliner v0+verbatim** (wired to FE-VARESCAPE `pure_leaf`); remaining: O106 latch-dominance gate, O104/O119/O130 precise-flow extension, inliner **v3** (α-rename, gated on the RT-WASM consumer for execution verification) → **FE-OPT** |
+| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | **every O-code pass complete** — soundness gates (O120/O114/O108), O106 (category + latch-dominance), O123, O110 boolify, O125 (cross-event + already-covered + deepest-target), O101/O115 branch coverage, O103 (rename gate + namespace chain), **all applied rewrites** (O104/O130/O119/O128) incl. **precise-flow** across safe interleaved writes, and the **inliner v0+verbatim** (wired to FE-VARESCAPE `pure_leaf`); sole remaining: inliner **v3** (α-rename, gated on the RT-WASM consumer for execution-differential verification) → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005 (incl. nested `[…]` subs); snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108. Residuals: per-check config toggles + surfacing flow-warning fixes as code actions → **SRV-LSP**. Two review-found refinements (IRULE2001 3-arg `matchclass` fix, catch-`return` flow) are shared with Python → fixed Python-first, port pending → **FE-DIAG** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
@@ -1078,19 +1078,20 @@ feature-completeness — flow-sensitive precision and the general inliner. The
 **applied rewrites all landed** (2026-06-19): O104 / O130 string & list
 build-chain folds (`optimiser::chain_fold`), O119 multi-set packing
 (`lassign` / `foreach`), and O128 end-offset index (`optimiser::end_offset`).
-- **partial** O104 / O119 / O130 **precise-flow extension** — the applied
-  passes cover the strictly-consecutive case (no statement runs between the
-  writes, so no intermediate value can be read) gated on
-  `var_observability::escaping_var_names` + cross-event vars. Python's
-  flow-sensitive version additionally reorders interspersed candidates and
-  uses per-statement SSA reads; that is the residual. The applied rewrites
-  are sound — they skip (never miscompile) a chain with an interleaved
-  non-reading statement.
-- **open** O106 precision — the trace-aware purity gate is present
-  (`is_pure_command_with_traces`); the remaining work is the latch-dominance
-  "runs every iteration" gate (only hoist a loop-invariant that the loop
-  latch dominates) and threading execution-trace facts deeper into the
-  GVN/LICM family. (The profile-category omission is fixed.)
+- **done** O104 / O119 / O130 **precise-flow** — the applied passes fold a
+  build chain across an interleaved **static-literal write to a different
+  variable** (provably no read/write of the accumulator, no side effect, no
+  barrier), gated on `var_observability::escaping_var_names` + cross-event
+  vars; readers / dynamic statements / barriers still end the run. (Python's
+  additional candidate *reordering* of interspersed dynamic statements is the
+  only remaining nuance, and is never a correctness gap — the Rust pass skips,
+  never miscompiles, such a chain.)
+- **done** O106 precision — the profile-category registration, the
+  trace-aware purity gate (`is_pure_command_with_traces`), and the
+  **latch-dominance "runs every iteration" gate** (only hoist a
+  loop-invariant in a block that dominates every back-edge tail) have all
+  landed. (Threading richer execution-trace facts deeper into the GVN/LICM
+  family is a precision nuance, not a correctness gap.)
 - **done** O103 (both the **rename gate** and **namespace-chain resolution**
   via `resolve_proc_qname`), O125 (**cross-event-var**, **already-covered**,
   and **multi-branch deepest-target descent**), O101/O115 branch coverage

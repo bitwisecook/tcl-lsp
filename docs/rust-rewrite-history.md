@@ -1305,6 +1305,20 @@ general inliner). What landed:
   the def into each), descending through nested `if`/`switch` when a
   single-use branch's lone consumer is itself a condition-clean decision. One
   grouped delete + one prepend per target.
+- **O106 (latch-dominance gate)** — `find_loop_invariants` now tracks each
+  loop's back-edge tails (latches) and reports a pure loop-invariant only in a
+  block that dominates *every* latch — one guaranteed to run on every
+  iteration. An invariant behind an in-loop branch is no longer flagged for
+  hoisting, matching Python's "runs every iteration" check. (The trace-aware
+  purity gate `is_pure_command_with_traces` was already present.)
+- **O104 / O130 / O119 (precise-flow)** — the applied build-chain folds now
+  continue across an interleaved *static-literal write to a different
+  variable*: `classify_write` only matches single-token `Esc`/`Str` value
+  words with no substitution, so such a statement provably cannot read or
+  write the accumulator, has no side effect, and is not a barrier. The
+  interleaved statement stays in place; readers / dynamic statements / barriers
+  (`classify_write` → `None`) still end the run. Mirrors Python's
+  skip-non-reading-statement chain rule.
 - **General proc inliner — v0 + verbatim** — new self-contained
   `tcl-compiler::inlining` module porting the empty-body (v0) and zero-param
   verbatim-wrapper (v1/v2) shapes of `compiler/inlining/`. A
