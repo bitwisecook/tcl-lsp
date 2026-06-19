@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate } from "./helper";
+import { getDocUri, activate, pollUntil } from "./helper";
 
 suite("Go to Definition", () => {
   const docUri = getDocUri("procs.tcl");
@@ -17,10 +17,10 @@ suite("Go to Definition", () => {
     // puts "fib(10) = [fib 10]"  -- "fib" after [ is at col 17
     const position = new vscode.Position(16, 17);
 
-    const locations = (await vscode.commands.executeCommand(
-      "vscode.executeDefinitionProvider",
-      docUri,
-      position,
+    const locations = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeDefinitionProvider", docUri, position),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "definition locations" },
     )) as vscode.Location[];
 
     assert.ok(locations, "Definition result should not be null");

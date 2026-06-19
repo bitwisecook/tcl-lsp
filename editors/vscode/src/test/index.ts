@@ -22,6 +22,30 @@ export async function run(): Promise<void> {
 
   const testsRoot = path.resolve(__dirname);
 
+  // The config tests write workspace settings via `config.update(key, value,
+  // undefined)`, which VS Code persists to the workspace fixture's
+  // `.vscode/settings.json`.  Even though each test restores the *value*, VS
+  // Code can rewrite the file with different whitespace/key-order than the
+  // committed bytes, and a failing test can leave it dirty — so the tracked
+  // fixture drifts.  That breaks `.test-slow.stamp` reproducibility (the
+  // stamp hashes every tracked file and CI checks it against a clean
+  // checkout).  Snapshot the exact bytes before the run and rewrite them
+  // after — restoring the file regardless of which test touched it or
+  // whether the run passed.
+  const fixtureSettings = path.resolve(__dirname, "../../testFixture/.vscode/settings.json");
+  const fixtureSnapshot = fs.existsSync(fixtureSettings) ? fs.readFileSync(fixtureSettings) : null;
+  const restoreFixtureSettings = () => {
+    if (fixtureSnapshot === null) return;
+    try {
+      if (!fs.readFileSync(fixtureSettings).equals(fixtureSnapshot)) {
+        fs.writeFileSync(fixtureSettings, fixtureSnapshot);
+      }
+    } catch {
+      // File was removed by a test — recreate it from the snapshot.
+      fs.writeFileSync(fixtureSettings, fixtureSnapshot);
+    }
+  };
+
   // The multiFolder/ subdirectory has its own runner (runMultiFolderTest)
   // because those tests need the .code-workspace fixture.  Skip them here.
   const files = await glob("**/*.test.js", {
@@ -35,6 +59,7 @@ export async function run(): Promise<void> {
 
   return new Promise<void>((resolve, reject) => {
     const runner = mocha.run((failures) => {
+      restoreFixtureSettings();
       if (failures > 0) {
         fs.mkdirSync(path.dirname(failureMarker), { recursive: true });
         fs.writeFileSync(failureMarker, JSON.stringify({ failures }) + "\n", "utf8");

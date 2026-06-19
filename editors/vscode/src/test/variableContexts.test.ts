@@ -433,21 +433,20 @@ suite("Variable Completion: W215 unreachable-name diagnostic", () => {
       return code === "W216" && d.message.includes("scalar");
     });
     assert.ok(w216, "Expected a ${arr}(foo) W216 diagnostic in fixture");
-    const actions = (await vscode.commands.executeCommand(
-      "vscode.executeCodeActionProvider",
-      docUri,
-      w216.range,
+    const matchesW216Fix = (a: vscode.CodeAction) =>
+      a.kind !== undefined &&
+      a.kind.value === vscode.CodeActionKind.QuickFix.value &&
+      ((typeof a.title === "string" && a.title.includes("$arr(name)")) ||
+        (a.edit !== undefined &&
+          [...a.edit.entries()].some(([, edits]) =>
+            edits.some((e) => e.newText === "$arr(name)"),
+          )));
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, w216.range),
+      (r) => Array.isArray(r) && (r as vscode.CodeAction[]).some(matchesW216Fix),
+      { timeout: 10_000, label: "W216 bare-form quick fix" },
     )) as vscode.CodeAction[];
-    const w216Fix = actions.find(
-      (a) =>
-        a.kind !== undefined &&
-        a.kind.value === vscode.CodeActionKind.QuickFix.value &&
-        ((typeof a.title === "string" && a.title.includes("$arr(name)")) ||
-          (a.edit !== undefined &&
-            [...a.edit.entries()].some(([, edits]) =>
-              edits.some((e) => e.newText === "$arr(name)"),
-            ))),
-    );
+    const w216Fix = actions.find(matchesW216Fix);
     assert.ok(
       w216Fix,
       `Expected a W216 quick-fix offering $arr(name); got titles: ${actions.map((a) => a.title).join(" / ")}`,
@@ -466,20 +465,19 @@ suite("Variable Completion: W215 unreachable-name diagnostic", () => {
       return code === "W216" && d.message.includes("funny name");
     });
     assert.ok(w216, "Expected a W216 diagnostic for the funny-name fixture line");
-    const actions = (await vscode.commands.executeCommand(
-      "vscode.executeCodeActionProvider",
-      docUri,
-      w216.range,
-    )) as vscode.CodeAction[];
     const expected = '[set "funny name($foo)"]';
-    const fix = actions.find(
-      (a) =>
-        a.kind !== undefined &&
-        a.kind.value === vscode.CodeActionKind.QuickFix.value &&
-        ((typeof a.title === "string" && a.title.includes(expected)) ||
-          (a.edit !== undefined &&
-            [...a.edit.entries()].some(([, edits]) => edits.some((e) => e.newText === expected)))),
-    );
+    const matchesFix = (a: vscode.CodeAction) =>
+      a.kind !== undefined &&
+      a.kind.value === vscode.CodeActionKind.QuickFix.value &&
+      ((typeof a.title === "string" && a.title.includes(expected)) ||
+        (a.edit !== undefined &&
+          [...a.edit.entries()].some(([, edits]) => edits.some((e) => e.newText === expected))));
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, w216.range),
+      (r) => Array.isArray(r) && (r as vscode.CodeAction[]).some(matchesFix),
+      { timeout: 10_000, label: "W216 [set ...] fallback quick fix" },
+    )) as vscode.CodeAction[];
+    const fix = actions.find(matchesFix);
     assert.ok(
       fix,
       `Expected a W216 quick-fix offering ${expected}; got titles: ${actions
