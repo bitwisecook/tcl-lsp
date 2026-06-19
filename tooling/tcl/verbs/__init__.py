@@ -25,6 +25,5 @@ def load_verbs() -> None:
         lookup,
         minimize,
         misc,
-        registry,
         transform,
     )

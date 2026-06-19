@@ -172,9 +172,8 @@ are its rules, and what are the failure modes". One contract per file.
 - [command-registry-event-model.md](contracts/command-registry-event-model.md)
   — command and event registry ownership rules.
 - [registry-contract-tests.md](contracts/registry-contract-tests.md) —
-  the language-agnostic registry shape contract, `registry-dump` verbs,
-  golden fixtures, and the front-end-driven tests that validate them
-  (including the `rust` branch).
+  the language-agnostic registry shape contract, golden fixtures, and the
+  front-end-driven tests that validate them (including the `rust` branch).
 - [shared-utility-contracts.md](contracts/shared-utility-contracts.md) —
   shared helper ownership across core and LSP.
 - [formatter-engine.md](contracts/formatter-engine.md) — formatter

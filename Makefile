@@ -1142,7 +1142,7 @@ check-editor-settings: $(UV_STAMP) ## Verify editor settings match code registry
 
 # Registry contract fixtures — the language-agnostic command/event/profile/
 # object shape snapshots under tests/baselines/registry/, regenerated from
-# the registries via the same builders the registry-dump front-end verbs use.
+# the registries via the same builders in tooling/registry_snapshot.py.
 gen-registry-baselines: $(UV_STAMP) ## Regenerate tests/baselines/registry/ from the registries
 	@echo "==> Regenerating registry contract fixtures"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/registry_baselines.py
