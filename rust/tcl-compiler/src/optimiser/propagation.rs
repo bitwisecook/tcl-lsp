@@ -65,12 +65,15 @@ use super::{Optimisation, PassContext};
 /// …) are skipped because substituting them as a bare word
 /// would change the command's interpretation.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    run_function(ctx, cu, &cu.top_level, &cu.ir_module.top_level);
+    run_function(ctx, cu, &cu.top_level, &cu.ir_module.top_level, "::");
     for (qname, fu) in &cu.procedures {
         let Some(proc) = cu.ir_module.procedures.get(qname) else {
             continue;
         };
-        run_function(ctx, cu, fu, &proc.body);
+        // The call-site namespace for O103 chain resolution is the proc's
+        // own namespace (`::ns::foo` resolves a bare `bar` against `::ns`).
+        let namespace = super::helpers::naming::namespace_from_qualified(qname);
+        run_function(ctx, cu, fu, &proc.body, &namespace);
     }
     // Load-forwarding runs a separate per-function pass on top
     // of the SCCP-based substitutions. It consults the def-use
@@ -624,13 +627,14 @@ fn run_function(
     cu: &CompilationUnit,
     fu: &FunctionUnit,
     script: &Script,
+    namespace: &str,
 ) {
     // Project the per-function SCCP lattice into a name → literal
     // map that survives only when every tracked version of the
     // variable collapses to the same single constant value.
     let constants = sccp_constants_for(fu);
     let numeric = numeric_var_names(fu);
-    walk_script(ctx, cu, script, &constants, Some(&numeric));
+    walk_script(ctx, cu, script, &constants, Some(&numeric), namespace);
 }
 
 fn walk_script(
@@ -639,9 +643,10 @@ fn walk_script(
     script: &Script,
     constants: &std::collections::HashMap<String, String>,
     numeric: NumericCtx<'_>,
+    namespace: &str,
 ) {
     for stmt in &script.statements {
-        walk_statement(ctx, cu, stmt, constants, numeric);
+        walk_statement(ctx, cu, stmt, constants, numeric, namespace);
     }
 }
 
@@ -651,6 +656,7 @@ fn walk_statement(
     stmt: &Statement,
     constants: &std::collections::HashMap<String, String>,
     numeric: NumericCtx<'_>,
+    namespace: &str,
 ) {
     match stmt {
         Statement::Call {
@@ -662,9 +668,9 @@ fn walk_statement(
         } => {
             if let Some(t) = tokens {
                 visit_call_tokens(ctx, t, constants);
-                visit_call_cmd_subst_folds(ctx, cu, t, constants);
+                visit_call_cmd_subst_folds(ctx, cu, t, constants, namespace);
             }
-            try_fold_static_proc_call(ctx, cu, *span, command, args);
+            try_fold_static_proc_call(ctx, cu, *span, command, args, namespace);
         }
         // `set TARGET [cmd-sub]` lowers to `AssignValue` carrying the
         // full command's tokens (`["set", TARGET, "[cmd-sub]"]`). Walk
@@ -685,7 +691,7 @@ fn walk_statement(
         Statement::AssignValue {
             tokens: Some(t), ..
         } => {
-            visit_call_cmd_subst_folds(ctx, cu, t, constants);
+            visit_call_cmd_subst_folds(ctx, cu, t, constants, namespace);
         }
         Statement::Return {
             span,
@@ -710,34 +716,34 @@ fn walk_statement(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(ctx, cu, &c.body, constants, numeric);
+                walk_script(ctx, cu, &c.body, constants, numeric, namespace);
             }
             if let Some(b) = else_body {
-                walk_script(ctx, cu, b, constants, numeric);
+                walk_script(ctx, cu, b, constants, numeric, namespace);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(ctx, cu, init, constants, numeric);
-            walk_script(ctx, cu, next, constants, numeric);
-            walk_script(ctx, cu, body, constants, numeric);
+            walk_script(ctx, cu, init, constants, numeric, namespace);
+            walk_script(ctx, cu, next, constants, numeric, namespace);
+            walk_script(ctx, cu, body, constants, numeric, namespace);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => walk_script(ctx, cu, body, constants, numeric),
+        | Statement::Foreach { body, .. } => walk_script(ctx, cu, body, constants, numeric, namespace),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_script(ctx, cu, body, constants, numeric);
+            walk_script(ctx, cu, body, constants, numeric, namespace);
             for h in handlers {
-                walk_script(ctx, cu, &h.body, constants, numeric);
+                walk_script(ctx, cu, &h.body, constants, numeric, namespace);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, cu, fb, constants, numeric);
+                walk_script(ctx, cu, fb, constants, numeric, namespace);
             }
         }
         Statement::Switch {
@@ -745,11 +751,11 @@ fn walk_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, cu, b, constants, numeric);
+                    walk_script(ctx, cu, b, constants, numeric, namespace);
                 }
             }
             if let Some(b) = default_body {
-                walk_script(ctx, cu, b, constants, numeric);
+                walk_script(ctx, cu, b, constants, numeric, namespace);
             }
         }
         _ => {}
@@ -925,6 +931,46 @@ fn parse_static_call_args(
     Some(out)
 }
 
+/// Resolve a call's head word to a procedure qname that has an
+/// interprocedural summary, walking the enclosing namespace chain for a
+/// bare call. Mirrors Python's `_resolve_summary_proc_name`:
+///
+/// * a `::`-qualified word is taken as-is;
+/// * a word containing `::` (relative-qualified) is rooted at `::`;
+/// * a bare word is tried against each enclosing namespace from the
+///   deepest (`::ns::sub::word`) out to the root (`::word`).
+///
+/// Returns the first candidate that has a summary, else `None`.
+fn resolve_proc_qname(
+    command: &str,
+    namespace: &str,
+    ia: &crate::interprocedural::InterproceduralAnalysis,
+) -> Option<String> {
+    if command.is_empty() {
+        return None;
+    }
+    if command.starts_with("::") || command.contains("::") {
+        let qname = if command.starts_with("::") {
+            command.to_owned()
+        } else {
+            format!("::{command}")
+        };
+        return ia.procedures.contains_key(&qname).then_some(qname);
+    }
+    let parts = super::helpers::naming::namespace_parts(namespace);
+    for depth in (0..=parts.len()).rev() {
+        let candidate = if depth > 0 {
+            format!("::{}::{command}", parts[..depth].join("::"))
+        } else {
+            format!("::{command}")
+        };
+        if ia.procedures.contains_key(&candidate) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
 /// O103: if `command` resolves to a proc with `can_fold_static_calls`
 /// and a `constant_return`, emit a rewrite replacing the call
 /// with the literal return value.
@@ -934,21 +980,15 @@ fn try_fold_static_proc_call(
     span: tcl_lexer::Span,
     command: &str,
     _args: &[String],
+    namespace: &str,
 ) {
     use crate::interprocedural::ConstantReturn;
 
     let Some(ia) = cu.interproc.as_ref() else {
         return;
     };
-    // Naive resolution: treat `command` as a qualified name when
-    // it starts with `::`, else try `::command`. The Python side
-    // does full namespace walking via `_resolve_summary_proc_name`;
-    // this scaled-down version catches the common case of calls
-    // written with their absolute names or at namespace root.
-    let qname = if command.starts_with("::") {
-        command.to_owned()
-    } else {
-        format!("::{command}")
+    let Some(qname) = resolve_proc_qname(command, namespace, ia) else {
+        return;
     };
     let Some(summary) = ia.procedures.get(&qname) else {
         return;
@@ -1200,6 +1240,7 @@ fn visit_call_cmd_subst_folds(
     cu: &CompilationUnit,
     tokens: &CommandTokens,
     constants: &std::collections::HashMap<String, String>,
+    namespace: &str,
 ) {
     use crate::interprocedural::ConstantReturn;
 
@@ -1297,10 +1338,8 @@ fn visit_call_cmd_subst_folds(
         let Some(head) = parse_cmd_subst_head(inner) else {
             continue;
         };
-        let qname = if head.starts_with("::") {
-            head.to_owned()
-        } else {
-            format!("::{head}")
+        let Some(qname) = resolve_proc_qname(head, namespace, ia) else {
+            continue;
         };
         let Some(summary) = ia.procedures.get(&qname) else {
             continue;
@@ -1969,6 +2008,36 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    #[test]
+    fn resolve_proc_qname_walks_namespace_chain() {
+        // Two procs in `::ns`; a bare `inner` call from `::ns` resolves to
+        // `::ns::inner`, not the (absent) root `::inner`.
+        let module = crate::lowering::lower_to_ir(
+            "namespace eval ::ns {\n proc inner {} { return 1 }\n proc outer {} { inner }\n}",
+            &registry(),
+        );
+        let ia = crate::interprocedural::build_interprocedural_analysis(&module, &registry(), None);
+        assert!(
+            ia.procedures.contains_key("::ns::inner"),
+            "expected ::ns::inner in IA, got {:?}",
+            ia.procedures.keys().collect::<Vec<_>>(),
+        );
+        assert_eq!(
+            resolve_proc_qname("inner", "::ns", &ia).as_deref(),
+            Some("::ns::inner"),
+            "bare call should resolve against the enclosing namespace",
+        );
+        // An absolute spelling is taken as-is.
+        assert_eq!(
+            resolve_proc_qname("::ns::inner", "::other", &ia).as_deref(),
+            Some("::ns::inner"),
+        );
+        // A bare call with no matching namespace candidate fails to resolve.
+        assert_eq!(resolve_proc_qname("missing", "::ns", &ia), None);
+        // From the root namespace a bare `inner` does *not* reach `::ns::inner`.
+        assert_eq!(resolve_proc_qname("inner", "::", &ia), None);
     }
 
     /// Run the whole optimiser (raw, unfiltered) so the registry is
