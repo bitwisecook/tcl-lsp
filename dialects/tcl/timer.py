@@ -23,12 +23,12 @@ _av = make_av(_SOURCE)
 
 # The ``unit`` argument of every timer subcommand accepts these spellings.
 _UNITS = (
-    _av("us", "Microseconds.", "timer in time us ?script?"),
-    _av("ms", "Milliseconds.", "timer in time ms ?script?"),
-    _av("s", "Seconds.", "timer in time s ?script?"),
-    _av("microseconds", "Microseconds.", "timer in time microseconds ?script?"),
-    _av("milliseconds", "Milliseconds.", "timer in time milliseconds ?script?"),
-    _av("seconds", "Seconds.", "timer in time seconds ?script?"),
+    _av("us", "Microseconds.", "timer in delay us script"),
+    _av("ms", "Milliseconds.", "timer in delay ms script"),
+    _av("s", "Seconds.", "timer in delay s script"),
+    _av("microseconds", "Microseconds.", "timer in delay microseconds script"),
+    _av("milliseconds", "Milliseconds.", "timer in delay milliseconds script"),
+    _av("seconds", "Seconds.", "timer in delay seconds script"),
 )
 
 _BODY = frozenset({ArgRole.BODY})
@@ -67,13 +67,13 @@ class TimerCommand(CommandDef):
                             _av(
                                 "in",
                                 "Execute the script after a monotonic delay; returns a timer id.",
-                                "timer in time unit ?script?",
+                                "timer in delay unit script",
                             ),
                             _av(
                                 "at",
                                 "Execute the script at a wall-clock time point; "
                                 "returns a timer id.",
-                                "timer at time unit ?script?",
+                                "timer at timepoint unit script",
                             ),
                             _av(
                                 "info",
@@ -104,12 +104,13 @@ class TimerCommand(CommandDef):
             subcommands={
                 "in": SubCommand(
                     name="in",
-                    arity=Arity(2, 3),
+                    arity=Arity(3, 3),
                     detail=(
-                        "Execute the script after a monotonic delay of time units; "
-                        "returns a timer id when a script is given, otherwise blocks."
+                        "Execute the script after a monotonic delay of delay time "
+                        "units; returns a timer id. The blocking form is "
+                        "`timer sleep`."
                     ),
-                    synopsis="timer in time unit ?script?",
+                    synopsis="timer in delay unit script",
                     arg_values={1: _UNITS},
                     arg_roles={2: _BODY},
                     body_kind=BodyKind.STRUCTURAL,
@@ -118,12 +119,13 @@ class TimerCommand(CommandDef):
                 ),
                 "at": SubCommand(
                     name="at",
-                    arity=Arity(2, 3),
+                    arity=Arity(3, 3),
                     detail=(
-                        "Execute the script at a wall-clock time point expressed in "
-                        "time units; returns a timer id when a script is given."
+                        "Execute the script at a wall-clock timepoint expressed in "
+                        "time units; returns a timer id. The blocking form is "
+                        "`timer sleep`."
                     ),
-                    synopsis="timer at time unit ?script?",
+                    synopsis="timer at timepoint unit script",
                     arg_values={1: _UNITS},
                     arg_roles={2: _BODY},
                     body_kind=BodyKind.STRUCTURAL,

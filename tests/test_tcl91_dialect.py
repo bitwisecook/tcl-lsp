@@ -70,6 +70,17 @@ def test_timer_ensemble_subcommands():
     )
 
 
+def test_timer_in_at_require_script():
+    # Tcl 9.1: `timer in delay unit script` / `timer at timepoint unit script`
+    # require the script; the blocking form is `timer sleep`.
+    spec = REGISTRY.get("timer", "tcl9.1")
+    assert spec is not None
+    for name in ("in", "at"):
+        sub = spec.subcommands[name]
+        assert sub.arity.min == 3
+        assert sub.arity.max == 3
+
+
 def test_subst_positive_options_gated_to_tcl91():
     spec = REGISTRY.get("subst", "tcl9.1")
     assert spec is not None
