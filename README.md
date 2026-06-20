@@ -1630,6 +1630,7 @@ different Tcl versions without manual switching.
 | `tcl8.5` | Tcl 8.5 core commands (adds `{*}`, `lassign`, `dict`, etc.) |
 | `tcl8.6` | Tcl 8.6 core commands (adds `try`/`finally`, `tailcall`, coroutines) -- **default** |
 | `tcl9.0` | Tcl 9.0 core commands (adds `lpop`, zipfs, updated `encoding`) |
+| `tcl9.1` | Tcl 9.1 core commands (superset of 9.0; adds the `unicode` and `timer` ensembles and `subst`'s positive `-backslashes`/`-commands`/`-variables` options) |
 | `f5-irules` | F5 BIG-IP iRules: HTTP/SSL/DNS/LB namespaces, event-validity checks, taint analysis, `static::` scoping rules |
 | `f5-iapps` | F5 iApps template commands |
 | `f5-bigip` | F5 BIG-IP configuration (`bigip.conf`) commands |

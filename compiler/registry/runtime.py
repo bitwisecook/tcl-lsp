@@ -754,7 +754,7 @@ def _build_signatures(
     signatures: dict[str, CommandSig | SubcommandSig]
 
     match dialect:
-        case "tcl8.4" | "tcl8.5" | "tcl8.6" | "tcl9.0":
+        case "tcl8.4" | "tcl8.5" | "tcl8.6" | "tcl9.0" | "tcl9.1":
             signatures = _registry_signatures_for_dialect(dialect)
         case "f5-irules":
             signatures = _registry_signatures_for_dialect("tcl8.6")

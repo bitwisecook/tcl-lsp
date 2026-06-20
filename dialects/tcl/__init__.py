@@ -125,9 +125,11 @@ from . import (
     tell,  # noqa: F401
     throw,  # noqa: F401
     time,  # noqa: F401
+    timer,  # noqa: F401
     timerate,  # noqa: F401
     trace,  # noqa: F401
     try_,  # noqa: F401
+    unicode_,  # noqa: F401
     unknown,  # noqa: F401
     unload,  # noqa: F401
     unset,  # noqa: F401

@@ -50,6 +50,12 @@ class SubstCommand(CommandDef):
                         OptionSpec(name="-nobackslashes"),
                         OptionSpec(name="-nocommands"),
                         OptionSpec(name="-novariables"),
+                        # Tcl 9.1 (TIP) adds positive forms that enable only the
+                        # named substitutions.  Positive and negated options may
+                        # not be combined in a single call.
+                        OptionSpec(name="-backslashes", dialects=frozenset({"tcl9.1"})),
+                        OptionSpec(name="-commands", dialects=frozenset({"tcl9.1"})),
+                        OptionSpec(name="-variables", dialects=frozenset({"tcl9.1"})),
                     ),
                 ),
             ),
