@@ -11156,7 +11156,11 @@ completing the track. The sole remaining item is deferred by design (rope-backed
   `server/features/code_actions.py`. Verified against the native binary (the
   "Add 'event disable all' + 'return'" quick-fix is offered for an unguarded
   `drop`).
-- **deferred (architecture)** a rope-backed `DocumentState` — the analysis
-  pipeline is `&str`/byte-offset throughout, so a rope would still have to
-  materialise a `String` (`O(n)`) for every analysis; not worth the dependency +
-  hot-path churn until the pipeline itself is rope-aware.
+- **split into its own track (SRV-ROPE)** a rope-backed `DocumentState` — the
+  analysis pipeline is `&str`/byte-offset throughout, so a rope would still have
+  to materialise a `String` (`O(n)`) for every analysis. The need was evaluated
+  with a reproducible benchmark (see [`design/rope/`](design/rope/README.md)):
+  a standalone swap is net-neutral-to-negative (no time-to-first-tokens benefit,
+  no salsa incrementality, 1.4–1.9× memory for many small docs), so the work is
+  scoped as the cross-crate **SRV-ROPE** track in `rust-rewrite.md`, with the
+  cheap persisted-`LineIndex` win as its first step.
