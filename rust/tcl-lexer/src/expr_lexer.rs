@@ -426,7 +426,12 @@ impl<'s> Inner<'s> {
 
     fn multi_op(&mut self) -> Option<ExprToken> {
         for &op in MULTI_OPS {
-            if self.s[self.i..].starts_with(op) {
+            // Compare on bytes, not `self.s[self.i..]`: `self.i` is a byte index
+            // that the byte-wise scanner can leave *inside* a multi-byte UTF-8
+            // char (e.g. a non-ASCII variable name like `$itemés`), and string
+            // slicing at a non-char-boundary panics. Every `MULTI_OPS` entry is
+            // ASCII, so a byte-prefix check is exactly equivalent and total.
+            if self.b[self.i..].starts_with(op.as_bytes()) {
                 if matches!(op, "eq" | "ne" | "in" | "ni" | "lt" | "le" | "gt" | "ge") {
                     if self.i > 0 {
                         let prev = self.b[self.i - 1];
@@ -613,5 +618,41 @@ mod tests {
     fn checked_no_unknown() {
         let (_, u) = tokenise_expr_checked("1 + 2", None);
         assert!(!u);
+    }
+
+    #[test]
+    fn non_ascii_does_not_panic_at_operator_scan() {
+        // Regression: the byte-wise scanner steps over a multi-byte UTF-8 char
+        // (e.g. `é`) one byte at a time, so a later `multi_op` check ran at a
+        // byte index *inside* the char. The old `self.s[self.i..]` string slice
+        // panicked on the non-char-boundary; the byte-prefix check is total.
+        // Surfaced via the optimiser running the expr lexer on a `foreach` whose
+        // list variable had a non-ASCII name (`foreach item $itemés { … }`).
+        for src in [
+            "é",
+            "$itemés",
+            "aé eq b",
+            "$x + é",
+            " café ne thé",
+            "\u{e9}\u{e9}\u{e9}",
+        ] {
+            // The regression guard is that neither entry point panics; both must
+            // also agree on the token stream they produce.
+            let toks = tokenise_expr(src, None);
+            let (checked, _unknown) = tokenise_expr_checked(src, None);
+            assert_eq!(
+                toks.len(),
+                checked.len(),
+                "entry points disagree for {src:?}"
+            );
+        }
+        // The non-ASCII char must not swallow a following operator: the scan has
+        // to make progress past it and still recognise the `+`.
+        let plus = tokenise_expr("$x + é", None);
+        assert!(
+            plus.iter()
+                .any(|t| t.kind == ExprTokenType::Operator && t.text == "+"),
+            "operator after non-ASCII not found: {plus:?}",
+        );
     }
 }
