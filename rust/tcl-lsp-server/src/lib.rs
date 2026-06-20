@@ -440,6 +440,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
             &compiler_diags,
             optimiser_enabled,
             &opt_disabled,
+            &disabled,
         ));
         diagnostics.extend(lift_source_style_diagnostics(
             &lift_text,
@@ -2612,6 +2613,7 @@ impl Backend {
                 &compiler_diags,
                 optimiser_enabled,
                 &opt_disabled,
+                &disabled,
             ));
             diagnostics.extend(lift_source_style_diagnostics(
                 &text,
@@ -4434,11 +4436,23 @@ impl LanguageServer for Backend {
                 &doc.text,
                 &context_diags,
             ));
-            // iRules-only: the `# Profiles:` header source action.
-            if dialect == "f5-irules"
-                && let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, &registry)
-            {
-                actions.push(a);
+            // iRules-only: the `# Profiles:` header source action plus the
+            // control-flow quick-fixes (IRULE5002 unguarded drop / IRULE5004
+            // DNS::return) the analyser produces through the compiler-checks
+            // pass rather than `AnalysisResult.diagnostics`.  Only the iRules
+            // dialect's checks carry fixes, so the (re-)lowering is gated here.
+            if dialect == "f5-irules" {
+                if let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, &registry)
+                {
+                    actions.push(a);
+                }
+                let checks =
+                    tcl_lsp_db::compiler_check_diagnostics_uncached(&doc.text, &registry, &dialect);
+                actions.extend(core_code_actions::check_diagnostic_actions(
+                    &doc.text,
+                    range,
+                    &checks.checks,
+                ));
             }
             actions
         })
@@ -5435,6 +5449,7 @@ fn lift_compiler_diagnostics(
     diags: &tcl_lsp_db::CompilerDiagnostics,
     optimiser_enabled: bool,
     disabled_optimisations: &std::collections::HashSet<String>,
+    disabled_diagnostics: &std::collections::HashSet<String>,
 ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
     use tcl_compiler::compiler_checks::Severity as CheckSeverity;
     use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
@@ -5459,6 +5474,16 @@ fn lift_compiler_diagnostics(
     for d in &diags.checks {
         let d = d.clone();
         if optimiser_suppressed(&d.code) {
+            continue;
+        }
+        // GAP-C1: per-check feature toggle (`tclLsp.diagnostics.<CODE> = false`).
+        // The analyser path bakes the disabled set into its build, but the
+        // compiler-checks (S1xx shimmer, T1xx / W2xx taint, IRULE1xxx-5xxx flow,
+        // GVN, SCCP constant-branch) come through this separate lift, so the
+        // toggle must be applied here too — mirrors the uniform
+        // `d.code in disabled_diagnostics` filter in
+        // `server/features/diagnostics.py`.
+        if disabled_diagnostics.contains(&d.code) {
             continue;
         }
         out.push(tower_lsp::lsp_types::Diagnostic {
@@ -6052,6 +6077,7 @@ mod tests {
             &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, ""),
             true,
             &std::collections::HashSet::new(),
+            &std::collections::HashSet::new(),
         );
         assert!(
             diags.iter().any(|d| matches!(
@@ -6076,6 +6102,7 @@ mod tests {
             &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, ""),
             false,
             &std::collections::HashSet::new(),
+            &std::collections::HashSet::new(),
         );
         assert!(
             !off.iter().any(is_o100),
@@ -6090,6 +6117,7 @@ mod tests {
             &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, ""),
             true,
             &disabled,
+            &std::collections::HashSet::new(),
         );
         assert!(
             !per_code.iter().any(is_o100),
@@ -6107,8 +6135,13 @@ mod tests {
         registry.load_irules();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
         let cdiags = tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules");
-        let diags =
-            lift_compiler_diagnostics(src, &cdiags, true, &std::collections::HashSet::new());
+        let diags = lift_compiler_diagnostics(
+            src,
+            &cdiags,
+            true,
+            &std::collections::HashSet::new(),
+            &std::collections::HashSet::new(),
+        );
         assert!(
             diags.iter().any(|d| matches!(
                 &d.code,
@@ -6116,6 +6149,47 @@ mod tests {
             )),
             "expected IRULE3001, got: {:?}",
             diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
+        );
+    }
+
+    /// GAP-C1: a per-check feature toggle (`tclLsp.diagnostics.<CODE> = false`)
+    /// must suppress a compiler-*check* code — not just the analyser families.
+    /// IRULE3001 comes through the compiler-checks lift, so disabling it via the
+    /// `disabled_diagnostics` set must drop it from the published set while
+    /// leaving other codes untouched.
+    #[test]
+    fn lift_compiler_diagnostics_honours_per_check_disable() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
+        let cdiags = tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules");
+        let is_irule3001 = |d: &tower_lsp::lsp_types::Diagnostic| matches!(&d.code, Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "IRULE3001");
+        // Baseline: IRULE3001 is present with no disabled codes.
+        let baseline = lift_compiler_diagnostics(
+            src,
+            &cdiags,
+            true,
+            &std::collections::HashSet::new(),
+            &std::collections::HashSet::new(),
+        );
+        assert!(
+            baseline.iter().any(is_irule3001),
+            "expected IRULE3001 baseline"
+        );
+        // Disable IRULE3001 via the per-check toggle: it must disappear.
+        let mut disabled_diagnostics = std::collections::HashSet::new();
+        disabled_diagnostics.insert("IRULE3001".to_string());
+        let filtered = lift_compiler_diagnostics(
+            src,
+            &cdiags,
+            true,
+            &std::collections::HashSet::new(),
+            &disabled_diagnostics,
+        );
+        assert!(
+            !filtered.iter().any(is_irule3001),
+            "IRULE3001 must be suppressed when disabled per-check: {:?}",
+            filtered.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
         );
     }
 
