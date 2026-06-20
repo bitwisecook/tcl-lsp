@@ -67,7 +67,7 @@ data modules a utility can inspect without pulling compiler or LSP code.
 `shared → compiler → dialects → analyser → server/tooling → ai`, with
 seven `import-linter` contracts.  As of this branch there are **zero
 upward carve-outs in the analyser and dialects contracts** — both were
-removed during PyO3-readiness work (see below).  The remaining
+removed during PyO3-readiness work.  The remaining
 documented carve-outs are narrow and intentional:
 
 - `dialects/` may import `compiler.registry` / `compiler.parsing` /
@@ -82,33 +82,6 @@ documented carve-outs are narrow and intentional:
 Read `docs/design/contracts/project-layout.md` (Python tree) for the
 authoritative contract text — it is the spec the Rust crate graph
 should not violate either.
-
-### PyO3-readiness changes already made on the Python side
-
-These are *Python* changes that pre-shape the eventual binding surface;
-the Rust ports should preserve their shape:
-
-- **Ambient-free F5 query session.** `dialects.f5.query` now exposes
-  `QueryOptions` (frozen) + `QuerySession` + `prepare_query_session()` +
-  `run_query_in_session()`.  The runner still uses `ContextVar`s
-  internally, but the *public* surface is an explicit session a caller
-  builds once and reuses — this is the shape `query_bigip` /
-  `QuerySession` should own in Rust (own a parsed-config session, run
-  many queries without reparsing).  `run_query()` and the fluent `q()`
-  remain thin wrappers.
-- **Upward dependencies inverted.** The proc-doc fallback extractor
-  moved to the leaf `shared.docstrings` (was `tooling.formatter`); the
-  iRule-simulation bridge moved to `tooling.f5.irule_simulation` and
-  `dialects.f5.bigip.explain_flow` now takes an injected
-  `IruleSimulator` instead of importing the test framework.  Net: the
-  analyser and dialects crates will have **no edge into tooling**.
-- **Module splits that map to crate modules.**
-  `tooling.cli.pipeline` → `tooling.explorer.pipeline` (argparse-free,
-  source-in/result-out); `compiler.codegen.wasm.__init__` (763 lines) →
-  `api.py` + `proc_scan.py` with a re-export-only `__init__`;
-  `dialects.f5.bigip.explain_flow` (2572 lines) → a `flow/` subpackage
-  (`_model`, `packets`, `sessions`, `tshark`) for the config-agnostic
-  half, leaving config-aware matching/policy/report in the parent.
 
 ### Recommended PyO3 facade surface (not yet built in Python)
 
@@ -163,16 +136,12 @@ The eventual end state is:
   tests. The legacy `tests/` directory shrinks to zero by the final
   retirement task.
 
-We get there by porting the codebase bottom-up, in dependency order. The
-foundation layers have **landed**: the lexer / segmenter / expr sub-lexer
-(`tcl-lexer`, `tcl-syntax`), the compiler (IR, CFG, SSA, lowering, the
-optimiser, and bytecode codegen in `tcl-compiler`), and the LSP server
-(`tcl-lsp-server`) — which is **now the default backend** (the Python server is
-an explicit opt-out). What remains is the bytecode VM, the WASM emitter, the
-CLI / tooling layer, and finally the PyO3 public surface plus Python
-retirement. That front of work, organised into parallel tracks in dependency
-order, is the [Remaining work](#remaining-work) section below; the landed
-foundation history is in the [archive](rust-rewrite-history.md).
+We get there by porting the codebase bottom-up, in dependency order: each
+layer's behaviour is reproduced and proven against the Python oracle before the
+layer above it leans on it. The foundation layers (lexer, compiler, and the LSP
+server) have already landed — that history is in the
+[archive](rust-rewrite-history.md). What remains, organised into parallel tracks
+in dependency order, is the [Remaining work](#remaining-work) section below.
 
 `editors/zed/` is already a standalone Rust crate targeting WASM and is
 unrelated to this rewrite. It's intentionally excluded from the main
@@ -437,19 +406,6 @@ the document store (beyond the rope adapter).
 [`SourceMap`]: ../rust/tcl-lexer/src/source_map.rs
 [`ropey::Rope`]: https://docs.rs/ropey
 
-### Deferred work (lexer)
-
-The L0–L13 lexer migration is complete — every token kind, the expression
-sub-lexer, the spans / line-index / source-map, and the red-green CST are in
-Rust, and the segmenter is a view over the CST. The lone-CR line-index rule
-(`\n`-only) and the UTF-16 column primitive (`LineIndex::position_at_utf16`)
-have landed. The residual lexer-layer gaps — the `${name}` brace-depth scan,
-the quoted `\<newline>` build divergence, and the nested-body E202/E203
-detectors — were the **FE-LEX** track and have now **landed** (archived in
-[`rust-rewrite-history.md`](rust-rewrite-history.md), 2026-06-19); routing the
-last byte-column call sites through the UTF-16 primitive is part of the
-**SRV-LSP** track.
-
 ## How we're doing it
 
 ### Layered crates, not shim-owned features
@@ -536,27 +492,6 @@ Hook identifiers are part of the registry contract. They should be typed
 enums or strongly-typed generated constants, not public bare `u16`
 values. The compiler maps hook identifiers to algorithms; the registry
 decides which identifier applies to a command form.
-
-### Restructure before new surface area
-
-Before adding more migrated feature surface, pay down the architectural
-debt exposed by the review. Land the restructure in small, shippable
-tasks:
-
-1. Create `tcl-lsp-core` and move pure LSP provider logic out of
-   `tcl-lsp-rust`. Start with folding because it is already isolated.
-2. Rename the PyO3 boundary in documentation and code ownership terms:
-   `tcl-lsp-rust` is transitional compatibility; `tcl-lsp-py` is the
-   intended public binding crate.
-3. Expand `tcl-registry` so command forms, hook IDs, taint metadata,
-   side effects, and option/form knowledge are registry data.
-4. Replace compiler/analyser name dispatch with registry-driven
-   resolution. The first consumer should be lowering/codegen hooks, then
-   structured command lowering, then taint/iRules diagnostics, then
-   side-effect classification.
-5. Add a current-state architecture doc once the split starts. It should
-   say which Rust paths are authoritative, which Python supplements still
-   exist, and which fallbacks are planned for removal.
 
 ### Always shippable, small tasks
 
