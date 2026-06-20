@@ -67,7 +67,7 @@ data modules a utility can inspect without pulling compiler or LSP code.
 `shared → compiler → dialects → analyser → server/tooling → ai`, with
 seven `import-linter` contracts.  As of this branch there are **zero
 upward carve-outs in the analyser and dialects contracts** — both were
-removed during PyO3-readiness work (see below).  The remaining
+removed during PyO3-readiness work.  The remaining
 documented carve-outs are narrow and intentional:
 
 - `dialects/` may import `compiler.registry` / `compiler.parsing` /
@@ -82,33 +82,6 @@ documented carve-outs are narrow and intentional:
 Read `docs/design/contracts/project-layout.md` (Python tree) for the
 authoritative contract text — it is the spec the Rust crate graph
 should not violate either.
-
-### PyO3-readiness changes already made on the Python side
-
-These are *Python* changes that pre-shape the eventual binding surface;
-the Rust ports should preserve their shape:
-
-- **Ambient-free F5 query session.** `dialects.f5.query` now exposes
-  `QueryOptions` (frozen) + `QuerySession` + `prepare_query_session()` +
-  `run_query_in_session()`.  The runner still uses `ContextVar`s
-  internally, but the *public* surface is an explicit session a caller
-  builds once and reuses — this is the shape `query_bigip` /
-  `QuerySession` should own in Rust (own a parsed-config session, run
-  many queries without reparsing).  `run_query()` and the fluent `q()`
-  remain thin wrappers.
-- **Upward dependencies inverted.** The proc-doc fallback extractor
-  moved to the leaf `shared.docstrings` (was `tooling.formatter`); the
-  iRule-simulation bridge moved to `tooling.f5.irule_simulation` and
-  `dialects.f5.bigip.explain_flow` now takes an injected
-  `IruleSimulator` instead of importing the test framework.  Net: the
-  analyser and dialects crates will have **no edge into tooling**.
-- **Module splits that map to crate modules.**
-  `tooling.cli.pipeline` → `tooling.explorer.pipeline` (argparse-free,
-  source-in/result-out); `compiler.codegen.wasm.__init__` (763 lines) →
-  `api.py` + `proc_scan.py` with a re-export-only `__init__`;
-  `dialects.f5.bigip.explain_flow` (2572 lines) → a `flow/` subpackage
-  (`_model`, `packets`, `sessions`, `tshark`) for the config-agnostic
-  half, leaving config-aware matching/policy/report in the parent.
 
 ### Recommended PyO3 facade surface (not yet built in Python)
 
@@ -163,16 +136,12 @@ The eventual end state is:
   tests. The legacy `tests/` directory shrinks to zero by the final
   retirement task.
 
-We get there by porting the codebase bottom-up, in dependency order. The
-foundation layers have **landed**: the lexer / segmenter / expr sub-lexer
-(`tcl-lexer`, `tcl-syntax`), the compiler (IR, CFG, SSA, lowering, the
-optimiser, and bytecode codegen in `tcl-compiler`), and the LSP server
-(`tcl-lsp-server`) — which is **now the default backend** (the Python server is
-an explicit opt-out). What remains is the bytecode VM, the WASM emitter, the
-CLI / tooling layer, and finally the PyO3 public surface plus Python
-retirement. That front of work, organised into parallel tracks in dependency
-order, is the [Remaining work](#remaining-work) section below; the landed
-foundation history is in the [archive](rust-rewrite-history.md).
+We get there by porting the codebase bottom-up, in dependency order: each
+layer's behaviour is reproduced and proven against the Python oracle before the
+layer above it leans on it. The foundation layers (lexer, compiler, and the LSP
+server) have already landed — that history is in the
+[archive](rust-rewrite-history.md). What remains, organised into parallel tracks
+in dependency order, is the [Remaining work](#remaining-work) section below.
 
 `editors/zed/` is already a standalone Rust crate targeting WASM and is
 unrelated to this rewrite. It's intentionally excluded from the main
@@ -437,19 +406,6 @@ the document store (beyond the rope adapter).
 [`SourceMap`]: ../rust/tcl-lexer/src/source_map.rs
 [`ropey::Rope`]: https://docs.rs/ropey
 
-### Deferred work (lexer)
-
-The L0–L13 lexer migration is complete — every token kind, the expression
-sub-lexer, the spans / line-index / source-map, and the red-green CST are in
-Rust, and the segmenter is a view over the CST. The lone-CR line-index rule
-(`\n`-only) and the UTF-16 column primitive (`LineIndex::position_at_utf16`)
-have landed. The residual lexer-layer gaps — the `${name}` brace-depth scan,
-the quoted `\<newline>` build divergence, and the nested-body E202/E203
-detectors — were the **FE-LEX** track and have now **landed** (archived in
-[`rust-rewrite-history.md`](rust-rewrite-history.md), 2026-06-19); routing the
-last byte-column call sites through the UTF-16 primitive is part of the
-**SRV-LSP** track.
-
 ## How we're doing it
 
 ### Layered crates, not shim-owned features
@@ -466,12 +422,13 @@ The Rust workspace has three kinds of crates:
   debugger, compiler explorer helpers, and release tooling. They depend
   on pure crates, not on PyO3 bindings.
 
-The current transitional binding crate is `rust/tcl-lsp-rust/` because
-the Python shims already import the `tcl_lsp_rust` extension module. Treat
-that crate as a compatibility wrapper. It must not own compiler, analyser,
-registry, or LSP feature logic. When the public Python API is designed,
-the stable binding crate becomes `rust/tcl-lsp-py/` and
-`tcl-lsp-rust` either disappears or stays as a one-release import alias.
+The binding crate is now `rust/tcl-lsp-py/` (the `#[pymodule] tcl_lsp_py`
+public PyO3 surface); `rust/tcl-lsp-rust/` has been reduced to a **transitional
+alias** that re-exports `tcl-lsp-py` under the legacy `tcl_lsp_rust` module name
+the Python shims still import, and retires in vNext. Treat both as compatibility
+wrappers: neither owns compiler, analyser, registry, or LSP feature logic. The
+public-API design work (the `tcl-lsp-py` surface proper) is **API-PYO3**, the
+final track.
 
 Target dependency direction:
 
@@ -536,27 +493,6 @@ enums or strongly-typed generated constants, not public bare `u16`
 values. The compiler maps hook identifiers to algorithms; the registry
 decides which identifier applies to a command form.
 
-### Restructure before new surface area
-
-Before adding more migrated feature surface, pay down the architectural
-debt exposed by the review. Land the restructure in small, shippable
-tasks:
-
-1. Create `tcl-lsp-core` and move pure LSP provider logic out of
-   `tcl-lsp-rust`. Start with folding because it is already isolated.
-2. Rename the PyO3 boundary in documentation and code ownership terms:
-   `tcl-lsp-rust` is transitional compatibility; `tcl-lsp-py` is the
-   intended public binding crate.
-3. Expand `tcl-registry` so command forms, hook IDs, taint metadata,
-   side effects, and option/form knowledge are registry data.
-4. Replace compiler/analyser name dispatch with registry-driven
-   resolution. The first consumer should be lowering/codegen hooks, then
-   structured command lowering, then taint/iRules diagnostics, then
-   side-effect classification.
-5. Add a current-state architecture doc once the split starts. It should
-   say which Rust paths are authoritative, which Python supplements still
-   exist, and which fallbacks are planned for removal.
-
 ### Always shippable, small tasks
 
 Every PR leaves the extension fully working. The CI gate is the same gate
@@ -600,9 +536,9 @@ removed outright in a follow-up task. Do not let fallbacks accumulate.
 
 - The main `pyproject.toml` stays on `hatchling`. The Rust wheel is built
   by `maturin` from its own binding-crate `pyproject.toml` and is a
-  **separate** distribution. During the transition that crate is
-  `rust/tcl-lsp-rust/`; after the public API split it is
-  `rust/tcl-lsp-py/`. No mixed hatchling/maturin hybrid.
+  **separate** distribution. That crate is now `rust/tcl-lsp-py/`
+  (`rust/tcl-lsp-rust/` is a retiring re-export alias). No mixed
+  hatchling/maturin hybrid.
 - Rust wheels ship as GitHub release artifacts on tagged releases, not
   PyPI. `scripts/build_zipapp.py` fetches them at packaging time and
   bundles them alongside the zipapp.
@@ -760,99 +696,53 @@ If your port has any of these, reshape it before asking for review:
 
 ## Reference file layout
 
+The workspace (`Cargo.toml` members) as it stands today — crate granularity,
+roughly in dependency order. New crates the [Remaining work](#remaining-work)
+plan still calls for (`tcl-wasm`, `tcl-pkg`, `tcl-xc`, `tcl-fuzz`,
+`tcl-debugger`, `tcl-irule-test`) are **not** listed here because they do not
+exist yet.
+
 ```
-Cargo.toml                               workspace manifest
-rust-toolchain.toml                      channel = "stable"
+Cargo.toml                workspace manifest        rust-toolchain.toml  channel = "stable"
 rust/
-  tcl-lexer/                             pure Rust lexer crate
-    Cargo.toml
-    src/
-      lib.rs
-      substitution.rs                    backslash_subst (L1)
-      tokens.rs                          Token, TokenType, SourcePosition (L2)
-      span.rs                            Span — byte range (L3)
-      line_index.rs                      LineIndex — byte offset → line/col (L3)
-      source_map.rs                      SourceMap — source + LineIndex (L3)
-      lexer.rs                           Lexer skeleton (L3)
-  tcl-compiler/                          pure Rust compiler crate
-    Cargo.toml
-    src/
-      lib.rs
-      analyses.rs                        LatticeValue, FunctionAnalysis, ModuleAnalysis (C5)
-      cfg.rs                             Block, Function, CfgModule, Terminator (C2)
-      codegen/                           bytecode emitter directory module
-        mod.rs                           Op, Instruction, LiteralTable, CodegenCtx (C4)
-        helpers.rs                       list/dict/format folding helpers (C11)
-        values.rs                        push_lit, load/store_var, emit_incr (C11)
-        expressions.rs                   emit_expr for ExprNode variants (C11)
-        statements.rs                    emit_stmt dispatch (C12)
-        peephole.rs                      post-emission cleanups (C13)
-        layout.rs                        jump shrinking + byte offsets (C14)
-        format.rs                        disassembly rendering (C14)
-        cmd_subst.rs                     [cmd ...] inline dispatch (C15)
-        control_flow.rs                  catch/try inline emission (C16)
-        emitter/                         main emitter loop (C17)
-          mod.rs                         module glue + public API
-          ordering.rs                    linearise, loop body, branch folding
-          terminator.rs                  CFG terminator emission
-          proc_defs.rs                   proc def interleaving
-          loop_blocks.rs                 foreach/while/for block handlers
-          try_blocks.rs                  try/finally CFG detection
-          generate.rs                    main generate() dispatcher
-          bytecoded.rs                   registry-backed codegen hooks
-      expr_ast.rs                        ExprNode, BinOp, UnaryOp, render_expr (C0)
-      expr_parser.rs                     Pratt parser: ExprToken → ExprNode (C1)
-      ir.rs                              Statement, Script, Procedure, Module (C0)
-      naming.rs                          normalise_var_name (C1)
-      ssa.rs                             Phi, SsaBlock, SsaFunction, dominators (C3)
-      types.rs                           TypeLattice, type_join (C5, re-exports TclType from registry)
-  tcl-registry/                          command registry — single source of truth (R0)
-    Cargo.toml
-    src/
-      lib.rs                             crate root, prelude
-      arg_role.rs                        ArgRole enum (12 variants)
-      arity.rs                           Arity { min, max }
-      traits.rs                          Traits bitflags (u64, 38 flags)
-      dialects.rs                        DialectSet bitflags
-      types.rs                           TclType (canonical home)
-      spec.rs                            CommandSpec, SubCommand
-      registry.rs                        CommandRegistry facade
-      hover.rs                           HoverSnippet, OptionSpec, FormSpec
-      side_effects.rs                    SideEffect, StorageType
-      hooks.rs                           typed LoweringHookId / CodegenHookId, ArgTypeHint
-      forms.rs                           command / subcommand form descriptors
-      taint.rs                           taint source/sink/sanitiser metadata
-      commands/tcl/*.rs                  one file per Tcl command (114 ported)
-      commands/irules/*.rs               one file per iRules command (1015 ported)
-  tcl-lsp-core/                          pure Rust LSP feature providers
-    Cargo.toml
-    src/
-      lib.rs                             feature module exports
-      folding.rs                         folding range provider
-      diagnostics.rs                     diagnostic projection helpers
-      symbols.rs                         document/workspace symbol providers
-  tcl-lsp-rust/                          transitional PyO3 binding crate
-    Cargo.toml
-    pyproject.toml                       maturin build backend
-    src/
-      lib.rs                             #[pymodule] tcl_lsp_rust
-      folding_binding.rs                 wrapper around tcl-lsp-core::folding
-  tcl-lsp-py/                            final public PyO3 API crate
-    Cargo.toml
-    pyproject.toml                       maturin build backend
-    src/
-      lib.rs                             #[pymodule] tcl_lsp_py
-  tcl-lsp-server/                        tower-lsp binary
-    Cargo.toml
-    src/
-      main.rs                            Tokio runtime + stdio transport
-      server.rs                          Backend implementation
-      document_store.rs                  ropey-backed async document state
-scripts/
-  build_zipapp.py                        _RUST_NATIVE_PACKAGES strip rule
-.github/workflows/ci.yml                 rust job + release wheel matrix
-Makefile                                 rust-build/test/lint/format
-tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
+  # --- shared vocabulary / host seam (leaf) ---
+  tcl-core-types/         dependency-free shared vocabulary (Code, Completion, opaque handles)
+  tcl-platform/           host-capability seam (Filesystem/Clock/Env/StdIo/Sockets/Process)
+  tcl-host-native/        std-backed NativeHost (full-capability Host impl)
+  tcl-cmd-core/           portable Tcl command logic (string/list/dict/…) generic over ValueOps
+  tcl-runtime-api/        Family-B runtime-state contract (handles, role traits, CompileService)
+  # --- lexer / syntax ---
+  tcl-lexer/              position-aware lexer (Span, LineIndex, SourceMap, CST) for Tcl + dialects
+  tcl-syntax/             shared parse-tree + byte-exact semantics (lists, subst, expr, format)
+  # --- registry (single source of truth) ---
+  tcl-registry/           command metadata: ArgRole, Arity, Traits, taint, hooks, BytePayloadSpec,
+                          commands/{tcl,irules}/*.rs (one file per command)
+  # --- compiler + runtime ---
+  tcl-bytecode/           Tcl 9 bytecode artifact types (opcodes, FunctionAsm/ModuleAsm, layout, disasm)
+  tcl-compiler/           IR, lowering, CFG, SSA, dataflow (sccp/intervals/memory_ssa), type_infer,
+                          shimmer, var_escape, optimiser, inlining, analyser, irules_checks, codegen/{,wasm}
+  tcl-vm/                 native Rust bytecode VM (TCLVM)
+  # --- F5 dialect crates ---
+  tcl-bigip/              BIG-IP object model + config parser     tcl-bigip-io/  UCS archive + path resolver
+  tcl-bigip-query/        BIG-IP query DSL (front-end landed)     tcl-irules/    BIG-IP object-ref extractor
+  # --- LSP ---
+  tcl-lsp-core/           pure LSP feature providers (folding, symbols, diagnostics, inlay_hints, source_style)
+  tcl-lsp-db/             salsa incremental DB (file_analysis_incremental, semantic_tokens, lattice memo)
+  tcl-lsp-server/         tower-lsp binary (async document store, request routing, cancellation)
+  tcl-lsp-py/             public PyO3 API crate (#[pymodule] tcl_lsp_py)
+  tcl-lsp-rust/           transitional alias re-exporting tcl-lsp-py under the legacy tcl_lsp_rust name
+  # --- tooling ---
+  tcl-explorer/           compiler-explorer pipeline + serialiser (CLI/TUI/WASM consume this)
+  tcl-explorer-wasm/      Rust → WASM compile() facade for the explorer GUI (excluded from the workspace)
+  tcl-cli-support/        shared CLI plumbing for the native tcl / f5 CLIs
+  tcl-cli/                native `tcl` toolchain CLI                f5-cli/  native `f5-query` CLI
+runtime/
+  zig/                    Zig WASM runtime (out-of-process runtime for compiled scripts)
+  rust/                   tree-walking reference runtime (RT-VM parity oracle)
+scripts/build_zipapp.py   _RUST_NATIVE_PACKAGES strip rule
+.github/workflows/ci.yml  rust job + rust-gate (cargo tests + lsp_e2e) + release wheel matrix
+Makefile                  rust-build/test/lint/format; check-rust; test-rust
+tests/test_rust_bindings_smoke.py   end-to-end bridge smoke test
 ```
 
 
@@ -895,7 +785,11 @@ This is the live plan. Everything below is **not yet done**; landed work lives
 in the [history archive](rust-rewrite-history.md), and the deep per-item
 evidence behind each front-end gap is in
 [`design/rust/compiler-pipeline-parity.md`](design/rust/compiler-pipeline-parity.md).
-The plan reflects current source as of 2026-06-19.
+The plan reflects current source as of 2026-06-20 (`rust` branch). The
+**FE-DATAFLOW**, **FE-TYPESHIM**, **FE-VARESCAPE**, **FE-DIAG** front-end tracks
+and the bulk of **SRV-LSP** have landed since the last audit; their detail moved
+to the [history archive](rust-rewrite-history.md) and they survive here only as
+table rows (✅ / 🟢).
 
 ### Vocabulary
 
@@ -927,10 +821,11 @@ Task status is either **open** or **partial** (with a note on what remains).
   the security/injection check family (W102/W103/W300-series + T100–T106 +
   W313), the iRules taint sinks (IRULE3001–3004), the `fp_rch` break-edge CFG
   modelling, O109 / O116 / O120, the upvar transitive-merge, the
-  document-version guard (review-findings C2), the CST descent, and the whole
+  document-version guard (review-findings C2), the CST descent, the whole
   **FE-LEX** track (`${name}` brace-depth, quoted `\<newline>`, nested-body
-  E202/E203 — archived 2026-06-19). Trust this plan and the source over the
-  archive's dated rows.
+  E202/E203 — archived 2026-06-19), and the now-complete **FE-DATAFLOW** /
+  **FE-TYPESHIM** / **FE-VARESCAPE** / **FE-DIAG** tracks (archived 2026-06-19).
+  Trust this plan and the source over the archive's dated rows.
 - **This document is a forward-looking plan, not a changelog.** It lists only
   **open** / **partial** work. The narrative of *what landed and why* is
   history — record it in [`rust-rewrite-history.md`](rust-rewrite-history.md),
@@ -963,17 +858,17 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Subsystem | Crate(s) | Status | Remaining (→ track) |
 |---|---|---|---|
 | Lexer / segmenter / expr-lexer / CST | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | ✅ | FE-LEX complete — `${name}` brace-depth, quoted `\<nl>`, nested-body E202/E203 landed (see [history](rust-rewrite-history.md), 2026-06-19) |
-| IR / lowering / CFG / SSA | `tcl-compiler` | 🟢 | `IRUpFrame` clobber; dynamic-`uplevel` barrier; minor IR fields → **FE-DATAFLOW**, **FE-DIAG** |
-| SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
+| IR / lowering / CFG / SSA | `tcl-compiler` | ✅ | `IRUpFrame` clobber + dynamic-`uplevel` barrier (`body_has_dynamic_barrier`) + minor IR fields landed under **FE-DATAFLOW** / **FE-DIAG** |
+| SCCP / intervals / memory-SSA | `tcl-compiler` | ✅ | escaping-var widening, optimistic deferral, static-loop folding, W233 interval path, `complexity_guard` all landed — **FE-DATAFLOW** complete (see [history](rust-rewrite-history.md)) |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) ported (`tcl-compiler::shimmer::byte_array` + `tcl-registry` `BytePayloadSpec`) — **FE-TYPESHIM** complete |
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
-| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | **every O-code pass complete** — soundness gates (O120/O114/O108), O106 (category + latch-dominance), O123, O110 boolify, O125 (cross-event + already-covered + deepest-target), O101/O115 branch coverage, O103 (rename gate + namespace chain), **all applied rewrites** (O104/O130/O119/O128) incl. **precise-flow** across safe interleaved writes, and the **inliner v0+verbatim** (wired to FE-VARESCAPE `pure_leaf`); sole remaining: inliner **v3** (α-rename, gated on the RT-WASM consumer for execution-differential verification) → **FE-OPT** |
+| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | every O-code pass + the inliner v0/verbatim shapes landed (see [history](rust-rewrite-history.md)); sole remaining: inliner **v3** (α-rename, gated on the RT-WASM consumer for execution-differential verification) → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
-| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005 (incl. nested `[…]` subs); snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108; IRULE2001 3-arg `matchclass` fix + catch-`return` flow (shared with Python, fixed Python-first in #662, now ported). Residuals: per-check config toggles + surfacing flow-warning fixes as code actions → **SRV-LSP** |
+| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). Two consumer-wiring residuals (per-check config toggles, flow-warning code actions) → **SRV-LSP** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after; CLI/REPL binary → **RT-VM** |
-| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | incremental reanalysis (salsa `file_analysis_incremental` + cancellation); UTF-16 `position_encoding`; registry/CU sharing (`OnceLock` + `memoised_compilation_unit`) + debounce; panic containment (8 inline handlers → `spawn_blocking`); token memo (salsa `semantic_tokens`); `codeLens/resolve`; inlay type-hints. Residual: rope-backed `DocumentState` deferred (pipeline is `&str`-based) → **SRV-LSP** |
+| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | 🟢 | #670 bulk landed (incremental salsa reanalysis, UTF-16 `position_encoding`, registry/CU sharing + debounce, `spawn_blocking` panic containment, `semantic_tokens` memo, `codeLens/resolve`, inlay type-hints — see [history](rust-rewrite-history.md)). Open: GAP-C1 per-check config toggles; surfacing IRULE5002/5004 flow-warning fixes as code actions; rope-backed `DocumentState` deferred → **SRV-LSP** |
 | `tcl` CLI | `tcl-cli` | 🟡 | `dis`/`compwasm`/`pkg`/`venv`/`docker` verbs → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --simulate/--tshark/--keylog`; a few parity files → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
@@ -990,7 +885,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 
 | Stage | Track | Owns | Depends on | Size |
 |---|---|---|---|---|
-| FE | **FE-DATAFLOW** | `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}` | — | M |
+| FE | **FE-DATAFLOW** ✅ | `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}` | — | M |
 | FE | **FE-TYPESHIM** ✅ | `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}` | — | M |
 | FE | **FE-VARESCAPE** ✅ | `tcl-compiler::var_escape` | — | M |
 | FE | **FE-OPT** | `tcl-compiler::optimiser`, `inlining` | — | L |
@@ -1018,74 +913,11 @@ The front-end crates are largely ported; what remains is precision and
 soundness. These tracks own **disjoint modules** within `tcl-compiler`, so they
 parallelise cleanly.
 
-#### FE-DATAFLOW — SCCP / intervals / memory-SSA precision ✅
-Owns `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}`. All
-residuals have landed:
-- **done** SCCP escaping-var widening — `sccp` consults
-  `var_observability::escaping_var_names` and forces `::`-qualified / aliased /
-  traced definitions to OVERDEFINED (mirrors `_is_externally_mutable`).
-- **done** SCCP optimistic (Wegman–Zadeck) UNKNOWN deferral + monotone
-  finalising pass (`branch_deferrable`; the driver runs at most twice).
-- **done** static-loop → SCCP fold — `LoopNode` carries the `IRFor` and the
-  branch decision wires `summarise_for_statement`, folding a post-loop branch
-  on a loop variable. The break-exit case needs no SCCP precompute: the Rust
-  CFG builder already lowers `break` to a direct loop-exit edge, so the
-  post-loop block is reachable by construction.
-- **done** memory-SSA `IRUpFrame` clobber + the shared-caller upvar may-alias
-  edge (`upvar 1 x a; upvar 1 x b` merge into one alias set).
-- **done** W233 interval div-by-zero path — the production emitter now delegates
-  to the (previously dead) interval-based `find_divide_by_zero`, the single
-  canonical implementation; the SCCP-only copy is gone.
-- **done** `complexity_guard` — `ssa::{COMPLEXITY_GUARD_BLOCKS,
-  DEEP_ANALYSIS_BODY_BYTES, is_complexity_guarded}`, a trivial-SSA short-circuit
-  in `build_ssa`, a `FunctionUnit::complexity_guarded` flag set from the
-  block-count or body-byte ceiling, and `CompilationUnit::analysable_functions`
-  filtering guarded bodies out of every per-proc diagnostic / optimiser pass.
-  (The interprocedural summary is IR-based, so it needs no guard — it never
-  develops the over-optimistic empty-SSA summary the Python guard exists to
-  prevent.)
-
-#### FE-TYPESHIM — type inference / shimmer / shapes / rendered-props ✅
-Owns `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}`. The
-original scope (intrep typing, the S100/S101/S102 *performance* shimmer family,
-value-shape tracking, rendered-string properties) landed and stays green; the
-precise TclOO `object_of` typing the W307/W308 consumer needs landed under
-**FE-DIAG**. The final item — the S110 *correctness* shimmer — is now ported:
-- **done** **S110** byte-array corruption detection (Python PR #656) — a
-  *correctness* shimmer (distinct from the S100–S102 performance family). A
-  forward byte-provenance dataflow over the SSA graph tracks two states per
-  value — `BINARY` (a live byte array) and `DAMAGED` (binary-sourced but coerced
-  to a character string) — and flags binary data written back through a byte
-  sink, the canonical iRules `*::payload replace` double-encoding bug
-  ([F5 K22406348]). Sources are `binary format` / `binary decode` / `encoding
-  convertto` (plain Tcl, always on) + `*::payload` getters (iRules-gated); the
-  fix `binary scan $v …` re-binarifies in place. Landed as:
-  - `tcl-registry`: a `BytePayloadSpec` layout (`replace_data_index` +
-    `message_flag_shift`) on a new `CommandSpec::byte_array_payload` field,
-    stamped on the seven `<proto>::payload` specs (TCP/HTTP/UDP/SCTP default,
-    DIAMETER/MQTT `replace <data>` at index 1, GTP `-message`-shifted), plus the
-    dialect-scoped `CommandRegistry::byte_array_payload_layouts` accessor.
-  - `tcl-compiler::shimmer::byte_array`: the `ByteProv` lattice, `join_prov`,
-    the source/sink/coercion sets, `arg_byte_prov` recursion, and the three
-    transfer functions, walked over `cfg_order` gated on executable blocks with
-    phis joined first.
-  - `compiler_checks::run_all_checks` (via `push_shimmer_checks`): the S110
-    lowering, with the payload set dialect-gated (empty under non-iRules
-    dialects); surfaced in the compiler explorer's shimmer view.
-
-[F5 K22406348]: https://my.f5.com/manage/s/article/K22406348
-
 #### FE-OPT — optimiser passes
 Owns `tcl-compiler::optimiser`, `tcl-compiler::inlining`. **Every O-code
-optimiser pass is complete** (2026-06-19; archived in
-[history](rust-rewrite-history.md)) — the soundness gates (O120/O114/O108),
-all applied rewrites (O104/O130 chain folds, O119 packing, O128 end-offset,
-incl. **precise-flow** across safe interleaved writes), and every precision
-item (O106 category + latch-dominance, O123, O110 boolify, O125
-cross-event/already-covered/deepest-target, O101/O115 branch coverage, O103
-rename + namespace-chain). The **inliner v0 + verbatim** shapes also landed,
-gated on FE-VARESCAPE's `var_escape::safe_to_inline` (`pure_leaf`) proof plus
-per-statement `stmt_is_splice_eligible`. The sole remaining task:
+optimiser pass is complete**, as are the **inliner v0 + verbatim** shapes
+(2026-06-19; archived in [history](rust-rewrite-history.md)). The sole remaining
+task:
 - **open** general proc inliner **v3 (parameterised)** — α-renaming via
   `_rename.py` over value strings / expr ASTs / defs-reads / foreach-catch
   bindings, variadic packing, parameter defaults, trailing-vs-non-trailing
@@ -1112,175 +944,6 @@ Owns `tcl-compiler::codegen` (non-wasm).
 - **open** small items: `esc` astral / C0-control escaping; `{*}` cmd-subst
   expansion; `set x [cmd]` pure-cmd-subst assign; the `builtin_is_trusted`
   rename gate.
-
-#### FE-DIAG — analyser diagnostics & dialect checks ✅
-Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`. Every diagnostic
-family is ported and verified; the two parenthetical residuals below
-(per-check config toggles, surfacing the IRULE5002/5004 flow-warning fixes as
-editor code actions) are **SRV-LSP** consumer wiring, not analyser work. Two
-review-found correctness refinements (IRULE2001 3-arg `matchclass` fix,
-catch-caught `return` flow) are *shared with the Python reference* and are being
-corrected Python-first, then ported here in lockstep — see **Lockstep
-follow-ups** at the end of this section.
-- **done** missing emitters: **E001** (missing subcommand), **W125** (orphaned
-  control-flow keyword), **IRULE5005** (direct proc call without `call`),
-  **IRULE1001** (command invalid/ineffective in event — registry-legality-matrix
-  driven, with the profile-info hint + "Available in" reasons). Verified
-  byte-for-byte against the Python emitters; E001/W125 cross-checked against
-  tclsh 8.4–9.0.
-- **done** snit OO support (`snit::type`/`widget`/`widgetadaptor` as ClassDef,
-  with method / typemethod / constructor / destructor / typeconstructor /
-  onconfigure / oncget bodies analysed in method scopes seeded with the
-  instance / type variables + snit implicits) and the OO body-walks Rust
-  skipped: `oo::class new`/`createWithNamespace` (widened subcommand gate), the
-  `initialise` body, and `property -get/-set` accessor bodies. Verified
-  byte-for-byte against the Python analyser and against real `tclsh8.6` +
-  tcllib.
-- **done** **W307 / W308** method-dispatch type checks + the precise TclOO
-  `object_of` typing they consume (handed off from **FE-TYPESHIM**). The
-  *known-classes* set is sourced from the analyser-layer `signature_scan`
-  (`CompilationUnit::collect_known_classes`, gated on a `class` substring probe),
-  threaded through `FunctionUnit::build_with_param_constants_and_classes` →
-  `propagate_types` / `infer_function_return_type`, and folded into the
-  per-procedure lattice memo key (`LatticeRequest::known_classes` +
-  `FnLatticeKey::known_classes` in `tcl-lsp-db`) so the incremental build stays
-  byte-identical to the whole-file build (verified by the memoised-CU parity
-  test, now with a constructor-bearing snippet, and the incremental fuzz). The
-  ported `type_infer::constructor_object_type` recognises `new` / `create` /
-  `%AUTO%` / leading-`.` spellings, resolving the relative head as-is,
-  `::`-qualified, and against the call-site namespace, keeping the D4-F6 guard
-  (no `object_of` from the `new` spelling alone). `[Foo new] m` / `set o [Foo
-  new]; $o m` / transitive `set b $a` aliases / `Foo create %AUTO%` / namespace-
-  scoped classes all type as `OBJECT(::ns::Foo)` and validate the method (W308)
-  or stay silent — verified byte-for-byte against the Python analyser oracle
-  (13-case battery) with full W308 parity across the 102-file tcllib OO corpus.
-  Python's separate object-factory W307 *suppression* (the
-  `object_returning_procs` / factory-locals fixpoint — a proc returning `[Class
-  new]` / `[::ns::factory]` makes its result a non-literal-but-designed command
-  target) is also ported as `Analyser::compute_factory_object_ranges`.
-  **W307 now reaches full parity with Python across the 102-file tcllib OO
-  corpus (0 divergences).** Closing the last 8 divergences took three further
-  fixes (all verified against the Python oracle + tclsh 8.6/9.0):
-  1. `$var method` dispatches *inside* command substitutions (`[$obj m]`) are now
-     recorded as var-command sites too — `dispatch_nested_segment` calls
-     `record_var_or_cmd_command_site`, mirroring Python's nested `run_all_checks`
-     recursion — so the multi-dispatch (≥2) suppression counts them.
-  2. `is_snit_member` ported: a `$var method` dispatch whose offset falls in a
-     class body and names one of that class's instance `variables` is component
-     dispatch — suppress W307 (covers non-method helper `proc`s that `upvar` the
-     instance var). Built from every `ClassDef`'s `body_span` + `variables`.
-  3. The braced-namespace-var head bug: `${ns}::define::[…]` merges into one Var
-     word token, so the raw text mangled the recorded var name; the extraction
-     now truncates at the first `}` to recover the dispatched variable (`ns`),
-     restoring the proc-param suppression.
-  And `::oo::class` (the fully-qualified head) is now recognised by the analyser
-  (`handle_oo_class_command` strips a leading `::`, normalising the `metaclass`)
-  and `signature_scan`'s walker. This was a *shared* blind spot — Python had the
-  identical `all_classes=[]` gap — so the same fix landed in the Python analyser
-  + `signature_scan` to keep the two in lockstep (regression tests both sides).
-- **done** IRULE1201 / 1202 / 5002 / 5004 path-sensitivity (the C44 follow-up)
-  **+ quick-fixes**. The linear scans are replaced by a shared path-sensitive
-  walk over the structured IR (`irules_checks::walk_flow`) that threads
-  per-path response-/drop-flow states and merges at join points — so
-  mutually-exclusive branches no longer false-positive, `catch` bodies are
-  analysed, and loops run zero-or-more times. The response-commit /
-  HTTP-namespace command sets are registry-derived. Verified against the
-  Python `find_irules_flow_warnings` oracle (spans use the *correct* command
-  offset — Python's module-IR path double-counts the body base offset; Rust
-  matches Python's intended re-lowered offset). The insertion quick-fixes now
-  land: a shared `irules_checks::CodeFix { span, new_text, description }` (the
-  canonical low-level twin re-exported as the analyser's `CodeFix`) carries a
-  **fix range independent of the diagnostic span**, threaded through
-  `IrulesCheckWarning.fixes` → `compiler_checks::Diagnostic.fixes`. IRULE5002
-  inserts `event disable all` + `return` after the drop, IRULE5004 inserts
-  `return` after `DNS::return` (zero-width edits at the command end), and the
-  analyser-side IRULE2001 replaces `matchclass <item> <class>` with `class match
-  <item> equals <class>` (raw source slices preserve `$var`). All three verified
-  byte-for-byte against the Python `CodeFix` text. *(Surfacing the IRULE5002/5004
-  flow-warning fixes as editor code actions is the one remaining step — the
-  `tcl-lsp-core` code-action provider reads only the analyser's
-  `AnalysisResult.diagnostics` today, so it already offers the IRULE2001 fix but
-  would need to also process `find_irules_flow_warnings` to offer the 5002/5004
-  ones; that consumer wiring belongs to **SRV-LSP**.)*
-- **done** `DynamicNameLocal` reconciliation — **row closed**. Withholding the
-  trait does *not* change caller-side W211/W214 suppression: that suppression is
-  driven by the interprocedural summary index (`build_proc_index_from_summaries`,
-  which models real `upvar` caller-frame write-back), not the shallow
-  `param_traits`, so the four out-var commands behave identically to Python on
-  the PR #498/#499 false-positive battery (verified differentially). A related
-  callee-side FP *was* found and fixed: a dynamic write target (`set $p 1`) was
-  modelled as a static def of `p` by `ssa::defs_of`; it now mirrors Python
-  `var_resolve::resolve_place` — no static def, and the name-bearing variable is
-  read (`ssa::is_dynamic_write_target`). Verified against tclsh 8.4–9.0 and a
-  Python differential, with zero change across the 79-file sample corpus.
-- **done** `when`-body dialect gating — a foreign-dialect builtin disabled in
-  the active dialect (known in *some* dialect but absent from the active
-  registry's `by_name` — iRules `when` / `log` / `session` under plain Tcl) is
-  an unknown would-be user command whose braced argument is opaque *data*, not a
-  handler script. `ssa::structural_body_indices` now skips every braced arg of
-  such a command from the SSA var scan (mirroring Python's
-  `command_is_disabled_in_active_dialect` body gate), so `when EVENT { … }` under
-  plain Tcl draws only `W002` + `W123` on `when` itself — no spurious `W210` /
-  `W123` on the body. A command unknown in *every* dialect (user proc / TclOO
-  body / recovery artefact) still recurses, and the iRules path still analyses
-  the body. Verified against the Python analyser + the `TestWhenBodyDialectGatingE2E`
-  e2e (now green) with no change across the 400-file differential corpus.
-- **done bar config toggles** source-style pass + W108 `non_ascii_mode`. The
-  source-style checks are all ported in `tcl-lsp-core::source_style` — W111
-  (line length), W112 (trailing whitespace), W115 (comment continuation), W118
-  (line endings) — plus W120 (command without `package require`) in the
-  analyser and W108 `non_ascii_mode` (`NonAsciiMode`, dialect-resolved). The
-  **residual** is the GAP-C1 per-check feature-config toggles wiring, which
-  lives in the server config layer (**SRV-LSP**), not the analyser.
-- **done** **IRULE5005 inside command substitutions** (PR #660 review
-  follow-up). `dispatch_nested_segment` now runs `emit_proc_resolution_diagnostics`
-  after site recording, so a direct iRules-proc call nested in a `[…]`
-  substitution (`when HTTP_REQUEST { set x [helper] }`) is flagged — previously
-  only the dispatch / expr / site-recording calls reached nested segments.
-  Mirrors Python's `run_all_checks` recursion into nested commands (verified:
-  the Python analyser emits the same `IRULE5005 … call helper` for this form).
-
-**Lockstep follow-ups (Python-first) — landed.** A review of the port (PR #660)
-surfaced two *shared* correctness bugs — present identically in the canonical
-Python analyser — so, exactly like **S110**, the fix landed on the Python
-reference first ([PR #662]) and the Rust port follows here. Porting the Rust
-side ahead of Python would have made it diverge from the very differential
-oracle this track is verified against, so both were gated on the upstream Python
-correction. Both are now **ported and verified** (Rust unit tests mirror the
-Python `test_irules_checks.py` cases #662 added):
-- **done** **IRULE2001 `matchclass` 3-arg quick-fix** corruption. The Rust
-  emitter (`analyser::diagnostics::emit_irule2001_matchclass`) previously gated
-  on `args.len() >= 2` and always rewrote to `class match <item> equals <class>`
-  from `arg_tokens[0]`/`arg_tokens[1]`, so the documented 3-arg form
-  `matchclass <item> <operator> <class>` (e.g. `matchclass [HTTP::uri]
-  starts_with $::admin_paths`) dropped its class and was forced to `equals`
-  (→ `class match [HTTP::uri] equals starts_with`). It now matches `arg_tokens`
-  by arity: exactly two args → the default-`equals` rewrite; exactly three →
-  the verbatim 1:1 `matchclass` → `class match` rename preserving operator and
-  class; any other arity warns but offers **no** fix. The raw argument slices
-  (and the whole-command fix range) are widened through trailing `]`/`}`/`"`
-  closers via `optimiser::helpers::spans::full_rewrite_span` — the lexer's
-  representative span for a `[cmd …]` word stops before its `]`, so a slice
-  would otherwise round-trip `[HTTP::uri]` as `[HTTP::uri` (mirrors Python's
-  `_raw_arg_text` / `word_end_position`). Diagnostic text unchanged.
-- **done** **catch-caught `return` flow**. Tcl `catch` swallows the return
-  code, so execution continues after the `catch` body even when it `return`s —
-  but the shared path-sensitive flow walk dropped the post-catch path. #662
-  settled the semantics on the Python reference (`compiler/irules_flow.py`
-  `_analyse_script` / `_walk`): the richer option — *capture* the at-return
-  state into the enclosing catch (so e.g. a `HTTP::respond` before the
-  catch-internal `return` still flags the post-catch command), falling back to
-  the incoming state only when the body yields nothing. The Rust twin
-  (`irules_checks::walk_flow`/`flow_step`) now mirrors it via a `return_sink`
-  threaded through every nested control-flow walk: a `return` hands its
-  at-return states to the nearest enclosing `Statement::Catch`'s sink instead
-  of discarding them, and the `Catch` arm folds `body_out + catch_returns`
-  (falling back to `[st]`) into the continuing paths. At event/proc scope the
-  sink is `None` and a `return` terminates the path as before. Fixes
-  IRULE1201/1202 (HTTP-after-respond) and IRULE5002/5004 (unguarded drop /
-  DNS::return) for code that still runs after the catch.
-
-[PR #662]: https://github.com/bitwisecook/tcl-lsp/pull/662
 
 #### FE-DIAG-F5 — F5 dialect diagnostics
 Owns new analyser slices on `tcl-bigip` / `tcl-xc` and the tk dialect.
@@ -1312,16 +975,12 @@ suite is at parity when the two columns match. The landing log is in the
 [history](rust-rewrite-history.md) (2026-06-19); the per-suite snapshot + gaps
 below are the live state.
 
-- **done** the 2026-06-19 parity push: `namespace eval`/`inscope` run in a real
-  call frame (so `info level` counts them and `uplevel`/`upvar` resolve in the
-  body's namespace); `try`/`throw` (TIP 329) as VM builtins behind a
-  `lower_to_ir_for_bytecode` barrier (the bytecode backend has no `beginCatch`
-  exception ranges); nested-`foreach` / all-`lmap` routed to their runtime
-  builtins (the inline nested-complex-foreach codegen miscompiles and inline
-  `lmap` never collected results); `namespace delete`; plus `return -level
-  0`/integer `-code`, the array-write guard, `error` empty-info / arg-count, and
-  full list-parse error text. Net: error.test 44 → 280, lmap 21 → 61, namespace
-  93 → 112.
+The 2026-06-19 parity push (`namespace eval`/`inscope` real call frames,
+`try`/`throw` as VM builtins, nested-`foreach`/`lmap` runtime routing, `namespace
+delete`, and the supporting `return`/`error`/list-parse fixes — error.test
+44 → 280, lmap 21 → 61, namespace 93 → 112) is archived in the
+[history](rust-rewrite-history.md). The live open gaps:
+
 - **open (P1) VM hangs that zero out whole suites** — `info.test` and `proc.test`
   time out in the bytecode VM while the runtime completes them (`catch.test`
   times out in both). A hang yields *no* parity for the suite, so these lead.
@@ -1351,51 +1010,28 @@ below are the live state.
 ### Stage 3 — LSP server (SRV-LSP)
 
 #### SRV-LSP — server / core / db
-Owns `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db`.
-- **done** incremental server reanalysis — the base analysis runs through the
-  cancellable salsa `file_analysis_incremental` query (`tcl-lsp-db`), and
-  `set_text` cancels an in-flight read at a per-item query boundary, so an edit
-  reuses every unchanged procedure's memoised per-function lattice instead of
-  re-analysing the whole document.
-- **done** C1 UTF-16 residuals — the server advertises `position_encoding`
-  (UTF-16, negotiated against the client's `general.positionEncodings`); the
-  former byte `position_at(...).line` sites in `folding.rs` / `irules_context.rs`
-  now use the encoding-independent `LineIndex::line_at`.
-- **done** performance — the ~560-spec registry is built once per canonical
-  dialect (process-wide `OnceLock` in `tcl-registry::cache`, plus the server's
-  shared `TclDatabase::registry` map); the `CompilationUnit` is shared across
-  the analyser tail and the optimiser checks via the salsa-memoised
-  `memoised_compilation_unit` / `function_lattice`; and the diagnostics path
-  debounces with a generation-supersede check (`DEBOUNCE`).
-- **done** panic containment (review-findings C3) — the 8 inline handlers
-  (`folding_range`, `document_symbol`, `semantic_tokens_full`/`_delta`/`_range`,
-  `document_link`, `formatting`/`range_formatting`) run on `spawn_blocking`, so a
-  parser panic surfaces as a JSON-RPC error rather than unwinding the event loop.
-- **done** token memo — semantic tokens are served from the salsa-memoised
-  `semantic_tokens` query (`db_semantic_tokens`), so a token request after an
-  edit reuses the per-item firewall rather than recomputing; this supersedes the
-  Python-era `SYNC-MAY31-6/-11` reposition cache.
-  - **deferred (architecture)** a rope-backed `DocumentState`. The analysis
-    pipeline is `&str`/byte-offset throughout (lexer, segmenter, and the salsa
-    `SourceFile` input all hold a `String`), so a rope would still have to
-    materialise a `String` (`O(n)`) for every analysis — it would only speed up
-    applying a *burst* of edits inside one `didChange`, which editors rarely
-    send. Not worth the dependency + hot-path churn until the pipeline itself
-    is rope-aware.
-- **done** `codeLens/resolve` — the server advertises `resolve_provider`, carries
-  `{qname, uri}` in the lens data, and recomputes the reference count against the
-  live document/workspace at resolve time
-  (`tests/lsp_e2e/test_editor_features_e2e.py::TestCodeLens::
-  test_count_matches_reference_list_for_forward_call`,
-  `::TestCodeLens::test_unresolved_call_scoped_to_namespace`).
-- **done** inlay **type** hints — the provider emits the inferred-variable-type
-  family (`: int`, shimmer `from → to`, built from the type-propagation pass over
-  a `CompilationUnit`) and the format-string specifier labels
-  (`format`/`scan`/`clock`/`binary`/`regsub`); the two inlay families gate
-  independently and the legacy `inlayHints` alias settles `inlayTypeHints`
-  (`test_editor_features_e2e.py::
-  TestInlayToggleIndependenceE2E::test_type_hints_only_emit_no_parameter_labels`,
-  `::TestInlayLegacyAliasE2E::test_legacy_inlay_hints_alias_enables_type_only`).
+Owns `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db`. The server bulk landed in
+#670 (incremental salsa reanalysis, UTF-16 `position_encoding`, registry/CU
+sharing + debounce, `spawn_blocking` panic containment, the `semantic_tokens`
+token memo, `codeLens/resolve`, inlay type hints) — archived in
+[history](rust-rewrite-history.md). What remains is the two consumer-wiring
+residuals handed over from **FE-DIAG** plus the deferred rope decision:
+- **open** GAP-C1 per-check feature-config toggles — the analyser ports every
+  diagnostic family but the per-check enable/disable wiring lives in the server
+  config layer and is not yet built (no `feature_config`/per-check gate in
+  `tcl-lsp-{server,core,db}` today).
+- **open** surface the IRULE5002/5004 flow-warning quick-fixes as editor code
+  actions — the `tcl-lsp-core` code-action provider reads only the analyser's
+  `AnalysisResult.diagnostics` (so it already offers the IRULE2001 fix) but does
+  not yet process `find_irules_flow_warnings`, so the 5002/5004 insertion fixes
+  the analyser already produces aren't offered.
+- **deferred (architecture)** a rope-backed `DocumentState`. The analysis
+  pipeline is `&str`/byte-offset throughout (lexer, segmenter, and the salsa
+  `SourceFile` input all hold a `String`), so a rope would still have to
+  materialise a `String` (`O(n)`) for every analysis — it would only speed up
+  applying a *burst* of edits inside one `didChange`, which editors rarely send.
+  Not worth the dependency + hot-path churn until the pipeline itself is
+  rope-aware.
 
 ### Stage 4 — Tooling (TOOL-*)
 
@@ -1455,13 +1091,11 @@ final track** — every consumer above must port first.
 
 ### Cross-cutting (fold into the owning track)
 
-- **clippy hygiene** — 13 `too_many_lines` fn-level allows remain (codegen
-  emitters, optimiser passes, registry-list fns); retire alongside the owning
-  track's edits.
+- **clippy hygiene** — a scatter of `too_many_lines` fn-level allows remain
+  (codegen emitters, optimiser passes, registry-list fns, CLI command bodies);
+  retire alongside the owning track's edits.
 - **double taint / CU rebuild** — perf, owned by **SRV-LSP** (build once, share
   `&CompilationUnit`).
-- **stale code comment** — `analyses.rs` "deferred" header contradicts the
-  implemented `sccp.rs` / `type_infer.rs`; one-line fix.
 
 ## History
 
