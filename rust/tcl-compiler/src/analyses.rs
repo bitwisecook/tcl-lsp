@@ -2,9 +2,9 @@
 //!
 //! This module defines the output structures produced by dataflow
 //! analyses (SCCP, liveness, dead-store detection, type inference,
-//! taint analysis). The analysis *algorithms* are deferred to a later
-//! chunk; this module provides only the data types that downstream
-//! consumers (diagnostics, codegen, optimiser) need to read.
+//! taint analysis). The analysis *algorithms* live in their own modules
+//! (`sccp`, `type_infer`, `taint`, …); this module provides only the data
+//! types that downstream consumers (diagnostics, codegen, optimiser) read.
 
 use std::collections::{HashMap, HashSet};
 
