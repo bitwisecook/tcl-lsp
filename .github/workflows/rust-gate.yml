@@ -1,17 +1,15 @@
 name: rust-gate
 
-# Status board for the `rust` branch during the Python→Rust rewrite.
+# Cargo-checks gate for the `rust` branch during the Python→Rust rewrite.
 #
-# This is INFORMATIONAL, not a merge gate: the rust server is still being
-# brought to parity, so genuine test/e2e failures are expected and the point is
-# visibility — a red/green signal on each push and PR so the state is knowable
-# at a glance.  It is deliberately NOT wired as a required status check.
+# This is a BLOCKING gate: the cargo workspace suite is green on `rust`, so the
+# `rust-tests` job is wired as a REQUIRED status check (branch protection on
+# `rust`) — a regression that reddens it blocks the merge.
 #
-# Two independent jobs so each surface reports on its own:
-#   * rust-tests — the full cargo workspace suite (`--no-fail-fast`, so every
-#     failing crate shows up in one run, not just the first).
-#   * lsp-e2e    — the backend-neutral lsp_e2e suite driven against the native
-#     Rust server (TCL_LSP_SERVER_KIND=rust).
+# Scope: the cargo workspace suite only.  The native-server lsp_e2e suite lives
+# in its own workflow (`rust-lsp-e2e.yml`, the `lsp-e2e` required check) so it is
+# not coupled to the cargo checks — it builds a release binary and drives a
+# Python suite, a different and slower surface that reports on its own.
 #
 # `main`'s pipeline is ci.yml; this lives on `rust` only.
 
@@ -49,26 +47,3 @@ jobs:
       # run lists all failing crates rather than aborting at the first.
       - name: cargo test --workspace --all-features
         run: cargo test --workspace --all-features --no-fail-fast
-
-  lsp-e2e:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 1
-
-      - uses: ./.github/actions/setup-build
-
-      - name: Cache cargo registry + target
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-
-      # Build only the server binary the suite drives (release, matching
-      # `make rust-server`).
-      - name: Build native tcl-lsp-server
-        run: make rust-server
-
-      - name: lsp_e2e against the native Rust server
-        env:
-          TCL_LSP_SERVER_KIND: rust
-          TCL_LSP_SERVER_BIN: ${{ github.workspace }}/target/release/tcl-lsp-server
-        run: uv run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider

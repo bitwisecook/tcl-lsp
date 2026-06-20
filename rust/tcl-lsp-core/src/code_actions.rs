@@ -214,6 +214,83 @@ pub fn code_actions(
     actions
 }
 
+/// Lift the quick-fixes carried by **compiler-check** diagnostics whose span
+/// overlaps `range` into `CodeAction`s.
+///
+/// The analyser-driven [`code_actions`] above only sees
+/// `AnalysisResult.diagnostics`.  The iRules control-flow warnings
+/// (IRULE5002 — unguarded `drop`/`reject`/`discard`; IRULE5004 — `DNS::return`
+/// without a following `return`) are produced by a *separate* pass
+/// (`tcl_compiler::irules_checks::find_unguarded_drop_warnings`, surfaced
+/// through `run_all_checks`) and carry their own insertion `CodeFix`es.  Among
+/// every compiler-check family, those are the only ones that attach a fix
+/// (`compiler_checks::Diagnostic::from_irules_check` is the sole constructor
+/// that populates `fixes`), so lifting *all* check fixes here is exactly the
+/// IRULE5002/5004 surfacing with no risk of double-offering an analyser fix.
+///
+/// Mirrors the `find_irules_flow_warnings` merge in
+/// `server/features/code_actions.py`.  The caller passes the
+/// `run_all_checks` output (e.g. `CompilerDiagnostics::checks`); for a
+/// non-iRules dialect that list carries no fixes, so this returns empty.
+///
+/// `disabled` is the resolved per-check toggle set
+/// (`tclLsp.diagnostics.<CODE> = false`).  A check whose code is disabled has
+/// its diagnostic suppressed from the published set, so its quick-fix must not
+/// be offered either — otherwise the lightbulb would re-surface a hidden
+/// warning.  The analyser path bakes this set into its build; this path is fed
+/// the raw `run_all_checks` output, so it applies the same filter here.
+#[must_use]
+pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
+    source: &str,
+    range: LspRange,
+    checks: &[tcl_compiler::compiler_checks::Diagnostic],
+    disabled: &std::collections::HashSet<String, S>,
+) -> Vec<CodeAction> {
+    let line_index = LineIndex::new(source);
+    let mut actions = Vec::new();
+    for diag in checks {
+        if diag.fixes.is_empty() || disabled.contains(&diag.code) {
+            continue;
+        }
+        let diag_start = line_index.position_at_utf16(diag.span.start(), source);
+        let diag_end = line_index.position_at_utf16(diag.span.end(), source);
+        let diag_range = LspRange {
+            start_line: diag_start.line,
+            start_character: diag_start.character,
+            end_line: diag_end.line,
+            end_character: diag_end.character,
+        };
+        if !ranges_overlap(diag_range, range) {
+            continue;
+        }
+        for fix in &diag.fixes {
+            let fix_start = line_index.position_at_utf16(fix.span.start(), source);
+            let fix_end = line_index.position_at_utf16(fix.span.end(), source);
+            let title = if fix.description.is_empty() {
+                let trimmed: String = diag.message.chars().take(60).collect();
+                format!("Fix: {trimmed}")
+            } else {
+                fix.description.clone()
+            };
+            actions.push(CodeAction {
+                title,
+                edits: vec![crate::rename::TextEdit {
+                    range: LspRange {
+                        start_line: fix_start.line,
+                        start_character: fix_start.character,
+                        end_line: fix_end.line,
+                        end_character: fix_end.character,
+                    },
+                    new_text: fix.new_text.clone(),
+                }],
+                kind: ActionKind::QuickFix,
+                command: None,
+            });
+        }
+    }
+    actions
+}
+
 /// Build the `Add '-nocomplain'` quick-fix for a W213
 /// diagnostic.  Validates that the diag span starts with the
 /// `unset` keyword (defends against the diag shape changing
@@ -1750,5 +1827,96 @@ mod tests {
     fn word_at_position_extracts_namespaced_word() {
         assert_eq!(word_at_position("http::foo $x\n", 0, 2), "http::foo");
         assert_eq!(word_at_position("  set y 1\n", 0, 3), "set");
+    }
+
+    // -- check_diagnostic_actions: IRULE5002/5004 flow-warning fixes ------
+
+    #[test]
+    fn check_actions_surface_irule5002_flow_fix() {
+        // An unguarded `drop` fires IRULE5002 through the compiler-checks
+        // pass (not the analyser's `AnalysisResult.diagnostics`), carrying an
+        // "insert event disable all + return" fix.  The provider must lift it.
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        use tcl_compiler::compiler_checks::run_all_checks;
+        use tcl_lexer::LexerConfig;
+
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.load_irules();
+        let src = "when CLIENT_ACCEPTED { drop }\n";
+        let cu = CompilationUnit::build_for_with_config(
+            src,
+            &registry,
+            false,
+            LexerConfig::for_dialect("f5-irules"),
+        )
+        .with_interprocedural(&registry, Some("f5-irules"));
+        let checks = run_all_checks(&cu, &registry, Some("f5-irules"));
+        assert!(
+            checks
+                .iter()
+                .any(|d| d.code == "IRULE5002" && !d.fixes.is_empty()),
+            "expected an IRULE5002 check with a fix, got {checks:?}",
+        );
+
+        let none_disabled = std::collections::HashSet::new();
+        let actions =
+            check_diagnostic_actions(src, whole_document_range(src), &checks, &none_disabled);
+        let fix = actions
+            .iter()
+            .find(|a| a.title == "Add 'event disable all' + 'return'");
+        assert!(fix.is_some(), "expected IRULE5002 quick-fix in {actions:?}");
+        let fix = fix.unwrap();
+        assert_eq!(fix.kind, ActionKind::QuickFix);
+        assert_eq!(fix.edits.len(), 1);
+        assert_eq!(fix.edits[0].new_text, "\n    event disable all\n    return");
+        // Insertion (zero-width range) right after the `drop` command.
+        assert_eq!(fix.edits[0].range.start_line, fix.edits[0].range.end_line);
+        assert_eq!(
+            fix.edits[0].range.start_character,
+            fix.edits[0].range.end_character,
+        );
+    }
+
+    #[test]
+    fn check_actions_empty_without_fixes() {
+        // Checks with no fixes (or an out-of-range diagnostic) yield nothing.
+        let src = "set x 1\n";
+        let none_disabled = std::collections::HashSet::new();
+        assert!(
+            check_diagnostic_actions(src, whole_document_range(src), &[], &none_disabled)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn check_actions_honour_disabled_codes() {
+        // A check whose code is disabled (`tclLsp.diagnostics.IRULE5002 = false`)
+        // must not offer its quick-fix — otherwise the lightbulb re-surfaces a
+        // diagnostic the user turned off.
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        use tcl_compiler::compiler_checks::run_all_checks;
+        use tcl_lexer::LexerConfig;
+
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.load_irules();
+        let src = "when CLIENT_ACCEPTED { drop }\n";
+        let cu = CompilationUnit::build_for_with_config(
+            src,
+            &registry,
+            false,
+            LexerConfig::for_dialect("f5-irules"),
+        )
+        .with_interprocedural(&registry, Some("f5-irules"));
+        let checks = run_all_checks(&cu, &registry, Some("f5-irules"));
+
+        let mut disabled = std::collections::HashSet::new();
+        disabled.insert("IRULE5002".to_string());
+        let actions = check_diagnostic_actions(src, whole_document_range(src), &checks, &disabled);
+        assert!(
+            !actions
+                .iter()
+                .any(|a| a.title == "Add 'event disable all' + 'return'"),
+            "disabled IRULE5002 must not offer a quick-fix, got {actions:?}",
+        );
     }
 }
