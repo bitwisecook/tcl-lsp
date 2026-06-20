@@ -6238,16 +6238,15 @@ mod tests {
     #[test]
     fn position_encoding_negotiation() {
         use tower_lsp::lsp_types::{ClientCapabilities, GeneralClientCapabilities};
-        let params_with = |encs: Option<Vec<PositionEncodingKind>>| {
-            let mut params = InitializeParams::default();
-            params.capabilities = ClientCapabilities {
+        let params_with = |encs: Option<Vec<PositionEncodingKind>>| InitializeParams {
+            capabilities: ClientCapabilities {
                 general: Some(GeneralClientCapabilities {
                     position_encodings: encs,
                     ..GeneralClientCapabilities::default()
                 }),
                 ..ClientCapabilities::default()
-            };
-            params
+            },
+            ..InitializeParams::default()
         };
         let with_encodings = |encs: Option<Vec<PositionEncodingKind>>| {
             negotiate_position_encoding(&params_with(encs))
