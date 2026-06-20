@@ -4401,6 +4401,10 @@ impl LanguageServer for Backend {
         // requested range, plus fuzzy `package require`
         // suggestions for the word at the cursor.  Run on a worker.
         let registry = self.registry_for_dialect(&doc.dialect).await;
+        // The resolved per-check disabled set — the same one baked into the
+        // analyser build above — so the compiler-checks code-action path does
+        // not re-surface a quick-fix for a diagnostic the user disabled.
+        let (disabled_codes, _) = self.analyser_config().await;
         // Lift the request-context diagnostics (the editor sends the ones it
         // currently shows) so context-driven quick-fixes — e.g. the iRules
         // taint encode-wrap fixes — can act on them even when the analyser
@@ -4452,6 +4456,7 @@ impl LanguageServer for Backend {
                     &doc.text,
                     range,
                     &checks.checks,
+                    &disabled_codes,
                 ));
             }
             actions

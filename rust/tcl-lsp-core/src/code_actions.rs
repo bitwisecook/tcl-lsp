@@ -232,16 +232,24 @@ pub fn code_actions(
 /// `server/features/code_actions.py`.  The caller passes the
 /// `run_all_checks` output (e.g. `CompilerDiagnostics::checks`); for a
 /// non-iRules dialect that list carries no fixes, so this returns empty.
+///
+/// `disabled` is the resolved per-check toggle set
+/// (`tclLsp.diagnostics.<CODE> = false`).  A check whose code is disabled has
+/// its diagnostic suppressed from the published set, so its quick-fix must not
+/// be offered either — otherwise the lightbulb would re-surface a hidden
+/// warning.  The analyser path bakes this set into its build; this path is fed
+/// the raw `run_all_checks` output, so it applies the same filter here.
 #[must_use]
-pub fn check_diagnostic_actions(
+pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
     source: &str,
     range: LspRange,
     checks: &[tcl_compiler::compiler_checks::Diagnostic],
+    disabled: &std::collections::HashSet<String, S>,
 ) -> Vec<CodeAction> {
     let line_index = LineIndex::new(source);
     let mut actions = Vec::new();
     for diag in checks {
-        if diag.fixes.is_empty() {
+        if diag.fixes.is_empty() || disabled.contains(&diag.code) {
             continue;
         }
         let diag_start = line_index.position_at_utf16(diag.span.start(), source);
@@ -1850,7 +1858,9 @@ mod tests {
             "expected an IRULE5002 check with a fix, got {checks:?}",
         );
 
-        let actions = check_diagnostic_actions(src, whole_document_range(src), &checks);
+        let none_disabled = std::collections::HashSet::new();
+        let actions =
+            check_diagnostic_actions(src, whole_document_range(src), &checks, &none_disabled);
         let fix = actions
             .iter()
             .find(|a| a.title == "Add 'event disable all' + 'return'");
@@ -1871,6 +1881,42 @@ mod tests {
     fn check_actions_empty_without_fixes() {
         // Checks with no fixes (or an out-of-range diagnostic) yield nothing.
         let src = "set x 1\n";
-        assert!(check_diagnostic_actions(src, whole_document_range(src), &[]).is_empty());
+        let none_disabled = std::collections::HashSet::new();
+        assert!(
+            check_diagnostic_actions(src, whole_document_range(src), &[], &none_disabled)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn check_actions_honour_disabled_codes() {
+        // A check whose code is disabled (`tclLsp.diagnostics.IRULE5002 = false`)
+        // must not offer its quick-fix — otherwise the lightbulb re-surfaces a
+        // diagnostic the user turned off.
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        use tcl_compiler::compiler_checks::run_all_checks;
+        use tcl_lexer::LexerConfig;
+
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.load_irules();
+        let src = "when CLIENT_ACCEPTED { drop }\n";
+        let cu = CompilationUnit::build_for_with_config(
+            src,
+            &registry,
+            false,
+            LexerConfig::for_dialect("f5-irules"),
+        )
+        .with_interprocedural(&registry, Some("f5-irules"));
+        let checks = run_all_checks(&cu, &registry, Some("f5-irules"));
+
+        let mut disabled = std::collections::HashSet::new();
+        disabled.insert("IRULE5002".to_string());
+        let actions = check_diagnostic_actions(src, whole_document_range(src), &checks, &disabled);
+        assert!(
+            !actions
+                .iter()
+                .any(|a| a.title == "Add 'event disable all' + 'return'"),
+            "disabled IRULE5002 must not offer a quick-fix, got {actions:?}",
+        );
     }
 }
