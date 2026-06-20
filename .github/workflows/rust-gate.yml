@@ -1,17 +1,15 @@
 name: rust-gate
 
-# Cargo-checks status board for the `rust` branch during the Python→Rust
-# rewrite.
+# Cargo-checks gate for the `rust` branch during the Python→Rust rewrite.
 #
-# This is INFORMATIONAL, not a merge gate: the rust workspace is still being
-# brought to parity, so genuine test failures are expected and the point is
-# visibility — a red/green signal on each push and PR so the state is knowable
-# at a glance.  It is deliberately NOT wired as a required status check.
+# This is a BLOCKING gate: the cargo workspace suite is green on `rust`, so the
+# `rust-tests` job is wired as a REQUIRED status check (branch protection on
+# `rust`) — a regression that reddens it blocks the merge.
 #
 # Scope: the cargo workspace suite only.  The native-server lsp_e2e suite lives
-# in its own workflow (`rust-lsp-e2e.yml`) so it is not coupled to the cargo
-# checks — it builds a release binary and drives a Python suite, a different and
-# slower surface that reports on its own.
+# in its own workflow (`rust-lsp-e2e.yml`, the `lsp-e2e` required check) so it is
+# not coupled to the cargo checks — it builds a release binary and drives a
+# Python suite, a different and slower surface that reports on its own.
 #
 # `main`'s pipeline is ci.yml; this lives on `rust` only.
 
