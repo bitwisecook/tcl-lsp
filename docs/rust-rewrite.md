@@ -787,7 +787,7 @@ evidence behind each front-end gap is in
 [`design/rust/compiler-pipeline-parity.md`](design/rust/compiler-pipeline-parity.md).
 The plan reflects current source as of 2026-06-20 (`rust` branch). The
 **FE-DATAFLOW**, **FE-TYPESHIM**, **FE-VARESCAPE**, **FE-DIAG** front-end tracks
-and the bulk of **SRV-LSP** have landed since the last audit; their detail moved
+and **SRV-LSP** have landed since the last audit; their detail moved
 to the [history archive](rust-rewrite-history.md) and they survive here only as
 table rows (✅ / 🟢).
 
@@ -864,11 +864,12 @@ listed residuals · 🟡 partial · 🔴 not started.
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
 | Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | every O-code pass + the inliner v0/verbatim shapes landed (see [history](rust-rewrite-history.md)); sole remaining: inliner **v3** (α-rename, gated on the RT-WASM consumer for execution-differential verification) → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
-| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). Two consumer-wiring residuals (per-check config toggles, flow-warning code actions) → **SRV-LSP** |
+| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after; CLI/REPL binary → **RT-VM** |
-| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | 🟢 | #670 bulk landed (incremental salsa reanalysis, UTF-16 `position_encoding`, registry/CU sharing + debounce, `spawn_blocking` panic containment, `semantic_tokens` memo, `codeLens/resolve`, inlay type-hints — see [history](rust-rewrite-history.md)). Open: GAP-C1 per-check config toggles; surfacing IRULE5002/5004 flow-warning fixes as code actions; rope-backed `DocumentState` deferred → **SRV-LSP** |
+| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The rope-backed `DocumentState` is split out into its own **SRV-ROPE** track (need evaluated with measurements in [`design/rope/`](design/rope/README.md)) |
+| Document store / incrementality | `tcl-lsp-server`, `tcl-lexer`, `tcl-lsp-db` | 🔴 | rope-backed store + chunk-addressable salsa input + rope-slice re-lex → **SRV-ROPE** (see [`design/rope/`](design/rope/README.md)) |
 | `tcl` CLI | `tcl-cli` | 🟡 | `dis`/`compwasm`/`pkg`/`venv`/`docker` verbs → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --simulate/--tshark/--keylog`; a few parity files → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
@@ -894,7 +895,8 @@ listed residuals · 🟡 partial · 🔴 not started.
 | FE | **FE-DIAG-F5** | new `tcl-xc`, `tcl-bigip` analyser slices, tk | `tcl-bigip` | L |
 | RT | **RT-WASM** | `tcl-compiler::codegen::wasm`, `runtime/zig`, `tcl-wasm` bin | FE-CODEGEN | L |
 | RT | **RT-VM** | `tcl-vm` | `tcl-bytecode` | L |
-| SRV | **SRV-LSP** | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
+| SRV | **SRV-LSP** ✅ | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
+| SRV | **SRV-ROPE** | document store: `tcl-lsp-server` `DocumentState` + `tcl-lexer` rope-slice `SourceMap` + `tcl-lsp-db` chunk input | FE-LEX (CST/structural-state index), SRV-LSP | XL |
 | TOOL | **TOOL-TCLPKG** | new `tcl-pkg` crate | — | XL |
 | TOOL | **TOOL-REFACTOR** | `tcl-lsp-core::code_actions` | SRV-LSP | M |
 | TOOL | **TOOL-F5** | `f5-cli` | — | XS |
@@ -1007,31 +1009,56 @@ delete`, and the supporting `return`/`error`/list-parse fixes — error.test
 - **open** a VM CLI/REPL binary (`tcl-vm` is lib-only today) — also unblocks the
   `tcl dis` verb.
 
-### Stage 3 — LSP server (SRV-LSP)
+### Stage 3 — LSP server (SRV-LSP) — complete
 
-#### SRV-LSP — server / core / db
-Owns `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db`. The server bulk landed in
-#670 (incremental salsa reanalysis, UTF-16 `position_encoding`, registry/CU
+**SRV-LSP has landed** (`tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db`). The
+#670 bulk (incremental salsa reanalysis, UTF-16 `position_encoding`, registry/CU
 sharing + debounce, `spawn_blocking` panic containment, the `semantic_tokens`
-token memo, `codeLens/resolve`, inlay type hints) — archived in
-[history](rust-rewrite-history.md). What remains is the two consumer-wiring
-residuals handed over from **FE-DIAG** plus the deferred rope decision:
-- **open** GAP-C1 per-check feature-config toggles — the analyser ports every
-  diagnostic family but the per-check enable/disable wiring lives in the server
-  config layer and is not yet built (no `feature_config`/per-check gate in
-  `tcl-lsp-{server,core,db}` today).
-- **open** surface the IRULE5002/5004 flow-warning quick-fixes as editor code
-  actions — the `tcl-lsp-core` code-action provider reads only the analyser's
-  `AnalysisResult.diagnostics` (so it already offers the IRULE2001 fix) but does
-  not yet process `find_irules_flow_warnings`, so the 5002/5004 insertion fixes
-  the analyser already produces aren't offered.
-- **deferred (architecture)** a rope-backed `DocumentState`. The analysis
-  pipeline is `&str`/byte-offset throughout (lexer, segmenter, and the salsa
-  `SourceFile` input all hold a `String`), so a rope would still have to
-  materialise a `String` (`O(n)`) for every analysis — it would only speed up
-  applying a *burst* of edits inside one `didChange`, which editors rarely send.
-  Not worth the dependency + hot-path churn until the pipeline itself is
-  rope-aware.
+token memo, `codeLens/resolve`, inlay type hints) and the two consumer-wiring
+residuals handed over from **FE-DIAG** — GAP-C1 per-check config toggles and the
+IRULE5002/5004 flow-warning code actions — are all shipped; the detail is in the
+[history archive](rust-rewrite-history.md).
+
+The rope-backed `DocumentState` that previously sat here as a deferred bullet is
+now its own track, **SRV-ROPE** (below), with the need evaluated against
+measurements rather than asserted.
+
+#### SRV-ROPE — rope-backed document store + incremental pipeline
+Owns the document-store seam across `tcl-lsp-server` (`DocumentState`),
+`tcl-lexer` (rope-slice `SourceMap`), and `tcl-lsp-db` (chunk-addressable salsa
+input). Depends on **FE-LEX** (the landed CST descent + structural-state index,
+which bounds the dirty re-lex region) and **SRV-LSP**. Full motivation, the
+reproducible experiment, and task breakdown live in
+[`design/rope/README.md`](design/rope/README.md); the headline:
+
+- **Measured, not asserted.** A workspace-excluded harness
+  ([`design/rope/experiment/`](design/rope/experiment/)) compares the current
+  `String` edit path against `ropey` across file sizes, edit-burst sizes, high
+  edit rates, salsa-flatten cost, position lookups, and many-small-doc memory.
+- **A standalone `DocumentState` swap is not worth it.** A rope cannot help the
+  paramount metric (time-to-first-tokens is a full-buffer `didOpen`), cannot make
+  salsa incremental (the input interns a `String`; the rope must flatten `O(n)`
+  every edit), and costs **1.4–1.9× memory** for the many-small-files workload.
+  The per-edit bottleneck is *analysis* (re-lex + salsa invalidation), O(n) and
+  rope-invariant until the pipeline goes incremental.
+- **Most of the apply-side win needs no rope.** The `String` path is slow because
+  it rebuilds `LineIndex` and double-allocates a spliced `String` per edit; a
+  *persisted, incrementally-patched `LineIndex`* captures the bulk at ~0 memory
+  cost. **That is SRV-ROPE Task 1 and the recommended first step.**
+- **open** Tasks (smallest-first, each independently shippable): (1) persisted
+  incremental `LineIndex` on the `String` store — *do first, no rope*; (2) rope
+  behind a feature flag in `DocumentState` with burst-coalescing + a
+  many-small-doc memory guard; (3) `LineIndex::from_rope_slice` +
+  `Lexer::with_source_map` rope-slice re-lex in `tcl-lexer`; (4) **the real
+  prize** — chunk-addressable salsa `SourceFile` input so `set_text` interns only
+  changed chunks and `file_analysis_incremental` / the segmenter re-lex only the
+  dirty span (touches `tcl-lsp-db`, `tcl-compiler::parsing`, the recovery index);
+  (5) MVCC write-window minimisation (folds into 4); (6) a committed
+  `perf_track` bench gating **no time-to-first-tokens regression**.
+- **Exit criterion:** keep the rope only if, with Task 4 landed, end-to-end
+  per-edit latency on large files improves materially *and* many-small-doc memory
+  stays under ~1.2×. If Task 1 alone captures the realistic win, Tasks 2–5 stay
+  deferred and the `String` store is retained — the experiment is the gate.
 
 ### Stage 4 — Tooling (TOOL-*)
 

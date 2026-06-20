@@ -11093,11 +11093,12 @@ would diverge from the differential oracle this track is verified against):
   IRULE1201/1202 (HTTP-after-respond) and IRULE5002/5004 (unguarded drop /
   DNS::return) for code that still runs after the catch.
 
-## SRV-LSP — server / core / db (landed 2026-06-19, #670)
+## SRV-LSP — server / core / db (landed 2026-06-19, #670; residuals 2026-06-20)
 
-The bulk of `tcl-lsp-server`, `tcl-lsp-core`, and `tcl-lsp-db` landed; the track
-is 🟢 (done bar two consumer-wiring residuals tracked in `rust-rewrite.md`). What
-landed:
+The bulk of `tcl-lsp-server`, `tcl-lsp-core`, and `tcl-lsp-db` landed in #670; the
+two consumer-wiring residuals handed over from **FE-DIAG** landed 2026-06-20,
+completing the track. The sole remaining item is deferred by design (rope-backed
+`DocumentState`, last bullet). What landed:
 
 - **Incremental server reanalysis** — the base analysis runs through the
   cancellable salsa `file_analysis_incremental` query (`tcl-lsp-db`), and
@@ -11128,7 +11129,38 @@ landed:
   (`: int`, shimmer `from → to`) and the format-string specifier labels
   (`format`/`scan`/`clock`/`binary`/`regsub`); the two inlay families gate
   independently and the legacy `inlayHints` alias settles `inlayTypeHints`.
-- **deferred (architecture)** a rope-backed `DocumentState` — the analysis
-  pipeline is `&str`/byte-offset throughout, so a rope would still have to
-  materialise a `String` (`O(n)`) for every analysis; not worth the dependency +
-  hot-path churn until the pipeline itself is rope-aware.
+- **GAP-C1 per-check feature-config toggles (landed 2026-06-20)** — the per-check
+  enable/disable wiring (`tclLsp.diagnostics.<CODE> = false`) was applied to the
+  analyser path but not the compiler-checks path, so the check families surfaced
+  through `lift_compiler_diagnostics` (S1xx shimmer, T1xx / W2xx taint,
+  IRULE1xxx–5xxx flow, GVN, SCCP constant-branch) could not be turned off.
+  `lift_compiler_diagnostics` now takes the resolved `disabled_diagnostics` set
+  (threaded from `DiagInputs.disabled` on both the push `run_diagnostics_core` and
+  the pull `full_diagnostics_for` paths) and skips any check whose code is
+  disabled — the uniform `d.code in disabled_diagnostics` filter Python's
+  `server/features/diagnostics.py` applies. The toggle is honoured everywhere a
+  check is published; verified end-to-end against the native binary (disabling
+  `IRULE3001` drops it from the published set while sibling iRules codes remain).
+- **IRULE5002/5004 flow-warning code actions (landed 2026-06-20)** — the
+  `tcl-lsp-core` code-action provider read only `AnalysisResult.diagnostics`, so
+  the control-flow fixes the analyser produces through the compiler-checks pass
+  (IRULE5002 unguarded `drop`/`reject`/`discard`; IRULE5004 `DNS::return` without a
+  following `return`) were never offered. A new
+  `code_actions::check_diagnostic_actions(source, range, checks)` lifts the
+  `fixes` carried by compiler-check diagnostics overlapping the range; among every
+  check family only `compiler_checks::Diagnostic::from_irules_check` populates
+  `fixes`, so lifting all check fixes is exactly the IRULE5002/5004 surfacing with
+  no double-offer of an analyser fix. The server's `code_action` handler wires it
+  in under the `f5-irules` dialect gate (the only dialect whose checks carry
+  fixes), mirroring `find_irules_flow_warnings` in
+  `server/features/code_actions.py`. Verified against the native binary (the
+  "Add 'event disable all' + 'return'" quick-fix is offered for an unguarded
+  `drop`).
+- **split into its own track (SRV-ROPE)** a rope-backed `DocumentState` — the
+  analysis pipeline is `&str`/byte-offset throughout, so a rope would still have
+  to materialise a `String` (`O(n)`) for every analysis. The need was evaluated
+  with a reproducible benchmark (see [`design/rope/`](design/rope/README.md)):
+  a standalone swap is net-neutral-to-negative (no time-to-first-tokens benefit,
+  no salsa incrementality, 1.4–1.9× memory for many small docs), so the work is
+  scoped as the cross-crate **SRV-ROPE** track in `rust-rewrite.md`, with the
+  cheap persisted-`LineIndex` win as its first step.
