@@ -10960,3 +10960,175 @@ crash → 98, for hang → 55, set → 57, incr → 58. The remaining gaps (info
 VM hangs, namespace/var/upvar depth, the error `[try]`-coverage + errorstack
 failures, and the smaller per-suite gaps) are tracked under **RT-VM** in
 `rust-rewrite.md`.
+
+## FE-DATAFLOW — SCCP / intervals / memory-SSA precision (landed 2026-06-19)
+
+All FE-DATAFLOW residuals on `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}`
+landed; the track closed and its `####` section was dropped from `rust-rewrite.md`
+(now a ✅ row). What landed:
+
+- **SCCP escaping-var widening** — `sccp` consults
+  `var_observability::escaping_var_names` and forces `::`-qualified / aliased /
+  traced definitions to OVERDEFINED (mirrors `_is_externally_mutable`).
+- **SCCP optimistic (Wegman–Zadeck) UNKNOWN deferral** + monotone finalising
+  pass (`branch_deferrable`; the driver runs at most twice).
+- **Static-loop → SCCP fold** — `LoopNode` carries the `IRFor` and the branch
+  decision wires `summarise_for_statement`, folding a post-loop branch on a loop
+  variable. The break-exit case needs no SCCP precompute: the Rust CFG builder
+  already lowers `break` to a direct loop-exit edge, so the post-loop block is
+  reachable by construction.
+- **memory-SSA `IRUpFrame` clobber** + the shared-caller upvar may-alias edge
+  (`upvar 1 x a; upvar 1 x b` merge into one alias set).
+- **W233 interval div-by-zero path** — the production emitter now delegates to
+  the (previously dead) interval-based `find_divide_by_zero`, the single
+  canonical implementation; the SCCP-only copy is gone.
+- **`complexity_guard`** — `ssa::{COMPLEXITY_GUARD_BLOCKS,
+  DEEP_ANALYSIS_BODY_BYTES, is_complexity_guarded}`, a trivial-SSA short-circuit
+  in `build_ssa`, a `FunctionUnit::complexity_guarded` flag set from the
+  block-count or body-byte ceiling, and `CompilationUnit::analysable_functions`
+  filtering guarded bodies out of every per-proc diagnostic / optimiser pass.
+  (The interprocedural summary is IR-based, so it needs no guard — it never
+  develops the over-optimistic empty-SSA summary the Python guard exists to
+  prevent.)
+
+## FE-DIAG — analyser diagnostics & dialect checks (landed 2026-06-19, #665)
+
+Every diagnostic family on `tcl-compiler::{analyser,irules_checks}` is ported and
+verified; the track closed and its `####` section was dropped from
+`rust-rewrite.md` (now a ✅ row). Two consumer-wiring residuals (per-check config
+toggles, surfacing the IRULE5002/5004 flow-warning fixes as editor code actions)
+were handed to **SRV-LSP** and remain open there. What landed:
+
+- **Missing emitters** — **E001** (missing subcommand), **W125** (orphaned
+  control-flow keyword), **IRULE5005** (direct proc call without `call`),
+  **IRULE1001** (command invalid/ineffective in event — registry-legality-matrix
+  driven, with the profile-info hint + "Available in" reasons). Verified
+  byte-for-byte against the Python emitters; E001/W125 cross-checked against
+  tclsh 8.4–9.0.
+- **snit OO support** (`snit::type`/`widget`/`widgetadaptor` as ClassDef, with
+  method / typemethod / constructor / destructor / typeconstructor / onconfigure
+  / oncget bodies analysed in method scopes seeded with the instance / type
+  variables + snit implicits) and the OO body-walks Rust skipped: `oo::class
+  new`/`createWithNamespace` (widened subcommand gate), the `initialise` body,
+  and `property -get/-set` accessor bodies. Verified byte-for-byte against the
+  Python analyser and against real `tclsh8.6` + tcllib.
+- **W307 / W308** method-dispatch type checks + the precise TclOO `object_of`
+  typing they consume (handed off from **FE-TYPESHIM**). The *known-classes* set
+  is sourced from the analyser-layer `signature_scan`
+  (`CompilationUnit::collect_known_classes`), threaded through
+  `FunctionUnit::build_with_param_constants_and_classes` → `propagate_types` /
+  `infer_function_return_type`, and folded into the per-procedure lattice memo
+  key (`LatticeRequest::known_classes` + `FnLatticeKey::known_classes` in
+  `tcl-lsp-db`) so the incremental build stays byte-identical to the whole-file
+  build. The ported `type_infer::constructor_object_type` recognises `new` /
+  `create` / `%AUTO%` / leading-`.` spellings. **W307 reached full parity with
+  Python across the 102-file tcllib OO corpus (0 divergences)** — the last 8
+  divergences took three fixes: (1) `$var method` dispatches inside command
+  substitutions (`[$obj m]`) are recorded as var-command sites
+  (`dispatch_nested_segment` → `record_var_or_cmd_command_site`); (2)
+  `is_snit_member` ported (a `$var method` whose offset falls in a class body
+  naming an instance `variable` is component dispatch — suppress W307); (3) the
+  braced-namespace-var head bug (`${ns}::define::[…]` truncated at the first `}`
+  to recover the dispatched var). `::oo::class` (fully-qualified head) is now
+  recognised by the analyser + `signature_scan` walker — a *shared* blind spot
+  fixed Python-side too. Python's object-factory W307 suppression
+  (`object_returning_procs` fixpoint) is ported as
+  `Analyser::compute_factory_object_ranges`.
+- **IRULE1201 / 1202 / 5002 / 5004 path-sensitivity (C44 follow-up) + quick-fixes**
+  — the linear scans are replaced by a shared path-sensitive walk over the
+  structured IR (`irules_checks::walk_flow`) that threads per-path
+  response-/drop-flow states and merges at join points, so mutually-exclusive
+  branches no longer false-positive, `catch` bodies are analysed, and loops run
+  zero-or-more times. The response-commit / HTTP-namespace command sets are
+  registry-derived. The insertion quick-fixes land via a shared
+  `irules_checks::CodeFix { span, new_text, description }` carrying a fix range
+  independent of the diagnostic span, threaded through `IrulesCheckWarning.fixes`
+  → `compiler_checks::Diagnostic.fixes`. IRULE5002 inserts `event disable all` +
+  `return`; IRULE5004 inserts `return` after `DNS::return`; the analyser-side
+  IRULE2001 rewrites `matchclass` to `class match`. All verified byte-for-byte
+  against the Python `CodeFix` text.
+- **`DynamicNameLocal` reconciliation (row closed)** — withholding the trait does
+  *not* change caller-side W211/W214 suppression (driven by the interprocedural
+  summary index `build_proc_index_from_summaries`, which models real `upvar`
+  caller-frame write-back). A related callee-side FP was found and fixed: a
+  dynamic write target (`set $p 1`) modelled as a static def of `p` by
+  `ssa::defs_of` now mirrors Python `var_resolve::resolve_place` (no static def;
+  the name-bearing variable is read via `ssa::is_dynamic_write_target`).
+- **`when`-body dialect gating** — a foreign-dialect builtin disabled in the
+  active dialect (iRules `when`/`log`/`session` under plain Tcl) is an unknown
+  would-be user command whose braced argument is opaque *data*.
+  `ssa::structural_body_indices` skips every braced arg of such a command from
+  the SSA var scan (mirroring `command_is_disabled_in_active_dialect`), so `when
+  EVENT { … }` under plain Tcl draws only `W002` + `W123` on `when` itself.
+- **source-style pass + W108 `non_ascii_mode`** — W111/W112/W115/W118 in
+  `tcl-lsp-core::source_style`, W120 (command without `package require`) in the
+  analyser, and W108 `non_ascii_mode` (`NonAsciiMode`, dialect-resolved). The
+  GAP-C1 per-check feature-config toggles wiring lives in the server config layer
+  (**SRV-LSP**).
+- **IRULE5005 inside command substitutions** (#660 review follow-up) —
+  `dispatch_nested_segment` runs `emit_proc_resolution_diagnostics` after site
+  recording, so a direct iRules-proc call nested in a `[…]` substitution is
+  flagged.
+
+**Lockstep follow-ups (Python-first, #662) — landed.** Two *shared* correctness
+bugs present identically in the canonical Python analyser were fixed on the
+Python reference first, then ported here in lockstep (porting ahead of Python
+would diverge from the differential oracle this track is verified against):
+
+- **IRULE2001 `matchclass` 3-arg quick-fix corruption** —
+  `analyser::diagnostics::emit_irule2001_matchclass` previously gated on
+  `args.len() >= 2` and always rewrote to `class match <item> equals <class>`,
+  so the 3-arg form `matchclass <item> <operator> <class>` dropped its class and
+  forced `equals`. It now matches by arity: two args → default-`equals` rewrite;
+  three → verbatim `matchclass` → `class match` rename preserving operator and
+  class; any other arity warns with no fix. Raw argument slices widen through
+  trailing `]`/`}`/`"` closers via `optimiser::helpers::spans::full_rewrite_span`.
+- **catch-caught `return` flow** — `catch` swallows the return code, so execution
+  continues after the `catch` body even when it `return`s; the flow walk dropped
+  the post-catch path. The Rust twin (`irules_checks::walk_flow`/`flow_step`)
+  mirrors `compiler/irules_flow.py` via a `return_sink` threaded through every
+  nested control-flow walk: a `return` hands its at-return states to the nearest
+  enclosing `Statement::Catch`'s sink, and the `Catch` arm folds `body_out +
+  catch_returns` (falling back to `[st]`) into the continuing paths. Fixes
+  IRULE1201/1202 (HTTP-after-respond) and IRULE5002/5004 (unguarded drop /
+  DNS::return) for code that still runs after the catch.
+
+## SRV-LSP — server / core / db (landed 2026-06-19, #670)
+
+The bulk of `tcl-lsp-server`, `tcl-lsp-core`, and `tcl-lsp-db` landed; the track
+is 🟢 (done bar two consumer-wiring residuals tracked in `rust-rewrite.md`). What
+landed:
+
+- **Incremental server reanalysis** — the base analysis runs through the
+  cancellable salsa `file_analysis_incremental` query (`tcl-lsp-db`), and
+  `set_text` cancels an in-flight read at a per-item query boundary, so an edit
+  reuses every unchanged procedure's memoised per-function lattice instead of
+  re-analysing the whole document.
+- **C1 UTF-16 residuals** — the server advertises `position_encoding` (UTF-16,
+  negotiated against the client's `general.positionEncodings`); the former byte
+  `position_at(...).line` sites in `folding.rs` / `irules_context.rs` now use the
+  encoding-independent `LineIndex::line_at`.
+- **Performance** — the ~560-spec registry is built once per canonical dialect
+  (process-wide `OnceLock` in `tcl-registry::cache`, plus the server's shared
+  `TclDatabase::registry` map); the `CompilationUnit` is shared across the
+  analyser tail and the optimiser checks via the salsa-memoised
+  `memoised_compilation_unit` / `function_lattice`; and the diagnostics path
+  debounces with a generation-supersede check (`DEBOUNCE`).
+- **Panic containment (review-findings C3)** — the 8 inline handlers
+  (`folding_range`, `document_symbol`, `semantic_tokens_full`/`_delta`/`_range`,
+  `document_link`, `formatting`/`range_formatting`) run on `spawn_blocking`, so a
+  parser panic surfaces as a JSON-RPC error rather than unwinding the event loop.
+- **Token memo** — semantic tokens are served from the salsa-memoised
+  `semantic_tokens` query (`db_semantic_tokens`), superseding the Python-era
+  `SYNC-MAY31-6/-11` reposition cache.
+- **`codeLens/resolve`** — the server advertises `resolve_provider`, carries
+  `{qname, uri}` in the lens data, and recomputes the reference count against the
+  live document/workspace at resolve time.
+- **inlay type hints** — the provider emits the inferred-variable-type family
+  (`: int`, shimmer `from → to`) and the format-string specifier labels
+  (`format`/`scan`/`clock`/`binary`/`regsub`); the two inlay families gate
+  independently and the legacy `inlayHints` alias settles `inlayTypeHints`.
+- **deferred (architecture)** a rope-backed `DocumentState` — the analysis
+  pipeline is `&str`/byte-offset throughout, so a rope would still have to
+  materialise a `String` (`O(n)`) for every analysis; not worth the dependency +
+  hot-path churn until the pipeline itself is rope-aware.
