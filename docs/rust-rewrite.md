@@ -868,7 +868,8 @@ listed residuals · 🟡 partial · 🔴 not started.
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after; CLI/REPL binary → **RT-VM** |
-| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | 🟢 | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). Sole residual is **deferred by design**: a rope-backed `DocumentState` (the analysis pipeline is `&str`/byte-offset throughout, so a rope buys nothing until the pipeline is rope-aware) |
+| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The rope-backed `DocumentState` is split out into its own **SRV-ROPE** track (need evaluated with measurements in [`design/rope/`](design/rope/README.md)) |
+| Document store / incrementality | `tcl-lsp-server`, `tcl-lexer`, `tcl-lsp-db` | 🔴 | rope-backed store + chunk-addressable salsa input + rope-slice re-lex → **SRV-ROPE** (see [`design/rope/`](design/rope/README.md)) |
 | `tcl` CLI | `tcl-cli` | 🟡 | `dis`/`compwasm`/`pkg`/`venv`/`docker` verbs → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --simulate/--tshark/--keylog`; a few parity files → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
@@ -895,6 +896,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | RT | **RT-WASM** | `tcl-compiler::codegen::wasm`, `runtime/zig`, `tcl-wasm` bin | FE-CODEGEN | L |
 | RT | **RT-VM** | `tcl-vm` | `tcl-bytecode` | L |
 | SRV | **SRV-LSP** ✅ | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
+| SRV | **SRV-ROPE** | document store: `tcl-lsp-server` `DocumentState` + `tcl-lexer` rope-slice `SourceMap` + `tcl-lsp-db` chunk input | FE-LEX (CST/structural-state index), SRV-LSP | XL |
 | TOOL | **TOOL-TCLPKG** | new `tcl-pkg` crate | — | XL |
 | TOOL | **TOOL-REFACTOR** | `tcl-lsp-core::code_actions` | SRV-LSP | M |
 | TOOL | **TOOL-F5** | `f5-cli` | — | XS |
@@ -1017,13 +1019,46 @@ residuals handed over from **FE-DIAG** — GAP-C1 per-check config toggles and t
 IRULE5002/5004 flow-warning code actions — are all shipped; the detail is in the
 [history archive](rust-rewrite-history.md).
 
-The **one remaining item is deferred by design**: a rope-backed `DocumentState`.
-The analysis pipeline is `&str`/byte-offset throughout (lexer, segmenter, and the
-salsa `SourceFile` input all hold a `String`), so a rope would still have to
-materialise a `String` (`O(n)`) for every analysis — it would only speed up
-applying a *burst* of edits inside one `didChange`, which editors rarely send.
-Not worth the dependency + hot-path churn until the pipeline itself is
-rope-aware; revisit as part of a future incremental-pipeline track, not SRV-LSP.
+The rope-backed `DocumentState` that previously sat here as a deferred bullet is
+now its own track, **SRV-ROPE** (below), with the need evaluated against
+measurements rather than asserted.
+
+#### SRV-ROPE — rope-backed document store + incremental pipeline
+Owns the document-store seam across `tcl-lsp-server` (`DocumentState`),
+`tcl-lexer` (rope-slice `SourceMap`), and `tcl-lsp-db` (chunk-addressable salsa
+input). Depends on **FE-LEX** (the landed CST descent + structural-state index,
+which bounds the dirty re-lex region) and **SRV-LSP**. Full motivation, the
+reproducible experiment, and task breakdown live in
+[`design/rope/README.md`](design/rope/README.md); the headline:
+
+- **Measured, not asserted.** A workspace-excluded harness
+  ([`design/rope/experiment/`](design/rope/experiment/)) compares the current
+  `String` edit path against `ropey` across file sizes, edit-burst sizes, high
+  edit rates, salsa-flatten cost, position lookups, and many-small-doc memory.
+- **A standalone `DocumentState` swap is not worth it.** A rope cannot help the
+  paramount metric (time-to-first-tokens is a full-buffer `didOpen`), cannot make
+  salsa incremental (the input interns a `String`; the rope must flatten `O(n)`
+  every edit), and costs **1.4–1.9× memory** for the many-small-files workload.
+  The per-edit bottleneck is *analysis* (re-lex + salsa invalidation), O(n) and
+  rope-invariant until the pipeline goes incremental.
+- **Most of the apply-side win needs no rope.** The `String` path is slow because
+  it rebuilds `LineIndex` and double-allocates a spliced `String` per edit; a
+  *persisted, incrementally-patched `LineIndex`* captures the bulk at ~0 memory
+  cost. **That is SRV-ROPE Task 1 and the recommended first step.**
+- **open** Tasks (smallest-first, each independently shippable): (1) persisted
+  incremental `LineIndex` on the `String` store — *do first, no rope*; (2) rope
+  behind a feature flag in `DocumentState` with burst-coalescing + a
+  many-small-doc memory guard; (3) `LineIndex::from_rope_slice` +
+  `Lexer::with_source_map` rope-slice re-lex in `tcl-lexer`; (4) **the real
+  prize** — chunk-addressable salsa `SourceFile` input so `set_text` interns only
+  changed chunks and `file_analysis_incremental` / the segmenter re-lex only the
+  dirty span (touches `tcl-lsp-db`, `tcl-compiler::parsing`, the recovery index);
+  (5) MVCC write-window minimisation (folds into 4); (6) a committed
+  `perf_track` bench gating **no time-to-first-tokens regression**.
+- **Exit criterion:** keep the rope only if, with Task 4 landed, end-to-end
+  per-edit latency on large files improves materially *and* many-small-doc memory
+  stays under ~1.2×. If Task 1 alone captures the realistic win, Tasks 2–5 stay
+  deferred and the `String` store is retained — the experiment is the gate.
 
 ### Stage 4 — Tooling (TOOL-*)
 
