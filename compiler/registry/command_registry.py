@@ -129,6 +129,7 @@ _DIALECT_TO_LOADERS: dict[str, tuple[str, ...]] = {
     "tcl8.5": ("tk",),
     "tcl8.6": ("tk",),
     "tcl9.0": ("tk",),
+    "tcl9.1": ("tk",),
     "f5-irules": ("f5-irules",),
     "f5-iapps": ("f5-iapps",),
     "f5-tmsh": ("f5-iapps",),

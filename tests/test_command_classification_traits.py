@@ -31,7 +31,7 @@ _NOT_PROC_FACTORY = set(
     """
     proc namespace if switch while for foreach try catch eval apply expr uplevel
     upvar variable set lappend dict array string list lindex package source
-    interp oo::class oo::define oo::objdefine
+    interp oo::class oo::define oo::objdefine timer unicode
     """.split()
 )
 

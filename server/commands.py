@@ -47,6 +47,7 @@ _DIALECT_LABELS = {
     "tcl8.5": "Tcl 8.5",
     "tcl8.6": "Tcl 8.6",
     "tcl9.0": "Tcl 9.0",
+    "tcl9.1": "Tcl 9.1",
     "f5-irules": "F5 iRules",
     "f5-iapps": "F5 iApps",
     "eda-tools": "EDA Tools",

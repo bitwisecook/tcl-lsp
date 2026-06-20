@@ -349,13 +349,13 @@ class OptionSpec:
         If this option has its own ``dialects`` set, use that.  Otherwise
         inherit from *parent_dialects* (the parent CommandSpec or SubCommand).
         """
+        from .dialects import dialect_supports
+
         if dialect is None:
             return True
         if self.dialects is not None:
-            return dialect in self.dialects
-        if parent_dialects is None:
-            return True
-        return dialect in parent_dialects
+            return dialect_supports(dialect, self.dialects)
+        return dialect_supports(dialect, parent_dialects)
 
 
 class FormKind(enum.Enum):
@@ -602,14 +602,14 @@ class SubCommand:
         If this subcommand has its own ``dialects`` set, use that.
         Otherwise, inherit from the parent command's dialects.
         """
+        from .dialects import dialect_supports
+
         if dialect is None:
             return True
         if self.dialects is not None:
-            return dialect in self.dialects
+            return dialect_supports(dialect, self.dialects)
         # Inherit from parent.
-        if parent_dialects is None:
-            return True
-        return dialect in parent_dialects
+        return dialect_supports(dialect, parent_dialects)
 
 
 @dataclass(frozen=True, slots=True)
@@ -899,11 +899,9 @@ class CommandSpec:
     terminates_block: bool = False
 
     def supports_dialect(self, dialect: str | None) -> bool:
-        if dialect is None:
-            return True
-        if self.dialects is None:
-            return True
-        return dialect in self.dialects
+        from .dialects import dialect_supports
+
+        return dialect_supports(dialect, self.dialects)
 
     def supports_packages(self, active_packages: frozenset[str] | None) -> bool:
         """Check if this command is available given the active packages.

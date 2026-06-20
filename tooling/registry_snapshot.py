@@ -30,7 +30,7 @@ from compiler.registry.info import lookup_event_info
 from compiler.registry.signatures import Arity
 
 # Dialects whose command registry we snapshot.  Ordered for stable output.
-TCL_DIALECTS: tuple[str, ...] = ("tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0")
+TCL_DIALECTS: tuple[str, ...] = ("tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1")
 F5_DIALECTS: tuple[str, ...] = ("f5-irules", "f5-iapps")
 ALL_DIALECTS: tuple[str, ...] = (*TCL_DIALECTS, *F5_DIALECTS)
 

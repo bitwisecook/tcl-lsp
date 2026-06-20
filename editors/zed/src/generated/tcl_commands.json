@@ -2964,6 +2964,18 @@
       "summary": "Time the execution of a script"
     },
     {
+      "name": "timer",
+      "summary": "Execute a script at a wall-clock point or after a monotonic delay (Tcl 9.1).",
+      "subcommands": [
+        "at",
+        "cancel",
+        "idle",
+        "in",
+        "info",
+        "sleep"
+      ]
+    },
+    {
       "name": "timerate",
       "summary": "Measure the rate of execution of a script"
     },
@@ -2982,6 +2994,16 @@
     {
       "name": "try",
       "summary": "Trap and process errors and exceptions"
+    },
+    {
+      "name": "unicode",
+      "summary": "Unicode normalization (Tcl 9.1).",
+      "subcommands": [
+        "tonfc",
+        "tonfd",
+        "tonfkc",
+        "tonfkd"
+      ]
     },
     {
       "name": "unknown",

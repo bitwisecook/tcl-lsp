@@ -6,11 +6,11 @@
     },
     {
       "file": "tcl_system.md",
-      "dialects": ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "synopsys-eda-tcl", "cadence-eda-tcl", "xilinx-eda-tcl", "intel-quartus-eda-tcl", "mentor-eda-tcl", "expect"]
+      "dialects": ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "synopsys-eda-tcl", "cadence-eda-tcl", "xilinx-eda-tcl", "intel-quartus-eda-tcl", "mentor-eda-tcl", "expect"]
     },
     {
       "file": "tk_system.md",
-      "dialects": ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"]
+      "dialects": ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]
     }
   ]
 }

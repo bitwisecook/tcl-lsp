@@ -22,7 +22,7 @@ Open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`) and type `Tcl:` to se
 | Command | What it does |
 |---------|-------------|
 | **Tcl: Restart Language Server** | Stop and restart the language server. Use when settings that are read at startup have changed (Python path, server path, log level). |
-| **Tcl: Select Dialect** | Open a picker to switch between Tcl 8.4, 8.5, 8.6, 9.0, F5 iRules, F5 iApps, and EDA tool dialects. |
+| **Tcl: Select Dialect** | Open a picker to switch between Tcl 8.4, 8.5, 8.6, 9.0, 9.1, F5 iRules, F5 iApps, and EDA tool dialects. |
 | **Tcl: Export Configuration** | Write the current LSP settings to an XDG-compatible configuration file so they persist outside VS Code. |
 | **Tcl: Toggle Optimiser Suggestions** | Flip `tclLsp.optimiser.enabled` on or off. When enabled, hint-level O-code diagnostics appear in the editor. |
 | **Tcl: Toggle AI Features** | Flip `tclLsp.ai.enabled` on or off. When disabled, the `@irule`, `@tcl`, and `@tk` chat participants are removed. |
