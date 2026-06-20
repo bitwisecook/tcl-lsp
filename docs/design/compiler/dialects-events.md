@@ -24,7 +24,7 @@ Source: [`compiler/registry/dialects.py`](../../../compiler/registry/dialects.py
 
 ```python
 KNOWN_DIALECTS = frozenset({
-    "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0",   # Tcl version dialects
+    "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1",  # Tcl version dialects
     "f5-irules",                                 # F5 iRules
     "f5-iapps",                                  # F5 iApps
     "f5-tmsh",                                   # F5 tmsh scripts
@@ -71,7 +71,7 @@ instead of manually listing dialect names:
 ```python
 from compiler.registry.dialects import dialects_since
 
-# Returns {"tcl8.5", "tcl8.6", "tcl9.0", "f5-iapps", "f5-tmsh",
+# Returns {"tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "f5-iapps", "f5-tmsh",
 #          "xilinx-eda-tcl", "intel-quartus-eda-tcl", "mentor-eda-tcl",
 #          "synopsys-eda-tcl", "cadence-eda-tcl", "expect"}
 dialects_since("tcl8.5")

@@ -513,6 +513,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             "tcl8.5" to "Tcl 8.5",
             "tcl8.6" to "Tcl 8.6",
             "tcl9.0" to "Tcl 9.0",
+            "tcl9.1" to "Tcl 9.1",
             "f5-irules" to "F5 iRules",
             "f5-iapps" to "F5 iApps",
             "f5-tmsh" to "F5 tmsh Scripts",
