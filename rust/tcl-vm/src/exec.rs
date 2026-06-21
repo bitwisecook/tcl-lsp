@@ -782,20 +782,25 @@ impl Vm {
                 f.stack.push(Value::bool(r));
             }
             Op::UNSET_STK => {
-                // operand = flags (e.g. -nocomplain); M3 ignores it.
+                // operand = flags; a non-zero flag means "complain" (error when
+                // the variable is absent). The name (possibly `a(k)`) is on TOS.
+                let complain = imm0(instr) != 0;
                 let name = pop(f).to_str();
-                self.unset_var(&name);
+                try_op!(self.unset_one(&name, complain));
             }
             Op::UNSET_SCALAR => {
-                // Operands [flags, slot]; flags ignored (mirrors UNSET_STK).
+                // Operands [flags, slot]; flags bit 0 ⇒ complain when absent.
+                let complain = imm0(instr) != 0;
                 let name = lvt_name(imm_at(instr, 1));
-                self.unset_var(&name);
+                try_op!(self.unset_one(&name, complain));
             }
             Op::UNSET_ARRAY => {
-                // Operands [flags, slot]; the element key is on the stack.
+                // Operands [flags, slot]; the element key is on the stack. Array
+                // elements are removed element-aware and never complain (matching
+                // C Tcl / cmd_unset).
                 let name = lvt_name(imm_at(instr, 1));
                 let key = pop(f).to_str();
-                self.unset_var(&format!("{name}({key})"));
+                self.array_unset_elem(&name, &key);
             }
 
             // -- append / lappend (LVT scalar + array forms) --

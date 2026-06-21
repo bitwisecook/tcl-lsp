@@ -750,16 +750,8 @@ fn cmd_unset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     for n in rest {
         let name = n.to_str();
-        if let Some(open) = name.find('(')
-            && name.ends_with(')')
-            && open > 0
-        {
-            vm.array_unset_elem(&name[..open], &name[open + 1..name.len() - 1]);
-            continue;
-        }
-        let existed = vm.unset_var(&name);
-        if !existed && !nocomplain {
-            return err(format!("can't unset \"{name}\": no such variable"));
+        if let Err(c) = vm.unset_one(&name, !nocomplain) {
+            return c;
         }
     }
     ok(Value::empty())
