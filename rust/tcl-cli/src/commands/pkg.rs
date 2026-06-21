@@ -9,11 +9,13 @@
 // when a given verb cannot fail; the wrap is the interface contract.
 #![allow(clippy::unnecessary_wraps)]
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde_json::{Map, Value, json};
 use tcl_pkg::cas::ContentAddressableStore;
+use tcl_pkg::installer;
 use tcl_pkg::lockfile::{LockFile, LockedPackage, SourceSpec, read_lockfile, write_lockfile};
 use tcl_pkg::manifest::load_manifest;
 use tcl_pkg::registry::RegistryClient;
@@ -109,6 +111,17 @@ fn lockfile_path(common: &PkgCommon) -> PathBuf {
     mpath
         .parent()
         .map_or_else(|| PathBuf::from("tclpkg.lock"), |p| p.join("tclpkg.lock"))
+}
+
+/// Where `install` materialises packages: the active venv's `lib/` if one is
+/// set, else `<project>/lib` next to the manifest.
+fn install_lib_dir(mpath: &Path) -> PathBuf {
+    if let Some(venv) = std::env::var_os("TCL_VENV") {
+        return PathBuf::from(venv).join("lib");
+    }
+    mpath
+        .parent()
+        .map_or_else(|| PathBuf::from("lib"), |p| p.join("lib"))
 }
 
 fn run_init(
@@ -216,12 +229,32 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
         }
     };
 
+    // Source lookup tables for materialisation.
+    let mut manifest_sources: HashMap<String, String> = HashMap::new();
+    for r in manifest.requires.iter().chain(manifest.dev_requires.iter()) {
+        if let Some(url) = &r.source_url {
+            manifest_sources.insert(r.name.clone(), url.clone());
+        }
+    }
+    let mut replace_sources: HashMap<String, String> = HashMap::new();
+    for r in &manifest.replaces {
+        replace_sources.insert(r.name.clone(), r.source_url.clone());
+    }
+    // --frozen never touches the network or the tree.
+    let offline = frozen || common.offline;
+    let cache = tcl_pkg::cache_dir();
+    let cas = ContentAddressableStore::new(&cache);
+    let mut registry = RegistryClient::new(&cache, common.offline);
+    let lib_dir = install_lib_dir(&mpath);
+
     let mut lf = LockFile::new(manifest.name.clone(), manifest.tcl_constraint.clone());
     lf.stamp();
     for rp in &resolved {
-        lf.packages.push(LockedPackage {
-            name: rp.reference.name.clone(),
-            version: rp.reference.version.to_string(),
+        let name = rp.reference.name.clone();
+        let version = rp.reference.version.to_string();
+        let mut entry = LockedPackage {
+            name: name.clone(),
+            version: version.clone(),
             source: SourceSpec::new("tarball", ""),
             integrity: String::new(),
             size: 0,
@@ -229,7 +262,42 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
             provides: Vec::new(),
             license: String::new(),
             dev: rp.dev,
-        });
+        };
+        if !offline {
+            let source = installer::resolve_source(
+                &name,
+                &version,
+                &replace_sources,
+                &manifest_sources,
+                Some(&mut registry),
+            );
+            if let Some(source) = source {
+                match installer::fetch_and_store(&source, &name, &version, &cas, 60) {
+                    Ok(result) => {
+                        if let Err(e) = installer::materialise(
+                            &cas,
+                            &result.integrity,
+                            &lib_dir,
+                            &name,
+                            &version,
+                            true,
+                        ) {
+                            println!("{}", ui::warn(&format!("{name} {version}: {e}"), colour));
+                        }
+                        entry.source = result.source;
+                        entry.integrity = result.integrity;
+                        entry.size = result.size;
+                        entry.provides = result.provides;
+                        entry.license = result.license;
+                    }
+                    Err(e) => {
+                        entry.source = source;
+                        println!("{}", ui::warn(&format!("{name} {version}: {e}"), colour));
+                    }
+                }
+            }
+        }
+        lf.packages.push(entry);
     }
 
     let lockpath = mpath

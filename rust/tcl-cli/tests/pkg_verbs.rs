@@ -8,11 +8,22 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn run_in(dir: &std::path::Path, args: &[&str]) -> (String, String, i32) {
-    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
-        .args(args)
-        .current_dir(dir)
-        .output()
-        .expect("failed to spawn tcl binary");
+    run_in_cache(dir, None, args)
+}
+
+/// Like [`run_in`] but pins `XDG_CACHE_HOME` so the content-addressable store
+/// writes under a test-scoped directory (keeps `install`/`vendor` hermetic).
+fn run_in_cache(
+    dir: &std::path::Path,
+    cache: Option<&std::path::Path>,
+    args: &[&str],
+) -> (String, String, i32) {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_tcl"));
+    cmd.args(args).current_dir(dir);
+    if let Some(cache) = cache {
+        cmd.env("XDG_CACHE_HOME", cache);
+    }
+    let output = cmd.output().expect("failed to spawn tcl binary");
     (
         String::from_utf8_lossy(&output.stdout).into_owned(),
         String::from_utf8_lossy(&output.stderr).into_owned(),
@@ -78,12 +89,26 @@ fn docker_create_writes_dockerfile() {
 }
 
 #[test]
-fn pkg_init_install_list_roundtrip() {
-    let dir = temp_dir("pkg-roundtrip");
+fn pkg_init_install_materialise_roundtrip() {
+    let base = temp_dir("pkg-roundtrip");
+    let cache = base.join("cache");
+    let dir = base.join("proj");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    // A local package to install (exercises fetch+materialise offline, no net).
+    let dep = base.join("dep-src");
+    std::fs::create_dir_all(&dep).unwrap();
+    std::fs::write(
+        dep.join("tclpkg.tcl"),
+        "package dep\nversion 1.0.0\nprovides dep::api\nlicense MIT\n",
+    )
+    .unwrap();
+    std::fs::write(dep.join("dep.tcl"), "proc dep::hi {} { return hi }\n").unwrap();
 
     // init
-    let (_o, _e, code) = run_in(
+    let (_o, _e, code) = run_in_cache(
         &dir,
+        Some(&cache),
         &["pkg", "init", "--name", "demo", "--version", "1.0.0"],
     );
     assert_eq!(code, 0);
@@ -91,32 +116,56 @@ fn pkg_init_install_list_roundtrip() {
     assert!(manifest.contains("package     demo"));
     assert!(manifest.contains("version     1.0.0"));
 
-    // add a leaf requirement (no fetch happens during install)
-    let (_o, _e, code) = run_in(&dir, &["pkg", "add", "json", "1.3.5"]);
+    // add the dependency with an explicit local source
+    let (_o, _e, code) = run_in_cache(
+        &dir,
+        Some(&cache),
+        &[
+            "pkg",
+            "add",
+            "dep",
+            "1.0.0",
+            "--source",
+            dep.to_str().unwrap(),
+        ],
+    );
     assert_eq!(code, 0);
 
-    // install resolves + writes the lockfile
-    let (_o, _e, code) = run_in(&dir, &["pkg", "install"]);
+    // install resolves, fetches, stores, materialises, and writes the lockfile
+    let (_o, _e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "install"]);
     assert_eq!(code, 0);
     let lock = std::fs::read_to_string(dir.join("tclpkg.lock")).unwrap();
-    assert!(lock.contains("\"name\": \"json\""));
-    assert!(lock.contains("\"version\": \"1.3.5\""));
+    assert!(lock.contains("\"name\": \"dep\""));
+    assert!(lock.contains("\"version\": \"1.0.0\""));
+    assert!(
+        lock.contains("\"integrity\": \"sha256-"),
+        "lockfile: {lock}"
+    );
+    assert!(lock.contains("\"type\": \"path\""));
     // Canonical JSON: sorted keys, 2-space indent, trailing newline.
     assert!(lock.ends_with("}\n"));
 
+    // the package is materialised into ./lib/<name>-<version>/
+    let materialised = dir.join("lib").join("dep-1.0.0").join("dep.tcl");
+    assert!(materialised.exists(), "expected {}", materialised.display());
+
+    // verify passes now that integrity is populated
+    let (_o, _e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "verify"]);
+    assert_eq!(code, 0);
+
     // list shows the resolved package
-    let (stdout, _e, code) = run_in(&dir, &["pkg", "list"]);
+    let (stdout, _e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "list"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("NAME"));
-    assert!(stdout.contains("json"));
-    assert!(stdout.contains("1.3.5"));
+    assert!(stdout.contains("dep"));
+    assert!(stdout.contains("1.0.0"));
 
     // tree --json round-trips through the canonical emitter
-    let (stdout, _e, code) = run_in(&dir, &["pkg", "tree", "--json"]);
+    let (stdout, _e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "tree", "--json"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("\"name\": \"demo\""));
 
-    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]

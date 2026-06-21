@@ -10,6 +10,7 @@ pub mod cas;
 pub mod docker;
 pub mod errors;
 pub mod fetchers;
+pub mod installer;
 pub mod json;
 pub mod lockfile;
 pub mod manifest;
