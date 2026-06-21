@@ -698,9 +698,9 @@ If your port has any of these, reshape it before asking for review:
 
 The workspace (`Cargo.toml` members) as it stands today — crate granularity,
 roughly in dependency order. New crates the [Remaining work](#remaining-work)
-plan still calls for (`tcl-wasm`, `tcl-pkg`, `tcl-xc`, `tcl-fuzz`,
-`tcl-debugger`, `tcl-irule-test`) are **not** listed here because they do not
-exist yet.
+plan still calls for (`tcl-wasm`, `tcl-xc`, `tcl-debugger`, `tcl-irule-test`)
+are **not** listed here because they do not exist yet; `tcl-fuzz` has since
+landed (the differential fuzzer binary).
 
 ```
 Cargo.toml                workspace manifest        rust-toolchain.toml  channel = "stable"
@@ -736,6 +736,7 @@ rust/
   tcl-explorer-wasm/      Rust → WASM compile() facade for the explorer GUI (excluded from the workspace)
   tcl-cli-support/        shared CLI plumbing for the native tcl / f5 CLIs
   tcl-cli/                native `tcl` toolchain CLI                f5-cli/  native `f5-query` CLI
+  tcl-fuzz/               differential fuzzer (seeded generator + tclvm-vs-tclsh harness + findings)
 runtime/
   zig/                    Zig WASM runtime (out-of-process runtime for compiled scripts)
   rust/                   tree-walking reference runtime (RT-VM parity oracle)
@@ -876,7 +877,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Refactoring transforms | `tcl-lsp-core::code_actions` | ✅ | all 7 transforms ported (`tcl-lsp-core::refactor`), byte-parity vs the Python oracle → **TOOL-REFACTOR** |
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟡 | `wasm` view (blocked on **RT-WASM**) → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
-| Differential fuzzer | new crate | 🟡 | campaign runner/generator/findings (corpus diff exists) → **TOOL-FUZZ** |
+| Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); broaden the generator grammar as the VM surface grows → **TOOL-FUZZ** |
 | Debugger (DAP) | new crate | 🔴 | full debugger over `tcl-vm` → **TOOL-DEBUGGER** |
 | iRule test framework | new crate | 🔴 | TMM-sim harness (topology/profile-gen/orchestrator) → **TOOL-IRULE-TEST** |
 | PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🔴 | designed public surface; TEST-MIGRATE; PYTHON-RETIRE → **API-PYO3** |
@@ -901,7 +902,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | TOOL | **TOOL-REFACTOR** ✅ | `tcl-lsp-core::code_actions` | SRV-LSP | M |
 | TOOL | **TOOL-F5** | `f5-cli` | — | XS |
 | TOOL | **TOOL-EXPLORER** | `tcl-explorer`, `tcl-explorer-wasm` | RT-WASM | S |
-| TOOL | **TOOL-FUZZ** | new `tcl-fuzz` (xtask/bin) | RT-VM | M |
+| TOOL | **TOOL-FUZZ** 🟢 | `tcl-fuzz` (bin) | RT-VM | M |
 | TOOL | **TOOL-DEBUGGER** | new `tcl-debugger` | RT-VM | L |
 | TOOL | **TOOL-IRULE-TEST** | new `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
 | TOOL | **TOOL-CLI** ✅ | `tcl-cli` | RT-WASM, RT-VM, TOOL-TCLPKG | S |
@@ -1219,9 +1220,19 @@ already started, brings **every** Python tool across to Rust.
   bug landed (the const-branch label now renders booleans Python-style via
   `view_tree::pystr`); all other TUI views are parity-done. The Pyodide web
   server stays Python. *(S)*
-- **TOOL-FUZZ** *(new `tcl-fuzz`; depends on RT-VM)* — **open**: a campaign runner
-  + random generator + findings registry on top of the existing `differential_*`
-  harnesses. *(M)*
+- **TOOL-FUZZ** *(new `tcl-fuzz` bin; depends on RT-VM)* — **landed**: a seeded
+  random Tcl generator (`generator.rs`, scoped to the VM's supported surface so a
+  divergence is a real miscompile, not an unimplemented command — pure, bounded
+  loops, balanced delimiters), a subprocess differential harness
+  (`harness.rs`: `tclvm` subject vs `tclsh` reference, each timeout-killable so a
+  hang is a finding not a wedge), a campaign runner with stats (`campaign.rs`),
+  and a findings registry (`findings.rs`: JSON + raw `.tcl`, dedup-by-seed,
+  categorised, replayable). CLI verbs `run` / `replay` / `summary`. A
+  500-iteration campaign over the current VM is clean (498/500 match, 2 skipped,
+  0 findings — the loop/array fixes hold under fuzzing). **Remaining:** broaden
+  the generator grammar (procs, namespaces, dict, `catch`/`try`, switch) as the
+  VM command surface fills in, and add the WASM/Zig backend as a third
+  differential arm once **RT-WASM** lands. *(M)*
 - **TOOL-DEBUGGER** *(new `tcl-debugger`; depends on RT-VM)* — **open**: DAP server
   over `tcl-vm` (breakpoints/stepping/backends). *(L)*
 - **TOOL-IRULE-TEST** *(new `tcl-irule-test`; depends on RT-VM + `tcl-registry`)* —
