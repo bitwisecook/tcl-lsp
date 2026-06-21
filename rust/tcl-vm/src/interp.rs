@@ -239,6 +239,13 @@ impl Vm {
         self.write_scalar_raw("argc", Value::int(0));
         self.write_scalar_raw("tcl_version", Value::string("9.0"));
         self.write_scalar_raw("tcl_patchLevel", Value::string("9.0.0"));
+        self.write_scalar_raw("tcl_interactive", Value::int(0));
+        // `tcl_library` is the directory holding the script library; C Tcl's
+        // init derives it from `$env(TCL_LIBRARY)` (set when the caller points
+        // the VM at a real library tree). Library scripts (tcltest) read it at
+        // load time, so default it to "" rather than leaving it unset.
+        let tcl_library = std::env::var("TCL_LIBRARY").unwrap_or_default();
+        self.write_scalar_raw("tcl_library", Value::string(tcl_library));
     }
 
     /// Inject the compiler used for runtime `eval` / command substitution.
