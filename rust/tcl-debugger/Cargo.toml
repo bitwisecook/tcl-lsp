@@ -19,6 +19,10 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[[bin]]
+name = "tcl-debug"
+path = "src/main.rs"
+
 [dependencies]
 tcl-vm = { path = "../tcl-vm" }
 tcl-compiler = { path = "../tcl-compiler" }
