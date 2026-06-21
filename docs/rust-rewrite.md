@@ -873,7 +873,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --tshark/--keylog/--tshark-filter` landed; `--simulate` gated on the native iRule VM (**RT-VM**); `completion`/`graph` parity files → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
-| Refactoring transforms | `tcl-lsp-core::code_actions` | 🟡 | 5 of 7 transforms missing → **TOOL-REFACTOR** |
+| Refactoring transforms | `tcl-lsp-core::code_actions` | ✅ | all 7 transforms ported (`tcl-lsp-core::refactor`), byte-parity vs the Python oracle → **TOOL-REFACTOR** |
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟡 | `wasm` view (blocked on **RT-WASM**) → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
 | Differential fuzzer | new crate | 🟡 | campaign runner/generator/findings (corpus diff exists) → **TOOL-FUZZ** |
@@ -898,7 +898,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SRV | **SRV-LSP** ✅ | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
 | SRV | **SRV-ROPE** | document store: `tcl-lsp-server` `DocumentState` + `tcl-lexer` rope-slice `SourceMap` + `tcl-lsp-db` chunk input | FE-LEX (CST/structural-state index), SRV-LSP | XL |
 | TOOL | **TOOL-TCLPKG** ✅ | `tcl-pkg` crate | — | XL |
-| TOOL | **TOOL-REFACTOR** | `tcl-lsp-core::code_actions` | SRV-LSP | M |
+| TOOL | **TOOL-REFACTOR** ✅ | `tcl-lsp-core::code_actions` | SRV-LSP | M |
 | TOOL | **TOOL-F5** | `f5-cli` | — | XS |
 | TOOL | **TOOL-EXPLORER** | `tcl-explorer`, `tcl-explorer-wasm` | RT-WASM | S |
 | TOOL | **TOOL-FUZZ** | new `tcl-fuzz` (xtask/bin) | RT-VM | M |
@@ -1142,9 +1142,18 @@ already started, brings **every** Python tool across to Rust.
   are wired through to native handlers; help is native clap style. Lockfiles,
   Dockerfiles, and venv scripts diff byte-for-byte against the Python CLI.
   *(XL)*
-- **TOOL-REFACTOR** *(owns `tcl-lsp-core::code_actions`)* — **open**: port the 5
-  missing transforms (extract/inline variable, if↔switch, switch→dict,
-  extract-datagroup); 2 of 7 (extract/inline proc) exist. *(M)*
+- **TOOL-REFACTOR** *(owns `tcl-lsp-core::code_actions`)* — **done**: the 5
+  remaining transforms (extract/inline variable, if↔switch, switch→dict,
+  extract-datagroup) are ported into the new `tcl-lsp-core::refactor` module
+  and wired through `refactor_engine_actions`, alongside the pre-existing
+  extract/inline proc. `find_command_at` descends registry-resolved
+  `ArgRole::Body` words for nested-body support; the data-group action carries
+  the rendered tmsh definition on `CodeAction::data_group_definition` (surfaced
+  as the LSP `data` field, mirroring `_datagroup_to_code_action`). The
+  if↔switch / switch→dict / datagroup outputs are asserted byte-for-byte
+  against the live Python oracle; all `tests/test_refactoring.py` decline
+  conditions are mirrored. Out of scope: `suggest_datagroup_extraction` (an
+  AI-context scanner, not a `CodeAction`). *(M)*
 - **TOOL-F5** *(owns `f5-cli`)* — **partial**: the `explain-flow`
   `--tshark` / `--keylog` / `--tshark-filter` L7-enrichment paths landed
   (`tcl_bigip::flow::tshark`, a faithful EK-JSON port of
