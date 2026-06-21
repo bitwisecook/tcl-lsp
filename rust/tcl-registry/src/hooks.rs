@@ -126,6 +126,10 @@ pub enum CodegenHookId {
     Tailcall,
     /// `concat ?arg ...?`.
     Concat,
+    /// `global ?varName ...?`.
+    Global,
+    /// `upvar ?level? otherVar localVar ?otherVar localVar ...?`.
+    Upvar,
 }
 
 /// Typed identifier for a WASM-runtime codegen specialisation.
