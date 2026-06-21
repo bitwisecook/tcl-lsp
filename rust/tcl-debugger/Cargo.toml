@@ -28,6 +28,7 @@ tcl-vm = { path = "../tcl-vm" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-bytecode = { path = "../tcl-bytecode" }
+serde_json = { version = "1", features = ["preserve_order"] }
 
 [lints]
 workspace = true

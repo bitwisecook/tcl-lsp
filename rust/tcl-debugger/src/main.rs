@@ -19,9 +19,26 @@ use tcl_debugger::backend::{DebugBackend, DebugError, VmBackend};
 
 fn main() -> std::process::ExitCode {
     let Some(path) = std::env::args().nth(1) else {
-        eprintln!("usage: tcl-debug <script.tcl>");
+        eprintln!("usage: tcl-debug <script.tcl>   (interactive CLI)");
+        eprintln!("       tcl-debug --dap          (Debug Adapter Protocol over stdio)");
         return std::process::ExitCode::from(2);
     };
+
+    // DAP mode: speak the Debug Adapter Protocol over stdin/stdout for an editor.
+    if path == "--dap" {
+        let stdin = std::io::stdin();
+        let stdout = std::io::stdout();
+        let mut reader = stdin.lock();
+        let mut writer = stdout.lock();
+        return match tcl_debugger::dap::run_server(&mut reader, &mut writer) {
+            Ok(()) => std::process::ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("dap: {e}");
+                std::process::ExitCode::from(1)
+            }
+        };
+    }
+
     let mut backend = VmBackend::new();
     if let Err(e) = backend.launch(&path, None) {
         eprintln!("error: {e}");

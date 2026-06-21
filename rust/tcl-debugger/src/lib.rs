@@ -15,6 +15,7 @@
 
 pub mod backend;
 pub mod controller;
+pub mod dap;
 pub mod types;
 
 pub use backend::{DebugBackend, DebugError, VmBackend};
