@@ -37,6 +37,7 @@ pub mod redact;
 pub mod secrets;
 pub mod stats;
 pub mod tmsh_emit;
+pub mod validator;
 pub mod value;
 pub mod wireshark_profile;
 

@@ -48,7 +48,7 @@ pub struct Finding {
 
 /// An order-preserving, last-wins map keyed by `full_path` — Python's
 /// dict-per-kind view, materialised over the typed model objects.
-struct KindMap<'a, T> {
+pub(crate) struct KindMap<'a, T> {
     /// `(full_path, value)` in first-seen order.
     entries: Vec<(&'a str, &'a T)>,
     /// `full_path -> index into entries`.
@@ -80,11 +80,16 @@ impl<'a, T> KindMap<'a, T> {
         self.entries.is_empty()
     }
 
-    fn contains_key(&self, key: &str) -> bool {
+    pub(crate) fn contains_key(&self, key: &str) -> bool {
         self.index.contains_key(key)
     }
 
-    fn iter(&self) -> impl Iterator<Item = (&'a str, &'a T)> + '_ {
+    /// Look up the value for `key`, mirroring `dict.get`.
+    pub(crate) fn get(&self, key: &str) -> Option<&'a T> {
+        self.index.get(key).map(|&i| self.entries[i].1)
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&'a str, &'a T)> + '_ {
         self.entries.iter().copied()
     }
 }
@@ -92,26 +97,26 @@ impl<'a, T> KindMap<'a, T> {
 /// The per-kind model views the rules reason about, grouped from
 /// `config.objects` by `ModelObject` variant (mirrors the dict-per-kind
 /// collections on the Python `BigipConfig`).
-struct ModelView<'a> {
-    default_partition: &'a str,
-    pools: KindMap<'a, crate::model::BigipPool>,
-    monitors: KindMap<'a, crate::model::BigipMonitor>,
-    virtual_servers: KindMap<'a, crate::model::BigipVirtualServer>,
-    nodes: KindMap<'a, crate::model::BigipNode>,
-    profiles: KindMap<'a, crate::model::BigipProfile>,
-    snat_pools: KindMap<'a, crate::model::BigipSnatPool>,
-    persistence: KindMap<'a, crate::model::BigipPersistence>,
-    rules: KindMap<'a, crate::model::BigipRule>,
-    data_groups: KindMap<'a, crate::model::BigipDataGroup>,
-    policies: KindMap<'a, crate::model::BigipPolicy>,
-    generic_object_keys: &'a [(String, crate::model::BigipGenericObject)],
+pub(crate) struct ModelView<'a> {
+    pub(crate) default_partition: &'a str,
+    pub(crate) pools: KindMap<'a, crate::model::BigipPool>,
+    pub(crate) monitors: KindMap<'a, crate::model::BigipMonitor>,
+    pub(crate) virtual_servers: KindMap<'a, crate::model::BigipVirtualServer>,
+    pub(crate) nodes: KindMap<'a, crate::model::BigipNode>,
+    pub(crate) profiles: KindMap<'a, crate::model::BigipProfile>,
+    pub(crate) snat_pools: KindMap<'a, crate::model::BigipSnatPool>,
+    pub(crate) persistence: KindMap<'a, crate::model::BigipPersistence>,
+    pub(crate) rules: KindMap<'a, crate::model::BigipRule>,
+    pub(crate) data_groups: KindMap<'a, crate::model::BigipDataGroup>,
+    pub(crate) policies: KindMap<'a, crate::model::BigipPolicy>,
+    pub(crate) generic_object_keys: &'a [(String, crate::model::BigipGenericObject)],
 }
 
 impl<'a> ModelView<'a> {
     /// Build the per-kind views for one config's typed objects, in source
     /// order. Multiple configs are pre-merged into one [`BigipConfig`] by
     /// [`merge_configs`], so a single pass over `config.objects` suffices.
-    fn build(config: &'a BigipConfig) -> Self {
+    pub(crate) fn build(config: &'a BigipConfig) -> Self {
         let mut view = ModelView {
             default_partition: &config.default_partition,
             pools: KindMap::default(),
@@ -152,7 +157,11 @@ impl<'a> ModelView<'a> {
 /// Resolve a possibly-short `name` to a full-path key in `table` (port of
 /// `BigipConfig.resolve_name`): exact, then partition-qualified against
 /// `default_partition`, then `/Common/`, then a suffix match.
-fn resolve_name<T>(name: &str, table: &KindMap<'_, T>, default_partition: &str) -> Option<String> {
+pub(crate) fn resolve_name<T>(
+    name: &str,
+    table: &KindMap<'_, T>,
+    default_partition: &str,
+) -> Option<String> {
     if table.contains_key(name) {
         return Some(name.to_owned());
     }

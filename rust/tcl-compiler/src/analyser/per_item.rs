@@ -104,8 +104,16 @@ impl Analyser {
 
         self.took_fast_path = false;
         // Recovery / stub overlays are only modelled on the full `analyse`
-        // path; fall back so the per-item result can never diverge.
-        if !tcl_lexer::script_is_complete(source) || source.contains("tcl-lsp: stub") {
+        // path; fall back so the per-item result can never diverge.  Tk's
+        // TK100x checks accumulate whole-file state (created widgets, per-parent
+        // geometry) that an isolated proc body cannot see, so a Tk document
+        // also falls back to full analysis rather than diverge (a parent
+        // created outside a proc would otherwise look missing inside it, and a
+        // `pack`/`grid` conflict spanning a proc body would never flush).
+        if !tcl_lexer::script_is_complete(source)
+            || source.contains("tcl-lsp: stub")
+            || super::tk_checks::tk_possibly_active(source, dialect)
+        {
             return self.analyse(source, dialect);
         }
 
