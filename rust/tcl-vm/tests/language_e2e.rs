@@ -86,6 +86,44 @@ fn for_loop_output() {
     assert_eq!(out, "0\n1\n2\n");
 }
 
+/// Regression: a `while` whose condition is a *bare command substitution*
+/// (not an inlinable expression) falls back to the runtime `while` builtin.
+/// The braced `{cond}` / `{body}` words must be pushed verbatim so the builtin
+/// re-evaluates the condition each iteration; previously the condition's
+/// command substitution was evaluated *once* at the call site, freezing the
+/// loop into an infinite spin.
+#[test]
+fn while_command_subst_condition_reevaluates() {
+    let (ok, _r, out) = run("set x abc\nset n 0\nwhile {[string length $x]} { incr n\nset x \"\" }\nputs $n\n");
+    assert!(ok);
+    assert_eq!(out, "1\n");
+}
+
+#[test]
+fn while_expr_subst_condition_counts() {
+    let (ok, _r, out) = run("set i 0\nwhile {[expr {$i < 3}]} { incr i }\nputs $i\n");
+    assert!(ok);
+    assert_eq!(out, "3\n");
+}
+
+#[test]
+fn for_command_subst_condition_reevaluates() {
+    let (ok, _r, out) =
+        run("set x abcde\nfor {set i 0} {[string length $x]} {incr i} { set x \"\" }\nputs $i\n");
+    assert!(ok);
+    assert_eq!(out, "1\n");
+}
+
+/// The frozen fallback preserves each word's *source* form: a non-braced
+/// `$body` word is still substituted (to the body script), not pushed verbatim.
+#[test]
+fn while_command_subst_condition_with_substituted_body() {
+    let (ok, _r, out) =
+        run("set x abc\nset body {set x \"\"}\nwhile {[string length $x]} $body\nputs done\n");
+    assert!(ok);
+    assert_eq!(out, "done\n");
+}
+
 #[test]
 fn if_else() {
     let (ok, _r, out) = run("set x 5\nif {$x > 0} { puts pos } else { puts nonpos }\n");
