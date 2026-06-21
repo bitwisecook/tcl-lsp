@@ -874,7 +874,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --simulate/--tshark/--keylog`; a few parity files → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
 | Refactoring transforms | `tcl-lsp-core::code_actions` | 🟡 | 5 of 7 transforms missing → **TOOL-REFACTOR** |
-| Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟡 | `wasm` view (blocked on **RT-WASM**); `ssa`-view bool-render parity → **TOOL-EXPLORER** |
+| Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟡 | `wasm` view (blocked on **RT-WASM**) → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
 | Differential fuzzer | new crate | 🟡 | campaign runner/generator/findings (corpus diff exists) → **TOOL-FUZZ** |
 | Debugger (DAP) | new crate | 🔴 | full debugger over `tcl-vm` → **TOOL-DEBUGGER** |
@@ -1150,13 +1150,11 @@ already started, brings **every** Python tool across to Rust.
   files. The rest (27/27 verbs, 262 parity tests) is done — the template for the
   other tool ports. *(XS)*
 - **TOOL-EXPLORER** *(owns `tcl-explorer`, `tcl-explorer-wasm`; depends on
-  RT-WASM)* — **partial**: the `wasm` view; plus an `ssa`-view parity bug —
-  `tcl-explorer::view_tree::build_view` renders a const-folded branch label as
-  `always true`/`false` (Rust `bool` Display) where the Python `tui_views`
-  reference emits `always True`/`False` (`str(bool)`); render the Rust SSA-view
-  boolean Python-style (`tests/test_explorer_view_tree_parity.py::
-  test_rust_build_view_matches_python[for_loop]`, view `ssa`). The other TUI
-  views are parity-done; the Pyodide web server stays Python. *(S)*
+  RT-WASM)* — **partial**: the `wasm` view (blocked on **RT-WASM**, since the
+  view renders the WASM emitter's output). The `ssa`-view boolean-render parity
+  bug landed (the const-branch label now renders booleans Python-style via
+  `view_tree::pystr`); all other TUI views are parity-done. The Pyodide web
+  server stays Python. *(S)*
 - **TOOL-FUZZ** *(new `tcl-fuzz`; depends on RT-VM)* — **open**: a campaign runner
   + random generator + findings registry on top of the existing `differential_*`
   harnesses. *(M)*
