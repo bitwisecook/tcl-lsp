@@ -149,3 +149,101 @@ fn json_output_matches_golden() {
         );
     }
 }
+
+/// Whether a `tshark` binary is available to drive the L7-enrichment paths.
+fn tshark_available() -> bool {
+    Command::new("tshark")
+        .arg("--version")
+        .output()
+        .is_ok_and(|o| o.status.success())
+}
+
+/// Whether this tshark accepts the exact EK command the port (and the Python
+/// reference) builds — `-T ek -l --no-duplicate-keys`. tshark gained
+/// `--no-duplicate-keys` for EK output in 4.4; on older builds the overlay run
+/// exits non-zero and the report degrades to `tshark: no` (the Python
+/// reference degrades identically — this is the parity contract, so the port
+/// keeps the command byte-for-byte rather than "fixing" it locally).
+fn tshark_ek_ok() -> bool {
+    Command::new("tshark")
+        .args(["-r", "explain-flow-matched.pcap", "-T", "ek", "-l", "--no-duplicate-keys"])
+        .current_dir(fixtures_dir())
+        .output()
+        .is_ok_and(|o| o.status.success())
+}
+
+#[test]
+fn tshark_enrichment_marks_used_tshark() {
+    // The `--tshark` overlay path runs the built-in walker, then enriches via
+    // `tcl_bigip::flow::tshark`. `used_tshark` reflects whether the tshark run
+    // succeeded — which depends on this tshark's EK support, exactly as the
+    // Python reference does. The byte-level Rust↔Python parity of the enriched
+    // fields is checked by the differential harness offline.
+    if !tshark_available() {
+        eprintln!("skipping: tshark not on PATH");
+        return;
+    }
+    let expect_yes = tshark_ek_ok();
+    let (stdout, code) = run_with(
+        "explain-flow-matched.pcap",
+        "explain-flow-matched.conf",
+        &["--tshark"],
+    );
+    let text = String::from_utf8(stdout).expect("utf8 report");
+    assert_eq!(code, 0, "matched VS exits 0");
+    let want = if expect_yes { "tshark: yes" } else { "tshark: no" };
+    assert!(
+        text.contains(want),
+        "text header must record `{want}` for this tshark: {text}"
+    );
+
+    let (json_out, _) = run_with(
+        "explain-flow-matched.pcap",
+        "explain-flow-matched.conf",
+        &["--tshark", "--json"],
+    );
+    let json = String::from_utf8(json_out).expect("utf8 json");
+    let want_json = format!("\"used_tshark\": {expect_yes}");
+    assert!(
+        json.contains(&want_json),
+        "json must record {want_json}: {json}"
+    );
+}
+
+#[test]
+fn tshark_filter_is_reported_python_repr_style() {
+    // `--tshark-filter` makes tshark the canonical flow source: `used_tshark`
+    // is true whenever a tshark binary exists (mirroring Python's
+    // `bool(flows) or tshark_available()`), independent of EK support, and the
+    // filter is echoed in the header rendered like Python's `repr()`.
+    if !tshark_available() {
+        eprintln!("skipping: tshark not on PATH");
+        return;
+    }
+    let (stdout, _code) = run_with(
+        "explain-flow-matched.pcap",
+        "explain-flow-matched.conf",
+        &["--tshark-filter", "tcp.port == 443"],
+    );
+    let text = String::from_utf8(stdout).expect("utf8 report");
+    assert!(
+        text.contains("tshark: yes | filter: 'tcp.port == 443'"),
+        "header must echo the filter in Python repr form: {text}"
+    );
+}
+
+#[test]
+fn without_tshark_used_tshark_is_false() {
+    // The default built-in-walker path never sets used_tshark, regardless of
+    // whether a tshark binary happens to be installed.
+    let (json_out, _) = run_with(
+        "explain-flow-matched.pcap",
+        "explain-flow-matched.conf",
+        &["--json"],
+    );
+    let json = String::from_utf8(json_out).expect("utf8 json");
+    assert!(
+        json.contains("\"used_tshark\": false"),
+        "default path must record used_tshark=false: {json}"
+    );
+}
