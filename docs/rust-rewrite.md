@@ -866,8 +866,8 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: `set x [cmd]` (reverted — needs VM value opcodes), bare-statement `string`/`regexp`/`lindex`/`lreplace`, non-proc `dict` (ensemble `invokeReplace`), `{*}` cmd-subst expansion → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
 | F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, new `tcl-xc` | 🟢 | TK1001-3 + BIGIP6001-11 + IAPP7001-3 ported (TK live in the analyser); residuals: XC100-301 (gated on a `tcl-xc` translator port of `lower_to_ir`-walking `translator.py`, Python-only meanwhile) + BIG-IP/iApp native-server consumer-wiring (SRV-LSP-style) → **FE-DIAG-F5** |
-| WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
-| Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after; CLI/REPL binary → **RT-VM** |
+| WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | eval-fallback emitter + `tcl compwasm` wiring landed (binary/WAT, `wasmtime`-validated); residual: `IRInterpBoundary`; codegen DCE/GVN; `--link` (Binaryen) bundling → **RT-WASM** |
+| Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after. `tclvm` CLI/REPL binary landed (`tcl-vm-cli`) → **RT-VM** |
 | LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The rope-backed `DocumentState` is split out into its own **SRV-ROPE** track (need evaluated with measurements in [`design/rope/`](design/rope/README.md)) |
 | Document store / incrementality | `tcl-lsp-server`, `tcl-lexer`, `tcl-lsp-db` | 🔴 | rope-backed store + chunk-addressable salsa input + rope-slice re-lex → **SRV-ROPE** (see [`design/rope/`](design/rope/README.md)) |
 | `tcl` CLI | `tcl-cli` | 🟡 | `dis`/`compwasm`/`pkg`/`venv`/`docker` verbs → **TOOL-CLI** |
@@ -894,7 +894,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | FE | **FE-DIAG** ✅ | `tcl-compiler::analyser`, `irules_checks` | — | M |
 | FE | **FE-DIAG-F5** 🟢 | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}` slices, tk; XC residual → `tcl-xc` | `tcl-bigip` | L |
 | RT | **RT-WASM** | `tcl-compiler::codegen::wasm`, `runtime/zig`, `tcl-wasm` bin | FE-CODEGEN | L |
-| RT | **RT-VM** | `tcl-vm` | `tcl-bytecode` | L |
+| RT | **RT-VM** | `tcl-vm`, `tcl-vm-cli` (`tclvm` bin) | `tcl-bytecode` | L |
 | SRV | **SRV-LSP** ✅ | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
 | SRV | **SRV-ROPE** | document store: `tcl-lsp-server` `DocumentState` + `tcl-lexer` rope-slice `SourceMap` + `tcl-lsp-db` chunk input | FE-LEX (CST/structural-state index), SRV-LSP | XL |
 | TOOL | **TOOL-TCLPKG** | new `tcl-pkg` crate | — | XL |
@@ -1019,10 +1019,15 @@ Owns `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` bin.
 - **open** `IRInterpBoundary` IR node + insert pass; the IR-rewriting
   `passes/dce.py` / `passes/gvn.py`; `source_inliner` / `stdlib_prelude`
   (WASM-bundle self-containment).
-- **open** `tcl-wasm` CLI + `--link` (Binaryen) bundling; wire `tcl compwasm`.
+- **done** wire `tcl compwasm` (`tcl-cli`): drives the eval-fallback emitter,
+  writes the binary module (`--output`) and optional WAT (`--wat-output`); the
+  emitted bytes pass `wasmtime compile`. The `_write_binary_output` analogue
+  landed as `tcl_cli_support::write_binary_output`.
+- **open** `tcl-wasm` CLI + `--link` (Binaryen) bundling (standalone
+  self-contained module via `source_inliner` / `stdlib_prelude`).
 
 #### RT-VM — bytecode VM
-Owns `tcl-vm`.
+Owns `tcl-vm` (+ the `tcl-vm-cli` / `tclvm` CLI driver).
 
 The engine core is solid (loads the real Tcl 9 `tcltest.tcl` end-to-end). The
 active workstream is **tcltest pass/fail/skip parity** with the more-complete
@@ -1062,8 +1067,13 @@ delete`, and the supporting `return`/`error`/list-parse fixes — error.test
 - **open** the missing command surface: **TclOO** (largest), `clock`,
   `encoding`, full `interp`, real I/O (`open`/`gets`/`seek`), `after`/`time`,
   residual `file`/`info`/`namespace` subcommands.
-- **open** a VM CLI/REPL binary (`tcl-vm` is lib-only today) — also unblocks the
-  `tcl dis` verb.
+- **done** a VM CLI/REPL binary — the `tclvm` binary in the new `tcl-vm-cli`
+  crate (a thin compiler-backed `CompileService` driver, keeping the `tcl-vm`
+  lib compiler-optional). Runs script files (with `argv`/`argv0`/`argc`),
+  evaluates inline scripts (`-c`), pipes stdin, and offers an `info
+  complete`-aware REPL (`-i` forces it without a TTY). The `tcl dis` verb it
+  was paired with is wired in `tcl-cli` (bytecode disassembly via
+  `format_module_asm`, with `--optimise`).
 
 ### Stage 3 — LSP server (SRV-LSP) — complete
 
@@ -1151,8 +1161,10 @@ already started, brings **every** Python tool across to Rust.
   mock-stub codegen, orchestrator). Note `tcl-irules` is the BIG-IP
   reference-extractor, **not** this. *(XL)*
 - **TOOL-CLI** *(owns `tcl-cli`; depends on RT-WASM, RT-VM, TOOL-TCLPKG)* —
-  **partial**: finish `dis` (after RT-VM), `compwasm` (after RT-WASM),
-  `pkg`/`venv`/`docker` (after TOOL-TCLPKG). 20/26 verbs done. *(S glue)*
+  **partial**: `dis` and `compwasm` landed (bytecode disassembly via
+  `format_module_asm`; eval-fallback WASM binary/WAT via the greenfield
+  emitter). Remaining: `pkg`/`venv`/`docker` (after TOOL-TCLPKG). 22/26 verbs
+  done. *(S glue)*
 
 ### Stage 5 — PyO3 interfaces & Python retirement (API-PYO3 — last)
 
