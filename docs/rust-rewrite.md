@@ -1044,9 +1044,24 @@ delete`, and the supporting `return`/`error`/list-parse fixes — error.test
 44 → 280, lmap 21 → 61, namespace 93 → 112) is archived in the
 [history](rust-rewrite-history.md). The live open gaps:
 
-- **open (P1) VM hangs that zero out whole suites** — `info.test` and `proc.test`
-  time out in the bytecode VM while the runtime completes them (`catch.test`
-  times out in both). A hang yields *no* parity for the suite, so these lead.
+- **open (P1) "suite-zeroing hangs" are mostly mis-attributed** (diagnosed
+  2026-06-21). The `info.test` / `proc.test` "hangs" are **not** deadlocks: built
+  `--release`, `info.test` runs to *info-8.3* in ~12 s and `proc.test` runs to
+  `cleanupTests` in ~8 s. Two real effects masquerade as a hang under the
+  harness, in priority order:
+  - **(a) Debug-build slowness × the harness timeout.** A `--release` worker is
+    ~10–30× faster; the `run_test`/`run_script` parity harness must build
+    `--release` (a trivial tcltest case costs ≈1 s/test in `debug`, so a
+    ~200-test suite blows any timeout in `debug` while finishing in seconds in
+    `release`). **First action: switch `tmp/parity.sh` to `--release`** and
+    re-baseline — several "hung" suites likely already score.
+  - **(b) Uncaught-error abort.** A test-body error that escapes tcltest's
+    `catch` propagates to the module top and aborts the *whole* `run_test`
+    driver (e.g. `info.test` halts at info-8.3 with `can't read "text": no such
+    variable`; `proc.test` ends on a bare `VM error:`). That single escape, not
+    a loop, is what zeros the remainder of the suite — the real P1 to chase
+    (an `uplevel`/`catch`/error-propagation gap), and far more tractable than a
+    deadlock hunt.
 - **open** `namespace` / `var` / `upvar` depth (≈ 290 failures combined) — the
   namespace-eval-frame fix corrected the *mechanism*; the remainder is
   feature/semantics depth (namespace-name canonicalisation of multiple/trailing
@@ -1066,7 +1081,11 @@ delete`, and the supporting `return`/`error`/list-parse fixes — error.test
   run via runtime builtins today — correct but not inline).
 - **open** the missing command surface: **TclOO** (largest), `clock`,
   `encoding`, full `interp`, real I/O (`open`/`gets`/`seek`), `after`/`time`,
-  residual `file`/`info`/`namespace` subcommands.
+  residual `file`/`info`/`namespace` subcommands. Concretely, `info` is missing
+  `cmdcount` / `frame` / `functions` / `hostname` (they error "unknown or
+  ambiguous subcommand" today); note `info cmdcount` cannot reach exact-count
+  parity with C Tcl without matching its per-bytecode command counting, so it
+  is a "exists but approximate" subcommand rather than a parity win.
 - **done** a VM CLI/REPL binary — the `tclvm` binary in the new `tcl-vm-cli`
   crate (a thin compiler-backed `CompileService` driver, keeping the `tcl-vm`
   lib compiler-optional). Runs script files (with `argv`/`argv0`/`argc`),
