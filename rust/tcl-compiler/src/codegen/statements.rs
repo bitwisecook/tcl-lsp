@@ -440,20 +440,6 @@ impl CodegenCtx<'_> {
             self.push_lit(&tcl_lexer::backslash_subst(value));
             return;
         }
-        // A value that is *exactly* one command substitution (`[cmd]`) and was
-        // not const-folded or specialised above: inline it like C Tcl
-        // (`set x [lindex $l 1]` → `loadScalar; listIndexImm; …`) instead of
-        // deferring it to a runtime word-subst of the raw `[cmd]` text. This
-        // runs last so the folds (`[list …]`, `[dict create …]`, `[format …]`)
-        // and the `{*}` list-concat path keep precedence.
-        if value.starts_with('[')
-            && value.ends_with(']')
-            && let Some(parts) = parse_subst_template(value)
-            && let [SubstPart::Cmd(cmd_text)] = parts.as_slice()
-        {
-            self.emit_inline_cmd_subst(cmd_text);
-            return;
-        }
         // Default: push as literal
         self.push_lit(value);
     }
@@ -642,28 +628,6 @@ mod tests {
             opcodes(&ctx),
             vec![Op::PUSH1, Op::PUSH1, Op::STORE_STK, Op::POP]
         );
-    }
-
-    #[test]
-    fn emit_assign_pure_cmd_subst_inlines() {
-        // `set x [lindex $l 1]` inlines the command substitution instead of
-        // pushing the raw "[lindex $l 1]" text for a runtime word-subst.
-        let registry = CommandRegistry::build_default();
-        let mut ctx = CodegenCtx::new(true, &["l"], &registry);
-        let stmt = Statement::AssignValue {
-            span: sp(),
-            name: "x".into(),
-            value: "[lindex $l 1]".into(),
-            value_needs_backsubst: false,
-            tokens: None,
-        };
-        let mut ugi = false;
-        ctx.emit_stmt(&stmt, &mut ugi);
-        let ops = opcodes(&ctx);
-        assert!(ops.contains(&Op::LIST_INDEX_IMM));
-        assert!(ops.contains(&Op::STORE_SCALAR1));
-        // The raw substitution text must NOT be pushed as a literal.
-        assert!(!ctx.literals.entries().iter().any(|e| e.contains('[')));
     }
 
     #[test]
