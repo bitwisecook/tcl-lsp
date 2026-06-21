@@ -124,6 +124,32 @@ fn while_command_subst_condition_with_substituted_body() {
     assert_eq!(out, "done\n");
 }
 
+/// Regression: an array element whose index embeds a substitution around
+/// literal text (`$a(x$item)`, `$a(-$opt)`, `$a(${item}suf)`) must expand the
+/// inner variable. Previously only a bare whole-index `$a($item)` worked; a
+/// composite index was pushed as a raw literal so the lookup failed.
+#[test]
+fn composite_array_index_substitutes() {
+    let (ok, _r, out) = run(concat!(
+        "array set a {xfoo X -bar Y foosuf Z ab C}\n",
+        "set item foo\nset opt bar\nset i a\nset j b\n",
+        "puts \"$a(x$item) $a(-$opt) $a(${item}suf) $a($i$j)\"\n",
+    ));
+    assert!(ok);
+    assert_eq!(out, "X Y Z C\n");
+}
+
+#[test]
+fn composite_array_index_in_proc_and_store() {
+    let (ok, _r, out) = run(concat!(
+        "proc p {} {\n",
+        "  set n 1\n  set arr(k1) V\n  set arr(k$n) W\n  return $arr(k$n)\n",
+        "}\nputs [p]\n",
+    ));
+    assert!(ok);
+    assert_eq!(out, "W\n");
+}
+
 #[test]
 fn if_else() {
     let (ok, _r, out) = run("set x 5\nif {$x > 0} { puts pos } else { puts nonpos }\n");
