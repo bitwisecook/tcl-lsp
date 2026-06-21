@@ -156,14 +156,32 @@ fn render_asm(data: &Value, use_colour: bool) -> String {
     out
 }
 
-/// Render the WASM view, which is degraded to `null` until the emitter lands.
+/// Render the WASM view: print the module's WAT (carried as the `text` of the
+/// synthetic `(module)` entry), then a one-line header per emitted function.
 fn render_wasm(data: &Value) -> String {
-    match data.get("wasm") {
-        Some(Value::Array(funcs)) if !funcs.is_empty() => {
-            format!("  ({} WASM function(s))\n", funcs.len())
-        }
-        _ => "  unavailable — the Rust WASM emitter is not yet ported\n".to_owned(),
+    use std::fmt::Write as _;
+    let Some(Value::Array(entries)) = data.get("wasm") else {
+        return "  unavailable\n".to_owned();
+    };
+    if entries.is_empty() {
+        return "  (no WASM functions)\n".to_owned();
     }
+    let mut out = String::new();
+    for entry in entries {
+        if entry.get("kind").and_then(Value::as_str) == Some("module") {
+            if let Some(text) = entry.get("text").and_then(Value::as_str) {
+                out.push_str(text);
+                if !text.ends_with('\n') {
+                    out.push('\n');
+                }
+            }
+        } else {
+            let name = entry.get("name").and_then(Value::as_str).unwrap_or("?");
+            let n = entry.get("instrCount").and_then(Value::as_u64).unwrap_or(0);
+            let _ = writeln!(out, "  fn {name}: {n} instr");
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -208,8 +226,12 @@ mod tests {
     }
 
     #[test]
-    fn wasm_reports_unavailable() {
-        let d = data("set x 1");
-        assert!(render_wasm(&d).contains("unavailable"));
+    fn wasm_renders_wat_module() {
+        // The eval-fallback emitter produces a real WASM module; the view shows
+        // its WAT (a `(module …)` with at least the `$::top` function).
+        let d = data("set x 1\nputs $x");
+        let wat = render_wasm(&d);
+        assert!(wat.contains("(module"), "{wat}");
+        assert!(wat.contains("$::top"), "{wat}");
     }
 }
