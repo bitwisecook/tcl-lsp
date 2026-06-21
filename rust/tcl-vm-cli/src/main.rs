@@ -1,0 +1,284 @@
+//! `tclvm` — a CLI/REPL driver for the native Tcl bytecode VM (`tcl-vm`).
+//!
+//! Promotes the `tcl-vm` examples (`eval` / `run_test`) to a shipping binary.
+//! The VM library is compiler-optional by design (the [`CompileService`] seam
+//! keeps it off `tcl-compiler`), so this crate supplies the concrete
+//! compiler-backed service and the host wiring.
+//!
+//! Modes (resolved like `tclsh`):
+//!
+//! - `tclvm <file.tcl> [args…]` — compile and run a script file; `args` become
+//!   the script's `argv` (`argv0` is the file, `argc` the count).
+//! - `tclvm -c "<script>"` — evaluate an inline script string.
+//! - `tclvm` with piped stdin — run the piped script.
+//! - `tclvm` on a TTY — an interactive REPL (`info complete`-aware line
+//!   accumulation via `tcl_lexer::script_is_complete`).
+//!
+//! Like the `run_test` example, work runs on a large-stack worker thread so deep
+//! recursion surfaces as a catchable Tcl error rather than a native stack
+//! overflow.
+
+use std::io::{IsTerminal, Read, Write};
+
+use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
+use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
+use tcl_lexer::script_is_complete;
+use tcl_registry::CommandRegistry;
+use tcl_vm::{CompileError, CompileService, Value, Vm};
+
+/// The `CompileService` the VM uses for runtime `eval` / command substitution
+/// (and for the top-level script the driver runs): the real Rust compiler
+/// pipeline (lower → CFG → bytecode). Mirrors the `eval` / `run_test` examples.
+struct Svc(CommandRegistry);
+
+impl CompileService for Svc {
+    type Module = tcl_bytecode::ModuleAsm;
+    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let ir = lower_to_ir(src, &self.0);
+        let cfg = build_cfg(&ir, false);
+        Ok(codegen_module(&cfg, &ir, &self.0))
+    }
+}
+
+/// Forward the VM's `puts` output straight through to the process stdout.
+struct Stdout;
+impl Write for Stdout {
+    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+        std::io::stdout().write(b)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        std::io::stdout().flush()
+    }
+}
+
+const STACK_BYTES: usize = 512 * 1024 * 1024;
+
+fn main() {
+    let code = std::thread::Builder::new()
+        .stack_size(STACK_BYTES)
+        .spawn(run)
+        .expect("spawn worker thread")
+        .join()
+        .expect("worker thread panicked");
+    std::process::exit(code);
+}
+
+/// What the parsed command line asks the driver to do.
+enum Mode {
+    /// Run a script file with the given trailing `argv`.
+    File { path: String, argv: Vec<String> },
+    /// Evaluate an inline script string.
+    Command(String),
+    /// No script given: REPL if stdin is a TTY, else run piped stdin.
+    Stdin,
+    /// Force the interactive REPL even when stdin is not a TTY (`-i`).
+    Repl,
+    /// Print usage to stderr and exit with the given code.
+    Usage(i32),
+}
+
+/// Parse `std::env::args` into a [`Mode`]. Recognises `-c <script>`, `-i`
+/// (force REPL), `-h` / `--help`, and otherwise treats the first non-flag
+/// argument as a script file (everything after it is the script's `argv`,
+/// `tclsh`-style).
+fn parse_args() -> Mode {
+    let mut args = std::env::args().skip(1);
+    match args.next() {
+        None => Mode::Stdin,
+        Some(flag) if flag == "-h" || flag == "--help" => Mode::Usage(0),
+        Some(flag) if flag == "-i" => Mode::Repl,
+        Some(flag) if flag == "-c" => match args.next() {
+            Some(script) => Mode::Command(script),
+            None => Mode::Usage(2),
+        },
+        Some(path) => Mode::File {
+            path,
+            argv: args.collect(),
+        },
+    }
+}
+
+fn usage() {
+    eprintln!(
+        "usage:\n  \
+         tclvm <file.tcl> [args…]   run a script file\n  \
+         tclvm -c <script>         evaluate an inline script\n  \
+         tclvm -i                  force the interactive REPL\n  \
+         tclvm                     REPL (TTY) or run piped stdin"
+    );
+}
+
+/// Build a VM with the compiler-backed `CompileService` and stdout host output.
+fn new_vm() -> Vm {
+    let mut vm = Vm::with_output(Box::new(Stdout));
+    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    vm
+}
+
+/// Seed `argv0` / `argv` / `argc` the way `tclsh` does before running a file.
+fn set_argv(vm: &mut Vm, argv0: &str, argv: &[String]) {
+    let _ = vm.set_var("argv0", Value::string(argv0));
+    let _ = vm.set_var(
+        "argv",
+        Value::list(argv.iter().map(|s| Value::string(s.as_str())).collect()),
+    );
+    let _ = vm.set_var(
+        "argc",
+        Value::int(i64::try_from(argv.len()).unwrap_or(i64::MAX)),
+    );
+}
+
+/// Compile and run a whole script once, reporting any error to stderr. Returns
+/// the process exit code.
+fn run_script(vm: &mut Vm, src: &str) -> i32 {
+    match vm.eval_source(src) {
+        Ok(comp) if comp.code.is_ok() => 0,
+        Ok(comp) => {
+            eprintln!("{}", comp.result.to_str());
+            1
+        }
+        Err(e) => {
+            eprintln!("{}", e.message);
+            1
+        }
+    }
+}
+
+fn run() -> i32 {
+    match parse_args() {
+        Mode::Usage(code) => {
+            usage();
+            code
+        }
+        Mode::Command(script) => {
+            let mut vm = new_vm();
+            run_script(&mut vm, &script)
+        }
+        Mode::Repl => {
+            let stdin = std::io::stdin();
+            let mut out = std::io::stdout();
+            repl_loop(&mut new_vm(), &mut stdin.lock(), &mut out)
+        }
+        Mode::File { path, argv } => {
+            let src = match std::fs::read_to_string(&path) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("tclvm: cannot read {path}: {e}");
+                    return 1;
+                }
+            };
+            let mut vm = new_vm();
+            set_argv(&mut vm, &path, &argv);
+            run_script(&mut vm, &src)
+        }
+        Mode::Stdin => {
+            if std::io::stdin().is_terminal() {
+                let stdin = std::io::stdin();
+                let mut out = std::io::stdout();
+                repl_loop(&mut new_vm(), &mut stdin.lock(), &mut out)
+            } else {
+                let mut src = String::new();
+                if let Err(e) = std::io::stdin().read_to_string(&mut src) {
+                    eprintln!("tclvm: cannot read stdin: {e}");
+                    return 1;
+                }
+                let mut vm = new_vm();
+                run_script(&mut vm, &src)
+            }
+        }
+    }
+}
+
+/// Interactive REPL loop over an arbitrary reader/writer (so it is testable
+/// without a real terminal). Accumulates input lines until they form a complete
+/// command (`tcl_lexer::script_is_complete`, the `info complete` oracle),
+/// evaluates it in the persistent global frame, and writes a non-empty result.
+/// Variables and procs persist across evaluations because each line runs in the
+/// same VM. Prompts (`% ` primary, `> ` continuation) and results go to `out`;
+/// errors go to stderr. Always returns 0 (EOF is a clean exit).
+fn repl_loop<R: std::io::BufRead, W: Write>(vm: &mut Vm, reader: &mut R, out: &mut W) -> i32 {
+    let mut buffer = String::new();
+    let _ = write!(out, "% ");
+    let _ = out.flush();
+
+    let mut line = String::new();
+    loop {
+        line.clear();
+        match reader.read_line(&mut line) {
+            Ok(0) | Err(_) => break, // EOF (Ctrl-D) or read error
+            Ok(_) => {}
+        }
+        buffer.push_str(&line);
+
+        // A blank buffer on its own just re-prompts; otherwise keep reading
+        // (continuation prompt) until the command is complete.
+        if buffer.trim().is_empty() {
+            buffer.clear();
+            let _ = write!(out, "% ");
+            let _ = out.flush();
+            continue;
+        }
+        if !script_is_complete(&buffer) {
+            let _ = write!(out, "> ");
+            let _ = out.flush();
+            continue;
+        }
+
+        match vm.eval_source(&buffer) {
+            Ok(comp) if comp.code.is_ok() => {
+                let result = comp.result.to_str();
+                if !result.is_empty() {
+                    let _ = writeln!(out, "{result}");
+                }
+            }
+            Ok(comp) => eprintln!("{}", comp.result.to_str()),
+            Err(e) => eprintln!("{}", e.message),
+        }
+        buffer.clear();
+        let _ = write!(out, "% ");
+        let _ = out.flush();
+    }
+    // A trailing newline so the shell prompt starts on its own line after EOF.
+    let _ = writeln!(out);
+    0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Drive `repl_loop` over a canned input script and return what it wrote to
+    /// `out` (prompts + results), with a fresh compiler-backed VM.
+    fn drive(input: &str) -> String {
+        let mut vm = new_vm();
+        let mut reader = std::io::Cursor::new(input.as_bytes().to_vec());
+        let mut out: Vec<u8> = Vec::new();
+        repl_loop(&mut vm, &mut reader, &mut out);
+        String::from_utf8(out).expect("utf-8")
+    }
+
+    #[test]
+    fn repl_persists_state_and_prints_results() {
+        // `set x 5` echoes its result; `$x` survives into the next command.
+        let out = drive("set x 5\nexpr {$x + 1}\n");
+        assert!(out.contains("% 5"), "set result not echoed: {out:?}");
+        assert!(out.contains('6'), "var did not persist: {out:?}");
+    }
+
+    #[test]
+    fn repl_continuation_prompt_for_incomplete_command() {
+        // An open brace is incomplete: a continuation `> ` prompt is shown, and
+        // the command only evaluates once the brace closes on the next line.
+        let out = drive("set y {a\nb}\nllength $y\n");
+        assert!(out.contains("> "), "no continuation prompt: {out:?}");
+        // `llength {a\nb}` is 2 (two whitespace-separated words).
+        assert!(out.contains('2'), "joined value not evaluated: {out:?}");
+    }
+
+    #[test]
+    fn repl_blank_line_reprompts() {
+        let out = drive("\n\nset z 9\n");
+        assert!(out.contains("% 9"), "blank lines broke the loop: {out:?}");
+    }
+}

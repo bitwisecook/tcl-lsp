@@ -52,6 +52,7 @@ members = [
     "rust/tcl-registry",
     "rust/tcl-compiler",
     "rust/tcl-vm",
+    "rust/tcl-vm-cli",
     "rust/tcl-bigip",
     "rust/tcl-bigip-io",
     "rust/tcl-bigip-query",

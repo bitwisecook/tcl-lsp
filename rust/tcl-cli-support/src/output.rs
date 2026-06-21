@@ -55,6 +55,25 @@ pub fn write_text_output(target: &OutputTarget, text: &str) -> Result<(), CliErr
     }
 }
 
+/// Write raw bytes to the target (mirrors `_write_binary_output`).
+///
+/// For stdout the payload is written verbatim — no trailing newline, since the
+/// bytes are a binary artifact (e.g. a `.wasm` module). For files the bytes are
+/// written as-is.
+pub fn write_binary_output(target: &OutputTarget, payload: &[u8]) -> Result<(), CliError> {
+    match target {
+        OutputTarget::Stdout => {
+            let mut out = std::io::stdout().lock();
+            out.write_all(payload)
+                .map_err(|e| CliError::Io(format!("failed to write stdout: {e}")))?;
+            out.flush()
+                .map_err(|e| CliError::Io(format!("failed to flush stdout: {e}")))
+        }
+        OutputTarget::File(path) => std::fs::write(path, payload)
+            .map_err(|e| CliError::Io(format!("failed to write {}: {e}", path.display()))),
+    }
+}
+
 /// Write Tcl source, optionally colourised, with Python-faithful tab handling
 /// (mirrors `_write_highlighted_output`).
 ///
