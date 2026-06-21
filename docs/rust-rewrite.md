@@ -1078,7 +1078,19 @@ delete`, and the supporting `return`/`error`/list-parse fixes — error.test
   most common real "hang" idiom** — tcltest's own
   `while {[string length $argList]}` word-splitter spun — so several suites that
   appeared to "hang" should now progress (re-baseline the parity harness in
-  `--release`).
+  `--release`). The **same token-loss bug** was then fixed for the other
+  runtime loop fallbacks — the `dict for`/`map` barrier and the runtime
+  `foreach`/`lmap` call (qualified loop vars / non-inline) — by extending
+  `raw_tokens` to `Foreach`. **Audit:** only the three loop types have a
+  runtime fallback; `switch`/`catch`/`try`/`if` inline their bodies and need no
+  token preservation.
+- **fixed (2026-06-21) composite array-element index substitution.** A read or
+  write of `$a(prefix$var)` / `$a(-$opt)` / `$a(${item}suf)` pushed the index as
+  a raw literal, so the embedded variable never expanded (`can't read
+  "a(x$item)"`). tcltest's `$testAttributes(-$item)` option processing hit this,
+  aborting `info.test` after the loop fix. `push_array_key` now decodes a
+  composite index into its substitution parts and `STR_CONCAT`s them (byte-equal
+  to `tclsh9.0`).
 - **open** `namespace` / `var` / `upvar` depth (≈ 290 failures combined) — the
   namespace-eval-frame fix corrected the *mechanism*; the remainder is
   feature/semantics depth (namespace-name canonicalisation of multiple/trailing
