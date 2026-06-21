@@ -242,3 +242,86 @@ fn local_does_not_leak_to_global() {
     assert!(ok);
     assert_eq!(out, "1\n");
 }
+
+#[test]
+fn same_named_procs_in_different_namespaces_keep_own_bodies() {
+    // Regression: the pre-compiled proc-body cache was keyed by the *global*
+    // name, so two procs sharing an unqualified name across namespaces
+    // (`::a::p` vs `::b::p`) collided on one body. Keying by the
+    // runtime-qualified name keeps them distinct.
+    let (ok, _r, out) = run(concat!(
+        "namespace eval ::a { proc p {} { return A } }\n",
+        "namespace eval ::b { proc p {} { return B } }\n",
+        "puts [::a::p][::b::p]\n",
+    ));
+    assert!(ok);
+    assert_eq!(out, "AB\n");
+}
+
+#[test]
+fn namespaced_proc_resolves_variable_in_its_own_namespace() {
+    // A wrapper proc in one namespace calling a proc in another must run the
+    // callee in *its* defining namespace, so `variable` links correctly.
+    let (ok, _r, out) = run(concat!(
+        "namespace eval ::a { variable v 1\n proc get {} { variable v\n return $v } }\n",
+        "namespace eval ::b { proc call {} { return [::a::get] } }\n",
+        "puts [::b::call]\n",
+    ));
+    assert!(ok);
+    assert_eq!(out, "1\n");
+}
+
+#[test]
+fn format_with_variable_arg_substitutes_at_runtime() {
+    // Regression: `set x [format {…%s…} $var]` constant-folded `$var` to its
+    // literal source text. The fold must bail when an argument is a variable.
+    let (ok, _r, out) = run("set cmd dict\nset s [format {x %s} $cmd]\nputs $s\n");
+    assert!(ok);
+    assert_eq!(out, "x dict\n");
+}
+
+#[test]
+fn dict_set_and_get_in_proc() {
+    // The dict bytecode opcodes (DICT_SET / DICT_GET) only emit in a proc body.
+    let (ok, _r, out) = run(concat!(
+        "proc t {} {\n",
+        "  set d [dict create]\n",
+        "  dict set d a 1\n",
+        "  dict set d nested x 10\n",
+        "  dict incr d a 5\n",
+        "  dict append d a !\n",
+        "  return [dict get $d a]-[dict get $d nested x]-[dict exists $d nested y]\n",
+        "}\n",
+        "puts [t]\n",
+    ));
+    assert!(ok);
+    assert_eq!(out, "6!-10-0\n");
+}
+
+#[test]
+fn unknown_handler_dispatches_missing_command() {
+    // An unresolved command name is handed to a user-defined `unknown` proc.
+    let (ok, _r, out) = run(concat!(
+        "proc unknown {cmd args} { return \"u:$cmd:$args\" }\n",
+        "puts [nosuchcmd a b]\n",
+    ));
+    assert!(ok);
+    assert_eq!(out, "u:nosuchcmd:a b\n");
+}
+
+#[test]
+fn clock_ensemble_members_qualified() {
+    // `::tcl::clock::seconds` (the ensemble's implementation member) resolves
+    // the same as `clock seconds`.
+    let (ok, _r, out) = run("puts [expr {[::tcl::clock::seconds] > 0}]\n");
+    assert!(ok);
+    assert_eq!(out, "1\n");
+}
+
+#[test]
+fn regexp_word_edge_escapes() {
+    // Tcl ARE `\m` (begin-of-word) maps to the crate's `\b{start}`.
+    let (ok, _r, out) = run("puts [regexp {\\mcat} \"the cat\"][regexp {\\mcat} \"scatter\"]\n");
+    assert!(ok);
+    assert_eq!(out, "10\n");
+}
