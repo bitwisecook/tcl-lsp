@@ -86,7 +86,35 @@ fn compwasm_emits_valid_module_header() {
 }
 
 #[test]
-fn compwasm_writes_to_stdout_by_default() {
-    let out = run_tcl(&["compwasm", "--source", "set x 1\n"]);
+fn compwasm_defaults_to_out_wasm_file() {
+    // With no `-o`, compwasm must write `out.wasm` in the cwd (the Python
+    // default) rather than dumping raw bytes to the terminal. Run in a scratch
+    // dir so the artifact lands somewhere hermetic.
+    let dir = std::env::temp_dir().join("tcl_compwasm_default");
+    std::fs::create_dir_all(&dir).expect("mkdir");
+
+    let out = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .current_dir(&dir)
+        .args(["compwasm", "--source", "set x 1\n"])
+        .output()
+        .expect("spawn tcl");
+    assert!(
+        out.status.success(),
+        "compwasm failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    // The default does not write bytes to stdout.
+    assert!(out.stdout.is_empty(), "default run wrote to stdout");
+
+    let bytes = std::fs::read(dir.join("out.wasm")).expect("out.wasm not written");
+    assert_eq!(&bytes[0..4], b"\0asm", "out.wasm is not a wasm module");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn compwasm_dash_o_writes_stdout() {
+    // An explicit `-o -` still selects stdout (matching the Python verb).
+    let out = run_tcl(&["compwasm", "--source", "set x 1\n", "-o", "-"]);
     assert_eq!(&out[0..4], b"\0asm", "stdout payload is not a wasm module");
 }

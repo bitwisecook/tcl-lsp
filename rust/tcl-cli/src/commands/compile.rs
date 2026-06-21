@@ -68,20 +68,23 @@ pub fn run_compwasm(input: &InputArgs, wat_output: Option<&std::path::Path>) -> 
     let mut wasm = wasm_codegen_module(&ir, &source);
     let bytes = wasm.to_bytes();
 
-    let target = OutputTarget::from_arg(input.output.as_deref());
+    // Unlike the other verbs, `compwasm` defaults to a file, not stdout: a bare
+    // `tcl compwasm script.tcl` must not dump raw WASM bytes to the terminal.
+    // Mirrors the Python verb's `output="out.wasm"` default; an explicit `-o -`
+    // still selects stdout.
+    let target = match input.output.as_deref() {
+        None => OutputTarget::File(std::path::PathBuf::from("out.wasm")),
+        Some(path) => OutputTarget::from_arg(Some(path)),
+    };
     write_binary_output(&target, &bytes)?;
     if let Some(wat_path) = wat_output {
         let wat_target = OutputTarget::from_arg(Some(wat_path));
         write_text_output(&wat_target, &wasm.to_wat())?;
     }
 
-    let where_to = if target.is_stdout() {
-        "stdout".to_owned()
-    } else {
-        input
-            .output
-            .as_deref()
-            .map_or_else(|| "stdout".to_owned(), |p| p.display().to_string())
+    let where_to = match &target {
+        OutputTarget::Stdout => "stdout".to_owned(),
+        OutputTarget::File(path) => path.display().to_string(),
     };
     eprintln!("wrote wasm binary ({} bytes) to {where_to}", bytes.len());
     Ok(0)
