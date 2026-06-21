@@ -941,6 +941,7 @@ mod tests {
             is_lmap: false,
             raw_args: vec![],
             is_dict_iteration: false,
+            raw_tokens: None,
         }]);
 
         let func = build_cfg_function("::test", &script, true);

@@ -400,6 +400,11 @@ pub enum Statement {
         raw_args: Vec<String>,
         /// Whether this is `dict for`/`dict map`.
         is_dict_iteration: bool,
+        /// Per-word source token metadata for the generic runtime fallback
+        /// (the `dict for`/`map` barrier and the runtime `foreach`/`lmap`
+        /// call), so braced var-lists / bodies are pushed verbatim and
+        /// `$list` arguments substituted — see [`Statement::For::raw_tokens`].
+        raw_tokens: Option<CommandTokens>,
     },
 
     /// `catch script ?resultVar? ?optionsVar?`.
@@ -975,6 +980,7 @@ mod tests {
             is_lmap: false,
             raw_args: Vec::new(),
             is_dict_iteration: true,
+            raw_tokens: None,
         };
         if let Statement::Foreach {
             iterators,

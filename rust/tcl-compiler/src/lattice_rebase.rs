@@ -180,11 +180,13 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
             span,
             body,
             body_span,
+            raw_tokens,
             ..
         } => {
             shift(span, delta);
             shift(body_span, delta);
             rebase_script(body, delta);
+            rebase_tokens(raw_tokens, delta);
         }
         Statement::Catch {
             span,
