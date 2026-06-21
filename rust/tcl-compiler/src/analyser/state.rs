@@ -120,6 +120,23 @@ pub struct Analyser {
     pub regex_vars: HashSet<(Vec<usize>, String)>,
     /// iRules: enclosing ``when EVENT`` name.
     pub current_event: Option<String>,
+    /// Tk checks: whether this document could be Tk (the `tk` dialect, or
+    /// the source mentions `package` / `require` / `Tk`).  Set per walk by
+    /// the `analyse*` entry points; gates the per-command accumulation so
+    /// non-Tk files pay nothing.  See [`super::tk_checks::tk_possibly_active`].
+    pub(super) tk_possibly_active: bool,
+    /// Tk checks (TK1002 / TK1003): diagnostics buffered during the walk and
+    /// emitted post-walk by [`Self::flush_tk_geometry_diagnostics`], once the
+    /// `tk` dialect / `package require Tk` activation condition is resolved.
+    pub(super) tk_pending_diags: Vec<super::types::Diagnostic>,
+    /// Tk checks (TK1002): widget paths created so far in the walk, so a
+    /// child's parent can be checked for existence.  Cleared by
+    /// [`Self::flush_tk_geometry_diagnostics`].
+    pub(super) tk_created_widgets: HashSet<String>,
+    /// Tk checks (TK1001): per-parent geometry-manager usage, keyed by
+    /// parent widget path, accumulated across the walk and flushed
+    /// post-walk so a `pack`/`grid` conflict can be decided.
+    pub(super) tk_geometry: std::collections::BTreeMap<String, super::tk_checks::TkGeometryUsage>,
     /// Cached set of built-in command names for redefined-builtin
     /// detection. `None` until first lookup; filled lazily.
     pub builtin_names: Option<HashSet<String>>,
@@ -380,6 +397,10 @@ impl Analyser {
             const_strings: HashMap::new(),
             regex_vars: HashSet::new(),
             current_event: None,
+            tk_possibly_active: false,
+            tk_pending_diags: Vec::new(),
+            tk_created_widgets: HashSet::new(),
+            tk_geometry: std::collections::BTreeMap::new(),
             builtin_names: None,
             builtin_dialect: None,
             conditional_depth: 0,
@@ -480,6 +501,7 @@ impl Analyser {
         // ``core/analysis/_analyser/_core.py``.
         self.source = source.to_string();
         self.dialect = dialect.to_string();
+        self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         // Clear the per-run iRules file-profile memo so a reused analyser
         // instance recomputes it for the new source / dialect.
         self.irules_file_profiles = None;
@@ -850,6 +872,7 @@ impl Analyser {
         use tcl_registry::CommandRegistry;
         self.source = source.to_string();
         self.dialect = dialect.to_string();
+        self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         self.unresolved_commands_emitted = false;
         self.ns_cache.clear();
 
@@ -927,6 +950,7 @@ impl Analyser {
         use tcl_registry::CommandRegistry;
         self.source = source.to_string();
         self.dialect = dialect.to_string();
+        self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
         self.unresolved_commands_emitted = false;
         self.ns_cache.clear();
 
@@ -1211,6 +1235,7 @@ impl Analyser {
         self.emit_cfg_ssa_diagnostics(source);
         self.emit_lexer_warning_diagnostics();
         self.emit_w116_w117_stub_shadows();
+        self.flush_tk_geometry_diagnostics();
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
         self.canonicalize_result_order();
