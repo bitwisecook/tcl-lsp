@@ -2268,6 +2268,10 @@ name = "tcl-core-types"
 version = "0.1.0"
 
 [[package]]
+name = "tcl-debugger"
+version = "0.1.0"
+
+[[package]]
 name = "tcl-explorer"
 version = "0.1.0"
 dependencies = [

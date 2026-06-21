@@ -698,9 +698,10 @@ If your port has any of these, reshape it before asking for review:
 
 The workspace (`Cargo.toml` members) as it stands today — crate granularity,
 roughly in dependency order. New crates the [Remaining work](#remaining-work)
-plan still calls for (`tcl-wasm`, `tcl-xc`, `tcl-debugger`) are **not** listed
-here because they do not exist yet; `tcl-fuzz` (the differential fuzzer) and
-`tcl-irule-test` (the iRule-test glue scaffold) have since landed.
+plan still calls for (`tcl-wasm`, `tcl-xc`) are **not** listed here because they
+do not exist yet; `tcl-fuzz` (the differential fuzzer), `tcl-irule-test` (the
+iRule-test glue scaffold), and `tcl-debugger` (the step-debugger scaffold) have
+since landed.
 
 ```
 Cargo.toml                workspace manifest        rust-toolchain.toml  channel = "stable"
@@ -738,6 +739,7 @@ rust/
   tcl-cli/                native `tcl` toolchain CLI                f5-cli/  native `f5-query` CLI
   tcl-fuzz/               differential fuzzer (seeded generator + tclvm-vs-tclsh harness + findings)
   tcl-irule-test/         iRule TMM-sim glue: SCF→orchestrator topology + session bootstrap (driver gated on RT-VM)
+  tcl-debugger/           step debugger: breakpoints + step-mode controller + backend contract (VM backend gated on RT-VM)
 runtime/
   zig/                    Zig WASM runtime (out-of-process runtime for compiled scripts)
   rust/                   tree-walking reference runtime (RT-VM parity oracle)
@@ -879,7 +881,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟡 | `wasm` view (blocked on **RT-WASM**) → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
 | Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); broaden the generator grammar as the VM surface grows → **TOOL-FUZZ** |
-| Debugger (DAP) | new crate | 🔴 | full debugger over `tcl-vm` → **TOOL-DEBUGGER** |
+| Debugger | `tcl-debugger` | 🟡 | crate scaffolded: step-mode controller + breakpoints + backend contract (tested); live VM backend gated on a `tcl-vm` per-statement hook (**RT-VM**) → **TOOL-DEBUGGER** |
 | iRule test framework | `tcl-irule-test` | 🟡 | crate scaffolded: SCF→orchestrator topology generator (parity-checked vs Python) + session-bootstrap assembly; the live event round-trip is gated on the VM iRule surface (**RT-VM**) → **TOOL-IRULE-TEST** |
 | PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🔴 | designed public surface; TEST-MIGRATE; PYTHON-RETIRE → **API-PYO3** |
 | `ai/` (MCP + skills) | — | n/a | stays Python by design |
@@ -904,7 +906,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | TOOL | **TOOL-F5** | `f5-cli` | — | XS |
 | TOOL | **TOOL-EXPLORER** | `tcl-explorer`, `tcl-explorer-wasm` | RT-WASM | S |
 | TOOL | **TOOL-FUZZ** 🟢 | `tcl-fuzz` (bin) | RT-VM | M |
-| TOOL | **TOOL-DEBUGGER** | new `tcl-debugger` | RT-VM | L |
+| TOOL | **TOOL-DEBUGGER** 🟡 | `tcl-debugger` | RT-VM | L |
 | TOOL | **TOOL-IRULE-TEST** 🟡 | `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
 | TOOL | **TOOL-CLI** ✅ | `tcl-cli` | RT-WASM, RT-VM, TOOL-TCLPKG | S |
 | API | **API-PYO3** | `tcl-lsp-py`, `scripts`→`xtask`, `tests` | everything above | L |
@@ -1234,8 +1236,18 @@ already started, brings **every** Python tool across to Rust.
   the generator grammar (procs, namespaces, dict, `catch`/`try`, switch) as the
   VM command surface fills in, and add the WASM/Zig backend as a third
   differential arm once **RT-WASM** lands. *(M)*
-- **TOOL-DEBUGGER** *(new `tcl-debugger`; depends on RT-VM)* — **open**: DAP server
-  over `tcl-vm` (breakpoints/stepping/backends). *(L)*
+- **TOOL-DEBUGGER** *(new `tcl-debugger`; depends on RT-VM)* — **scaffolded**:
+  the crate exists with the portable, tested core ported from
+  `tooling/debugger/` — the `DebugController` (breakpoints + the
+  step-in/over/out decision state machine), the shared `types`
+  (`StackFrame`/`Variable`/`StopEvent`/…), and the `DebugBackend` contract.
+  **Architecture note:** the live `VmBackend` needs `tcl-vm` to expose a
+  per-statement debug hook — an execution-control seam in the exec loop that
+  calls back with `(source_line, frame_level, command_text, stack)` and honours
+  the returned `DebugAction`, plus a bytecode-PC → source-line map. That hook is
+  the RT-VM-gated remainder; `VmBackend` reports `Unsupported` until it lands.
+  Remaining after the hook: stack/variable inspection wiring and the DAP (or
+  CLI) protocol surface. *(L)*
 - **TOOL-IRULE-TEST** *(new `tcl-irule-test`; depends on RT-VM + `tcl-registry`)* —
   **scaffolded**: the crate exists with the portable glue. `topology` ports
   `TopologyFromSCF` — parse a bigip.conf via `tcl-bigip` and emit the `::orch::`
