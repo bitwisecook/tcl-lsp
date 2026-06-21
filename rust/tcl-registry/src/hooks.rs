@@ -116,6 +116,10 @@ pub enum CodegenHookId {
     Dict,
     /// `array <subcommand> ...`.
     Array,
+    /// `append varName ?value ...?`.
+    Append,
+    /// `lappend varName ?value ...?`.
+    Lappend,
 }
 
 /// Typed identifier for a WASM-runtime codegen specialisation.

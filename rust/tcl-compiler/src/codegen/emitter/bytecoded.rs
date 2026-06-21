@@ -17,7 +17,7 @@ use tcl_registry::hooks::CodegenHookId;
 use super::super::CodegenCtx;
 use super::super::Op;
 use super::super::Operand;
-use super::super::values::is_qualified;
+use super::super::values::{is_qualified, split_array_ref};
 use super::super::{INDEX_END, bytecode_imm, parse_tcl_index};
 
 /// Try to emit specialised bytecode for `cmd args...` via a per-
@@ -66,6 +66,8 @@ pub fn dispatch_codegen_hook(
         CodegenHookId::Lset => lset(ctx, args),
         CodegenHookId::Dict => dict(ctx, args),
         CodegenHookId::Array => array(ctx, args, used_generic_invoke),
+        CodegenHookId::Append => append_cmd(ctx, args),
+        CodegenHookId::Lappend => lappend_cmd(ctx, args),
     }
 }
 
@@ -362,6 +364,121 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
     }
 }
 
+// ── append / lappend ───────────────────────────────────────────────
+
+/// True when `var` names a variable codegen can resolve to a compiled
+/// local — a proc context, a plain (non-`::`-qualified) name, and not a
+/// dynamic `$…` / `[…]` reference. The shared gate for the statement-
+/// position `append`/`lappend` specialisations.
+fn is_compilable_local(ctx: &CodegenCtx, var: &str) -> bool {
+    ctx.is_proc && !is_qualified(var) && !var.starts_with('$') && !var.starts_with('[')
+}
+
+/// `append varName value ...` — statement-position specialisation for a
+/// proc-local variable. A single value emits `appendScalar`/`appendArray`;
+/// multiple scalar values push all, `reverse N`, then `appendScalar; pop`
+/// per value (mirroring C Tcl's `TclCompileAppendCmd`). Toplevel, qualified,
+/// dynamic, and multi-value array forms fall back to the generic invoke.
+fn append_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    if args.len() < 2 || !is_compilable_local(ctx, &args[0]) {
+        return false;
+    }
+    let var = &args[0];
+    let values = &args[1..];
+
+    if let Some((base, key)) = split_array_ref(var) {
+        if values.len() != 1 {
+            return false;
+        }
+        let slot = ctx.lvt.intern(base);
+        let op = if slot < 256 {
+            Op::APPEND_ARRAY1
+        } else {
+            Op::APPEND_ARRAY4
+        };
+        ctx.push_array_key(key);
+        ctx.emit_value_interpolated(&values[0]);
+        ctx.emit_comment(op, vec![Operand::Imm(bytecode_imm(slot))], &format!("var \"{base}\""));
+        ctx.emit(Op::POP, vec![]);
+        return true;
+    }
+
+    let slot = ctx.lvt.intern(var);
+    let op = if slot < 256 {
+        Op::APPEND_SCALAR1
+    } else {
+        Op::APPEND_SCALAR4
+    };
+    if values.len() == 1 {
+        ctx.emit_value_interpolated(&values[0]);
+        ctx.emit_comment(op, vec![Operand::Imm(bytecode_imm(slot))], &format!("var \"{var}\""));
+        ctx.emit(Op::POP, vec![]);
+    } else {
+        for v in values {
+            ctx.emit_value_interpolated(v);
+        }
+        ctx.emit(Op::REVERSE, vec![Operand::Imm(bytecode_imm(values.len()))]);
+        for _ in values {
+            ctx.emit_comment(op, vec![Operand::Imm(bytecode_imm(slot))], &format!("var \"{var}\""));
+            ctx.emit(Op::POP, vec![]);
+        }
+    }
+    true
+}
+
+/// `lappend varName value ...` — statement-position specialisation for a
+/// proc-local variable. A single value emits `lappendScalar`/`lappendArray`;
+/// multiple scalar values build a list (`list N`) and emit `lappendList`
+/// (mirroring C Tcl's `TclCompileLappendCmd`). Toplevel, qualified, dynamic,
+/// and multi-value array forms fall back to the generic invoke.
+fn lappend_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    if args.len() < 2 || !is_compilable_local(ctx, &args[0]) {
+        return false;
+    }
+    let var = &args[0];
+    let values = &args[1..];
+
+    if let Some((base, key)) = split_array_ref(var) {
+        if values.len() != 1 {
+            return false;
+        }
+        let slot = ctx.lvt.intern(base);
+        let op = if slot < 256 {
+            Op::LAPPEND_ARRAY1
+        } else {
+            Op::LAPPEND_ARRAY4
+        };
+        ctx.push_array_key(key);
+        ctx.emit_value_interpolated(&values[0]);
+        ctx.emit_comment(op, vec![Operand::Imm(bytecode_imm(slot))], &format!("var \"{base}\""));
+        ctx.emit(Op::POP, vec![]);
+        return true;
+    }
+
+    let slot = ctx.lvt.intern(var);
+    if values.len() == 1 {
+        ctx.emit_value_interpolated(&values[0]);
+        let op = if slot < 256 {
+            Op::LAPPEND_SCALAR1
+        } else {
+            Op::LAPPEND_SCALAR4
+        };
+        ctx.emit_comment(op, vec![Operand::Imm(bytecode_imm(slot))], &format!("var \"{var}\""));
+    } else {
+        for v in values {
+            ctx.emit_value_interpolated(v);
+        }
+        ctx.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(values.len()))]);
+        ctx.emit_comment(
+            Op::LAPPEND_LIST,
+            vec![Operand::Imm(bytecode_imm(slot))],
+            &format!("var \"{var}\""),
+        );
+    }
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -615,6 +732,149 @@ mod tests {
         let args = vec!["set".into(), "::global::d".into(), "k".into(), "v".into()];
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "dict", &args, &mut used));
+    }
+
+    // -- append / lappend statement-position specialisations --
+
+    #[test]
+    fn append_scalar_single_uses_append_scalar1() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let args = vec!["x".into(), "a".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "append", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(ops, vec![Op::PUSH1, Op::APPEND_SCALAR1, Op::POP]);
+    }
+
+    #[test]
+    fn append_multi_uses_reverse_then_append_per_value() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let args = vec!["x".into(), "a".into(), "b".into(), "c".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "append", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        // push×3, reverse 3, then (appendScalar1; pop)×3.
+        assert_eq!(
+            ops,
+            vec![
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::REVERSE,
+                Op::APPEND_SCALAR1,
+                Op::POP,
+                Op::APPEND_SCALAR1,
+                Op::POP,
+                Op::APPEND_SCALAR1,
+                Op::POP,
+            ]
+        );
+    }
+
+    #[test]
+    fn append_array_element_uses_append_array1() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let args = vec!["arr(k)".into(), "v".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "append", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(ops, vec![Op::PUSH1, Op::PUSH1, Op::APPEND_ARRAY1, Op::POP]);
+    }
+
+    #[test]
+    fn append_toplevel_falls_back() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let args = vec!["x".into(), "a".into()];
+        let mut used = false;
+        assert!(!try_bytecoded(&mut ctx, "append", &args, &mut used));
+    }
+
+    #[test]
+    fn append_qualified_and_dynamic_fall_back() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        assert!(!try_bytecoded(
+            &mut ctx,
+            "append",
+            &["::g::x".into(), "a".into()],
+            &mut used
+        ));
+        assert!(!try_bytecoded(
+            &mut ctx,
+            "append",
+            &["$dyn".into(), "a".into()],
+            &mut used
+        ));
+        // No value: nothing to append → generic invoke.
+        assert!(!try_bytecoded(&mut ctx, "append", &["x".into()], &mut used));
+    }
+
+    #[test]
+    fn lappend_scalar_single_uses_lappend_scalar1() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let args = vec!["y".into(), "a".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "lappend", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(ops, vec![Op::PUSH1, Op::LAPPEND_SCALAR1, Op::POP]);
+    }
+
+    #[test]
+    fn lappend_multi_builds_list_then_lappend_list() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let args = vec!["y".into(), "a".into(), "b".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "lappend", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(
+            ops,
+            vec![Op::PUSH1, Op::PUSH1, Op::LIST, Op::LAPPEND_LIST, Op::POP]
+        );
+    }
+
+    #[test]
+    fn lappend_array_element_uses_lappend_array1() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let args = vec!["arr(k)".into(), "v".into()];
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "lappend", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(ops, vec![Op::PUSH1, Op::PUSH1, Op::LAPPEND_ARRAY1, Op::POP]);
+    }
+
+    #[test]
+    fn lappend_multi_array_falls_back() {
+        // Multi-value array lappend is not specialised (would need the key
+        // re-pushed per element); it falls back to the generic invoke.
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let args = vec!["arr(k)".into(), "a".into(), "b".into()];
+        let mut used = false;
+        assert!(!try_bytecoded(&mut ctx, "lappend", &args, &mut used));
+    }
+
+    #[test]
+    fn registry_append_lappend_specs_carry_codegen_hook() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            registry.get("append").expect("append registered").codegen_hook,
+            Some(CodegenHookId::Append)
+        );
+        assert_eq!(
+            registry
+                .get("lappend")
+                .expect("lappend registered")
+                .codegen_hook,
+            Some(CodegenHookId::Lappend)
+        );
     }
 
     #[test]
