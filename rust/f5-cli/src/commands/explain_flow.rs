@@ -9,7 +9,9 @@
 //! the matched-session detail (profile chain, iRule event chain, LTM policy
 //! trace via `tcl_bigip::policy_eval`, resolved plan), the reset-cause
 //! narrative, and both the text and `--json` report renderers. The `--tshark`
-//! enrichment and `--simulate` (iRule VM) paths remain deferred.
+//! / `--keylog` / `--tshark-filter` L7-enrichment paths are wired through
+//! `tcl_bigip::flow::tshark`. The `--simulate` (iRule VM) path remains
+//! deferred until the RT-VM-gated native iRule simulator lands.
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -18,7 +20,10 @@ use std::sync::LazyLock;
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{Map, Value};
-use tcl_bigip::flow::{Connection, Flow, Session, extract_flows, pair_sessions};
+use tcl_bigip::flow::{
+    Connection, Flow, Session, enrich_with_tshark, extract_flows, extract_flows_via_tshark,
+    pair_sessions, tshark_available,
+};
 use tcl_bigip::model::{
     BigipPolicy, BigipProfile, BigipRule, BigipVirtualServer, ModelObject, ProfileType,
 };
@@ -103,13 +108,17 @@ impl SessionExplain {
 }
 
 /// The whole-report result of [`compute_explain_flow`]. The `used_tshark` /
-/// `keylog_path` / `tshark_filter` fields are fixed for the static built-in
-/// walker path (the tshark path is a later increment).
+/// `keylog_path` / `tshark_filter` fields record the L7-enrichment path taken:
+/// the built-in walker alone (`used_tshark = false`), the `--tshark` /
+/// `--keylog` overlay, or a `--tshark-filter` extraction.
 struct ExplainFlowReport {
     pcap_path: String,
     flow_count: usize,
     session_count: usize,
     matched_count: usize,
+    used_tshark: bool,
+    keylog_path: String,
+    tshark_filter: String,
     sessions: Vec<SessionExplain>,
 }
 
@@ -673,19 +682,42 @@ fn analyse_reset(session: &Session) -> String {
 
 /// Build the per-session explanation for the capture against parsed configs.
 #[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_arguments)]
+// `use_tshark` (input intent) vs `used_tshark` (output fact) mirror the Python
+// names; the one-letter gap is the contract, not an accident.
+#[allow(clippy::similar_names)]
 fn compute_explain_flow(
     pcap_display: &str,
+    pcap_path: &Path,
     pcap_bytes: &[u8],
     configs: &[BigipConfig],
     show_event_bodies: bool,
     max_event_body_lines: usize,
+    use_tshark: bool,
+    keylog_path: &str,
+    tshark_filter: &str,
 ) -> Result<ExplainFlowReport, String> {
     let dest_re = Regex::new(
         r"^(?P<path>/[^/\s]+/)?(?P<addr>\[[^\]]+\]|[0-9a-fA-F\.:]+)(?:%\d+)?:(?P<port>\d+|any)$",
     )
     .expect("static destination regex");
 
-    let flows = extract_flows(pcap_bytes)?;
+    // Flow extraction mirrors `compute_explain_flow`'s three paths:
+    //   * `--tshark-filter` → tshark is the canonical flow source;
+    //   * `--tshark` / `--keylog` → built-in walker + tshark L7 overlay;
+    //   * neither → built-in walker alone.
+    let mut used_tshark = false;
+    let flows = if tshark_filter.is_empty() {
+        let mut flows = extract_flows(pcap_bytes)?;
+        if use_tshark && tshark_available() {
+            used_tshark = enrich_with_tshark(&mut flows, pcap_path, keylog_path, "");
+        }
+        flows
+    } else {
+        let flows = extract_flows_via_tshark(pcap_path, keylog_path, tshark_filter);
+        used_tshark = !flows.is_empty() || tshark_available();
+        flows
+    };
     let flow_count = flows.len();
     let mut sessions = pair_sessions(&flows);
     let session_count = sessions.len();
@@ -864,21 +896,36 @@ fn compute_explain_flow(
         flow_count,
         session_count,
         matched_count: matched,
+        used_tshark,
+        keylog_path: keylog_path.to_owned(),
+        tshark_filter: tshark_filter.to_owned(),
         sessions: session_explains,
     })
 }
 
-/// Render the text report. Faithful port of `_format_report` (static path).
+/// Render the text report. Faithful port of `_format_report`.
 #[allow(clippy::too_many_lines)]
-fn format_report(pcap_path: &str, sessions: &[SessionExplain]) -> String {
+fn format_report(report: &ExplainFlowReport) -> String {
+    let pcap_path = &report.pcap_path;
+    let sessions = &report.sessions;
     let mut lines: Vec<String> = Vec::new();
     lines.push(format!("explain-flow: {pcap_path}"));
     let matched = sessions.iter().filter(|s| !s.matched_vs.is_empty()).count();
-    // `tshark` / `keylog` / `filter` annotations land with the tshark path.
+    let keylog = if report.keylog_path.is_empty() {
+        String::new()
+    } else {
+        format!(" | keylog: {}", report.keylog_path)
+    };
+    let filter = if report.tshark_filter.is_empty() {
+        String::new()
+    } else {
+        format!(" | filter: {}", py_repr(&report.tshark_filter))
+    };
     lines.push(format!(
-        "  sessions: {} | matched: {} | tshark: no",
+        "  sessions: {} | matched: {} | tshark: {}{keylog}{filter}",
         sessions.len(),
-        matched
+        matched,
+        if report.used_tshark { "yes" } else { "no" },
     ));
     lines.push(String::new());
 
@@ -1433,10 +1480,9 @@ fn report_to_json(report: &ExplainFlowReport) -> Result<String, String> {
         ("flow_count", Value::from(report.flow_count)),
         ("session_count", Value::from(report.session_count)),
         ("matched_count", Value::from(report.matched_count)),
-        // Static built-in walker path: tshark is never used here.
-        ("used_tshark", Value::Bool(false)),
-        ("keylog_path", Value::String(String::new())),
-        ("tshark_filter", Value::String(String::new())),
+        ("used_tshark", Value::Bool(report.used_tshark)),
+        ("keylog_path", Value::String(report.keylog_path.clone())),
+        ("tshark_filter", Value::String(report.tshark_filter.clone())),
         ("sessions", Value::Array(sessions)),
     ]);
     let pretty = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
@@ -1461,14 +1507,16 @@ pub fn run_explain_flow(
         anyhow::bail!("not a file: {}", pcap.display());
     }
     if simulate {
+        // The iRule simulator drives the iRule VM (`tooling.irule_test`), which
+        // is the RT-VM-gated TOOL-IRULE-TEST track; until a native iRule VM
+        // lands there is no Rust simulator to call.
         anyhow::bail!("`f5 explain-flow --simulate` is not yet implemented in the Rust port");
     }
+    // `--tshark-filter` implies tshark; `--tshark` / `--keylog` request the
+    // overlay. `keylog` is forwarded to tshark only when it points at a file.
     let use_tshark = tshark || keylog.is_some() || tshark_filter.is_some();
-    if use_tshark {
-        anyhow::bail!(
-            "`f5 explain-flow --tshark/--keylog/--tshark-filter` is not yet implemented in the Rust port"
-        );
-    }
+    let keylog_path = keylog.map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    let tshark_filter = tshark_filter.unwrap_or("");
 
     let opts = crate::cli::PassphraseArgs::default().to_options();
     let path_strs: Vec<String> = paths
@@ -1484,17 +1532,21 @@ pub fn run_explain_flow(
     let pcap_bytes = std::fs::read(pcap)?;
     let report = compute_explain_flow(
         &pcap.display().to_string(),
+        pcap,
         &pcap_bytes,
         &configs,
         !no_event_bodies,
         max_event_lines,
+        use_tshark,
+        &keylog_path,
+        tshark_filter,
     )
     .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let rendered = if json {
         report_to_json(&report).map_err(|e| anyhow::anyhow!("{e}"))?
     } else {
-        format_report(&report.pcap_path, &report.sessions)
+        format_report(&report)
     };
 
     let target = OutputTarget::from_arg(output);

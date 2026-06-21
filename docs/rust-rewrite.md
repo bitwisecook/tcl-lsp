@@ -871,7 +871,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The rope-backed `DocumentState` is split out into its own **SRV-ROPE** track (need evaluated with measurements in [`design/rope/`](design/rope/README.md)) |
 | Document store / incrementality | `tcl-lsp-server`, `tcl-lexer`, `tcl-lsp-db` | 🔴 | rope-backed store + chunk-addressable salsa input + rope-slice re-lex → **SRV-ROPE** (see [`design/rope/`](design/rope/README.md)) |
 | `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
-| `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --simulate/--tshark/--keylog`; a few parity files → **TOOL-F5** |
+| `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --tshark/--keylog/--tshark-filter` landed; `--simulate` gated on the native iRule VM (**RT-VM**); `completion`/`graph` parity files → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
 | Refactoring transforms | `tcl-lsp-core::code_actions` | 🟡 | 5 of 7 transforms missing → **TOOL-REFACTOR** |
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟡 | `wasm` view (blocked on **RT-WASM**) → **TOOL-EXPLORER** |
@@ -1145,8 +1145,15 @@ already started, brings **every** Python tool across to Rust.
 - **TOOL-REFACTOR** *(owns `tcl-lsp-core::code_actions`)* — **open**: port the 5
   missing transforms (extract/inline variable, if↔switch, switch→dict,
   extract-datagroup); 2 of 7 (extract/inline proc) exist. *(M)*
-- **TOOL-F5** *(owns `f5-cli`)* — **partial**: `explain-flow`
-  `--simulate`/`--tshark`/`--keylog`; dedicated `completion`/`graph` parity
+- **TOOL-F5** *(owns `f5-cli`)* — **partial**: the `explain-flow`
+  `--tshark` / `--keylog` / `--tshark-filter` L7-enrichment paths landed
+  (`tcl_bigip::flow::tshark`, a faithful EK-JSON port of
+  `dialects/f5/bigip/flow/tshark.py`, byte-identical to the Python CLI on the
+  `--tshark` / `--tshark-filter` paths; graceful degradation when tshark lacks
+  EK `--no-duplicate-keys` support is itself parity-matched). Remaining:
+  `--simulate` is gated on the native iRule VM (the `tooling.irule_test`
+  orchestrator → **RT-VM** / **TOOL-IRULE-TEST**) and stays a clear
+  not-implemented error meanwhile; plus dedicated `completion`/`graph` parity
   files. The rest (27/27 verbs, 262 parity tests) is done — the template for the
   other tool ports. *(XS)*
 - **TOOL-EXPLORER** *(owns `tcl-explorer`, `tcl-explorer-wasm`; depends on

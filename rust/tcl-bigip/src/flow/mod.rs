@@ -10,7 +10,9 @@
 pub mod model;
 pub mod packets;
 pub mod sessions;
+pub mod tshark;
 
 pub use model::{Connection, Flow, FlowKey, Session};
 pub use packets::extract_flows;
 pub use sessions::{pair_connections, pair_sessions};
+pub use tshark::{enrich_with_tshark, extract_flows_via_tshark, tshark_available};
