@@ -22,8 +22,8 @@ pub mod secret_input;
 pub use highlight::{highlight_ansi, highlight_html};
 pub use input::{CliError, InputDocument, combine_sources, read_input_documents};
 pub use output::{
-    OutputTarget, ensure_ascii, expand_tabs, resolve_use_colour, write_highlighted_output,
-    write_text_output,
+    OutputTarget, ensure_ascii, expand_tabs, resolve_use_colour, write_binary_output,
+    write_highlighted_output, write_text_output,
 };
 // The per-dialect registry cache now lives in `tcl-registry` so every
 // downstream tool (CLI, compiler explorer, …) shares one cache. Re-exported

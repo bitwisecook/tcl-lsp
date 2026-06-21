@@ -81,6 +81,8 @@ pub enum Command {
     },
 
     /// Compile source to a WebAssembly binary.
+    ///
+    /// Writes to `out.wasm` when `--output` is omitted (use `-o -` for stdout).
     #[command(visible_alias = "wasm")]
     Compwasm {
         #[command(flatten)]
