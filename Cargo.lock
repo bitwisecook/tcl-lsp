@@ -2387,6 +2387,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-vm-cli"
+version = "0.1.0"
+dependencies = [
+ "tcl-bytecode",
+ "tcl-compiler",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-vm",
+]
+
+[[package]]
 name = "temp-env"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
