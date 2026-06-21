@@ -1,0 +1,32 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "f"
+    2: ""
+    3: "global x y"
+  Instructions:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "f"
+    (4) push1 2	# ""
+    (6) push1 3	# "global x y"
+    (8) invokeStk1 4	# proc
+    (10) done
+
+ByteCode ::f, 8 instructions, 20 bytes, 4 literals, 2 variables
+  Literals:
+    0: "::"
+    1: "x"
+    2: "y"
+    3: ""
+  Local variables:
+    %v0: "x"
+    %v1: "y"
+  Instructions:
+    (0) push1 0	# "::"
+    (2) push1 1	# "x"
+    (4) nsupvar %v0	# var "x"
+    (9) push1 2	# "y"
+    (11) nsupvar %v1	# var "y"
+    (16) pop
+    (17) push1 3	# ""
+    (19) done

@@ -1252,3 +1252,33 @@ fn binary_format_rejects_invalid_integer() {
         "8\n",
     );
 }
+
+/// Compiled proc-local `unset a(k)` (the `unsetArray` opcode) must delete the
+/// array element, not no-op on a base-name lookup (codex review #678).
+#[test]
+fn compiled_unset_array_element_removes_it() {
+    out_eq(
+        "proc f {} { set a(k) v; unset a(k); return [info exists a(k)] }\nputs [f]\n",
+        "0\n",
+    );
+    // The rest of the array is untouched.
+    out_eq(
+        "proc f {} { set a(k) v; set a(j) w; unset a(k); return [info exists a(j)] }\nputs [f]\n",
+        "1\n",
+    );
+}
+
+/// Compiled `unset` of an absent variable without `-nocomplain` must raise the
+/// Tcl error, while `-nocomplain` stays silent (codex review #678).
+#[test]
+fn compiled_unset_missing_honours_complain_flag() {
+    let (ok, result, _) = run("proc f {} { unset nope }\nf\n");
+    assert!(!ok, "unset of a missing var should error");
+    assert!(
+        result.contains("can't unset \"nope\""),
+        "unexpected error: {result}"
+    );
+
+    // -nocomplain succeeds silently.
+    out_eq("proc f {} { unset -nocomplain nope; return done }\nputs [f]\n", "done\n");
+}

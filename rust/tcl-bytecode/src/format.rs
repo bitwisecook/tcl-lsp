@@ -15,20 +15,24 @@ use crate::{FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand, str_cla
 #[must_use]
 pub fn esc(text: &str, limit: usize) -> String {
     let mut parts = String::with_capacity(text.len());
-    for ch in text.chars() {
-        let cp = ch as u32;
-        match ch {
-            '"' => parts.push_str("\\\""),
-            '\n' => parts.push_str("\\n"),
-            '\t' => parts.push_str("\\t"),
-            '\r' => parts.push_str("\\r"),
-            '\x0b' => parts.push_str("\\v"),
-            '\x0c' => parts.push_str("\\f"),
-            '\0' => parts.push_str("\\u0000"),
-            _ if cp > 0x7E => {
-                let _ = write!(parts, "\\u{cp:04x}");
+    // C Tcl's disassembler escapes the literal *byte-wise*: only the named
+    // forms `\t \n \r \v \f` (and `"`) are used; every other control byte
+    // and every non-ASCII byte renders as `\uXXXX` of the raw byte. So the
+    // two UTF-8 bytes of `e-acute` become `\u00c3\u00a9`, an astral char is
+    // its four `\u00XX` bytes, and a 0x01 control byte is `\u0001`. Iterating
+    // bytes (not chars) reproduces that exactly.
+    for &b in text.as_bytes() {
+        match b {
+            b'"' => parts.push_str("\\\""),
+            b'\n' => parts.push_str("\\n"),
+            b'\t' => parts.push_str("\\t"),
+            b'\r' => parts.push_str("\\r"),
+            0x0b => parts.push_str("\\v"),
+            0x0c => parts.push_str("\\f"),
+            0x20..=0x7e => parts.push(b as char),
+            _ => {
+                let _ = write!(parts, "\\u{b:04x}");
             }
-            _ => parts.push(ch),
         }
     }
     if parts.len() > limit {
@@ -97,7 +101,14 @@ fn format_operand(
         }
         Operand::Imm(val) if instr.op.is_lvt_op() && j == 0 => (format!("%v{val}"), String::new()),
         Operand::Imm(val)
-            if matches!(instr.op, Op::DICT_SET | Op::DICT_UNSET | Op::DICT_INCR_IMM) && j == 1 =>
+            if matches!(
+                instr.op,
+                Op::DICT_SET
+                    | Op::DICT_UNSET
+                    | Op::DICT_INCR_IMM
+                    | Op::UNSET_SCALAR
+                    | Op::UNSET_ARRAY
+            ) && j == 1 =>
         {
             (format!("%v{val}"), String::new())
         }
@@ -309,8 +320,24 @@ mod tests {
     }
 
     #[test]
-    fn esc_unicode() {
-        assert_eq!(esc("\u{00a0}", 40), "\\u00a0");
+    fn esc_unicode_is_byte_wise() {
+        // C Tcl escapes the raw UTF-8 bytes, not the code point: U+00A0 is the
+        // two bytes C2 A0, U+00E9 (é) is C3 A9.
+        assert_eq!(esc("\u{00a0}", 40), "\\u00c2\\u00a0");
+        assert_eq!(esc("é", 40), "\\u00c3\\u00a9");
+    }
+
+    #[test]
+    fn esc_astral_is_byte_wise() {
+        // U+1F600 is the four UTF-8 bytes F0 9F 98 80.
+        assert_eq!(esc("\u{1F600}", 40), "\\u00f0\\u009f\\u0098\\u0080");
+    }
+
+    #[test]
+    fn esc_c0_controls_and_named_forms() {
+        // Named: \t \n \r \v \f; every other control byte is \uXXXX.
+        assert_eq!(esc("\x0b\x0c", 40), "\\v\\f");
+        assert_eq!(esc("\x01\x08\x07\x1b\x7f", 40), "\\u0001\\u0008\\u0007\\u001b\\u007f");
     }
 
     #[test]

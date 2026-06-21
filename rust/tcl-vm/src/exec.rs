@@ -782,9 +782,167 @@ impl Vm {
                 f.stack.push(Value::bool(r));
             }
             Op::UNSET_STK => {
-                // operand = flags (e.g. -nocomplain); M3 ignores it.
+                // operand = flags; a non-zero flag means "complain" (error when
+                // the variable is absent). The name (possibly `a(k)`) is on TOS.
+                let complain = imm0(instr) != 0;
                 let name = pop(f).to_str();
-                self.unset_var(&name);
+                try_op!(self.unset_one(&name, complain));
+            }
+            Op::UNSET_SCALAR => {
+                // Operands [flags, slot]; flags bit 0 ⇒ complain when absent.
+                let complain = imm0(instr) != 0;
+                let name = lvt_name(imm_at(instr, 1));
+                try_op!(self.unset_one(&name, complain));
+            }
+            Op::UNSET_ARRAY => {
+                // Operands [flags, slot]; the element key is on the stack. Array
+                // elements are removed element-aware and never complain (matching
+                // C Tcl / cmd_unset).
+                let name = lvt_name(imm_at(instr, 1));
+                let key = pop(f).to_str();
+                self.array_unset_elem(&name, &key);
+            }
+
+            // -- append / lappend (LVT scalar + array forms) --
+            Op::APPEND_SCALAR1 | Op::APPEND_SCALAR4 => {
+                let name = lvt_name(imm0(instr));
+                let v = pop(f);
+                let mut s = self
+                    .get_var(&name)
+                    .map(|x| x.to_str().to_string())
+                    .unwrap_or_default();
+                s.push_str(&v.to_str());
+                let nv = Value::string(s);
+                try_op!(self.set_var(&name, nv.clone()));
+                f.stack.push(nv);
+            }
+            Op::APPEND_ARRAY1 | Op::APPEND_ARRAY4 => {
+                let name = lvt_name(imm0(instr));
+                let v = pop(f);
+                let key = pop(f).to_str();
+                let mut s = self
+                    .get_array_elem(&name, &key)
+                    .map(|x| x.to_str().to_string())
+                    .unwrap_or_default();
+                s.push_str(&v.to_str());
+                let nv = Value::string(s);
+                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
+                    return Tick::Return(e);
+                }
+                f.stack.push(nv);
+            }
+            Op::LAPPEND_SCALAR1 | Op::LAPPEND_SCALAR4 => {
+                let name = lvt_name(imm0(instr));
+                let v = pop(f);
+                let mut items = match self.get_var(&name) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.push(v);
+                let nv = Value::list(items);
+                try_op!(self.set_var(&name, nv.clone()));
+                f.stack.push(nv);
+            }
+            Op::LAPPEND_ARRAY1 | Op::LAPPEND_ARRAY4 => {
+                let name = lvt_name(imm0(instr));
+                let v = pop(f);
+                let key = pop(f).to_str();
+                let mut items = match self.get_array_elem(&name, &key) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.push(v);
+                let nv = Value::list(items);
+                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
+                    return Tick::Return(e);
+                }
+                f.stack.push(nv);
+            }
+            Op::LAPPEND_LIST => {
+                // Append each element of the popped list to the scalar var's list.
+                let name = lvt_name(imm0(instr));
+                let add = pop(f);
+                let add_items = match add.as_list() {
+                    Ok(l) => l,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                let mut items = match self.get_var(&name) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.extend(add_items.iter().cloned());
+                let nv = Value::list(items);
+                try_op!(self.set_var(&name, nv.clone()));
+                f.stack.push(nv);
+            }
+
+            // -- global / upvar links. The namespace ("::") or level reference
+            // is left on the stack for the next link op to reuse; a trailing
+            // `pop` discards it (matching C Tcl's nsupvar/upvar codegen). --
+            Op::NSUPVAR => {
+                let local = lvt_name(imm0(instr));
+                let var = pop(f).to_str();
+                let ns = f
+                    .stack
+                    .last()
+                    .map(|v| v.to_str().to_string())
+                    .unwrap_or_default();
+                let target = if ns == "::" || ns.is_empty() {
+                    var.to_string()
+                } else {
+                    format!("{}::{}", ns.trim_end_matches("::"), var)
+                };
+                // `global`/namespace links resolve in the global frame.
+                self.add_link(&local, 0, &target);
+            }
+            Op::UPVAR => {
+                let local = lvt_name(imm0(instr));
+                let other = pop(f).to_str();
+                let spec = f
+                    .stack
+                    .last()
+                    .map(|v| v.to_str().to_string())
+                    .unwrap_or_default();
+                let target_level = if let Some(abs) = spec.strip_prefix('#') {
+                    abs.parse::<usize>().unwrap_or(0)
+                } else if !spec.is_empty() && spec.bytes().all(|b| b.is_ascii_digit()) {
+                    self.current_level()
+                        .saturating_sub(spec.parse::<usize>().unwrap_or(1))
+                } else {
+                    self.current_level().saturating_sub(1)
+                };
+                // Mirror cmd_upvar's namespace-eval aliasing.
+                if self.in_ns_script() && !local.contains("::") && !self.current_ns().is_empty() {
+                    let alias = self.qualify_name(&local);
+                    let target_name = self.qualify_name(&other);
+                    self.add_global_link(&alias, 0, &target_name);
+                } else {
+                    self.add_link(&local, target_level, &other);
+                }
+            }
+
+            // -- concat (stack form): Tcl-concat the top N values. --
+            Op::CONCAT_STK => {
+                let n = usize::try_from(imm0(instr)).unwrap_or(0);
+                let take = f.stack.len().saturating_sub(n);
+                let vals: Vec<Value> = f.stack.split_off(take);
+                let joined = vals
+                    .iter()
+                    .map(Value::to_str)
+                    .filter(|s| !s.trim().is_empty())
+                    .map(|s| s.trim().to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                f.stack.push(Value::string(joined));
             }
             Op::LIST_CONCAT => {
                 let b = pop(f);

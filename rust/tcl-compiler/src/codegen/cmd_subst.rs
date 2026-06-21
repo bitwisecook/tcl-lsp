@@ -1345,9 +1345,10 @@ mod tests {
     fn inline_expr() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
-        ctx.emit_inline_cmd_subst("[expr {1+2}]");
+        // A variable operand keeps the ADD opcode; a constant `1+2` would be
+        // folded to a single push by the codegen-time expr const-folder.
+        ctx.emit_inline_cmd_subst("[expr {$x+2}]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
-        // Should produce push "1", push "2", add
         assert!(ops.contains(&Op::ADD));
     }
 

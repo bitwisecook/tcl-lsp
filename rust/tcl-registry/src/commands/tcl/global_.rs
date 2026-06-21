@@ -1,6 +1,6 @@
 //! `global` — access global variables.
 
-use crate::hooks::LoweringHookId;
+use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -38,6 +38,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         lowering_hook: Some(LoweringHookId::Global),
+        codegen_hook: Some(CodegenHookId::Global),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }
