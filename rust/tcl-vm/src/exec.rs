@@ -511,6 +511,16 @@ impl Vm {
         }
         let instr = &asm.instructions[f.pc];
         f.pc += 1;
+        // Step-debugger seam: fire once per source command, before it runs.
+        #[allow(clippy::redundant_closure_for_method_calls)] // Span isn't named in this crate.
+        let span_start = instr.source_span.map(|s| s.start());
+        if self.debug_step(instr.source_line, span_start, &instr.source_cmd_text) {
+            return Tick::Return(Completion::new(
+                Code::Error,
+                Value::string("debug: terminated"),
+                Value::empty(),
+            ));
+        }
         let lits = asm.literals.entries();
         let lvt = asm.lvt.entries();
 

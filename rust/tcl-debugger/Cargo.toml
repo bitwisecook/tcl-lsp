@@ -20,6 +20,10 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+tcl-vm = { path = "../tcl-vm" }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-bytecode = { path = "../tcl-bytecode" }
 
 [lints]
 workspace = true
