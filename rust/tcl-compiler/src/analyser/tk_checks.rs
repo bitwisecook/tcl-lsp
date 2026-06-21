@@ -136,46 +136,41 @@ impl Analyser {
             return;
         }
 
-        if is_widget_command(cmd_name) {
-            if let Some(path) = args.first() {
-                if is_widget_path(path) {
-                    self.tk_created_widgets.insert(path.clone());
+        if is_widget_command(cmd_name)
+            && let Some(path) = args.first()
+            && is_widget_path(path)
+        {
+            self.tk_created_widgets.insert(path.clone());
 
-                    // TK1002: the parent widget must already exist.  The
-                    // root `.` always exists, so it is never flagged.
-                    let parent = parent_widget_path(path);
-                    if !parent.is_empty()
-                        && parent != "."
-                        && !self.tk_created_widgets.contains(parent)
-                    {
-                        self.result.diagnostics.push(Diagnostic {
-                            code: "TK1002".to_string(),
-                            span: cmd_tok.span,
-                            message: format!(
-                                "Widget path '{path}' references non-existent parent '{parent}'."
-                            ),
-                            severity: Severity::Warning,
-                            fixes: Vec::new(),
-                        });
-                    }
-
-                    // TK1003: unknown option for the widget command.
-                    self.emit_tk1003_unknown_options(cmd_name, args, cmd_tok);
-                }
+            // TK1002: the parent widget must already exist.  The root `.`
+            // always exists, so it is never flagged.
+            let parent = parent_widget_path(path);
+            if !parent.is_empty() && parent != "." && !self.tk_created_widgets.contains(parent) {
+                self.result.diagnostics.push(Diagnostic {
+                    code: "TK1002".to_string(),
+                    span: cmd_tok.span,
+                    message: format!(
+                        "Widget path '{path}' references non-existent parent '{parent}'."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
             }
+
+            // TK1003: unknown option for the widget command.
+            self.emit_tk1003_unknown_options(cmd_name, args, cmd_tok);
         }
 
         // Track geometry-manager usage for the post-walk TK1001 check.
-        if is_geometry_command(cmd_name) {
-            if let Some(widget_path) = args.first() {
-                if is_widget_path(widget_path) {
-                    let parent = parent_widget_path(widget_path).to_string();
-                    let span = arg_tokens.first().map_or(cmd_tok.span, |t| t.span);
-                    let usage = self.tk_geometry.entry(parent).or_default();
-                    usage.managers.insert(cmd_name.to_string());
-                    usage.sites.push((cmd_name.to_string(), span));
-                }
-            }
+        if is_geometry_command(cmd_name)
+            && let Some(widget_path) = args.first()
+            && is_widget_path(widget_path)
+        {
+            let parent = parent_widget_path(widget_path).to_string();
+            let span = arg_tokens.first().map_or(cmd_tok.span, |t| t.span);
+            let usage = self.tk_geometry.entry(parent).or_default();
+            usage.managers.insert(cmd_name.to_string());
+            usage.sites.push((cmd_name.to_string(), span));
         }
     }
 
@@ -194,7 +189,11 @@ impl Analyser {
         let known: std::collections::HashSet<&str> = spec.switch_names(None).into_iter().collect();
         let mut unknown: Vec<String> = Vec::new();
         for arg in &args[1..] {
-            if arg.starts_with('-') && !arg.starts_with("--") && arg.len() > 1 && !known.contains(arg.as_str()) {
+            if arg.starts_with('-')
+                && !arg.starts_with("--")
+                && arg.len() > 1
+                && !known.contains(arg.as_str())
+            {
                 unknown.push(arg.clone());
             }
         }
