@@ -242,7 +242,7 @@ class TestGenerateDockerfile:
     def test_pkg_sync_uses_pyz(self) -> None:
         spec = DockerfileSpec()
         result = generate_dockerfile(spec)
-        assert "python3 /usr/local/bin/tcl.pyz pkg sync --frozen" in result
+        assert "python3 /usr/local/bin/tcl.pyz pkg install --frozen" in result
 
     def test_no_python_when_no_packages_no_venv(self) -> None:
         spec = DockerfileSpec(install_packages=False, create_venv=False)
@@ -277,12 +277,13 @@ class TestGenerateDockerfile:
 
     def test_venv_created_before_pkg_sync(self) -> None:
         """When both venv and packages are enabled, venv must come first
-        so that ``pkg sync`` materialises packages into ``.venv/lib/``."""
+        so that ``pkg install --frozen`` materialises packages into
+        ``.venv/lib/``."""
         spec = DockerfileSpec(create_venv=True, install_packages=True)
         result = generate_dockerfile(spec)
         venv_pos = result.index("venv create")
-        pkg_pos = result.index("pkg sync")
-        assert venv_pos < pkg_pos, "venv create must appear before pkg sync"
+        pkg_pos = result.index("pkg install --frozen")
+        assert venv_pos < pkg_pos, "venv create must appear before pkg install"
         assert "Install Tcl packages into the virtual environment" in result
 
     def test_venv_paths_follow_workdir(self) -> None:
@@ -427,7 +428,7 @@ class TestDockerCLI:
         assert "FROM debian:bookworm-slim" in content
         assert "python3" in content
         assert "tcl.pyz" in content
-        assert "pkg sync" in content
+        assert "pkg install --frozen" in content
 
     def test_docker_create_alpine_90(self, tmp_path: Path) -> None:
         from tooling.tcl.main import main

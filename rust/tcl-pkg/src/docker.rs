@@ -259,7 +259,7 @@ pub fn generate_dockerfile(spec: &DockerfileSpec) -> Result<String, TclPkgError>
             lines.push("# Install Tcl packages from lockfile".to_string());
         }
         lines.push(
-            "RUN if [ -f tclpkg.lock ]; then python3 /usr/local/bin/tcl.pyz pkg sync --frozen; fi"
+            "RUN if [ -f tclpkg.lock ]; then python3 /usr/local/bin/tcl.pyz pkg install --frozen; fi"
                 .to_string(),
         );
         lines.push(String::new());
