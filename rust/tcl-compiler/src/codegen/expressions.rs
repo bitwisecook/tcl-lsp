@@ -8,7 +8,46 @@ use tcl_lexer::backslash_subst;
 
 use super::values::{parse_braced_scalar_ref, parse_simple_var_ref};
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
-use crate::expr_ast::{BinOp, ExprNode, render_expr};
+use crate::expr_ast::{BinOp, ExprNode, UnaryOp, render_expr};
+use crate::tcl_expr_eval::{Env, TclValue, eval_tcl_expr};
+
+/// Operators whose constant integer value `eval_tcl_expr` computes soundly and
+/// which C Tcl folds at compile time: arithmetic, shift, bitwise, logical, and
+/// **numeric** comparison. Deliberately excludes string comparisons (`eq`/`lt`/
+/// …) and list membership (`in`/`ni`) — the evaluator has no string value type,
+/// so those cannot be folded soundly here — and every iRules dialect operator
+/// (`contains`, `and`/`or`, `matches_*`, …), which has no C-Tcl equivalent and
+/// must keep its dedicated opcode.
+const fn binop_folds(op: BinOp) -> bool {
+    matches!(
+        op,
+        BinOp::Add
+            | BinOp::Sub
+            | BinOp::Mul
+            | BinOp::Div
+            | BinOp::Mod
+            | BinOp::Pow
+            | BinOp::LShift
+            | BinOp::RShift
+            | BinOp::BitAnd
+            | BinOp::BitOr
+            | BinOp::BitXor
+            | BinOp::And
+            | BinOp::Or
+            | BinOp::Eq
+            | BinOp::Ne
+            | BinOp::Lt
+            | BinOp::Le
+            | BinOp::Gt
+            | BinOp::Ge
+    )
+}
+
+/// Unary operators eligible for constant integer folding (the standard numeric
+/// and logical ones; not the iRules word-`!`).
+const fn unaryop_folds(op: UnaryOp) -> bool {
+    matches!(op, UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot | UnaryOp::Not)
+}
 
 impl CodegenCtx<'_> {
     /// Compile an expression AST node; leaves the result on TOS.
@@ -117,6 +156,25 @@ impl CodegenCtx<'_> {
 
     /// `false` and the context requires numeric coercion.
     pub fn emit_expr(&mut self, node: &ExprNode) -> bool {
+        // Codegen-time constant folding, mirroring C Tcl's compile-time expr
+        // folding: a compound subexpression whose value is a constant integer
+        // collapses to a single `push`. Recursion makes this fire on constant
+        // *subexpressions* too (`$x + (1+2)` → `loadScalar; push "3"; add`),
+        // exactly as tclsh does. Only `Binary`/`Unary` integer results are
+        // folded — `eval_tcl_expr` over an empty env returns `None` for any
+        // node that reads a variable or runs a command, so substitutions are
+        // never mis-folded; float results are left to the normal path
+        // (their string formatting is the runtime's job). Literals keep their
+        // own arm (the caller's `tryCvtToNumeric` / invalid-prefix handling).
+        let foldable = match node {
+            ExprNode::Binary { op, .. } => binop_folds(*op),
+            ExprNode::Unary { op, .. } => unaryop_folds(*op),
+            _ => false,
+        };
+        if foldable && let Some(TclValue::Int(i)) = eval_tcl_expr(node, &Env::new()) {
+            self.push_lit(&i.to_string());
+            return true;
+        }
         match node {
             ExprNode::Literal { text, .. } => self.emit_expr_literal(text),
 
@@ -225,6 +283,26 @@ mod tests {
     /// Helper: collect opcodes from a context's instruction stream.
     fn opcodes(ctx: &CodegenCtx) -> Vec<Op> {
         ctx.instructions.iter().map(|i| i.op).collect()
+    }
+
+    /// A literal expression node.
+    fn lit(text: &str) -> ExprNode {
+        ExprNode::Literal {
+            text: text.into(),
+            start: 0,
+            end: 0,
+        }
+    }
+
+    /// A scalar variable expression node (non-constant — defeats const folding,
+    /// so operator opcodes are still emitted).
+    fn var(name: &str) -> ExprNode {
+        ExprNode::Var {
+            text: format!("${name}"),
+            name: name.into(),
+            start: 0,
+            end: 0,
+        }
     }
 
     // -- Literal --
@@ -355,24 +433,48 @@ mod tests {
 
     #[test]
     fn emit_binary_add() {
+        // A non-constant operand keeps the ADD opcode (constant folding of an
+        // all-literal `1+2` is covered by `emit_binary_const_folds`).
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
+        let node = ExprNode::Binary {
+            op: BinOp::Add,
+            left: Box::new(var("x")),
+            right: Box::new(lit("2")),
+        };
+        let numeric = ctx.emit_expr(&node);
+        assert!(numeric);
+        assert_eq!(opcodes(&ctx), vec![Op::LOAD_SCALAR1, Op::PUSH1, Op::ADD]);
+    }
+
+    #[test]
+    fn emit_binary_const_folds() {
+        // `1 + 2` collapses to a single push of "3" (C-Tcl compile-time fold).
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Binary {
             op: BinOp::Add,
-            left: Box::new(ExprNode::Literal {
-                text: "1".into(),
-                start: 0,
-                end: 1,
-            }),
-            right: Box::new(ExprNode::Literal {
-                text: "2".into(),
-                start: 4,
-                end: 5,
-            }),
+            left: Box::new(lit("1")),
+            right: Box::new(lit("2")),
         };
-        let numeric = ctx.emit_expr(&node);
-        assert!(numeric);
-        assert_eq!(opcodes(&ctx), vec![Op::PUSH1, Op::PUSH1, Op::ADD]);
+        assert!(ctx.emit_expr(&node));
+        assert_eq!(opcodes(&ctx), vec![Op::PUSH1]);
+        assert_eq!(ctx.literals.entries()[0], "3");
+    }
+
+    #[test]
+    fn emit_irules_op_not_folded() {
+        // iRules operators have no C-Tcl fold and must keep their opcode even
+        // with constant operands.
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let node = ExprNode::Binary {
+            op: BinOp::Contains,
+            left: Box::new(lit("ab")),
+            right: Box::new(lit("a")),
+        };
+        ctx.emit_expr(&node);
+        assert!(opcodes(&ctx).contains(&Op::IRULE_CONTAINS));
     }
 
     #[test]
@@ -401,18 +503,12 @@ mod tests {
     fn emit_short_circuit_and() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
+        // A variable operand keeps the short-circuit codegen (a constant
+        // `1 && 0` would fold to a single push).
         let node = ExprNode::Binary {
             op: BinOp::And,
-            left: Box::new(ExprNode::Literal {
-                text: "1".into(),
-                start: 0,
-                end: 1,
-            }),
-            right: Box::new(ExprNode::Literal {
-                text: "0".into(),
-                start: 5,
-                end: 6,
-            }),
+            left: Box::new(var("a")),
+            right: Box::new(var("b")),
         };
         let numeric = ctx.emit_expr(&node);
         assert!(numeric);
@@ -428,16 +524,8 @@ mod tests {
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Binary {
             op: BinOp::Or,
-            left: Box::new(ExprNode::Literal {
-                text: "0".into(),
-                start: 0,
-                end: 1,
-            }),
-            right: Box::new(ExprNode::Literal {
-                text: "1".into(),
-                start: 5,
-                end: 6,
-            }),
+            left: Box::new(var("a")),
+            right: Box::new(var("b")),
         };
         let numeric = ctx.emit_expr(&node);
         assert!(numeric);
@@ -474,15 +562,25 @@ mod tests {
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Unary {
             op: UnaryOp::Neg,
-            operand: Box::new(ExprNode::Literal {
-                text: "5".into(),
-                start: 1,
-                end: 2,
-            }),
+            operand: Box::new(var("x")),
         };
         let numeric = ctx.emit_expr(&node);
         assert!(numeric);
-        assert_eq!(opcodes(&ctx), vec![Op::PUSH1, Op::UMINUS]);
+        assert!(opcodes(&ctx).contains(&Op::UMINUS));
+    }
+
+    #[test]
+    fn emit_unary_const_folds() {
+        // `-5` and `~0` are constant → fold to a push.
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let node = ExprNode::Unary {
+            op: UnaryOp::Neg,
+            operand: Box::new(lit("5")),
+        };
+        assert!(ctx.emit_expr(&node));
+        assert_eq!(opcodes(&ctx), vec![Op::PUSH1]);
+        assert_eq!(ctx.literals.entries()[0], "-5");
     }
 
     #[test]
@@ -491,15 +589,11 @@ mod tests {
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Unary {
             op: UnaryOp::Not,
-            operand: Box::new(ExprNode::Literal {
-                text: "1".into(),
-                start: 1,
-                end: 2,
-            }),
+            operand: Box::new(var("x")),
         };
         let numeric = ctx.emit_expr(&node);
         assert!(numeric);
-        assert_eq!(opcodes(&ctx), vec![Op::PUSH1, Op::NOT]);
+        assert!(opcodes(&ctx).contains(&Op::NOT));
     }
 
     #[test]
@@ -508,15 +602,11 @@ mod tests {
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Unary {
             op: UnaryOp::BitNot,
-            operand: Box::new(ExprNode::Literal {
-                text: "0xFF".into(),
-                start: 1,
-                end: 5,
-            }),
+            operand: Box::new(var("x")),
         };
         let numeric = ctx.emit_expr(&node);
         assert!(numeric);
-        assert_eq!(opcodes(&ctx), vec![Op::PUSH1, Op::BITNOT]);
+        assert!(opcodes(&ctx).contains(&Op::BITNOT));
     }
 
     // -- Ternary --
@@ -718,31 +808,40 @@ mod tests {
         // (1 + 2) * 3
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
+        // `(x + 2) * 3` — the var defeats whole-expression folding, so the
+        // ADD and MULT opcodes are emitted (the constant `(1+2)*3` fold is
+        // covered by `emit_nested_const_folds`).
         let node = ExprNode::Binary {
             op: BinOp::Mul,
             left: Box::new(ExprNode::Binary {
                 op: BinOp::Add,
-                left: Box::new(ExprNode::Literal {
-                    text: "1".into(),
-                    start: 0,
-                    end: 1,
-                }),
-                right: Box::new(ExprNode::Literal {
-                    text: "2".into(),
-                    start: 4,
-                    end: 5,
-                }),
+                left: Box::new(var("x")),
+                right: Box::new(lit("2")),
             }),
-            right: Box::new(ExprNode::Literal {
-                text: "3".into(),
-                start: 9,
-                end: 10,
-            }),
+            right: Box::new(lit("3")),
         };
         ctx.emit_expr(&node);
-        assert_eq!(
-            opcodes(&ctx),
-            vec![Op::PUSH1, Op::PUSH1, Op::ADD, Op::PUSH1, Op::MULT]
-        );
+        let ops = opcodes(&ctx);
+        assert!(ops.contains(&Op::ADD));
+        assert!(ops.contains(&Op::MULT));
+    }
+
+    #[test]
+    fn emit_nested_const_folds() {
+        // `(1 + 2) * 3` is fully constant → folds to push "9".
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let node = ExprNode::Binary {
+            op: BinOp::Mul,
+            left: Box::new(ExprNode::Binary {
+                op: BinOp::Add,
+                left: Box::new(lit("1")),
+                right: Box::new(lit("2")),
+            }),
+            right: Box::new(lit("3")),
+        };
+        ctx.emit_expr(&node);
+        assert_eq!(opcodes(&ctx), vec![Op::PUSH1]);
+        assert_eq!(ctx.literals.entries()[0], "9");
     }
 }
