@@ -64,6 +64,7 @@ members = [
     "rust/tcl-explorer",
     "rust/tcl-cli-support",
     "rust/tcl-cli",
+    "rust/tcl-pkg",
     "rust/f5-cli",
 ]
 exclude = [

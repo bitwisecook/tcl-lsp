@@ -22,6 +22,7 @@ tcl-compiler = { path = "../tcl-compiler" }
 tcl-explorer = { path = "../tcl-explorer" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-pkg = { path = "../tcl-pkg" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 # Bundled SQLite (with FTS5) for the `help` verb's embedded KCS database.
