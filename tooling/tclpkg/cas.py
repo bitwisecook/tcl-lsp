@@ -111,6 +111,23 @@ def integrity_of_tree(root: Path) -> str:
     return f"sha256-{encoded}"
 
 
+def tree_size(root: Path) -> int:
+    """Return the total byte size of the files in a canonical worktree.
+
+    Walks the same file set as :func:`integrity_of_tree` (sorted paths,
+    stripped VCS dirs + ``.tclpkgignore``) and sums ``st_size``, so the
+    lockfile ``size`` field is deterministic and matches the Rust port.
+    """
+    extra = _load_tclpkgignore(root)
+    total = 0
+    for rel_path in _walk_tree(root, extra):
+        try:
+            total += (root / rel_path).stat().st_size
+        except OSError:
+            continue
+    return total
+
+
 def verify_integrity(root: Path, expected: str) -> bool:
     """Recompute the integrity hash and return whether it matches *expected*."""
     actual = integrity_of_tree(root)
@@ -224,5 +241,6 @@ class ContentAddressableStore:
 __all__ = [
     "ContentAddressableStore",
     "integrity_of_tree",
+    "tree_size",
     "verify_integrity",
 ]

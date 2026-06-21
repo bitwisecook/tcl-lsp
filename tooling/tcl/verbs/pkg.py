@@ -70,9 +70,24 @@ def _run_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _install_lib_dir(mpath: Path) -> Path:
+    """Where ``install`` materialises packages: the venv lib if one is active,
+    else ``<project>/lib`` next to the manifest."""
+    import os
+
+    venv = os.environ.get("TCL_VENV")
+    if venv:
+        return Path(venv) / "lib"
+    return mpath.parent / "lib"
+
+
 def _run_install(args: argparse.Namespace) -> int:
+    from shared.user_config import _cache_dir
+    from tooling.tclpkg.cas import ContentAddressableStore
+    from tooling.tclpkg.installer import fetch_and_store, materialise, resolve_source
     from tooling.tclpkg.lockfile import LockedPackage, LockFile, SourceSpec, write_lockfile
     from tooling.tclpkg.manifest import load_manifest
+    from tooling.tclpkg.registry import RegistryClient
     from tooling.tclpkg.resolver import ExcludeSpec, PackageRef, ReplaceSpec, resolve
 
     mpath = _manifest_path(args)
@@ -104,22 +119,54 @@ def _run_install(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    # Build the lockfile.
+    # Source lookup tables for materialisation.
+    manifest_sources = {
+        r.name: r.source_url for r in (*manifest.requires, *manifest.dev_requires) if r.source_url
+    }
+    replace_sources = {r.name: r.source_url for r in manifest.replaces}
+    offline = getattr(args, "frozen", False) or getattr(args, "offline", False)
+    cas = ContentAddressableStore(_cache_dir())
+    registry = RegistryClient(_cache_dir(), offline=getattr(args, "offline", False))
+    lib_dir = _install_lib_dir(mpath)
+
+    lockfile_path = mpath.parent / "tclpkg.lock"
+
+    # Build the lockfile — fetching + materialising each package whose source
+    # we can determine.  --frozen never touches the network or the tree.
     lf = LockFile(name=manifest.name, tcl=manifest.tcl_constraint)
     lf.stamp()
     for rp in resolved:
-        lf.packages.append(
-            LockedPackage(
-                name=rp.ref.name,
-                version=str(rp.ref.version),
-                source=SourceSpec(type="tarball", url=""),
-                integrity="",
-                dev=rp.dev,
-                requires=[str(r) for r in rp.requires],
-            )
+        name = rp.ref.name
+        version = str(rp.ref.version)
+        entry = LockedPackage(
+            name=name,
+            version=version,
+            source=SourceSpec(type="tarball", url=""),
+            integrity="",
+            dev=rp.dev,
+            requires=[str(r) for r in rp.requires],
         )
-
-    lockfile_path = mpath.parent / "tclpkg.lock"
+        if not offline:
+            source = resolve_source(
+                name,
+                version,
+                replaces=replace_sources,
+                manifest_sources=manifest_sources,
+                registry=registry,
+            )
+            if source is not None:
+                try:
+                    result = fetch_and_store(source, name, version, cas)
+                    materialise(cas, result.integrity, lib_dir, name, version)
+                    entry.source = result.source
+                    entry.integrity = result.integrity
+                    entry.size = result.size
+                    entry.provides = result.provides
+                    entry.license = result.license
+                except Exception as exc:
+                    entry.source = source
+                    print(ui.warn(f"{name} {version}: {exc}", colour=colour))
+        lf.packages.append(entry)
 
     # --frozen: refuse to change the lockfile; error if it would differ.
     if getattr(args, "frozen", False):

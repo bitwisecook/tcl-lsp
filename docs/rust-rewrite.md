@@ -875,7 +875,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
 | Refactoring transforms | `tcl-lsp-core::code_actions` | 🟡 | 5 of 7 transforms missing → **TOOL-REFACTOR** |
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟡 | `wasm` view (blocked on **RT-WASM**); `ssa`-view bool-render parity → **TOOL-EXPLORER** |
-| Package manager (`tclpkg`) | new crate | 🔴 | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) → **TOOL-TCLPKG** |
+| Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
 | Differential fuzzer | new crate | 🟡 | campaign runner/generator/findings (corpus diff exists) → **TOOL-FUZZ** |
 | Debugger (DAP) | new crate | 🔴 | full debugger over `tcl-vm` → **TOOL-DEBUGGER** |
 | iRule test framework | new crate | 🔴 | TMM-sim harness (topology/profile-gen/orchestrator) → **TOOL-IRULE-TEST** |
@@ -897,7 +897,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | RT | **RT-VM** | `tcl-vm`, `tcl-vm-cli` (`tclvm` bin) | `tcl-bytecode` | L |
 | SRV | **SRV-LSP** ✅ | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
 | SRV | **SRV-ROPE** | document store: `tcl-lsp-server` `DocumentState` + `tcl-lexer` rope-slice `SourceMap` + `tcl-lsp-db` chunk input | FE-LEX (CST/structural-state index), SRV-LSP | XL |
-| TOOL | **TOOL-TCLPKG** | new `tcl-pkg` crate | — | XL |
+| TOOL | **TOOL-TCLPKG** ✅ | `tcl-pkg` crate | — | XL |
 | TOOL | **TOOL-REFACTOR** | `tcl-lsp-core::code_actions` | SRV-LSP | M |
 | TOOL | **TOOL-F5** | `f5-cli` | — | XS |
 | TOOL | **TOOL-EXPLORER** | `tcl-explorer`, `tcl-explorer-wasm` | RT-WASM | S |
@@ -1132,10 +1132,16 @@ These own distinct crates and parallelise; the ones marked *depends* are gated
 on a library track above. This is the layer that, per the `tcl`/`f5` pattern
 already started, brings **every** Python tool across to Rust.
 
-- **TOOL-TCLPKG** *(new `tcl-pkg` crate; independent — start anytime)* — **open**:
-  full package-manager port (manifest, MVS resolver, lockfile, CAS, fetchers,
-  venv, docker), then wire the existing `pkg`/`venv`/`docker` CLI stubs in
-  `tcl-cli`. *(XL)*
+- **TOOL-TCLPKG** *(new `tcl-pkg` crate; independent)* — **done**: full
+  package-manager port — `version` (semver + Tcl-friendly ordering), `manifest`
+  (whitelisted-directive parser with safe-mode refusal, no VM), `lockfile`
+  (canonical JSON, byte-identical with Python), MVS `resolver`, `cas`
+  (worktree-canonical SHA-256 + store/materialise), `fetchers` (gzip-tarball /
+  zip / git / path over `ureq`), `registry` (TTL cache + conditional GET),
+  `venv`, `docker`, plus `ui`. The `pkg`/`venv`/`docker` CLI stubs in `tcl-cli`
+  are wired through to native handlers; help is native clap style. Lockfiles,
+  Dockerfiles, and venv scripts diff byte-for-byte against the Python CLI.
+  *(XL)*
 - **TOOL-REFACTOR** *(owns `tcl-lsp-core::code_actions`)* — **open**: port the 5
   missing transforms (extract/inline variable, if↔switch, switch→dict,
   extract-datagroup); 2 of 7 (extract/inline proc) exist. *(M)*

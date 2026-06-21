@@ -454,68 +454,307 @@ pub struct DiagArgs {
     pub enable: Vec<String>,
 }
 
+/// Flags shared by most `pkg` sub-actions (`_common` in `verbs/pkg.py`).
+#[derive(Debug, Args)]
+pub struct PkgCommon {
+    /// Emit JSON output.
+    #[arg(long)]
+    pub json: bool,
+    /// Override tclpkg.tcl location.
+    #[arg(long, value_name = "PATH")]
+    pub manifest: Option<PathBuf>,
+    /// Never touch the network.
+    #[arg(long)]
+    pub offline: bool,
+}
+
 #[derive(Debug, Subcommand)]
 pub enum PkgCommand {
     /// Create a new tclpkg.tcl manifest.
-    Init,
+    // `--version` here is the manifest's initial version, not the CLI version,
+    // so suppress clap's auto-generated propagated `--version` flag.
+    #[command(disable_version_flag = true)]
+    Init {
+        /// Package name (default: directory name).
+        #[arg(long)]
+        name: Option<String>,
+        /// Initial version.
+        #[arg(long = "version")]
+        init_version: Option<String>,
+        /// SPDX licence identifier.
+        #[arg(long = "license")]
+        init_license: Option<String>,
+        /// Tcl version constraint (default: >=8.6).
+        #[arg(long)]
+        tcl: Option<String>,
+        /// Overwrite existing manifest.
+        #[arg(long)]
+        force: bool,
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
     /// Resolve + fetch + materialise packages.
-    Install,
+    Install {
+        #[command(flatten)]
+        common: PkgCommon,
+        /// Skip dev-require packages.
+        #[arg(long = "no-dev")]
+        no_dev: bool,
+        /// Refuse to change lockfile.
+        #[arg(long)]
+        frozen: bool,
+    },
     /// List installed packages.
-    List,
+    List {
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Show the dependency tree.
-    Tree,
+    Tree {
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Verify integrity hashes.
-    Verify,
+    Verify {
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Show details for a package.
-    Info,
+    Info {
+        /// Package name.
+        package: String,
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Add a dependency to the manifest.
-    Add,
+    Add {
+        /// Package name.
+        package: String,
+        /// Minimum version (default: 0.0.1).
+        min_version: Option<String>,
+        /// Explicit source URL.
+        #[arg(long)]
+        source: Option<String>,
+        /// Add as dev-require.
+        #[arg(long)]
+        dev: bool,
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Remove a dependency from the manifest.
-    Remove,
+    Remove {
+        /// Package name to remove.
+        package: String,
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Bump dependency minimums.
-    Update,
+    Update {
+        /// Packages to update (default: all).
+        packages: Vec<String>,
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Lock-driven install (alias for install --frozen).
-    Sync,
+    Sync {
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Show packages with newer versions available.
-    Outdated,
+    Outdated {
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Explain why a package is in the dependency graph.
-    Why,
+    Why {
+        /// Package name.
+        package: String,
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Copy packages from cache into the project tree.
-    Vendor,
+    Vendor {
+        /// Vendor directory.
+        #[arg(long, default_value = "vendor")]
+        dir: PathBuf,
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Run the manifest entry point via tclsh.
-    Run,
+    Run {
+        /// Extra arguments passed to tclsh.
+        extra: Vec<String>,
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Output locked versions as manifest directives.
-    Freeze,
+    Freeze {
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Search the package registry.
-    Search,
+    Search {
+        /// Search query.
+        query: String,
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+        /// Use cached registry only.
+        #[arg(long)]
+        offline: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
 pub enum VenvCommand {
     /// Create a new virtual environment.
-    Create,
+    Create {
+        /// Venv directory.
+        #[arg(default_value = ".venv")]
+        path: PathBuf,
+        /// Pin a specific Tcl version (e.g. 8.6, 9.0).
+        #[arg(long)]
+        tcl: Option<String>,
+        /// Allow fallback to host `auto_path`.
+        #[arg(long = "system-site-packages")]
+        system_site_packages: bool,
+        /// Custom shell prompt label.
+        #[arg(long)]
+        prompt: Option<String>,
+        /// Overwrite existing directory.
+        #[arg(long)]
+        force: bool,
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
     /// Remove a virtual environment.
-    Delete,
+    Delete {
+        /// Venv directory.
+        #[arg(default_value = ".venv")]
+        path: PathBuf,
+        /// Force deletion even if active.
+        #[arg(long)]
+        force: bool,
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
     /// Show virtual environment details.
-    Info,
+    Info {
+        /// Venv directory.
+        #[arg(default_value = ".venv")]
+        path: PathBuf,
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
     /// Print activation script to stdout.
-    Activate,
+    Activate {
+        /// Venv directory.
+        #[arg(default_value = ".venv")]
+        path: PathBuf,
+        /// Shell flavour (default: auto-detect).
+        #[arg(long, value_parser = ["bash", "zsh", "fish", "csh", "powershell"])]
+        shell: Option<String>,
+    },
     /// Print deactivation script to stdout.
-    Deactivate,
+    Deactivate {
+        /// Shell flavour (default: auto-detect).
+        #[arg(long, value_parser = ["bash", "zsh", "fish", "csh", "powershell"])]
+        shell: Option<String>,
+    },
     /// List discoverable virtual environments.
-    List,
+    List {
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
     /// Re-link a venv to a newer tclsh.
-    Update,
+    Update {
+        /// Venv directory.
+        #[arg(default_value = ".venv")]
+        path: PathBuf,
+        /// New Tcl version to pin.
+        #[arg(long, required = true)]
+        tcl: String,
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
     /// Run a command inside a venv.
-    Run,
+    Run {
+        /// Venv directory.
+        #[arg(default_value = ".venv")]
+        path: PathBuf,
+        /// Command to run (after --).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        command: Vec<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
 pub enum DockerCommand {
     /// Generate a Dockerfile for a Tcl project.
-    Create,
+    Create {
+        /// Base Docker image (e.g. debian:bookworm-slim, alpine:3.19).
+        image: String,
+        /// Tcl version to install.
+        #[arg(long = "tcl-version", default_value = "8.6", value_parser = ["8.4", "8.5", "8.6", "9.0"])]
+        tcl_version: String,
+        /// Output file path.
+        #[arg(long, short = 'o', default_value = "Dockerfile")]
+        output: PathBuf,
+        /// Container WORKDIR.
+        #[arg(long, default_value = "/app")]
+        workdir: String,
+        /// Tcl script to run as CMD (e.g. main.tcl).
+        #[arg(long)]
+        entrypoint: Option<String>,
+        /// Create a Tcl virtual environment inside the container.
+        #[arg(long)]
+        venv: bool,
+        /// Skip COPY . . (useful for multi-stage builds).
+        #[arg(long = "no-copy")]
+        no_copy: bool,
+        /// Skip tclpkg sync step.
+        #[arg(long = "no-packages")]
+        no_packages: bool,
+        /// Additional OS package to install (repeatable).
+        #[arg(long = "extra-package")]
+        extra_package: Vec<String>,
+        /// Docker LABEL as key=value (repeatable).
+        #[arg(long)]
+        label: Vec<String>,
+        /// Docker ENV as key=value (repeatable).
+        #[arg(long)]
+        env: Vec<String>,
+        /// tcl CLI zipapp version to download (default: latest known).
+        #[arg(long = "cli-version")]
+        cli_version: Option<String>,
+        /// Overwrite existing Dockerfile.
+        #[arg(long)]
+        force: bool,
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
     /// Show the Tcl install recipe for a base image.
-    Recipe,
+    Recipe {
+        /// Base Docker image (e.g. alpine:3.19, ubuntu:22.04).
+        image: String,
+        /// Tcl version.
+        #[arg(long = "tcl-version", default_value = "8.6", value_parser = ["8.4", "8.5", "8.6", "9.0"])]
+        tcl_version: String,
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
     /// List available base-image families and Tcl versions.
-    Info,
+    Info {
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
 }

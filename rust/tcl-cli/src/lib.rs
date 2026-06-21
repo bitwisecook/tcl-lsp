@@ -178,6 +178,9 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             no_rename,
             json,
         } => commands::minimize::run_minimize(input, *no_rename, *json),
+        Command::Pkg { action } => commands::pkg::run(action),
+        Command::Venv { action } => commands::venv::run(action),
+        Command::Docker { action } => commands::docker::run(action),
         // Verbs not yet ported fall through to a clear not-implemented error.
         other => {
             let verb = other.verb_name();
