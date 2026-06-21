@@ -125,24 +125,6 @@ impl CodegenCtx<'_> {
                 value_needs_backsubst,
                 ..
             } => {
-                // Pure command-substitution assign (`set x [cmd]`): inline the
-                // substitution like C Tcl (`loadScalar; listLength; storeScalar`)
-                // instead of deferring it to a runtime word-subst push of the raw
-                // `[cmd]` text. Only a value that is *exactly* one `[…]` is taken;
-                // mixed words keep the existing path.
-                if value.starts_with('[')
-                    && value.ends_with(']')
-                    && let Some(parts) = parse_subst_template(value)
-                    && let [SubstPart::Cmd(cmd_text)] = parts.as_slice()
-                {
-                    if needs_stk_var_ref(name, self.is_proc) {
-                        self.push_var_ref(name);
-                    }
-                    self.emit_inline_cmd_subst(cmd_text);
-                    self.store_var(name);
-                    self.emit(Op::POP, vec![]);
-                    return true;
-                }
                 let value =
                     if *value_needs_backsubst && !value.contains('[') && !value.contains("${") {
                         tcl_lexer::backslash_subst(value).into_owned()
@@ -456,6 +438,20 @@ impl CodegenCtx<'_> {
             && !value.contains('[')
         {
             self.push_lit(&tcl_lexer::backslash_subst(value));
+            return;
+        }
+        // A value that is *exactly* one command substitution (`[cmd]`) and was
+        // not const-folded or specialised above: inline it like C Tcl
+        // (`set x [lindex $l 1]` → `loadScalar; listIndexImm; …`) instead of
+        // deferring it to a runtime word-subst of the raw `[cmd]` text. This
+        // runs last so the folds (`[list …]`, `[dict create …]`, `[format …]`)
+        // and the `{*}` list-concat path keep precedence.
+        if value.starts_with('[')
+            && value.ends_with(']')
+            && let Some(parts) = parse_subst_template(value)
+            && let [SubstPart::Cmd(cmd_text)] = parts.as_slice()
+        {
+            self.emit_inline_cmd_subst(cmd_text);
             return;
         }
         // Default: push as literal
