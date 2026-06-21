@@ -517,8 +517,11 @@ pub fn fold_dict_create_cmd(value: &str) -> Option<String> {
 pub fn try_format_fold(value: &str) -> Option<String> {
     let inner = value.strip_prefix("[format ")?.strip_suffix(']')?;
 
-    // Parse the command parts (format string + arguments)
-    let parts = parse_format_parts(inner);
+    // Parse the command parts (format string + arguments). Bails (`None`) when
+    // any word is a runtime substitution (`$var` / `[cmd]`) rather than a
+    // compile-time constant — folding those would freeze the literal source
+    // text (`$cmd`) into the result instead of its value.
+    let parts = parse_format_parts(inner)?;
     if parts.is_empty() {
         return None;
     }
@@ -561,19 +564,24 @@ pub fn try_format_fold(value: &str) -> Option<String> {
     Some(result)
 }
 
-/// Parse the argument parts of a `format` command.
-fn parse_format_parts(inner: &str) -> Vec<String> {
+/// Parse the argument parts of a `format` command. Returns `None` when a word
+/// is a runtime substitution (a quoted or bare word containing an unescaped `$`
+/// or `[`) — such a word is not a compile-time constant and must not be folded.
+/// Braced words are always literal (Tcl braces suppress substitution).
+fn parse_format_parts(inner: &str) -> Option<Vec<String>> {
     let bytes = inner.as_bytes();
     let mut parts = Vec::new();
     let mut i = 0;
 
     while i < bytes.len() {
         match bytes[i] {
-            b' ' | b'\t' => i += 1,
+            b' ' | b'\t' | b'\n' | b'\r' => i += 1,
             b'"' => {
-                // Quoted string
+                // Quoted string — subject to substitution, so a `$`/`[` makes it
+                // non-constant (an escaped `\$`/`\[` stays literal).
                 i += 1;
                 let mut buf = String::new();
+                let mut subst = false;
                 while i < bytes.len() && bytes[i] != b'"' {
                     if bytes[i] == b'\\' {
                         if i + 1 < bytes.len() {
@@ -585,6 +593,9 @@ fn parse_format_parts(inner: &str) -> Vec<String> {
                             i += 1;
                         }
                     } else {
+                        if matches!(bytes[i], b'$' | b'[') {
+                            subst = true;
+                        }
                         buf.push(char::from(bytes[i]));
                         i += 1;
                     }
@@ -592,10 +603,13 @@ fn parse_format_parts(inner: &str) -> Vec<String> {
                 if i < bytes.len() {
                     i += 1; // skip closing "
                 }
+                if subst {
+                    return None;
+                }
                 parts.push(buf);
             }
             b'{' => {
-                // Braced string
+                // Braced string — always literal.
                 let mut depth: u32 = 0;
                 let start = i;
                 while i < bytes.len() {
@@ -613,17 +627,21 @@ fn parse_format_parts(inner: &str) -> Vec<String> {
                 parts.push(inner[start + 1..i.saturating_sub(1)].to_owned());
             }
             _ => {
-                // Bare word
+                // Bare word — a `$`/`[` makes it a substitution, not a constant.
                 let start = i;
-                while i < bytes.len() && !matches!(bytes[i], b' ' | b'\t') {
+                while i < bytes.len() && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
                     i += 1;
                 }
-                parts.push(inner[start..i].to_owned());
+                let word = &inner[start..i];
+                if word.contains('$') || word.contains('[') {
+                    return None;
+                }
+                parts.push(word.to_owned());
             }
         }
     }
 
-    parts
+    Some(parts)
 }
 
 #[cfg(test)]
@@ -892,5 +910,29 @@ mod tests {
     #[test]
     fn format_fold_no_match() {
         assert_eq!(try_format_fold("not format"), None);
+    }
+
+    #[test]
+    fn format_fold_bails_on_variable_arg() {
+        // A `$var` argument is a runtime substitution, not a constant — folding
+        // it would freeze the literal text `$cmd` into the result.
+        assert_eq!(try_format_fold("[format {x %s} $cmd]"), None);
+        assert_eq!(try_format_fold("[format {%s} $cmd]"), None);
+    }
+
+    #[test]
+    fn format_fold_bails_on_command_sub_arg() {
+        assert_eq!(try_format_fold("[format {%s} [id]]"), None);
+    }
+
+    #[test]
+    fn format_fold_bails_on_quoted_subst() {
+        assert_eq!(try_format_fold("[format {%s} \"$x\"]"), None);
+    }
+
+    #[test]
+    fn format_fold_multiline_template_constant_args() {
+        // A multi-line braced template with constant args still folds.
+        assert_eq!(try_format_fold("[format {a\n%s} hi]"), Some("a\nhi".into()));
     }
 }

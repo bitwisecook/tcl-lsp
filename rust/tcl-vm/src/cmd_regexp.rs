@@ -64,13 +64,82 @@ fn encode(cps: &[i32]) -> Encoded {
     Encoded { s, char2byte }
 }
 
+/// Translate the Tcl ARE word-edge constructs the `regex` crate spells
+/// differently. Tcl's `\m`/`\M` (begin/end of word) and the bracket forms
+/// `[[:<:]]`/`[[:>:]]` map to the crate's `\b{start}`/`\b{end}` assertions;
+/// `\y`/`\Y` (word boundary / non-boundary) map to `\b`/`\B`. Other escapes and
+/// bracket expressions pass through untouched (backslash is significant inside
+/// classes in both engines, so we copy `\x` pairs verbatim there).
+fn translate_are(pat: &str) -> String {
+    let chars: Vec<char> = pat.chars().collect();
+    let mut out = String::with_capacity(pat.len());
+    let mut i = 0;
+    let mut in_class = false;
+    // Does the char slice at `i` begin with the literal `lit`?
+    let at = |i: usize, lit: &str| chars[i..].iter().take(lit.chars().count()).copied().eq(lit.chars());
+    while i < chars.len() {
+        let c = chars[i];
+        if in_class {
+            if c == '\\' && i + 1 < chars.len() {
+                out.push('\\');
+                out.push(chars[i + 1]);
+                i += 2;
+                continue;
+            }
+            if c == ']' {
+                in_class = false;
+            }
+            out.push(c);
+            i += 1;
+            continue;
+        }
+        // The standalone word-edge bracket forms (not real character classes).
+        if at(i, "[[:<:]]") {
+            out.push_str(r"\b{start}");
+            i += 7;
+            continue;
+        }
+        if at(i, "[[:>:]]") {
+            out.push_str(r"\b{end}");
+            i += 7;
+            continue;
+        }
+        if c == '\\' && i + 1 < chars.len() {
+            let n = chars[i + 1];
+            let mapped = match n {
+                'm' => Some(r"\b{start}"),
+                'M' => Some(r"\b{end}"),
+                'y' => Some(r"\b"),
+                'Y' => Some(r"\B"),
+                _ => None,
+            };
+            if let Some(rep) = mapped {
+                out.push_str(rep);
+            } else {
+                out.push('\\');
+                out.push(n);
+            }
+            i += 2;
+            continue;
+        }
+        if c == '[' {
+            in_class = true;
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
+}
+
 impl RegexEngine for CrateEngine {
     type Regex = CrateRe;
 
     fn compile(pattern: &[u8], flags: RegexFlags) -> Result<CrateRe, Vec<u8>> {
-        let Ok(pat) = core::str::from_utf8(pattern) else {
+        let Ok(raw) = core::str::from_utf8(pattern) else {
             return Err(b"invalid UTF-8 in regular expression".to_vec());
         };
+        let translated = translate_are(raw);
+        let pat = translated.as_str();
         // Map the engine-neutral flags to the crate's inline flags. Tcl's default
         // (no `-linestop`) is that `.` matches a newline, which is the crate's
         // `s` flag; `-lineanchor` is `m`, `-nocase` is `i`, `-expanded` is `x`.
