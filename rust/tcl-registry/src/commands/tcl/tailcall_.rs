@@ -1,5 +1,6 @@
 //! `tailcall` — replace the current procedure with another command.
 
+use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -31,6 +32,7 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        codegen_hook: Some(CodegenHookId::Tailcall),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

@@ -69,6 +69,7 @@ pub fn dispatch_codegen_hook(
         CodegenHookId::Append => append_cmd(ctx, args),
         CodegenHookId::Lappend => lappend_cmd(ctx, args),
         CodegenHookId::Unset => unset_cmd(ctx, args),
+        CodegenHookId::Tailcall => tailcall_cmd(ctx, args),
     }
 }
 
@@ -535,6 +536,29 @@ fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         }
     }
     ctx.push_lit("");
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
+// ── tailcall ───────────────────────────────────────────────────────
+
+/// `tailcall command ?arg ...?` — push the literal `"tailcall"` word, then
+/// each argument, and emit `tailcall N` where N counts the `"tailcall"`
+/// prefix plus the arguments (mirroring C Tcl's `TclCompileTailcallCmd`).
+/// The result is popped at statement level (dropped into `done` in tail
+/// position). `tailcall` with no arguments falls back to the generic invoke.
+fn tailcall_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    if args.is_empty() {
+        return false;
+    }
+    ctx.push_lit("tailcall");
+    for a in args {
+        ctx.emit_value_interpolated(a);
+    }
+    ctx.emit(
+        Op::TAILCALL,
+        vec![Operand::Imm(bytecode_imm(1 + args.len()))],
+    );
     ctx.emit(Op::POP, vec![]);
     true
 }
@@ -1029,6 +1053,50 @@ mod tests {
         assert_eq!(
             registry.get("unset").expect("unset registered").codegen_hook,
             Some(CodegenHookId::Unset)
+        );
+    }
+
+    // -- tailcall statement-position specialisation --
+
+    #[test]
+    fn tailcall_pushes_literal_prefix_then_args() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        let args = vec!["foo".into(), "a".into(), "b".into()];
+        assert!(try_bytecoded(&mut ctx, "tailcall", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(
+            ops,
+            vec![Op::PUSH1, Op::PUSH1, Op::PUSH1, Op::PUSH1, Op::TAILCALL, Op::POP]
+        );
+        // operand counts the "tailcall" prefix plus the three args.
+        let tc = ctx
+            .instructions
+            .iter()
+            .find(|i| i.op == Op::TAILCALL)
+            .unwrap();
+        assert_eq!(tc.operands[0], Operand::Imm(4));
+        assert_eq!(ctx.literals.entries()[0], "tailcall");
+    }
+
+    #[test]
+    fn tailcall_no_args_falls_back() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        assert!(!try_bytecoded(&mut ctx, "tailcall", &[], &mut used));
+    }
+
+    #[test]
+    fn registry_tailcall_spec_carries_codegen_hook() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            registry
+                .get("tailcall")
+                .expect("tailcall registered")
+                .codegen_hook,
+            Some(CodegenHookId::Tailcall)
         );
     }
 
