@@ -247,3 +247,41 @@ fn without_tshark_used_tshark_is_false() {
         "default path must record used_tshark=false: {json}"
     );
 }
+
+#[test]
+fn simulate_runs_irule_and_selects_pool() {
+    // `--simulate` drives the matched VS's iRule under the embedded TMM-sim
+    // orchestrator on `tcl-vm`: the `when HTTP_REQUEST { pool pool_api }` rule
+    // selects a pool, records the lb decision, and captures its log line.
+    let (stdout, code) = run_with(
+        "explain-flow-matched.pcap",
+        "explain-flow-simulate.conf",
+        &["--simulate"],
+    );
+    let text = String::from_utf8(stdout).expect("utf8 report");
+    assert_eq!(code, 0, "matched capture exits 0: {text}");
+    assert!(text.contains("iRule simulation:"), "{text}");
+    assert!(text.contains("pool: pool_api"), "{text}");
+    assert!(
+        text.contains("decision: lb pool_select pool_api"),
+        "{text}"
+    );
+    assert!(text.contains("routing host="), "captured iRule log: {text}");
+}
+
+#[test]
+fn simulate_json_populates_simulated_fields() {
+    let (json_out, code) = run_with(
+        "explain-flow-matched.pcap",
+        "explain-flow-simulate.conf",
+        &["--simulate", "--json"],
+    );
+    let json = String::from_utf8(json_out).expect("utf8 json");
+    assert_eq!(code, 0, "matched capture exits 0");
+    assert!(json.contains("\"simulated_pool\": \"pool_api\""), "{json}");
+    assert!(
+        json.contains("\"simulated_node\": \"192.0.2.30:80\""),
+        "{json}"
+    );
+    assert!(json.contains("\"action\": \"pool_select\""), "{json}");
+}

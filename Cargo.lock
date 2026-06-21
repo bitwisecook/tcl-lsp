@@ -661,6 +661,7 @@ dependencies = [
  "tcl-bigip-io",
  "tcl-bigip-query",
  "tcl-cli-support",
+ "tcl-irule-test",
  "tcl-irules",
  "tcl-lsp-core",
  "tcl-registry",
@@ -2311,6 +2312,10 @@ name = "tcl-irule-test"
 version = "0.1.0"
 dependencies = [
  "tcl-bigip",
+ "tcl-bytecode",
+ "tcl-compiler",
+ "tcl-registry",
+ "tcl-vm",
 ]
 
 [[package]]

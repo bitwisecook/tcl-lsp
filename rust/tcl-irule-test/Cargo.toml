@@ -23,6 +23,10 @@ authors.workspace = true
 
 [dependencies]
 tcl-bigip = { path = "../tcl-bigip" }
+tcl-vm = { path = "../tcl-vm" }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-bytecode = { path = "../tcl-bytecode" }
 
 [lints]
 workspace = true
