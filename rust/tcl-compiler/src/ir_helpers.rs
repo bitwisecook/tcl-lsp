@@ -504,6 +504,7 @@ mod tests {
             is_lmap: false,
             raw_args: vec![],
             is_dict_iteration: false,
+            raw_tokens: None,
         }]);
         assert_eq!(defs_from_ir_script(&script), vec!["k", "v"]);
     }

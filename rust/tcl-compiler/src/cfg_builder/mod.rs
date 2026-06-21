@@ -42,6 +42,34 @@ fn frozen_loop_tokens(cmd: &str, args: &[String], source: Option<&CommandTokens>
     source.cloned().unwrap_or_else(|| all_str_tokens(cmd, args))
 }
 
+/// Return `tokens` with the word at `idx` removed from every per-word vector.
+///
+/// Used to derive a `dict for`/`map` barrier's tokens from the source
+/// `dict for {vars} $d {body}` tokens by dropping the `for`/`map` subcommand
+/// word (index 1), so the remaining words line up with the barrier's
+/// `::tcl::dict::for {vars} $d {body}` argv.
+fn drop_word(tokens: &CommandTokens, idx: usize) -> CommandTokens {
+    let mut out = tokens.clone();
+    if idx < out.argv.len() {
+        out.argv.remove(idx);
+    }
+    if idx < out.argv_texts.len() {
+        out.argv_texts.remove(idx);
+    }
+    if idx < out.argv_kinds.len() {
+        out.argv_kinds.remove(idx);
+    }
+    if idx < out.single_token_word.len() {
+        out.single_token_word.remove(idx);
+    }
+    if let Some(expand) = out.expand_word.as_mut()
+        && idx < expand.len()
+    {
+        expand.remove(idx);
+    }
+    out
+}
+
 /// Synthesise [`CommandTokens`] marking every word as a single brace-string
 /// token — the verbatim fallback for a frozen loop with no recorded source
 /// tokens. See [`frozen_loop_tokens`].
@@ -624,6 +652,7 @@ impl CfgBuilder {
         let Statement::Foreach {
             is_dict_iteration,
             raw_args,
+            raw_tokens,
             iterators,
             is_lmap,
             span,
@@ -636,13 +665,22 @@ impl CfgBuilder {
         if *is_dict_iteration && !raw_args.is_empty() {
             let sub = &raw_args[0];
             let qual_cmd = format!("::tcl::dict::{sub}");
+            // The barrier re-emits `::tcl::dict::for {vars} $dict {body}` — the
+            // source `dict for …` tokens with the `for`/`map` subcommand word
+            // dropped — so the braced var-list / body push verbatim and the
+            // `$dict` argument substitutes (else the body's command subs are
+            // evaluated once, before the loop variables exist).
+            let args = raw_args[1..].to_vec();
+            let tokens = raw_tokens
+                .as_ref()
+                .map_or_else(|| all_str_tokens(&qual_cmd, &args), |t| drop_word(t, 1));
             self.block_mut(current).statements.push(Statement::Barrier {
                 span: *span,
                 reason: "dict for/map".into(),
                 command: qual_cmd,
                 canonical_command: None,
-                args: raw_args[1..].to_vec(),
-                tokens: None,
+                args,
+                tokens: Some(tokens),
             });
             return current.to_owned();
         }
@@ -663,7 +701,7 @@ impl CfgBuilder {
                 reads: vec![],
                 reads_own_defs: false,
                 safe_on_uninit: false,
-                tokens: None,
+                tokens: Some(frozen_loop_tokens(cmd, raw_args, raw_tokens.as_ref())),
                 foreach_groups: None,
             });
             return current.to_owned();
@@ -1610,6 +1648,7 @@ mod tests {
             is_lmap: false,
             raw_args: vec![],
             is_dict_iteration: false,
+            raw_tokens: None,
         }]);
         let func = build_cfg_function("::test", &script, true);
         let mut found_groups: Option<Vec<usize>> = None;
