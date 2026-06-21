@@ -406,40 +406,6 @@ pub enum Command {
     },
 }
 
-impl Command {
-    /// The canonical verb name, used in not-yet-implemented messages and logs.
-    pub fn verb_name(&self) -> &'static str {
-        match self {
-            Command::Dis { .. } => "dis",
-            Command::Compwasm { .. } => "compwasm",
-            Command::Diag { .. } => "diag",
-            Command::Lint { .. } => "lint",
-            Command::Validate { .. } => "validate",
-            Command::Diff { .. } => "diff",
-            Command::Symbols { .. } => "symbols",
-            Command::Diagram { .. } => "diagram",
-            Command::Callgraph { .. } => "callgraph",
-            Command::Symbolgraph { .. } => "symbolgraph",
-            Command::Dataflow { .. } => "dataflow",
-            Command::Highlight { .. } => "highlight",
-            Command::CmdInfo { .. } => "command-info",
-            Command::Help { .. } => "help",
-            Command::Minimize { .. } => "minimize",
-            Command::Explore { .. } => "explore",
-            Command::FindLegacy { .. } => "find-legacy",
-            Command::RegistryDump { .. } => "registry-dump",
-            Command::Opt { .. } => "opt",
-            Command::Format { .. } => "format",
-            Command::Minify { .. } => "minify",
-            Command::UnminifyError { .. } => "unminify-error",
-            Command::Completion { .. } => "completion",
-            Command::Pkg { .. } => "pkg",
-            Command::Venv { .. } => "venv",
-            Command::Docker { .. } => "docker",
-        }
-    }
-}
-
 /// Diagnostic-filtering flags shared by `diag` / `lint` / `validate`.
 #[derive(Debug, Args)]
 pub struct DiagArgs {
