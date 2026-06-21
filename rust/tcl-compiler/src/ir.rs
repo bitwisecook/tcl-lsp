@@ -356,6 +356,13 @@ pub enum Statement {
         body_span: Span,
         /// Raw argument texts for generic fallback.
         raw_args: Vec<String>,
+        /// Per-word source token metadata for the generic ("frozen") runtime
+        /// fallback, when the loop cannot be inlined (a command-substitution
+        /// condition). Carries the original word kinds so the fallback pushes
+        /// braced `{cond}` / `{body}` words verbatim and substituted words
+        /// (`$body`) interpolated — exactly as written. `None` for
+        /// synthetically-constructed loops that never take the fallback.
+        raw_tokens: Option<CommandTokens>,
     },
 
     /// `while` loop: `while cond body`.
@@ -372,6 +379,9 @@ pub enum Statement {
         body_span: Span,
         /// Raw argument texts for generic fallback.
         raw_args: Vec<String>,
+        /// Per-word source token metadata for the generic ("frozen") runtime
+        /// fallback — see [`Statement::For::raw_tokens`].
+        raw_tokens: Option<CommandTokens>,
     },
 
     /// `foreach`/`lmap`/`dict for`/`dict map` loop.
@@ -867,6 +877,7 @@ mod tests {
             body: Script::new(),
             body_span: Span::new(32, 34),
             raw_args: Vec::new(),
+            raw_tokens: None,
         };
         assert_eq!(stmt.span(), Span::new(0, 40));
     }

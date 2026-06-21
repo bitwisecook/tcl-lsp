@@ -149,6 +149,7 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
             condition_span,
             body,
             body_span,
+            raw_tokens,
             ..
         } => {
             shift(span, delta);
@@ -159,18 +160,21 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
             rebase_script(init, delta);
             rebase_script(next, delta);
             rebase_script(body, delta);
+            rebase_tokens(raw_tokens, delta);
         }
         Statement::While {
             span,
             condition_span,
             body,
             body_span,
+            raw_tokens,
             ..
         } => {
             shift(span, delta);
             shift(condition_span, delta);
             shift(body_span, delta);
             rebase_script(body, delta);
+            rebase_tokens(raw_tokens, delta);
         }
         Statement::Foreach {
             span,

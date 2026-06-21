@@ -10,15 +10,55 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use tcl_lexer::Span;
+use tcl_lexer::{Span, TokenType};
 
 use crate::cfg::{Block, CfgModule, Function, LoopNode, Terminator};
 use crate::expr_ast::ExprNode;
-use crate::ir::{Module, Script, Statement};
+use crate::ir::{CommandTokens, Module, Script, Statement};
 use crate::ir_helpers::defs_from_ir_script;
 use crate::naming::normalise_var_name;
 
 use self::upvar_info::{UpvarInfo, collect_upvar_targets};
+
+/// Choose the [`CommandTokens`] for a "frozen" `while`/`for` runtime call.
+///
+/// The frozen-loop barrier hands the source words (the condition expression
+/// text, the body script text) to the runtime `while` / `for` builtin, which
+/// re-evaluates the condition and body on each iteration. Each word must be
+/// pushed *as written*: a braced `{cond}` / `{body}` word verbatim
+/// (substitution suppressed), a `$body` word interpolated. The codegen's
+/// [`emit_call`] decides this from `argv_kinds[i] == Str && single_token_word`,
+/// so the barrier needs the real per-word kinds.
+///
+/// `source` is the loop's recorded [`Statement::While::raw_tokens`] — the exact
+/// segmenter token metadata. When present (always, for lowered loops) it is
+/// used directly; the all-verbatim fallback ([`all_str_tokens`]) only covers
+/// synthetically-constructed loops that carry no token metadata, matching the
+/// braced-word idiom they are built from. Without this the words are pushed as
+/// interpolated literals and the condition's command substitution is evaluated
+/// *once* at the call site, freezing the loop (`while {[gets $f line] >= 0}`
+/// happens to work, but a bare `while {[string length $x]}` would spin forever).
+fn frozen_loop_tokens(cmd: &str, args: &[String], source: Option<&CommandTokens>) -> CommandTokens {
+    source.cloned().unwrap_or_else(|| all_str_tokens(cmd, args))
+}
+
+/// Synthesise [`CommandTokens`] marking every word as a single brace-string
+/// token — the verbatim fallback for a frozen loop with no recorded source
+/// tokens. See [`frozen_loop_tokens`].
+fn all_str_tokens(cmd: &str, args: &[String]) -> CommandTokens {
+    let word_count = 1 + args.len();
+    let mut argv_texts = Vec::with_capacity(word_count);
+    argv_texts.push(cmd.to_owned());
+    argv_texts.extend(args.iter().cloned());
+    CommandTokens {
+        argv: vec![Span::new(0, 0); word_count],
+        argv_texts,
+        argv_kinds: vec![TokenType::Str; word_count],
+        single_token_word: vec![true; word_count],
+        all_tokens: Vec::new(),
+        expand_word: None,
+    }
+}
 
 mod cfg_lower;
 pub mod upvar_info;
@@ -431,6 +471,7 @@ impl CfgBuilder {
                 Statement::For {
                     condition,
                     raw_args,
+                    raw_tokens,
                     span,
                     ..
                 } => {
@@ -444,7 +485,7 @@ impl CfgBuilder {
                                 command: "for".into(),
                                 canonical_command: None,
                                 args: raw_args.clone(),
-                                tokens: None,
+                                tokens: Some(frozen_loop_tokens("for", raw_args, raw_tokens.as_ref())),
                             });
                     } else {
                         current = self.lower_for(stmt, &current)?;
@@ -454,6 +495,7 @@ impl CfgBuilder {
                 Statement::While {
                     condition,
                     raw_args,
+                    raw_tokens,
                     span,
                     ..
                 } => {
@@ -466,7 +508,7 @@ impl CfgBuilder {
                                 command: "while".into(),
                                 canonical_command: None,
                                 args: raw_args.clone(),
-                                tokens: None,
+                                tokens: Some(frozen_loop_tokens("while", raw_args, raw_tokens.as_ref())),
                             });
                     } else {
                         current = self.lower_while(stmt, &current);

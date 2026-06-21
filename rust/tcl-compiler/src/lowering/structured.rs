@@ -270,6 +270,7 @@ impl Lowerer<'_> {
             body,
             body_span: arg_tokens[3].span,
             raw_args: args.to_vec(),
+            raw_tokens: Some(Self::cmd_tokens(seg)),
         }
     }
 
@@ -297,6 +298,7 @@ impl Lowerer<'_> {
             body,
             body_span: arg_tokens[1].span,
             raw_args: args.to_vec(),
+            raw_tokens: Some(Self::cmd_tokens(seg)),
         }
     }
 

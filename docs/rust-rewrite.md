@@ -1062,27 +1062,23 @@ delete`, and the supporting `return`/`error`/list-parse fixes — error.test
     a loop, is what zeros the remainder of the suite — the real P1 to chase
     (an `uplevel`/`catch`/error-propagation gap), and far more tractable than a
     deadlock hunt.
-- **open (P1) genuine infinite loop in the runtime `while`/`for` body**
-  (`cmd_control.rs`, diagnosed 2026-06-21). A loop whose **condition is a bare
-  command substitution** falls back to the runtime `while`/`for` builtin (only
-  an *expression* condition — `[cmd] > 0`, `$x`, `!![cmd]` — inlines to the CFG
-  loop). On that fallback path the body's variable writes and the
-  command-substitution reads **disagree across iterations**, so the condition
-  never changes and the loop spins forever (a true hang, distinct from (a)/(b)).
-  Minimal repros (all spin; the `> 0` variants terminate):
-  - `set x abc; while {[string length $x]} {set x ""}` — `[string length $x]`
-    stays `3` though `$x` reads empty.
-  - `set x abcde; set n 0; while {[string length $x]} {incr n; set x [string repeat z $n]; if {$n>3} break}`
-    — `n` accumulates (frame persists) but `$x` stays frozen at `abcde`, i.e.
-    `set x [<cmd-sub>]` does not persist while `incr n` does.
-  The split (literal-RHS `set` vs command-substituted-RHS `set`; direct `$x` vs
-  `[string length $x]`) localises it to how the `eval_source`-compiled body
-  module resolves variables/command-subs vs the enclosing loop frame on
-  repeated `run_module`. **This is the most common real "hang" idiom**
-  (`while {[gets $f line] >= 0}` works; bare `while {[string length $x]}` /
-  tcltest's `while {[string length $argList]}` word-splitter spin). Fix is a
-  frame/eval-scope correction in the runtime loop body path — verify against the
-  inlined path (already correct) and the tree-walking `runtime/rust`.
+- **fixed (2026-06-21) the runtime `while`/`for` frozen-loop infinite spin.** A
+  loop whose **condition is a bare command substitution** can't inline to a CFG
+  loop (only an *expression* condition — `[cmd] > 0`, `$x`, `!![cmd]` — does), so
+  `cfg_builder` converts it to a "frozen" runtime `while`/`for` call. That
+  conversion built the barrier with `tokens: None`, so the codegen lost each
+  word's source kind and pushed the braced `{cond}` word **non-verbatim** —
+  `subst_word` evaluated the condition's command substitution **once** at the
+  call site, freezing the loop into an infinite spin (`while {[string length
+  $x]} {set x ""}` never terminated; the `> 0` variants did). The `While`/`For`
+  IR now carries the segmenter's `raw_tokens`, and the frozen barrier reuses
+  them so each word is pushed exactly as written (braced → verbatim, `$body` →
+  substituted). Verified byte-equal to `tclsh9.0` and covered by
+  `tcl-vm/tests/language_e2e.rs::while_command_subst_condition_*`. **This was the
+  most common real "hang" idiom** — tcltest's own
+  `while {[string length $argList]}` word-splitter spun — so several suites that
+  appeared to "hang" should now progress (re-baseline the parity harness in
+  `--release`).
 - **open** `namespace` / `var` / `upvar` depth (≈ 290 failures combined) — the
   namespace-eval-frame fix corrected the *mechanism*; the remainder is
   feature/semantics depth (namespace-name canonicalisation of multiple/trailing
