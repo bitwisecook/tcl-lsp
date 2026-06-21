@@ -2296,6 +2296,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-irule-test"
+version = "0.1.0"
+dependencies = [
+ "tcl-bigip",
+]
+
+[[package]]
 name = "tcl-irules"
 version = "0.1.0"
 dependencies = [

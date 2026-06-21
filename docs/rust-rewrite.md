@@ -698,9 +698,9 @@ If your port has any of these, reshape it before asking for review:
 
 The workspace (`Cargo.toml` members) as it stands today — crate granularity,
 roughly in dependency order. New crates the [Remaining work](#remaining-work)
-plan still calls for (`tcl-wasm`, `tcl-xc`, `tcl-debugger`, `tcl-irule-test`)
-are **not** listed here because they do not exist yet; `tcl-fuzz` has since
-landed (the differential fuzzer binary).
+plan still calls for (`tcl-wasm`, `tcl-xc`, `tcl-debugger`) are **not** listed
+here because they do not exist yet; `tcl-fuzz` (the differential fuzzer) and
+`tcl-irule-test` (the iRule-test glue scaffold) have since landed.
 
 ```
 Cargo.toml                workspace manifest        rust-toolchain.toml  channel = "stable"
@@ -737,6 +737,7 @@ rust/
   tcl-cli-support/        shared CLI plumbing for the native tcl / f5 CLIs
   tcl-cli/                native `tcl` toolchain CLI                f5-cli/  native `f5-query` CLI
   tcl-fuzz/               differential fuzzer (seeded generator + tclvm-vs-tclsh harness + findings)
+  tcl-irule-test/         iRule TMM-sim glue: SCF→orchestrator topology + session bootstrap (driver gated on RT-VM)
 runtime/
   zig/                    Zig WASM runtime (out-of-process runtime for compiled scripts)
   rust/                   tree-walking reference runtime (RT-VM parity oracle)
@@ -879,7 +880,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
 | Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); broaden the generator grammar as the VM surface grows → **TOOL-FUZZ** |
 | Debugger (DAP) | new crate | 🔴 | full debugger over `tcl-vm` → **TOOL-DEBUGGER** |
-| iRule test framework | new crate | 🔴 | TMM-sim harness (topology/profile-gen/orchestrator) → **TOOL-IRULE-TEST** |
+| iRule test framework | `tcl-irule-test` | 🟡 | crate scaffolded: SCF→orchestrator topology generator (parity-checked vs Python) + session-bootstrap assembly; the live event round-trip is gated on the VM iRule surface (**RT-VM**) → **TOOL-IRULE-TEST** |
 | PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🔴 | designed public surface; TEST-MIGRATE; PYTHON-RETIRE → **API-PYO3** |
 | `ai/` (MCP + skills) | — | n/a | stays Python by design |
 
@@ -904,7 +905,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | TOOL | **TOOL-EXPLORER** | `tcl-explorer`, `tcl-explorer-wasm` | RT-WASM | S |
 | TOOL | **TOOL-FUZZ** 🟢 | `tcl-fuzz` (bin) | RT-VM | M |
 | TOOL | **TOOL-DEBUGGER** | new `tcl-debugger` | RT-VM | L |
-| TOOL | **TOOL-IRULE-TEST** | new `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
+| TOOL | **TOOL-IRULE-TEST** 🟡 | `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
 | TOOL | **TOOL-CLI** ✅ | `tcl-cli` | RT-WASM, RT-VM, TOOL-TCLPKG | S |
 | API | **API-PYO3** | `tcl-lsp-py`, `scripts`→`xtask`, `tests` | everything above | L |
 
@@ -1236,9 +1237,19 @@ already started, brings **every** Python tool across to Rust.
 - **TOOL-DEBUGGER** *(new `tcl-debugger`; depends on RT-VM)* — **open**: DAP server
   over `tcl-vm` (breakpoints/stepping/backends). *(L)*
 - **TOOL-IRULE-TEST** *(new `tcl-irule-test`; depends on RT-VM + `tcl-registry`)* —
-  **open**: the TMM-simulating test framework (topology/SCF parsing, profile-gen,
-  mock-stub codegen, orchestrator). Note `tcl-irules` is the BIG-IP
-  reference-extractor, **not** this. *(XL)*
+  **scaffolded**: the crate exists with the portable glue. `topology` ports
+  `TopologyFromSCF` — parse a bigip.conf via `tcl-bigip` and emit the `::orch::`
+  setup (profiles via name-inference, VIP, pools + members, data-groups,
+  attached iRules), parity-checked against the Python generator. `session`
+  defines the `SessionPlan` / orchestrator-bootstrap assembly the VM driver
+  will run. **Architecture note:** the TMM simulation itself is the ~500 KB of
+  Tcl under `tooling/irule_test/tcl/` (orchestrator + TMM shim + command
+  mocks); the Rust port runs that Tcl on **`tcl-vm`**, so the live
+  event/`run_*`/`assert_*` round-trip is gated on the VM growing the iRule
+  command surface (`HTTP::*`, `pool`/`node`, `LB::*`, `when` dispatch,
+  `class match`). Remaining: the VM-driven session execution, profile-object
+  type resolution, profile-gen, and the mock-stub/registry/event-data codegen.
+  Note `tcl-irules` is the BIG-IP reference-extractor, **not** this. *(XL)*
 - **TOOL-CLI** *(owns `tcl-cli`; depends on RT-WASM, RT-VM, TOOL-TCLPKG)* —
   **done**: all 26 top-level verbs are ported and dispatched to native engine
   handlers. `dis` (bytecode disassembly via `format_module_asm`) and `compwasm`
