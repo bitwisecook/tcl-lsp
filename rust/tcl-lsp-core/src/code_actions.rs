@@ -97,6 +97,38 @@ pub struct CodeAction {
     pub kind: ActionKind,
     /// Optional command run after the edit (e.g. trigger a rename).
     pub command: Option<ActionCommand>,
+    /// Optional structured payload surfaced as the LSP code action's
+    /// `data` field.  Currently carries the rendered tmsh `ltm
+    /// data-group internal …` definition for the extract-to-datagroup
+    /// refactor (mirrors Python's
+    /// `_datagroup_to_code_action`'s `data={"data_group_definition": …}`);
+    /// the iRule text rewrite is the action's `edits`, and this field
+    /// lets tooling (MCP, AI, clipboard) consume the data-group
+    /// definition without injecting comment blocks into the source.
+    pub data_group_definition: Option<String>,
+}
+
+impl CodeAction {
+    /// Construct a `CodeAction` with no `data_group_definition`.
+    ///
+    /// The common path: every action except the extract-to-datagroup
+    /// refactor leaves the structured payload unset, so this keeps the
+    /// call sites free of a `data_group_definition: None` field.
+    #[must_use]
+    pub fn new(
+        title: String,
+        edits: Vec<crate::rename::TextEdit>,
+        kind: ActionKind,
+        command: Option<ActionCommand>,
+    ) -> Self {
+        Self {
+            title,
+            edits,
+            kind,
+            command,
+            data_group_definition: None,
+        }
+    }
 }
 
 /// Compute code actions for `range` in `source`.
@@ -156,6 +188,7 @@ pub fn code_actions(
                     }],
                     kind: ActionKind::QuickFix,
                     command: None,
+                    data_group_definition: None,
                 });
             }
         }
@@ -195,6 +228,7 @@ pub fn code_actions(
                 }],
                 kind: ActionKind::QuickFix,
                 command: None,
+                data_group_definition: None,
             });
         }
     }
@@ -285,6 +319,7 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
                 }],
                 kind: ActionKind::QuickFix,
                 command: None,
+                data_group_definition: None,
             });
         }
     }
@@ -321,6 +356,7 @@ fn build_unset_nocomplain_action(
         }],
         kind: ActionKind::QuickFix,
         command: None,
+        data_group_definition: None,
     })
 }
 
@@ -375,6 +411,7 @@ pub fn package_require_actions(
             }],
             kind: ActionKind::QuickFix,
             command: None,
+            data_group_definition: None,
         })
         .collect()
 }
@@ -584,6 +621,7 @@ fn continuation_comment_actions(
         }],
         kind: ActionKind::QuickFix,
         command: None,
+        data_group_definition: None,
     }]
 }
 
@@ -642,6 +680,7 @@ fn ip_conversion_actions(
         }],
         kind: ActionKind::Refactor,
         command: None,
+        data_group_definition: None,
     };
     if is_ipv4(&addr) {
         return vec![make(
@@ -706,6 +745,7 @@ fn expr_rewrite_actions(source: &str, range: LspRange, _line_index: &LineIndex) 
             }],
             kind: ActionKind::RefactorRewrite,
             command: None,
+            data_group_definition: None,
         });
     }
     if let Some(rewritten) = invert_comparison(&sel) {
@@ -717,6 +757,7 @@ fn expr_rewrite_actions(source: &str, range: LspRange, _line_index: &LineIndex) 
             }],
             kind: ActionKind::RefactorRewrite,
             command: None,
+            data_group_definition: None,
         });
     }
     out
@@ -871,6 +912,7 @@ fn docstring_actions(
             }],
             kind: ActionKind::Source,
             command: None,
+            data_group_definition: None,
         });
     }
     out
@@ -880,12 +922,88 @@ fn extract_inline_actions(
     source: &str,
     range: LspRange,
     analysis: &AnalysisResult,
-    _line_index: &LineIndex,
+    line_index: &LineIndex,
 ) -> Vec<CodeAction> {
     let mut out = Vec::new();
     out.extend(extract_proc_action(source, range));
     out.extend(inline_proc_action(source, range, analysis));
+    out.extend(refactor_engine_actions(source, range, analysis, line_index));
     out
+}
+
+/// Surface the [`crate::refactor`] transforms (extract / inline variable,
+/// if↔switch, switch→dict, extract-to-datagroup) as `CodeAction`s.
+///
+/// Mirrors `server/features/code_actions.py::_new_refactor_actions`: the
+/// cursor is `range`'s start; extract-variable additionally needs a
+/// non-empty selection.  The data-group transform is iRules-only — it is
+/// gated by [`crate::refactor::extract_to_datagroup`]'s registry
+/// resolution (a non-iRules registry resolves no `class match` /
+/// `class lookup` form), so offering it unconditionally here is safe.
+fn refactor_engine_actions(
+    source: &str,
+    range: LspRange,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Vec<CodeAction> {
+    use crate::refactor;
+    // Load the iRules dialect so `when`-body descent and the
+    // `class match` / `class lookup` data-group form resolve.  Loading is
+    // additive — vanilla command resolution is unchanged — so we do it
+    // unconditionally rather than threading the document dialect through
+    // the code-action signature (the data-group transform self-gates on
+    // the registry resolving a `class` form).
+    let mut registry = tcl_registry::CommandRegistry::build_default();
+    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+    let mut out = Vec::new();
+
+    let cursor = line_index.offset_at_utf16(range.start_line, range.start_character, source);
+    let has_selection =
+        range.start_line != range.end_line || range.start_character != range.end_character;
+
+    // Extract variable — requires a selection.
+    if has_selection {
+        let end = line_index.offset_at_utf16(range.end_line, range.end_character, source);
+        if let Some(r) = refactor::extract_variable(source, cursor, end, "result", line_index) {
+            out.push(refactoring_to_action(&r, source, line_index));
+        }
+    }
+
+    if let Some(r) = refactor::inline_variable(source, cursor, analysis, &registry, line_index) {
+        out.push(refactoring_to_action(&r, source, line_index));
+    }
+    if let Some(r) = refactor::if_to_switch(source, cursor, &registry, line_index) {
+        out.push(refactoring_to_action(&r, source, line_index));
+    }
+    if let Some(r) = refactor::switch_to_dict(source, cursor, &registry, line_index) {
+        out.push(refactoring_to_action(&r, source, line_index));
+    }
+    if let Some(r) = refactor::extract_to_datagroup(source, cursor, "", &registry, line_index) {
+        out.push(refactoring_to_action(&r, source, line_index));
+    }
+    out
+}
+
+/// Lift a [`crate::refactor::Refactoring`] into a [`CodeAction`],
+/// converting its byte-offset edits to LSP coordinates and rendering the
+/// data-group definition (if any) into `data_group_definition`.  Mirrors
+/// `_refactoring_to_code_action` / `_datagroup_to_code_action`.
+fn refactoring_to_action(
+    r: &crate::refactor::Refactoring,
+    source: &str,
+    line_index: &LineIndex,
+) -> CodeAction {
+    CodeAction {
+        title: r.title.clone(),
+        edits: r
+            .edits
+            .iter()
+            .map(|e| e.to_lsp(source, line_index))
+            .collect(),
+        kind: r.kind,
+        command: None,
+        data_group_definition: r.data_group.as_ref().map(crate::refactor::data_group_tcl),
+    }
 }
 
 /// Distinct `$var` / `${var}` names referenced in `text`, in first-seen order.
@@ -999,6 +1117,7 @@ fn extract_proc_action(source: &str, range: LspRange) -> Vec<CodeAction> {
                 name_start + u32::try_from(name.len()).unwrap_or(0),
             ],
         }),
+        data_group_definition: None,
     }]
 }
 
@@ -1069,6 +1188,7 @@ fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) 
         }],
         kind: ActionKind::RefactorInline,
         command: None,
+        data_group_definition: None,
     }]
 }
 
@@ -1176,6 +1296,7 @@ pub fn profiles_action(
             }],
             kind: ActionKind::Source,
             command: None,
+            data_group_definition: None,
         });
     }
     Some(CodeAction {
@@ -1194,6 +1315,7 @@ pub fn profiles_action(
         }],
         kind: ActionKind::Source,
         command: None,
+        data_group_definition: None,
     })
 }
 
@@ -1343,6 +1465,7 @@ fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAct
                 }],
                 kind: ActionKind::QuickFix,
                 command: None,
+                data_group_definition: None,
             }
         })
         .collect()
@@ -1438,6 +1561,7 @@ fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
             }],
             kind: ActionKind::QuickFix,
             command: None,
+            data_group_definition: None,
         }];
     }
 
@@ -1483,6 +1607,7 @@ fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
         edits,
         kind: ActionKind::QuickFix,
         command: None,
+        data_group_definition: None,
     }]
 }
 
@@ -1918,5 +2043,72 @@ mod tests {
                 .any(|a| a.title == "Add 'event disable all' + 'return'"),
             "disabled IRULE5002 must not offer a quick-fix, got {actions:?}",
         );
+    }
+
+    // -- refactor-engine dispatch (extract/inline var, if↔switch,
+    //    switch→dict, extract-datagroup) ----------------------------------
+
+    fn analyse(source: &str) -> AnalysisResult {
+        Analyser::new().analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn extract_variable_surfaces_with_selection() {
+        let src = "set x [string length $name]";
+        let analysis = analyse(src);
+        // Select the `[string length $name]` value (cols 6..27).
+        let range = LspRange {
+            start_line: 0,
+            start_character: 6,
+            end_line: 0,
+            end_character: 27,
+        };
+        let actions = code_actions(src, range, Some(&analysis));
+        assert!(
+            actions.iter().any(|a| {
+                a.kind == ActionKind::RefactorExtract && a.title.to_lowercase().contains("variable")
+            }),
+            "{actions:?}",
+        );
+    }
+
+    #[test]
+    fn if_to_switch_surfaces_at_cursor() {
+        let src = "if {$x eq \"a\"} {\n    puts 1\n} elseif {$x eq \"b\"} {\n    puts 2\n}";
+        let analysis = analyse(src);
+        let cursor = LspRange {
+            start_line: 0,
+            start_character: 0,
+            end_line: 0,
+            end_character: 0,
+        };
+        let actions = code_actions(src, cursor, Some(&analysis));
+        assert!(
+            actions.iter().any(|a| a.title.to_lowercase().contains("switch")),
+            "{actions:?}",
+        );
+    }
+
+    #[test]
+    fn extract_datagroup_surfaces_and_carries_definition() {
+        let src = "if {$host eq \"a.com\"} {\n    pool web_pool\n} elseif {$host eq \"b.com\"} {\n    pool web_pool\n} elseif {$host eq \"c.com\"} {\n    pool web_pool\n}";
+        let analysis = analyse(src);
+        let cursor = LspRange {
+            start_line: 0,
+            start_character: 0,
+            end_line: 0,
+            end_character: 0,
+        };
+        let actions = code_actions(src, cursor, Some(&analysis));
+        let dg = actions
+            .iter()
+            .find(|a| a.title.to_lowercase().contains("data-group"))
+            .expect("data-group action");
+        let def = dg
+            .data_group_definition
+            .as_ref()
+            .expect("data_group_definition payload");
+        assert!(def.contains("ltm data-group internal"), "{def:?}");
+        assert!(def.contains("type string"), "{def:?}");
     }
 }
