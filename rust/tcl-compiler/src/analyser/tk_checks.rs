@@ -1,13 +1,29 @@
 //! Analyser-level Tk-dialect checks — Rust port of `analyser/checks/tk.py`.
 //!
 //! These run per command from
-//! [`super::commands::Analyser::emit_dispatch_site_diagnostics`] and are
-//! all gated on the `tk` dialect.  TK1001 is a whole-document check
-//! (a `pack`/`grid` conflict can only be decided once every geometry
-//! call in the parent has been seen), so it accumulates per-parent
-//! usage across the walk and is flushed post-walk by
-//! [`super::state::Analyser::flush_tk_geometry_diagnostics`] from the
-//! shared diagnostic-emission tail.
+//! [`super::commands::Analyser::emit_dispatch_site_diagnostics`].  Like
+//! Python — which gates the whole pass on `has_tk_require(analysis)` in
+//! `server/features/diagnostics.py`, *not* on a dialect string — the checks
+//! activate when the file is Tk: either the analysis dialect is `tk`
+//! (a `wish`-labelled document) **or** the file declares
+//! `package require Tk` (so a plain `.tcl` script mapped to `tcl8.6` still
+//! gets them).  Because the `package require` is a whole-file fact only
+//! known after the walk, every TK diagnostic is buffered during the walk
+//! and emitted post-walk by
+//! [`super::state::Analyser::flush_tk_geometry_diagnostics`] from the shared
+//! diagnostic-emission tail, gated on the resolved activation condition.
+//! TK1001 additionally needs all of a parent's geometry calls before it can
+//! decide a `pack`/`grid` conflict, so it accumulates per-parent usage and
+//! is decided in the same flush.
+//!
+//! The per-command accumulation is itself gated on a cheap
+//! [`tk_possibly_active`] precheck (`tk` dialect, or the source mentions
+//! `package` / `require` / `Tk`), mirroring the substring guard Python uses
+//! before it consults `has_tk_require`.  The incremental per-item analysis
+//! path ([`Analyser::analyse_per_item_with`]) falls back to full
+//! [`Analyser::analyse`] when [`tk_possibly_active`] holds, so Tk's
+//! whole-file accumulator (which an isolated proc body cannot see) never
+//! diverges from full analysis.
 //!
 //! Diagnostic codes ported here:
 //!
@@ -79,6 +95,19 @@ const WIDGET_COMMANDS: &[&str] = &[
 /// Tk geometry-manager commands.  Mirrors `GEOMETRY_COMMANDS`.
 const GEOMETRY_COMMANDS: &[&str] = &["pack", "grid", "place"];
 
+/// Cheap precheck for whether Tk diagnostics could apply to this document:
+/// the analysis dialect is `tk`, or the source mentions `package` /
+/// `require` / `Tk` (so a `package require Tk` — however the lexer splits
+/// its words — is not missed).  Mirrors the substring guard in
+/// `server/features/diagnostics.py` that runs before `has_tk_require`.
+/// Used both to gate the per-command accumulation and to force the
+/// incremental per-item path back to full analysis for Tk documents.
+#[must_use]
+pub(super) fn tk_possibly_active(source: &str, dialect: &str) -> bool {
+    dialect == "tk"
+        || (source.contains("package") && source.contains("require") && source.contains("Tk"))
+}
+
 /// Return `true` if `name` is a Tk widget-creation command.
 fn is_widget_command(name: &str) -> bool {
     WIDGET_COMMANDS.contains(&name)
@@ -121,10 +150,12 @@ fn parent_widget_path(widget_path: &str) -> &str {
 }
 
 impl Analyser {
-    /// Per-command Tk-dialect dispatch.  Tracks widget creation and
-    /// geometry-manager usage, emitting TK1002 / TK1003 inline and
-    /// recording geometry usage for the post-walk TK1001 flush.  A no-op
-    /// outside the `tk` dialect.
+    /// Per-command Tk dispatch.  Tracks widget creation and geometry-manager
+    /// usage, *buffering* TK1002 / TK1003 (and recording geometry usage for
+    /// the post-walk TK1001 flush) rather than emitting inline — the
+    /// activation condition (`tk` dialect or a `package require Tk`) is a
+    /// whole-file fact only resolved post-walk.  A no-op unless
+    /// [`tk_possibly_active`] held for this document.
     pub(super) fn emit_tk_checks(
         &mut self,
         cmd_name: &str,
@@ -132,7 +163,7 @@ impl Analyser {
         arg_tokens: &[Token],
         cmd_tok: Token,
     ) {
-        if self.dialect != "tk" {
+        if !self.tk_possibly_active {
             return;
         }
 
@@ -146,7 +177,7 @@ impl Analyser {
             // always exists, so it is never flagged.
             let parent = parent_widget_path(path);
             if !parent.is_empty() && parent != "." && !self.tk_created_widgets.contains(parent) {
-                self.result.diagnostics.push(Diagnostic {
+                self.tk_pending_diags.push(Diagnostic {
                     code: "TK1002".to_string(),
                     span: cmd_tok.span,
                     message: format!(
@@ -174,11 +205,10 @@ impl Analyser {
         }
     }
 
-    /// TK1003 — flag `-option` arguments that the widget command does
-    /// not declare.  Mirrors the option scan in `check_tk_diagnostics`:
-    /// a lone `-` / `--` is skipped, and the check is silent when the
-    /// command has no registry spec (so unknown widgets never false
-    /// positive).
+    /// TK1003 — buffer `-option` arguments that the widget command does not
+    /// declare.  Mirrors the option scan in `check_tk_diagnostics`: a lone
+    /// `-` / `--` is skipped, and the check is silent when the command has
+    /// no registry spec (so unknown widgets never false positive).
     fn emit_tk1003_unknown_options(&mut self, cmd_name: &str, args: &[String], cmd_tok: Token) {
         let Some(registry) = self.registry.as_ref() else {
             return;
@@ -198,7 +228,7 @@ impl Analyser {
             }
         }
         for arg in unknown {
-            self.result.diagnostics.push(Diagnostic {
+            self.tk_pending_diags.push(Diagnostic {
                 code: "TK1003".to_string(),
                 span: cmd_tok.span,
                 message: format!("Unknown option '{arg}' for {cmd_name}."),
@@ -208,16 +238,32 @@ impl Analyser {
         }
     }
 
-    /// TK1001 — post-walk flush: a parent that mixes `pack` and `grid`
-    /// is a Tk runtime error, reported on every geometry call for that
-    /// parent.  Mirrors the final loop in `check_tk_diagnostics`.  Clears
-    /// the accumulated state so a reused [`Analyser`] starts clean.
+    /// Whether the file declared `package require Tk` (port of Python
+    /// `has_tk_require`).
+    fn has_tk_require(&self) -> bool {
+        self.result
+            .package_requires
+            .iter()
+            .any(|pr| pr.name == "Tk")
+    }
+
+    /// Post-walk flush of all TK diagnostics.  Emits the buffered TK1002 /
+    /// TK1003 and decides TK1001 (a parent mixing `pack` and `grid` is a Tk
+    /// runtime error, reported on every offending geometry call) — but only
+    /// when the document is actually Tk: the `tk` dialect, or a detected
+    /// `package require Tk`.  Mirrors `server/features/diagnostics.py`'s
+    /// `has_tk_require` gate.  Clears the accumulated state either way so a
+    /// reused [`Analyser`] starts clean.
     pub(super) fn flush_tk_geometry_diagnostics(&mut self) {
         let geometry = std::mem::take(&mut self.tk_geometry);
+        let pending = std::mem::take(&mut self.tk_pending_diags);
         self.tk_created_widgets.clear();
-        if self.dialect != "tk" {
+
+        if self.dialect != "tk" && !self.has_tk_require() {
             return;
         }
+
+        self.result.diagnostics.extend(pending);
         for (parent, usage) in geometry {
             if usage.managers.contains("pack") && usage.managers.contains("grid") {
                 for (_manager, span) in usage.sites {
@@ -286,9 +332,53 @@ mod tests {
     }
 
     #[test]
-    fn no_tk_checks_outside_tk_dialect() {
-        // The same conflict in plain Tcl must stay silent.
+    fn no_tk_checks_in_plain_tcl_without_tk_require() {
+        // Plain Tcl with no `package require Tk` must stay silent even with
+        // Tk-shaped commands.
         let src = "frame .outer.inner";
-        assert!(!has(src, "tcl", "TK1002"));
+        assert!(!has(src, "tcl8.6", "TK1002"));
+    }
+
+    #[test]
+    fn tk_checks_fire_on_plain_tcl_with_package_require_tk() {
+        // A `.tcl` file mapped to `tcl8.6` that declares `package require Tk`
+        // must still get the checks (mirrors Python's `has_tk_require` gate).
+        let src = "package require Tk\nframe .outer.inner";
+        assert!(has(src, "tcl8.6", "TK1002"));
+    }
+
+    #[test]
+    fn package_require_tk_substring_alone_does_not_activate() {
+        // The cheap substring precheck can match, but without a real
+        // `package require Tk` the post-walk gate stays closed.
+        let src = "set msg \"package require Tk in a comment\"\nframe .outer.inner";
+        assert!(!has(src, "tcl8.6", "TK1002"));
+    }
+
+    #[test]
+    fn per_item_matches_full_for_tk_with_proc() {
+        // The incremental per-item path must agree with full analysis for a
+        // Tk document whose widgets / geometry live inside a proc (the
+        // whole-file accumulator an isolated body cannot see).
+        let src = "package require Tk\n\
+                   frame .top\n\
+                   proc build {} {\n\
+                   pack .top.a\n\
+                   grid .top.b\n\
+                   }\n";
+        let full = Analyser::new().analyse(src, "tcl8.6");
+        let per_item = Analyser::new().analyse_per_item(src, "tcl8.6");
+        let codes_of = |r: &super::super::types::AnalysisResult| {
+            let mut v: Vec<(String, u32)> = r
+                .diagnostics
+                .iter()
+                .map(|d| (d.code.clone(), d.span.start()))
+                .collect();
+            v.sort();
+            v
+        };
+        assert_eq!(codes_of(&full), codes_of(&per_item));
+        // And the conflict really is reported (proc-body geometry flushed).
+        assert!(full.diagnostics.iter().any(|d| d.code == "TK1001"));
     }
 }
