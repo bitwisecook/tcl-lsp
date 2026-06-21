@@ -73,6 +73,20 @@ fn jstr(v: &Value) -> String {
     }
 }
 
+/// Render a JSON scalar the way Python's `str()` would inside an f-string.
+///
+/// The only divergence from [`jstr`] is booleans: Python emits `True`/`False`
+/// (capitalised) where Rust's `bool` `Display` emits `true`/`false`. The
+/// explorer's SSA-view const-branch label interpolates a JSON bool through a
+/// Python f-string, so the port must capitalise to stay byte-identical.
+fn pystr(v: &Value) -> String {
+    match v {
+        Value::Bool(true) => "True".to_owned(),
+        Value::Bool(false) => "False".to_owned(),
+        other => jstr(other),
+    }
+}
+
 fn arr<'a>(v: &'a Value, key: &str) -> &'a [Value] {
     v.get(key)
         .and_then(Value::as_array)
@@ -322,7 +336,7 @@ fn build_cfg(funcs: &[Value], post: bool) -> Vec<ViewNode> {
                     format!(
                         "const branch {}: always {}",
                         s(br, "block"),
-                        jstr(&br["value"])
+                        pystr(&br["value"])
                     ),
                     vec![
                         det("condition", s(br, "condition")),
