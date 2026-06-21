@@ -70,6 +70,7 @@ pub fn dispatch_codegen_hook(
         CodegenHookId::Lappend => lappend_cmd(ctx, args),
         CodegenHookId::Unset => unset_cmd(ctx, args),
         CodegenHookId::Tailcall => tailcall_cmd(ctx, args),
+        CodegenHookId::Concat => concat_cmd(ctx, args),
     }
 }
 
@@ -559,6 +560,41 @@ fn tailcall_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         Op::TAILCALL,
         vec![Operand::Imm(bytecode_imm(1 + args.len()))],
     );
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
+// ── concat ─────────────────────────────────────────────────────────
+
+/// `concat ?arg ...?` — const-fold when every argument is a plain literal
+/// (trim each, drop the empties, join with a single space — mirroring
+/// `tcl_registry::const_fold::fold_concat` and C Tcl's literal `concat`
+/// folding); otherwise push each word and emit `concatStk N`. No arguments
+/// yields the empty result. Arguments carrying a substitution (`$`/`[`) or a
+/// backslash escape are not folded — they take the `concatStk` path, which
+/// substitutes correctly.
+fn concat_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    if args.is_empty() {
+        ctx.push_lit("");
+        ctx.emit(Op::POP, vec![]);
+        return true;
+    }
+    let foldable = args.iter().all(|a| !a.contains(['$', '[', '\\']));
+    if foldable {
+        let folded = args
+            .iter()
+            .map(|a| a.trim())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        ctx.push_lit(&folded);
+        ctx.emit(Op::POP, vec![]);
+        return true;
+    }
+    for a in args {
+        ctx.emit_value_interpolated(a);
+    }
+    ctx.emit(Op::CONCAT_STK, vec![Operand::Imm(bytecode_imm(args.len()))]);
     ctx.emit(Op::POP, vec![]);
     true
 }
@@ -1097,6 +1133,82 @@ mod tests {
                 .expect("tailcall registered")
                 .codegen_hook,
             Some(CodegenHookId::Tailcall)
+        );
+    }
+
+    // -- concat statement-position specialisation --
+
+    #[test]
+    fn concat_all_literal_folds() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        let args = vec!["a".into(), "b".into(), "c".into()];
+        assert!(try_bytecoded(&mut ctx, "concat", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(ops, vec![Op::PUSH1, Op::POP]);
+        assert_eq!(ctx.literals.entries()[0], "a b c");
+    }
+
+    #[test]
+    fn concat_fold_trims_and_drops_empties() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        let args = vec!["  a ".into(), String::new(), " b".into()];
+        assert!(try_bytecoded(&mut ctx, "concat", &args, &mut used));
+        assert_eq!(ctx.literals.entries()[0], "a b");
+    }
+
+    #[test]
+    fn concat_with_substitution_uses_concat_stk() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        // A `$`-bearing argument is not folded; the command takes the
+        // concatStk path (the byte-true loadScalar emission for `$x` in a
+        // real proc body is covered by the concat-mixed golden fixture).
+        let args = vec!["a".into(), "$x".into(), "b".into()];
+        assert!(try_bytecoded(&mut ctx, "concat", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(ops.last(), Some(&Op::POP));
+        let cc = ctx
+            .instructions
+            .iter()
+            .find(|i| i.op == Op::CONCAT_STK)
+            .expect("concatStk emitted for a non-foldable concat");
+        assert_eq!(cc.operands[0], Operand::Imm(3));
+    }
+
+    #[test]
+    fn concat_backslash_arg_not_folded() {
+        // A backslash escape must not be naively folded; it takes concatStk.
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        let args = vec!["a".into(), "b\\tc".into()];
+        assert!(try_bytecoded(&mut ctx, "concat", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::CONCAT_STK));
+    }
+
+    #[test]
+    fn concat_no_args_pushes_empty() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "concat", &[], &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(ops, vec![Op::PUSH1, Op::POP]);
+        assert_eq!(ctx.literals.entries()[0], "");
+    }
+
+    #[test]
+    fn registry_concat_spec_carries_codegen_hook() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            registry.get("concat").expect("concat registered").codegen_hook,
+            Some(CodegenHookId::Concat)
         );
     }
 

@@ -124,6 +124,8 @@ pub enum CodegenHookId {
     Unset,
     /// `tailcall command ?arg ...?`.
     Tailcall,
+    /// `concat ?arg ...?`.
+    Concat,
 }
 
 /// Typed identifier for a WASM-runtime codegen specialisation.
