@@ -952,8 +952,11 @@ tclsh9.0 with golden fixtures (`append`/`lappend`/`unset`/`upvar`/`global`/
   invokeReplace`), not the proc-local `DICT_*` opcodes. This is the shared
   ensemble-rewrite mechanism (applies to all top-level ensembles), tracked as a
   small follow-on rather than a dict-only hook.
-- **open** small items: `{*}` cmd-subst expansion; the `builtin_is_trusted`
-  rename gate.
+- **open** `{*}` expansion inside a *command substitution* in value position
+  (`set x [cmd {*}$args]` → `expandStart … expandStkTop N; invokeExpanded`);
+  statement-position `{*}` already lowers correctly. (The `builtin_is_trusted`
+  rename gate originally filed here is a **WASM-emitter** concern —
+  `compiler/codegen/wasm/_emitter/*` only — and belongs to **RT-WASM**.)
 
 #### FE-DIAG-F5 — F5 dialect diagnostics
 Owns new analyser slices on `tcl-bigip` / `tcl-xc` and the tk dialect.
