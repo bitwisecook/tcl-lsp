@@ -878,7 +878,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --tshark/--keylog/--tshark-filter` landed; `--simulate` gated on the native iRule VM (**RT-VM**); `completion`/`graph` parity files → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
 | Refactoring transforms | `tcl-lsp-core::code_actions` | ✅ | all 7 transforms ported (`tcl-lsp-core::refactor`), byte-parity vs the Python oracle → **TOOL-REFACTOR** |
-| Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟡 | `wasm` view (blocked on **RT-WASM**) → **TOOL-EXPLORER** |
+| Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟢 | `wasm` view renders the eval-fallback emitter's WAT; rich per-instruction web-GUI shape (`to_explorer_json`) is a refinement → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
 | Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); broaden the generator grammar as the VM surface grows → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
@@ -904,7 +904,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | TOOL | **TOOL-TCLPKG** ✅ | `tcl-pkg` crate | — | XL |
 | TOOL | **TOOL-REFACTOR** ✅ | `tcl-lsp-core::code_actions` | SRV-LSP | M |
 | TOOL | **TOOL-F5** | `f5-cli` | — | XS |
-| TOOL | **TOOL-EXPLORER** | `tcl-explorer`, `tcl-explorer-wasm` | RT-WASM | S |
+| TOOL | **TOOL-EXPLORER** 🟢 | `tcl-explorer`, `tcl-explorer-wasm` | RT-WASM | S |
 | TOOL | **TOOL-FUZZ** 🟢 | `tcl-fuzz` (bin) | RT-VM | M |
 | TOOL | **TOOL-DEBUGGER** ✅ | `tcl-debugger` | RT-VM | L |
 | TOOL | **TOOL-IRULE-TEST** 🟡 | `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
@@ -1218,11 +1218,17 @@ already started, brings **every** Python tool across to Rust.
   files. The rest (27/27 verbs, 262 parity tests) is done — the template for the
   other tool ports. *(XS)*
 - **TOOL-EXPLORER** *(owns `tcl-explorer`, `tcl-explorer-wasm`; depends on
-  RT-WASM)* — **partial**: the `wasm` view (blocked on **RT-WASM**, since the
-  view renders the WASM emitter's output). The `ssa`-view boolean-render parity
-  bug landed (the const-branch label now renders booleans Python-style via
-  `view_tree::pystr`); all other TUI views are parity-done. The Pyodide web
-  server stays Python. *(S)*
+  RT-WASM)* — **done (for the views)**: the `ssa`-view boolean-render parity bug
+  landed (`view_tree::pystr`), and the **`wasm` view now renders WAT** —
+  `serialise.rs::serialise_wasm` drives the eval-fallback `wasm_codegen_module`
+  (the same emitter `tcl compwasm` uses) and emits the module's WAT plus
+  per-function headers, which `render.rs::render_wasm` prints. All TUI views are
+  now populated. Refinement (not blocking the view): the rich per-instruction
+  explorer shape (`to_explorer_json` — resolved call targets, paired branch
+  targets, lane-assigned edges) the *web GUI* uses is not ported, so the wasm
+  tab shows flat WAT rather than the gutter-rendered instruction graph; that
+  lands with the broader **RT-WASM** emitter work. The Pyodide web server stays
+  Python. *(S)*
 - **TOOL-FUZZ** *(new `tcl-fuzz` bin; depends on RT-VM)* — **landed**: a seeded
   random Tcl generator (`generator.rs`, scoped to the VM's supported surface so a
   divergence is a real miscompile, not an unimplemented command — pure, bounded
