@@ -1,4 +1,5 @@
 //! `concat` — concatenate lists.
+use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
@@ -9,6 +10,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "concat",
         const_fold: Some(crate::const_fold::fold_concat),
+        codegen_hook: Some(CodegenHookId::Concat),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::PRODUCES_CANONICAL_LIST,
         arity: Arity::any(),
         return_type: Some(TclType::List),
