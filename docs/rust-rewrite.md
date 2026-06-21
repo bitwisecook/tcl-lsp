@@ -881,7 +881,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟡 | `wasm` view (blocked on **RT-WASM**) → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
 | Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); broaden the generator grammar as the VM surface grows → **TOOL-FUZZ** |
-| Debugger | `tcl-debugger` | 🟢 | working record-and-replay step debugger over `tcl-vm` (the VM debug-hook seam landed) + a `tcl-debug` CLI front-end (break/step/next/finish/continue/print/stack/vars). Residual: a DAP wire-protocol surface for editors → **TOOL-DEBUGGER** |
+| Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
 | iRule test framework | `tcl-irule-test` | 🟡 | crate scaffolded: SCF→orchestrator topology generator (parity-checked vs Python) + session-bootstrap assembly; the live event round-trip is gated on the VM iRule surface (**RT-VM**) → **TOOL-IRULE-TEST** |
 | PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🔴 | designed public surface; TEST-MIGRATE; PYTHON-RETIRE → **API-PYO3** |
 | `ai/` (MCP + skills) | — | n/a | stays Python by design |
@@ -906,7 +906,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | TOOL | **TOOL-F5** | `f5-cli` | — | XS |
 | TOOL | **TOOL-EXPLORER** | `tcl-explorer`, `tcl-explorer-wasm` | RT-WASM | S |
 | TOOL | **TOOL-FUZZ** 🟢 | `tcl-fuzz` (bin) | RT-VM | M |
-| TOOL | **TOOL-DEBUGGER** 🟢 | `tcl-debugger` | RT-VM | L |
+| TOOL | **TOOL-DEBUGGER** ✅ | `tcl-debugger` | RT-VM | L |
 | TOOL | **TOOL-IRULE-TEST** 🟡 | `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
 | TOOL | **TOOL-CLI** ✅ | `tcl-cli` | RT-WASM, RT-VM, TOOL-TCLPKG | S |
 | API | **API-PYO3** | `tcl-lsp-py`, `scripts`→`xtask`, `tests` | everything above | L |
@@ -1246,12 +1246,17 @@ already started, brings **every** Python tool across to Rust.
   parity gates stay green. `tcl-debugger`'s `VmBackend` installs a recording
   hook, runs the script once to capture the trace, then serves
   breakpoints / step-in/over/out / continue / stack / variable-inspection by
-  navigating the trace with the `DebugController`. A `tcl-debug` CLI front-end
-  drives it interactively
-  (`break`/`step`/`next`/`finish`/`continue`/`print`/`stack`/`vars`, reading
-  commands from stdin so it scripts cleanly). Residual: a DAP wire-protocol
-  surface for editors, and live-eval / deeper-frame variables (replay sees the
-  current frame's captured vars). *(L)*
+  navigating the trace with the `DebugController`. Two front-ends drive it: a
+  `tcl-debug` interactive CLI
+  (`break`/`step`/`next`/`finish`/`continue`/`print`/`stack`/`vars`) and a
+  **DAP server** (`tcl-debug --dap`) speaking the Debug Adapter Protocol over
+  `Content-Length`-framed stdio — `initialize`/`launch`/`setBreakpoints`/
+  `threads`/`stackTrace`/`scopes`/`variables`/`continue`/`next`/`stepIn`/
+  `stepOut`/`evaluate`/`disconnect` plus the `initialized`/`stopped`/
+  `terminated` events — so editors integrate directly. Known replay-model
+  characteristics (documented, not unfinished): script output is produced once
+  up front, variable inspection is the current frame's captured scope, and
+  `evaluate` resolves captured variables. *(L)*
 - **TOOL-IRULE-TEST** *(new `tcl-irule-test`; depends on RT-VM + `tcl-registry`)* —
   **scaffolded**: the crate exists with the portable glue. `topology` ports
   `TopologyFromSCF` — parse a bigip.conf via `tcl-bigip` and emit the `::orch::`

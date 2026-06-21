@@ -2270,6 +2270,13 @@ version = "0.1.0"
 [[package]]
 name = "tcl-debugger"
 version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-bytecode",
+ "tcl-compiler",
+ "tcl-registry",
+ "tcl-vm",
+]
 
 [[package]]
 name = "tcl-explorer"
