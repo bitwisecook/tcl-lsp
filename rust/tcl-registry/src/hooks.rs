@@ -122,6 +122,8 @@ pub enum CodegenHookId {
     Lappend,
     /// `unset ?-nocomplain? ?--? ?varName ...?`.
     Unset,
+    /// `tailcall command ?arg ...?`.
+    Tailcall,
 }
 
 /// Typed identifier for a WASM-runtime codegen specialisation.
