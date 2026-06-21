@@ -932,7 +932,7 @@ impl Vm {
                 let vals: Vec<Value> = f.stack.split_off(take);
                 let joined = vals
                     .iter()
-                    .map(|v| v.to_str())
+                    .map(Value::to_str)
                     .filter(|s| !s.trim().is_empty())
                     .map(|s| s.trim().to_string())
                     .collect::<Vec<_>>()
