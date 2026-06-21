@@ -863,7 +863,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) ported (`tcl-compiler::shimmer::byte_array` + `tcl-registry` `BytePayloadSpec`) — **FE-TYPESHIM** complete |
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
 | Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | every O-code pass + the inliner v0/verbatim shapes landed (see [history](rust-rewrite-history.md)); sole remaining: inliner **v3** (α-rename, gated on the RT-WASM consumer for execution-differential verification) → **FE-OPT** |
-| Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
+| Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + `set x [cmd]` + byte-wise `esc` landed (byte-true vs tclsh9.0); residual: bare-statement `string`/`regexp`/`lindex`/`lreplace`, non-proc `dict` (ensemble `invokeReplace`), `{*}` cmd-subst expansion → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
@@ -936,15 +936,23 @@ task:
   GVN/LICM family — precision niceties, never miscompiles.
 
 #### FE-CODEGEN — bytecode codegen
-Owns `tcl-compiler::codegen` (non-wasm).
-- **open** statement-position specialisations — `append` / `lappend` / `unset` /
-  `upvar` / `global` / `tailcall` / `concat` / `string` / `regexp` / `lindex` /
-  `lreplace` / non-proc `dict` currently fall to generic `invokeStk`
-  (0 emit-sites for the named opcodes); Rust specialises mostly in value
-  position only. Add statement-position hooks; add divergent-corpus fixtures.
-- **open** codegen-level expression constant folding (`expr {1+2}`).
-- **open** small items: `esc` astral / C0-control escaping; `{*}` cmd-subst
-  expansion; `set x [cmd]` pure-cmd-subst assign; the `builtin_is_trusted`
+Owns `tcl-compiler::codegen` (non-wasm). The state-mutating statement-position
+specialisations, integer `expr` const-folding, the `set x [cmd]` assign, and the
+byte-wise disassembly escaping have landed, each verified byte-true against
+tclsh9.0 with golden fixtures (`append`/`lappend`/`unset`/`upvar`/`global`/
+`tailcall`/`concat`; `expr {1+2}`; `set x [cmd]`; `esc` astral/C0). Remaining:
+- **open** statement-position specialisations for the *value-returning*
+  commands used as bare statements — `string` / `regexp` / `lindex` /
+  `lreplace` (result discarded; the value-position inline forms exist, so this
+  is value-emit + `pop`, gated on threading the per-arg braced-flag through the
+  hook). Low frequency; `regexp` with match-vars is the one with real
+  statement-position semantics.
+- **open** non-proc `dict` — top-level `dict set`/etc. compile to the **ensemble
+  `invokeReplace`** form in C Tcl (`push …; push ::tcl::dict::set;
+  invokeReplace`), not the proc-local `DICT_*` opcodes. This is the shared
+  ensemble-rewrite mechanism (applies to all top-level ensembles), tracked as a
+  small follow-on rather than a dict-only hook.
+- **open** small items: `{*}` cmd-subst expansion; the `builtin_is_trusted`
   rename gate.
 
 #### FE-DIAG-F5 — F5 dialect diagnostics
