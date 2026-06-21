@@ -105,6 +105,15 @@ pub struct Vm {
     ns_script_frames: Vec<usize>,
     out: Box<dyn Write>,
     compiler: Option<Box<dyn CompileService<Module = ModuleAsm>>>,
+    /// Optional debug hook fired once per source command (the execution-control
+    /// seam a step debugger drives). `None` in normal runs — the only
+    /// per-instruction cost is an `Option` check.
+    debug_hook: Option<crate::debug::DebugHook>,
+    /// The `(line, span-start)` key of the last command the debug hook fired
+    /// for, so it fires once per source command rather than per instruction
+    /// (`startCommand` is emitted only conditionally, so it cannot be the
+    /// boundary marker).
+    last_debug_key: Option<u64>,
     /// Cache of compiled scripts for the runtime-`eval` / command-substitution
     /// path (`eval_source`), keyed by source text. Compilation is a pure
     /// function of the source and the (fixed) command registry, so a script
@@ -196,6 +205,8 @@ impl Vm {
             ns_script_frames: Vec::new(),
             out,
             compiler: None,
+            debug_hook: None,
+            last_debug_key: None,
             eval_cache: HashMap::new(),
             error_info: None,
             error_logged: false,
@@ -246,6 +257,86 @@ impl Vm {
         // load time, so default it to "" rather than leaving it unset.
         let tcl_library = std::env::var("TCL_LIBRARY").unwrap_or_default();
         self.write_scalar_raw("tcl_library", Value::string(tcl_library));
+    }
+
+    /// Install a debug hook fired once per source command (the execution-control
+    /// seam a step debugger drives). Pass `None` to detach.
+    pub fn set_debug_hook(&mut self, hook: Option<crate::debug::DebugHook>) {
+        self.debug_hook = hook;
+        self.last_debug_key = None;
+    }
+
+    /// Fire the debug hook for the command an instruction belongs to, if a hook
+    /// is installed and this instruction begins a *new* source command (so the
+    /// hook fires once per command, not per instruction). Returns `true` when
+    /// the hook asked to stop. `span_start` is the instruction's source-span
+    /// start (`None` for synthetic instructions, which never fire).
+    pub(crate) fn debug_step(&mut self, line: u32, span_start: Option<u32>, cmd_text: &str) -> bool {
+        if self.debug_hook.is_none() {
+            return false;
+        }
+        let Some(start) = span_start else {
+            return false;
+        };
+        let key = (u64::from(line) << 32) | u64::from(start);
+        if self.last_debug_key == Some(key) {
+            return false;
+        }
+        self.last_debug_key = Some(key);
+        self.fire_debug_hook(line, cmd_text)
+    }
+
+    /// Build a [`crate::debug::DebugSnapshot`] of the current interpreter state
+    /// for a command at `line` with text `cmd_text`. Reads the call stack (top
+    /// first) and the current frame's variables.
+    pub(crate) fn debug_snapshot(&self, line: u32, cmd_text: &str) -> crate::debug::DebugSnapshot {
+        use crate::debug::{DebugFrame, DebugSnapshot, DebugVar};
+        let stack: Vec<DebugFrame> = self
+            .frames
+            .iter()
+            .rev()
+            .map(|fr| DebugFrame {
+                level: u32::try_from(fr.level).unwrap_or(0),
+                name: fr.proc_name.clone().unwrap_or_else(|| "global".to_owned()),
+                namespace: fr
+                    .ns_eval
+                    .clone()
+                    .unwrap_or_else(|| self.ns_name(fr.ns)),
+            })
+            .collect();
+        let mut variables: Vec<DebugVar> = self
+            .frame_var_names(false)
+            .into_iter()
+            .map(|name| {
+                let value = self.get_var(&name).map(|v| v.to_str().to_string()).unwrap_or_default();
+                DebugVar { name, value }
+            })
+            .collect();
+        variables.sort_by(|a, b| a.name.cmp(&b.name));
+        DebugSnapshot {
+            line,
+            command_text: cmd_text.to_owned(),
+            level: u32::try_from(self.current_level()).unwrap_or(0),
+            stack,
+            variables,
+        }
+    }
+
+    /// Fire the debug hook (if installed) for the command at `line` / `cmd_text`.
+    /// Returns `true` when the hook asked to stop the run.
+    pub(crate) fn fire_debug_hook(&mut self, line: u32, cmd_text: &str) -> bool {
+        if self.debug_hook.is_none() {
+            return false;
+        }
+        let snapshot = self.debug_snapshot(line, cmd_text);
+        // Take the hook out so the closure can borrow `self`-derived data
+        // (already captured in `snapshot`) without aliasing the field.
+        let mut hook = self.debug_hook.take();
+        let action = hook
+            .as_mut()
+            .map_or(crate::debug::DebugAction::Continue, |h| h(&snapshot));
+        self.debug_hook = hook;
+        action == crate::debug::DebugAction::Stop
     }
 
     /// Inject the compiler used for runtime `eval` / command substitution.
