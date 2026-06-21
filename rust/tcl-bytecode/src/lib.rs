@@ -220,6 +220,8 @@ pub enum Op {
     LAPPEND_LIST_ARRAY,
     ARRAY_EXISTS_IMM,
     UNSET_STK,
+    UNSET_SCALAR,
+    UNSET_ARRAY,
     TAILCALL,
     CONCAT_STK,
     TRY_CVT_TO_NUMERIC,
@@ -386,6 +388,8 @@ impl Op {
             Self::LAPPEND_LIST_ARRAY => "lappendListArray",
             Self::ARRAY_EXISTS_IMM => "arrayExistsImm",
             Self::UNSET_STK => "unsetStk",
+            Self::UNSET_SCALAR => "unsetScalar",
+            Self::UNSET_ARRAY => "unsetArray",
             Self::TAILCALL => "tailcall",
             Self::CONCAT_STK => "concatStk",
             Self::TRY_CVT_TO_NUMERIC => "tryCvtToNumeric",
@@ -637,7 +641,10 @@ impl Op {
             | Self::EXPAND_STKTOP => 5,
 
             // 6-byte
-            Self::INVOKE_REPLACE | Self::LREPLACE4 => 6,
+            Self::INVOKE_REPLACE
+            | Self::LREPLACE4
+            | Self::UNSET_SCALAR
+            | Self::UNSET_ARRAY => 6,
 
             // 9-byte: opcode + 2× 4-byte operands
             Self::LIST_RANGE_IMM

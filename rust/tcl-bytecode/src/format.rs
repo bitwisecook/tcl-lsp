@@ -97,7 +97,14 @@ fn format_operand(
         }
         Operand::Imm(val) if instr.op.is_lvt_op() && j == 0 => (format!("%v{val}"), String::new()),
         Operand::Imm(val)
-            if matches!(instr.op, Op::DICT_SET | Op::DICT_UNSET | Op::DICT_INCR_IMM) && j == 1 =>
+            if matches!(
+                instr.op,
+                Op::DICT_SET
+                    | Op::DICT_UNSET
+                    | Op::DICT_INCR_IMM
+                    | Op::UNSET_SCALAR
+                    | Op::UNSET_ARRAY
+            ) && j == 1 =>
         {
             (format!("%v{val}"), String::new())
         }
