@@ -392,13 +392,13 @@ def generate_dockerfile(spec: DockerfileSpec) -> str:
             lines.append("# Install Tcl packages into the virtual environment")
             lines.append(
                 "RUN if [ -f tclpkg.lock ]; then "
-                "python3 /usr/local/bin/tcl.pyz pkg sync --frozen; fi"
+                "python3 /usr/local/bin/tcl.pyz pkg install --frozen; fi"
             )
         else:
             lines.append("# Install Tcl packages from lockfile")
             lines.append(
                 "RUN if [ -f tclpkg.lock ]; then "
-                "python3 /usr/local/bin/tcl.pyz pkg sync --frozen; fi"
+                "python3 /usr/local/bin/tcl.pyz pkg install --frozen; fi"
             )
         lines.append("")
 
