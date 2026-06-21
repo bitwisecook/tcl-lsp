@@ -1087,6 +1087,31 @@ impl Vm {
         existed
     }
 
+    /// Unset a single variable by name, the shared core of the `unset` command
+    /// and the unset opcodes. An `a(k)` array element is removed via
+    /// [`array_unset_elem`](Self::array_unset_elem) (which splits the base/key);
+    /// a scalar/array variable is removed via [`unset_var`](Self::unset_var).
+    /// When `complain` is set and the variable did not exist, this returns the
+    /// Tcl `can't unset "name": no such variable` error (array-element removal
+    /// never complains, matching C Tcl / `cmd_unset`).
+    pub(crate) fn unset_one(
+        &mut self,
+        name: &str,
+        complain: bool,
+    ) -> Result<(), Completion<Value>> {
+        if let Some(open) = name.find('(')
+            && name.ends_with(')')
+            && open > 0
+        {
+            self.array_unset_elem(&name[..open], &name[open + 1..name.len() - 1]);
+            return Ok(());
+        }
+        if !self.unset_var(name) && complain {
+            return Err(err(format!("can't unset \"{name}\": no such variable")));
+        }
+        Ok(())
+    }
+
     // -- frame-addressed storage (the `VarStore` `FrameId`-honouring path) ------
     //
     // These resolve `name` starting from an *explicit* frame (following links),

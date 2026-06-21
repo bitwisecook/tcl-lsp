@@ -1,0 +1,31 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "f"
+    2: ""
+    3: "unset ::g::v; set z 1"
+  Instructions:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "f"
+    (4) push1 2	# ""
+    (6) push1 3	# "unset ::g::v; set z 1"
+    (8) invokeStk1 4	# proc
+    (10) done
+
+ByteCode ::f, 9 instructions, 21 bytes, 3 literals, 1 variables
+  Literals:
+    0: "::g::v"
+    1: ""
+    2: "1"
+  Local variables:
+    %v0: "z"
+  Instructions:
+    (0) push1 0	# "::g::v"
+    (2) unsetStk 1
+    (4) nop
+    (5) nop
+    (6) nop
+    (7) startCommand +13 1	# next cmd at pc 20, 1 cmds start here
+    (16) push1 2	# "1"
+    (18) storeScalar1 %v0	# var "z"
+    (20) done

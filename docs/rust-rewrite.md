@@ -863,7 +863,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) ported (`tcl-compiler::shimmer::byte_array` + `tcl-registry` `BytePayloadSpec`) — **FE-TYPESHIM** complete |
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
 | Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | every O-code pass + the inliner v0/verbatim shapes landed (see [history](rust-rewrite-history.md)); sole remaining: inliner **v3** (α-rename, gated on the RT-WASM consumer for execution-differential verification) → **FE-OPT** |
-| Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
+| Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: `set x [cmd]` (reverted — needs VM value opcodes), bare-statement `string`/`regexp`/`lindex`/`lreplace`, non-proc `dict` (ensemble `invokeReplace`), `{*}` cmd-subst expansion → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
@@ -936,16 +936,35 @@ task:
   GVN/LICM family — precision niceties, never miscompiles.
 
 #### FE-CODEGEN — bytecode codegen
-Owns `tcl-compiler::codegen` (non-wasm).
-- **open** statement-position specialisations — `append` / `lappend` / `unset` /
-  `upvar` / `global` / `tailcall` / `concat` / `string` / `regexp` / `lindex` /
-  `lreplace` / non-proc `dict` currently fall to generic `invokeStk`
-  (0 emit-sites for the named opcodes); Rust specialises mostly in value
-  position only. Add statement-position hooks; add divergent-corpus fixtures.
-- **open** codegen-level expression constant folding (`expr {1+2}`).
-- **open** small items: `esc` astral / C0-control escaping; `{*}` cmd-subst
-  expansion; `set x [cmd]` pure-cmd-subst assign; the `builtin_is_trusted`
-  rename gate.
+Owns `tcl-compiler::codegen` (non-wasm). The state-mutating statement-position
+specialisations, integer `expr` const-folding, and the byte-wise disassembly
+escaping have landed, each verified byte-true against tclsh9.0 with golden
+fixtures (`append`/`lappend`/`unset`/`upvar`/`global`/`tailcall`/`concat`;
+`expr {1+2}`; `esc` astral/C0). Their bytecode VM counterparts (appendScalar/
+Array, lappendScalar/Array/List, unsetScalar/Array, upvar, nsupvar, concatStk)
+were implemented in `tcl-vm` so the codegen runs end-to-end. Remaining:
+- **open** `set x [cmd]` pure-command-substitution assign — inlining was tried
+  (route the single-`[cmd]` value through the inline-cmd-subst emitter) but
+  reverted: the emitter produces value opcodes the partial bytecode VM does not
+  implement (`regexp`, `strclass`, `numericType`, `dictGet`), which broke the
+  VM execution tests. Re-land once **RT-VM** implements those value opcodes
+  (the inlining itself was byte-true for the VM-supported commands).
+- **open** statement-position specialisations for the *value-returning*
+  commands used as bare statements — `string` / `regexp` / `lindex` /
+  `lreplace` (result discarded; the value-position inline forms exist, so this
+  is value-emit + `pop`, gated on threading the per-arg braced-flag through the
+  hook). Low frequency; `regexp` with match-vars is the one with real
+  statement-position semantics.
+- **open** non-proc `dict` — top-level `dict set`/etc. compile to the **ensemble
+  `invokeReplace`** form in C Tcl (`push …; push ::tcl::dict::set;
+  invokeReplace`), not the proc-local `DICT_*` opcodes. This is the shared
+  ensemble-rewrite mechanism (applies to all top-level ensembles), tracked as a
+  small follow-on rather than a dict-only hook.
+- **open** `{*}` expansion inside a *command substitution* in value position
+  (`set x [cmd {*}$args]` → `expandStart … expandStkTop N; invokeExpanded`);
+  statement-position `{*}` already lowers correctly. (The `builtin_is_trusted`
+  rename gate originally filed here is a **WASM-emitter** concern —
+  `compiler/codegen/wasm/_emitter/*` only — and belongs to **RT-WASM**.)
 
 #### FE-DIAG-F5 — F5 dialect diagnostics
 Owns new analyser slices on `tcl-bigip` / `tcl-xc` and the tk dialect.

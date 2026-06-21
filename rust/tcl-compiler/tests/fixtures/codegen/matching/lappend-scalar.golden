@@ -1,0 +1,23 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "f"
+    2: ""
+    3: "lappend y a"
+  Instructions:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "f"
+    (4) push1 2	# ""
+    (6) push1 3	# "lappend y a"
+    (8) invokeStk1 4	# proc
+    (10) done
+
+ByteCode ::f, 3 instructions, 5 bytes, 1 literals, 1 variables
+  Literals:
+    0: "a"
+  Local variables:
+    %v0: "y"
+  Instructions:
+    (0) push1 0	# "a"
+    (2) lappendScalar1 %v0	# var "y"
+    (4) done

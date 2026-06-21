@@ -157,7 +157,13 @@ pub enum Op {
     LIST_RANGE_IMM,
     LINDEX_MULTI,
     APPEND_SCALAR1,
+    APPEND_SCALAR4,
     LAPPEND_SCALAR1,
+    LAPPEND_SCALAR4,
+    APPEND_ARRAY1,
+    APPEND_ARRAY4,
+    LAPPEND_ARRAY1,
+    LAPPEND_ARRAY4,
     RETURN_IMM,
     DONE,
     START_CMD,
@@ -214,6 +220,8 @@ pub enum Op {
     LAPPEND_LIST_ARRAY,
     ARRAY_EXISTS_IMM,
     UNSET_STK,
+    UNSET_SCALAR,
+    UNSET_ARRAY,
     TAILCALL,
     CONCAT_STK,
     TRY_CVT_TO_NUMERIC,
@@ -317,7 +325,13 @@ impl Op {
             Self::LIST_RANGE_IMM => "listRangeImm",
             Self::LINDEX_MULTI => "lindexMulti",
             Self::APPEND_SCALAR1 => "appendScalar1",
+            Self::APPEND_SCALAR4 => "appendScalar4",
             Self::LAPPEND_SCALAR1 => "lappendScalar1",
+            Self::LAPPEND_SCALAR4 => "lappendScalar4",
+            Self::APPEND_ARRAY1 => "appendArray1",
+            Self::APPEND_ARRAY4 => "appendArray4",
+            Self::LAPPEND_ARRAY1 => "lappendArray1",
+            Self::LAPPEND_ARRAY4 => "lappendArray4",
             Self::RETURN_IMM => "returnImm",
             Self::DONE => "done",
             Self::START_CMD => "startCommand",
@@ -374,6 +388,8 @@ impl Op {
             Self::LAPPEND_LIST_ARRAY => "lappendListArray",
             Self::ARRAY_EXISTS_IMM => "arrayExistsImm",
             Self::UNSET_STK => "unsetStk",
+            Self::UNSET_SCALAR => "unsetScalar",
+            Self::UNSET_ARRAY => "unsetArray",
             Self::TAILCALL => "tailcall",
             Self::CONCAT_STK => "concatStk",
             Self::TRY_CVT_TO_NUMERIC => "tryCvtToNumeric",
@@ -429,7 +445,13 @@ impl Op {
                 | Self::INCR_SCALAR1
                 | Self::INCR_SCALAR1_IMM
                 | Self::APPEND_SCALAR1
+                | Self::APPEND_SCALAR4
                 | Self::LAPPEND_SCALAR1
+                | Self::LAPPEND_SCALAR4
+                | Self::APPEND_ARRAY1
+                | Self::APPEND_ARRAY4
+                | Self::LAPPEND_ARRAY1
+                | Self::LAPPEND_ARRAY4
                 | Self::LAPPEND_LIST
                 | Self::STORE_ARRAY1
                 | Self::LOAD_ARRAY1
@@ -569,6 +591,8 @@ impl Op {
             | Self::STR_CONCAT1
             | Self::APPEND_SCALAR1
             | Self::LAPPEND_SCALAR1
+            | Self::APPEND_ARRAY1
+            | Self::LAPPEND_ARRAY1
             | Self::STORE_ARRAY1
             | Self::LOAD_ARRAY1
             | Self::INCR_STK_IMM
@@ -597,6 +621,10 @@ impl Op {
             | Self::FOREACH_START
             | Self::JUMP_TABLE
             | Self::LAPPEND_LIST
+            | Self::APPEND_SCALAR4
+            | Self::LAPPEND_SCALAR4
+            | Self::APPEND_ARRAY4
+            | Self::LAPPEND_ARRAY4
             | Self::LAPPEND_LIST_ARRAY
             | Self::ARRAY_EXISTS_IMM
             | Self::CONCAT_STK
@@ -613,7 +641,10 @@ impl Op {
             | Self::EXPAND_STKTOP => 5,
 
             // 6-byte
-            Self::INVOKE_REPLACE | Self::LREPLACE4 => 6,
+            Self::INVOKE_REPLACE
+            | Self::LREPLACE4
+            | Self::UNSET_SCALAR
+            | Self::UNSET_ARRAY => 6,
 
             // 9-byte: opcode + 2× 4-byte operands
             Self::LIST_RANGE_IMM
