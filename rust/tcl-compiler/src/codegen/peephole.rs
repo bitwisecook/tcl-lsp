@@ -57,7 +57,11 @@ impl CodegenCtx<'_> {
         let mut i = 0;
         while i + 1 < self.instructions.len() {
             let after_start_cmd = i > 0 && self.instructions[i - 1].op == Op::START_CMD;
-            let after_unset = i > 0 && self.instructions[i - 1].op == Op::UNSET_STK;
+            let after_unset = i > 0
+                && matches!(
+                    self.instructions[i - 1].op,
+                    Op::UNSET_STK | Op::UNSET_SCALAR | Op::UNSET_ARRAY
+                );
             if self.instructions[i].op == Op::PUSH1
                 && self.instructions[i + 1].op == Op::POP
                 && (self.instructions[i].comment != "\"\"" || after_unset)

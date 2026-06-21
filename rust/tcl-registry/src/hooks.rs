@@ -120,6 +120,8 @@ pub enum CodegenHookId {
     Append,
     /// `lappend varName ?value ...?`.
     Lappend,
+    /// `unset ?-nocomplain? ?--? ?varName ...?`.
+    Unset,
 }
 
 /// Typed identifier for a WASM-runtime codegen specialisation.

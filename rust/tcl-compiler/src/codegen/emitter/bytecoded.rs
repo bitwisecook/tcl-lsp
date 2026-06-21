@@ -68,6 +68,7 @@ pub fn dispatch_codegen_hook(
         CodegenHookId::Array => array(ctx, args, used_generic_invoke),
         CodegenHookId::Append => append_cmd(ctx, args),
         CodegenHookId::Lappend => lappend_cmd(ctx, args),
+        CodegenHookId::Unset => unset_cmd(ctx, args),
     }
 }
 
@@ -479,6 +480,65 @@ fn lappend_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
+// ── unset ──────────────────────────────────────────────────────────
+
+/// `unset ?-nocomplain? ?--? name ...` — statement-position specialisation
+/// in a proc body. Each variable unsets via `unsetScalar`/`unsetArray`
+/// (compiled locals) or `unsetStk` (qualified / dynamic names); the command's
+/// empty-string result is then `push ""; pop` (folded to `nop`s mid-body, or
+/// the bare `push ""` return in tail position). Mirrors C Tcl's
+/// `TclCompileUnsetCmd`. Toplevel falls back to the generic invoke.
+fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    if !ctx.is_proc {
+        return false;
+    }
+    // Leading options: `-nocomplain` clears the complain flag; `--` ends
+    // option parsing. The flag operand is 1 (complain) unless suppressed.
+    let mut flags: i32 = 1;
+    let mut i = 0;
+    while i < args.len() && args[i].starts_with('-') {
+        if args[i] == "--" {
+            i += 1;
+            break;
+        }
+        if args[i] == "-nocomplain" {
+            flags = 0;
+        }
+        i += 1;
+    }
+    let names = &args[i..];
+    if names.is_empty() {
+        return false;
+    }
+    for name in names {
+        if !is_qualified(name) && !name.starts_with('$') && !name.starts_with('[') {
+            if let Some((base, key)) = split_array_ref(name) {
+                let slot = ctx.lvt.intern(base);
+                ctx.push_array_key(key);
+                ctx.emit_comment(
+                    Op::UNSET_ARRAY,
+                    vec![Operand::Imm(flags), Operand::Imm(bytecode_imm(slot))],
+                    &format!("var \"{base}\""),
+                );
+            } else {
+                let slot = ctx.lvt.intern(name);
+                ctx.emit_comment(
+                    Op::UNSET_SCALAR,
+                    vec![Operand::Imm(flags), Operand::Imm(bytecode_imm(slot))],
+                    &format!("var \"{name}\""),
+                );
+            }
+        } else {
+            // Qualified or dynamic name: push it and use the stack form.
+            ctx.emit_value_interpolated(name);
+            ctx.emit(Op::UNSET_STK, vec![Operand::Imm(flags)]);
+        }
+    }
+    ctx.push_lit("");
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -874,6 +934,101 @@ mod tests {
                 .expect("lappend registered")
                 .codegen_hook,
             Some(CodegenHookId::Lappend)
+        );
+    }
+
+    // -- unset statement-position specialisation --
+
+    #[test]
+    fn unset_scalar_uses_unset_scalar() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "unset", &["x".into()], &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        // unsetScalar, then the empty result push + pop (folded to nops later).
+        assert_eq!(ops, vec![Op::UNSET_SCALAR, Op::PUSH1, Op::POP]);
+        assert_eq!(ctx.instructions[0].operands[0], Operand::Imm(1)); // complain flag
+    }
+
+    #[test]
+    fn unset_nocomplain_clears_flag() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        let args = vec!["-nocomplain".into(), "x".into()];
+        assert!(try_bytecoded(&mut ctx, "unset", &args, &mut used));
+        assert_eq!(ctx.instructions[0].op, Op::UNSET_SCALAR);
+        assert_eq!(ctx.instructions[0].operands[0], Operand::Imm(0));
+    }
+
+    #[test]
+    fn unset_double_dash_ends_options() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        // `--` terminates options; `-x` is then a (compiled-local) var name.
+        let args = vec!["--".into(), "-x".into()];
+        assert!(try_bytecoded(&mut ctx, "unset", &args, &mut used));
+        assert_eq!(ctx.instructions[0].op, Op::UNSET_SCALAR);
+    }
+
+    #[test]
+    fn unset_array_uses_unset_array() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "unset", &["arr(k)".into()], &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(ops, vec![Op::PUSH1, Op::UNSET_ARRAY, Op::PUSH1, Op::POP]);
+    }
+
+    #[test]
+    fn unset_multi_unsets_each_then_one_result() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        let args = vec!["x".into(), "y".into()];
+        assert!(try_bytecoded(&mut ctx, "unset", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(
+            ops,
+            vec![Op::UNSET_SCALAR, Op::UNSET_SCALAR, Op::PUSH1, Op::POP]
+        );
+    }
+
+    #[test]
+    fn unset_qualified_uses_stk_form() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        assert!(try_bytecoded(&mut ctx, "unset", &["::g::v".into()], &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(ops, vec![Op::PUSH1, Op::UNSET_STK, Op::PUSH1, Op::POP]);
+    }
+
+    #[test]
+    fn unset_toplevel_falls_back() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let mut used = false;
+        assert!(!try_bytecoded(&mut ctx, "unset", &["x".into()], &mut used));
+    }
+
+    #[test]
+    fn unset_no_names_falls_back() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        assert!(!try_bytecoded(&mut ctx, "unset", &["-nocomplain".into()], &mut used));
+    }
+
+    #[test]
+    fn registry_unset_spec_carries_codegen_hook() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            registry.get("unset").expect("unset registered").codegen_hook,
+            Some(CodegenHookId::Unset)
         );
     }
 

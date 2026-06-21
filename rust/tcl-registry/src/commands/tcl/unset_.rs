@@ -1,6 +1,6 @@
 //! `unset` — delete variables.
 
-use crate::hooks::LoweringHookId;
+use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -51,6 +51,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         lowering_hook: Some(LoweringHookId::Unset),
+        codegen_hook: Some(CodegenHookId::Unset),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }
