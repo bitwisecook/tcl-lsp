@@ -870,7 +870,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after. `tclvm` CLI/REPL binary landed (`tcl-vm-cli`) → **RT-VM** |
 | LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The rope-backed `DocumentState` is split out into its own **SRV-ROPE** track (need evaluated with measurements in [`design/rope/`](design/rope/README.md)) |
 | Document store / incrementality | `tcl-lsp-server`, `tcl-lexer`, `tcl-lsp-db` | 🔴 | rope-backed store + chunk-addressable salsa input + rope-slice re-lex → **SRV-ROPE** (see [`design/rope/`](design/rope/README.md)) |
-| `tcl` CLI | `tcl-cli` | 🟡 | `dis`/`compwasm`/`pkg`/`venv`/`docker` verbs → **TOOL-CLI** |
+| `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --simulate/--tshark/--keylog`; a few parity files → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
 | Refactoring transforms | `tcl-lsp-core::code_actions` | 🟡 | 5 of 7 transforms missing → **TOOL-REFACTOR** |
@@ -904,7 +904,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | TOOL | **TOOL-FUZZ** | new `tcl-fuzz` (xtask/bin) | RT-VM | M |
 | TOOL | **TOOL-DEBUGGER** | new `tcl-debugger` | RT-VM | L |
 | TOOL | **TOOL-IRULE-TEST** | new `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
-| TOOL | **TOOL-CLI** | `tcl-cli` | RT-WASM, RT-VM, TOOL-TCLPKG | S |
+| TOOL | **TOOL-CLI** ✅ | `tcl-cli` | RT-WASM, RT-VM, TOOL-TCLPKG | S |
 | API | **API-PYO3** | `tcl-lsp-py`, `scripts`→`xtask`, `tests` | everything above | L |
 
 ---
@@ -1165,10 +1165,13 @@ already started, brings **every** Python tool across to Rust.
   mock-stub codegen, orchestrator). Note `tcl-irules` is the BIG-IP
   reference-extractor, **not** this. *(XL)*
 - **TOOL-CLI** *(owns `tcl-cli`; depends on RT-WASM, RT-VM, TOOL-TCLPKG)* —
-  **partial**: `dis` and `compwasm` landed (bytecode disassembly via
-  `format_module_asm`; eval-fallback WASM binary/WAT via the greenfield
-  emitter). Remaining: `pkg`/`venv`/`docker` (after TOOL-TCLPKG). 22/26 verbs
-  done. *(S glue)*
+  **done**: all 26 top-level verbs are ported and dispatched to native engine
+  handlers. `dis` (bytecode disassembly via `format_module_asm`) and `compwasm`
+  (eval-fallback WASM binary/WAT via the greenfield emitter) landed earlier; the
+  `pkg`/`venv`/`docker` verbs are wired through to the `tcl-pkg` handlers that
+  landed under **TOOL-TCLPKG**. The dispatch `match` is now exhaustive (the
+  not-yet-implemented fallthrough is gone). Note any deeper WASM-emitter
+  precision residual is **RT-WASM**'s, not the CLI verb's. *(S glue)*
 
 ### Stage 5 — PyO3 interfaces & Python retirement (API-PYO3 — last)
 
