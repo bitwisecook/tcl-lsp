@@ -26,7 +26,11 @@
 
 #![forbid(unsafe_code)]
 
+pub mod embedded;
+pub mod live;
 pub mod session;
 pub mod topology;
 
+pub use embedded::EmbeddedLib;
+pub use live::{LiveSession, SessionError};
 pub use topology::{Topology, TopologyError};

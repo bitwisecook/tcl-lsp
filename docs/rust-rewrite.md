@@ -875,14 +875,14 @@ listed residuals · 🟡 partial · 🔴 not started.
 | LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The rope-backed `DocumentState` is split out into its own **SRV-ROPE** track (need evaluated with measurements in [`design/rope/`](design/rope/README.md)) |
 | Document store / incrementality | `tcl-lsp-server`, `tcl-lexer`, `tcl-lsp-db` | 🔴 | rope-backed store + chunk-addressable salsa input + rope-slice re-lex → **SRV-ROPE** (see [`design/rope/`](design/rope/README.md)) |
 | `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
-| `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --tshark/--keylog/--tshark-filter` landed; `--simulate` gated on the native iRule VM (**RT-VM**); `completion`/`graph` parity files → **TOOL-F5** |
+| `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | ✅ | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
 | Refactoring transforms | `tcl-lsp-core::code_actions` | ✅ | all 7 transforms ported (`tcl-lsp-core::refactor`), byte-parity vs the Python oracle → **TOOL-REFACTOR** |
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟢 | `wasm` view renders the eval-fallback emitter's WAT; rich per-instruction web-GUI shape (`to_explorer_json`) is a refinement → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
 | Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); broaden the generator grammar as the VM surface grows → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
-| iRule test framework | `tcl-irule-test` | 🟡 | crate scaffolded: SCF→orchestrator topology generator (parity-checked vs Python) + session-bootstrap assembly; the live event round-trip is gated on the VM iRule surface (**RT-VM**) → **TOOL-IRULE-TEST** |
+| iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions); framework Tcl embedded for self-contained consumers → **TOOL-IRULE-TEST** |
 | PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🔴 | designed public surface; TEST-MIGRATE; PYTHON-RETIRE → **API-PYO3** |
 | `ai/` (MCP + skills) | — | n/a | stays Python by design |
 
@@ -903,11 +903,11 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SRV | **SRV-ROPE** | document store: `tcl-lsp-server` `DocumentState` + `tcl-lexer` rope-slice `SourceMap` + `tcl-lsp-db` chunk input | FE-LEX (CST/structural-state index), SRV-LSP | XL |
 | TOOL | **TOOL-TCLPKG** ✅ | `tcl-pkg` crate | — | XL |
 | TOOL | **TOOL-REFACTOR** ✅ | `tcl-lsp-core::code_actions` | SRV-LSP | M |
-| TOOL | **TOOL-F5** | `f5-cli` | — | XS |
+| TOOL | **TOOL-F5** ✅ | `f5-cli` | RT-VM, TOOL-IRULE-TEST | XS |
 | TOOL | **TOOL-EXPLORER** 🟢 | `tcl-explorer`, `tcl-explorer-wasm` | RT-WASM | S |
 | TOOL | **TOOL-FUZZ** 🟢 | `tcl-fuzz` (bin) | RT-VM | M |
 | TOOL | **TOOL-DEBUGGER** ✅ | `tcl-debugger` | RT-VM | L |
-| TOOL | **TOOL-IRULE-TEST** 🟡 | `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
+| TOOL | **TOOL-IRULE-TEST** 🟢 | `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
 | TOOL | **TOOL-CLI** ✅ | `tcl-cli` | RT-WASM, RT-VM, TOOL-TCLPKG | S |
 | API | **API-PYO3** | `tcl-lsp-py`, `scripts`→`xtask`, `tests` | everything above | L |
 
@@ -1206,17 +1206,18 @@ already started, brings **every** Python tool across to Rust.
   against the live Python oracle; all `tests/test_refactoring.py` decline
   conditions are mirrored. Out of scope: `suggest_datagroup_extraction` (an
   AI-context scanner, not a `CodeAction`). *(M)*
-- **TOOL-F5** *(owns `f5-cli`)* — **partial**: the `explain-flow`
+- **TOOL-F5** *(owns `f5-cli`)* — **done**: the `explain-flow`
   `--tshark` / `--keylog` / `--tshark-filter` L7-enrichment paths landed
   (`tcl_bigip::flow::tshark`, a faithful EK-JSON port of
   `dialects/f5/bigip/flow/tshark.py`, byte-identical to the Python CLI on the
   `--tshark` / `--tshark-filter` paths; graceful degradation when tshark lacks
-  EK `--no-duplicate-keys` support is itself parity-matched). Remaining:
-  `--simulate` is gated on the native iRule VM (the `tooling.irule_test`
-  orchestrator → **RT-VM** / **TOOL-IRULE-TEST**) and stays a clear
-  not-implemented error meanwhile; plus dedicated `completion`/`graph` parity
-  files. The rest (27/27 verbs, 262 parity tests) is done — the template for the
-  other tool ports. *(XS)*
+  EK `--no-duplicate-keys` support is itself parity-matched). `--simulate` now
+  runs each matched session's iRule under the embedded TMM-sim orchestrator on
+  `tcl-vm` (via `tcl-irule-test::LiveSession`): the selected pool/node, the lb
+  decision log, captured iRule logs and `response_committed` flow into the
+  `simulated_*` text/JSON fields, port of `tooling/f5/irule_simulation.py`. The
+  rest (27/27 verbs, 262 parity tests) is done — the template for the other tool
+  ports. *(XS)*
 - **TOOL-EXPLORER** *(owns `tcl-explorer`, `tcl-explorer-wasm`; depends on
   RT-WASM)* — **done (for the views)**: the `ssa`-view boolean-render parity bug
   landed (`view_tree::pystr`), and the **`wasm` view now renders WAT** —
@@ -1264,18 +1265,21 @@ already started, brings **every** Python tool across to Rust.
   up front, variable inspection is the current frame's captured scope, and
   `evaluate` resolves captured variables. *(L)*
 - **TOOL-IRULE-TEST** *(new `tcl-irule-test`; depends on RT-VM + `tcl-registry`)* —
-  **scaffolded**: the crate exists with the portable glue. `topology` ports
-  `TopologyFromSCF` — parse a bigip.conf via `tcl-bigip` and emit the `::orch::`
-  setup (profiles via name-inference, VIP, pools + members, data-groups,
-  attached iRules), parity-checked against the Python generator. `session`
-  defines the `SessionPlan` / orchestrator-bootstrap assembly the VM driver
-  will run. **Architecture note:** the TMM simulation itself is the ~500 KB of
-  Tcl under `tooling/irule_test/tcl/` (orchestrator + TMM shim + command
-  mocks); the Rust port runs that Tcl on **`tcl-vm`**, so the live
-  event/`run_*`/`assert_*` round-trip is gated on the VM growing the iRule
-  command surface (`HTTP::*`, `pool`/`node`, `LB::*`, `when` dispatch,
-  `class match`). Remaining: the VM-driven session execution, profile-object
-  type resolution, profile-gen, and the mock-stub/registry/event-data codegen.
+  **working**: the crate runs the TMM-sim orchestrator live on `tcl-vm`.
+  `topology` ports `TopologyFromSCF` — parse a bigip.conf via `tcl-bigip` and
+  emit the `::orch::` setup (profiles via name-inference, VIP, pools + members,
+  data-groups, attached iRules), parity-checked against the Python generator.
+  `session` defines the `SessionPlan` / orchestrator-bootstrap assembly.
+  `live::LiveSession` is the in-process driver: it sources the orchestrator
+  framework (the ~500 KB of Tcl under `tooling/irule_test/tcl/` — orchestrator +
+  TMM shim + command mocks) on a bytecode VM, loads iRules, fires events
+  (`run_http_request`), and reads back the pool/node decisions, captured logs,
+  and assertions — no `tclsh` subprocess. `embedded::EmbeddedLib` bundles the
+  framework into the binary so a consumer (e.g. `f5 explain-flow --simulate`)
+  needs no on-disk Tcl checkout. Getting the orchestrator running surfaced and
+  fixed six VM/compiler bugs (proc-body namespace-cache collision, `format`
+  const-fold of variable args, missing `unknown`/`exit`/`::tcl::clock::*`, ARE
+  word-edge regex escapes) plus the dict opcodes and multi-level `dict set`.
   Note `tcl-irules` is the BIG-IP reference-extractor, **not** this. *(XL)*
 - **TOOL-CLI** *(owns `tcl-cli`; depends on RT-WASM, RT-VM, TOOL-TCLPKG)* —
   **done**: all 26 top-level verbs are ported and dispatched to native engine
