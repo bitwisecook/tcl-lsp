@@ -1,6 +1,6 @@
 //! `upvar` — create link to variable in a different stack frame.
 
-use crate::hooks::LoweringHookId;
+use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -37,6 +37,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         lowering_hook: Some(LoweringHookId::Upvar),
+        codegen_hook: Some(CodegenHookId::Upvar),
         forms: FORMS,
         xc_translatable: Some(false),
         ..CommandSpec::DEFAULT

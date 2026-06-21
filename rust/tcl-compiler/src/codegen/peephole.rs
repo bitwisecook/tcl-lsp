@@ -57,11 +57,18 @@ impl CodegenCtx<'_> {
         let mut i = 0;
         while i + 1 < self.instructions.len() {
             let after_start_cmd = i > 0 && self.instructions[i - 1].op == Op::START_CMD;
-            let after_unset = i > 0
+            // The empty-string result of a declaration command folds to nops:
+            // `unset`/`variable` leave it directly after their op, while
+            // `global`/`upvar` leave it after the `pop` that discards the
+            // reused namespace/level reference (… nsupvar|upvar ; pop ; push "" ; pop).
+            let after_unset = (i > 0
                 && matches!(
                     self.instructions[i - 1].op,
                     Op::UNSET_STK | Op::UNSET_SCALAR | Op::UNSET_ARRAY
-                );
+                ))
+                || (i >= 2
+                    && self.instructions[i - 1].op == Op::POP
+                    && matches!(self.instructions[i - 2].op, Op::UPVAR | Op::NSUPVAR));
             if self.instructions[i].op == Op::PUSH1
                 && self.instructions[i + 1].op == Op::POP
                 && (self.instructions[i].comment != "\"\"" || after_unset)
