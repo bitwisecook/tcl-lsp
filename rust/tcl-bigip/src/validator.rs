@@ -78,8 +78,9 @@ static CLASS_MATCH_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// `class lookup ?--? <key> <dg>` — capture the dg name (last argument).
-static CLASS_LOOKUP_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\bclass\s+lookup\s+(?:--\s+)?\S+\s+(\S+)").expect("static regex"));
+static CLASS_LOOKUP_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\bclass\s+lookup\s+(?:--\s+)?\S+\s+(\S+)").expect("static regex")
+});
 
 /// `class exists|size|type|get|startsearch <dg>` — capture the dg name.
 static CLASS_SINGLE_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -147,12 +148,11 @@ fn profile_types_for_virtual(
 ) -> Vec<ProfileType> {
     let mut types: Vec<ProfileType> = Vec::new();
     for pref in vs.profiles.paths() {
-        if let Some(resolved) = resolve_name(&pref, &view.profiles, view.default_partition) {
-            if let Some(p) = view.profiles.get(&resolved) {
-                if !types.contains(&p.profile_type) {
-                    types.push(p.profile_type);
-                }
-            }
+        if let Some(resolved) = resolve_name(&pref, &view.profiles, view.default_partition)
+            && let Some(p) = view.profiles.get(&resolved)
+            && !types.contains(&p.profile_type)
+        {
+            types.push(p.profile_type);
         }
     }
     types
@@ -310,7 +310,7 @@ fn check_virtual_pools(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
     }
 }
 
-/// BIGIP6004: an iRule on a virtual uses HTTP:: / SSL:: commands but the
+/// BIGIP6004: an iRule on a virtual uses `HTTP::` / `SSL::` commands but the
 /// virtual has no matching profile.
 fn check_virtual_profile_requirements(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
     for (_path, vs) in view.virtual_servers.iter() {
@@ -320,7 +320,8 @@ fn check_virtual_profile_requirements(view: &ModelView<'_>, out: &mut Vec<Config
             ptypes.contains(&ProfileType::ClientSsl) || ptypes.contains(&ProfileType::ServerSsl);
 
         for rule_ref in vs.rules.paths() {
-            let Some(resolved) = resolve_name(&rule_ref, &view.rules, view.default_partition) else {
+            let Some(resolved) = resolve_name(&rule_ref, &view.rules, view.default_partition)
+            else {
                 continue;
             };
             let Some(rule) = view.rules.get(&resolved) else {
@@ -361,7 +362,8 @@ fn check_virtual_persistence(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnosti
     for (_path, vs) in view.virtual_servers.iter() {
         let vs_persist: Vec<String> = vs.persist.paths();
         for rule_ref in vs.rules.paths() {
-            let Some(resolved) = resolve_name(&rule_ref, &view.rules, view.default_partition) else {
+            let Some(resolved) = resolve_name(&rule_ref, &view.rules, view.default_partition)
+            else {
                 continue;
             };
             let Some(rule) = view.rules.get(&resolved) else {
@@ -537,7 +539,8 @@ mod tests {
 
     #[test]
     fn bigip6002_fires_for_missing_pool() {
-        let src = "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    pool /Common/no_such_pool\n  }\n}\n";
+        let src =
+            "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    pool /Common/no_such_pool\n  }\n}\n";
         assert!(has(src, "BIGIP6002"));
     }
 
