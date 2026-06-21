@@ -11164,3 +11164,47 @@ completing the track. The sole remaining item is deferred by design (rope-backed
   no salsa incrementality, 1.4–1.9× memory for many small docs), so the work is
   scoped as the cross-crate **SRV-ROPE** track in `rust-rewrite.md`, with the
   cheap persisted-`LineIndex` win as its first step.
+
+## TOOL-TCLPKG — package-manager port (`tcl-pkg`) (landed 2026-06-21)
+
+Full port of `tooling/tclpkg/` to a new `tcl-pkg` library crate, with the
+`pkg`/`venv`/`docker` CLI stubs in `tcl-cli` wired through to native handlers.
+The track closed in `rust-rewrite.md` (now a ✅ row). What landed:
+
+- **`version`** — semver 2.0 ordering with the Tcl-friendly lax rules (missing
+  patch ⇒ 0, leading `v`, Tcl `a1`/`b2`/`rc1` ⇒ `-alpha.1`/`-beta.2`/`-rc.1`).
+  The comparison key reproduces the Python `_compare_key` tuple — numeric-before-
+  alpha prerelease pieces and a release sentinel sorting after any prerelease —
+  via a `PreItem` enum with a hand-written `Ord`. `Eq`/`Hash` delegate to the
+  same key so `v1.2`, `1.2.0`, `1.2` dedup in a set.
+- **`manifest`** — the 13-directive whitelist evaluated *without* a VM. Manifests
+  are pure data, so a small Tcl script splitter (brace/quote/backslash grouping,
+  `#` comments, `;`/newline command separators, no `$`/`[` substitution) yields
+  commands+words; any non-whitelisted command is refused with the exact
+  `command not permitted in safe mode: <cmd>` message. Backslash decoding reuses
+  `tcl-syntax::backslash::decode` for byte-exact quoted/bare words.
+- **`lockfile`** — canonical JSON (sorted keys recursively, 2-space indent, LF,
+  final newline) emitted by a dedicated `json::canonical_json` so output is
+  byte-identical regardless of `serde_json`'s workspace-unified `preserve_order`
+  feature. Verified: `pkg install` lockfiles diff byte-for-byte against the
+  Python CLI (modulo the `generated` timestamp).
+- **`cas`** — worktree-canonical SHA-256 (sorted POSIX paths, stripped VCS dirs +
+  `.tclpkgignore`, permission-masked with execute normalised), `sha256-<b64url>`
+  integrity strings, sharded immutable store, and symlink-or-copy materialise.
+- **`resolver`** — Go-style MVS (max-of-minimums BFS + convergence re-walk),
+  root-only `replace`/`exclude`, three-phase port of the Python routine.
+- **`fetchers`** — gzip-tarball / zip / git / path over `ureq`, hardened against
+  zip-slip, absolute paths, symlinks, and decompression bombs (256 MiB cap).
+- **`registry`** — TTL-cached client with conditional GET (`If-None-Match` /
+  `304`) over `ureq`, offline-from-cache, stale-cache fallback.
+- **`venv`** + **`docker`** — venv create/info/list/activate/update/run +
+  delete; Dockerfile recipes for debian/alpine/redhat × Tcl 8.4–9.0. The
+  generated `tclvenv.cfg`, `bin/tclsh` wrapper, bash/fish activation scripts,
+  and Dockerfiles diff byte-for-byte against the Python output.
+- **CLI** — `tcl pkg` (16 verbs), `tcl venv` (8), `tcl docker` (3) wired in
+  `tcl-cli`; argument surface modelled with `clap` derive and **native
+  clap-style help** (we don't reproduce argparse's epilog/example block). Errors
+  print `error: <msg>` to stderr and exit 1, matching the Python verb paths.
+- **Tests** — 61 `tcl-pkg` unit tests (mirroring the Python `tests/tclpkg/`
+  cases) + 5 `tcl-cli` integration tests over the built binary. `cargo clippy
+  -p tcl-pkg -p tcl-cli --all-targets` is warning-clean.

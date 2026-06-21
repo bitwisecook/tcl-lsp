@@ -7,6 +7,7 @@
 pub mod diag;
 pub mod diagram;
 pub mod diff;
+pub mod docker;
 pub mod explore;
 pub mod graphs;
 pub mod help;
@@ -14,5 +15,7 @@ pub mod highlight;
 pub mod lookup;
 pub mod minimize;
 pub mod misc;
+pub mod pkg;
 pub mod registry;
 pub mod transform;
+pub mod venv;
