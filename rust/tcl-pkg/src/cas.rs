@@ -133,6 +133,22 @@ fn hex_digest(data: &[u8]) -> String {
     to_hex(&Sha256::digest(data))
 }
 
+/// Return the total byte size of the files in a canonical worktree.
+///
+/// Walks the same file set as [`integrity_of_tree`] and sums file lengths, so
+/// the lockfile `size` field is deterministic and matches the Python port.
+#[must_use]
+pub fn tree_size(root: &Path) -> u64 {
+    let extra = load_tclpkgignore(root);
+    let mut total = 0u64;
+    for rel_path in walk_tree(root, &extra) {
+        if let Ok(meta) = std::fs::metadata(root.join(&rel_path)) {
+            total = total.saturating_add(meta.len());
+        }
+    }
+    total
+}
+
 /// Recompute the integrity hash and return whether it matches `expected`.
 #[must_use]
 pub fn verify_integrity(root: &Path, expected: &str) -> bool {

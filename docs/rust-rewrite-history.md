@@ -11195,6 +11195,14 @@ The track closed in `rust-rewrite.md` (now a ✅ row). What landed:
   root-only `replace`/`exclude`, three-phase port of the Python routine.
 - **`fetchers`** — gzip-tarball / zip / git / path over `ureq`, hardened against
   zip-slip, absolute paths, symlinks, and decompression bombs (256 MiB cap).
+- **`installer`** — wires resolve → source-resolution (root `replace` ›
+  `-source` › registry) → fetch → CAS store → materialise into `lib/`
+  (`.venv/lib` under an active venv). `tcl pkg install` now populates real
+  integrity/size/source/provides/license in the lockfile and lays down
+  `lib/<pkg>-<ver>/`, so `tcl pkg verify` passes on a freshly written lockfile;
+  an unreachable source degrades to a placeholder entry with a warning instead
+  of aborting. Added Python-first in lockstep so install lockfiles stay
+  byte-identical with Rust (CodexP2 follow-up on #681).
 - **`registry`** — TTL-cached client with conditional GET (`If-None-Match` /
   `304`) over `ureq`, offline-from-cache, stale-cache fallback.
 - **`venv`** + **`docker`** — venv create/info/list/activate/update/run +
