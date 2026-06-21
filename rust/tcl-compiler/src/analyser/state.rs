@@ -120,6 +120,15 @@ pub struct Analyser {
     pub regex_vars: HashSet<(Vec<usize>, String)>,
     /// iRules: enclosing ``when EVENT`` name.
     pub current_event: Option<String>,
+    /// Tk dialect (TK1002): widget paths created so far in the walk, so a
+    /// child's parent can be checked for existence.  Only populated under
+    /// the `tk` dialect; cleared by
+    /// [`Self::flush_tk_geometry_diagnostics`].
+    pub(super) tk_created_widgets: HashSet<String>,
+    /// Tk dialect (TK1001): per-parent geometry-manager usage, keyed by
+    /// parent widget path, accumulated across the walk and flushed
+    /// post-walk so a `pack`/`grid` conflict can be decided.
+    pub(super) tk_geometry: std::collections::BTreeMap<String, super::tk_checks::TkGeometryUsage>,
     /// Cached set of built-in command names for redefined-builtin
     /// detection. `None` until first lookup; filled lazily.
     pub builtin_names: Option<HashSet<String>>,
@@ -380,6 +389,8 @@ impl Analyser {
             const_strings: HashMap::new(),
             regex_vars: HashSet::new(),
             current_event: None,
+            tk_created_widgets: HashSet::new(),
+            tk_geometry: std::collections::BTreeMap::new(),
             builtin_names: None,
             builtin_dialect: None,
             conditional_depth: 0,
@@ -1211,6 +1222,7 @@ impl Analyser {
         self.emit_cfg_ssa_diagnostics(source);
         self.emit_lexer_warning_diagnostics();
         self.emit_w116_w117_stub_shadows();
+        self.flush_tk_geometry_diagnostics();
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
         self.canonicalize_result_order();
