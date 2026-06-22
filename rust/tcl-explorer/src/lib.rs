@@ -21,6 +21,7 @@ pub mod render;
 pub mod serialise;
 pub mod view_tree;
 pub mod views;
+pub mod wasm_explorer;
 
 pub use serialise::{serialise_meta, serialise_result};
 pub use view_tree::{ViewNode, build_view};

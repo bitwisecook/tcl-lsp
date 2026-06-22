@@ -903,7 +903,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | ✅ | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
 | Refactoring transforms | `tcl-lsp-core::code_actions` | ✅ | all 7 transforms ported (`tcl-lsp-core::refactor`), byte-parity vs the Python oracle → **TOOL-REFACTOR** |
-| Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟢 | `wasm` view renders the eval-fallback emitter's WAT; rich per-instruction web-GUI shape (`to_explorer_json`) is a refinement → **TOOL-EXPLORER** |
+| Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟢 | `wasm` view renders the eval-fallback emitter's WAT; rich per-instruction web-GUI shape (`to_explorer_json`) ported (`tcl_explorer::wasm_explorer`: resolved call/branch targets, block-pairing, ranges) — densifies automatically as RT-WASM emits real instructions → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
 | Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); sole residual: WASM/Zig third differential arm, gated on the real RT-WASM emitter → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
@@ -1180,14 +1180,18 @@ stage has landed** — the landing logs are in the
 [history archive](rust-rewrite-history.md) and the tracks survive in the
 subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
 
-- **TOOL-EXPLORER** 🟢 *(depends on RT-WASM)* — the TUI `wasm` view renders flat
-  WAT; the rich per-instruction web-GUI shape (`to_explorer_json` — resolved
-  call targets, paired branch targets, lane-assigned edges) is not ported. It is
-  gated on the **real** WASM emitter, not the current eval-fallback tier: with
-  every leaf command boxed as a `tcl_eval` string the per-instruction richness
-  (resolved call targets, paired branch edges) does not yet exist to serialise,
-  so this lands with the broader **RT-WASM** emitter work. The Pyodide web
-  server stays Python. *(S)*
+- **TOOL-EXPLORER** 🟢 *(depends on RT-WASM)* — the rich per-instruction web-GUI
+  shape (`to_explorer_json`) has **landed** (2026-06-22):
+  `tcl_explorer::wasm_explorer` ports the Python serialiser over the Rust WASM
+  IR — resolved `call` target labels (imports + internal functions), `br`/`br_if`
+  targets resolved against the enclosing structured construct, block-pairing
+  indices (`openIdx`/`elseIdx`/`endIdx`) for edge layout, per-instruction
+  source ranges, and indent. It is wired into `serialise_wasm` alongside the
+  WAT text the TUI renders. The graph is *sparse* under the current
+  eval-fallback tier (most leaf commands are a single `call` to the imported
+  `tcl_eval`) and densifies automatically as the real **RT-WASM** emitter emits
+  more instructions — no further explorer work is required for that. The Pyodide
+  web server stays Python. *(S)*
 - **TOOL-FUZZ** 🟢 *(depends on RT-VM)* — the RT-VM-gated generator broadening
   has **landed** (2026-06-22): the seeded generator now emits `proc`
   definitions + calls, `namespace eval`, the `dict` ensemble (value ops +

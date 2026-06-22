@@ -11414,12 +11414,31 @@ The `ssa`-view boolean-render parity bug landed (`view_tree::pystr`), and the
 **`wasm` view now renders WAT** — `serialise.rs::serialise_wasm` drives the
 eval-fallback `wasm_codegen_module` (the same emitter `tcl compwasm` uses) and
 emits the module's WAT plus per-function headers, which `render.rs::render_wasm`
-prints. All TUI views are now populated. Refinement (not blocking the view, open
-in [`rust-rewrite.md`](rust-rewrite.md) → **TOOL-EXPLORER**): the rich
-per-instruction explorer shape (`to_explorer_json`) the *web GUI* uses is not
-ported, so the wasm tab shows flat WAT rather than the gutter-rendered
-instruction graph; that lands with the broader **RT-WASM** emitter work. The
-Pyodide web server stays Python.
+prints. All TUI views are now populated.
+
+**Rich per-instruction `to_explorer_json` ported (2026-06-22).** The web-GUI
+shape — what the gutter-rendered instruction graph consumes — now has a Rust
+port in `tcl-explorer`: `wasm_explorer::wasm_to_explorer_json` mirrors
+`compiler/codegen/wasm/_ir.py::WasmModule.to_explorer_json` over the Rust
+`WasmModule`. Per instruction it resolves the `call` target label (imports vs.
+internal functions), the `br`/`br_if` target (a two-pass block-pairing walk
+maps each branch depth to the enclosing `loop` header or `block`/`if` end),
+the originating source `range` (via the explorer's existing `range_dict`,
+which already widens braced/quoted words and converts inclusive→exclusive),
+indent, the emitter's structural label, and stable `openIdx`/`elseIdx`/`endIdx`
+cross-links for edge layout. It lives in `tcl-explorer` (not `tcl-compiler`) so
+the codegen crate stays uncoupled from the explorer JSON shape; the LEB128
+operand decoders are re-implemented locally (the compiler's `encoding` module is
+private). `serialise_wasm` now emits this shape and augments the synthetic
+`(module)` entry with the WAT `text` + counts the TUI reads, so both the text
+renderer and the web GUI consume one array. The graph is **sparse** under the
+current eval-fallback tier (most leaf commands are a single `call` to the
+imported `tcl_eval`) but the structure — control flow, branch pairing, ranges —
+is present and correct, and densifies automatically as the real **RT-WASM**
+emitter emits more instructions. Four unit tests cover the module/function
+split, call-target resolution, block/branch pairing, and the LEB128 decoders;
+the existing TUI render tests confirm backward compatibility. The Pyodide web
+server stays Python.
 
 ## TOOL-FUZZ — differential fuzzer (`tcl-fuzz`) (landed 2026-06)
 
