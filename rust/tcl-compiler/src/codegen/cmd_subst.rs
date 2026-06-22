@@ -474,6 +474,16 @@ impl CodegenCtx<'_> {
             }
         } else if braced && (word.contains('$') || word.contains('[')) {
             self.push_lit(&format!("{{{word}}}"));
+        } else if !braced && (word.contains('$') || word.contains('[')) {
+            // Interpolated word with an *embedded* (non-leading) substitution
+            // — e.g. an array-element reference `be(a:$a)` used as a command
+            // argument, or `x$item`. The leading-`$` whole-reference forms are
+            // handled above; here `emit_value` decomposes the word into its
+            // literal / `$var` / `[cmd]` parts and concatenates them, so the
+            // `$a` inside the key is substituted. Without this the word was
+            // pushed raw and a nested `[set be(a:$a)]` read the literal element
+            // `be(a:$a)` (set-1.26).
+            self.emit_value(word, true);
         } else if !braced && word.contains('\\') {
             let processed = tcl_lexer::backslash_subst(word);
             self.push_lit(&processed);

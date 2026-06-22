@@ -22,6 +22,12 @@ impl CompileService for CompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
 
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        // Mirror the real VM compile services (`tcl-vm-cli`, `run_test`): a
+        // hard parse error becomes a catchable runtime error with the exact
+        // C Tcl message.
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
+            return Err(CompileError(msg));
+        }
         let ir = lower_to_ir(src, &self.registry);
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
@@ -182,6 +188,51 @@ fn braced_array_key_is_literal() {
         "braced key must not substitute $x (would error `can't read x`): {result}"
     );
     assert_eq!(result, "5");
+}
+
+/// A non-braced array-element key carrying backslash escapes is an ordinary
+/// Tcl word: its escapes are decoded (`\w` → `w`, `\ ` → space) before the
+/// element lookup, matching C Tcl. Regression for set-1.26.
+#[test]
+fn unbraced_array_key_decodes_backslashes() {
+    let (ok, result, _) = run(concat!(
+        "catch {unset be}\n",
+        "set be(\\w\\w) 1\n",
+        "set be(a\\ a) 1\n",
+        "lsort [array names be]",
+    ));
+    assert!(ok, "should complete: {result}");
+    assert_eq!(result, "{a a} ww");
+}
+
+/// An array-element read nested inside a command substitution that is itself
+/// part of an array-key template substitutes its own key. Regression for
+/// set-1.26's `set be([set be(a:$a)][set b\e($a)]) 1`.
+#[test]
+fn nested_array_read_in_key_template_substitutes() {
+    let (ok, result, _) = run(concat!(
+        "set a x\n",
+        "set be(a:x) 5\n",
+        "set be(x) 1\n",
+        "set be([set be(a:$a)][set b\\e($a)]) 1\n",
+        "lsort [array names be]",
+    ));
+    assert!(ok, "nested key read must substitute $a: {result}");
+    assert_eq!(result, "51 a:x x");
+}
+
+/// A hard parse error inside a compiled body (`set "i"xxx` — non-whitespace
+/// after a close-quote) is deferred to a catchable runtime error carrying the
+/// exact C Tcl message. Regression for set-1.3 / set-3.3.
+#[test]
+fn extra_chars_after_close_quote_is_catchable() {
+    let (ok, result, _) = run(concat!(
+        "set i 10\n",
+        "catch {set \"i\"xxx} msg\n",
+        "set msg",
+    ));
+    assert!(ok, "the catch must contain the parse error: {result}");
+    assert_eq!(result, "extra characters after close-quote");
 }
 
 /// `info level` runs through the shared Family-B core
