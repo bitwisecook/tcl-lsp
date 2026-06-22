@@ -358,10 +358,10 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"dict with dictVarName ?key ...? script\"");
     };
     let varname = dictvar.to_str().to_string();
-    let Some(dictval) = vm.get_var(&varname) else {
+    let Some(root_dict) = vm.get_var(&varname) else {
         return err(format!("can't read \"{varname}\": no such variable"));
     };
-    let leaf = match get_path(&dictval, keys) {
+    let leaf = match get_path(&root_dict, keys) {
         Ok(v) => v,
         Err(c) => return c,
     };

@@ -171,6 +171,25 @@ fn write_trace_error_info_reaches_triggering_command() {
     );
 }
 
+/// An error unwinding out of a runtime `eval $script` adds the uncompiled
+/// eval's `("eval" body line N)` frame to `errorInfo`, followed by the
+/// enclosing invocation's `invoked from within "eval $s"` frame — matching C's
+/// uncompiled-eval unwind. (The compiler inlines `eval {literal}`, so this only
+/// fires for the dynamic form, which is the one that routes through `cmd_eval`.)
+#[test]
+fn dynamic_eval_error_info_carries_eval_body_frame() {
+    let (ok, result, _) = run(concat!(
+        "set s \"error foo\"\n",
+        "catch {eval $s}\n",
+        "string match {foo*while executing*\"error foo\"*(\"eval\" body line 1)*invoked from within*\"eval \\$s\"} $::errorInfo",
+    ));
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result, "1",
+        "dynamic eval errorInfo must carry the (\"eval\" body line 1) and invoked-from-within frames",
+    );
+}
+
 /// A brace-string array-element target keeps its key LITERAL: `set {a($x)} 5`
 /// stores the element whose key is the literal string `$x` (Tcl braces suppress
 /// substitution), so reading it back with the same braced key returns the value
