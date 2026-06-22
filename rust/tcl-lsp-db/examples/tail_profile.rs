@@ -141,6 +141,32 @@ fn main() {
         t_taint,
     );
 
+    // 2b gate: the warm cost of a SECOND `memoised_compilation_unit` build on the
+    // same db — exactly what a checks-path `proc_taint_solve` query would re-run to
+    // recover the offset-0 `FnLatticeKey`s locally (they cannot be threaded out of
+    // the shared `compilation_unit`: a salsa tracked return must be `'static`). The
+    // per-proc lattice demands route through the already-hot `function_lattice` /
+    // `taint_cascade` memos, so this measures only the whole-file structural
+    // reassembly (lex + segment + IR skeleton + interproc summary) the second build
+    // cannot avoid. This delta is the gate on whether 2b's ~120 ms summary-floor win
+    // survives the duplicate build it costs.
+    println!("\n== 2b gate: warm duplicate-build cost (function_lattice cache hot) ==");
+    {
+        let dialect_opt = Some(dialect);
+        let cfg_d = tcl_lexer::LexerConfig::for_dialect(dialect);
+        // Warm the shared build (populates function_lattice / taint_cascade) on the
+        // *edited* text, mirroring the per-edit state proc_taint_solve runs in.
+        file.set_text(&mut db).to(edited.clone());
+        let _ = compiler_check_diagnostics(&db, file);
+        let dup = time("memoised_compilation_unit (2nd build, warm)", 5, || {
+            tcl_lsp_db::memoised_compilation_unit(&db, &edited, &registry, false, cfg_d, dialect_opt)
+        });
+        println!(
+            "  -> duplicate-build delta ~{dup:.0} ms (cold whole-file build was ~59 ms above); \
+             2b is worth its machinery only if (summary-floor ~120 ms − {dup:.0} ms) is a clear win",
+        );
+    }
+
     // Direct measurement of per-edit re-execution breadth (counts salsa
     // `WillExecute` events per query, cold build vs. one body edit).
     rerun_breadth(&src, dialect, edit_pos, cu.functions().count());

@@ -420,9 +420,11 @@ exist yet — the verification-status table follows the list.
          `build_for_memoized`'s per-proc lattice demands route through the *same*
          `function_lattice` memo the shared build already populated (offset-0 keys), so
          the second build pays only the whole-file structural reassembly
-         (lex + segment + IR-module skeleton), not the ~54 ms full lowering. *The warm
-         delta must be measured with `tail_profile` before this ships* — it is the
-         gate on whether 2b is worth its machinery (see cost/benefit note below).
+         (lex + segment + IR-module skeleton), not the ~57 ms full lowering.
+         **Measured** (`tail_profile`, `linalg.tcl`, warm db, 2b-gate tier): the second
+         `memoised_compilation_unit` is **~29 ms** — the lattice/cascade cache absorbs
+         roughly half the cold cost. Against the ~120 ms summary-floor this memo
+         removes, the gate is **GREEN**: a clear net win on the checks path.
        - **Off the time-to-first-tokens path.** `proc_taint_solve` is demanded only by
          `compiler_check_diagnostics` (debounced diagnostics), never by `semantic_tokens`
          / the analyser walk, so the duplicate build cannot regress first-token latency
@@ -432,12 +434,23 @@ exist yet — the verification-status table follows the list.
      caller cascade. The debug fixpoint guard + corpus differential + the
      check-diagnostics differential fuzzer (below) make it safe to build (a wrong key is
      caught before push). XL, indivisible — a focused pass.
-     **Cost/benefit (honest, gated like the rope):** the prize was the worklist (411 →
-     237 ms, landed). This memo targets the residual ~120 ms pass-1 floor for a *modest*
-     warm gain on the *non-paramount* checks-diagnostics path, against the cost of a
-     second build + a new memoised summary fixpoint + a dependency key. It ships **only
-     if** the measured warm per-edit net (after the duplicate-build delta) is a clear
-     win — the same "measure-then-decide" gate the rope is held to, not an assumption.
+     **Cost/benefit (measured, gated like the rope):** the prize was the worklist (411 →
+     237 ms, landed). This memo targets the residual ~120 ms pass-1 floor on the
+     *non-paramount* checks-diagnostics path, against the cost of a second build
+     (**measured ~29 ms warm**) + a per-proc summary memo + a dependency key. The
+     duplicate-build delta is well under the floor it removes, so the "measure-then-decide"
+     gate (the same one the rope is held to) is **passed** and 2b proceeds. **Design note
+     — the fixpoint stays in the worklist, not salsa:** rather than a salsa cycle-recovery
+     query (which would be the codebase's first, and carries convergence-proof risk), the
+     existing `converge_summaries` worklist keeps driving the iteration and mutual
+     recursion; salsa only memoises the *per-proc* `infer_proc_summary` via
+     `proc_summary_cascade(db, FnLatticeKey, SummaryDepsKey)`, where `SummaryDepsKey`
+     encodes the proc's offset-0 body's *direct-callee summary projections* + resolution
+     domain (the `taint_cascade`/`TaintSummaryKey` pattern). Across edits the convergence
+     trajectory of an unchanged proc with unchanged callees re-keys identically → cache
+     hit; only the edited proc's caller-cascade re-infers. The debug fixpoint guard
+     (re-runs the *real* `infer_proc_summary` and asserts equality) + the corpus
+     differential catch a wrong key before push.
    *Verification gate (still to build):* a random-edit differential fuzzer comparing
    memoised `compiler_check_diagnostics` against a fresh whole-unit `run_all_checks` on
    the salsa path. The worklist above is meanwhile gated by the corpus differential +
