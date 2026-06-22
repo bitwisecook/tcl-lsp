@@ -11281,6 +11281,33 @@ gaps stay in [`rust-rewrite.md`](rust-rewrite.md) → **RT-VM**.
   pipes stdin, and offers an `info complete`-aware REPL (`-i` forces it without a
   TTY). The `tcl dis` verb it was paired with is wired in `tcl-cli` (bytecode
   disassembly via `format_module_asm`, with `--optimise`).
+- **(2026-06-22) reachable opcode gaps that trapped real programs.** Each was a
+  command the codegen emits but the VM's opcode dispatch hit with "opcode X not
+  implemented"; all verified byte-for-byte against tclsh 9.0.
+  - **`lset`** — `LSET_LIST` (a single index, or a `{i j …}` index *path*) and
+    `LSET_FLAT` (≥ 2 flat indices) over a shared `lset_descend` mirroring C's
+    `TclLsetList` / `TclLsetFlat` (`end`/`end±N` aware, append at `len`, empty
+    path = whole-value replace; error text matches 9.0). Also a **codegen** fix:
+    the non-proc/qualified stack form emitted `LSET_LIST` even for multiple
+    indices, so only the last index reached the opcode — it now emits
+    `LSET_FLAT N` for ≥ 2 indices like the proc path (this is the form a
+    runtime-recompiled proc body takes, since `CompileService` compiles the body
+    as a top-level script).
+  - **`tailcall`** — wired through the NRE trampoline as a true tail call: the
+    issuing proc's activation, call-frame, and namespace are popped (tail
+    position), then the command runs in the caller's activation. A proc tailcall
+    is entered as a fresh activation at the caller's level, so a tail-recursive
+    loop neither grows the activation stack nor counts against the recursion
+    limit (verified with a 200 k-deep countdown). A `tailcall` builtin covers the
+    no-args (no-op return) and dynamically-built forms the codegen leaves to the
+    generic invoke.
+  - **`string is` / `regexp` value opcodes** — `NUMERIC_TYPE` (C's
+    `INST_NUM_TYPE`: 0 / INT 2 / BIG 3 / DOUBLE 4 / NAN 5 via
+    `tcl_syntax::number::parse_whole`), `STR_CLASS` (per-character class test,
+    reusing the `string is` classifier), and `REGEXP` (boolean match, reusing the
+    `cmd_regexp` engine; operand = cflags, only `TCL_REG_NOCASE` meaningful).
+    These are the value opcodes the FE-CODEGEN `set x [cmd]` inline re-land was
+    blocked on — the VM blocker is now cleared.
 
 ## FE-DIAG-F5 — TK / BIG-IP / iApp diagnostics ported (landed 2026-06)
 
