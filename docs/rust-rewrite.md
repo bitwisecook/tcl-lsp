@@ -921,7 +921,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | FE | **FE-OPT** 🟢 | `tcl-compiler::optimiser`, `inlining` | — | L |
 | FE | **FE-CODEGEN** 🟢 | `tcl-compiler::codegen` (non-wasm) | — | M |
 | FE | **FE-DIAG** ✅ | `tcl-compiler::analyser`, `irules_checks` | — | M |
-| FE | **FE-DIAG-F5** 🟢 | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}` slices, tk; XC residual → `tcl-xc` | `tcl-bigip` | L |
+| FE | **FE-DIAG-F5** 🟢 | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}` slices, tk; XC100-301 → `f5-xc` crate (landed); residual: opt-in XC consumer-wiring | `tcl-bigip`, `f5-xc` | L |
 | RT | **RT-WASM** 🟡 | `tcl-compiler::codegen::wasm`, `runtime/zig`, `tcl-wasm` bin | FE-CODEGEN | L |
 | RT | **RT-VM** 🟡 | `tcl-vm`, `tcl-vm-cli` (`tclvm` bin) | `tcl-bytecode` | L |
 | SRV | **SRV-LSP** ✅ | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
@@ -996,21 +996,26 @@ were implemented in `tcl-vm` so the codegen runs end-to-end. Remaining:
   `compiler/codegen/wasm/_emitter/*` only — and belongs to **RT-WASM**.)
 
 #### FE-DIAG-F5 — F5 dialect diagnostics
-Owns new analyser slices on `tcl-bigip` / `tcl-xc` and the tk dialect. The
+Owns new analyser slices on `tcl-bigip` / `f5-xc` and the tk dialect. The
 per-family port decision (the track's explicit "decide Python-only vs Rust
-port per family") is made: **TK1001-1003**, **BIGIP6001-6011**, and
-**IAPP7001-7003** are landed (detail in the
-[history archive](rust-rewrite-history.md) → *FE-DIAG-F5*); the fourth family is
-gated on a separate subsystem port and stays Python-only until it lands.
-- **open (deferred, Python-only)** **XC100-301** (BIG-IP→F5-XC translator)
-  — the XC-series diagnostics are a thin wrapper over `translate_irule`
-  (`dialects/f5/xc/diagnostics.py`), but that translator (`translator.py`
-  ~1.2 K LOC + the 13-type `xc_model` + `mapping`) walks the **IR produced
-  by `lower_to_ir`** and is a distinct, large subsystem in its own right.
-  Porting it is a separate effort (akin to how **FE-OPT** v3 is gated on
-  **RT-WASM**); until a `tcl-xc` translator port lands, XC100-301 stays the
-  Python emitter. Handoff: a future `tcl-xc` crate owns this — re-home the
-  XC diagnostic wrapper there once the translator exists.
+port per family") is made: **TK1001-1003**, **BIGIP6001-6011**,
+**IAPP7001-7003**, and **XC100-301** are all landed (detail in the
+[history archive](rust-rewrite-history.md) → *FE-DIAG-F5*).
+- **landed** **XC100-301** (BIG-IP→F5-XC translator) — the gating subsystem
+  (the `translator.py` ~1.2 K LOC IR-walker + the 13-type `xc_model` +
+  `mapping`) is ported to the new **`f5-xc`** crate
+  (`f5_xc::{translator,model,mapping,diagnostics}`): `translate_irule` walks
+  the IR from `lower_to_ir_with_config(.., "f5-irules")` and
+  `get_xc_diagnostics` emits the XC100-301 hints. The IR-walk, condition
+  decomposition, and XC-construct extraction are verified byte-for-byte
+  against the Python oracle by a 38-case differential parity harness
+  (`f5-xc/tests/parity.rs` ⇐ `f5-xc/tests/gen_fixture.py`). The registry-driven
+  translatability gates (`is_xc_never_translatable` /
+  `is_xc_translatable_override`) landed on `tcl-registry`. Residual: the
+  **opt-in** native-server consumer-wiring (surface `get_xc_diagnostics`
+  through the diagnostics path under an `xcDiagnostics` toggle, the analogue
+  of Python `server/features/diagnostics.py`'s `xc_diagnostics_enabled`
+  gate) — a **SRV-LSP**-style step, like the BIG-IP/iApp wiring above.
 
 Consumer wiring: TK1001-1003 run inside the analyser, so they already
 surface through the native server's diagnostics path (the

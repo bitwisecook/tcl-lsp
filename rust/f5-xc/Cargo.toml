@@ -1,0 +1,21 @@
+[package]
+name = "f5-xc"
+description = "iRule → F5 Distributed Cloud (XC) static translator and XC-translatability diagnostics (port of dialects/f5/xc)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-syntax = { path = "../tcl-syntax" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-compiler = { path = "../tcl-compiler" }
+
+[dev-dependencies]
+serde_json = "1"
+
+[lints]
+workspace = true
