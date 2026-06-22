@@ -891,7 +891,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SCCP / intervals / memory-SSA | `tcl-compiler` | ✅ | escaping-var widening, optimistic deferral, static-loop folding, W233 interval path, `complexity_guard` all landed — **FE-DATAFLOW** complete (see [history](rust-rewrite-history.md)) |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) ported (`tcl-compiler::shimmer::byte_array` + `tcl-registry` `BytePayloadSpec`) — **FE-TYPESHIM** complete |
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
-| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | every O-code pass + the inliner v0/verbatim shapes landed (see [history](rust-rewrite-history.md)); sole remaining: inliner **v3** (α-rename, gated on the RT-WASM consumer for execution-differential verification) → **FE-OPT** |
+| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | every O-code pass + the inliner v0/verbatim **and v3-simple parameterised** shapes landed (α-rename ported from `_rename.py`; execution-verified via `tcl-vm` differential, decoupled from RT-WASM); residual: the fuller v3 surface (non-trailing-return wrapping, variadic/defaults, nested-body walker, dead-proc elim) → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` + the `set x [cmd]` inline re-land landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: bare-statement `string`/`regexp`/`lindex`/`lreplace` (value-discarded) → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
 | F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, new `tcl-xc` | 🟢 | TK1001-3 + BIGIP6001-11 + IAPP7001-3 ported (TK live in the analyser); residuals: XC100-301 (gated on a `tcl-xc` translator port of `lower_to_ir`-walking `translator.py`, Python-only meanwhile) + BIG-IP/iApp native-server consumer-wiring (SRV-LSP-style) → **FE-DIAG-F5** |
@@ -947,21 +947,28 @@ parallelise cleanly.
 #### FE-OPT — optimiser passes
 Owns `tcl-compiler::optimiser`, `tcl-compiler::inlining`. **Every O-code
 optimiser pass is complete**, as are the **inliner v0 + verbatim** shapes
-(2026-06-19; archived in [history](rust-rewrite-history.md)). The sole remaining
-task:
-- **open** general proc inliner **v3 (parameterised)** — α-renaming via
-  `_rename.py` over value strings / expr ASTs / defs-reads / foreach-catch
-  bindings, variadic packing, parameter defaults, trailing-vs-non-trailing
-  `return` for/break wrapping, plus dead-proc elimination. **Cross-track
-  dependency (handoff):** the inliner's only consumer is the WASM codegen
-  (`compiler/codegen/wasm/api.py`), so execution-differential verification of
-  the capture-sensitive value-string rewriter is gated on **RT-WASM** — and as
-  of 2026-06-22 RT-WASM is still the **eval-fallback** tier (every leaf command
-  boxed as a `tcl_eval` string; it emits/validates WASM but does not yet
-  *execute* real instructions), so the execution-differential standard for the
-  value-string rewriter still cannot be met. v3 must land alongside the real
-  WASM emitter rather than as IR-shape-only unit tests (the repo's
-  differential-test standard cannot be met otherwise). *(large)*
+(2026-06-19; archived in [history](rust-rewrite-history.md)) and the
+**v3-simple parameterised** shape (2026-06-22 — see below). Remaining:
+- **landed (2026-06-22)** general proc inliner **v3 (simple-arity
+  parameterised)**. A proc *with* parameters over the splice-safe body shape
+  is inlined: each positional arg binds to a freshly α-renamed parameter
+  local, the body's `$param` references are rewritten, and the bindings +
+  renamed body splice in. The α-rename core (`rewrite_value_string` /
+  `rename_var_name`) is a faithful port of `_rename.py` (backslash
+  pair-counting, bare vs `${name}` forms, name-boundary scanning, `$arr(idx)`
+  base-only rename). **The execution-differential standard is met without
+  RT-WASM**: rather than the WASM consumer, verification routes through
+  `tcl-vm` — `tcl-vm/tests/inliner_differential.rs` compiles each program
+  straight and inlined, runs both on the VM, asserts identical stdout/status,
+  and cross-checks `tclsh9.0` (§0 ground truth). This **decouples v3 from
+  RT-WASM** (the earlier handoff is resolved). The inliner stays exposed but
+  unwired into a default pipeline.
+- **open** the fuller v3 surface — non-trailing `return` for/break wrapping,
+  variadic `args` packing, parameter defaults, array-write renaming, nested
+  control-flow bodies (the full `_rename` statement/expr walker), plus
+  dead-proc elimination. These declined cases are gated out by
+  `classify_inline_spec`; they extend the same `tcl-vm` differential gate.
+  *(large)*
 - **open** *(non-correctness nuances, optional)* the O110 regex/glob →
   string-op rewrites (gated on the iRules `MatchesGlob`/`MatchesRegex` expr
   operators) and threading richer execution-trace facts deeper into the

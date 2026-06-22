@@ -1341,6 +1341,57 @@ All verified against the Python reference algorithms in
 `compiler/optimiser/{_expr_simplify,_pattern_recognition,_elimination,_tail_call}.py`
 and `_helpers.py`; full `tcl-compiler` lib suite green (2762 tests).
 
+Landed: 2026-06-22 — **FE-OPT: v3-simple parameterised inliner (decoupled from
+RT-WASM)**. The v3 residual recorded in the 2026-06-19 entry above — "the
+capture-sensitive v3 rewriter should land alongside the RT-WASM consumer that
+can execution-verify it" — is **partly resolved, and the RT-WASM gating
+assumption is corrected**: v3 does *not* need the WASM consumer to be
+execution-verified, because `tcl-vm` executes the same IR through bytecode
+codegen. What landed:
+
+- **v3-simple parameterised inlining** in `tcl-compiler::inlining`. A proc
+  *with* parameters over the existing splice-safe body shape (every body
+  statement a frame-independent, def-free builtin `Call`) is now inlined:
+  `classify_inline_spec` adds an `InlineSpec::Parameterised { params, body }`
+  arm; at each statement-position call site `instantiate_parameterised` binds
+  each positional arg to a freshly α-renamed parameter local
+  (`set __inl_<param>_<suffix> <arg>`), α-renames the body's `$param`
+  references, and splices bindings + renamed body. A monotonic per-site suffix
+  makes every mangled local unique, so a bound parameter never captures or is
+  captured by a caller local; args bind in caller-frame order exactly as a
+  real call evaluates them.
+- **Tightly gated.** Declines variadic `args` (needs call-site list packing),
+  parameter defaults (`params_raw` contains `{`), an arity mismatch, and any
+  call-site arg carrying `[cmd]` substitution (the synthetic `AssignValue`
+  binding can't model caller-frame command resolution). Body statements drop
+  their now-stale `tokens` so codegen re-derives from the α-renamed `args`.
+- **α-rename core ported from `_rename.py`.** `rewrite_value_string` mirrors
+  `_rewrite_value_string` byte-for-byte: backslash pair-counting (`\$x` is a
+  literal `$`; `\\$x` *is* a substitution because the first `\` escapes the
+  second), bare `$name` name-boundary scanning, the `${name}` brace form, and
+  `$arr(idx)` base-only renaming with the index preserved. `rename_var_name`
+  mirrors `_rename_var_name` (array-tail-preserving).
+- **Execution-differential gate, no RT-WASM needed.**
+  `tcl-vm/tests/inliner_differential.rs` compiles each corpus program twice
+  (straight and with `inline_module` applied to the IR), runs both on `tcl-vm`,
+  and asserts identical stdout + ok/err status; when `tclsh9.0` is present it
+  is an independent C-Tcl ground-truth oracle (§0). 10 differential cases
+  (literal/`$var`/brace-form args, caller-frame arg evaluation, multi-statement
+  bodies, repeated sites with distinct suffixes, `foreach`/`if` bodies, the
+  escaped-`$` literal case, parameter name-boundary) + 11 IR-shape/unit tests
+  (incl. the `rewrite_value_string` tricky cases) pass; full `tcl-compiler`
+  suite green (2884 tests); clippy-clean. An invalid first draft of the
+  name-boundary test (a body reading a free global `$xs`) correctly *failed the
+  "inliner fired" guard* — `safe_to_inline` rightly declines a proc with a
+  free-variable read, since splicing it into global scope would change an
+  unset-variable error into a success; the test was rewritten to use a second
+  parameter, confirming the soundness gate.
+- **Residual (still open).** The fuller v3 surface — non-trailing `return`
+  for/break wrapping, variadic packing, parameter defaults, array-write
+  renaming, nested control-flow bodies (the full `_rename` statement + expr-AST
+  walker), and dead-proc elimination — stays declined by `classify_inline_spec`
+  and extends the same `tcl-vm` differential gate.
+
 Landed: 2026-06-19 — **FE-TYPESHIM: S110 byte-array corruption ported**
 (branch `claude/elegant-cray-qm13dj`). The last FE-TYPESHIM residual — the
 S110 *correctness* shimmer added to Python in PR #656 — is now on the `rust`
