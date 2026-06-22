@@ -10,13 +10,37 @@
 //! [`run`] touches the terminal.
 
 use std::collections::HashSet;
+use std::io::Write as _;
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
+use ratatui::backend::TerminaBackend;
+use ratatui::termina::escape::csi::{self, Csi};
+use ratatui::termina::event::{KeyCode, KeyEventKind};
+use ratatui::termina::{Event, EventReader, PlatformTerminal, Terminal as _};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
+use ratatui::Terminal;
 use serde_json::Value;
+
+/// The concrete terminal type: a Ratatui terminal over the Termina backend.
+type AppTerminal = Terminal<TerminaBackend<PlatformTerminal>>;
+
+/// Build a private-mode CSI for the named [`csi::DecPrivateModeCode`].
+macro_rules! dec_set {
+    ($mode:ident) => {
+        Csi::Mode(csi::Mode::SetDecPrivateMode(csi::DecPrivateMode::Code(
+            csi::DecPrivateModeCode::$mode,
+        )))
+    };
+}
+macro_rules! dec_reset {
+    ($mode:ident) => {
+        Csi::Mode(csi::Mode::ResetDecPrivateMode(csi::DecPrivateMode::Code(
+            csi::DecPrivateModeCode::$mode,
+        )))
+    };
+}
 
 use tcl_explorer::view_tree::TREE_VIEWS;
 use tcl_explorer::{ViewNode, build_view};
@@ -149,21 +173,62 @@ pub fn run(source: &str, dialect: &str) -> anyhow::Result<()> {
     let data = tcl_explorer::serialise_result(&tcl_explorer::run_pipeline(source, dialect));
     let mut app = App::new(data);
 
-    let mut terminal = ratatui::init();
-    let result = event_loop(&mut terminal, &mut app);
-    ratatui::restore();
-    result
+    let (mut terminal, events) = init_terminal()?;
+    let result = event_loop(&mut terminal, &events, &mut app);
+    // Restore the terminal even if the loop errored; the raw-mode reset happens
+    // when the backend's `PlatformTerminal` drops.
+    let restored = restore_terminal(&mut terminal);
+    result.and(restored)
 }
 
-fn event_loop(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> anyhow::Result<()> {
+/// Enter raw mode + the alternate screen and build the Ratatui/Termina
+/// terminal, returning it alongside the event reader.
+fn init_terminal() -> anyhow::Result<(AppTerminal, EventReader)> {
+    let mut output = PlatformTerminal::new()?;
+    output.enter_raw_mode()?;
+    // Alternate screen, hidden cursor — a full-screen navigation UI.
+    write!(
+        output,
+        "{}{}",
+        dec_set!(ClearAndEnableAlternateScreen),
+        dec_reset!(ShowCursor)
+    )?;
+    output.flush()?;
+
+    let events = output.event_reader();
+    let terminal = Terminal::new(TerminaBackend::new(output))?;
+    Ok((terminal, events))
+}
+
+/// Leave the alternate screen and restore the cursor (raw mode is reset on drop).
+fn restore_terminal(terminal: &mut AppTerminal) -> anyhow::Result<()> {
+    let backend = terminal.backend_mut();
+    write!(
+        backend,
+        "{}{}",
+        dec_reset!(ClearAndEnableAlternateScreen),
+        dec_set!(ShowCursor)
+    )?;
+    backend.flush()?;
+    Ok(())
+}
+
+fn event_loop(
+    terminal: &mut AppTerminal,
+    events: &EventReader,
+    app: &mut App,
+) -> anyhow::Result<()> {
     loop {
         terminal.draw(|frame| draw(frame, app))?;
-        if let Event::Key(key) = event::read()? {
-            if key.kind != KeyEventKind::Press {
-                continue;
-            }
+        // Block until a key press (so shortcuts don't double-fire on release)
+        // or a resize (which the next draw picks up).
+        let event = events.read(|e| {
+            matches!(e, Event::Key(k) if k.kind == KeyEventKind::Press)
+                || matches!(e, Event::WindowResized(_))
+        })?;
+        if let Event::Key(key) = event {
             match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                KeyCode::Char('q') | KeyCode::Escape => return Ok(()),
                 KeyCode::Up => app.move_cursor(-1),
                 KeyCode::Down => app.move_cursor(1),
                 KeyCode::Left => app.prev_view(),
@@ -264,11 +329,30 @@ fn draw(frame: &mut ratatui::Frame, app: &App) {
 
 #[cfg(test)]
 mod tests {
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+
     use super::*;
 
     fn app(src: &str) -> App {
         let data = tcl_explorer::serialise_result(&tcl_explorer::run_pipeline(src, "tcl8.6"));
         App::new(data)
+    }
+
+    /// `draw` is backend-agnostic, so render it into a [`TestBackend`] buffer
+    /// (no terminal needed) and assert the chrome is present — a smoke test that
+    /// the Ratatui/Termina migration didn't break the layout.
+    #[test]
+    fn draw_renders_chrome_into_test_backend() {
+        let mut app = app("proc add {a b} { expr {$a + $b} }\nputs [add 1 2]");
+        app.toggle(); // expand the IR root so the tree shows statements
+        let mut terminal = Terminal::new(TestBackend::new(78, 20)).expect("test terminal");
+        terminal.draw(|frame| draw(frame, &app)).expect("draw");
+        let buf = terminal.backend().buffer();
+        let text: String = buf.content().iter().map(|c| c.symbol()).collect();
+        assert!(text.contains("views"), "sidebar title: {text}");
+        assert!(text.contains("detail"), "detail panel: {text}");
+        assert!(text.contains("expand"), "footer hint: {text}");
     }
 
     #[test]

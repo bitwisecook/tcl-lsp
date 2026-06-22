@@ -27,8 +27,16 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 # Bundled SQLite (with FTS5) for the `help` verb's embedded KCS database.
 rusqlite = { version = "0.32", features = ["bundled"] }
-ratatui = { version = "0.29", optional = true }
-crossterm = { version = "0.28", optional = true }
+# Termina backend (the helix-editor VT library) instead of crossterm:
+# `default-features = false` drops the default crossterm backend; the `termina`
+# feature pulls `ratatui-termina` and re-exports the `termina` crate.
+ratatui = { version = "0.30", optional = true, default-features = false, features = [
+    "termina",
+    "all-widgets",
+    "layout-cache",
+    "macros",
+    "underline-color",
+] }
 
 [dev-dependencies]
 # Used by the CLI parity tests to compare help-search retrieval structurally
@@ -41,7 +49,7 @@ regex = "1"
 [features]
 # The interactive `tcl explore --tui` shell. Off by default so the lean CLI
 # build doesn't pull the terminal-UI stack (mirrors Python's optional Textual).
-tui = ["dep:ratatui", "dep:crossterm"]
+tui = ["dep:ratatui"]
 
 [build-dependencies]
 # Build the embedded KCS help database (FTS5) from the committed
