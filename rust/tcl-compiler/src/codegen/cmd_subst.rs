@@ -257,6 +257,70 @@ pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
     parts
 }
 
+/// Like [`parse_cmd_parts`] but also flags `{*}`-expansion words. Each tuple is
+/// `(text, braced, expand)`: `expand` is true when the word carried a leading
+/// `{*}` prefix (stripped from `text`). A `{*}` *not* immediately followed by
+/// word content (`{*}` then a space / end) is a literal braced `*`, not an
+/// expansion — matching Tcl's `{*}` rule.
+#[must_use]
+pub fn parse_cmd_parts_expand(text: &str) -> Vec<(String, bool, bool)> {
+    let text = text.trim();
+    let text = if text.starts_with('[') && text.ends_with(']') {
+        text[1..text.len() - 1].trim()
+    } else {
+        text
+    };
+    let bytes = text.as_bytes();
+    let n = bytes.len();
+    let mut parts = Vec::new();
+    let mut i = 0;
+
+    while i < n {
+        while i < n && (bytes[i] == b' ' || bytes[i] == b'\t') {
+            i += 1;
+        }
+        if i >= n {
+            break;
+        }
+        // `{*}` immediately followed by non-whitespace word content → expansion.
+        let mut expand = false;
+        if i + 3 < n && &bytes[i..i + 3] == b"{*}" && bytes[i + 3] != b' ' && bytes[i + 3] != b'\t'
+        {
+            expand = true;
+            i += 3;
+        }
+        let (part, braced, new_i) = match bytes[i] {
+            b'"' => {
+                let (p, ni) = parse_quoted_part(text, bytes, n, i);
+                (p, false, ni)
+            }
+            b'{' => {
+                let (p, ni) = parse_braced_part(text, bytes, n, i);
+                (p, true, ni)
+            }
+            b'[' => {
+                let start = i;
+                let mut j = skip_cmd_subst(bytes, n, i);
+                while j < n && bytes[j] != b' ' && bytes[j] != b'\t' {
+                    if bytes[j] == b'[' {
+                        j = skip_cmd_subst(bytes, n, j);
+                    } else {
+                        j += 1;
+                    }
+                }
+                (text[start..j].to_owned(), false, j)
+            }
+            _ => {
+                let (p, ni) = parse_bareword_part(text, bytes, n, i);
+                (p, false, ni)
+            }
+        };
+        parts.push((part, braced, expand));
+        i = new_i;
+    }
+    parts
+}
+
 // ---------------------------------------------------------------------------
 // CodegenCtx methods — emission helpers for command substitutions
 // ---------------------------------------------------------------------------
@@ -639,6 +703,16 @@ impl CodegenCtx<'_> {
     /// - `dict get`
     /// - `catch` (delegates to control_flow)
     pub fn emit_inline_cmd_subst(&mut self, text: &str) {
+        // A `{*}`-expanded command substitution in value position compiles to the
+        // `expandStart … expandStkTop N; invokeExpanded` form (tclsh's), leaving
+        // the result on the stack (no trailing `pop`, unlike the statement form).
+        if text.contains("{*}") {
+            let parts = parse_cmd_parts_expand(text);
+            if parts.iter().any(|(_, _, expand)| *expand) {
+                self.emit_expanded_cmd_subst(&parts);
+                return;
+            }
+        }
         // Multi-command scripts fall back to runtime eval.
         if has_command_separator(text) {
             let inner = if text.starts_with('[') && text.ends_with(']') {
@@ -720,6 +794,36 @@ impl CodegenCtx<'_> {
                 self.emit_generic_cmd_subst(cmd, args);
             }
         }
+    }
+
+    /// Emit a `{*}`-expanded command substitution in value position:
+    /// `expandStart`, each word (an expanded word followed by `expandStkTop N`
+    /// where N is the running word count), then `invokeExpanded` — leaving the
+    /// result on the stack. Mirrors [`Self::emit_expanded_call`] without the
+    /// trailing `pop`.
+    fn emit_expanded_cmd_subst(&mut self, parts: &[(String, bool, bool)]) {
+        self.used_inline_cmd_subst = true;
+        self.emit_comment(Op::EXPAND_START, vec![], "(expanded)");
+        let mut word_count: u32 = 0;
+        for (part, braced, expand) in parts {
+            if *braced {
+                // A braced expanded word splits its *list* elements without
+                // substitution, so push it verbatim.
+                self.push_lit_verbatim(part);
+            } else {
+                self.emit_cmd_subst_arg(part, false);
+            }
+            word_count += 1;
+            if *expand {
+                self.emit(
+                    Op::EXPAND_STKTOP,
+                    vec![Operand::Imm(
+                        i32::try_from(word_count).expect("word count fits in i32"),
+                    )],
+                );
+            }
+        }
+        self.emit_comment(Op::INVOKE_EXPANDED, vec![], "");
     }
 
     // -- Private inline helpers for emit_inline_cmd_subst --
