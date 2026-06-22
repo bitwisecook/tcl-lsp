@@ -1,48 +1,54 @@
-//! General proc inliner (v0 + verbatim).
+//! General proc inliner (v0 + verbatim + v3-simple).
 //!
 //! Ported from `compiler/inlining/` — the catalogue (`decision.py`) plus
-//! the IR-level splice transform (`inline_pass.py`). The inliner rewrites
-//! statement-position calls to *inlinable* procedures so the call boundary
-//! disappears before WASM codegen consumes the IR.
+//! the IR-level splice transform (`inline_pass.py`) and the α-rename
+//! machinery (`_rename.py`). The inliner rewrites statement-position calls
+//! to *inlinable* procedures so the call boundary disappears before codegen
+//! consumes the IR.
 //!
 //! # Scope
-//!
-//! Two of the four Python shapes are ported here, the ones whose soundness
-//! needs no α-renaming or interprocedural escape proof:
 //!
 //! * **v0 — empty body.** A call to a zero-statement proc vanishes.
 //! * **v1 / v2 — verbatim wrapper.** A zero-parameter proc whose every
 //!   body statement is *splice-eligible* (a frame-independent, def-free,
 //!   substitution-free builtin call) has its body spliced verbatim into
 //!   the call site.
-//!
-//! The **v3 parameterised** shape (α-renamed body + parameter bindings) and
-//! its `_rename` machinery, plus dead-proc elimination, are the documented
-//! residual — see [`docs/rust-rewrite.md`] (FE-OPT) / the **RT-WASM** track.
-//! The inliner's only consumer is the WASM codegen (RT-WASM, unported), so
-//! it is exposed but not yet wired into a pipeline.
+//! * **v3 — parameterised (simple-arity).** A proc *with* parameters over
+//!   the same splice-safe body shape: each positional arg binds to a freshly
+//!   α-renamed parameter local ([`rewrite_value_string`] rewrites the body's
+//!   `$param` references), then the bindings + renamed body splice in. Scoped
+//!   to simple arity — no variadic `args`, no parameter defaults, and a call
+//!   site whose args carry no `[cmd]` substitution. The fuller v3 surface —
+//!   non-trailing `return` for/break wrapping, variadic packing, parameter
+//!   defaults, array-write renaming, nested control-flow bodies, and
+//!   dead-proc elimination — is the documented residual (FE-OPT). The inliner
+//!   is exposed but not yet wired into a default pipeline; its correctness is
+//!   held by the `tcl-vm` execution-differential gate
+//!   (`tcl-vm/tests/inliner_differential.rs`).
 //!
 //! # Eligibility
 //!
-//! Two gates combine in [`classify_proc`] / `build_inlinable_map`: the
+//! Two gates combine in [`classify_inline_spec`] / `build_inlinable_map`: the
 //! precise interprocedural [`var_escape::pure_leaf`](crate::var_escape)
 //! proof (`safe_to_inline` — FE-VARESCAPE's S4.1 soundness predicate) and
 //! the structural shape. The per-statement [`stmt_is_splice_eligible`] check
-//! then guards the verbatim body itself.
+//! then guards the body itself.
 //!
 //! # Soundness
 //!
-//! The verbatim shape leans entirely on [`stmt_is_splice_eligible`]: a body
-//! statement may be lifted out of the proc frame only when it is an
-//! [`Statement::Call`] with no `defs` (it cannot mutate the caller's
-//! scope), whose command is in the frame-independent allow-list (no
-//! `info` / `uplevel` / `upvar` / `return` / `break` / `continue`), and
-//! whose arguments carry no `[cmd]` substitution. That makes the splice
-//! observationally equivalent to the call regardless of which frame it
-//! runs in. Empty bodies are trivially safe. Redefined procs are never
-//! inlined (their body is ambiguous). Recursion cannot occur: a call to a
-//! user proc is not in the splice-safe allow-list, so a self-calling body
-//! is never verbatim-eligible.
+//! Every shape leans on [`stmt_is_splice_eligible`]: a body statement may be
+//! lifted out of the proc frame only when it is an [`Statement::Call`] with
+//! no `defs` (it cannot mutate the caller's scope), whose command is in the
+//! frame-independent allow-list (no `info` / `uplevel` / `upvar` / `return`
+//! / `break` / `continue`), and whose arguments carry no `[cmd]`
+//! substitution. That makes the splice observationally equivalent to the call
+//! regardless of which frame it runs in. v3 additionally α-renames each
+//! parameter to a unique mangled local (per-call-site suffix), so a bound
+//! parameter never captures or is captured by a caller local, and binds args
+//! in caller-frame order exactly as a real call would. Empty bodies are
+//! trivially safe. Redefined procs are never inlined (their body is
+//! ambiguous). Recursion cannot occur: a call to a user proc is not in the
+//! splice-safe allow-list, so a self-calling body is never eligible.
 
 use std::collections::{HashMap, HashSet};
 
@@ -75,6 +81,21 @@ enum InlineSpec {
     Empty,
     /// v1 / v2 — splice these body statements verbatim.
     Verbatim(Vec<Statement>),
+    /// v3 — parameterised: bind each call arg to an α-renamed parameter,
+    /// rewrite parameter references through the body, then splice. Scoped to
+    /// the same splice-safe body shape as [`InlineSpec::Verbatim`] (every body
+    /// statement a frame-independent, def-free builtin [`Statement::Call`]),
+    /// so the only rewrite needed is α-renaming the parameter `$refs` inside
+    /// each `Call`'s argument strings. The fuller v3 surface — non-trailing
+    /// `return` for/break wrapping, variadic `args` packing, parameter
+    /// defaults, array-write renaming, nested control-flow bodies — is the
+    /// documented residual (FE-OPT).
+    Parameterised {
+        /// Parameter names, in order. The call's positional args bind to these.
+        params: Vec<String>,
+        /// Splice-safe body statements (all `Call`s).
+        body: Vec<Statement>,
+    },
 }
 
 /// Total number of leaf statements reachable in `script`, walking nested
@@ -235,17 +256,57 @@ fn build_inlinable_map(module: &Module) -> HashMap<String, InlineSpec> {
         {
             continue;
         }
-        if classify_proc(proc, &module.redefined_procedures) != InlineDecision::Always {
-            continue;
+        if let Some(spec) = classify_inline_spec(proc, &module.redefined_procedures) {
+            map.insert(qname.clone(), spec);
         }
-        let spec = if proc.body.statements.is_empty() {
-            InlineSpec::Empty
-        } else {
-            InlineSpec::Verbatim(proc.body.statements.clone())
-        };
-        map.insert(qname.clone(), spec);
     }
     map
+}
+
+/// Whether `proc` takes a variadic trailing `args` parameter — declined by v3
+/// (it would need call-site list packing, the documented residual).
+fn has_variadic_args(proc: &Procedure) -> bool {
+    proc.params.iter().any(|p| p == "args")
+}
+
+/// Whether `proc` declares any parameter default. A default surfaces as a
+/// braced `{name value}` group in `params_raw`; a plain `{a b c}` list has no
+/// braces. Declined by v3 (defaults need call-site arity reasoning).
+fn has_parameter_defaults(proc: &Procedure) -> bool {
+    proc.params_raw.contains('{')
+}
+
+/// Choose the inline shape for `proc`, or `None` when it is not inlinable.
+/// Combines the existing v0/verbatim shapes with the v3 parameterised shape.
+/// The caller has already applied the `safe_to_inline` soundness gate.
+fn classify_inline_spec<S: std::hash::BuildHasher>(
+    proc: &Procedure,
+    redefined: &HashSet<String, S>,
+) -> Option<InlineSpec> {
+    if redefined.contains(&proc.qualified_name) {
+        return None;
+    }
+    if proc.body.statements.is_empty() {
+        return Some(InlineSpec::Empty);
+    }
+    let body_is_splice_safe = count_statements(&proc.body) <= SMALL_BODY_THRESHOLD
+        && proc.body.statements.iter().all(stmt_is_splice_eligible);
+    if !body_is_splice_safe {
+        return None;
+    }
+    if proc.params.is_empty() {
+        // v1 / v2 — zero-parameter wrapper.
+        return Some(InlineSpec::Verbatim(proc.body.statements.clone()));
+    }
+    // v3 — parameterised, restricted to the simple-arity shape (no variadic
+    // `args`, no parameter defaults) over a splice-safe body.
+    if has_variadic_args(proc) || has_parameter_defaults(proc) {
+        return None;
+    }
+    Some(InlineSpec::Parameterised {
+        params: proc.params.clone(),
+        body: proc.body.statements.clone(),
+    })
 }
 
 /// Resolve a call's head word to a procedure qname, using the same naive
@@ -269,10 +330,14 @@ pub fn inline_module(mut module: Module) -> Module {
     if inlinable.is_empty() {
         return module;
     }
-    rewrite_script(&mut module.top_level, &inlinable);
+    // A monotonic counter gives every parameterised-inline site a unique
+    // α-rename suffix, so spliced parameter locals never collide with each
+    // other or (realistically) with the caller's locals.
+    let mut counter: u32 = 0;
+    rewrite_script(&mut module.top_level, &inlinable, &mut counter);
     let mut procedures = std::mem::take(&mut module.procedures);
     for proc in procedures.values_mut() {
-        rewrite_script(&mut proc.body, &inlinable);
+        rewrite_script(&mut proc.body, &inlinable, &mut counter);
     }
     module.procedures = procedures;
     module
@@ -281,61 +346,266 @@ pub fn inline_module(mut module: Module) -> Module {
 /// Rewrite a script in place: replace each inlinable statement-position
 /// call with the proc's spliced statements (or nothing, for empty bodies),
 /// then recurse into control-flow bodies.
-fn rewrite_script(script: &mut Script, inlinable: &HashMap<String, InlineSpec>) {
+fn rewrite_script(script: &mut Script, inlinable: &HashMap<String, InlineSpec>, counter: &mut u32) {
     let mut out: Vec<Statement> = Vec::with_capacity(script.statements.len());
     for mut stmt in std::mem::take(&mut script.statements) {
-        if let Statement::Call { command, .. } = &stmt
-            && let Some(spec) = inlinable.get(&resolve_qname(command))
-        {
-            match spec {
-                InlineSpec::Empty => {} // call vanishes
-                InlineSpec::Verbatim(body) => out.extend(body.iter().cloned()),
-            }
+        // Decide the splice for this statement (if any) without holding a
+        // borrow of `stmt` across the mutable recursion below.
+        let spliced: Option<Vec<Statement>> = match &stmt {
+            Statement::Call {
+                command,
+                args,
+                span,
+                ..
+            } => inlinable
+                .get(&resolve_qname(command))
+                .and_then(|spec| match spec {
+                    InlineSpec::Empty => Some(Vec::new()),
+                    InlineSpec::Verbatim(body) => Some(body.clone()),
+                    InlineSpec::Parameterised { params, body } => {
+                        instantiate_parameterised(params, body, args, *span, counter)
+                    }
+                }),
+            _ => None,
+        };
+        if let Some(body) = spliced {
+            out.extend(body);
             continue;
         }
-        recurse_into_bodies(&mut stmt, inlinable);
+        recurse_into_bodies(&mut stmt, inlinable, counter);
         out.push(stmt);
     }
     script.statements = out;
 }
 
+/// Instantiate a parameterised inline at a call site: bind each positional arg
+/// to a freshly α-renamed parameter local, then splice the body with every
+/// parameter `$ref` rewritten to its mangled name. Returns `None` (leaving the
+/// call intact) when the call is unsafe to inline — an arity mismatch, or an
+/// arg carrying `[cmd]` substitution (whose result depends on the caller's
+/// command-resolution context, and which the synthetic binding can't model).
+fn instantiate_parameterised(
+    params: &[String],
+    body: &[Statement],
+    args: &[String],
+    span: tcl_lexer::Span,
+    counter: &mut u32,
+) -> Option<Vec<Statement>> {
+    if args.len() != params.len() {
+        return None;
+    }
+    if args.iter().any(|a| a.contains('[')) {
+        return None;
+    }
+    let suffix = *counter;
+    *counter += 1;
+    let rename: HashMap<String, String> = params
+        .iter()
+        .map(|p| (p.clone(), format!("__inl_{p}_{suffix}")))
+        .collect();
+
+    let mut out: Vec<Statement> = Vec::with_capacity(params.len() + body.len());
+    // Parameter bindings: `set <mangled> <arg>`, evaluated in the caller frame
+    // exactly as Tcl evaluates a call's actual arguments.
+    for (param, arg) in params.iter().zip(args) {
+        out.push(Statement::AssignValue {
+            span,
+            name: rename[param].clone(),
+            value: arg.clone(),
+            value_needs_backsubst: arg.contains('\\'),
+            tokens: None,
+        });
+    }
+    // Spliced body with parameter references α-renamed.
+    for stmt in body {
+        out.push(rename_splice_stmt(stmt, &rename));
+    }
+    Some(out)
+}
+
+/// Clone a splice-safe body statement with the parameter rename map applied.
+/// Body statements are all builtin [`Statement::Call`]s (the splice-safe
+/// gate), so the rewrite is: α-rename each argument string and any explicit
+/// `reads`, and drop the now-stale `tokens` so codegen re-derives from the
+/// rewritten `args`.
+fn rename_splice_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+    match stmt {
+        Statement::Call {
+            span,
+            command,
+            canonical_command,
+            args,
+            defs,
+            reads,
+            reads_own_defs,
+            safe_on_uninit,
+            foreach_groups,
+            ..
+        } => Statement::Call {
+            span: *span,
+            command: command.clone(),
+            canonical_command: canonical_command.clone(),
+            args: args
+                .iter()
+                .map(|a| rewrite_value_string(a, rename))
+                .collect(),
+            defs: defs.clone(),
+            reads: reads.iter().map(|r| rename_var_name(r, rename)).collect(),
+            reads_own_defs: *reads_own_defs,
+            safe_on_uninit: *safe_on_uninit,
+            tokens: None,
+            foreach_groups: foreach_groups.clone(),
+        },
+        // Splice-safe bodies contain only `Call`s; anything else is cloned
+        // verbatim (defensive — `classify_inline_spec` never admits it).
+        other => other.clone(),
+    }
+}
+
+/// Apply `rename` to a variable-name field, preserving an `arr(idx)` element
+/// suffix (the array base carries the binding identity). Mirrors Python's
+/// `_rename_var_name`.
+fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
+    if let Some(paren) = name.find('(') {
+        let base = &name[..paren];
+        let tail = &name[paren..];
+        if let Some(renamed) = rename.get(base) {
+            return format!("{renamed}{tail}");
+        }
+        return name.to_owned();
+    }
+    rename.get(name).cloned().unwrap_or_else(|| name.to_owned())
+}
+
+/// Rewrite `$name` / `${name}` substitutions in `text` through `rename`,
+/// leaving names absent from the map untouched. A faithful port of Python's
+/// `_rewrite_value_string`, including its backslash pair-counting: `\$x` is a
+/// literal `$` (not a substitution), but `\\$x` *is* a substitution because the
+/// first backslash escapes the second. Array references (`$arr(idx)`) rename
+/// the array base only — the index text is preserved verbatim.
+fn rewrite_value_string(text: &str, rename: &HashMap<String, String>) -> String {
+    if text.is_empty() || rename.is_empty() {
+        return text.to_owned();
+    }
+    let bytes = text.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < n {
+        let ch = bytes[i];
+        // A backslash escapes the next byte; both pass through verbatim. This
+        // makes `\$` a literal `$` and `\\` a literal backslash, so the byte
+        // after an unescaped `\` is never treated as a substitution start.
+        if ch == b'\\' && i + 1 < n {
+            out.push('\\');
+            out.push(bytes[i + 1] as char);
+            i += 2;
+            continue;
+        }
+        if ch != b'$' {
+            out.push(ch as char);
+            i += 1;
+            continue;
+        }
+        // An unescaped `$`: try to recognise a substitution.
+        if i + 1 < n && bytes[i + 1] == b'{' {
+            // `${name}` form — find the closing `}` (no nesting in Tcl).
+            if let Some(rel) = text[i + 2..].find('}') {
+                let j = i + 2 + rel;
+                let name = &text[i + 2..j];
+                let (base, tail) = match name.find('(') {
+                    Some(p) => (&name[..p], &name[p..]),
+                    None => (name, ""),
+                };
+                if let Some(renamed) = rename.get(base) {
+                    out.push_str("${");
+                    out.push_str(renamed);
+                    out.push_str(tail);
+                    out.push('}');
+                } else {
+                    out.push_str(&text[i..=j]);
+                }
+                i = j + 1;
+                continue;
+            }
+            // Malformed `${` — emit the `$` verbatim and carry on.
+            out.push('$');
+            i += 1;
+            continue;
+        }
+        // Bare `$name` form — scan the variable-name run (alnum / `_` /
+        // namespace `::`), then an optional `(idx)` array suffix.
+        let name_start = i + 1;
+        let mut j = name_start;
+        while j < n && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':') {
+            j += 1;
+        }
+        if j == name_start {
+            // `$` not followed by a name char — literal `$`.
+            out.push('$');
+            i += 1;
+            continue;
+        }
+        let base = &text[name_start..j];
+        // Optional `(idx)` array element suffix.
+        let mut tail_end = j;
+        if j < n && bytes[j] == b'(' && let Some(rel) = text[j..].find(')') {
+            tail_end = j + rel + 1;
+        }
+        let tail = &text[j..tail_end];
+        if let Some(renamed) = rename.get(base) {
+            out.push('$');
+            out.push_str(renamed);
+            out.push_str(tail);
+        } else {
+            out.push_str(&text[i..tail_end]);
+        }
+        i = tail_end;
+    }
+    out
+}
+
 /// Recurse the inliner into a compound statement's nested bodies.
-fn recurse_into_bodies(stmt: &mut Statement, inlinable: &HashMap<String, InlineSpec>) {
+fn recurse_into_bodies(
+    stmt: &mut Statement,
+    inlinable: &HashMap<String, InlineSpec>,
+    counter: &mut u32,
+) {
     match stmt {
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
-                rewrite_script(&mut c.body, inlinable);
+                rewrite_script(&mut c.body, inlinable, counter);
             }
             if let Some(b) = else_body {
-                rewrite_script(b, inlinable);
+                rewrite_script(b, inlinable, counter);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            rewrite_script(init, inlinable);
-            rewrite_script(next, inlinable);
-            rewrite_script(body, inlinable);
+            rewrite_script(init, inlinable, counter);
+            rewrite_script(next, inlinable, counter);
+            rewrite_script(body, inlinable, counter);
         }
         Statement::While { body, .. }
         | Statement::Foreach { body, .. }
         | Statement::Catch { body, .. }
         | Statement::Block { body, .. }
-        | Statement::UpFrame { body, .. } => rewrite_script(body, inlinable),
+        | Statement::UpFrame { body, .. } => rewrite_script(body, inlinable, counter),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            rewrite_script(body, inlinable);
+            rewrite_script(body, inlinable, counter);
             for h in handlers {
-                rewrite_script(&mut h.body, inlinable);
+                rewrite_script(&mut h.body, inlinable, counter);
             }
             if let Some(fb) = finally_body {
-                rewrite_script(fb, inlinable);
+                rewrite_script(fb, inlinable, counter);
             }
         }
         Statement::Switch {
@@ -343,11 +613,11 @@ fn recurse_into_bodies(stmt: &mut Statement, inlinable: &HashMap<String, InlineS
         } => {
             for a in arms {
                 if let Some(b) = &mut a.body {
-                    rewrite_script(b, inlinable);
+                    rewrite_script(b, inlinable, counter);
                 }
             }
             if let Some(b) = default_body {
-                rewrite_script(b, inlinable);
+                rewrite_script(b, inlinable, counter);
             }
         }
         _ => {}
@@ -417,11 +687,93 @@ mod tests {
     }
 
     #[test]
-    fn parameterised_proc_is_not_inlined() {
-        // v3 (parameters) is the residual — left intact.
+    fn parameterised_proc_is_inlined() {
+        // v3 — a simple-arity proc over a splice-safe body is inlined: the
+        // call is replaced by a parameter binding + the α-renamed body.
         let module = module_for("proc ::id {x} { puts $x }\nid 1");
         let inlined = inline_module(module);
-        assert_eq!(top_calls_to(&inlined, "id"), 1, "parameterised proc kept");
+        assert_eq!(
+            top_calls_to(&inlined, "id"),
+            0,
+            "parameterised proc inlined"
+        );
+        // A binding `set __inl_x_0 1` precedes a `puts $__inl_x_0`.
+        let has_binding = inlined.top_level.statements.iter().any(|s| {
+            matches!(s, Statement::AssignValue { name, value, .. } if name == "__inl_x_0" && value == "1")
+        });
+        assert!(has_binding, "parameter binding spliced");
+        let renamed_puts = inlined.top_level.statements.iter().any(|s| {
+            matches!(s, Statement::Call { command, args, .. }
+                if command == "puts" && args.iter().any(|a| a.contains("__inl_x_0")))
+        });
+        assert!(renamed_puts, "body `$x` α-renamed to the mangled parameter");
+    }
+
+    #[test]
+    fn parameterised_arity_mismatch_keeps_call() {
+        // Two args to a one-param proc: not a valid inline (and an error in
+        // Tcl) — leave the call for the normal path to handle.
+        let module = module_for("proc ::id {x} { puts $x }\nid 1 2");
+        let inlined = inline_module(module);
+        assert_eq!(top_calls_to(&inlined, "id"), 1, "arity mismatch keeps call");
+    }
+
+    #[test]
+    fn parameterised_arg_command_subst_keeps_call() {
+        // An arg with `[cmd]` substitution can't be modelled by the binding.
+        let module = module_for("proc ::id {x} { puts $x }\nid [clock seconds]");
+        let inlined = inline_module(module);
+        assert_eq!(top_calls_to(&inlined, "id"), 1, "cmd-subst arg keeps call");
+    }
+
+    #[test]
+    fn parameterised_with_default_is_not_inlined() {
+        // Parameter defaults are the v3 residual — declined.
+        let module = module_for("proc ::id {{x 5}} { puts $x }\nid 1");
+        let inlined = inline_module(module);
+        assert_eq!(top_calls_to(&inlined, "id"), 1, "defaulted proc kept");
+    }
+
+    #[test]
+    fn parameterised_variadic_is_not_inlined() {
+        // Variadic `args` needs call-site list packing — the v3 residual.
+        let module = module_for("proc ::p {args} { puts $args }\np 1 2 3");
+        let inlined = inline_module(module);
+        assert_eq!(top_calls_to(&inlined, "p"), 1, "variadic proc kept");
+    }
+
+    #[test]
+    fn rewrite_value_string_cases() {
+        let mut rename = HashMap::new();
+        rename.insert("a".to_owned(), "__a".to_owned());
+        let rw = |s: &str| rewrite_value_string(s, &rename);
+        // Bare and brace forms rename.
+        assert_eq!(rw("$a"), "$__a");
+        assert_eq!(rw("${a}"), "${__a}");
+        assert_eq!(rw("x $a y"), "x $__a y");
+        // Escaped `$` is a literal — not a substitution.
+        assert_eq!(rw("\\$a"), "\\$a");
+        // An escaped backslash leaves the `$a` live.
+        assert_eq!(rw("\\\\$a"), "\\\\$__a");
+        // Array element: base renamed, index preserved.
+        assert_eq!(rw("$a(3)"), "$__a(3)");
+        assert_eq!(rw("${a}(3)"), "${__a}(3)");
+        // Name-boundary: `$ab` is the variable `ab`, not `a`.
+        assert_eq!(rw("$ab"), "$ab");
+        // Unmapped and namespace names pass through.
+        assert_eq!(rw("$b"), "$b");
+        assert_eq!(rw("$::g"), "$::g");
+        // A lone `$` is literal.
+        assert_eq!(rw("price is $"), "price is $");
+    }
+
+    #[test]
+    fn rename_var_name_preserves_array_tail() {
+        let mut rename = HashMap::new();
+        rename.insert("arr".to_owned(), "__arr".to_owned());
+        assert_eq!(rename_var_name("arr(7)", &rename), "__arr(7)");
+        assert_eq!(rename_var_name("arr", &rename), "__arr");
+        assert_eq!(rename_var_name("other", &rename), "other");
     }
 
     #[test]
