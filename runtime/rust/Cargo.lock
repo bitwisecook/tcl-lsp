@@ -69,6 +69,13 @@ name = "tcl-platform"
 version = "0.1.0"
 
 [[package]]
+name = "tcl-regex"
+version = "0.1.0"
+dependencies = [
+ "tcl-cmd-core",
+]
+
+[[package]]
 name = "tcl-runtime"
 version = "0.1.0"
 dependencies = [
@@ -76,6 +83,7 @@ dependencies = [
  "tcl-host-native",
  "tcl-lexer",
  "tcl-platform",
+ "tcl-regex",
  "tcl-runtime-api",
  "tcl-syntax",
 ]

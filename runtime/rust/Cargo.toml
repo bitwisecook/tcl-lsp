@@ -39,6 +39,13 @@ tcl-runtime-api = { path = "../../rust/tcl-runtime-api" }
 # this runtime reaches platform facilities through. Wasm32-clean (traits only,
 # no syscalls), so it is an unconditional dependency on every target.
 tcl-platform = { path = "../../rust/tcl-platform" }
+# The pure-Rust Tcl 9 ARE engine — drives `regexp`/`regsub`/`lsearch -regexp`/
+# `switch -regexp`. Replaces the C Henry-Spencer engine formerly compiled in by
+# build.rs: it is safe Rust and wasm32-clean (no FFI), so regular expressions
+# now work on every target (they were stubbed out on wasm before). The
+# `cmd-core` feature provides the `RegexEngine` adapter the command layer uses;
+# the C-ABI shim in `src/regex_capi.rs` re-exports the same engine to C.
+tcl-regex = { path = "../../rust/tcl-regex", features = ["cmd-core"] }
 
 # The std-backed `NativeHost` — the full-capability `Host` for native builds.
 # It calls `std::fs`/`std::env`/`std::process`/`std::time`, so it is **not**
