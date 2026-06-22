@@ -938,3 +938,28 @@ fn dict_toplevel_ensemble() {
     assert_eq!(run("dict lappend f k 1 2; puts $f").2, "k {1 2}\n");
     assert_eq!(run("set d {a 1 b 2}; dict unset d a; puts $d").2, "b 2\n");
 }
+
+/// `{*}` expansion inside a command substitution in value position
+/// (`set x [cmd a {*}$args b]`) compiles to `expandStart … expandStkTop N;
+/// invokeExpanded` (result on the stack), matching tclsh 9.0 — FE-CODEGEN
+/// task 4. Statement-position `{*}` already lowered correctly.
+#[test]
+fn set_inline_cmd_subst_expand() {
+    assert_eq!(
+        run("proc f {args} {set x [concat a {*}$args b]; return $x}; puts [f 1 2 3]").2,
+        "a 1 2 3 b\n"
+    );
+    assert_eq!(
+        run("set a {1 2}; set x [concat {*}$a 3]; puts $x").2,
+        "1 2 3\n"
+    );
+    assert_eq!(
+        run("proc h {args} {set x [string cat {*}$args]; return $x}; puts [h a b c]").2,
+        "abc\n"
+    );
+    // `{*}{a b c}` expands a braced list verbatim.
+    assert_eq!(
+        run("set x [concat p {*}{a b c} q]; puts $x").2,
+        "p a b c q\n"
+    );
+}

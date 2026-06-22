@@ -469,7 +469,6 @@ impl CodegenCtx<'_> {
             && value.ends_with(']')
             && value.len() > 2
             && value[1..value.len() - 1].contains(' ')
-            && !value.contains("{*}")
             && !value.starts_with("[list ")
             && !value.starts_with("[dict create ")
             && !value.starts_with("[set ")
