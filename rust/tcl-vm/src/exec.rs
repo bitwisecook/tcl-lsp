@@ -1666,6 +1666,77 @@ impl Vm {
                 f.stack.push(Value::bool(found));
             }
 
+            // Reverse the top `N` stack elements in place (C Tcl `INST_REVERSE`;
+            // operand = N). Used to reorder operands an inline emitter pushed in
+            // the convenient order.
+            Op::REVERSE => {
+                let n = usize::try_from(imm0(instr)).unwrap_or(0);
+                let len = f.stack.len();
+                if n > len {
+                    return Tick::Return(err("reverse: stack underflow"));
+                }
+                f.stack[len - n..].reverse();
+            }
+            // `[lindex $list i1 i2 …]` with ≥ 2 indices — C Tcl
+            // `INST_LIST_INDEX_MULTI`; operand = list + index count. The list is
+            // deepest, then the indices; descends one index per level. An
+            // out-of-range index yields the empty string (matching `LIST_INDEX`).
+            Op::LINDEX_MULTI => {
+                let opnd = usize::try_from(imm0(instr)).unwrap_or(0);
+                if opnd == 0 || f.stack.len() < opnd {
+                    return Tick::Return(err("lindexMulti: stack underflow"));
+                }
+                let items = f.stack.split_off(f.stack.len() - opnd);
+                let mut cur = items[0].clone();
+                for spec in &items[1..] {
+                    let elems = match cur.as_list() {
+                        Ok(e) => e,
+                        Err(e) => return Tick::Return(err(e.message)),
+                    };
+                    let i = imm_index_value(spec, elems.len());
+                    cur = get_at(&elems, i);
+                }
+                f.stack.push(cur);
+            }
+            // `string replace $s $first $last $new` — C Tcl `INST_STR_REPLACE`.
+            // Stack holds the string, the first index, the last index, then the
+            // replacement (top). Character-indexed, `end`/`end±N` aware.
+            Op::STR_REPLACE => {
+                let newstr = pop(f);
+                let last = pop(f);
+                let first = pop(f);
+                let string = pop(f).to_str().to_string();
+                let chars: Vec<char> = string.chars().collect();
+                let len = chars.len();
+                let bad = |spec: &str| {
+                    err(format!(
+                        "bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?"
+                    ))
+                };
+                let first_s = first.to_str();
+                let last_s = last.to_str();
+                let Some(from) = crate::command::resolve_index(&first_s, len) else {
+                    return Tick::Return(bad(&first_s));
+                };
+                let Some(to) = crate::command::resolve_index(&last_s, len) else {
+                    return Tick::Return(bad(&last_s));
+                };
+                let slen = isize::try_from(len).unwrap_or(isize::MAX) - 1;
+                if to < 0 || from > slen || to < from {
+                    f.stack.push(Value::string(string));
+                } else {
+                    let from = usize::try_from(from.max(0)).unwrap_or(0);
+                    let to = usize::try_from(to.min(slen)).unwrap_or(0);
+                    if from == 0 && usize::try_from(slen).unwrap_or(0) == to {
+                        f.stack.push(newstr);
+                    } else {
+                        let mut out: String = chars[..from].iter().collect();
+                        out.push_str(&newstr.to_str());
+                        out.extend(&chars[to + 1..]);
+                        f.stack.push(Value::string(out));
+                    }
+                }
+            }
             // `lset var ?index? value` (single index, or a `{i j …}` index
             // list) — C Tcl `INST_LSET_LIST`. Stack holds the index list, the
             // new value, then the list (top); leaves the rebuilt list.
