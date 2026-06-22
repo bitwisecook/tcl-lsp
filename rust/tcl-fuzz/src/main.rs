@@ -12,6 +12,7 @@ mod findings;
 mod generator;
 mod harness;
 mod rng;
+mod wasm;
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -66,6 +67,22 @@ enum Cmd {
     },
     /// Print a summary of the findings registry.
     Summary,
+    /// WASM-runnability arm: compile each generated program to the
+    /// eval-fallback WASM module and run it under `wasmtime`, flagging codegen
+    /// panics/errors and modules that fail to instantiate or trap. (The value
+    /// differential against `tclsh` is gated on the interpreter-backed host —
+    /// RT-WASM; this exercises the WASM codegen for crashes/traps.)
+    WasmCheck {
+        /// Number of scripts to generate and check.
+        #[arg(long, default_value_t = 200)]
+        iterations: u64,
+        /// Starting seed (each iteration uses seed + i).
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Print each finding's seed and reason as it is discovered.
+        #[arg(long)]
+        verbose: bool,
+    },
 }
 
 fn main() -> std::process::ExitCode {
@@ -161,6 +178,83 @@ fn main() -> std::process::ExitCode {
                 std::process::ExitCode::from(2)
             }
         },
+        Cmd::WasmCheck {
+            iterations,
+            seed,
+            verbose,
+        } => wasm_check(*iterations, *seed, *verbose, &config, &cli.findings),
+    }
+}
+
+/// Drive the WASM-runnability arm over `iterations` generated programs.
+fn wasm_check(
+    iterations: u64,
+    seed: Option<u64>,
+    verbose: bool,
+    config: &GenConfig,
+    findings_dir: &Path,
+) -> std::process::ExitCode {
+    if !wasm::have_wasmtime() {
+        eprintln!("error: `wasmtime` not found on PATH — the WASM arm needs it");
+        return std::process::ExitCode::from(2);
+    }
+    let base_seed = seed.unwrap_or_else(time_seed);
+    let scratch = std::env::temp_dir().join(format!("tcl-fuzz-wasm-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&scratch);
+    let wasm_findings = findings_dir.join("wasm");
+    let _ = std::fs::create_dir_all(&wasm_findings);
+
+    eprintln!("wasm-check: {iterations} programs from seed {base_seed}");
+    // A generated program that makes codegen panic prints a backtrace by
+    // default; silence the hook for the campaign so the report stays readable
+    // (the verdict still captures the panic message).
+    let prior_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+
+    let (mut ran, mut codegen_failed, mut trapped) = (0u64, 0u64, 0u64);
+    for i in 0..iterations {
+        let s = base_seed.wrapping_add(i);
+        let script = generate(s, config);
+        match wasm::check(&script, &scratch, s) {
+            wasm::WasmVerdict::Ran => ran += 1,
+            wasm::WasmVerdict::Unavailable => {}
+            verdict => {
+                let (kind, reason) = match &verdict {
+                    wasm::WasmVerdict::CodegenFailed(r) => {
+                        codegen_failed += 1;
+                        ("codegen", r.as_str())
+                    }
+                    wasm::WasmVerdict::Trapped(r) => {
+                        trapped += 1;
+                        ("trap", r.as_str())
+                    }
+                    _ => unreachable!(),
+                };
+                if verbose {
+                    eprintln!(
+                        "  {kind} finding @ seed {s}: {}",
+                        reason.lines().next().unwrap_or("")
+                    );
+                }
+                let _ = std::fs::write(wasm_findings.join(format!("seed-{s}.tcl")), &script);
+            }
+        }
+        if !verbose && i % 50 == 0 {
+            eprintln!("  {i}/{iterations} — {} findings", codegen_failed + trapped);
+        }
+    }
+
+    std::panic::set_hook(prior_hook);
+    let _ = std::fs::remove_dir_all(&scratch);
+    let findings = codegen_failed + trapped;
+    eprintln!(
+        "\nwasm-check complete:\n  ran {ran} | codegen-failed {codegen_failed} | trapped {trapped}\n  findings: {findings} (scripts in {})",
+        wasm_findings.display(),
+    );
+    if findings > 0 {
+        std::process::ExitCode::from(1)
+    } else {
+        std::process::ExitCode::SUCCESS
     }
 }
 

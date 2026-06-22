@@ -27,6 +27,10 @@ path = "src/main.rs"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+# The WASM-runnability arm compiles generated programs to the eval-fallback
+# WASM module and runs them under wasmtime; it needs the codegen + registry.
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-registry = { path = "../tcl-registry" }
 
 [lints]
 workspace = true
