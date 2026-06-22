@@ -215,13 +215,22 @@ class _StatementsMixin:
                     and (nested := self._unroll_nested_set(value)) is not None
                 ):
                     # ``set x [set y [set z 42]]`` → push x, y, z, 42,
-                    # then chain storeStk for each variable (innermost first).
+                    # then chain stores for each variable (innermost first).
                     self._push_var_ref(name)
                     for part in nested[:-1]:
                         self._push_var_ref(part)
                     self._push_lit(nested[-1])
-                    for _ in range(len(nested) - 1):
-                        self._emit(Op.STORE_STK)
+                    # Stores pop innermost-first, so emit each inner target's
+                    # store op in reverse push order.  An array-element target
+                    # (``arr(key)`` — pushed as name+key by ``_push_var_ref``)
+                    # needs ``storeArrayStk``; a scalar needs ``storeStk``.
+                    # Matches tclsh 9.0's disassembly for nested ``set`` whose
+                    # targets include array elements (e.g. ``set x [set a(foo) 11]``).
+                    for part in reversed(nested[:-1]):
+                        if self._is_array_ref(part):
+                            self._emit(Op.STORE_ARRAY_STK)
+                        else:
+                            self._emit(Op.STORE_STK)
                     self._store_var(name)
                     self._emit(Op.POP)
                 elif not self._is_proc and (fmt_result := self._try_format_fold(value)) is not None:
