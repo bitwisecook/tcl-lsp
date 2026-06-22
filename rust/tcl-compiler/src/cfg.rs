@@ -409,6 +409,7 @@ mod tests {
         block.statements.push(Statement::AssignConst {
             span: Span::new(0, 10),
             name: "x".into(),
+            name_braced: false,
             value: "1".into(),
         });
         block.terminator = Some(make_return(None));

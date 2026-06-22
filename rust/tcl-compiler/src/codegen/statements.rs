@@ -107,9 +107,14 @@ impl CodegenCtx<'_> {
     /// keep the dispatcher under threshold.
     fn emit_assign_or_incr(&mut self, stmt: &Statement) -> bool {
         match stmt {
-            Statement::AssignConst { name, value, .. } => {
+            Statement::AssignConst {
+                name,
+                name_braced,
+                value,
+                ..
+            } => {
                 if needs_stk_var_ref(name, self.is_proc) {
-                    self.push_var_ref(name);
+                    self.push_var_ref(name, *name_braced);
                 }
                 // A constant value is verbatim: push it as-is so the VM does
                 // not run word substitution on any `[…]` / `$` it contains
@@ -121,6 +126,7 @@ impl CodegenCtx<'_> {
             }
             Statement::AssignValue {
                 name,
+                name_braced,
                 value,
                 value_needs_backsubst,
                 ..
@@ -142,7 +148,7 @@ impl CodegenCtx<'_> {
                     };
                 let inline = Self::assign_value_inlines_cmd_subst(&value);
                 if needs_stk_var_ref(name, self.is_proc) {
-                    self.push_var_ref(name);
+                    self.push_var_ref(name, *name_braced);
                 } else if inline && self.is_proc && !is_qualified(name) {
                     // Pre-intern the target so it gets a lower LVT slot than any
                     // variable introduced inside the substitution (catch result
@@ -158,9 +164,14 @@ impl CodegenCtx<'_> {
                 self.emit(Op::POP, vec![]);
                 true
             }
-            Statement::AssignExpr { name, expr, .. } => {
+            Statement::AssignExpr {
+                name,
+                name_braced,
+                expr,
+                ..
+            } => {
                 if needs_stk_var_ref(name, self.is_proc) {
-                    self.push_var_ref(name);
+                    self.push_var_ref(name, *name_braced);
                 }
                 let inner_end = self.fresh_label("cmd_end");
                 self.emit_comment(
@@ -476,13 +487,26 @@ impl CodegenCtx<'_> {
     }
 
     /// Push variable reference for store operations (name/key on stack).
-    pub fn push_var_ref(&mut self, name: &str) {
+    ///
+    /// When `name_braced` is `true` the target word was a brace-string
+    /// literal (`set {a($x)} v`); Tcl braces suppress substitution, so an
+    /// array-element key is pushed LITERALLY (`$x` stays `$x`) instead of
+    /// being substituted. A scalar target is unaffected.
+    pub fn push_var_ref(&mut self, name: &str, name_braced: bool) {
         if let Some((base, elem)) = split_array_ref(name) {
             if self.is_proc && !is_qualified(name) {
-                self.push_array_key(elem);
+                if name_braced {
+                    self.push_lit(elem);
+                } else {
+                    self.push_array_key(elem);
+                }
             } else {
                 self.push_lit(base);
-                self.push_array_key(elem);
+                if name_braced {
+                    self.push_lit(elem);
+                } else {
+                    self.push_array_key(elem);
+                }
             }
         } else {
             self.push_lit(name);
@@ -637,6 +661,7 @@ mod tests {
             span: sp(),
             name: "x".into(),
             value: "42".into(),
+            name_braced: false,
         };
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
@@ -652,6 +677,7 @@ mod tests {
             span: sp(),
             name: "x".into(),
             value: "42".into(),
+            name_braced: false,
         };
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
@@ -668,6 +694,7 @@ mod tests {
         let stmt = Statement::Incr {
             span: sp(),
             name: "x".into(),
+            name_braced: false,
             amount: None,
             safe_on_uninit: false,
         };
@@ -744,6 +771,7 @@ mod tests {
             span: sp(),
             name: "x".into(),
             value: "1".into(),
+            name_braced: false,
         };
         ctx.emit_stmt_with_start_cmd(&stmt, None, None);
         assert!(!opcodes(&ctx).contains(&Op::START_CMD));
@@ -753,6 +781,7 @@ mod tests {
             span: sp(),
             name: "y".into(),
             value: "2".into(),
+            name_braced: false,
         };
         ctx.emit_stmt_with_start_cmd(&stmt2, None, None);
         assert!(opcodes(&ctx).contains(&Op::START_CMD));
@@ -823,6 +852,7 @@ mod tests {
         let stmt = Statement::AssignExpr {
             span: sp(),
             name: "x".into(),
+            name_braced: false,
             expr: ExprNode::Literal {
                 text: "42".into(),
                 start: 0,

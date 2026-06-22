@@ -445,6 +445,7 @@ mod tests {
         let script = Script::from_statements(vec![Statement::AssignConst {
             span: Span::new(0, 7),
             name: "x".into(),
+            name_braced: false,
             value: "1".into(),
         }]);
         assert_eq!(defs_from_ir_script(&script), vec!["x"]);
@@ -481,6 +482,7 @@ mod tests {
                 body: Script::from_statements(vec![Statement::AssignConst {
                     span: Span::new(6, 13),
                     name: "y".into(),
+                    name_braced: false,
                     value: "2".into(),
                 }]),
                 body_span: Span::new(5, 14),
@@ -516,6 +518,7 @@ mod tests {
             body: Script::from_statements(vec![Statement::AssignConst {
                 span: Span::new(7, 14),
                 name: "inner".into(),
+                name_braced: false,
                 value: "1".into(),
             }]),
             body_span: Span::new(6, 15),

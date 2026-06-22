@@ -165,6 +165,25 @@ fn write_trace_error_info_reaches_triggering_command() {
     );
 }
 
+/// A brace-string array-element target keeps its key LITERAL: `set {a($x)} 5`
+/// stores the element whose key is the literal string `$x` (Tcl braces suppress
+/// substitution), so reading it back with the same braced key returns the value
+/// — it does NOT substitute `$x`. Regression for set-1.25 (the unbraced
+/// `set a($x) 5` still substitutes, covered by the array tests).
+#[test]
+fn braced_array_key_is_literal() {
+    let (ok, result, _) = run(concat!(
+        "catch {unset a}\n",
+        "set {a($x)} 5\n",
+        "set {a($x)}",
+    ));
+    assert!(
+        ok,
+        "braced key must not substitute $x (would error `can't read x`): {result}"
+    );
+    assert_eq!(result, "5");
+}
+
 /// `info level` runs through the shared Family-B core
 /// (`tcl_cmd_core::info::level`, over the `Introspect` role trait): the current
 /// depth with no argument, and the correct coercion error for a non-integer

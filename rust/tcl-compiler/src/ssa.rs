@@ -1564,6 +1564,7 @@ mod tests {
             statement: Statement::AssignConst {
                 span: Span::new(0, 10),
                 name: "x".into(),
+                name_braced: false,
                 value: "1".into(),
             },
             uses: HashMap::new(),
@@ -1606,6 +1607,7 @@ mod tests {
         let stmt = Statement::AssignConst {
             span: Span::new(0, 10),
             name: "x".into(),
+            name_braced: false,
             value: "1".into(),
         };
         assert_eq!(defs_of(&stmt), vec!["x"]);
@@ -1620,6 +1622,7 @@ mod tests {
             let stmt = Statement::AssignValue {
                 span: Span::new(0, 10),
                 name: name.into(),
+                name_braced: false,
                 value: "1".into(),
                 value_needs_backsubst: false,
                 tokens: None,
@@ -1633,6 +1636,7 @@ mod tests {
         let arr = Statement::AssignValue {
             span: Span::new(0, 10),
             name: "arr(idx)".into(),
+            name_braced: false,
             value: "1".into(),
             value_needs_backsubst: false,
             tokens: None,
@@ -1656,6 +1660,7 @@ mod tests {
         let stmt = Statement::Incr {
             span: Span::new(0, 10),
             name: "i".into(),
+            name_braced: false,
             amount: None,
             safe_on_uninit: false,
         };
@@ -1968,6 +1973,7 @@ mod tests {
             .push(Statement::AssignConst {
                 span: Span::new(10, 20),
                 name: "x".into(),
+                name_braced: false,
                 value: "1".into(),
             });
         func.blocks
@@ -1977,6 +1983,7 @@ mod tests {
             .push(Statement::AssignConst {
                 span: Span::new(30, 40),
                 name: "x".into(),
+                name_braced: false,
                 value: "2".into(),
             });
 
@@ -2003,6 +2010,7 @@ mod tests {
             .push(Statement::AssignConst {
                 span: Span::new(0, 10),
                 name: "x".into(),
+                name_braced: false,
                 value: "1".into(),
             });
 
@@ -2027,6 +2035,7 @@ mod tests {
             .push(Statement::AssignConst {
                 span: Span::new(0, 10),
                 name: "i".into(),
+                name_braced: false,
                 value: "0".into(),
             });
         func.blocks
@@ -2036,6 +2045,7 @@ mod tests {
             .push(Statement::Incr {
                 span: Span::new(30, 40),
                 name: "i".into(),
+                name_braced: false,
                 amount: None,
                 safe_on_uninit: false,
             });
@@ -2077,6 +2087,7 @@ mod tests {
         let stmt = Statement::AssignConst {
             span: Span::new(0, 10),
             name: "x".into(),
+            name_braced: false,
             value: "1".into(),
         };
         let uses = uses_of(&stmt, &mut scanner, &reg);
@@ -2094,6 +2105,7 @@ mod tests {
         let stmt = Statement::AssignValue {
             span: Span::new(0, 15),
             name: "y".into(),
+            name_braced: false,
             value: "$x".into(),
             value_needs_backsubst: false,
             tokens: None,
@@ -2113,6 +2125,7 @@ mod tests {
         let stmt = Statement::Incr {
             span: Span::new(0, 10),
             name: "i".into(),
+            name_braced: false,
             amount: None,
             safe_on_uninit: false,
         };
@@ -2173,11 +2186,13 @@ mod tests {
             Statement::AssignConst {
                 span: Span::new(0, 7),
                 name: "x".into(),
+                name_braced: false,
                 value: "1".into(),
             },
             Statement::AssignValue {
                 span: Span::new(8, 16),
                 name: "y".into(),
+                name_braced: false,
                 value: "$x".into(),
                 value_needs_backsubst: false,
                 tokens: None,
@@ -2212,6 +2227,7 @@ mod tests {
             .push(Statement::AssignConst {
                 span: Span::new(0, 7),
                 name: "x".into(),
+                name_braced: false,
                 value: "0".into(),
             });
 
@@ -2222,6 +2238,7 @@ mod tests {
             .push(Statement::AssignConst {
                 span: Span::new(10, 18),
                 name: "x".into(),
+                name_braced: false,
                 value: "1".into(),
             });
         func.blocks
@@ -2231,6 +2248,7 @@ mod tests {
             .push(Statement::AssignConst {
                 span: Span::new(20, 28),
                 name: "x".into(),
+                name_braced: false,
                 value: "2".into(),
             });
         // Read `x` after the join so it is upward-exposed at `end` — under
@@ -2290,6 +2308,7 @@ mod tests {
             .push(Statement::AssignConst {
                 span: Span::new(0, 8),
                 name: "i".into(),
+                name_braced: false,
                 value: "0".into(),
             });
         func.blocks
@@ -2299,6 +2318,7 @@ mod tests {
             .push(Statement::Incr {
                 span: Span::new(20, 28),
                 name: "i".into(),
+                name_braced: false,
                 amount: None,
                 safe_on_uninit: false,
             });

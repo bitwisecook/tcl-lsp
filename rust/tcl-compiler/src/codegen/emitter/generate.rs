@@ -728,6 +728,7 @@ mod tests {
                 span: stmt_span,
                 name: "x".into(),
                 value: "42".into(),
+                name_braced: false,
             });
         cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Return {
             value: None,
@@ -771,6 +772,7 @@ mod tests {
                 span: sp(),
                 name: "x".into(),
                 value: "42".into(),
+                name_braced: false,
             });
         cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Return {
             value: None,
@@ -834,6 +836,7 @@ mod tests {
                 span: sp(),
                 name: "r".into(),
                 value: "1".into(),
+                name_braced: false,
             });
         cfg.blocks.get_mut("if_then_1").unwrap().terminator = Some(Terminator::Goto {
             target: "if_end_1".into(),
@@ -847,6 +850,7 @@ mod tests {
                 span: sp(),
                 name: "r".into(),
                 value: "2".into(),
+                name_braced: false,
             });
         cfg.blocks.get_mut("if_else_1").unwrap().terminator = Some(Terminator::Goto {
             target: "if_end_1".into(),

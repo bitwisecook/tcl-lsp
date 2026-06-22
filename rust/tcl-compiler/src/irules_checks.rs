@@ -1205,7 +1205,9 @@ pub fn find_hoistable_set_warnings(
             };
             for stmt in &block.statements {
                 let (name, value, span) = match stmt {
-                    Statement::AssignConst { name, value, span }
+                    Statement::AssignConst {
+                        name, value, span, ..
+                    }
                     | Statement::AssignValue {
                         name, value, span, ..
                     } => (name, value, *span),

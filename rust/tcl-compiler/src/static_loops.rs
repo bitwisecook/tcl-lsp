@@ -400,6 +400,7 @@ mod tests {
         Statement::AssignConst {
             span: sp(),
             name: name.into(),
+            name_braced: false,
             value: value.into(),
         }
     }
@@ -408,6 +409,7 @@ mod tests {
         Statement::Incr {
             span: sp(),
             name: name.into(),
+            name_braced: false,
             amount: amount.map(String::from),
             safe_on_uninit: false,
         }

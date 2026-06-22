@@ -186,6 +186,13 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
     let name = &cmd.args[0];
     let value = &cmd.args[1];
 
+    // The name word is a brace-string literal (`set {a($x)} v`) when its arg
+    // token is `Str` and it is a single token. Braces suppress substitution, so
+    // codegen must push an array-element key (`a($x)`) LITERALLY rather than
+    // substitute it. Thread this through every assignment shape `set` lowers to.
+    let name_braced = matches!(cmd.arg_kinds.first(), Some(ArgTokenKind::Str))
+        && cmd.single_token_word.get(1).copied().unwrap_or(false);
+
     // Check if value arg is a single token.
     if cmd.single_token_word.len() >= 3 && cmd.single_token_word[2] && cmd.arg_kinds.len() >= 2 {
         match cmd.arg_kinds[1] {
@@ -193,6 +200,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                 return Statement::AssignConst {
                     span: cmd.span,
                     name: name.clone(),
+                    name_braced,
                     value: value.clone(),
                 };
             }
@@ -222,6 +230,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                     return Statement::AssignConst {
                         span: cmd.span,
                         name: name.clone(),
+                        name_braced,
                         value: int_val,
                     };
                 }
@@ -229,6 +238,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                 return Statement::AssignValue {
                     span: cmd.span,
                     name: name.clone(),
+                    name_braced,
                     value: value.clone(),
                     value_needs_backsubst: needs_backsubst,
                     tokens: cmd.tokens.clone(),
@@ -247,6 +257,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                     return Statement::AssignExpr {
                         span: cmd.span,
                         name: name.clone(),
+                        name_braced,
                         expr,
                     };
                 }
@@ -258,6 +269,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
     Statement::AssignValue {
         span: cmd.span,
         name: name.clone(),
+        name_braced,
         value: value.clone(),
         value_needs_backsubst: false,
         tokens: cmd.tokens.clone(),
