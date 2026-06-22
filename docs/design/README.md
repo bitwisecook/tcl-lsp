@@ -182,6 +182,9 @@ chunk-by-chunk dispatch story lives in
 - [runtime/rust-runtime-port.md](runtime/rust-runtime-port.md) —
   productionising the C-Tcl-extension-to-WASM port on the Rust runtime:
   status, bootstrapping plan, and the end-to-end build mechanism.
+- [runtime/rust-regex-port.md](runtime/rust-regex-port.md) — the
+  `tcl-regex` crate: a pure-Rust port of Tcl 9's Henry-Spencer ARE engine,
+  its architecture, and the `reg.test` corpus that validates it.
 - [rust/incremental-analysis.md](rust/incremental-analysis.md) —
   per-item walk with cascade invalidation: the incremental analysis design.
 - [rust/incremental-analysis-experiments.md](rust/incremental-analysis-experiments.md)
@@ -231,6 +234,9 @@ gates.
   — S6 allocation + small-value representation (free-lists,
   inline strings, dict hash side-cache, tagged immediates,
   per-statement arena).
+- [compiler/byte-array-corruption.md](compiler/byte-array-corruption.md)
+  — the `S110` byte-array corruption diagnostic: binary data forced
+  through character-string semantics.
 
 ## Contracts and interfaces
 
