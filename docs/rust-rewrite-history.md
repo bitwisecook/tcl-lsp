@@ -11773,12 +11773,20 @@ The second API-PYO3 item starts: the `scripts/` Python toolchain begins moving
 to a native `cargo xtask` runner. Landed the `rust/xtask` crate (clap-derive
 subcommands, `anyhow`, `forbid(unsafe_code)`, workspace member) and the
 `cargo xtask = "run --package xtask --"` alias in `.cargo/config.toml`. First
-script ported: `refcount-contract` (⇐ `scripts/check/refcount_contract.py`) —
-walks `runtime/zig/` for `pub export fn` declarations and lints them against
-the refcount-contract doc's table rows. Verified **byte-for-byte identical**
-stdout/stderr and exit codes (default + `--strict`) against the Python original
-on the current tree (302 missing / 3 stale / "33 of 332 … (9%)"); the two
-parsing regexes carry unit tests. The Python script stays in place (rollout
-rule: fallback for one cycle). The scaffold is the landing point for the rest
-of the `build/` / `check/` / `release/` Python scripts; the shell scripts under
-`scripts/` are already Python-free and need no port.
+scripts ported (both verified **byte-for-byte identical** stdout/stderr + exit
+codes against their Python originals on the current tree, with unit tests on the
+tricky parsing helpers):
+
+- `refcount-contract` (⇐ `scripts/check/refcount_contract.py`) — walks
+  `runtime/zig/` for `pub export fn` declarations and lints them against the
+  refcount-contract doc's table rows (302 missing / 3 stale / "33 of 332 …
+  (9%)"; default + `--strict` exit codes matched).
+- `kcs-index-links` (⇐ `scripts/check/kcs_index_links.py`) — validates local
+  markdown links and KCS/design index coverage under `docs/` (fenced-code
+  stripping, anchor-trimming, parent-README index fallback, audience-header
+  warnings). A shared `util::repo_root` was factored out for both subcommands.
+
+The Python scripts stay in place (rollout rule: fallback for one cycle). The
+scaffold is the landing point for the rest of the `build/` / `check/` /
+`release/` Python scripts; the shell scripts under `scripts/` are already
+Python-free and need no port.

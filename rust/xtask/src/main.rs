@@ -17,6 +17,8 @@
 //! - `refcount-contract` — port of `scripts/check/refcount_contract.py`: lint
 //!   that every `pub export fn` in `runtime/zig/` has a row in the refcount
 //!   contract doc.
+//! - `kcs-index-links` — port of `scripts/check/kcs_index_links.py`: validate
+//!   markdown links + KCS/design index coverage under `docs/`.
 
 #![forbid(unsafe_code)]
 
@@ -24,7 +26,9 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 
+mod kcs_index_links;
 mod refcount_contract;
+mod util;
 
 /// Native build/check tasks for the tcl-lsp workspace.
 #[derive(Parser)]
@@ -44,10 +48,16 @@ enum Command {
         #[arg(long)]
         strict: bool,
     },
+
+    /// Validate markdown links + KCS/design index coverage under `docs/`.
+    ///
+    /// Port of `scripts/check/kcs_index_links.py`.
+    KcsIndexLinks,
 }
 
 fn main() -> anyhow::Result<ExitCode> {
     match Cli::parse().command {
         Command::RefcountContract { strict } => refcount_contract::run(strict),
+        Command::KcsIndexLinks => kcs_index_links::run(),
     }
 }
