@@ -164,7 +164,14 @@ impl LiveSession {
     /// [`SessionError::Eval`] on an error completion, [`SessionError::Compile`]
     /// if the script does not compile.
     pub fn eval(&mut self, script: &str) -> Result<String, SessionError> {
-        match self.vm.eval_source(script) {
+        let result = self.vm.eval_source(script);
+        // A guest `exit` records a code on the VM rather than killing the host;
+        // surface it as a handleable error and clear it so the next eval is
+        // clean (the session, not the process, decides what to do).
+        if let Some(code) = self.vm.take_exit() {
+            return Err(SessionError::Eval(format!("script called exit {code}")));
+        }
+        match result {
             Ok(c) if c.code == Code::Error => Err(SessionError::Eval(c.result.to_str().to_string())),
             Ok(c) => Ok(c.result.to_str().to_string()),
             Err(e) => Err(SessionError::Compile(e.message)),
@@ -274,6 +281,40 @@ mod tests {
         s.load_irule("when HTTP_REQUEST {\n  pool web\n}").unwrap();
         s.run_http_request("-host x.example.com -uri /").unwrap();
         assert_eq!(s.pool_selected().unwrap(), "web");
+    }
+
+    #[test]
+    fn embedded_session_includes_generated_stubs() {
+        // `_mock_stubs.tcl` provides mocks for registry-only iRule commands (no
+        // hand-written mock). Without it bundled, a stub-only command like
+        // `ACCESS::session` errors "invalid command name" inside the handler,
+        // which `fire_event`'s `catch` stops — so the following `pool` never
+        // runs. Reaching the pool selection proves the stub dispatched.
+        let mut s = LiveSession::embedded().expect("embedded session");
+        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        s.eval("::orch::add_pool web {10.0.2.1:80}").unwrap();
+        s.load_irule("when HTTP_REQUEST {\n  ACCESS::session\n  pool web\n}")
+            .unwrap();
+        s.run_http_request("-host x.example.com -uri /").unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "web",
+            "stub-only ACCESS::session must dispatch, not abort the handler"
+        );
+    }
+
+    #[test]
+    fn guest_exit_does_not_kill_the_host() {
+        // The whole point of routing `exit` through a VM completion: a guest
+        // script calling `exit` must NOT terminate this test process. If it
+        // still called `std::process::exit`, the test binary would die here.
+        let mut s = LiveSession::embedded().expect("embedded session");
+        match s.eval("exit 7") {
+            Err(SessionError::Eval(_)) => {}
+            other => panic!("exit should surface as a handleable error, got {other:?}"),
+        }
+        // The session is still usable afterwards.
+        assert_eq!(s.eval("expr {1 + 1}").unwrap(), "2");
     }
 
     #[test]

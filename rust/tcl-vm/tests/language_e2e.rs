@@ -325,3 +325,22 @@ fn regexp_word_edge_escapes() {
     assert!(ok);
     assert_eq!(out, "10\n");
 }
+
+#[test]
+fn exit_does_not_terminate_the_process() {
+    // `exit` must not call `std::process::exit` (that would kill this test
+    // binary and any embedding host). It unwinds with a non-OK completion and
+    // records the code on the VM instead — reaching this assertion at all
+    // proves the process survived.
+    let (ok, _r, out) = run("puts before\nexit 3\nputs after\n");
+    assert!(!ok, "exit unwinds with a non-OK completion");
+    assert_eq!(out, "before\n", "statements after exit do not run");
+}
+
+#[test]
+fn exit_is_not_catchable() {
+    // Like C Tcl's Tcl_Exit, `exit` is not catchable: `catch` re-propagates the
+    // unwind rather than swallowing it, so the trailing `puts` never runs.
+    let (_ok, _r, out) = run("catch {exit 5}\nputs after\n");
+    assert_eq!(out, "", "catch does not swallow exit");
+}

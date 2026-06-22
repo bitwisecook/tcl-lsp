@@ -106,24 +106,36 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_try::register(vm);
 }
 
-/// `exit ?returnCode?` — terminate the process with `returnCode` (default 0).
-/// Matches `tclsh`: a non-integer code is an error. Host output is flushed on
-/// every `write_output`, so nothing is lost across the process exit.
-fn cmd_exit(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+/// `exit ?returnCode?` — request process termination with `returnCode`
+/// (default 0). Matches `tclsh`: a non-integer code is an error.
+///
+/// The VM library never calls `std::process::exit` itself — that would kill an
+/// embedding host (the debugger, `tcl-irule-test`, `f5 explain-flow
+/// --simulate`) on any guest script that runs `exit`. Instead it records the
+/// code on the interpreter and returns an unwinding completion; the standalone
+/// `tclvm` CLI checks [`Vm::take_exit`] and performs the real process exit,
+/// while embedders see a completion they can handle. Like C Tcl's `Tcl_Exit`
+/// it is **not** catchable — `catch` re-propagates while an exit is pending.
+fn cmd_exit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let code = match args {
         [] => 0,
         [c] => match c.as_int() {
             Ok(n) => i32::try_from(n).unwrap_or(0),
             Err(_) => {
-                return err(format!(
-                    "expected integer but got \"{}\"",
-                    c.to_str()
-                ));
+                return err(format!("expected integer but got \"{}\"", c.to_str()));
             }
         },
         _ => return err("wrong # args: should be \"exit ?returnCode?\""),
     };
-    std::process::exit(code);
+    vm.set_exit(code);
+    // Unwind everything with an error-coded completion (so it propagates through
+    // proc boundaries, unlike `return`); `catch` re-propagates while the exit is
+    // pending, and the driver consumes the code before the message is surfaced.
+    Completion::new(
+        Code::Error,
+        Value::string(format!("exit {code}")),
+        Value::empty(),
+    )
 }
 
 /// `set varName ?newValue?` — read or write a scalar.
@@ -728,6 +740,11 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(c) => c,
         Err(e) => Completion::new(Code::Error, e.into_value(), Value::empty()),
     };
+    // `exit` is not catchable (C Tcl's `Tcl_Exit`): if the body requested an
+    // exit, propagate the unwind rather than swallowing it.
+    if vm.exit_pending() {
+        return comp;
+    }
     if let Some(r) = resvar
         && let Err(e) = vm.set_var(&r.to_str(), comp.result.clone())
     {
