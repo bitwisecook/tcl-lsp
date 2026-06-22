@@ -356,6 +356,13 @@ pub enum Statement {
         body_span: Span,
         /// Raw argument texts for generic fallback.
         raw_args: Vec<String>,
+        /// Per-word source token metadata for the generic ("frozen") runtime
+        /// fallback, when the loop cannot be inlined (a command-substitution
+        /// condition). Carries the original word kinds so the fallback pushes
+        /// braced `{cond}` / `{body}` words verbatim and substituted words
+        /// (`$body`) interpolated — exactly as written. `None` for
+        /// synthetically-constructed loops that never take the fallback.
+        raw_tokens: Option<CommandTokens>,
     },
 
     /// `while` loop: `while cond body`.
@@ -372,6 +379,9 @@ pub enum Statement {
         body_span: Span,
         /// Raw argument texts for generic fallback.
         raw_args: Vec<String>,
+        /// Per-word source token metadata for the generic ("frozen") runtime
+        /// fallback — see [`Statement::For::raw_tokens`].
+        raw_tokens: Option<CommandTokens>,
     },
 
     /// `foreach`/`lmap`/`dict for`/`dict map` loop.
@@ -390,6 +400,11 @@ pub enum Statement {
         raw_args: Vec<String>,
         /// Whether this is `dict for`/`dict map`.
         is_dict_iteration: bool,
+        /// Per-word source token metadata for the generic runtime fallback
+        /// (the `dict for`/`map` barrier and the runtime `foreach`/`lmap`
+        /// call), so braced var-lists / bodies are pushed verbatim and
+        /// `$list` arguments substituted — see [`Statement::For::raw_tokens`].
+        raw_tokens: Option<CommandTokens>,
     },
 
     /// `catch script ?resultVar? ?optionsVar?`.
@@ -867,6 +882,7 @@ mod tests {
             body: Script::new(),
             body_span: Span::new(32, 34),
             raw_args: Vec::new(),
+            raw_tokens: None,
         };
         assert_eq!(stmt.span(), Span::new(0, 40));
     }
@@ -964,6 +980,7 @@ mod tests {
             is_lmap: false,
             raw_args: Vec::new(),
             is_dict_iteration: true,
+            raw_tokens: None,
         };
         if let Statement::Foreach {
             iterators,

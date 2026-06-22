@@ -518,6 +518,7 @@ mod tests {
             body: empty_script(),
             body_span: sp(),
             raw_args: Vec::new(),
+            raw_tokens: None,
         };
         let env = summarise_for_statement(&for_stmt, &StaticEnv::new(), 100).expect("summarised");
         assert_eq!(env.get("i"), Some(&StaticValue::Int(2)));

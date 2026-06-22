@@ -592,6 +592,7 @@ mod tests {
                     body: crate::ir::Script::new(),
                     body_span: Span::new(0, 0),
                     raw_args: Vec::new(),
+                    raw_tokens: None,
                 },
             },
         );

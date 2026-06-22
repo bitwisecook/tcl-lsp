@@ -7,9 +7,9 @@
 //!
 //! The command surface (verb names, aliases, flags) is the parity contract
 //! with the Python CLI: `tcl --help` and every `tcl <verb> --help` are diffed
-//! against the argparse output during the port. Verb *behaviour* is filled in
-//! phase by phase; until a verb is ported its handler returns a clear
-//! "not yet implemented" error (exit code 2), matching the Python error path.
+//! against the argparse output during the port. Every top-level verb is now
+//! ported and dispatched to a native engine handler, so the dispatch `match`
+//! is exhaustive — there is no longer a not-yet-implemented fallthrough.
 
 #![forbid(unsafe_code)]
 
@@ -181,10 +181,5 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
         Command::Pkg { action } => commands::pkg::run(action),
         Command::Venv { action } => commands::venv::run(action),
         Command::Docker { action } => commands::docker::run(action),
-        // Verbs not yet ported fall through to a clear not-implemented error.
-        other => {
-            let verb = other.verb_name();
-            anyhow::bail!("`tcl {verb}` is not yet implemented in the Rust port");
-        }
     }
 }

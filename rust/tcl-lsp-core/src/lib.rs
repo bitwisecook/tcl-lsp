@@ -31,6 +31,7 @@ pub mod irules_object_refs;
 pub mod linked_editing_range;
 pub mod minify;
 pub mod references;
+pub mod refactor;
 pub mod rename;
 pub mod selection_range;
 pub mod semantic_tokens;

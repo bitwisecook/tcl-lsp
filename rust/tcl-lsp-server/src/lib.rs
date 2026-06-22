@@ -4513,6 +4513,13 @@ impl LanguageServer for Backend {
                     command: c.command,
                     arguments: Some(c.args.into_iter().map(serde_json::Value::from).collect()),
                 });
+                // Surface the rendered tmsh data-group definition (the
+                // extract-to-datagroup refactor) as the action's `data`
+                // payload, mirroring Python's
+                // `_datagroup_to_code_action`'s `data={"data_group_definition": …}`.
+                let data = a.data_group_definition.map(|def| {
+                    serde_json::json!({ "data_group_definition": def })
+                });
                 CodeActionOrCommand::CodeAction(CodeAction {
                     title: a.title,
                     kind: Some(tower_lsp::lsp_types::CodeActionKind::new(a.kind.as_str())),
@@ -4525,7 +4532,7 @@ impl LanguageServer for Backend {
                     command,
                     is_preferred: None,
                     disabled: None,
-                    data: None,
+                    data,
                 })
             })
             .collect();

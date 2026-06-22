@@ -82,6 +82,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("subst", cmd_subst);
     vm.register("auto_load", cmd_auto_load);
     vm.register("auto_import", |_, _| ok(Value::empty()));
+    vm.register("exit", cmd_exit);
     crate::cmd_array::register(vm);
     crate::cmd_chan::register(vm);
     crate::cmd_clock::register(vm);
@@ -103,6 +104,38 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_switch::register(vm);
     crate::cmd_trace::register(vm);
     crate::cmd_try::register(vm);
+}
+
+/// `exit ?returnCode?` — request process termination with `returnCode`
+/// (default 0). Matches `tclsh`: a non-integer code is an error.
+///
+/// The VM library never calls `std::process::exit` itself — that would kill an
+/// embedding host (the debugger, `tcl-irule-test`, `f5 explain-flow
+/// --simulate`) on any guest script that runs `exit`. Instead it records the
+/// code on the interpreter and returns an unwinding completion; the standalone
+/// `tclvm` CLI checks [`Vm::take_exit`] and performs the real process exit,
+/// while embedders see a completion they can handle. Like C Tcl's `Tcl_Exit`
+/// it is **not** catchable — `catch` re-propagates while an exit is pending.
+fn cmd_exit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let code = match args {
+        [] => 0,
+        [c] => match c.as_int() {
+            Ok(n) => i32::try_from(n).unwrap_or(0),
+            Err(_) => {
+                return err(format!("expected integer but got \"{}\"", c.to_str()));
+            }
+        },
+        _ => return err("wrong # args: should be \"exit ?returnCode?\""),
+    };
+    vm.set_exit(code);
+    // Unwind everything with an error-coded completion (so it propagates through
+    // proc boundaries, unlike `return`); `catch` re-propagates while the exit is
+    // pending, and the driver consumes the code before the message is surfaced.
+    Completion::new(
+        Code::Error,
+        Value::string(format!("exit {code}")),
+        Value::empty(),
+    )
 }
 
 /// `set varName ?newValue?` — read or write a scalar.
@@ -136,11 +169,18 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Track the path so `info script` (and callers like `[file dirname [info
     // script]]`) resolve relative to the file being sourced.
     vm.push_script(path.to_string());
-    let result = match vm.eval_source(&contents) {
+    let mut result = match vm.eval_source(&contents) {
         Ok(c) => c,
         Err(e) => err(e.message),
     };
     vm.pop_script();
+    // A top-level `return` in the sourced file ends the *file*, not the caller:
+    // `source` absorbs the `TCL_RETURN` and returns its value normally (like C
+    // Tcl's `Tcl_FSEvalFileEx`). Without this a `return` — e.g. the early-out at
+    // the top of a compatibility shim — unwinds the script that called `source`.
+    if result.code == Code::Return {
+        result.code = Code::Ok;
+    }
     result
 }
 
@@ -482,17 +522,17 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"proc name args body\"");
     };
     let name_s = name.to_str();
-    // The pre-compiled body is keyed by the name as the compiler saw it
-    // (global-qualified with a leading `::`), independent of the namespace the
-    // `proc` runs in.
-    let body_key = if name_s.starts_with("::") {
-        name_s.to_string()
-    } else {
-        format!("::{name_s}")
-    };
     // The registration / activation name is qualified with the *current*
     // namespace (so `namespace eval foo { proc bar … }` defines `foo::bar`).
     let reg_name = vm.qualify_name(&name_s);
+    // The pre-compiled body cache is keyed by the *runtime-qualified* name. A
+    // bare proc name resolves against the current namespace, so two procs that
+    // share an unqualified name in different namespaces (`::a::p` vs `::b::p`)
+    // must not collide on one cached body — keying by `reg_name` keeps them
+    // distinct. Global procs (`reg_name == ::name`) still hit the compiler's
+    // `::name`-keyed entry; namespaced bodies the compiler globalised under
+    // `::name` simply miss and recompile via `compile_dynamic_body`.
+    let body_key = reg_name.clone();
     let namespace = reg_name
         .rsplit_once("::")
         .map_or_else(String::new, |(ns, _)| ns.to_string());
@@ -700,6 +740,11 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(c) => c,
         Err(e) => Completion::new(Code::Error, e.into_value(), Value::empty()),
     };
+    // `exit` is not catchable (C Tcl's `Tcl_Exit`): if the body requested an
+    // exit, propagate the unwind rather than swallowing it.
+    if vm.exit_pending() {
+        return comp;
+    }
     if let Some(r) = resvar
         && let Err(e) = vm.set_var(&r.to_str(), comp.result.clone())
     {

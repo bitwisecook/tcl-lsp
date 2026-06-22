@@ -1,0 +1,32 @@
+# `tcl-fuzz` — differential fuzzer for the native Tcl VM.
+#
+# Generates structurally-valid Tcl over the VM's supported surface (variables,
+# expr, string/list/dict ops, control flow, procs, arrays — no I/O), runs each
+# script through both the native `tclvm` and a reference `tclsh`, and flags any
+# divergence in stdout / exit status as a finding. The campaign runner +
+# generator + findings registry are the Rust port of `tooling/fuzzing/`.
+#
+# Both backends run as subprocesses with a wall-clock timeout, so a generated
+# script that hangs one engine is recorded as a finding rather than wedging the
+# campaign.
+[package]
+name = "tcl-fuzz"
+description = "Differential fuzzer for the native Tcl bytecode VM (tclvm vs tclsh)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "tcl-fuzz"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "wrap_help"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[lints]
+workspace = true

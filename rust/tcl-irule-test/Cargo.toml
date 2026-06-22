@@ -1,0 +1,32 @@
+# `tcl-irule-test` — the iRule test framework (TMM-simulation harness).
+#
+# The TMM simulation itself is the body of Tcl under `tooling/irule_test/tcl/`
+# (orchestrator + TMM shim + command mocks) that runs an iRule inside a Tcl
+# interpreter — in the Rust port, on `tcl-vm`. This crate is the Rust-side glue
+# the Python `tooling/irule_test/` package provides: turning a parsed BIG-IP
+# config into orchestrator setup commands (topology), and driving the
+# orchestrator through a session API.
+#
+# Status: the topology generator is portable today (it consumes the Rust
+# BIG-IP model in `tcl-bigip`); the session driver is gated on the VM growing
+# the iRule command surface (HTTP::, pool/node, events) that the orchestrator
+# Tcl needs — see the `session` module.
+[package]
+name = "tcl-irule-test"
+description = "iRule test framework: BIG-IP topology → orchestrator setup, and the TMM-sim session driver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-bigip = { path = "../tcl-bigip" }
+tcl-vm = { path = "../tcl-vm" }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-bytecode = { path = "../tcl-bytecode" }
+
+[lints]
+workspace = true

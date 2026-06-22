@@ -90,6 +90,34 @@ fn dict_update(
     ok(result)
 }
 
+/// Set the nested `keys` path of dict `cur` to `value`, creating intermediate
+/// dicts as needed (`dict set` with multiple keys).
+fn set_path(cur: &Value, keys: &[Value], value: Value) -> Result<Value, Completion<Value>> {
+    let mut ps = pairs(cur)?;
+    let k = keys[0].to_str().to_string();
+    let newv = if keys.len() == 1 {
+        value
+    } else {
+        let sub = lookup(&ps, &k).cloned().unwrap_or_else(Value::empty);
+        set_path(&sub, &keys[1..], value)?
+    };
+    upsert(&mut ps, &k, newv);
+    Ok(from_pairs(&ps))
+}
+
+/// Remove the nested `keys` path from dict `cur` (`dict unset` with multiple
+/// keys). A missing intermediate key is a no-op, matching `dict unset`.
+fn unset_path(cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
+    let mut ps = pairs(cur)?;
+    let k = keys[0].to_str().to_string();
+    if keys.len() == 1 {
+        ps.retain(|(pk, _)| pk != &k);
+    } else if let Some(idx) = ps.iter().position(|(pk, _)| pk == &k) {
+        ps[idx].1 = unset_path(&ps[idx].1.clone(), &keys[1..])?;
+    }
+    Ok(from_pairs(&ps))
+}
+
 fn upsert(ps: &mut Vec<(String, Value)>, key: &str, value: Value) {
     if let Some(slot) = ps.iter_mut().find(|(k, _)| k == key) {
         slot.1 = value;
@@ -205,39 +233,36 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
         }
         "set" => {
             // dict set dictVarName key ?key ...? value
-            let [varname, mid @ .., value] = rest else {
+            let [varname, keys @ .., value] = rest else {
                 return err("wrong # args: should be \"dict set dictVarName key ?key ...? value\"");
             };
-            if mid.is_empty() {
+            if keys.is_empty() {
                 return err("wrong # args: should be \"dict set dictVarName key ?key ...? value\"");
             }
             let name = varname.to_str();
             let cur = vm.get_var(&name).unwrap_or_else(Value::empty);
-            let mut ps = match pairs(&cur) {
-                Ok(p) => p,
+            let result = match set_path(&cur, keys, value.clone()) {
+                Ok(v) => v,
                 Err(c) => return c,
             };
-            // M3: single level of nesting only.
-            upsert(&mut ps, &mid[0].to_str(), value.clone());
-            let result = from_pairs(&ps);
             if let Err(e) = vm.set_var(&name, result.clone()) {
                 return e;
             }
             ok(result)
         }
         "unset" => {
-            let [varname, key] = rest else {
+            let [varname, keys @ ..] = rest else {
                 return err("wrong # args: should be \"dict unset dictVarName key ?key ...?\"");
             };
+            if keys.is_empty() {
+                return err("wrong # args: should be \"dict unset dictVarName key ?key ...?\"");
+            }
             let name = varname.to_str();
             let cur = vm.get_var(&name).unwrap_or_else(Value::empty);
-            let mut ps = match pairs(&cur) {
-                Ok(p) => p,
+            let result = match unset_path(&cur, keys) {
+                Ok(v) => v,
                 Err(c) => return c,
             };
-            let k = key.to_str();
-            ps.retain(|(pk, _)| pk != &*k);
-            let result = from_pairs(&ps);
             if let Err(e) = vm.set_var(&name, result.clone()) {
                 return e;
             }

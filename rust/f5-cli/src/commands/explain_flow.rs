@@ -9,7 +9,9 @@
 //! the matched-session detail (profile chain, iRule event chain, LTM policy
 //! trace via `tcl_bigip::policy_eval`, resolved plan), the reset-cause
 //! narrative, and both the text and `--json` report renderers. The `--tshark`
-//! enrichment and `--simulate` (iRule VM) paths remain deferred.
+//! / `--keylog` / `--tshark-filter` L7-enrichment paths are wired through
+//! `tcl_bigip::flow::tshark`. The `--simulate` (iRule VM) path remains
+//! deferred until the RT-VM-gated native iRule simulator lands.
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -18,7 +20,10 @@ use std::sync::LazyLock;
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{Map, Value};
-use tcl_bigip::flow::{Connection, Flow, Session, extract_flows, pair_sessions};
+use tcl_bigip::flow::{
+    Connection, Flow, Session, enrich_with_tshark, extract_flows, extract_flows_via_tshark,
+    pair_sessions, tshark_available,
+};
 use tcl_bigip::model::{
     BigipPolicy, BigipProfile, BigipRule, BigipVirtualServer, ModelObject, ProfileType,
 };
@@ -91,6 +96,23 @@ struct SessionExplain {
     gtm_wide_ips: Vec<String>,
     explain_text: String,
     reset_analysis: String,
+    /// The dynamic iRule-simulation outcome (`--simulate`), if requested.
+    simulated: Option<SimOutcome>,
+}
+
+/// The dynamic outcome of running a matched session's iRule(s) under the
+/// embedded TMM-sim orchestrator on `tcl-vm`. Port of the result half of
+/// `tooling/f5/irule_simulation.py::simulate_irule_for_session`.
+#[derive(Default, Clone)]
+struct SimOutcome {
+    pool: String,
+    node: String,
+    response_committed: bool,
+    logs: Vec<String>,
+    decisions: Vec<(String, String, String)>,
+    /// Non-empty when the simulation could not run (the static report still
+    /// renders); mirrors the Python adapter's best-effort `error` field.
+    error: String,
 }
 
 /// Owns the [`Session`] referenced by a [`SessionExplain`].
@@ -103,13 +125,17 @@ impl SessionExplain {
 }
 
 /// The whole-report result of [`compute_explain_flow`]. The `used_tshark` /
-/// `keylog_path` / `tshark_filter` fields are fixed for the static built-in
-/// walker path (the tshark path is a later increment).
+/// `keylog_path` / `tshark_filter` fields record the L7-enrichment path taken:
+/// the built-in walker alone (`used_tshark = false`), the `--tshark` /
+/// `--keylog` overlay, or a `--tshark-filter` extraction.
 struct ExplainFlowReport {
     pcap_path: String,
     flow_count: usize,
     session_count: usize,
     matched_count: usize,
+    used_tshark: bool,
+    keylog_path: String,
+    tshark_filter: String,
     sessions: Vec<SessionExplain>,
 }
 
@@ -673,19 +699,308 @@ fn analyse_reset(session: &Session) -> String {
 
 /// Build the per-session explanation for the capture against parsed configs.
 #[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_arguments)]
+// `use_tshark` (input intent) vs `used_tshark` (output fact) mirror the Python
+// names; the one-letter gap is the contract, not an accident.
+#[allow(clippy::similar_names)]
+/// The orchestrator profile labels (TCP / CLIENTSSL / HTTP / …) for `vs`.
+/// Mirrors `irule_simulation.profiles_for_orchestrator`.
+fn profiles_for_orchestrator(cfg: &BigipConfig, vs: &BigipVirtualServer) -> Vec<String> {
+    let types = profile_types_for_virtual(cfg, vs);
+    let mut out: Vec<String> = Vec::new();
+    if types.contains(&ProfileType::Tcp) || !vs.profiles.paths().is_empty() {
+        out.push("TCP".to_owned());
+    }
+    if types.contains(&ProfileType::Udp) {
+        out.push("UDP".to_owned());
+    }
+    if types.contains(&ProfileType::ClientSsl) {
+        out.push("CLIENTSSL".to_owned());
+    }
+    if types.contains(&ProfileType::ServerSsl) {
+        out.push("SERVERSSL".to_owned());
+    }
+    if types.contains(&ProfileType::Http) {
+        out.push("HTTP".to_owned());
+    }
+    if out.is_empty() {
+        out.push("TCP".to_owned());
+    }
+    out
+}
+
+/// The last `/`-separated segment of a full path (`/Common/web` → `web`).
+fn last_segment(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
+}
+
+/// Quote `s` as a Tcl double-quoted word, escaping the substitution / quoting
+/// metacharacters so an arbitrary captured value can't break the command.
+fn tcl_quote(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        if matches!(c, '$' | '[' | ']' | '"' | '\\') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out.push('"');
+    out
+}
+
+/// Run the matched VS's iRule(s) under the embedded orchestrator with the
+/// captured request state. Best-effort: any failure standing the orchestrator
+/// up or running the request lands in [`SimOutcome::error`] so the static
+/// report still renders. Port of `simulate_irule_for_session`.
+#[allow(clippy::too_many_lines)] // setup + load + pools + request + readback, read top-to-bottom
+fn simulate_session(cfg: &BigipConfig, vs: &BigipVirtualServer, session: &Session) -> SimOutcome {
+    use std::fmt::Write as _;
+
+    use tcl_irule_test::LiveSession;
+
+    let mut out = SimOutcome::default();
+
+    // Collect every attached iRule's source, resolving short refs.
+    let mut rules: Vec<String> = Vec::new();
+    for rref in vs.rules.paths() {
+        let resolved = resolve_name(cfg, &rref, "rules").unwrap_or_else(|| rref.clone());
+        if let Some(rule) = find_rule(cfg, &resolved) {
+            rules.push(rule.source.clone());
+        }
+    }
+    if rules.is_empty() {
+        out.error = String::from("no iRules attached to VS — nothing to simulate");
+        return out;
+    }
+
+    let front = &session.front.client;
+    let method = if front.http_method.is_empty() {
+        "GET"
+    } else {
+        &front.http_method
+    };
+    let uri = if front.http_uri.is_empty() {
+        "/"
+    } else {
+        &front.http_uri
+    };
+    let profiles = profiles_for_orchestrator(cfg, vs);
+
+    let mut sess = match LiveSession::embedded() {
+        Ok(s) => s,
+        Err(e) => {
+            out.error = format!("cannot start orchestrator: {e}");
+            return out;
+        }
+    };
+
+    macro_rules! guard {
+        ($e:expr) => {
+            if let Err(e) = $e {
+                out.error = e.to_string();
+                return out;
+            }
+        };
+    }
+
+    guard!(sess.eval(&format!(
+        "::orch::configure -profiles {{{}}}",
+        profiles.join(" ")
+    )));
+    for src in &rules {
+        guard!(sess.load_irule(src));
+    }
+
+    // Register every pool referenced by the config (a `pool foo` call inside an
+    // iRule resolves through this set), plus the VS default pool.
+    for placed in &cfg.objects {
+        let ModelObject::Pool(pool) = &placed.object else {
+            continue;
+        };
+        let members: Vec<String> = pool
+            .members
+            .paths()
+            .iter()
+            .filter(|m| !m.is_empty())
+            .map(|m| last_segment(m).to_owned())
+            .collect();
+        if members.is_empty() {
+            continue;
+        }
+        let name = last_segment(&pool.full_path);
+        let member_list = members.iter().map(|m| tcl_quote(m)).collect::<Vec<_>>().join(" ");
+        guard!(sess.eval(&format!(
+            "::orch::add_pool {} [list {member_list}]",
+            tcl_quote(name)
+        )));
+    }
+
+    if profiles.iter().any(|p| p == "HTTP") {
+        let mut args = format!("-method {} -uri {}", tcl_quote(method), tcl_quote(uri));
+        if !front.http_host.is_empty() {
+            let _ = write!(args, " -host {}", tcl_quote(&front.http_host));
+        }
+        if !front.tls_sni.is_empty() {
+            let _ = write!(args, " -sni {}", tcl_quote(&front.tls_sni));
+        }
+        if !front.http_request_headers.is_empty() {
+            let hdr_tokens: Vec<String> = front
+                .http_request_headers
+                .iter()
+                .flat_map(|(k, v)| [tcl_quote(k), tcl_quote(v)])
+                .collect();
+            let _ = write!(args, " -headers [list {}]", hdr_tokens.join(" "));
+        }
+        guard!(sess.run_http_request(&args));
+    } else {
+        // Non-HTTP: fire CLIENT_ACCEPTED to exercise any L4 logic, no result.
+        guard!(sess.eval("::orch::fire CLIENT_ACCEPTED"));
+        return out;
+    }
+
+    out.pool = sess.pool_selected().unwrap_or_default();
+    let node_addr = sess.eval("set ::state::lb::node_addr").unwrap_or_default();
+    if !node_addr.is_empty() {
+        let node_port = sess.eval("set ::state::lb::node_port").unwrap_or_default();
+        out.node = format!("{node_addr}:{node_port}");
+    }
+    out.response_committed = sess
+        .eval("set ::state::http::response::response_committed")
+        .is_ok_and(|v| v == "1" || v == "true");
+    out.decisions = parse_decisions(&sess.decisions().unwrap_or_default());
+    out.logs = parse_log_entries(&sess.logs().unwrap_or_default());
+    out
+}
+
+/// Parse the orchestrator's decision log (a Tcl list of `{category action args}`)
+/// into `(category, action, value)` triples. Mirrors the Python adapter's
+/// flattening of `result.decisions`.
+fn parse_decisions(list: &str) -> Vec<(String, String, String)> {
+    tcl_list_split(list)
+        .into_iter()
+        .filter_map(|entry| {
+            let parts = tcl_list_split(&entry);
+            match parts.as_slice() {
+                [cat, act, rest @ ..] => Some((
+                    cat.clone(),
+                    act.clone(),
+                    rest.iter()
+                        .map(|v| tcl_list_split(v).join(" "))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                )),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+/// Parse the captured log list (each entry a `{facility level message …}` Tcl
+/// list) into `" | "`-joined display strings, matching the Python adapter.
+fn parse_log_entries(list: &str) -> Vec<String> {
+    tcl_list_split(list)
+        .into_iter()
+        .map(|entry| {
+            let parts = tcl_list_split(&entry);
+            if parts.is_empty() {
+                entry
+            } else {
+                parts.join(" | ")
+            }
+        })
+        .collect()
+}
+
+/// Split a Tcl list string into its top-level elements, honouring `{…}` braces
+/// and a single level of backslash escaping. Sufficient for the orchestrator's
+/// well-formed decision / log lists.
+fn tcl_list_split(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut chars = s.chars().peekable();
+    loop {
+        while matches!(chars.peek(), Some(c) if c.is_whitespace()) {
+            chars.next();
+        }
+        let Some(&c) = chars.peek() else { break };
+        let mut elem = String::new();
+        if c == '{' {
+            chars.next();
+            let mut depth = 1;
+            for ch in chars.by_ref() {
+                match ch {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                if depth > 0 {
+                    elem.push(ch);
+                }
+            }
+        } else {
+            while let Some(&ch) = chars.peek() {
+                if ch.is_whitespace() {
+                    break;
+                }
+                if ch == '\\' {
+                    chars.next();
+                    if let Some(esc) = chars.next() {
+                        elem.push(esc);
+                    }
+                    continue;
+                }
+                elem.push(ch);
+                chars.next();
+            }
+        }
+        out.push(elem);
+    }
+    out
+}
+
+#[allow(
+    clippy::too_many_lines,
+    clippy::similar_names,
+    clippy::too_many_arguments
+)] // faithful port: flow extraction + per-session matching, read top-to-bottom
 fn compute_explain_flow(
     pcap_display: &str,
+    pcap_path: &Path,
     pcap_bytes: &[u8],
     configs: &[BigipConfig],
     show_event_bodies: bool,
     max_event_body_lines: usize,
+    use_tshark: bool,
+    keylog_path: &str,
+    tshark_filter: &str,
+    simulate: bool,
 ) -> Result<ExplainFlowReport, String> {
     let dest_re = Regex::new(
         r"^(?P<path>/[^/\s]+/)?(?P<addr>\[[^\]]+\]|[0-9a-fA-F\.:]+)(?:%\d+)?:(?P<port>\d+|any)$",
     )
     .expect("static destination regex");
 
-    let flows = extract_flows(pcap_bytes)?;
+    // Flow extraction mirrors `compute_explain_flow`'s three paths:
+    //   * `--tshark-filter` → tshark is the canonical flow source;
+    //   * `--tshark` / `--keylog` → built-in walker + tshark L7 overlay;
+    //   * neither → built-in walker alone.
+    let mut used_tshark = false;
+    let flows = if tshark_filter.is_empty() {
+        let mut flows = extract_flows(pcap_bytes)?;
+        if use_tshark && tshark_available() {
+            used_tshark = enrich_with_tshark(&mut flows, pcap_path, keylog_path, "");
+        }
+        flows
+    } else {
+        let flows = extract_flows_via_tshark(pcap_path, keylog_path, tshark_filter);
+        used_tshark = !flows.is_empty() || tshark_available();
+        flows
+    };
     let flow_count = flows.len();
     let mut sessions = pair_sessions(&flows);
     let session_count = sessions.len();
@@ -840,6 +1155,10 @@ fn compute_explain_flow(
 
         let reset = analyse_reset(&session);
 
+        // Dynamic iRule simulation (`--simulate`): run the matched VS's iRules
+        // under the embedded orchestrator with this session's captured request.
+        let simulated = simulate.then(|| simulate_session(cfg_hit, vs, &session));
+
         session_explains.push(SessionExplain {
             session: Some(SessionHolder(session)),
             matched_vs: vs.full_path.clone(),
@@ -856,6 +1175,7 @@ fn compute_explain_flow(
             gtm_wide_ips: gtm,
             explain_text,
             reset_analysis: reset,
+            simulated,
         });
     }
 
@@ -864,21 +1184,36 @@ fn compute_explain_flow(
         flow_count,
         session_count,
         matched_count: matched,
+        used_tshark,
+        keylog_path: keylog_path.to_owned(),
+        tshark_filter: tshark_filter.to_owned(),
         sessions: session_explains,
     })
 }
 
-/// Render the text report. Faithful port of `_format_report` (static path).
+/// Render the text report. Faithful port of `_format_report`.
 #[allow(clippy::too_many_lines)]
-fn format_report(pcap_path: &str, sessions: &[SessionExplain]) -> String {
+fn format_report(report: &ExplainFlowReport) -> String {
+    let pcap_path = &report.pcap_path;
+    let sessions = &report.sessions;
     let mut lines: Vec<String> = Vec::new();
     lines.push(format!("explain-flow: {pcap_path}"));
     let matched = sessions.iter().filter(|s| !s.matched_vs.is_empty()).count();
-    // `tshark` / `keylog` / `filter` annotations land with the tshark path.
+    let keylog = if report.keylog_path.is_empty() {
+        String::new()
+    } else {
+        format!(" | keylog: {}", report.keylog_path)
+    };
+    let filter = if report.tshark_filter.is_empty() {
+        String::new()
+    } else {
+        format!(" | filter: {}", py_repr(&report.tshark_filter))
+    };
     lines.push(format!(
-        "  sessions: {} | matched: {} | tshark: no",
+        "  sessions: {} | matched: {} | tshark: {}{keylog}{filter}",
         sessions.len(),
-        matched
+        matched,
+        if report.used_tshark { "yes" } else { "no" },
     ));
     lines.push(String::new());
 
@@ -1082,7 +1417,35 @@ fn format_report(pcap_path: &str, sessions: &[SessionExplain]) -> String {
                 ));
             }
         }
-        // iRule simulation outcome: deferred to the simulate increment.
+        // Dynamic iRule-simulation outcome (`--simulate`).
+        if let Some(sim) = &se.simulated {
+            lines.push("  iRule simulation:".to_owned());
+            if sim.error.is_empty() {
+                lines.push(format!(
+                    "    pool: {}",
+                    if sim.pool.is_empty() { "(none)" } else { &sim.pool }
+                ));
+                if !sim.node.is_empty() {
+                    lines.push(format!("    node: {}", sim.node));
+                }
+                if sim.response_committed {
+                    lines.push("    response: committed by iRule".to_owned());
+                }
+                for (category, action, value) in &sim.decisions {
+                    let value = if value.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" {value}")
+                    };
+                    lines.push(format!("    decision: {category} {action}{value}"));
+                }
+                for log in &sim.logs {
+                    lines.push(format!("    log: {log}"));
+                }
+            } else {
+                lines.push(format!("    error: {}", sim.error));
+            }
+        }
         lines.push(format!("  termination: {}", se.reset_analysis));
         lines.push("  resolved plan:".to_owned());
         for explain_line in py_splitlines(&se.explain_text) {
@@ -1358,6 +1721,7 @@ fn policy_decision_to_value(pd: &PolicyDecision) -> Value {
 /// Faithful port of the per-session entry in `report_to_dict`.
 fn session_to_value(se: &SessionExplain) -> Value {
     let s = se.session();
+    let sim = se.simulated.as_ref();
     let session = obj(vec![
         ("front", conn_to_value(Some(&s.front))),
         ("back", conn_to_value(s.back.as_ref())),
@@ -1415,13 +1779,42 @@ fn session_to_value(se: &SessionExplain) -> Value {
         ("gtm_wide_ips", str_array(&se.gtm_wide_ips)),
         ("explain_text", Value::String(se.explain_text.clone())),
         ("reset_analysis", Value::String(se.reset_analysis.clone())),
-        // Static path: no simulator, so the simulated_* fields stay empty.
-        ("simulated_pool", Value::String(String::new())),
-        ("simulated_node", Value::String(String::new())),
-        ("simulated_response_committed", Value::Bool(false)),
-        ("simulated_logs", Value::Array(Vec::new())),
-        ("simulated_decisions", Value::Array(Vec::new())),
-        ("simulation_error", Value::String(String::new())),
+        // `--simulate` outcome (all empty / false when not requested).
+        (
+            "simulated_pool",
+            Value::String(sim.map(|s| s.pool.clone()).unwrap_or_default()),
+        ),
+        (
+            "simulated_node",
+            Value::String(sim.map(|s| s.node.clone()).unwrap_or_default()),
+        ),
+        (
+            "simulated_response_committed",
+            Value::Bool(sim.is_some_and(|s| s.response_committed)),
+        ),
+        (
+            "simulated_logs",
+            str_array(sim.map_or(&[][..], |s| s.logs.as_slice())),
+        ),
+        (
+            "simulated_decisions",
+            Value::Array(sim.map_or_else(Vec::new, |s| {
+                s.decisions
+                    .iter()
+                    .map(|(category, action, value)| {
+                        obj(vec![
+                            ("category", Value::String(category.clone())),
+                            ("action", Value::String(action.clone())),
+                            ("value", Value::String(value.clone())),
+                        ])
+                    })
+                    .collect()
+            })),
+        ),
+        (
+            "simulation_error",
+            Value::String(sim.map(|s| s.error.clone()).unwrap_or_default()),
+        ),
     ])
 }
 
@@ -1433,10 +1826,9 @@ fn report_to_json(report: &ExplainFlowReport) -> Result<String, String> {
         ("flow_count", Value::from(report.flow_count)),
         ("session_count", Value::from(report.session_count)),
         ("matched_count", Value::from(report.matched_count)),
-        // Static built-in walker path: tshark is never used here.
-        ("used_tshark", Value::Bool(false)),
-        ("keylog_path", Value::String(String::new())),
-        ("tshark_filter", Value::String(String::new())),
+        ("used_tshark", Value::Bool(report.used_tshark)),
+        ("keylog_path", Value::String(report.keylog_path.clone())),
+        ("tshark_filter", Value::String(report.tshark_filter.clone())),
         ("sessions", Value::Array(sessions)),
     ]);
     let pretty = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
@@ -1460,15 +1852,11 @@ pub fn run_explain_flow(
     if !pcap.is_file() {
         anyhow::bail!("not a file: {}", pcap.display());
     }
-    if simulate {
-        anyhow::bail!("`f5 explain-flow --simulate` is not yet implemented in the Rust port");
-    }
+    // `--tshark-filter` implies tshark; `--tshark` / `--keylog` request the
+    // overlay. `keylog` is forwarded to tshark only when it points at a file.
     let use_tshark = tshark || keylog.is_some() || tshark_filter.is_some();
-    if use_tshark {
-        anyhow::bail!(
-            "`f5 explain-flow --tshark/--keylog/--tshark-filter` is not yet implemented in the Rust port"
-        );
-    }
+    let keylog_path = keylog.map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    let tshark_filter = tshark_filter.unwrap_or("");
 
     let opts = crate::cli::PassphraseArgs::default().to_options();
     let path_strs: Vec<String> = paths
@@ -1484,17 +1872,22 @@ pub fn run_explain_flow(
     let pcap_bytes = std::fs::read(pcap)?;
     let report = compute_explain_flow(
         &pcap.display().to_string(),
+        pcap,
         &pcap_bytes,
         &configs,
         !no_event_bodies,
         max_event_lines,
+        use_tshark,
+        &keylog_path,
+        tshark_filter,
+        simulate,
     )
     .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let rendered = if json {
         report_to_json(&report).map_err(|e| anyhow::anyhow!("{e}"))?
     } else {
-        format_report(&report.pcap_path, &report.sessions)
+        format_report(&report)
     };
 
     let target = OutputTarget::from_arg(output);

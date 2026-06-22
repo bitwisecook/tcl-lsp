@@ -5,7 +5,20 @@
 //! reference markers.  Ported from `core/compiler/codegen/_values.py`.
 
 use super::format::esc;
+use super::statements::has_unescaped_subst;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
+
+/// Whether `name` is a whole **bare** Tcl variable name — the run of characters
+/// a `$name` reference consumes: ASCII alphanumerics, `_`, and `:` (namespace
+/// separators). A name with any other character (`-`, `.`, `(`, `$`) is *not* a
+/// whole bare reference, so e.g. `$item-suffix` is `$item` followed by literal
+/// `-suffix`, not a variable called `item-suffix`.
+fn is_bare_var_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
+}
 
 // -- Literal emission --
 
@@ -137,18 +150,53 @@ pub fn needs_stk_var_ref(name: &str, is_proc: bool) -> bool {
 impl CodegenCtx<'_> {
     /// Push an array element key onto the stack.
     ///
-    /// Handles `$var` references in the key by loading the variable.
-    /// For complex keys (containing `$` or `[`), falls through to a
-    /// literal push — full interpolation requires the main emitter.
+    /// A key that is *exactly* a whole variable reference (`${var}` or `$var`)
+    /// takes the [`load_var`](Self::load_var) fast path (matching tclsh's
+    /// `LOAD_SCALAR`-based key in proc context). A *composite* key that embeds
+    /// a substitution (`-$opt`, `x$item`, `${item}suf`, `$a([f])`) is built by
+    /// the full interpolation emitter so the substitution actually runs —
+    /// previously such keys were pushed as a raw literal, so the variable in
+    /// the index never expanded and the element lookup failed. A pure literal
+    /// key is pushed verbatim.
     pub fn push_array_key(&mut self, elem: &str) {
-        if let Some(inner) = elem.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
-            // Braced variable reference: ${var}
+        if let Some(inner) = elem
+            .strip_prefix("${")
+            .and_then(|s| s.strip_suffix('}'))
+            .filter(|inner| !inner.contains(['{', '}']))
+        {
+            // Whole braced variable reference: `${var}`.
             self.load_var(inner);
-        } else if let Some(var) = elem.strip_prefix('$') {
-            // Bare variable reference: $var
+        } else if let Some(var) = elem.strip_prefix('$').filter(|v| is_bare_var_name(v)) {
+            // Whole bare variable reference: `$var` (the name runs to the end).
             self.load_var(var);
+        } else if has_unescaped_subst(elem)
+            && let Some(parts) = super::helpers::parse_subst_template(elem)
+            && parts.len() > 1
+        {
+            // Composite key with an embedded substitution (`-$opt`, `x$item`,
+            // `${item}suf`, `$a([f])`): build the index string at compile time
+            // by concatenating the decoded parts. The runtime `subst_word`
+            // fallback only resolves a *normalised* `${name}`, so a bare `$item`
+            // inside the index would otherwise never expand.
+            for part in &parts {
+                match part {
+                    super::helpers::SubstPart::Lit(text) => self.push_lit(text),
+                    super::helpers::SubstPart::Cmd(cmd) => self.emit_inline_cmd_subst(cmd),
+                    super::helpers::SubstPart::Scalar(name) => {
+                        self.push_lit(name);
+                        self.emit(Op::LOAD_STK, vec![]);
+                    }
+                    super::helpers::SubstPart::Var(name) => self.load_var(name),
+                }
+            }
+            self.emit(
+                Op::STR_CONCAT1,
+                vec![Operand::Imm(
+                    i32::try_from(parts.len()).expect("array-key part count fits in i32"),
+                )],
+            );
         } else {
-            // Literal key (or complex key that needs the main emitter)
+            // Pure literal key (or a key the template parser left whole).
             self.push_lit(elem);
         }
     }
