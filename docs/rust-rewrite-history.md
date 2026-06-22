@@ -1164,6 +1164,53 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
+Landed: 2026-06-22 — **FE-OPT: inliner v3 (parameterised) ported** (branch
+`claude/sleepy-brown-m3lbzp`). The general proc inliner's last shape — v3,
+α-renamed parameterised inlining — is ported from `compiler/inlining/`,
+completing the Rust inliner (v0 / verbatim / v3). The module grew from a single
+`inlining.rs` into `tcl-compiler::inlining{,::rename,::tests}`. What landed:
+
+- **`inlining::rename`** — port of `_rename.py`: α-renames a callee body through
+  a `{name → __inline_<id>__name}` map across every IR statement shape — value
+  strings (`AssignValue`/`Call.args`/`Return.value`/`Switch.subject`), expr ASTs
+  (`AssignExpr`/`If`/`For`/`While` conditions, `Return.expr`, `ExprEval`),
+  `Call` `defs`/`reads`, `Foreach` iterator vars, and `Catch`/`Try` exception
+  bindings. The value-string rewriter reproduces the byte-by-byte
+  backslash-protection rule (`\$x` is a literal `$`, never renamed; `\\$x` is)
+  and array-base-only renaming (`$arr(idx)` → `$<renamed>(idx)`).
+- **Catalogue** — `count_static_calls` (namespace-aware call tally) +
+  `classify_proc` (the S4.1 `safe_to_inline` / body-size / single-call policy),
+  mirroring `decision.py`. `count_static_calls`/`classify_proc` replace the
+  earlier shape-only classifier; only `ALWAYS` procs are spliced.
+- **v3 eligibility** — `_v3_eligible` + the unsafe-scope `return` scan
+  (`return` inside a loop / `catch` / `try` / `uplevel` body declines, since the
+  break-based early-return lowering would be trapped there).
+- **v3 splice** — per-call-site parameter binding (defaults from `params_raw`,
+  variadic `args` packed into a list-clean `[list …]`, braced-literal args bound
+  as `AssignConst` so `f {$y}` doesn't re-substitute), `{*}`-expansion decline,
+  local-write mangling, and the trailing-vs-non-trailing `return` strategy: a
+  non-trailing `return` is lowered to `set __RESULT <v>; break` wrapped in a
+  one-shot `while {1} { … }` (with implicit-trailing-return capture), forwarded
+  with a caller-level `return $__RESULT` only at terminal call sites.
+- **Resolution** — `var_escape::interprocedural::resolve_callee` exposed
+  `pub(crate)` so the inliner resolves call sites with the same namespace-walk
+  rules the escape pass uses (replacing the inliner's naive `::`-prefix
+  resolver), mirroring the shared `_resolve_callee` import in `decision.py` /
+  `inline_pass.py`.
+- **Tests** — 27 IR-shape unit tests in `inlining::tests` (the
+  execution-differential standard is gated on the WASM consumer; see below).
+
+Not ported: **dead-proc elimination** — dormant in Python (it removes only
+`compiler_synthetic` procs, a flag no lowering pass sets) and the Rust
+`IRProcedure` has no such flag, so it would be a no-op. **Cross-track handoff:**
+the inliner's only consumer is the WASM codegen (**RT-WASM**, 🟡), so v3's
+execution-differential verification is owned by that consumer track and lands
+when it is wired in. With the v3 port complete, **FE-OPT is ✅** — its owned
+modules (`tcl-compiler::optimiser`, `tcl-compiler::inlining`) are fully ported;
+the only out-of-scope items are that RT-WASM-owned verification handoff and the
+optional, non-correctness O110 rewrites (gated on the iRules
+`MatchesGlob`/`MatchesRegex` expr operators).
+
 Landed: 2026-06-19 — **FE-VARESCAPE complete** (branch
 `claude/great-ptolemy-kti1wz`). The two open var-escape items closed, and the
 analysis is wired to its first consumer (the inliner). The track's `####`
