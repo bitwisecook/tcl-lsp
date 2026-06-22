@@ -221,6 +221,19 @@ fn nested_array_read_in_key_template_substitutes() {
     assert_eq!(result, "51 a:x x");
 }
 
+/// A `\<newline>` line continuation inside an inline command substitution
+/// assigned with `set` is a word separator: the inner command keeps all its
+/// arguments. Regression for the inline-cmd-subst tokenizer dropping an arg
+/// across a continuation (spurious `wrong # args`), which crashed tcltest's
+/// `SubstArguments` and every test file using the `{-body … -result …}` dict
+/// form (info / lrepeat / lseq).
+#[test]
+fn multiline_cmd_subst_in_assignment_keeps_all_args() {
+    let (ok, result, _) = run("proc f {x} {set w [string range $x \\\n\t1 3]; return $w}\nf abcde");
+    assert!(ok, "multi-line cmd subst must keep all args: {result}");
+    assert_eq!(result, "bcd");
+}
+
 /// A hard parse error inside a compiled body (`set "i"xxx` — non-whitespace
 /// after a close-quote) is deferred to a catchable runtime error carrying the
 /// exact C Tcl message. Regression for set-1.3 / set-3.3.
