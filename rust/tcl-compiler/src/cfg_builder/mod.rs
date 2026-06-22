@@ -513,7 +513,11 @@ impl CfgBuilder {
                                 command: "for".into(),
                                 canonical_command: None,
                                 args: raw_args.clone(),
-                                tokens: Some(frozen_loop_tokens("for", raw_args, raw_tokens.as_ref())),
+                                tokens: Some(frozen_loop_tokens(
+                                    "for",
+                                    raw_args,
+                                    raw_tokens.as_ref(),
+                                )),
                             });
                     } else {
                         current = self.lower_for(stmt, &current)?;
@@ -536,7 +540,11 @@ impl CfgBuilder {
                                 command: "while".into(),
                                 canonical_command: None,
                                 args: raw_args.clone(),
-                                tokens: Some(frozen_loop_tokens("while", raw_args, raw_tokens.as_ref())),
+                                tokens: Some(frozen_loop_tokens(
+                                    "while",
+                                    raw_args,
+                                    raw_tokens.as_ref(),
+                                )),
                             });
                     } else {
                         current = self.lower_while(stmt, &current);

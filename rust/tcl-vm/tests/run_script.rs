@@ -691,3 +691,41 @@ fn opcode_regexp() {
     assert_eq!(asm("ABC", "abc", 3), "0");
     assert_eq!(asm("ABC", "abc", 3 | 0o10), "1"); // TCL_REG_NOCASE
 }
+
+/// `lset` (the `LSET_LIST` single-index / index-path form and the `LSET_FLAT`
+/// multi-index form) end-to-end. Both the proc-local opcode form and the
+/// top-level stack form route through these opcodes; verified against tclsh 9.0.
+#[test]
+fn lset_list_and_flat() {
+    // Single index (LSET_LIST).
+    assert_eq!(run("set l {a b c}; lset l 1 X; puts $l").2, "a X c\n");
+    assert_eq!(run("set l {a b c}; lset l end 9; puts $l").2, "a b 9\n");
+    // Appending one past the end.
+    assert_eq!(run("set l {a b c}; lset l 3 D; puts $l").2, "a b c D\n");
+    // Empty index path replaces the whole value.
+    assert_eq!(run("set l {a b c}; lset l {} Z; puts $l").2, "Z\n");
+    // An index *path* given as one list argument (LSET_LIST descends it).
+    assert_eq!(
+        run("set l {{a b} {c d}}; lset l {1 0} X; puts $l").2,
+        "{a b} {X d}\n"
+    );
+    // Multiple flat index arguments (LSET_FLAT), top-level and in a proc.
+    assert_eq!(
+        run("set l {{a b} {c d}}; lset l 1 0 X; puts $l").2,
+        "{a b} {X d}\n"
+    );
+    assert_eq!(
+        run("proc f {} { set l {{a b} {c d}}; lset l 1 0 X; return $l }; puts [f]").2,
+        "{a b} {X d}\n"
+    );
+    // Errors match tclsh 9.0.
+    let (ok, msg, _) = run("set l {a b c}; lset l 5 X");
+    assert!(!ok);
+    assert_eq!(msg, "index \"5\" out of range");
+    let (ok, msg, _) = run("set l {a b c}; lset l foo X");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad index \"foo\": must be integer?[+-]integer? or end?[+-]integer?"
+    );
+}

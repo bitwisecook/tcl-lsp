@@ -91,8 +91,15 @@ fn codegen_function_src(
 /// The 1-based line of byte offset `off` within `source`.
 fn line_of(source: &str, off: u32) -> u32 {
     let end = (off as usize).min(source.len());
-    1 + u32::try_from(source.get(..end).unwrap_or("").bytes().filter(|&b| b == b'\n').count())
-        .unwrap_or(0)
+    1 + u32::try_from(
+        source
+            .get(..end)
+            .unwrap_or("")
+            .bytes()
+            .filter(|&b| b == b'\n')
+            .count(),
+    )
+    .unwrap_or(0)
 }
 
 /// Generate bytecode assembly for an entire module.

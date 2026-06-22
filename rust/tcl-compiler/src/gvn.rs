@@ -2401,22 +2401,38 @@ mod tests {
             cfg.blocks.insert(b.into(), Block::new(b));
         }
         cfg.blocks.get_mut("header").unwrap().terminator = Some(Terminator::Branch {
-            condition: crate::expr_ast::ExprNode::Literal { text: "1".into(), start: 0, end: 1 },
+            condition: crate::expr_ast::ExprNode::Literal {
+                text: "1".into(),
+                start: 0,
+                end: 1,
+            },
             true_target: "cond".into(),
             false_target: "exit".into(),
             span: None,
         });
         cfg.blocks.get_mut("cond").unwrap().terminator = Some(Terminator::Branch {
-            condition: crate::expr_ast::ExprNode::Literal { text: "1".into(), start: 0, end: 1 },
+            condition: crate::expr_ast::ExprNode::Literal {
+                text: "1".into(),
+                start: 0,
+                end: 1,
+            },
             true_target: "then".into(),
             false_target: "latch".into(),
             span: None,
         });
-        cfg.blocks.get_mut("then").unwrap().statements.push(llength_call());
-        cfg.blocks.get_mut("then").unwrap().terminator =
-            Some(Terminator::Goto { target: "latch".into(), span: None });
-        cfg.blocks.get_mut("latch").unwrap().terminator =
-            Some(Terminator::Goto { target: "header".into(), span: None });
+        cfg.blocks
+            .get_mut("then")
+            .unwrap()
+            .statements
+            .push(llength_call());
+        cfg.blocks.get_mut("then").unwrap().terminator = Some(Terminator::Goto {
+            target: "latch".into(),
+            span: None,
+        });
+        cfg.blocks.get_mut("latch").unwrap().terminator = Some(Terminator::Goto {
+            target: "header".into(),
+            span: None,
+        });
         cfg.blocks.get_mut("exit").unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
@@ -2439,16 +2455,21 @@ mod tests {
         // so its immediate dominator is `cond`, not `then`.
         ssa.idom.insert("latch".into(), Some("cond".into()));
         ssa.idom.insert("exit".into(), Some("header".into()));
-        ssa.dominator_tree.insert("header".into(), vec!["cond".into(), "exit".into()]);
-        ssa.dominator_tree.insert("cond".into(), vec!["then".into(), "latch".into()]);
+        ssa.dominator_tree
+            .insert("header".into(), vec!["cond".into(), "exit".into()]);
+        ssa.dominator_tree
+            .insert("cond".into(), vec!["then".into(), "latch".into()]);
         for b in ["then", "latch", "exit"] {
             ssa.dominator_tree.insert(b.into(), Vec::new());
         }
 
-        ssa.blocks.insert("header".into(), empty_ssa_block("header"));
+        ssa.blocks
+            .insert("header".into(), empty_ssa_block("header"));
         ssa.blocks.insert("cond".into(), empty_ssa_block("cond"));
         let mut then_b = empty_ssa_block("then");
-        then_b.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        then_b
+            .statements
+            .push(ssa_stmt_for(llength_call(), Some(1)));
         ssa.blocks.insert("then".into(), then_b);
         ssa.blocks.insert("latch".into(), empty_ssa_block("latch"));
         ssa.blocks.insert("exit".into(), empty_ssa_block("exit"));
