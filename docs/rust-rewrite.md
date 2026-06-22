@@ -762,6 +762,29 @@ Python behaviour it mirrors. Per-task workflow: rebase the touched files off
 plus the `test_fp_*` ground-truth battery), and keep `make prep-pr` green. The
 full historical drift log is in the [history archive](rust-rewrite-history.md).
 
+**Outstanding `main` deltas not yet synced (as of 2026-06-22).** The `rust`
+branch is 10 commits behind `main`. Most are already delta-ported in place (the
+`#662` catch/return flow fix is in **FE-DIAG**; `#656`/`#661` S110 byte-array
+corruption is in **FE-TYPESHIM**), or are rust-branch-irrelevant (release notes,
+CI/security, the `#664` registry-dump demotion). One is a **real, unported
+language-surface delta the whole stack must absorb**:
+
+- **Tcl 9.1 dialect (`#673`, `main` commit `5d2ae37a`).** `main` added a
+  `tcl9.1` entry to `KNOWN_DIALECTS` (`compiler/registry/dialects.py`) plus three
+  new 9.1-only command specs — `timer` (`compiler/.../timer.py`), `unicode`
+  (`unicode_.py`), and the `subst -backslashes/-commands/-variables` options
+  (`subst_.py`), all gated on the `tcl9.1` dialect. **None of this exists on the
+  `rust` branch yet** — neither the Python tree (no `timer.py`/`unicode_.py`, no
+  `tcl9.1` in `dialects.py`) nor any Rust crate. This is a cross-cutting sync:
+  the registry needs the new dialect flag + command specs, `LexerConfig`/dialect
+  gating must learn `tcl9.1`, and the analyser/codegen must treat the new
+  commands and `subst` options as dialect-gated. Until it lands, the rewrite
+  silently lags `main`'s dialect surface. Note this also bears on principle §0
+  ("C Tcl 9.0.3 is the reference standard"): 9.0.3 stays the pinned reference (no
+  9.1 source tree is fetched under `tmp/`), so 9.1 support is a *dialect-flag*
+  addition, not a reference-standard bump — but a future task may need to decide
+  whether to advance the differential oracle once a 9.1 `tclsh` is available.
+
 ## Testing strategy
 
 The 448 pytest files / ~14 K test functions sort into four buckets; port each
@@ -789,11 +812,13 @@ This is the live plan. Everything below is **not yet done**; landed work lives
 in the [history archive](rust-rewrite-history.md), and the deep per-item
 evidence behind each front-end gap is in
 [`design/rust/compiler-pipeline-parity.md`](design/rust/compiler-pipeline-parity.md).
-The plan reflects current source as of 2026-06-20 (`rust` branch). The
-**FE-DATAFLOW**, **FE-TYPESHIM**, **FE-VARESCAPE**, **FE-DIAG** front-end tracks
-and **SRV-LSP** have landed since the last audit; their detail moved
-to the [history archive](rust-rewrite-history.md) and they survive here only as
-table rows (✅ / 🟢).
+The plan reflects current source as of 2026-06-22 (`rust` branch, HEAD
+`8d887c2f`), re-verified that day against the crate source and cross-checked
+against the Python oracle on `main`. The **FE-DATAFLOW**, **FE-TYPESHIM**,
+**FE-VARESCAPE**, **FE-DIAG** front-end tracks and **SRV-LSP** have landed since
+the last audit; their detail moved to the
+[history archive](rust-rewrite-history.md) and they survive here only as table
+rows (✅ / 🟢).
 
 ### Vocabulary
 
@@ -1243,7 +1268,9 @@ already started, brings **every** Python tool across to Rust.
   `tcl-vm` (via `tcl-irule-test::LiveSession`): the selected pool/node, the lb
   decision log, captured iRule logs and `response_committed` flow into the
   `simulated_*` text/JSON fields, port of `tooling/f5/irule_simulation.py`. The
-  rest (27/27 verbs, 262 parity tests) is done — the template for the other tool
+  rest (28 dispatched verbs — the 27 shipped verbs plus the temporary
+  rust-branch-only `registry-dump`, demoted from the shipped set on `main` by
+  `#664` — and 262 parity tests) is done — the template for the other tool
   ports. *(XS)*
 - **TOOL-EXPLORER** *(owns `tcl-explorer`, `tcl-explorer-wasm`; depends on
   RT-WASM)* — **done (for the views)**: the `ssa`-view boolean-render parity bug
@@ -1323,9 +1350,16 @@ already started, brings **every** Python tool across to Rust.
 Owns `tcl-lsp-py`, the `scripts`→`xtask` migration, and `tests`. **This is the
 final track** — every consumer above must port first.
 - **open** the designed public PyO3 surface — re-derive it as a semver-stable
-  API for downstream embedders, not a transcription of in-tree calls; the
-  bindings today expose only folding / document symbols while the native server
-  has ~43 providers.
+  API for downstream embedders, not a transcription of in-tree calls. What
+  `tcl-lsp-py` exports **today** is the legacy soft-dependency shim set the
+  in-tree Python still imports (~39 `#[pyfunction]`s across `tokens` /
+  `expr_lexer` / `compiler_checks` / `interprocedural` / `gvn` /
+  `compilation_unit` / `signature_scan` / `optimiser` / `analyser` / `registry`
+  / `bigip`), plus exactly **two** LSP *feature* bindings — folding and document
+  symbols — against the native server's ~43 feature providers. Per the boundary
+  rule those shims are porting TODOs to retire, not the public API; the designed
+  surface (the `parse_tcl` / `compile_tcl` / `analyse_tcl` / … facades + typed
+  error hierarchy above) is still unbuilt.
 - **open** TEST-MIGRATE — port each remaining pytest file to per-crate Rust
   tests (delete the `test_*.py` in the same change); the `test_fp_*` battery is
   the analyser acceptance gate.
