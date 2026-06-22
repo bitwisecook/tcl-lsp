@@ -107,6 +107,71 @@ fn eval_subst(vm: &mut Vm, inner: &str) -> Result<Value, TclError> {
 }
 
 /// The `subst` command: perform variable, command, and backslash substitution
+/// Byte length of the UTF-8 character whose leading byte is `first`
+/// (defensively 1 for a continuation/invalid byte).
+fn utf8_char_len(first: u8) -> usize {
+    match first {
+        0xC0..=0xDF => 2,
+        0xE0..=0xEF => 3,
+        0xF0..=0xF7 => 4,
+        // ASCII (0x00..=0x7F) and continuation / invalid leading bytes.
+        _ => 1,
+    }
+}
+
+/// Length in bytes of the single Tcl backslash escape starting at `b[i]`
+/// (which must be `\`). Mirrors reference Tcl's `TclParseBackslash` extent so
+/// the substitution loop advances past exactly one escape — including the
+/// multi-byte forms (`\xHH…`, `\uHHHH`, `\UHHHHHHHH`, octal `\ooo`, the
+/// `\<newline><whitespace>` line continuation) and a `\` before a multi-byte
+/// UTF-8 character. (`tcl_syntax::backslash::decode` then decodes that slice.)
+#[allow(clippy::many_single_char_names)]
+fn backslash_escape_len(b: &[u8], i: usize) -> usize {
+    let n = b.len();
+    if i + 1 >= n {
+        return 1; // trailing backslash → literal `\`
+    }
+    match b[i + 1] {
+        b'x' => {
+            // `\x` + every following hex digit (Tcl reads them all).
+            let mut j = i + 2;
+            while j < n && b[j].is_ascii_hexdigit() {
+                j += 1;
+            }
+            if j == i + 2 { 2 } else { j - i } // bare `\x` → literal `x`
+        }
+        b'u' | b'U' => {
+            let max = if b[i + 1] == b'u' { 4 } else { 8 };
+            let mut j = i + 2;
+            let mut k = 0;
+            while j < n && k < max && b[j].is_ascii_hexdigit() {
+                j += 1;
+                k += 1;
+            }
+            if k == 0 { 2 } else { j - i } // bare `\u`/`\U` → literal letter
+        }
+        b'0'..=b'7' => {
+            // Octal: up to three octal digits (the leading one is b[i+1]).
+            let mut j = i + 1;
+            let mut k = 0;
+            while j < n && k < 3 && (b'0'..=b'7').contains(&b[j]) {
+                j += 1;
+                k += 1;
+            }
+            j - i
+        }
+        b'\n' => {
+            // Line continuation: `\`, newline, then leading horizontal space.
+            let mut j = i + 2;
+            while j < n && (b[j] == b' ' || b[j] == b'\t') {
+                j += 1;
+            }
+            j - i
+        }
+        other => 1 + utf8_char_len(other),
+    }
+}
+
 /// on `s` (each independently switchable). Returns the substituted string.
 #[allow(clippy::many_single_char_names)]
 pub fn subst_command(
@@ -123,15 +188,15 @@ pub fn subst_command(
     while i < n {
         match b[i] {
             b'\\' if backslashes => {
-                // Decode the escape (`tcl_lexer::backslash_subst` over the run).
-                if i + 1 < n {
-                    let decoded = tcl_syntax::backslash::decode(&s[i..i + 2]);
-                    out.push_str(&decoded);
-                    i += 2;
-                } else {
-                    out.push('\\');
-                    i += 1;
-                }
+                // Decode exactly one backslash escape and advance past it.
+                // Slicing a fixed two bytes here split a UTF-8 char boundary
+                // when a multi-byte character followed the backslash (panic),
+                // and mis-handled the multi-byte escape forms (`\xHH`,
+                // `\uHHHH`, `\UHHHHHHHH`, octal, line continuation).
+                let len = backslash_escape_len(b, i);
+                let decoded = tcl_syntax::backslash::decode(&s[i..i + len]);
+                out.push_str(&decoded);
+                i += len;
             }
             b'[' if commands => {
                 if let Some(end) = command_end(b, i) {
