@@ -312,9 +312,9 @@ today):
 - **Cycles.** Cross-file dependency graphs are routinely cyclic (mutual `source`,
   mutually-recursive cross-file calls). No cycle handling is *configured* in this
   codebase yet (the only fixpoints are manual and intra-unit), and an unhandled
-  salsa cycle panics — **but the mechanism exists**: salsa 0.26.2 provides
+  salsa cycle panics — **but the mechanism exists**: salsa (0.27) provides
   fixpoint cycle recovery via `#[salsa::tracked(cycle_fn=…, cycle_initial=…)]`
-  (verified — `salsa-0.26.2/src/cycle.rs`, with a `benches/dataflow.rs` fixpoint
+  (verified — `salsa/src/cycle.rs`, with a `benches/dataflow.rs` fixpoint
   that is the same monotone shape as the taint summary solve). So the policy is
   *available* (salsa fixed-point recovery: `cycle_initial` = the lattice bottom,
   `cycle_fn` = converge-or-iterate); the spike's remaining job is to wire it and
@@ -394,7 +394,7 @@ exist yet — the verification-status table follows the list.
      on pass 1 of every solve (~120 ms floor); making *that* incremental needs the
      per-proc summaries memoised across edits as a salsa query keyed offset-invariantly
      (the `taint_cascade` pattern applied to `infer_proc_summary`), recursively demanding
-     callee summaries. Mutual recursion is handled by salsa 0.26's fixpoint cycle
+     callee summaries. Mutual recursion is handled by salsa's fixpoint cycle
      recovery (`cycle_fn`/`cycle_initial` — verified available, see Task 6's cycle note),
      with `cycle_initial` = the untainted summary (lattice bottom) and `cycle_fn` =
      converge when the summary stops growing. A body edit then re-infers only the edited
@@ -477,7 +477,7 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | `solve_interprocedural_taints` is whole-unit; ~385 ms is the summary fixpoint (240 infers / 3 passes), not the ~5 ms entry-taint worklist | **measured** | env-gated solve profiling |
 | Dirty-set worklist: `solve` 385→158 ms, per-edit 411→237 ms (~1.7×), output unchanged | **measured + verified** | re-profile + full-corpus debug fixpoint guard + 2878 tests |
 | Worklist win holds on the merged tree (FE-OPT inliner): `run_all_checks` 405→177 ms, per-edit →231 ms | **measured** | re-profile post-merge + 59 taint tests (guard active) |
-| Salsa cycle recovery available for 2b/Task 6 (mutual recursion / `source` cycles) | **verified** (dep) | `salsa-0.26.2/src/cycle.rs` + `benches/dataflow.rs` (`cycle_fn`/`cycle_initial`) |
+| Salsa cycle recovery available for 2b/Task 6 (mutual recursion / `source` cycles) | **verified** (dep) | `salsa/src/cycle.rs` + `benches/dataflow.rs` (`cycle_fn`/`cycle_initial`); on salsa 0.27 |
 | Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |
 | Task 2 "cuts ~405 ms to one-proc cost" (the easy framing) | **refuted** | decomposition: ~16 ms easy (2a) + ~385 ms hard whole-unit taint solve (2b) |
 | Task 2 memo is sound | **hypothesis** | check-diagnostics differential fuzzer on the salsa path — *does not exist* |

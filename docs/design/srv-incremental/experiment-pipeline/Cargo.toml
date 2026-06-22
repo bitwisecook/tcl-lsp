@@ -24,7 +24,7 @@ publish = false
 tcl-lexer = { path = "../../../../rust/tcl-lexer" }
 tcl-compiler = { path = "../../../../rust/tcl-compiler" }
 tcl-lsp-db = { path = "../../../../rust/tcl-lsp-db" }
-salsa = "0.26"
+salsa = "0.27"
 # The rope the rust-rewrite plan ratified, for the apply-side comparison.
 ropey = "1.6"
 
