@@ -1517,11 +1517,13 @@ mod tests {
             Statement::AssignConst {
                 span: Span::new(0, 7),
                 name: "x".into(),
+                name_braced: false,
                 value: "1".into(),
             },
             Statement::AssignConst {
                 span: Span::new(8, 15),
                 name: "y".into(),
+                name_braced: false,
                 value: "2".into(),
             },
         ]);
@@ -1537,6 +1539,7 @@ mod tests {
             Statement::AssignConst {
                 span: Span::new(0, 7),
                 name: "x".into(),
+                name_braced: false,
                 value: "1".into(),
             },
             Statement::Return {
@@ -1548,6 +1551,7 @@ mod tests {
             Statement::AssignConst {
                 span: Span::new(17, 24),
                 name: "y".into(),
+                name_braced: false,
                 value: "2".into(), // dead code
             },
         ]);
@@ -1573,6 +1577,7 @@ mod tests {
                 body: Script::from_statements(vec![Statement::AssignConst {
                     span: Span::new(7, 14),
                     name: "y".into(),
+                    name_braced: false,
                     value: "1".into(),
                 }]),
                 body_span: Span::new(6, 15),
@@ -1607,6 +1612,7 @@ mod tests {
             body: Script::from_statements(vec![Statement::AssignConst {
                 span: Span::new(7, 14),
                 name: "inner".into(),
+                name_braced: false,
                 value: "1".into(),
             }]),
             body_span: Span::new(6, 15),
@@ -1637,6 +1643,7 @@ mod tests {
         let body = Script::from_statements(vec![Statement::AssignConst {
             span: Span::new(0, 0),
             name: "x".into(),
+            name_braced: false,
             value: "1".into(),
         }]);
         let script = Script::from_statements(vec![Statement::Foreach {
