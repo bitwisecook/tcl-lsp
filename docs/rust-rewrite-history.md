@@ -1164,6 +1164,53 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
+Landed: 2026-06-22 — **FE-OPT: inliner v3 (parameterised) ported** (branch
+`claude/sleepy-brown-m3lbzp`). The general proc inliner's last shape — v3,
+α-renamed parameterised inlining — is ported from `compiler/inlining/`,
+completing the Rust inliner (v0 / verbatim / v3). The module grew from a single
+`inlining.rs` into `tcl-compiler::inlining{,::rename,::tests}`. What landed:
+
+- **`inlining::rename`** — port of `_rename.py`: α-renames a callee body through
+  a `{name → __inline_<id>__name}` map across every IR statement shape — value
+  strings (`AssignValue`/`Call.args`/`Return.value`/`Switch.subject`), expr ASTs
+  (`AssignExpr`/`If`/`For`/`While` conditions, `Return.expr`, `ExprEval`),
+  `Call` `defs`/`reads`, `Foreach` iterator vars, and `Catch`/`Try` exception
+  bindings. The value-string rewriter reproduces the byte-by-byte
+  backslash-protection rule (`\$x` is a literal `$`, never renamed; `\\$x` is)
+  and array-base-only renaming (`$arr(idx)` → `$<renamed>(idx)`).
+- **Catalogue** — `count_static_calls` (namespace-aware call tally) +
+  `classify_proc` (the S4.1 `safe_to_inline` / body-size / single-call policy),
+  mirroring `decision.py`. `count_static_calls`/`classify_proc` replace the
+  earlier shape-only classifier; only `ALWAYS` procs are spliced.
+- **v3 eligibility** — `_v3_eligible` + the unsafe-scope `return` scan
+  (`return` inside a loop / `catch` / `try` / `uplevel` body declines, since the
+  break-based early-return lowering would be trapped there).
+- **v3 splice** — per-call-site parameter binding (defaults from `params_raw`,
+  variadic `args` packed into a list-clean `[list …]`, braced-literal args bound
+  as `AssignConst` so `f {$y}` doesn't re-substitute), `{*}`-expansion decline,
+  local-write mangling, and the trailing-vs-non-trailing `return` strategy: a
+  non-trailing `return` is lowered to `set __RESULT <v>; break` wrapped in a
+  one-shot `while {1} { … }` (with implicit-trailing-return capture), forwarded
+  with a caller-level `return $__RESULT` only at terminal call sites.
+- **Resolution** — `var_escape::interprocedural::resolve_callee` exposed
+  `pub(crate)` so the inliner resolves call sites with the same namespace-walk
+  rules the escape pass uses (replacing the inliner's naive `::`-prefix
+  resolver), mirroring the shared `_resolve_callee` import in `decision.py` /
+  `inline_pass.py`.
+- **Tests** — 27 IR-shape unit tests in `inlining::tests` (the
+  execution-differential standard is gated on the WASM consumer; see below).
+
+Not ported: **dead-proc elimination** — dormant in Python (it removes only
+`compiler_synthetic` procs, a flag no lowering pass sets) and the Rust
+`IRProcedure` has no such flag, so it would be a no-op. **Cross-track handoff:**
+the inliner's only consumer is the WASM codegen (**RT-WASM**, 🟡), so v3's
+execution-differential verification is owned by that consumer track and lands
+when it is wired in. With the v3 port complete, **FE-OPT is ✅** — its owned
+modules (`tcl-compiler::optimiser`, `tcl-compiler::inlining`) are fully ported;
+the only out-of-scope items are that RT-WASM-owned verification handoff and the
+optional, non-correctness O110 rewrites (gated on the iRules
+`MatchesGlob`/`MatchesRegex` expr operators).
+
 Landed: 2026-06-19 — **FE-VARESCAPE complete** (branch
 `claude/great-ptolemy-kti1wz`). The two open var-escape items closed, and the
 analysis is wired to its first consumer (the inliner). The track's `####`
@@ -11281,6 +11328,79 @@ gaps stay in [`rust-rewrite.md`](rust-rewrite.md) → **RT-VM**.
   pipes stdin, and offers an `info complete`-aware REPL (`-i` forces it without a
   TTY). The `tcl dis` verb it was paired with is wired in `tcl-cli` (bytecode
   disassembly via `format_module_asm`, with `--optimise`).
+- **(2026-06-22) reachable opcode gaps that trapped real programs.** Each was a
+  command the codegen emits but the VM's opcode dispatch hit with "opcode X not
+  implemented"; all verified byte-for-byte against tclsh 9.0.
+  - **`lset`** — `LSET_LIST` (a single index, or a `{i j …}` index *path*) and
+    `LSET_FLAT` (≥ 2 flat indices) over a shared `lset_descend` mirroring C's
+    `TclLsetList` / `TclLsetFlat` (`end`/`end±N` aware, append at `len`, empty
+    path = whole-value replace; error text matches 9.0). Also a **codegen** fix:
+    the non-proc/qualified stack form emitted `LSET_LIST` even for multiple
+    indices, so only the last index reached the opcode — it now emits
+    `LSET_FLAT N` for ≥ 2 indices like the proc path (this is the form a
+    runtime-recompiled proc body takes, since `CompileService` compiles the body
+    as a top-level script).
+  - **`tailcall`** — wired through the NRE trampoline as a true tail call: the
+    issuing proc's activation, call-frame, and namespace are popped (tail
+    position), then the command runs in the caller's activation. A proc tailcall
+    is entered as a fresh activation at the caller's level, so a tail-recursive
+    loop neither grows the activation stack nor counts against the recursion
+    limit (verified with a 200 k-deep countdown). A `tailcall` builtin covers the
+    no-args (no-op return) and dynamically-built forms the codegen leaves to the
+    generic invoke.
+  - **`string is` / `regexp` value opcodes** — `NUMERIC_TYPE` (C's
+    `INST_NUM_TYPE`: 0 / INT 2 / BIG 3 / DOUBLE 4 / NAN 5 via
+    `tcl_syntax::number::parse_whole`), `STR_CLASS` (per-character class test,
+    reusing the `string is` classifier), and `REGEXP` (boolean match, reusing the
+    `cmd_regexp` engine; operand = cflags, only `TCL_REG_NOCASE` meaningful).
+    These are the value opcodes the FE-CODEGEN `set x [cmd]` inline re-land was
+    blocked on — the VM blocker is now cleared.
+  - **`time command ?count?`** — the benchmarking builtin (C `Tcl_TimeObjCmd`):
+    run the body in the current frame `count` times and report
+    `N microseconds per iteration` as a 4-element list (integer for count ≤ 1, a
+    double otherwise); a non-OK body propagates.
+  - **`REVERSE` / `LINDEX_MULTI` / `STR_REPLACE`** — the remaining value opcodes
+    the inline command-substitution emitter produces (`[lindex $l i j]`,
+    `[string replace …]`, operand reordering).
+  - **`INVOKE_REPLACE`** — the ensemble-rewrite invoke (C `INST_INVOKE_REPLACE`):
+    pop the resolved implementation word, replace the first `opnd` original words
+    with it, dispatch `impl + words[opnd..]` through the registered
+    `::tcl::string::*` / `::tcl::dict::*` ensemble implementations. Surfaced by
+    the `set x [cmd]` re-land routing `[string equal -nocase …]` /
+    `[string compare -length …]` through it; also the opcode FE-CODEGEN's
+    non-proc `dict` ensemble form will use. With all of these the inline
+    emitter's full opcode surface is VM-supported.
+
+**(2026-06-22) FE-CODEGEN `set x [cmd]` inline re-land landed.** The pure
+command-substitution assignment value now routes through the inline
+command-substitution emitter (scoped to the assign value position, mirroring the
+oracle's `IRAssignValue` arm — command *arguments* keep the literal +
+`subst_word` path, which the inline command-parser cannot match on escaped
+brackets). Unblocked by the RT-VM value opcodes above **and** a real
+inline-emitter correctness fix: `emit_cmd_subst_arg` pushed a composite arg like
+`$opt*` / `x$y` / `${a}b` as a literal instead of substituting it, so
+`array names Option $option*` matched nothing — the bug that miscompiled
+tcltest's `MatchingOption` (surfaced as `can't read "debug"` via the
+auto-configure read traces). It now decomposes composite args and concatenates,
+like `emit_value_interpolated`. Specialised commands (`string length` → `strlen`,
+`lindex`, …) emit byte-true opcodes; unspecialised ones use a correct generic
+invoke (was push-literal + runtime `subst_word` before). Verified: full `tcl-vm`
+suite green incl. the real `tcltest.tcl` load + run; the revived differential
+gate green (the new `set-inline-strlen` fixture semantic-matches the Python
+oracle); golden byte-true vs tclsh 9.0.
+
+**(2026-06-22) Codegen differential gate revived.** `differential_codegen.rs`
+imported `core.compiler.*` — a path the seven-concern reorg removed — so the
+Python-oracle comparison had been a silent no-op since the reorg. Re-pointed it
+at `compiler.codegen.bytecode{,.bytecoded,.format}` / `compiler.{cfg,lowering}`.
+Re-enabling surfaced 18 matching fixtures diverging from the oracle; these are
+**Python-oracle drift**, not Rust regressions — Rust matches tclsh 9.0 via the
+byte-true `.golden` files, while the Python codegen mis-slots `arr(k)` as a
+scalar for the statement-position `append`/`lappend`/`upvar`/`global` array
+specialisations. The gate is now golden-aware: a Python divergence where Rust
+still matches its tclsh-verified golden is reported as drift, not failed (24
+exact, 22 semantic, 18 python-drift, 0 divergent). The Python codegen bug behind
+the drift is a Python-side cleanup, tracked separately.
 
 ## FE-DIAG-F5 — TK / BIG-IP / iApp diagnostics ported (landed 2026-06)
 

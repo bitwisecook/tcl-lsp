@@ -23,7 +23,7 @@ use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::expr_parser::parse_expr;
 use crate::ir::{Script, Statement};
-use crate::segmenter::{segment_commands_with_offset, SegmentedCommand};
+use crate::segmenter::{SegmentedCommand, segment_commands_with_offset};
 
 use super::{Optimisation, PassContext};
 
@@ -290,7 +290,11 @@ fn parse_length_arg(cmd_text: &str, head: &[&str]) -> Option<String> {
     if cmd.texts.len() != head.len() + 1 {
         return None;
     }
-    if cmd.texts[..head.len()].iter().zip(head).any(|(t, h)| t != h) {
+    if cmd.texts[..head.len()]
+        .iter()
+        .zip(head)
+        .any(|(t, h)| t != h)
+    {
         return None;
     }
     cmd.texts.last().cloned()

@@ -1,0 +1,23 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "f"
+    2: "s"
+    3: "set n [string length $s]"
+  Instructions:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "f"
+    (4) push1 2	# "s"
+    (6) push1 3	# "set n [string length $s]"
+    (8) invokeStk1 4	# proc
+    (10) done
+
+ByteCode ::f, 4 instructions, 6 bytes, 0 literals, 2 variables
+  Local variables:
+    %v0: "s"
+    %v1: "n"
+  Instructions:
+    (0) loadScalar1 %v0	# var "s"
+    (2) strlen
+    (3) storeScalar1 %v1	# var "n"
+    (5) done

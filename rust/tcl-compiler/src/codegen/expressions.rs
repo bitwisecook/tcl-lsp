@@ -46,7 +46,10 @@ const fn binop_folds(op: BinOp) -> bool {
 /// Unary operators eligible for constant integer folding (the standard numeric
 /// and logical ones; not the iRules word-`!`).
 const fn unaryop_folds(op: UnaryOp) -> bool {
-    matches!(op, UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot | UnaryOp::Not)
+    matches!(
+        op,
+        UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot | UnaryOp::Not
+    )
 }
 
 impl CodegenCtx<'_> {

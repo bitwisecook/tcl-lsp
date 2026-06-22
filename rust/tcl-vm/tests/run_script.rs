@@ -575,3 +575,469 @@ fn string_first_last() {
     assert_eq!(run("puts [string last bc abcbc]").2, "3\n");
     assert_eq!(run("puts [string first zz abc]").2, "-1\n");
 }
+
+/// A `PUSH1 idx` that pushes literal `idx` verbatim (no word substitution) — the
+/// form the codegen uses for braced/constant words. Needed so a regexp pattern
+/// like `^[0-9]+$` is pushed as data, not run through `subst_word`.
+fn pushv(idx: i32) -> tcl_bytecode::Instruction {
+    use tcl_bytecode::{Instruction, Op, Operand};
+    let mut i = Instruction::new(Op::PUSH1, vec![Operand::Imm(idx)]);
+    i.push_verbatim = true;
+    i
+}
+
+/// Run a hand-assembled top-level instruction stream (with its literal pool),
+/// returning the result string. `DONE` yields the value on top of the stack, so
+/// the caller ends the stream with the opcode under test. This drives the VM's
+/// opcode dispatch directly — unlike [`run`], it does not go through the codegen,
+/// so it exercises an opcode even when no codegen path emits it yet.
+fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String {
+    use tcl_bytecode::{FunctionAsm, LiteralTable, LocalVarTable, ModuleAsm};
+    let mut lits = LiteralTable::new();
+    for l in literals {
+        lits.intern(l);
+    }
+    let mut instrs = instrs;
+    let labels =
+        tcl_bytecode::layout::resolve_layout(&mut instrs, &std::collections::HashMap::new());
+    let top = FunctionAsm {
+        name: "::top".to_string(),
+        literals: lits,
+        lvt: LocalVarTable::new(&[]),
+        instructions: instrs,
+        labels,
+        loop_targets: std::collections::HashMap::new(),
+        body_base_line: 0,
+    };
+    let module = ModuleAsm {
+        top_level: top,
+        procedures: std::collections::HashMap::new(),
+    };
+    let mut vm = Vm::new();
+    vm.run_module(&module).result.to_str().to_string()
+}
+
+/// `NUMERIC_TYPE` pushes C Tcl's numeric-tower code: 0 = not a number,
+/// INT = 2, BIG = 3, DOUBLE = 4, NAN = 5.
+#[test]
+fn opcode_numeric_type() {
+    use tcl_bytecode::{Instruction, Op};
+    let asm = |lit: &str| {
+        run_asm(
+            &[lit],
+            vec![
+                pushv(0),
+                Instruction::new(Op::NUMERIC_TYPE, vec![]),
+                Instruction::new(Op::DONE, vec![]),
+            ],
+        )
+    };
+    assert_eq!(asm("42"), "2"); // wide integer
+    assert_eq!(asm("-17"), "2");
+    assert_eq!(asm("3.5"), "4"); // double
+    assert_eq!(asm("1e10"), "4");
+    assert_eq!(asm("abc"), "0"); // not a number
+    assert_eq!(asm(""), "0");
+    assert_eq!(asm("99999999999999999999999999"), "3"); // bignum
+    assert_eq!(asm("NaN"), "5");
+}
+
+/// `STR_CLASS` (operand = class id) reports whether every character of the
+/// popped string belongs to the class; the empty string matches.
+#[test]
+fn opcode_str_class() {
+    use tcl_bytecode::{Instruction, Op, Operand};
+    let asm = |lit: &str, class: &str| {
+        let id = i32::from(tcl_bytecode::str_class_id(class).unwrap());
+        run_asm(
+            &[lit],
+            vec![
+                pushv(0),
+                Instruction::new(Op::STR_CLASS, vec![Operand::Imm(id)]),
+                Instruction::new(Op::DONE, vec![]),
+            ],
+        )
+    };
+    assert_eq!(asm("abc", "alpha"), "1");
+    assert_eq!(asm("ab2", "alpha"), "0");
+    assert_eq!(asm("12345", "digit"), "1");
+    assert_eq!(asm("12x45", "digit"), "0");
+    assert_eq!(asm("ABC", "upper"), "1");
+    assert_eq!(asm("DeadBEEFG", "xdigit"), "0"); // G is not a hex digit
+    assert_eq!(asm("dEadBEEF", "xdigit"), "1");
+    assert_eq!(asm("", "alpha"), "1"); // empty string matches
+}
+
+/// `REGEXP` (operand = cflags) reports whether the pattern (under top) matches
+/// the subject (top); the `TCL_REG_NOCASE` (8) bit makes it case-insensitive.
+#[test]
+fn opcode_regexp() {
+    use tcl_bytecode::{Instruction, Op, Operand};
+    let asm = |pat: &str, subj: &str, cflags: i32| {
+        run_asm(
+            &[pat, subj],
+            vec![
+                pushv(0), // pattern (under top)
+                pushv(1), // subject (top)
+                Instruction::new(Op::REGEXP, vec![Operand::Imm(cflags)]),
+                Instruction::new(Op::DONE, vec![]),
+            ],
+        )
+    };
+    // TCL_REG_ADVANCED = 3 (the codegen's plain-form cflags).
+    assert_eq!(asm("^[0-9]+$", "12345", 3), "1");
+    assert_eq!(asm("^[0-9]+$", "12a45", 3), "0");
+    assert_eq!(asm("ab+c", "xxabbbcyy", 3), "1");
+    assert_eq!(asm("ABC", "abc", 3), "0");
+    assert_eq!(asm("ABC", "abc", 3 | 0o10), "1"); // TCL_REG_NOCASE
+}
+
+/// `lset` (the `LSET_LIST` single-index / index-path form and the `LSET_FLAT`
+/// multi-index form) end-to-end. Both the proc-local opcode form and the
+/// top-level stack form route through these opcodes; verified against tclsh 9.0.
+#[test]
+fn lset_list_and_flat() {
+    // Single index (LSET_LIST).
+    assert_eq!(run("set l {a b c}; lset l 1 X; puts $l").2, "a X c\n");
+    assert_eq!(run("set l {a b c}; lset l end 9; puts $l").2, "a b 9\n");
+    // Appending one past the end.
+    assert_eq!(run("set l {a b c}; lset l 3 D; puts $l").2, "a b c D\n");
+    // Empty index path replaces the whole value.
+    assert_eq!(run("set l {a b c}; lset l {} Z; puts $l").2, "Z\n");
+    // An index *path* given as one list argument (LSET_LIST descends it).
+    assert_eq!(
+        run("set l {{a b} {c d}}; lset l {1 0} X; puts $l").2,
+        "{a b} {X d}\n"
+    );
+    // Multiple flat index arguments (LSET_FLAT), top-level and in a proc.
+    assert_eq!(
+        run("set l {{a b} {c d}}; lset l 1 0 X; puts $l").2,
+        "{a b} {X d}\n"
+    );
+    assert_eq!(
+        run("proc f {} { set l {{a b} {c d}}; lset l 1 0 X; return $l }; puts [f]").2,
+        "{a b} {X d}\n"
+    );
+    // Errors match tclsh 9.0.
+    let (ok, msg, _) = run("set l {a b c}; lset l 5 X");
+    assert!(!ok);
+    assert_eq!(msg, "index \"5\" out of range");
+    let (ok, msg, _) = run("set l {a b c}; lset l foo X");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad index \"foo\": must be integer?[+-]integer? or end?[+-]integer?"
+    );
+}
+
+/// `tailcall` — the proc finishes and the named command runs in its place
+/// (in the caller's activation). A tail-recursive loop must not grow the
+/// activation stack or hit the recursion limit (the whole point of `tailcall`).
+#[test]
+fn tailcall_basic_and_deep() {
+    // Tail call replaces the proc's continuation.
+    assert_eq!(run("proc f {} { tailcall set g 9 }; f; puts $g").2, "9\n");
+    assert_eq!(
+        run("proc a {} { return A }; proc b {} { tailcall a }; puts [b]").2,
+        "A\n"
+    );
+    // Tail-recursive factorial.
+    assert_eq!(
+        run("proc fact {n acc} { if {$n<=1} { return $acc }; tailcall fact [expr {$n-1}] [expr {$n*$acc}] }; puts [fact 5 1]").2,
+        "120\n"
+    );
+    // Deep tail recursion: far past the recursion limit — must not overflow.
+    assert_eq!(
+        run("proc cd {n} { if {$n<=0} { return done }; tailcall cd [expr {$n-1}] }; puts [cd 200000]").2,
+        "done\n"
+    );
+    // No-args tailcall terminates the proc with an empty result.
+    assert_eq!(
+        run("proc p {} { tailcall; puts X }; p; puts done").2,
+        "done\n"
+    );
+    assert_eq!(run("proc p {} { tailcall }; puts [p]Y").2, "Y\n");
+    // Dynamic command word (generic-invoke fallback).
+    assert_eq!(
+        run("proc p {} { set c set; tailcall $c z 5 }; p; puts $z").2,
+        "5\n"
+    );
+    // Outside a proc it errors (matching tclsh 9.0).
+    let (ok, msg, _) = run("tailcall foo");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "tailcall can only be called from a proc, lambda or method"
+    );
+}
+
+/// `time command ?count?` — runs the body in the current frame `count` times and
+/// reports `N microseconds per iteration` as a 4-element list (C Tcl
+/// `Tcl_TimeObjCmd`). Timing is non-deterministic, so the assertions cover the
+/// shape, the current-frame side effects, error propagation, and the count<=0
+/// edge (which is the one fixed value, 0).
+#[test]
+fn time_command() {
+    // Body runs in the caller's frame.
+    assert_eq!(run("time {set x 99}; puts $x").2, "99\n");
+    assert_eq!(run("set n 0; time {incr n} 4; puts $n").2, "4\n");
+    // count <= 0 runs nothing and reports 0 (an integer).
+    assert_eq!(
+        run("puts [time {set x 1} 0]").2,
+        "0 microseconds per iteration\n"
+    );
+    // Result is the 4-element list shape.
+    assert_eq!(
+        run("puts [lrange [time {set x 1}] 1 3]").2,
+        "microseconds per iteration\n"
+    );
+    // A body error propagates.
+    let (ok, msg, _) = run("time {error boom}");
+    assert!(!ok);
+    assert_eq!(msg, "boom");
+    // Arity error.
+    let (ok, msg, _) = run("time");
+    assert!(!ok);
+    assert_eq!(msg, "wrong # args: should be \"time command ?count?\"");
+}
+
+/// `REVERSE` (reverse top N stack items), `LINDEX_MULTI` (nested `lindex`), and
+/// `STR_REPLACE` (`string replace`) — driven directly through the VM's opcode
+/// dispatch (these are emitted by the inline command-substitution emitter).
+#[test]
+fn opcode_reverse_lindex_multi_str_replace() {
+    use tcl_bytecode::{Instruction, Op, Operand};
+    // REVERSE 2 then concat: push x,y → reverse → y,x → "yx".
+    let r = run_asm(
+        &["x", "y"],
+        vec![
+            pushv(0),
+            pushv(1),
+            Instruction::new(Op::REVERSE, vec![Operand::Imm(2)]),
+            Instruction::new(Op::STR_CONCAT1, vec![Operand::Imm(2)]),
+            Instruction::new(Op::DONE, vec![]),
+        ],
+    );
+    assert_eq!(r, "yx");
+    // LINDEX_MULTI 3: lindex {{a b} {c d}} 1 0 → "c".
+    let r = run_asm(
+        &["{a b} {c d}", "1", "0"],
+        vec![
+            pushv(0),
+            pushv(1),
+            pushv(2),
+            Instruction::new(Op::LINDEX_MULTI, vec![Operand::Imm(3)]),
+            Instruction::new(Op::DONE, vec![]),
+        ],
+    );
+    assert_eq!(r, "c");
+    // STR_REPLACE: string replace "abcde" 1 3 "XY" → "aXYe".
+    let r = run_asm(
+        &["abcde", "1", "3", "XY"],
+        vec![
+            pushv(0),
+            pushv(1),
+            pushv(2),
+            pushv(3),
+            Instruction::new(Op::STR_REPLACE, vec![]),
+            Instruction::new(Op::DONE, vec![]),
+        ],
+    );
+    assert_eq!(r, "aXYe");
+    // STR_REPLACE whole-string replace and end indices.
+    let r = run_asm(
+        &["abcde", "0", "end", "Z"],
+        vec![
+            pushv(0),
+            pushv(1),
+            pushv(2),
+            pushv(3),
+            Instruction::new(Op::STR_REPLACE, vec![]),
+            Instruction::new(Op::DONE, vec![]),
+        ],
+    );
+    assert_eq!(r, "Z");
+}
+
+/// `set x [cmd …]` inline command-substitution assign (FE-CODEGEN re-land):
+/// the value is compiled inline (specialised opcode where available, else a
+/// generic invoke) rather than pushed as raw `[…]` text for the runtime
+/// `subst_word` fallback. Results verified against tclsh 9.0. The
+/// `array names … $pat*` case pins the composite-arg fix (`$pat*` must be
+/// substituted, not pushed literally) that unblocked real `tcltest.tcl`.
+#[test]
+fn set_inline_cmd_subst() {
+    assert_eq!(run("set x [string length hello]; puts $x").2, "5\n");
+    assert_eq!(
+        run("proc f {s} { set n [string toupper $s]; return $n }; puts [f abc]").2,
+        "ABC\n"
+    );
+    assert_eq!(run("set x [lindex {a b c} 1]; puts $x").2, "b\n");
+    assert_eq!(run("set x [llength {a b c d}]; puts $x").2, "4\n");
+    assert_eq!(run("set x [expr {2+3}]; puts $x").2, "5\n");
+    assert_eq!(run("set d [dict get {a 1 b 2} b]; puts $d").2, "2\n");
+    assert_eq!(
+        run("proc h {} { set c [catch {error boom} m]; return $c:$m }; puts [h]").2,
+        "1:boom\n"
+    );
+    // Composite arg (`$pat*`) must substitute then append the glob, not push
+    // the literal `$pat*` — the bug that broke tcltest's MatchingOption.
+    assert_eq!(
+        run("array set A {xa 1 xb 2 yc 3}\nset m [lsort [array names A x*]]; puts $m").2,
+        "xa xb\n"
+    );
+    assert_eq!(
+        run("array set A {xa 1 xb 2 yc 3}\nset p x\nset m [lsort [array names A $p*]]; puts $m").2,
+        "xa xb\n"
+    );
+    // Excluded forms still fold / behave as before.
+    assert_eq!(run("set l [list a b c]; puts $l").2, "a b c\n");
+    assert_eq!(
+        run("set d [dict create k1 v1 k2 v2]; puts [dict get $d k2]").2,
+        "v2\n"
+    );
+}
+
+/// `INVOKE_REPLACE` (ensemble-rewrite invoke): `[string equal -nocase …]` /
+/// `[string compare -length …]` in value position inline to the resolved
+/// implementation (`::tcl::string::equal …`) via the opcode. This regressed
+/// when the `set x [cmd]` re-land routed the flagged forms through the
+/// (previously unimplemented) opcode; verified against tclsh 9.0.
+#[test]
+fn invoke_replace_string_ensemble() {
+    assert_eq!(
+        run("set x [string equal -nocase ABC abc]; puts $x").2,
+        "1\n"
+    );
+    assert_eq!(run("set x [string equal abc abd]; puts $x").2, "0\n");
+    assert_eq!(
+        run("proc f {} { set x [string compare -nocase A a]; return $x }; puts [f]").2,
+        "0\n"
+    );
+    assert_eq!(
+        run("set x [string equal -length 2 abcd abXX]; puts $x").2,
+        "1\n"
+    );
+}
+
+/// Top-level (non-proc) mutating `dict` subcommands compile to the ensemble
+/// rewrite `INVOKE_REPLACE` form (`push dict <sub> … ::tcl::dict::<sub>;
+/// invokeReplace`), matching tclsh 9.0, rather than a plain generic invoke.
+#[test]
+fn dict_toplevel_ensemble() {
+    assert_eq!(run("dict set d k v; puts $d").2, "k v\n");
+    assert_eq!(
+        run("dict set d a 1; dict set d b 2; puts $d").2,
+        "a 1 b 2\n"
+    );
+    assert_eq!(run("dict incr c n 3; puts $c").2, "n 3\n");
+    assert_eq!(
+        run("dict append e k ab; dict append e k cd; puts $e").2,
+        "k abcd\n"
+    );
+    assert_eq!(run("dict lappend f k 1 2; puts $f").2, "k {1 2}\n");
+    assert_eq!(run("set d {a 1 b 2}; dict unset d a; puts $d").2, "b 2\n");
+}
+
+/// `{*}` expansion inside a command substitution in value position
+/// (`set x [cmd a {*}$args b]`) compiles to `expandStart … expandStkTop N;
+/// invokeExpanded` (result on the stack), matching tclsh 9.0 — FE-CODEGEN
+/// task 4. Statement-position `{*}` already lowered correctly.
+#[test]
+fn set_inline_cmd_subst_expand() {
+    assert_eq!(
+        run("proc f {args} {set x [concat a {*}$args b]; return $x}; puts [f 1 2 3]").2,
+        "a 1 2 3 b\n"
+    );
+    assert_eq!(
+        run("set a {1 2}; set x [concat {*}$a 3]; puts $x").2,
+        "1 2 3\n"
+    );
+    assert_eq!(
+        run("proc h {args} {set x [string cat {*}$args]; return $x}; puts [h a b c]").2,
+        "abc\n"
+    );
+    // `{*}{a b c}` expands a braced list verbatim.
+    assert_eq!(
+        run("set x [concat p {*}{a b c} q]; puts $x").2,
+        "p a b c q\n"
+    );
+}
+
+/// `encoding` — mirrors the tree-walking runtime (`runtime/rust`), the VM's
+/// parity oracle: UTF-8 internal model, so `convertto`/`convertfrom` pass data
+/// through, `system` is `utf-8`, `names` lists the supported set, `dirs` is
+/// ignored. (Real codepage conversion is unimplemented on both sides.)
+#[test]
+fn encoding_command() {
+    assert_eq!(run("encoding system").1, "utf-8");
+    assert_eq!(run("encoding names").1, "utf-8 unicode ascii iso8859-1");
+    assert_eq!(run("encoding convertto utf-8 abc").1, "abc");
+    assert_eq!(run("encoding convertfrom utf-8 hello").1, "hello");
+    assert_eq!(run("encoding convertto abc").1, "abc"); // no encoding arg
+    assert_eq!(run("encoding dirs").1, "");
+    let (ok, msg, _) = run("encoding bogus");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "unknown or ambiguous subcommand \"bogus\": must be convertfrom, convertto, dirs, names, or system"
+    );
+    let (ok, msg, _) = run("encoding");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "wrong # args: should be \"encoding subcommand ?arg ...?\""
+    );
+}
+
+/// `interp eval {} script …` — only the current interpreter (empty path) exists;
+/// its scripts evaluate in the current frame, like `eval` (verified vs tclsh 9.0).
+/// A non-empty path is an unknown child interpreter.
+#[test]
+fn interp_eval_current() {
+    assert_eq!(run("interp eval {} {expr 1+1}").1, "2");
+    assert_eq!(run("set y 0; interp eval {} {set y 5}; puts $y").2, "5\n");
+    // Runs in the current frame: a proc local is visible.
+    assert_eq!(
+        run("proc p {} { set loc 1; interp eval {} {info exists loc} }; puts [p]").2,
+        "1\n"
+    );
+    // Multiple script args are concatenated.
+    let (ok, msg, _) = run("interp eval {} {string length hello} {append}");
+    assert!(!ok);
+    assert_eq!(msg, "wrong # args: should be \"string length string\"");
+    // A named (non-empty) path is an unknown interpreter.
+    let (ok, msg, _) = run("interp eval foo {set x 1}");
+    assert!(!ok);
+    assert_eq!(msg, "could not find interpreter \"foo\"");
+}
+
+/// Regression tests for the codex review of the `set x [cmd]` re-land.
+#[test]
+fn inline_cmd_subst_review_fixes() {
+    // `string is` generic fallback must keep the `is` subcommand (it used to be
+    // dropped, yielding `string list …`).
+    assert_eq!(run("set x [string is list {a b c}]; puts $x").2, "1\n");
+    assert_eq!(run("set x [string is wideinteger 99]; puts $x").2, "1\n");
+    // `-strict` char-class: STR_CLASS can't honour it (empty is a member), so it
+    // defers to the command — empty string is a non-member under -strict.
+    assert_eq!(
+        run("proc p {} { string is alpha -strict \"\" }; puts [p]").2,
+        "0\n"
+    );
+    assert_eq!(
+        run("proc p {} { string is alpha -strict abc }; puts [p]").2,
+        "1\n"
+    );
+    // `regexp` option words (`--`) are consumed; no stale stack value survives.
+    assert_eq!(
+        run("proc p {} { set r [regexp -- a a]; return $r }; puts [p]X").2,
+        "1X\n"
+    );
+    // A multi-command substitution that also contains `{*}` runs as two commands
+    // (the separator fallback precedes the expand path).
+    assert_eq!(
+        run("set x [set y 1; concat a {*}{b c}]; puts $x").2,
+        "a b c\n"
+    );
+}

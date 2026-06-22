@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::Module;
 
-use super::cfg_propagation::{analyse_cfg_function, CfgEscapeResult};
+use super::cfg_propagation::{CfgEscapeResult, analyse_cfg_function};
 use super::interprocedural::solve_interprocedural_escape;
 use super::slot_resolution::populate_local_slots;
 use super::types::{EscapeTag, ProcEscapeSummary};
@@ -41,8 +41,8 @@ pub const TOP_LEVEL_QNAME: &str = "::top";
 /// path. Mirrors `_cfg_result_to_summary`.
 #[must_use]
 pub fn cfg_result_to_summary(result: &CfgEscapeResult) -> ProcEscapeSummary {
-    let frame_needed = result.dynamic_barrier()
-        || result.name_tags.values().any(|t| *t == EscapeTag::Frame);
+    let frame_needed =
+        result.dynamic_barrier() || result.name_tags.values().any(|t| *t == EscapeTag::Frame);
     ProcEscapeSummary {
         tags: result.name_tags.clone(),
         flags: result.flags,
@@ -66,7 +66,10 @@ pub fn cfg_result_to_summary(result: &CfgEscapeResult) -> ProcEscapeSummary {
 /// slot indices are always folded in last. Mirrors `analyse_var_escape`'s
 /// `ir_module=` path.
 #[must_use]
-pub fn analyse_var_escape(module: &Module, interprocedural: bool) -> HashMap<String, ProcEscapeSummary> {
+pub fn analyse_var_escape(
+    module: &Module,
+    interprocedural: bool,
+) -> HashMap<String, ProcEscapeSummary> {
     let mut result: HashMap<String, ProcEscapeSummary> = HashMap::new();
     result.insert(
         TOP_LEVEL_QNAME.to_owned(),
@@ -93,7 +96,11 @@ pub fn analyse_var_escape_cu(
     interprocedural: bool,
 ) -> HashMap<String, ProcEscapeSummary> {
     let mut result: HashMap<String, ProcEscapeSummary> = HashMap::new();
-    let top = analyse_cfg_function(&cu.top_level.cfg, &cu.top_level.ssa, std::iter::empty::<String>());
+    let top = analyse_cfg_function(
+        &cu.top_level.cfg,
+        &cu.top_level.ssa,
+        std::iter::empty::<String>(),
+    );
     result.insert(TOP_LEVEL_QNAME.to_owned(), cfg_result_to_summary(&top));
     for (qname, fu) in &cu.procedures {
         let params = cu
@@ -160,7 +167,10 @@ mod tests {
     fn caller_of_frameless_builtin_stays_pure_leaf() {
         // Calling only frameless runtime builtins (`puts`) keeps pure-leaf.
         let s = summaries("proc ::log {} { puts hi }");
-        assert!(s["::log"].pure_leaf, "wrapper of a frameless builtin is pure-leaf");
+        assert!(
+            s["::log"].pure_leaf,
+            "wrapper of a frameless builtin is pure-leaf"
+        );
     }
 
     #[test]
