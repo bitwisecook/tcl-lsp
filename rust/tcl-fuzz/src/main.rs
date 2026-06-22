@@ -12,6 +12,8 @@ mod findings;
 mod generator;
 mod harness;
 mod rng;
+mod wasm;
+mod wasm_diff;
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -20,8 +22,8 @@ use clap::{Parser, Subcommand};
 
 use campaign::{Campaign, Stats};
 use findings::Registry;
-use generator::{generate, GenConfig};
-use harness::{compare, run_backend, write_script, Outcome};
+use generator::{GenConfig, generate};
+use harness::{Outcome, compare, run_backend, write_script};
 
 /// Differential fuzzer for the native Tcl bytecode VM.
 #[derive(Parser)]
@@ -66,6 +68,37 @@ enum Cmd {
     },
     /// Print a summary of the findings registry.
     Summary,
+    /// WASM-runnability arm: compile each generated program to the
+    /// eval-fallback WASM module and run it under `wasmtime`, flagging codegen
+    /// panics/errors and modules that fail to instantiate or trap. (The value
+    /// differential against `tclsh` is gated on the interpreter-backed host —
+    /// RT-WASM; this exercises the WASM codegen for crashes/traps.)
+    WasmCheck {
+        /// Number of scripts to generate and check.
+        #[arg(long, default_value_t = 200)]
+        iterations: u64,
+        /// Starting seed (each iteration uses seed + i).
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Print each finding's seed and reason as it is discovered.
+        #[arg(long)]
+        verbose: bool,
+    },
+    /// WASM **value**-differential arm: drive each generated program's compiled
+    /// WASM control flow with an embedded `tcl-vm` host and compare its output
+    /// against running the program directly on `tcl-vm`. A divergence isolates a
+    /// WASM control-flow miscompile (commands are `tcl-vm` on both sides).
+    WasmDiff {
+        /// Number of scripts to generate and check.
+        #[arg(long, default_value_t = 200)]
+        iterations: u64,
+        /// Starting seed (each iteration uses seed + i).
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Print each finding's seed and reason as it is discovered.
+        #[arg(long)]
+        verbose: bool,
+    },
 }
 
 fn main() -> std::process::ExitCode {
@@ -74,7 +107,11 @@ fn main() -> std::process::ExitCode {
     let config = GenConfig::default();
 
     match &cli.command {
-        Cmd::Run { iterations, seed, verbose } => {
+        Cmd::Run {
+            iterations,
+            seed,
+            verbose,
+        } => {
             let Some(tclvm) = resolve_tclvm(cli.tclvm.as_deref()) else {
                 eprintln!("error: could not find `tclvm` (pass --tclvm <path>)");
                 return std::process::ExitCode::from(2);
@@ -131,31 +168,180 @@ fn main() -> std::process::ExitCode {
             if let Ok(registry) = Registry::open(&cli.findings)
                 && let Some(prior) = registry.load(*seed)
             {
-                eprintln!("note: seed {seed} is a recorded finding ({:?})", prior.category);
+                eprintln!(
+                    "note: seed {seed} is a recorded finding ({:?})",
+                    prior.category
+                );
             }
             replay(*seed, &config, &tclvm, &tclsh, timeout);
             std::process::ExitCode::SUCCESS
         }
-        Cmd::Summary => {
-            match Registry::open(&cli.findings) {
-                Ok(registry) => {
-                    let summary = registry.summary();
-                    if summary.is_empty() {
-                        println!("no findings in {}", cli.findings.display());
-                    } else {
-                        println!("findings in {}:", cli.findings.display());
-                        for (cat, n) in summary {
-                            println!("  {cat:?}: {n}");
-                        }
+        Cmd::Summary => match Registry::open(&cli.findings) {
+            Ok(registry) => {
+                let summary = registry.summary();
+                if summary.is_empty() {
+                    println!("no findings in {}", cli.findings.display());
+                } else {
+                    println!("findings in {}:", cli.findings.display());
+                    for (cat, n) in summary {
+                        println!("  {cat:?}: {n}");
                     }
-                    std::process::ExitCode::SUCCESS
                 }
-                Err(e) => {
-                    eprintln!("error: {e}");
-                    std::process::ExitCode::from(2)
+                std::process::ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::ExitCode::from(2)
+            }
+        },
+        Cmd::WasmCheck {
+            iterations,
+            seed,
+            verbose,
+        } => wasm_check(*iterations, *seed, *verbose, &config, &cli.findings),
+        Cmd::WasmDiff {
+            iterations,
+            seed,
+            verbose,
+        } => wasm_diff_campaign(*iterations, *seed, *verbose, &config, &cli.findings),
+    }
+}
+
+/// Drive the WASM value-differential arm over `iterations` generated programs.
+fn wasm_diff_campaign(
+    iterations: u64,
+    seed: Option<u64>,
+    verbose: bool,
+    config: &GenConfig,
+    findings_dir: &Path,
+) -> std::process::ExitCode {
+    let base_seed = seed.unwrap_or_else(time_seed);
+    let diff_findings = findings_dir.join("wasm-diff");
+    let _ = std::fs::create_dir_all(&diff_findings);
+    let engine = wasm_diff::engine();
+
+    eprintln!("wasm-diff: {iterations} programs from seed {base_seed}");
+    // A codegen panic prints a backtrace by default; silence it for the run.
+    let prior_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+
+    let (mut matched, mut diverged, mut unrunnable, mut hung) = (0u64, 0u64, 0u64, 0u64);
+    for i in 0..iterations {
+        let s = base_seed.wrapping_add(i);
+        let script = generate(s, config);
+        match wasm_diff::check(&engine, &script) {
+            wasm_diff::DiffVerdict::Match => matched += 1,
+            wasm_diff::DiffVerdict::Unrunnable(reason) => {
+                unrunnable += 1;
+                if verbose {
+                    eprintln!(
+                        "  unrunnable @ seed {s}: {}",
+                        reason.lines().next().unwrap_or("")
+                    );
                 }
             }
+            wasm_diff::DiffVerdict::WasmHang => {
+                hung += 1;
+                if verbose {
+                    eprintln!("  WASM HANG @ seed {s} (non-terminating compiled control flow)");
+                }
+                let _ = std::fs::write(diff_findings.join(format!("hang-{s}.tcl")), &script);
+            }
+            wasm_diff::DiffVerdict::Divergence { wasm, direct } => {
+                diverged += 1;
+                if verbose {
+                    eprintln!("  DIVERGENCE @ seed {s}: wasm={wasm:?} direct={direct:?}");
+                }
+                let _ = std::fs::write(diff_findings.join(format!("seed-{s}.tcl")), &script);
+            }
         }
+        if !verbose && i % 50 == 0 {
+            eprintln!("  {i}/{iterations} — {} findings", diverged + hung);
+        }
+    }
+
+    std::panic::set_hook(prior_hook);
+    let findings = diverged + hung;
+    eprintln!(
+        "\nwasm-diff complete:\n  matched {matched} | diverged {diverged} | hung {hung} | unrunnable {unrunnable}\n  findings: {findings} (scripts in {})",
+        diff_findings.display(),
+    );
+    if findings > 0 {
+        std::process::ExitCode::from(1)
+    } else {
+        std::process::ExitCode::SUCCESS
+    }
+}
+
+/// Drive the WASM-runnability arm over `iterations` generated programs.
+fn wasm_check(
+    iterations: u64,
+    seed: Option<u64>,
+    verbose: bool,
+    config: &GenConfig,
+    findings_dir: &Path,
+) -> std::process::ExitCode {
+    if !wasm::have_wasmtime() {
+        eprintln!("error: `wasmtime` not found on PATH — the WASM arm needs it");
+        return std::process::ExitCode::from(2);
+    }
+    let base_seed = seed.unwrap_or_else(time_seed);
+    let scratch = std::env::temp_dir().join(format!("tcl-fuzz-wasm-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&scratch);
+    let wasm_findings = findings_dir.join("wasm");
+    let _ = std::fs::create_dir_all(&wasm_findings);
+
+    eprintln!("wasm-check: {iterations} programs from seed {base_seed}");
+    // A generated program that makes codegen panic prints a backtrace by
+    // default; silence the hook for the campaign so the report stays readable
+    // (the verdict still captures the panic message).
+    let prior_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+
+    let (mut ran, mut codegen_failed, mut trapped) = (0u64, 0u64, 0u64);
+    for i in 0..iterations {
+        let s = base_seed.wrapping_add(i);
+        let script = generate(s, config);
+        match wasm::check(&script, &scratch, s) {
+            wasm::WasmVerdict::Ran => ran += 1,
+            wasm::WasmVerdict::Unavailable => {}
+            verdict => {
+                let (kind, reason) = match &verdict {
+                    wasm::WasmVerdict::CodegenFailed(r) => {
+                        codegen_failed += 1;
+                        ("codegen", r.as_str())
+                    }
+                    wasm::WasmVerdict::Trapped(r) => {
+                        trapped += 1;
+                        ("trap", r.as_str())
+                    }
+                    _ => unreachable!(),
+                };
+                if verbose {
+                    eprintln!(
+                        "  {kind} finding @ seed {s}: {}",
+                        reason.lines().next().unwrap_or("")
+                    );
+                }
+                let _ = std::fs::write(wasm_findings.join(format!("seed-{s}.tcl")), &script);
+            }
+        }
+        if !verbose && i % 50 == 0 {
+            eprintln!("  {i}/{iterations} — {} findings", codegen_failed + trapped);
+        }
+    }
+
+    std::panic::set_hook(prior_hook);
+    let _ = std::fs::remove_dir_all(&scratch);
+    let findings = codegen_failed + trapped;
+    eprintln!(
+        "\nwasm-check complete:\n  ran {ran} | codegen-failed {codegen_failed} | trapped {trapped}\n  findings: {findings} (scripts in {})",
+        wasm_findings.display(),
+    );
+    if findings > 0 {
+        std::process::ExitCode::from(1)
+    } else {
+        std::process::ExitCode::SUCCESS
     }
 }
 
