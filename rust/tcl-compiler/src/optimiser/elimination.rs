@@ -301,7 +301,14 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         None,
         &proc_index,
     );
-    emit_adce(ctx, &cu.top_level, &baseline, &interproc_pure, &pure_methods, None);
+    emit_adce(
+        ctx,
+        &cu.top_level,
+        &baseline,
+        &interproc_pure,
+        &pure_methods,
+        None,
+    );
 
     for fu in cu.procedures.values() {
         emit_unreachable(ctx, fu);

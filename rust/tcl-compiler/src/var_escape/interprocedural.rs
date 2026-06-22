@@ -165,11 +165,16 @@ fn propagate_transitive_sources<S: BuildHasher>(
         .collect();
 
     // Reverse edges: qname → set of qnames that call it.
-    let mut callers_of: HashMap<String, HashSet<String>> =
-        summaries.keys().map(|k| (k.clone(), HashSet::new())).collect();
+    let mut callers_of: HashMap<String, HashSet<String>> = summaries
+        .keys()
+        .map(|k| (k.clone(), HashSet::new()))
+        .collect();
     for (qname, callees) in resolved_callees {
         for callee in callees {
-            callers_of.entry(callee.clone()).or_default().insert(qname.clone());
+            callers_of
+                .entry(callee.clone())
+                .or_default()
+                .insert(qname.clone());
         }
     }
 
@@ -182,14 +187,18 @@ fn propagate_transitive_sources<S: BuildHasher>(
         let callers = callers_of.get(&qname).cloned().unwrap_or_default();
         for caller in callers {
             let mut changed = false;
-            let caller_set = transitive_sources.get_mut(&caller).expect("caller in summaries");
+            let caller_set = transitive_sources
+                .get_mut(&caller)
+                .expect("caller in summaries");
             for s in &current_sources {
                 if caller_set.insert(s.clone()) {
                     changed = true;
                 }
             }
             if current_unbounded {
-                let cu = transitive_unbounded.get_mut(&caller).expect("caller in summaries");
+                let cu = transitive_unbounded
+                    .get_mut(&caller)
+                    .expect("caller in summaries");
                 if !*cu {
                     *cu = true;
                     changed = true;
@@ -233,10 +242,7 @@ fn downgrade_non_pure_leaf_callers<S: BuildHasher>(
                 )
             });
             if downgrade {
-                result
-                    .get_mut(&qname)
-                    .expect("qname in result")
-                    .pure_leaf = false;
+                result.get_mut(&qname).expect("qname in result").pure_leaf = false;
                 changed = true;
             }
         }

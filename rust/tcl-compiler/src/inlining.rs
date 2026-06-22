@@ -149,7 +149,7 @@ const SPLICE_SAFE_COMMANDS: &[&str] = &[
     "list", "lindex", "lrange", "linsert", "llength", "lsort", "lsearch", "lreverse", "lreplace",
     "lrepeat", "concat", // String primitives.
     "split", "join", "string", // Arithmetic.
-    "expr", // I/O — observable but frame-independent.
+    "expr",   // I/O — observable but frame-independent.
     "puts",
 ];
 
@@ -166,7 +166,10 @@ fn command_is_splice_safe(command: &str) -> bool {
 /// `_stmt_is_splice_eligible`.
 fn stmt_is_splice_eligible(stmt: &Statement) -> bool {
     let Statement::Call {
-        command, args, defs, ..
+        command,
+        args,
+        defs,
+        ..
     } = stmt
     else {
         return false;
@@ -226,7 +229,10 @@ fn build_inlinable_map(module: &Module) -> HashMap<String, InlineSpec> {
     for (qname, proc) in &module.procedures {
         // Soundness gate: the interprocedural pure-leaf proof. An absent
         // summary (shouldn't happen for a module proc) is treated as opaque.
-        if !summaries.get(qname).is_some_and(ProcEscapeSummary::safe_to_inline) {
+        if !summaries
+            .get(qname)
+            .is_some_and(ProcEscapeSummary::safe_to_inline)
+        {
             continue;
         }
         if classify_proc(proc, &module.redefined_procedures) != InlineDecision::Always {
@@ -373,7 +379,11 @@ mod tests {
         let module = module_for("proc ::noop {} {}\nnoop\nputs done");
         assert_eq!(top_calls_to(&module, "noop"), 1);
         let inlined = inline_module(module);
-        assert_eq!(top_calls_to(&inlined, "noop"), 0, "empty-body call should vanish");
+        assert_eq!(
+            top_calls_to(&inlined, "noop"),
+            0,
+            "empty-body call should vanish"
+        );
         // The unrelated `puts done` survives.
         assert_eq!(top_calls_to(&inlined, "puts"), 1);
     }

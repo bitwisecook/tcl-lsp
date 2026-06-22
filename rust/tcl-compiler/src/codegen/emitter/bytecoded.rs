@@ -204,9 +204,12 @@ fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             &format!("var \"{var_name}\""),
         );
     } else {
-        // Non-proc or qualified: stack-based lsetList with OVER
-        // to duplicate the variable reference onto the top of
-        // stack so loadStk finds it.
+        // Non-proc or qualified: stack-based form with OVER to duplicate the
+        // variable reference onto the top of stack so loadStk finds it. A single
+        // index uses `LSET_LIST` (the index arg is itself an index *path*, so
+        // `lset l {1 0} v` works); two or more indices are flat, so they use
+        // `LSET_FLAT N` like the proc path — otherwise only the last index would
+        // reach `LSET_LIST`.
         ctx.push_lit(var_name);
         for idx in indices {
             ctx.emit_value_interpolated(idx);
@@ -217,7 +220,14 @@ fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             vec![Operand::Imm(bytecode_imm(indices.len() + 1))],
         );
         ctx.emit(Op::LOAD_STK, vec![]);
-        ctx.emit(Op::LSET_LIST, vec![]);
+        if indices.len() >= 2 {
+            ctx.emit(
+                Op::LSET_FLAT,
+                vec![Operand::Imm(bytecode_imm(indices.len() + 2))],
+            );
+        } else {
+            ctx.emit(Op::LSET_LIST, vec![]);
+        }
         ctx.emit(Op::STORE_STK, vec![]);
     }
     ctx.emit(Op::POP, vec![]);
@@ -403,7 +413,11 @@ fn append_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         };
         ctx.push_array_key(key);
         ctx.emit_value_interpolated(&values[0]);
-        ctx.emit_comment(op, vec![Operand::Imm(bytecode_imm(slot))], &format!("var \"{base}\""));
+        ctx.emit_comment(
+            op,
+            vec![Operand::Imm(bytecode_imm(slot))],
+            &format!("var \"{base}\""),
+        );
         ctx.emit(Op::POP, vec![]);
         return true;
     }
@@ -416,7 +430,11 @@ fn append_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     };
     if values.len() == 1 {
         ctx.emit_value_interpolated(&values[0]);
-        ctx.emit_comment(op, vec![Operand::Imm(bytecode_imm(slot))], &format!("var \"{var}\""));
+        ctx.emit_comment(
+            op,
+            vec![Operand::Imm(bytecode_imm(slot))],
+            &format!("var \"{var}\""),
+        );
         ctx.emit(Op::POP, vec![]);
     } else {
         for v in values {
@@ -424,7 +442,11 @@ fn append_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         }
         ctx.emit(Op::REVERSE, vec![Operand::Imm(bytecode_imm(values.len()))]);
         for _ in values {
-            ctx.emit_comment(op, vec![Operand::Imm(bytecode_imm(slot))], &format!("var \"{var}\""));
+            ctx.emit_comment(
+                op,
+                vec![Operand::Imm(bytecode_imm(slot))],
+                &format!("var \"{var}\""),
+            );
             ctx.emit(Op::POP, vec![]);
         }
     }
@@ -455,7 +477,11 @@ fn lappend_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         };
         ctx.push_array_key(key);
         ctx.emit_value_interpolated(&values[0]);
-        ctx.emit_comment(op, vec![Operand::Imm(bytecode_imm(slot))], &format!("var \"{base}\""));
+        ctx.emit_comment(
+            op,
+            vec![Operand::Imm(bytecode_imm(slot))],
+            &format!("var \"{base}\""),
+        );
         ctx.emit(Op::POP, vec![]);
         return true;
     }
@@ -468,7 +494,11 @@ fn lappend_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         } else {
             Op::LAPPEND_SCALAR4
         };
-        ctx.emit_comment(op, vec![Operand::Imm(bytecode_imm(slot))], &format!("var \"{var}\""));
+        ctx.emit_comment(
+            op,
+            vec![Operand::Imm(bytecode_imm(slot))],
+            &format!("var \"{var}\""),
+        );
     } else {
         for v in values {
             ctx.emit_value_interpolated(v);
@@ -1079,7 +1109,10 @@ mod tests {
     fn registry_append_lappend_specs_carry_codegen_hook() {
         let registry = CommandRegistry::build_default();
         assert_eq!(
-            registry.get("append").expect("append registered").codegen_hook,
+            registry
+                .get("append")
+                .expect("append registered")
+                .codegen_hook,
             Some(CodegenHookId::Append)
         );
         assert_eq!(
@@ -1132,7 +1165,12 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut used = false;
-        assert!(try_bytecoded(&mut ctx, "unset", &["arr(k)".into()], &mut used));
+        assert!(try_bytecoded(
+            &mut ctx,
+            "unset",
+            &["arr(k)".into()],
+            &mut used
+        ));
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert_eq!(ops, vec![Op::PUSH1, Op::UNSET_ARRAY, Op::PUSH1, Op::POP]);
     }
@@ -1156,7 +1194,12 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut used = false;
-        assert!(try_bytecoded(&mut ctx, "unset", &["::g::v".into()], &mut used));
+        assert!(try_bytecoded(
+            &mut ctx,
+            "unset",
+            &["::g::v".into()],
+            &mut used
+        ));
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert_eq!(ops, vec![Op::PUSH1, Op::UNSET_STK, Op::PUSH1, Op::POP]);
     }
@@ -1174,14 +1217,22 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut used = false;
-        assert!(!try_bytecoded(&mut ctx, "unset", &["-nocomplain".into()], &mut used));
+        assert!(!try_bytecoded(
+            &mut ctx,
+            "unset",
+            &["-nocomplain".into()],
+            &mut used
+        ));
     }
 
     #[test]
     fn registry_unset_spec_carries_codegen_hook() {
         let registry = CommandRegistry::build_default();
         assert_eq!(
-            registry.get("unset").expect("unset registered").codegen_hook,
+            registry
+                .get("unset")
+                .expect("unset registered")
+                .codegen_hook,
             Some(CodegenHookId::Unset)
         );
     }
@@ -1198,7 +1249,14 @@ mod tests {
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert_eq!(
             ops,
-            vec![Op::PUSH1, Op::PUSH1, Op::PUSH1, Op::PUSH1, Op::TAILCALL, Op::POP]
+            vec![
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::TAILCALL,
+                Op::POP
+            ]
         );
         // operand counts the "tailcall" prefix plus the three args.
         let tc = ctx
@@ -1301,7 +1359,10 @@ mod tests {
     fn registry_concat_spec_carries_codegen_hook() {
         let registry = CommandRegistry::build_default();
         assert_eq!(
-            registry.get("concat").expect("concat registered").codegen_hook,
+            registry
+                .get("concat")
+                .expect("concat registered")
+                .codegen_hook,
             Some(CodegenHookId::Concat)
         );
     }
@@ -1318,7 +1379,14 @@ mod tests {
         // push "::"; push "x"; nsupvar; pop; push ""; pop
         assert_eq!(
             ops,
-            vec![Op::PUSH1, Op::PUSH1, Op::NSUPVAR, Op::POP, Op::PUSH1, Op::POP]
+            vec![
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::NSUPVAR,
+                Op::POP,
+                Op::PUSH1,
+                Op::POP
+            ]
         );
         assert_eq!(ctx.literals.entries()[0], "::");
     }
@@ -1334,7 +1402,13 @@ mod tests {
         assert_eq!(
             ops,
             vec![
-                Op::PUSH1, Op::PUSH1, Op::NSUPVAR, Op::PUSH1, Op::NSUPVAR, Op::POP, Op::PUSH1,
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::NSUPVAR,
+                Op::PUSH1,
+                Op::NSUPVAR,
+                Op::POP,
+                Op::PUSH1,
                 Op::POP
             ]
         );
@@ -1345,7 +1419,12 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let mut proc_ctx = CodegenCtx::new(true, &[], &registry);
         let mut used = false;
-        assert!(!try_bytecoded(&mut proc_ctx, "global", &["::g::x".into()], &mut used));
+        assert!(!try_bytecoded(
+            &mut proc_ctx,
+            "global",
+            &["::g::x".into()],
+            &mut used
+        ));
         let mut top = CodegenCtx::new(false, &[], &registry);
         assert!(!try_bytecoded(&mut top, "global", &["x".into()], &mut used));
     }
@@ -1398,7 +1477,14 @@ mod tests {
         assert_eq!(
             ops,
             vec![
-                Op::PUSH1, Op::PUSH1, Op::UPVAR, Op::PUSH1, Op::UPVAR, Op::POP, Op::PUSH1, Op::POP
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::UPVAR,
+                Op::PUSH1,
+                Op::UPVAR,
+                Op::POP,
+                Op::PUSH1,
+                Op::POP
             ]
         );
     }
@@ -1416,11 +1502,17 @@ mod tests {
     fn registry_global_upvar_specs_carry_codegen_hook() {
         let registry = CommandRegistry::build_default();
         assert_eq!(
-            registry.get("global").expect("global registered").codegen_hook,
+            registry
+                .get("global")
+                .expect("global registered")
+                .codegen_hook,
             Some(CodegenHookId::Global)
         );
         assert_eq!(
-            registry.get("upvar").expect("upvar registered").codegen_hook,
+            registry
+                .get("upvar")
+                .expect("upvar registered")
+                .codegen_hook,
             Some(CodegenHookId::Upvar)
         );
     }

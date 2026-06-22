@@ -277,6 +277,48 @@ fn get_at(items: &[Value], i: isize) -> Value {
         .unwrap_or_else(Value::empty)
 }
 
+/// Recursively set the element at index `path` of `list` to `value`, returning
+/// the new (sub)list — the shared core of `INST_LSET_LIST` / `INST_LSET_FLAT`
+/// (C's `TclLsetList` / `TclLsetFlat`). An empty `path` replaces the whole value
+/// (`lset x {} v` == `set x v`); each index is `end`/`end±N`-aware, with range
+/// `0..=len` where `len` appends a fresh (possibly nested) slot. Error messages
+/// match tclsh 9.0 (the reference standard).
+fn lset_descend(list: &Value, path: &[Value], value: Value) -> Result<Value, Completion<Value>> {
+    let Some((spec, rest)) = path.split_first() else {
+        // No (more) indices: `lset` is `set` — the value replaces the list.
+        return Ok(value);
+    };
+    let elems = match list.as_list() {
+        Ok(e) => e,
+        Err(e) => return Err(err(e.message)),
+    };
+    let len = elems.len();
+    let spec_str = spec.to_str();
+    let Some(idx) = crate::command::resolve_index(&spec_str, len) else {
+        return Err(err(format!(
+            "bad index \"{spec_str}\": must be integer?[+-]integer? or end?[+-]integer?"
+        )));
+    };
+    if idx < 0 || usize::try_from(idx).unwrap_or(usize::MAX) > len {
+        return Err(err(format!("index \"{spec_str}\" out of range")));
+    }
+    let idx = usize::try_from(idx).unwrap_or(0);
+    let appending = idx == len;
+    let child = if appending {
+        Value::list(Vec::new())
+    } else {
+        elems[idx].clone()
+    };
+    let new_child = lset_descend(&child, rest, value)?;
+    let mut out: Vec<Value> = (*elems).clone();
+    if appending {
+        out.push(new_child);
+    } else {
+        out[idx] = new_child;
+    }
+    Ok(Value::list(out))
+}
+
 /// Sublist `[lo..=hi]` clamped to bounds; empty when the range is empty.
 fn slice(items: &[Value], lo: isize, hi: isize) -> Value {
     let len = isize::try_from(items.len()).unwrap_or(isize::MAX);
@@ -1615,6 +1657,38 @@ impl Vm {
                 f.stack.push(Value::bool(found));
             }
 
+            // `lset var ?index? value` (single index, or a `{i j …}` index
+            // list) — C Tcl `INST_LSET_LIST`. Stack holds the index list, the
+            // new value, then the list (top); leaves the rebuilt list.
+            Op::LSET_LIST => {
+                let list = pop(f);
+                let value = pop(f);
+                let index_list = pop(f);
+                let path = match index_list.as_list() {
+                    Ok(p) => (*p).clone(),
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                match lset_descend(&list, &path, value) {
+                    Ok(r) => f.stack.push(r),
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+            // `lset var i1 i2 ?…? value` (≥ 2 flat indices) — C Tcl
+            // `INST_LSET_FLAT`; operand = index-count + 2. Stack holds the
+            // indices (deepest first), the value, then the list (top).
+            Op::LSET_FLAT => {
+                let num_indices = usize::try_from(imm0(instr) - 2).unwrap_or(0);
+                let list = pop(f);
+                let value = pop(f);
+                if f.stack.len() < num_indices {
+                    return Tick::Return(err("lsetFlat: stack underflow"));
+                }
+                let path = f.stack.split_off(f.stack.len() - num_indices);
+                match lset_descend(&list, &path, value) {
+                    Ok(r) => f.stack.push(r),
+                    Err(c) => return Tick::Return(c),
+                }
+            }
             // `[regexp $pat $str]` in value position — operand [Imm(cflags)];
             // stack holds the pattern then the string (string on top, matching
             // C Tcl's `INST_REGEXP`: valuePtr = OBJ_AT_TOS, value2Ptr =
