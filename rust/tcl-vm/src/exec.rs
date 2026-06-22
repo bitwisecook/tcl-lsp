@@ -135,6 +135,81 @@ fn pop(f: &mut Frame) -> Value {
     f.stack.pop().unwrap_or_else(Value::empty)
 }
 
+/// Parse a dict `Value` into ordered `(key, value)` pairs (the list rep).
+fn dict_pairs(v: &Value) -> Result<Vec<(String, Value)>, Completion<Value>> {
+    let items = v.as_list().map_err(|e| err(e.message))?;
+    if items.len() % 2 != 0 {
+        return Err(err("missing value to go with key"));
+    }
+    Ok(items
+        .chunks_exact(2)
+        .map(|c| (c[0].to_str().to_string(), c[1].clone()))
+        .collect())
+}
+
+/// Re-flatten `(key, value)` pairs back into a dict `Value`.
+fn dict_from_pairs(ps: &[(String, Value)]) -> Value {
+    let mut v = Vec::with_capacity(ps.len() * 2);
+    for (k, val) in ps {
+        v.push(Value::string(k.as_str()));
+        v.push(val.clone());
+    }
+    Value::list(v)
+}
+
+/// Set the nested `keys` path of dict `cur` to `value`, creating intermediate
+/// dicts as needed. Returns the new top-level dict value.
+fn dict_set_path(cur: &Value, keys: &[Value], value: Value) -> Result<Value, Completion<Value>> {
+    let mut ps = dict_pairs(cur)?;
+    let k = keys[0].to_str().to_string();
+    let newv = if keys.len() == 1 {
+        value
+    } else {
+        let sub = ps
+            .iter()
+            .find(|(pk, _)| pk == &k)
+            .map_or_else(Value::empty, |(_, v)| v.clone());
+        dict_set_path(&sub, &keys[1..], value)?
+    };
+    if let Some(slot) = ps.iter_mut().find(|(pk, _)| pk == &k) {
+        slot.1 = newv;
+    } else {
+        ps.push((k, newv));
+    }
+    Ok(dict_from_pairs(&ps))
+}
+
+/// Remove the nested `keys` path from dict `cur`. Returns the new top-level
+/// dict value (a no-op if the path is absent, matching `dict unset`).
+fn dict_unset_path(cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
+    let mut ps = dict_pairs(cur)?;
+    let k = keys[0].to_str().to_string();
+    if keys.len() == 1 {
+        ps.retain(|(pk, _)| pk != &k);
+    } else if let Some(idx) = ps.iter().position(|(pk, _)| pk == &k) {
+        ps[idx].1 = dict_unset_path(&ps[idx].1.clone(), &keys[1..])?;
+    }
+    Ok(dict_from_pairs(&ps))
+}
+
+/// Update the single-level `key` of dict `cur` via `f` (given the current value
+/// if present), returning the new top-level dict value. Shared by the
+/// `DICT_INCR_IMM` / `DICT_APPEND` / `DICT_LAPPEND` opcodes.
+fn dict_update_single(
+    cur: &Value,
+    key: &str,
+    f: impl FnOnce(Option<&Value>) -> Result<Value, Completion<Value>>,
+) -> Result<Value, Completion<Value>> {
+    let mut ps = dict_pairs(cur)?;
+    let newv = f(ps.iter().find(|(k, _)| k == key).map(|(_, v)| v))?;
+    if let Some(slot) = ps.iter_mut().find(|(k, _)| k == key) {
+        slot.1 = newv;
+    } else {
+        ps.push((key.to_string(), newv));
+    }
+    Ok(dict_from_pairs(&ps))
+}
+
 /// Whether `s` can be safely wrapped in `{…}`: braces are balanced (ignoring
 /// `\{`/`\}`) and it does not end in an escaping backslash.
 fn brace_safe(s: &str) -> bool {
@@ -511,6 +586,16 @@ impl Vm {
         }
         let instr = &asm.instructions[f.pc];
         f.pc += 1;
+        // Step-debugger seam: fire once per source command, before it runs.
+        #[allow(clippy::redundant_closure_for_method_calls)] // Span isn't named in this crate.
+        let span_start = instr.source_span.map(|s| s.start());
+        if self.debug_step(instr.source_line, span_start, &instr.source_cmd_text) {
+            return Tick::Return(Completion::new(
+                Code::Error,
+                Value::string("debug: terminated"),
+                Value::empty(),
+            ));
+        }
         let lits = asm.literals.entries();
         let lvt = asm.lvt.entries();
 
@@ -1374,6 +1459,162 @@ impl Vm {
                 }
             }
 
+            // -- dicts (LVT form, proc bodies) --
+            // `dict set var k1 ?k2 …? value` — operands [Imm(N), Imm(slot)];
+            // stack holds the N keys then the value. Writes the variable and
+            // leaves the new dict on the stack (the codegen POPs it).
+            Op::DICT_SET => {
+                let nkeys = usize::try_from(imm0(instr)).unwrap_or(0);
+                let name = lvt_name(imm_at(instr, 1));
+                let value = pop(f);
+                if f.stack.len() < nkeys || nkeys == 0 {
+                    return Tick::Return(err("dictSet: stack underflow"));
+                }
+                let keys = f.stack.split_off(f.stack.len() - nkeys);
+                let cur = self.get_var(&name).unwrap_or_else(Value::empty);
+                match dict_set_path(&cur, &keys, value) {
+                    Ok(result) => {
+                        try_op!(self.set_var(&name, result.clone()));
+                        f.stack.push(result);
+                    }
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+            // `dict unset var k1 ?k2 …?` — operands [Imm(N), Imm(slot)]; stack
+            // holds the N keys.
+            Op::DICT_UNSET => {
+                let nkeys = usize::try_from(imm0(instr)).unwrap_or(0);
+                let name = lvt_name(imm_at(instr, 1));
+                if f.stack.len() < nkeys || nkeys == 0 {
+                    return Tick::Return(err("dictUnset: stack underflow"));
+                }
+                let keys = f.stack.split_off(f.stack.len() - nkeys);
+                let cur = self.get_var(&name).unwrap_or_else(Value::empty);
+                match dict_unset_path(&cur, &keys) {
+                    Ok(result) => {
+                        try_op!(self.set_var(&name, result.clone()));
+                        f.stack.push(result);
+                    }
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+            // `dict incr var key ?amount?` — operands [Imm(amount), Imm(slot)];
+            // stack holds the key.
+            Op::DICT_INCR_IMM => {
+                let amount = i64::from(imm0(instr));
+                let name = lvt_name(imm_at(instr, 1));
+                let key = pop(f).to_str().to_string();
+                let cur = self.get_var(&name).unwrap_or_else(Value::empty);
+                let updated = dict_update_single(&cur, &key, |old| {
+                    let base = match old {
+                        Some(v) => v.as_int().map_err(|e| err(e.message))?,
+                        None => 0,
+                    };
+                    Ok(Value::int(base.wrapping_add(amount)))
+                });
+                match updated {
+                    Ok(result) => {
+                        try_op!(self.set_var(&name, result.clone()));
+                        f.stack.push(result);
+                    }
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+            // `dict append var key value` — operand [Imm(slot)]; stack holds the
+            // key then the value.
+            Op::DICT_APPEND => {
+                let name = lvt_name(imm0(instr));
+                let value = pop(f);
+                let key = pop(f).to_str().to_string();
+                let cur = self.get_var(&name).unwrap_or_else(Value::empty);
+                let updated = dict_update_single(&cur, &key, |old| {
+                    let mut s = old.map(|v| v.to_str().to_string()).unwrap_or_default();
+                    s.push_str(&value.to_str());
+                    Ok(Value::string(s))
+                });
+                match updated {
+                    Ok(result) => {
+                        try_op!(self.set_var(&name, result.clone()));
+                        f.stack.push(result);
+                    }
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+            // `dict lappend var key value` — operand [Imm(slot)]; stack holds the
+            // key then the value.
+            Op::DICT_LAPPEND => {
+                let name = lvt_name(imm0(instr));
+                let value = pop(f);
+                let key = pop(f).to_str().to_string();
+                let cur = self.get_var(&name).unwrap_or_else(Value::empty);
+                let updated = dict_update_single(&cur, &key, |old| {
+                    let mut items = match old {
+                        Some(v) => (*v.as_list().map_err(|e| err(e.message))?).clone(),
+                        None => Vec::new(),
+                    };
+                    items.push(value.clone());
+                    Ok(Value::list(items))
+                });
+                match updated {
+                    Ok(result) => {
+                        try_op!(self.set_var(&name, result.clone()));
+                        f.stack.push(result);
+                    }
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+            // `dict get $d k1 ?k2 …?` — operand [Imm(N)]; stack holds the dict
+            // then the N keys. Leaves the looked-up value on the stack.
+            Op::DICT_GET => {
+                let nkeys = usize::try_from(imm0(instr)).unwrap_or(0);
+                if f.stack.len() < nkeys + 1 {
+                    return Tick::Return(err("dictGet: stack underflow"));
+                }
+                let keys = f.stack.split_off(f.stack.len() - nkeys);
+                let mut cur = pop(f);
+                for k in &keys {
+                    let ps = match dict_pairs(&cur) {
+                        Ok(p) => p,
+                        Err(c) => return Tick::Return(c),
+                    };
+                    let ks = k.to_str();
+                    match ps.iter().find(|(pk, _)| pk == &*ks) {
+                        Some((_, v)) => cur = v.clone(),
+                        None => {
+                            return Tick::Return(err(format!(
+                                "key \"{ks}\" not known in dictionary"
+                            )));
+                        }
+                    }
+                }
+                f.stack.push(cur);
+            }
+            // `dict exists $d k1 ?k2 …?` — operand [Imm(N)]; stack holds the dict
+            // then the N keys. Leaves a boolean on the stack.
+            Op::DICT_EXISTS => {
+                let nkeys = usize::try_from(imm0(instr)).unwrap_or(0);
+                if f.stack.len() < nkeys + 1 {
+                    return Tick::Return(err("dictExists: stack underflow"));
+                }
+                let keys = f.stack.split_off(f.stack.len() - nkeys);
+                let mut cur = pop(f);
+                let mut found = true;
+                for k in &keys {
+                    let Ok(ps) = dict_pairs(&cur) else {
+                        found = false;
+                        break;
+                    };
+                    let ks = k.to_str();
+                    if let Some((_, v)) = ps.iter().find(|(pk, _)| pk == &*ks) {
+                        cur = v.clone();
+                    } else {
+                        found = false;
+                        break;
+                    }
+                }
+                f.stack.push(Value::bool(found));
+            }
+
             // -- termination --
             Op::DONE => {
                 return Tick::Return(ok(f
@@ -1442,6 +1683,16 @@ impl Vm {
                     Err(e) => Err(err(e.message)),
                 }
             }
+            // Tcl's `unknown` fallback: an unresolved command name is handed to
+            // the user-defined `unknown` proc as `unknown name arg…` (the basis
+            // for auto-loading, ensembles, and the iRule command mocks). Only
+            // when `unknown` itself is undefined is it a hard error.
+            None if &*name != "unknown" && self.lookup_command("unknown").is_some() => {
+                let mut unknown_words = Vec::with_capacity(words.len() + 1);
+                unknown_words.push(Value::string("unknown"));
+                unknown_words.extend_from_slice(words);
+                self.dispatch_words(f, &unknown_words)
+            }
             None => Err(err(format!("invalid command name \"{name}\""))),
         }
     }
@@ -1472,6 +1723,13 @@ impl Vm {
                     Ok(c) => c,
                     Err(e) => err(e.message),
                 }
+            }
+            // `unknown` fallback (see `dispatch_words`): `unknown name arg…`.
+            None if name != "unknown" && self.lookup_command("unknown").is_some() => {
+                let mut full = Vec::with_capacity(argv.len() + 1);
+                full.push(Value::string(name));
+                full.extend_from_slice(argv);
+                self.invoke_command("unknown", &full)
             }
             None => err(format!("invalid command name \"{name}\"")),
         }

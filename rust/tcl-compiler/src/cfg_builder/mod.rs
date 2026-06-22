@@ -10,15 +10,83 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use tcl_lexer::Span;
+use tcl_lexer::{Span, TokenType};
 
 use crate::cfg::{Block, CfgModule, Function, LoopNode, Terminator};
 use crate::expr_ast::ExprNode;
-use crate::ir::{Module, Script, Statement};
+use crate::ir::{CommandTokens, Module, Script, Statement};
 use crate::ir_helpers::defs_from_ir_script;
 use crate::naming::normalise_var_name;
 
 use self::upvar_info::{UpvarInfo, collect_upvar_targets};
+
+/// Choose the [`CommandTokens`] for a "frozen" `while`/`for` runtime call.
+///
+/// The frozen-loop barrier hands the source words (the condition expression
+/// text, the body script text) to the runtime `while` / `for` builtin, which
+/// re-evaluates the condition and body on each iteration. Each word must be
+/// pushed *as written*: a braced `{cond}` / `{body}` word verbatim
+/// (substitution suppressed), a `$body` word interpolated. The codegen's
+/// [`emit_call`] decides this from `argv_kinds[i] == Str && single_token_word`,
+/// so the barrier needs the real per-word kinds.
+///
+/// `source` is the loop's recorded [`Statement::While::raw_tokens`] — the exact
+/// segmenter token metadata. When present (always, for lowered loops) it is
+/// used directly; the all-verbatim fallback ([`all_str_tokens`]) only covers
+/// synthetically-constructed loops that carry no token metadata, matching the
+/// braced-word idiom they are built from. Without this the words are pushed as
+/// interpolated literals and the condition's command substitution is evaluated
+/// *once* at the call site, freezing the loop (`while {[gets $f line] >= 0}`
+/// happens to work, but a bare `while {[string length $x]}` would spin forever).
+fn frozen_loop_tokens(cmd: &str, args: &[String], source: Option<&CommandTokens>) -> CommandTokens {
+    source.cloned().unwrap_or_else(|| all_str_tokens(cmd, args))
+}
+
+/// Return `tokens` with the word at `idx` removed from every per-word vector.
+///
+/// Used to derive a `dict for`/`map` barrier's tokens from the source
+/// `dict for {vars} $d {body}` tokens by dropping the `for`/`map` subcommand
+/// word (index 1), so the remaining words line up with the barrier's
+/// `::tcl::dict::for {vars} $d {body}` argv.
+fn drop_word(tokens: &CommandTokens, idx: usize) -> CommandTokens {
+    let mut out = tokens.clone();
+    if idx < out.argv.len() {
+        out.argv.remove(idx);
+    }
+    if idx < out.argv_texts.len() {
+        out.argv_texts.remove(idx);
+    }
+    if idx < out.argv_kinds.len() {
+        out.argv_kinds.remove(idx);
+    }
+    if idx < out.single_token_word.len() {
+        out.single_token_word.remove(idx);
+    }
+    if let Some(expand) = out.expand_word.as_mut()
+        && idx < expand.len()
+    {
+        expand.remove(idx);
+    }
+    out
+}
+
+/// Synthesise [`CommandTokens`] marking every word as a single brace-string
+/// token — the verbatim fallback for a frozen loop with no recorded source
+/// tokens. See [`frozen_loop_tokens`].
+fn all_str_tokens(cmd: &str, args: &[String]) -> CommandTokens {
+    let word_count = 1 + args.len();
+    let mut argv_texts = Vec::with_capacity(word_count);
+    argv_texts.push(cmd.to_owned());
+    argv_texts.extend(args.iter().cloned());
+    CommandTokens {
+        argv: vec![Span::new(0, 0); word_count],
+        argv_texts,
+        argv_kinds: vec![TokenType::Str; word_count],
+        single_token_word: vec![true; word_count],
+        all_tokens: Vec::new(),
+        expand_word: None,
+    }
+}
 
 mod cfg_lower;
 pub mod upvar_info;
@@ -431,6 +499,7 @@ impl CfgBuilder {
                 Statement::For {
                     condition,
                     raw_args,
+                    raw_tokens,
                     span,
                     ..
                 } => {
@@ -444,7 +513,7 @@ impl CfgBuilder {
                                 command: "for".into(),
                                 canonical_command: None,
                                 args: raw_args.clone(),
-                                tokens: None,
+                                tokens: Some(frozen_loop_tokens("for", raw_args, raw_tokens.as_ref())),
                             });
                     } else {
                         current = self.lower_for(stmt, &current)?;
@@ -454,6 +523,7 @@ impl CfgBuilder {
                 Statement::While {
                     condition,
                     raw_args,
+                    raw_tokens,
                     span,
                     ..
                 } => {
@@ -466,7 +536,7 @@ impl CfgBuilder {
                                 command: "while".into(),
                                 canonical_command: None,
                                 args: raw_args.clone(),
-                                tokens: None,
+                                tokens: Some(frozen_loop_tokens("while", raw_args, raw_tokens.as_ref())),
                             });
                     } else {
                         current = self.lower_while(stmt, &current);
@@ -582,6 +652,7 @@ impl CfgBuilder {
         let Statement::Foreach {
             is_dict_iteration,
             raw_args,
+            raw_tokens,
             iterators,
             is_lmap,
             span,
@@ -594,13 +665,22 @@ impl CfgBuilder {
         if *is_dict_iteration && !raw_args.is_empty() {
             let sub = &raw_args[0];
             let qual_cmd = format!("::tcl::dict::{sub}");
+            // The barrier re-emits `::tcl::dict::for {vars} $dict {body}` — the
+            // source `dict for …` tokens with the `for`/`map` subcommand word
+            // dropped — so the braced var-list / body push verbatim and the
+            // `$dict` argument substitutes (else the body's command subs are
+            // evaluated once, before the loop variables exist).
+            let args = raw_args[1..].to_vec();
+            let tokens = raw_tokens
+                .as_ref()
+                .map_or_else(|| all_str_tokens(&qual_cmd, &args), |t| drop_word(t, 1));
             self.block_mut(current).statements.push(Statement::Barrier {
                 span: *span,
                 reason: "dict for/map".into(),
                 command: qual_cmd,
                 canonical_command: None,
-                args: raw_args[1..].to_vec(),
-                tokens: None,
+                args,
+                tokens: Some(tokens),
             });
             return current.to_owned();
         }
@@ -621,7 +701,7 @@ impl CfgBuilder {
                 reads: vec![],
                 reads_own_defs: false,
                 safe_on_uninit: false,
-                tokens: None,
+                tokens: Some(frozen_loop_tokens(cmd, raw_args, raw_tokens.as_ref())),
                 foreach_groups: None,
             });
             return current.to_owned();
@@ -1568,6 +1648,7 @@ mod tests {
             is_lmap: false,
             raw_args: vec![],
             is_dict_iteration: false,
+            raw_tokens: None,
         }]);
         let func = build_cfg_function("::test", &script, true);
         let mut found_groups: Option<Vec<usize>> = None;

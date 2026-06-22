@@ -43,6 +43,17 @@ fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 "wrong # args: should be \"package vsatisfies version requirement ?requirement ...?\"",
             ),
         },
+        "vcompare" => match rest {
+            [v1, v2] => {
+                let order = cmp_version(&v1.to_str(), &v2.to_str());
+                ok(Value::int(match order {
+                    Ordering::Less => -1,
+                    Ordering::Equal => 0,
+                    Ordering::Greater => 1,
+                }))
+            }
+            _ => err("wrong # args: should be \"package vcompare version1 version2\""),
+        },
         "names" => {
             let mut names = vm.package_names();
             names.sort();

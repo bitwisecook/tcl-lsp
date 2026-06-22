@@ -12,6 +12,7 @@
 //! (M2) and the rest of the Family-B impls (M3+) build on this skeleton. See
 //! `docs/design/common-runtime-emitter-architecture.md`.
 
+pub mod debug;
 pub mod error;
 pub mod host_native;
 pub mod value;
@@ -46,6 +47,7 @@ mod frame;
 mod interp;
 mod subst;
 
+pub use debug::{DebugAction, DebugFrame, DebugHook, DebugSnapshot, DebugVar};
 pub use error::TclError;
 pub use interp::Vm;
 pub use value::Value;

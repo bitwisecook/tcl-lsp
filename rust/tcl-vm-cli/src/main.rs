@@ -132,7 +132,13 @@ fn set_argv(vm: &mut Vm, argv0: &str, argv: &[String]) {
 /// Compile and run a whole script once, reporting any error to stderr. Returns
 /// the process exit code.
 fn run_script(vm: &mut Vm, src: &str) -> i32 {
-    match vm.eval_source(src) {
+    let result = vm.eval_source(src);
+    // `exit` records a pending code on the VM rather than killing the process
+    // (so embedders survive); the standalone CLI performs the real termination.
+    if let Some(code) = vm.take_exit() {
+        return code;
+    }
+    match result {
         Ok(comp) if comp.code.is_ok() => 0,
         Ok(comp) => {
             eprintln!("{}", comp.result.to_str());
@@ -225,7 +231,13 @@ fn repl_loop<R: std::io::BufRead, W: Write>(vm: &mut Vm, reader: &mut R, out: &m
             continue;
         }
 
-        match vm.eval_source(&buffer) {
+        let result = vm.eval_source(&buffer);
+        // `exit` in the REPL ends the session with the requested code.
+        if let Some(code) = vm.take_exit() {
+            let _ = writeln!(out);
+            return code;
+        }
+        match result {
             Ok(comp) if comp.code.is_ok() => {
                 let result = comp.result.to_str();
                 if !result.is_empty() {

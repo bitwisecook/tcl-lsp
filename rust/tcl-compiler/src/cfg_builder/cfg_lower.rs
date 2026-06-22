@@ -888,6 +888,7 @@ mod tests {
             body: Script::new(),
             body_span: Span::new(32, 34),
             raw_args: vec![],
+            raw_tokens: None,
         }]);
 
         let func = build_cfg_function("::test", &script, true);
@@ -915,6 +916,7 @@ mod tests {
             body: Script::new(),
             body_span: Span::new(9, 11),
             raw_args: vec![],
+            raw_tokens: None,
         }]);
 
         let func = build_cfg_function("::test", &script, true);
@@ -939,6 +941,7 @@ mod tests {
             is_lmap: false,
             raw_args: vec![],
             is_dict_iteration: false,
+            raw_tokens: None,
         }]);
 
         let func = build_cfg_function("::test", &script, true);
