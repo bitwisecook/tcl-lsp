@@ -62,7 +62,10 @@ pub fn run_backend(binary: &Path, script_file: &Path, timeout: Duration) -> Outc
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
-                let out = child.wait_with_output().map(|o| o.stdout).unwrap_or_default();
+                let out = child
+                    .wait_with_output()
+                    .map(|o| o.stdout)
+                    .unwrap_or_default();
                 return Outcome::Ran {
                     stdout: normalise(&String::from_utf8_lossy(&out)),
                     errored: !status.success(),
@@ -109,8 +112,14 @@ pub fn compare(reference: &Outcome, subject: &Outcome) -> Verdict {
         (Outcome::Timeout, _) => Verdict::Skipped,
         (_, Outcome::Timeout) => Verdict::Timeout,
         (
-            Outcome::Ran { stdout: rs, errored: re },
-            Outcome::Ran { stdout: ss, errored: se },
+            Outcome::Ran {
+                stdout: rs,
+                errored: re,
+            },
+            Outcome::Ran {
+                stdout: ss,
+                errored: se,
+            },
         ) => {
             if re != se {
                 Verdict::StatusMismatch
@@ -147,25 +156,40 @@ mod tests {
 
     #[test]
     fn identical_is_match() {
-        assert_eq!(compare(&ran("1\n2\n", false), &ran("1\n2\n", false)), Verdict::Match);
+        assert_eq!(
+            compare(&ran("1\n2\n", false), &ran("1\n2\n", false)),
+            Verdict::Match
+        );
     }
 
     #[test]
     fn stdout_divergence_flagged() {
-        assert_eq!(compare(&ran("1\n", false), &ran("2\n", false)), Verdict::StdoutMismatch);
+        assert_eq!(
+            compare(&ran("1\n", false), &ran("2\n", false)),
+            Verdict::StdoutMismatch
+        );
     }
 
     #[test]
     fn status_divergence_flagged() {
-        assert_eq!(compare(&ran("", true), &ran("", false)), Verdict::StatusMismatch);
+        assert_eq!(
+            compare(&ran("", true), &ran("", false)),
+            Verdict::StatusMismatch
+        );
         // Both error → match (error messages aren't compared).
         assert_eq!(compare(&ran("x", true), &ran("y", true)), Verdict::Match);
     }
 
     #[test]
     fn subject_timeout_flagged_reference_timeout_skipped() {
-        assert_eq!(compare(&ran("", false), &Outcome::Timeout), Verdict::Timeout);
-        assert_eq!(compare(&Outcome::Timeout, &ran("", false)), Verdict::Skipped);
+        assert_eq!(
+            compare(&ran("", false), &Outcome::Timeout),
+            Verdict::Timeout
+        );
+        assert_eq!(
+            compare(&Outcome::Timeout, &ran("", false)),
+            Verdict::Skipped
+        );
     }
 
     #[test]
