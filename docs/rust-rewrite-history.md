@@ -11314,9 +11314,15 @@ gaps stay in [`rust-rewrite.md`](rust-rewrite.md) → **RT-VM**.
     double otherwise); a non-OK body propagates.
   - **`REVERSE` / `LINDEX_MULTI` / `STR_REPLACE`** — the remaining value opcodes
     the inline command-substitution emitter produces (`[lindex $l i j]`,
-    `[string replace …]`, operand reordering). With these the inline emitter's
-    full opcode surface is VM-supported, so the FE-CODEGEN `set x [cmd]` re-land
-    has no remaining VM blocker.
+    `[string replace …]`, operand reordering).
+  - **`INVOKE_REPLACE`** — the ensemble-rewrite invoke (C `INST_INVOKE_REPLACE`):
+    pop the resolved implementation word, replace the first `opnd` original words
+    with it, dispatch `impl + words[opnd..]` through the registered
+    `::tcl::string::*` / `::tcl::dict::*` ensemble implementations. Surfaced by
+    the `set x [cmd]` re-land routing `[string equal -nocase …]` /
+    `[string compare -length …]` through it; also the opcode FE-CODEGEN's
+    non-proc `dict` ensemble form will use. With all of these the inline
+    emitter's full opcode surface is VM-supported.
 
 **(2026-06-22) FE-CODEGEN `set x [cmd]` inline re-land landed.** The pure
 command-substitution assignment value now routes through the inline
