@@ -11766,3 +11766,19 @@ tests), the `scripts`→`xtask` build/release migration, and PYTHON-RETIRE
 (delete the ported Python subtrees + the legacy shims once nothing imports
 them). The legacy `#[pyfunction]` shim set is untouched and still backs the
 in-tree Python.
+
+### scripts→xtask — `cargo xtask` scaffold + first port (landed 2026-06-22)
+
+The second API-PYO3 item starts: the `scripts/` Python toolchain begins moving
+to a native `cargo xtask` runner. Landed the `rust/xtask` crate (clap-derive
+subcommands, `anyhow`, `forbid(unsafe_code)`, workspace member) and the
+`cargo xtask = "run --package xtask --"` alias in `.cargo/config.toml`. First
+script ported: `refcount-contract` (⇐ `scripts/check/refcount_contract.py`) —
+walks `runtime/zig/` for `pub export fn` declarations and lints them against
+the refcount-contract doc's table rows. Verified **byte-for-byte identical**
+stdout/stderr and exit codes (default + `--strict`) against the Python original
+on the current tree (302 missing / 3 stale / "33 of 332 … (9%)"); the two
+parsing regexes carry unit tests. The Python script stays in place (rollout
+rule: fallback for one cycle). The scaffold is the landing point for the rest
+of the `build/` / `check/` / `release/` Python scripts; the shell scripts under
+`scripts/` are already Python-free and need no port.

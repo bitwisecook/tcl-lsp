@@ -1237,8 +1237,14 @@ final track** — every consumer above must port first.
 - **open** TEST-MIGRATE — port each remaining pytest file to per-crate Rust
   tests (delete the `test_*.py` in the same change); the `test_fp_*` battery is
   the analyser acceptance gate.
-- **open** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
-  Python toolchain dependency).
+- **partial** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
+  Python toolchain dependency). The `rust/xtask` crate + `cargo xtask` alias
+  scaffold **landed**, with the first script ported byte-for-byte:
+  `refcount-contract` (⇐ `scripts/check/refcount_contract.py`, output + exit
+  codes verified identical). Remaining: port the other build/check/release
+  Python scripts (`build/{kcs_db,tzdata_bundle,zipapps}.py`, `check/*.py`,
+  `print_version.py`, …) one at a time, then flip the Makefile/CI invocations
+  and retire the Python originals.
 - **open** PYTHON-RETIRE — delete `compiler/`, `analyser/`, `server/`, and the
   ported `tooling/` subtrees once their consumers are Rust. `ai/` (MCP server +
   Claude skills) stays Python by design.

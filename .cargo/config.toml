@@ -11,3 +11,8 @@ linker = "aarch64-linux-gnu-gcc"
 
 [target.riscv64gc-unknown-linux-gnu]
 linker = "riscv64-linux-gnu-gcc"
+
+# `cargo xtask <command>` runs the native build/check task runner (the Rust
+# replacement for the Python `scripts/` toolchain — track API-PYO3).
+[alias]
+xtask = "run --package xtask --"
