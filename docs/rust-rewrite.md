@@ -909,7 +909,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); WASM-runnability arm landed (`wasm-check`: compile→`wasmtime`, 600-program campaign clean); WASM **value**-differential arm landed (`wasm-diff`: in-process wasmtime with a `tcl-vm`-backed eval-fallback host, fuel-bounded `WasmHang` detection — verifies control-flow codegen, already caught a non-terminating-loop bug the runnability arm can't); residual: re-back that arm with the **real linked Zig runtime** for a full value differential, gated on **RT-WASM** → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
 | iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions; 14 integration tests green); framework Tcl embedded for self-contained consumers. RT-VM-gated work complete; only auto-broadening coverage remains → **TOOL-IRULE-TEST** |
-| PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🔴 | designed public surface; TEST-MIGRATE; PYTHON-RETIRE → **API-PYO3** |
+| PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🟡 | designed public surface **landed** (`parse_tcl`/`compile_tcl`/`analyse_tcl`/`format_tcl`/`parse_bigip_config`/`query_bigip` facades + `TclLspError` hierarchy, `tcl-lsp-py::public`); residual: TEST-MIGRATE; `scripts`→`xtask`; PYTHON-RETIRE → **API-PYO3** |
 | `ai/` (MCP + skills) | — | n/a | stays Python by design |
 
 ### Track map (dependency order)
@@ -935,7 +935,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | TOOL | **TOOL-DEBUGGER** ✅ | `tcl-debugger` | RT-VM | L |
 | TOOL | **TOOL-IRULE-TEST** 🟢 | `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
 | TOOL | **TOOL-CLI** ✅ | `tcl-cli` | RT-WASM, RT-VM, TOOL-TCLPKG | S |
-| API | **API-PYO3** 🔴 | `tcl-lsp-py`, `scripts`→`xtask`, `tests` | everything above | L |
+| API | **API-PYO3** 🟡 | `tcl-lsp-py`, `scripts`→`xtask`, `tests` | everything above | L |
 
 ---
 
@@ -1212,17 +1212,28 @@ subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
 #### API-PYO3
 Owns `tcl-lsp-py`, the `scripts`→`xtask` migration, and `tests`. **This is the
 final track** — every consumer above must port first.
-- **open** the designed public PyO3 surface — re-derive it as a semver-stable
-  API for downstream embedders, not a transcription of in-tree calls. What
-  `tcl-lsp-py` exports **today** is the legacy soft-dependency shim set the
-  in-tree Python still imports (~39 `#[pyfunction]`s across `tokens` /
-  `expr_lexer` / `compiler_checks` / `interprocedural` / `gvn` /
-  `compilation_unit` / `signature_scan` / `optimiser` / `analyser` / `registry`
-  / `bigip`), plus exactly **two** LSP *feature* bindings — folding and document
-  symbols — against the native server's ~43 feature providers. Per the boundary
-  rule those shims are porting TODOs to retire, not the public API; the designed
-  surface (the `parse_tcl` / `compile_tcl` / `analyse_tcl` / … facades + typed
-  error hierarchy above) is still unbuilt.
+- **landed (2026-06-22)** the designed public PyO3 surface — built as
+  `tcl-lsp-py::public`, additive alongside (not replacing) the legacy
+  soft-dependency shims. The six narrow facades (`parse_tcl` →
+  `ParseResult`, `compile_tcl` → `CompilationUnit`, `analyse_tcl` →
+  `AnalysisResult`, `format_tcl` → `str`, `parse_bigip_config` →
+  `BigipConfig`, `query_bigip` → `QueryResult`) take `source/options in,
+  structured result out` over the layered crates (`tcl-lexer`,
+  `tcl-compiler`, `tcl-lsp-core::formatting`, `tcl-bigip`,
+  `tcl-bigip-query`) and resolve every span to a `(line, character)`
+  position at the boundary. Paired with the typed error hierarchy
+  `TclLspError → TclParseError / TclCompileError / TclAnalysisError /
+  BigipParseError / BigipQueryError / UnsupportedFeatureError`, each
+  raised instance carrying `code` / `message` / `uri` / `range`,
+  translated at the facade boundary (the pure crates stay `pyo3`-free).
+  Acceptance test: `tests/test_public_pyo3_api.py` (30 cases, runs against
+  the built wheel; `importorskip`-guarded). Detail in the
+  [history archive](rust-rewrite-history.md). Still **open**: the legacy
+  shim set (~39 `#[pyfunction]`s across `tokens` / `expr_lexer` /
+  `compiler_checks` / `interprocedural` / `gvn` / `compilation_unit` /
+  `signature_scan` / `optimiser` / `analyser` / `registry` / `bigip` + the
+  folding / document-symbol feature bindings) stays until its in-tree
+  Python importers retire under PYTHON-RETIRE.
 - **open** TEST-MIGRATE — port each remaining pytest file to per-crate Rust
   tests (delete the `test_*.py` in the same change); the `test_fp_*` battery is
   the analyser acceptance gate.
