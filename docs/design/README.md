@@ -175,6 +175,13 @@ chunk-by-chunk dispatch story lives in
 - [rust/review-findings.md](rust/review-findings.md) — workspace review
   findings on correctness, performance, and memory, including the
   ``unsafe``-forbidden discipline and where it costs.
+- [rust/workspace-deep-review-2026-06-22.md](rust/workspace-deep-review-2026-06-22.md)
+  — full subsystem deep review (every crate: architecture, layout,
+  algorithms, code quality), with the recursion, regex, and optimiser-
+  miscompile themes and five CLI-reproduced defects.
+- [rust/lsp-server-deep-review-2026-06-22.md](rust/lsp-server-deep-review-2026-06-22.md)
+  — companion deep review of the native LSP server stack
+  (``tcl-lsp-server`` / ``-core`` / ``-db`` / ``-py``), 18 findings.
 - [rust/compiler-pipeline-parity.md](rust/compiler-pipeline-parity.md) —
   deep parity audit of the Rust rewrite's lexer, CST, IR/lowering, CFG/SSA,
   analyses, optimiser, and bytecode codegen against the Python source of
