@@ -770,3 +770,33 @@ fn tailcall_basic_and_deep() {
         "tailcall can only be called from a proc, lambda or method"
     );
 }
+
+/// `time command ?count?` — runs the body in the current frame `count` times and
+/// reports `N microseconds per iteration` as a 4-element list (C Tcl
+/// `Tcl_TimeObjCmd`). Timing is non-deterministic, so the assertions cover the
+/// shape, the current-frame side effects, error propagation, and the count<=0
+/// edge (which is the one fixed value, 0).
+#[test]
+fn time_command() {
+    // Body runs in the caller's frame.
+    assert_eq!(run("time {set x 99}; puts $x").2, "99\n");
+    assert_eq!(run("set n 0; time {incr n} 4; puts $n").2, "4\n");
+    // count <= 0 runs nothing and reports 0 (an integer).
+    assert_eq!(
+        run("puts [time {set x 1} 0]").2,
+        "0 microseconds per iteration\n"
+    );
+    // Result is the 4-element list shape.
+    assert_eq!(
+        run("puts [lrange [time {set x 1}] 1 3]").2,
+        "microseconds per iteration\n"
+    );
+    // A body error propagates.
+    let (ok, msg, _) = run("time {error boom}");
+    assert!(!ok);
+    assert_eq!(msg, "boom");
+    // Arity error.
+    let (ok, msg, _) = run("time");
+    assert!(!ok);
+    assert_eq!(msg, "wrong # args: should be \"time command ?count?\"");
+}
