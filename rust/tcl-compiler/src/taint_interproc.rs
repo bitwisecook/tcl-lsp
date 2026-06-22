@@ -512,27 +512,27 @@ fn update_entry(
     changed
 }
 
-/// Solve interprocedural taints for a compilation unit. Mirrors Python
-/// `_solve_interprocedural_taints`.
+/// Run the per-procedure return-taint summary fixpoint to convergence — the
+/// dominant cost of [`solve_interprocedural_taints`] (~95% of `run_all_checks`
+/// on a large file). `infer_proc_summary(P)` is a pure function of `P`'s body and
+/// its *callees'* summaries, so this is driven by a dirty set: a procedure is
+/// re-inferred only once one of its direct callees' summaries changed on the
+/// previous pass (`callers[Q]` = the procedures that directly call `Q`, from the
+/// interprocedural call graph). The lattice is monotone, so this converges to the
+/// same fixpoint a full round-robin would — guarded in debug by a final
+/// round-robin pass and by the `compiler_check` corpus differential. Without a
+/// call graph every procedure is re-queued, exactly reproducing the round-robin.
 ///
-/// The unit's `interproc` summary (when present) is threaded through so the
-/// Rust-specific conservative global-write seeding and the dialect handling
-/// match the per-function [`crate::compilation_unit::FunctionUnit::taints`]
-/// baseline; on top of that the colour-aware return summaries and parameter
-/// entry taints are applied.
-#[must_use]
-#[allow(clippy::too_many_lines)] // two monotone fixpoints (summary worklist +
-// entry-taint worklist) + a debug-only convergence guard; splitting hurts clarity
-pub fn solve_interprocedural_taints(
+/// Split out of [`solve_interprocedural_taints`] so the cheap entry-taint worklist
+/// stays separate, and so this — the expensive, per-procedure-memoisable phase —
+/// can later be served by a salsa-memoised variant (SRV-INCREMENTAL 2b), keyed on
+/// each proc's offset-0 body + its callees' summaries.
+fn converge_summaries(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
+    interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
     dialect: Option<&str>,
-) -> InterprocTaintResult {
-    let interproc = cu.interproc.as_ref();
-
-    // Procedures in deterministic (sorted) order. The summary lattice is
-    // monotone, so the fixpoint is order-independent; sorting keeps the
-    // intermediate visit order reproducible across runs.
+) -> HashMap<String, ProcTaintSummary> {
     let mut proc_names: Vec<&String> = cu.ir_module.procedures.keys().collect();
     proc_names.sort();
 
@@ -547,18 +547,8 @@ pub fn solve_interprocedural_taints(
     }
     let known: HashSet<String> = summaries.keys().cloned().collect();
 
-    // Summary fixpoint, driven by a dirty set. `infer_proc_summary(P)` is a pure
-    // function of `P`'s body and its *callees'* summaries, so a procedure only
-    // needs re-inference once one of its direct callees' summaries changed on the
-    // previous pass. The former code re-inferred *every* procedure on *every* pass
-    // (three full passes over the whole module on `linalg.tcl` — ~95% of
-    // `run_all_checks`). `callers[Q]` is the set of procedures that directly call
-    // `Q`, from the interprocedural call graph; when `Q`'s summary changes its
-    // callers are re-queued. The lattice is monotone, so this converges to the
-    // identical fixpoint — guarded by the `compiler_check` corpus differential.
-    // In-place updates stay visible to later procedures within a pass (Gauss-
-    // Seidel). Without a call graph we conservatively re-queue every procedure,
-    // exactly reproducing the former round-robin.
+    // `callers[Q]` = procedures that directly call `Q`; when `Q`'s summary changes
+    // its callers are re-queued. Without a call graph, re-queue everything.
     let callers: Option<HashMap<&str, Vec<&str>>> = interproc.map(|ia| {
         let mut map: HashMap<&str, Vec<&str>> = HashMap::new();
         for (caller, summary) in &ia.procedures {
@@ -603,8 +593,7 @@ pub fn solve_interprocedural_taints(
     // Debug-only soundness guard: one full round-robin pass must find the dirty-set
     // fixpoint already stable. If this fires, the call graph (`direct_calls`) missed
     // a callee-summary dependency and the worklist under-converged (a taint
-    // false-negative risk). Zero cost in release; proven clean over the tcllib
-    // corpus.
+    // false-negative risk). Zero cost in release; proven clean over the tcllib corpus.
     #[cfg(debug_assertions)]
     for qname in &proc_names {
         if let Some(fu) = cu.procedures.get(*qname) {
@@ -627,6 +616,32 @@ pub fn solve_interprocedural_taints(
             );
         }
     }
+
+    summaries
+}
+
+/// Solve interprocedural taints for a compilation unit. Mirrors Python
+/// `_solve_interprocedural_taints`.
+///
+/// The unit's `interproc` summary (when present) is threaded through so the
+/// Rust-specific conservative global-write seeding and the dialect handling
+/// match the per-function [`crate::compilation_unit::FunctionUnit::taints`]
+/// baseline; on top of that the colour-aware return summaries and parameter
+/// entry taints are applied.
+#[must_use]
+pub fn solve_interprocedural_taints(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> InterprocTaintResult {
+    let interproc = cu.interproc.as_ref();
+    let summaries = converge_summaries(cu, registry, interproc, dialect);
+
+    // Procedures in deterministic (sorted) order, and the name set — both consumed
+    // by the entry-taint worklist below.
+    let mut proc_names: Vec<&String> = cu.ir_module.procedures.keys().collect();
+    proc_names.sort();
+    let known: HashSet<String> = summaries.keys().cloned().collect();
 
     // Top-level taints under the converged summaries.
     let top_taints = run_propagation(
