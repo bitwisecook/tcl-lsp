@@ -514,7 +514,7 @@ impl Bt<'_> {
                 min,
                 max,
                 pref,
-            } => self.m_repeat(sub, *min, *max, *pref, 0, pos, hi, k),
+            } => self.m_repeat(sub, *min, *max, *pref, pos, hi, k),
             Node::Backref {
                 subno,
                 min,
@@ -540,11 +540,50 @@ impl Bt<'_> {
         })
     }
 
+    /// Match `sub{min,max}` in the backtracking matcher, recording captures.
+    ///
+    /// Mirrors the C dissector (`citerdissect`) — and our own `dissect_repeat`:
+    ///
+    /// * `min >= 1` is Spencer's transform `x{m,n}` → `x{m-1,n-1} x`: a prefix
+    ///   repeat followed by a **mandatory** final `x`. The final iteration is
+    ///   the one whose captures stick, and for a nullable operand it can be the
+    ///   empty match at the end (`(a*)+` on "aaa" captures `[3,3)`; `(a?){2}\1`
+    ///   ends with the empty `[1,1)`). Greedy makes the prefix as long as
+    ///   possible, so the final `x` lands as late as possible.
+    /// * `min == 0` is a pure star: a zero-width iteration is **never** taken
+    ///   (Tcl rejects zero-length matches in a min-0 repeat), so `(a*)?`/`(a*)*`
+    ///   over "" take zero iterations and do not enter — hence do not capture —
+    ///   their operand. This is why `((a*)?){2}\2` fails to match "": the inner
+    ///   group never participates, so the backreference has nothing to match.
     #[allow(clippy::too_many_arguments)]
     fn m_repeat(
         &self,
         sub: &Node,
         min: i32,
+        max: i32,
+        pref: Pref,
+        pos: usize,
+        hi: usize,
+        k: &mut dyn FnMut(usize) -> bool,
+    ) -> bool {
+        if min >= 1 {
+            let pmax = if max >= DUPINF { max } else { max - 1 };
+            self.m_repeat(sub, min - 1, pmax, pref, pos, hi, &mut |mid| {
+                self.m(sub, mid, hi, k)
+            })
+        } else {
+            self.m_star(sub, max, pref, 0, pos, hi, k)
+        }
+    }
+
+    /// Match a pure `sub{0,max}` star. Only **non-empty** iterations are taken
+    /// (an empty one would not progress and is never recorded); `k(pos)` is the
+    /// zero-or-more-iterations stop. Greedy tries another iteration first, lazy
+    /// stops first.
+    #[allow(clippy::too_many_arguments)]
+    fn m_star(
+        &self,
+        sub: &Node,
         max: i32,
         pref: Pref,
         count: i32,
@@ -553,33 +592,19 @@ impl Bt<'_> {
         k: &mut dyn FnMut(usize) -> bool,
     ) -> bool {
         let can_more = max >= DUPINF || count < max;
-        let can_stop = count >= min;
         let more = |k: &mut dyn FnMut(usize) -> bool| {
             can_more
                 && self.m(sub, pos, hi, &mut |p| {
-                    if p == pos {
-                        // Zero-width iteration. It still counts toward `min`
-                        // (Tcl matches `(a*)+\1` against "" and `(a?){2}\1`
-                        // against "a"), and any further iterations would be
-                        // identical empties at `pos` — so we record this one's
-                        // captures and stop here rather than recursing, which
-                        // would not progress. The inner capture (e.g. the final
-                        // empty `[pos,pos)` for `(a*)`) is already set by the
-                        // `Capture` node before this continuation runs, so a
-                        // following backreference sees it.
-                        k(pos)
-                    } else {
-                        self.m_repeat(sub, min, max, pref, count + 1, p, hi, k)
-                    }
+                    p > pos && self.m_star(sub, max, pref, count + 1, p, hi, k)
                 })
         };
-        // The two arms differ only in evaluation order, but `more`/`k` have
-        // side effects (they record captures) and short-circuit, so the order
-        // is what implements greedy-vs-lazy. They are NOT interchangeable.
+        // The arms differ only in short-circuit order, which is load-bearing
+        // (greedy takes more iterations first, lazy stops first; both have
+        // capture side effects).
         #[allow(clippy::match_same_arms)]
         match pref {
-            Pref::Longer => more(k) || (can_stop && k(pos)),
-            Pref::Shorter => (can_stop && k(pos)) || more(k),
+            Pref::Longer => more(k) || k(pos),
+            Pref::Shorter => k(pos) || more(k),
         }
     }
 
