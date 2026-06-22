@@ -126,6 +126,45 @@ fn traces_fire_ok_error_and_unset() {
     assert!(Traces::fire(&mut vm, "z", "unset").is_ok());
 }
 
+/// `trace add|remove|info <type>` accept an unambiguous prefix of the type
+/// word — `var` resolves to `variable` — matching C's `Tcl_GetIndexFromObj`
+/// over `traceTypeOptions`. Regression for set-2.4 / set-4.4, which add a
+/// write trace via `trace add var x write …`.
+#[test]
+fn trace_type_accepts_unambiguous_abbreviation() {
+    let (ok, result, _) = run(concat!(
+        "set x 1\n",
+        "proc ro args {error \"variable is read-only\"}\n",
+        "trace add var x write ro\n",
+        "catch {set x 9} m\n",
+        "set m",
+    ));
+    assert!(ok, "script should complete (var → variable): {result}");
+    // The trace fired (so `var` was accepted) and rewrapped the callback error.
+    assert_eq!(result, "can't set \"x\": variable is read-only");
+}
+
+/// A write-trace rejection's `errorInfo` carries the full unwind down to the
+/// command that triggered the trace: the callback frames, the
+/// `(write trace on "x")` context frame, and finally the `set x 9` frame.
+/// Regression for set-2.4 (the `-match glob` result requires the trace's
+/// `errorInfo` to reach `"set x 9"`).
+#[test]
+fn write_trace_error_info_reaches_triggering_command() {
+    let (ok, result, _) = run(concat!(
+        "set x 1\n",
+        "proc ro args {error \"variable is read-only\"}\n",
+        "trace add variable x write ro\n",
+        "catch {set x 9}\n",
+        "string match {*variable is read-only*while executing*\"set x 9\"} $::errorInfo",
+    ));
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result, "1",
+        "errorInfo must unwind through the trace to the triggering `set x 9` frame",
+    );
+}
+
 /// `info level` runs through the shared Family-B core
 /// (`tcl_cmd_core::info::level`, over the `Introspect` role trait): the current
 /// depth with no argument, and the correct coercion error for a non-integer

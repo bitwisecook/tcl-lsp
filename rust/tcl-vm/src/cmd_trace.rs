@@ -49,8 +49,14 @@ fn trace_add(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let Some((kind, args)) = rest.split_first() else {
         return err("wrong # args: should be \"trace add type ?arg ...?\"");
     };
-    match &*kind.to_str() {
-        "variable" => match args {
+    // Tcl resolves the type word with `Tcl_GetIndexFromObj`, so an
+    // unambiguous prefix (`var` → `variable`) is accepted (set-2.4 / set-4.4).
+    let kind = match core_trace::resolve_type(&kind.to_str()) {
+        Ok(k) => k,
+        Err(e) => return err(e.into_message()),
+    };
+    match kind {
+        core_trace::TraceKind::Variable => match args {
             [name, ops, command] => {
                 let ops = match parse_ops(&ops.to_str()) {
                     Ok(o) => o,
@@ -62,8 +68,7 @@ fn trace_add(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             _ => err("wrong # args: should be \"trace add variable name ops command\""),
         },
         // Command / execution traces: accepted, not yet fired.
-        "command" | "execution" => ok(Value::empty()),
-        other => err(core_trace::bad_type_error(other).into_message()),
+        core_trace::TraceKind::Command | core_trace::TraceKind::Execution => ok(Value::empty()),
     }
 }
 
@@ -71,8 +76,12 @@ fn trace_remove(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let Some((kind, args)) = rest.split_first() else {
         return err("wrong # args: should be \"trace remove type ?arg ...?\"");
     };
-    match &*kind.to_str() {
-        "variable" => match args {
+    let kind = match core_trace::resolve_type(&kind.to_str()) {
+        Ok(k) => k,
+        Err(e) => return err(e.into_message()),
+    };
+    match kind {
+        core_trace::TraceKind::Variable => match args {
             [name, ops, command] => {
                 let ops = match parse_ops(&ops.to_str()) {
                     Ok(o) => o,
@@ -83,8 +92,7 @@ fn trace_remove(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             }
             _ => err("wrong # args: should be \"trace remove variable name ops command\""),
         },
-        "command" | "execution" => ok(Value::empty()),
-        other => err(core_trace::bad_type_error(other).into_message()),
+        core_trace::TraceKind::Command | core_trace::TraceKind::Execution => ok(Value::empty()),
     }
 }
 
@@ -92,10 +100,15 @@ fn trace_info(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let Some((kind, args)) = rest.split_first() else {
         return err("wrong # args: should be \"trace info type name\"");
     };
-    match &*kind.to_str() {
-        "variable" => trace_info_variable(vm, args),
-        "command" | "execution" => ok(Value::list(Vec::new())),
-        other => err(core_trace::bad_type_error(other).into_message()),
+    let kind = match core_trace::resolve_type(&kind.to_str()) {
+        Ok(k) => k,
+        Err(e) => return err(e.into_message()),
+    };
+    match kind {
+        core_trace::TraceKind::Variable => trace_info_variable(vm, args),
+        core_trace::TraceKind::Command | core_trace::TraceKind::Execution => {
+            ok(Value::list(Vec::new()))
+        }
     }
 }
 

@@ -809,8 +809,16 @@ impl Vm {
                 };
                 if let Some(msg) = failed {
                     match op {
-                        "write" => return Err(err(format!("can't set \"{name}\": {msg}"))),
-                        "read" => return Err(err(format!("can't read \"{name}\": {msg}"))),
+                        "write" | "read" => {
+                            // C's `TclCallVarTraces` logs a `(write|read trace
+                            // on "name")` frame, then clears ERR_ALREADY_LOGGED
+                            // so the command that triggered the trace logs its
+                            // own `invoked from within` frame as the error
+                            // unwinds (set-2.4 / set-4.4).
+                            self.append_var_trace_frame(op, name);
+                            let verb = if op == "write" { "set" } else { "read" };
+                            return Err(err(format!("can't {verb} \"{name}\": {msg}")));
+                        }
                         _ => {} // unset trace errors are ignored
                     }
                 }
@@ -1609,6 +1617,21 @@ impl Vm {
         info.push_str("\" line ");
         info.push_str(&line.to_string());
         info.push(')');
+        self.error_logged = false;
+    }
+
+    /// Append a `(<op> trace on "<name>")` frame — the context frame C's
+    /// `TclCallVarTraces` adds to `errorInfo` when a variable read/write trace
+    /// callback errors, before the triggering command (`set x 1`) logs its own
+    /// `invoked from within` frame. Clears `error_logged` so that command's
+    /// frame is logged next (set-2.4 / set-4.4).
+    pub(crate) fn append_var_trace_frame(&mut self, op: &str, name: &str) {
+        let info = self.error_info.get_or_insert_with(String::new);
+        info.push_str("\n    (");
+        info.push_str(op);
+        info.push_str(" trace on \"");
+        info.push_str(name);
+        info.push_str("\")");
         self.error_logged = false;
     }
 
