@@ -521,6 +521,8 @@ fn update_entry(
 /// baseline; on top of that the colour-aware return summaries and parameter
 /// entry taints are applied.
 #[must_use]
+#[allow(clippy::too_many_lines)] // two monotone fixpoints (summary worklist +
+// entry-taint worklist) + a debug-only convergence guard; splitting hurts clarity
 pub fn solve_interprocedural_taints(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
