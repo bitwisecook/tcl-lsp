@@ -1502,6 +1502,38 @@ impl Vm {
                     }
                 }
             }
+            // Ensemble-rewrite invoke (C Tcl `INST_INVOKE_REPLACE`): operands are
+            // `(objc, opnd)` — `objc` words sit on the stack with the resolved
+            // implementation word on top. The first `opnd` original words (e.g.
+            // `string equal`) are replaced by the popped implementation
+            // (`::tcl::string::equal`); the effective command is
+            // `impl + words[opnd..]`. (The ensemble error-message rewrite C does
+            // via `TclInitRewriteEnsemble` is omitted — only the dispatch
+            // matters for execution.)
+            Op::INVOKE_REPLACE => {
+                let objc = usize::try_from(imm0(instr)).unwrap_or(0);
+                let opnd = usize::try_from(imm_at(instr, 1)).unwrap_or(0);
+                let repl = pop(f);
+                if f.stack.len() < objc {
+                    return Tick::Return(err("invokeReplace: stack underflow"));
+                }
+                let words = f.stack.split_off(f.stack.len() - objc);
+                let mut argv = Vec::with_capacity(objc.saturating_sub(opnd) + 1);
+                argv.push(repl);
+                if opnd < words.len() {
+                    argv.extend_from_slice(&words[opnd..]);
+                }
+                match self.dispatch_words(f, &argv) {
+                    Ok(Some(call)) => return call,
+                    Ok(None) => {}
+                    Err(c) => {
+                        let cmd_text = instr.source_cmd_text.clone();
+                        let msg = c.result.to_str().to_string();
+                        self.log_command_info(&cmd_text, &msg, instr.source_line);
+                        return Tick::Return(c);
+                    }
+                }
+            }
             Op::EXPR_STK => {
                 let s = pop(f).to_str();
                 match self.eval_expr(&s) {
