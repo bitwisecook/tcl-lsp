@@ -214,10 +214,18 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             .collect::<Vec<_>>()
             .join(" ")
     };
-    match vm.eval_source(&script) {
+    let c = match vm.eval_source(&script) {
         Ok(c) => c,
         Err(e) => err(e.message),
+    };
+    if c.code == Code::Error {
+        // An error unwinding out of an `eval` body adds an `("eval" body
+        // line N)` frame to errorInfo (C's uncompiled eval), before the
+        // enclosing INVOKE logs its `invoked from within "eval {…}"` frame
+        // (eval-2.5).
+        vm.append_body_frame("eval");
     }
+    c
 }
 
 /// Monotonic counter minting unique temporary command names for `apply`.

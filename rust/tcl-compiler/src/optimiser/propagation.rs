@@ -734,7 +734,7 @@ fn walk_statement(
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
         | Statement::Foreach { body, .. } => {
-            walk_script(ctx, cu, body, constants, numeric, namespace)
+            walk_script(ctx, cu, body, constants, numeric, namespace);
         }
         Statement::Try {
             body,
