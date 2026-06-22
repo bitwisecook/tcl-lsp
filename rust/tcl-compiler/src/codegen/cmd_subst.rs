@@ -257,6 +257,70 @@ pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
     parts
 }
 
+/// Like [`parse_cmd_parts`] but also flags `{*}`-expansion words. Each tuple is
+/// `(text, braced, expand)`: `expand` is true when the word carried a leading
+/// `{*}` prefix (stripped from `text`). A `{*}` *not* immediately followed by
+/// word content (`{*}` then a space / end) is a literal braced `*`, not an
+/// expansion — matching Tcl's `{*}` rule.
+#[must_use]
+pub fn parse_cmd_parts_expand(text: &str) -> Vec<(String, bool, bool)> {
+    let text = text.trim();
+    let text = if text.starts_with('[') && text.ends_with(']') {
+        text[1..text.len() - 1].trim()
+    } else {
+        text
+    };
+    let bytes = text.as_bytes();
+    let n = bytes.len();
+    let mut parts = Vec::new();
+    let mut i = 0;
+
+    while i < n {
+        while i < n && (bytes[i] == b' ' || bytes[i] == b'\t') {
+            i += 1;
+        }
+        if i >= n {
+            break;
+        }
+        // `{*}` immediately followed by non-whitespace word content → expansion.
+        let mut expand = false;
+        if i + 3 < n && &bytes[i..i + 3] == b"{*}" && bytes[i + 3] != b' ' && bytes[i + 3] != b'\t'
+        {
+            expand = true;
+            i += 3;
+        }
+        let (part, braced, new_i) = match bytes[i] {
+            b'"' => {
+                let (p, ni) = parse_quoted_part(text, bytes, n, i);
+                (p, false, ni)
+            }
+            b'{' => {
+                let (p, ni) = parse_braced_part(text, bytes, n, i);
+                (p, true, ni)
+            }
+            b'[' => {
+                let start = i;
+                let mut j = skip_cmd_subst(bytes, n, i);
+                while j < n && bytes[j] != b' ' && bytes[j] != b'\t' {
+                    if bytes[j] == b'[' {
+                        j = skip_cmd_subst(bytes, n, j);
+                    } else {
+                        j += 1;
+                    }
+                }
+                (text[start..j].to_owned(), false, j)
+            }
+            _ => {
+                let (p, ni) = parse_bareword_part(text, bytes, n, i);
+                (p, false, ni)
+            }
+        };
+        parts.push((part, braced, expand));
+        i = new_i;
+    }
+    parts
+}
+
 // ---------------------------------------------------------------------------
 // CodegenCtx methods — emission helpers for command substitutions
 // ---------------------------------------------------------------------------
@@ -268,6 +332,34 @@ impl CodegenCtx<'_> {
     /// nested substitutions, braced args with `$`/`[`, interpolated
     /// strings, backslash escapes, and plain literals.
     pub fn emit_cmd_subst_arg(&mut self, arg: &str, braced: bool) {
+        // A composite unbraced arg with an embedded substitution (`$opt*`,
+        // `x$y`, `${a}b`, `pre[cmd]post`) decomposes into more than one part:
+        // build the string by concatenating the substituted parts rather than
+        // pushing the raw text as a literal (which would leave `$opt*` /
+        // `pre[cmd]` un-substituted). A pure `$var` / `${var}` / `$arr(i)` /
+        // `[cmd]` is a single part and falls through to the fast paths below.
+        if !braced
+            && (arg.contains('$') || arg.contains('['))
+            && let Some(parts) = parse_subst_template(arg)
+            && parts.len() > 1
+        {
+            for part in &parts {
+                match part {
+                    SubstPart::Lit(text) => self.push_lit(text),
+                    SubstPart::Cmd(cmd) => self.emit_inline_cmd_subst(cmd),
+                    SubstPart::Scalar(name) => {
+                        self.push_lit(name);
+                        self.emit(Op::LOAD_STK, vec![]);
+                    }
+                    SubstPart::Var(name) => self.load_var(name),
+                }
+            }
+            self.emit(
+                Op::STR_CONCAT1,
+                vec![Operand::Imm(bytecode_imm(parts.len()))],
+            );
+            return;
+        }
         if !braced && arg.starts_with('$') {
             // Braced scalar marker: $={name} → push + loadStk
             if let Some(name) = parse_braced_scalar_ref(arg) {
@@ -611,7 +703,10 @@ impl CodegenCtx<'_> {
     /// - `dict get`
     /// - `catch` (delegates to control_flow)
     pub fn emit_inline_cmd_subst(&mut self, text: &str) {
-        // Multi-command scripts fall back to runtime eval.
+        // Multi-command scripts (a `;`/newline separator outside quotes/braces)
+        // fall back to runtime eval — checked *before* the `{*}` form below so a
+        // body that has both (`[set y 1; list {*}$a]`) runs as two commands
+        // rather than being mis-parsed as one expanded command.
         if has_command_separator(text) {
             let inner = if text.starts_with('[') && text.ends_with(']') {
                 &text[1..text.len() - 1]
@@ -621,6 +716,16 @@ impl CodegenCtx<'_> {
             self.push_lit(&format!("{{{inner}}}"));
             self.emit(Op::EVAL_STK, vec![]);
             return;
+        }
+        // A `{*}`-expanded command substitution in value position compiles to the
+        // `expandStart … expandStkTop N; invokeExpanded` form (tclsh's), leaving
+        // the result on the stack (no trailing `pop`, unlike the statement form).
+        if text.contains("{*}") {
+            let parts = parse_cmd_parts_expand(text);
+            if parts.iter().any(|(_, _, expand)| *expand) {
+                self.emit_expanded_cmd_subst(&parts);
+                return;
+            }
         }
 
         let parts = parse_cmd_parts(text);
@@ -660,7 +765,7 @@ impl CodegenCtx<'_> {
                 self.emit_inline_linsert(args);
             }
             "regexp" if args.len() >= 2 => {
-                self.emit_inline_regexp(args, &parts);
+                self.emit_inline_regexp(args);
             }
             "list" if !args.is_empty() && !text.contains("{*}") => {
                 self.used_inline_cmd_subst = true;
@@ -692,6 +797,36 @@ impl CodegenCtx<'_> {
                 self.emit_generic_cmd_subst(cmd, args);
             }
         }
+    }
+
+    /// Emit a `{*}`-expanded command substitution in value position:
+    /// `expandStart`, each word (an expanded word followed by `expandStkTop N`
+    /// where N is the running word count), then `invokeExpanded` — leaving the
+    /// result on the stack. Mirrors [`Self::emit_expanded_call`] without the
+    /// trailing `pop`.
+    fn emit_expanded_cmd_subst(&mut self, parts: &[(String, bool, bool)]) {
+        self.used_inline_cmd_subst = true;
+        self.emit_comment(Op::EXPAND_START, vec![], "(expanded)");
+        let mut word_count: u32 = 0;
+        for (part, braced, expand) in parts {
+            if *braced {
+                // A braced expanded word splits its *list* elements without
+                // substitution, so push it verbatim.
+                self.push_lit_verbatim(part);
+            } else {
+                self.emit_cmd_subst_arg(part, false);
+            }
+            word_count += 1;
+            if *expand {
+                self.emit(
+                    Op::EXPAND_STKTOP,
+                    vec![Operand::Imm(
+                        i32::try_from(word_count).expect("word count fits in i32"),
+                    )],
+                );
+            }
+        }
+        self.emit_comment(Op::INVOKE_EXPANDED, vec![], "");
     }
 
     // -- Private inline helpers for emit_inline_cmd_subst --
@@ -971,8 +1106,15 @@ impl CodegenCtx<'_> {
         };
 
         if let Some(class_id) = str_class_id(class_name) {
-            self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
-            self.emit(Op::STR_CLASS, vec![Operand::Imm(i32::from(class_id))]);
+            if strict {
+                // `STR_CLASS` reports the empty string as a member, so it cannot
+                // honour `-strict` (under which the empty string is a non-member
+                // for character classes); defer to the generic command.
+                self.emit_string_is_generic(sargs);
+            } else {
+                self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
+                self.emit(Op::STR_CLASS, vec![Operand::Imm(i32::from(class_id))]);
+            }
         } else if class_name == "integer" {
             self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
             if strict {
@@ -1045,13 +1187,20 @@ impl CodegenCtx<'_> {
             self.push_lit("1");
             self.place_label(&end_lbl);
         } else {
-            self.used_inline_cmd_subst = false;
-            // Rebuild full args list with "string" prefix
-            let mut full_args = vec![("string".to_owned(), false)];
-            full_args.extend_from_slice(sargs);
-            let all_args = &full_args[1..]; // skip "string" cmd itself
-            self.emit_generic_cmd_subst("string", all_args);
+            self.emit_string_is_generic(sargs);
         }
+    }
+
+    /// `string is CLASS ?args…?` via the generic command path, **keeping** the
+    /// `is` subcommand word. Used when a `string is` form cannot be specialised
+    /// inline (unknown class, `-strict` char class, extra options). The previous
+    /// fallback dropped `is` (it prefixed `string` then sliced it back off),
+    /// producing the invalid `string CLASS …`.
+    fn emit_string_is_generic(&mut self, sargs: &[(String, bool)]) {
+        self.used_inline_cmd_subst = false;
+        let mut all_args = vec![("is".to_owned(), false)];
+        all_args.extend_from_slice(sargs);
+        self.emit_generic_cmd_subst("string", &all_args);
     }
 
     fn emit_inline_lindex(&mut self, args: &[(String, bool)]) {
@@ -1122,7 +1271,7 @@ impl CodegenCtx<'_> {
         );
     }
 
-    fn emit_inline_regexp(&mut self, args: &[(String, bool)], all_parts: &[(String, bool)]) {
+    fn emit_inline_regexp(&mut self, args: &[(String, bool)]) {
         let mut rargs: Vec<&(String, bool)> = args.iter().collect();
         let mut nocase = false;
         if !rargs.is_empty() && rargs[0].0 == "-nocase" {
@@ -1143,14 +1292,16 @@ impl CodegenCtx<'_> {
                 self.emit_generic_cmd_subst("regexp", args);
             }
         } else if rargs.len() == 2 && !nocase {
+            // Push only the cleaned pattern + subject (the `--` / `-nocase`
+            // option words are consumed at compile time); the `REGEXP` opcode
+            // pops exactly those two. Operand is the compile flags: tclsh's
+            // default `TCL_REG_ADVANCED` (3). `-nocase` is handled by the glob
+            // path above, so the NOCASE bit is never set here.
             self.used_inline_cmd_subst = true;
-            for (a, b) in &all_parts[1..] {
-                self.emit_cmd_subst_arg(a, *b);
+            for arg in &rargs {
+                self.emit_cmd_subst_arg(&arg.0, arg.1);
             }
-            self.emit(
-                Op::REGEXP,
-                vec![Operand::Imm(bytecode_imm(all_parts.len()))],
-            );
+            self.emit(Op::REGEXP, vec![Operand::Imm(3)]);
         } else {
             self.used_inline_cmd_subst = false;
             self.emit_generic_cmd_subst("regexp", args);
