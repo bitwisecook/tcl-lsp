@@ -786,6 +786,14 @@ impl FeatureToggles {
         }
     }
 
+    /// Record a single feature flag explicitly — for toggles that live in a
+    /// dedicated config *section* (e.g. `tclLsp.xcDiagnostics.enabled`)
+    /// rather than the flat `features` object the editor sends to
+    /// [`Self::apply`].
+    fn set_flag(&mut self, feature: &str, value: bool) {
+        self.set.insert(feature.to_owned(), value);
+    }
+
     /// The full resolved `{feature: bool}` map for `getEffectiveConfig`.
     fn resolved_map(&self) -> serde_json::Map<String, serde_json::Value> {
         Self::KEYS
@@ -2177,6 +2185,20 @@ impl Backend {
         }
         if let Some(features) = cfg.get("features").and_then(serde_json::Value::as_object) {
             self.feature_toggles.lock().await.apply(features);
+        }
+        // `tclLsp.xcDiagnostics.enabled` is a dedicated config section (the
+        // shipped VS Code setting "XC Migration: Enabled"), not a `features.*`
+        // key, so it must be mapped onto the `xcDiagnostics` feature toggle
+        // here — mirroring Python `settings.py`'s `xcDiagnostics` handling.
+        if let Some(flag) = cfg
+            .get("xcDiagnostics")
+            .and_then(|x| x.get("enabled"))
+            .and_then(serde_json::Value::as_bool)
+        {
+            self.feature_toggles
+                .lock()
+                .await
+                .set_flag("xcDiagnostics", flag);
         }
         if let Some(flag) = cfg
             .get("optimiser")
@@ -5352,6 +5374,15 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     if let Some(features) = obj.get("features").and_then(serde_json::Value::as_object) {
         fc.feature_toggles.apply(features);
     }
+    // `xcDiagnostics.enabled` is a config section, not a `features.*` key
+    // (see `pull_and_apply_config`) — map it onto the toggle for the folder.
+    if let Some(flag) = obj
+        .get("xcDiagnostics")
+        .and_then(|x| x.get("enabled"))
+        .and_then(serde_json::Value::as_bool)
+    {
+        fc.feature_toggles.set_flag("xcDiagnostics", flag);
+    }
     if let Some(opt) = obj.get("optimiser").and_then(serde_json::Value::as_object) {
         if let Some(b) = opt.get("enabled").and_then(serde_json::Value::as_bool) {
             fc.optimiser_enabled = Some(b);
@@ -6768,6 +6799,32 @@ mod tests {
         ] {
             assert!(map.contains_key(key), "missing reported feature {key}");
         }
+    }
+
+    /// The shipped `tclLsp.xcDiagnostics.enabled` setting is a dedicated
+    /// config *section*, not a `features.*` key — `parse_folder_config` must
+    /// still map it onto the `xcDiagnostics` feature toggle so the advertised
+    /// VS Code opt-in actually reaches `xc_diagnostics_enabled` (Codex #689
+    /// P2).
+    #[test]
+    fn folder_config_maps_xc_diagnostics_section_to_toggle() {
+        let cfg = serde_json::json!({ "xcDiagnostics": { "enabled": true } });
+        let fc = parse_folder_config(&cfg).expect("folder config");
+        assert_eq!(
+            fc.feature_toggles.set.get("xcDiagnostics").copied(),
+            Some(true),
+            "tclLsp.xcDiagnostics.enabled must set the xcDiagnostics toggle",
+        );
+        assert!(fc.feature_toggles.is_enabled_default_off("xcDiagnostics"));
+
+        // Absent section leaves the (default-off) toggle unset.
+        let empty = parse_folder_config(&serde_json::json!({})).expect("folder config");
+        assert_eq!(empty.feature_toggles.set.get("xcDiagnostics"), None);
+        assert!(
+            !empty
+                .feature_toggles
+                .is_enabled_default_off("xcDiagnostics")
+        );
     }
 
     #[test]
