@@ -11522,11 +11522,30 @@ back). Validated by a 1.5 K-iteration `tclvm`-vs-`tclsh9.0` campaign:
 **1497/1500 match, 3 reference-timeout skips, 0 findings** — RT-VM handles the
 broadened surface byte-identically for the generated forms.
 
-Open residual in [`rust-rewrite.md`](rust-rewrite.md) → **TOOL-FUZZ**, now gated
-on **RT-WASM** rather than RT-VM: add the WASM/Zig backend as a third
-differential arm once the real WASM emitter (not the current eval-fallback,
-which does not execute) can run a script. The generator grammar continues to
-broaden opportunistically as further RT-VM surface (TclOO, coroutines) lands.
+**WASM-runnability arm landed (2026-06-22).** The third backend's *runnability*
+slice is now wired: a `wasm-check` subcommand (`wasm.rs`) compiles each generated
+program to the eval-fallback WASM module (`wasm_codegen_module`, behind a
+`catch_unwind` so a codegen panic is a recorded finding, not a campaign wedge),
+writes it plus the proven four-import `tcl_*` host stub (ported from
+`tcl-compiler/tests/wasm_execute.rs`, `tcl_expr_bool` → 0 so control flow
+terminates), and runs `::top` under `wasmtime`. A clean exit is a pass; a codegen
+panic/error (`CodegenFailed`) or a `wasmtime` reject/trap (`Trapped`) is a
+finding whose script is written to `<findings>/wasm/`. A 600-program campaign
+over the broadened grammar is **clean** (0 codegen-failed, 0 trapped) —
+confirming the WASM codegen is robust over procs/namespaces/dict/switch/catch/try.
+
+Empirically established (rather than assumed) that the eval-fallback module
+**does** execute under `wasmtime` — but only via the stub host, which prints
+command texts rather than evaluating Tcl. So this is a *runnability* arm, not yet
+a *value* differential: a true value differential against `tclsh` needs the
+interpreter-backed host (the wasmtime-embedder tier the `tcl-compiler` execution
+test calls out as "the next tier"), which is **RT-WASM** work. When that lands
+the arm upgrades in place by swapping the stub for the real host.
+
+Open residual in [`rust-rewrite.md`](rust-rewrite.md) → **TOOL-FUZZ**: upgrade
+the runnability arm to a value differential (gated on the interpreter-backed
+RT-WASM host). The generator grammar continues to broaden opportunistically as
+further RT-VM surface (TclOO, coroutines) lands.
 
 ## TOOL-DEBUGGER — record-and-replay step debugger (`tcl-debugger`) (landed 2026-06)
 

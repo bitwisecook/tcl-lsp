@@ -905,7 +905,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Refactoring transforms | `tcl-lsp-core::code_actions` | ✅ | all 7 transforms ported (`tcl-lsp-core::refactor`), byte-parity vs the Python oracle → **TOOL-REFACTOR** |
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟢 | `wasm` view renders the eval-fallback emitter's WAT; rich per-instruction web-GUI shape (`to_explorer_json`) ported (`tcl_explorer::wasm_explorer`: resolved call/branch targets, block-pairing, ranges) — densifies automatically as RT-WASM emits real instructions → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
-| Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); sole residual: WASM/Zig third differential arm, gated on the real RT-WASM emitter → **TOOL-FUZZ** |
+| Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); WASM-runnability arm landed (`wasm-check`: compile→`wasmtime`, 600-program campaign clean); residual: upgrade that arm to a *value* differential, gated on the interpreter-backed RT-WASM host → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
 | iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions; 14 integration tests green); framework Tcl embedded for self-contained consumers. RT-VM-gated work complete; only auto-broadening coverage remains → **TOOL-IRULE-TEST** |
 | PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🔴 | designed public surface; TEST-MIGRATE; PYTHON-RETIRE → **API-PYO3** |
@@ -1205,9 +1205,15 @@ subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
   mutators), `switch`, `catch`, and `try`/`on error`/`finally`, all over the
   surface RT-VM implements (validated by a 1.5 K-iteration `tclvm`-vs-`tclsh9.0`
   campaign at 0 findings — detail in the
-  [history archive](rust-rewrite-history.md)). Sole residual, **gated on
-  RT-WASM**: add the WASM/Zig backend as a third differential arm once the real
-  WASM emitter (not the current eval-fallback) can execute. *(M)*
+  [history archive](rust-rewrite-history.md)). The **WASM-runnability arm** of
+  the third backend has also **landed** (2026-06-22): the `wasm-check`
+  subcommand compiles each generated program to the eval-fallback WASM module
+  and runs it under `wasmtime` (with the proven `tcl_*` host stub), flagging
+  codegen panics and modules that fail to instantiate or trap — a 600-program
+  campaign is clean. Residual, **gated on RT-WASM**: upgrade that arm from
+  *runnability* to a *value* differential against `tclsh`, which needs the
+  interpreter-backed host (the eval-fallback `tcl_eval` stub doesn't evaluate
+  Tcl); the arm swaps the stub for the real host in place when it lands. *(M)*
 - **TOOL-IRULE-TEST** 🟢 *(depends on RT-VM + `tcl-registry`)* — the orchestrator
   runs **live** on `tcl-vm` (`LiveSession`: load iRule, fire events, read
   pool/logs/decisions; 14 integration tests incl. live routing/reject all
