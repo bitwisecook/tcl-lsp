@@ -89,7 +89,19 @@ real match in the normal slots and does not assert the coldspot.
 ## Consuming the engine
 
 With the `cmd-core` feature the crate implements
-`tcl_cmd_core::regex::RegexEngine`, so the shared `regexp` / `regsub` /
-`lsearch -regexp` / `switch -regexp` command plumbing can drive it — replacing
-both the C-FFI engine (`runtime/rust`) and the approximate `regex`-crate path
-(the bytecode VM) with one faithful Rust ARE engine.
+`tcl_cmd_core::regex::RegexEngine` (`AreEngine`), so the shared `regexp` /
+`regsub` / `lsearch -regexp` / `switch -regexp` command plumbing can drive it.
+
+The **bytecode VM** (`rust/tcl-vm`) now uses it, replacing the approximate
+`regex`-crate path: the VM gains full ARE syntax (`\m`/`\M`/`[[:<:]]` word
+edges, POSIX longest-match submatches, the complete escape and class set) and
+matches tclsh 9.0. The command-level behaviour is covered by
+`rust/tcl-vm/tests/regexp_e2e.rs` (cases ported from `regexp.test`, expected
+values captured from real tclsh).
+
+The remaining consumer is `runtime/rust`, which still links the C ARE engine
+via FFI (`build.rs` + `src/regex.rs`, gated `have_regex`). Because `AreEngine`
+satisfies the same `RegexEngine` trait, switching it over is a drop-in that
+would remove the C build dependency entirely — a deliberate follow-up, gated by
+that crate's own regex test suite (the M3 wall in
+`docs/design/runtime/tcltest-bringup.md`).
