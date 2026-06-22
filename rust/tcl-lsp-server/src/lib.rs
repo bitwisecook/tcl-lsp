@@ -180,6 +180,11 @@ const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_mill
 struct DiagJob {
     text: String,
     dialect: String,
+    /// The document's editor `language_id`, carried so the diagnostics worker
+    /// can dispatch F5 dialect documents (iApp APL presentations are detected
+    /// by language id / basename, not by the resolved dialect alone — see
+    /// [`is_apl_source`]).
+    language_id: String,
     revision: u64,
     version: Option<i32>,
     file: Option<tcl_lsp_db::SourceFile>,
@@ -265,12 +270,13 @@ impl DiagInputs {
     /// out-of-order edit processing: it always analyses the latest committed
     /// state.  `None` when the document is not open.
     async fn capture_job(&self, uri: &Url) -> Option<DiagJob> {
-        let (text, dialect, revision, version) = {
+        let (text, dialect, language_id, revision, version) = {
             let docs = self.documents.lock().await;
             let doc = docs.get(uri)?;
             (
                 doc.text.clone(),
                 doc.dialect.clone(),
+                doc.language_id.clone(),
                 doc.revision,
                 doc.version,
             )
@@ -289,6 +295,7 @@ impl DiagInputs {
         Some(DiagJob {
             text,
             dialect,
+            language_id,
             revision,
             version,
             file,
@@ -331,22 +338,42 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
     let DiagJob {
         text,
         dialect,
+        language_id,
         revision,
         version,
         file,
         config,
     } = job;
 
-    // F5 BIG-IP config is not Tcl source — publish an empty set and stop.
-    if Backend::is_bigip_dialect(&dialect) {
+    // F5 dialect dispatch (FE-DIAG-F5): BIG-IP config and iApp APL
+    // presentation documents are not Tcl source — they have model-level
+    // validators (`BIGIP6001`-`6011`, `IAPP7001`-`7003`) rather than the Tcl
+    // analyser.  Compute and publish their diagnostics here, before the
+    // analyser, mirroring the file-type dispatch in Python
+    // `server/diagnostics_pipeline.py`.
+    if let Some(diags) =
+        f5_dialect_diagnostics(uri, &text, &dialect, &language_id, &disabled, &documents).await
+    {
+        // Publish only when this version is still current (the same revision
+        // guard the analyser path applies before publishing), and keep the
+        // pull-diagnostic cache in lock-step so `textDocument/diagnostic`
+        // returns the same set.
         let is_current = documents
             .lock()
             .await
             .get(uri)
             .is_some_and(|doc| doc.revision == revision);
         if is_current {
+            pull_diag_cache.lock().await.insert(
+                uri.clone(),
+                PullDiagEntry {
+                    result_id: next_pull_diag_result_id(),
+                    revision,
+                    diagnostics: diags.clone(),
+                },
+            );
             client
-                .publish_diagnostics(uri.clone(), Vec::new(), version)
+                .publish_diagnostics(uri.clone(), diags, version)
                 .await;
         }
         return true;
@@ -2587,10 +2614,27 @@ impl Backend {
         uri: &Url,
         text: String,
         dialect: String,
+        language_id: &str,
     ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
-        let analysis = self.analysis_for(uri, text.clone(), dialect.clone()).await;
         let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
+        // F5 dialect dispatch (FE-DIAG-F5): BIG-IP config / iApp APL
+        // presentation documents have model-level validators, not the Tcl
+        // analyser — mirror the push path's dispatch so a pull-mode editor
+        // receives the same BIGIP/IAPP diagnostics.
+        if let Some(diags) = f5_dialect_diagnostics(
+            uri,
+            &text,
+            &dialect,
+            language_id,
+            &disabled,
+            &self.documents,
+        )
+        .await
+        {
+            return diags;
+        }
+        let analysis = self.analysis_for(uri, text.clone(), dialect.clone()).await;
         let registry = self.registry_for_dialect(&dialect).await;
 
         let compiler_diags = {
@@ -3840,12 +3884,12 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(empty_diagnostic_report());
         };
-        // BIG-IP config text carries no general Tcl diagnostics — the
-        // analyser never runs on it (#571), so the pull report is empty
-        // too (matching the push path in `publish_analyser_diagnostics`).
-        if Self::is_bigip_dialect(&doc.dialect) {
-            return Ok(empty_diagnostic_report());
-        }
+        // BIG-IP config / iApp APL documents carry no general Tcl diagnostics
+        // — the analyser never runs on them.  Their model-level validator
+        // diagnostics (`BIGIP6xxx` / `IAPP7xxx`) are computed by the F5
+        // dispatch inside `full_diagnostics_for` below (mirroring the push
+        // path), so they flow through the same cache + report path as the Tcl
+        // diagnostics rather than being short-circuited to empty here.
         // Serve from the push-maintained cache only when it matches the live
         // document revision: pull then mirrors the exact set the editor last
         // received via `publish_diagnostics`, and an unchanged document is
@@ -3881,7 +3925,12 @@ impl LanguageServer for Backend {
         // pull-mode editors don't lose the compiler / optimiser / style
         // warnings.
         let items = self
-            .full_diagnostics_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .full_diagnostics_for(
+                &uri,
+                doc.text.clone(),
+                doc.dialect.clone(),
+                &doc.language_id,
+            )
             .await;
         let result_id = next_pull_diag_result_id();
         self.pull_diag_cache.lock().await.insert(
@@ -4517,9 +4566,9 @@ impl LanguageServer for Backend {
                 // extract-to-datagroup refactor) as the action's `data`
                 // payload, mirroring Python's
                 // `_datagroup_to_code_action`'s `data={"data_group_definition": …}`.
-                let data = a.data_group_definition.map(|def| {
-                    serde_json::json!({ "data_group_definition": def })
-                });
+                let data = a
+                    .data_group_definition
+                    .map(|def| serde_json::json!({ "data_group_definition": def }));
                 CodeActionOrCommand::CodeAction(CodeAction {
                     title: a.title,
                     kind: Some(tower_lsp::lsp_types::CodeActionKind::new(a.kind.as_str())),
@@ -5339,6 +5388,222 @@ fn lift_span(source: &str, line_index: &tcl_lexer::LineIndex, span: tcl_lexer::S
 /// default-disabled code handling; the Rust server has no per-code
 /// enable config yet, so these are simply never published.
 const DEFAULT_OFF_CODES: &[&str] = &["W242"];
+
+/// Default BIG-IP partition assumed when a config carries no explicit
+/// one, matching Python `parse_bigip_conf`'s `default_partition="Common"`.
+const BIGIP_DEFAULT_PARTITION: &str = "Common";
+
+/// Lift a [`tcl_bigip::validator::ConfigDiagnostic`] (the output of the
+/// BIG-IP config / iApp model-level validators) to the LSP wire shape,
+/// mirroring Python `server/features/diagnostics.py::_to_lsp_diagnostic`
+/// for these validators.  A `tcl_bigip` [`tcl_bigip::Range`] carries
+/// UTF-16 columns (LSP convention) with an **inclusive** end, so — exactly
+/// as Python's `to_lsp_range` — the LSP end column is `end.character + 1`.
+fn lift_config_diagnostic(
+    d: &tcl_bigip::validator::ConfigDiagnostic,
+) -> tower_lsp::lsp_types::Diagnostic {
+    use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
+    tower_lsp::lsp_types::Diagnostic {
+        range: Range {
+            start: Position {
+                line: d.range.start.line,
+                character: d.range.start.character,
+            },
+            end: Position {
+                line: d.range.end.line,
+                character: d.range.end.character + 1,
+            },
+        },
+        severity: Some(match d.severity {
+            tcl_bigip::validator::DiagSeverity::Warning => DiagnosticSeverity::WARNING,
+            tcl_bigip::validator::DiagSeverity::Hint => DiagnosticSeverity::HINT,
+        }),
+        code: Some(NumberOrString::String(d.code.clone())),
+        code_description: None,
+        source: Some("tcl-lsp".to_string()),
+        message: d.message.clone(),
+        related_information: None,
+        tags: None,
+        data: None,
+    }
+}
+
+/// FE-DIAG-F5 consumer-wiring: BIG-IP config diagnostics (`BIGIP6001`–
+/// `BIGIP6011`).  BIG-IP `.conf` text is not Tcl source — it has its own
+/// model-level validator
+/// ([`tcl_bigip::validator::validate_bigip_source`]), the analogue of the
+/// `get_bigip_diagnostics` layer in Python
+/// `server/diagnostics_pipeline.py::_publish_bigip_diagnostics`.  Codes the
+/// editor disabled via `tclLsp.diagnostics.<CODE> = false` are filtered,
+/// mirroring Python's `disabled_codes`.
+fn bigip_config_diagnostics(
+    text: &str,
+    disabled: &HashSet<String>,
+) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+    tcl_bigip::validator::validate_bigip_source(text, BIGIP_DEFAULT_PARTITION)
+        .into_iter()
+        .filter(|d| !disabled.contains(&d.code))
+        .map(|d| lift_config_diagnostic(&d))
+        .collect()
+}
+
+/// FE-DIAG-F5 consumer-wiring: iApp APL presentation diagnostics
+/// (`IAPP7001`–`IAPP7003`).  Parses the APL presentation, optionally
+/// cross-checks it against the sibling implementation's
+/// `$::section__field` references, and lifts the validator output, the
+/// analogue of Python
+/// `server/diagnostics_pipeline.py::_publish_apl_diagnostics`.  The
+/// validator is gated on the `f5-iapps` dialect (we only reach here for
+/// APL sources, so the gate is always satisfied — see [`is_apl_source`]).
+fn apl_presentation_diagnostics(
+    text: &str,
+    impl_var_refs: Option<&[tcl_bigip::apl::IappVarRef]>,
+    disabled: &HashSet<String>,
+) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+    let model = tcl_bigip::apl::parse_apl(text);
+    tcl_bigip::apl::validate_iapp_presentation(&model, impl_var_refs, "f5-iapps")
+        .into_iter()
+        .filter(|d| !disabled.contains(&d.code))
+        .map(|d| lift_config_diagnostic(&d))
+        .collect()
+}
+
+/// Whether `uri` (with its editor `language_id`) is an iApp APL
+/// presentation document.  Mirrors Python
+/// `server/diagnostics_pipeline.py::_is_apl_source`: an explicit APL
+/// language id, or a basename of `*.apl` / `presentation`.
+fn is_apl_source(uri: &Url, language_id: &str) -> bool {
+    if matches!(
+        language_id.to_ascii_lowercase().as_str(),
+        "tcl-apl" | "apl-lang" | "apl"
+    ) {
+        return true;
+    }
+    let path = uri.as_str();
+    let basename = path.rsplit('/').next().unwrap_or(path);
+    if basename.eq_ignore_ascii_case("presentation") {
+        return true;
+    }
+    Path::new(basename)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("apl"))
+}
+
+/// Locate the iApp *implementation* that pairs with the APL presentation
+/// at `uri` and extract its `$::section__field` variable references,
+/// mirroring Python `_find_sibling_impl_vars`.  Prefers an open buffer in
+/// the same directory (so unsaved edits to the implementation are
+/// reflected), then falls back to reading a sibling from disk.  The sibling
+/// is named `implementation` or carries a `.iapp` / `.iappimpl` / `.impl`
+/// extension.
+async fn find_sibling_impl_vars(
+    uri: &Url,
+    documents: &Mutex<HashMap<Url, DocumentState>>,
+) -> Option<Vec<tcl_bigip::apl::IappVarRef>> {
+    let path = uri.to_file_path().ok()?;
+    let dir = path.parent()?.to_path_buf();
+    let is_impl_name = |p: &Path| {
+        p.file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.eq_ignore_ascii_case("implementation"))
+            || p.extension().and_then(|e| e.to_str()).is_some_and(|ext| {
+                matches!(
+                    ext.to_ascii_lowercase().as_str(),
+                    "iapp" | "iappimpl" | "impl"
+                )
+            })
+    };
+
+    // 1. Prefer an open implementation buffer in the same directory (the
+    //    native analogue of the scanner's open-document index): an unsaved
+    //    edit to the implementation must drive the presentation's cross-file
+    //    diagnostics, not a stale on-disk copy.
+    {
+        let docs = documents.lock().await;
+        for (doc_uri, doc) in docs.iter() {
+            if doc_uri == uri {
+                continue;
+            }
+            let Ok(doc_path) = doc_uri.to_file_path() else {
+                continue;
+            };
+            if doc_path.parent() != Some(dir.as_path()) {
+                continue;
+            }
+            if is_impl_name(&doc_path) {
+                return Some(tcl_bigip::apl::extract_iapp_var_refs(&doc.text));
+            }
+        }
+    }
+
+    // 2. Fall back to a sibling on disk — the literal `implementation` file
+    //    first, then any `.iapp` / `.iappimpl` / `.impl` file (sorted for a
+    //    deterministic pick), matching Python's candidate order.
+    let impl_path = dir.join("implementation");
+    if impl_path.is_file()
+        && let Ok(content) = std::fs::read_to_string(&impl_path)
+    {
+        return Some(tcl_bigip::apl::extract_iapp_var_refs(&content));
+    }
+    let mut ext_candidates: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            *p != path
+                && p.extension().and_then(|s| s.to_str()).is_some_and(|ext| {
+                    matches!(
+                        ext.to_ascii_lowercase().as_str(),
+                        "iapp" | "iappimpl" | "impl"
+                    )
+                })
+        })
+        .collect();
+    ext_candidates.sort();
+    for cand in ext_candidates {
+        if let Ok(content) = std::fs::read_to_string(&cand) {
+            return Some(tcl_bigip::apl::extract_iapp_var_refs(&content));
+        }
+    }
+    None
+}
+
+/// FE-DIAG-F5 file-type dispatch: if `uri` is a non-Tcl F5 dialect document
+/// (BIG-IP config or iApp APL presentation), compute its model-level
+/// validator diagnostics; otherwise return `None` so the caller runs the
+/// normal Tcl analyser path.  Mirrors the BIG-IP / APL file-type dispatch
+/// in Python `server/diagnostics_pipeline.py` (`_is_bigip_conf` /
+/// `_is_apl_source` → the specialised publishers).  The validator runs on
+/// `spawn_blocking` for the same parser-panic containment the analyser path
+/// uses.
+async fn f5_dialect_diagnostics(
+    uri: &Url,
+    text: &str,
+    dialect: &str,
+    language_id: &str,
+    disabled: &HashSet<String>,
+    documents: &Mutex<HashMap<Url, DocumentState>>,
+) -> Option<Vec<tower_lsp::lsp_types::Diagnostic>> {
+    if Backend::is_bigip_dialect(dialect) {
+        let (t, dis) = (text.to_owned(), disabled.clone());
+        let diags = tokio::task::spawn_blocking(move || bigip_config_diagnostics(&t, &dis))
+            .await
+            .unwrap_or_default();
+        return Some(diags);
+    }
+    if is_apl_source(uri, language_id) {
+        let impl_refs = find_sibling_impl_vars(uri, documents).await;
+        let (t, dis) = (text.to_owned(), disabled.clone());
+        let diags = tokio::task::spawn_blocking(move || {
+            apl_presentation_diagnostics(&t, impl_refs.as_deref(), &dis)
+        })
+        .await
+        .unwrap_or_default();
+        return Some(diags);
+    }
+    None
+}
 
 fn lift_analyser_diagnostics(
     text: &str,
@@ -6605,6 +6870,132 @@ mod tests {
         assert!(codes.iter().any(|c| c == "W112"), "W112 should remain");
     }
 
+    // ── FE-DIAG-F5 consumer-wiring ──────────────────────────────────────
+
+    /// Collect the string codes from a lifted diagnostic set.
+    fn diag_codes(diags: &[tower_lsp::lsp_types::Diagnostic]) -> Vec<String> {
+        diags
+            .iter()
+            .filter_map(|d| match &d.code {
+                Some(tower_lsp::lsp_types::NumberOrString::String(c)) => Some(c.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// A BIG-IP config that references a pool not defined in the config
+    /// surfaces `BIGIP6002` through the validator-lift, tagged `tcl-lsp`.
+    #[test]
+    fn bigip_config_diagnostics_surfaces_codes() {
+        let src =
+            "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    pool /Common/no_such_pool\n  }\n}\n";
+        let diags = bigip_config_diagnostics(src, &HashSet::new());
+        let codes = diag_codes(&diags);
+        assert!(
+            codes.iter().any(|c| c == "BIGIP6002"),
+            "expected BIGIP6002, got: {codes:?}",
+        );
+        assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
+    }
+
+    /// A disabled BIG-IP code (`tclLsp.diagnostics.BIGIP6002 = false`) is
+    /// filtered from the lifted set, mirroring Python's `disabled_codes`.
+    #[test]
+    fn bigip_config_diagnostics_honours_disabled() {
+        let src =
+            "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    pool /Common/no_such_pool\n  }\n}\n";
+        let disabled: HashSet<String> = std::iter::once("BIGIP6002".to_owned()).collect();
+        let codes = diag_codes(&bigip_config_diagnostics(src, &disabled));
+        assert!(
+            !codes.iter().any(|c| c == "BIGIP6002"),
+            "BIGIP6002 should be filtered, got: {codes:?}",
+        );
+    }
+
+    /// An iApp APL presentation field never referenced by the (cross-file)
+    /// implementation surfaces `IAPP7002`.
+    #[test]
+    fn apl_presentation_diagnostics_surfaces_codes() {
+        let refs = tcl_bigip::apl::extract_iapp_var_refs("set x $::basic__addr");
+        let diags = apl_presentation_diagnostics(
+            "section basic {\n  string addr\n  string port\n}\n",
+            Some(&refs),
+            &HashSet::new(),
+        );
+        let codes = diag_codes(&diags);
+        assert!(
+            codes.iter().any(|c| c == "IAPP7002"),
+            "expected IAPP7002 for the unreferenced 'port' field, got: {codes:?}",
+        );
+        assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
+    }
+
+    /// `is_apl_source` matches by APL language id or `*.apl` / `presentation`
+    /// basename, mirroring Python `_is_apl_source`.
+    #[test]
+    fn is_apl_source_detects_apl_documents() {
+        let apl_ext = Url::parse("file:///app/iapp/foo.apl").unwrap();
+        let presentation = Url::parse("file:///app/iapp/presentation").unwrap();
+        let plain = Url::parse("file:///app/util.tcl").unwrap();
+        assert!(is_apl_source(&apl_ext, "tcl"));
+        assert!(is_apl_source(&presentation, "tcl"));
+        // An explicit APL language id wins regardless of basename.
+        assert!(is_apl_source(&plain, "tcl-apl"));
+        // A plain Tcl document is not an APL source.
+        assert!(!is_apl_source(&plain, "tcl"));
+    }
+
+    /// A `tcl_bigip` validator range carries an *inclusive* end column; the
+    /// LSP lift makes it exclusive (`end.character + 1`), matching Python's
+    /// `to_lsp_range`.
+    #[test]
+    fn lift_config_diagnostic_makes_end_exclusive() {
+        let pos = tcl_bigip::Position {
+            line: 3,
+            character: 5,
+            offset: 0,
+        };
+        let end = tcl_bigip::Position {
+            line: 3,
+            character: 9,
+            offset: 0,
+        };
+        let d = tcl_bigip::validator::ConfigDiagnostic {
+            code: "BIGIP6002".to_owned(),
+            message: "x".to_owned(),
+            severity: tcl_bigip::validator::DiagSeverity::Warning,
+            range: tcl_bigip::Range { start: pos, end },
+        };
+        let lifted = lift_config_diagnostic(&d);
+        assert_eq!(lifted.range.start.line, 3);
+        assert_eq!(lifted.range.start.character, 5);
+        assert_eq!(lifted.range.end.line, 3);
+        assert_eq!(lifted.range.end.character, 10);
+        assert_eq!(
+            lifted.severity,
+            Some(tower_lsp::lsp_types::DiagnosticSeverity::WARNING)
+        );
+    }
+
+    /// End-to-end: the pull path's [`Backend::full_diagnostics_for`] routes a
+    /// `f5-bigip` document to the BIG-IP validator instead of the Tcl
+    /// analyser, so the editor receives `BIGIP6xxx` codes.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn full_diagnostics_for_routes_bigip_to_validator() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///Common/bigip.conf").unwrap();
+        let src =
+            "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    pool /Common/no_such_pool\n  }\n}\n";
+        let diags = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "f5-bigip".to_owned(), "tcl-bigip")
+            .await;
+        let codes = diag_codes(&diags);
+        assert!(
+            codes.iter().any(|c| c == "BIGIP6002"),
+            "expected BIGIP6002 via the pull path, got: {codes:?}",
+        );
+    }
+
     #[test]
     fn dialect_from_language_id_recognises_editor_ids() {
         assert_eq!(
@@ -6828,7 +7219,7 @@ mod tests {
         let uri = Url::parse("file:///pull.tcl").unwrap();
         let src = "if {1} { set x 1 } else { set y 2 }\n";
         let full = backend
-            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned())
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
             .await;
         let analyser_only = {
             let mut a = Analyser::new();

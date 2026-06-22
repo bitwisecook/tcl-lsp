@@ -2884,6 +2884,7 @@ version = "0.1.0"
 dependencies = [
  "salsa",
  "serde_json",
+ "tcl-bigip",
  "tcl-compiler",
  "tcl-lexer",
  "tcl-lsp-core",
