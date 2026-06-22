@@ -1204,9 +1204,12 @@ Not ported: **dead-proc elimination** — dormant in Python (it removes only
 `compiler_synthetic` procs, a flag no lowering pass sets) and the Rust
 `IRProcedure` has no such flag, so it would be a no-op. **Cross-track handoff:**
 the inliner's only consumer is the WASM codegen (**RT-WASM**, 🟡), so v3's
-execution-differential verification lands when it is wired into that consumer.
-FE-OPT stays 🟢 (residual: that verification handoff + the optional O110
-nuances).
+execution-differential verification is owned by that consumer track and lands
+when it is wired in. With the v3 port complete, **FE-OPT is ✅** — its owned
+modules (`tcl-compiler::optimiser`, `tcl-compiler::inlining`) are fully ported;
+the only out-of-scope items are that RT-WASM-owned verification handoff and the
+optional, non-correctness O110 rewrites (gated on the iRules
+`MatchesGlob`/`MatchesRegex` expr operators).
 
 Landed: 2026-06-19 — **FE-VARESCAPE complete** (branch
 `claude/great-ptolemy-kti1wz`). The two open var-escape items closed, and the

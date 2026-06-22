@@ -891,7 +891,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SCCP / intervals / memory-SSA | `tcl-compiler` | ✅ | escaping-var widening, optimistic deferral, static-loop folding, W233 interval path, `complexity_guard` all landed — **FE-DATAFLOW** complete (see [history](rust-rewrite-history.md)) |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) ported (`tcl-compiler::shimmer::byte_array` + `tcl-registry` `BytePayloadSpec`) — **FE-TYPESHIM** complete |
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
-| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | every O-code pass + the **full inliner** (v0/verbatim **and** v3 α-rename + parameter binding + return-as-break wrap, `tcl-compiler::inlining{,::rename}`) landed (see [history](rust-rewrite-history.md)); residuals: execution-differential verification of v3 is handed to the **RT-WASM** consumer (IR-shape unit tests meanwhile), plus the optional non-correctness O110 nuances → **FE-OPT** |
+| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | ✅ | every O-code pass + the **full inliner** (v0/verbatim **and** v3 α-rename + parameter binding + return-as-break wrap, `tcl-compiler::inlining{,::rename}`) landed (see [history](rust-rewrite-history.md)). Out of scope: v3's execution-differential verification is owned by its consumer (**RT-WASM**); the optional non-correctness O110 rewrites are gated on the iRules `MatchesGlob`/`MatchesRegex` expr operators → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` + the `set x [cmd]` inline re-land landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: bare-statement `string`/`regexp`/`lindex`/`lreplace` (value-discarded) → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
 | F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, new `tcl-xc` | 🟢 | TK1001-3 + BIGIP6001-11 + IAPP7001-3 ported (TK live in the analyser); residuals: XC100-301 (gated on a `tcl-xc` translator port of `lower_to_ir`-walking `translator.py`, Python-only meanwhile) + BIG-IP/iApp native-server consumer-wiring (SRV-LSP-style) → **FE-DIAG-F5** |
@@ -918,7 +918,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | FE | **FE-DATAFLOW** ✅ | `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}` | — | M |
 | FE | **FE-TYPESHIM** ✅ | `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}` | — | M |
 | FE | **FE-VARESCAPE** ✅ | `tcl-compiler::var_escape` | — | M |
-| FE | **FE-OPT** 🟢 | `tcl-compiler::optimiser`, `inlining` | — | L |
+| FE | **FE-OPT** ✅ | `tcl-compiler::optimiser`, `inlining` | — | L |
 | FE | **FE-CODEGEN** 🟢 | `tcl-compiler::codegen` (non-wasm) | — | M |
 | FE | **FE-DIAG** ✅ | `tcl-compiler::analyser`, `irules_checks` | — | M |
 | FE | **FE-DIAG-F5** 🟢 | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}` slices, tk; XC residual → `tcl-xc` | `tcl-bigip` | L |
@@ -943,32 +943,6 @@ listed residuals · 🟡 partial · 🔴 not started.
 The front-end crates are largely ported; what remains is precision and
 soundness. These tracks own **disjoint modules** within `tcl-compiler`, so they
 parallelise cleanly.
-
-#### FE-OPT — optimiser passes
-Owns `tcl-compiler::optimiser`, `tcl-compiler::inlining`. **Every O-code
-optimiser pass is complete**, as is the **full proc inliner** — the v0 +
-verbatim shapes (2026-06-19) and the **v3 parameterised** shape (2026-06-22;
-both archived in [history](rust-rewrite-history.md)). v3 landed as
-`tcl-compiler::inlining` + the new `tcl-compiler::inlining::rename` submodule:
-the catalogue (static-call counting + `classify_proc` policy), α-renaming over
-value strings / expr ASTs / `defs`-`reads` / foreach + catch / try bindings,
-variadic `args` packing, parameter defaults, braced-literal arg binding, the
-`{*}`-expansion decline, and trailing-vs-non-trailing `return` for/break
-wrapping. Remaining:
-- **open (cross-track handoff, not a port gap)** execution-differential
-  verification of the capture-sensitive value-string rewriter. The inliner's
-  only consumer is the WASM codegen (`compiler/codegen/wasm/api.py` →
-  **RT-WASM**, 🟡), so the differential standard is met when v3 is wired into
-  that consumer; until then the IR-shape unit tests in
-  `tcl-compiler::inlining::tests` are the available verification. The Rust v3
-  port itself is complete. (Dead-proc elimination is intentionally **not**
-  ported — it is dormant in the Python original, which only removes
-  `compiler_synthetic` procs, a flag no lowering pass sets; the Rust
-  `IRProcedure` carries no such flag.)
-- **open** *(non-correctness nuances, optional)* the O110 regex/glob →
-  string-op rewrites (gated on the iRules `MatchesGlob`/`MatchesRegex` expr
-  operators) and threading richer execution-trace facts deeper into the
-  GVN/LICM family — precision niceties, never miscompiles.
 
 #### FE-CODEGEN — bytecode codegen
 Owns `tcl-compiler::codegen` (non-wasm). The state-mutating statement-position
@@ -1022,8 +996,9 @@ gated on a separate subsystem port and stays Python-only until it lands.
   (`dialects/f5/xc/diagnostics.py`), but that translator (`translator.py`
   ~1.2 K LOC + the 13-type `xc_model` + `mapping`) walks the **IR produced
   by `lower_to_ir`** and is a distinct, large subsystem in its own right.
-  Porting it is a separate effort (akin to how **FE-OPT** v3 is gated on
-  **RT-WASM**); until a `tcl-xc` translator port lands, XC100-301 stays the
+  Porting it is a separate effort (akin to how **FE-OPT**'s v3 inliner ships
+  its execution-differential verification with its **RT-WASM** consumer);
+  until a `tcl-xc` translator port lands, XC100-301 stays the
   Python emitter. Handoff: a future `tcl-xc` crate owns this — re-home the
   XC diagnostic wrapper there once the translator exists.
 
