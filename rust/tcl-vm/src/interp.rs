@@ -298,7 +298,12 @@ impl Vm {
     /// hook fires once per command, not per instruction). Returns `true` when
     /// the hook asked to stop. `span_start` is the instruction's source-span
     /// start (`None` for synthetic instructions, which never fire).
-    pub(crate) fn debug_step(&mut self, line: u32, span_start: Option<u32>, cmd_text: &str) -> bool {
+    pub(crate) fn debug_step(
+        &mut self,
+        line: u32,
+        span_start: Option<u32>,
+        cmd_text: &str,
+    ) -> bool {
         if self.debug_hook.is_none() {
             return false;
         }
@@ -325,17 +330,17 @@ impl Vm {
             .map(|fr| DebugFrame {
                 level: u32::try_from(fr.level).unwrap_or(0),
                 name: fr.proc_name.clone().unwrap_or_else(|| "global".to_owned()),
-                namespace: fr
-                    .ns_eval
-                    .clone()
-                    .unwrap_or_else(|| self.ns_name(fr.ns)),
+                namespace: fr.ns_eval.clone().unwrap_or_else(|| self.ns_name(fr.ns)),
             })
             .collect();
         let mut variables: Vec<DebugVar> = self
             .frame_var_names(false)
             .into_iter()
             .map(|name| {
-                let value = self.get_var(&name).map(|v| v.to_str().to_string()).unwrap_or_default();
+                let value = self
+                    .get_var(&name)
+                    .map(|v| v.to_str().to_string())
+                    .unwrap_or_default();
                 DebugVar { name, value }
             })
             .collect();

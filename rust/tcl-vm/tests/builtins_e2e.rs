@@ -1280,5 +1280,8 @@ fn compiled_unset_missing_honours_complain_flag() {
     );
 
     // -nocomplain succeeds silently.
-    out_eq("proc f {} { unset -nocomplain nope; return done }\nputs [f]\n", "done\n");
+    out_eq(
+        "proc f {} { unset -nocomplain nope; return done }\nputs [f]\n",
+        "done\n",
+    );
 }

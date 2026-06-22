@@ -100,6 +100,10 @@ enum Tick {
     Return(Completion<Value>),
     /// Call a proc — push a new activation + call-frame.
     Call { proc: Rc<ProcDef>, argv: Vec<Value> },
+    /// `tailcall cmd ?arg …?` — the current proc finishes and `cmd args` runs in
+    /// its place (in the caller's activation), its result becoming the proc's.
+    /// `words` is `[cmd, arg, …]` (the `tailcall` prefix word already dropped).
+    Tailcall(Vec<Value>),
 }
 
 fn build_off2idx(asm: &FunctionAsm) -> HashMap<i32, usize> {
@@ -277,6 +281,48 @@ fn get_at(items: &[Value], i: isize) -> Value {
         .unwrap_or_else(Value::empty)
 }
 
+/// Recursively set the element at index `path` of `list` to `value`, returning
+/// the new (sub)list — the shared core of `INST_LSET_LIST` / `INST_LSET_FLAT`
+/// (C's `TclLsetList` / `TclLsetFlat`). An empty `path` replaces the whole value
+/// (`lset x {} v` == `set x v`); each index is `end`/`end±N`-aware, with range
+/// `0..=len` where `len` appends a fresh (possibly nested) slot. Error messages
+/// match tclsh 9.0 (the reference standard).
+fn lset_descend(list: &Value, path: &[Value], value: Value) -> Result<Value, Completion<Value>> {
+    let Some((spec, rest)) = path.split_first() else {
+        // No (more) indices: `lset` is `set` — the value replaces the list.
+        return Ok(value);
+    };
+    let elems = match list.as_list() {
+        Ok(e) => e,
+        Err(e) => return Err(err(e.message)),
+    };
+    let len = elems.len();
+    let spec_str = spec.to_str();
+    let Some(idx) = crate::command::resolve_index(&spec_str, len) else {
+        return Err(err(format!(
+            "bad index \"{spec_str}\": must be integer?[+-]integer? or end?[+-]integer?"
+        )));
+    };
+    if idx < 0 || usize::try_from(idx).unwrap_or(usize::MAX) > len {
+        return Err(err(format!("index \"{spec_str}\" out of range")));
+    }
+    let idx = usize::try_from(idx).unwrap_or(0);
+    let appending = idx == len;
+    let child = if appending {
+        Value::list(Vec::new())
+    } else {
+        elems[idx].clone()
+    };
+    let new_child = lset_descend(&child, rest, value)?;
+    let mut out: Vec<Value> = (*elems).clone();
+    if appending {
+        out.push(new_child);
+    } else {
+        out[idx] = new_child;
+    }
+    Ok(Value::list(out))
+}
+
 /// Sublist `[lo..=hi]` clamped to bounds; empty when the range is empty.
 fn slice(items: &[Value], lo: isize, hi: isize) -> Value {
     let len = isize::try_from(items.len()).unwrap_or(isize::MAX);
@@ -447,6 +493,11 @@ impl Vm {
                         continue;
                     }
                     if let Some(done) = self.unwind(&mut acts, c) {
+                        return done;
+                    }
+                }
+                Tick::Tailcall(words) => {
+                    if let Some(done) = self.run_tailcall(&mut acts, &words) {
                         return done;
                     }
                 }
@@ -1451,6 +1502,38 @@ impl Vm {
                     }
                 }
             }
+            // Ensemble-rewrite invoke (C Tcl `INST_INVOKE_REPLACE`): operands are
+            // `(objc, opnd)` — `objc` words sit on the stack with the resolved
+            // implementation word on top. The first `opnd` original words (e.g.
+            // `string equal`) are replaced by the popped implementation
+            // (`::tcl::string::equal`); the effective command is
+            // `impl + words[opnd..]`. (The ensemble error-message rewrite C does
+            // via `TclInitRewriteEnsemble` is omitted — only the dispatch
+            // matters for execution.)
+            Op::INVOKE_REPLACE => {
+                let objc = usize::try_from(imm0(instr)).unwrap_or(0);
+                let opnd = usize::try_from(imm_at(instr, 1)).unwrap_or(0);
+                let repl = pop(f);
+                if f.stack.len() < objc {
+                    return Tick::Return(err("invokeReplace: stack underflow"));
+                }
+                let words = f.stack.split_off(f.stack.len() - objc);
+                let mut argv = Vec::with_capacity(objc.saturating_sub(opnd) + 1);
+                argv.push(repl);
+                if opnd < words.len() {
+                    argv.extend_from_slice(&words[opnd..]);
+                }
+                match self.dispatch_words(f, &argv) {
+                    Ok(Some(call)) => return call,
+                    Ok(None) => {}
+                    Err(c) => {
+                        let cmd_text = instr.source_cmd_text.clone();
+                        let msg = c.result.to_str().to_string();
+                        self.log_command_info(&cmd_text, &msg, instr.source_line);
+                        return Tick::Return(c);
+                    }
+                }
+            }
             Op::EXPR_STK => {
                 let s = pop(f).to_str();
                 match self.eval_expr(&s) {
@@ -1615,6 +1698,174 @@ impl Vm {
                 f.stack.push(Value::bool(found));
             }
 
+            // Reverse the top `N` stack elements in place (C Tcl `INST_REVERSE`;
+            // operand = N). Used to reorder operands an inline emitter pushed in
+            // the convenient order.
+            Op::REVERSE => {
+                let n = usize::try_from(imm0(instr)).unwrap_or(0);
+                let len = f.stack.len();
+                if n > len {
+                    return Tick::Return(err("reverse: stack underflow"));
+                }
+                f.stack[len - n..].reverse();
+            }
+            // `[lindex $list i1 i2 …]` with ≥ 2 indices — C Tcl
+            // `INST_LIST_INDEX_MULTI`; operand = list + index count. The list is
+            // deepest, then the indices; descends one index per level. An
+            // out-of-range index yields the empty string (matching `LIST_INDEX`).
+            Op::LINDEX_MULTI => {
+                let opnd = usize::try_from(imm0(instr)).unwrap_or(0);
+                if opnd == 0 || f.stack.len() < opnd {
+                    return Tick::Return(err("lindexMulti: stack underflow"));
+                }
+                let items = f.stack.split_off(f.stack.len() - opnd);
+                let mut cur = items[0].clone();
+                for spec in &items[1..] {
+                    let elems = match cur.as_list() {
+                        Ok(e) => e,
+                        Err(e) => return Tick::Return(err(e.message)),
+                    };
+                    let i = imm_index_value(spec, elems.len());
+                    cur = get_at(&elems, i);
+                }
+                f.stack.push(cur);
+            }
+            // `string replace $s $first $last $new` — C Tcl `INST_STR_REPLACE`.
+            // Stack holds the string, the first index, the last index, then the
+            // replacement (top). Character-indexed, `end`/`end±N` aware.
+            Op::STR_REPLACE => {
+                let newstr = pop(f);
+                let last = pop(f);
+                let first = pop(f);
+                let string = pop(f).to_str().to_string();
+                let chars: Vec<char> = string.chars().collect();
+                let len = chars.len();
+                let bad = |spec: &str| {
+                    err(format!(
+                        "bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?"
+                    ))
+                };
+                let first_s = first.to_str();
+                let last_s = last.to_str();
+                let Some(from) = crate::command::resolve_index(&first_s, len) else {
+                    return Tick::Return(bad(&first_s));
+                };
+                let Some(to) = crate::command::resolve_index(&last_s, len) else {
+                    return Tick::Return(bad(&last_s));
+                };
+                let slen = isize::try_from(len).unwrap_or(isize::MAX) - 1;
+                if to < 0 || from > slen || to < from {
+                    f.stack.push(Value::string(string));
+                } else {
+                    let from = usize::try_from(from.max(0)).unwrap_or(0);
+                    let to = usize::try_from(to.min(slen)).unwrap_or(0);
+                    if from == 0 && usize::try_from(slen).unwrap_or(0) == to {
+                        f.stack.push(newstr);
+                    } else {
+                        let mut out: String = chars[..from].iter().collect();
+                        out.push_str(&newstr.to_str());
+                        out.extend(&chars[to + 1..]);
+                        f.stack.push(Value::string(out));
+                    }
+                }
+            }
+            // `lset var ?index? value` (single index, or a `{i j …}` index
+            // list) — C Tcl `INST_LSET_LIST`. Stack holds the index list, the
+            // new value, then the list (top); leaves the rebuilt list.
+            Op::LSET_LIST => {
+                let list = pop(f);
+                let value = pop(f);
+                let index_list = pop(f);
+                let path = match index_list.as_list() {
+                    Ok(p) => (*p).clone(),
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                match lset_descend(&list, &path, value) {
+                    Ok(r) => f.stack.push(r),
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+            // `lset var i1 i2 ?…? value` (≥ 2 flat indices) — C Tcl
+            // `INST_LSET_FLAT`; operand = index-count + 2. Stack holds the
+            // indices (deepest first), the value, then the list (top).
+            Op::LSET_FLAT => {
+                let num_indices = usize::try_from(imm0(instr) - 2).unwrap_or(0);
+                let list = pop(f);
+                let value = pop(f);
+                if f.stack.len() < num_indices {
+                    return Tick::Return(err("lsetFlat: stack underflow"));
+                }
+                let path = f.stack.split_off(f.stack.len() - num_indices);
+                match lset_descend(&list, &path, value) {
+                    Ok(r) => f.stack.push(r),
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+            // `[regexp $pat $str]` in value position — operand [Imm(cflags)];
+            // stack holds the pattern then the string (string on top, matching
+            // C Tcl's `INST_REGEXP`: valuePtr = OBJ_AT_TOS, value2Ptr =
+            // OBJ_UNDER_TOS). `cflags` carries the regexp compile flags; only the
+            // `TCL_REG_NOCASE` bit (010 octal = 8) is meaningful here, since the
+            // codegen routes `-nocase` glob-equivalents through `STR_MATCH` and
+            // emits `TCL_REG_ADVANCED` (3) for the plain form. Leaves the match
+            // boolean on the stack.
+            Op::REGEXP => {
+                const TCL_REG_NOCASE: i32 = 0o10;
+                let nocase = imm0(instr) & TCL_REG_NOCASE != 0;
+                let s = pop(f).to_str();
+                let pat = pop(f).to_str();
+                match crate::cmd_regexp::regexp_matches(&pat, &s, nocase) {
+                    Ok(m) => f.stack.push(Value::bool(m)),
+                    Err(msg) => return Tick::Return(err(msg)),
+                }
+            }
+            // `[string is CLASS $str]` per-character class test — operand
+            // [Imm(class-id)]; pops the string, pushes a boolean. Mirrors C Tcl's
+            // `INST_STR_CLASS`: the empty string matches, otherwise every
+            // character must satisfy the class comparator. Shares the classifier
+            // with the `string is` command.
+            Op::STR_CLASS => {
+                let class_id = u8::try_from(imm0(instr)).unwrap_or(u8::MAX);
+                let Some(class) = tcl_bytecode::str_class_name(class_id) else {
+                    return Tick::Return(err(format!("strclass: bad class id {class_id}")));
+                };
+                let s = pop(f).to_str();
+                let (member, _fail) = tcl_cmd_core::string_is::class_check(class, &s, false);
+                f.stack.push(Value::bool(member));
+            }
+            // `numericType` — pops a value, pushes its numeric-tower code (C Tcl
+            // `INST_NUM_TYPE` / `GetNumberFromObj`): 0 = not a number,
+            // `TCL_NUMBER_INT` = 2, `TCL_NUMBER_BIG` = 3, `TCL_NUMBER_DOUBLE` = 4,
+            // `TCL_NUMBER_NAN` = 5. The `string is integer/double` inline forms
+            // test this against `<= 3` (integer) or `!= 0` (double/any numeric).
+            Op::NUMERIC_TYPE => {
+                use tcl_syntax::number::{Number, parse_whole};
+                let v = pop(f);
+                let code = match parse_whole(v.to_str().trim()) {
+                    Some(Number::Int(_)) => 2,
+                    Some(Number::Big { .. }) => 3,
+                    Some(Number::Double(_)) => 4,
+                    Some(Number::Nan { .. }) => 5,
+                    None => 0,
+                };
+                f.stack.push(Value::int(code));
+            }
+
+            // `tailcall cmd ?arg …?` — operand = word count including the
+            // `"tailcall"` prefix word the codegen pushes first. Drop that prefix
+            // and hand `[cmd, arg, …]` to the trampoline, which runs it in the
+            // caller's activation once this proc unwinds (C Tcl `INST_TAILCALL`).
+            Op::TAILCALL => {
+                let count = usize::try_from(imm0(instr)).unwrap_or(0);
+                if f.stack.len() < count || count == 0 {
+                    return Tick::Return(err("tailcall: stack underflow"));
+                }
+                let mut words = f.stack.split_off(f.stack.len() - count);
+                // Drop the leading `"tailcall"` literal word.
+                words.remove(0);
+                return Tick::Tailcall(words);
+            }
+
             // -- termination --
             Op::DONE => {
                 return Tick::Return(ok(f
@@ -1732,6 +1983,58 @@ impl Vm {
                 self.invoke_command("unknown", &full)
             }
             None => err(format!("invalid command name \"{name}\"")),
+        }
+    }
+
+    /// Run a `tailcall` in the place of the proc that issued it. The proc's
+    /// activation (and its call-frame + namespace) is popped — it is in tail
+    /// position, so it is finished — and `words` (`[cmd, arg, …]`) is dispatched
+    /// in the *caller's* activation: a proc tailcall is entered as a fresh
+    /// activation at the caller's level (so a tail-recursive loop neither grows
+    /// the activation stack nor counts against the recursion limit, the whole
+    /// point of `tailcall`); a builtin runs inline and pushes its result. Returns
+    /// `Some` when the whole `run` is finished, `None` when a parent resumed.
+    /// Mirrors C Tcl's deferred-tailcall NR callback.
+    fn run_tailcall(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        words: &[Value],
+    ) -> Option<Completion<Value>> {
+        let is_proc = acts.last().is_some_and(|fr| fr.is_proc);
+        if !is_proc {
+            let c = err("tailcall can only be called from a proc, lambda or method");
+            return self.unwind(acts, c);
+        }
+        // Pop the issuing proc in tail position.
+        acts.pop();
+        self.pop_call_frame();
+        self.pop_ns();
+        if words.is_empty() {
+            // `tailcall` with no command is a plain return of "".
+            return match acts.last_mut() {
+                None => Some(ok(Value::empty())),
+                Some(parent) => {
+                    parent.stack.push(Value::empty());
+                    None
+                }
+            };
+        }
+        let name = words[0].to_str().to_string();
+        match acts.last_mut() {
+            // The issuing proc was the outermost activation: run the tailcall to
+            // completion and let it be the overall result.
+            None => Some(self.invoke_command(&name, &words[1..])),
+            Some(parent) => match self.dispatch_words(parent, words) {
+                Ok(Some(Tick::Call { proc, argv })) => match self.enter_proc(&proc, &argv) {
+                    Ok(()) => {
+                        acts.push(Frame::new(Rc::clone(&proc.body), true));
+                        None
+                    }
+                    Err(c) => self.unwind(acts, c),
+                },
+                Ok(_) => None,
+                Err(c) => self.unwind(acts, c),
+            },
         }
     }
 

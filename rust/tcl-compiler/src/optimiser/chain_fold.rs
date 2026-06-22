@@ -262,7 +262,11 @@ fn try_fold_chain_at(
     let mut j = start + 1;
     while j < stmts.len() {
         match classify_write(&stmts[j]) {
-            Some(Write::Append { var: v, word, pieces }) if v == var && elements.is_none() => {
+            Some(Write::Append {
+                var: v,
+                word,
+                pieces,
+            }) if v == var && elements.is_none() => {
                 for p in pieces {
                     chain_value.push_str(&p);
                 }
@@ -332,7 +336,12 @@ fn try_fold_chain_at(
 
     let last = *writes.last().unwrap();
     let last_span = full_rewrite_span(source, stmts[last].span());
-    let mut fold = Optimisation::new(code, fold_msg, last_span, format!("set {var_word} {rendered}"));
+    let mut fold = Optimisation::new(
+        code,
+        fold_msg,
+        last_span,
+        format!("set {var_word} {rendered}"),
+    );
     fold.group = Some(group);
     ctx.report(fold);
 
@@ -385,7 +394,10 @@ mod tests {
         opts.sort_by_key(|o| std::cmp::Reverse(o.span.start()));
         let mut out = source.to_owned();
         for o in opts {
-            out.replace_range(o.span.start() as usize..o.span.end() as usize, &o.replacement);
+            out.replace_range(
+                o.span.start() as usize..o.span.end() as usize,
+                &o.replacement,
+            );
         }
         out
     }
@@ -407,7 +419,10 @@ mod tests {
 
     #[test]
     fn string_chain_rewrite_applies_cleanly() {
-        assert_eq!(apply("set s \"\"\nappend s foo\nappend s bar"), "set s foobar");
+        assert_eq!(
+            apply("set s \"\"\nappend s foo\nappend s bar"),
+            "set s foobar"
+        );
         assert_eq!(
             apply("set s start\nappend s _mid\nappend s _end"),
             "set s start_mid_end",
@@ -436,18 +451,27 @@ mod tests {
             .find(|o| o.code == "O104" && o.replacement.starts_with("set s"));
         // The `set s ""; puts $s` prefix breaks; the two trailing appends
         // have no anchoring `set`, so no fold fires.
-        assert!(fold.is_none(), "must not fold across a reader, got {opts:?}");
+        assert!(
+            fold.is_none(),
+            "must not fold across a reader, got {opts:?}"
+        );
     }
 
     #[test]
     fn list_chain_folds_with_lappend() {
-        assert_eq!(apply("set l {}\nlappend l a\nlappend l b c"), "set l {a b c}");
+        assert_eq!(
+            apply("set l {}\nlappend l a\nlappend l b c"),
+            "set l {a b c}"
+        );
     }
 
     #[test]
     fn list_chain_quotes_spacey_elements() {
         // An element containing a space must be re-quoted as a list word.
-        assert_eq!(apply("set l {}\nlappend l {a b}\nlappend l c"), "set l {{a b} c}");
+        assert_eq!(
+            apply("set l {}\nlappend l {a b}\nlappend l c"),
+            "set l {{a b} c}"
+        );
     }
 
     #[test]
@@ -465,7 +489,10 @@ mod tests {
         // `append s $x` is dynamic — the chain stops before it, and the
         // `set; append foo` prefix (2 writes) still folds.
         let opts = run_pass("set s \"\"\nappend s foo\nappend s $x");
-        assert!(opts.iter().any(|o| o.code == "O104" && o.replacement == "set s foo"));
+        assert!(
+            opts.iter()
+                .any(|o| o.code == "O104" && o.replacement == "set s foo")
+        );
     }
 
     #[test]
