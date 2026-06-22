@@ -70,6 +70,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("expr", cmd_expr);
     vm.register("proc", cmd_proc);
     vm.register("return", cmd_return);
+    vm.register("tailcall", cmd_tailcall);
     vm.register("error", cmd_error);
     vm.register("break", cmd_break);
     vm.register("continue", cmd_continue);
@@ -681,6 +682,26 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         ret_code
     };
     Completion::new(final_code, value, options)
+}
+
+/// `tailcall ?command ?arg …??` — the runtime fallback for forms the codegen
+/// does not specialise into the `TAILCALL` opcode (an empty `tailcall`, or a
+/// dynamically-built one reached via the generic invoke). No command terminates
+/// the proc with an empty result (C: `tailcall` is a no-op return). For a
+/// dynamic command the call runs now and its result becomes the proc's,
+/// terminating it — a close approximation of the true caller-frame tail call the
+/// opcode performs (this fallback runs in the proc's own frame).
+fn cmd_tailcall(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if args.is_empty() {
+        return Completion::new(Code::Return, Value::empty(), Value::empty());
+    }
+    let name = args[0].to_str().to_string();
+    let res = vm.invoke_command(&name, &args[1..]);
+    if res.code.is_ok() {
+        Completion::new(Code::Return, res.result, Value::empty())
+    } else {
+        res
+    }
 }
 
 /// `error message ?info? ?code?`.

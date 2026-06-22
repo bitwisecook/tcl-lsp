@@ -100,6 +100,10 @@ enum Tick {
     Return(Completion<Value>),
     /// Call a proc — push a new activation + call-frame.
     Call { proc: Rc<ProcDef>, argv: Vec<Value> },
+    /// `tailcall cmd ?arg …?` — the current proc finishes and `cmd args` runs in
+    /// its place (in the caller's activation), its result becoming the proc's.
+    /// `words` is `[cmd, arg, …]` (the `tailcall` prefix word already dropped).
+    Tailcall(Vec<Value>),
 }
 
 fn build_off2idx(asm: &FunctionAsm) -> HashMap<i32, usize> {
@@ -489,6 +493,11 @@ impl Vm {
                         continue;
                     }
                     if let Some(done) = self.unwind(&mut acts, c) {
+                        return done;
+                    }
+                }
+                Tick::Tailcall(words) => {
+                    if let Some(done) = self.run_tailcall(&mut acts, &words) {
                         return done;
                     }
                 }
@@ -1739,6 +1748,21 @@ impl Vm {
                 f.stack.push(Value::int(code));
             }
 
+            // `tailcall cmd ?arg …?` — operand = word count including the
+            // `"tailcall"` prefix word the codegen pushes first. Drop that prefix
+            // and hand `[cmd, arg, …]` to the trampoline, which runs it in the
+            // caller's activation once this proc unwinds (C Tcl `INST_TAILCALL`).
+            Op::TAILCALL => {
+                let count = usize::try_from(imm0(instr)).unwrap_or(0);
+                if f.stack.len() < count || count == 0 {
+                    return Tick::Return(err("tailcall: stack underflow"));
+                }
+                let mut words = f.stack.split_off(f.stack.len() - count);
+                // Drop the leading `"tailcall"` literal word.
+                words.remove(0);
+                return Tick::Tailcall(words);
+            }
+
             // -- termination --
             Op::DONE => {
                 return Tick::Return(ok(f
@@ -1856,6 +1880,58 @@ impl Vm {
                 self.invoke_command("unknown", &full)
             }
             None => err(format!("invalid command name \"{name}\"")),
+        }
+    }
+
+    /// Run a `tailcall` in the place of the proc that issued it. The proc's
+    /// activation (and its call-frame + namespace) is popped — it is in tail
+    /// position, so it is finished — and `words` (`[cmd, arg, …]`) is dispatched
+    /// in the *caller's* activation: a proc tailcall is entered as a fresh
+    /// activation at the caller's level (so a tail-recursive loop neither grows
+    /// the activation stack nor counts against the recursion limit, the whole
+    /// point of `tailcall`); a builtin runs inline and pushes its result. Returns
+    /// `Some` when the whole `run` is finished, `None` when a parent resumed.
+    /// Mirrors C Tcl's deferred-tailcall NR callback.
+    fn run_tailcall(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        words: &[Value],
+    ) -> Option<Completion<Value>> {
+        let is_proc = acts.last().is_some_and(|fr| fr.is_proc);
+        if !is_proc {
+            let c = err("tailcall can only be called from a proc, lambda or method");
+            return self.unwind(acts, c);
+        }
+        // Pop the issuing proc in tail position.
+        acts.pop();
+        self.pop_call_frame();
+        self.pop_ns();
+        if words.is_empty() {
+            // `tailcall` with no command is a plain return of "".
+            return match acts.last_mut() {
+                None => Some(ok(Value::empty())),
+                Some(parent) => {
+                    parent.stack.push(Value::empty());
+                    None
+                }
+            };
+        }
+        let name = words[0].to_str().to_string();
+        match acts.last_mut() {
+            // The issuing proc was the outermost activation: run the tailcall to
+            // completion and let it be the overall result.
+            None => Some(self.invoke_command(&name, &words[1..])),
+            Some(parent) => match self.dispatch_words(parent, words) {
+                Ok(Some(Tick::Call { proc, argv })) => match self.enter_proc(&proc, &argv) {
+                    Ok(()) => {
+                        acts.push(Frame::new(Rc::clone(&proc.body), true));
+                        None
+                    }
+                    Err(c) => self.unwind(acts, c),
+                },
+                Ok(_) => None,
+                Err(c) => self.unwind(acts, c),
+            },
         }
     }
 

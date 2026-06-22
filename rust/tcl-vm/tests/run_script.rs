@@ -729,3 +729,44 @@ fn lset_list_and_flat() {
         "bad index \"foo\": must be integer?[+-]integer? or end?[+-]integer?"
     );
 }
+
+/// `tailcall` — the proc finishes and the named command runs in its place
+/// (in the caller's activation). A tail-recursive loop must not grow the
+/// activation stack or hit the recursion limit (the whole point of `tailcall`).
+#[test]
+fn tailcall_basic_and_deep() {
+    // Tail call replaces the proc's continuation.
+    assert_eq!(run("proc f {} { tailcall set g 9 }; f; puts $g").2, "9\n");
+    assert_eq!(
+        run("proc a {} { return A }; proc b {} { tailcall a }; puts [b]").2,
+        "A\n"
+    );
+    // Tail-recursive factorial.
+    assert_eq!(
+        run("proc fact {n acc} { if {$n<=1} { return $acc }; tailcall fact [expr {$n-1}] [expr {$n*$acc}] }; puts [fact 5 1]").2,
+        "120\n"
+    );
+    // Deep tail recursion: far past the recursion limit — must not overflow.
+    assert_eq!(
+        run("proc cd {n} { if {$n<=0} { return done }; tailcall cd [expr {$n-1}] }; puts [cd 200000]").2,
+        "done\n"
+    );
+    // No-args tailcall terminates the proc with an empty result.
+    assert_eq!(
+        run("proc p {} { tailcall; puts X }; p; puts done").2,
+        "done\n"
+    );
+    assert_eq!(run("proc p {} { tailcall }; puts [p]Y").2, "Y\n");
+    // Dynamic command word (generic-invoke fallback).
+    assert_eq!(
+        run("proc p {} { set c set; tailcall $c z 5 }; p; puts $z").2,
+        "5\n"
+    );
+    // Outside a proc it errors (matching tclsh 9.0).
+    let (ok, msg, _) = run("tailcall foo");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "tailcall can only be called from a proc, lambda or method"
+    );
+}
