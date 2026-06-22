@@ -235,6 +235,19 @@ fn extra_chars_after_close_quote_is_catchable() {
     assert_eq!(result, "extra characters after close-quote");
 }
 
+/// `subst` decodes one backslash escape at a time and handles the multi-byte
+/// forms: a `\` before a multi-byte UTF-8 character (previously a fixed
+/// two-byte slice split the char boundary and panicked), `\xHH` hex, and the
+/// `\<newline><whitespace>` line continuation. Regression for the subst.rs
+/// panic that aborted subst.test.
+#[test]
+fn subst_backslash_escapes_handle_multibyte_and_hex() {
+    assert_eq!(run("subst {\\é}").1, "é");
+    assert_eq!(run("subst {\\x41}").1, "A");
+    // `\` then newline then leading whitespace collapses to a single space.
+    assert_eq!(run("subst \"a\\\n   b\"").1, "a b");
+}
+
 /// `info level` runs through the shared Family-B core
 /// (`tcl_cmd_core::info::level`, over the `Introspect` role trait): the current
 /// depth with no argument, and the correct coercion error for a non-integer
