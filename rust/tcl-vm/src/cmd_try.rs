@@ -210,6 +210,11 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
     // -- run the body, then dispatch to the first matching handler --------
     let body_comp = eval_body(vm, body);
+    // `exit` is not catchable (C Tcl's `Tcl_Exit`): propagate the unwind
+    // without running handlers or the `finally` clause.
+    if vm.exit_pending() {
+        return body_comp;
+    }
     let errorcode = if body_comp.code == Code::Error {
         opt_get(&body_comp.options, "-errorcode").unwrap_or_else(|| Value::string("NONE"))
     } else {

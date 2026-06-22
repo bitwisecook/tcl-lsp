@@ -114,6 +114,12 @@ pub struct Vm {
     /// (`startCommand` is emitted only conditionally, so it cannot be the
     /// boundary marker).
     last_debug_key: Option<u64>,
+    /// Set by the `exit` command to the requested process code. The VM library
+    /// never terminates the process itself — a standalone driver (the `tclvm`
+    /// CLI) translates this into `std::process::exit`, while an embedder (the
+    /// debugger, `tcl-irule-test`, `f5 explain-flow --simulate`) sees the
+    /// unwinding completion and survives. `None` until `exit` runs.
+    pending_exit: Option<i32>,
     /// Cache of compiled scripts for the runtime-`eval` / command-substitution
     /// path (`eval_source`), keyed by source text. Compilation is a pure
     /// function of the source and the (fixed) command registry, so a script
@@ -207,6 +213,7 @@ impl Vm {
             compiler: None,
             debug_hook: None,
             last_debug_key: None,
+            pending_exit: None,
             eval_cache: HashMap::new(),
             error_info: None,
             error_logged: false,
@@ -264,6 +271,26 @@ impl Vm {
     pub fn set_debug_hook(&mut self, hook: Option<crate::debug::DebugHook>) {
         self.debug_hook = hook;
         self.last_debug_key = None;
+    }
+
+    /// Record a pending `exit` with the given process code. The VM library does
+    /// not terminate the process; the driver decides (see [`Self::take_exit`]).
+    pub(crate) fn set_exit(&mut self, code: i32) {
+        self.pending_exit = Some(code);
+    }
+
+    /// Whether an `exit` is pending (the unwinding completion should propagate
+    /// uncatchably, like C Tcl's `Tcl_Exit`).
+    #[must_use]
+    pub fn exit_pending(&self) -> bool {
+        self.pending_exit.is_some()
+    }
+
+    /// Take the pending `exit` code, if any. A standalone driver (the `tclvm`
+    /// CLI) calls this after running and translates `Some(code)` into
+    /// `std::process::exit`; an embedder may ignore it and keep running.
+    pub fn take_exit(&mut self) -> Option<i32> {
+        self.pending_exit.take()
     }
 
     /// Fire the debug hook for the command an instruction belongs to, if a hook

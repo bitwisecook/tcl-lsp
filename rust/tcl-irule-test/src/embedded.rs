@@ -37,6 +37,12 @@ const BUNDLE: &[(&str, &str)] = &[
     // Generated data the framework sources transitively via `info script`.
     bundled!("_registry_data.tcl"),
     bundled!("_event_data.tcl"),
+    // Generated stub mocks for registry-only iRule commands (e.g.
+    // `ACCESS::session`, `AAA::auth`). `LiveSession::bootstrap` sources this
+    // before `itest_core.tcl` when present, so an embedded simulator must carry
+    // it too — otherwise `f5 explain-flow --simulate` would fail on any iRule
+    // using a stub-only command that a repo checkout would have handled.
+    bundled!("_mock_stubs.tcl"),
 ];
 
 /// A temporary directory holding the materialised orchestrator framework. The
