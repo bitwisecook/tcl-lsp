@@ -84,11 +84,18 @@ class _ValuesMixin:
             return name[:idx], name[idx + 1 : -1]
         return None
 
-    def _push_array_key(self: _Emitter, elem: str) -> None:
+    def _push_array_key(self: _Emitter, elem: str, *, target: bool = False) -> None:
         """Push an array element key onto the stack.
 
         Handles nested variable references (``$var``, ``${var}``) and
         command substitutions (``[cmd ...]``).
+
+        *target* is True when *elem* is the element key of a store **target**
+        (``set arr(key) ...``).  In that position a bare *simple* ``$foo``
+        (no index) is a brace-suppressed literal — ``set {arr($foo)} ...`` —
+        because a live simple reference would have been normalised to
+        ``${foo}`` by lowering.  In a read context (*target* False) a bare
+        ``$foo`` is a live reference and is loaded.
         """
         if elem.startswith("${") and elem.endswith("}"):
             # Braced variable reference used as an array key, e.g.
@@ -121,9 +128,19 @@ class _ValuesMixin:
                     self._load_var(inner)
                 else:
                     self._emit_value(elem)
-        elif elem.startswith("$"):
-            # Bare variable reference: $::a(1) — strip $ and load
-            self._load_var(elem[1:])
+        elif elem.startswith("$") and self._bare_var_ref_is_whole(elem):
+            if target and self._split_array_ref(elem[1:]) is None:
+                # Store target with a bare *simple* ``$foo`` element key — it
+                # survived lowering un-normalised because it came from a
+                # brace-suppressed word (``set {arr($foo)} ...``), so the
+                # ``$`` is literal.  Push it raw (no substitution), matching
+                # tclsh (``push "$foo"; storeArray``).
+                self._push_raw_lit(elem)
+            else:
+                # A read, or a bare *array* reference whose index carries a
+                # nested substitution (``$a($i)`` / ``$::a(1)``) kept
+                # un-normalised by lowering: load the variable / element.
+                self._load_var(elem[1:])
         elif "$" in elem or "[" in elem:
             # Pass interpolate=True so a mixed-substitution index like
             # ``[format x]\ y [format z]`` decomposes into push/cmd
@@ -151,10 +168,10 @@ class _ValuesMixin:
         if arr is not None:
             if self._is_proc and not self._is_qualified(name):
                 # Proc context: only push the key (LVT slot encodes array name)
-                self._push_array_key(arr[1])
+                self._push_array_key(arr[1], target=True)
             else:
                 self._push_lit(arr[0])
-                self._push_array_key(arr[1])
+                self._push_array_key(arr[1], target=True)
         else:
             self._push_lit(name)
 
@@ -374,6 +391,35 @@ class _ValuesMixin:
         if "$" in value[1:paren] or "[" in value[1:paren]:
             return None
         return value[1:]
+
+    @staticmethod
+    def _bare_var_ref_is_whole(elem: str) -> bool:
+        """True if *elem* is a single bare ``$var`` / ``$arr(idx)`` reference
+        spanning its whole length (no trailing literal, no second ref).
+
+        ``$a`` and ``$::a(1)`` are whole; ``$a,hej`` and ``$a$b`` are
+        templates that must go through the substitution path instead.
+        Braced ``${...}`` forms are handled by the caller's earlier
+        branch and always return False here.
+        """
+        if not elem.startswith("$") or elem.startswith("${"):
+            return False
+        i = 1
+        n = len(elem)
+        while i < n:
+            ch = elem[i]
+            if ch.isalnum() or ch == "_":
+                i += 1
+            elif ch == ":" and i + 1 < n and elem[i + 1] == ":":
+                i += 2
+            else:
+                break
+        if i == 1:
+            return False  # bare "$" with no name (e.g. "$(...)")
+        if i < n and elem[i] == "(":
+            # ``$name(idx)`` — the index runs to the final ``)``.
+            return elem.endswith(")")
+        return i == n
 
     @staticmethod
     def _parse_whole_name_array_ref(value: str) -> str | None:
