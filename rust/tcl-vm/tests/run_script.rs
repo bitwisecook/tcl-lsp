@@ -897,3 +897,25 @@ fn set_inline_cmd_subst() {
         "v2\n"
     );
 }
+
+/// `INVOKE_REPLACE` (ensemble-rewrite invoke): `[string equal -nocase …]` /
+/// `[string compare -length …]` in value position inline to the resolved
+/// implementation (`::tcl::string::equal …`) via the opcode. This regressed
+/// when the `set x [cmd]` re-land routed the flagged forms through the
+/// (previously unimplemented) opcode; verified against tclsh 9.0.
+#[test]
+fn invoke_replace_string_ensemble() {
+    assert_eq!(
+        run("set x [string equal -nocase ABC abc]; puts $x").2,
+        "1\n"
+    );
+    assert_eq!(run("set x [string equal abc abd]; puts $x").2, "0\n");
+    assert_eq!(
+        run("proc f {} { set x [string compare -nocase A a]; return $x }; puts [f]").2,
+        "0\n"
+    );
+    assert_eq!(
+        run("set x [string equal -length 2 abcd abXX]; puts $x").2,
+        "1\n"
+    );
+}
