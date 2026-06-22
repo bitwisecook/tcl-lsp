@@ -576,29 +576,118 @@ fn string_first_last() {
     assert_eq!(run("puts [string first zz abc]").2, "-1\n");
 }
 
-/// The `STR_CLASS` / `NUMERIC_TYPE` / `REGEXP` value opcodes (emitted by the
-/// inline command-substitution path inside a value template). These three are
-/// the value opcodes the FE-CODEGEN `set x [cmd]` re-land depends on.
+/// A `PUSH1 idx` that pushes literal `idx` verbatim (no word substitution) — the
+/// form the codegen uses for braced/constant words. Needed so a regexp pattern
+/// like `^[0-9]+$` is pushed as data, not run through `subst_word`.
+fn pushv(idx: i32) -> tcl_bytecode::Instruction {
+    use tcl_bytecode::{Instruction, Op, Operand};
+    let mut i = Instruction::new(Op::PUSH1, vec![Operand::Imm(idx)]);
+    i.push_verbatim = true;
+    i
+}
+
+/// Run a hand-assembled top-level instruction stream (with its literal pool),
+/// returning the result string. `DONE` yields the value on top of the stack, so
+/// the caller ends the stream with the opcode under test. This drives the VM's
+/// opcode dispatch directly — unlike [`run`], it does not go through the codegen,
+/// so it exercises an opcode even when no codegen path emits it yet.
+fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String {
+    use tcl_bytecode::{FunctionAsm, LiteralTable, LocalVarTable, ModuleAsm};
+    let mut lits = LiteralTable::new();
+    for l in literals {
+        lits.intern(l);
+    }
+    let mut instrs = instrs;
+    let labels =
+        tcl_bytecode::layout::resolve_layout(&mut instrs, &std::collections::HashMap::new());
+    let top = FunctionAsm {
+        name: "::top".to_string(),
+        literals: lits,
+        lvt: LocalVarTable::new(&[]),
+        instructions: instrs,
+        labels,
+        loop_targets: std::collections::HashMap::new(),
+        body_base_line: 0,
+    };
+    let module = ModuleAsm {
+        top_level: top,
+        procedures: std::collections::HashMap::new(),
+    };
+    let mut vm = Vm::new();
+    vm.run_module(&module).result.to_str().to_string()
+}
+
+/// `NUMERIC_TYPE` pushes C Tcl's numeric-tower code: 0 = not a number,
+/// INT = 2, BIG = 3, DOUBLE = 4, NAN = 5.
 #[test]
-fn inline_string_is_numeric_class_and_regexp() {
-    // `string is integer` / `double` go through NUMERIC_TYPE.
-    assert_eq!(run(r#"set y "[string is integer 42]""#).1, "1");
-    assert_eq!(run(r#"set y "[string is integer abc]""#).1, "0");
-    assert_eq!(run(r#"set y "[string is integer 3.5]""#).1, "0");
-    assert_eq!(run(r#"set y "[string is double 3.14]""#).1, "1");
-    assert_eq!(run(r#"set y "[string is double 42]""#).1, "1");
-    assert_eq!(run(r#"set y "[string is double xyz]""#).1, "0");
+fn opcode_numeric_type() {
+    use tcl_bytecode::{Instruction, Op};
+    let asm = |lit: &str| {
+        run_asm(
+            &[lit],
+            vec![
+                pushv(0),
+                Instruction::new(Op::NUMERIC_TYPE, vec![]),
+                Instruction::new(Op::DONE, vec![]),
+            ],
+        )
+    };
+    assert_eq!(asm("42"), "2"); // wide integer
+    assert_eq!(asm("-17"), "2");
+    assert_eq!(asm("3.5"), "4"); // double
+    assert_eq!(asm("1e10"), "4");
+    assert_eq!(asm("abc"), "0"); // not a number
+    assert_eq!(asm(""), "0");
+    assert_eq!(asm("99999999999999999999999999"), "3"); // bignum
+    assert_eq!(asm("NaN"), "5");
+}
 
-    // Per-character classes go through STR_CLASS.
-    assert_eq!(run(r#"set y "[string is alpha abc]""#).1, "1");
-    assert_eq!(run(r#"set y "[string is alpha ab2]""#).1, "0");
-    assert_eq!(run(r#"set y "[string is digit 12345]""#).1, "1");
-    assert_eq!(run(r#"set y "[string is digit 12x45]""#).1, "0");
-    assert_eq!(run(r#"set y "[string is space {   }]""#).1, "1");
-    assert_eq!(run(r#"set y "[string is upper ABC]""#).1, "1");
+/// `STR_CLASS` (operand = class id) reports whether every character of the
+/// popped string belongs to the class; the empty string matches.
+#[test]
+fn opcode_str_class() {
+    use tcl_bytecode::{Instruction, Op, Operand};
+    let asm = |lit: &str, class: &str| {
+        let id = i32::from(tcl_bytecode::str_class_id(class).unwrap());
+        run_asm(
+            &[lit],
+            vec![
+                pushv(0),
+                Instruction::new(Op::STR_CLASS, vec![Operand::Imm(id)]),
+                Instruction::new(Op::DONE, vec![]),
+            ],
+        )
+    };
+    assert_eq!(asm("abc", "alpha"), "1");
+    assert_eq!(asm("ab2", "alpha"), "0");
+    assert_eq!(asm("12345", "digit"), "1");
+    assert_eq!(asm("12x45", "digit"), "0");
+    assert_eq!(asm("ABC", "upper"), "1");
+    assert_eq!(asm("DeadBEEFG", "xdigit"), "0"); // G is not a hex digit
+    assert_eq!(asm("dEadBEEF", "xdigit"), "1");
+    assert_eq!(asm("", "alpha"), "1"); // empty string matches
+}
 
-    // `regexp pat str` in value position goes through REGEXP.
-    assert_eq!(run(r#"set y "[regexp {^[0-9]+$} 12345]""#).1, "1");
-    assert_eq!(run(r#"set y "[regexp {^[0-9]+$} 12a45]""#).1, "0");
-    assert_eq!(run(r#"set y "[regexp {ab+c} xxabbbcyy]""#).1, "1");
+/// `REGEXP` (operand = cflags) reports whether the pattern (under top) matches
+/// the subject (top); the `TCL_REG_NOCASE` (8) bit makes it case-insensitive.
+#[test]
+fn opcode_regexp() {
+    use tcl_bytecode::{Instruction, Op, Operand};
+    let asm = |pat: &str, subj: &str, cflags: i32| {
+        run_asm(
+            &[pat, subj],
+            vec![
+                pushv(0), // pattern (under top)
+                pushv(1), // subject (top)
+                Instruction::new(Op::REGEXP, vec![Operand::Imm(cflags)]),
+                Instruction::new(Op::DONE, vec![]),
+            ],
+        )
+    };
+    // TCL_REG_ADVANCED = 3 (the codegen's plain-form cflags).
+    assert_eq!(asm("^[0-9]+$", "12345", 3), "1");
+    assert_eq!(asm("^[0-9]+$", "12a45", 3), "0");
+    assert_eq!(asm("ab+c", "xxabbbcyy", 3), "1");
+    assert_eq!(asm("ABC", "abc", 3), "0");
+    assert_eq!(asm("ABC", "abc", 3 | 0o10), "1"); // TCL_REG_NOCASE
 }
