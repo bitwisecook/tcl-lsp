@@ -557,7 +557,20 @@ impl Bt<'_> {
         let more = |k: &mut dyn FnMut(usize) -> bool| {
             can_more
                 && self.m(sub, pos, hi, &mut |p| {
-                    p != pos && self.m_repeat(sub, min, max, pref, count + 1, p, hi, k)
+                    if p == pos {
+                        // Zero-width iteration. It still counts toward `min`
+                        // (Tcl matches `(a*)+\1` against "" and `(a?){2}\1`
+                        // against "a"), and any further iterations would be
+                        // identical empties at `pos` — so we record this one's
+                        // captures and stop here rather than recursing, which
+                        // would not progress. The inner capture (e.g. the final
+                        // empty `[pos,pos)` for `(a*)`) is already set by the
+                        // `Capture` node before this continuation runs, so a
+                        // following backreference sees it.
+                        k(pos)
+                    } else {
+                        self.m_repeat(sub, min, max, pref, count + 1, p, hi, k)
+                    }
                 })
         };
         // The two arms differ only in evaluation order, but `more`/`k` have

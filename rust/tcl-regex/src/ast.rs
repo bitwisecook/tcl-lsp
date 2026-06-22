@@ -244,7 +244,19 @@ pub fn leading_pref(node: &Node) -> Option<Pref> {
             }
         }
         Node::Concat(items) => items.iter().find_map(leading_pref),
-        Node::Alt(branches) => branches.iter().find_map(leading_pref),
+        // A multi-branch alternation has no leading shortest preference: the C
+        // engine seeds the `'|'` subre with `LONGER` (`sub_re(v, '|', LONGER,
+        // …)`), and `PREF2` keeps that seed regardless of the branches' own
+        // preferences — so the overall extent is the POSIX-longest one across
+        // alternatives (`a+?|aa` on "aa" matches "aa", not the lazy "a"). The
+        // branch preferences only matter once an alternative is chosen, during
+        // dissection. A single-branch alternation is collapsed away by the
+        // parser (see `Parser::parse_alt`), so this arm is the ≥2-branch case;
+        // we still pass a lone branch through for robustness.
+        Node::Alt(branches) => match branches.as_slice() {
+            [only] => leading_pref(only),
+            _ => Some(Pref::Longer),
+        },
     }
 }
 
