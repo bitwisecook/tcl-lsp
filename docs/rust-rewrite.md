@@ -974,10 +974,13 @@ Array, lappendScalar/Array/List, unsetScalar/Array, upvar, nsupvar, concatStk)
 were implemented in `tcl-vm` so the codegen runs end-to-end. Remaining:
 - **open** `set x [cmd]` pure-command-substitution assign — inlining was tried
   (route the single-`[cmd]` value through the inline-cmd-subst emitter) but
-  reverted: the emitter produces value opcodes the partial bytecode VM does not
-  implement (`regexp`, `strclass`, `numericType`, `dictGet`), which broke the
-  VM execution tests. Re-land once **RT-VM** implements those value opcodes
-  (the inlining itself was byte-true for the VM-supported commands).
+  reverted: the emitter produces value opcodes the partial bytecode VM did not
+  implement. **The VM blocker is now cleared** — `regexp`, `strclass`,
+  `numericType` (and pre-existing `dictGet`) all execute in `tcl-vm` (see
+  [history](rust-rewrite-history.md), RT-VM 2026-06-22) — so the re-land is no
+  longer VM-gated; it just needs the inline routing wired back into
+  `emit_value_interpolated` with the differential/golden gates green (the
+  inlining itself was byte-true for the VM-supported commands).
 - **open** statement-position specialisations for the *value-returning*
   commands used as bare statements — `string` / `regexp` / `lindex` /
   `lreplace` (result discarded; the value-position inline forms exist, so this
@@ -1083,6 +1086,15 @@ archived in the [history](rust-rewrite-history.md). The live open gaps:
   countdown** the VM simplifies (only `-level 0` is immediate today); the rest
   are `info errorstack` / the `-errorstack` option (unimplemented) and errorInfo
   edge cases.
+- **landed (2026-06-22)** several reachable opcode gaps that trapped real
+  programs: `lset` (`LSET_LIST` single-index/index-path + `LSET_FLAT` multi-
+  index, plus a non-proc multi-index **codegen** fix so only-last-index no
+  longer reaches the opcode), `tailcall` (true caller-frame tail call via the
+  trampoline — a tail-recursive loop neither grows the activation stack nor
+  counts against the recursion limit — plus a runtime `tailcall` builtin for the
+  no-args / dynamically-built forms), and the `string is` / `regexp` value
+  opcodes `NUMERIC_TYPE` / `STR_CLASS` / `REGEXP`. All verified against tclsh 9.0
+  (detail in [history](rust-rewrite-history.md)).
 - **open** smaller per-suite gaps — `switch` (14), `for` (8), `foreach` (6),
   `incr` (3), `if`/`set` (2), `while` (1): individual bugs to chase after the
   structural items.
