@@ -869,3 +869,32 @@ Mirrors the C40-default-on shape.  Two phases:
   `test_rust_analyser_differential.py` to assert the new
   polarity.  Once a release cycle has soaked, retire the
   Python `_AnalyserBase` mixin set and the env var.
+
+## API-PYO3 — designed public PyO3 surface (`tcl-lsp-py::public`)
+
+### Pytest tests — `tests/test_public_pyo3_api.py` (new)
+
+This is **not** a port of an existing pytest file — the designed public
+surface (`parse_tcl` / `compile_tcl` / `analyse_tcl` / `format_tcl` /
+`parse_bigip_config` / `query_bigip` + the `TclLspError` hierarchy) has no
+Python oracle; it is a new Rust product. The file is an **acceptance test**
+that drives the surface directly through the built `tcl_lsp_py` wheel
+(`pytest.importorskip("tcl_lsp_py")`, so it runs against the PR-CI wheel and
+no-ops on a fresh clone). 30 cases cover the six facades, dialect gating, the
+read + mutation query paths, the structured result shapes, and every error
+type / its `code`/`uri`/`range` attributes.
+
+Category: **COVERED** (direct binding-surface acceptance test, the analogue of
+`tests/test_rust_bindings_smoke.py`). It is *not* a bridge regression net for
+in-tree Python — nothing in-tree imports the public facades — so it does not
+fall under the eventual TEST-MIGRATE port-to-Rust sweep the same way the
+oracle suites do; it stays as the wheel's acceptance gate.
+
+### Rust unit tests
+
+None added: the binding crate ships as a `cdylib` with
+`pyo3/extension-module`, so it carries no in-crate `cargo test` harness (a test
+binary cannot link the interpreter). The public surface is exercised end-to-end
+through the wheel by the pytest file above; the underlying algorithms keep their
+own unit tests in the pure crates (`tcl-lexer`, `tcl-compiler`, `tcl-lsp-core`,
+`tcl-bigip`, `tcl-bigip-query`).

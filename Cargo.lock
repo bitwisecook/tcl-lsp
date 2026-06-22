@@ -3180,6 +3180,7 @@ dependencies = [
  "pyo3",
  "serde_json",
  "tcl-bigip",
+ "tcl-bigip-query",
  "tcl-compiler",
  "tcl-lexer",
  "tcl-lsp-core",

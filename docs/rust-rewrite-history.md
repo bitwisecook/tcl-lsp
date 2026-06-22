@@ -11709,3 +11709,60 @@ verbs are wired through to the `tcl-pkg` handlers that landed under
 **TOOL-TCLPKG**. The dispatch `match` is exhaustive (the not-yet-implemented
 fallthrough is gone). Any deeper WASM-emitter precision residual is **RT-WASM**'s,
 not the CLI verb's.
+
+## API-PYO3 — designed public PyO3 surface (landed 2026-06-22)
+
+The first (and largest single) item of the otherwise-last **API-PYO3** track:
+the *designed* public API the rewrite plan calls the terminal product — a
+small, semver-stable surface for downstream embedders, deliberately **not** a
+re-export of the crate graph and **not** a transcription of the legacy
+soft-dependency shims. Built as a new `tcl-lsp-py::public` module, additive
+alongside the existing shims (which stay until their in-tree Python importers
+retire under PYTHON-RETIRE — the boundary rule).
+
+**Shape.** Six narrow facades, `source/options in, structured result out`,
+each a thin translation over one pure crate entry point (no analysis logic in
+the binding):
+
+| Facade | Returns | Over |
+|---|---|---|
+| `parse_tcl(source, *, dialect, uri)` | `ParseResult` (`tokens`, `commands`, `warnings`) | `tcl-lexer` + `tcl-compiler::segmenter` |
+| `compile_tcl(source, *, dialect, interprocedural, uri)` | `CompilationUnit` handle | `tcl-compiler::compilation_unit` |
+| `analyse_tcl(source, *, dialect, uri)` | `AnalysisResult` (`diagnostics`, `procs`, `classes`, `variables`) | `tcl-compiler::analyser` |
+| `format_tcl(source, *, options)` | `str` | `tcl-lsp-core::formatting` |
+| `parse_bigip_config(source, *, default_partition, strict, uri)` | `BigipConfig` (`object_count`, `object_keys`, `to_json()`) | `tcl-bigip` |
+| `query_bigip(sources, query, *, names, partitions, merge, enable_probes, output)` | `QueryResult` (`values` / `edits`, `has_mutation`) | `tcl-bigip-query` |
+
+Plus the typed result classes (`LexToken`, `ParsedCommand`, `Diagnostic`,
+`FormatOptions`, `QueryFile`, `QueryEdit`), all frozen `#[pyclass]`es that
+resolve every span to a 0-based `(line, character)` pair at the boundary — the
+Python caller never sees a bare byte offset.
+
+**Error hierarchy.** `TclLspError` (base) → `TclParseError` / `TclCompileError`
+/ `TclAnalysisError` / `BigipParseError` / `BigipQueryError` /
+`UnsupportedFeatureError`, all registered on the module and catchable as the
+base. Each raised instance carries `code` (stable identifier, e.g.
+`BIGIP_QUERY_LEX`), `message` (also `str(err)`), `uri`, and `range`, set as
+attributes at the facade boundary by `public::errors::PublicError::into_pyerr`
+— the single place the pure-crate error enums (`LexError`, `QueryError`) are
+translated, keeping the pure crates `pyo3`-free. Genuine raise paths:
+`parse_tcl` (strict-quoting `LexError`), `compile_tcl` / `analyse_tcl`
+(pre-lex guard), `parse_bigip_config` (`strict=True` over a non-empty source
+that yields no objects — the "wrong file" guard), `query_bigip` (`run_query`
+/ render `QueryError`, with a resolved range for the positional lex/parse
+variants), and `UnsupportedFeatureError` (unknown formatter `indent_style` or
+query `output` mode).
+
+**Test.** `tests/test_public_pyo3_api.py` — 30 cases over the six facades,
+the dialect gating (`{*}` EXPAND under 9.0 vs literal under 8.4), the read +
+mutation query paths, and every error type. `importorskip`-guarded so it runs
+against the built wheel in CI and no-ops on a fresh clone (the soft-dependency
+philosophy). Added the `tcl-bigip-query` dependency to `tcl-lsp-py` and a
+`proc_names` getter to the `CompilationUnit` handle.
+
+**Still open under API-PYO3** (the rest of the track, gated on every consumer
+porting first): TEST-MIGRATE (port the remaining pytest files to per-crate Rust
+tests), the `scripts`→`xtask` build/release migration, and PYTHON-RETIRE
+(delete the ported Python subtrees + the legacy shims once nothing imports
+them). The legacy `#[pyfunction]` shim set is untouched and still backs the
+in-tree Python.

@@ -24,7 +24,19 @@
 //! Both wheels share the same Rust binding source; only the
 //! `#[pymodule]` entry-point name differs.
 //!
-//! Exposed so far:
+//! Two surfaces share this module:
+//!
+//! - The **designed public API** ([`public`]) — the track **API-PYO3**
+//!   product: the `parse_tcl` / `compile_tcl` / `analyse_tcl` /
+//!   `format_tcl` / `parse_bigip_config` / `query_bigip` facades plus
+//!   the [`TclLspError`](public::errors::TclLspError) hierarchy. This
+//!   is the semver-stable surface downstream embedders target; it is
+//!   not a transcription of in-tree calls.
+//! - The **legacy soft-dependency shims** — the per-subsystem
+//!   `#[pyfunction]`s the in-tree Python still imports, retained until
+//!   PYTHON-RETIRE per the rewrite plan's boundary rule.
+//!
+//! Legacy shims exposed:
 //!
 //! - `hello_rust()` / `lexer_version()` — L0 smoke-test bridge.
 //! - `backslash_subst(text)` — L1 port of
@@ -59,6 +71,7 @@ pub(crate) mod gvn;
 pub(crate) mod interprocedural;
 pub(crate) mod lexer;
 pub(crate) mod optimiser;
+pub(crate) mod public;
 pub(crate) mod registry;
 pub(crate) mod signature_scan;
 pub(crate) mod tokens;
@@ -128,6 +141,7 @@ pub fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     analyser::register_with(m)?;
     bigip::register_with(m)?;
     features::register_with(m)?;
+    public::register_with(m)?;
     Ok(())
 }
 
