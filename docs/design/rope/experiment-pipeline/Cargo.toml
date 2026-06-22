@@ -1,0 +1,32 @@
+# Standalone, workspace-excluded experiment for the SRV-ROPE decision.
+#
+# The sibling `experiment/` measures buffer apply + flatten in ISOLATION. This
+# one measures what that apply is a *fraction of*: the real per-edit pipeline
+# (re-lex -> full analyse -> the salsa incremental reanalysis + compiler checks).
+# That ratio is the "governing caveat" the SRV-ROPE decision turns on — whether
+# a rope's apply-side win can move end-to-end per-edit latency at all.
+#
+# Run:  cargo run --release --manifest-path docs/design/rope/experiment-pipeline/Cargo.toml
+#
+# Deliberately NOT a workspace member (pulls `ropey`, builds on demand).
+[package]
+name = "rope-pipeline-experiment"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Own workspace root so it stays isolated from the main tcl-lsp workspace.
+[workspace]
+
+[dependencies]
+# Production crates, by path, so every arm measures the REAL code path the
+# server runs per edit — not an approximation.
+tcl-lexer = { path = "../../../../rust/tcl-lexer" }
+tcl-compiler = { path = "../../../../rust/tcl-compiler" }
+tcl-lsp-db = { path = "../../../../rust/tcl-lsp-db" }
+salsa = "0.26"
+# The rope the rust-rewrite plan ratified, for the apply-side comparison.
+ropey = "1.6"
+
+[profile.release]
+opt-level = 3

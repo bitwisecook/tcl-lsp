@@ -50,17 +50,28 @@ re-lex — unless those layers also become chunk-aware.
 
 ## Experiment
 
-Reproducible, workspace-excluded harness: [`experiment/`](experiment/).
+Two reproducible, workspace-excluded harnesses, measuring the two halves of the
+decision:
 
 ```
+# (a) apply-side numerator — what a rope speeds up, in isolation:
 cargo run --release --manifest-path docs/design/rope/experiment/Cargo.toml
+# (b) per-edit denominator — what that apply is a fraction of (real analyser + salsa db):
+cargo run --release --manifest-path docs/design/rope/experiment-pipeline/Cargo.toml
 ```
 
-It depends on the **production** `tcl-lexer::LineIndex` (so the `String` arm
-measures real code) and `ropey` 1.6 (the rope the plan ratified). All inputs are
-ASCII, so byte == char == UTF-16 code unit and both arms do the same *logical*
-work — isolating the structural (rope vs flat-buffer) difference. Numbers below
-are from one run on the dev box; they are **indicative ratios**, not absolutes.
+Harness (a) depends on the **production** `tcl-lexer::LineIndex` (so the `String`
+arm measures real code) and `ropey` 1.6 (the rope the plan ratified). All inputs
+are ASCII, so byte == char == UTF-16 code unit and both arms do the same
+*logical* work — isolating the structural (rope vs flat-buffer) difference.
+Numbers below are from one run on the dev box; they are **indicative ratios**,
+not absolutes.
+
+Harness (b) is the denominator the governing caveat below turns on: it drives the
+real `tcl-compiler` analyser and `tcl-lsp-db` salsa queries across a warm-db edit,
+so the apply cost can be read as a *fraction* of true per-edit latency rather than
+estimated. It confirms that fraction is **~0.02%**, not the 5–15% the caveat
+previously assumed (see below).
 
 ### Edit application — ns per `didChange` carrying B edits
 
@@ -156,13 +167,36 @@ iRules / config snippets), and one a `String` store does not pay.
 Every "rope wins" above is on **edit application + position mapping** measured in
 isolation. In the running server the per-edit critical path is dominated by
 **re-lex + salsa invalidation + diagnostics**, all O(n) and rope-invariant today.
-A 5–12× speedup on a slice that is (say) 5–15% of per-edit latency is a 4–13%
-end-to-end improvement *at best*, and only at large sizes / high rates. That is
-why the rope is **gated on the pipeline going incremental**: once re-lex is
-bounded to the dirty span (the structural-state index from
+Harness (b) and the production profiler quantify the slice the rope can address —
+and it is far smaller than the 5–15% this caveat originally estimated:
+
+| measurement | per-edit latency | apply cost | **apply share** |
+|---|--:|--:|--:|
+| harness (b), 16KiB of procs | 282 ms | 8.5 µs | **0.00%** |
+| harness (b), 64KiB of procs | 4.46 s | 34 µs | **0.00%** |
+| `tail_profile`, `linalg.tcl` (2.3k lines) | 419 ms | ~85 µs | **~0.02%** |
+| `tail_profile`, `practcl.tcl` (8.5k lines) | 1 623 ms | ~320 µs | **~0.02%** |
+
+(`cargo run --release -p tcl-lsp-db --example tail_profile FILE=…`, warm db,
+single-char edit — the real "both queries per `didChange`" server shape.) A 5–12×
+speedup on a ~0.02% slice is invisible end-to-end. Two further facts deepen this:
+**re-lex itself is tiny** (16–260 µs vs hundreds of ms of analysis — for
+`linalg.tcl`, `run_all_checks` alone is ~411 ms of the 419 ms), and the
+segmenter-level incremental path (`analyse_incremental`) plus the
+`structural_index` / `reparse_window` substrate exist but are **test-only** — the
+live salsa path re-lexes and re-segments the whole file every edit.
+
+That is why the rope is **gated on the pipeline going incremental**: once re-lex
+is bounded to the dirty span (the structural-state index from
 [`compiler/error-recovery-rust-port.md`](../compiler/error-recovery-rust-port.md)
 is the substrate), the rope's O(log n) edit + rope-slice re-lex compound, and the
 flatten tax is replaced by handing the lexer a rope *slice* of the dirty region.
+But even that is Amdahl-bounded: re-lex + re-segment is single-digit-ms against a
+floor of hundreds of ms, so the dominant per-edit cost — CU lowering +
+`run_all_checks` + `optimise_unit` — is attacked by the **rope-independent**
+incremental-lowering track ([`rust/incremental-analysis.md`](../rust/incremental-analysis.md),
+Approaches A/B), not by SRV-ROPE. The rope is the last and smallest lever, not the
+first.
 
 ## The SRV-ROPE track (scope — "touches everything it needs to")
 
