@@ -361,8 +361,9 @@ fn chr_eq(a: &[Chr], b: &[Chr], nocase: bool) -> bool {
 
 impl Matcher<'_> {
     /// Backtracking search for patterns containing backreferences. Finds the
-    /// leftmost start, then the longest total match (trying ends descending),
-    /// recording captures in greedy/lazy preference order.
+    /// leftmost start, then — honouring the top preference — the longest (or,
+    /// for a non-greedy-led RE, the shortest) total match, recording captures
+    /// in greedy/lazy preference order.
     pub(crate) fn search_backref(
         &mut self,
         root: &Node,
@@ -376,13 +377,27 @@ impl Matcher<'_> {
             caps: RefCell::new(vec![None; nsub + 1]),
         };
         for start in from..=self.len() {
-            for end in (start..=self.len()).rev() {
+            // Try candidate end positions in preference order: shortest first
+            // when the RE prefers the shortest match, else longest first.
+            let mut found = None;
+            let mut try_end = |end: usize| -> bool {
                 *bt.caps.borrow_mut() = vec![None; nsub + 1];
                 if bt.m(root, start, end, &mut |p| p == end) {
                     let mut caps = bt.caps.borrow().clone();
                     caps[0] = Some(Span { start, end });
-                    return Some(caps);
+                    found = Some(caps);
+                    true
+                } else {
+                    false
                 }
+            };
+            let hit = if self.prefer_shortest {
+                (start..=self.len()).any(&mut try_end)
+            } else {
+                (start..=self.len()).rev().any(&mut try_end)
+            };
+            if hit {
+                return found;
             }
         }
         None
