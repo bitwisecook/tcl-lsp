@@ -989,3 +989,25 @@ fn encoding_command() {
         "wrong # args: should be \"encoding subcommand ?arg ...?\""
     );
 }
+
+/// `interp eval {} script …` — only the current interpreter (empty path) exists;
+/// its scripts evaluate in the current frame, like `eval` (verified vs tclsh 9.0).
+/// A non-empty path is an unknown child interpreter.
+#[test]
+fn interp_eval_current() {
+    assert_eq!(run("interp eval {} {expr 1+1}").1, "2");
+    assert_eq!(run("set y 0; interp eval {} {set y 5}; puts $y").2, "5\n");
+    // Runs in the current frame: a proc local is visible.
+    assert_eq!(
+        run("proc p {} { set loc 1; interp eval {} {info exists loc} }; puts [p]").2,
+        "1\n"
+    );
+    // Multiple script args are concatenated.
+    let (ok, msg, _) = run("interp eval {} {string length hello} {append}");
+    assert!(!ok);
+    assert_eq!(msg, "wrong # args: should be \"string length string\"");
+    // A named (non-empty) path is an unknown interpreter.
+    let (ok, msg, _) = run("interp eval foo {set x 1}");
+    assert!(!ok);
+    assert_eq!(msg, "could not find interpreter \"foo\"");
+}
