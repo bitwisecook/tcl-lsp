@@ -140,10 +140,20 @@ impl CodegenCtx<'_> {
                         // `x` instead of the literal `${x}`).
                         value.clone()
                     };
+                let inline = Self::assign_value_inlines_cmd_subst(&value);
                 if needs_stk_var_ref(name, self.is_proc) {
                     self.push_var_ref(name);
+                } else if inline && self.is_proc && !is_qualified(name) {
+                    // Pre-intern the target so it gets a lower LVT slot than any
+                    // variable introduced inside the substitution (catch result
+                    // var, etc.) — matches tclsh slot order.
+                    self.lvt.intern(name);
                 }
-                self.emit_value_interpolated(&value);
+                if inline {
+                    self.emit_inline_cmd_subst(&value);
+                } else {
+                    self.emit_value_interpolated(&value);
+                }
                 self.store_var(name);
                 self.emit(Op::POP, vec![]);
                 true
@@ -442,6 +452,28 @@ impl CodegenCtx<'_> {
         }
         // Default: push as literal
         self.push_lit(value);
+    }
+
+    /// Whether a `set x VALUE` value should inline-compile its command
+    /// substitution (`set x [cmd arg …]`) instead of pushing the raw `[…]` text
+    /// and leaning on the runtime `subst_word` fallback. Mirrors the oracle's
+    /// `IRAssignValue` arm: a balanced `[…]` with inner whitespace (a bare
+    /// `[foo]` with no args stays a literal), no `{*}` expansion, and excluding
+    /// the commands the constant-fold / special branches in
+    /// [`Self::emit_value_interpolated`] own (`list` / `dict create` / `set` /
+    /// `format`). Only used in the assignment value position — command arguments
+    /// keep the literal + `subst_word` path, which the inline command-parser
+    /// cannot match on escaped brackets.
+    fn assign_value_inlines_cmd_subst(value: &str) -> bool {
+        value.starts_with('[')
+            && value.ends_with(']')
+            && value.len() > 2
+            && value[1..value.len() - 1].contains(' ')
+            && !value.contains("{*}")
+            && !value.starts_with("[list ")
+            && !value.starts_with("[dict create ")
+            && !value.starts_with("[set ")
+            && !value.starts_with("[format ")
     }
 
     /// Push variable reference for store operations (name/key on stack).

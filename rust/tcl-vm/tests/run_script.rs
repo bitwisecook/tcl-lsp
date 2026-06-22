@@ -858,3 +858,42 @@ fn opcode_reverse_lindex_multi_str_replace() {
     );
     assert_eq!(r, "Z");
 }
+
+/// `set x [cmd …]` inline command-substitution assign (FE-CODEGEN re-land):
+/// the value is compiled inline (specialised opcode where available, else a
+/// generic invoke) rather than pushed as raw `[…]` text for the runtime
+/// `subst_word` fallback. Results verified against tclsh 9.0. The
+/// `array names … $pat*` case pins the composite-arg fix (`$pat*` must be
+/// substituted, not pushed literally) that unblocked real `tcltest.tcl`.
+#[test]
+fn set_inline_cmd_subst() {
+    assert_eq!(run("set x [string length hello]; puts $x").2, "5\n");
+    assert_eq!(
+        run("proc f {s} { set n [string toupper $s]; return $n }; puts [f abc]").2,
+        "ABC\n"
+    );
+    assert_eq!(run("set x [lindex {a b c} 1]; puts $x").2, "b\n");
+    assert_eq!(run("set x [llength {a b c d}]; puts $x").2, "4\n");
+    assert_eq!(run("set x [expr {2+3}]; puts $x").2, "5\n");
+    assert_eq!(run("set d [dict get {a 1 b 2} b]; puts $d").2, "2\n");
+    assert_eq!(
+        run("proc h {} { set c [catch {error boom} m]; return $c:$m }; puts [h]").2,
+        "1:boom\n"
+    );
+    // Composite arg (`$pat*`) must substitute then append the glob, not push
+    // the literal `$pat*` — the bug that broke tcltest's MatchingOption.
+    assert_eq!(
+        run("array set A {xa 1 xb 2 yc 3}\nset m [lsort [array names A x*]]; puts $m").2,
+        "xa xb\n"
+    );
+    assert_eq!(
+        run("array set A {xa 1 xb 2 yc 3}\nset p x\nset m [lsort [array names A $p*]]; puts $m").2,
+        "xa xb\n"
+    );
+    // Excluded forms still fold / behave as before.
+    assert_eq!(run("set l [list a b c]; puts $l").2, "a b c\n");
+    assert_eq!(
+        run("set d [dict create k1 v1 k2 v2]; puts [dict get $d k2]").2,
+        "v2\n"
+    );
+}

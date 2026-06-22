@@ -268,6 +268,34 @@ impl CodegenCtx<'_> {
     /// nested substitutions, braced args with `$`/`[`, interpolated
     /// strings, backslash escapes, and plain literals.
     pub fn emit_cmd_subst_arg(&mut self, arg: &str, braced: bool) {
+        // A composite unbraced arg with an embedded substitution (`$opt*`,
+        // `x$y`, `${a}b`, `pre[cmd]post`) decomposes into more than one part:
+        // build the string by concatenating the substituted parts rather than
+        // pushing the raw text as a literal (which would leave `$opt*` /
+        // `pre[cmd]` un-substituted). A pure `$var` / `${var}` / `$arr(i)` /
+        // `[cmd]` is a single part and falls through to the fast paths below.
+        if !braced
+            && (arg.contains('$') || arg.contains('['))
+            && let Some(parts) = parse_subst_template(arg)
+            && parts.len() > 1
+        {
+            for part in &parts {
+                match part {
+                    SubstPart::Lit(text) => self.push_lit(text),
+                    SubstPart::Cmd(cmd) => self.emit_inline_cmd_subst(cmd),
+                    SubstPart::Scalar(name) => {
+                        self.push_lit(name);
+                        self.emit(Op::LOAD_STK, vec![]);
+                    }
+                    SubstPart::Var(name) => self.load_var(name),
+                }
+            }
+            self.emit(
+                Op::STR_CONCAT1,
+                vec![Operand::Imm(bytecode_imm(parts.len()))],
+            );
+            return;
+        }
         if !braced && arg.starts_with('$') {
             // Braced scalar marker: $={name} → push + loadStk
             if let Some(name) = parse_braced_scalar_ref(arg) {
