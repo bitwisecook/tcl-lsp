@@ -11353,6 +11353,57 @@ Seven unit tests cover the validator lifts, disabled-code filtering,
 `is_apl_source` detection, the inclusive→exclusive end conversion, and the
 end-to-end `full_diagnostics_for` BIG-IP route.
 
+### FE-DIAG-F5 XC translator — `f5-xc` crate (landed 2026-06-22)
+
+The fourth F5 dialect diagnostic family, **XC100-301** (BIG-IP iRule → F5
+Distributed Cloud translatability), was the last open FE-DIAG-F5 item — it
+was deferred because the XC diagnostics are a thin wrapper over a distinct,
+large subsystem: the `translate_irule` IR-walker (`translator.py` ~1.2 K LOC),
+the 13-type `xc_model`, and the command/event `mapping`. That subsystem is now
+ported to the new **`f5-xc`** crate, a faithful structural port of
+`dialects/f5/xc`:
+
+- **`model`** — the 13 XC dataclasses (`XCRoute`, `XCServicePolicy{,Rule}`,
+  `XCWafExclusionRule`, the six match criteria, the four actions,
+  `TranslationItem`, `XCTranslationResult`) with source ranges carried as the
+  IR-native byte `Span`.
+- **`mapping`** — the `COMMAND_XC_MAP` / `HEADER_SUBCOMMAND_MAP` /
+  `TRANSLATABLE`/`UNTRANSLATABLE`/`ADVISORY` event tables and the
+  `UNTRANSLATABLE_PREFIXES` set, as `match`-based lookups.
+- **`translator`** — `translate_irule` lowers via
+  `lower_to_ir_with_config(.., LexerConfig::for_dialect("f5-irules"))` (so the
+  iRules expr operators `starts_with` / `ends_with` / `contains` /
+  `matches_glob` parse as `BinOp`s) and walks the `Module`: `when EVENT`
+  handlers (the `::when::EVENT` procedures) are classified, and each statement
+  is mapped to XC routes / service-policy rules / header actions / origin pools
+  / WAF exclusions, threading enclosing `if`/`switch` match criteria. Because
+  the Rust lowering parses structured-command conditions dialect-agnostically
+  (`parse_expr(arg, None)`), a `Raw` condition fallback is re-parsed under
+  `f5-irules` (`normalize_condition`) to recover the operator structure Python
+  gets from its `configure_signatures(dialect="f5-irules")` contextvar. The
+  registry-driven translatability gates are new `tcl-registry` helpers,
+  `CommandRegistry::is_xc_never_translatable` / `is_xc_translatable_override`
+  (any spec with `xc_translatable == Some(false)` / `Some(true)`), mirroring
+  the Python `command_registry.py` methods.
+- **`diagnostics`** — `get_xc_diagnostics` resolves each item's byte span to
+  LSP line/UTF-16 positions and emits the XC-series codes with the prefix
+  severity map (`XC1xx` Hint, `XC2xx`/`XC3xx` Info).
+
+Verification: a 38-case differential parity harness (`f5-xc/tests/parity.rs`
+against a fixture generated from the Python oracle by `f5-xc/tests/gen_fixture.py`)
+asserts the per-item codes, status counts, coverage %, construct counts,
+origin-pool names, **and** the lifted diagnostic codes + messages match
+byte-for-byte across pools, switch path/host/method/dynamic, `if` with
+path/host/method/header/cookie/query/IP criteria, OR/AND/negation, redirect,
+respond (deny vs route), header insert/replace/remove, `class match`,
+`ASM::{disable,enable}`, loops, `eval` barriers, untranslatable/advisory/
+unknown events, untranslatable prefixes, the `string tolower` getter wrapper,
+and nested switch-in-if. Plus 11 model-shape unit tests and a `tcl-registry`
+helper test. Residual (open in [`rust-rewrite.md`](rust-rewrite.md) →
+**FE-DIAG-F5**): the **opt-in** native-server consumer-wiring that surfaces
+`get_xc_diagnostics` through the diagnostics path, the analogue of Python
+`server/features/diagnostics.py`'s `xc_diagnostics_enabled` gate.
+
 ## TOOL-REFACTOR — refactoring transforms (landed 2026-06)
 
 The 5 remaining transforms (extract/inline variable, if↔switch, switch→dict,

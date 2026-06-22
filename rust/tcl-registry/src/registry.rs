@@ -563,6 +563,31 @@ impl CommandRegistry {
         has(name) || name.strip_prefix("::").is_some_and(has)
     }
 
+    /// Whether `name` is explicitly marked **never** translatable to F5
+    /// Distributed Cloud (XC) — any registered spec whose
+    /// [`CommandSpec::xc_translatable`](crate::CommandSpec) is
+    /// `Some(false)`. Mirrors Python
+    /// `CommandRegistry.is_xc_never_translatable`; consumed by the
+    /// `f5-xc` iRule→XC translator.
+    #[must_use]
+    pub fn is_xc_never_translatable(&self, name: &str) -> bool {
+        self.by_name
+            .get(name)
+            .is_some_and(|specs| specs.iter().any(|s| s.xc_translatable == Some(false)))
+    }
+
+    /// Whether `name` is explicitly marked translatable to XC despite an
+    /// otherwise-untranslatable namespace prefix — any registered spec
+    /// whose [`CommandSpec::xc_translatable`](crate::CommandSpec) is
+    /// `Some(true)`. Mirrors Python
+    /// `CommandRegistry.is_xc_translatable_override`.
+    #[must_use]
+    pub fn is_xc_translatable_override(&self, name: &str) -> bool {
+        self.by_name
+            .get(name)
+            .is_some_and(|specs| specs.iter().any(|s| s.xc_translatable == Some(true)))
+    }
+
     /// Whether `name` carries the [`Traits::NOT_PROC_FACTORY`] trait —
     /// a registered command head that incidentally matches the
     /// proc-factory token shape but is not a factory wrapper.  Like
@@ -1934,5 +1959,28 @@ mod tests {
             header_opts.contains(&"-noupdate"),
             "HTTP::header options {header_opts:?} should include -noupdate",
         );
+    }
+
+    #[test]
+    fn xc_translatability_helpers_read_spec_flags() {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_irules();
+
+        // `xc_translatable: Some(false)` → never translatable (consumed by the
+        // `f5-xc` translator's XC300 branch).
+        assert!(reg.is_xc_never_translatable("eval"));
+        assert!(!reg.is_xc_translatable_override("eval"));
+
+        // `xc_translatable: Some(true)` → translatable override despite an
+        // otherwise-untranslatable namespace prefix (e.g. `IP::`, `ASM::`).
+        assert!(reg.is_xc_translatable_override("IP::client_addr"));
+        assert!(!reg.is_xc_never_translatable("IP::client_addr"));
+
+        // Commands with no `xc_translatable` flag report neither.
+        assert!(!reg.is_xc_never_translatable("set"));
+        assert!(!reg.is_xc_translatable_override("set"));
+        // An unknown command name is safely neither.
+        assert!(!reg.is_xc_never_translatable("no_such_command_xyz"));
+        assert!(!reg.is_xc_translatable_override("no_such_command_xyz"));
     }
 }
