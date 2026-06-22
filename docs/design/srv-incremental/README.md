@@ -9,6 +9,10 @@
 > analyser firewall this track builds on is designed and largely shipped in
 > [`../rust/incremental-analysis.md`](../rust/incremental-analysis.md); this doc
 > owns what remains, and adds the cross-file dimension that doc does not cover.
+>
+> Claims here are tagged **measured** (a harness in this repo backs them) or
+> **hypothesis** (with the prerequisite experiment and dependencies that must
+> precede the work) — see the verification-status table after the task list.
 
 ## TL;DR — the decision
 
@@ -28,13 +32,15 @@ cost of the checks query — not the sum of the rows; full `tail_profile` dump b
 
 So:
 
-1. **The prize is per-procedure check incrementality.** The shipped salsa firewall
-   already makes the analyser *walk* and the per-proc *lattices* (CFG/SSA/SCCP/
-   type/taint) incremental — but the *checks over those lattices*
+1. **The likely prize is per-procedure check incrementality.** The shipped salsa
+   firewall already makes the analyser *walk* and the per-proc *lattices* (CFG/SSA/
+   SCCP/type/taint) incremental — but the *checks over those lattices*
    (`run_all_checks`, `optimise_unit`) re-run over the **whole unit** every edit,
-   and that is ~99% of warm per-edit latency. Making them per-proc (keyed on the
-   same offset-invariant lattice key the lattices already use) is the single
-   highest-leverage change.
+   and that is ~99% of warm per-edit latency (measured). Most checks are
+   per-function and key on the lattice key; the interproc-taint slice is whole-unit
+   and routes through the existing `taint_cascade` memo. The exact payoff is
+   **pending a `run_all_checks` cost-decomposition experiment** (Task 2) — it is the
+   highest-*leverage* target, not yet a proven win.
 2. **Cross-file analysis is not on the incremental graph at all.** The
    `WorkspaceIndex` is a plain server struct, `resolve_proc_call` is per-file,
    arity never crosses files, and editing file A recomputes **nothing** in file B.
@@ -153,11 +159,17 @@ The per-item analyser firewall is designed and largely shipped — full detail i
   (92.2% at the last `incremental-analysis.md` baseline); the rest falls back to a
   full walk on incomplete or `syntax_error` input.
 
-Two principles this track inherits and must not break:
+Three principles this track inherits and must not break:
 
-- **Correctness rests on the `incremental == fresh` differential fuzzer plus the
-  full-rebuild fallback — never on the assumption that an edit is local.**
-  Item-locality is a *performance* heuristic; the fuzzer is the permanent gate.
+- **Correctness must rest on `incremental == fresh` differential fuzzing plus the
+  full-rebuild fallback — never on the assumption that an edit is local** (item-
+  locality is a *performance* heuristic only). **The gate is narrower than it sounds
+  today:** the fuzzer that exists (`differential_incremental.rs`) compares only the
+  analyser walk's `AnalysisResult.diagnostics`, and only on the *test-only*
+  `analyse_incremental` path — **not** the compiler-check diagnostics, **not** the
+  live salsa path, **not** multi-file. So for every new surface below the fuzzer is
+  a *dependency to build*, not a safety net that already covers it (see the
+  verification-status table after the task list).
 - **Offset-0 + rebase-at-aggregation** is the established pattern (Approach B):
   each unit is built at offset 0 and consumers add `base_offset` at span-emit
   time. New per-item work follows this model.
@@ -233,7 +245,8 @@ there is a correctness/coverage feature (cross-file diagnostics) to build
 reverse-dependency map onto an off-graph index.
 
 **The design — cross-file dependencies as salsa edges (the rust-analyzer model),
-bounded by Tcl's dynamic dispatch:**
+bounded by Tcl's dynamic dispatch.** This is a **sketch, not yet prototyped**; the
+open risks and the spike that must precede committing it are listed after the steps:
 
 1. **Lift the project signature table into salsa.** Add a project-level
    `project_signatures()` query (a def-index keyed by qualified name) that depends
@@ -286,18 +299,43 @@ bounded by Tcl's dynamic dispatch:**
    server) absorb edit bursts; a keystroke that does not alter a signature wakes
    nobody.
 
-7. **Correctness gate: a multi-file differential fuzzer.** Extend
+7. **Correctness gate (must be built): a multi-file differential fuzzer.** Extend
    `incremental == fresh` to *project* scope — a corpus of edit sequences that
    include cross-file signature changes, proc add/remove, and `source` /
    `package require` graph edits — asserting the incrementally-maintained project
-   diagnostics equal a from-scratch project rebuild. This is the permanent backstop,
-   mirroring the single-file fuzzer.
+   diagnostics equal a from-scratch project rebuild. **No such fuzzer exists today**
+   (the current one is single-file and analyser-only); building it is part of this
+   task, not a backstop it can lean on.
+
+**Open risks a spike must settle before this design is committed** (none resolved
+today):
+- **Cycles.** Cross-file dependency graphs are routinely cyclic (mutual `source`,
+  mutually-recursive cross-file calls). Salsa has **no cycle handling configured in
+  this codebase** (the only fixpoints are manual and intra-unit); an unhandled cycle
+  panics. The spike must choose and prove a policy (salsa fixed-point recovery, or
+  cutting the graph at file granularity).
+- **Heuristic edges vs. precise invalidation.** Tcl name resolution is best-effort,
+  so the salsa dependency edges are *heuristic* — a wrong edge can leave a stale
+  diagnostic that today's reanalyse-on-next-touch would not. "No-worse-than-today"
+  has to be *demonstrated* by the multi-file fuzzer, not assumed.
+- **Scaling.** `project_signatures` is O(project) to rebuild on any signature edit;
+  the per-symbol `signature(qname)` early-cutoff bounds *consumers*, but the table
+  build itself must be shown cheap on a large workspace.
+
+*Prerequisite experiment:* a throwaway two-file spike — `project_signatures` over
+two `SourceFile`s with an induced cross-file cycle — to settle the cycle policy and
+measure table-rebuild cost before Task 6 is designed for real. *Dependency:* the
+signature-firewall queries (`item_tree`/`item_sigs`/`file_decls`) must first be
+**wired into the live path** (built but unused today).
 
 ## The work to do — SRV-INCREMENTAL tasks
 
 Ordered so each ships independently green and the cheap, high-leverage wins land
-first. Every incremental path is gated by its differential fuzzer
-(`incremental == fresh`); item-locality is never a correctness assumption.
+first. A claim here is **measured** only where a harness in this repo backs it;
+everything else is a **hypothesis**, tagged with the *prerequisite experiment* that
+must validate it before the design is trusted and the *verification gate* (a
+differential fuzzer) that must exist to ship it. Most of those gates do **not**
+exist yet — the verification-status table follows the list.
 
 1. **Persisted incremental `LineIndex` on the `String` store** *(S, no rope, do
    first).* Hold the `LineIndex` beside `DocumentState.text`; patch it in place on
@@ -306,17 +344,30 @@ first. Every incremental path is gated by its differential fuzzer
    ~0 memory cost. *Gate:* patched index byte-identical to a rebuilt one over an
    edit-fuzz corpus.
 
-2. **Per-procedure `run_all_checks` / `optimise_unit` memo** *(L — the prize).*
-   Wrap the per-function check + optimiser output in a salsa query keyed on the
-   offset-invariant `FnLatticeKey` (mirroring `function_lattice` / `taint_cascade`),
-   so an unedited proc's checks are a cache hit and only the edited proc's checks
-   recompute. Split the interprocedural checks (interproc taint, iRules flow) behind
-   per-proc summary firewalls — the `taint_cascade` pattern, already proven. Attacks
-   the ~405 ms `run_all_checks` slice (~99% of the ~411 ms warm per-edit on
-   `linalg.tcl`). Consumers already take
-   `FunctionUnit` with `base_offset` (Approach B), so emit at offset 0 and rebase at
-   aggregation. *Gate:* incremental check/optimiser output identical to the
-   whole-unit pass over the corpus + edit-fuzzer.
+2. **Per-procedure `run_all_checks` / `optimise_unit` memo** *(L — the prize, but
+   payoff not yet quantified).* `run_all_checks` is **not** uniformly per-function
+   (verified by reading `compiler_checks.rs`): the SCCP-branch, GVN, and
+   shimmer/thunking/byte-array checks are per-function and read only the
+   `FunctionUnit`, so they key cleanly on `FnLatticeKey` like `function_lattice`;
+   **but** the taint family calls a **whole-unit** `solve_interprocedural_taints(cu, …)`
+   fixpoint (which *duplicates* work the existing `taint_cascade` query already
+   memoises), and the iRules flow checks (`find_unnormalised_getter_warnings`,
+   `find_unguarded_drop_warnings`) run over the **whole `cu`**. So the work is:
+   (a) split the per-function checks into a salsa query keyed on `FnLatticeKey`;
+   (b) route the taint warnings through the existing `taint_cascade` memo — they
+   depend on the interproc summary, so keying on `FnLatticeKey` alone would be
+   *unsound*; they need the `FnLatticeKey` + summary-key shape `taint_cascade`
+   already uses; (c) decide whether the whole-unit iRules module checks get their own
+   firewall or stay whole-file. Consumers already take `FunctionUnit` with
+   `base_offset` (Approach B), so emit at offset 0 and rebase at aggregation.
+   *Prerequisite experiment (do first):* instrument `run_all_checks` to attribute the
+   ~405 ms across per-function checks vs. the whole-unit taint solve vs. iRules module
+   checks. **The payoff is unquantified until this runs** — "~405 ms → one-proc cost"
+   only holds if the per-function part dominates. *Verification gate (must be built):*
+   a differential fuzzer comparing memoised `compiler_check_diagnostics` against a
+   fresh whole-unit `run_all_checks` under random edits, **on the salsa path** — this
+   does **not** exist today (the current fuzzer covers neither the checks nor the
+   salsa path).
 
 3. **Approach A — incremental per-item IR lowering / CFG** *(L).* Per
    [`../rust/incremental-analysis.md`](../rust/incremental-analysis.md): lower per
@@ -332,20 +383,27 @@ first. Every incremental path is gated by its differential fuzzer
    perf regression). Folds into Task 2's optimiser half.
 
 5. **Wire the structural-state index into the live re-lex path** *(M).* Bound
-   `did_change`'s re-lex / re-segment (and `item_tree`'s structure extraction) to
-   the dirty span via the already-built `reparse_window` / `script_is_complete` /
-   bracket-brace-paren indexes in `tcl-lexer` (test-only today; the server's own
-   comment flags this a documented follow-up). Modest absolute ms — re-lex is tens
-   of µs–ms — but it removes the whole-file segmentation floor and is the substrate
-   the rope (Task 7) needs to pay off.
+   `did_change`'s re-lex / re-segment (and the inline structure extraction) to the
+   dirty span via the already-built `reparse_window` / `script_is_complete` /
+   bracket-brace-paren indexes in `tcl-lexer` (unit-tested in isolation but with **no
+   production callers** today; the server's own comment flags this a documented
+   follow-up). Modest absolute ms — re-lex is tens of µs–ms — but it removes the
+   whole-file segmentation floor and is the substrate the rope (Task 7) needs.
+   *Verification gate (must be built):* a differential check that dirty-span re-lex /
+   re-segment is byte-identical to a full re-lex over the edit-fuzz corpus — the
+   primitives are tested standalone, the *wired* path is not.
 
-6. **Cross-file cascade** *(XL).* Lift the project signature table into salsa
-   (`project_signatures` over per-file `file_decls`); make cross-file resolution +
-   arity tracked queries; get reverse-dependency invalidation for free; apply the
-   E4/E8 input-setting discipline project-wide. Brings cross-file arity / W123 onto
-   the incremental graph with precise invalidation for the resolvable subset and a
-   conservative fallback for dynamic dispatch. *Gate:* the multi-file
-   `incremental == fresh` differential fuzzer.
+6. **Cross-file cascade** *(XL — design sketch, unprototyped).* Lift the project
+   signature table into salsa (`project_signatures` over per-file `file_decls`), make
+   cross-file resolution + arity tracked queries (reverse-dependency invalidation
+   then falls out of salsa), and apply the E4/E8 input-setting discipline
+   project-wide. Brings cross-file arity / W123 onto the incremental graph with
+   precise invalidation for the resolvable subset and a conservative fallback for
+   dynamic dispatch. *Prerequisite experiment:* the two-file cycle/scaling spike (see
+   the design section's open-risks block — cycles, heuristic-edge correctness, and
+   table-rebuild scaling are all unresolved). *Dependencies:* wire the
+   signature-firewall queries into the live path first; build the multi-file
+   `incremental == fresh` fuzzer (neither exists today).
 
 7. **(Optional, late) rope-backed store + chunk-addressable salsa input** *(XL,
    gated).* The demoted SRV-ROPE work — full sub-task breakdown and measurements in
@@ -369,6 +427,31 @@ the rope). 6 is the cross-file feature, built incremental-first. 7 (the rope) la
 only if its slice has grown measurable and the memory regression is contained —
 otherwise the `String` store is retained. The experiment is the gate, not an
 assumption.
+
+## Experiments & verification status
+
+What is **measured** (a harness in this repo backs it) versus what is **hypothesis**
+(needs the named experiment before the design is trusted):
+
+| Claim | Status | Backing / experiment needed |
+|---|---|---|
+| Warm per-edit ~411 ms; `run_all_checks` ~405 ms (~99%) | **measured** | `tail_profile` timing tier (`linalg.tcl`) |
+| One-proc edit rebuilds 1 `function_lattice`; all 81 functions re-checked | **measured** | `tail_profile` breadth tier + `check_diagnostics_rerun_whole_file_on_body_edit` test |
+| Rope apply ≈ 0.02% of per-edit; 1.4–1.9× memory on many small files | **measured** | `experiment/` + `experiment-pipeline/` harnesses |
+| `run_all_checks` = per-function checks + a whole-unit interproc taint solve + whole-unit iRules module checks | **measured** (code) | read of `compiler_checks.rs` |
+| Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |
+| Task 2 cuts ~405 ms to roughly one-proc cost | **hypothesis** | `run_all_checks` cost-decomposition experiment (Task 2 prereq) |
+| Task 2 memo is sound | **hypothesis** | check-diagnostics differential fuzzer on the salsa path — *does not exist* |
+| Task 6 cross-file cascade is correct, cycle-safe, bounded | **hypothesis** | two-file spike (cycles + scaling) + multi-file differential fuzzer — *neither exists* |
+
+Differential-fuzzer coverage **today**:
+
+| Surface | Edit-fuzzed `incremental == fresh`? |
+|---|---|
+| Analyser-walk diagnostics, test-only `analyse_incremental` path | ✅ `differential_incremental.rs` |
+| Live salsa `file_analysis_incremental` | ⚠️ corpus equality only (no random-edit fuzz) |
+| `compiler_check_diagnostics` (the checks) | ❌ none — **Task 2 must build it** |
+| Cross-file / multi-file | ❌ none — **Task 6 must build it** |
 
 ## Experiment (evidence)
 
