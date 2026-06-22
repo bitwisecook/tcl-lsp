@@ -76,7 +76,13 @@ fn translate_are(pat: &str) -> String {
     let mut i = 0;
     let mut in_class = false;
     // Does the char slice at `i` begin with the literal `lit`?
-    let at = |i: usize, lit: &str| chars[i..].iter().take(lit.chars().count()).copied().eq(lit.chars());
+    let at = |i: usize, lit: &str| {
+        chars[i..]
+            .iter()
+            .take(lit.chars().count())
+            .copied()
+            .eq(lit.chars())
+    };
     while i < chars.len() {
         let c = chars[i];
         if in_class {
@@ -207,6 +213,24 @@ impl RegexEngine for CrateEngine {
             .collect();
         Some(out)
     }
+}
+
+/// Compile `pattern` and report whether it matches anywhere in `subject` — the
+/// boolean core of the `INST_REGEXP` opcode (`[regexp $pat $str]` in value
+/// position). Mirrors C Tcl's `INST_REGEXP`, which compiles with
+/// `TCL_REG_ADVANCED` and reports the `Tcl_RegExpExecObj` result; `nocase` adds
+/// `TCL_REG_NOCASE`. Returns the compile-error message on a bad pattern.
+pub(crate) fn regexp_matches(pattern: &str, subject: &str, nocase: bool) -> Result<bool, String> {
+    let flags = RegexFlags {
+        nocase,
+        expanded: false,
+        linestop: false,
+        lineanchor: false,
+    };
+    let mut re = CrateEngine::compile(pattern.as_bytes(), flags)
+        .map_err(|e| String::from_utf8_lossy(&e).into_owned())?;
+    let cps: Vec<i32> = subject.chars().map(|c| c as i32).collect();
+    Ok(CrateEngine::exec(&mut re, &cps, 0, false).is_some())
 }
 
 fn cmd_regexp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {

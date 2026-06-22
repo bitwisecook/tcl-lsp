@@ -575,3 +575,30 @@ fn string_first_last() {
     assert_eq!(run("puts [string last bc abcbc]").2, "3\n");
     assert_eq!(run("puts [string first zz abc]").2, "-1\n");
 }
+
+/// The `STR_CLASS` / `NUMERIC_TYPE` / `REGEXP` value opcodes (emitted by the
+/// inline command-substitution path inside a value template). These three are
+/// the value opcodes the FE-CODEGEN `set x [cmd]` re-land depends on.
+#[test]
+fn inline_string_is_numeric_class_and_regexp() {
+    // `string is integer` / `double` go through NUMERIC_TYPE.
+    assert_eq!(run(r#"set y "[string is integer 42]""#).1, "1");
+    assert_eq!(run(r#"set y "[string is integer abc]""#).1, "0");
+    assert_eq!(run(r#"set y "[string is integer 3.5]""#).1, "0");
+    assert_eq!(run(r#"set y "[string is double 3.14]""#).1, "1");
+    assert_eq!(run(r#"set y "[string is double 42]""#).1, "1");
+    assert_eq!(run(r#"set y "[string is double xyz]""#).1, "0");
+
+    // Per-character classes go through STR_CLASS.
+    assert_eq!(run(r#"set y "[string is alpha abc]""#).1, "1");
+    assert_eq!(run(r#"set y "[string is alpha ab2]""#).1, "0");
+    assert_eq!(run(r#"set y "[string is digit 12345]""#).1, "1");
+    assert_eq!(run(r#"set y "[string is digit 12x45]""#).1, "0");
+    assert_eq!(run(r#"set y "[string is space {   }]""#).1, "1");
+    assert_eq!(run(r#"set y "[string is upper ABC]""#).1, "1");
+
+    // `regexp pat str` in value position goes through REGEXP.
+    assert_eq!(run(r#"set y "[regexp {^[0-9]+$} 12345]""#).1, "1");
+    assert_eq!(run(r#"set y "[regexp {^[0-9]+$} 12a45]""#).1, "0");
+    assert_eq!(run(r#"set y "[regexp {ab+c} xxabbbcyy]""#).1, "1");
+}
