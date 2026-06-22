@@ -94,7 +94,8 @@ fn for_loop_output() {
 /// loop into an infinite spin.
 #[test]
 fn while_command_subst_condition_reevaluates() {
-    let (ok, _r, out) = run("set x abc\nset n 0\nwhile {[string length $x]} { incr n\nset x \"\" }\nputs $n\n");
+    let (ok, _r, out) =
+        run("set x abc\nset n 0\nwhile {[string length $x]} { incr n\nset x \"\" }\nputs $n\n");
     assert!(ok);
     assert_eq!(out, "1\n");
 }
@@ -156,7 +157,8 @@ fn composite_array_index_in_proc_and_store() {
 /// the call site — before the loop variables existed — so the body errored.
 #[test]
 fn dict_for_body_command_subst_per_iteration() {
-    let (ok, _r, out) = run("dict for {k v} {aa 1 bb 2} { puts \"$k=$v len=[string length $k]\" }\n");
+    let (ok, _r, out) =
+        run("dict for {k v} {aa 1 bb 2} { puts \"$k=$v len=[string length $k]\" }\n");
     assert!(ok);
     assert_eq!(out, "aa=1 len=2\nbb=2 len=2\n");
 }
