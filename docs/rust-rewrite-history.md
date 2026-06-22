@@ -11431,10 +11431,32 @@ hang is a finding not a wedge), a campaign runner with stats (`campaign.rs`), an
 a findings registry (`findings.rs`: JSON + raw `.tcl`, dedup-by-seed,
 categorised, replayable). CLI verbs `run` / `replay` / `summary`. A 500-iteration
 campaign over the current VM is clean (498/500 match, 2 skipped, 0 findings — the
-loop/array fixes hold under fuzzing). Open residual in
-[`rust-rewrite.md`](rust-rewrite.md) → **TOOL-FUZZ**: broaden the generator
-grammar as the VM surface grows + add the WASM/Zig differential arm once
-**RT-WASM** lands.
+loop/array fixes hold under fuzzing).
+
+**Generator grammar broadened (2026-06-22, RT-VM-gated residual closed).** With
+RT-VM now implementing the surface, the generator (`generator.rs`) gained the
+productions the original port deferred: `proc` definitions (0–2 params, literal
+`return`) plus top-level `proc` *calls* that exercise the return value through
+the differential (procs tracked as `(name, arity)` so a call always matches a
+real definition; calls are top-level-only so a recursive body can't drive
+unbounded generated recursion); `namespace eval` over single-segment names
+(no `::` runs — namespace-name canonicalisation is a known RT-VM gap, kept out so
+a divergence stays a real miscompile); the `dict` ensemble (value ops
+`size`/`keys`/`values`/`exists`/`get` over a literal that always carries a `foo`
+key, plus the `set`/`append`/`incr`/`lappend`/`unset` mutators); `switch -- `
+with literal patterns + a `default` (exactly one arm fires, deterministic
+output); `catch` printing the caught return code; and `try`/`on error`/`finally`.
+All stay within the pure/bounded/balanced-delimiter invariants (a 600-script
+unit test asserts each new production is generated and a defined proc is called
+back). Validated by a 1.5 K-iteration `tclvm`-vs-`tclsh9.0` campaign:
+**1497/1500 match, 3 reference-timeout skips, 0 findings** — RT-VM handles the
+broadened surface byte-identically for the generated forms.
+
+Open residual in [`rust-rewrite.md`](rust-rewrite.md) → **TOOL-FUZZ**, now gated
+on **RT-WASM** rather than RT-VM: add the WASM/Zig backend as a third
+differential arm once the real WASM emitter (not the current eval-fallback,
+which does not execute) can run a script. The generator grammar continues to
+broaden opportunistically as further RT-VM surface (TclOO, coroutines) lands.
 
 ## TOOL-DEBUGGER — record-and-replay step debugger (`tcl-debugger`) (landed 2026-06)
 

@@ -905,9 +905,9 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Refactoring transforms | `tcl-lsp-core::code_actions` | ✅ | all 7 transforms ported (`tcl-lsp-core::refactor`), byte-parity vs the Python oracle → **TOOL-REFACTOR** |
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟢 | `wasm` view renders the eval-fallback emitter's WAT; rich per-instruction web-GUI shape (`to_explorer_json`) is a refinement → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
-| Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); broaden the generator grammar as the VM surface grows → **TOOL-FUZZ** |
+| Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); sole residual: WASM/Zig third differential arm, gated on the real RT-WASM emitter → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
-| iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions); framework Tcl embedded for self-contained consumers → **TOOL-IRULE-TEST** |
+| iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions; 14 integration tests green); framework Tcl embedded for self-contained consumers. RT-VM-gated work complete; only auto-broadening coverage remains → **TOOL-IRULE-TEST** |
 | PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🔴 | designed public surface; TEST-MIGRATE; PYTHON-RETIRE → **API-PYO3** |
 | `ai/` (MCP + skills) | — | n/a | stays Python by design |
 
@@ -955,10 +955,13 @@ task:
   `return` for/break wrapping, plus dead-proc elimination. **Cross-track
   dependency (handoff):** the inliner's only consumer is the WASM codegen
   (`compiler/codegen/wasm/api.py`), so execution-differential verification of
-  the capture-sensitive value-string rewriter is gated on **RT-WASM** (🔴
-  unported) — v3 must land alongside that consumer rather than as
-  IR-shape-only unit tests (the repo's differential-test standard cannot be
-  met otherwise). *(large)*
+  the capture-sensitive value-string rewriter is gated on **RT-WASM** — and as
+  of 2026-06-22 RT-WASM is still the **eval-fallback** tier (every leaf command
+  boxed as a `tcl_eval` string; it emits/validates WASM but does not yet
+  *execute* real instructions), so the execution-differential standard for the
+  value-string rewriter still cannot be met. v3 must land alongside the real
+  WASM emitter rather than as IR-shape-only unit tests (the repo's
+  differential-test standard cannot be met otherwise). *(large)*
 - **open** *(non-correctness nuances, optional)* the O110 regex/glob →
   string-op rewrites (gated on the iRules `MatchesGlob`/`MatchesRegex` expr
   operators) and threading richer execution-trace facts deeper into the
@@ -1179,16 +1182,28 @@ subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
 
 - **TOOL-EXPLORER** 🟢 *(depends on RT-WASM)* — the TUI `wasm` view renders flat
   WAT; the rich per-instruction web-GUI shape (`to_explorer_json` — resolved
-  call targets, paired branch targets, lane-assigned edges) is not ported and
-  lands with the broader **RT-WASM** emitter work. The Pyodide web server stays
-  Python. *(S)*
-- **TOOL-FUZZ** 🟢 *(depends on RT-VM)* — broaden the seeded generator grammar
-  (procs, namespaces, dict, `catch`/`try`, switch) as the VM command surface
-  fills in, and add the WASM/Zig backend as a third differential arm once
-  **RT-WASM** lands. *(M)*
+  call targets, paired branch targets, lane-assigned edges) is not ported. It is
+  gated on the **real** WASM emitter, not the current eval-fallback tier: with
+  every leaf command boxed as a `tcl_eval` string the per-instruction richness
+  (resolved call targets, paired branch edges) does not yet exist to serialise,
+  so this lands with the broader **RT-WASM** emitter work. The Pyodide web
+  server stays Python. *(S)*
+- **TOOL-FUZZ** 🟢 *(depends on RT-VM)* — the RT-VM-gated generator broadening
+  has **landed** (2026-06-22): the seeded generator now emits `proc`
+  definitions + calls, `namespace eval`, the `dict` ensemble (value ops +
+  mutators), `switch`, `catch`, and `try`/`on error`/`finally`, all over the
+  surface RT-VM implements (validated by a 1.5 K-iteration `tclvm`-vs-`tclsh9.0`
+  campaign at 0 findings — detail in the
+  [history archive](rust-rewrite-history.md)). Sole residual, **gated on
+  RT-WASM**: add the WASM/Zig backend as a third differential arm once the real
+  WASM emitter (not the current eval-fallback) can execute. *(M)*
 - **TOOL-IRULE-TEST** 🟢 *(depends on RT-VM + `tcl-registry`)* — the orchestrator
-  runs live on `tcl-vm`; broaden coverage as the VM surface grows. Note
-  `tcl-irules` is the BIG-IP reference-extractor, **not** this. *(XL)*
+  runs **live** on `tcl-vm` (`LiveSession`: load iRule, fire events, read
+  pool/logs/decisions; 14 integration tests incl. live routing/reject all
+  green), so the RT-VM-gated work is **complete**. The only remaining motion is
+  coverage that broadens automatically as the VM command surface grows — not a
+  discrete task. Note `tcl-irules` is the BIG-IP reference-extractor, **not**
+  this. *(XL)*
 
 **TOOL-TCLPKG**, **TOOL-REFACTOR**, **TOOL-F5**, **TOOL-DEBUGGER**, and
 **TOOL-CLI** are ✅ complete (their landing logs are in the

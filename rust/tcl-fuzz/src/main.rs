@@ -20,8 +20,8 @@ use clap::{Parser, Subcommand};
 
 use campaign::{Campaign, Stats};
 use findings::Registry;
-use generator::{generate, GenConfig};
-use harness::{compare, run_backend, write_script, Outcome};
+use generator::{GenConfig, generate};
+use harness::{Outcome, compare, run_backend, write_script};
 
 /// Differential fuzzer for the native Tcl bytecode VM.
 #[derive(Parser)]
@@ -74,7 +74,11 @@ fn main() -> std::process::ExitCode {
     let config = GenConfig::default();
 
     match &cli.command {
-        Cmd::Run { iterations, seed, verbose } => {
+        Cmd::Run {
+            iterations,
+            seed,
+            verbose,
+        } => {
             let Some(tclvm) = resolve_tclvm(cli.tclvm.as_deref()) else {
                 eprintln!("error: could not find `tclvm` (pass --tclvm <path>)");
                 return std::process::ExitCode::from(2);
@@ -131,31 +135,32 @@ fn main() -> std::process::ExitCode {
             if let Ok(registry) = Registry::open(&cli.findings)
                 && let Some(prior) = registry.load(*seed)
             {
-                eprintln!("note: seed {seed} is a recorded finding ({:?})", prior.category);
+                eprintln!(
+                    "note: seed {seed} is a recorded finding ({:?})",
+                    prior.category
+                );
             }
             replay(*seed, &config, &tclvm, &tclsh, timeout);
             std::process::ExitCode::SUCCESS
         }
-        Cmd::Summary => {
-            match Registry::open(&cli.findings) {
-                Ok(registry) => {
-                    let summary = registry.summary();
-                    if summary.is_empty() {
-                        println!("no findings in {}", cli.findings.display());
-                    } else {
-                        println!("findings in {}:", cli.findings.display());
-                        for (cat, n) in summary {
-                            println!("  {cat:?}: {n}");
-                        }
+        Cmd::Summary => match Registry::open(&cli.findings) {
+            Ok(registry) => {
+                let summary = registry.summary();
+                if summary.is_empty() {
+                    println!("no findings in {}", cli.findings.display());
+                } else {
+                    println!("findings in {}:", cli.findings.display());
+                    for (cat, n) in summary {
+                        println!("  {cat:?}: {n}");
                     }
-                    std::process::ExitCode::SUCCESS
                 }
-                Err(e) => {
-                    eprintln!("error: {e}");
-                    std::process::ExitCode::from(2)
-                }
+                std::process::ExitCode::SUCCESS
             }
-        }
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::ExitCode::from(2)
+            }
+        },
     }
 }
 
