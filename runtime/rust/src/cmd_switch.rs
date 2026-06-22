@@ -429,7 +429,6 @@ mod tests {
         });
     }
 
-    #[cfg(have_regex)]
     #[test]
     fn switch_regexp_and_matchvars() {
         leak_free(|i| {

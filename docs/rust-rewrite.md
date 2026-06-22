@@ -891,23 +891,24 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SCCP / intervals / memory-SSA | `tcl-compiler` | ✅ | escaping-var widening, optimistic deferral, static-loop folding, W233 interval path, `complexity_guard` all landed — **FE-DATAFLOW** complete (see [history](rust-rewrite-history.md)) |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) ported (`tcl-compiler::shimmer::byte_array` + `tcl-registry` `BytePayloadSpec`) — **FE-TYPESHIM** complete |
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
-| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | every O-code pass + the inliner v0/verbatim shapes landed (see [history](rust-rewrite-history.md)); sole remaining: inliner **v3** (α-rename, gated on the RT-WASM consumer for execution-differential verification) → **FE-OPT** |
+| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | ✅ | every O-code pass + the **full inliner** (v0/verbatim **and** v3 α-rename + parameter binding + return-as-break wrap, `tcl-compiler::inlining{,::rename}`) landed (see [history](rust-rewrite-history.md)). Out of scope: v3's execution-differential verification is owned by its consumer (**RT-WASM**); the optional non-correctness O110 rewrites are gated on the iRules `MatchesGlob`/`MatchesRegex` expr operators → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` + the `set x [cmd]` inline re-land landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: bare-statement `string`/`regexp`/`lindex`/`lreplace` (value-discarded) → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
-| F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, new `tcl-xc` | 🟢 | TK1001-3 + BIGIP6001-11 + IAPP7001-3 ported (TK live in the analyser); residuals: XC100-301 (gated on a `tcl-xc` translator port of `lower_to_ir`-walking `translator.py`, Python-only meanwhile) + BIG-IP/iApp native-server consumer-wiring (SRV-LSP-style) → **FE-DIAG-F5** |
+| F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, `f5-xc` | ✅ | all four families ported & consumer-wired: TK1001-3 (analyser), BIGIP6001-11 + IAPP7001-3 (routed into the native server via `f5_dialect_diagnostics`, push+pull), and XC100-301 (new **`f5-xc`** crate — `translate_irule` IR-walker + `get_xc_diagnostics`, parity-tested vs the Python oracle; opt-in `xcDiagnostics` toggle wired into the `f5-irules` diagnostics path) — see [history](rust-rewrite-history.md) → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🟡 | eval-fallback emitter + `tcl compwasm` wiring landed (binary/WAT, `wasmtime`-validated); residual: `IRInterpBoundary`; codegen DCE/GVN; `--link` (Binaryen) bundling → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after. `tclvm` CLI/REPL binary landed (`tcl-vm-cli`) → **RT-VM** |
+| Regex engine (ARE) | `tcl-regex` | ✅ | pure-Rust port of Tcl 9's Henry-Spencer ARE engine (no C FFI, no `unsafe`). Passes `reg.test` 544/544 + the `regexp.test` command corpus (engine-relevant cases) as Rust cargo tests vs the real engine. Drives **both** runtimes via the `cmd-core` `RegexEngine` provider — the VM (replacing the `regex` crate) and `runtime/rust` (replacing the C Henry-Spencer engine: `build.rs`/FFI/`regex_shim` removed, so `regexp` now works on wasm32 too). C consumers link the `runtime/rust` C-ABI shim (`regex_capi`, `TclReComp`/`TclReExec`/…). Residual: cmd-plumbing `-about`/`regsub -command`/`-start`-validation gaps live in `tcl-cmd-core`. See [rust-regex-port.md](design/runtime/rust-regex-port.md) |
 | LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The document-store / per-edit-incrementality work is its own **SRV-INCREMENTAL** track (the rope was measured and demoted; design in [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | Document store / incrementality | `tcl-lsp-db`, `tcl-compiler`, `tcl-lsp-server`, `tcl-lexer` | 🔴 | per-proc `run_all_checks`/`optimise_unit` memo + IR-lowering floor (Approach A/B) + cross-file cascade + (optional) rope store → **SRV-INCREMENTAL** (see [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | ✅ | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
 | Refactoring transforms | `tcl-lsp-core::code_actions` | ✅ | all 7 transforms ported (`tcl-lsp-core::refactor`), byte-parity vs the Python oracle → **TOOL-REFACTOR** |
-| Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟢 | `wasm` view renders the eval-fallback emitter's WAT; rich per-instruction web-GUI shape (`to_explorer_json`) is a refinement → **TOOL-EXPLORER** |
+| Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟢 | `wasm` view renders the eval-fallback emitter's WAT; rich per-instruction web-GUI shape (`to_explorer_json`) ported (`tcl_explorer::wasm_explorer`: resolved call/branch targets, block-pairing, ranges) — densifies automatically as RT-WASM emits real instructions → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | `tcl-pkg` | ✅ | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) + wired `pkg`/`venv`/`docker` CLI → **TOOL-TCLPKG** |
-| Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); broaden the generator grammar as the VM surface grows → **TOOL-FUZZ** |
+| Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); WASM-runnability arm landed (`wasm-check`: compile→`wasmtime`, 600-program campaign clean); WASM **value**-differential arm landed (`wasm-diff`: in-process wasmtime with a `tcl-vm`-backed eval-fallback host, fuel-bounded `WasmHang` detection — verifies control-flow codegen, already caught a non-terminating-loop bug the runnability arm can't); residual: re-back that arm with the **real linked Zig runtime** for a full value differential, gated on **RT-WASM** → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
-| iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions); framework Tcl embedded for self-contained consumers → **TOOL-IRULE-TEST** |
+| iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions; 14 integration tests green); framework Tcl embedded for self-contained consumers. RT-VM-gated work complete; only auto-broadening coverage remains → **TOOL-IRULE-TEST** |
 | PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🔴 | designed public surface; TEST-MIGRATE; PYTHON-RETIRE → **API-PYO3** |
 | `ai/` (MCP + skills) | — | n/a | stays Python by design |
 
@@ -918,10 +919,10 @@ listed residuals · 🟡 partial · 🔴 not started.
 | FE | **FE-DATAFLOW** ✅ | `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}` | — | M |
 | FE | **FE-TYPESHIM** ✅ | `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}` | — | M |
 | FE | **FE-VARESCAPE** ✅ | `tcl-compiler::var_escape` | — | M |
-| FE | **FE-OPT** 🟢 | `tcl-compiler::optimiser`, `inlining` | — | L |
+| FE | **FE-OPT** ✅ | `tcl-compiler::optimiser`, `inlining` | — | L |
 | FE | **FE-CODEGEN** 🟢 | `tcl-compiler::codegen` (non-wasm) | — | M |
 | FE | **FE-DIAG** ✅ | `tcl-compiler::analyser`, `irules_checks` | — | M |
-| FE | **FE-DIAG-F5** 🟢 | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}` slices, tk; XC residual → `tcl-xc` | `tcl-bigip` | L |
+| FE | **FE-DIAG-F5** ✅ | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, `f5-xc` (all four families ported + consumer-wired) | `tcl-bigip`, `f5-xc` | L |
 | RT | **RT-WASM** 🟡 | `tcl-compiler::codegen::wasm`, `runtime/zig`, `tcl-wasm` bin | FE-CODEGEN | L |
 | RT | **RT-VM** 🟡 | `tcl-vm`, `tcl-vm-cli` (`tclvm` bin) | `tcl-bytecode` | L |
 | SRV | **SRV-LSP** ✅ | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
@@ -943,26 +944,6 @@ listed residuals · 🟡 partial · 🔴 not started.
 The front-end crates are largely ported; what remains is precision and
 soundness. These tracks own **disjoint modules** within `tcl-compiler`, so they
 parallelise cleanly.
-
-#### FE-OPT — optimiser passes
-Owns `tcl-compiler::optimiser`, `tcl-compiler::inlining`. **Every O-code
-optimiser pass is complete**, as are the **inliner v0 + verbatim** shapes
-(2026-06-19; archived in [history](rust-rewrite-history.md)). The sole remaining
-task:
-- **open** general proc inliner **v3 (parameterised)** — α-renaming via
-  `_rename.py` over value strings / expr ASTs / defs-reads / foreach-catch
-  bindings, variadic packing, parameter defaults, trailing-vs-non-trailing
-  `return` for/break wrapping, plus dead-proc elimination. **Cross-track
-  dependency (handoff):** the inliner's only consumer is the WASM codegen
-  (`compiler/codegen/wasm/api.py`), so execution-differential verification of
-  the capture-sensitive value-string rewriter is gated on **RT-WASM** (🔴
-  unported) — v3 must land alongside that consumer rather than as
-  IR-shape-only unit tests (the repo's differential-test standard cannot be
-  met otherwise). *(large)*
-- **open** *(non-correctness nuances, optional)* the O110 regex/glob →
-  string-op rewrites (gated on the iRules `MatchesGlob`/`MatchesRegex` expr
-  operators) and threading richer execution-trace facts deeper into the
-  GVN/LICM family — precision niceties, never miscompiles.
 
 #### FE-CODEGEN — bytecode codegen
 Owns `tcl-compiler::codegen` (non-wasm). The state-mutating statement-position
@@ -1005,31 +986,41 @@ were implemented in `tcl-vm` so the codegen runs end-to-end. Remaining:
   **WASM-emitter** concern — belongs to **RT-WASM**.)
 
 #### FE-DIAG-F5 — F5 dialect diagnostics
-Owns new analyser slices on `tcl-bigip` / `tcl-xc` and the tk dialect. The
+Owns new analyser slices on `tcl-bigip` / `f5-xc` and the tk dialect. The
 per-family port decision (the track's explicit "decide Python-only vs Rust
-port per family") is made: **TK1001-1003**, **BIGIP6001-6011**, and
-**IAPP7001-7003** are landed (detail in the
-[history archive](rust-rewrite-history.md) → *FE-DIAG-F5*); the fourth family is
-gated on a separate subsystem port and stays Python-only until it lands.
-- **open (deferred, Python-only)** **XC100-301** (BIG-IP→F5-XC translator)
-  — the XC-series diagnostics are a thin wrapper over `translate_irule`
-  (`dialects/f5/xc/diagnostics.py`), but that translator (`translator.py`
-  ~1.2 K LOC + the 13-type `xc_model` + `mapping`) walks the **IR produced
-  by `lower_to_ir`** and is a distinct, large subsystem in its own right.
-  Porting it is a separate effort (akin to how **FE-OPT** v3 is gated on
-  **RT-WASM**); until a `tcl-xc` translator port lands, XC100-301 stays the
-  Python emitter. Handoff: a future `tcl-xc` crate owns this — re-home the
-  XC diagnostic wrapper there once the translator exists.
+per family") is made: **TK1001-1003**, **BIGIP6001-6011**,
+**IAPP7001-7003**, and **XC100-301** are all landed (detail in the
+[history archive](rust-rewrite-history.md) → *FE-DIAG-F5*).
+- **landed** **XC100-301** (BIG-IP→F5-XC translator) — the gating subsystem
+  (the `translator.py` ~1.2 K LOC IR-walker + the 13-type `xc_model` +
+  `mapping`) is ported to the new **`f5-xc`** crate
+  (`f5_xc::{translator,model,mapping,diagnostics}`): `translate_irule` walks
+  the IR from `lower_to_ir_with_config(.., "f5-irules")` and
+  `get_xc_diagnostics` emits the XC100-301 hints. The IR-walk, condition
+  decomposition, and XC-construct extraction are verified byte-for-byte
+  against the Python oracle by a 38-case differential parity harness
+  (`f5-xc/tests/parity.rs` ⇐ `f5-xc/tests/gen_fixture.py`). The registry-driven
+  translatability gates (`is_xc_never_translatable` /
+  `is_xc_translatable_override`) landed on `tcl-registry`. The **opt-in**
+  native-server consumer-wiring also landed: `get_xc_diagnostics` is surfaced
+  through both the push and pull diagnostics paths for `f5-irules` documents
+  under the default-off `xcDiagnostics` feature toggle (`lift_xc_diagnostics`,
+  filtered by disabled codes + `# noqa` / file suppression), the analogue of
+  Python `server/features/diagnostics.py`'s `xc_diagnostics_enabled` gate.
 
 Consumer wiring: TK1001-1003 run inside the analyser, so they already
 surface through the native server's diagnostics path (the
-`TCL_LSP_DIAG_BACKEND=rust` bridge). The BIG-IP and iApp checks are
-model-level validators (`validate_bigip_source` /
-`validate_iapp_{presentation,implementation}`) exposed as `tcl-bigip` crate
-APIs; routing them into the native server for BIG-IP-config / APL documents
-(the analogue of `server/features/diagnostics.py`’s file-type dispatch) is a
-**SRV-LSP**-style consumer-wiring residual, mirroring the per-check toggle /
-flow-warning code-action residuals **FE-DIAG** handed to **SRV-LSP**.
+`TCL_LSP_DIAG_BACKEND=rust` bridge). The BIG-IP and iApp model-level
+validators (`validate_bigip_source` /
+`validate_iapp_{presentation,implementation}`) are **now routed into the
+native server** (`tcl-lsp-server`'s `f5_dialect_diagnostics` file-type
+dispatch — landed, see [history](rust-rewrite-history.md) → *FE-DIAG-F5*):
+a BIG-IP-config document publishes `BIGIP6001-6011` and an iApp APL
+presentation publishes `IAPP7001-7003` (with sibling-implementation
+cross-checking) on both the push and pull diagnostics paths, the analogue
+of `server/diagnostics_pipeline.py`'s `_publish_bigip_diagnostics` /
+`_publish_apl_diagnostics` dispatch. The sole remaining residual is the
+deferred, gated `tcl-xc` translator below.
 
 ### Stage 2 — Runtime & execution (RT-*)
 
@@ -1183,18 +1174,40 @@ stage has landed** — the landing logs are in the
 [history archive](rust-rewrite-history.md) and the tracks survive in the
 subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
 
-- **TOOL-EXPLORER** 🟢 *(depends on RT-WASM)* — the TUI `wasm` view renders flat
-  WAT; the rich per-instruction web-GUI shape (`to_explorer_json` — resolved
-  call targets, paired branch targets, lane-assigned edges) is not ported and
-  lands with the broader **RT-WASM** emitter work. The Pyodide web server stays
-  Python. *(S)*
-- **TOOL-FUZZ** 🟢 *(depends on RT-VM)* — broaden the seeded generator grammar
-  (procs, namespaces, dict, `catch`/`try`, switch) as the VM command surface
-  fills in, and add the WASM/Zig backend as a third differential arm once
-  **RT-WASM** lands. *(M)*
+- **TOOL-EXPLORER** 🟢 *(depends on RT-WASM)* — the rich per-instruction web-GUI
+  shape (`to_explorer_json`) has **landed** (2026-06-22):
+  `tcl_explorer::wasm_explorer` ports the Python serialiser over the Rust WASM
+  IR — resolved `call` target labels (imports + internal functions), `br`/`br_if`
+  targets resolved against the enclosing structured construct, block-pairing
+  indices (`openIdx`/`elseIdx`/`endIdx`) for edge layout, per-instruction
+  source ranges, and indent. It is wired into `serialise_wasm` alongside the
+  WAT text the TUI renders. The graph is *sparse* under the current
+  eval-fallback tier (most leaf commands are a single `call` to the imported
+  `tcl_eval`) and densifies automatically as the real **RT-WASM** emitter emits
+  more instructions — no further explorer work is required for that. The Pyodide
+  web server stays Python. *(S)*
+- **TOOL-FUZZ** 🟢 *(depends on RT-VM)* — the RT-VM-gated generator broadening
+  has **landed** (2026-06-22): the seeded generator now emits `proc`
+  definitions + calls, `namespace eval`, the `dict` ensemble (value ops +
+  mutators), `switch`, `catch`, and `try`/`on error`/`finally`, all over the
+  surface RT-VM implements (validated by a 1.5 K-iteration `tclvm`-vs-`tclsh9.0`
+  campaign at 0 findings — detail in the
+  [history archive](rust-rewrite-history.md)). The **WASM-runnability arm** of
+  the third backend has also **landed** (2026-06-22): the `wasm-check`
+  subcommand compiles each generated program to the eval-fallback WASM module
+  and runs it under `wasmtime` (with the proven `tcl_*` host stub), flagging
+  codegen panics and modules that fail to instantiate or trap — a 600-program
+  campaign is clean. Residual, **gated on RT-WASM**: upgrade that arm from
+  *runnability* to a *value* differential against `tclsh`, which needs the
+  interpreter-backed host (the eval-fallback `tcl_eval` stub doesn't evaluate
+  Tcl); the arm swaps the stub for the real host in place when it lands. *(M)*
 - **TOOL-IRULE-TEST** 🟢 *(depends on RT-VM + `tcl-registry`)* — the orchestrator
-  runs live on `tcl-vm`; broaden coverage as the VM surface grows. Note
-  `tcl-irules` is the BIG-IP reference-extractor, **not** this. *(XL)*
+  runs **live** on `tcl-vm` (`LiveSession`: load iRule, fire events, read
+  pool/logs/decisions; 14 integration tests incl. live routing/reject all
+  green), so the RT-VM-gated work is **complete**. The only remaining motion is
+  coverage that broadens automatically as the VM command surface grows — not a
+  discrete task. Note `tcl-irules` is the BIG-IP reference-extractor, **not**
+  this. *(XL)*
 
 **TOOL-TCLPKG**, **TOOL-REFACTOR**, **TOOL-F5**, **TOOL-DEBUGGER**, and
 **TOOL-CLI** are ✅ complete (their landing logs are in the

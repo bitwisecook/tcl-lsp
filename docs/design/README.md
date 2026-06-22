@@ -179,9 +179,17 @@ chunk-by-chunk dispatch story lives in
   deep parity audit of the Rust rewrite's lexer, CST, IR/lowering, CFG/SSA,
   analyses, optimiser, and bytecode codegen against the Python source of
   truth, with a per-code coverage table and a prioritised gap register.
+- [rust/wasm-aot-path.md](rust/wasm-aot-path.md) — proposed RT-WASM path
+  forward: native WASM + AOT with real Tcl frames, grounded in the Python+Zig
+  stack on `main` (reuse the 83 K-line Zig runtime as-is, port only the ~20 K
+  emitter against its ~100-fn ABI), staged A–F with an honest difficulty
+  register (ABI drift, frame-elision soundness, refcount discipline).
 - [runtime/rust-runtime-port.md](runtime/rust-runtime-port.md) —
   productionising the C-Tcl-extension-to-WASM port on the Rust runtime:
   status, bootstrapping plan, and the end-to-end build mechanism.
+- [runtime/rust-regex-port.md](runtime/rust-regex-port.md) — the
+  `tcl-regex` crate: a pure-Rust port of Tcl 9's Henry-Spencer ARE engine,
+  its architecture, and the `reg.test` corpus that validates it.
 - [rust/incremental-analysis.md](rust/incremental-analysis.md) —
   per-item walk with cascade invalidation: the incremental analysis design.
 - [rust/incremental-analysis-experiments.md](rust/incremental-analysis-experiments.md)
@@ -231,6 +239,9 @@ gates.
   — S6 allocation + small-value representation (free-lists,
   inline strings, dict hash side-cache, tagged immediates,
   per-statement arena).
+- [compiler/byte-array-corruption.md](compiler/byte-array-corruption.md)
+  — the `S110` byte-array corruption diagnostic: binary data forced
+  through character-string semantics.
 
 ## Contracts and interfaces
 

@@ -1,0 +1,1325 @@
+[
+  {
+    "name": "simple_pool",
+    "source": "when HTTP_REQUEST {\n    pool my_pool\n}",
+    "expected": {
+      "item_codes": [
+        "XC100"
+      ],
+      "statuses": {
+        "translated": 1,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "my_pool"
+      ],
+      "diag_codes": [
+        "XC100"
+      ],
+      "diag_messages": [
+        "Origin pool: my_pool"
+      ]
+    }
+  },
+  {
+    "name": "dedup_pools",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::path] eq \"/a\"} {\n        pool shared_pool\n    } else {\n        pool shared_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 3,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 2,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "shared_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: shared_pool",
+        "Origin pool: shared_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "switch_path_glob",
+    "source": "when HTTP_REQUEST {\n    switch -glob [HTTP::path] {\n        \"/api/*\" { pool api_pool }\n        \"/static/*\" { pool static_pool }\n        default { pool default_pool }\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC100",
+        "XC100",
+        "XC101"
+      ],
+      "statuses": {
+        "translated": 4,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 3,
+        "origin_pools": 3,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "api_pool",
+        "default_pool",
+        "static_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC100",
+        "XC100",
+        "XC101"
+      ],
+      "diag_messages": [
+        "Origin pool: api_pool",
+        "Origin pool: default_pool",
+        "Origin pool: static_pool",
+        "XC L7 routes with path matching"
+      ]
+    }
+  },
+  {
+    "name": "switch_host",
+    "source": "when HTTP_REQUEST {\n    switch [HTTP::host] {\n        \"api.example.com\" { pool api_pool }\n        \"www.example.com\" { pool web_pool }\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC100",
+        "XC101"
+      ],
+      "statuses": {
+        "translated": 3,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 2,
+        "origin_pools": 2,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "api_pool",
+        "web_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC100",
+        "XC101"
+      ],
+      "diag_messages": [
+        "Origin pool: api_pool",
+        "Origin pool: web_pool",
+        "XC L7 routes with host matching"
+      ]
+    }
+  },
+  {
+    "name": "switch_method",
+    "source": "when HTTP_REQUEST {\n    switch [HTTP::method] {\n        \"GET\" { pool read_pool }\n        \"POST\" { pool write_pool }\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 3,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 2,
+        "origin_pools": 2,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "read_pool",
+        "write_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: read_pool",
+        "Origin pool: write_pool",
+        "XC service policy rules with method matching"
+      ]
+    }
+  },
+  {
+    "name": "switch_dynamic",
+    "source": "when HTTP_REQUEST {\n    switch [HTTP::header value \"X-Route\"] {\n        \"a\" { pool a_pool }\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC200"
+      ],
+      "statuses": {
+        "translated": 1,
+        "partial": 1,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 75.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "a_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC200"
+      ],
+      "diag_messages": [
+        "Origin pool: a_pool",
+        "Switch on dynamic value — needs manual XC config — Cannot statically determine match criteria"
+      ]
+    }
+  },
+  {
+    "name": "if_path_exact",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::path] eq \"/login\"} {\n        pool login_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "login_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: login_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "if_path_starts_with",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::path] starts_with \"/api\"} {\n        pool api_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "api_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: api_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "if_host_method_and",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::host] eq \"api.example.com\" && [HTTP::method] eq \"POST\"} {\n        pool api_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "api_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: api_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "if_or_branches",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::path] eq \"/a\" || [HTTP::path] eq \"/b\"} {\n        pool ab_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 3,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 2,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "ab_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: ab_pool",
+        "Origin pool: ab_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "if_header_match",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::header value \"X-Foo\"] eq \"bar\"} {\n        pool foo_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "foo_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: foo_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "if_header_exists",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::header exists \"X-Api-Key\"]} {\n        pool api_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "api_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: api_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "if_cookie_match",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::cookie \"session\"] eq \"abc\"} {\n        pool sess_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "sess_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: sess_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "if_query_contains",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::query] contains \"debug=1\"} {\n        pool debug_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "debug_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: debug_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "if_negated_method",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::method] ne \"GET\"} {\n        pool nonget_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "nonget_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: nonget_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "if_unmappable",
+    "source": "when HTTP_REQUEST {\n    if {[clientside] && rand() > 0.5} {\n        pool x_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC203"
+      ],
+      "statuses": {
+        "translated": 1,
+        "partial": 1,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 75.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "x_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC203"
+      ],
+      "diag_messages": [
+        "Conditional logic — review manually for XC match criteria — Complex condition could not be automatically mapped",
+        "Origin pool: x_pool"
+      ]
+    }
+  },
+  {
+    "name": "redirect",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::path] eq \"/old\"} {\n        HTTP::redirect \"https://new.example.com\"\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC101",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC101",
+        "XC102"
+      ],
+      "diag_messages": [
+        "XC redirect route",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "respond_deny",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::path] starts_with \"/admin\"} {\n        HTTP::respond 403 content \"Forbidden\"\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC102",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 1,
+        "service_policy_rules": 1,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC102",
+        "XC102"
+      ],
+      "diag_messages": [
+        "XC service policy deny rule (403)",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "respond_200",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::path] eq \"/health\"} {\n        HTTP::respond 200 content \"OK\"\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC101",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC101",
+        "XC102"
+      ],
+      "diag_messages": [
+        "XC direct response route (200)",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "header_insert",
+    "source": "when HTTP_REQUEST {\n    HTTP::header insert \"X-Custom\" \"value\"\n}",
+    "expected": {
+      "item_codes": [
+        "XC103"
+      ],
+      "statuses": {
+        "translated": 1,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 1,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC103"
+      ],
+      "diag_messages": [
+        "XC request header add: X-Custom"
+      ]
+    }
+  },
+  {
+    "name": "header_replace_response",
+    "source": "when HTTP_RESPONSE {\n    HTTP::header replace \"Server\" \"Acme\"\n}",
+    "expected": {
+      "item_codes": [
+        "XC103"
+      ],
+      "statuses": {
+        "translated": 1,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 1,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC103"
+      ],
+      "diag_messages": [
+        "XC response header replace: Server"
+      ]
+    }
+  },
+  {
+    "name": "header_remove",
+    "source": "when HTTP_REQUEST {\n    HTTP::header remove \"X-Internal\"\n}",
+    "expected": {
+      "item_codes": [
+        "XC103"
+      ],
+      "statuses": {
+        "translated": 1,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 1,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC103"
+      ],
+      "diag_messages": [
+        "XC request header remove: X-Internal"
+      ]
+    }
+  },
+  {
+    "name": "class_match",
+    "source": "when HTTP_REQUEST {\n    if {[class match [HTTP::path] equals url_allowlist]} {\n        pool allow_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC203"
+      ],
+      "statuses": {
+        "translated": 1,
+        "partial": 1,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 75.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "allow_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC203"
+      ],
+      "diag_messages": [
+        "Conditional logic — review manually for XC match criteria — Complex condition could not be automatically mapped",
+        "Origin pool: allow_pool"
+      ]
+    }
+  },
+  {
+    "name": "asm_disable",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::path] starts_with \"/api\"} {\n        ASM::disable\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC102",
+        "XC106"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 1
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC102",
+        "XC106"
+      ],
+      "diag_messages": [
+        "XC WAF exclusion rule (disable App Firewall)",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "asm_enable",
+    "source": "when HTTP_REQUEST {\n    ASM::enable\n}",
+    "expected": {
+      "item_codes": [
+        "XC107"
+      ],
+      "statuses": {
+        "translated": 1,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC107"
+      ],
+      "diag_messages": [
+        "No action needed — XC App Firewall is enabled by default"
+      ]
+    }
+  },
+  {
+    "name": "loop_foreach",
+    "source": "when HTTP_REQUEST {\n    foreach h [HTTP::header names] {\n        log local0. $h\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC300"
+      ],
+      "statuses": {
+        "translated": 0,
+        "partial": 0,
+        "untranslatable": 1,
+        "advisory": 0
+      },
+      "coverage_pct": 0.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC300"
+      ],
+      "diag_messages": [
+        "Loop construct — no XC equivalent — XC policies are declarative, not procedural. Consider App Stack for iterative logic."
+      ]
+    }
+  },
+  {
+    "name": "eval_barrier",
+    "source": "when HTTP_REQUEST {\n    eval $dynamic_code\n}",
+    "expected": {
+      "item_codes": [
+        "XC300"
+      ],
+      "statuses": {
+        "translated": 0,
+        "partial": 0,
+        "untranslatable": 1,
+        "advisory": 0
+      },
+      "coverage_pct": 0.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC300"
+      ],
+      "diag_messages": [
+        "Dynamic construct — cannot be statically translated — 'eval' creates dynamic behaviour with no XC equivalent. Consider App Stack for this logic."
+      ]
+    }
+  },
+  {
+    "name": "untranslatable_event",
+    "source": "when CLIENT_ACCEPTED {\n    set foo 1\n}",
+    "expected": {
+      "item_codes": [
+        "XC201"
+      ],
+      "statuses": {
+        "translated": 0,
+        "partial": 0,
+        "untranslatable": 1,
+        "advisory": 0
+      },
+      "coverage_pct": 0.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC201"
+      ],
+      "diag_messages": [
+        "L4 event — no XC equivalent for TCP-level logic. — This entire event handler has no XC equivalent."
+      ]
+    }
+  },
+  {
+    "name": "advisory_event",
+    "source": "when CLIENTSSL_HANDSHAKE {\n    log local0. tls\n}",
+    "expected": {
+      "item_codes": [
+        "XC250"
+      ],
+      "statuses": {
+        "translated": 0,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 1
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC250"
+      ],
+      "diag_messages": [
+        "TLS — configure via XC TLS settings on the load balancer. — This event maps to a separate XC feature."
+      ]
+    }
+  },
+  {
+    "name": "unknown_event",
+    "source": "when MADE_UP_EVENT {\n    set x 1\n}",
+    "expected": {
+      "item_codes": [
+        "XC201"
+      ],
+      "statuses": {
+        "translated": 0,
+        "partial": 0,
+        "untranslatable": 1,
+        "advisory": 0
+      },
+      "coverage_pct": 0.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC201"
+      ],
+      "diag_messages": [
+        "Event 'MADE_UP_EVENT' has no known XC equivalent."
+      ]
+    }
+  },
+  {
+    "name": "untranslatable_prefix_tcp",
+    "source": "when HTTP_REQUEST {\n    TCP::respond foo\n}",
+    "expected": {
+      "item_codes": [
+        "XC301"
+      ],
+      "statuses": {
+        "translated": 0,
+        "partial": 0,
+        "untranslatable": 1,
+        "advisory": 0
+      },
+      "coverage_pct": 0.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC301"
+      ],
+      "diag_messages": [
+        "'TCP::respond' has no XC equivalent — L4/protocol-specific command. Consider App Stack."
+      ]
+    }
+  },
+  {
+    "name": "string_tolower_wrapper",
+    "source": "when HTTP_REQUEST {\n    if {[string tolower [HTTP::path]] eq \"/api\"} {\n        pool api_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "api_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: api_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "nested_switch_in_if",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::host] eq \"api.example.com\"} {\n        switch -glob [HTTP::path] {\n            \"/v1/*\" { pool v1_pool }\n            \"/v2/*\" { pool v2_pool }\n        }\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC100",
+        "XC101",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 4,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 2,
+        "origin_pools": 2,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "v1_pool",
+        "v2_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC100",
+        "XC101",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: v1_pool",
+        "Origin pool: v2_pool",
+        "XC L7 routes with path matching",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "multi_event",
+    "source": "when HTTP_REQUEST {\n    pool web_pool\n}\nwhen HTTP_RESPONSE {\n    HTTP::header insert \"X-Served-By\" \"xc\"\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC103"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 1,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "web_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC103"
+      ],
+      "diag_messages": [
+        "Origin pool: web_pool",
+        "XC response header add: X-Served-By"
+      ]
+    }
+  },
+  {
+    "name": "ends_with_path",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::path] ends_with \".jpg\"} {\n        pool img_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "img_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: img_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "matches_glob_path",
+    "source": "when HTTP_REQUEST {\n    if {[HTTP::path] matches_glob \"/api/*/v2\"} {\n        pool g_pool\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 1,
+        "origin_pools": 1,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [
+        "g_pool"
+      ],
+      "diag_codes": [
+        "XC100",
+        "XC102"
+      ],
+      "diag_messages": [
+        "Origin pool: g_pool",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  },
+  {
+    "name": "empty_rule",
+    "source": "when HTTP_REQUEST {\n}",
+    "expected": {
+      "item_codes": [],
+      "statuses": {
+        "translated": 0,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 0
+      },
+      "origin_pool_names": [],
+      "diag_codes": [],
+      "diag_messages": []
+    }
+  },
+  {
+    "name": "ip_class_match",
+    "source": "when HTTP_REQUEST {\n    if {[class match [IP::client_addr] equals trusted_ips]} {\n        ASM::disable\n    }\n}",
+    "expected": {
+      "item_codes": [
+        "XC102",
+        "XC106"
+      ],
+      "statuses": {
+        "translated": 2,
+        "partial": 0,
+        "untranslatable": 0,
+        "advisory": 0
+      },
+      "coverage_pct": 100.0,
+      "counts": {
+        "routes": 0,
+        "origin_pools": 0,
+        "service_policies": 0,
+        "service_policy_rules": 0,
+        "header_actions": 0,
+        "waf_exclusion_rules": 1
+      },
+      "origin_pool_names": [],
+      "diag_codes": [
+        "XC102",
+        "XC106"
+      ],
+      "diag_messages": [
+        "XC WAF exclusion rule (disable App Firewall)",
+        "XC service policy rule with match criteria"
+      ]
+    }
+  }
+]

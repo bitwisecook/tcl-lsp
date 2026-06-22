@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::findings::{Category, Finding, Registry};
-use crate::generator::{generate, GenConfig};
-use crate::harness::{compare, run_backend, write_script, Verdict};
+use crate::generator::{GenConfig, generate};
+use crate::harness::{Verdict, compare, run_backend, write_script};
 
 /// Aggregate campaign statistics.
 #[derive(Debug, Default, Clone, Copy)]

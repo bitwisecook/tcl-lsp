@@ -1164,6 +1164,53 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
+Landed: 2026-06-22 — **FE-OPT: inliner v3 (parameterised) ported** (branch
+`claude/sleepy-brown-m3lbzp`). The general proc inliner's last shape — v3,
+α-renamed parameterised inlining — is ported from `compiler/inlining/`,
+completing the Rust inliner (v0 / verbatim / v3). The module grew from a single
+`inlining.rs` into `tcl-compiler::inlining{,::rename,::tests}`. What landed:
+
+- **`inlining::rename`** — port of `_rename.py`: α-renames a callee body through
+  a `{name → __inline_<id>__name}` map across every IR statement shape — value
+  strings (`AssignValue`/`Call.args`/`Return.value`/`Switch.subject`), expr ASTs
+  (`AssignExpr`/`If`/`For`/`While` conditions, `Return.expr`, `ExprEval`),
+  `Call` `defs`/`reads`, `Foreach` iterator vars, and `Catch`/`Try` exception
+  bindings. The value-string rewriter reproduces the byte-by-byte
+  backslash-protection rule (`\$x` is a literal `$`, never renamed; `\\$x` is)
+  and array-base-only renaming (`$arr(idx)` → `$<renamed>(idx)`).
+- **Catalogue** — `count_static_calls` (namespace-aware call tally) +
+  `classify_proc` (the S4.1 `safe_to_inline` / body-size / single-call policy),
+  mirroring `decision.py`. `count_static_calls`/`classify_proc` replace the
+  earlier shape-only classifier; only `ALWAYS` procs are spliced.
+- **v3 eligibility** — `_v3_eligible` + the unsafe-scope `return` scan
+  (`return` inside a loop / `catch` / `try` / `uplevel` body declines, since the
+  break-based early-return lowering would be trapped there).
+- **v3 splice** — per-call-site parameter binding (defaults from `params_raw`,
+  variadic `args` packed into a list-clean `[list …]`, braced-literal args bound
+  as `AssignConst` so `f {$y}` doesn't re-substitute), `{*}`-expansion decline,
+  local-write mangling, and the trailing-vs-non-trailing `return` strategy: a
+  non-trailing `return` is lowered to `set __RESULT <v>; break` wrapped in a
+  one-shot `while {1} { … }` (with implicit-trailing-return capture), forwarded
+  with a caller-level `return $__RESULT` only at terminal call sites.
+- **Resolution** — `var_escape::interprocedural::resolve_callee` exposed
+  `pub(crate)` so the inliner resolves call sites with the same namespace-walk
+  rules the escape pass uses (replacing the inliner's naive `::`-prefix
+  resolver), mirroring the shared `_resolve_callee` import in `decision.py` /
+  `inline_pass.py`.
+- **Tests** — 27 IR-shape unit tests in `inlining::tests` (the
+  execution-differential standard is gated on the WASM consumer; see below).
+
+Not ported: **dead-proc elimination** — dormant in Python (it removes only
+`compiler_synthetic` procs, a flag no lowering pass sets) and the Rust
+`IRProcedure` has no such flag, so it would be a no-op. **Cross-track handoff:**
+the inliner's only consumer is the WASM codegen (**RT-WASM**, 🟡), so v3's
+execution-differential verification is owned by that consumer track and lands
+when it is wired in. With the v3 port complete, **FE-OPT is ✅** — its owned
+modules (`tcl-compiler::optimiser`, `tcl-compiler::inlining`) are fully ported;
+the only out-of-scope items are that RT-WASM-owned verification handoff and the
+optional, non-correctness O110 rewrites (gated on the iRules
+`MatchesGlob`/`MatchesRegex` expr operators).
+
 Landed: 2026-06-19 — **FE-VARESCAPE complete** (branch
 `claude/great-ptolemy-kti1wz`). The two open var-escape items closed, and the
 analysis is wired to its first consumer (the inliner). The track's `####`
@@ -11379,6 +11426,118 @@ stays Python-only (open residual in [`rust-rewrite.md`](rust-rewrite.md) →
   IAPP7001/7002/7003 over the existing `AplModel`, gated on the `f5-iapps` /
   `f5-tmsh` / `f5-bigip` dialects.
 
+### FE-DIAG-F5 consumer-wiring — BIG-IP / iApp validators routed into the native server (landed 2026-06-22)
+
+The two model-level validator families that previously existed only as
+`tcl-bigip` crate APIs are now wired into `tcl-lsp-server`'s diagnostics
+path, completing the **SRV-LSP**-style consumer-wiring residual (the
+deferred `tcl-xc` XC100-301 translator family stays the only open item).
+What landed:
+
+- **File-type dispatch (`f5_dialect_diagnostics`)** — a single dispatch
+  helper, called at the head of both the push (`run_diagnostics_core`) and
+  pull (`full_diagnostics_for`) paths *before* the Tcl analyser, mirroring
+  the file-type branch in Python `server/diagnostics_pipeline.py`
+  (`_is_bigip_conf` / `_is_apl_source` → the specialised publishers). It
+  returns `Some(diags)` for a non-Tcl F5 document and `None` to fall through
+  to the Tcl analyser. The former bigip-only "publish empty and stop" branch
+  (push) and the `is_bigip_dialect → empty report` short-circuit (pull) are
+  replaced by this, so BIG-IP/iApp diagnostics now flow through the same
+  `pull_diag_cache` + report machinery as the Tcl set.
+- **BIG-IP (`bigip_config_diagnostics`)** — `f5-bigip` dialect documents run
+  `tcl_bigip::validator::validate_bigip_source(text, "Common")` (the
+  `parse_bigip_conf` default partition), surfacing `BIGIP6001-6011`. Codes
+  the editor disabled via `tclLsp.diagnostics.<CODE> = false` are filtered,
+  matching Python's `disabled_codes` / `get_bigip_diagnostics` layer. (The
+  cross-file `get_bigip_lint_diagnostics` layer — a separate `tcl-bigip::lint`
+  engine — is out of scope here; the residual was the validator families.)
+- **iApp APL (`apl_presentation_diagnostics` + `find_sibling_impl_vars`)** —
+  APL presentation documents (detected by `is_apl_source`: an APL language id,
+  or a `*.apl` / `presentation` basename, the port of Python `_is_apl_source`)
+  run `parse_apl` → `validate_iapp_presentation`, surfacing `IAPP7002`/`7003`.
+  Sibling-implementation discovery mirrors `_find_sibling_impl_vars`: it
+  prefers an **open** `implementation` / `*.iapp` / `*.iappimpl` / `*.impl`
+  buffer in the same directory (so unsaved edits drive the cross-file check),
+  then falls back to reading the sibling from disk, and feeds the extracted
+  `$::section__field` refs into the presentation validator.
+- **Range lift (`lift_config_diagnostic`)** — `ConfigDiagnostic` →
+  `tower_lsp::Diagnostic`, making the validator's **inclusive** end column
+  exclusive (`end.character + 1`), the port of Python `to_lsp_range`;
+  `Warning`/`Hint` → LSP `WARNING`/`HINT`, `source = "tcl-lsp"`.
+
+Verified against the native binary (`tcl-lsp-server`): a `bigip.conf`
+publishes `BIGIP6001`/`BIGIP6002` for missing data-group / pool references,
+and an iApp `presentation` paired with a sibling `implementation` publishes
+`IAPP7002` for an unreferenced field while referenced fields stay quiet.
+Seven unit tests cover the validator lifts, disabled-code filtering,
+`is_apl_source` detection, the inclusive→exclusive end conversion, and the
+end-to-end `full_diagnostics_for` BIG-IP route.
+
+### FE-DIAG-F5 XC translator — `f5-xc` crate (landed 2026-06-22)
+
+The fourth F5 dialect diagnostic family, **XC100-301** (BIG-IP iRule → F5
+Distributed Cloud translatability), was the last open FE-DIAG-F5 item — it
+was deferred because the XC diagnostics are a thin wrapper over a distinct,
+large subsystem: the `translate_irule` IR-walker (`translator.py` ~1.2 K LOC),
+the 13-type `xc_model`, and the command/event `mapping`. That subsystem is now
+ported to the new **`f5-xc`** crate, a faithful structural port of
+`dialects/f5/xc`:
+
+- **`model`** — the 13 XC dataclasses (`XCRoute`, `XCServicePolicy{,Rule}`,
+  `XCWafExclusionRule`, the six match criteria, the four actions,
+  `TranslationItem`, `XCTranslationResult`) with source ranges carried as the
+  IR-native byte `Span`.
+- **`mapping`** — the `COMMAND_XC_MAP` / `HEADER_SUBCOMMAND_MAP` /
+  `TRANSLATABLE`/`UNTRANSLATABLE`/`ADVISORY` event tables and the
+  `UNTRANSLATABLE_PREFIXES` set, as `match`-based lookups.
+- **`translator`** — `translate_irule` lowers via
+  `lower_to_ir_with_config(.., LexerConfig::for_dialect("f5-irules"))` (so the
+  iRules expr operators `starts_with` / `ends_with` / `contains` /
+  `matches_glob` parse as `BinOp`s) and walks the `Module`: `when EVENT`
+  handlers (the `::when::EVENT` procedures) are classified, and each statement
+  is mapped to XC routes / service-policy rules / header actions / origin pools
+  / WAF exclusions, threading enclosing `if`/`switch` match criteria. Because
+  the Rust lowering parses structured-command conditions dialect-agnostically
+  (`parse_expr(arg, None)`), a `Raw` condition fallback is re-parsed under
+  `f5-irules` (`normalize_condition`) to recover the operator structure Python
+  gets from its `configure_signatures(dialect="f5-irules")` contextvar. The
+  registry-driven translatability gates are new `tcl-registry` helpers,
+  `CommandRegistry::is_xc_never_translatable` / `is_xc_translatable_override`
+  (any spec with `xc_translatable == Some(false)` / `Some(true)`), mirroring
+  the Python `command_registry.py` methods.
+- **`diagnostics`** — `get_xc_diagnostics` resolves each item's byte span to
+  LSP line/UTF-16 positions and emits the XC-series codes with the prefix
+  severity map (`XC1xx` Hint, `XC2xx`/`XC3xx` Info).
+
+Verification: a 38-case differential parity harness (`f5-xc/tests/parity.rs`
+against a fixture generated from the Python oracle by `f5-xc/tests/gen_fixture.py`)
+asserts the per-item codes, status counts, coverage %, construct counts,
+origin-pool names, **and** the lifted diagnostic codes + messages match
+byte-for-byte across pools, switch path/host/method/dynamic, `if` with
+path/host/method/header/cookie/query/IP criteria, OR/AND/negation, redirect,
+respond (deny vs route), header insert/replace/remove, `class match`,
+`ASM::{disable,enable}`, loops, `eval` barriers, untranslatable/advisory/
+unknown events, untranslatable prefixes, the `string tolower` getter wrapper,
+and nested switch-in-if. Plus 11 model-shape unit tests and a `tcl-registry`
+helper test.
+
+The **opt-in consumer-wiring** landed in the same change, completing
+**FE-DIAG-F5**: `tcl-lsp-server` depends on `f5-xc`, a default-off
+`xcDiagnostics` feature toggle was added (in `FeatureToggles::{KEYS,
+DEFAULT_OFF}`, resolved per folder by `Backend::xc_diagnostics_enabled`,
+mirroring the inlay / `willSaveWaitUntil` opt-in pattern), and a
+`lift_xc_diagnostics` free function surfaces `get_xc_diagnostics` through both
+the push (`run_diagnostics_core`) and pull (`full_diagnostics_for`)
+diagnostics paths — gated on `dialect == "f5-irules"` and the toggle, filtered
+by the editor's disabled-code set and the analyser's `# noqa` / file-level
+suppression (the `xc_is_suppressed` port of `_is_suppressed`), with
+`XcSeverity::{Hint,Info}` → LSP `HINT` / `INFORMATION`. This is the analogue
+of Python `server/features/diagnostics.py`'s `xc_diagnostics_enabled` block.
+Verified by two server tests (`lift_xc_diagnostics_surfaces_and_filters_codes`,
+`xc_diagnostics_are_opt_in_on_irules_documents`: off by default; XC100 appears
+once the toggle is set, through the real `full_diagnostics_for` path). With
+this, **all four FE-DIAG-F5 families are ported and consumer-wired**.
+
 ## TOOL-REFACTOR — refactoring transforms (landed 2026-06)
 
 The 5 remaining transforms (extract/inline variable, if↔switch, switch→dict,
@@ -11414,12 +11573,31 @@ The `ssa`-view boolean-render parity bug landed (`view_tree::pystr`), and the
 **`wasm` view now renders WAT** — `serialise.rs::serialise_wasm` drives the
 eval-fallback `wasm_codegen_module` (the same emitter `tcl compwasm` uses) and
 emits the module's WAT plus per-function headers, which `render.rs::render_wasm`
-prints. All TUI views are now populated. Refinement (not blocking the view, open
-in [`rust-rewrite.md`](rust-rewrite.md) → **TOOL-EXPLORER**): the rich
-per-instruction explorer shape (`to_explorer_json`) the *web GUI* uses is not
-ported, so the wasm tab shows flat WAT rather than the gutter-rendered
-instruction graph; that lands with the broader **RT-WASM** emitter work. The
-Pyodide web server stays Python.
+prints. All TUI views are now populated.
+
+**Rich per-instruction `to_explorer_json` ported (2026-06-22).** The web-GUI
+shape — what the gutter-rendered instruction graph consumes — now has a Rust
+port in `tcl-explorer`: `wasm_explorer::wasm_to_explorer_json` mirrors
+`compiler/codegen/wasm/_ir.py::WasmModule.to_explorer_json` over the Rust
+`WasmModule`. Per instruction it resolves the `call` target label (imports vs.
+internal functions), the `br`/`br_if` target (a two-pass block-pairing walk
+maps each branch depth to the enclosing `loop` header or `block`/`if` end),
+the originating source `range` (via the explorer's existing `range_dict`,
+which already widens braced/quoted words and converts inclusive→exclusive),
+indent, the emitter's structural label, and stable `openIdx`/`elseIdx`/`endIdx`
+cross-links for edge layout. It lives in `tcl-explorer` (not `tcl-compiler`) so
+the codegen crate stays uncoupled from the explorer JSON shape; the LEB128
+operand decoders are re-implemented locally (the compiler's `encoding` module is
+private). `serialise_wasm` now emits this shape and augments the synthetic
+`(module)` entry with the WAT `text` + counts the TUI reads, so both the text
+renderer and the web GUI consume one array. The graph is **sparse** under the
+current eval-fallback tier (most leaf commands are a single `call` to the
+imported `tcl_eval`) but the structure — control flow, branch pairing, ranges —
+is present and correct, and densifies automatically as the real **RT-WASM**
+emitter emits more instructions. Four unit tests cover the module/function
+split, call-target resolution, block/branch pairing, and the LEB128 decoders;
+the existing TUI render tests confirm backward compatibility. The Pyodide web
+server stays Python.
 
 ## TOOL-FUZZ — differential fuzzer (`tcl-fuzz`) (landed 2026-06)
 
@@ -11431,10 +11609,56 @@ hang is a finding not a wedge), a campaign runner with stats (`campaign.rs`), an
 a findings registry (`findings.rs`: JSON + raw `.tcl`, dedup-by-seed,
 categorised, replayable). CLI verbs `run` / `replay` / `summary`. A 500-iteration
 campaign over the current VM is clean (498/500 match, 2 skipped, 0 findings — the
-loop/array fixes hold under fuzzing). Open residual in
-[`rust-rewrite.md`](rust-rewrite.md) → **TOOL-FUZZ**: broaden the generator
-grammar as the VM surface grows + add the WASM/Zig differential arm once
-**RT-WASM** lands.
+loop/array fixes hold under fuzzing).
+
+**Generator grammar broadened (2026-06-22, RT-VM-gated residual closed).** With
+RT-VM now implementing the surface, the generator (`generator.rs`) gained the
+productions the original port deferred: `proc` definitions (0–2 params, literal
+`return`) plus top-level `proc` *calls* that exercise the return value through
+the differential (procs tracked as `(name, arity)` so a call always matches a
+real definition; calls are top-level-only so a recursive body can't drive
+unbounded generated recursion); `namespace eval` over single-segment names
+(no `::` runs — namespace-name canonicalisation is a known RT-VM gap, kept out so
+a divergence stays a real miscompile); the `dict` ensemble (value ops
+`size`/`keys`/`values`/`exists`/`get` over a literal that always carries a `foo`
+key, plus the `set`/`append`/`incr`/`lappend`/`unset` mutators); `switch -- `
+with literal patterns + a `default` (exactly one arm fires, deterministic
+output); `catch` printing the caught return code; and `try`/`on error`/`finally`.
+All stay within the pure/bounded/balanced-delimiter invariants (a 600-script
+unit test asserts each new production is generated and a defined proc is called
+back). Validated by a 1.5 K-iteration `tclvm`-vs-`tclsh9.0` campaign:
+**1497/1500 match, 3 reference-timeout skips, 0 findings** — RT-VM handles the
+broadened surface byte-identically for the generated forms.
+
+**WASM-runnability arm landed (2026-06-22).** The third backend's *runnability*
+slice is now wired: a `wasm-check` subcommand (`wasm.rs`) compiles each generated
+program to the eval-fallback WASM module (`wasm_codegen_module`, behind a
+`catch_unwind` so a codegen panic is a recorded finding, not a campaign wedge),
+writes it plus the proven four-import `tcl_*` host stub (ported from
+`tcl-compiler/tests/wasm_execute.rs`, `tcl_expr_bool` → 0 so control flow
+terminates), and runs `::top` under `wasmtime`. A clean exit is a pass; a codegen
+panic/error (`CodegenFailed`) or a `wasmtime` reject/trap (`Trapped`) is a
+finding whose script is written to `<findings>/wasm/`. A 600-program campaign
+over the broadened grammar is **clean** (0 codegen-failed, 0 trapped) —
+confirming the WASM codegen is robust over procs/namespaces/dict/switch/catch/try.
+
+Empirically established (rather than assumed) that the eval-fallback module
+**does** execute under `wasmtime` — but only via the stub host, which prints
+command texts rather than evaluating Tcl. So this is a *runnability* arm, not yet
+a *value* differential: a true value differential against `tclsh` needs the
+interpreter-backed host (the wasmtime-embedder tier the `tcl-compiler` execution
+test calls out as "the next tier"), which is **RT-WASM** work. When that lands
+the arm upgrades in place by swapping the stub for the real host.
+
+Open residual in [`rust-rewrite.md`](rust-rewrite.md) → **TOOL-FUZZ**: upgrade
+the runnability arm to a value differential. This is **explicitly deferred
+(decided 2026-06-22)** to the **RT-WASM** interpreter-backed host: there is no
+existing WASM executor to route through (the eval-fallback `tcl_eval` is a
+print-only stub, and the wasmtime CLI cannot call back into a Tcl interpreter),
+so a true value differential needs the wasmtime-embedder host RT-WASM is
+building. The arm swaps the stub for that host in place — no further TOOL-FUZZ
+work until it lands. The generator grammar continues to broaden opportunistically
+as further RT-VM surface (TclOO, coroutines) lands.
 
 ## TOOL-DEBUGGER — record-and-replay step debugger (`tcl-debugger`) (landed 2026-06)
 
