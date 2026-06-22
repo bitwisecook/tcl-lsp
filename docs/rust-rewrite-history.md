@@ -11306,6 +11306,53 @@ stays Python-only (open residual in [`rust-rewrite.md`](rust-rewrite.md) →
   IAPP7001/7002/7003 over the existing `AplModel`, gated on the `f5-iapps` /
   `f5-tmsh` / `f5-bigip` dialects.
 
+### FE-DIAG-F5 consumer-wiring — BIG-IP / iApp validators routed into the native server (landed 2026-06-22)
+
+The two model-level validator families that previously existed only as
+`tcl-bigip` crate APIs are now wired into `tcl-lsp-server`'s diagnostics
+path, completing the **SRV-LSP**-style consumer-wiring residual (the
+deferred `tcl-xc` XC100-301 translator family stays the only open item).
+What landed:
+
+- **File-type dispatch (`f5_dialect_diagnostics`)** — a single dispatch
+  helper, called at the head of both the push (`run_diagnostics_core`) and
+  pull (`full_diagnostics_for`) paths *before* the Tcl analyser, mirroring
+  the file-type branch in Python `server/diagnostics_pipeline.py`
+  (`_is_bigip_conf` / `_is_apl_source` → the specialised publishers). It
+  returns `Some(diags)` for a non-Tcl F5 document and `None` to fall through
+  to the Tcl analyser. The former bigip-only "publish empty and stop" branch
+  (push) and the `is_bigip_dialect → empty report` short-circuit (pull) are
+  replaced by this, so BIG-IP/iApp diagnostics now flow through the same
+  `pull_diag_cache` + report machinery as the Tcl set.
+- **BIG-IP (`bigip_config_diagnostics`)** — `f5-bigip` dialect documents run
+  `tcl_bigip::validator::validate_bigip_source(text, "Common")` (the
+  `parse_bigip_conf` default partition), surfacing `BIGIP6001-6011`. Codes
+  the editor disabled via `tclLsp.diagnostics.<CODE> = false` are filtered,
+  matching Python's `disabled_codes` / `get_bigip_diagnostics` layer. (The
+  cross-file `get_bigip_lint_diagnostics` layer — a separate `tcl-bigip::lint`
+  engine — is out of scope here; the residual was the validator families.)
+- **iApp APL (`apl_presentation_diagnostics` + `find_sibling_impl_vars`)** —
+  APL presentation documents (detected by `is_apl_source`: an APL language id,
+  or a `*.apl` / `presentation` basename, the port of Python `_is_apl_source`)
+  run `parse_apl` → `validate_iapp_presentation`, surfacing `IAPP7002`/`7003`.
+  Sibling-implementation discovery mirrors `_find_sibling_impl_vars`: it
+  prefers an **open** `implementation` / `*.iapp` / `*.iappimpl` / `*.impl`
+  buffer in the same directory (so unsaved edits drive the cross-file check),
+  then falls back to reading the sibling from disk, and feeds the extracted
+  `$::section__field` refs into the presentation validator.
+- **Range lift (`lift_config_diagnostic`)** — `ConfigDiagnostic` →
+  `tower_lsp::Diagnostic`, making the validator's **inclusive** end column
+  exclusive (`end.character + 1`), the port of Python `to_lsp_range`;
+  `Warning`/`Hint` → LSP `WARNING`/`HINT`, `source = "tcl-lsp"`.
+
+Verified against the native binary (`tcl-lsp-server`): a `bigip.conf`
+publishes `BIGIP6001`/`BIGIP6002` for missing data-group / pool references,
+and an iApp `presentation` paired with a sibling `implementation` publishes
+`IAPP7002` for an unreferenced field while referenced fields stay quiet.
+Seven unit tests cover the validator lifts, disabled-code filtering,
+`is_apl_source` detection, the inclusive→exclusive end conversion, and the
+end-to-end `full_diagnostics_for` BIG-IP route.
+
 ## TOOL-REFACTOR — refactoring transforms (landed 2026-06)
 
 The 5 remaining transforms (extract/inline variable, if↔switch, switch→dict,
