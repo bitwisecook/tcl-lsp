@@ -17,16 +17,7 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use regex::Regex;
 
-/// The repository root, derived from this crate's location
-/// (`<root>/rust/xtask`) so the task works regardless of the working
-/// directory `cargo xtask` is invoked from.
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(2)
-        .expect("xtask crate lives at <root>/rust/xtask")
-        .to_path_buf()
-}
+use crate::util::repo_root;
 
 /// Run the lint. `strict` escalates any gap to a non-zero exit.
 pub fn run(strict: bool) -> Result<ExitCode> {
