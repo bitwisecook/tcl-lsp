@@ -170,47 +170,45 @@ impl<'a> Matcher<'a> {
     }
 
     /// Reachable ends after matching between `min` and `max` repetitions of
-    /// `sub` from `pos` (`max == DUPINF` is unbounded). Guards against
-    /// zero-width iterations looping forever.
+    /// `sub` from `pos` (`max == DUPINF` is unbounded). Empty iterations are
+    /// kept (they hold the position but still count), so a nullable operand can
+    /// satisfy a positive `min` — e.g. `()+` matches `""` and `(a?){2}` matches
+    /// `"a"`. Termination: a fixpoint for unbounded `max`, a length+`min` cap
+    /// otherwise.
     fn reach_repeat(&mut self, sub: &Node, pos: usize, min: i32, max: i32) -> Vec<usize> {
         let mut ends: Vec<usize> = Vec::new();
-        let mut frontier: Vec<usize> = vec![pos];
-        let mut count = 0i32;
         if min <= 0 {
             ends.push(pos);
         }
+        let mut frontier: Vec<usize> = vec![pos];
+        let mut count = 0i32;
+        // At most one progressing iteration per remaining char, plus enough
+        // empty iterations to reach `min`, plus slack.
         let cap = if max >= crate::defs::DUPINF {
-            // Bounded by subject length: at most len-pos progressing iterations.
-            (self.len() - pos) as i32 + 2
+            (self.len() - pos) as i32 + min.max(0) + 2
         } else {
             max
         };
-        let mut seen: Vec<usize> = vec![pos];
         while count < cap && !frontier.is_empty() {
             let mut next = Vec::new();
             for &p in &frontier {
-                for e in self.reach(sub, p) {
-                    if e > p {
-                        next.push(e);
-                    }
-                }
+                next.extend(self.reach(sub, p));
             }
             next = dedup_sorted(next);
-            // Keep only progress we haven't already recorded as a frontier, to
-            // terminate on cycles.
-            next.retain(|e| !seen.contains(e));
-            if next.is_empty() {
-                break;
-            }
             count += 1;
-            seen.extend(next.iter().copied());
-            if count + 1 > min || min <= count + 1 {
-                // record once count of completed iterations >= min
-            }
             if count >= min {
                 ends.extend(next.iter().copied());
             }
             if max < crate::defs::DUPINF && count >= max {
+                break;
+            }
+            if next == frontier {
+                // Fixpoint: more iterations add nothing new. If still short of
+                // `min`, empty self-iterations pad up to it, so the stable set
+                // is reachable at `min` as well.
+                if count < min {
+                    ends.extend(next.iter().copied());
+                }
                 break;
             }
             frontier = next;
@@ -317,29 +315,53 @@ impl<'a> Matcher<'a> {
             // Zero iterations: inner captures do not participate.
             return;
         }
-        // POSIX records only the *final* iteration's submatches. Find the start
-        // `s` of that final iteration: a position in `[lo, hi)` where `sub`
-        // matches `[s, hi)` and the prefix `[lo, s)` decomposes into the
-        // remaining (min-1 .. max-1) iterations. A greedy outer quantifier
-        // maximises the prefix (so the final iteration starts as late as
-        // possible — e.g. `(([a-z]+)+)` on "foo" captures the inner group as
-        // "o", not "foo"); a lazy one minimises it.
-        let nmin = (min - 1).max(0);
+        // POSIX records only the *final* iteration's submatches.
         let nmax = if max >= crate::defs::DUPINF {
             max
         } else {
             max - 1
         };
-        let prefix_ends = self.reach_repeat(sub, lo, nmin, nmax);
-        let starts: Vec<usize> = (lo..hi)
-            .filter(|&s| prefix_ends.contains(&s) && self.reach(sub, s).contains(&hi))
+        if min >= 1 {
+            // `x{m,n}` with m>=1 behaves as `x{m-1,n-1} x`: the final iteration
+            // is a mandatory match after a (possibly long) prefix. Greedy
+            // maximises the prefix, so the final iteration starts as late as
+            // possible — and for a nullable operand it can be the empty match
+            // at `hi` (e.g. `(a*)+` on "aaa" captures the inner group as the
+            // empty `[3,3)`, and `(a+)+` on "foo" captures "o"). Candidate final
+            // starts include `hi` itself.
+            let prefix_ends = self.reach_repeat(sub, lo, min - 1, nmax);
+            let starts: Vec<usize> = (lo..=hi)
+                .filter(|&s| prefix_ends.contains(&s) && self.reach(sub, s).contains(&hi))
+                .collect();
+            let pick = match pref {
+                Pref::Longer => starts.into_iter().max(),
+                Pref::Shorter => starts.into_iter().min(),
+            };
+            if let Some(s) = pick {
+                self.dissect(sub, s, hi, caps);
+            }
+            return;
+        }
+        // `x{0,n}` is a pure iteration with no mandatory final match: the last
+        // recorded iteration is the last *non-empty* greedy chunk (no gratuitous
+        // trailing empty iteration — e.g. `(a*)*` on "aaa" captures "aaa", not
+        // the empty `[3,3)`). Walk forward, taking the longest (greedy) or
+        // shortest (lazy) first iteration that still lets the rest complete,
+        // then recurse; the final chunk reaching `hi` is the one we dissect.
+        let firsts: Vec<usize> = self
+            .reach(sub, lo)
+            .into_iter()
+            .filter(|&m| m > lo && m <= hi && self.reach_repeat(sub, m, 0, nmax).contains(&hi))
             .collect();
         let pick = match pref {
-            Pref::Longer => starts.into_iter().max(),
-            Pref::Shorter => starts.into_iter().min(),
+            Pref::Longer => firsts.into_iter().max(),
+            Pref::Shorter => firsts.into_iter().min(),
         };
-        if let Some(s) = pick {
-            self.dissect(sub, s, hi, caps);
+        match pick {
+            Some(m) if m == hi => self.dissect(sub, lo, hi, caps),
+            Some(m) => self.dissect_repeat(sub, m, hi, 0, nmax, pref, caps),
+            None if lo < hi => self.dissect(sub, lo, hi, caps),
+            None => {}
         }
     }
 }
