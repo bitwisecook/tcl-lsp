@@ -35,6 +35,9 @@ struct Svc(CommandRegistry);
 impl CompileService for Svc {
     type Module = tcl_bytecode::ModuleAsm;
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
+            return Err(CompileError(msg));
+        }
         let ir = lower_to_ir(src, &self.0);
         let cfg = build_cfg(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.0))
