@@ -27,10 +27,17 @@ path = "src/main.rs"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-# The WASM-runnability arm compiles generated programs to the eval-fallback
-# WASM module and runs them under wasmtime; it needs the codegen + registry.
+# The WASM arms compile generated programs to the eval-fallback WASM module:
+# the runnability arm runs them under the wasmtime CLI; the value-differential
+# arm embeds wasmtime in-process with a `tcl-vm`-backed host. Needs the codegen,
+# registry, bytecode, and the VM as the eval host.
+tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-vm = { path = "../tcl-vm" }
+# Core-wasm embedding only (compile + run with host funcs) — the heavy default
+# features (component-model, async, gc, cache, …) are off.
+wasmtime = { version = "46", default-features = false, features = ["cranelift", "runtime", "gc-drc"] }
 
 [lints]
 workspace = true
