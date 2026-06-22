@@ -963,3 +963,29 @@ fn set_inline_cmd_subst_expand() {
         "p a b c q\n"
     );
 }
+
+/// `encoding` — mirrors the tree-walking runtime (`runtime/rust`), the VM's
+/// parity oracle: UTF-8 internal model, so `convertto`/`convertfrom` pass data
+/// through, `system` is `utf-8`, `names` lists the supported set, `dirs` is
+/// ignored. (Real codepage conversion is unimplemented on both sides.)
+#[test]
+fn encoding_command() {
+    assert_eq!(run("encoding system").1, "utf-8");
+    assert_eq!(run("encoding names").1, "utf-8 unicode ascii iso8859-1");
+    assert_eq!(run("encoding convertto utf-8 abc").1, "abc");
+    assert_eq!(run("encoding convertfrom utf-8 hello").1, "hello");
+    assert_eq!(run("encoding convertto abc").1, "abc"); // no encoding arg
+    assert_eq!(run("encoding dirs").1, "");
+    let (ok, msg, _) = run("encoding bogus");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "unknown or ambiguous subcommand \"bogus\": must be convertfrom, convertto, dirs, names, or system"
+    );
+    let (ok, msg, _) = run("encoding");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "wrong # args: should be \"encoding subcommand ?arg ...?\""
+    );
+}
