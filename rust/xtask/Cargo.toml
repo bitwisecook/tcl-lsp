@@ -1,0 +1,21 @@
+[package]
+name = "xtask"
+description = "Native build/check task runner — the Rust replacement for the Python scripts/ toolchain (track API-PYO3, scripts→xtask)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "xtask"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "wrap_help"] }
+anyhow = "1"
+regex = "1"
+
+[lints]
+workspace = true
