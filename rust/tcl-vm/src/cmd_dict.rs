@@ -126,6 +126,22 @@ fn upsert(ps: &mut Vec<(String, Value)>, key: &str, value: Value) {
     }
 }
 
+/// Follow the nested `keys` path into dict `cur`, returning the value at the
+/// leaf (`cur` itself when `keys` is empty). Errors if a key is absent or an
+/// intermediate value is not a dict (`dict get` / `dict with` path semantics).
+fn get_path(cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
+    let mut v = cur.clone();
+    for key in keys {
+        let ps = pairs(&v)?;
+        let ks = key.to_str();
+        match lookup(&ps, &ks) {
+            Some(found) => v = found.clone(),
+            None => return Err(err(format!("key \"{ks}\" not known in dictionary"))),
+        }
+    }
+    Ok(v)
+}
+
 #[allow(clippy::too_many_lines)]
 fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
     // Pure dict subcommands now live in the shared command core; the VM is a
@@ -320,11 +336,81 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
         }
         "for" => cmd_dict_for(vm, rest),
         "filter" => cmd_dict_filter(vm, rest),
+        "with" => cmd_dict_with(vm, rest),
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
     }
 }
 
 /// `dict for {keyVar valueVar} dictionary body`.
+/// `dict with dictVarName ?key ...? body` — map the keys of the dict (at the
+/// `key` path) to like-named local variables, run `body`, then reflect the
+/// variables back into the dictionary and store it: an originally-mapped key
+/// whose variable still exists is updated, one whose variable was unset is
+/// removed, and variables the body merely created are not added. The write-back
+/// happens even when the body raises (matching C), after which the body's
+/// completion (its result on success, else the error/break/continue/return) is
+/// returned.
+fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let Some((dictvar, tail)) = rest.split_first() else {
+        return err("wrong # args: should be \"dict with dictVarName ?key ...? script\"");
+    };
+    let Some((body, keys)) = tail.split_last() else {
+        return err("wrong # args: should be \"dict with dictVarName ?key ...? script\"");
+    };
+    let varname = dictvar.to_str().to_string();
+    let Some(dictval) = vm.get_var(&varname) else {
+        return err(format!("can't read \"{varname}\": no such variable"));
+    };
+    let leaf = match get_path(&dictval, keys) {
+        Ok(v) => v,
+        Err(c) => return c,
+    };
+    let leaf_pairs = match pairs(&leaf) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    for (k, v) in &leaf_pairs {
+        if let Err(e) = vm.set_var(k, v.clone()) {
+            return e;
+        }
+    }
+
+    let outcome = vm.eval_source(&body.to_str());
+
+    // Reflect the mapped variables back into the dictionary. Re-read the
+    // variable first (the body may have replaced it outright); if the body
+    // unset it, skip the write-back entirely (matching C).
+    if let Some(cur) = vm.get_var(&varname)
+        && let Ok(cur_leaf) = get_path(&cur, keys)
+        && let Ok(mut new_pairs) = pairs(&cur_leaf)
+    {
+        for (k, _) in &leaf_pairs {
+            match vm.get_var(k) {
+                Some(val) => upsert(&mut new_pairs, k, val),
+                None => new_pairs.retain(|(pk, _)| pk != k),
+            }
+        }
+        let new_leaf = from_pairs(&new_pairs);
+        let new_dict = if keys.is_empty() {
+            new_leaf
+        } else {
+            match set_path(&cur, keys, new_leaf) {
+                Ok(d) => d,
+                Err(c) => return c,
+            }
+        };
+        if let Err(e) = vm.set_var(&varname, new_dict) {
+            return e;
+        }
+    }
+
+    match outcome {
+        Ok(c) if c.code == Code::Ok => ok(c.result),
+        Ok(c) => c,
+        Err(e) => err(e.message),
+    }
+}
+
 fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let [vars, dict, body] = rest else {
         return err("wrong # args: should be \"dict for {keyVar valueVar} dictionary script\"");
