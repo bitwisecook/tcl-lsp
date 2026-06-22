@@ -341,9 +341,30 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [path] => ok(Value::bool(path.to_str().is_empty())),
             _ => err("wrong # args: should be \"interp exists ?path?\""),
         },
+        // interp eval path arg ?arg ...? — only the current interpreter (an
+        // empty path) exists; its scripts (concatenated) evaluate in the current
+        // frame, exactly like `eval` (verified against tclsh 9.0).
+        "eval" => match rest {
+            [path, scripts @ ..] if !scripts.is_empty() => {
+                let p = path.to_str();
+                if !p.is_empty() {
+                    return err(format!("could not find interpreter \"{p}\""));
+                }
+                let script = scripts
+                    .iter()
+                    .map(|v| v.to_str().to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                match vm.eval_source(&script) {
+                    Ok(c) => c,
+                    Err(e) => err(e.message),
+                }
+            }
+            _ => err("wrong # args: should be \"interp eval path arg ?arg ...?\""),
+        },
         "slaves" | "children" => ok(Value::empty()),
         other => err(format!(
-            "bad option \"{other}\": only alias, exists, and slaves are supported"
+            "bad option \"{other}\": only alias, eval, exists, and slaves are supported"
         )),
     }
 }
