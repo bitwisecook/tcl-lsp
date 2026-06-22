@@ -1,17 +1,20 @@
 //! `regexp` / `regsub` — a thin adapter over the shared
-//! [`tcl_cmd_core::regex`] plumbing, driving it with the **real Tcl 9
-//! Henry-Spencer ARE engine** (linked via `build.rs`, gated `have_regex`).
+//! [`tcl_cmd_core::regex`] plumbing, driving it with the **pure-Rust Tcl 9 ARE
+//! engine** ([`tcl_regex`]).
 //!
 //! The command logic — option parsing, the match/advance loop, `-indices`/
 //! `-inline`/`-start`/`-all` handling, submatch-variable assignment, and the
 //! `regsub` substitution-spec expansion — lives once in `tcl-cmd-core`; this
-//! file supplies the engine ([`AreEngine`], a `RegexEngine` over
-//! [`crate::regex`]) and the two per-runtime edges that stay Family-B state:
-//! the match-variable / result-variable writes (with the const-variable check
-//! and refcount discipline) and the result protocol.
+//! file wires in the engine via [`tcl_regex::cmd_core::AreEngine`] and supplies
+//! the two per-runtime edges that stay Family-B state: the match-variable /
+//! result-variable writes (with the const-variable check and refcount
+//! discipline) and the result protocol.
 //!
-//! The Zig runtime (`runtime/zig/valtypes/tcl_regex.zig`) and tclsh 9.0 are the
-//! behavioural oracles. This is the M3 regex wall in
+//! The engine was previously the C Henry-Spencer engine linked in by `build.rs`
+//! (and stubbed out on wasm32, where the C FFI cannot link); it is now the
+//! safe-Rust `tcl-regex` crate, which works on every target and is validated
+//! against tclsh 9.0 (`reg.test`). The same engine is re-exported to C via the
+//! C-ABI shim in [`crate::regex_capi`]. This is the M3 regex wall in
 //! `docs/design/runtime/tcltest-bringup.md`.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
@@ -19,74 +22,17 @@
 
 use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
 use crate::obj::{new_string_bytes, new_wide_int_obj, TclObj};
-#[cfg(have_regex)]
-use crate::regex::{Regex, REG_EXPANDED, REG_ICASE, REG_NLANCH, REG_NLSTOP};
-use tcl_cmd_core::regex::{
-    self as core_re, RegMatch, RegexEngine, RegexFlags, RegexpResult, RegsubResult,
-};
+use tcl_cmd_core::regex::{self as core_re, RegexpResult, RegsubResult};
+
+/// The pure-Rust Tcl 9 ARE engine as the shared plumbing's [`RegexEngine`]
+/// provider. Reused by `lsearch -regexp` (`cmd_list`) and `switch -regexp`
+/// (`cmd_switch`).
+pub(crate) use tcl_regex::cmd_core::AreEngine;
 
 /// Register `regexp` and `regsub`.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"regexp", regexp_cmd);
     interp.register_builtin(b"regsub", regsub_cmd);
-}
-
-/// The real Tcl 9 ARE engine, presented as the shared plumbing's
-/// [`RegexEngine`] provider. Maps the engine-neutral [`RegexFlags`] onto the
-/// engine's compile flags and bridges its codepoint-native [`crate::regex`]
-/// match vector to the core's [`RegMatch`]. Reused by `lsearch -regexp`.
-pub(crate) struct AreEngine;
-
-#[cfg(have_regex)]
-impl RegexEngine for AreEngine {
-    type Regex = Regex;
-
-    fn compile(pattern: &[u8], flags: RegexFlags) -> Result<Regex, Vec<u8>> {
-        let mut cflags = 0i32;
-        if flags.nocase {
-            cflags |= REG_ICASE;
-        }
-        if flags.expanded {
-            cflags |= REG_EXPANDED;
-        }
-        if flags.linestop {
-            cflags |= REG_NLSTOP;
-        }
-        if flags.lineanchor {
-            cflags |= REG_NLANCH;
-        }
-        Regex::compile(pattern, cflags)
-    }
-
-    fn nsub(re: &Regex) -> usize {
-        re.nsub()
-    }
-
-    fn exec(re: &mut Regex, cps: &[i32], offset: usize, notbol: bool) -> Option<Vec<RegMatch>> {
-        re.exec(cps, offset, notbol)
-            .map(|v| v.iter().map(|m| RegMatch { so: m.so, eo: m.eo }).collect())
-    }
-}
-
-/// Stub engine for a build without the ARE FFI (wasm32). Compiling any pattern
-/// reports that regular expressions are unavailable, so `regexp`/`regsub`/
-/// `lsearch -regexp`/`switch -regexp` exist but fail cleanly rather than the
-/// whole runtime failing to build.
-#[cfg(not(have_regex))]
-impl RegexEngine for AreEngine {
-    type Regex = ();
-
-    fn compile(_pattern: &[u8], _flags: RegexFlags) -> Result<(), Vec<u8>> {
-        Err(b"regular expressions are not available in this build".to_vec())
-    }
-
-    fn nsub(_re: &()) -> usize {
-        0
-    }
-
-    fn exec(_re: &mut (), _cps: &[i32], _offset: usize, _notbol: bool) -> Option<Vec<RegMatch>> {
-        None
-    }
 }
 
 fn regexp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
