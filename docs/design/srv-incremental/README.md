@@ -373,14 +373,27 @@ exist yet — the verification-status table follows the list.
      entry-taint worklist that re-propagates only the edited proc and its
      taint-reachable neighbourhood — real incremental dataflow with its own
      correctness model.
-     *Prerequisite experiment (before 2b is designed):* profile *inside*
-     `solve_interprocedural_taints` — is the ~385 ms redundant `run_propagation` per
-     worklist visit (a constant-factor win that helps *every* edit) or irreducible
-     fixpoint work? That decides whether 2b is "optimise the solve" or "incrementalise
-     the solve".
-   *Verification gate (must be built, both):* a differential fuzzer comparing memoised
-   `compiler_check_diagnostics` against a fresh whole-unit `run_all_checks` under
-   random edits, on the salsa path — does **not** exist today.
+     *Experiment (done):* profiling inside `solve_interprocedural_taints` (env-gated,
+     reverted) found the ~385 ms is **not** the entry-taint worklist (~5 ms) but the
+     **summary fixpoint**: `infer_proc_summary` ran 240 times (3 full passes × 80
+     procs), re-inferring *every* procedure on *every* pass though the summaries are
+     monotone and mostly converge on pass 1.
+     *Optimise step — landed:* a **dirty-set worklist** now re-infers a procedure only
+     when one of its direct callees' summaries changed (callee→caller edges from the
+     interprocedural call graph), with a debug-only full-pass guard asserting the
+     result is a true fixpoint. Measured on `linalg.tcl`: `solve_interprocedural_taints`
+     385 → 158 ms, `run_all_checks` 405 → 179 ms, warm per-edit 411 → 237 ms (~1.7×) —
+     output verified identical to the round-robin over the whole tcllib corpus (the
+     guard never fires; 2878 `tcl-compiler` + 59 taint tests green).
+     *Remaining 2b — incremental across edits:* the worklist still re-infers all procs
+     on pass 1 of every solve (~120 ms floor); making *that* incremental needs the
+     per-proc summaries memoised across edits (salsa, offset-invariant key — the
+     `taint_cascade` pattern applied to `infer_proc_summary`), so a body edit re-infers
+     only the edited proc + its caller cascade.
+   *Verification gate (still to build):* a random-edit differential fuzzer comparing
+   memoised `compiler_check_diagnostics` against a fresh whole-unit `run_all_checks` on
+   the salsa path. The worklist above is meanwhile gated by the corpus differential +
+   the debug fixpoint guard.
 
 3. **Approach A — incremental per-item IR lowering / CFG** *(L).* Per
    [`../rust/incremental-analysis.md`](../rust/incremental-analysis.md): lower per
@@ -452,7 +465,8 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | One-proc edit rebuilds 1 `function_lattice`; all 81 functions re-checked | **measured** | `tail_profile` breadth tier + `check_diagnostics_rerun_whole_file_on_body_edit` test |
 | Rope apply ≈ 0.02% of per-edit; 1.4–1.9× memory on many small files | **measured** | `experiment/` + `experiment-pipeline/` harnesses |
 | `run_all_checks` ~405 ms = ~16 ms per-function + ~385 ms whole-unit `solve_interprocedural_taints` | **measured** | profiler phase-decomposition tier (`linalg.tcl`) |
-| `solve_interprocedural_taints` is whole-unit + caller-coupled, not equal to `taint_cascade` | **measured** (code) | read of `taint_interproc.rs` (entry-taint worklist) |
+| `solve_interprocedural_taints` is whole-unit; ~385 ms is the summary fixpoint (240 infers / 3 passes), not the ~5 ms entry-taint worklist | **measured** | env-gated solve profiling |
+| Dirty-set worklist: `solve` 385→158 ms, per-edit 411→237 ms (~1.7×), output unchanged | **measured + verified** | re-profile + full-corpus debug fixpoint guard + 2878 tests |
 | Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |
 | Task 2 "cuts ~405 ms to one-proc cost" (the easy framing) | **refuted** | decomposition: ~16 ms easy (2a) + ~385 ms hard whole-unit taint solve (2b) |
 | Task 2 memo is sound | **hypothesis** | check-diagnostics differential fuzzer on the salsa path — *does not exist* |

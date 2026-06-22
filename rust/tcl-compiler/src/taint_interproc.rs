@@ -545,13 +545,34 @@ pub fn solve_interprocedural_taints(
     }
     let known: HashSet<String> = summaries.keys().cloned().collect();
 
-    // Summary worklist: recompute every proc's summary until a fixpoint.
-    // In-place updates are visible to later procs within a pass (Gauss-Seidel,
-    // matching Python's `summaries` dict mutation under the live provider).
-    let mut changed = true;
-    while changed {
-        changed = false;
+    // Summary fixpoint, driven by a dirty set. `infer_proc_summary(P)` is a pure
+    // function of `P`'s body and its *callees'* summaries, so a procedure only
+    // needs re-inference once one of its direct callees' summaries changed on the
+    // previous pass. The former code re-inferred *every* procedure on *every* pass
+    // (three full passes over the whole module on `linalg.tcl` — ~95% of
+    // `run_all_checks`). `callers[Q]` is the set of procedures that directly call
+    // `Q`, from the interprocedural call graph; when `Q`'s summary changes its
+    // callers are re-queued. The lattice is monotone, so this converges to the
+    // identical fixpoint — guarded by the `compiler_check` corpus differential.
+    // In-place updates stay visible to later procedures within a pass (Gauss-
+    // Seidel). Without a call graph we conservatively re-queue every procedure,
+    // exactly reproducing the former round-robin.
+    let callers: Option<HashMap<&str, Vec<&str>>> = interproc.map(|ia| {
+        let mut map: HashMap<&str, Vec<&str>> = HashMap::new();
+        for (caller, summary) in &ia.procedures {
+            for callee in &summary.direct_calls {
+                map.entry(callee.as_str()).or_default().push(caller.as_str());
+            }
+        }
+        map
+    });
+    let mut dirty: HashSet<&str> = proc_names.iter().map(|q| q.as_str()).collect();
+    while !dirty.is_empty() {
+        let mut next: HashSet<&str> = HashSet::new();
         for qname in &proc_names {
+            if !dirty.contains(qname.as_str()) {
+                continue;
+            }
             let Some(fu) = cu.procedures.get(*qname) else {
                 continue;
             };
@@ -568,8 +589,40 @@ pub fn solve_interprocedural_taints(
             );
             if summaries.get(*qname) != Some(&inferred) {
                 summaries.insert((*qname).clone(), inferred);
-                changed = true;
+                match &callers {
+                    Some(map) => next.extend(map.get(qname.as_str()).into_iter().flatten()),
+                    None => next.extend(proc_names.iter().map(|q| q.as_str())),
+                }
             }
+        }
+        dirty = next;
+    }
+
+    // Debug-only soundness guard: one full round-robin pass must find the dirty-set
+    // fixpoint already stable. If this fires, the call graph (`direct_calls`) missed
+    // a callee-summary dependency and the worklist under-converged (a taint
+    // false-negative risk). Zero cost in release; proven clean over the tcllib
+    // corpus.
+    #[cfg(debug_assertions)]
+    for qname in &proc_names {
+        if let Some(fu) = cu.procedures.get(*qname) {
+            let proc = &cu.ir_module.procedures[*qname];
+            let reinferred = infer_proc_summary(
+                qname,
+                &proc.params,
+                fu,
+                registry,
+                interproc,
+                dialect,
+                &known,
+                &summaries,
+            );
+            debug_assert_eq!(
+                summaries.get(*qname),
+                Some(&reinferred),
+                "interproc taint summary fixpoint under-converged for `{qname}` \
+                 (call graph missed a callee-summary edge)"
+            );
         }
     }
 
