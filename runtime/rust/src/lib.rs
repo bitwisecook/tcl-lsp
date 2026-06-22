@@ -77,9 +77,8 @@ pub mod cmd_oo;
 pub mod cmd_package;
 pub mod cmd_proc;
 pub mod cmd_scan;
-// `regexp`/`regsub` + the `AreEngine` provider. Always compiled; the engine is
-// real only when `build.rs` links the Tcl ARE engine (`have_regex`), else a stub
-// whose `compile` reports that regular expressions are unavailable in this build.
+// `regexp`/`regsub`, driven by the pure-Rust `tcl-regex` ARE engine. The engine
+// is wasm32-clean (no FFI), so regular expressions work on every target.
 pub mod cmd_regex;
 pub mod cmd_string;
 pub mod cmd_switch;
@@ -104,9 +103,9 @@ pub mod namespace;
 pub mod obj;
 pub mod parse;
 pub mod state_traits;
-// The Tcl regex engine FFI wrapper; only when `build.rs` links the engine.
-#[cfg(have_regex)]
-pub mod regex;
+// The C-ABI shim that re-exports the pure-Rust ARE engine (`tcl-regex`) under
+// the Tcl regex engine's C symbols, so C Tcl code/extensions link against it.
+pub mod regex_capi;
 pub mod subst;
 /// `ValueOps` impl binding `tcl-cmd-core`'s portable command logic to `*mut
 /// TclObj` (the value seam).

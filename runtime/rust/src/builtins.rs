@@ -59,8 +59,7 @@ pub fn install(interp: &mut Interp) {
     // the bgerror-only stub in `cmd_alias`.
     crate::cmd_event::install(interp);
     crate::cmd_coro::install(interp);
-    // `regexp`/`regsub` need the linked-in Tcl regex engine (the C ARE engine).
-    #[cfg(have_regex)]
+    // `regexp`/`regsub`, on the pure-Rust `tcl-regex` ARE engine.
     crate::cmd_regex::install(interp);
     // TclOO last: its `variable`/`self`/`my`/`next` intentionally override the
     // base `variable` (OO-aware inside `oo::define`, forwarding otherwise).
