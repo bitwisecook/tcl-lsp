@@ -919,3 +919,22 @@ fn invoke_replace_string_ensemble() {
         "1\n"
     );
 }
+
+/// Top-level (non-proc) mutating `dict` subcommands compile to the ensemble
+/// rewrite `INVOKE_REPLACE` form (`push dict <sub> … ::tcl::dict::<sub>;
+/// invokeReplace`), matching tclsh 9.0, rather than a plain generic invoke.
+#[test]
+fn dict_toplevel_ensemble() {
+    assert_eq!(run("dict set d k v; puts $d").2, "k v\n");
+    assert_eq!(
+        run("dict set d a 1; dict set d b 2; puts $d").2,
+        "a 1 b 2\n"
+    );
+    assert_eq!(run("dict incr c n 3; puts $c").2, "n 3\n");
+    assert_eq!(
+        run("dict append e k ab; dict append e k cd; puts $e").2,
+        "k abcd\n"
+    );
+    assert_eq!(run("dict lappend f k 1 2; puts $f").2, "k {1 2}\n");
+    assert_eq!(run("set d {a 1 b 2}; dict unset d a; puts $d").2, "b 2\n");
+}
