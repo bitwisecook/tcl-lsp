@@ -179,6 +179,11 @@ chunk-by-chunk dispatch story lives in
   deep parity audit of the Rust rewrite's lexer, CST, IR/lowering, CFG/SSA,
   analyses, optimiser, and bytecode codegen against the Python source of
   truth, with a per-code coverage table and a prioritised gap register.
+- [rust/wasm-aot-path.md](rust/wasm-aot-path.md) — proposed RT-WASM path
+  forward: native WASM + AOT with real Tcl frames, grounded in the Python+Zig
+  stack on `main` (reuse the 83 K-line Zig runtime as-is, port only the ~20 K
+  emitter against its ~100-fn ABI), staged A–F with an honest difficulty
+  register (ABI drift, frame-elision soundness, refcount discipline).
 - [runtime/rust-runtime-port.md](runtime/rust-runtime-port.md) —
   productionising the C-Tcl-extension-to-WASM port on the Rust runtime:
   status, bootstrapping plan, and the end-to-end build mechanism.
