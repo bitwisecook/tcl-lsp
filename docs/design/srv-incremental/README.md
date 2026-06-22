@@ -310,10 +310,15 @@ open risks and the spike that must precede committing it are listed after the st
 **Open risks a spike must settle before this design is committed** (none resolved
 today):
 - **Cycles.** Cross-file dependency graphs are routinely cyclic (mutual `source`,
-  mutually-recursive cross-file calls). Salsa has **no cycle handling configured in
-  this codebase** (the only fixpoints are manual and intra-unit); an unhandled cycle
-  panics. The spike must choose and prove a policy (salsa fixed-point recovery, or
-  cutting the graph at file granularity).
+  mutually-recursive cross-file calls). No cycle handling is *configured* in this
+  codebase yet (the only fixpoints are manual and intra-unit), and an unhandled
+  salsa cycle panics — **but the mechanism exists**: salsa 0.26.2 provides
+  fixpoint cycle recovery via `#[salsa::tracked(cycle_fn=…, cycle_initial=…)]`
+  (verified — `salsa-0.26.2/src/cycle.rs`, with a `benches/dataflow.rs` fixpoint
+  that is the same monotone shape as the taint summary solve). So the policy is
+  *available* (salsa fixed-point recovery: `cycle_initial` = the lattice bottom,
+  `cycle_fn` = converge-or-iterate); the spike's remaining job is to wire it and
+  prove convergence + correctness, not to invent it.
 - **Heuristic edges vs. precise invalidation.** Tcl name resolution is best-effort,
   so the salsa dependency edges are *heuristic* — a wrong edge can leave a stale
   diagnostic that today's reanalyse-on-next-touch would not. "No-worse-than-today"
@@ -387,9 +392,13 @@ exist yet — the verification-status table follows the list.
      guard never fires; 2878 `tcl-compiler` + 59 taint tests green).
      *Remaining 2b — incremental across edits:* the worklist still re-infers all procs
      on pass 1 of every solve (~120 ms floor); making *that* incremental needs the
-     per-proc summaries memoised across edits (salsa, offset-invariant key — the
-     `taint_cascade` pattern applied to `infer_proc_summary`), so a body edit re-infers
-     only the edited proc + its caller cascade.
+     per-proc summaries memoised across edits as a salsa query keyed offset-invariantly
+     (the `taint_cascade` pattern applied to `infer_proc_summary`), recursively demanding
+     callee summaries. Mutual recursion is handled by salsa 0.26's fixpoint cycle
+     recovery (`cycle_fn`/`cycle_initial` — verified available, see Task 6's cycle note),
+     with `cycle_initial` = the untainted summary (lattice bottom) and `cycle_fn` =
+     converge when the summary stops growing. A body edit then re-infers only the edited
+     proc + its caller cascade. (XL; gated by the differential fuzzer below.)
    *Verification gate (still to build):* a random-edit differential fuzzer comparing
    memoised `compiler_check_diagnostics` against a fresh whole-unit `run_all_checks` on
    the salsa path. The worklist above is meanwhile gated by the corpus differential +
@@ -467,6 +476,8 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | `run_all_checks` ~405 ms = ~16 ms per-function + ~385 ms whole-unit `solve_interprocedural_taints` | **measured** | profiler phase-decomposition tier (`linalg.tcl`) |
 | `solve_interprocedural_taints` is whole-unit; ~385 ms is the summary fixpoint (240 infers / 3 passes), not the ~5 ms entry-taint worklist | **measured** | env-gated solve profiling |
 | Dirty-set worklist: `solve` 385→158 ms, per-edit 411→237 ms (~1.7×), output unchanged | **measured + verified** | re-profile + full-corpus debug fixpoint guard + 2878 tests |
+| Worklist win holds on the merged tree (FE-OPT inliner): `run_all_checks` 405→177 ms, per-edit →231 ms | **measured** | re-profile post-merge + 59 taint tests (guard active) |
+| Salsa cycle recovery available for 2b/Task 6 (mutual recursion / `source` cycles) | **verified** (dep) | `salsa-0.26.2/src/cycle.rs` + `benches/dataflow.rs` (`cycle_fn`/`cycle_initial`) |
 | Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |
 | Task 2 "cuts ~405 ms to one-proc cost" (the easy framing) | **refuted** | decomposition: ~16 ms easy (2a) + ~385 ms hard whole-unit taint solve (2b) |
 | Task 2 memo is sound | **hypothesis** | check-diagnostics differential fuzzer on the salsa path — *does not exist* |
