@@ -197,6 +197,116 @@ fn v3_variadic_quoted_word_declines() {
 }
 
 #[test]
+fn v3_empty_variadic_extra_declines() {
+    // An empty extra word (`""`) would collapse inside `[list …]` (dropping
+    // the element), so the binder declines and keeps the call.
+    let stmts = inlined_top("proc ::v {args} { puts $args }\nv a \"\" c");
+    assert!(
+        stmts
+            .iter()
+            .any(|s| matches!(s, Statement::Call { command, .. } if command == "v")),
+        "empty variadic extra keeps the call"
+    );
+}
+
+#[test]
+fn v3_default_path_preserves_braced_literal_arg() {
+    // `f {$caller}` with a defaulted 2nd param takes the defaults path; the
+    // braced first arg must still bind as a literal (AssignConst `$caller`),
+    // never re-substituted in the caller frame — and the declared default
+    // binds as a literal too.
+    let stmts = inlined_top("proc ::f {x {y d}} { puts $x }\nf {$caller}");
+    assert!(
+        stmts
+            .iter()
+            .any(|s| matches!(s, Statement::AssignConst { value, .. } if value == "$caller")),
+        "braced call arg bound as a literal on the defaults path"
+    );
+    assert!(
+        stmts
+            .iter()
+            .any(|s| matches!(s, Statement::AssignConst { value, .. } if value == "d")),
+        "declared default bound as a literal"
+    );
+    assert!(
+        !stmts
+            .iter()
+            .any(|s| matches!(s, Statement::AssignValue { value, .. } if value == "$caller")),
+        "braced arg must not be re-substituted via AssignValue"
+    );
+}
+
+#[test]
+fn v3_default_value_is_literal() {
+    // Tcl proc defaults are literal: `f` with no args binds `x` to the
+    // string `$caller`, not the caller's variable.
+    let stmts = inlined_top("proc ::f {{x $caller}} { puts $x }\nf");
+    assert!(
+        stmts
+            .iter()
+            .any(|s| matches!(s, Statement::AssignConst { value, .. } if value == "$caller")),
+        "literal default bound without substitution"
+    );
+}
+
+#[test]
+fn v3_terminal_if_branch_keeps_trailing_return() {
+    // The inlined `id 7` sits in the terminal branch of a terminal `if`, so
+    // its trailing return forwards `outer`'s value — kept intact, not wrapped.
+    let module = inline_module(module_for(
+        "proc ::id {x} { return $x }\nproc ::outer {} { if {1} { id 7 } }",
+    ));
+    let outer = &module.procedures["::outer"];
+    let clause_body = match &outer.body.statements[0] {
+        Statement::If { clauses, .. } => &clauses[0].body,
+        other => panic!("expected if, got {other:?}"),
+    };
+    assert!(
+        clause_body
+            .statements
+            .iter()
+            .any(|s| matches!(s, Statement::Return { .. })),
+        "terminal if-branch keeps the trailing return"
+    );
+    assert!(
+        !clause_body
+            .statements
+            .iter()
+            .any(|s| matches!(s, Statement::While { .. })),
+        "terminal if-branch is not wrapped in a while-loop"
+    );
+    assert!(
+        !clause_body
+            .statements
+            .iter()
+            .any(|s| matches!(s, Statement::Call { command, .. } if command == "id")),
+        "the call was inlined"
+    );
+}
+
+#[test]
+fn v3_non_terminal_if_branch_still_wraps_return() {
+    // Same inline, but now the `if` is followed by another statement, so the
+    // branch is not terminal — the trailing return must be wrapped so it
+    // doesn't escape `outer` early.
+    let module = inline_module(module_for(
+        "proc ::id {x} { return $x }\nproc ::outer {} { if {1} { id 7 }\n puts done }",
+    ));
+    let outer = &module.procedures["::outer"];
+    let clause_body = match &outer.body.statements[0] {
+        Statement::If { clauses, .. } => &clauses[0].body,
+        other => panic!("expected if, got {other:?}"),
+    };
+    assert!(
+        clause_body
+            .statements
+            .iter()
+            .any(|s| matches!(s, Statement::While { .. })),
+        "non-terminal if-branch wraps the return"
+    );
+}
+
+#[test]
 fn v3_too_many_args_declines() {
     let stmts = inlined_top("proc ::id {x} { puts $x }\nid a b");
     assert!(

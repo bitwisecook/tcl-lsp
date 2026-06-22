@@ -50,7 +50,9 @@ use std::collections::{HashMap, HashSet};
 use tcl_lexer::{Span, TokenType};
 
 use crate::expr_ast::ExprNode;
-use crate::ir::{IfClause, Module, Procedure, Script, Statement, SwitchArm, TryHandler};
+use crate::ir::{
+    CommandTokens, IfClause, Module, Procedure, Script, Statement, SwitchArm, TryHandler,
+};
 use crate::var_escape::ProcEscapeSummary;
 use crate::var_escape::interprocedural::resolve_callee;
 
@@ -777,11 +779,23 @@ fn rewrite_stmt(
             else_body,
             else_span,
         } => {
+            // When the `if` itself is in terminal position, exactly one of
+            // its branches runs and that branch's last statement supplies the
+            // enclosing script's result — so each branch body is itself a tail
+            // position. Propagate `is_terminal` so a v3 inline with a trailing
+            // `return` in the taken branch forwards its value instead of being
+            // wrapped (and dropping it).
             let mut new_clauses = Vec::with_capacity(clauses.len());
             let mut changed = false;
             for c in clauses {
-                let (body, ch) =
-                    rewrite_script(&c.body, caller_qname, inlinable, summaries, counter, false);
+                let (body, ch) = rewrite_script(
+                    &c.body,
+                    caller_qname,
+                    inlinable,
+                    summaries,
+                    counter,
+                    is_terminal,
+                );
                 if ch {
                     changed = true;
                     new_clauses.push(IfClause {
@@ -797,7 +811,7 @@ fn rewrite_stmt(
             let new_else = match else_body {
                 Some(b) => {
                     let (s, ch) =
-                        rewrite_script(b, caller_qname, inlinable, summaries, counter, false);
+                        rewrite_script(b, caller_qname, inlinable, summaries, counter, is_terminal);
                     if ch {
                         changed = true;
                     }
@@ -1001,13 +1015,22 @@ fn rewrite_stmt(
             raw_args,
             patterns_braced,
         } => {
+            // Like `if`, a terminal `switch`'s matched arm (or default) is a
+            // tail position — its last statement is the enclosing result —
+            // so propagate `is_terminal` into each arm / default body.
             let mut new_arms = Vec::with_capacity(arms.len());
             let mut changed = false;
             for a in arms {
                 match &a.body {
                     Some(b) => {
-                        let (body, ch) =
-                            rewrite_script(b, caller_qname, inlinable, summaries, counter, false);
+                        let (body, ch) = rewrite_script(
+                            b,
+                            caller_qname,
+                            inlinable,
+                            summaries,
+                            counter,
+                            is_terminal,
+                        );
                         if ch {
                             changed = true;
                             new_arms.push(SwitchArm {
@@ -1027,7 +1050,7 @@ fn rewrite_stmt(
             let new_default = match default_body {
                 Some(b) => {
                     let (s, ch) =
-                        rewrite_script(b, caller_qname, inlinable, summaries, counter, false);
+                        rewrite_script(b, caller_qname, inlinable, summaries, counter, is_terminal);
                     if ch {
                         changed = true;
                     }
@@ -1459,13 +1482,7 @@ fn build_param_bindings(
 
     let params = &proc.params;
     let has_variadic = params.last().is_some_and(|p| p == "args");
-
-    let arg_is_braced_literal = |idx: usize| -> bool {
-        let Some(t) = tokens else { return false };
-        t.argv_kinds
-            .get(idx + 1)
-            .is_some_and(|k| *k == TokenType::Str)
-    };
+    let tokens = tokens.as_ref();
 
     let mut bound: Vec<String> = Vec::new();
     let mut bound_is_literal: Vec<bool> = Vec::new();
@@ -1473,11 +1490,11 @@ fn build_param_bindings(
     if has_variadic {
         let positional_count = params.len() - 1;
         if args.len() < positional_count {
-            return build_with_defaults(cid, &rename, proc, args, positional_count, true);
+            return build_with_defaults(cid, &rename, proc, args, tokens, positional_count, true);
         }
         for (i, a) in args.iter().enumerate().take(positional_count) {
             bound.push(a.clone());
-            bound_is_literal.push(arg_is_braced_literal(i));
+            bound_is_literal.push(arg_is_braced_literal(tokens, i));
         }
         let extras = &args[positional_count..];
         if extras.is_empty() {
@@ -1485,12 +1502,16 @@ fn build_param_bindings(
             bound_is_literal.push(true);
         } else {
             for i in positional_count..args.len() {
-                if arg_is_braced_literal(i) {
+                if arg_is_braced_literal(tokens, i) {
                     return None;
                 }
             }
             for w in extras {
-                if !list_clean_for_splice(w) {
+                // An empty extra word (e.g. the quoted `""` in `v ""`) would
+                // collapse inside `[list …]` — `[list ]` is a zero-element
+                // list, dropping the original one-element value. Decline so
+                // the call falls back to runtime dispatch with correct arity.
+                if w.is_empty() || !list_clean_for_splice(w) {
                     return None;
                 }
             }
@@ -1502,11 +1523,11 @@ fn build_param_bindings(
             return None;
         }
         if args.len() < params.len() {
-            return build_with_defaults(cid, &rename, proc, args, params.len(), false);
+            return build_with_defaults(cid, &rename, proc, args, tokens, params.len(), false);
         }
         for (i, a) in args.iter().enumerate() {
             bound.push(a.clone());
-            bound_is_literal.push(arg_is_braced_literal(i));
+            bound_is_literal.push(arg_is_braced_literal(tokens, i));
         }
     }
 
@@ -1532,13 +1553,32 @@ fn build_param_bindings(
     Some((cid, rename, bindings))
 }
 
+/// Whether the call-site word at `args[idx]` was a braced literal (`{…}`)
+/// in source — so it must bind as an [`Statement::AssignConst`], preserving
+/// embedded `$`/`[` rather than re-substituting them at the inlined site.
+/// `argv[0]` is the command name, so `args[idx]` aligns with `argv[idx+1]`.
+/// Mirrors `_arg_is_braced_literal`.
+fn arg_is_braced_literal(tokens: Option<&CommandTokens>, idx: usize) -> bool {
+    let Some(t) = tokens else { return false };
+    t.argv_kinds
+        .get(idx + 1)
+        .is_some_and(|k| *k == TokenType::Str)
+}
+
 /// Try to fill missing positional args from declared defaults. Mirrors
 /// `_build_with_defaults`.
+///
+/// Literal-binding parity with the non-default path: a call-site word that
+/// was a braced literal binds as [`Statement::AssignConst`], and so does a
+/// declared default — Tcl proc defaults are literal (`proc p {{a $x}} …; p`
+/// binds `a` to the string `$x`, never the caller's `$x`). Without this the
+/// default path re-substituted both in the caller frame.
 fn build_with_defaults(
     cid: usize,
     rename: &HashMap<String, String>,
     proc: &Procedure,
     args: &[String],
+    tokens: Option<&CommandTokens>,
     positional_count: usize,
     has_variadic: bool,
 ) -> Option<(usize, HashMap<String, String>, Vec<Statement>)> {
@@ -1551,30 +1591,48 @@ fn build_with_defaults(
     }
 
     let mut bound: Vec<String> = Vec::new();
+    let mut bound_is_literal: Vec<bool> = Vec::new();
     for i in 0..positional_count {
         if i < args.len() {
             bound.push(args[i].clone());
+            bound_is_literal.push(arg_is_braced_literal(tokens, i));
             continue;
         }
         match &parsed[i].1 {
-            Some(default) => bound.push(default.clone()),
+            Some(default) => {
+                bound.push(default.clone());
+                bound_is_literal.push(true); // defaults are literal
+            }
             None => return None,
         }
     }
     if has_variadic {
         bound.push(String::new());
+        bound_is_literal.push(true); // empty literal
     }
 
     let bindings: Vec<Statement> = proc
         .params
         .iter()
         .zip(&bound)
-        .map(|(p, v)| Statement::AssignValue {
-            span: proc.span,
-            name: rename[p].clone(),
-            value: v.clone(),
-            value_needs_backsubst: v.contains('\\'),
-            tokens: None,
+        .zip(&bound_is_literal)
+        .map(|((p, v), is_literal)| {
+            let name = rename[p].clone();
+            if *is_literal {
+                Statement::AssignConst {
+                    span: proc.span,
+                    name,
+                    value: v.clone(),
+                }
+            } else {
+                Statement::AssignValue {
+                    span: proc.span,
+                    name,
+                    value: v.clone(),
+                    value_needs_backsubst: v.contains('\\'),
+                    tokens: None,
+                }
+            }
         })
         .collect();
     Some((cid, rename.clone(), bindings))
