@@ -1,0 +1,341 @@
+//! WASM **value**-differential arm: run a generated program's compiled WASM
+//! (its *control flow*) with leaf commands and conditions evaluated by an
+//! embedded, persistent `tcl-vm`, and compare the captured output against
+//! running the *same* program directly on `tcl-vm`.
+//!
+//! Both sides evaluate the actual Tcl commands with `tcl-vm`, so command
+//! semantics are held constant; the **only** difference is whether control flow
+//! (`if`/`while`/`for`/`break`/`continue`/`return`, branch conditions) comes
+//! from the WASM emitter's structured codegen or from `tcl-vm`'s normal
+//! execution. A divergence therefore isolates a **WASM control-flow
+//! miscompile** — a real value differential for the part the eval-fallback
+//! emitter actually compiles, with no `tclsh` needed and no confounding from
+//! `tcl-vm` command bugs (those are caught by the main `tclvm`-vs-`tclsh` arm).
+//!
+//! The embedded host satisfies the eval-fallback ABI: `tcl_obj_new_string`
+//! interns a command/condition string read from the module's linear memory,
+//! `tcl_eval` runs it via `Vm::eval_source` (side effects — `puts` — flow to the
+//! captured sink; the discarded result handle is a dummy), `tcl_expr_bool`
+//! evaluates it via `Vm::eval_expr`, and `tcl_obj_release` is a no-op. State
+//! (variables, procs) persists across calls in the one `Vm`.
+//!
+//! This is the in-process upgrade of the runnability arm (`wasm.rs`): it embeds
+//! `wasmtime` rather than shelling out, so it can back the host with a live
+//! interpreter.
+
+use std::cell::RefCell;
+use std::io::Write;
+use std::rc::Rc;
+
+use tcl_compiler::cfg_builder::build_cfg_codegen;
+use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::codegen::wasm::wasm_codegen_module;
+use tcl_compiler::lowering::lower_to_ir;
+use tcl_registry::CommandRegistry;
+use tcl_vm::{Code, CompileError, CompileService, Vm};
+use wasmtime::{Caller, Config, Engine, Linker, Memory, MemoryType, Module, Store, Trap};
+
+/// Instruction budget for a single WASM-driven run. Generated programs have
+/// literal-bounded loops nested to a few levels, so a legitimate run consumes
+/// well under this; exhausting it means the WASM control flow failed to
+/// terminate (a real divergence, since the direct `tcl-vm` run does terminate).
+const FUEL_BUDGET: u64 = 200_000_000;
+
+/// How a value-differential check resolved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiffVerdict {
+    /// WASM-driven output matched direct `tcl-vm` execution (status + stdout).
+    Match,
+    /// Output or error-status diverged — a WASM control-flow miscompile.
+    Divergence {
+        /// Output captured while the WASM module drove control flow.
+        wasm: String,
+        /// Output from running the program directly on `tcl-vm`.
+        direct: String,
+    },
+    /// The module could not be compiled / instantiated / invoked (codegen or
+    /// embedder error) — recorded separately from a value divergence.
+    Unrunnable(String),
+    /// The WASM-driven run exhausted its instruction budget — non-termination
+    /// in the compiled control flow (the direct `tcl-vm` run does terminate).
+    WasmHang,
+}
+
+/// The `Write` sink that captures a `Vm`'s `puts` output.
+#[derive(Clone)]
+struct Capture(Rc<RefCell<Vec<u8>>>);
+impl Write for Capture {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.borrow_mut().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// The `CompileService` the embedded `Vm` uses for `eval_source`.
+struct Svc {
+    registry: CommandRegistry,
+}
+impl CompileService for Svc {
+    type Module = tcl_bytecode::ModuleAsm;
+    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let ir = lower_to_ir(src, &self.registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, &self.registry))
+    }
+}
+
+/// The wasmtime store's host data: the live interpreter, the string-handle
+/// table, the imported memory, and an error latch.
+struct HostState {
+    vm: Vm,
+    handles: Vec<String>,
+    memory: Option<Memory>,
+    errored: bool,
+}
+
+/// Build a fresh `Vm` wired with a compiler and an output capture.
+fn fresh_vm() -> (Vm, Rc<RefCell<Vec<u8>>>) {
+    let buf = Rc::new(RefCell::new(Vec::new()));
+    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    vm.set_compiler(Box::new(Svc {
+        registry: CommandRegistry::build_default(),
+    }));
+    (vm, buf)
+}
+
+/// Run `src` directly on `tcl-vm`; return `(errored, stdout)`.
+fn run_direct(src: &str) -> (bool, String) {
+    let registry = CommandRegistry::build_default();
+    let ir = lower_to_ir(src, &registry);
+    let cfg = build_cfg_codegen(&ir, false);
+    let asm = codegen_module(&cfg, &ir, &registry);
+    let (mut vm, buf) = fresh_vm();
+    let comp = vm.run_module(&asm);
+    let out = String::from_utf8_lossy(&buf.borrow()).into_owned();
+    (comp.code == Code::Error, out)
+}
+
+/// Outcome of a WASM-driven run.
+struct WasmRun {
+    errored: bool,
+    out: String,
+    hung: bool,
+}
+
+/// Drive `src`'s compiled WASM control flow with an embedded `tcl-vm` host;
+/// return the run outcome or an `Unrunnable` reason. Execution is fuel-bounded
+/// so a non-terminating compiled loop traps (`hung`) rather than wedging.
+fn run_wasm(engine: &Engine, src: &str) -> Result<WasmRun, String> {
+    // Compile the program to the eval-fallback WASM module (catch a codegen
+    // panic rather than abort the campaign).
+    let wasm_bytes = {
+        let src = src.to_owned();
+        std::panic::catch_unwind(move || {
+            let registry = CommandRegistry::build_default();
+            let module = lower_to_ir(&src, &registry);
+            wasm_codegen_module(&module, &src).to_bytes()
+        })
+        .map_err(|_| "wasm codegen panicked".to_owned())?
+    };
+    let module = Module::new(engine, &wasm_bytes).map_err(|e| format!("module: {e}"))?;
+
+    let (vm, buf) = fresh_vm();
+    let mut store = Store::new(
+        engine,
+        HostState {
+            vm,
+            handles: Vec::new(),
+            memory: None,
+            errored: false,
+        },
+    );
+    // A generous 32-page (2 MiB) memory covers the data segments whether they
+    // sit low or at the runtime's reserved base; min >= the module's import.
+    store
+        .set_fuel(FUEL_BUDGET)
+        .map_err(|e| format!("fuel: {e}"))?;
+    let memory =
+        Memory::new(&mut store, MemoryType::new(32, None)).map_err(|e| format!("mem: {e}"))?;
+    store.data_mut().memory = Some(memory);
+
+    let mut linker = Linker::new(engine);
+    linker
+        .define(&store, "tcl", "memory", memory)
+        .map_err(|e| format!("link mem: {e}"))?;
+    linker
+        .func_wrap("tcl", "tcl_obj_new_string", host_obj_new_string)
+        .and_then(|l| l.func_wrap("tcl", "tcl_eval", host_eval))
+        .and_then(|l| l.func_wrap("tcl", "tcl_obj_release", host_obj_release))
+        .and_then(|l| l.func_wrap("tcl", "tcl_expr_bool", host_expr_bool))
+        .map_err(|e| format!("link funcs: {e}"))?;
+
+    let instance = linker
+        .instantiate(&mut store, &module)
+        .map_err(|e| format!("instantiate: {e}"))?;
+    let top = instance
+        .get_typed_func::<(), ()>(&mut store, "::top")
+        .map_err(|e| format!("no ::top: {e}"))?;
+    let (trapped, hung) = match top.call(&mut store, ()) {
+        Ok(()) => (false, false),
+        Err(e) => {
+            let hung = e.downcast_ref::<Trap>() == Some(&Trap::OutOfFuel);
+            (!hung, hung)
+        }
+    };
+
+    let errored = trapped || store.data().errored;
+    let out = String::from_utf8_lossy(&buf.borrow()).into_owned();
+    Ok(WasmRun { errored, out, hung })
+}
+
+/// `tcl_obj_new_string(ptr, len)` — intern a string read from linear memory.
+fn host_obj_new_string(caller: Caller<'_, HostState>, ptr: i32, len: i32) -> i32 {
+    let mut caller = caller;
+    let Some(mem) = caller.data().memory else {
+        return -1;
+    };
+    let (ptr, len) = (
+        usize::try_from(ptr).unwrap_or(0),
+        usize::try_from(len).unwrap_or(0),
+    );
+    let s = {
+        let data = mem.data(&caller);
+        data.get(ptr..ptr.saturating_add(len))
+            .map_or_else(String::new, |b| String::from_utf8_lossy(b).into_owned())
+    };
+    let st = caller.data_mut();
+    let h = st.handles.len();
+    st.handles.push(s);
+    i32::try_from(h).unwrap_or(-1)
+}
+
+/// Look up a handle's interned string (empty for an out-of-range handle).
+fn handle_str(st: &HostState, h: i32) -> String {
+    usize::try_from(h)
+        .ok()
+        .and_then(|i| st.handles.get(i))
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// `tcl_eval(handle)` — run the command in the persistent interpreter; the
+/// (discarded) result is a fresh dummy handle.
+fn host_eval(caller: Caller<'_, HostState>, h: i32) -> i32 {
+    let mut caller = caller;
+    let cmd = handle_str(caller.data(), h);
+    let st = caller.data_mut();
+    match st.vm.eval_source(&cmd) {
+        Ok(comp) if comp.code != Code::Error => {}
+        _ => st.errored = true,
+    }
+    let dummy = st.handles.len();
+    st.handles.push(String::new());
+    i32::try_from(dummy).unwrap_or(-1)
+}
+
+/// `tcl_obj_release(handle)` — handles live for the run; nothing to free.
+fn host_obj_release(_caller: Caller<'_, HostState>, _h: i32) {}
+
+/// `tcl_expr_bool(handle)` — evaluate the condition; `1` true, `0` false.
+fn host_expr_bool(caller: Caller<'_, HostState>, h: i32) -> i32 {
+    let mut caller = caller;
+    let expr = handle_str(caller.data(), h);
+    let st = caller.data_mut();
+    // A non-numeric / unparseable condition is an error, latched and reported
+    // as false (the run will mismatch on error status, not silently continue).
+    match st.vm.eval_expr(&expr).ok().and_then(|v| v.as_bool().ok()) {
+        Some(true) => 1,
+        Some(false) => 0,
+        None => {
+            st.errored = true;
+            0
+        }
+    }
+}
+
+/// Value-differential one program: WASM-driven vs direct `tcl-vm`.
+#[must_use]
+pub fn check(engine: &Engine, src: &str) -> DiffVerdict {
+    let wasm = match run_wasm(engine, src) {
+        Ok(r) => r,
+        Err(reason) => return DiffVerdict::Unrunnable(reason),
+    };
+    if wasm.hung {
+        return DiffVerdict::WasmHang;
+    }
+    let (wasm_err, wasm_out) = (wasm.errored, wasm.out);
+    let (direct_err, direct_out) = run_direct(src);
+    // Compare stdout only when neither errored (a partial errored stdout isn't
+    // meaningfully comparable); always compare error status.
+    if wasm_err != direct_err || (!wasm_err && wasm_out != direct_out) {
+        return DiffVerdict::Divergence {
+            wasm: wasm_out,
+            direct: direct_out,
+        };
+    }
+    DiffVerdict::Match
+}
+
+/// A reusable engine for a campaign (compiling many modules), with fuel metering
+/// enabled so a non-terminating compiled program traps instead of wedging.
+#[must_use]
+pub fn engine() -> Engine {
+    let mut config = Config::new();
+    config.consume_fuel(true);
+    Engine::new(&config).expect("fuel-metering engine")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn straight_line_matches() {
+        let e = engine();
+        assert_eq!(
+            check(&e, "puts hello\nputs world\n"),
+            DiffVerdict::Match,
+            "straight-line output must agree"
+        );
+    }
+
+    #[test]
+    fn if_branch_matches() {
+        let e = engine();
+        // The WASM `if` must take the same branch tcl-vm does.
+        assert_eq!(
+            check(
+                &e,
+                "set x 5\nif {$x > 3} { puts big } else { puts small }\n"
+            ),
+            DiffVerdict::Match
+        );
+        assert_eq!(
+            check(
+                &e,
+                "set x 1\nif {$x > 3} { puts big } else { puts small }\n"
+            ),
+            DiffVerdict::Match
+        );
+    }
+
+    #[test]
+    fn loop_iteration_matches() {
+        let e = engine();
+        assert_eq!(
+            check(&e, "for {set i 0} {$i < 3} {incr i} { puts $i }\n"),
+            DiffVerdict::Match,
+            "WASM loop must iterate like tcl-vm"
+        );
+    }
+
+    #[test]
+    fn while_with_break_matches() {
+        let e = engine();
+        let src = "set i 0\nwhile {1} { incr i\n if {$i >= 2} { break }\n puts $i }\n";
+        assert_eq!(check(&e, src), DiffVerdict::Match);
+    }
+}

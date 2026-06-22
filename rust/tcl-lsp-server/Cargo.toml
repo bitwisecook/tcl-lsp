@@ -16,6 +16,8 @@ path = "src/main.rs"
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
+tcl-bigip = { path = "../tcl-bigip" }
+f5-xc = { path = "../f5-xc" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-lsp-db = { path = "../tcl-lsp-db" }
 salsa = "0.26"
