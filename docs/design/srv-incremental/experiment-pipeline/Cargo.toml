@@ -6,7 +6,7 @@
 # That ratio is the "governing caveat" the SRV-ROPE decision turns on — whether
 # a rope's apply-side win can move end-to-end per-edit latency at all.
 #
-# Run:  cargo run --release --manifest-path docs/design/rope/experiment-pipeline/Cargo.toml
+# Run:  cargo run --release --manifest-path docs/design/srv-incremental/experiment-pipeline/Cargo.toml
 #
 # Deliberately NOT a workspace member (pulls `ropey`, builds on demand).
 [package]

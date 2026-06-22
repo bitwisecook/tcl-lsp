@@ -897,8 +897,8 @@ listed residuals · 🟡 partial · 🔴 not started.
 | F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, new `tcl-xc` | 🟢 | TK1001-3 + BIGIP6001-11 + IAPP7001-3 ported (TK live in the analyser); residuals: XC100-301 (gated on a `tcl-xc` translator port of `lower_to_ir`-walking `translator.py`, Python-only meanwhile) + BIG-IP/iApp native-server consumer-wiring (SRV-LSP-style) → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🟡 | eval-fallback emitter + `tcl compwasm` wiring landed (binary/WAT, `wasmtime`-validated); residual: `IRInterpBoundary`; codegen DCE/GVN; `--link` (Binaryen) bundling → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after. `tclvm` CLI/REPL binary landed (`tcl-vm-cli`) → **RT-VM** |
-| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The rope-backed `DocumentState` is split out into its own **SRV-ROPE** track (need evaluated with measurements in [`design/rope/`](design/rope/README.md)) |
-| Document store / incrementality | `tcl-lsp-server`, `tcl-lexer`, `tcl-lsp-db` | 🔴 | rope-backed store + chunk-addressable salsa input + rope-slice re-lex → **SRV-ROPE** (see [`design/rope/`](design/rope/README.md)) |
+| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The document-store / per-edit-incrementality work is its own **SRV-INCREMENTAL** track (the rope was measured and demoted; design in [`design/srv-incremental/`](design/srv-incremental/README.md)) |
+| Document store / incrementality | `tcl-lsp-db`, `tcl-compiler`, `tcl-lsp-server`, `tcl-lexer` | 🔴 | per-proc `run_all_checks`/`optimise_unit` memo + IR-lowering floor (Approach A/B) + cross-file cascade + (optional) rope store → **SRV-INCREMENTAL** (see [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | ✅ | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
@@ -925,7 +925,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | RT | **RT-WASM** 🟡 | `tcl-compiler::codegen::wasm`, `runtime/zig`, `tcl-wasm` bin | FE-CODEGEN | L |
 | RT | **RT-VM** 🟡 | `tcl-vm`, `tcl-vm-cli` (`tclvm` bin) | `tcl-bytecode` | L |
 | SRV | **SRV-LSP** ✅ | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
-| SRV | **SRV-ROPE** 🔴 | document store: `tcl-lsp-server` `DocumentState` + `tcl-lexer` rope-slice `SourceMap` + `tcl-lsp-db` chunk input | FE-LEX (CST/structural-state index), SRV-LSP | XL |
+| SRV | **SRV-INCREMENTAL** 🔴 | per-edit pipeline: per-proc `run_all_checks`/`optimise_unit` memo + IR-lowering floor + cross-file cascade (`tcl-lsp-db`/`tcl-compiler`); optional rope store | FE-LEX (structural-state index), SRV-LSP | XL |
 | TOOL | **TOOL-TCLPKG** ✅ | `tcl-pkg` crate | — | XL |
 | TOOL | **TOOL-REFACTOR** ✅ | `tcl-lsp-core::code_actions` | SRV-LSP | M |
 | TOOL | **TOOL-F5** ✅ | `f5-cli` | RT-VM, TOOL-IRULE-TEST | XS |
@@ -1127,46 +1127,52 @@ residuals handed over from **FE-DIAG** — GAP-C1 per-check config toggles and t
 IRULE5002/5004 flow-warning code actions — are all shipped; the detail is in the
 [history archive](rust-rewrite-history.md).
 
-The rope-backed `DocumentState` that previously sat here as a deferred bullet is
-now its own track, **SRV-ROPE** (below), with the need evaluated against
-measurements rather than asserted.
+The rope-backed `DocumentState` that previously sat here is **demoted**: a measured
+experiment put it at ~0.02% of per-edit latency. The document-store /
+per-edit-incrementality work is now the **SRV-INCREMENTAL** track (below), with the
+rope as an optional, gated final step.
 
-#### SRV-ROPE — rope-backed document store + incremental pipeline
-Owns the document-store seam across `tcl-lsp-server` (`DocumentState`),
-`tcl-lexer` (rope-slice `SourceMap`), and `tcl-lsp-db` (chunk-addressable salsa
-input). Depends on **FE-LEX** (the landed CST descent + structural-state index,
-which bounds the dirty re-lex region) and **SRV-LSP**. Full motivation, the
-reproducible experiment, and task breakdown live in
-[`design/rope/README.md`](design/rope/README.md); the headline:
+#### SRV-INCREMENTAL — making the per-edit pipeline incremental
+Owns finishing end-to-end per-edit incrementality across `tcl-lsp-db`,
+`tcl-compiler`, `tcl-lsp-server`, and `tcl-lexer` — *within a file and across the
+project*. Builds on the largely-shipped per-item analyser firewall
+([`design/rust/incremental-analysis.md`](design/rust/incremental-analysis.md)) and
+depends on **FE-LEX** (the landed structural-state index that bounds the dirty
+re-lex region) and **SRV-LSP**. Full measurement, the cross-file cascade design,
+and the task breakdown live in
+[`design/srv-incremental/README.md`](design/srv-incremental/README.md); the
+headline:
 
-- **Measured, not asserted.** A workspace-excluded harness
-  ([`design/rope/experiment/`](design/rope/experiment/)) compares the current
-  `String` edit path against `ropey` across file sizes, edit-burst sizes, high
-  edit rates, salsa-flatten cost, position lookups, and many-small-doc memory.
-- **A standalone `DocumentState` swap is not worth it.** A rope cannot help the
-  paramount metric (time-to-first-tokens is a full-buffer `didOpen`), cannot make
-  salsa incremental (the input interns a `String`; the rope must flatten `O(n)`
-  every edit), and costs **1.4–1.9× memory** for the many-small-files workload.
-  The per-edit bottleneck is *analysis* (re-lex + salsa invalidation), O(n) and
-  rope-invariant until the pipeline goes incremental.
-- **Most of the apply-side win needs no rope.** The `String` path is slow because
-  it rebuilds `LineIndex` and double-allocates a spliced `String` per edit; a
-  *persisted, incrementally-patched `LineIndex`* captures the bulk at ~0 memory
-  cost. **That is SRV-ROPE Task 1 and the recommended first step.**
-- **open** Tasks (smallest-first, each independently shippable): (1) persisted
-  incremental `LineIndex` on the `String` store — *do first, no rope*; (2) rope
-  behind a feature flag in `DocumentState` with burst-coalescing + a
-  many-small-doc memory guard; (3) `LineIndex::from_rope_slice` +
-  `Lexer::with_source_map` rope-slice re-lex in `tcl-lexer`; (4) **the real
-  prize** — chunk-addressable salsa `SourceFile` input so `set_text` interns only
-  changed chunks and `file_analysis_incremental` / the segmenter re-lex only the
-  dirty span (touches `tcl-lsp-db`, `tcl-compiler::parsing`, the recovery index);
-  (5) MVCC write-window minimisation (folds into 4); (6) a committed
-  `perf_track` bench gating **no time-to-first-tokens regression**.
-- **Exit criterion:** keep the rope only if, with Task 4 landed, end-to-end
-  per-edit latency on large files improves materially *and* many-small-doc memory
-  stays under ~1.2×. If Task 1 alone captures the realistic win, Tasks 2–5 stay
-  deferred and the `String` store is retained — the experiment is the gate.
+- **Measured, not asserted.** `tail_profile` on `linalg.tcl` (warm db, single-char
+  body edit) puts warm per-edit latency at ~411 ms, of which **whole-file
+  `run_all_checks` is ~405 ms**. Buffer apply — the rope's slice — is ~85 µs
+  (**0.02%**). Two workspace-excluded harnesses
+  ([`design/srv-incremental/experiment/`](design/srv-incremental/experiment/))
+  measure both halves.
+- **The prize is per-procedure check incrementality.** The shipped firewall makes
+  the analyser walk + per-proc lattices incremental, but `run_all_checks` /
+  `optimise_unit` re-run over the **whole unit** every edit (~99% of latency).
+  Memoising them per-proc (keyed on the offset-invariant `FnLatticeKey` the
+  lattices already use) is the highest-leverage change.
+- **Cross-file cascade is greenfield.** The `WorkspaceIndex` is off the salsa
+  graph, `resolve_proc_call` is per-file, and editing file A recomputes nothing in
+  file B. The design lifts the project signature table into salsa so cross-file
+  resolution / arity become tracked edges — reverse-dependency invalidation for
+  free, bounded by Tcl's dynamic dispatch.
+- **open** Tasks (smallest-first, each independently shippable, each fuzzer-gated):
+  (1) persisted incremental `LineIndex` on the `String` store — *do first, no
+  rope*; (2) **the prize** — per-proc `run_all_checks` / `optimise_unit` salsa
+  memo; (3) Approach A (incremental per-item IR lowering); (4) Approach B
+  follow-ups (deep-clone removal + `optimise_unit` memo); (5) wire the
+  `reparse_window` / structural-state index into the live re-lex path; (6)
+  cross-file cascade (project signature table in salsa + a multi-file differential
+  fuzzer); (7) **optional, gated** — rope store + chunk-addressable `SourceFile`
+  input.
+- **Exit criterion:** Tasks 1–2 capture the bulk of the win with no rope and no
+  cross-file work; 3–5 close the lowering / re-lex floor; 6 is the cross-file
+  feature, built incremental-first. The rope (7) lands only if its 0.02% slice has
+  grown measurable *and* many-small-doc memory stays under ~1.2× — otherwise the
+  `String` store is retained. The experiment is the gate.
 
 ### Stage 4 — Tooling (TOOL-*)
 
