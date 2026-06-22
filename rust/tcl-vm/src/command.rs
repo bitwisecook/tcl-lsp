@@ -72,6 +72,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("return", cmd_return);
     vm.register("tailcall", cmd_tailcall);
     vm.register("time", cmd_time);
+    vm.register("encoding", cmd_encoding);
     vm.register("error", cmd_error);
     vm.register("break", cmd_break);
     vm.register("continue", cmd_continue);
@@ -746,6 +747,32 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Value::string("per"),
         Value::string("iteration"),
     ]))
+}
+
+/// `encoding subcommand ?arg …?` — mirrors the tree-walking runtime
+/// (`runtime/rust`), the VM's parity oracle: the internal string model is
+/// UTF-8, so `convertto`/`convertfrom` pass the data through unchanged, `system`
+/// reports `utf-8`, `names` lists the supported set, and `dirs` is accepted and
+/// ignored (no encoding-file search). This is a documented simplification — real
+/// codepage conversion (cp1252, shiftjis, …) is not implemented on either side.
+fn cmd_encoding(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some(sub) = args.first() else {
+        return err("wrong # args: should be \"encoding subcommand ?arg ...?\"");
+    };
+    match &*sub.to_str() {
+        "dirs" => ok(Value::empty()),
+        "system" => ok(Value::string("utf-8")),
+        "names" => ok(Value::string("utf-8 unicode ascii iso8859-1")),
+        "convertto" | "convertfrom" => {
+            if args.len() < 2 {
+                return err("wrong # args: should be \"encoding convertto ?encoding? data\"");
+            }
+            ok(args.last().expect("len >= 2").clone())
+        }
+        other => err(format!(
+            "unknown or ambiguous subcommand \"{other}\": must be convertfrom, convertto, dirs, names, or system"
+        )),
+    }
 }
 
 /// `error message ?info? ?code?`.
