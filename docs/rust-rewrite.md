@@ -972,15 +972,21 @@ fixtures (`append`/`lappend`/`unset`/`upvar`/`global`/`tailcall`/`concat`;
 `expr {1+2}`; `esc` astral/C0). Their bytecode VM counterparts (appendScalar/
 Array, lappendScalar/Array/List, unsetScalar/Array, upvar, nsupvar, concatStk)
 were implemented in `tcl-vm` so the codegen runs end-to-end. Remaining:
-- **open** `set x [cmd]` pure-command-substitution assign — inlining was tried
-  (route the single-`[cmd]` value through the inline-cmd-subst emitter) but
-  reverted: the emitter produces value opcodes the partial bytecode VM did not
-  implement. **The VM blocker is now cleared** — `regexp`, `strclass`,
-  `numericType` (and pre-existing `dictGet`) all execute in `tcl-vm` (see
-  [history](rust-rewrite-history.md), RT-VM 2026-06-22) — so the re-land is no
-  longer VM-gated; it just needs the inline routing wired back into
-  `emit_value_interpolated` with the differential/golden gates green (the
-  inlining itself was byte-true for the VM-supported commands).
+- **open** `set x [cmd]` pure-command-substitution assign. **The VM blocker is
+  cleared** — `regexp`/`strclass`/`numericType` (and pre-existing `dictGet`), plus
+  the rest of the inline emitter's opcode surface (`REVERSE`/`LINDEX_MULTI`/
+  `STR_REPLACE`), all execute in `tcl-vm` (see [history](rust-rewrite-history.md),
+  RT-VM 2026-06-22). The **real remaining blocker is inline-emitter correctness**:
+  routing the assign value through `emit_inline_cmd_subst` (scoped to the assign
+  position, mirroring the oracle's `IRAssignValue` arm — bare command args must
+  keep the literal + `subst_word` path, which the inline command-parser cannot
+  match on escaped brackets) keeps the codegen golden/differential gates green and
+  the simple cases byte-true, **but breaks real `tcltest.tcl`** (a `set x [cmd …]`
+  inside tcltest option-parsing miscompiles → `can't read "debug"`). So the
+  inline command-substitution emitter still has edge-case divergences from the
+  correct runtime `subst_word` behaviour; those must be found and fixed (chase the
+  tcltest miscompile) before the re-land can land. The differential gate revived
+  2026-06-22 (see history) is the tool for this.
 - **open** statement-position specialisations for the *value-returning*
   commands used as bare statements — `string` / `regexp` / `lindex` /
   `lreplace` (result discarded; the value-position inline forms exist, so this
