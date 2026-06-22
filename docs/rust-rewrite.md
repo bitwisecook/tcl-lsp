@@ -892,7 +892,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) ported (`tcl-compiler::shimmer::byte_array` + `tcl-registry` `BytePayloadSpec`) — **FE-TYPESHIM** complete |
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
 | Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | every O-code pass + the inliner v0/verbatim shapes landed (see [history](rust-rewrite-history.md)); sole remaining: inliner **v3** (α-rename, gated on the RT-WASM consumer for execution-differential verification) → **FE-OPT** |
-| Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: `set x [cmd]` (reverted — needs VM value opcodes), bare-statement `string`/`regexp`/`lindex`/`lreplace`, non-proc `dict` (ensemble `invokeReplace`), `{*}` cmd-subst expansion → **FE-CODEGEN** |
+| Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` + the `set x [cmd]` inline re-land landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: bare-statement `string`/`regexp`/`lindex`/`lreplace`, non-proc `dict` (ensemble `invokeReplace`), `{*}` cmd-subst expansion → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
 | F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, new `tcl-xc` | 🟢 | TK1001-3 + BIGIP6001-11 + IAPP7001-3 ported (TK live in the analyser); residuals: XC100-301 (gated on a `tcl-xc` translator port of `lower_to_ir`-walking `translator.py`, Python-only meanwhile) + BIG-IP/iApp native-server consumer-wiring (SRV-LSP-style) → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🟡 | eval-fallback emitter + `tcl compwasm` wiring landed (binary/WAT, `wasmtime`-validated); residual: `IRInterpBoundary`; codegen DCE/GVN; `--link` (Binaryen) bundling → **RT-WASM** |
@@ -972,21 +972,17 @@ fixtures (`append`/`lappend`/`unset`/`upvar`/`global`/`tailcall`/`concat`;
 `expr {1+2}`; `esc` astral/C0). Their bytecode VM counterparts (appendScalar/
 Array, lappendScalar/Array/List, unsetScalar/Array, upvar, nsupvar, concatStk)
 were implemented in `tcl-vm` so the codegen runs end-to-end. Remaining:
-- **open** `set x [cmd]` pure-command-substitution assign. **The VM blocker is
-  cleared** — `regexp`/`strclass`/`numericType` (and pre-existing `dictGet`), plus
-  the rest of the inline emitter's opcode surface (`REVERSE`/`LINDEX_MULTI`/
-  `STR_REPLACE`), all execute in `tcl-vm` (see [history](rust-rewrite-history.md),
-  RT-VM 2026-06-22). The **real remaining blocker is inline-emitter correctness**:
-  routing the assign value through `emit_inline_cmd_subst` (scoped to the assign
-  position, mirroring the oracle's `IRAssignValue` arm — bare command args must
-  keep the literal + `subst_word` path, which the inline command-parser cannot
-  match on escaped brackets) keeps the codegen golden/differential gates green and
-  the simple cases byte-true, **but breaks real `tcltest.tcl`** (a `set x [cmd …]`
-  inside tcltest option-parsing miscompiles → `can't read "debug"`). So the
-  inline command-substitution emitter still has edge-case divergences from the
-  correct runtime `subst_word` behaviour; those must be found and fixed (chase the
-  tcltest miscompile) before the re-land can land. The differential gate revived
-  2026-06-22 (see history) is the tool for this.
+- **landed (2026-06-22)** `set x [cmd]` pure-command-substitution assign. The
+  assign value now routes through the inline command-substitution emitter
+  (scoped to the assign position, mirroring the oracle's `IRAssignValue` arm —
+  bare command args keep the literal + `subst_word` path), unblocked by the
+  RT-VM value opcodes **and** a real inline-emitter fix: `emit_cmd_subst_arg`
+  pushed a composite arg like `$opt*` / `x$y` as a literal instead of
+  substituting it (the bug that miscompiled tcltest's `MatchingOption` →
+  `can't read "debug"`). Specialised commands emit byte-true opcodes;
+  unspecialised ones use a correct generic invoke. Full `tcl-vm` suite (incl.
+  the real `tcltest.tcl` load + run), the revived differential gate, and a
+  byte-true golden vs tclsh all green (see [history](rust-rewrite-history.md)).
 - **open** statement-position specialisations for the *value-returning*
   commands used as bare statements — `string` / `regexp` / `lindex` /
   `lreplace` (result discarded; the value-position inline forms exist, so this
