@@ -234,6 +234,24 @@ fn multiline_cmd_subst_in_assignment_keeps_all_args() {
     assert_eq!(result, "bcd");
 }
 
+/// `dict with` maps a dict's keys to local variables, runs the body, and
+/// reflects the variables back: a modified key is updated, an unset key is
+/// removed, and a variable the body merely created is not added. A nested
+/// key path updates the sub-dict in place.
+#[test]
+fn dict_with_maps_and_reflects() {
+    // Modified `a`, removed `b` (unset), new `c` not added back.
+    assert_eq!(
+        run("set d {a 1 b 2}\ndict with d {set a 9; unset b; set c 3}\nset d").1,
+        "a 9",
+    );
+    // Nested key path: the sub-dict at `x` is updated in place.
+    assert_eq!(
+        run("set d {x {a 1 b 2}}\ndict with d x {incr a 5}\nset d").1,
+        "x {a 6 b 2}",
+    );
+}
+
 /// A hard parse error inside a compiled body (`set "i"xxx` — non-whitespace
 /// after a close-quote) is deferred to a catchable runtime error carrying the
 /// exact C Tcl message. Regression for set-1.3 / set-3.3.
