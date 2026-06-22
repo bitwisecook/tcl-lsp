@@ -71,6 +71,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("proc", cmd_proc);
     vm.register("return", cmd_return);
     vm.register("tailcall", cmd_tailcall);
+    vm.register("time", cmd_time);
     vm.register("error", cmd_error);
     vm.register("break", cmd_break);
     vm.register("continue", cmd_continue);
@@ -702,6 +703,49 @@ fn cmd_tailcall(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     } else {
         res
     }
+}
+
+/// `time command ?count?` — evaluate `command` (in the current frame) `count`
+/// times (default 1) and report the average duration as a 4-element list
+/// `N microseconds per iteration` (C Tcl `Tcl_TimeObjCmd`). `N` is an integer for
+/// `count <= 1` and a double otherwise; a body that does not complete `OK`
+/// (error / break / continue / return) propagates.
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if args.is_empty() || args.len() > 2 {
+        return err("wrong # args: should be \"time command ?count?\"");
+    }
+    let count = if args.len() == 2 {
+        match args[1].as_int() {
+            Ok(n) => n,
+            Err(e) => return err(e.message),
+        }
+    } else {
+        1
+    };
+    let script = args[0].to_str().to_string();
+    let start = vm.host_rc().clock().now_micros();
+    let mut i = count;
+    while i > 0 {
+        match vm.eval_source(&script) {
+            Ok(c) if c.code.is_ok() => {}
+            Ok(c) => return c,
+            Err(e) => return err(e.message),
+        }
+        i -= 1;
+    }
+    let total = (vm.host_rc().clock().now_micros() - start) as f64;
+    let num = if count <= 1 {
+        Value::int(if count <= 0 { 0 } else { total as i64 })
+    } else {
+        Value::double(total / count as f64)
+    };
+    ok(Value::list(vec![
+        num,
+        Value::string("microseconds"),
+        Value::string("per"),
+        Value::string("iteration"),
+    ]))
 }
 
 /// `error message ?info? ?code?`.
