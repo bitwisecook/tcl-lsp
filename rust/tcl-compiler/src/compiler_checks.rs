@@ -222,6 +222,20 @@ pub fn run_all_checks(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<Diagnostic> {
+    let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
+    run_all_checks_with_solved(cu, registry, dialect, &solved)
+}
+
+/// Like [`run_all_checks`] but consumes a pre-computed interprocedural taint
+/// solve, so a caller can supply a memoised one (SRV-INCREMENTAL 2b) instead of
+/// re-solving the whole module on every edit — that solve is ~95% of this pass.
+#[must_use]
+pub fn run_all_checks_with_solved(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+    solved: &crate::taint_interproc::InterprocTaintResult,
+) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
 
     // SCCP constant branches (per function).
@@ -253,7 +267,6 @@ pub fn run_all_checks(
     // a tainted argument flowing into a callee parameter and then a sink is
     // reported (cross-proc entry-taint). Mirrors Python `find_taint_warnings`,
     // which consumes `_solve_interprocedural_taints`.
-    let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
     for fu in cu.analysable_functions() {
         let taints = solved.taints_for(&fu.name, &fu.taints);
         for w in find_taint_warnings(
