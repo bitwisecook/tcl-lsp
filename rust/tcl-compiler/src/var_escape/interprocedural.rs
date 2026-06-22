@@ -72,7 +72,14 @@ fn name_candidates(command: &str, caller_qname: &str) -> Vec<String> {
     candidates
 }
 
-fn resolve_callee<S: BuildHasher>(
+/// Resolve a call's head word to the qname of a tracked proc, walking
+/// the namespace chain exactly as the interprocedural escape pass does.
+/// Returns `None` for builtins / unknown commands (absent from
+/// `summaries`). Exposed `pub(crate)` so the inliner (`crate::inlining`)
+/// resolves call sites with the same rules — mirrors Python's
+/// `var_escape._interprocedural._resolve_callee`, the shared resolver
+/// `decision.py` / `inline_pass.py` import.
+pub(crate) fn resolve_callee<S: BuildHasher>(
     command: &str,
     caller_qname: &str,
     summaries: &HashMap<String, ProcEscapeSummary, S>,

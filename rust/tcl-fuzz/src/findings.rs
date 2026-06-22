@@ -113,7 +113,10 @@ impl Registry {
         if json.exists() {
             return Ok(false);
         }
-        std::fs::write(self.dir.join(format!("finding-{}.tcl", finding.seed)), &finding.script)?;
+        std::fs::write(
+            self.dir.join(format!("finding-{}.tcl", finding.seed)),
+            &finding.script,
+        )?;
         std::fs::write(
             &json,
             serde_json::to_string_pretty(finding).unwrap_or_default(),
@@ -168,11 +171,20 @@ mod tests {
             7,
             Category::StdoutMismatch,
             "puts 1",
-            &Outcome::Ran { stdout: "1\n".into(), errored: false },
-            &Outcome::Ran { stdout: "2\n".into(), errored: false },
+            &Outcome::Ran {
+                stdout: "1\n".into(),
+                errored: false,
+            },
+            &Outcome::Ran {
+                stdout: "2\n".into(),
+                errored: false,
+            },
         );
         assert!(reg.record(&f).unwrap());
-        assert!(!reg.record(&f).unwrap(), "second record of same seed is a no-op");
+        assert!(
+            !reg.record(&f).unwrap(),
+            "second record of same seed is a no-op"
+        );
         assert_eq!(reg.summary().get(&Category::StdoutMismatch), Some(&1));
         assert_eq!(reg.load(7).unwrap().subject_stdout, "2\n");
         let _ = std::fs::remove_dir_all(&dir);
