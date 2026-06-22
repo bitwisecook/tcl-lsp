@@ -11216,3 +11216,199 @@ The track closed in `rust-rewrite.md` (now a ✅ row). What landed:
 - **Tests** — 61 `tcl-pkg` unit tests (mirroring the Python `tests/tclpkg/`
   cases) + 5 `tcl-cli` integration tests over the built binary. `cargo clippy
   -p tcl-pkg -p tcl-cli --all-targets` is warning-clean.
+
+## RT-VM — post-parity-push fixes (2026-06-21/22)
+
+Follow-on fixes after the 2026-06-19 parity push (above). Each is covered by
+`tcl-vm/tests/language_e2e.rs` and pinned byte-equal to tclsh; the live open
+gaps stay in [`rust-rewrite.md`](rust-rewrite.md) → **RT-VM**.
+
+- **(2026-06-21) the runtime `while`/`for` frozen-loop infinite spin.** A loop
+  whose **condition is a bare command substitution** can't inline to a CFG loop
+  (only an *expression* condition — `[cmd] > 0`, `$x`, `!![cmd]` — does), so
+  `cfg_builder` converts it to a "frozen" runtime `while`/`for` call. That
+  conversion built the barrier with `tokens: None`, so the codegen lost each
+  word's source kind and pushed the braced `{cond}` word **non-verbatim** —
+  `subst_word` evaluated the condition's command substitution **once** at the
+  call site, freezing the loop into an infinite spin (`while {[string length
+  $x]} {set x ""}` never terminated; the `> 0` variants did). The `While`/`For`
+  IR now carries the segmenter's `raw_tokens`, and the frozen barrier reuses them
+  so each word is pushed exactly as written (braced → verbatim, `$body` →
+  substituted). Covered by
+  `tcl-vm/tests/language_e2e.rs::while_command_subst_condition_*`. **This was the
+  most common real "hang" idiom** — tcltest's own `while {[string length
+  $argList]}` word-splitter spun. The **same token-loss bug** was then fixed for
+  the other runtime loop fallbacks — the `dict for`/`map` barrier and the runtime
+  `foreach`/`lmap` call (qualified loop vars / non-inline) — by extending
+  `raw_tokens` to `Foreach`. Audit: only the three loop types have a runtime
+  fallback; `switch`/`catch`/`try`/`if` inline their bodies and need no token
+  preservation.
+- **(2026-06-21) composite array-element index substitution.** A read or write
+  of `$a(prefix$var)` / `$a(-$opt)` / `$a(${item}suf)` pushed the index as a raw
+  literal, so the embedded variable never expanded (`can't read "a(x$item)"`).
+  tcltest's `$testAttributes(-$item)` option processing hit this, aborting
+  `info.test` after the loop fix. `push_array_key` now decodes a composite index
+  into its substitution parts and `STR_CONCAT`s them (byte-equal to `tclsh9.0`).
+- **(2026-06-22) six bugs surfaced by running the iRule TMM-sim orchestrator**
+  (the ~500 KB of framework Tcl behind **TOOL-IRULE-TEST**) on the VM:
+  - **proc-body namespace-cache collision** — the pre-compiled body cache was
+    keyed by the *global* name, so two procs sharing an unqualified name across
+    namespaces (`::a::p` vs `::b::p`) collided on one body and a wrapper proc ran
+    the wrong callee in the wrong namespace (`[namespace current]` / `variable`
+    resolved against the caller). Keyed now by the runtime-qualified name.
+  - **`format` const-fold froze variable args** — `set x [format {…%s…} $v]`
+    folded `$v` to the literal source text; the fold now bails when any argument
+    is a runtime substitution (`$…`/`[…]`).
+  - **no `unknown` fallback** — an unresolved command name is now handed to a
+    user-defined `unknown` proc (`unknown name arg…`), the basis for the iRule
+    command mocks, ensembles, and auto-loading.
+  - **missing `exit`** — added the builtin (so the shim can rename it to
+    `::tmm::_orig_exit` and scripts terminate with the right process code).
+  - **`::tcl::clock::*` ensemble members** — `clock clicks`/`seconds`/… are now
+    reachable via their fully-qualified implementation names, which library code
+    calls directly.
+  - **ARE word-edge regex escapes** — `\m`/`\M`/`\y`/`\Y` and `[[:<:]]`/`[[:>:]]`
+    translate to the `regex` crate's `\b{start}`/`\b{end}`/`\b`/`\B`.
+
+  Also implemented the **dict bytecode opcodes** (`DICT_SET`/`UNSET`/`INCR_IMM`/
+  `APPEND`/`LAPPEND`/`GET`/`EXISTS`) and made the generic `dict set`/`dict unset`
+  honour **multi-level key paths** (was single-level). With these, the
+  orchestrator's `example_test.tcl` runs 6/6 on `tclvm`, byte-identical to tclsh
+  8.6.
+- **VM CLI/REPL binary (`tclvm`, `tcl-vm-cli`).** A thin compiler-backed
+  `CompileService` driver, keeping the `tcl-vm` lib compiler-optional. Runs
+  script files (with `argv`/`argv0`/`argc`), evaluates inline scripts (`-c`),
+  pipes stdin, and offers an `info complete`-aware REPL (`-i` forces it without a
+  TTY). The `tcl dis` verb it was paired with is wired in `tcl-cli` (bytecode
+  disassembly via `format_module_asm`, with `--optimise`).
+
+## FE-DIAG-F5 — TK / BIG-IP / iApp diagnostics ported (landed 2026-06)
+
+Three of the four F5 dialect diagnostic families ported; the XC-translator family
+stays Python-only (open residual in [`rust-rewrite.md`](rust-rewrite.md) →
+**FE-DIAG-F5**). What landed:
+
+- **TK1001-1003** (geometry/widget/option) — ported to
+  `tcl-compiler::analyser::tk_checks`, gated on the `tk` dialect: TK1002
+  non-existent-parent + TK1003 unknown-option run per command, TK1001 pack/grid
+  conflict is decided post-walk from accumulated per-parent geometry usage
+  (flushed from `run_diagnostic_emitters`).
+- **BIGIP6001-6011** (config validator) — ported to `tcl-bigip::validator`
+  (`validate_bigip_config` / `validate_bigip_source`) producing ranged
+  `ConfigDiagnostic`s over a parsed `BigipConfig`, reusing the lint engine's
+  `ModelView` / `KindMap` / `resolve_name` (now `pub(crate)`). The `regex` crate
+  has no look-around, so the two Python negative look-aheads (`pool !member`,
+  `persist !none`) are filtered in code.
+- **IAPP7001-7003** (iApp template) — ported to
+  `tcl-bigip::apl::{iapp_vars,iapp_diagnostics}`: `extract_iapp_var_refs` pulls
+  `$::section__field` implementation references (ReDoS-safe regex), and
+  `validate_iapp_presentation` / `validate_iapp_implementation` emit
+  IAPP7001/7002/7003 over the existing `AplModel`, gated on the `f5-iapps` /
+  `f5-tmsh` / `f5-bigip` dialects.
+
+## TOOL-REFACTOR — refactoring transforms (landed 2026-06)
+
+The 5 remaining transforms (extract/inline variable, if↔switch, switch→dict,
+extract-datagroup) ported into the new `tcl-lsp-core::refactor` module and wired
+through `refactor_engine_actions`, alongside the pre-existing extract/inline proc
+— 7 transforms total. `find_command_at` descends registry-resolved
+`ArgRole::Body` words for nested-body support; the data-group action carries the
+rendered tmsh definition on `CodeAction::data_group_definition` (surfaced as the
+LSP `data` field, mirroring `_datagroup_to_code_action`). The if↔switch /
+switch→dict / datagroup outputs are asserted byte-for-byte against the live
+Python oracle; all `tests/test_refactoring.py` decline conditions are mirrored.
+Out of scope: `suggest_datagroup_extraction` (an AI-context scanner, not a
+`CodeAction`).
+
+## TOOL-F5 — `f5-cli` (landed 2026-06)
+
+The `explain-flow` `--tshark` / `--keylog` / `--tshark-filter` L7-enrichment
+paths landed (`tcl_bigip::flow::tshark`, a faithful EK-JSON port of
+`dialects/f5/bigip/flow/tshark.py`, byte-identical to the Python CLI on the
+`--tshark` / `--tshark-filter` paths; graceful degradation when tshark lacks EK
+`--no-duplicate-keys` support is itself parity-matched). `--simulate` runs each
+matched session's iRule under the embedded TMM-sim orchestrator on `tcl-vm` (via
+`tcl-irule-test::LiveSession`): the selected pool/node, the lb decision log,
+captured iRule logs and `response_committed` flow into the `simulated_*`
+text/JSON fields, a port of `tooling/f5/irule_simulation.py`. 28 dispatched verbs
+(27 shipped + the temporary rust-branch-only `registry-dump`, demoted from the
+shipped set on `main` by `#664`) and 262 parity tests — the template for the
+other tool ports.
+
+## TOOL-EXPLORER — compiler explorer (landed 2026-06, views)
+
+The `ssa`-view boolean-render parity bug landed (`view_tree::pystr`), and the
+**`wasm` view now renders WAT** — `serialise.rs::serialise_wasm` drives the
+eval-fallback `wasm_codegen_module` (the same emitter `tcl compwasm` uses) and
+emits the module's WAT plus per-function headers, which `render.rs::render_wasm`
+prints. All TUI views are now populated. Refinement (not blocking the view, open
+in [`rust-rewrite.md`](rust-rewrite.md) → **TOOL-EXPLORER**): the rich
+per-instruction explorer shape (`to_explorer_json`) the *web GUI* uses is not
+ported, so the wasm tab shows flat WAT rather than the gutter-rendered
+instruction graph; that lands with the broader **RT-WASM** emitter work. The
+Pyodide web server stays Python.
+
+## TOOL-FUZZ — differential fuzzer (`tcl-fuzz`) (landed 2026-06)
+
+A seeded random Tcl generator (`generator.rs`, scoped to the VM's supported
+surface so a divergence is a real miscompile, not an unimplemented command —
+pure, bounded loops, balanced delimiters), a subprocess differential harness
+(`harness.rs`: `tclvm` subject vs `tclsh` reference, each timeout-killable so a
+hang is a finding not a wedge), a campaign runner with stats (`campaign.rs`), and
+a findings registry (`findings.rs`: JSON + raw `.tcl`, dedup-by-seed,
+categorised, replayable). CLI verbs `run` / `replay` / `summary`. A 500-iteration
+campaign over the current VM is clean (498/500 match, 2 skipped, 0 findings — the
+loop/array fixes hold under fuzzing). Open residual in
+[`rust-rewrite.md`](rust-rewrite.md) → **TOOL-FUZZ**: broaden the generator
+grammar as the VM surface grows + add the WASM/Zig differential arm once
+**RT-WASM** lands.
+
+## TOOL-DEBUGGER — record-and-replay step debugger (`tcl-debugger`) (landed 2026-06)
+
+A record-and-replay step debugger over `tcl-vm`. The RT-VM piece landed —
+`tcl-vm` has a debug-hook seam (`Vm::set_debug_hook`): it fires once per source
+command (keyed on `(line, span-start)`, since `startCommand` is emitted only
+conditionally) with a full `DebugSnapshot` (line, command text, call stack,
+current-frame variables) and honours the returned `DebugAction`. The seam is
+inert (an `Option` check) when no hook is installed — differential parity gates
+stay green. `tcl-debugger`'s `VmBackend` installs a recording hook, runs the
+script once to capture the trace, then serves breakpoints / step-in/over/out /
+continue / stack / variable-inspection by navigating the trace with the
+`DebugController`. Two front-ends drive it: a `tcl-debug` interactive CLI
+(`break`/`step`/`next`/`finish`/`continue`/`print`/`stack`/`vars`) and a **DAP
+server** (`tcl-debug --dap`) speaking the Debug Adapter Protocol over
+`Content-Length`-framed stdio —
+`initialize`/`launch`/`setBreakpoints`/`threads`/`stackTrace`/`scopes`/`variables`/`continue`/`next`/`stepIn`/`stepOut`/`evaluate`/`disconnect`
+plus the `initialized`/`stopped`/`terminated` events — so editors integrate
+directly. Known replay-model characteristics (documented, not unfinished): script
+output is produced once up front, variable inspection is the current frame's
+captured scope, and `evaluate` resolves captured variables.
+
+## TOOL-IRULE-TEST — iRule TMM-sim framework (`tcl-irule-test`) (landed 2026-06)
+
+The crate runs the TMM-sim orchestrator live on `tcl-vm`. `topology` ports
+`TopologyFromSCF` — parse a bigip.conf via `tcl-bigip` and emit the `::orch::`
+setup (profiles via name-inference, VIP, pools + members, data-groups, attached
+iRules), parity-checked against the Python generator. `session` defines the
+`SessionPlan` / orchestrator-bootstrap assembly. `live::LiveSession` is the
+in-process driver: it sources the orchestrator framework (the ~500 KB of Tcl
+under `tooling/irule_test/tcl/` — orchestrator + TMM shim + command mocks) on a
+bytecode VM, loads iRules, fires events (`run_http_request`), and reads back the
+pool/node decisions, captured logs, and assertions — no `tclsh` subprocess.
+`embedded::EmbeddedLib` bundles the framework into the binary so a consumer (e.g.
+`f5 explain-flow --simulate`) needs no on-disk Tcl checkout. Getting the
+orchestrator running surfaced and fixed six VM/compiler bugs (see RT-VM
+post-parity-push fixes above) plus the dict opcodes and multi-level `dict set`.
+Note `tcl-irules` is the BIG-IP reference-extractor, **not** this. Open residual
+in [`rust-rewrite.md`](rust-rewrite.md) → **TOOL-IRULE-TEST**: broaden the
+generator grammar as the VM surface grows.
+
+## TOOL-CLI — native `tcl` CLI (`tcl-cli`) (landed 2026-06)
+
+All 26 top-level verbs ported and dispatched to native engine handlers. `dis`
+(bytecode disassembly via `format_module_asm`) and `compwasm` (eval-fallback WASM
+binary/WAT via the greenfield emitter) landed earlier; the `pkg`/`venv`/`docker`
+verbs are wired through to the `tcl-pkg` handlers that landed under
+**TOOL-TCLPKG**. The dispatch `match` is exhaustive (the not-yet-implemented
+fallthrough is gone). Any deeper WASM-emitter precision residual is **RT-WASM**'s,
+not the CLI verb's.
