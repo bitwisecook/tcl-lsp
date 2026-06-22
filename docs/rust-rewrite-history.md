@@ -11318,6 +11318,24 @@ gaps stay in [`rust-rewrite.md`](rust-rewrite.md) → **RT-VM**.
     full opcode surface is VM-supported, so the FE-CODEGEN `set x [cmd]` re-land
     has no remaining VM blocker.
 
+**(2026-06-22) FE-CODEGEN `set x [cmd]` inline re-land landed.** The pure
+command-substitution assignment value now routes through the inline
+command-substitution emitter (scoped to the assign value position, mirroring the
+oracle's `IRAssignValue` arm — command *arguments* keep the literal +
+`subst_word` path, which the inline command-parser cannot match on escaped
+brackets). Unblocked by the RT-VM value opcodes above **and** a real
+inline-emitter correctness fix: `emit_cmd_subst_arg` pushed a composite arg like
+`$opt*` / `x$y` / `${a}b` as a literal instead of substituting it, so
+`array names Option $option*` matched nothing — the bug that miscompiled
+tcltest's `MatchingOption` (surfaced as `can't read "debug"` via the
+auto-configure read traces). It now decomposes composite args and concatenates,
+like `emit_value_interpolated`. Specialised commands (`string length` → `strlen`,
+`lindex`, …) emit byte-true opcodes; unspecialised ones use a correct generic
+invoke (was push-literal + runtime `subst_word` before). Verified: full `tcl-vm`
+suite green incl. the real `tcltest.tcl` load + run; the revived differential
+gate green (the new `set-inline-strlen` fixture semantic-matches the Python
+oracle); golden byte-true vs tclsh 9.0.
+
 **(2026-06-22) Codegen differential gate revived.** `differential_codegen.rs`
 imported `core.compiler.*` — a path the seven-concern reorg removed — so the
 Python-oracle comparison had been a silent no-op since the reorg. Re-pointed it
