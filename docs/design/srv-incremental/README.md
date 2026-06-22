@@ -32,15 +32,15 @@ cost of the checks query — not the sum of the rows; full `tail_profile` dump b
 
 So:
 
-1. **The likely prize is per-procedure check incrementality.** The shipped salsa
-   firewall already makes the analyser *walk* and the per-proc *lattices* (CFG/SSA/
-   SCCP/type/taint) incremental — but the *checks over those lattices*
-   (`run_all_checks`, `optimise_unit`) re-run over the **whole unit** every edit,
-   and that is ~99% of warm per-edit latency (measured). Most checks are
-   per-function and key on the lattice key; the interproc-taint slice is whole-unit
-   and routes through the existing `taint_cascade` memo. The exact payoff is
-   **pending a `run_all_checks` cost-decomposition experiment** (Task 2) — it is the
-   highest-*leverage* target, not yet a proven win.
+1. **The cost is one whole-unit taint fixpoint — and incrementalising it is hard.**
+   The shipped salsa firewall already makes the analyser *walk* and the per-proc
+   *lattices* incremental, but `run_all_checks` re-runs over the whole unit every
+   edit (~99% of warm per-edit latency, measured). Decomposing it (measured): the
+   per-function checks are only ~16 ms; **~385 ms is `solve_interprocedural_taints`,
+   a whole-unit cross-proc entry-taint fixpoint** that — verified against the code —
+   is *not* the memoised `taint_cascade` and depends on a proc's *callers*, so it
+   does not reduce to a per-proc memo. The real win (Task 2b) is genuine incremental
+   dataflow, not the easy wrap the first draft assumed.
 2. **Cross-file analysis is not on the incremental graph at all.** The
    `WorkspaceIndex` is a plain server struct, `resolve_proc_call` is per-file,
    arity never crosses files, and editing file A recomputes **nothing** in file B.
@@ -344,30 +344,43 @@ exist yet — the verification-status table follows the list.
    ~0 memory cost. *Gate:* patched index byte-identical to a rebuilt one over an
    edit-fuzz corpus.
 
-2. **Per-procedure `run_all_checks` / `optimise_unit` memo** *(L — the prize, but
-   payoff not yet quantified).* `run_all_checks` is **not** uniformly per-function
-   (verified by reading `compiler_checks.rs`): the SCCP-branch, GVN, and
-   shimmer/thunking/byte-array checks are per-function and read only the
-   `FunctionUnit`, so they key cleanly on `FnLatticeKey` like `function_lattice`;
-   **but** the taint family calls a **whole-unit** `solve_interprocedural_taints(cu, …)`
-   fixpoint (which *duplicates* work the existing `taint_cascade` query already
-   memoises), and the iRules flow checks (`find_unnormalised_getter_warnings`,
-   `find_unguarded_drop_warnings`) run over the **whole `cu`**. So the work is:
-   (a) split the per-function checks into a salsa query keyed on `FnLatticeKey`;
-   (b) route the taint warnings through the existing `taint_cascade` memo — they
-   depend on the interproc summary, so keying on `FnLatticeKey` alone would be
-   *unsound*; they need the `FnLatticeKey` + summary-key shape `taint_cascade`
-   already uses; (c) decide whether the whole-unit iRules module checks get their own
-   firewall or stay whole-file. Consumers already take `FunctionUnit` with
-   `base_offset` (Approach B), so emit at offset 0 and rebase at aggregation.
-   *Prerequisite experiment (do first):* instrument `run_all_checks` to attribute the
-   ~405 ms across per-function checks vs. the whole-unit taint solve vs. iRules module
-   checks. **The payoff is unquantified until this runs** — "~405 ms → one-proc cost"
-   only holds if the per-function part dominates. *Verification gate (must be built):*
-   a differential fuzzer comparing memoised `compiler_check_diagnostics` against a
-   fresh whole-unit `run_all_checks` under random edits, **on the salsa path** — this
-   does **not** exist today (the current fuzzer covers neither the checks nor the
-   salsa path).
+2. **Per-procedure check memo + incremental interprocedural taint.** A
+   `run_all_checks` cost-decomposition (profiler phase tier, `linalg.tcl`, 81
+   functions) splits the ~405 ms sharply — **measured**, and it overturns this task's
+   prior framing:
+
+   | phase | cost | shape |
+   |---|--:|---|
+   | GVN (redundancy / partial / loop) | ~6 ms | per-function |
+   | shimmer + thunking | ~10 ms | per-function |
+   | **`solve_interprocedural_taints`** | **~385 ms** | **whole-unit fixpoint** |
+
+   - **2a — per-function check memo** *(S; ~16 ms ceiling).* SCCP / GVN / shimmer /
+     thunking read only the `FunctionUnit`; wrap them in a salsa query keyed on
+     `FnLatticeKey` so an unedited proc's checks are a cache hit. Easy, mirrors
+     `function_lattice` — but the measured ceiling is ~16 ms of ~411 ms (~4%): a
+     tidy-up, **not** the prize.
+   - **2b — incremental interprocedural taint** *(XL; the real ~385 ms, and harder
+     than the prior draft claimed).* `solve_interprocedural_taints` is **not**
+     equivalent to the memoised `taint_cascade` (verified by reading the code): it is
+     a richer **whole-unit fixpoint** that flows tainted call arguments into callee
+     parameters (cross-proc *entry-taint* — the case `cross_proc_entry_taint_into_sink_warns`,
+     which `fu.taints` / `taint_cascade` miss). So a proc's solved taint depends on its
+     **callers**, a *reverse* dependency `taint_cascade`'s callee-only `TaintSummaryKey`
+     does not model — it cannot be served from `taint_cascade`. A whole-unit memo keyed
+     on summaries is also unsound: the solve reads each proc's real CFG/SSA via
+     `run_propagation`, which a body edit changes. Incrementalising it needs a bounded
+     entry-taint worklist that re-propagates only the edited proc and its
+     taint-reachable neighbourhood — real incremental dataflow with its own
+     correctness model.
+     *Prerequisite experiment (before 2b is designed):* profile *inside*
+     `solve_interprocedural_taints` — is the ~385 ms redundant `run_propagation` per
+     worklist visit (a constant-factor win that helps *every* edit) or irreducible
+     fixpoint work? That decides whether 2b is "optimise the solve" or "incrementalise
+     the solve".
+   *Verification gate (must be built, both):* a differential fuzzer comparing memoised
+   `compiler_check_diagnostics` against a fresh whole-unit `run_all_checks` under
+   random edits, on the salsa path — does **not** exist today.
 
 3. **Approach A — incremental per-item IR lowering / CFG** *(L).* Per
    [`../rust/incremental-analysis.md`](../rust/incremental-analysis.md): lower per
@@ -438,9 +451,10 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | Warm per-edit ~411 ms; `run_all_checks` ~405 ms (~99%) | **measured** | `tail_profile` timing tier (`linalg.tcl`) |
 | One-proc edit rebuilds 1 `function_lattice`; all 81 functions re-checked | **measured** | `tail_profile` breadth tier + `check_diagnostics_rerun_whole_file_on_body_edit` test |
 | Rope apply ≈ 0.02% of per-edit; 1.4–1.9× memory on many small files | **measured** | `experiment/` + `experiment-pipeline/` harnesses |
-| `run_all_checks` = per-function checks + a whole-unit interproc taint solve + whole-unit iRules module checks | **measured** (code) | read of `compiler_checks.rs` |
+| `run_all_checks` ~405 ms = ~16 ms per-function + ~385 ms whole-unit `solve_interprocedural_taints` | **measured** | profiler phase-decomposition tier (`linalg.tcl`) |
+| `solve_interprocedural_taints` is whole-unit + caller-coupled, not equal to `taint_cascade` | **measured** (code) | read of `taint_interproc.rs` (entry-taint worklist) |
 | Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |
-| Task 2 cuts ~405 ms to roughly one-proc cost | **hypothesis** | `run_all_checks` cost-decomposition experiment (Task 2 prereq) |
+| Task 2 "cuts ~405 ms to one-proc cost" (the easy framing) | **refuted** | decomposition: ~16 ms easy (2a) + ~385 ms hard whole-unit taint solve (2b) |
 | Task 2 memo is sound | **hypothesis** | check-diagnostics differential fuzzer on the salsa path — *does not exist* |
 | Task 6 cross-file cascade is correct, cycle-safe, bounded | **hypothesis** | two-file spike (cycles + scaling) + multi-file differential fuzzer — *neither exists* |
 

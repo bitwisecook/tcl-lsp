@@ -8,6 +8,11 @@ use std::time::Instant;
 use salsa::Setter as _;
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::gvn::{
+    find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
+};
+use tcl_compiler::shimmer::{find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu};
+use tcl_compiler::taint_interproc::solve_interprocedural_taints;
 use tcl_lsp_db::{
     AnalyserConfig, SourceFile, TclDatabase, TclDb, compiler_check_diagnostics,
     file_analysis_incremental,
@@ -27,6 +32,7 @@ fn time<T>(label: &str, iters: u32, mut f: impl FnMut() -> T) -> f64 {
     per
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() {
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tmp");
     let rel = std::env::var("FILE")
@@ -113,6 +119,27 @@ fn main() {
         tcl_compiler::optimiser::optimise_unit(&cu, &registry, Some(dialect))
     });
     println!("  (functions in unit: {})", cu.functions().count());
+
+    // Decompose the run_all_checks tail across phases — sets Task 2's ceiling:
+    // per-function checks (GVN, shimmer/thunking) reuse cleanly under a per-proc
+    // memo; the whole-unit interproc taint solve does not.
+    println!("\n== run_all_checks phase decomposition (whole-file, no memo) ==");
+    let t_gvn = time("GVN redundancy/partial/loop (per-fn)", 3, || {
+        find_redundancies_for_cu(&cu, &registry, Some(dialect)).len()
+            + find_partial_redundancies_for_cu(&cu, &registry, Some(dialect)).len()
+            + find_loop_invariants_for_cu(&cu, &registry, Some(dialect)).len()
+    });
+    let t_shimmer = time("shimmer + thunking (per-fn)", 3, || {
+        find_shimmer_warnings_for_cu(&cu, &registry).len() + find_thunking_warnings_for_cu(&cu).len()
+    });
+    let t_taint = time("solve_interprocedural_taints (whole-unit)", 3, || {
+        solve_interprocedural_taints(&cu, &registry, Some(dialect))
+    });
+    println!(
+        "  per-function (GVN+shimmer) ~ {:.0} ms  |  whole-unit taint solve ~ {:.0} ms",
+        t_gvn + t_shimmer,
+        t_taint,
+    );
 
     // Direct measurement of per-edit re-execution breadth (counts salsa
     // `WillExecute` events per query, cold build vs. one body edit).
