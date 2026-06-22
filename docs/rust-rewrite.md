@@ -738,7 +738,7 @@ rust/
   tcl-cli-support/        shared CLI plumbing for the native tcl / f5 CLIs
   tcl-cli/                native `tcl` toolchain CLI                f5-cli/  native `f5-query` CLI
   tcl-fuzz/               differential fuzzer (seeded generator + tclvm-vs-tclsh harness + findings)
-  tcl-irule-test/         iRule TMM-sim glue: SCF→orchestrator topology + session bootstrap (driver gated on RT-VM)
+  tcl-irule-test/         iRule TMM-sim: SCF→orchestrator topology + `LiveSession` running the orchestrator Tcl on tcl-vm (embedded framework)
   tcl-debugger/           working record-and-replay step debugger over tcl-vm + the `tcl-debug` CLI front-end
 runtime/
   zig/                    Zig WASM runtime (out-of-process runtime for compiled scripts)
@@ -1095,6 +1095,33 @@ delete`, and the supporting `return`/`error`/list-parse fixes — error.test
   aborting `info.test` after the loop fix. `push_array_key` now decodes a
   composite index into its substitution parts and `STR_CONCAT`s them (byte-equal
   to `tclsh9.0`).
+- **fixed (2026-06-22) six bugs surfaced by running the iRule TMM-sim
+  orchestrator** (the ~500 KB of framework Tcl behind **TOOL-IRULE-TEST**) on the
+  VM, each covered by `tcl-vm/tests/language_e2e.rs`:
+  - **proc-body namespace-cache collision** — the pre-compiled body cache was
+    keyed by the *global* name, so two procs sharing an unqualified name across
+    namespaces (`::a::p` vs `::b::p`) collided on one body and a wrapper proc ran
+    the wrong callee in the wrong namespace (`[namespace current]` / `variable`
+    resolved against the caller). Keyed now by the runtime-qualified name.
+  - **`format` const-fold froze variable args** — `set x [format {…%s…} $v]`
+    folded `$v` to the literal source text; the fold now bails when any argument
+    is a runtime substitution (`$…`/`[…]`).
+  - **no `unknown` fallback** — an unresolved command name is now handed to a
+    user-defined `unknown` proc (`unknown name arg…`), the basis for the iRule
+    command mocks, ensembles, and auto-loading.
+  - **missing `exit`** — added the builtin (so the shim can rename it to
+    `::tmm::_orig_exit` and scripts terminate with the right process code).
+  - **`::tcl::clock::*` ensemble members** — `clock clicks`/`seconds`/… are now
+    reachable via their fully-qualified implementation names, which library code
+    calls directly.
+  - **ARE word-edge regex escapes** — `\m`/`\M`/`\y`/`\Y` and `[[:<:]]`/`[[:>:]]`
+    translate to the `regex` crate's `\b{start}`/`\b{end}`/`\b`/`\B`.
+  Also implemented the **dict bytecode opcodes** (`DICT_SET`/`UNSET`/`INCR_IMM`/
+  `APPEND`/`LAPPEND`/`GET`/`EXISTS`) and made the generic `dict set`/`dict unset`
+  honour **multi-level key paths** (was single-level). With these, the
+  orchestrator's `example_test.tcl` runs 6/6 on `tclvm`, byte-identical to
+  tclsh 8.6. The `unknown`/`exit`/error-propagation pieces also bear on the
+  "(b) uncaught-error abort" P1 above (re-baseline the parity harness).
 - **open** `namespace` / `var` / `upvar` depth (≈ 290 failures combined) — the
   namespace-eval-frame fix corrected the *mechanism*; the remainder is
   feature/semantics depth (namespace-name canonicalisation of multiple/trailing
