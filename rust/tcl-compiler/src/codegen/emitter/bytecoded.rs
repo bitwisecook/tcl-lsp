@@ -996,21 +996,31 @@ mod tests {
     }
 
     #[test]
-    fn dict_in_non_proc_context_rejects() {
+    fn dict_in_non_proc_context_uses_ensemble() {
+        // Top-level `dict set` compiles to the ensemble-rewrite invokeReplace
+        // form (tclsh's top-level codegen), not the proc-local DICT_* opcodes.
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["set".into(), "d".into(), "k".into(), "v".into()];
         let mut used = false;
-        assert!(!try_bytecoded(&mut ctx, "dict", &args, &mut used));
+        assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::INVOKE_REPLACE));
+        assert!(!ops.contains(&Op::DICT_SET));
     }
 
     #[test]
-    fn dict_with_qualified_name_rejects() {
+    fn dict_with_qualified_name_uses_ensemble() {
+        // A qualified target var can't use the proc-local DICT_* slot form, so it
+        // takes the same ensemble-rewrite invokeReplace path.
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["set".into(), "::global::d".into(), "k".into(), "v".into()];
         let mut used = false;
-        assert!(!try_bytecoded(&mut ctx, "dict", &args, &mut used));
+        assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::INVOKE_REPLACE));
+        assert!(!ops.contains(&Op::DICT_SET));
     }
 
     // -- append / lappend statement-position specialisations --

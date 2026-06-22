@@ -703,17 +703,10 @@ impl CodegenCtx<'_> {
     /// - `dict get`
     /// - `catch` (delegates to control_flow)
     pub fn emit_inline_cmd_subst(&mut self, text: &str) {
-        // A `{*}`-expanded command substitution in value position compiles to the
-        // `expandStart … expandStkTop N; invokeExpanded` form (tclsh's), leaving
-        // the result on the stack (no trailing `pop`, unlike the statement form).
-        if text.contains("{*}") {
-            let parts = parse_cmd_parts_expand(text);
-            if parts.iter().any(|(_, _, expand)| *expand) {
-                self.emit_expanded_cmd_subst(&parts);
-                return;
-            }
-        }
-        // Multi-command scripts fall back to runtime eval.
+        // Multi-command scripts (a `;`/newline separator outside quotes/braces)
+        // fall back to runtime eval — checked *before* the `{*}` form below so a
+        // body that has both (`[set y 1; list {*}$a]`) runs as two commands
+        // rather than being mis-parsed as one expanded command.
         if has_command_separator(text) {
             let inner = if text.starts_with('[') && text.ends_with(']') {
                 &text[1..text.len() - 1]
@@ -723,6 +716,16 @@ impl CodegenCtx<'_> {
             self.push_lit(&format!("{{{inner}}}"));
             self.emit(Op::EVAL_STK, vec![]);
             return;
+        }
+        // A `{*}`-expanded command substitution in value position compiles to the
+        // `expandStart … expandStkTop N; invokeExpanded` form (tclsh's), leaving
+        // the result on the stack (no trailing `pop`, unlike the statement form).
+        if text.contains("{*}") {
+            let parts = parse_cmd_parts_expand(text);
+            if parts.iter().any(|(_, _, expand)| *expand) {
+                self.emit_expanded_cmd_subst(&parts);
+                return;
+            }
         }
 
         let parts = parse_cmd_parts(text);
@@ -762,7 +765,7 @@ impl CodegenCtx<'_> {
                 self.emit_inline_linsert(args);
             }
             "regexp" if args.len() >= 2 => {
-                self.emit_inline_regexp(args, &parts);
+                self.emit_inline_regexp(args);
             }
             "list" if !args.is_empty() && !text.contains("{*}") => {
                 self.used_inline_cmd_subst = true;
@@ -1103,8 +1106,15 @@ impl CodegenCtx<'_> {
         };
 
         if let Some(class_id) = str_class_id(class_name) {
-            self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
-            self.emit(Op::STR_CLASS, vec![Operand::Imm(i32::from(class_id))]);
+            if strict {
+                // `STR_CLASS` reports the empty string as a member, so it cannot
+                // honour `-strict` (under which the empty string is a non-member
+                // for character classes); defer to the generic command.
+                self.emit_string_is_generic(sargs);
+            } else {
+                self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
+                self.emit(Op::STR_CLASS, vec![Operand::Imm(i32::from(class_id))]);
+            }
         } else if class_name == "integer" {
             self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
             if strict {
@@ -1177,13 +1187,20 @@ impl CodegenCtx<'_> {
             self.push_lit("1");
             self.place_label(&end_lbl);
         } else {
-            self.used_inline_cmd_subst = false;
-            // Rebuild full args list with "string" prefix
-            let mut full_args = vec![("string".to_owned(), false)];
-            full_args.extend_from_slice(sargs);
-            let all_args = &full_args[1..]; // skip "string" cmd itself
-            self.emit_generic_cmd_subst("string", all_args);
+            self.emit_string_is_generic(sargs);
         }
+    }
+
+    /// `string is CLASS ?args…?` via the generic command path, **keeping** the
+    /// `is` subcommand word. Used when a `string is` form cannot be specialised
+    /// inline (unknown class, `-strict` char class, extra options). The previous
+    /// fallback dropped `is` (it prefixed `string` then sliced it back off),
+    /// producing the invalid `string CLASS …`.
+    fn emit_string_is_generic(&mut self, sargs: &[(String, bool)]) {
+        self.used_inline_cmd_subst = false;
+        let mut all_args = vec![("is".to_owned(), false)];
+        all_args.extend_from_slice(sargs);
+        self.emit_generic_cmd_subst("string", &all_args);
     }
 
     fn emit_inline_lindex(&mut self, args: &[(String, bool)]) {
@@ -1254,7 +1271,7 @@ impl CodegenCtx<'_> {
         );
     }
 
-    fn emit_inline_regexp(&mut self, args: &[(String, bool)], all_parts: &[(String, bool)]) {
+    fn emit_inline_regexp(&mut self, args: &[(String, bool)]) {
         let mut rargs: Vec<&(String, bool)> = args.iter().collect();
         let mut nocase = false;
         if !rargs.is_empty() && rargs[0].0 == "-nocase" {
@@ -1275,14 +1292,16 @@ impl CodegenCtx<'_> {
                 self.emit_generic_cmd_subst("regexp", args);
             }
         } else if rargs.len() == 2 && !nocase {
+            // Push only the cleaned pattern + subject (the `--` / `-nocase`
+            // option words are consumed at compile time); the `REGEXP` opcode
+            // pops exactly those two. Operand is the compile flags: tclsh's
+            // default `TCL_REG_ADVANCED` (3). `-nocase` is handled by the glob
+            // path above, so the NOCASE bit is never set here.
             self.used_inline_cmd_subst = true;
-            for (a, b) in &all_parts[1..] {
-                self.emit_cmd_subst_arg(a, *b);
+            for arg in &rargs {
+                self.emit_cmd_subst_arg(&arg.0, arg.1);
             }
-            self.emit(
-                Op::REGEXP,
-                vec![Operand::Imm(bytecode_imm(all_parts.len()))],
-            );
+            self.emit(Op::REGEXP, vec![Operand::Imm(3)]);
         } else {
             self.used_inline_cmd_subst = false;
             self.emit_generic_cmd_subst("regexp", args);

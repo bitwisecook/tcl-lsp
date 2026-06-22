@@ -1011,3 +1011,33 @@ fn interp_eval_current() {
     assert!(!ok);
     assert_eq!(msg, "could not find interpreter \"foo\"");
 }
+
+/// Regression tests for the codex review of the `set x [cmd]` re-land.
+#[test]
+fn inline_cmd_subst_review_fixes() {
+    // `string is` generic fallback must keep the `is` subcommand (it used to be
+    // dropped, yielding `string list …`).
+    assert_eq!(run("set x [string is list {a b c}]; puts $x").2, "1\n");
+    assert_eq!(run("set x [string is wideinteger 99]; puts $x").2, "1\n");
+    // `-strict` char-class: STR_CLASS can't honour it (empty is a member), so it
+    // defers to the command — empty string is a non-member under -strict.
+    assert_eq!(
+        run("proc p {} { string is alpha -strict \"\" }; puts [p]").2,
+        "0\n"
+    );
+    assert_eq!(
+        run("proc p {} { string is alpha -strict abc }; puts [p]").2,
+        "1\n"
+    );
+    // `regexp` option words (`--`) are consumed; no stale stack value survives.
+    assert_eq!(
+        run("proc p {} { set r [regexp -- a a]; return $r }; puts [p]X").2,
+        "1X\n"
+    );
+    // A multi-command substitution that also contains `{*}` runs as two commands
+    // (the separator fallback precedes the expand path).
+    assert_eq!(
+        run("set x [set y 1; concat a {*}{b c}]; puts $x").2,
+        "a b c\n"
+    );
+}
