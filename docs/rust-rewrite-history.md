@@ -11308,6 +11308,10 @@ gaps stay in [`rust-rewrite.md`](rust-rewrite.md) → **RT-VM**.
     `cmd_regexp` engine; operand = cflags, only `TCL_REG_NOCASE` meaningful).
     These are the value opcodes the FE-CODEGEN `set x [cmd]` inline re-land was
     blocked on — the VM blocker is now cleared.
+  - **`time command ?count?`** — the benchmarking builtin (C `Tcl_TimeObjCmd`):
+    run the body in the current frame `count` times and report
+    `N microseconds per iteration` as a 4-element list (integer for count ≤ 1, a
+    double otherwise); a non-OK body propagates.
 
 ## FE-DIAG-F5 — TK / BIG-IP / iApp diagnostics ported (landed 2026-06)
 
