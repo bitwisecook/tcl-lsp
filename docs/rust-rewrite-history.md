@@ -11543,9 +11543,14 @@ test calls out as "the next tier"), which is **RT-WASM** work. When that lands
 the arm upgrades in place by swapping the stub for the real host.
 
 Open residual in [`rust-rewrite.md`](rust-rewrite.md) → **TOOL-FUZZ**: upgrade
-the runnability arm to a value differential (gated on the interpreter-backed
-RT-WASM host). The generator grammar continues to broaden opportunistically as
-further RT-VM surface (TclOO, coroutines) lands.
+the runnability arm to a value differential. This is **explicitly deferred
+(decided 2026-06-22)** to the **RT-WASM** interpreter-backed host: there is no
+existing WASM executor to route through (the eval-fallback `tcl_eval` is a
+print-only stub, and the wasmtime CLI cannot call back into a Tcl interpreter),
+so a true value differential needs the wasmtime-embedder host RT-WASM is
+building. The arm swaps the stub for that host in place — no further TOOL-FUZZ
+work until it lands. The generator grammar continues to broaden opportunistically
+as further RT-VM surface (TclOO, coroutines) lands.
 
 ## TOOL-DEBUGGER — record-and-replay step debugger (`tcl-debugger`) (landed 2026-06)
 
