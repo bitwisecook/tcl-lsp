@@ -894,7 +894,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | every O-code pass + the inliner v0/verbatim shapes landed (see [history](rust-rewrite-history.md)); sole remaining: inliner **v3** (α-rename, gated on the RT-WASM consumer for execution-differential verification) → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: `set x [cmd]` (reverted — needs VM value opcodes), bare-statement `string`/`regexp`/`lindex`/`lreplace`, non-proc `dict` (ensemble `invokeReplace`), `{*}` cmd-subst expansion → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
-| F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, new `tcl-xc` | 🟢 | TK1001-3 + BIGIP6001-11 + IAPP7001-3 ported (TK live in the analyser); BIG-IP/iApp validators now routed into the native server's diagnostics dispatch (`f5_dialect_diagnostics`, push+pull — consumer-wiring landed, see [history](rust-rewrite-history.md)); sole residual: XC100-301 (deferred, gated on a `tcl-xc` translator port of `lower_to_ir`-walking `translator.py`, Python-only meanwhile) → **FE-DIAG-F5** |
+| F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, `f5-xc` | ✅ | all four families ported & consumer-wired: TK1001-3 (analyser), BIGIP6001-11 + IAPP7001-3 (routed into the native server via `f5_dialect_diagnostics`, push+pull), and XC100-301 (new **`f5-xc`** crate — `translate_irule` IR-walker + `get_xc_diagnostics`, parity-tested vs the Python oracle; opt-in `xcDiagnostics` toggle wired into the `f5-irules` diagnostics path) — see [history](rust-rewrite-history.md) → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🟡 | eval-fallback emitter + `tcl compwasm` wiring landed (binary/WAT, `wasmtime`-validated); residual: `IRInterpBoundary`; codegen DCE/GVN; `--link` (Binaryen) bundling → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after. `tclvm` CLI/REPL binary landed (`tcl-vm-cli`) → **RT-VM** |
 | LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The rope-backed `DocumentState` is split out into its own **SRV-ROPE** track (need evaluated with measurements in [`design/rope/`](design/rope/README.md)) |
@@ -921,7 +921,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | FE | **FE-OPT** 🟢 | `tcl-compiler::optimiser`, `inlining` | — | L |
 | FE | **FE-CODEGEN** 🟢 | `tcl-compiler::codegen` (non-wasm) | — | M |
 | FE | **FE-DIAG** ✅ | `tcl-compiler::analyser`, `irules_checks` | — | M |
-| FE | **FE-DIAG-F5** 🟢 | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}` slices, tk; XC100-301 → `f5-xc` crate (landed); residual: opt-in XC consumer-wiring | `tcl-bigip`, `f5-xc` | L |
+| FE | **FE-DIAG-F5** ✅ | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, `f5-xc` (all four families ported + consumer-wired) | `tcl-bigip`, `f5-xc` | L |
 | RT | **RT-WASM** 🟡 | `tcl-compiler::codegen::wasm`, `runtime/zig`, `tcl-wasm` bin | FE-CODEGEN | L |
 | RT | **RT-VM** 🟡 | `tcl-vm`, `tcl-vm-cli` (`tclvm` bin) | `tcl-bytecode` | L |
 | SRV | **SRV-LSP** ✅ | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
@@ -1011,11 +1011,12 @@ port per family") is made: **TK1001-1003**, **BIGIP6001-6011**,
   against the Python oracle by a 38-case differential parity harness
   (`f5-xc/tests/parity.rs` ⇐ `f5-xc/tests/gen_fixture.py`). The registry-driven
   translatability gates (`is_xc_never_translatable` /
-  `is_xc_translatable_override`) landed on `tcl-registry`. Residual: the
-  **opt-in** native-server consumer-wiring (surface `get_xc_diagnostics`
-  through the diagnostics path under an `xcDiagnostics` toggle, the analogue
-  of Python `server/features/diagnostics.py`'s `xc_diagnostics_enabled`
-  gate) — a **SRV-LSP**-style step, like the BIG-IP/iApp wiring above.
+  `is_xc_translatable_override`) landed on `tcl-registry`. The **opt-in**
+  native-server consumer-wiring also landed: `get_xc_diagnostics` is surfaced
+  through both the push and pull diagnostics paths for `f5-irules` documents
+  under the default-off `xcDiagnostics` feature toggle (`lift_xc_diagnostics`,
+  filtered by disabled codes + `# noqa` / file suppression), the analogue of
+  Python `server/features/diagnostics.py`'s `xc_diagnostics_enabled` gate.
 
 Consumer wiring: TK1001-1003 run inside the analyser, so they already
 surface through the native server's diagnostics path (the

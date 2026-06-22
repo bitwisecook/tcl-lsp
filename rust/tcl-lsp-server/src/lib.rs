@@ -261,6 +261,10 @@ struct DiagInputs {
     /// `textDocument/diagnostic` / `workspace/diagnostic` paths return the
     /// last-published set.
     pull_diag_cache: Arc<Mutex<HashMap<Url, PullDiagEntry>>>,
+    /// Whether the opt-in XC100-301 translatability diagnostics are enabled
+    /// for this document (resolved per folder in [`Backend::diag_inputs`]).
+    /// Only takes effect on `f5-irules` documents.
+    xc_diagnostics: bool,
 }
 
 impl DiagInputs {
@@ -330,6 +334,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
         workspace_index,
         db,
         pull_diag_cache,
+        xc_diagnostics,
         // The worker captures the job from these before calling us; unused here.
         db_files: _,
         db_config: _,
@@ -460,6 +465,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
 
     let analysis_lifts = Arc::clone(&analysis);
     let lift_text = text.clone();
+    let xc_for_irules = xc_diagnostics && dialect == "f5-irules";
     let result = tokio::task::spawn_blocking(move || {
         let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analysis_lifts.diagnostics);
         diagnostics.extend(lift_compiler_diagnostics(
@@ -474,6 +480,15 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
             &analysis_lifts.suppressed_lines,
             &disabled,
         ));
+        // FE-DIAG-F5 opt-in: append the XC100-301 translatability diagnostics
+        // for `f5-irules` documents when `xcDiagnostics` is enabled.
+        if xc_for_irules {
+            diagnostics.extend(lift_xc_diagnostics(
+                &lift_text,
+                &disabled,
+                &analysis_lifts.suppressed_lines,
+            ));
+        }
         diagnostics
     })
     .await;
@@ -706,6 +721,10 @@ impl FeatureToggles {
         "typeDefinition",
         "declaration",
         "linkedEditingRange",
+        // FE-DIAG-F5: opt-in XC100-301 translatability diagnostics for
+        // `f5-irules` documents (default **off**, mirroring Python's
+        // `tclLsp.xcDiagnostics.enabled` / `xc_diagnostics_enabled`).
+        "xcDiagnostics",
     ];
 
     /// camelCase feature keys that default **off** (opt-in) rather than
@@ -714,7 +733,8 @@ impl FeatureToggles {
     /// reported state matches the inlay handler's default-off gate
     /// (otherwise an exported `config.ini` would claim the hints are on
     /// and re-importing it would enable them).
-    const DEFAULT_OFF: &'static [&'static str] = &["inlayTypeHints", "inlayParameterHints"];
+    const DEFAULT_OFF: &'static [&'static str] =
+        &["inlayTypeHints", "inlayParameterHints", "xcDiagnostics"];
 
     /// The default fallback for `feature` when no editor has set it:
     /// `false` for the opt-in [`Self::DEFAULT_OFF`] keys, `true`
@@ -2341,6 +2361,16 @@ impl Backend {
             .is_enabled_default_off(family)
     }
 
+    /// Whether the opt-in XC100-301 translatability diagnostics
+    /// (`xcDiagnostics`) are enabled for `uri`.  Default **off**, resolved
+    /// per folder like [`Self::inlay_family_enabled`], mirroring the Python
+    /// server's `xc_diagnostics_enabled` gate.  Surfaced only on
+    /// `f5-irules` documents (the only dialect the `f5-xc` translator runs
+    /// on).
+    async fn xc_diagnostics_enabled(&self, uri: &Url) -> bool {
+        self.inlay_family_enabled(uri, "xcDiagnostics").await
+    }
+
     /// Handle `tcl-lsp.listSubcommands`: subcommand metadata for `command`
     /// from the registry.  Mirrors `server/commands.py::on_list_subcommands`.
     /// An unknown command (or one with no subcommands) yields an empty list.
@@ -2580,6 +2610,7 @@ impl Backend {
         let (disabled, non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
         let registry = self.registry_for_dialect(dialect).await;
+        let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
         DiagInputs {
             client: self.client.clone(),
             registry,
@@ -2594,6 +2625,7 @@ impl Backend {
             db_config: Arc::clone(&self.db_config),
             folder_db_configs: Arc::clone(&self.folder_db_configs),
             pull_diag_cache: Arc::clone(&self.pull_diag_cache),
+            xc_diagnostics,
         }
     }
 
@@ -2650,6 +2682,7 @@ impl Backend {
             })
         };
 
+        let xc_for_irules = dialect == "f5-irules" && self.xc_diagnostics_enabled(uri).await;
         tokio::task::spawn_blocking(move || {
             let mut diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
             diagnostics.extend(lift_compiler_diagnostics(
@@ -2664,6 +2697,16 @@ impl Backend {
                 &analysis.suppressed_lines,
                 &disabled,
             ));
+            // FE-DIAG-F5 opt-in: XC100-301 translatability diagnostics for
+            // `f5-irules` documents when `xcDiagnostics` is enabled (mirrors
+            // the push path).
+            if xc_for_irules {
+                diagnostics.extend(lift_xc_diagnostics(
+                    &text,
+                    &disabled,
+                    &analysis.suppressed_lines,
+                ));
+            }
             diagnostics
         })
         .await
@@ -5428,6 +5471,74 @@ fn lift_config_diagnostic(
     }
 }
 
+/// Whether `code` is suppressed at `line` by an inline `# noqa` or a
+/// top-of-file `# tcl-lsp: disable=…` directive — the same `_is_suppressed`
+/// contract `tcl_lsp_core::source_style` applies (a `"*"` entry suppresses
+/// every code; the file-level `-1` bucket is document-wide).
+fn xc_is_suppressed(
+    code: &str,
+    line: i32,
+    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
+) -> bool {
+    if let Some(file_codes) = suppressed.get(&-1)
+        && (file_codes.contains("*") || file_codes.contains(code))
+    {
+        return true;
+    }
+    suppressed
+        .get(&line)
+        .is_some_and(|codes| codes.contains("*") || codes.contains(code))
+}
+
+/// FE-DIAG-F5 (opt-in): lift the `f5-xc` XC100-301 translatability
+/// diagnostics into LSP diagnostics for an `f5-irules` document — the
+/// analogue of the `xc_diagnostics_enabled` block in Python
+/// `server/features/diagnostics.py`. Codes the editor disabled
+/// (`tclLsp.diagnostics.<CODE> = false`) are filtered, and the same `# noqa`
+/// / file-level suppression the analyser honours is applied. `XcSeverity`
+/// maps `Hint` → `HINT` and `Info` → `INFORMATION`.
+fn lift_xc_diagnostics(
+    source: &str,
+    disabled: &HashSet<String>,
+    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
+) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+    use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
+    f5_xc::get_xc_diagnostics(source)
+        .into_iter()
+        .filter(|d| !disabled.contains(&d.code))
+        .filter(|d| {
+            !xc_is_suppressed(
+                &d.code,
+                i32::try_from(d.range.start.line).unwrap_or(i32::MAX),
+                suppressed,
+            )
+        })
+        .map(|d| tower_lsp::lsp_types::Diagnostic {
+            range: Range {
+                start: Position {
+                    line: d.range.start.line,
+                    character: d.range.start.character,
+                },
+                end: Position {
+                    line: d.range.end.line,
+                    character: d.range.end.character,
+                },
+            },
+            severity: Some(match d.severity {
+                f5_xc::XcSeverity::Hint => DiagnosticSeverity::HINT,
+                f5_xc::XcSeverity::Info => DiagnosticSeverity::INFORMATION,
+            }),
+            code: Some(NumberOrString::String(d.code)),
+            code_description: None,
+            source: Some("tcl-lsp".to_string()),
+            message: d.message,
+            related_information: None,
+            tags: None,
+            data: None,
+        })
+        .collect()
+}
+
 /// FE-DIAG-F5 consumer-wiring: BIG-IP config diagnostics (`BIGIP6001`–
 /// `BIGIP6011`).  BIG-IP `.conf` text is not Tcl source — it has its own
 /// model-level validator
@@ -6993,6 +7104,64 @@ mod tests {
         assert!(
             codes.iter().any(|c| c == "BIGIP6002"),
             "expected BIGIP6002 via the pull path, got: {codes:?}",
+        );
+    }
+
+    /// `lift_xc_diagnostics` surfaces the XC translatability codes for an
+    /// iRule and filters those the editor disabled.
+    #[test]
+    fn lift_xc_diagnostics_surfaces_and_filters_codes() {
+        let src = "when HTTP_REQUEST {\n    pool my_pool\n}";
+        let no_suppress = std::collections::HashMap::new();
+        let diags = lift_xc_diagnostics(src, &HashSet::new(), &no_suppress);
+        let codes = diag_codes(&diags);
+        assert!(
+            codes.iter().any(|c| c == "XC100"),
+            "expected XC100, got: {codes:?}",
+        );
+        assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
+
+        // Disabling XC100 drops it from the lifted set.
+        let disabled: HashSet<String> = std::iter::once("XC100".to_owned()).collect();
+        let filtered = lift_xc_diagnostics(src, &disabled, &no_suppress);
+        assert!(
+            !diag_codes(&filtered).iter().any(|c| c == "XC100"),
+            "XC100 should be filtered when disabled",
+        );
+    }
+
+    /// The opt-in `xcDiagnostics` toggle gates whether XC100-301 reach the
+    /// `f5-irules` diagnostics pull path: off by default, present once
+    /// enabled.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn xc_diagnostics_are_opt_in_on_irules_documents() {
+        let uri = Url::parse("file:///rule.irul").unwrap();
+        let src = "when HTTP_REQUEST {\n    pool my_pool\n}";
+
+        // Default-off: no XC codes surface.
+        let backend = test_backend();
+        let off = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "f5-irules".to_owned(), "tcl-irule")
+            .await;
+        assert!(
+            !diag_codes(&off).iter().any(|c| c.starts_with("XC")),
+            "XC diagnostics must be off by default, got: {:?}",
+            diag_codes(&off),
+        );
+
+        // Opt in via the `xcDiagnostics` feature toggle.
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+        let on = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "f5-irules".to_owned(), "tcl-irule")
+            .await;
+        assert!(
+            diag_codes(&on).iter().any(|c| c == "XC100"),
+            "expected XC100 once xcDiagnostics is enabled, got: {:?}",
+            diag_codes(&on),
         );
     }
 

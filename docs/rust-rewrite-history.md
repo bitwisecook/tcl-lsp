@@ -11399,10 +11399,24 @@ respond (deny vs route), header insert/replace/remove, `class match`,
 `ASM::{disable,enable}`, loops, `eval` barriers, untranslatable/advisory/
 unknown events, untranslatable prefixes, the `string tolower` getter wrapper,
 and nested switch-in-if. Plus 11 model-shape unit tests and a `tcl-registry`
-helper test. Residual (open in [`rust-rewrite.md`](rust-rewrite.md) →
-**FE-DIAG-F5**): the **opt-in** native-server consumer-wiring that surfaces
-`get_xc_diagnostics` through the diagnostics path, the analogue of Python
-`server/features/diagnostics.py`'s `xc_diagnostics_enabled` gate.
+helper test.
+
+The **opt-in consumer-wiring** landed in the same change, completing
+**FE-DIAG-F5**: `tcl-lsp-server` depends on `f5-xc`, a default-off
+`xcDiagnostics` feature toggle was added (in `FeatureToggles::{KEYS,
+DEFAULT_OFF}`, resolved per folder by `Backend::xc_diagnostics_enabled`,
+mirroring the inlay / `willSaveWaitUntil` opt-in pattern), and a
+`lift_xc_diagnostics` free function surfaces `get_xc_diagnostics` through both
+the push (`run_diagnostics_core`) and pull (`full_diagnostics_for`)
+diagnostics paths — gated on `dialect == "f5-irules"` and the toggle, filtered
+by the editor's disabled-code set and the analyser's `# noqa` / file-level
+suppression (the `xc_is_suppressed` port of `_is_suppressed`), with
+`XcSeverity::{Hint,Info}` → LSP `HINT` / `INFORMATION`. This is the analogue
+of Python `server/features/diagnostics.py`'s `xc_diagnostics_enabled` block.
+Verified by two server tests (`lift_xc_diagnostics_surfaces_and_filters_codes`,
+`xc_diagnostics_are_opt_in_on_irules_documents`: off by default; XC100 appears
+once the toggle is set, through the real `full_diagnostics_for` path). With
+this, **all four FE-DIAG-F5 families are ported and consumer-wired**.
 
 ## TOOL-REFACTOR — refactoring transforms (landed 2026-06)
 
