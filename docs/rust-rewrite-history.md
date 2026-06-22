@@ -11312,6 +11312,24 @@ gaps stay in [`rust-rewrite.md`](rust-rewrite.md) → **RT-VM**.
     run the body in the current frame `count` times and report
     `N microseconds per iteration` as a 4-element list (integer for count ≤ 1, a
     double otherwise); a non-OK body propagates.
+  - **`REVERSE` / `LINDEX_MULTI` / `STR_REPLACE`** — the remaining value opcodes
+    the inline command-substitution emitter produces (`[lindex $l i j]`,
+    `[string replace …]`, operand reordering). With these the inline emitter's
+    full opcode surface is VM-supported, so the FE-CODEGEN `set x [cmd]` re-land
+    has no remaining VM blocker.
+
+**(2026-06-22) Codegen differential gate revived.** `differential_codegen.rs`
+imported `core.compiler.*` — a path the seven-concern reorg removed — so the
+Python-oracle comparison had been a silent no-op since the reorg. Re-pointed it
+at `compiler.codegen.bytecode{,.bytecoded,.format}` / `compiler.{cfg,lowering}`.
+Re-enabling surfaced 18 matching fixtures diverging from the oracle; these are
+**Python-oracle drift**, not Rust regressions — Rust matches tclsh 9.0 via the
+byte-true `.golden` files, while the Python codegen mis-slots `arr(k)` as a
+scalar for the statement-position `append`/`lappend`/`upvar`/`global` array
+specialisations. The gate is now golden-aware: a Python divergence where Rust
+still matches its tclsh-verified golden is reported as drift, not failed (24
+exact, 22 semantic, 18 python-drift, 0 divergent). The Python codegen bug behind
+the drift is a Python-side cleanup, tracked separately.
 
 ## FE-DIAG-F5 — TK / BIG-IP / iApp diagnostics ported (landed 2026-06)
 
