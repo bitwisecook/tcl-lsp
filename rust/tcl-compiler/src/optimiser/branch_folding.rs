@@ -37,8 +37,8 @@ use crate::sccp::ConstantBranch;
 use tcl_lexer::Span;
 
 use super::helpers::expr_simplify::{
-    instcombine_expr_typed, numeric_var_names, substitute_expr_constants, try_fold_expr,
-    try_eq_ne_string_compare_simplify_expr, try_strength_reduce_expr_typed,
+    instcombine_expr_typed, numeric_var_names, substitute_expr_constants,
+    try_eq_ne_string_compare_simplify_expr, try_fold_expr, try_strength_reduce_expr_typed,
     try_strlen_simplify_expr, try_unwrap_expr_in_expr,
 };
 use super::helpers::literals::format_constant;

@@ -891,8 +891,8 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SCCP / intervals / memory-SSA | `tcl-compiler` | ✅ | escaping-var widening, optimistic deferral, static-loop folding, W233 interval path, `complexity_guard` all landed — **FE-DATAFLOW** complete (see [history](rust-rewrite-history.md)) |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) ported (`tcl-compiler::shimmer::byte_array` + `tcl-registry` `BytePayloadSpec`) — **FE-TYPESHIM** complete |
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
-| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | every O-code pass + the inliner v0/verbatim shapes landed (see [history](rust-rewrite-history.md)); sole remaining: inliner **v3** (α-rename, gated on the RT-WASM consumer for execution-differential verification) → **FE-OPT** |
-| Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: `set x [cmd]` (reverted — needs VM value opcodes), bare-statement `string`/`regexp`/`lindex`/`lreplace`, non-proc `dict` (ensemble `invokeReplace`), `{*}` cmd-subst expansion → **FE-CODEGEN** |
+| Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | ✅ | every O-code pass + the **full inliner** (v0/verbatim **and** v3 α-rename + parameter binding + return-as-break wrap, `tcl-compiler::inlining{,::rename}`) landed (see [history](rust-rewrite-history.md)). Out of scope: v3's execution-differential verification is owned by its consumer (**RT-WASM**); the optional non-correctness O110 rewrites are gated on the iRules `MatchesGlob`/`MatchesRegex` expr operators → **FE-OPT** |
+| Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` + the `set x [cmd]` inline re-land landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: bare-statement `string`/`regexp`/`lindex`/`lreplace` (value-discarded) → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
 | F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, new `tcl-xc` | 🟢 | TK1001-3 + BIGIP6001-11 + IAPP7001-3 ported (TK live in the analyser); residuals: XC100-301 (gated on a `tcl-xc` translator port of `lower_to_ir`-walking `translator.py`, Python-only meanwhile) + BIG-IP/iApp native-server consumer-wiring (SRV-LSP-style) → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🟡 | eval-fallback emitter + `tcl compwasm` wiring landed (binary/WAT, `wasmtime`-validated); residual: `IRInterpBoundary`; codegen DCE/GVN; `--link` (Binaryen) bundling → **RT-WASM** |
@@ -919,7 +919,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | FE | **FE-DATAFLOW** ✅ | `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}` | — | M |
 | FE | **FE-TYPESHIM** ✅ | `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}` | — | M |
 | FE | **FE-VARESCAPE** ✅ | `tcl-compiler::var_escape` | — | M |
-| FE | **FE-OPT** 🟢 | `tcl-compiler::optimiser`, `inlining` | — | L |
+| FE | **FE-OPT** ✅ | `tcl-compiler::optimiser`, `inlining` | — | L |
 | FE | **FE-CODEGEN** 🟢 | `tcl-compiler::codegen` (non-wasm) | — | M |
 | FE | **FE-DIAG** ✅ | `tcl-compiler::analyser`, `irules_checks` | — | M |
 | FE | **FE-DIAG-F5** 🟢 | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}` slices, tk; XC residual → `tcl-xc` | `tcl-bigip` | L |
@@ -945,26 +945,6 @@ The front-end crates are largely ported; what remains is precision and
 soundness. These tracks own **disjoint modules** within `tcl-compiler`, so they
 parallelise cleanly.
 
-#### FE-OPT — optimiser passes
-Owns `tcl-compiler::optimiser`, `tcl-compiler::inlining`. **Every O-code
-optimiser pass is complete**, as are the **inliner v0 + verbatim** shapes
-(2026-06-19; archived in [history](rust-rewrite-history.md)). The sole remaining
-task:
-- **open** general proc inliner **v3 (parameterised)** — α-renaming via
-  `_rename.py` over value strings / expr ASTs / defs-reads / foreach-catch
-  bindings, variadic packing, parameter defaults, trailing-vs-non-trailing
-  `return` for/break wrapping, plus dead-proc elimination. **Cross-track
-  dependency (handoff):** the inliner's only consumer is the WASM codegen
-  (`compiler/codegen/wasm/api.py`), so execution-differential verification of
-  the capture-sensitive value-string rewriter is gated on **RT-WASM** (🔴
-  unported) — v3 must land alongside that consumer rather than as
-  IR-shape-only unit tests (the repo's differential-test standard cannot be
-  met otherwise). *(large)*
-- **open** *(non-correctness nuances, optional)* the O110 regex/glob →
-  string-op rewrites (gated on the iRules `MatchesGlob`/`MatchesRegex` expr
-  operators) and threading richer execution-trace facts deeper into the
-  GVN/LICM family — precision niceties, never miscompiles.
-
 #### FE-CODEGEN — bytecode codegen
 Owns `tcl-compiler::codegen` (non-wasm). The state-mutating statement-position
 specialisations, integer `expr` const-folding, and the byte-wise disassembly
@@ -973,28 +953,37 @@ fixtures (`append`/`lappend`/`unset`/`upvar`/`global`/`tailcall`/`concat`;
 `expr {1+2}`; `esc` astral/C0). Their bytecode VM counterparts (appendScalar/
 Array, lappendScalar/Array/List, unsetScalar/Array, upvar, nsupvar, concatStk)
 were implemented in `tcl-vm` so the codegen runs end-to-end. Remaining:
-- **open** `set x [cmd]` pure-command-substitution assign — inlining was tried
-  (route the single-`[cmd]` value through the inline-cmd-subst emitter) but
-  reverted: the emitter produces value opcodes the partial bytecode VM does not
-  implement (`regexp`, `strclass`, `numericType`, `dictGet`), which broke the
-  VM execution tests. Re-land once **RT-VM** implements those value opcodes
-  (the inlining itself was byte-true for the VM-supported commands).
+- **landed (2026-06-22)** `set x [cmd]` pure-command-substitution assign. The
+  assign value now routes through the inline command-substitution emitter
+  (scoped to the assign position, mirroring the oracle's `IRAssignValue` arm —
+  bare command args keep the literal + `subst_word` path), unblocked by the
+  RT-VM value opcodes **and** a real inline-emitter fix: `emit_cmd_subst_arg`
+  pushed a composite arg like `$opt*` / `x$y` as a literal instead of
+  substituting it (the bug that miscompiled tcltest's `MatchingOption` →
+  `can't read "debug"`). Specialised commands emit byte-true opcodes;
+  unspecialised ones use a correct generic invoke. Full `tcl-vm` suite (incl.
+  the real `tcltest.tcl` load + run), the revived differential gate, and a
+  byte-true golden vs tclsh all green (see [history](rust-rewrite-history.md)).
 - **open** statement-position specialisations for the *value-returning*
   commands used as bare statements — `string` / `regexp` / `lindex` /
   `lreplace` (result discarded; the value-position inline forms exist, so this
   is value-emit + `pop`, gated on threading the per-arg braced-flag through the
   hook). Low frequency; `regexp` with match-vars is the one with real
   statement-position semantics.
-- **open** non-proc `dict` — top-level `dict set`/etc. compile to the **ensemble
-  `invokeReplace`** form in C Tcl (`push …; push ::tcl::dict::set;
-  invokeReplace`), not the proc-local `DICT_*` opcodes. This is the shared
-  ensemble-rewrite mechanism (applies to all top-level ensembles), tracked as a
-  small follow-on rather than a dict-only hook.
-- **open** `{*}` expansion inside a *command substitution* in value position
-  (`set x [cmd {*}$args]` → `expandStart … expandStkTop N; invokeExpanded`);
-  statement-position `{*}` already lowers correctly. (The `builtin_is_trusted`
-  rename gate originally filed here is a **WASM-emitter** concern —
-  `compiler/codegen/wasm/_emitter/*` only — and belongs to **RT-WASM**.)
+- **landed (2026-06-22)** non-proc `dict` — top-level (and qualified-var)
+  `dict set`/`unset`/`incr`/`append`/`lappend` now compile to the **ensemble
+  `invokeReplace`** form (`push dict <sub> <args…> ::tcl::dict::<sub>;
+  invokeReplace objc 2`), byte-true vs tclsh 9.0, running on the VM via the new
+  `INVOKE_REPLACE` opcode against the registered `::tcl::dict::<sub>` impls (the
+  proc-local scalar path keeps its `DICT_*` opcodes). The shared ensemble-rewrite
+  mechanism could extend to other top-level ensembles (e.g. `string`); only the
+  `dict` mutators are wired so far.
+- **landed (2026-06-22)** `{*}` expansion inside a *command substitution* in
+  value position (`set x [cmd {*}$args]` → `expandStart … expandStkTop N;
+  invokeExpanded`), byte-true vs tclsh 9.0 via `parse_cmd_parts_expand` +
+  `emit_expanded_cmd_subst` (`[list {*}…]` stays on its `LIST_CONCAT` fold).
+  (The `builtin_is_trusted` rename gate originally filed here is a
+  **WASM-emitter** concern — belongs to **RT-WASM**.)
 
 #### FE-DIAG-F5 — F5 dialect diagnostics
 Owns new analyser slices on `tcl-bigip` / `tcl-xc` and the tk dialect. The
@@ -1008,8 +997,9 @@ gated on a separate subsystem port and stays Python-only until it lands.
   (`dialects/f5/xc/diagnostics.py`), but that translator (`translator.py`
   ~1.2 K LOC + the 13-type `xc_model` + `mapping`) walks the **IR produced
   by `lower_to_ir`** and is a distinct, large subsystem in its own right.
-  Porting it is a separate effort (akin to how **FE-OPT** v3 is gated on
-  **RT-WASM**); until a `tcl-xc` translator port lands, XC100-301 stays the
+  Porting it is a separate effort (akin to how **FE-OPT**'s v3 inliner ships
+  its execution-differential verification with its **RT-WASM** consumer);
+  until a `tcl-xc` translator port lands, XC100-301 stays the
   Python emitter. Handoff: a future `tcl-xc` crate owns this — re-home the
   XC diagnostic wrapper there once the translator exists.
 
@@ -1084,6 +1074,15 @@ archived in the [history](rust-rewrite-history.md). The live open gaps:
   countdown** the VM simplifies (only `-level 0` is immediate today); the rest
   are `info errorstack` / the `-errorstack` option (unimplemented) and errorInfo
   edge cases.
+- **landed (2026-06-22)** several reachable opcode gaps that trapped real
+  programs: `lset` (`LSET_LIST` single-index/index-path + `LSET_FLAT` multi-
+  index, plus a non-proc multi-index **codegen** fix so only-last-index no
+  longer reaches the opcode), `tailcall` (true caller-frame tail call via the
+  trampoline — a tail-recursive loop neither grows the activation stack nor
+  counts against the recursion limit — plus a runtime `tailcall` builtin for the
+  no-args / dynamically-built forms), and the `string is` / `regexp` value
+  opcodes `NUMERIC_TYPE` / `STR_CLASS` / `REGEXP`. All verified against tclsh 9.0
+  (detail in [history](rust-rewrite-history.md)).
 - **open** smaller per-suite gaps — `switch` (14), `for` (8), `foreach` (6),
   `incr` (3), `if`/`set` (2), `while` (1): individual bugs to chase after the
   structural items.
@@ -1092,8 +1091,9 @@ archived in the [history](rust-rewrite-history.md). The live open gaps:
   codegen, then drop the `for_bytecode` barriers (`try`/nested-`foreach`/`lmap`
   run via runtime builtins today — correct but not inline).
 - **open** the missing command surface: **TclOO** (largest), `clock`,
-  `encoding`, full `interp`, real I/O (`open`/`gets`/`seek`), `after`/`time`,
-  residual `file`/`info`/`namespace` subcommands. Concretely, `info` is missing
+  full `interp`, real I/O (`open`/`gets`/`seek`), `after`/`vwait`,
+  **coroutine**, residual `file`/`info`/`namespace` subcommands (`time` and
+  `encoding` — UTF-8 pass-through, oracle-parity — landed 2026-06-22). Concretely, `info` is missing
   `cmdcount` / `frame` / `functions` / `hostname` (they error "unknown or
   ambiguous subcommand" today); note `info cmdcount` cannot reach exact-count
   parity with C Tcl without matching its per-bytecode command counting, so it

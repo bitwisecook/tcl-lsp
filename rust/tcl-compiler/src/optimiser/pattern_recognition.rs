@@ -38,7 +38,11 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let top_ints = int_var_names(&cu.top_level);
     walk_script(ctx, &cu.ir_module.top_level, &top_ints);
     for (qname, proc) in &cu.ir_module.procedures {
-        let ints = cu.procedures.get(qname).map(int_var_names).unwrap_or_default();
+        let ints = cu
+            .procedures
+            .get(qname)
+            .map(int_var_names)
+            .unwrap_or_default();
         walk_script(ctx, &proc.body, &ints);
     }
     // O128 — end-offset index rewrites (its own segment-level walk over
@@ -157,7 +161,11 @@ fn static_packing_set(stmt: &Statement) -> Option<(String, String, String)> {
     if !is_static_var_word(name) || !is_safe_word(value) {
         return None;
     }
-    Some((normalise_var_name(name).to_owned(), name.clone(), value.clone()))
+    Some((
+        normalise_var_name(name).to_owned(),
+        name.clone(),
+        value.clone(),
+    ))
 }
 
 /// Emit the O119 pack rewrite (over the last set) + deletions of the
@@ -217,7 +225,6 @@ fn emit_set_pack(
         ctx.report(del);
     }
 }
-
 
 fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, int_vars: &HashSet<String>) {
     match stmt {

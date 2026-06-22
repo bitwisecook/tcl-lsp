@@ -9,7 +9,7 @@
 //! `[[:<:]]` word edges, POSIX longest-match submatches, etc.); it now uses the
 //! faithful [`tcl_regex`] port, so the VM matches `tclsh` 9.0 behaviour.
 
-use tcl_cmd_core::regex::{self as core_re, RegexpResult, RegsubResult};
+use tcl_cmd_core::regex::{self as core_re, RegexEngine, RegexFlags, RegexpResult, RegsubResult};
 use tcl_runtime_api::Completion;
 
 use crate::interp::{Vm, err, ok};
@@ -18,6 +18,21 @@ use crate::value::Value;
 /// The ARE engine as the shared plumbing's provider. Reused by `lsearch
 /// -regexp` (`cmd_list`) and `switch -regexp` (`cmd_switch`).
 pub(crate) use tcl_regex::cmd_core::AreEngine as CrateEngine;
+
+/// Does `pattern` match anywhere in `subject` (ARE, optional `-nocase`)? A small
+/// boolean helper for the bytecode `MatchesRegex`-style opcode in `exec`.
+pub(crate) fn regexp_matches(pattern: &str, subject: &str, nocase: bool) -> Result<bool, String> {
+    let flags = RegexFlags {
+        nocase,
+        expanded: false,
+        linestop: false,
+        lineanchor: false,
+    };
+    let mut re = CrateEngine::compile(pattern.as_bytes(), flags)
+        .map_err(|e| String::from_utf8_lossy(&e).into_owned())?;
+    let cps: Vec<i32> = subject.chars().map(|c| c as i32).collect();
+    Ok(CrateEngine::exec(&mut re, &cps, 0, false).is_some())
+}
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("regexp", cmd_regexp);
