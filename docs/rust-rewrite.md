@@ -1109,9 +1109,9 @@ archived in the [history](rust-rewrite-history.md). The live open gaps:
   codegen, then drop the `for_bytecode` barriers (`try`/nested-`foreach`/`lmap`
   run via runtime builtins today — correct but not inline).
 - **open** the missing command surface: **TclOO** (largest), `clock`,
-  `encoding`, full `interp`, real I/O (`open`/`gets`/`seek`), `after`/`vwait`,
-  **coroutine**, residual `file`/`info`/`namespace` subcommands (`time` landed
-  2026-06-22). Concretely, `info` is missing
+  full `interp`, real I/O (`open`/`gets`/`seek`), `after`/`vwait`,
+  **coroutine**, residual `file`/`info`/`namespace` subcommands (`time` and
+  `encoding` — UTF-8 pass-through, oracle-parity — landed 2026-06-22). Concretely, `info` is missing
   `cmdcount` / `frame` / `functions` / `hostname` (they error "unknown or
   ambiguous subcommand" today); note `info cmdcount` cannot reach exact-count
   parity with C Tcl without matching its per-bytecode command counting, so it
