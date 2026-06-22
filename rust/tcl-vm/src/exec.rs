@@ -658,6 +658,25 @@ impl Vm {
             };
         }
 
+        // Like `try_op!`, but logs this instruction's command-source frame to
+        // `errorInfo` before unwinding — for compiled command-boundary ops
+        // (`set`/`incr` → STORE_*/INCR_*) so a failing compiled command
+        // contributes its `while executing`/`invoked from within "<cmd>"`
+        // frame just as the INVOKE path and reference Tcl's bytecode engine do
+        // (set-2.4: a write-trace rejection's `errorInfo` must reach the
+        // triggering `set x 1`).
+        macro_rules! try_cmd {
+            ($e:expr) => {
+                if let Err(c) = $e {
+                    let cmd_text = instr.source_cmd_text.clone();
+                    let line = instr.source_line;
+                    let msg = c.result.to_str().to_string();
+                    self.log_command_info(&cmd_text, &msg, line);
+                    return Tick::Return(c);
+                }
+            };
+        }
+
         let lvt_name = |slot: i32| -> String {
             lvt.get(usize::try_from(slot).unwrap_or(usize::MAX))
                 .cloned()
@@ -741,7 +760,7 @@ impl Vm {
             Op::STORE_STK => {
                 let value = pop(f);
                 let name = pop(f).to_str();
-                try_op!(self.set_var(&name, value.clone()));
+                try_cmd!(self.set_var(&name, value.clone()));
                 f.stack.push(value);
             }
             Op::INCR_STK_IMM => {
