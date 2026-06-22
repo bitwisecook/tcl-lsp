@@ -800,3 +800,61 @@ fn time_command() {
     assert!(!ok);
     assert_eq!(msg, "wrong # args: should be \"time command ?count?\"");
 }
+
+/// `REVERSE` (reverse top N stack items), `LINDEX_MULTI` (nested `lindex`), and
+/// `STR_REPLACE` (`string replace`) — driven directly through the VM's opcode
+/// dispatch (these are emitted by the inline command-substitution emitter).
+#[test]
+fn opcode_reverse_lindex_multi_str_replace() {
+    use tcl_bytecode::{Instruction, Op, Operand};
+    // REVERSE 2 then concat: push x,y → reverse → y,x → "yx".
+    let r = run_asm(
+        &["x", "y"],
+        vec![
+            pushv(0),
+            pushv(1),
+            Instruction::new(Op::REVERSE, vec![Operand::Imm(2)]),
+            Instruction::new(Op::STR_CONCAT1, vec![Operand::Imm(2)]),
+            Instruction::new(Op::DONE, vec![]),
+        ],
+    );
+    assert_eq!(r, "yx");
+    // LINDEX_MULTI 3: lindex {{a b} {c d}} 1 0 → "c".
+    let r = run_asm(
+        &["{a b} {c d}", "1", "0"],
+        vec![
+            pushv(0),
+            pushv(1),
+            pushv(2),
+            Instruction::new(Op::LINDEX_MULTI, vec![Operand::Imm(3)]),
+            Instruction::new(Op::DONE, vec![]),
+        ],
+    );
+    assert_eq!(r, "c");
+    // STR_REPLACE: string replace "abcde" 1 3 "XY" → "aXYe".
+    let r = run_asm(
+        &["abcde", "1", "3", "XY"],
+        vec![
+            pushv(0),
+            pushv(1),
+            pushv(2),
+            pushv(3),
+            Instruction::new(Op::STR_REPLACE, vec![]),
+            Instruction::new(Op::DONE, vec![]),
+        ],
+    );
+    assert_eq!(r, "aXYe");
+    // STR_REPLACE whole-string replace and end indices.
+    let r = run_asm(
+        &["abcde", "0", "end", "Z"],
+        vec![
+            pushv(0),
+            pushv(1),
+            pushv(2),
+            pushv(3),
+            Instruction::new(Op::STR_REPLACE, vec![]),
+            Instruction::new(Op::DONE, vec![]),
+        ],
+    );
+    assert_eq!(r, "Z");
+}
