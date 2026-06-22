@@ -87,6 +87,9 @@ User-facing compiler troubleshooting and how-tos live in
   serialisation, and consumer contracts.
 - [rendered-value-properties.md](rendered-value-properties.md) — string
   content analysis over SSA.
+- [byte-array-corruption.md](byte-array-corruption.md) — the S110
+  byte-array-corruption correctness check (binary data forced through
+  character-string semantics).
 - [taint-analysis.md](taint-analysis.md) — sources, sinks, colours, and
   propagation.
 - [var-escape-analysis.md](var-escape-analysis.md) — which Tcl vars stay

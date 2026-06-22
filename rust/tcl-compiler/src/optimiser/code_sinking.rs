@@ -312,7 +312,6 @@ fn extract_source(source: &str, span: tcl_lexer::Span) -> Option<String> {
     Some(source[range].to_owned())
 }
 
-
 /// Return `Some((var_name, stmt_span))` if `stmt` is a
 /// side-effect-free assignment whose defined variable is
 /// statically known.
@@ -566,9 +565,7 @@ mod tests {
     fn sinks_into_both_using_branches() {
         // `$x` is used in *both* the if-body and the else-body, so the def
         // is sunk (duplicated) into each — two grouped inserts + one delete.
-        let opts = run_pass(
-            "proc ::f {flag} { set x 1; if {$flag} { puts $x } else { puts $x } }",
-        );
+        let opts = run_pass("proc ::f {flag} { set x 1; if {$flag} { puts $x } else { puts $x } }");
         let inserts = opts
             .iter()
             .filter(|o| o.code == "O125" && o.replacement.contains("set x 1"))
@@ -596,7 +593,10 @@ mod tests {
                 && o.replacement.starts_with("set x 1;")
                 && o.replacement.contains("puts $x")
         });
-        assert!(deep, "expected a deep sink into the inner branch, got {opts:?}");
+        assert!(
+            deep,
+            "expected a deep sink into the inner branch, got {opts:?}"
+        );
     }
 
     #[test]

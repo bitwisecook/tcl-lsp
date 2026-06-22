@@ -70,6 +70,9 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("expr", cmd_expr);
     vm.register("proc", cmd_proc);
     vm.register("return", cmd_return);
+    vm.register("tailcall", cmd_tailcall);
+    vm.register("time", cmd_time);
+    vm.register("encoding", cmd_encoding);
     vm.register("error", cmd_error);
     vm.register("break", cmd_break);
     vm.register("continue", cmd_continue);
@@ -338,9 +341,30 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [path] => ok(Value::bool(path.to_str().is_empty())),
             _ => err("wrong # args: should be \"interp exists ?path?\""),
         },
+        // interp eval path arg ?arg ...? — only the current interpreter (an
+        // empty path) exists; its scripts (concatenated) evaluate in the current
+        // frame, exactly like `eval` (verified against tclsh 9.0).
+        "eval" => match rest {
+            [path, scripts @ ..] if !scripts.is_empty() => {
+                let p = path.to_str();
+                if !p.is_empty() {
+                    return err(format!("could not find interpreter \"{p}\""));
+                }
+                let script = scripts
+                    .iter()
+                    .map(|v| v.to_str().to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                match vm.eval_source(&script) {
+                    Ok(c) => c,
+                    Err(e) => err(e.message),
+                }
+            }
+            _ => err("wrong # args: should be \"interp eval path arg ?arg ...?\""),
+        },
         "slaves" | "children" => ok(Value::empty()),
         other => err(format!(
-            "bad option \"{other}\": only alias, exists, and slaves are supported"
+            "bad option \"{other}\": only alias, eval, exists, and slaves are supported"
         )),
     }
 }
@@ -681,6 +705,95 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         ret_code
     };
     Completion::new(final_code, value, options)
+}
+
+/// `tailcall ?command ?arg …??` — the runtime fallback for forms the codegen
+/// does not specialise into the `TAILCALL` opcode (an empty `tailcall`, or a
+/// dynamically-built one reached via the generic invoke). No command terminates
+/// the proc with an empty result (C: `tailcall` is a no-op return). For a
+/// dynamic command the call runs now and its result becomes the proc's,
+/// terminating it — a close approximation of the true caller-frame tail call the
+/// opcode performs (this fallback runs in the proc's own frame).
+fn cmd_tailcall(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if args.is_empty() {
+        return Completion::new(Code::Return, Value::empty(), Value::empty());
+    }
+    let name = args[0].to_str().to_string();
+    let res = vm.invoke_command(&name, &args[1..]);
+    if res.code.is_ok() {
+        Completion::new(Code::Return, res.result, Value::empty())
+    } else {
+        res
+    }
+}
+
+/// `time command ?count?` — evaluate `command` (in the current frame) `count`
+/// times (default 1) and report the average duration as a 4-element list
+/// `N microseconds per iteration` (C Tcl `Tcl_TimeObjCmd`). `N` is an integer for
+/// `count <= 1` and a double otherwise; a body that does not complete `OK`
+/// (error / break / continue / return) propagates.
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if args.is_empty() || args.len() > 2 {
+        return err("wrong # args: should be \"time command ?count?\"");
+    }
+    let count = if args.len() == 2 {
+        match args[1].as_int() {
+            Ok(n) => n,
+            Err(e) => return err(e.message),
+        }
+    } else {
+        1
+    };
+    let script = args[0].to_str().to_string();
+    let start = vm.host_rc().clock().now_micros();
+    let mut i = count;
+    while i > 0 {
+        match vm.eval_source(&script) {
+            Ok(c) if c.code.is_ok() => {}
+            Ok(c) => return c,
+            Err(e) => return err(e.message),
+        }
+        i -= 1;
+    }
+    let total = (vm.host_rc().clock().now_micros() - start) as f64;
+    let num = if count <= 1 {
+        Value::int(if count <= 0 { 0 } else { total as i64 })
+    } else {
+        Value::double(total / count as f64)
+    };
+    ok(Value::list(vec![
+        num,
+        Value::string("microseconds"),
+        Value::string("per"),
+        Value::string("iteration"),
+    ]))
+}
+
+/// `encoding subcommand ?arg …?` — mirrors the tree-walking runtime
+/// (`runtime/rust`), the VM's parity oracle: the internal string model is
+/// UTF-8, so `convertto`/`convertfrom` pass the data through unchanged, `system`
+/// reports `utf-8`, `names` lists the supported set, and `dirs` is accepted and
+/// ignored (no encoding-file search). This is a documented simplification — real
+/// codepage conversion (cp1252, shiftjis, …) is not implemented on either side.
+fn cmd_encoding(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some(sub) = args.first() else {
+        return err("wrong # args: should be \"encoding subcommand ?arg ...?\"");
+    };
+    match &*sub.to_str() {
+        "dirs" => ok(Value::empty()),
+        "system" => ok(Value::string("utf-8")),
+        "names" => ok(Value::string("utf-8 unicode ascii iso8859-1")),
+        "convertto" | "convertfrom" => {
+            if args.len() < 2 {
+                return err("wrong # args: should be \"encoding convertto ?encoding? data\"");
+            }
+            ok(args.last().expect("len >= 2").clone())
+        }
+        other => err(format!(
+            "unknown or ambiguous subcommand \"{other}\": must be convertfrom, convertto, dirs, names, or system"
+        )),
+    }
 }
 
 /// `error message ?info? ?code?`.
