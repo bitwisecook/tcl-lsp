@@ -892,7 +892,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) ported (`tcl-compiler::shimmer::byte_array` + `tcl-registry` `BytePayloadSpec`) — **FE-TYPESHIM** complete |
 | var-escape | `tcl-compiler::var_escape` | ✅ | orchestrator (`analyse_var_escape` IR + CU paths) + `pure_leaf` family (`safe_to_inline`/`safe_to_dce`/`safe_for_frame_elision`) + transitive fixpoint landed (FE-VARESCAPE complete, see [history](rust-rewrite-history.md)) |
 | Optimiser passes | `tcl-compiler::optimiser`, `tcl-compiler::inlining` | 🟢 | every O-code pass + the inliner v0/verbatim shapes landed (see [history](rust-rewrite-history.md)); sole remaining: inliner **v3** (α-rename, gated on the RT-WASM consumer for execution-differential verification) → **FE-OPT** |
-| Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` + the `set x [cmd]` inline re-land landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: bare-statement `string`/`regexp`/`lindex`/`lreplace`, `{*}` cmd-subst expansion → **FE-CODEGEN** |
+| Bytecode codegen | `tcl-compiler::codegen` | 🟢 | state-mutating statement-position specialisations + `expr` const-fold + byte-wise `esc` + the `set x [cmd]` inline re-land landed (byte-true vs tclsh9.0; VM opcodes implemented to match); residual: bare-statement `string`/`regexp`/`lindex`/`lreplace` (value-discarded) → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | every family ported + verified (E001/W125/IRULE5005, snit, OO body-walks, W307/W308, C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes, `when`-body gating, source-style/W108, #662 lockstep fixes) — see [history](rust-rewrite-history.md). The two consumer-wiring residuals (per-check config toggles, flow-warning code actions) landed under **SRV-LSP** |
 | F5 dialect diagnostics | `tcl-compiler::analyser::tk_checks`, `tcl-bigip::{validator,apl}`, new `tcl-xc` | 🟢 | TK1001-3 + BIGIP6001-11 + IAPP7001-3 ported (TK live in the analyser); residuals: XC100-301 (gated on a `tcl-xc` translator port of `lower_to_ir`-walking `translator.py`, Python-only meanwhile) + BIG-IP/iApp native-server consumer-wiring (SRV-LSP-style) → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🟡 | eval-fallback emitter + `tcl compwasm` wiring landed (binary/WAT, `wasmtime`-validated); residual: `IRInterpBoundary`; codegen DCE/GVN; `--link` (Binaryen) bundling → **RT-WASM** |
@@ -997,11 +997,12 @@ were implemented in `tcl-vm` so the codegen runs end-to-end. Remaining:
   proc-local scalar path keeps its `DICT_*` opcodes). The shared ensemble-rewrite
   mechanism could extend to other top-level ensembles (e.g. `string`); only the
   `dict` mutators are wired so far.
-- **open** `{*}` expansion inside a *command substitution* in value position
-  (`set x [cmd {*}$args]` → `expandStart … expandStkTop N; invokeExpanded`);
-  statement-position `{*}` already lowers correctly. (The `builtin_is_trusted`
-  rename gate originally filed here is a **WASM-emitter** concern —
-  `compiler/codegen/wasm/_emitter/*` only — and belongs to **RT-WASM**.)
+- **landed (2026-06-22)** `{*}` expansion inside a *command substitution* in
+  value position (`set x [cmd {*}$args]` → `expandStart … expandStkTop N;
+  invokeExpanded`), byte-true vs tclsh 9.0 via `parse_cmd_parts_expand` +
+  `emit_expanded_cmd_subst` (`[list {*}…]` stays on its `LIST_CONCAT` fold).
+  (The `builtin_is_trusted` rename gate originally filed here is a
+  **WASM-emitter** concern — belongs to **RT-WASM**.)
 
 #### FE-DIAG-F5 — F5 dialect diagnostics
 Owns new analyser slices on `tcl-bigip` / `tcl-xc` and the tk dialect. The
