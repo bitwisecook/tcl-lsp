@@ -22,6 +22,8 @@
 )]
 
 mod ast;
+#[cfg(feature = "cmd-core")]
+pub mod cmd_core;
 pub mod defs;
 mod exec;
 mod parser;

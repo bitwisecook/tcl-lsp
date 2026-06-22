@@ -28,7 +28,7 @@ tcl-runtime-api = { path = "../tcl-runtime-api" }
 tcl-cmd-core = { path = "../tcl-cmd-core" }
 tcl-platform = { path = "../tcl-platform" }
 tcl-host-native = { path = "../tcl-host-native" }
-regex = "1"
+tcl-regex = { path = "../tcl-regex", features = ["cmd-core"] }
 
 [dev-dependencies]
 # End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the
