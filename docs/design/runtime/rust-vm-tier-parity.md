@@ -1,12 +1,13 @@
 # Rust bytecode VM — Tier 1/2/3 tcltest parity scoreboard
 
-_Snapshot 2026-06-22 — regenerate with `TCL_LIBRARY=tmp/tcl9.0.3/library python scripts/dev/rust_vm_tier_gap.py --json tmp/rust_vm_tier_gap.json`._
+_Snapshot 2026-06-22 — regenerate with `TCL_LIBRARY=tmp/tcl9.0.3/library python scripts/dev/rust_vm_tier_gap.py --json tmp/g.json`._
 
 Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/baselines/tcl9-tcltest/c-tclsh.ndjson`; `*` = captured live from tclsh9.0).
 
-`CRASH` = an uncaught error/timeout aborts the whole file (highest leverage — one fix unlocks the file). Columns: **C P/S/F** vs **VM P/S/F**.
+`CRASH` = an uncaught error/timeout aborts the file (highest leverage — one fix unlocks it). Columns: **C P/S/F** vs **VM P/S/F**.
 
-**Tally: 9 MATCH · 61 gap · 27 crash** of 97 stems.
+**Tally: 9 MATCH · 65 gap · 23 crash** of 97 stems (was 9/61/27 at the start of the campaign).
+
 
 
 ## Tier 1
@@ -19,14 +20,10 @@ Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/
 | cmdIL | 163/5/0 | ERROR | CRASH |
 | expr | 2137/31/0 | ERROR | CRASH |
 | indexObj | 0/65/0 | ERROR | CRASH |
-| info | 282/5/0 | ERROR | CRASH |
-| lrepeat | 11/1/0 | ERROR | CRASH |
-| lseq | 132/2/0 | ERROR | CRASH |
 | mathop | 385/0/0 | ERROR | CRASH |
 | obj | 8/76/0* | ERROR | CRASH |
 | proc | 29/9/0 | TIMEOUT | CRASH |
 | rename | 11/8/0 | ERROR | CRASH |
-| subst | 62/1/0 | ERROR | CRASH |
 | append | 49/3/0 | 44/3/5 | gap |
 | appendComp | 43/5/0 | 38/5/5 | gap |
 | apply | 38/4/0 | 18/4/20 | gap |
@@ -38,7 +35,7 @@ Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/
 | compExpr-old | 183/1/0 | 122/2/60 | gap |
 | compile | 138/33/0 | 60/33/78 | gap |
 | concat | 9/0/0 | 7/0/2 | gap |
-| dict | 367/6/0 | 259/6/108 | gap |
+| dict | 367/6/0 | 281/6/86 | gap |
 | dstring | 0/46/0 | 0/46/0 | MATCH |
 | error | 309/8/0 | 278/8/31 | gap |
 | eval | 12/0/0 | 11/0/1 | gap |
@@ -53,6 +50,7 @@ Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/
 | if-old | 33/0/0 | 32/0/1 | gap |
 | incr | 69/0/0 | 61/0/8 | gap |
 | incr-old | 14/0/0 | 10/0/4 | gap |
+| info | 282/5/0 | 76/6/205 | gap |
 | join | 10/0/0 | 7/0/3 | gap |
 | lindex | 47/37/0 | 44/37/3 | gap |
 | linsert | 28/0/0 | 21/0/7 | gap |
@@ -63,8 +61,10 @@ Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/
 | lmap | 66/0/0 | 63/0/3 | gap |
 | lpop | 17/2/0 | 0/2/17 | gap |
 | lrange | 1764/2/0 | 1571/2/193 | gap |
+| lrepeat | 11/1/0 | 10/1/1 | gap |
 | lreplace | 3579/0/0 | 1790/0/1789 | gap |
 | lsearch | 165/0/0 | 163/0/2 | gap |
+| lseq | 132/2/0 | 95/3/36 | gap |
 | lset | 0/89/0 | 0/89/0 | MATCH |
 | lsetComp | 19/0/0 | 18/0/1 | gap |
 | misc | 2/299/0 | 1/299/1 | gap |
@@ -84,6 +84,7 @@ Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/
 | split | 18/0/0 | 16/0/2 | gap |
 | string | 693/12/0 | 670/12/23 | gap |
 | stringObj | 0/81/0 | 0/81/0 | MATCH |
+| subst | 62/1/0 | 23/1/39 | gap |
 | switch | 113/0/0 | 99/0/14 | gap |
 | trace | 273/17/0 | 80/17/193 | gap |
 | unknown | 7/0/0 | 7/0/0 | MATCH |
