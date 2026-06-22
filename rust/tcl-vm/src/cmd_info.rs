@@ -14,12 +14,73 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("info", cmd_info);
 }
 
+/// Resolve an `info` subcommand word to its canonical Tcl 9 name with Tcl's
+/// unambiguous-prefix rule (`Tcl_GetIndexFromObj`): an exact match wins,
+/// otherwise a unique prefix — so `info command` resolves to `commands`
+/// (cmdAH.test). Returns `None` when the word matches nothing or is an
+/// ambiguous prefix of several; the caller then reports the error. The table is
+/// the full Tcl 9 `info` option set so ambiguity matches C even for
+/// subcommands the VM does not yet implement (those resolve then fall through
+/// to the unknown-subcommand arm).
+fn canonical_info_sub(sub: &str) -> Option<&'static str> {
+    const SUBS: &[&str] = &[
+        "args",
+        "body",
+        "cmdcount",
+        "cmdtype",
+        "commands",
+        "complete",
+        "constant",
+        "consts",
+        "coroutine",
+        "default",
+        "errorstack",
+        "exists",
+        "frame",
+        "functions",
+        "globals",
+        "hostname",
+        "level",
+        "library",
+        "loaded",
+        "locals",
+        "nameofexecutable",
+        "object",
+        "patchlevel",
+        "procs",
+        "script",
+        "sharedlibextension",
+        "tclversion",
+        "vars",
+    ];
+    if sub.is_empty() {
+        return None;
+    }
+    if let Some(&exact) = SUBS.iter().find(|&&s| s == sub) {
+        return Some(exact);
+    }
+    let mut found = None;
+    let mut count = 0u32;
+    for &s in SUBS {
+        if s.starts_with(sub) {
+            found = Some(s);
+            count += 1;
+        }
+    }
+    if count == 1 { found } else { None }
+}
+
 #[allow(clippy::too_many_lines)]
 fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"info subcommand ?arg ...?\"");
     };
-    match &*sub.to_str() {
+    let sub_str = sub.to_str();
+    let canon: &str = match canonical_info_sub(&sub_str) {
+        Some(c) => c,
+        None => &sub_str,
+    };
+    match canon {
         // `info exists varName` — the shared Family-B core over `VarStore::exists`.
         "exists" => match rest {
             [name] => ok(tcl_cmd_core::info::exists(vm, name)),

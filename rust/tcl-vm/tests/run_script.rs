@@ -234,6 +234,17 @@ fn multiline_cmd_subst_in_assignment_keeps_all_args() {
     assert_eq!(result, "bcd");
 }
 
+/// Ensemble subcommands resolve an unambiguous prefix, matching C's
+/// `Tcl_GetIndexFromObj`: `info command` → `commands`, `file ext` →
+/// `extension`, `file dir` → `dirname`. (cmdAH.test's constraint setup uses
+/// `info command`; the absence of prefix matching aborted the whole file.)
+#[test]
+fn info_and_file_subcommand_prefix_abbreviation() {
+    assert_eq!(run("info command set").1, "set");
+    assert_eq!(run("file ext a.tar.gz").1, ".gz");
+    assert_eq!(run("file dir /a/b/c").1, "/a/b");
+}
+
 /// `dict with` maps a dict's keys to local variables, runs the body, and
 /// reflects the variables back: a modified key is updated, an unset key is
 /// removed, and a variable the body merely created is not added. A nested
