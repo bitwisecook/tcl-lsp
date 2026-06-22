@@ -99,9 +99,27 @@ matches tclsh 9.0. The command-level behaviour is covered by
 `rust/tcl-vm/tests/regexp_e2e.rs` (cases ported from `regexp.test`, expected
 values captured from real tclsh).
 
-The remaining consumer is `runtime/rust`, which still links the C ARE engine
-via FFI (`build.rs` + `src/regex.rs`, gated `have_regex`). Because `AreEngine`
-satisfies the same `RegexEngine` trait, switching it over is a drop-in that
-would remove the C build dependency entirely — a deliberate follow-up, gated by
-that crate's own regex test suite (the M3 wall in
-`docs/design/runtime/tcltest-bringup.md`).
+The Rust runtime (`runtime/rust`) also uses it: its `cmd_regex` adapter drives
+`AreEngine` directly. This **replaced** the C Henry-Spencer engine that
+`build.rs` used to compile and link (`have_regex`): the FFI module, the
+`build_regex` step, and the `regex_shim/` C sources are gone. Because the new
+engine is safe Rust with no FFI, `regexp`/`regsub` now work on **wasm32** too
+(they were stubbed out there before, since the C engine could not link).
+
+### Shimming for C consumers
+
+`runtime/rust` is the C-extension host (it links compiled user code + C
+extensions into one module), so it carries a thin C-ABI shim,
+`src/regex_capi.rs`, that re-exports the engine under the Tcl regex C symbols
+(`TclReComp` / `TclReExec` / `TclReFree` / `TclReError`) with the `regex.h`
+`regex_t` / `regmatch_t` layout and `REG_*` codes (header:
+`runtime/rust/include/tcl_regex_capi.h`). A C Tcl build or extension that used
+to link the C engine links this instead, unchanged.
+
+The shim is where the impedance mismatch lives, by design: the safe-Rust API
+speaks `&[u32]` codepoints, typed `ErrorCode`/`InfoFlag`, and half-open
+`Span`s; the shim converts to/from the C `regex_t` (opaque `re_guts` =
+`Box<Regex>`), the `regmatch_t[]` of `size_t` pairs with the `(size_t)-1`
+non-participation sentinel, and integer `REG_*` codes. `tcl-regex` itself stays
+`#![forbid(unsafe)]`; all the raw-pointer work is in the shim, in the one crate
+(`runtime/rust`) that is allowed `unsafe`.

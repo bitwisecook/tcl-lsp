@@ -18,7 +18,9 @@
 use crate::ast::{Anchor, Node, Pref, case_variants};
 use crate::defs::{Chr, DUPINF, REG_ICASE, REG_NLANCH, REG_NOTBOL, REG_NOTEOL};
 use std::cell::RefCell;
-use std::collections::HashMap;
+// A `BTreeMap` (not `HashMap`) keeps the engine free of any RNG/entropy
+// dependency, so it embeds cleanly in freestanding / wasm / C-linked builds.
+use std::collections::BTreeMap;
 
 /// Half-open character span `[start, end)`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -33,7 +35,7 @@ pub(crate) struct Matcher<'a> {
     eflags: i32,
     /// The whole RE prefers the shortest overall match (top-tree `SHORTER`).
     prefer_shortest: bool,
-    memo: HashMap<(usize, usize), Vec<usize>>,
+    memo: BTreeMap<(usize, usize), Vec<usize>>,
 }
 
 fn is_word(c: Chr) -> bool {
@@ -56,7 +58,7 @@ impl<'a> Matcher<'a> {
             cflags,
             eflags,
             prefer_shortest,
-            memo: HashMap::new(),
+            memo: BTreeMap::new(),
         }
     }
 

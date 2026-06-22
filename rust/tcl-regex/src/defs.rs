@@ -110,6 +110,41 @@ pub enum Err {
 }
 
 impl Err {
+    /// The numeric `REG_*` code (the value a C caller / shim expects). `Okay`
+    /// is `0`; the rest match `regex.h`.
+    #[must_use]
+    pub fn code(self) -> i32 {
+        self as i32
+    }
+
+    /// Recover the error from its numeric `REG_*` code, or `None` if unknown.
+    #[must_use]
+    pub fn from_code(code: i32) -> Option<Err> {
+        Some(match code {
+            0 => Err::Okay,
+            1 => Err::Nomatch,
+            2 => Err::Badpat,
+            3 => Err::Ecollate,
+            4 => Err::Ectype,
+            5 => Err::Eescape,
+            6 => Err::Esubreg,
+            7 => Err::Ebrack,
+            8 => Err::Eparen,
+            9 => Err::Ebrace,
+            10 => Err::Badbr,
+            11 => Err::Erange,
+            12 => Err::Espace,
+            13 => Err::Badrpt,
+            15 => Err::Assert,
+            16 => Err::Invarg,
+            17 => Err::Mixed,
+            18 => Err::Badopt,
+            19 => Err::Etoobig,
+            20 => Err::Ecolors,
+            _ => return None,
+        })
+    }
+
     /// The bare error name as it appears in Tcl's `errorCode` — e.g.
     /// `REG_BADRPT` is reported as `BADRPT` (reg.test strips `REG_`).
     #[must_use]
