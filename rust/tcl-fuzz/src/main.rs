@@ -13,6 +13,7 @@ mod generator;
 mod harness;
 mod rng;
 mod wasm;
+mod wasm_diff;
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -73,6 +74,21 @@ enum Cmd {
     /// differential against `tclsh` is gated on the interpreter-backed host —
     /// RT-WASM; this exercises the WASM codegen for crashes/traps.)
     WasmCheck {
+        /// Number of scripts to generate and check.
+        #[arg(long, default_value_t = 200)]
+        iterations: u64,
+        /// Starting seed (each iteration uses seed + i).
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Print each finding's seed and reason as it is discovered.
+        #[arg(long)]
+        verbose: bool,
+    },
+    /// WASM **value**-differential arm: drive each generated program's compiled
+    /// WASM control flow with an embedded `tcl-vm` host and compare its output
+    /// against running the program directly on `tcl-vm`. A divergence isolates a
+    /// WASM control-flow miscompile (commands are `tcl-vm` on both sides).
+    WasmDiff {
         /// Number of scripts to generate and check.
         #[arg(long, default_value_t = 200)]
         iterations: u64,
@@ -183,6 +199,77 @@ fn main() -> std::process::ExitCode {
             seed,
             verbose,
         } => wasm_check(*iterations, *seed, *verbose, &config, &cli.findings),
+        Cmd::WasmDiff {
+            iterations,
+            seed,
+            verbose,
+        } => wasm_diff_campaign(*iterations, *seed, *verbose, &config, &cli.findings),
+    }
+}
+
+/// Drive the WASM value-differential arm over `iterations` generated programs.
+fn wasm_diff_campaign(
+    iterations: u64,
+    seed: Option<u64>,
+    verbose: bool,
+    config: &GenConfig,
+    findings_dir: &Path,
+) -> std::process::ExitCode {
+    let base_seed = seed.unwrap_or_else(time_seed);
+    let diff_findings = findings_dir.join("wasm-diff");
+    let _ = std::fs::create_dir_all(&diff_findings);
+    let engine = wasm_diff::engine();
+
+    eprintln!("wasm-diff: {iterations} programs from seed {base_seed}");
+    // A codegen panic prints a backtrace by default; silence it for the run.
+    let prior_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+
+    let (mut matched, mut diverged, mut unrunnable, mut hung) = (0u64, 0u64, 0u64, 0u64);
+    for i in 0..iterations {
+        let s = base_seed.wrapping_add(i);
+        let script = generate(s, config);
+        match wasm_diff::check(&engine, &script) {
+            wasm_diff::DiffVerdict::Match => matched += 1,
+            wasm_diff::DiffVerdict::Unrunnable(reason) => {
+                unrunnable += 1;
+                if verbose {
+                    eprintln!(
+                        "  unrunnable @ seed {s}: {}",
+                        reason.lines().next().unwrap_or("")
+                    );
+                }
+            }
+            wasm_diff::DiffVerdict::WasmHang => {
+                hung += 1;
+                if verbose {
+                    eprintln!("  WASM HANG @ seed {s} (non-terminating compiled control flow)");
+                }
+                let _ = std::fs::write(diff_findings.join(format!("hang-{s}.tcl")), &script);
+            }
+            wasm_diff::DiffVerdict::Divergence { wasm, direct } => {
+                diverged += 1;
+                if verbose {
+                    eprintln!("  DIVERGENCE @ seed {s}: wasm={wasm:?} direct={direct:?}");
+                }
+                let _ = std::fs::write(diff_findings.join(format!("seed-{s}.tcl")), &script);
+            }
+        }
+        if !verbose && i % 50 == 0 {
+            eprintln!("  {i}/{iterations} — {} findings", diverged + hung);
+        }
+    }
+
+    std::panic::set_hook(prior_hook);
+    let findings = diverged + hung;
+    eprintln!(
+        "\nwasm-diff complete:\n  matched {matched} | diverged {diverged} | hung {hung} | unrunnable {unrunnable}\n  findings: {findings} (scripts in {})",
+        diff_findings.display(),
+    );
+    if findings > 0 {
+        std::process::ExitCode::from(1)
+    } else {
+        std::process::ExitCode::SUCCESS
     }
 }
 
