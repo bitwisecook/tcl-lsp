@@ -98,13 +98,30 @@ proc body, alternating warm→edited:
   optimise_unit                            15.4 ms
 ```
 
-The decisive comparison: **warm `compiler_check_diagnostics` (444 ms) ≈ no-memo
-`run_all_checks` (405 ms)**. The per-proc lattice memo (see below) successfully
-makes the analyser walk cheap (85 ms) and reuses every unedited proc's SSA
-lattice, but `run_all_checks`/`optimise_unit` consume the whole `CompilationUnit`
-and are **not** behind a per-proc memo, so they re-run in full on every edit. On
-`practcl.tcl` (~8.5k lines) the same warm per-edit is ~1.6 s, scaling with file
-size exactly as a whole-file pass would.
+That the checks re-run **whole-file** is measured directly, not inferred — the
+`tail_profile` "re-execution breadth" tier counts salsa `WillExecute` events per
+query across one body edit (and the `check_diagnostics_rerun_whole_file_on_body_edit`
+test pins it):
+
+```
+== salsa re-execution breadth (one body edit, warm db) ==
+  per-proc memoised (rebuild only the edited procedure):
+    item_body_analysis            cold 80   1-edit 2
+    function_lattice              cold 80   1-edit 1
+    taint_cascade                 cold 80   1-edit 3
+  whole-file (re-run in full regardless of which procedure changed):
+    compilation_unit              cold  1   1-edit 1
+    compiler_check_diagnostics    cold  1   1-edit 1
+```
+
+Editing one procedure rebuilds **one** `function_lattice` of 80 — the per-proc
+memo works — yet `compiler_check_diagnostics` re-executes and runs `run_all_checks`
+over **all 81 functions**. `run_all_checks` is not itself a salsa query (it emits
+no `WillExecute` event); it runs inside that single whole-file re-execution with no
+per-proc reuse. The timing corroborates: warm `compiler_check_diagnostics`
+(~445 ms) ≈ no-memo `run_all_checks` (~405 ms). On `practcl.tcl` (~8.5k lines) the
+same warm per-edit is ~1.6 s, scaling with file size exactly as a whole-file pass
+would.
 
 A 5–12× speedup on the ~85 µs apply slice (harness (a), below) is invisible
 against this. That is why the track targets the analysis floor, not the buffer.
@@ -114,18 +131,24 @@ against this. That is why the track targets the analysis floor, not the buffer.
 The per-item analyser firewall is designed and largely shipped — full detail in
 [`../rust/incremental-analysis.md`](../rust/incremental-analysis.md); the shape:
 
-- **Signature firewall.** `item_tree(file)` extracts the proc/class/alias
-  declarations (`structure_only().analyse`, no diagnostics); `item_sigs` strips
-  bodies to headers; `file_decls` aggregates them. A body-only edit leaves
-  `item_sigs` *equal*, so `file_decls` and every cross-item pass **backdate**
-  (salsa early-cutoff) without re-running.
-- **Per-body / per-proc memo, offset-invariant.** `item_body_analysis` (keyed on
-  `ItemBodyKey`), `function_lattice` (keyed on `FnLatticeKey`: the offset-0 IR
-  body + module context + params + dialect), and `taint_cascade` (keyed on
-  `FnLatticeKey` + `TaintSummaryKey`) are all `#[salsa::tracked]`. The keys are
-  *offset-invariant*, so a proc merely **shifted** by edits above it is a cache
-  hit. Tests assert "exactly one body/lattice/cascade re-runs" on an unrelated
-  edit, and "zero" on a pure blank-line prepend.
+- **Per-body / per-proc memo, offset-invariant (the live firewall).**
+  `item_body_analysis` (keyed on `ItemBodyKey`), `function_lattice` (keyed on
+  `FnLatticeKey`: the offset-0 IR body + module context + params + dialect), and
+  `taint_cascade` (keyed on `FnLatticeKey` + `TaintSummaryKey`) are all
+  `#[salsa::tracked]`, demanded on the live path through `file_analysis_incremental`
+  (per body) and `compilation_unit` (per proc). The keys are *offset-invariant*,
+  so a proc merely **shifted** by edits above it is a cache hit. This is what
+  bounds a body edit to the one-rebuild measured above; tests assert "exactly one
+  body/lattice/cascade re-runs" on an unrelated edit, and "zero" on a blank-line
+  prepend.
+- **Signature-firewall queries (built and tested, not yet wired).** `item_tree`
+  → `item_sigs` → `file_decls` are `#[salsa::tracked]` queries that extract proc
+  headers and would let a body-only edit **backdate** the cross-item passes via
+  early-cutoff — but they have **no production callers today**
+  (`file_analysis_incremental` walks structure inline; the within-file signature
+  firewall is not yet a salsa early-cutoff). They sit beside the file like
+  `reparse_window`: ready substrate, unwired — and they are the natural basis for
+  the project signature table in the cross-file design (Task 6).
 - **Coverage.** The per-item fast path covers the large majority of the corpus
   (92.2% at the last `incremental-analysis.md` baseline); the rest falls back to a
   full walk on incomplete or `syntax_error` input.
@@ -155,33 +178,33 @@ Classify each edit by what the **structural diff** says changed:
 
 **1. Body-only edit** — text changes inside one proc body; all signatures
 unchanged.
-- *What recomputes (correct, shipped):* `item_sigs`/`file_decls` backdate;
-  exactly one `item_body_analysis` + one `function_lattice` + one `taint_cascade`
-  re-run (the edited proc). Shifted siblings are cache hits via offset-invariant
-  keys.
-- *The gap:* `compiler_check_diagnostics` still re-runs `run_all_checks` +
-  `optimise_unit` over the **whole** unit, because it depends on the file input
-  and is not split per-proc. → **Task 2.**
+- *What recomputes (correct, shipped):* the per-proc memo bounds it — one
+  `item_body_analysis`, one `function_lattice`, and the handful of `taint_cascade`
+  that transitively depend on the edited body re-run (measured above: 2 / 1 / 3 on
+  linalg). Shifted siblings are cache hits via offset-invariant keys.
+- *The gap:* the analyser walk's cross-item passes and `compiler_check_diagnostics`
+  (`run_all_checks` + `optimise_unit`) re-run over the **whole** unit — the checks
+  are not split per-proc, so all 81 functions are re-checked for a one-proc edit.
+  → **Task 2.**
 
 **2. Signature change** — a proc's params/arity/name/namespace change.
-- `item_sigs` changes → `file_decls` changes → the cross-item interproc summary
-  and the arity/W123 passes recompute. This is *correct*: callers of the changed
-  proc must re-check arity (E002/E003).
-- *How the cascade stays bounded:* sibling **bodies** did not change, so their
-  `item_body_analysis`/`function_lattice` stay cached — only the *cross-item*
-  layer recomputes. The refinement (Task 2/6) is to model the
+- The edited proc's **header** changes, so the cross-item interproc summary and the
+  arity / W123 passes must recompute — callers of the changed proc must re-check
+  arity (E002/E003). Sibling **bodies** are unchanged, so their per-proc memo holds.
+- *How the cascade stays bounded (today vs. target):* today the whole file's
+  cross-item passes re-run inline (the salsa signature-firewall queries are
+  unwired). The refinement (Task 2/6) wires `file_decls` and models the
   call-site→callee-signature dependency as a salsa edge — an arity check keyed on
   the resolved callee's `signature` — so only **callers of the changed proc**
-  re-check, not every proc in the file. Today the whole file's arity pass re-runs;
-  that is correct but coarser than necessary.
+  re-check, not every proc in the file.
 
 **3. Structural edit** — add/remove a proc, an unbalanced brace, anything that
 changes the item set.
-- `item_tree` changes; the regions keyed on the changed span recompute. The
+- The item set changes; the regions keyed on the changed span recompute. The
   structural-state index (`reparse_window`, `script_is_complete`, the
   bracket/brace/paren indexes already built in `tcl-lexer`) bounds re-lex /
-  re-segment to the dirty span once wired in (**Task 5**). New/removed procs
-  change `file_decls`, cascading to the cross-item layer as in case 2.
+  re-segment to the dirty span once wired in (**Task 5**). New/removed procs change
+  the cross-item layer, cascading as in case 2.
 - On incomplete or `syntax_error` input, fall back to a conservative full rebuild
   (already the pattern) — correctness over locality.
 
@@ -214,8 +237,9 @@ bounded by Tcl's dynamic dispatch:**
 
 1. **Lift the project signature table into salsa.** Add a project-level
    `project_signatures()` query (a def-index keyed by qualified name) that depends
-   **only on each file's `item_sigs`/`file_decls`** — the signature firewall — and
-   never on bodies. Because it reads only firewall outputs, a body edit in *any*
+   **only on each file's `item_sigs`/`file_decls`** — the signature-firewall queries
+   that already exist (built and tested, just unwired; see above) — and never on
+   bodies. Because it reads only firewall outputs, a body edit in *any*
    file leaves it unchanged → it backdates → **zero cross-file work**. Only a
    signature/decl change recomputes it; exposing each symbol as its own
    `signature(qname)` query (point 2) then gives **per-entry** early-cutoff, so a

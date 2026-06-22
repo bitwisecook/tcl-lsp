@@ -2,6 +2,7 @@
 
 #![allow(clippy::cast_precision_loss)]
 
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use salsa::Setter as _;
@@ -112,4 +113,69 @@ fn main() {
         tcl_compiler::optimiser::optimise_unit(&cu, &registry, Some(dialect))
     });
     println!("  (functions in unit: {})", cu.functions().count());
+
+    // Direct measurement of per-edit re-execution breadth (counts salsa
+    // `WillExecute` events per query, cold build vs. one body edit).
+    rerun_breadth(&src, dialect, edit_pos, cu.functions().count());
+}
+
+/// Count salsa `WillExecute` events per query across one single-procedure body
+/// edit.  Proves the per-proc memo rebuilds ONE procedure (`function_lattice` /
+/// `item_body_analysis` / `taint_cascade`) while `compiler_check_diagnostics`
+/// re-executes wholesale — so `run_all_checks`, which runs inside it and is not
+/// itself a salsa query, re-checks every function every edit.
+fn rerun_breadth(src: &str, dialect: &str, fallback_pos: usize, n_functions: usize) {
+    println!("\n== salsa re-execution breadth (one body edit, warm db) ==");
+    let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&log);
+    let mut db = TclDatabase::with_event_logger(move |k| sink.lock().unwrap().push(k));
+    let cfg = AnalyserConfig::new(&db, Vec::new(), tcl_compiler::analyser::NonAsciiMode::Default);
+    let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned());
+    let _ = file_analysis_incremental(&db, file, cfg);
+    let _ = compiler_check_diagnostics(&db, file);
+    let cold: Vec<String> = std::mem::take(&mut *log.lock().unwrap());
+    // A single-character body edit that changes a *token* (a letter inserted after
+    // the first alphanumeric character of the largest proc body) — not whitespace,
+    // which the offset-invariant key normalises away.  Exactly one procedure's body
+    // changes; every other procedure shifts but is a cache hit.
+    let body_pos = Analyser::new()
+        .analyse(src, dialect)
+        .all_procs
+        .values()
+        .map(|p| p.body_span)
+        .filter(|s| s.end() > s.start() + 4)
+        .max_by_key(|s| s.end() - s.start())
+        .and_then(|s| {
+            let (lo, hi) = (s.start() as usize, s.end() as usize);
+            src[lo..hi]
+                .find(|c: char| c.is_ascii_alphanumeric())
+                .map(|off| lo + off + 1)
+        })
+        .unwrap_or(fallback_pos);
+    let mut edited_tok = src.to_owned();
+    edited_tok.insert(body_pos, 'Z');
+    file.set_text(&mut db).to(edited_tok);
+    let _ = file_analysis_incremental(&db, file, cfg);
+    let _ = compiler_check_diagnostics(&db, file);
+    let warm: Vec<String> = std::mem::take(&mut *log.lock().unwrap());
+    let row = |q: &str| {
+        let c = cold.iter().filter(|s| s.contains(q)).count();
+        let w = warm.iter().filter(|s| s.contains(q)).count();
+        println!("  {q:<34} cold {c:>5}   1-edit {w:>5}");
+    };
+    println!("  per-proc memoised (rebuild only the edited procedure):");
+    row("item_body_analysis");
+    row("function_lattice");
+    row("taint_cascade");
+    println!("  whole-file (re-run in full regardless of which procedure changed):");
+    row("compilation_unit");
+    row("compiler_check_diagnostics");
+    let cc = warm
+        .iter()
+        .filter(|s| s.contains("compiler_check_diagnostics"))
+        .count();
+    println!(
+        "  -> run_all_checks runs inside each of the {cc} compiler_check_diagnostics \
+         re-execution(s), over all {n_functions} functions, every edit.",
+    );
 }

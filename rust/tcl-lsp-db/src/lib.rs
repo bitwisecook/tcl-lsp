@@ -64,6 +64,26 @@ pub struct TclDatabase {
 #[salsa::db]
 impl salsa::Database for TclDatabase {}
 
+impl TclDatabase {
+    /// Construct a database that forwards, for every salsa `WillExecute` event,
+    /// the `database_key` of the query about to run (its `Debug` string) to
+    /// `logger`.  Lets a profiler count per-query re-executions across an edit
+    /// without exposing `salsa::Event` in the public API.  See the
+    /// `tail_profile` example's re-execution-breadth tier.
+    #[must_use]
+    pub fn with_event_logger(logger: impl Fn(String) + Send + Sync + 'static) -> Self {
+        let storage = salsa::Storage::new(Some(Box::new(move |ev: salsa::Event| {
+            if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                logger(format!("{database_key:?}"));
+            }
+        })));
+        Self {
+            storage,
+            registries: Arc::default(),
+        }
+    }
+}
+
 #[salsa::db]
 impl TclDb for TclDatabase {
     fn registry(&self, dialect: &str) -> Arc<CommandRegistry> {
@@ -1193,6 +1213,76 @@ mod tests {
                 .count(),
             1,
             "length-changing body edit -> exactly ONE lattice recomputes (offset-invariant): {after:?}"
+        );
+    }
+
+    /// Direct measurement of per-edit *check* breadth (SRV-INCREMENTAL Task 2):
+    /// a one-procedure body edit rebuilds exactly ONE `function_lattice` (the
+    /// per-proc memo works), but `compiler_check_diagnostics` re-executes wholesale
+    /// — `run_all_checks` is not a per-proc salsa query (it emits no `WillExecute`
+    /// event of its own), so it re-checks every procedure on every edit.  This is
+    /// the gap the per-proc `run_all_checks` memo (Task 2) closes; the assertions
+    /// pin the current breadth so that work has a baseline to move.
+    #[test]
+    fn check_diagnostics_rerun_whole_file_on_body_edit() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        // Four independent procedures; we edit `b`'s body and leave a, c, d alone.
+        let file = SourceFile::new(
+            &db,
+            "proc a {} { set x 11111 }\n\
+             proc b {} { set y 22222 }\n\
+             proc c {} { set z 33333 }\n\
+             proc d {} { set w 44444 }\n"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let _ = file_analysis_incremental(&db, file, cfg);
+        let _ = compiler_check_diagnostics(&db, file);
+        log.lock().unwrap().clear();
+
+        // Length-changing body edit to ONE procedure (`b`); a/c/d shift but their
+        // offset-0 lattice keys are unchanged (cache hits).
+        file.set_text(&mut db).to("proc a {} { set x 11111 }\n\
+             proc b {} { set y 222222222 }\n\
+             proc c {} { set z 33333 }\n\
+             proc d {} { set w 44444 }\n"
+            .to_owned());
+        let _ = file_analysis_incremental(&db, file, cfg);
+        let _ = compiler_check_diagnostics(&db, file);
+        let after = std::mem::take(&mut *log.lock().unwrap());
+        let count = |q: &str| after.iter().filter(|s| s.contains(q)).count();
+
+        // Per-proc memo: exactly one procedure's lattice rebuilds.
+        assert_eq!(
+            count("function_lattice"),
+            1,
+            "one-proc body edit -> ONE function_lattice rebuild: {after:?}"
+        );
+        // Checks re-run wholesale: compiler_check_diagnostics re-executes, and
+        // run_all_checks (not a salsa query) re-checks every procedure inside it.
+        assert_eq!(
+            count("compiler_check_diagnostics"),
+            1,
+            "checks re-run whole-file every edit (no per-proc check memo): {after:?}"
+        );
+        assert_eq!(
+            count("run_all_checks"),
+            0,
+            "run_all_checks is not a salsa query, so it has no WillExecute event: {after:?}"
         );
     }
 
