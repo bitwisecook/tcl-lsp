@@ -1615,6 +1615,56 @@ impl Vm {
                 f.stack.push(Value::bool(found));
             }
 
+            // `[regexp $pat $str]` in value position — operand [Imm(cflags)];
+            // stack holds the pattern then the string (string on top, matching
+            // C Tcl's `INST_REGEXP`: valuePtr = OBJ_AT_TOS, value2Ptr =
+            // OBJ_UNDER_TOS). `cflags` carries the regexp compile flags; only the
+            // `TCL_REG_NOCASE` bit (010 octal = 8) is meaningful here, since the
+            // codegen routes `-nocase` glob-equivalents through `STR_MATCH` and
+            // emits `TCL_REG_ADVANCED` (3) for the plain form. Leaves the match
+            // boolean on the stack.
+            Op::REGEXP => {
+                const TCL_REG_NOCASE: i32 = 0o10;
+                let nocase = imm0(instr) & TCL_REG_NOCASE != 0;
+                let s = pop(f).to_str();
+                let pat = pop(f).to_str();
+                match crate::cmd_regexp::regexp_matches(&pat, &s, nocase) {
+                    Ok(m) => f.stack.push(Value::bool(m)),
+                    Err(msg) => return Tick::Return(err(msg)),
+                }
+            }
+            // `[string is CLASS $str]` per-character class test — operand
+            // [Imm(class-id)]; pops the string, pushes a boolean. Mirrors C Tcl's
+            // `INST_STR_CLASS`: the empty string matches, otherwise every
+            // character must satisfy the class comparator. Shares the classifier
+            // with the `string is` command.
+            Op::STR_CLASS => {
+                let class_id = u8::try_from(imm0(instr)).unwrap_or(u8::MAX);
+                let Some(class) = tcl_bytecode::str_class_name(class_id) else {
+                    return Tick::Return(err(format!("strclass: bad class id {class_id}")));
+                };
+                let s = pop(f).to_str();
+                let (member, _fail) = tcl_cmd_core::string_is::class_check(class, &s, false);
+                f.stack.push(Value::bool(member));
+            }
+            // `numericType` — pops a value, pushes its numeric-tower code (C Tcl
+            // `INST_NUM_TYPE` / `GetNumberFromObj`): 0 = not a number,
+            // `TCL_NUMBER_INT` = 2, `TCL_NUMBER_BIG` = 3, `TCL_NUMBER_DOUBLE` = 4,
+            // `TCL_NUMBER_NAN` = 5. The `string is integer/double` inline forms
+            // test this against `<= 3` (integer) or `!= 0` (double/any numeric).
+            Op::NUMERIC_TYPE => {
+                use tcl_syntax::number::{Number, parse_whole};
+                let v = pop(f);
+                let code = match parse_whole(v.to_str().trim()) {
+                    Some(Number::Int(_)) => 2,
+                    Some(Number::Big { .. }) => 3,
+                    Some(Number::Double(_)) => 4,
+                    Some(Number::Nan { .. }) => 5,
+                    None => 0,
+                };
+                f.stack.push(Value::int(code));
+            }
+
             // -- termination --
             Op::DONE => {
                 return Tick::Return(ok(f
