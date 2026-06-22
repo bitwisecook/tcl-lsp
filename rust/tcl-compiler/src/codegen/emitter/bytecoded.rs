@@ -246,12 +246,26 @@ fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 /// - `dict incr var key ?amount?` — `DICT_INCR_IMM amt slot`.
 /// - `dict append var key value` — `DICT_APPEND slot`.
 /// - `dict lappend var key value` — `DICT_LAPPEND slot`.
+#[allow(clippy::too_many_lines)] // per-subcommand dispatcher: one arm per dict sub
 fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
-    if !ctx.is_proc || args.len() < 3 {
+    if args.len() < 2 {
         return false;
     }
     let sub = args[0].as_str();
     let rest = &args[1..];
+
+    // Non-proc (or qualified-var) mutating `dict` subcommand → the top-level
+    // ensemble-rewrite `INVOKE_REPLACE` form (see [`dict_ensemble`]); the
+    // proc-local scalar path below keeps its specialised `DICT_*` opcodes.
+    let proc_local = ctx.is_proc && !is_qualified(&rest[0]);
+    if !proc_local && matches!(sub, "set" | "unset" | "incr" | "append" | "lappend") {
+        dict_ensemble(ctx, sub, rest);
+        return true;
+    }
+
+    if !ctx.is_proc || args.len() < 3 {
+        return false;
+    }
     let var_name = &rest[0];
     if is_qualified(var_name) {
         return false;
@@ -344,6 +358,27 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         }
         _ => false,
     }
+}
+
+/// Emit a top-level mutating `dict <sub> …` as the ensemble-rewrite
+/// `INVOKE_REPLACE` form tclsh uses (`push dict <sub> <args…> ::tcl::dict::<sub>;
+/// invokeReplace objc 2`). `sub_args` is the words after the subcommand (e.g.
+/// the var name, keys, value); `sub` must have a registered
+/// `::tcl::dict::<sub>` implementation.
+fn dict_ensemble(ctx: &mut CodegenCtx, sub: &str, sub_args: &[String]) {
+    ctx.push_lit("dict");
+    ctx.push_lit(sub);
+    for a in sub_args {
+        ctx.emit_value_interpolated(a);
+    }
+    ctx.push_lit(&format!("::tcl::dict::{sub}"));
+    let objc = bytecode_imm(2 + sub_args.len());
+    ctx.emit(
+        Op::INVOKE_REPLACE,
+        vec![Operand::Imm(objc), Operand::Imm(2)],
+    );
+    ctx.emit(Op::POP, vec![]);
+    ctx.seen_generic_invoke = true;
 }
 
 // ── array ─────────────────────────────────────────────────────────
