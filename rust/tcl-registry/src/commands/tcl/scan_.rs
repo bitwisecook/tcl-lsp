@@ -13,7 +13,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "scan string format ?varName varName ...?",
 }];
 
-/// D4-F2: `scan string format ?varName ...?` accepts variable-name args from
+/// `scan string format ?varName ...?` accepts variable-name args from
 /// index 2 onward to the end of the call.  Resolve `VarWrite` dynamically for
 /// every trailing arg rather than hard-coding a finite slot count, so calls
 /// with 20 / 50 / 100 vars don't false-fire W210 on the unmodelled tail.

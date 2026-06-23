@@ -632,7 +632,7 @@ impl CodegenCtx<'_> {
             })
             .collect();
 
-        // C21: try a registered per-command codegen hook before the
+        // Try a registered per-command codegen hook before the
         // generic invoke fallback.
         self.cmd_arg_braced = braced_flags;
         if super::emitter::bytecoded::try_bytecoded(self, cmd, args, used_generic_invoke) {

@@ -586,8 +586,8 @@ fn v3_script_eligible(
 
 /// Build the qname → [`InlineSpec`] map of inlinable procedures. Only
 /// [`InlineDecision::Always`] procs qualify; `IfSingleCall` is not
-/// eligible (its profitability depends on post-inline pruning, not
-/// ported). Redefined procs are never inlined.
+/// eligible, because its profitability depends on post-inline pruning
+/// this pass does not perform. Redefined procs are never inlined.
 fn build_inlinable_map(
     module: &Module,
     summaries: &HashMap<String, ProcEscapeSummary>,

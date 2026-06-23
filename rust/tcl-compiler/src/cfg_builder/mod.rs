@@ -140,6 +140,9 @@ pub(crate) struct CfgBuilder {
     /// function currently being built — drained into [`crate::cfg::Function`] so
     /// codegen can re-derive each body's `errorInfo` frame (see that field).
     inline_eval_spans: Vec<tcl_lexer::Span>,
+    /// Current `lower_script` recursion depth, bounded by [`MAX_LOWER_DEPTH`]
+    /// so deeply-nested bodies cannot overflow the stack.
+    depth: usize,
 }
 
 /// Maximum nesting depth for the recursive `lower_script` descent.
@@ -176,6 +179,7 @@ impl CfgBuilder {
             throw_blocks: None,
             last_terminal_block: None,
             inline_eval_spans: Vec::new(),
+            depth: 0,
         }
     }
 

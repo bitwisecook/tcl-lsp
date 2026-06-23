@@ -35,7 +35,7 @@ pub(crate) struct CallFrame {
     /// Names (within this frame) declared `const` — immutable scalars (TIP 677).
     /// Dropped with the frame, so a proc-local constant lasts one activation.
     pub consts: std::collections::HashSet<String>,
-    /// The namespace this frame executes in (global-only for M2).
+    /// The namespace this frame executes in (currently global-only).
     #[allow(dead_code)]
     pub ns: NsId,
     /// Absolute frame level (0 = global).

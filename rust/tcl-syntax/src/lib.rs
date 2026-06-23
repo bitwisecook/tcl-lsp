@@ -3,7 +3,7 @@
 //! This is the convergence crate (see
 //! `docs/design/runtime/rust-runtime-port.md`): the single home for the pure
 //! Tcl parsing primitives that both the LSP/compiler suite and the WASM runtime
-//! port need, so neither side re-derives (and drifts) its own copy.
+//! need, so neither side re-derives (and drifts) its own copy.
 //!
 //! It depends only on [`tcl_lexer`] (the canonical scanner +
 //! [`tcl_lexer::backslash_subst`]) and so stays `wasm32`-clean. Everything is

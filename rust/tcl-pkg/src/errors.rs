@@ -6,7 +6,7 @@
 
 use std::fmt;
 
-/// Category tag, mirroring `category` class attribute.
+/// Category tag for grouping errors by subsystem.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {
     TclPkg,

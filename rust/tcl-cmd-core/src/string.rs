@@ -396,7 +396,7 @@ fn trim_dispatch<O: ValueOps>(
 /// arguments after the subcommand.
 ///
 /// Returns `Some(result)` when the subcommand is handled here, or `None` when it
-/// is not yet ported — letting a migrating runtime fall back to its legacy
+/// is not handled here — letting the calling runtime fall back to its own
 /// implementation. The `Some(Err(..))` case is a genuine command error (arity,
 /// bad index, …).
 pub fn dispatch_canon<O: ValueOps>(
@@ -483,8 +483,7 @@ pub fn dispatch_canon<O: ValueOps>(
             .or_else(|| Some(word_bound(ops, &rest[0], &rest[1], true))),
         "wordend" => arity(2, "string wordend string index")
             .or_else(|| Some(word_bound(ops, &rest[0], &rest[1], false))),
-        // Not yet ported into the core — caller falls back to its legacy path
-        // (`is`, …).
+        // Not handled here — caller falls back to its own path (`is`, …).
         _ => None,
     }
 }
@@ -589,8 +588,7 @@ mod tests {
 
     #[test]
     fn word_start_finds_word_boundaries() {
-        // Tcl `string wordstart` semantics — cmd-core string.rs had no unit
-        // coverage (TEST-MIGRATE). "abc def" = indices a0 b1 c2 ' '3 d4 e5 f6.
+        // Tcl `string wordstart` semantics. "abc def" = indices a0 b1 c2 ' '3 d4 e5 f6.
         let c = chars("abc def");
         assert_eq!(word_start(&c, 1), 0); // inside "abc"
         assert_eq!(word_start(&c, 5), 4); // inside "def"
