@@ -13,43 +13,9 @@ use crate::signature_scan::types::{
     SignaturePackageRequire, SignatureSource,
 };
 
-/// Severity of a diagnostic.
-///
-/// ``compiler_checks::Severity`` is a similar enum but lives at the
-/// compiler-checks layer (taint / GVN / shimmer) rather than the
-/// analyser layer. Kept separate to avoid coupling the two.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Severity {
-    /// Hint — non-actionable suggestion.
-    Hint,
-    /// Suggestion — minor improvement opportunity.
-    Suggestion,
-    /// Info — observational note (LSP `Information`), not a problem.
-    /// Used by the constant-branch I230/I231 family so it renders as
-    /// `Information` rather than collapsing to `Hint`.
-    Info,
-    /// Warning — likely-incorrect code that still compiles.
-    Warning,
-    /// Error — definitely-incorrect code.
-    Error,
-}
-
-impl Severity {
-    /// Stable lower-case wire form (`"hint"`, `"suggestion"`,
-    /// `"warning"`, `"error"`). Same vocabulary as the
-    /// `compiler_checks::Severity` wire form — both LSP layers
-    /// consume the same strings.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Hint => "hint",
-            Self::Suggestion => "suggestion",
-            Self::Info => "info",
-            Self::Warning => "warning",
-            Self::Error => "error",
-        }
-    }
-}
+/// Severity of a diagnostic — the shared [`tcl_core_types::Severity`] so the
+/// analyser, compiler-checks, and LSP/CLI layers speak one type.
+pub use tcl_core_types::Severity;
 
 /// Lexical scope kind — the scope kinds the analyser ever creates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

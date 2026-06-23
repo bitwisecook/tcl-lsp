@@ -3061,6 +3061,7 @@ dependencies = [
  "rayon",
  "rustc-hash",
  "tcl-bytecode",
+ "tcl-core-types",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",

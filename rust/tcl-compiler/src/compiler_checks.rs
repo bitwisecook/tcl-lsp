@@ -33,38 +33,8 @@ use tcl_registry::CommandRegistry;
 
 // Unified diagnostic envelope
 
-/// Severity of a compiler diagnostic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Severity {
-    /// Informational hint.
-    Hint,
-    /// Style suggestion / refactor.
-    Suggestion,
-    /// Informational note (LSP `Information`) — observational, not a
-    /// problem (e.g. an S100 single shimmer outside a loop).
-    Info,
-    /// Warning that may indicate a bug.
-    Warning,
-    /// Error.
-    Error,
-}
-
-impl Severity {
-    /// Lower-case wire form (`"hint"`, `"suggestion"`, `"warning"`,
-    /// `"error"`). The Python LSP layer and the future native
-    /// `tcl-lsp-server` both consume this form, so it lives on the
-    /// type rather than being re-implemented in each binding.
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Hint => "hint",
-            Self::Suggestion => "suggestion",
-            Self::Info => "info",
-            Self::Warning => "warning",
-            Self::Error => "error",
-        }
-    }
-}
+/// Severity of a compiler diagnostic — the shared [`tcl_core_types::Severity`].
+pub use tcl_core_types::Severity;
 
 /// A unified diagnostic emitted by the compiler-checks pipeline.
 ///
