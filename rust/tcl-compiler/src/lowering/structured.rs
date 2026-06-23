@@ -163,11 +163,23 @@ impl Lowerer<'_> {
         while i < args.len() {
             if args[i] == "elseif" {
                 i += 1;
+                // `elseif` must be followed by a condition; a dangling `elseif`
+                // (`if 1 {a} elseif`) is "no expression after elseif". Defer to the
+                // runtime `if`, which reports it faithfully (if-2.3).
+                if i >= args.len() {
+                    return Self::barrier(seg, "if missing elseif expression");
+                }
                 continue;
             }
             if args[i] == "else" {
                 if i + 1 >= args.len() {
                     return Self::barrier(seg, "malformed if else clause");
+                }
+                // Exactly one body may follow `else`; trailing words
+                // (`if 0 {a} else {b} junk`) are "extra words after else" — defer to
+                // the runtime `if` (if-3.5).
+                if i + 2 < args.len() {
+                    return Self::barrier(seg, "if extra words after else");
                 }
                 // Only a substitution-free literal body inlines (see the
                 // clause-body note below).
