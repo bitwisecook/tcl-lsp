@@ -48,5 +48,6 @@ mathops! {
     "==" => mathop_eq, "!=" => mathop_ne,
     "<" => mathop_lt, "<=" => mathop_le, ">" => mathop_gt, ">=" => mathop_ge,
     "eq" => mathop_seq, "ne" => mathop_sne,
+    "lt" => mathop_slt, "le" => mathop_sle, "gt" => mathop_sgt, "ge" => mathop_sge,
     "in" => mathop_in, "ni" => mathop_ni,
 }
