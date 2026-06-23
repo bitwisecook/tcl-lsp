@@ -365,7 +365,11 @@ impl ExprOps for ExprEval<'_> {
     }
 
     fn string(&mut self, inner: &str) -> Result<Value, TclError> {
-        Ok(Value::string(inner))
+        // A `"…"` expr operand is a double-quoted word: substitute `$var` /
+        // `[cmd]` / backslashes (the runtime-`expr` analogue of the compiler's
+        // `emit_expr_string`), so `expr {"item $i"}` is `item 0`, not `item $i`.
+        let s = crate::subst::subst_command(self.vm, inner, true, true, true)?;
+        Ok(Value::string(s))
     }
 
     fn var(&mut self, name: &str) -> Result<Value, TclError> {
