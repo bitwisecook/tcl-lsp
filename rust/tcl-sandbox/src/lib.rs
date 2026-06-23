@@ -110,6 +110,9 @@ impl IsolationLevel {
 
 /// What a command requests to run with. Built by the caller (the `tcl-pkg`
 /// `exec` chokepoint) and then clamped against the [`SandboxPolicy`].
+// A request descriptor whose independent on/off knobs (network, capture,
+// full-env, scrub) are clearer as named flags than as a packed enum.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
 pub struct Profile {
     /// A short label for audit logs, e.g. `"git-fetch"` or `"hook:scan"`.
@@ -139,6 +142,18 @@ pub struct Profile {
     /// Whether to capture stdout/stderr (`true`) or inherit the parent's
     /// terminal (`false`, e.g. `tcl pkg run`).
     pub capture: bool,
+    /// Bytes to feed to the child's stdin. When `None`, stdin is inherited if
+    /// `capture` is false (interactive) and otherwise closed.
+    pub stdin_data: Option<Vec<u8>>,
+    /// Pass the *entire* parent environment through, rather than only the
+    /// allow-listed names. Used for `tcl pkg run`, which executes the project's
+    /// own trusted entry point and should behave like invoking `tclsh` directly
+    /// while still gaining audit, timeout and (future) OS confinement.
+    pub env_passthrough_all: bool,
+    /// Whether the sensitive-name denylist is applied to passed-through
+    /// variables. Defaults to `true`; only `tcl pkg run` (trusted user code)
+    /// turns it off so an app's own credentials are not stripped.
+    pub scrub_env: bool,
 }
 
 impl Profile {
@@ -162,6 +177,9 @@ impl Profile {
             fs_write: Vec::new(),
             timeout: Some(Duration::from_mins(2)),
             capture: true,
+            stdin_data: None,
+            env_passthrough_all: false,
+            scrub_env: true,
         }
     }
 
@@ -208,6 +226,25 @@ impl Profile {
     #[must_use]
     pub fn capture(mut self, c: bool) -> Self {
         self.capture = c;
+        self
+    }
+
+    #[must_use]
+    pub fn stdin_bytes(mut self, data: impl Into<Vec<u8>>) -> Self {
+        self.stdin_data = Some(data.into());
+        self
+    }
+
+    /// Configure the profile to run trusted user code (`tcl pkg run`): inherit
+    /// the full environment without scrubbing, stream stdio, and allow the
+    /// network. Policy (`deny_network`, `deny_env`, `max_timeout`) still applies.
+    #[must_use]
+    pub fn user_code(mut self) -> Self {
+        self.env_passthrough_all = true;
+        self.scrub_env = false;
+        self.capture = false;
+        self.allow_network = true;
+        self.timeout = None;
         self
     }
 }
@@ -393,9 +430,32 @@ where
 /// Compute the effective environment for a profile under a policy, reading from
 /// the real process environment.
 fn effective_env(profile: &Profile, policy: &SandboxPolicy) -> Vec<(String, String)> {
+    if profile.env_passthrough_all {
+        return full_env(profile, policy);
+    }
     effective_env_with(profile, policy, |name| {
         std::env::var_os(name).map(|v| v.to_string_lossy().into_owned())
     })
+}
+
+/// Inherit the entire parent environment, dropping only policy-denied names (and
+/// sensitive names when `scrub_env` is set), then applying explicit sets.
+fn full_env(profile: &Profile, policy: &SandboxPolicy) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for (k, v) in std::env::vars() {
+        if policy.deny_env.iter().any(|d| d.eq_ignore_ascii_case(&k)) {
+            continue;
+        }
+        if profile.scrub_env && is_sensitive_env(&k) {
+            continue;
+        }
+        out.push((k, v));
+    }
+    for (k, v) in &profile.env_set {
+        out.retain(|(ek, _)| !ek.eq_ignore_ascii_case(k));
+        out.push((k.clone(), v.clone()));
+    }
+    out
 }
 
 /// Run a command under the sandbox, applying `policy` as the floor.
@@ -436,16 +496,31 @@ pub fn run(profile: &Profile, policy: &SandboxPolicy) -> Result<Outcome, Sandbox
         cmd.env(k, v);
     }
     cmd.current_dir(&profile.cwd);
-    if profile.capture {
+    if profile.stdin_data.is_some() {
+        cmd.stdin(Stdio::piped());
+    } else if profile.capture {
         cmd.stdin(Stdio::null());
+    } else {
+        cmd.stdin(Stdio::inherit());
+    }
+    if profile.capture {
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
-    } else {
-        cmd.stdin(Stdio::null());
     }
     confinement.configure(&mut cmd, profile)?;
 
     let mut child = cmd.spawn()?;
+
+    // Feed stdin on a thread so a large payload cannot deadlock against the
+    // child filling its stdout while we are still writing.
+    let stdin_handle = match (child.stdin.take(), profile.stdin_data.clone()) {
+        (Some(mut sink), Some(data)) => Some(std::thread::spawn(move || {
+            use std::io::Write;
+            let _ = sink.write_all(&data);
+            // Dropping `sink` closes the pipe, signalling EOF.
+        })),
+        _ => None,
+    };
 
     // Drain pipes on threads so a chatty child cannot deadlock against a full
     // pipe buffer while we wait on the timeout.
@@ -454,6 +529,9 @@ pub fn run(profile: &Profile, policy: &SandboxPolicy) -> Result<Outcome, Sandbox
 
     let (status, timed_out) = wait_with_timeout(&mut child, timeout)?;
 
+    if let Some(h) = stdin_handle {
+        let _ = h.join();
+    }
     let stdout = stdout_handle
         .and_then(|h| h.join().ok())
         .unwrap_or_default();

@@ -33,6 +33,8 @@ use serde::{Deserialize, Serialize};
 use tcl_sandbox::SandboxPolicy;
 use toml::{Table, Value};
 
+use crate::errors::TclPkgError;
+
 /// The fully-merged, typed policy.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "kebab-case")]
@@ -164,6 +166,68 @@ impl PolicyConfig {
         }
         true
     }
+
+    /// Whether `package`'s declared build script may execute: build scripts must
+    /// be enabled by policy *and* the package explicitly trusted.
+    #[must_use]
+    pub fn build_script_allowed(&self, package: &str) -> bool {
+        self.build.allow_build_scripts && self.build.trusted.iter().any(|p| p == package)
+    }
+}
+
+/// Add or remove a package from the per-user `[build] trusted` list, creating
+/// `~/.config/tcl-lsp/pkg.toml` if needed. Returns the file path.
+///
+/// # Errors
+///
+/// Returns a [`TclPkgError`] (category [`Category::Policy`]) when the file
+/// cannot be read, parsed, or written.
+pub fn set_trusted(package: &str, trusted: bool) -> Result<PathBuf, TclPkgError> {
+    let path = crate::config_dir().join("pkg.toml");
+    let mut table: Table = if path.is_file() {
+        std::fs::read_to_string(&path)
+            .map_err(|e| policy_err(e.to_string()))?
+            .parse()
+            .map_err(|e: toml::de::Error| policy_err(e.to_string()))?
+    } else {
+        Table::new()
+    };
+
+    let build = table
+        .entry("build".to_string())
+        .or_insert_with(|| Value::Table(Table::new()));
+    let Value::Table(build) = build else {
+        return Err(policy_err("[build] in pkg.toml is not a table"));
+    };
+    let list = build
+        .entry("trusted".to_string())
+        .or_insert_with(|| Value::Array(Vec::new()));
+    let Value::Array(list) = list else {
+        return Err(policy_err("[build].trusted in pkg.toml is not an array"));
+    };
+
+    let mut names: Vec<String> = list
+        .iter()
+        .filter_map(|v| v.as_str().map(ToString::to_string))
+        .collect();
+    names.retain(|n| n != package);
+    if trusted {
+        names.push(package.to_string());
+    }
+    names.sort();
+    names.dedup();
+    *list = names.into_iter().map(Value::String).collect();
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| policy_err(e.to_string()))?;
+    }
+    let text = toml::to_string_pretty(&table).map_err(|e| policy_err(e.to_string()))?;
+    std::fs::write(&path, text).map_err(|e| policy_err(e.to_string()))?;
+    Ok(path)
+}
+
+fn policy_err(message: impl Into<String>) -> TclPkgError {
+    TclPkgError::new(message).with_category(crate::errors::Category::Policy)
 }
 
 /// Which file a policy layer was loaded from, and whether it was honoured.

@@ -15,8 +15,36 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use flate2::read::GzDecoder;
+use tcl_sandbox::{Profile, SandboxPolicy};
 
 use crate::errors::TclPkgError;
+
+/// Build a sandbox profile for the `git` tool: confined to `cwd`, output
+/// captured, with only the environment git legitimately needs (PATH, HOME, and
+/// proxy/TLS settings). Credentials in the environment (SSH agents, tokens) are
+/// stripped by the sandbox's sensitive-name denylist.
+fn git_profile(label: &str, git: &Path, cwd: &Path) -> Profile {
+    let mut p = Profile::new(label, git, cwd);
+    for name in [
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "ALL_PROXY",
+        "GIT_SSL_CAINFO",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "CURL_CA_BUNDLE",
+    ] {
+        p = p.pass_env(name);
+    }
+    p
+}
 
 /// Maximum total uncompressed size from a single archive (256 MiB). Protects
 /// against decompression bombs.
@@ -272,26 +300,36 @@ pub fn fetch_git(url: &str, dest: &Path, rev: Option<&str>) -> Result<String, Tc
         }
     }
 
-    let mut cmd = std::process::Command::new("git");
-    cmd.args(["clone", "--depth", "1"]);
+    // Resolve git's absolute path: the sandbox clears the environment, so a bare
+    // `git` would not be found via PATH lookup at spawn time.
+    let git = crate::venv::which("git").unwrap_or_else(|| std::path::PathBuf::from("git"));
+    let parent = dest.parent().unwrap_or_else(|| Path::new("."));
+
+    let mut clone_args: Vec<String> = vec!["clone".into(), "--depth".into(), "1".into()];
     if let Some(r) = &rev {
-        cmd.args(["--branch", r]);
+        clone_args.push("--branch".into());
+        clone_args.push(r.clone());
     }
-    cmd.arg(&url).arg(dest);
-    let output = cmd
-        .output()
-        .map_err(|e| fetch_error(format!("git not found: {e}")))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    clone_args.push(url.clone());
+    clone_args.push(dest.to_string_lossy().into_owned());
+
+    // git fetches over the network, so this is the one trusted tool that runs
+    // with network granted. The environment is still scrubbed of credentials
+    // (SSH_*, *_TOKEN, …); only PATH, HOME and proxy/TLS settings pass through.
+    let profile = git_profile("git-clone", &git, parent)
+        .args(clone_args)
+        .network(true);
+    let outcome = crate::exec::execute(&profile, &SandboxPolicy::default())?;
+    if !outcome.success {
+        let stderr = String::from_utf8_lossy(&outcome.stderr).trim().to_string();
         return Err(fetch_error(format!("git clone failed: {stderr}")));
     }
 
-    let sha = std::process::Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .current_dir(dest)
-        .output()
+    let rev_profile = git_profile("git-rev-parse", &git, dest)
+        .args(["rev-parse".to_string(), "HEAD".to_string()]);
+    let sha = crate::exec::execute(&rev_profile, &SandboxPolicy::default())
         .ok()
-        .filter(|o| o.status.success())
+        .filter(|o| o.success)
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_default();
 
