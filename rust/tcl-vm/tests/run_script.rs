@@ -189,6 +189,21 @@ fn compiled_linsert_rejects_bad_index() {
     assert_eq!(result, "a b c X");
 }
 
+/// Unary minus of `9223372036854775808` (the magnitude 2^63, which overflows a
+/// positive wide) yields the most-negative wide — C narrows `-2^63`. This
+/// unblocks indexObj.test, whose `-result [expr {… ? -9223372036854775808 :
+/// …}]` clauses are evaluated while the file is sourced.
+#[test]
+fn unary_minus_of_two_to_the_63() {
+    let (ok, result, _) = run("expr {-9223372036854775808}");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "-9223372036854775808");
+
+    let (ok, result, _) = run("expr {-9223372036854775808 < 0}");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "1");
+}
+
 /// `wide()` truncates an out-of-range integer literal to a 64-bit wide via
 /// two's-complement wrap, matching C — `wide(0x8000000000000000)` is the most
 /// negative wide, `wide(0xFFFFFFFFFFFFFFFF)` is -1. This unblocks expr.test
