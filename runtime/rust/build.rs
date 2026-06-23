@@ -39,6 +39,19 @@ fn main() {
     let target = env::var("TARGET").unwrap_or_default();
     let is_wasm = target.contains("wasm");
 
+    // Reserve the low data window the AOT WASM backend relocates its constant
+    // pool into (`tcl-compiler` `RESERVED_DATA_BASE` = 0x10_0000). Rust's wasm32
+    // layout is stack-first with a 1 MiB stack, so the runtime's own data would
+    // otherwise start at 0x10_0000 and *collide* with the emitted pool once the
+    // two are merged into one module (`wasm-merge`). Push the runtime's data to
+    // 0x20_0000 so `[0x10_0000, 0x20_0000)` is a free 1 MiB window for the pool —
+    // safe between the downward-growing stack (`[0, 0x10_0000)`) and runtime data
+    // (`[0x20_0000, …)`). Transparent to native (absolute addressing); the only
+    // cost is ~1 MiB more zero-init linear memory in the wasm module.
+    if is_wasm {
+        println!("cargo:rustc-link-arg=--global-base=2097152"); // 0x20_0000
+    }
+
     let Some(ltm) = locate_libtommath() else {
         // No source tree (e.g. a checkout without `tmp/` fetched): skip the
         // bignum backend rather than fail the build. The bignum obj rep is
