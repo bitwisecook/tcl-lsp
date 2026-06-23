@@ -43,7 +43,7 @@ pub fn render(values: &[Value], opts: &BTreeMap<String, String>) -> Result<Strin
     render_gantt(&rows, unit_minutes, year)
 }
 
-/// Render *rows* as an ASCII Gantt chart — port of `render_gantt`.
+/// Render *rows* as an ASCII Gantt chart.
 fn render_gantt(
     rows: &[(String, String, String)],
     unit_minutes: i64,

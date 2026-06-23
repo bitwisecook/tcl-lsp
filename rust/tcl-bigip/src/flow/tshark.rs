@@ -116,7 +116,7 @@ fn parse_tshark_ek(stdout: &str) -> Vec<Value> {
     out
 }
 
-/// Render a JSON scalar the way Python's `str()` would (so `_ek_field`'s
+/// Render a JSON scalar the way `str()` would (so `_ek_field`'s
 /// `str(val)` matches: booleans capitalise, numbers print bare).
 fn scalar_str(v: &Value) -> String {
     match v {
@@ -153,7 +153,7 @@ fn header_setdefault(headers: &mut Vec<(String, String)>, key: &str, value: &str
     }
 }
 
-/// Canonicalise an IP literal the way Python's `ipaddress.ip_address(...)`
+/// Canonicalise an IP literal the way `ipaddress.ip_address(...)`
 /// does (so e.g. compressed IPv6 forms match the walker's keys). Returns
 /// `None` for anything that doesn't parse as an IP.
 fn canonical_ip(raw: &str) -> Option<String> {
@@ -201,7 +201,7 @@ fn packet_key(layers: &Value) -> Option<FlowKey> {
     Some((ip_src, sp, ip_dst, dp, proto))
 }
 
-/// Parse a port string the way Python's `int(x) if x.isdigit() else 0` does
+/// Parse a port string the way `int(x) if x.isdigit() else 0` does
 /// (all-ASCII-digits only; anything else, including empty, is 0).
 fn parse_port(raw: &str) -> u16 {
     if !raw.is_empty() && raw.bytes().all(|b| b.is_ascii_digit()) {

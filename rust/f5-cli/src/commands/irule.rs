@@ -481,7 +481,7 @@ fn is_word_byte(b: u8) -> bool {
     b == b'_' || b.is_ascii_alphanumeric()
 }
 
-/// Multiplicity category for a single event (mirrors `event_multiplicity`).
+/// Multiplicity category for a single event.
 fn event_multiplicity(name: &str, events: &tcl_registry::events::EventRegistry) -> &'static str {
     if name == "RULE_INIT" {
         "init"
@@ -514,7 +514,7 @@ fn run_event_order(input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
 
     if json {
         use std::fmt::Write as _;
-        // `json.dumps(payload, indent=2)` — insertion-ordered keys, no sort.
+        // Emit 2-space-indented JSON with insertion-ordered keys (no sort).
         let mut out = String::from("{\n");
         let _ = writeln!(out, "  \"count\": {},", items.len());
         out.push_str("  \"dialect\": ");
@@ -554,10 +554,10 @@ fn run_event_order(input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
 
 // event-info
 
-/// `f5 irule event-info EVENT` — look up event metadata + valid commands.
-/// Port of `_run_event_info` (`tooling/f5/verbs/irule.py`) over the
-/// reconciled command-registry cross-product (`CommandRegistry::event_info`).
-/// Exit code is `0` for a known event, `1` otherwise (both streams written).
+/// `f5 irule event-info EVENT` — look up event metadata + valid commands
+/// over the reconciled command-registry cross-product
+/// (`CommandRegistry::event_info`). Exit code is `0` for a known event, `1`
+/// otherwise (both streams written).
 fn run_event_info(event: &str, json: bool, output: &str) -> Result<u8, u8> {
     let mut cmds = tcl_registry::registry::CommandRegistry::build_default();
     cmds.load_irules();
@@ -568,7 +568,7 @@ fn run_event_info(event: &str, json: bool, output: &str) -> Result<u8, u8> {
 
     if json {
         use std::fmt::Write as _;
-        // `json.dumps(payload, indent=2)` — insertion-ordered keys.
+        // Emit 2-space-indented JSON with insertion-ordered keys.
         let mut out = String::from("{\n");
         let _ = write!(out, "  \"event\": {}", json_string(&info.event));
         let _ = write!(out, ",\n  \"known\": {}", info.known);
@@ -624,9 +624,9 @@ fn run_event_info(event: &str, json: bool, output: &str) -> Result<u8, u8> {
     Ok(rc)
 }
 
-/// Append a JSON array of strings rendered as `json.dumps(..., indent=2)`
-/// would at a top-level (2-space) key: `[]` when empty, else one item per
-/// line indented four spaces with the closing bracket at two.
+/// Append a JSON array of strings formatted as 2-space-indented JSON at a
+/// top-level key: `[]` when empty, else one item per line indented four
+/// spaces with the closing bracket at two.
 fn push_json_string_array<'a>(out: &mut String, items: impl Iterator<Item = &'a str>) {
     let rendered: Vec<String> = items.map(json_string).collect();
     if rendered.is_empty() {
@@ -648,13 +648,11 @@ fn push_json_string_array<'a>(out: &mut String, items: impl Iterator<Item = &'a 
 // lint
 
 /// `f5 irule lint` — run only the iRule-category lint rules over iRule sources.
-/// Port of `_run_irule_lint` (`tooling/f5/verbs/irule.py`): it shares the
-/// [`tcl_bigip::lint`] engine and the `f5 validate` output formatters
-/// ([`crate::commands::validate::to_json`] / [`to_text`]), passing
+/// Shares the [`tcl_bigip::lint`] engine and the `f5 validate` output
+/// formatters ([`crate::commands::validate::to_json`] / [`to_text`]), passing
 /// `category="irule"` so only the four irule rules run.
 ///
-/// Exit code mirrors Python: any `error` finding → `2`, any `warning` → `1`,
-/// else `0`.
+/// Exit code: any `error` finding → `2`, any `warning` → `1`, else `0`.
 ///
 /// [`to_text`]: crate::commands::validate::to_text
 fn run_irule_lint(input: &IruleInputArgs, json: bool, severity: Option<&str>) -> Result<u8, u8> {
@@ -692,8 +690,7 @@ fn run_irule_lint(input: &IruleInputArgs, json: bool, severity: Option<&str>) ->
 
     let findings = run_lint(&config_refs, &source_refs, Some("irule"), severity);
 
-    // `to_json` / `to_text` already include the trailing newline, matching
-    // Python's `json.dumps(...) + "\n"` / `_to_text(findings) + "\n"`.
+    // `to_json` / `to_text` already include the trailing newline.
     let out = if json {
         validate::to_json(&findings)
     } else {
@@ -715,11 +712,11 @@ fn run_irule_lint(input: &IruleInputArgs, json: bool, severity: Option<&str>) ->
 // context
 
 /// `f5 irule context` — bundle each iRule with the BIG-IP objects it
-/// references. Port of `_run_irule_context` (`tooling/f5/verbs/irule.py`) over
-/// the [`tcl_bigip::irule_context`] engine: resolve inputs, merge the configs
-/// once for cross-file resolution, build one bundle per rule, and render to
-/// JSON / Tcl-flavoured text (directory → one file per rule; otherwise a single
-/// concatenated stream). Exit `0`, or `1` when no iRules were found.
+/// references, using the [`tcl_bigip::irule_context`] engine: resolve inputs,
+/// merge the configs once for cross-file resolution, build one bundle per
+/// rule, and render to JSON / Tcl-flavoured text (directory → one file per
+/// rule; otherwise a single concatenated stream). Exit `0`, or `1` when no
+/// iRules were found.
 fn run_irule_context(
     input: &IruleInputArgs,
     rule_filter: &[String],
@@ -733,8 +730,8 @@ fn run_irule_context(
 
     let loaded = resolve_irule_inputs(input)?;
 
-    // Merge configs once so cross-file references all resolve (mirrors
-    // `_merge_configs_for_trace`: empty → default, else the merged union).
+    // Merge configs once so cross-file references all resolve (empty →
+    // default, else the merged union).
     let config_refs: Vec<(String, &tcl_bigip::parser::BigipConfig)> = loaded
         .configs
         .iter()
@@ -818,11 +815,11 @@ fn run_irule_context(
 
 // trace
 
-/// Return the body text inside the `{...}` starting at byte `open_brace` (port
-/// of `_slice_balanced_braces`). Brace-depth scan that skips `"…"` strings
-/// (honouring `\` escapes). Operates on bytes — `{` / `}` / `"` / `\` are all
-/// ASCII, so UTF-8 multibyte sequences are passed through untouched and the
-/// returned slice lands on char boundaries, matching Python's char-indexed slice.
+/// Return the body text inside the `{...}` starting at byte `open_brace`.
+/// Brace-depth scan that skips `"…"` strings (honouring `\` escapes). Operates
+/// on bytes — `{` / `}` / `"` / `\` are all ASCII, so UTF-8 multibyte
+/// sequences are passed through untouched and the returned slice lands on char
+/// boundaries.
 fn slice_balanced_braces(source: &str, open_brace: usize) -> String {
     let bytes = source.as_bytes();
     if bytes.get(open_brace) != Some(&b'{') {
@@ -851,9 +848,8 @@ fn slice_balanced_braces(source: &str, open_brace: usize) -> String {
     source[start..i.saturating_sub(1)].to_owned()
 }
 
-/// First token of each non-blank, non-comment line in `body` (port of
-/// `_extract_commands`): the leading whitespace-delimited word, right-trimmed
-/// of `{`, `}`, `;`.
+/// First token of each non-blank, non-comment line in `body`: the leading
+/// whitespace-delimited word, right-trimmed of `{`, `}`, `;`.
 fn extract_commands(body: &str) -> Vec<String> {
     let mut cmds: Vec<String> = Vec::new();
     for raw in body.lines() {
@@ -870,8 +866,7 @@ fn extract_commands(body: &str) -> Vec<String> {
     cmds
 }
 
-/// One resolved object reference in a trace (mirrors the Python `references`
-/// payload entry).
+/// One resolved object reference in a trace.
 struct TraceRef {
     kind: &'static str,
     name: String,
@@ -880,7 +875,7 @@ struct TraceRef {
 }
 
 /// One event-handler trace: the commands the body runs and the objects it
-/// references (mirrors the Python `traces` payload entry).
+/// references.
 struct Trace {
     rule: String,
     commands: Vec<String>,
@@ -888,9 +883,8 @@ struct Trace {
 }
 
 /// `f5 irule trace EVENT` — static trace of a single event handler: the
-/// commands it runs and the BIG-IP objects it references. Port of
-/// `_run_irule_trace` (`tooling/f5/verbs/irule.py`). Purely static — no VM /
-/// simulator. Exit `0` when at least one rule has a matching `when EVENT`
+/// commands it runs and the BIG-IP objects it references. Purely static — no
+/// VM / simulator. Exit `0` when at least one rule has a matching `when EVENT`
 /// block, else `1`.
 fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
     use tcl_bigip::irule_context::{classify_kind, resolve_reference};
@@ -908,7 +902,7 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
     let mut registry = tcl_registry::registry::CommandRegistry::build_default();
     registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
 
-    // `\bwhen\s+<EVENT>\s*\{`, case-insensitive (mirrors the Python regex).
+    // Match `\bwhen\s+<EVENT>\s*\{`, case-insensitive.
     let block_re = regex::Regex::new(&format!(r"(?i)\bwhen\s+{}\s*\{{", regex::escape(event)))
         .map_err(|_| 2u8)?;
 
@@ -975,8 +969,8 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
     Ok(u8::from(traces.is_empty()))
 }
 
-/// `json.dumps({"event": …, "traces": [...]}, indent=2)` + "\n", insertion-
-/// ordered keys (mirrors the Python trace payload).
+/// Render the trace payload `{"event": …, "traces": [...]}` as 2-space-indented
+/// JSON with insertion-ordered keys and a trailing newline.
 fn trace_json(event: &str, traces: &[Trace]) -> String {
     use std::fmt::Write as _;
 
@@ -1246,7 +1240,7 @@ fn run_minify(
     Ok(0)
 }
 
-/// `json.dumps`-compatible quoted string (reuses [`tcl_bigip::jsonfmt`]).
+/// Render a JSON-quoted string (reuses [`tcl_bigip::jsonfmt`]).
 fn json_string(s: &str) -> String {
     tcl_bigip::jsonfmt::json_string(s)
 }

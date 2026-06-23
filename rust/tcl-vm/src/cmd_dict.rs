@@ -1,4 +1,4 @@
-//! The `dict` ensemble. A dict value is an even-length list; M3 keeps the
+//! The `dict` ensemble. A dict value is an even-length list; this currently keeps the
 //! list rep (a typed dict intrep is a later optimisation).
 
 use tcl_runtime_api::{Code, Completion};

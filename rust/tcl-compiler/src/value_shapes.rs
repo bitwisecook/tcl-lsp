@@ -1,13 +1,10 @@
 //! Shared Tcl value-shape helpers used across compiler passes.
-//!
-//! Ported from `core/compiler/value_shapes.py`.
 
 /// Scan one Tcl variable reference starting at `text[at]`, returning the
 /// byte index just past its end, or `None` when `text[at..]` does not
 /// start with a valid reference.
 ///
-/// Handles the three forms from the Tcl 9.0 `Tcl_ParseVar` spec, mirroring
-/// `value_shapes._scan_pure_var_ref`:
+/// Handles the three forms from the Tcl 9.0 `Tcl_ParseVar` spec:
 ///
 /// - `$name` — bare name in `[A-Za-z0-9_:]`; `::` runs stay part of the
 ///   name (namespace-qualified).

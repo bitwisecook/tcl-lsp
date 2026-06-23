@@ -7,7 +7,7 @@
 
 use std::fmt;
 
-/// Category tag, mirroring the Python `category` class attribute.
+/// Category tag, mirroring `category` class attribute.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {
     TclPkg,
@@ -38,7 +38,7 @@ impl Category {
 ///
 /// Mirrors `TclPkgError` and its subclasses. The variant carries a fully
 /// composed `message` plus an optional `hint`; the `Display` impl reproduces
-/// the Python `__str__` (message, then `\n  hint: <hint>` when present).
+/// `__str__` (message, then `\n  hint: <hint>` when present).
 #[derive(Debug, Clone)]
 pub struct TclPkgError {
     pub category: Category,

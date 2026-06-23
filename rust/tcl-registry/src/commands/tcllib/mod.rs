@@ -426,8 +426,7 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
         yaml__yaml2dict::spec(),
         yaml__yaml2huddle::spec(),
     ];
-    // Mirror Python's `tcllib_command_specs` (`__init__.py`):
-    // every tcllib command is gated on its providing package.
+    // Every tcllib command is gated on its providing package.
     // Derive `required_package` from the command's namespace so
     // W120 (missing-package-require) and package-gated
     // completion fire for tcllib commands used without the
@@ -442,8 +441,8 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
 
 /// Map a tcllib command name to the package that provides it.
 ///
-/// Mirrors the per-module `_PACKAGE` constants in
-/// `core/commands/registry/tcllib/*.py`.  Most packages own a
+/// Each module declares the package its commands belong to.
+/// Most packages own a
 /// flat namespace (`csv::split` → `csv`); `math::statistics`
 /// is a two-level namespace; the `struct::*` ensembles are
 /// each their own package (the command name *is* the package).
@@ -491,7 +490,7 @@ mod tests {
 
     #[test]
     fn every_tcllib_spec_has_required_package() {
-        // Mirrors Python's invariant: every tcllib command is
+        // Invariant: every tcllib command is
         // package-gated.  A `None` here means a namespace the
         // `tcllib_required_package` table doesn't cover.
         for spec in tcllib_command_specs() {

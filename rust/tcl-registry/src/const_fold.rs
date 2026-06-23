@@ -103,12 +103,10 @@ pub(crate) fn split_list(s: &str) -> Option<Vec<String>> {
 
 /// Quote one element for a Tcl list — bare when it has no list-special
 /// characters, brace-quoted when its braces are balanced and it does not
-/// end with a backslash, else backslash-escaped.  Mirrors
-/// `tcl-compiler::codegen::helpers::tcl_list_element` (a
-/// `TclConvertElement` port).
+/// end with a backslash, else backslash-escaped.
 pub(crate) fn list_element(s: &str) -> String {
     // The canonical `Tcl_ScanElement`+`Tcl_ConvertElement` quoter, now shared
-    // with the runtime port via `tcl-syntax` (and additionally correct on the
+    // with the runtime via `tcl-syntax` (and additionally correct on the
     // leading-`#` and control-char cases the old local copy mis-quoted).
     tcl_syntax::list::list_element(s)
 }
@@ -244,7 +242,7 @@ pub(crate) fn fold_lrepeat(args: &[&str]) -> Option<String> {
     }
     let count: usize = args[0].trim().parse().ok()?;
     if count > 1000 {
-        return None; // sanity cap (matches Python)
+        return None; // sanity cap
     }
     let elems = &args[1..];
     let repeated: Vec<&str> = (0..count).flat_map(|_| elems.iter().copied()).collect();

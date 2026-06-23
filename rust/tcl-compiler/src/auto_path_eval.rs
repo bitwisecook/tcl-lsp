@@ -1,7 +1,6 @@
 //! Static mini-evaluator for `lappend auto_path` / `set auto_path`
-//! arguments (GAP-B5).
+//! arguments.
 //!
-//! Port of `core/analysis/auto_path_eval.py::evaluate_auto_path_expr`.
 //! A common Tcl idiom adds a sibling / parent directory to the package
 //! search path using only a handful of side-effect-free built-ins:
 //!
@@ -57,10 +56,9 @@ pub fn evaluate_auto_path_expr(raw: &str, info_script: Option<&str>) -> Option<S
 
 /// Split `text` into `[` / `]` / word tokens.  Brace groups are kept
 /// as a single word (brackets inside braces are literal); an
-/// unterminated brace / quote aborts with `None`.  Mirrors the Python
-/// tokeniser byte-for-byte, including its `{[}`-as-open-bracket quirk
-/// (a brace word whose content is exactly `[` reads as a bracket in
-/// `parse`).
+/// unterminated brace / quote aborts with `None`.  One quirk: a brace
+/// word whose content is exactly `[` reads as an open bracket in
+/// `parse` (the `{[}`-as-open-bracket case).
 fn tokenise(text: &str) -> Option<Vec<String>> {
     let b: Vec<char> = text.chars().collect();
     let n = b.len();

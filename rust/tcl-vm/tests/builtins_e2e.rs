@@ -1254,7 +1254,7 @@ fn binary_format_rejects_invalid_integer() {
 }
 
 /// Compiled proc-local `unset a(k)` (the `unsetArray` opcode) must delete the
-/// array element, not no-op on a base-name lookup (codex review #678).
+/// array element, not no-op on a base-name lookup.
 #[test]
 fn compiled_unset_array_element_removes_it() {
     out_eq(
@@ -1269,7 +1269,7 @@ fn compiled_unset_array_element_removes_it() {
 }
 
 /// Compiled `unset` of an absent variable without `-nocomplain` must raise the
-/// Tcl error, while `-nocomplain` stays silent (codex review #678).
+/// Tcl error, while `-nocomplain` stays silent.
 #[test]
 fn compiled_unset_missing_honours_complain_flag() {
     let (ok, result, _) = run("proc f {} { unset nope }\nf\n");

@@ -133,8 +133,7 @@ fn check_matrix(tclsh: &str, reg: &CommandRegistry, cases: &[Case]) -> usize {
     folded
 }
 
-/// The broad list / string / dict / subst fold matrix, ported from the
-/// `_FOLDABLE` set in `tests/test_const_fold_vs_tcl.py`. The `string is` number
+/// The broad list / string / dict / subst fold matrix. The `string is` number
 /// classes (integer / wideinteger / entier / double / dict) fold via the
 /// version-aware folder and are pinned here under the `tcl9.0` dialect.
 const FOLDABLE: &[Case] = &[
@@ -255,7 +254,7 @@ fn registry_folds_match_tcl9() {
     );
 }
 
-/// The `format` matrix, ported from `_FORMATS`. The fold now covers the whole
+/// The `format` matrix. The fold now covers the whole
 /// conversion set — every integer verb (`%d`/`%i`/`%x`/`%X`/`%o`/`%b`/`%u`,
 /// version-aware: leading-zero octal/decimal, 8.x↔9.0 width/wrap), `%c`, the
 /// float family (`%f`/`%e`/`%g`), and `%s` — with the full flag/width/precision

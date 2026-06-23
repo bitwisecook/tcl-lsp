@@ -45,9 +45,9 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// has no upstream `$var` resolution — that is the deferred B2 work), so
 /// to stay sound we fold only the bare `subst string` form whose string
 /// carries **no** substitution: no `$`, `[`, or `\`.  Such a string is
-/// its own `subst` result.  Anything with a substitution bails (a
-/// stricter subset of Python's fold, which relies on upstream
-/// resolution + the `[command]` caller-bail).  The option forms
+/// its own `subst` result.  Anything with a substitution bails
+/// (a stricter subset of what a fold with upstream resolution +
+/// the `[command]` caller-bail could decide).  The option forms
 /// (`-nobackslashes` / …) change which substitutions apply, so the
 /// multi-arg form bails too.
 fn fold_subst(args: &[&str]) -> Option<String> {

@@ -251,9 +251,7 @@ struct BodyWord {
 
 /// Yield the registry-resolved `ArgRole::Body` words of `cmd` whose
 /// value is a non-empty braced (`STR`) word, with the interior byte
-/// range (one past the opening `{` to the closing `}`).  Mirrors the
-/// Python `iter_body_arguments` + `descend_token` filter
-/// (`compiler.parsing.syntax.descend.descend_command`).
+/// range (one past the opening `{` to the closing `}`).
 fn body_words(cmd: &SegmentedCommand, registry: &CommandRegistry) -> Vec<BodyWord> {
     let name = cmd.name();
     if name.is_empty() {
@@ -293,8 +291,8 @@ fn body_words(cmd: &SegmentedCommand, registry: &CommandRegistry) -> Vec<BodyWor
 /// either transform handles); any other mode — `-glob` / `-regexp` —
 /// yields `None`.  The remaining args are the pattern-body pairs, given
 /// either as a single braced list (`{pat1 {body1} …}`) or as separate
-/// words.  Mirrors the flag / subject / pairs prologue both Python
-/// transforms share.
+/// words.  Parses the flag / subject / pairs prologue shared by both
+/// transforms.
 #[must_use]
 pub fn parse_exact_switch(texts: &[String]) -> Option<(String, Vec<(String, String)>)> {
     let mut i = 1;
@@ -331,8 +329,8 @@ pub fn parse_exact_switch(texts: &[String]) -> Option<(String, Vec<(String, Stri
     Some((subject, pairs))
 }
 
-/// Parse `{pat1 {body1} pat2 {body2} …}` into pattern/body pairs.  Ports
-/// `_parse_braced_pairs`; both the switch transforms share it.
+/// Parse `{pat1 {body1} pat2 {body2} …}` into pattern/body pairs.
+/// Both the switch transforms share it.
 #[must_use]
 pub fn parse_braced_pairs(text: &str) -> Vec<(String, String)> {
     let mut text = text.trim();
@@ -349,8 +347,7 @@ pub fn parse_braced_pairs(text: &str) -> Vec<(String, String)> {
     pairs
 }
 
-/// Brace-aware tokeniser for switch body contents.  Ports
-/// `_tokenise_switch_body`.
+/// Brace-aware tokeniser for switch body contents.
 #[must_use]
 pub fn tokenise_switch_body(text: &str) -> Vec<String> {
     let bytes = text.as_bytes();
@@ -409,8 +406,8 @@ pub fn line_indent(line: &str) -> &str {
 
 /// Re-indent a (possibly braced) body to `target_indent`.
 ///
-/// Ports the shared `_reindent_body` used by `if_to_switch` and
-/// `extract_datagroup`: strips one layer of surrounding braces, computes
+/// Used by `if_to_switch` and `extract_datagroup`: strips one layer
+/// of surrounding braces, computes
 /// the body's minimum indent, and re-emits each non-blank line at
 /// `target_indent` (preserving interior blank lines).  An empty body
 /// becomes `"{target_indent}# empty"`.

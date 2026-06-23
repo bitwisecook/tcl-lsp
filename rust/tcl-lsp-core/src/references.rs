@@ -144,8 +144,7 @@ pub fn references(
         return Vec::new();
     };
 
-    // Class references (checked first because Python checks
-    // class name before proc name in get_references).
+    // Class references (checked first, before proc names).
     for class_def in analysis.all_classes.values() {
         if class_def.name == word
             || class_def.qualified_name == word
@@ -638,8 +637,7 @@ fn strip_var_decoration(raw: &str) -> Option<&str> {
     if inner.is_empty() { None } else { Some(inner) }
 }
 
-/// Read / write kind for a document-highlight span.  Mirrors
-/// `lsprotocol.types.DocumentHighlightKind`.
+/// Read / write kind for a document-highlight span.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HighlightKind {
     /// The cursor's symbol appears here as a read (`$var`,
@@ -706,7 +704,7 @@ pub fn document_highlights(
             let mut out = Vec::new();
             // Non-variable symbols (procs / classes / methods) highlight as
             // `Text` for both declaration and uses — only variables carry the
-            // Write/Read distinction (matches the Python server).
+            // Write/Read distinction.
             out.push((
                 span_to_range(source, &line_index, class_def.name_span),
                 HighlightKind::Text,
@@ -971,7 +969,7 @@ mod tests {
         let analysis = analyse(src);
         let highlights = document_highlights(src, "tcl", 0, 6, &analysis);
         // Declaration on line 0 should be Text — procs carry no Write/Read
-        // distinction (only variables do), matching the Python server.
+        // distinction (only variables do).
         let line0 = highlights
             .iter()
             .find(|(r, k)| r.start_line == 0 && *k == HighlightKind::Text);

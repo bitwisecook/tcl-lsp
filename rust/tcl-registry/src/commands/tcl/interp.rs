@@ -279,9 +279,8 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
-        // GAP-D2: `interp eval` / `interp invokehidden` run code in
+        // `interp eval` / `interp invokehidden` run code in
         // another interpreter — cross-interp code injection (T105).
-        // Mirrors `tcl/interp.py`.
         taint_interp_eval_subcommands: &["eval", "invokehidden"],
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

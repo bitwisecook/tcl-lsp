@@ -36,9 +36,9 @@ fn conversion_for(code: &str) -> &'static str {
     }
 }
 
-/// One reported legacy pattern. Field order matches the Python issue dict
+/// One reported legacy pattern. Fields are emitted in declaration order
 /// (`code, line, column, message, conversion`); `serde_json::to_string_pretty`
-/// preserves declaration order, so the JSON is byte-faithful.
+/// preserves that order, so the JSON layout is stable.
 #[derive(Serialize)]
 struct LegacyIssue {
     code: String,

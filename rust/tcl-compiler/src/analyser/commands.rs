@@ -16,8 +16,8 @@ use crate::segmenter::SegmentedCommand;
 use super::state::Analyser;
 use super::types::{CodeFix, Diagnostic, Severity};
 
-/// Maximum nested-body recursion depth for [`Analyser::analyse_body`]
-/// (AN-C1). `analyse_body` ↔ `process_command` ↔ `dispatch_body_arguments`
+/// Maximum nested-body recursion depth for [`Analyser::analyse_body`].
+/// `analyse_body` ↔ `process_command` ↔ `dispatch_body_arguments`
 /// recurse one frame group per braced-body nesting level; generated /
 /// minified Tcl and machine-emitted iRules can nest deeply enough to
 /// overflow the stack — an uncatchable SIGABRT that crashes the LSP
@@ -61,7 +61,7 @@ impl Analyser {
         }
         self.body_depth += 1;
         if self.body_depth > MAX_BODY_DEPTH {
-            // AN-C1: stop descending before the recursive body walk
+            // stop descending before the recursive body walk
             // overflows the stack. Restore the depth and return — the
             // diagnostics collected up to this nesting level still stand.
             self.body_depth -= 1;

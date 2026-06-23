@@ -1,9 +1,8 @@
 //! `lsort` — sort a list.
 use crate::prelude::*;
 
-/// GAP-D1: `lsort`'s options were silently dropped in the Rust port (0
-/// of 12). Restore the full option set so completion and option-aware
-/// arity work; mirrors the DEFAULT-form options in `tcl/lsort_.py`.
+/// The full set of `lsort` options (all 12), so completion and
+/// option-aware arity work. These are the DEFAULT-form options.
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-ascii",
@@ -91,7 +90,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
-/// GAP-D1: restore the single DEFAULT invocation form (`n_forms` 0 → 1).
+/// The single DEFAULT invocation form.
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "lsort ?options? list",

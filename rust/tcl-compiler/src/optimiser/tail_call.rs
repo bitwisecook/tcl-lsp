@@ -135,7 +135,7 @@ struct TailSite {
 
 /// Produce the replacement parameter reassignment for a tail
 /// call — `set p v` for a single param, `lassign [list v1 v2 …]
-/// p1 p2 …` for multiple. Matches the Python `_make_reassignment`
+/// p1 p2 …` for multiple. Matches `_make_reassignment`
 /// output.
 ///
 /// The multi-param form must use `[list …]`, **not** a braced
@@ -414,13 +414,13 @@ fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
             ..
         } => {
             // Braced `return {[f $n]}` is literal text — never
-            // executed as a call. Matches the Python guard.
+            // executed as a call.
             if *braced {
                 return false;
             }
             is_accumulator_pattern(v, self_names)
         }
-        // Python's `_find_accumulator_sites` inspects `return` statements
+        // `_find_accumulator_sites` inspects `return` statements
         // only, so an assignment never contributes an O123 candidate.
         Statement::If {
             clauses, else_body, ..
@@ -472,7 +472,7 @@ fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
 }
 
 /// Return the set of command names that refer to `qname`.
-/// Matches Python's `_self_name_variants` — the normalised
+/// Matches `_self_name_variants` — the normalised
 /// qualified name, its short (final) segment, and the global
 /// form without the leading `::`.
 fn self_name_variants(qname: &str) -> HashSet<String> {
@@ -539,8 +539,7 @@ fn collect_tail_sites(
             // `return {[f $n]}` is a braced literal — the
             // substitution is never executed — so neither O121
             // (tailcall rewrite) nor the site count toward O122
-            // (loop conversion) should fire. Matches the Python
-            // guard in `_tail_call.py::_is_tail_call_return`.
+            // (loop conversion) should fire.
             if *braced {
                 return;
             }

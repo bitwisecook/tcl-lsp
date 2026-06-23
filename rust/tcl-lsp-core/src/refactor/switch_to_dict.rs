@@ -15,9 +15,9 @@ enum BranchBody {
     Return(String),
 }
 
-/// Parse a single-command switch-branch body via the tokeniser.  Ports
-/// `_parse_branch_assignment`: the value keeps its original source span
-/// (quotes / braces intact) so the generated dict preserves the literal.
+/// Parse a single-command switch-branch body via the tokeniser: the
+/// value keeps its original source span (quotes / braces intact) so the
+/// generated dict preserves the literal.
 fn parse_branch_assignment(body_text: &str) -> Option<BranchBody> {
     let commands = segment_commands_with_offset(body_text, 0);
     if commands.len() != 1 || commands[0].texts.is_empty() {
@@ -38,8 +38,7 @@ fn parse_branch_assignment(body_text: &str) -> Option<BranchBody> {
 }
 
 /// Convert a `switch` where every arm sets the same variable / returns a
-/// constant into a `dict` lookup at byte offset `cursor`.  Ports
-/// `switch_to_dict`.
+/// constant into a `dict` lookup at byte offset `cursor`.
 #[must_use]
 pub fn switch_to_dict(
     source: &str,
@@ -216,8 +215,8 @@ mod tests {
         let r = run(source, 0).expect("result");
         assert!(r.title.to_lowercase().contains("dict"));
         let applied = r.apply(source);
-        // Byte-for-byte parity with the Python oracle: the segmenter
-        // canonicalises the `$method` subject to `${method}`.
+        // The segmenter canonicalises the `$method` subject to
+        // `${method}`.
         assert_eq!(
             applied,
             "set handler_map [dict create GET handle_get POST handle_post PUT handle_put]\nset handler [dict get $handler_map ${method}]"

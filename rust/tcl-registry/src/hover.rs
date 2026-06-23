@@ -96,8 +96,7 @@ impl OptionSpec {
 /// Completion / hover metadata for a single enumerable
 /// positional-argument value.
 ///
-/// Mirrors `ArgumentValueSpec` in
-/// `core/commands/registry/models.py`.  Used for arguments
+/// Used for arguments
 /// whose value comes from a fixed set — e.g. the character
 /// class in `string is <class>`, the event name in iRules
 /// `when <EVENT>`, or a subcommand keyword.  The completion

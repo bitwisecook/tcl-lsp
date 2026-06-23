@@ -15,7 +15,7 @@
 //! Entries are sorted ascending by name so the resolver can binary-search
 //! the index. Aliases share one deduplicated payload. With `--trim-from` /
 //! `--trim-to` the `TZif` transition list is trimmed to the window
-//! (`v1`-only, leap tables dropped), matching the Python `_trim_tzif`.
+//! (`v1`-only, leap tables dropped), matching `_trim_tzif`.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -25,7 +25,7 @@ use anyhow::{Context, Result};
 
 /// `(name, relative-path)` for every curated zone. Aliases (e.g.
 /// `US/Eastern` → `America/New_York`) share a payload. Transcribed from
-/// the Python `_CURATED_ZONES`; output is invariant to this ordering
+/// `_CURATED_ZONES`; output is invariant to this ordering
 /// (entries are sorted by name before packing).
 const CURATED_ZONES: &[(&str, &str)] = &[
     ("UTC", "Etc/UTC"),
@@ -187,7 +187,7 @@ pub fn run(
 }
 
 /// Read the curated zones from `zoneinfo` and pack them into a bundle.
-/// Returns `Err(message)` for the Python `SystemExit(msg)` cases.
+/// Returns `Err(message)` for `SystemExit(msg)` cases.
 fn build_bundle(
     zoneinfo: &Path,
     trim_from: Option<i64>,

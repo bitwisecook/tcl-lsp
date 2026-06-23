@@ -62,8 +62,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         // The body evaluates in the *namespace* frame, not the caller's, so
         // SSA must not recover its `$var` reads as caller-local reads (else a
-        // proc param read only inside the body looks used).  Mirrors Python's
-        // `caller_scope=False` block exclusion in `_block_local_reads`.
+        // proc param read only inside the body looks used).  The body's
+        // `$var` reads are excluded from caller-local read recovery.
         body_kind: BodyKind::Structural,
         ..SubCommand::DEFAULT
     },
@@ -208,7 +208,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 connection_side: ConnectionSide::None,
             },
-            // Mirrors Python `namespace_.py` (NAMESPACE_STATE).
+            // NAMESPACE_STATE.
             SideEffect {
                 target: SideEffectTarget::NamespaceState,
                 reads: false,

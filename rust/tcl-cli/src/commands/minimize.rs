@@ -70,7 +70,7 @@ pub struct MinimizeResult {
     pub reproduces: bool,
 }
 
-/// Why `minimize_diagnostic` could not run (mirrors the Python `ValueError`).
+/// Why `minimize_diagnostic` could not run.
 #[derive(Debug)]
 pub enum MinimizeError {
     /// The requested code does not fire on the given source.

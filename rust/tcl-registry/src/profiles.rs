@@ -100,8 +100,8 @@ impl ProfileRegistry {
     /// (`SSL_PERSISTENCE`/`PERSIST`) profile that the stack implies rather
     /// than the operator selecting. The `# Profiles:` header code action
     /// filters these out. Derives the former hardcoded `INFRA_PROFILES`
-    /// list from each profile's registered `layer` (mirrors the
-    /// `transport` / `tls_shared` layers of Python `_PROFILE_LAYERS`).
+    /// list from each profile's registered `layer` (the `transport` and
+    /// `tls_shared` layers).
     #[must_use]
     pub fn is_infrastructure_profile(&self, profile: &str) -> bool {
         self.get_profile(profile)
@@ -172,7 +172,7 @@ impl ProfileRegistry {
     }
 }
 
-/// Profiles attached to a file — Python `compute_file_profiles`.
+/// Profiles attached to a file.
 ///
 /// Combines an explicit `# profiles: …` directive (scanned from the leading
 /// comment block) with the profiles implied by every `when EVENT` handler
@@ -199,8 +199,8 @@ pub fn compute_file_profiles(
     expanded
 }
 
-/// Parse a leading `# profiles: HTTP, CLIENTSSL` directive — Python
-/// `parse_profile_directive`.  Scans at most the first 20 lines and stops at
+/// Parse a leading `# profiles: HTTP, CLIENTSSL` directive.  Scans at most
+/// the first 20 lines and stops at
 /// the first non-comment, non-blank line.  Names are uppercased and split on
 /// commas/whitespace.
 #[must_use]
@@ -226,8 +226,7 @@ pub fn parse_profile_directive(source: &str) -> HashSet<String> {
 }
 
 /// Match `# profiles? :` (case-insensitive) at the head of an already-trimmed
-/// comment line and return the payload after the colon.  Mirrors the Python
-/// `_PROFILE_DIRECTIVE_RE` (`^\s*#\s*profiles?\s*:\s*(.+)`).
+/// comment line and return the payload after the colon.
 fn profile_directive_payload(stripped_line: &str) -> Option<&str> {
     let after_hash = stripped_line.strip_prefix('#')?.trim_start();
     let lower = after_hash.to_ascii_lowercase();
@@ -244,10 +243,10 @@ fn profile_directive_payload(stripped_line: &str) -> Option<&str> {
     (!payload.is_empty()).then_some(payload)
 }
 
-/// Event names from every `when EVENT` occurrence — Python `scan_file_events`
+/// Event names from every `when EVENT` occurrence
 /// (`\bwhen\s+([A-Z_][A-Z0-9_]*)`).  The event name is upper-case-led, so a
-/// lower-cased `when foo` does not match (matching the Python regex's case
-/// sensitivity for the captured group).
+/// lower-cased `when foo` does not match (the captured group is
+/// case-sensitive).
 #[must_use]
 pub fn scan_file_events(source: &str) -> HashSet<String> {
     let bytes = source.as_bytes();
@@ -286,9 +285,9 @@ const fn is_word_byte(b: u8) -> bool {
     b == b'_' || b.is_ascii_alphanumeric()
 }
 
-// Full static data — auto-generated from Python namespace_data.py
+// Full static data — auto-generated.
 
-// AUTO-GENERATED from Python namespace_data.py — do not edit manually
+// AUTO-GENERATED — do not edit manually
 
 fn profile_specs() -> Vec<ProfileSpec> {
     vec![
@@ -622,8 +621,7 @@ fn profile_specs() -> Vec<ProfileSpec> {
         },
         ProfileSpec {
             name: "PERSIST",
-            // Side-independent (shared) TLS/persistence layer — mirrors
-            // Python `_PROFILE_LAYERS["PERSIST"] == "tls_shared"`. Stack
+            // Side-independent (shared) TLS/persistence layer. Stack
             // infrastructure, not an operator-selected profile.
             layer: "tls_shared",
             side: "both",
@@ -761,8 +759,7 @@ fn profile_specs() -> Vec<ProfileSpec> {
         },
         ProfileSpec {
             name: "SSL_PERSISTENCE",
-            // Side-independent (shared) TLS layer — mirrors Python
-            // `_PROFILE_LAYERS["SSL_PERSISTENCE"] == "tls_shared"`. Stack
+            // Side-independent (shared) TLS layer. Stack
             // infrastructure, not an operator-selected profile.
             layer: "tls_shared",
             side: "client",

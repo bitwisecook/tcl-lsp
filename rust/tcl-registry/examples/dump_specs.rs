@@ -1,10 +1,9 @@
 //! Registry-parity dumper.
 //!
 //! Emits one JSON object per command spec (JSONL) for a given dialect
-//! group, using a normalised schema shared with the Python dumper
-//! (`scripts/registry-audit/dump_python.py`). Used by the rust-rewrite
-//! registry audit to diff the Rust port against the Python source of
-//! truth.
+//! group, using a normalised schema shared with the reference dumper
+//! (`scripts/registry-audit/dump_python.py`). Used by the registry
+//! audit to diff against the reference dumper.
 //!
 //! Usage: `cargo run -q --example dump_specs -- <group>`
 //! where <group> is one of:

@@ -1,10 +1,10 @@
 //! Behaviour tests for the `f5 encrypt-secrets` / `decrypt-secrets` verbs.
 //!
-//! Drives the built `f5-query` binary the way `tests/test_f5_secrets.py` drives
-//! the Python CLI: a known F5 master key, a forced salt for deterministic
-//! output, and the round-trip / idempotency / key-source / edge-case
-//! assertions. The crypto known-answer + round-trip vectors themselves live in
-//! the `f5mku` unit tests; here we assert the verbs' observable behaviour.
+//! Drives the built `f5-query` binary with a known F5 master key, a forced
+//! salt for deterministic output, and the round-trip / idempotency /
+//! key-source / edge-case assertions. The crypto known-answer + round-trip
+//! vectors themselves live in the `f5mku` unit tests; here we assert the
+//! verbs' observable behaviour.
 //!
 //! Self-contained: no Python at test time.
 

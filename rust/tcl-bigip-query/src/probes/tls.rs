@@ -2,10 +2,10 @@
 //!
 //! Opens a verifying TLS connection via `rustls` and reports the negotiated
 //! `{protocol, cipher, peer_cert, alpn_selected, verify_status, error}` plus a
-//! `reason` sub-object. Shapes match the Python impl. Documented gaps:
+//! `reason` sub-object. Shapes match the reference impl. Documented gaps:
 //!
-//! - Python retries a verification failure with verification disabled so the
-//!   audit query still gets the peer cert; here a verification failure is
+//! - The reference retries a verification failure with verification disabled so
+//!   the audit query still gets the peer cert; here a verification failure is
 //!   reported (`verify_status` / `reason.kind`) with the cert captured when the
 //!   handshake reached the certificate message, else `null`.
 
@@ -118,8 +118,8 @@ fn build_result(conn: &rustls::ClientConnection, verify_error: Option<String>) -
     Value::Object(m)
 }
 
-/// Map a rustls verification error message to a `reason.kind` tag, mirroring
-/// the Python `_VERIFY_CODE_TO_KIND` buckets (best-effort string match).
+/// Map a rustls verification error message to a `reason.kind` tag, sorting it
+/// into the verification-failure buckets (best-effort string match).
 fn classify_verify_kind(msg: &str) -> String {
     let lower = msg.to_lowercase();
     if lower.contains("expired") {
@@ -164,7 +164,7 @@ mod tests {
 
     #[test]
     fn classify_verify_kind_buckets_rustls_messages() {
-        // Each rustls verification message maps to the Python `reason.kind` tag.
+        // Each rustls verification message maps to `reason.kind` tag.
         assert_eq!(
             classify_verify_kind("the certificate has expired"),
             "expired"

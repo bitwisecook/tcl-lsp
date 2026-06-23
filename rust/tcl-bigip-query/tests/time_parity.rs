@@ -1,6 +1,6 @@
 //! End-to-end golden differential test for the time/date-category builtins.
 //!
-//! Mirrors the Python pipeline captured in `tests/fixtures/time.json`
+//! The pipeline captured in `tests/fixtures/time.json`
 //! (`scripts/codegen/gen_f5_query_time_fixtures.py`): parse → evaluate
 //! against a JSON-backed root → `output::render`. For each `(query, input,
 //! mode)` the Rust output (or `error:` message) must match Python exactly.

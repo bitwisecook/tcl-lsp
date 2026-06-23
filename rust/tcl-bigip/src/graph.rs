@@ -1058,7 +1058,7 @@ fn filter_to_subgraph<'a>(
     }
 
     // `order` is the BFS visit order (seeds first, then discovered neighbours),
-    // which is the order Python's `visited` dict yields — and the order the kept
+    // which is the order `visited` dict yields — and the order the kept
     // nodes are emitted in. (Distinct from the original source order.)
     let mut order: Vec<&str> = Vec::new();
     let mut visited: HashSet<&str> = HashSet::new();

@@ -1509,8 +1509,7 @@ fn collect_script(
             continue;
         }
         // Classify the command-head token.  A head that resolves to a registry
-        // built-in carries the `defaultLibrary` modifier (mirrors
-        // `_collect.py`: `is_cmd_name && function && builtin`).
+        // built-in carries the `defaultLibrary` modifier.
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
         emit_command_head(
@@ -1959,10 +1958,9 @@ fn classify_arg_token(tok: Token, source: &str) -> Option<TokenKind> {
             } else if text.contains("::") {
                 Some(TokenKind::Namespace)
             } else {
-                // Bareword argument words classify as String — mirrors
-                // Python `_classify_token`'s ESC fallback (after the
-                // int/float checks), so `puts hello` emits the `hello`
-                // string token rather than dropping it.
+                // Bareword argument words classify as String, so `puts
+                // hello` emits the `hello` string token rather than
+                // dropping it.
                 Some(TokenKind::String)
             }
         }
@@ -2075,7 +2073,7 @@ fn push_token(
     let text = source.get(start as usize..end as usize).unwrap_or("");
     // Skip multi-line tokens — LSP encoding wants per-line
     // entries; multi-line tokens would need splitting.
-    // For the minimal rich port, drop them.
+    // Drop them.
     if text.contains('\n') {
         return;
     }
@@ -2314,7 +2312,7 @@ mod tests {
     #[test]
     fn bareword_argument_classified_as_string() {
         // `puts hello` → function head + a `string` token for the bareword
-        // arg (mirrors Python's ESC fallback), not a dropped arg.
+        // arg, not a dropped arg.
         let ks = kinds("puts hello\n", "tcl", &reg());
         assert_eq!(ks.len(), 2, "expected head + arg token; got {ks:?}");
         assert!(

@@ -1,7 +1,5 @@
-//! Gather every Tcl-local name mentioned by a procedure body
-//! (C33b3).
+//! Gather every Tcl-local name mentioned by a procedure body.
 //!
-//! Mirrors `core/compiler/var_escape/_propagation.py::_collect_known_names`.
 //! These are the candidates for the "spill all" branch of alias
 //! inference when a dynamic-name command can't be resolved to a
 //! single known target.

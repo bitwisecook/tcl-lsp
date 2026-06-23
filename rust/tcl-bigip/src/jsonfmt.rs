@@ -1,5 +1,5 @@
 //! Minimal JSON helpers for the hand-built reports (graph / stats / cleanup),
-//! matching Python's `json.dumps(..., indent=2)` exactly — including
+//! matching `json.dumps(..., indent=2)` exactly — including
 //! `ensure_ascii=True`, which escapes every non-ASCII char as `\uXXXX`
 //! (surrogate pairs for astral code points). `serde_json` emits raw UTF-8, so a
 //! bespoke escaper is needed for byte-parity.

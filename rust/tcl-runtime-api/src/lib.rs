@@ -54,11 +54,11 @@ pub trait CompileService {
 //
 // Small, composable traits over an associated `Value`, each mirroring a
 // `runtime/rust` storage module. A consumer depends only on the subset it
-// needs; do not collapse them into one umbrella `Interp` trait. Impls grow as
-// the VM advances through the milestones; the trait surface is the contract.
+// needs; do not collapse them into one umbrella `Interp` trait. Impls grow
+// over time; the trait surface is the contract.
 
 /// Variable storage: scalars, arrays, and `upvar`/`global`/`variable` links,
-/// addressed by call frame.'s `frame.rs` `Var`/`VarTable`.
+/// addressed by call frame. Corresponds to `frame.rs`'s `Var`/`VarTable`.
 pub trait VarStore {
     /// The runtime's value type.
     type Value;
@@ -139,8 +139,8 @@ pub trait Commands {
     fn dispatch_id(&mut self, cmd: CommandId, argv: &[Self::Value]) -> Completion<Self::Value>;
 }
 
-/// The namespace tree and name resolution.'s `tcl_ns.zig`
-/// / `runtime/rust`'s `namespace.rs`. (Contract surface; impls land in M2+.)
+/// The namespace tree and name resolution. Corresponds to `tcl_ns.zig`
+/// / `runtime/rust`'s `namespace.rs`. (Contract surface; not yet implemented.)
 pub trait Namespaces {
     /// Resolve `name` (qualified or unqualified) from context `cxt` to the
     /// command it names, following the `cxt → namespace path → root` order. The
@@ -187,8 +187,8 @@ pub trait Namespaces {
     fn vars_in(&self, ns: NsId) -> Vec<String>;
 }
 
-/// Variable traces (read/write/unset).'s
-/// `tcl_var_trace.zig`. (Contract surface; impls land in M2+.)
+/// Variable traces (read/write/unset). Corresponds to
+/// `tcl_var_trace.zig`. (Contract surface; not yet implemented.)
 pub trait Traces {
     /// The runtime's value type.
     type Value;
@@ -200,7 +200,7 @@ pub trait Traces {
 
 /// Runtime introspection backing the `info` family: retained proc bodies, the
 /// per-frame argv, and the command-frame stack (`errorInfo`/`info frame`).
-/// (Contract surface; impls land in M2+.)
+/// (Contract surface; not yet implemented.)
 pub trait Introspect {
     /// The runtime's value type.
     type Value;

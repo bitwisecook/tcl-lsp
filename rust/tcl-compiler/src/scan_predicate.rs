@@ -4,7 +4,7 @@
 //! to leave at least the **first** output variable unset (the first
 //! conversion can't consume any input).  Only returns `true` when fully
 //! confident; any uncertain case returns `false` so callers never fire a
-//! spurious W210.  Ported from `compiler/scan_format.py`.
+//! spurious W210.
 
 /// Tcl scan whitespace set (the C `isspace` characters).
 fn is_scan_ws(c: char) -> bool {

@@ -13,7 +13,7 @@
 //! script **`[`/`]` (bracket)** and **`{`/`}` (brace)** sublanguages
 //! ([`BracketIndex`], [`BraceIndex`]) and the expr **`(`/`)` (paren)**
 //! sublanguage ([`ExprParenIndex`]). It is deliberately *not wired into
-//! production* — like the Python prototypes (kept only in git history),
+//! production* — like the earlier prototypes (kept only in git history),
 //! it instruments the model and adds no production value yet; the
 //! incremental green-tree engine will build the productionised index.
 //!
@@ -458,7 +458,7 @@ fn scan_brace_word(bytes: &[u8], start: usize) -> (usize, bool) {
 /// Returns (offset just past the matching `}`, true) when terminated,
 /// or (EOF, false) when unterminated. The interior is inert for brackets.
 ///
-/// Mirrors `Lexer::parse_var`'s braced branch: inner `{…}` nests with
+/// Matches `Lexer::parse_var`'s braced branch: inner `{…}` nests with
 /// brace counting and `\X` is consumed as a literal pair, so the closer
 /// is the first `}` at depth zero — `${a{b}c}` and `${a\}b}` both close
 /// at their final `}`, not the first one.

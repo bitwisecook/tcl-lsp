@@ -93,8 +93,8 @@ const FILE_SUPPRESS_KEY: i32 = -1;
 
 /// Return `true` when `code` is suppressed at `line` by an inline
 /// `# noqa` or a top-of-file `# tcl-lsp: disable=…` directive.
-/// Ports Python's `_is_suppressed`: a `"*"` entry suppresses every
-/// code, and the file-level (`-1`) bucket applies document-wide.
+/// A `"*"` entry suppresses every code, and the file-level (`-1`)
+/// bucket applies document-wide.
 fn is_suppressed<H: BuildHasher, I: BuildHasher>(
     code: &str,
     line: i32,
@@ -197,9 +197,8 @@ pub fn check_line_endings(source: &str, expected: &str) -> Vec<StyleDiagnostic> 
     let cr = source.matches('\r').count() - crlf;
     let lf = source.matches('\n').count() - crlf;
 
-    // Build the set of endings present, in Python's insertion
-    // order (LF, CRLF, CR) so the "Mixed line endings" message is
-    // byte-identical.
+    // Build the set of endings present, in insertion order (LF,
+    // CRLF, CR) so the "Mixed line endings" message is stable.
     let mut present: Vec<(&str, usize)> = Vec::new();
     if lf > 0 {
         present.push(("\n", lf));
@@ -350,13 +349,13 @@ pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
 /// Run every source-style check and return the merged, suppression-
 /// filtered diagnostics.
 ///
-/// Ports the style portion of `get_basic_diagnostics`:
+/// Suppression and gating rules:
 ///
 /// * W111 / W112 / W115 honour inline `# noqa` / file-level
 ///   suppression (keyed by `suppressed`, the analyser's
 ///   `suppressed_lines`).
-/// * W118 is a file-level check and is *not* line-suppressed
-///   (matching Python — it is only gated by the `disabled` set).
+/// * W118 is a file-level check and is *not* line-suppressed; it is
+///   only gated by the `disabled` set.
 /// * Each code is skipped entirely when it appears in `disabled`
 ///   (the LSP user-config disabled-diagnostics set).
 #[must_use]
@@ -594,7 +593,7 @@ mod tests {
     #[test]
     fn orchestrator_w118_is_not_line_suppressed() {
         // A line-0 `*` noqa must NOT suppress the file-level W118
-        // (Python only line-suppresses W111/W112/W115).
+        // (only W111/W112/W115 are line-suppressible).
         let mut suppressed: HashMap<i32, HashSet<String>> = HashMap::new();
         suppressed.insert(0, std::iter::once("*".to_string()).collect());
         let diags = style_diagnostics(

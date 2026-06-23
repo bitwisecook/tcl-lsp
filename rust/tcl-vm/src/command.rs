@@ -694,7 +694,7 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // completion IS that code, including `ok` — `return -level 0 -code N` is how
     // `try`/`catch` produce an arbitrary return code). A positive level raises
     // TCL_RETURN, absorbed at the proc boundary; an explicit non-OK `-code` at
-    // level ≥ 1 takes effect immediately (M2 simplification: skip the countdown).
+    // level ≥ 1 takes effect immediately (simplification: skip the countdown).
     let final_code = if level == 0 {
         ret_code
     } else if ret_code == Code::Ok {
@@ -999,7 +999,7 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     vm.eval_at_level(target, &script)
 }
 
-/// `variable ?name value ...? name ?value?` — namespace variables (global for M2).
+/// `variable ?name value ...? name ?value?` — namespace variables (currently global).
 fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if args.is_empty() {
         return err("wrong # args: should be \"variable ?name value ...? name ?value?\"");

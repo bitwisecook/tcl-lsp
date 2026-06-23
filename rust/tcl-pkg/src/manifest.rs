@@ -163,7 +163,7 @@ fn manifest_err(message: &str, path: Option<&str>) -> TclPkgError {
     TclPkgError::manifest(message, path, None, None)
 }
 
-#[allow(clippy::too_many_lines)] // one arm per directive; mirrors the Python loader
+#[allow(clippy::too_many_lines)] // one arm per directive
 fn dispatch(ast: &mut ManifestAst, name: &str, args: &[String]) -> Result<(), String> {
     match name {
         "package" => {

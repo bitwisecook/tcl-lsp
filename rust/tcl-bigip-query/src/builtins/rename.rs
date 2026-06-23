@@ -277,9 +277,8 @@ fn bi_rename_prefix(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Quer
 }
 
 /// Refuse a `rename` whose partition move would break visibility for any
-/// existing referrer — port of the `_builtin_rename` partition-visibility
-/// guard. A no-op when `old`/`new` aren't both parseable object paths or share
-/// a partition.
+/// existing referrer. A no-op when `old`/`new` aren't both parseable object
+/// paths or share a partition.
 fn check_partition_visibility(
     old_s: &str,
     new_s: &str,
@@ -307,7 +306,7 @@ fn check_partition_visibility(
     if broken.is_empty() {
         return Ok(());
     }
-    // De-duplicate + sort (Python `sorted(set(broken))`).
+    // De-duplicate + sort.
     broken.sort();
     broken.dedup();
     let total = broken.len();
@@ -333,7 +332,7 @@ fn check_partition_visibility(
     )))
 }
 
-/// Whether `name` matches `[A-Za-z0-9_.-]+` (Python `re.fullmatch`).
+/// Whether `name` matches `[A-Za-z0-9_.-]+`.
 fn is_partition_name(name: &str) -> bool {
     !name.is_empty()
         && name

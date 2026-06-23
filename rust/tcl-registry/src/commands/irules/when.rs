@@ -6,8 +6,6 @@ use crate::prelude::*;
 ///
 /// The last argument is always the event-handler body.  The
 /// optional `priority` token sits between `EVENT` and `BODY`.
-/// Mirrors `_when_arg_roles` in
-/// `core/commands/registry/irules/when.py:25-29`.
 fn when_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     if args.len() >= 2
         && let Ok(idx) = u8::try_from(args.len() - 1)

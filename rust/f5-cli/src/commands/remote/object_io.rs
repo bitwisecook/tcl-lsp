@@ -42,7 +42,7 @@ fn percent_encode(s: &str) -> String {
 }
 
 /// Map a `kind` name to its `(module, type)` URI segments, or an error string
-/// matching the Python `ValueError` text.
+/// for an unknown kind.
 fn kind_to_endpoint(kind: &str) -> Result<(&'static str, &'static str), String> {
     match kind {
         "virtual" => Ok(("ltm", "virtual")),
@@ -66,9 +66,8 @@ pub struct DryRunPlan {
     pub target: String,
 }
 
-/// Compute the `--dry-run` summary: target name + verb label. Mirrors the
-/// Python verb's `target = payload.get("fullPath") or payload.get("name",
-/// "(unnamed)")` and the `"POST (create)" / "PUT (replace)"` label.
+/// Compute the `--dry-run` summary: target name (`fullPath`, else `name`, else
+/// `(unnamed)`) plus the verb label (`POST (create)` / `PUT (replace)`).
 #[must_use]
 pub fn dry_run_plan(payload: &Value, create: bool) -> DryRunPlan {
     let target = payload
@@ -115,8 +114,8 @@ pub fn pull_object(
 /// PUT (default) or POST (`create`) one object via iControl REST.
 ///
 /// # Errors
-/// Returns the Python `ValueError` text when a replace payload lacks both
-/// `fullPath` and `name`, or propagates transport / HTTP errors.
+/// Returns an error when a replace payload lacks both `fullPath` and `name`,
+/// or propagates transport / HTTP errors.
 pub fn push_object(
     credentials: &Credentials,
     kind: &str,
@@ -165,8 +164,8 @@ fn nonempty_str(v: Option<&Value>) -> Option<&str> {
     v.and_then(Value::as_str).filter(|x| !x.is_empty())
 }
 
-/// Render an iControl REST object as an SCF stanza (best-effort). Mirrors
-/// `object_to_scf_stanza` for virtuals, pools, nodes, and rules.
+/// Render an iControl REST object as an SCF stanza (best-effort) for virtuals,
+/// pools, nodes, and rules.
 #[must_use]
 pub fn object_to_scf_stanza(kind: &str, obj: &Value) -> String {
     let s = nonempty_str;
@@ -268,12 +267,12 @@ pub fn parse_payload(raw: &str) -> Result<Value, String> {
     ))
 }
 
-/// Compute Python's `(line, column, char)` for an `Expecting value` error: the
+/// Compute the `(line, column, char)` for an `Expecting value` error: the
 /// offset of the first non-whitespace byte (or the end of input when the string
 /// is empty / all whitespace), with 1-based line / column.
 fn expecting_value_position(raw: &str) -> (usize, usize, usize) {
-    // Python `json` skips the ASCII whitespace set " \t\n\r"; the error points
-    // at the first non-whitespace char, or at end-of-string when none remains.
+    // Skip the ASCII whitespace set " \t\n\r"; the error points at the first
+    // non-whitespace char, or at end-of-string when none remains.
     let bytes = raw.as_bytes();
     let mut idx = 0;
     while idx < bytes.len() && matches!(bytes[idx], b' ' | b'\t' | b'\n' | b'\r') {

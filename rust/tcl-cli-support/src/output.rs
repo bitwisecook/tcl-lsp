@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::input::CliError;
 
-/// Where verb output goes: stdout (the Python `"-"`) or a file.
+/// Where verb output goes: stdout (`"-"`) or a file.
 #[derive(Debug, Clone)]
 pub enum OutputTarget {
     /// Standard output.
@@ -97,7 +97,7 @@ pub fn write_highlighted_output(
 }
 
 /// Expand tab characters to spaces using tab-stop semantics identical to
-/// Python's `str.expandtabs(tabsize)`: a tab advances to the next multiple of
+/// `str.expandtabs(tabsize)`: a tab advances to the next multiple of
 /// `tabsize`; column resets on `\n`/`\r`.
 #[must_use]
 pub fn expand_tabs(text: &str, tabsize: usize) -> String {
@@ -128,7 +128,7 @@ pub fn expand_tabs(text: &str, tabsize: usize) -> String {
 }
 
 /// Escape non-ASCII characters as `\uXXXX` (with surrogate pairs for astral
-/// code points), matching Python's `json.dumps(..., ensure_ascii=True)`.
+/// code points), matching `json.dumps(..., ensure_ascii=True)`.
 ///
 /// Apply this to `serde_json::to_string_pretty` output so JSON verbs match the
 /// Python CLI byte-for-byte. Safe to apply to a whole JSON document: non-ASCII

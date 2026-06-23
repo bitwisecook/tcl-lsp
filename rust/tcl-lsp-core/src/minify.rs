@@ -479,9 +479,8 @@ pub fn minify_tcl(source: &str, dialect: &str, registry: &CommandRegistry) -> St
 ///
 /// The aliasing phases seed their generators with every compacted
 /// short name so a `$alias` can never collide with a (possibly
-/// proc-local) compacted variable — a collision-safe improvement on
-/// the Python reference.  Deferred: SCCP static-substring folding
-/// (phase 1.5).
+/// proc-local) compacted variable — a collision-safe design.
+/// Deferred: SCCP static-substring folding (phase 1.5).
 #[must_use]
 pub fn minify_tcl_aggressive(
     source: &str,
@@ -1145,8 +1144,7 @@ const CONTROL_FLOW_KEYWORDS: &[&str] = &["else", "elseif", "then", "on", "trap",
 /// Every compacted short name across the symbol map, so aggressive
 /// aliases avoid colliding with a (possibly proc-local) compacted
 /// name — a `$alias` used in command position must not resolve to a
-/// local variable.  This is the collision-safe seed the Python
-/// reference lacks.
+/// local variable.
 fn collect_symbol_shorts(sm: &SymbolMap) -> HashSet<String> {
     let mut out = HashSet::new();
     out.extend(sm.procs.values().cloned());
@@ -1644,9 +1642,8 @@ fn safe_taint_colours() -> TaintColour {
 /// Replace dynamic quoted strings with their static values where the
 /// compiler's SCCP pass proves every `$var` substitution is a
 /// compile-time constant and no unsanitised tainted value is
-/// involved.  A safe subset of Python's `fold_static_substrings`:
-/// folds `$var` interpolations resolving to integer / string
-/// constants; bails on command substitutions (`[…]`) and on
+/// involved.  Folds `$var` interpolations resolving to integer /
+/// string constants; bails on command substitutions (`[…]`) and on
 /// boolean / float constants.  Returns `(folded_source, fold_count,
 /// fold_map)`.
 fn fold_static_substrings(
@@ -1964,7 +1961,6 @@ fn build_replacement(folded: &str) -> String {
 }
 
 /// Return the abbreviated subcommand text when safe for `dialect`.
-/// Mirrors `_abbreviated_subcommand`.
 fn abbreviated_subcommand(command_name: &str, subcommand_name: &str, dialect: &str) -> String {
     if !tcl_registry::prelude::DialectSet::has_fixed_ensembles(Some(dialect)) {
         return subcommand_name.to_owned();
@@ -2042,9 +2038,8 @@ fn subcommand_abbreviation(command: &str, sub: &str) -> Option<&'static str> {
 }
 
 /// Replace repeated dynamic quoted args with `[subst $alias]` and a
-/// shared `set alias {content}` preamble.  Mirrors
-/// `_dedup_templates`; returns the ordered `(content, alias)`
-/// preamble pairs plus the rewritten commands.
+/// shared `set alias {content}` preamble.  Returns the ordered
+/// `(content, alias)` preamble pairs plus the rewritten commands.
 fn dedup_templates(rendered: Vec<Vec<String>>) -> (Vec<(String, String)>, Vec<Vec<String>>) {
     // content -> use sites, preserving first-seen order.
     let mut order: Vec<String> = Vec::new();
@@ -2134,7 +2129,7 @@ fn dedup_templates(rendered: Vec<Vec<String>>) -> (Vec<(String, String)>, Vec<Ve
 }
 
 /// Names referenced as `$var` / `${var}` anywhere in the rendered
-/// commands.  Mirrors the `_used_var_re` scan in `_dedup_templates`.
+/// commands.
 fn collect_used_var_names(rendered: &[Vec<String>]) -> std::collections::HashSet<String> {
     let mut out = std::collections::HashSet::new();
     for args in rendered {
@@ -2267,7 +2262,7 @@ fn role_indices(
         .collect()
 }
 
-/// Text of an argument's first token (Python's `_token_text`).
+/// Text of an argument's first token.
 fn token_text(sm: &SourceMap, arg: &Arg) -> String {
     arg.tokens
         .first()
@@ -2275,8 +2270,7 @@ fn token_text(sm: &SourceMap, arg: &Arg) -> String {
         .unwrap_or_default()
 }
 
-/// First character a token will render as.  Mirrors
-/// `_first_rendered_char`.
+/// First character a token will render as.
 fn first_rendered_char(sm: &SourceMap, tok: Token) -> Option<char> {
     match tok.kind {
         TokenType::Str | TokenType::Expand => Some('{'),
@@ -2287,8 +2281,7 @@ fn first_rendered_char(sm: &SourceMap, tok: Token) -> Option<char> {
 }
 
 /// Rebuild source text from a single token, re-adding delimiters
-/// and recursively minifying `[…]` substitutions.  Mirrors
-/// `_reconstruct_raw`.
+/// and recursively minifying `[…]` substitutions.
 fn reconstruct_raw(
     sm: &SourceMap,
     tok: Token,
@@ -2319,7 +2312,6 @@ fn reconstruct_raw(
 const NEEDS_QUOTING: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}', ';', '"', '\0'];
 
 /// Whether a quoted argument can safely drop its double quotes.
-/// Mirrors `_can_strip_quotes`.
 fn can_strip_quotes(raw: &str) -> bool {
     if raw.is_empty() {
         return false;
@@ -2376,7 +2368,6 @@ fn utf8_len(b: u8) -> usize {
 }
 
 /// Rebuild the source text of an argument from its tokens.
-/// Mirrors `_reconstruct_arg`.
 fn reconstruct_arg(sm: &SourceMap, arg: &Arg, dialect: &str, registry: &CommandRegistry) -> String {
     let mut raw = String::new();
     for (idx, &tok) in arg.tokens.iter().enumerate() {
@@ -2397,16 +2388,15 @@ fn reconstruct_arg(sm: &SourceMap, arg: &Arg, dialect: &str, registry: &CommandR
 // switch case-list handling
 
 /// Whether the post-name args use the braced case-list form (a
-/// single trailing word after any leading options).  Mirrors
-/// `is_switch_case_list_form`.
+/// single trailing word after any leading options).
 fn is_switch_case_list_form(args: &[&str]) -> bool {
     let i = skip_switch_options(args);
     i < args.len() && i == args.len() - 1
 }
 
-/// Skip leading `switch` option words and the match-value arg,
-/// returning the index of the first case-list element.  Mirrors
-/// `_skip_switch_options` (options, then one value arg).
+/// Skip leading `switch` option words and the match-value arg
+/// (options, then one value arg), returning the index of the first
+/// case-list element.
 fn skip_switch_options(args: &[&str]) -> usize {
     let mut i = 0;
     while i < args.len() {
@@ -2549,8 +2539,7 @@ fn strip_expr_whitespace(text: &str, dialect: &str, registry: &CommandRegistry) 
 
 /// Compress and shrink an `expr` body: strip whitespace, then try
 /// AST transforms (De Morgan / comparison inversion / double
-/// negation) and keep whichever is shorter.  Mirrors
-/// `_compress_expr`.
+/// negation) and keep whichever is shorter.
 fn compress_expr(text: &str, dialect: &str, registry: &CommandRegistry) -> String {
     let compressed = strip_expr_whitespace(text, dialect, registry);
     let shrunk = shrink_expr_ast(&compressed, dialect, registry);
@@ -2615,7 +2604,6 @@ fn pick_shorter(candidate: ExprNode, original: &ExprNode) -> ExprNode {
 }
 
 /// Recursively try size-reducing transforms on an expression node.
-/// Mirrors `_shrink_node`.
 fn shrink_node(node: &ExprNode) -> ExprNode {
     match node {
         ExprNode::Unary {
@@ -2754,9 +2742,8 @@ fn shrink_not(node: &ExprNode, operand: &ExprNode) -> ExprNode {
     negate(shrink_node(operand))
 }
 
-/// Tokenise an `expr` body, mirroring the `_EXPR_TOKEN` alternation
-/// (with a catch-all so no character is dropped — safer than the
-/// Python reference, which silently drops unmatched characters).
+/// Tokenise an `expr` body, with a catch-all so no character is
+/// dropped.
 fn tokenise_expr(text: &str, dialect: &str, registry: &CommandRegistry) -> Vec<ExprTok> {
     let bytes = text.as_bytes();
     let n = bytes.len();
@@ -3000,7 +2987,7 @@ mod tests {
     fn remap_line_references_procline_single_pass() {
         let orig = "proc f {} {\n    set x 1\n    set y 2\n    set z 3\n}\n";
         let mini = "proc f {} {set x 1;set y 2;set z 3}";
-        // Single pass (no Python double-application): line 3 -> 5.
+        // Single pass: line 3 -> 5.
         assert_eq!(
             remap_line_references("(procedure \"f\" line 3)", mini, orig),
             "(procedure \"f\" line 5, minified line 3)",

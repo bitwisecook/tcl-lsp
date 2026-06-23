@@ -18,8 +18,6 @@
 //!
 //! The pass also generalises to **any** `*::uri` command that has
 //! sibling `*::path` and/or `*::query` commands in the registry.
-//!
-//! Ported from `core/compiler/taint/_uri_split.py` (C45).
 
 use std::collections::{HashMap, HashSet};
 
@@ -1068,7 +1066,7 @@ set parts [split $uri "?"]"#,
     }
 
     /// Regression for the AssignValue-side namespace-qualified-split
-    /// gap that Codex flagged on PR #366: `[::split …]` inside a `set`
+    /// gap: `[::split …]` inside a `set`
     /// must fire IRULE3103 the same way `[split …]` does. The Call
     /// branch already accepted both forms; the `AssignValue` branch
     /// wrongly required the bare name.

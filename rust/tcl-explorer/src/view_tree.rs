@@ -15,7 +15,7 @@ use serde_json::Value;
 /// One expandable row: a summary `label`, a `detail` table, and children.
 ///
 /// `Serialize` is for the differential parity harness (compared against
-/// Python's `ViewNode`), not part of the explorer JSON contract.
+/// `ViewNode`), not part of the explorer JSON contract.
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize)]
 pub struct ViewNode {
     /// One-line summary shown in the tree.
@@ -24,7 +24,7 @@ pub struct ViewNode {
     pub detail: Vec<(String, String)>,
     /// Nested rows.
     pub children: Vec<ViewNode>,
-    /// Optional style hint (a colour name), mirroring the Python builders.
+    /// Optional style hint (a colour name).
     pub style: Option<String>,
 }
 
@@ -73,12 +73,12 @@ fn jstr(v: &Value) -> String {
     }
 }
 
-/// Render a JSON scalar the way Python's `str()` would inside an f-string.
+/// Render a JSON scalar as a display string for label interpolation.
 ///
-/// The only divergence from [`jstr`] is booleans: Python emits `True`/`False`
-/// (capitalised) where Rust's `bool` `Display` emits `true`/`false`. The
-/// explorer's SSA-view const-branch label interpolates a JSON bool through a
-/// Python f-string, so the port must capitalise to stay byte-identical.
+/// The only divergence from [`jstr`] is booleans: they render as
+/// `True`/`False` (capitalised) where Rust's `bool` `Display` emits
+/// `true`/`false`. The explorer's SSA-view const-branch label interpolates a
+/// JSON bool, so it is capitalised here to stay byte-identical.
 fn pystr(v: &Value) -> String {
     match v {
         Value::Bool(true) => "True".to_owned(),
@@ -1145,8 +1145,8 @@ pub const TREE_VIEWS: &[&str] = &[
     "callouts",
 ];
 
-/// Build the [`ViewNode`] forest for `view` from serialised `data`. Mirrors
-/// `build_view`; an unknown view id yields an empty forest.
+/// Build the [`ViewNode`] forest for `view` from serialised `data`.
+/// An unknown view id yields an empty forest.
 #[must_use]
 pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
     match view {

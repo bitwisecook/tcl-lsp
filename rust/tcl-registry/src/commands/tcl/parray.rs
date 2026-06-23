@@ -19,7 +19,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 connection_side: ConnectionSide::None,
             },
-            // Mirrors Python `parray.py` (reads the array VARIABLE).
+            // Reads the array VARIABLE.
             SideEffect {
                 target: SideEffectTarget::Variable,
                 reads: true,

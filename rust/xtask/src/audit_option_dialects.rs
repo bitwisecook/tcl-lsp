@@ -9,13 +9,11 @@
 //! `tmp/option_dialect_audit.json` so the registry can be updated with
 //! accurate `dialects` frozensets.
 //!
-//! Parity with the Python original: the JSON artifact at
-//! `tmp/option_dialect_audit.json` is byte-for-byte identical (the probe
-//! table, version order, and `json.dumps(indent=2)` layout are all
-//! reproduced exactly), and the console progress log mirrors the Python
-//! `print` output including the `repr()`-formatted failure diagnostics and
-//! the Python-list-repr summary. An unbuilt tclsh yields
-//! `"tclsh not found"` for every probe (matching the Python `exists()`
+//! The JSON artifact at `tmp/option_dialect_audit.json` is deterministic:
+//! the probe table, version order, and 2-space indent layout are all fixed.
+//! The console progress log prints a line per probe, including
+//! `repr()`-formatted failure diagnostics and a list-repr summary. An
+//! unbuilt tclsh yields `"tclsh not found"` for every probe (a missing-tree
 //! short-circuit), so the audit is meaningful on whatever subset of the
 //! four trees is built.
 
@@ -59,7 +57,7 @@ const NOT_SUPPORTED_TOKENS: &[&str] = &[
 /// probe exercises the option in a way that gives a definitive answer —
 /// acceptance (lexical/dispatch wise) versus a "bad option" rejection.
 /// Declaration order is preserved in the JSON output and the console log,
-/// matching the Python `dict` insertion order.
+/// matching `dict` insertion order.
 #[allow(clippy::too_many_lines)]
 const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
     // ---- lsearch ----
@@ -543,7 +541,7 @@ struct Entry {
 
 /// Run the dialect audit: probe every option against each built tclsh,
 /// write the JSON artifact, and print the per-option / summary log.
-/// Always exits 0 (matching the Python `return 0`).
+/// Always exits 0 (matching `return 0`).
 pub fn run() -> Result<ExitCode> {
     let root = repo_root();
     let mut entries: Vec<Entry> = Vec::with_capacity(PROBES.len());
@@ -603,7 +601,7 @@ fn label(cmd: &str, sub: Option<&str>, opt: &str) -> String {
 /// `ok` is false only when the output indicates the option was not
 /// recognised; runtime errors (network, permission, channel) count as
 /// "recognised". A missing tclsh short-circuits to `(false, "tclsh not
-/// found")` exactly as the Python `exists()` check does.
+/// found")` exactly as `exists()` check does.
 fn probe(tclsh_dir: &Path, script: &str) -> (bool, String) {
     let tclsh = tclsh_dir.join("tclsh");
     if !tclsh.exists() {
@@ -804,7 +802,7 @@ mod tests {
         assert!(classify("ERR:can't open socket: connection refused"));
         assert!(!classify(r#"ERR:bad option "-foo": must be -bar"#));
         assert!(!classify("ERR:wrong # args: should be ..."));
-        // Case-insensitive, matching the Python `.lower()`.
+        // Case-insensitive, matching `.lower()`.
         assert!(!classify("ERR:Unknown Option -x"));
     }
 

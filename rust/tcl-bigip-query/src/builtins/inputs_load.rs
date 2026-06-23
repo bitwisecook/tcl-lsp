@@ -28,7 +28,7 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     ]
 }
 
-/// Port of `os.path.expanduser` for the `~` / `~/...` head only (the form
+/// Implements `os.path.expanduser` for the `~` / `~/...` head only (the form
 /// the builtins document). `~user` expansion is not reproduced — Python's
 /// `expanduser` leaves an unknown `~user` untouched too when the home
 /// can't be resolved, so the common `~` / `~/` case is the load-bearing

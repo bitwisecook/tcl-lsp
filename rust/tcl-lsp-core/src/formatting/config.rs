@@ -108,8 +108,7 @@ impl Default for FormatterConfig {
 }
 
 impl FormatterConfig {
-    /// Build the indentation string for nesting `level`.  Mirrors
-    /// Python's `_make_indent`.
+    /// Build the indentation string for nesting `level`.
     #[must_use]
     pub fn make_indent(&self, level: usize) -> String {
         match self.indent_style {

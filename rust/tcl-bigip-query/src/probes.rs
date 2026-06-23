@@ -11,7 +11,7 @@
 //! - **Faithful-but-not-golden**: the live network probes (`dns`, `rev_dns`,
 //!   `ping`, `portping`, `traceroute`, `socket_get`, `tls_handshake`, the
 //!   `url_*` HTTP family). These do real I/O with a structure / output shape
-//!   matching the Python impl, but are not asserted byte-for-byte against
+//!   matching the reference impl, but are not asserted byte-for-byte against
 //!   live results (the test env has no reliable network).
 //!
 //! Every network probe is gated by `ctx.probes_enabled` (the `--enable-probes`
@@ -51,7 +51,7 @@ pub(crate) fn require_probes(name: &str, enabled: bool) -> Result<(), QueryError
 ///
 /// Produces the same dict keys / values `cryptography`'s `x509_parse` emits.
 /// Raises [`QueryError::Builtin`] for input that doesn't decode as a cert,
-/// reproducing the Python `not a PEM certificate (...)` wording shape.
+/// reproducing `not a PEM certificate (...)` wording shape.
 ///
 /// Public so the CLI's `ucs_cert` reader (which reads a PEM out of a UCS in a
 /// higher layer) can produce the same `x509_parse`-shaped value the builtin
@@ -144,7 +144,7 @@ fn iso_utc(timestamp: i64) -> String {
 /// (e.g. `12345678`, `3E8`).
 fn serial_hex(cert: &X509Certificate<'_>) -> String {
     // `tbs_certificate.serial` is a `BigUint`. `{:X}` gives uppercase hex with
-    // no leading zeros — matching Python's `format(n, "x").upper()`. Zero
+    // no leading zeros — matching `format(n, "x").upper()`. Zero
     // serials render as `0` either side.
     format!("{:X}", cert.tbs_certificate.serial)
 }
@@ -215,7 +215,7 @@ fn rdn_short_name(oid: &str) -> String {
     .to_owned()
 }
 
-/// Collect SANs as Python's `[str(n.value) for n in san_ext.value]` does:
+/// Collect SANs as `[str(n.value) for n in san_ext.value]` does:
 /// DNS names and the dotted-string IP form, in cert order.
 fn collect_sans(cert: &X509Certificate<'_>) -> Vec<Value> {
     let mut out = Vec::new();
@@ -248,7 +248,7 @@ fn ip_bytes_to_string(bytes: &[u8]) -> String {
     }
 }
 
-/// `(key_alg, key_size)` matching Python's `type(public_key).__name__` and
+/// `(key_alg, key_size)` matching `type(public_key).__name__` and
 /// `getattr(public_key, "key_size", None)`.
 fn key_alg_and_size(spki: &SubjectPublicKeyInfo<'_>) -> (Option<String>, Option<u32>) {
     let oid = spki.algorithm.algorithm.to_id_string();
@@ -405,7 +405,7 @@ fn dict_str(map: &IndexMap<String, Value>, key: &str) -> String {
 }
 
 /// Map BIG-IP `key-type` tokens to the same `key_alg` strings `cryptography`
-/// produces — port of `_KEY_TYPE_TO_KEY_ALG`.
+/// produces.
 fn key_type_to_key_alg(key_type: &str) -> Option<&'static str> {
     Some(match key_type {
         "rsa-public" | "rsa-private" => "RSAPublicKey",
@@ -911,7 +911,7 @@ pub(crate) fn socket_get(host: &str, port: i64, send: &str) -> Result<Value, Que
     }
 }
 
-/// Port of `_probes.tls_handshake` — TLS connect and report peer metadata.
+/// TLS connect and report peer metadata.
 ///
 /// Faithful-but-not-golden: produces the same dict shape Python emits
 /// (`protocol` / `cipher` / `peer_cert` / `alpn_selected` / `verify_status` /
@@ -944,7 +944,7 @@ pub(crate) fn tls_handshake(
     }
 }
 
-/// Port of `_probes.url_request` — generic HTTP via `ureq`.
+/// Generic HTTP via `ureq`.
 ///
 /// Faithful-but-not-golden: `{status, headers, body, body_json, peer_cert,
 /// reason, error}`. The `peer_cert` capture from the live handshake is not
@@ -978,12 +978,12 @@ pub(crate) fn url_request(
 mod http;
 mod tls;
 
-// Registry wiring (port of the `@_register(... category="net")` decorators)
+// Registry wiring
 
 use crate::builtins::{BuiltinSpec, as_int, as_str, ctx, plain};
 use crate::eval::EvalContext;
 
-/// Optional positional-string arg with a default, mirroring Python's
+/// Optional positional-string arg with a default, matching the
 /// `protocol="tcp"` / `send=""` / `sni=None` keyword defaults.
 fn opt_str<'a>(
     args: &'a [Value],
@@ -1083,8 +1083,8 @@ fn url_method(
     ))
 }
 
-/// Coerce an object of header values to `(name, value)` string pairs, mirroring
-/// Python's `{str(k): str(v) for k, v in args[...].items()}`.
+/// Coerce an object of header values to `(name, value)` string pairs,
+/// stringifying both key and value.
 fn headers_from_object(m: &IndexMap<String, Value>) -> Vec<(String, String)> {
     m.iter().map(|(k, v)| (k.clone(), scalar_str(v))).collect()
 }

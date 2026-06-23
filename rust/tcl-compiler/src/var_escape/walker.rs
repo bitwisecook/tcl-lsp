@@ -639,7 +639,7 @@ pub fn analyse_script<I: IntoIterator<Item = String>>(
     walk(&body.statements, &mut state);
     let frame_needed =
         state.dynamic_barrier() || state.tags.values().any(|t| *t == EscapeTag::Frame);
-    // S3.4: tentative pure_leaf — the interprocedural fixpoint can only
+    // Tentative pure_leaf — the interprocedural fixpoint can only
     // downgrade it (a proc with an opaque callee loses the flag). Pure
     // means: no escape, no eval/call fallback, no `upvar` source out, no
     // unbounded upvar source.

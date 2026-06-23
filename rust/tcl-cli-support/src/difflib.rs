@@ -1,4 +1,4 @@
-//! Byte-faithful reimplementation of Python's `difflib.unified_diff` (and the
+//! Byte-faithful reimplementation of `difflib.unified_diff` (and the
 //! `SequenceMatcher` machinery it rides on) restricted to the
 //! line-oriented string-sequence use the CLI diff verbs need.
 //!
@@ -12,8 +12,8 @@
 //! `keepends=True` semantics), so this module never appends or strips
 //! newlines on the data lines; only the control lines get the `lineterm`
 //! (`"\n"`) appended, matching `unified_diff`'s default. Each generated
-//! line is returned as its own `String` (mirroring Python's generator),
-//! so the caller can `rstrip("\n")` per line and count them.
+//! line is returned as its own `String`, so the caller can `rstrip("\n")`
+//! per line and count them.
 
 use std::collections::HashMap;
 
@@ -358,9 +358,8 @@ pub fn unified_diff(a: &[&str], b: &[&str], fromfile: &str, tofile: &str, n: usi
     out
 }
 
-/// Split *text* into lines keeping the trailing `\n` — mirrors Python's
-/// `str.splitlines(keepends=True)` for `\n` endings. A final line with no
-/// trailing newline is preserved without one.
+/// Split *text* into lines keeping the trailing `\n` (a final line with no
+/// trailing newline is preserved without one).
 #[must_use]
 pub fn splitlines_keepends(text: &str) -> Vec<&str> {
     let mut out = Vec::new();

@@ -50,9 +50,8 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     ]
 }
 
-/// `env()` → an object of the process environment (port of
-/// `dict(os.environ)`). Values are strings; iteration order is unspecified,
-/// matching Python.
+/// `env()` → an object of the process environment. Values are strings;
+/// iteration order is unspecified.
 fn bi_env(_args: &[Value]) -> Result<Value, QueryError> {
     let mut m: IndexMap<String, Value> = IndexMap::new();
     for (k, v) in std::env::vars() {
@@ -62,7 +61,7 @@ fn bi_env(_args: &[Value]) -> Result<Value, QueryError> {
 }
 
 /// `source_file(obj)` → the URI of the source that defined *obj*, or `null`.
-/// Port of `_builtin_source_file`: `ObjectRef` → its `config_uri`; `PathRef`
+/// `ObjectRef` → its `config_uri`; `PathRef`
 /// → resolved through the projection to its backing object's `config_uri`.
 fn bi_source_file(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     match &args[0] {
@@ -83,7 +82,7 @@ fn uri_or_null(uri: &str) -> Value {
     }
 }
 
-/// Port of `_http_response` — require an HTTP-response dict.
+/// Require an HTTP-response dict.
 fn http_response<'a>(
     value: &'a Value,
     name: &str,
@@ -97,7 +96,7 @@ fn http_response<'a>(
     }
 }
 
-/// Port of `_status_in_range`.
+/// Whether the response status falls within `[low, high]`.
 fn status_in_range(value: &Value, low: i64, high: i64, name: &str) -> Result<Value, QueryError> {
     let resp = http_response(value, name)?;
     let ok = match resp.get("status") {

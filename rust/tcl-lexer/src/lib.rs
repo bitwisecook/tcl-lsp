@@ -1,33 +1,23 @@
 //! Position-aware lexer for Tcl, iRules, and related dialects.
 //!
-//! This crate is populated chunk-by-chunk as the Python-to-Rust migration
-//! progresses. Currently exported:
+//! Currently exported:
 //!
-//! - [`backslash_subst`] — Tcl backslash escape processing (chunk **L1**).
-//! - [`Token`], [`TokenType`], [`SourcePosition`] — token data types
-//!   (chunk **L2**). `Token` carries only a [`Span`]; text and
-//!   positions are resolved through a [`SourceMap`].
+//! - [`backslash_subst`] — Tcl backslash escape processing.
+//! - [`Token`], [`TokenType`], [`SourcePosition`] — token data types.
+//!   `Token` carries only a [`Span`]; text and positions are resolved
+//!   through a [`SourceMap`].
 //! - [`Span`], [`LineIndex`], [`SourceMap`] — the span-threaded
-//!   source-mapping layer. Every positional entity in the Rust
-//!   rewrite (tokens now, IR and CFG nodes later) holds a bare
+//!   source-mapping layer. Every positional entity holds a bare
 //!   [`Span`] and asks a [`SourceMap`] for text or positions on
-//!   demand (chunk **L3**).
+//!   demand.
 //! - [`word_closer_offset`], [`word_end_position`] — source-aware
 //!   authoritative closer accessors for delimited word tokens, derived
 //!   from the lexer's content geometry (correct for empty `{}` / `[]` /
-//!   `""` and backslash-bearing quoted words). Ports the
-//!   `shared/ranges.py` accessors landed on `main` by #533
-//!   (`SYNC-JUN06` / `CST-PORT`).
-//! - [`Lexer`], [`LexerConfig`], [`LexError`] — the L3 lexer
-//!   skeleton. Handles EOF, SEP, EOL, COMMENT, and plain ESC tokens;
-//!   every other construct is surfaced as a `SyntaxError` (in
-//!   strict-quoting mode) or a warning until later chunks implement
-//!   it.
-//!
-//! The crate has no `pyo3` dependency and no Python-compat concerns —
-//! those belong in the `tcl-lsp-rust` binding crate. See
-//! `docs/rust-rewrite.md` in the main repository for the full
-//! migration strategy.
+//!   `""` and backslash-bearing quoted words).
+//! - [`Lexer`], [`LexerConfig`], [`LexError`] — the lexer itself.
+//!   Handles EOF, SEP, EOL, COMMENT, and plain ESC tokens; every other
+//!   construct is surfaced as a `SyntaxError` (in strict-quoting mode)
+//!   or a warning.
 
 #![deny(missing_docs)]
 
@@ -57,7 +47,7 @@ pub use structural_index::{
 pub use substitution::backslash_subst;
 pub use tokens::{SourcePosition, Token, TokenType};
 
-/// Crate version string, useful for migration diagnostics.
+/// Crate version string.
 ///
 /// ```
 /// assert!(!tcl_lexer::VERSION.is_empty());

@@ -1,7 +1,7 @@
 //! WASM backend tests: the greenfield eval-fallback emitter produces a
 //! structurally valid module with the right shape (imports, data section,
 //! eval-fallback calls, structured `if` / loops). Execution against a runtime is
-//! a later stage (the Rust runtime's wasm32 ABI is still the T1.1 stub), so these
+//! currently (the Rust runtime's wasm32 ABI is still a stub), so these
 //! assert the emitted structure; `wasmtime compile` (run below where the CLI is
 //! present) validates the bytes for full structural validity.
 

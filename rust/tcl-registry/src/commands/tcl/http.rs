@@ -1,4 +1,4 @@
-//! `http` command (name-parity reconcile, GAP-d).
+//! `http` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

@@ -9,17 +9,15 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 /// Command spec for `timerate`.
 ///
-/// Ported from `dialects/tcl/timerate.py` (main #522). Like its
-/// sibling `time`, the command takes a `command` argument plus
+/// Like its sibling `time`, the command takes a `command` argument plus
 /// optional `time` / `max-count` positionals and leading `-direct`
 /// / `-calibrate` / `-overhead` options, returning a measured-rate
-/// summary string.  Mirrors the Python spec's `arg_roles={0: BODY}`,
-/// `arg_types={1: INT shimmers}`, unbounded arity, and the
-/// `UNKNOWN`-target read+write side effect (the body runs arbitrary
-/// code).  Follows the tcl pack's `dialects: None` convention for
-/// vanilla commands — Python marks it `DIALECTS_EXCEPT_IRULES`, but
-/// the Rust tcl pack mirrors iRules exclusion via the separate
-/// iRules pack, not per-command (sibling `time` is `None` too).
+/// summary string.  Arg 0 is a `BODY`, arg 1 an `INT` (shimmers),
+/// the arity is unbounded, and there is an `UNKNOWN`-target read+write
+/// side effect (the body runs arbitrary code).  Follows the tcl pack's
+/// `dialects: None` convention for vanilla commands — iRules exclusion is
+/// handled via the separate iRules pack, not per-command (sibling `time`
+/// is `None` too).
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "timerate",

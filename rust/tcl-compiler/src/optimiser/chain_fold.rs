@@ -495,7 +495,7 @@ mod tests {
         // `puts $s` reads the accumulator, ending the run after `append s
         // foo`. The consecutive prefix still folds to `set s foo` (the same
         // value `puts` observes); the trailing `append s bar` is not folded
-        // into it. Matches Python's `finish_chain`-on-read behaviour.
+        // into it. Matches `finish_chain`-on-read behaviour.
         let opts = run_pass("set s \"\"\nappend s foo\nputs $s\nappend s bar");
         let folds: Vec<&str> = opts
             .iter()

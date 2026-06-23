@@ -61,9 +61,9 @@ fn fold_cat(args: &[&str]) -> Option<String> {
     Some(args.concat())
 }
 
-/// `string repeat string count` — repeat (bounded, matching Python's
-/// 10000 sanity cap).  No char transformation → sound for any input.
-/// A negative count fails the `usize` parse → bails (matches Python).
+/// `string repeat string count` — repeat (bounded by a 10000 sanity
+/// cap).  No char transformation → sound for any input.
+/// A negative count fails the `usize` parse → bails.
 fn fold_repeat(args: &[&str]) -> Option<String> {
     let [s, count] = args else {
         return None;
@@ -363,8 +363,8 @@ fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<Stri
 /// follow-up, #525 B-tail).  Constant-folds the **Tcl-faithful** classes
 /// the optimiser can decide soundly.
 ///
-/// Deliberately *not* a transcription of Python's `str`-method fold,
-/// whose semantics diverge from Tcl: e.g. `str.islower("abc1")` is
+/// Deliberately follows Tcl's classification, not a `str`-method
+/// analogue whose semantics diverge: e.g. `str.islower("abc1")` is
 /// `True` but `string is lower abc1` is `0` (Tcl requires *every* char
 /// to be a lowercase letter; a digit fails).  The ASCII character
 /// classes here apply the predicate to every char and **bail on
@@ -712,8 +712,7 @@ fn tcl_bool(s: &str) -> Option<bool> {
     }
 }
 
-/// Character classes accepted by `string is <class>`.  Mirrors
-/// `_IS_CLASSES` in `core/commands/registry/tcl/string.py`.
+/// Character classes accepted by `string is <class>`.
 static IS_CLASSES: &[ArgValue] = &[
     ArgValue {
         value: "alnum",
@@ -1298,8 +1297,8 @@ mod tests {
         assert_eq!(is(&["wordchar", "a_b9"]).as_deref(), Some("1"));
         assert_eq!(is(&["wordchar", "a-b"]).as_deref(), Some("0"));
 
-        // The Tcl-vs-Python divergence the deferral called out:
-        // `str.islower("abc1")` is True, but Tcl `string is lower` is 0
+        // A divergence worth pinning: `str.islower("abc1")` is True,
+        // but Tcl `string is lower` is 0
         // (a digit is not a lowercase *letter*).
         assert_eq!(is(&["lower", "abc1"]).as_deref(), Some("0"));
         assert_eq!(is(&["lower", "abc"]).as_deref(), Some("1"));

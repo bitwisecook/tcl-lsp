@@ -24,8 +24,7 @@ use crate::rewrite::{RenameReport, rename_object};
 use crate::value::{FieldSlot, Value};
 
 /// Identity fields whose location is the stanza header — writes to these route
-/// through the [`rename_object`] token-rewrite engine. Mirrors
-/// `edit_plan._IDENTITY_FIELDS`.
+/// through the [`rename_object`] token-rewrite engine.
 const IDENTITY_FIELDS: &[&str] = &["name", "full-path"];
 
 /// `(object_kind, field_name)` pairs that `+=` / `=` may materialise as a
@@ -82,8 +81,7 @@ pub enum After {
     NotIdent,
 }
 
-/// A whole-source token-bounded prefix substitution — port of
-/// `edit_plan.PrefixRewrite`.
+/// A whole-source token-bounded prefix substitution.
 ///
 /// Used by cascade operations (`rename_partition` / `rename_folder` /
 /// `rename_prefix`) that rewrite *every* occurrence of a prefix — including
@@ -120,8 +118,8 @@ fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'/' | b'.' | b'-')
 }
 
-/// Collected edits, applied once at the end of a query run — port of
-/// `edit_plan.EditPlan` (`ops` + `prefix_rewrites`).
+/// Collected edits, applied once at the end of a query run (`ops` +
+/// `prefix_rewrites`).
 #[derive(Debug, Default)]
 pub struct EditPlan {
     pub ops: Vec<EditOp>,
@@ -151,8 +149,7 @@ impl EditPlan {
     }
 }
 
-/// One source file's result after edits land — port of
-/// `edit_plan.AppliedSource`.
+/// One source file's result after edits land.
 #[derive(Debug, Clone)]
 pub struct AppliedSource {
     pub uri: String,
@@ -163,7 +160,7 @@ pub struct AppliedSource {
 }
 
 /// Apply every op in *plan* to *sources*, returning one [`AppliedSource`] per
-/// touched URI — port of `edit_plan.apply`.
+/// touched URI.
 ///
 /// Cascading prefix rewrites run first, then identity writes route through
 /// [`rename_object`], and finally field edits are spliced. Mixing a prefix
@@ -293,8 +290,7 @@ fn apply_one_uri(
 }
 
 /// Route one identity-field write through [`rename_object`], updating
-/// `current` and recording a [`RenameReport`] (port of `edit_plan.apply`'s
-/// identity-op loop body).
+/// `current` and recording a [`RenameReport`].
 fn apply_identity_rename(
     op: &EditOp,
     current: &mut String,
@@ -334,9 +330,8 @@ fn apply_identity_rename(
 /// [`After`] token boundaries manually (the `regex` crate lacks look-around).
 ///
 /// Returns the rewritten text and the replacement count. The scan is
-/// non-overlapping and left-to-right, mirroring Python `re.subn`: each accepted
-/// match advances the cursor past the matched core, so the count matches the
-/// Python engine's on the same input.
+/// non-overlapping and left-to-right: each accepted match advances the cursor
+/// past the matched core, so the count is stable for a given input.
 fn apply_prefix_rewrite(pr: &PrefixRewrite, source: &str) -> (String, usize) {
     let bytes = source.as_bytes();
     let mut out = String::with_capacity(source.len());
@@ -434,7 +429,7 @@ fn describe_str(value: &Value) -> String {
     }
 }
 
-/// Apply non-identity edits to *source* — port of `edit_plan._splice_edits`.
+/// Apply non-identity edits to *source*.
 ///
 /// Each op carries either a [`FieldSlot`] (an existing property to overwrite)
 /// or targets a missing list field we can materialise into a fresh
@@ -482,8 +477,7 @@ fn splice_edits(source: &str, ops: &[&EditOp], uri: &str) -> Result<String, Quer
     Ok(out_parts)
 }
 
-/// Render *value* for splicing back into source text — port of
-/// `edit_plan._format_value`.
+/// Render *value* for splicing back into source text.
 ///
 /// # Errors
 /// Returns [`QueryError::Edit`] when a string value contains a character with
@@ -513,8 +507,7 @@ fn format_value(value: &Value, original_raw: &str, field_name: &str) -> Result<S
     }
 }
 
-/// Encode *value* as an SCF scalar token — port of
-/// `edit_plan._encode_tmsh_scalar`.
+/// Encode *value* as an SCF scalar token.
 fn encode_tmsh_scalar(value: &str, field_name: &str) -> Result<String, QueryError> {
     if let Some(bad) = forbidden_char(value) {
         let ctx = if field_name.is_empty() {
@@ -539,8 +532,7 @@ fn encode_tmsh_scalar(value: &str, field_name: &str) -> Result<String, QueryErro
     Ok(value.to_owned())
 }
 
-/// Characters with no safe textual representation in an SCF scalar — port of
-/// `edit_plan._TMSH_FORBIDDEN_IN_VALUE`.
+/// Characters with no safe textual representation in an SCF scalar.
 fn forbidden_char(value: &str) -> Option<char> {
     value.chars().find(|&c| {
         matches!(c, '\n' | '\r' | '{' | '}')
@@ -551,16 +543,14 @@ fn forbidden_char(value: &str) -> Option<char> {
     })
 }
 
-/// Whether *value* must be double-quoted — port of
-/// `edit_plan._TMSH_REQUIRES_QUOTING` (`[\s"\[\];#]`).
+/// Whether *value* must be double-quoted (`[\s"\[\];#]`).
 fn requires_quoting(value: &str) -> bool {
     value
         .chars()
         .any(|c| c.is_whitespace() || matches!(c, '"' | '[' | ']' | ';' | '#'))
 }
 
-/// Whether *value* renders cleanly as a bare SCF token — port of
-/// `edit_plan._is_flat_list_element`.
+/// Whether *value* renders cleanly as a bare SCF token.
 fn is_flat_list_element(value: &Value) -> bool {
     matches!(
         value,
@@ -573,8 +563,7 @@ fn is_flat_list_element(value: &Value) -> bool {
     )
 }
 
-/// Return an edit that overwrites or materialises a `<field> { ... }` block —
-/// port of `edit_plan._materialise_compound_block`.
+/// Return an edit that overwrites or materialises a `<field> { ... }` block.
 fn materialise_compound_block<'a>(
     source: &str,
     op: &'a EditOp,
@@ -652,9 +641,8 @@ fn materialise_compound_block<'a>(
     Ok(Some((closing_brace, closing_brace, block, op)))
 }
 
-/// Locate `<name> { ... }` at the top level of *body* — port of
-/// `edit_plan._find_top_level_block`. Returns the byte span covering
-/// `<name> { ... }` exactly.
+/// Locate `<name> { ... }` at the top level of *body*. Returns the byte span
+/// covering `<name> { ... }` exactly.
 fn find_top_level_block(body: &str, name: &str) -> Option<(usize, usize)> {
     let bytes = body.as_bytes();
     let n = bytes.len();

@@ -1,4 +1,4 @@
-//! `tcl_findLibrary` command (name-parity reconcile, GAP-d).
+//! `tcl_findLibrary` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

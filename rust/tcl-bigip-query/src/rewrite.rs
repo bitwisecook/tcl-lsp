@@ -21,10 +21,10 @@
 
 use regex::Regex;
 
-/// Result of a [`rename_object`] call — port of `rewrite.RenameReport`.
+/// Result of a [`rename_object`] call.
 ///
-/// Field names / shape match the Python dataclass (`old`, `new`,
-/// `occurrences`) plus the rewritten text the applier splices back in.
+/// Carries `old`, `new`, `occurrences`, plus the rewritten text the applier
+/// splices back in.
 #[derive(Debug, Clone)]
 pub struct RenameReport {
     pub old: String,
@@ -40,8 +40,7 @@ fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'/' | b'.' | b'-')
 }
 
-/// Find every token-bounded occurrence of `old` in `source` — port of the
-/// match set `_build_name_pattern(old)` produces.
+/// Find every token-bounded occurrence of `old` in `source`.
 ///
 /// A match at byte offset `i` is token-bounded when the byte before it (if
 /// any) and the byte after the match (if any) are both **not** identifier
@@ -75,7 +74,7 @@ fn find_name_matches(source: &str, old: &str) -> Vec<(usize, usize)> {
 }
 
 /// Byte-spans of the path tokens in *other-kind* stanza headers that share the
-/// full-path `old` — port of `rewrite._other_kind_header_spans`.
+/// full-path `old`.
 ///
 /// A rename scoped to one kind must leave the header of any other-kind stanza
 /// that happens to share `old` untouched. The header form is
@@ -112,8 +111,7 @@ fn other_kind_header_spans(source: &str, old: &str, kind_scope: &str) -> Vec<(us
     spans
 }
 
-/// Rename `old` to `new` everywhere in `source` (text-level) — port of
-/// `rewrite.rename_object`.
+/// Rename `old` to `new` everywhere in `source` (text-level).
 ///
 /// Only token-bounded full-path references are rewritten, so substring
 /// collisions don't fire (`/Common/foo` won't match `/Common/foobar`). When

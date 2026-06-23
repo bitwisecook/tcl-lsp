@@ -1,20 +1,17 @@
-//! CFG-flavoured walker for var-escape (C33e4/5/6).
+//! CFG-flavoured walker for var-escape.
 //!
 //! Pulls together:
 //!
-//! * **C33e4** — barrier handlers (`eval`, `uplevel`, generic
+//! * barrier handlers (`eval`, `uplevel`, generic
 //!   barriers) plus `escape_every_name_touched_tree` (the
 //!   tree-walk variant used inside literal eval bodies, since
 //!   those statements aren't part of the enclosing SSA).
-//! * **C33e5** — `handle_call` dispatcher + value/expr scans
+//! * `handle_call` dispatcher + value/expr scans
 //!   that thread the per-statement `defs` map through.
-//! * **C33e6** — `handle_statement` (per `SsaStatement`),
+//! * `handle_statement` (per `SsaStatement`),
 //!   `walk_block` (per SSA block), `block_order` (deterministic
 //!   RPO traversal), and the public [`analyse_cfg_function`]
 //!   entry point.
-//!
-//! Mirrors the bottom half of
-//! `core/compiler/var_escape/_cfg_propagation.py`.
 
 use std::collections::HashMap;
 

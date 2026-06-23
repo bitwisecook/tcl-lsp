@@ -1,6 +1,6 @@
 //! End-to-end golden differential test for the query *projection* layer.
 //!
-//! Mirrors the Python pipeline captured in `tests/fixtures/projection.json`
+//! The pipeline captured in `tests/fixtures/projection.json`
 //! (`scripts/codegen/gen_f5_query_projection_fixtures.py`): build a BIG-IP
 //! `Root` from the real fixture config, parse → evaluate against the
 //! projected `Container` tree → `output::render`. For each `(query, mode)`

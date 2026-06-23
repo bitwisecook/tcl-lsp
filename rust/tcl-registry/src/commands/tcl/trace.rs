@@ -17,9 +17,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 ///
 /// `trace add variable name ops commandPrefix` writes to `name` —
 /// the trace handler can rewrite the variable at runtime, so SSA
-/// must see `name` as a definition site.  Mirrors Python's
-/// registry stamp post-`01326b40` ("ssa: route `trace add variable`
-/// defs through registry for #249").
+/// must see `name` as a definition site.
 ///
 /// The resolver only fires for the `variable` form so
 /// `trace add execution` and `trace add command` (which take a

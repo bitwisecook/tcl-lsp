@@ -2,8 +2,7 @@
 //!
 //! Runs the built binary on committed fixtures and asserts stdout matches a
 //! golden captured from `python -m tooling.f5.main`. Only verbs whose engine is
-//! fully ported (file-I/O-only today) are asserted byte-for-byte; the rest await
-//! their BIG-IP engine ports.
+//! implemented (file-I/O-only for now) are asserted byte-for-byte.
 
 use std::path::PathBuf;
 use std::process::Command;

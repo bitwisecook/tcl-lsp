@@ -227,7 +227,7 @@ impl MonitorExpression {
         &self.monitors
     }
 
-    /// Number of referenced monitors (Python `__len__`).
+    /// Number of referenced monitors.
     #[must_use]
     pub fn len(&self) -> usize {
         self.monitors.len()
@@ -245,7 +245,7 @@ impl MonitorExpression {
         self.mode != MonitorMode::Default || !self.raw.is_empty()
     }
 
-    /// Iterate the referenced monitor paths (Python `__iter__`).
+    /// Iterate the referenced monitor paths.
     pub fn iter(&self) -> std::slice::Iter<'_, String> {
         self.monitors.iter()
     }

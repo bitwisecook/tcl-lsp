@@ -1,8 +1,9 @@
 //! `f5 fetch` — pull SCF/UCS from a live BIG-IP device.
 //!
-//! Credential resolution and the SSH-deferral / arg surfaces are parity-tested
-//! offline; the live REST flow (UCS save → poll-download → `ucs_to_scf` →
-//! cache-dir/`latest`/`fetch.meta`) is implemented but untested here.
+//! Handles credential resolution, the SSH-deferral, and the arg surfaces; the
+//! live REST flow (UCS save → poll-download → `ucs_to_scf` →
+//! cache-dir/`latest`/`fetch.meta`) is implemented but exercised only against a
+//! live device.
 //!
 //! SSH transport is not supported: `--transport ssh` returns the deferral
 //! error, and `auto` falls back to it only when REST is unavailable.
@@ -174,7 +175,7 @@ fn safe_host_dir(host: &str) -> String {
 }
 
 /// Point `link` at `target` (by basename). Silently skips on filesystems
-/// without symlink support, matching the Python verb.
+/// without symlink support.
 fn update_latest_symlink(link: &Path, target: &Path) {
     let Some(name) = target.file_name() else {
         return;

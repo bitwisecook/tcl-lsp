@@ -13,8 +13,7 @@
 //!
 //! Soundness rule: an [`Interval`] over-approximates the runtime value, so a
 //! finding is reported **only** when the *whole* interval lies outside the valid
-//! range — never on "might be out of range".  Port of the bounds-finding portion
-//! of `compiler/interval_bounds.py::find_interval_bounds`.
+//! range — never on "might be out of range".
 
 use std::collections::HashMap;
 

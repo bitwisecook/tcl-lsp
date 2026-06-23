@@ -1,6 +1,6 @@
 //! Differential parity for `resolve_object_ref_args` (the iRules command→
 //! `(arg_index, kinds)` table + the `class`/`persist` custom resolvers) against
-//! the Python `irules_object_refs.resolve_object_ref_args`. Self-contained.
+//! `irules_object_refs.resolve_object_ref_args`. Self-contained.
 
 use tcl_irules::resolve_object_ref_args;
 

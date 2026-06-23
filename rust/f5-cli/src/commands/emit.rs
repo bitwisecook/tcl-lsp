@@ -49,8 +49,7 @@ pub fn render_config(
 }
 
 /// Wrap `tmsh_script` in F5's `cli transaction` envelope. Idempotent;
-/// preserves a leading comment / blank banner above the envelope. Mirrors
-/// `wrap_tmsh_transaction`.
+/// preserves a leading comment / blank banner above the envelope.
 #[must_use]
 pub fn wrap_tmsh_transaction(tmsh_script: &str) -> String {
     if tmsh_script.trim_start().starts_with("cli transaction") {
@@ -88,10 +87,9 @@ pub fn wrap_tmsh_transaction(tmsh_script: &str) -> String {
     format!("{head_block}cli transaction\n{body}\nsubmit-transaction\n")
 }
 
-/// True when `cfg` parsed into at least one structured object. Mirrors
-/// `_has_any_object` (the typed-object inventory is sufficient — every kind
-/// the Python helper checks lands in `cfg.objects`, and `generic_objects`
-/// covers the long tail).
+/// True when `cfg` parsed into at least one structured object. The
+/// typed-object inventory is sufficient — every relevant kind lands in
+/// `cfg.objects`, and `generic_objects` covers the long tail.
 fn has_any_object(cfg: &BigipConfig) -> bool {
     !cfg.objects.is_empty() || !cfg.generic_objects.is_empty()
 }

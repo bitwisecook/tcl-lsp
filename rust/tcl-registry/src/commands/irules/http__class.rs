@@ -1,7 +1,7 @@
 //! `HTTP::class` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// The command's iRules subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
     name: "select",
     arity: Arity::exact(1),

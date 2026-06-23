@@ -214,7 +214,7 @@ impl PyToken {
     /// Rust-side constructor used by other binding modules (notably
     /// `crate::lexer`) when lifting a pure-Rust `tcl_lexer::Token<'_>`
     /// into a Python-visible `PyToken`. Separate from `#[new]` so the
-    /// signature stays Rust-friendly; the Python `__init__` is a thin
+    /// signature stays Rust-friendly; `__init__` is a thin
     /// wrapper that delegates here.
     #[must_use]
     pub fn new_from_core(
@@ -258,7 +258,7 @@ impl PyToken {
     /// Rust field is named `kind` because `type` is a reserved keyword.
     ///
     /// The getter resolves the variant via a class-attribute lookup on
-    /// the Python `TokenType` class so callers get the cached singleton
+    /// `TokenType` class so callers get the cached singleton
     /// (`tok.type is TokenType.ESC` is `True`). 200+ call sites in the
     /// existing Python codebase rely on `is`-comparison; if this getter
     /// returned a fresh `PyTokenType` value instead they would all

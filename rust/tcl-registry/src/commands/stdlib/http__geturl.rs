@@ -20,9 +20,8 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
-        // GAP-D2: `url` (arg 0) is a network-address arg — SSRF sink
-        // (T104); `-headers` can carry credentials. Mirrors
-        // `stdlib/http_.py`.
+        // `url` (arg 0) is a network-address arg — SSRF sink
+        // (T104); `-headers` can carry credentials.
         taint_network_sink_args: Some(&[0]),
         credential_options: &["-headers"],
         required_package: Some("http"),

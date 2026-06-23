@@ -69,7 +69,7 @@ impl PassphraseArgs {
 }
 
 /// F5 unit master-key (`f5mku`) source flags shared by `encrypt-secrets` /
-/// `decrypt-secrets` (the `_add_key_args` group from `verbs/secrets.py`).
+/// `decrypt-secrets` (the `_add_key_args` group
 // Help strings are clap-visible plain text; the `f5mku -K` / `$F5MKU` tokens
 // carry no Markdown, so silence the lint.
 #[allow(clippy::doc_markdown)]

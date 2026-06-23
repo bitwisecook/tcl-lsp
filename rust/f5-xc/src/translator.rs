@@ -1155,7 +1155,7 @@ fn translated_route_item(
     }
 }
 
-/// Parse a base-10 integer the way Python's `int()` does for these args:
+/// Parse a base-10 integer the way `int()` does for these args:
 /// trim surrounding whitespace, accept an optional sign. Returns `None` on
 /// failure, in which case the caller keeps its default.
 fn py_int(arg: Option<&String>) -> Option<i64> {

@@ -1,4 +1,4 @@
-//! `auto_qualify` command (name-parity reconcile, GAP-d).
+//! `auto_qualify` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

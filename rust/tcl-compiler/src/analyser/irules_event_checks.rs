@@ -213,7 +213,7 @@ impl Analyser {
     }
 
     /// Compute and cache the file-level profile stack for IRULE1001's
-    /// informational hint (Python `compute_file_profiles`).  No-op outside
+    /// informational hint.  No-op outside
     /// the `f5-irules` dialect.  Called once from [`Self::analyse`] after the
     /// registry is built; the result is read immutably by
     /// [`Self::emit_irule1001_command_event_validity`].
@@ -1241,7 +1241,7 @@ mod tests {
     }
 
     // IRULE1001 — command-event-validity.  Messages and severities below are
-    // pinned against the Python `check_command_event_validity` oracle (run on
+    // pinned against `check_command_event_validity` oracle (run on
     // the same snippets) and the registry legality matrix.
 
     /// `(severity, message)` for every IRULE1001 diagnostic, whole-file.

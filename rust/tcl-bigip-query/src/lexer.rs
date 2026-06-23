@@ -5,7 +5,7 @@
 //! underline the offending character.
 //!
 //! Offsets are *code-point* indices (the source is scanned as a
-//! `Vec<char>`), matching Python's `source[i]` indexing exactly so a
+//! `Vec<char>`), matching `source[i]` indexing exactly so a
 //! non-ASCII string literal does not skew the reported positions.
 
 use crate::ast::LitValue;
@@ -13,7 +13,7 @@ use crate::errors::QueryError;
 
 /// The lexical category of a token.
 ///
-/// Variant names match the Python `TokenKind` enum members one-for-one so
+/// Variant names match `TokenKind` enum members one-for-one so
 /// the differential fixtures line up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
@@ -530,7 +530,7 @@ pub fn tokenise(source: &str) -> Result<Vec<Token>, QueryError> {
     Ok(out)
 }
 
-/// Render *s* the way Python's `repr()` would for a `str` — the spelling
+/// Render *s* the way `repr()` would for a `str` — the spelling
 /// the DSL's error messages embed via `{value!r}`. Single-quoted by
 /// default, switching to double quotes only when the string contains a
 /// single quote but no double quote (matching `CPython`'s quote choice), with

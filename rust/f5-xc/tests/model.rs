@@ -1,5 +1,5 @@
 //! Model-level assertions for the `f5-xc` translator — mirror a subset of
-//! the Python `tests/test_xc_translator.py` cases that check the *shape* of
+//! `tests/test_xc_translator.py` cases that check the *shape* of
 //! the produced XC constructs (which the summary-only parity fixture does
 //! not capture).
 

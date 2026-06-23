@@ -633,7 +633,7 @@ fn run_remove(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
 }
 
 /// Whether `line` is a `require`/`dev-require` directive for `package`
-/// (mirrors the Python regex `^\s*(?:require|dev-require)\s+<pkg>\b.*$`).
+/// (matches `^\s*(?:require|dev-require)\s+<pkg>\b.*$`).
 fn line_is_requirement_for(line: &str, package: &str) -> bool {
     let trimmed = line.trim_start();
     for prefix in ["require", "dev-require"] {

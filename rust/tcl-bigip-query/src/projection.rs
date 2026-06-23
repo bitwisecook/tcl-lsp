@@ -81,7 +81,7 @@ impl Container {
     }
 
     /// Look up *key* in this container's entries, with partition shorthand
-    /// (`<name>` -> `/Common/<name>`) — port of `Container.lookup`.
+    /// (`<name>` -> `/Common/<name>`).
     ///
     /// # Errors
     /// Returns an eval error for a missing or ambiguous entry.
@@ -116,8 +116,7 @@ impl Container {
         )))
     }
 
-    /// Keys matching *pattern* (regex search) — port of
-    /// `Container.regex_keys`.
+    /// Keys matching *pattern* (regex search).
     ///
     /// # Errors
     /// Returns an eval error if the pattern fails the shared regex guard.
@@ -139,8 +138,7 @@ impl Container {
 
 // Public entry point
 
-/// Return the synthetic top-level container or external JSON — port of
-/// `projection.root_container`.
+/// Return the synthetic top-level container or external JSON.
 #[must_use]
 pub fn root_container(root: &Rc<Root>) -> Value {
     if let Some(v) = &root.json_value {
@@ -151,7 +149,7 @@ pub fn root_container(root: &Rc<Root>) -> Value {
 
 // Module / kind tables
 
-/// The module names exposed at `<root>` (Python `_MODULE_KINDS` keys).
+/// The module names exposed at `<root>`.
 const MODULE_NAMES: &[&str] = &[
     "ltm",
     "net",
@@ -190,8 +188,8 @@ const LTM_KINDS: &[(&str, &str)] = &[
     ("data-group", "ltm data-group"),
 ];
 
-/// The set of leaf object kinds (Python `_OBJECT_KIND_ALIASES`, restricted
-/// to the covered subset). Used by `Container.is_object_kind`.
+/// The set of leaf object kinds, restricted to the covered subset. Used by
+/// `Container.is_object_kind`.
 fn is_object_kind_alias(kind: &str) -> bool {
     LTM_KINDS.iter().any(|(_, k)| *k == kind)
 }
@@ -296,8 +294,7 @@ fn build_object_ref(kind: &str, full_path: &str, obj: &ModelObject, root: &Rc<Ro
 }
 
 /// Build the whole-stanza slot from the object's range, extending back to
-/// the header's line start — port of `_engine`'s `stanza_slot` block +
-/// `_scan_back_to_line_start`.
+/// the header's line start.
 fn stanza_slot_for(obj: &ModelObject, root: &Rc<Root>) -> Option<FieldSlot> {
     let rng = model_range(obj)?;
     let start = rng.start.offset as usize;
@@ -338,10 +335,9 @@ fn model_range(obj: &ModelObject) -> Option<tcl_bigip::range::Range> {
     }
 }
 
-// Field-slot byte-range discovery — port of `_engine._collect_field_slots`
+// Field-slot byte-range discovery
 
-/// Locate each top-level scalar property's value span inside its stanza —
-/// port of `_engine._collect_field_slots`.
+/// Locate each top-level scalar property's value span inside its stanza.
 ///
 /// Returns a map of TMSH field name → [`FieldSlot`] for every field that
 /// appears as a single-line `key value` property in the source *and* is a
@@ -379,7 +375,7 @@ fn collect_field_slots(
 }
 
 /// Yield `(key, value_start, value_end, value_text)` for scalar lines at the
-/// stanza's top brace-depth — port of `_engine._iter_top_level_scalar_slots`.
+/// stanza's top brace-depth.
 fn iter_top_level_scalar_slots(body: &str) -> Vec<(String, usize, usize, String)> {
     let target_depth = i32::from(body.trim_start().starts_with('{'));
     let mut depth = 0i32;
@@ -419,8 +415,7 @@ fn split_keep_ends(body: &str) -> Vec<&str> {
     out
 }
 
-/// Parse one top-level scalar property line — port of
-/// `_engine._parse_scalar_slot_line`.
+/// Parse one top-level scalar property line.
 fn parse_scalar_slot_line(line: &str, line_start: usize) -> Option<(String, usize, usize, String)> {
     let content = line.strip_suffix('\n').unwrap_or(line);
     let bytes = content.as_bytes();
@@ -454,8 +449,7 @@ fn parse_scalar_slot_line(line: &str, line_start: usize) -> Option<(String, usiz
     Some((key.to_owned(), value_start, value_end, value.to_owned()))
 }
 
-/// Update brace depth for one line, ignoring quoted strings — port of
-/// `_engine._brace_depth_after_line`.
+/// Update brace depth for one line, ignoring quoted strings.
 fn brace_depth_after_line(line: &str, depth: i32) -> i32 {
     let mut depth = depth;
     let mut in_quote = false;
@@ -532,13 +526,13 @@ impl Fields {
     }
 }
 
-/// `PathRef` value (Python `PathRef(full_path=..., expected_kind=...)`).
+/// `PathRef` value.
 fn path_ref(full_path: &str, expected_kind: &str) -> Value {
     Value::PathRef(Rc::new(PathRef::new(full_path, expected_kind)))
 }
 
 /// A list of `PathRef`s for a via-legacy ref+list field — iterate the
-/// `BigipList`'s item values as Python's `for p in raw` does.
+/// `BigipList`'s item values as `for p in raw` does.
 fn path_ref_list(list: &BigipList, expected_kind: &str) -> Value {
     let mut out = Vec::with_capacity(list.items.len());
     for item in &list.items {
@@ -878,8 +872,7 @@ fn project_rule(o: &BigipRule, root: &Rc<Root>) -> IndexMap<String, Value> {
         .done()
 }
 
-/// The synthesised `ltm rule .refs` sub-object — port of
-/// `_engine._rule_refs_value` / `_extract_rule_refs`.
+/// The synthesised `ltm rule .refs` sub-object.
 ///
 /// Each ref slot is a list of [`PathRef`]s drawn from the same reference
 /// graph `f5 grep` walks (forward, `max_depth=1`), so the query DSL and the
@@ -1182,15 +1175,15 @@ fn project_data_group(o: &BigipDataGroup) -> IndexMap<String, Value> {
         .done()
 }
 
-/// A `Vec<String>` projected as a list of strings (Python `list(raw)`).
+/// A `Vec<String>` projected as a list of strings.
 fn str_list(values: &[String]) -> Value {
     Value::List(values.iter().map(|s| Value::Str(s.clone())).collect())
 }
 
 // PathRef resolution
 
-/// Resolve the `ObjectRef` a `PathRef` points to — port of
-/// `evaluator._resolve_pathref`. Forces the relevant kind's container so
+/// Resolve the `ObjectRef` a `PathRef` points to. Forces the relevant kind's
+/// container so
 /// the object cache populates, then looks up `(expected_kind, full_path)`.
 #[must_use]
 pub fn resolve_pathref(reference: &PathRef, root: &Rc<Root>) -> Option<Rc<ObjectRef>> {

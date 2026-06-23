@@ -1,4 +1,4 @@
-//! A pure-Rust port of Tcl 9's Henry-Spencer Advanced Regular Expression (ARE)
+//! A pure-Rust implementation of Tcl 9's Henry-Spencer Advanced Regular Expression (ARE)
 //! engine. The goal is behavioural fidelity with `tclsh` 9.0 — the same match
 //! positions, submatch participation, [`Regex::nsub`], [`Regex::info`] bits,
 //! and [`ErrorCode`] compile errors — verified against the engine itself

@@ -1,4 +1,4 @@
-//! IP-address classification predicates that match Python's `ipaddress`
+//! IP-address classification predicates that match `ipaddress`
 //! results exactly.
 //!
 //! `std::net` lacks stable predicates for `is_private` / `is_global` /
@@ -245,7 +245,7 @@ pub(crate) fn is_reserved(addr: IpAddr) -> bool {
     }
 }
 
-/// `true` when the address is globally reachable (Python `is_global`).
+/// `true` when the address is globally reachable.
 #[must_use]
 pub(crate) fn is_global(addr: IpAddr) -> bool {
     match addr {

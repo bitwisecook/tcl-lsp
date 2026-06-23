@@ -46,8 +46,7 @@
 //!   `f5-irules` / `irules`. IRULE3102 (unnormalised getter) lives
 //!   in the sibling [`crate::irules_checks`] module.
 //! - **URI-split / IRULE3103** (`*::uri` getter + manual
-//!   decomposition) — see [`crate::uri_split`].  Ported from
-//!   `core/compiler/taint/_uri_split.py` (C45).
+//!   decomposition) — see [`crate::uri_split`].
 //!
 //! ## Source / sink / sanitiser facts live in the registry
 //!
@@ -164,8 +163,8 @@ impl TaintColour {
     /// *value position* of an iRules header or log sink (IRULE3002 /
     /// IRULE3003).
     ///
-    /// Matches the Python `_CRLF_SAFE = CRLF_FREE | IP_ADDRESS | PORT
-    /// | FQDN`. `HEADER_TOKEN_SAFE` is deliberately **not** included —
+    /// The CRLF-safe mask is `CRLF_FREE | IP_ADDRESS | PORT |
+    /// FQDN`. `HEADER_TOKEN_SAFE` is deliberately **not** included —
     /// it only suppresses IRULE3002 in the header/cookie *name*
     /// position and is handled by the call-site-aware
     /// `irule3002_name_position_safe` helper. `HTML_ESCAPED` and
@@ -275,7 +274,6 @@ pub struct TaintWarning {
 /// Return `true` when `command` is a known taint source — i.e. its
 /// return value may carry attacker-influenced data.
 ///
-/// Mirrors the Python `TAINT_HINTS` entries for core Tcl commands.
 /// Commands with `UNNORMALISED_HTTP_GETTER` trait (iRules dialect) are
 /// also included once the registry carries that flag on actual specs.
 /// When `dialect` is `"f5-irules"` / `"irules"`, iRules namespace
@@ -312,8 +310,7 @@ fn reg_colour(c: tcl_registry::TaintColour) -> TaintColour {
 /// The colour a command stamps on a tainted value it returns — its
 /// `taint_transform` (e.g. `uri::encode` ⇒ `URL_ENCODED`,
 /// `file normalize` ⇒ `PATH_NORMALISED`).  Subcommand transforms take
-/// precedence over the bare-command form.  Mirrors the registry lookup
-/// in `_derive_transform_colours`.
+/// precedence over the bare-command form.
 fn transform_colour(
     registry: &CommandRegistry,
     command: &str,
@@ -390,7 +387,7 @@ pub(crate) struct TaintCtx<'a> {
     /// present, calls to a known proc apply the full
     /// [`crate::taint_interproc::apply_proc_return_summary`] transfer
     /// instead of the conservative single-passthrough rule. Mirrors
-    /// Python's `_make_call_return_provider`.
+    /// `_make_call_return_provider`.
     pub(crate) taint_summaries:
         Option<&'a HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
 }
@@ -784,8 +781,8 @@ fn is_seeded_global_v0(name: &str, ver: u32) -> bool {
 /// Join taint from all SSA uses in a statement.
 ///
 /// Version-0 uses contribute when they carry a genuine parameter
-/// entry-taint (non-`::` name): mirrors Python `_join_uses_map`, which
-/// joins `(name, 0)` when present in the taint map. The Rust-only
+/// entry-taint (non-`::` name): the join takes `(name, 0)` when
+/// present in the taint map. The Rust-only
 /// global-write seeding (`::` names at version 0) is excluded so it does
 /// not over-propagate into expression results.
 fn join_uses(
@@ -921,7 +918,7 @@ fn collect_global_reads(ssa: &SsaFunction) -> HashSet<String> {
 ///   as taint sources.
 /// * `param_taints` — entry taints seeded by the interprocedural
 ///   solve: each tainted entry seeds the version-0 slot of the named
-///   parameter (mirrors Python `taint_propagation`'s `param_taints`).
+///   parameter.
 /// * `taint_summaries` — colour-aware return summaries from the
 ///   interprocedural solve; when present, internal calls apply the
 ///   full return-summary transfer (`apply_proc_return_summary`)
@@ -1133,7 +1130,7 @@ fn classify_sink(
 
 /// Classify iRules-specific output sinks.
 ///
-/// Mirrors `_classify_sink` in `core/compiler/taint/_sinks.py`:
+/// Recognised sinks:
 ///
 /// | Command                               | Code        | Label              |
 /// |---------------------------------------|-------------|--------------------|
@@ -1166,9 +1163,7 @@ fn classify_irules_sink(command: &str, args: &[String]) -> Option<(&'static str,
 
 /// Registry-driven SSRF / cross-interpreter sinks (T104 / T105),
 /// returned in addition to the primary [`classify_sink`] match so a
-/// single statement can trip multiple categories (Python's
-/// `_classify_sink` returns a list).  Mirrors the `T104` / `T105` arms
-/// of `core/compiler/taint/_sinks.py::_classify_sink`:
+/// single statement can trip multiple categories:
 ///
 /// * **T104** — the command's spec carries `taint_network_sink_args`
 ///   (a network-address argument → SSRF risk; e.g. `socket`).
@@ -1203,8 +1198,7 @@ fn classify_network_interp_sinks(
 /// `[file normalize …]`) *and* bounds-checked — the latter via
 /// branch-guard analysis ([`compute_branch_guard_map`]) or a
 /// `PATH_BOUNDED` colour.  The message is softened (not suppressed) for a
-/// normalised-but-unguarded path.  Mirrors
-/// `core/compiler/taint/_sinks.py::_find_destructive_file_warnings`.
+/// normalised-but-unguarded path.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn find_destructive_file_warnings(
@@ -1446,8 +1440,7 @@ fn extract_guard_var(expr: &ExprNode, negated: bool) -> (bool, Option<String>) {
 }
 
 /// Parse `[string match|first|equal … $var]` and return the path
-/// variable it bounds-checks.  Mirrors the `string` arm of
-/// `_extract_guard_var`.
+/// variable it bounds-checks.
 fn guard_var_from_string_command(text: &str) -> Option<String> {
     let (command, args) = parse_command_substitution(text.trim())?;
     if command != "string" || args.is_empty() {
@@ -1562,8 +1555,7 @@ fn propagate_guard(
 /// **T106.** Emit a double-encoding warning when a tainted value that
 /// already carries a command's `taint_double_encode_colour` is passed
 /// through that command again (e.g. `uri::encode [uri::encode $x]`).
-/// Mirrors the T106 arm of `_sinks.py::find_taint_warnings` (one warning
-/// per variable).
+/// Emit T106 (double-encode) warnings — one warning per variable.
 fn emit_double_encode_warnings(
     registry: &CommandRegistry,
     command: &str,
@@ -1818,7 +1810,7 @@ fn emit_statement_warnings(
     }
 
     // T102: option injection — only for Call statements, after the primary
-    // sink (Python's `_classify_sink` lists T102 after T100/output/log).
+    // sink (`_classify_sink` lists T102 after T100/output/log).
     if let Statement::Call { args, .. } = stmt {
         emit_option_injection(
             command,
@@ -1873,9 +1865,8 @@ fn regexp_pattern_index(args: &[String]) -> Option<usize> {
 
 /// Emit `T103` (regex injection / `ReDoS`) for a tainted variable sitting in
 /// the regex-pattern argument of a regex command (`regexp` / `regsub` —
-/// gated on `pattern_type == Regex`). Port of the `T103` loop in Python
-/// `_find_taint_sinks` + `_regexp_pattern_arg_index`. Suppressed when the
-/// value carries the `REGEX_LITERAL` colour (`_should_suppress_sink_warning`).
+/// gated on `pattern_type == Regex`). Suppressed when the
+/// value carries the `REGEX_LITERAL` colour.
 fn emit_regexp_pattern_warnings(
     command: &str,
     args: &[String],
@@ -2011,8 +2002,7 @@ fn positional_arg_strings(spec: &tcl_registry::CommandSpec, args: &[String]) -> 
 
 /// Position-aware sink filter: `true` when a tainted variable `name`
 /// occupies a *non-dangerous* argument slot for `code` and so must not trip
-/// the sink. Mirrors the positional filters in
-/// `core/compiler/taint/_sinks.py`.
+/// the sink.
 fn sink_var_position_safe(
     registry: &CommandRegistry,
     code: &str,
@@ -2129,14 +2119,14 @@ fn emit_sink_warnings(
         // `eval`/`uplevel`/`interp eval [list <known-cmd> $v …]`: the
         // command word of the constructed list is a literal known command,
         // so the tainted `$v` is a quoted argument, not the command word —
-        // no code-injection vector (mirrors `_sinks.py` LIST_CANONICAL
+        // no code-injection vector LIST_CANONICAL
         // head-literal filter).
         if matches!(code, "T100" | "T105")
             && list_wrapped_arg_command_is_literal(call.registry, call.args, name)
         {
             continue;
         }
-        // T104 / T105 mitigations (mirror `_sinks.py:287-296`): a
+        // T104 / T105 mitigations: a
         // validated network address (IP / port / FQDN colour) clears
         // T104; a canonical list (`LIST_CANONICAL`) clears T105.
         if code == "T104"
@@ -2220,8 +2210,7 @@ fn arg_can_be_option(arg: &str) -> bool {
 /// Return the argument indexes still within Tcl's option-scanning region.
 /// Tcl scans for `-switch` args from `scan_start` until the first definite
 /// positional literal (one that cannot begin with `-`) or `--`. A literal
-/// `-option` that takes a value also consumes the following arg. Port of
-/// Python `_option_scan_region`.
+/// `-option` that takes a value also consumes the following arg.
 fn option_scan_region(
     args: &[String],
     scan_start: usize,
@@ -2256,11 +2245,10 @@ fn option_scan_region(
 /// Emit `T102` (option injection) for tainted variables that sit in an
 /// option-scanning position of a command declaring a `--` terminator.
 ///
-/// Port of the `T102` half of Python `_classify_sink` + the per-var loop
-/// in `_find_taint_sinks`: the option-terminator profile
+/// The option-terminator profile
 /// (`resolve_option_terminator`) supplies the subcommand-aware command
 /// label and the scan start, `option_scan_region` filters positions, and
-/// `_should_suppress_t102` (the `T102_SAFE` colour set) mitigates.
+/// the `T102_SAFE` colour set mitigates.
 #[allow(clippy::too_many_arguments)]
 fn emit_option_injection(
     command: &str,
@@ -2281,7 +2269,7 @@ fn emit_option_injection(
     };
 
     // Ensemble subcommands report a compound label ("file delete"),
-    // mirroring Python's `cmd_label`.
+    // mirroring `cmd_label`.
     let cmd_label = match profile.subcommand {
         Some(sub) => format!("{command} {sub}"),
         None => command.to_owned(),
@@ -2319,8 +2307,7 @@ fn emit_option_injection(
             }
             // Suppress when a mitigating colour proves the value cannot
             // start with `-` (PATH_PREFIXED / NON_DASH_PREFIXED /
-            // IP_ADDRESS / PORT / FQDN) — the T102_SAFE set. Port of
-            // `_should_suppress_t102`.
+            // IP_ADDRESS / PORT / FQDN) — the T102_SAFE set.
             if t.colours.intersects(TaintColour::T102_SAFE) {
                 continue;
             }
@@ -2495,7 +2482,7 @@ mod tests {
 
     #[test]
     fn crlf_safe_mask_matches_python() {
-        // Mirror Python's `_CRLF_SAFE = CRLF_FREE | IP_ADDRESS | PORT | FQDN`.
+        // Mirror `_CRLF_SAFE = CRLF_FREE | IP_ADDRESS | PORT | FQDN`.
         // HEADER_TOKEN_SAFE only suppresses IRULE3002 in the name position
         // (handled by `irule3002_name_position_safe`); HTML_ESCAPED / URL_ENCODED
         // do not prove CRLF-injection safety in the value position.
@@ -3327,7 +3314,7 @@ mod tests {
 
         let registry = CommandRegistry::build_default();
 
-        // Python's `TAINT_HINTS` is an import-time global, so `HTTP::uri`
+        // `TAINT_HINTS` is an import-time global, so `HTTP::uri`
         // is a taint source in *every* dialect — including a `tcl8.6`
         // document whose registry never loaded the iRules commands. (The
         // Python analyser taints `u` here; only the separate W002

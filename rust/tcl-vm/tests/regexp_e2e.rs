@@ -1,5 +1,5 @@
-//! `regexp` / `regsub` command-level behaviour, ported from Tcl 9's
-//! `regexp.test` / `regexpComp.test`, run end-to-end through the VM (which
+//! `regexp` / `regsub` command-level behaviour, covering Tcl 9's
+//! `regexp.test` / `regexpComp.test` cases, run end-to-end through the VM (which
 //! drives the pure-Rust `tcl-regex` ARE engine). Each expected value was
 //! captured from real `tclsh` 9.0.3, so this exercises the full command stack
 //! — option parsing, the match/advance loop, `-all`/`-inline`/`-indices`/

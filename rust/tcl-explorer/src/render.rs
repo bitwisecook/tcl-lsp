@@ -4,7 +4,7 @@
 //! — the *same* forest the TUI navigates — so the CLI `--text` mode, the TUI,
 //! and (via JSON) the GUI all present one model. Each view is drawn as a
 //! box-drawing tree with the highlighted node's detail rows inlined beneath
-//! it; colour follows the Python `_render.Ansi` palette.
+//! it; colour follows the ANSI palette.
 //!
 //! The bytecode `asm` view stays a flat disassembly (its serialiser already
 //! produces a ready-to-print `text` field), and degraded views (`wasm`)
@@ -17,20 +17,20 @@ use crate::view_tree::{TREE_VIEWS, ViewNode, build_view};
 
 const RESET: &str = "\x1b[0m";
 
-// Box-drawing connectors, mirroring `_render._TREE_*`.
+// Box-drawing connectors.
 const TREE_BRANCH: &str = "├── ";
 const TREE_LAST: &str = "└── ";
 const TREE_VBAR: &str = "│   ";
 const TREE_GAP: &str = "    ";
 
-/// Map a `ViewNode` style name to an ANSI SGR code (matching `_render.Ansi`).
+/// Map a `ViewNode` style name to an ANSI SGR code.
 fn ansi_code(style: &str) -> Option<&'static str> {
     Some(match style {
         "bold" => "\x1b[1m",
         "dim" => "\x1b[2m",
         "red" => "\x1b[31m",
         "green" => "\x1b[32m",
-        // No 8-colour orange; the Python web palette's orange maps to yellow here.
+        // No 8-colour orange; the web palette's orange maps to yellow here.
         "yellow" | "orange" => "\x1b[33m",
         "blue" => "\x1b[34m",
         "magenta" => "\x1b[35m",

@@ -835,7 +835,7 @@ fn fold_return_under_lattice(
     // after a `foreach`) is a phi whose exit value is Overdefined, even
     // though an earlier `set total 0` left a stale Const(0) under another
     // version. Reading the precise version is what makes us bail on
-    // `sum_list` / `fibonacci` (matching Python's `_try_fold_return_value`
+    // `sum_list` / `fibonacci` (matching `_try_fold_return_value`
     // path 2) instead of mis-folding to the pre-loop value.
     if let Some(name) = simple_var_ref(value) {
         let ver = fu
@@ -989,7 +989,7 @@ fn try_fold_static_proc_call(
     };
     // A redefined proc has an ambiguous body — never fold its calls
     // (the flow-sensitive rename gate, mirroring the cmd-subst form and
-    // Python's `redefined_procedures` check).
+    // `redefined_procedures` check).
     if cu.ir_module.redefined_procedures.contains(&qname) {
         return;
     }

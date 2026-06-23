@@ -8,12 +8,10 @@
 //! - Precise unused-variable detection.
 //! - Foundation for copy propagation and GVN.
 //!
-//! The chain is derived from an [`SsaFunction`] (produced by C6's
+//! The chain is derived from an [`SsaFunction`] (produced by
 //! `build_ssa`) in two passes over all blocks. Phi nodes act as both
 //! definitions (LHS) and uses (incoming edges from predecessor
 //! blocks).
-//!
-//! Ported from `core/compiler/def_use.py` (C24).
 
 use std::collections::HashMap;
 

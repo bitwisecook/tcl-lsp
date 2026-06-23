@@ -13,9 +13,8 @@ pub const fn spec() -> CommandSpec {
             examples: "when HTTP_REQUEST {\n  set user_input [HTTP::query]\n  HTTP::respond 200 content \"<p>[HTML::encode $user_input]</p>\"\n}",
             return_value: "Returns an HTML-escaped string.",
         }),
-        // GAP-D2: HTML-escapes its input (and strips CR/LF);
+        // HTML-escapes its input (and strips CR/LF);
         // re-encoding an HTML-escaped value double-encodes (T106).
-        // Mirrors `irules/html__encode.py`.
         taint_transform: Some(TaintColour::HTML_ESCAPED.union(TaintColour::CRLF_FREE)),
         taint_double_encode_colour: Some(TaintColour::HTML_ESCAPED),
         forms: &[FormSpec {

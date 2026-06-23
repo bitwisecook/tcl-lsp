@@ -43,8 +43,7 @@ use crate::types::{TclType, TypeKind, TypeLattice};
 /// A set of variable names proven numeric for the current function, or
 /// `None` when no type context is available. Passed to the `*_typed`
 /// entry points so the operand-dropping identities fire only on provably
-/// numeric operands (mirrors Python's `_is_provably_numeric_expr_node`
-/// gate). `None` keeps the historical aggressive behaviour for callers
+/// numeric operands. `None` keeps the historical aggressive behaviour for callers
 /// (and tests) that have no type lattice.
 pub type NumericCtx<'a> = Option<&'a HashSet<String>>;
 
@@ -879,7 +878,7 @@ fn reduce_self_comparison(op: BinOp, left: &ExprNode, right: &ExprNode) -> Optio
 /// Every rewrite here removes an arithmetic operation, so the surviving
 /// expression must still raise Tcl's numeric-coercion error iff the
 /// original would: each is gated on the *non-literal* operand being
-/// provably numeric (mirrors Python's `_numeric` guard). Without a type
+/// provably numeric. Without a type
 /// context the guard passes (legacy aggressive behaviour).
 fn reduce_arith_identity(
     op: BinOp,
@@ -1160,7 +1159,7 @@ fn is_boolean_expr(node: &ExprNode) -> bool {
 /// stay numeric (`"1"` parses as the integer 1), or the rewrite flips the
 /// result when `$x` is numeric. We require a string literal whose
 /// delimiter-stripped text does **not** parse as a number, mirroring
-/// Python's `_is_provably_non_numeric_expr_node`. The variable-with-SCCP-
+/// `_is_provably_non_numeric_expr_node`. The variable-with-SCCP-
 /// CONST refinement Python also accepts needs lattice values not threaded
 /// here, so it is conservatively skipped (a missed rewrite, never an
 /// unsound one).

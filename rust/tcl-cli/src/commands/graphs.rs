@@ -32,10 +32,10 @@ use crate::cli::InputArgs;
 
 /// One symbol entry in the `symbols` payload.
 ///
-/// Field order mirrors the Python dict (`kind`, `name`, `line`, `depth`,
-/// then the function-only `params`). `params` is emitted only for functions
-/// (Python omits the key entirely for other kinds), and `line` may be `null`
-/// for a proc with no name token.
+/// Fields are emitted in order (`kind`, `name`, `line`, `depth`, then the
+/// function-only `params`). `params` is emitted only for functions (the key
+/// is omitted entirely for other kinds), and `line` may be `null` for a proc
+/// with no name token.
 #[derive(Serialize)]
 struct SymbolEntry {
     kind: &'static str,

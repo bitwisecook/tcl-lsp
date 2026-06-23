@@ -12,7 +12,7 @@
 //! carries only argv *texts*, not per-word spans, so the index
 //! argument's command-substitution span is recovered by re-tokenising),
 //! and nested `[…]` command substitutions are walked recursively —
-//! mirroring Python's `_walk_nested_cmd_tokens`.
+//! mirroring `_walk_nested_cmd_tokens`.
 
 use tcl_lexer::{Span, TokenType};
 

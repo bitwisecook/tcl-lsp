@@ -288,7 +288,7 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, int_vars: &HashSe
 
 /// If `expr` is of the shape `$var ± literal` (where `var`
 /// normalises to `target_name`), return the equivalent `incr`
-/// command text. Matches Python's `_try_incr_idiom`.
+/// command text. Matches `_try_incr_idiom`.
 ///
 /// Rewrites:
 ///

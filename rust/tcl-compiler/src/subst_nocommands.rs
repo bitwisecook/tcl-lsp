@@ -1,6 +1,6 @@
-//! Compile-time evaluator for `[subst -nocommands {template}]` (C36a).
+//! Compile-time evaluator for `[subst -nocommands {template}]`.
 //!
-//! Used by the C36c lowering hook when we see a `proc $var [subst
+//! Used by the lowering hook when we see a `proc $var [subst
 //! -nocommands {…}]` shape and want to materialise the body string
 //! at compile time instead of deferring to the runtime interpreter.
 //!
@@ -19,9 +19,6 @@
 //!   by returning `None`.
 //! * `$a(b)` — array references are refused.
 //! * `$::ns::var` — namespace-qualified var refs are refused.
-//!
-//! Mirrors `core/parsing/subst_nocommands.py` (main commit
-//! `8a73e0ac`).
 
 use std::collections::HashMap;
 use std::hash::BuildHasher;

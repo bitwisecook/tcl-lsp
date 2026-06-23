@@ -66,7 +66,7 @@ fn command_segment(
         // is unreachable for trees produced by `build_document`.  Guard it
         // anyway: `segments_from_tree` is `pub`, and a hand-built or
         // otherwise malformed empty-fragment `Word` must not panic on the
-        // `frags[0]` / `frags[len-1]` indexing below (review L2).
+        // `frags[0]` / `frags[len-1]` indexing below.
         let (Some(first_frag), Some(last_frag)) = (frags.first(), frags.last()) else {
             continue;
         };

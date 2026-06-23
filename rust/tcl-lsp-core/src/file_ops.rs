@@ -33,7 +33,6 @@ pub struct RenameEdit {
 /// `workspace_roots` are `file://` URIs of the workspace folders, tried
 /// for a relative literal that doesn't resolve next to its script.
 /// Returns an empty vector when nothing references the renamed file.
-/// Mirrors `compute_rename_edits` / `_collect_edits_for_rename`.
 #[must_use]
 pub fn compute_rename_edits(
     old_uri: &str,
@@ -140,9 +139,9 @@ fn hex_val(b: u8) -> Option<u8> {
 }
 
 /// True when a literal `source` path resolves to `old_path` under any of
-/// the candidate bases Python's `resolve_source_target` tries (for the
-/// literal case): the script's own directory first, then each workspace
-/// root; an absolute literal resolves only to itself.  The pure analog
+/// the candidate bases tried (for the literal case): the script's own
+/// directory first, then each workspace root; an absolute literal
+/// resolves only to itself.  The pure analog
 /// of the filesystem `isfile` probes — a match against *any* candidate
 /// counts, since the renamed file is known to exist at `old_path`.
 fn source_resolves_to(raw: &str, dep_path: &str, roots: &[String], old_path: &str) -> bool {

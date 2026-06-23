@@ -86,14 +86,14 @@ pub struct ObjectRef {
 
 impl ObjectRef {
     /// The object's short name — the last `/`-delimited segment of its
-    /// full-path. Mirrors the Python `ObjectRef.name` property.
+    /// full-path.
     #[must_use]
     pub fn name(&self) -> &str {
         self.full_path.rsplit('/').next().unwrap_or(&self.full_path)
     }
 
     /// The object's partition — the first segment of a `/partition/...`
-    /// path, or empty. Mirrors the Python `ObjectRef.partition` property.
+    /// path, or empty.
     #[must_use]
     pub fn partition(&self) -> &str {
         if let Some(rest) = self.full_path.strip_prefix('/') {
@@ -104,15 +104,15 @@ impl ObjectRef {
     }
 }
 
-/// The runtime value type. The plain variants mirror Python's native
-/// JSON-shaped objects; the rest are the DSL's specialised wrappers.
+/// The runtime value type. The plain variants model the standard JSON-shaped
+/// values; the rest are the DSL's specialised wrappers.
 #[derive(Debug, Clone)]
 pub enum Value {
     Null,
     Bool(bool),
-    /// An integer (Python `int`).
+    /// An integer.
     Int(i64),
-    /// A float (Python `float`).
+    /// A float.
     Float(f64),
     Str(String),
     /// An explicit list (a literal array or a builtin result like `keys`).
@@ -139,8 +139,7 @@ impl Value {
         Value::Object(entries.into_iter().collect())
     }
 
-    /// A short human description used in error messages — the port of the
-    /// evaluator's `_describe`.
+    /// A short human description used in error messages.
     #[must_use]
     pub fn describe(&self) -> String {
         match self {
@@ -189,7 +188,7 @@ impl Value {
     }
 }
 
-/// Truthiness — port of `builtins._truthy`.
+/// Truthiness.
 ///
 /// `null` / `false` / `""` / empty collections / `0` are falsy; everything
 /// else is truthy. A `PathRef` is truthy when its full-path is non-empty;
@@ -211,7 +210,7 @@ pub fn truthy(value: &Value) -> bool {
     }
 }
 
-/// Equality — port of the evaluator's `_eq`, which delegates to Python `==`.
+/// Equality, with Python `==` semantics.
 ///
 /// Reproduces the quirks that matter to the DSL: `1 == 1.0`, `True == 1`,
 /// `False == 0`, deep list / object comparison (object equality is
@@ -260,7 +259,7 @@ fn num_value(v: &Value) -> f64 {
     }
 }
 
-/// jq cross-type ordering — port of `builtins._sort_key` + tuple compare.
+/// jq cross-type ordering.
 ///
 /// Orders `null < false < true < numbers < strings < arrays < objects`,
 /// with lexicographic / numeric ordering inside each family. `PathRef`
@@ -292,7 +291,7 @@ fn sort_tag(v: &Value) -> u8 {
         Value::Str(_) | Value::PathRef(_) => 3,
         Value::List(_) => 4,
         Value::Object(_) | Value::ObjectRef(_) => 5,
-        // Stream / Container / Drop fall into Python's `(6, str(value))`
+        // Stream / Container / Drop fall into `(6, str(value))`
         // bucket.
         Value::Stream(_) | Value::Container(_) | Value::Drop => 6,
     }

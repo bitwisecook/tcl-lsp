@@ -124,19 +124,19 @@ impl Root {
     }
 }
 
-/// Return the synthetic top-level input for *root* — port of
-/// `projection.root_container`. JSON roots yield their parsed value
-/// directly; BIG-IP roots yield the synthetic `<root>` [`Container`](crate::projection::Container).
+/// Return the synthetic top-level input for *root*. JSON roots yield their
+/// parsed value directly; BIG-IP roots yield the synthetic `<root>`
+/// [`Container`](crate::projection::Container).
 #[must_use]
 pub fn root_container(root: &Rc<Root>) -> Value {
     projection::root_container(root)
 }
 
-/// Reader hook for `ucs_cert` — port of the `UCS_CERT_READER` contextvar.
+/// Reader hook for `ucs_cert`.
 ///
 /// Maps `(config_uri, cache_path)` to an `x509_parse`-shaped [`Value`] dict.
 /// `dialects` must not import the `tooling` UCS layer, so the CLI injects this
-/// callable (see `tooling/f5/verbs/query.py::_make_ucs_cert_reader`). `None`
+/// callable `None`
 /// means "not wired", and `ucs_cert` raises a clear error.
 pub type UcsCertReader = Rc<dyn Fn(&str, &str) -> Result<Value, QueryError>>;
 
@@ -145,9 +145,8 @@ pub struct EvalContext {
     pub root: Rc<Root>,
     pub named_roots: HashMap<String, Rc<Root>>,
     pub merge_mode: bool,
-    /// Every loaded root, in source order — the merge-mode "active roots"
-    /// (port of the runner's `_active_roots(step_roots)` binding). Graph
-    /// builtins consult this when `merge_mode` so `refs` / `referenced_by`
+    /// Every loaded root, in source order — the merge-mode "active roots".
+    /// Graph builtins consult this when `merge_mode` so `refs` / `referenced_by`
     /// walk references across files. Empty / single-element in non-merge
     /// mode, where graph builtins stay scoped to the originating source.
     pub merge_roots: Vec<Rc<Root>>,
@@ -157,12 +156,12 @@ pub struct EvalContext {
     /// Edit ops queued by assignment statements; applied by the runner after
     /// each statement evaluates.
     pub edits: crate::edit_plan::EditPlan,
-    /// Whether live network probes are enabled (port of the `PROBES_ENABLED`
-    /// contextvar — the `--enable-probes` flag). When `false`, every network
-    /// probe builtin raises the gating error before touching the network.
+    /// Whether live network probes are enabled (the `--enable-probes` flag).
+    /// When `false`, every network probe builtin raises the gating error
+    /// before touching the network.
     pub probes_enabled: bool,
     /// Optional CA bundle path used by TLS-aware probes (`url_*` /
-    /// `tls_handshake`) for chain verification — port of `TLS_CA_BUNDLE`.
+    /// `tls_handshake`) for chain verification.
     /// `None` falls back to the system trust store.
     pub ca_bundle: Option<String>,
     /// Reader hook for `ucs_cert`. `None` means
@@ -724,7 +723,7 @@ fn subscript_root(value: &Value, ctx: &mut EvalContext) -> Result<Value, QueryEr
         },
         Value::Container(c) => {
             // Flatten container → container → object until the entries are
-            // no longer all containers (port of `_subscript_root`'s loop).
+            // no longer all containers.
             let mut entries: Vec<Value> = c.entries().values().cloned().collect();
             while !entries.is_empty() && entries.iter().all(|e| matches!(e, Value::Container(_))) {
                 let mut flat = Vec::new();
@@ -1314,7 +1313,7 @@ fn eval_unop(
 // Helpers
 
 /// Flatten a value into a list, dropping the `select` sentinel and
-/// unwrapping a top-level `Stream` — port of `evaluator._flatten`.
+/// unwrapping a top-level `Stream`.
 #[must_use]
 pub fn flatten(value: Value) -> Vec<Value> {
     match value {
@@ -1327,8 +1326,7 @@ pub fn flatten(value: Value) -> Vec<Value> {
     }
 }
 
-/// Reduce a value to a single item, erroring on empty / multi — port of
-/// `evaluator._flatten_one`.
+/// Reduce a value to a single item, erroring on empty / multi.
 pub(crate) fn flatten_one(value: Value) -> Result<Value, QueryError> {
     let mut flat = flatten(value);
     match flat.len() {
@@ -1339,7 +1337,7 @@ pub(crate) fn flatten_one(value: Value) -> Result<Value, QueryError> {
 }
 
 /// A list view of *value*: `Stream`/`List` give their items, scalars give a
-/// one-element list — port of `evaluator._stream_items`.
+/// one-element list.
 #[must_use]
 pub fn stream_items(value: Value) -> Vec<Value> {
     match value {
@@ -1471,8 +1469,7 @@ fn resolve_assignment_targets(
     Ok(targets)
 }
 
-/// Compute the new value for one assignment target — port of
-/// `evaluator._compute_assignment_value`.
+/// Compute the new value for one assignment target.
 fn compute_assignment_value(
     op: &str,
     rhs: &Expr,
@@ -1497,8 +1494,7 @@ fn compute_assignment_value(
     }
 }
 
-/// Build the [`EditOp`](crate::edit_plan::EditOp) for one resolved target —
-/// port of `evaluator._build_edit_op`.
+/// Build the [`EditOp`](crate::edit_plan::EditOp) for one resolved target.
 fn build_edit_op(
     target: &AssignTarget,
     op: &str,

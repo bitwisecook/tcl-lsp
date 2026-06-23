@@ -68,9 +68,8 @@ pub fn run_compwasm(input: &InputArgs, wat_output: Option<&std::path::Path>) -> 
     let bytes = wasm.to_bytes();
 
     // Unlike the other verbs, `compwasm` defaults to a file, not stdout: a bare
-    // `tcl compwasm script.tcl` must not dump raw WASM bytes to the terminal.
-    // Mirrors the Python verb's `output="out.wasm"` default; an explicit `-o -`
-    // still selects stdout.
+    // `tcl compwasm script.tcl` must not dump raw WASM bytes to the terminal, so
+    // it writes `out.wasm`; an explicit `-o -` still selects stdout.
     let target = match input.output.as_deref() {
         None => OutputTarget::File(std::path::PathBuf::from("out.wasm")),
         Some(path) => OutputTarget::from_arg(Some(path)),

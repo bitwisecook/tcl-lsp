@@ -158,12 +158,12 @@ fn tshark_available() -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
-/// Whether this tshark accepts the exact EK command the port (and the Python
-/// reference) builds — `-T ek -l --no-duplicate-keys`. tshark gained
-/// `--no-duplicate-keys` for EK output in 4.4; on older builds the overlay run
-/// exits non-zero and the report degrades to `tshark: no` (the Python
-/// reference degrades identically — this is the parity contract, so the port
-/// keeps the command byte-for-byte rather than "fixing" it locally).
+/// Whether this tshark accepts the exact EK command the CLI builds —
+/// `-T ek -l --no-duplicate-keys`. tshark gained `--no-duplicate-keys` for EK
+/// output in 4.4; on older builds the overlay run exits non-zero and the
+/// report degrades to `tshark: no` (the reference degrades identically — this
+/// is the parity contract, so the command is kept as-is rather than "fixed"
+/// locally).
 fn tshark_ek_ok() -> bool {
     Command::new("tshark")
         .args([
@@ -224,9 +224,8 @@ fn tshark_enrichment_marks_used_tshark() {
 #[test]
 fn tshark_filter_is_reported_python_repr_style() {
     // `--tshark-filter` makes tshark the canonical flow source: `used_tshark`
-    // is true whenever a tshark binary exists (mirroring Python's
-    // `bool(flows) or tshark_available()`), independent of EK support, and the
-    // filter is echoed in the header rendered like Python's `repr()`.
+    // is true whenever a tshark binary exists, independent of EK support, and
+    // the filter is echoed in the header rendered Python-`repr()`-style.
     if !tshark_available() {
         eprintln!("skipping: tshark not on PATH");
         return;

@@ -1,6 +1,6 @@
 //! End-to-end golden differential test for the query *graph* layer.
 //!
-//! Mirrors the Python pipeline captured in `tests/fixtures/graph.json`
+//! The pipeline captured in `tests/fixtures/graph.json`
 //! (`scripts/codegen/gen_f5_query_graph_fixtures.py`): build a BIG-IP `Root`
 //! from the real fixture config, parse → evaluate against the projected
 //! `Container` tree (which walks the reference graph for the graph-backed

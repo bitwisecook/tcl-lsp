@@ -180,12 +180,10 @@ mod tests {
 
     #[test]
     fn is_irules_dialect_accepts_canonical_and_legacy_alias() {
-        // Ported from `tests/test_dialect_helpers.py` (TEST-MIGRATE): the
-        // canonical `f5-irules` and the legacy `irules` alias both match;
-        // every other dialect — and `None` — do not. The Python
-        // `dialect_scope` active-dialect-wrapper case is bridge-only (a
-        // contextvar mechanism the Rust side has no global equivalent for
-        // by design).
+        // The canonical `f5-irules` and the legacy `irules` alias both match;
+        // every other dialect — and `None` — do not. There is no
+        // active-dialect-wrapper case: that contextvar mechanism has no
+        // global equivalent here by design.
         assert!(DialectSet::is_irules_dialect(Some("f5-irules")));
         assert!(DialectSet::is_irules_dialect(Some("irules")));
         assert!(!DialectSet::is_irules_dialect(Some("tcl8.6")));

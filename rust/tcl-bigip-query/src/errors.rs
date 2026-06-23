@@ -8,8 +8,8 @@ use std::fmt;
 
 /// Base error type for everything raised by the query DSL.
 ///
-/// Each `Display` rendering reproduces the corresponding Python `__str__`, so
-/// the CLI's `error: {exc}` formatting stays byte-for-byte identical.
+/// Each variant's `Display` rendering is fixed so the CLI's `error: {exc}`
+/// formatting stays byte-for-byte stable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QueryError {
     /// The lexer hit a character it does not understand.

@@ -3,7 +3,7 @@
 //! The fixtures in `tests/fixtures/front_end.json` were captured once from
 //! the Python query DSL (`scripts/codegen/gen_f5_query_fixtures.py`): for a
 //! curated matrix of query strings they record the exact token stream and
-//! AST the Python `tokenise` / `parse_query` produce, plus the lexer /
+//! AST `tokenise` / `parse_query` produce, plus the lexer /
 //! parser error for a set of malformed inputs.
 //!
 //! This test re-derives the same JSON from the Rust front-end and asserts

@@ -1,4 +1,4 @@
-//! `auto_load` command (name-parity reconcile, GAP-d).
+//! `auto_load` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

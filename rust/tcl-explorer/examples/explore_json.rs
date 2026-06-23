@@ -2,7 +2,7 @@
 //!
 //! Reads Tcl source (from `--source <text>`, a file path argument, or
 //! stdin when neither is given) and prints `serialise_result` as JSON.
-//! `tests/test_explorer_rust_parity.py` shells out to this and compares
+//! The differential parity harness shells out to this and compares
 //! the two implementations key-by-key.
 //!
 //! It deliberately has no dependencies beyond `std`.

@@ -28,7 +28,7 @@ use crate::profiles::ProfileRegistry;
 /// serialiser.
 ///
 /// Object keys are always emitted in sorted (byte-wise) order, matching
-/// Python's `sort_keys=True`. The serialiser escapes strings exactly like
+/// `sort_keys=True`. The serialiser escapes strings exactly like
 /// `CPython`'s `json` module with the default `ensure_ascii=True`.
 #[derive(Debug, Clone)]
 pub enum Json {
@@ -103,7 +103,7 @@ impl Json {
                 out.push('{');
                 let child = indent + 2;
                 // BTreeMap already iterates in sorted key order, matching
-                // Python's `sort_keys=True`.
+                // `sort_keys=True`.
                 for (i, (key, value)) in map.iter().enumerate() {
                     if i > 0 {
                         out.push(',');
@@ -185,7 +185,7 @@ pub fn profile_graph_snapshot() -> Json {
         entry.insert("name".to_owned(), Json::s(spec.name));
         // The Rust crate stores `tls_shared` for the shared TLS/persistence
         // layer (PERSIST / SSL_PERSISTENCE) to drive its infrastructure logic;
-        // the Python registry the snapshot mirrors reports both as `tls`.
+        // both are reported as `tls`.
         let layer = if spec.layer == "tls_shared" {
             "tls"
         } else {
@@ -289,9 +289,9 @@ pub fn object_graph_snapshot() -> Json {
         })
         .collect();
 
-    // propertyReferences: mirrors PROPERTY_REFERENCE_SPECS — for every
+    // propertyReferences: for every
     // (module, object_type) header, the properties carrying references,
-    // keyed by property name. The Python snapshot iterates
+    // keyed by property name. The snapshot iterates
     // sorted((module, object_type)) then sorted(property_name); within a
     // property name the spec tuple preserves registration (append) order.
     let property_references = build_property_references(reg.specs());
@@ -311,12 +311,12 @@ pub fn object_graph_snapshot() -> Json {
     Json::Object(root)
 }
 
-/// Build the sorted `propertyReferences` list, reproducing Python's
-/// `PROPERTY_REFERENCE_SPECS` assembly + snapshot ordering.
+/// Build the sorted `propertyReferences` list: the property-reference
+/// assembly plus snapshot ordering.
 fn build_property_references(specs: &[&'static crate::bigip::BigipObjectSpec]) -> Vec<Json> {
     // (module, object_type) -> (property name -> appended specs).
     // BTreeMap gives the sorted iteration the snapshot relies on; the inner
-    // Vec preserves the registration (append) order Python uses for the spec
+    // Vec preserves the registration (append) order used for the spec
     // tuple of a repeated property name.
     type SectionMap = BTreeMap<String, Vec<&'static BigipPropertySpec>>;
     let mut by_header: BTreeMap<(String, String), SectionMap> = BTreeMap::new();
@@ -389,10 +389,10 @@ fn digest_list(items: &[String]) -> String {
     format!("sha256:{digest:x}")
 }
 
-/// Serialise an [`EventProps`](crate::events::EventProps) as the Python
-/// `_jsonable(props)` dict (the 9 dataclass fields; `sort_keys` reorders them
+/// Serialise an [`EventProps`](crate::events::EventProps) as a JSON
+/// object (the 9 fields; `sort_keys` reorders them
 /// at emit time). `transport` is remapped: empty → `null`, one → a string,
-/// many → a list (Python stores `str | tuple | None`).
+/// many → a list.
 fn event_props_json(props: &crate::events::EventProps) -> Json {
     let transport = match props.transport {
         [] => Json::Null,
@@ -419,11 +419,10 @@ fn event_props_json(props: &crate::events::EventProps) -> Json {
 }
 
 /// Snapshot of the iRules event graph: per-event protocol properties, firing
-/// order, flow chains, and the commands valid in each event. Port of
-/// `event_graph_snapshot` (`tooling/registry_snapshot.py`).
+/// order, flow chains, and the commands valid in each event.
 ///
 /// The per-event valid-command list is content-addressed (`validCommandsDigest`)
-/// rather than emitted verbatim, exactly as Python does.
+/// rather than emitted verbatim.
 #[must_use]
 pub fn event_graph_snapshot() -> Json {
     use crate::events::EventRegistry;

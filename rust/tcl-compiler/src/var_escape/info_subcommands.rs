@@ -1,4 +1,4 @@
-//! Allow-list of `info` subcommands for the var-escape analysis (C33c).
+//! Allow-list of `info` subcommands for the var-escape analysis.
 //!
 //! Audited against Tcl 9.0's `info` dispatch table (`tclCmdIL.c`).
 //! Most `info` subcommands reflect on the interpreter's global
@@ -7,8 +7,6 @@
 //! to the pessimistic fallback. `info exists <literal>` is treated
 //! specially: safe if the target is a bare name (escapes only that
 //! name), pessimistic if dynamic.
-//!
-//! Mirrors `core/compiler/var_escape/_info_subcommands.py`.
 
 /// Subcommands that read frame-local state by name and thus force
 /// the containing proc to the pessimistic fallback.

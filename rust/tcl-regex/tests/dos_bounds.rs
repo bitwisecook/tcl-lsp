@@ -69,7 +69,7 @@ fn cps(s: &str) -> Vec<u32> {
 
 #[test]
 fn parser_deep_nesting_does_not_overflow() {
-    // RT-C1: `(`×4000 used to overflow the stack (SIGABRT). The depth guard must
+    // `(`×4000 used to overflow the stack (SIGABRT). The depth guard must
     // turn this into a normal compile error, fast.
     within(5, "deep-nesting compile", || {
         let pattern = cps(&"(".repeat(4000));
@@ -87,7 +87,7 @@ fn parser_deep_nesting_does_not_overflow() {
 
 #[test]
 fn backref_redos_is_bounded() {
-    // RT-C2: `(a+)+\1$` on a run of "a"s is the textbook catastrophic-backtracking
+    // `(a+)+\1$` on a run of "a"s is the textbook catastrophic-backtracking
     // case. The step budget must make it bail quickly. We only require that exec
     // *returns* (Some or None both acceptable — a tripped guard yields None).
     within(5, "backref ReDoS exec", || {
@@ -99,7 +99,7 @@ fn backref_redos_is_bounded() {
 
 #[test]
 fn reach_linear_star_is_bounded() {
-    // RT-C3: plain `a*` over a long input exercises the O(n^2) reach scan. With
+    // plain `a*` over a long input exercises the O(n^2) reach scan. With
     // the fuel guard it must finish promptly regardless of outcome.
     within(5, "a* large-input exec", || {
         let re = Regex::compile_str("a*", REG_ADVANCED).expect("compiles");
@@ -113,7 +113,7 @@ fn reach_linear_star_is_bounded() {
 
 #[test]
 fn reach_nested_star_is_bounded() {
-    // RT-C3: `(a*)*` is cubic in the reach core. The shared budget must bound it.
+    // `(a*)*` is cubic in the reach core. The shared budget must bound it.
     within(5, "(a*)* exec", || {
         let re = Regex::compile_str("(a*)*", REG_ADVANCED).expect("compiles");
         let subject = cps(&"a".repeat(2000));

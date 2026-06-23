@@ -7,7 +7,7 @@
 //! Field values are read from each object's canonical JSON (`canon_fields`).
 //! Object-list fields (pool `members`, data-group `records`) are formatted
 //! deterministically, so change *detection* is correct even where their display
-//! form differs from a dataclass `repr`.
+//! form differs.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::Path;
@@ -280,8 +280,8 @@ fn field_value(obj: &Value, field: &str) -> String {
     py_str(val)
 }
 
-/// Best-effort string form of a JSON scalar/collection (object elements diverge
-/// from dataclass `repr`).
+/// Best-effort string form of a JSON scalar/collection (object elements are
+/// rendered approximately).
 fn py_str(val: &Value) -> String {
     match val {
         Value::Null => "None".to_owned(),

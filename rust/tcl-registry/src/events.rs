@@ -65,7 +65,6 @@ pub struct EventProps {
 impl EventProps {
     /// Human-readable connection-side label — one of `"client-side"`,
     /// `"server-side"`, `"client-side and server-side"`, or `"global"`.
-    /// Mirrors `event_side_label`.
     #[must_use]
     pub fn side_label(&self) -> &'static str {
         match (self.client_side, self.server_side) {
@@ -94,8 +93,7 @@ impl EventProps {
 
 /// What a command requires from the protocol stack.
 ///
-/// Embedded on command specs via `excluded_events` and `EventRequires`
-/// in the Python registry.
+/// Embedded on command specs via `excluded_events` and `EventRequires`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 // `client_side` / `server_side` / `init_only` / `flow` are
 // orthogonal protocol-stack requirements. Same deferral as
@@ -191,15 +189,13 @@ impl EventRegistry {
     }
 
     /// Description prose for `event`, or `None` when none is recorded.
-    /// Mirrors `get_event_description`.
     #[must_use]
     pub fn description(&self, event: &str) -> Option<&'static str> {
         self.descriptions.get(event).copied()
     }
 
     /// Multiplicity category for `event` — one of `"init"`,
-    /// `"once_per_connection"`, `"per_request"`, or `"unknown"`. Mirrors
-    /// `event_multiplicity`.
+    /// `"once_per_connection"`, `"per_request"`, or `"unknown"`.
     #[must_use]
     pub fn multiplicity(&self, event: &str) -> &'static str {
         if event == "RULE_INIT" {
@@ -290,8 +286,6 @@ impl EventRegistry {
 
     /// The multiplicity category for an event: `"init"`,
     /// `"once_per_connection"`, `"per_request"`, or `"unknown"`.
-    ///
-    /// Mirrors `event_multiplicity` in `namespace_data.py`.
     #[must_use]
     pub fn event_multiplicity(&self, event: &str) -> &'static str {
         if event == "RULE_INIT" {
@@ -308,7 +302,7 @@ impl EventRegistry {
     /// Sort `events` into canonical firing order. Events absent from the
     /// master-order table are appended in sorted order, so none are dropped.
     ///
-    /// Mirrors `order_events` in `namespace_data.py`. Callers pass a unique
+    /// Callers pass a unique
     /// set of names (duplicates would each be kept).
     #[must_use]
     pub fn order_events(&self, events: &[String]) -> Vec<String> {
@@ -328,8 +322,6 @@ impl EventRegistry {
     /// Return a note when a variable set in `set_event` has
     /// scoping concerns when read in `read_event`.
     ///
-    /// Mirrors `variable_scope_note` in
-    /// `core/commands/registry/namespace_data.py:2125-2144`.
     /// Returns `None` when there's no concern — the caller's
     /// cross-event analysis (`ConnectionScope::build`) treats
     /// a `None` result as "valid cross-event flow" and records
@@ -372,8 +364,7 @@ impl EventRegistry {
 
 /// True when an event's [`EventProps`] satisfy a command's [`EventRequires`].
 ///
-/// The single canonical implementation of the event-validity test —
-/// mirrors Python `event_satisfies` in `namespace_data.py`.  Used both
+/// The single canonical implementation of the event-validity test.  Used both
 /// by the per-command "valid events" hover list and by
 /// [`crate::CommandRegistry::valid_irules_commands_for_event`].
 #[must_use]
@@ -411,9 +402,9 @@ pub fn event_satisfies(
     true
 }
 
-// Full static data — auto-generated from Python namespace_data.py
+// Full static data — auto-generated.
 
-// AUTO-GENERATED from Python namespace_data.py — do not edit manually
+// AUTO-GENERATED — do not edit manually
 
 fn event_props_table() -> Vec<(&'static str, EventProps)> {
     vec![

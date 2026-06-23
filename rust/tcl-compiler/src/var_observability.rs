@@ -1,7 +1,6 @@
-//! Flow-sensitive variable alias + trace-observability lattice
-//! (SYNC-JUN02b-3, #519).
+//! Flow-sensitive variable alias + trace-observability lattice.
 //!
-//! Port of `compiler/var_observability.py`.  Answers, at every program
+//! Answers, at every program
 //! point, *why* an access to a variable is not a private-local access:
 //!
 //! * **alias** — the name is bound (via `global` / `variable` /
@@ -20,8 +19,8 @@
 //! `TRACED` flag — this is the optimiser-soundness lattice (the
 //! foundation for an applicable O104 string-build fold and flow-
 //! sensitive alias/trace reasoning in memory-SSA / SCCP / GVN).  The
-//! current Rust O104 is hint-only, so this lattice has no optimiser
-//! consumer yet; it is landed as the foundation those consumers need.
+//! current O104 is hint-only, so this lattice has no optimiser
+//! consumer yet; it is the foundation those consumers need.
 //!
 //! As with [`crate::command_binding`], predecessors come from terminator
 //! successors only (the Rust CFG has no explicit exception edges).

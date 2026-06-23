@@ -208,7 +208,7 @@ impl Topology {
     }
 
     /// Resolve a virtual server by full path, short name, or `/Common/`-prefixed
-    /// name. Mirrors the Python `resolve_name` over the `virtual_servers` table.
+    /// name. Mirrors `resolve_name` over the `virtual_servers` table.
     fn resolve_virtual(&self, name: &str) -> Option<&tcl_bigip::model::BigipVirtualServer> {
         let mut by_short: Option<&tcl_bigip::model::BigipVirtualServer> = None;
         for placed in &self.config.objects {
@@ -300,7 +300,7 @@ fn vs_profile_refs(vs: &tcl_bigip::model::BigipVirtualServer) -> Vec<String> {
 }
 
 /// Render data-group records as the even-length `{key {}}` Tcl list the
-/// orchestrator's `add_datagroup` expects. Mirrors the Python rendering.
+/// orchestrator's `add_datagroup` expects.
 fn datagroup_records_tcl(records: &[String]) -> String {
     let mut parts: Vec<String> = Vec::new();
     for rec in records {

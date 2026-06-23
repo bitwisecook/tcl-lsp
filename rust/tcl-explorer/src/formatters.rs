@@ -46,16 +46,14 @@ fn closer_for(byte: u8) -> Option<u8> {
 }
 
 /// The inclusive end offset of `span`, widened to cover a braced/quoted/
-/// bracketed closer when one immediately follows — the Rust equivalent of
-/// `shared.ranges.widen_range_for_closer` operating on a `[start, end)`
-/// span.
+/// bracketed closer when one immediately follows, operating on a
+/// `[start, end)` span.
 ///
 /// A `Span` is `[start, end)` (exclusive), so its inclusive last byte is
-/// `end - 1`, matching Python's inclusive-`Range.end`. The widen rules
-/// then mirror Python exactly: when the span opens with a delimiter and
-/// the matching closer sits one past the inclusive end, extend by one;
-/// the empty `{}` / `[]` / `""` case (which already ends *on* its closer)
-/// is never widened.
+/// `end - 1`, the inclusive-end convention. The widen rules are: when the
+/// span opens with a delimiter and the matching closer sits one past the
+/// inclusive end, extend by one; the empty `{}` / `[]` / `""` case (which
+/// already ends *on* its closer) is never widened.
 fn widened_inclusive_end(span: Span, source: &str) -> u32 {
     let start = span.start();
     let end = span.end();
@@ -78,8 +76,7 @@ fn widened_inclusive_end(span: Span, source: &str) -> u32 {
     default
 }
 
-/// Convert a [`Span`] to the explorer's range dict. Mirrors
-/// `formatters.range_dict` composed with `widen_for_highlight`.
+/// Convert a [`Span`] to the explorer's range dict.
 ///
 /// `endCol` / `endOffset` are the inclusive end plus one (the front-end
 /// slices with an exclusive end), computed from the *inclusive* end
@@ -99,8 +96,7 @@ pub fn range_dict(span: Span, line_index: &LineIndex, source: &str) -> Value {
     })
 }
 
-/// Short name for an IR statement kind — the Python `IR*` class name.
-/// Mirrors `formatters.stmt_kind`.
+/// Short name for an IR statement kind — `IR*` class name.
 #[must_use]
 pub fn stmt_kind(stmt: &Statement) -> &'static str {
     match stmt {
@@ -144,7 +140,7 @@ pub fn stmt_color_class(stmt: &Statement) -> &'static str {
 ///
 /// The single source of truth for both the text renderers and the JSON
 /// serialiser. Statement kinds without an explicit case fall through to
-/// the class name, exactly as Python's `stmt.__class__.__name__` default.
+/// the statement's type name by default.
 #[must_use]
 pub fn stmt_summary(stmt: &Statement) -> String {
     match stmt {
@@ -206,15 +202,15 @@ pub fn stmt_summary(stmt: &Statement) -> String {
             format!("switch {} ({} arm(s))", preview(subject, 40), arms.len())
         }
         // ExprEval / Block / UpFrame / While / Foreach / Catch / Try fall
-        // through to the class name, mirroring Python's default.
+        // through to the class name, using the default.
         other => stmt_kind(other).to_owned(),
     }
 }
 
-/// Python `repr()` of a constant string — the form `format_return_shape`
-/// embeds via `{constant_return!r}`. Chooses the quote Python would
-/// (double quotes when the string has a `'` but no `"`, else single) and
-/// escapes backslash, the chosen quote, and the common control chars.
+/// Renders a constant string the way `repr()` would — the form
+/// `format_return_shape` embeds. Chooses the quote accordingly (double
+/// quotes when the string has a `'` but no `"`, else single) and escapes
+/// backslash, the chosen quote, and the common control chars.
 pub(crate) fn py_repr_str(s: &str) -> String {
     let quote = if s.contains('\'') && !s.contains('"') {
         '"'
@@ -240,20 +236,19 @@ pub(crate) fn py_repr_str(s: &str) -> String {
     out
 }
 
-/// Python `repr()` of a constant return value.
+/// `repr()`-style rendering of a constant return value.
 fn py_repr_constant(c: &ConstantReturn) -> String {
     match c {
         ConstantReturn::Int(n) => n.to_string(),
         ConstantReturn::Bool(b) => if *b { "True" } else { "False" }.to_owned(),
         ConstantReturn::Str(s) => py_repr_str(s),
         // Rust's Debug for f64 is shortest-round-trip with a decimal point,
-        // matching Python `repr` for the common cases.
+        // matching `repr` for the common cases.
         ConstantReturn::Float(f) => format!("{f:?}"),
     }
 }
 
-/// Project a [`ProcSummary`]'s return facts to a display string. Mirrors
-/// `formatters.format_return_shape`.
+/// Project a [`ProcSummary`]'s return facts to a display string.
 #[must_use]
 pub fn format_return_shape(s: &ProcSummary) -> String {
     if s.returns_constant {
@@ -272,8 +267,7 @@ pub fn format_return_shape(s: &ProcSummary) -> String {
     "unknown".to_owned()
 }
 
-/// Project a type lattice to its display string. Mirrors
-/// `formatters.format_type`.
+/// Project a type lattice to its display string.
 #[must_use]
 pub fn format_type(tl: &TypeLattice) -> String {
     match tl.kind {
@@ -288,14 +282,13 @@ pub fn format_type(tl: &TypeLattice) -> String {
 }
 
 /// The lattice-kind name, lowercased (`unknown` / `known` / `shimmered` /
-/// `overdefined`) — Python's `tl.kind.name.lower()`.
+/// `overdefined`) — `tl.kind.name.lower()`.
 #[must_use]
 pub fn type_kind_name(kind: TypeKind) -> String {
     format!("{kind:?}").to_ascii_lowercase()
 }
 
-/// Project a taint lattice to its display string. Mirrors
-/// `formatters.format_taint`: `untainted`, `tainted`, or
+/// Project a taint lattice to its display string: `untainted`, `tainted`, or
 /// `tainted(<colours>)` with the non-`TAINTED` colour names lowercased in
 /// declaration order.
 #[must_use]
@@ -316,7 +309,7 @@ pub fn format_taint(tl: &TaintLattice) -> String {
     }
 }
 
-/// Python `repr()` of a single SCCP constant value.
+/// `repr()`-style rendering of a single SCCP constant value.
 fn const_value_repr(c: &ConstValue) -> String {
     match c {
         ConstValue::Int(n) => n.to_string(),
@@ -326,10 +319,10 @@ fn const_value_repr(c: &ConstValue) -> String {
     }
 }
 
-/// Project an SCCP lattice value to its display string. Mirrors
-/// `formatters.format_lattice` (`unknown` / `overdefined` / `const(<repr>)`).
-/// A `ConstSet` renders as `const(None)`, matching Python where the
-/// constset's scalar `value` field is `None`.
+/// Project an SCCP lattice value to its display string
+/// (`unknown` / `overdefined` / `const(<repr>)`).
+/// A `ConstSet` renders as `const(None)` because the constset's scalar
+/// `value` field is `None`.
 #[must_use]
 pub fn format_lattice(value: &LatticeValue) -> String {
     match value {

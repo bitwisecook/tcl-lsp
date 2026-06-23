@@ -182,8 +182,7 @@ pub fn categorise_arg(text: &str) -> SubstitutionCategory {
 }
 
 /// Estimate shimmer (type-conversion) pressure from a vector of
-/// argument categories. Matches the weights in
-/// `execution_intent.py::_shimmer_pressure`: scalar/array refs
+/// argument categories. Weighting: scalar/array refs
 /// contribute 1 each, nested commands and mixed contribute 2.
 #[must_use]
 pub fn shimmer_pressure(categories: &[SubstitutionCategory]) -> u32 {

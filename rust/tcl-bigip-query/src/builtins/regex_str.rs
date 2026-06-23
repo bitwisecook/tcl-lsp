@@ -6,7 +6,7 @@
 //! Parity notes:
 //! - Every regex compile routes through the parent `safe_regex_compile`
 //!   chokepoint (length + nested-quantifier guards) so the guard error
-//!   text matches the Python `_safe_regex_compile`.
+//!   text matches `_safe_regex_compile`.
 //! - The `regex` crate's dialect differs from Python `re` on
 //!   backreferences / lookaround (documented divergence the user accepted).
 //!   `sub` / `gsub` reproduce Python's replacement-template syntax
@@ -143,9 +143,9 @@ fn bi_gsub(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Str(regex_sub(&rx, &s, &r, None)))
 }
 
-/// Port of Python `re.sub` with a replacement template. `count = Some(1)`
+/// `re.sub` with a replacement template. `count = Some(1)`
 /// replaces only the first match (`sub`); `None` replaces all (`gsub`).
-/// Replacement templates use Python's `re` backref syntax (`\1`,
+/// Replacement templates use `re` backref syntax (`\1`,
 /// `\g<name>`, `\g<1>`); they are expanded by hand so the common subset
 /// stays byte-identical despite the `regex` crate's native `$`-expansion.
 fn regex_sub(rx: &Regex, text: &str, template: &str, count: Option<usize>) -> String {
@@ -271,7 +271,7 @@ fn bi_capture(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "capture", 1)?;
     let p = as_str(&args[1], "capture", 2)?;
     let f = optional_flags(args, 2, "capture")?;
-    // jq accepts `(?<name>...)`; rewrite to the Python `(?P<name>...)`
+    // jq accepts `(?<name>...)`; rewrite to `(?P<name>...)`
     // spelling (also accepted by the `regex` crate).
     let p_python = rewrite_named_groups(&p);
     let rx = compile_with_flags(&p_python, &f, "capture")?;
@@ -455,7 +455,7 @@ fn bi_tsv(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Str(cells.join("\t")))
 }
 
-/// Port of `_csv_cell_text` — coerce one cell to its scalar string form,
+/// Coerce one cell to its scalar string form,
 /// flattening embedded tabs / newlines / carriage returns to spaces.
 fn csv_cell_text(value: &Value, name: &str, arg: usize) -> Result<String, QueryError> {
     let s = match value {
@@ -482,7 +482,7 @@ fn csv_cell_text(value: &Value, name: &str, arg: usize) -> Result<String, QueryE
     Ok(s.replace(['\t', '\n', '\r'], " "))
 }
 
-/// Port of `_csv_quote` — RFC 4180 quoting.
+/// RFC 4180 quoting of a cell.
 fn csv_quote(cell: &str) -> String {
     if cell.contains([',', '"', '\n', '\r']) {
         format!("\"{}\"", cell.replace('"', "\"\""))

@@ -226,18 +226,18 @@ impl BigipList {
         self.items.is_empty()
     }
 
-    /// Iterate the typed item values (Python `__iter__`).
+    /// Iterate the typed item values.
     pub fn iter(&self) -> impl Iterator<Item = &ListItemValue> {
         self.items.iter().map(|item| &item.value)
     }
 
-    /// The typed item values as an owned vector (Python `values`).
+    /// The typed item values as an owned vector.
     #[must_use]
     pub fn values(&self) -> Vec<ListItemValue> {
         self.items.iter().map(|item| item.value.clone()).collect()
     }
 
-    /// The string paths the items reference (Python `paths`).
+    /// The string paths the items reference.
     ///
     /// Typed values with a `full_path` / `path` return it; plain strings
     /// return themselves; otherwise the item `key` is used, falling back

@@ -52,8 +52,6 @@ pub struct SignatureInformation {
 
 /// LSP signature-help response — one or more signatures plus
 /// the index of the active one and the active parameter.
-///
-/// Mirrors `lsprotocol.types.SignatureHelp`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignatureHelp {
     /// Signatures to surface to the editor.
@@ -336,10 +334,9 @@ fn resolve_alias_chain(analysis: &AnalysisResult, name: &str) -> Option<String> 
 ///
 /// Uses the first entry of `spec.hover.synopsis` as the
 /// signature label.  Parameters are whitespace-separated
-/// tokens after the leading command word in that synopsis
-/// — that matches the shape Python's `_builtin_signature_help`
-/// produces from `SIGNATURES`.  Returns `None` when the spec
-/// has no hover record or the synopsis is empty.
+/// tokens after the leading command word in that synopsis.
+/// Returns `None` when the spec has no hover record or the
+/// synopsis is empty.
 fn builtin_signature_help(
     spec: &tcl_registry::CommandSpec,
     active_param: u32,
@@ -367,8 +364,7 @@ fn builtin_signature_help(
     };
 
     // Signature documentation renders the fuller hover text (summary +
-    // extended snippet) that hover itself omits — mirrors Python's
-    // `_signature_documentation` (`hover.render_markdown`), so e.g. `set`
+    // extended snippet) that hover itself omits, so e.g. `set`
     // surfaces its "With one argument…" description.
     let mut doc_parts: Vec<&str> = Vec::new();
     if !hover.summary.is_empty() {
@@ -717,7 +713,7 @@ mod tests {
     fn subcommand_signature_none_for_unknown_subcommand() {
         // `string nonsense $arg` — `nonsense` isn't a string subcommand, so
         // the provider offers no signature (it must not surface the generic
-        // command-level `string option arg …`).  Matches the Python server.
+        // command-level `string option arg …`).
         let src = "string nonsense \n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();

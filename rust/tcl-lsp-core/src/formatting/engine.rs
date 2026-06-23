@@ -130,8 +130,7 @@ fn reconstruct_arg(sm: &SourceMap, arg: &CommandArg, braced_vars: bool) -> Strin
 }
 
 /// Normalise whitespace in a braced parameter list, joining
-/// top-level elements with single spaces.  Mirrors
-/// `_normalize_param_list`.
+/// top-level elements with single spaces.
 fn normalise_param_list(text: &str) -> String {
     let bytes = text.as_bytes();
     let n = bytes.len();
@@ -273,8 +272,7 @@ fn parse_commands(
 
 // Body / expr / param-list argument identification
 
-/// Mark body / keyword / param-list arguments in place.  Mirrors
-/// `_identify_body_args`.
+/// Mark body / keyword / param-list arguments in place.
 fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
     // {*}-expanded command word: dynamic identity, skip.
     if cmd
@@ -287,9 +285,8 @@ fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
     }
 
     let name = cmd.name.clone();
-    // Post-name argument texts (Python's `args = cmd.args[1:]`),
-    // owned so the immutable borrow of `cmd.args` is released
-    // before the role-driven mutation below.
+    // Post-name argument texts, owned so the immutable borrow of
+    // `cmd.args` is released before the role-driven mutation below.
     let arg_texts: Vec<String> = cmd.args.iter().skip(1).map(|a| a.text.clone()).collect();
 
     // Formatter-specific `for` override: only the main body (arg 3)
@@ -335,8 +332,7 @@ fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
     }
 }
 
-/// Indices into `cmd.args` of braced expression arguments.  Mirrors
-/// `_identify_expr_args`.
+/// Indices into `cmd.args` of braced expression arguments.
 fn identify_expr_args(cmd: &ParsedCommand, registry: &CommandRegistry) -> Vec<usize> {
     let arg_texts: Vec<&str> = cmd.args.iter().skip(1).map(|a| a.text.as_str()).collect();
     registry
@@ -372,7 +368,6 @@ fn format_comment(comment_text: &str, config: &FormatterConfig) -> String {
 // Blank-line computation
 
 /// How many blank lines to insert before `commands[index]`.
-/// Mirrors `_compute_blank_lines`.
 fn compute_blank_lines(
     commands: &[ParsedCommand],
     index: usize,
@@ -548,9 +543,8 @@ fn find_expr_break_points(text: &str) -> Vec<usize> {
     breaks
 }
 
-/// Try to wrap a braced expression at `&&` / `||`.  Mirrors
-/// `_wrap_braced_expr`; returns the wrapped inner text (no braces)
-/// or `None`.
+/// Try to wrap a braced expression at `&&` / `||`; returns the
+/// wrapped inner text (no braces) or `None`.
 fn wrap_braced_expr(text: &str, config: &FormatterConfig, indent_level: usize) -> Option<String> {
     let stripped: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
     let breaks = find_expr_break_points(&stripped);
@@ -681,8 +675,7 @@ fn find_quoted_string_spaces(text: &str, start: usize) -> Vec<usize> {
     spaces
 }
 
-/// Greedy line splitting at the given space positions.  Mirrors
-/// `_greedy_split`.
+/// Greedy line splitting at the given space positions.
 fn greedy_split(
     line: &str,
     spaces: &[usize],
@@ -833,8 +826,7 @@ fn split_commented_code(
 
 // Inline body detection
 
-/// Whether a body is short enough to keep on one line.  Mirrors
-/// `_body_can_be_inline`.
+/// Whether a body is short enough to keep on one line.
 fn body_can_be_inline(
     body_text: &str,
     config: &FormatterConfig,
@@ -938,8 +930,7 @@ fn append_word_arg(
     true
 }
 
-/// Reconstruct a single command as formatted text.  Mirrors
-/// `_reconstruct_command`.
+/// Reconstruct a single command as formatted text.
 fn reconstruct_command(
     sm: &SourceMap,
     cmd: &ParsedCommand,
@@ -1026,7 +1017,6 @@ fn reconstruct_command(
 }
 
 /// Reconstruct a `switch` command, handling the braced body form.
-/// Mirrors `_reconstruct_switch`.
 fn reconstruct_switch(
     sm: &SourceMap,
     cmd: &ParsedCommand,
@@ -1167,8 +1157,8 @@ mod tests {
         format_tcl(src, &FormatterConfig::default(), &registry)
     }
 
-    /// Each `(input, expected)` pair is the verbatim output of the
-    /// Python `format_tcl` reference for the same input.
+    /// Each `(input, expected)` pair is the expected formatted output
+    /// for the same input.
     fn check(input: &str, expected: &str) {
         let got = fmt(input);
         assert_eq!(

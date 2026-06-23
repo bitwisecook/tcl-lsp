@@ -164,7 +164,7 @@ impl fmt::Display for PortRange {
     }
 }
 
-/// Parse a base-10 integer exactly as Python's `int(text, 10)` does for
+/// Parse a base-10 integer exactly as `int(text, 10)` does for
 /// the spellings these parsers feed it: optional sign, ASCII digits, with
 /// surrounding ASCII whitespace tolerated. Returns `None` on anything else.
 pub(crate) fn parse_decimal_int(text: &str) -> Option<i64> {
@@ -182,7 +182,7 @@ pub(crate) fn parse_decimal_int(text: &str) -> Option<i64> {
     format!("{sign}{digits}").parse::<i64>().ok()
 }
 
-/// Render `text` the way Python's `repr()` would for a short single-line
+/// Render `text` the way `repr()` would for a short single-line
 /// string: wrapped in single quotes (double quotes when the value itself
 /// contains a single quote and no double quote), matching the `{text!r}`
 /// interpolation used in the Python error messages.

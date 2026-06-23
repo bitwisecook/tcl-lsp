@@ -200,7 +200,7 @@ fn missing_password_after_env_host_and_user() {
 }
 
 // Env supplies host + user; `--dry-run` prints before credential resolution, so
-// a missing password never even surfaces (parity with the Python ordering).
+// a missing password never even surfaces.
 #[test]
 fn env_host_user_precedence_dry_run_prints_before_creds() {
     let p = payload();
@@ -242,7 +242,8 @@ fn missing_payload_file_errno_message() {
 #[test]
 fn invalid_json_position_matches_python() {
     // (contents, expected message tail) — the position is recomputed from the
-    // first non-whitespace char (or end-of-input) to mirror Python `json`.
+    // first non-whitespace char (or end-of-input) to match `json`
+    // error position.
     let cases: &[(&str, &str)] = &[
         ("", "Expecting value: line 1 column 1 (char 0)"),
         ("   not json", "Expecting value: line 1 column 4 (char 3)"),

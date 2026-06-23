@@ -282,7 +282,7 @@ pub fn target_to_region(target: SideEffectTarget, scope: StorageScope) -> Effect
     }
 }
 
-// Scope / storage-type inference helpers (C23c)
+// Scope / storage-type inference helpers
 
 /// Infer storage scope and namespace from a variable-name prefix.
 ///
@@ -351,7 +351,7 @@ fn lift_registry_storage_type(rt: RegistryStorageType) -> StorageType {
 /// Infer the storage type for a command invocation by querying the
 /// registry's `inferred_storage_type` metadata. Falls back to
 /// [`StorageType::Scalar`] for commands without a declared shape —
-/// matching the Python `_storage_type_for_command` behaviour where
+/// matching `_storage_type_for_command` behaviour where
 /// `set`, `incr`, `append`, and similar scalar commands default to
 /// the scalar shape.
 ///
@@ -371,7 +371,7 @@ pub fn storage_type_for_command(
     StorageType::Scalar
 }
 
-// Dataclasses — SideEffect, CommandSideEffects (C23b)
+// SideEffect, CommandSideEffects
 
 /// One discrete read or write produced by a command invocation.
 ///
@@ -439,7 +439,7 @@ impl SideEffect {
 ///
 /// Wraps zero or more individual [`SideEffect`] instances plus
 /// summary flags for quick consumer queries. Produced by
-/// [`classify_side_effects`] (C23d).
+/// [`classify_side_effects`].
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CommandSideEffects {
     /// Individual side effects produced by this invocation.
@@ -560,14 +560,13 @@ impl CommandSideEffects {
     }
 }
 
-// Classification (C23d)
+// Classification
 
 /// Optional summary of a procedure's side effects, provided by
 /// interprocedural analysis. When supplied to
 /// [`classify_side_effects`], it bypasses registry-based classification
 /// and the summary's effect regions are translated directly into
-/// [`CommandSideEffects`]. Mirrors the `callee_summary` shim in
-/// `core/compiler/side_effects.py`.
+/// [`CommandSideEffects`].
 #[derive(Debug, Clone, Copy)]
 pub struct CalleeSummary {
     /// Coarse regions read by the callee.
@@ -642,7 +641,7 @@ pub fn classify_side_effects(
     }
 
     // Pure evaluation (`expr` when braced) is always pure — checked first
-    // and unconditionally, mirroring Python's `is_pure_evaluation` short-
+    // and unconditionally, mirroring `is_pure_evaluation` short-
     // circuit (no subcommand / hint handling applies).
     if spec.traits.contains(Traits::PURE_EVALUATION) {
         return CommandSideEffects {
@@ -763,7 +762,7 @@ pub fn classify_side_effects(
     }
 
     // Hints-first: consult the spec's structured `side_effects`
-    // (Python's `side_effect_hints`). Dialect-gated, subcommand hints
+    // (`side_effect_hints`). Dialect-gated, subcommand hints
     // first. e.g. `puts`/`read` declare a `FileIo` write whose coarse
     // region is `NONE` — so a proc that only calls `puts` is impure
     // (`writes_any`) yet has no tracked effect region, matching Python.
@@ -782,7 +781,7 @@ pub fn classify_side_effects(
 
 /// Translate an interprocedural [`CalleeSummary`] into a
 /// [`CommandSideEffects`]. Mirrors the `callee_summary` branch in
-/// the Python `_classify_side_effects_impl`.
+/// `_classify_side_effects_impl`.
 fn classify_from_callee_summary(
     summary: &CalleeSummary,
     dialect: Option<&str>,
@@ -885,7 +884,7 @@ fn classify_variable_assignment(
 /// names 1:1 except for the registry-only `Process` / `ChannelIo`
 /// targets (no Python counterpart): `Process` collapses to
 /// [`SideEffectTarget::Unknown`] (its coarse region is
-/// `UNKNOWN_STATE`, matching Python's `exec` fallback) and `ChannelIo`
+/// `UNKNOWN_STATE`, matching `exec` fallback) and `ChannelIo`
 /// maps to [`SideEffectTarget::FileIo`] (channel I/O is file-shaped,
 /// region `NONE`).
 // Each variant is mapped explicitly (1:1 by name, plus the two
@@ -1121,7 +1120,7 @@ mod tests {
         assert!(!combined.contains(EffectRegion::UNKNOWN_STATE));
     }
 
-    // -- C23b: SideEffect / CommandSideEffects --
+    // -- SideEffect / CommandSideEffects --
 
     #[test]
     fn side_effect_new_defaults() {
@@ -1201,7 +1200,7 @@ mod tests {
         assert!(!w.contains(EffectRegion::HTTP_STATE));
     }
 
-    // -- C23c: scope + storage-type inference --
+    // -- scope + storage-type inference --
 
     #[test]
     fn scope_proc_local_for_bare_names() {
@@ -1268,7 +1267,7 @@ mod tests {
         );
     }
 
-    // -- C23d: classify_side_effects --
+    // -- classify_side_effects --
 
     #[test]
     fn classify_pure_expr() {

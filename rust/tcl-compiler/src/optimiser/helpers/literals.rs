@@ -4,7 +4,7 @@ use crate::analyses::ConstValue;
 use crate::tcl_expr_eval::{TclValue, format_tcl_value};
 
 /// Grammar of a word that can be emitted into Tcl source without
-/// needing brace quoting. Matches Python's `_SAFE_WORD_RE`:
+/// needing brace quoting. Matches `_SAFE_WORD_RE`:
 /// `[A-Za-z0-9_./:+-]+`.
 #[must_use]
 pub fn is_safe_word(text: &str) -> bool {
@@ -142,8 +142,7 @@ pub fn format_constant(value: &ConstValue) -> Option<String> {
     }
 }
 
-// Decimal int parsing (mirrors `parse_decimal_int` from the Python
-// token_helpers module — kept private so the rest of the crate is
+// Decimal int parsing (kept private so the rest of the crate is
 // not tempted to use it as a general-purpose integer parser).
 
 fn parse_decimal_int(text: &str) -> Option<i64> {

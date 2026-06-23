@@ -1,6 +1,6 @@
 //! Behavioural trait flags for commands.
 //!
-//! Each bit replaces one `bool` field from the Python `CommandSpec`.
+//! Each bit replaces one `bool` field from `CommandSpec`.
 //! Consumers query traits via `spec.traits.contains(Traits::CONTROL_FLOW)`
 //! instead of matching on command name strings.
 

@@ -176,7 +176,7 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
 
 // Shared coercion helpers
 
-/// Port of `builtins._coerce_pathlike` — accepts string / path-ref / object.
+/// Coerce a path-like value: accepts string / path-ref / object.
 fn coerce_pathlike(v: &Value, name: &str, arg: usize) -> Result<String, QueryError> {
     match v {
         Value::Str(s) => Ok(s.clone()),
@@ -219,7 +219,7 @@ fn net_value_error(text: &str) -> String {
     )
 }
 
-// IP address parsing + classification (port of `ipaddress` + `_address.py`)
+// IP address parsing + classification
 
 /// Parse a bare host (v4 or v6) the way `ipaddress.ip_address` does.
 /// Python is strict: it rejects leading zeros in IPv4 octets, zone ids, etc.
@@ -596,7 +596,7 @@ fn part_chars_ok(s: &str) -> bool {
     s.chars().all(|c| PART_VALID.contains(c))
 }
 
-/// Port of `_address.IPAddress` — an IP plus an optional `%rd` route domain.
+/// An IP plus an optional `%rd` route domain.
 #[derive(Clone)]
 struct TypedIp {
     addr: IpAddr,
@@ -604,7 +604,7 @@ struct TypedIp {
 }
 
 impl TypedIp {
-    /// Port of `IPAddress.parse`.
+    /// Parse `text` into a `TypedIp` (or `None`).
     fn try_parse(text: &str) -> Option<TypedIp> {
         let text = text.trim();
         let mut rd: Option<u64> = None;
@@ -631,7 +631,7 @@ impl TypedIp {
     }
 }
 
-/// Port of `_address.FQDN.parse` (returns whether `text` is a valid FQDN).
+/// Return whether `text` is a valid FQDN.
 fn is_valid_fqdn(text: &str) -> bool {
     let text = text.trim();
     if text.is_empty() || text.starts_with('.') || text.ends_with('.') {
@@ -674,7 +674,7 @@ impl TypedAddress {
     }
 }
 
-/// Port of `_address.parse_address` — IP first, FQDN fallback.
+/// Parse an address: IP first, FQDN fallback.
 fn parse_address(text: &str) -> Option<TypedAddress> {
     let text = text.trim();
     if let Some(ip) = TypedIp::try_parse(text) {
@@ -687,7 +687,7 @@ fn parse_address(text: &str) -> Option<TypedAddress> {
     }
 }
 
-/// Port of `_port.Port`.
+/// A parsed port: numeric value plus its original spelling.
 #[derive(Clone)]
 struct TypedPort {
     port: u16,
@@ -732,7 +732,7 @@ impl TypedPort {
     }
 }
 
-/// Port of `_partition.Partition`.
+/// A BIG-IP partition (canonical name with leading slash).
 #[derive(Clone, PartialEq, Eq)]
 struct Partition {
     name: String, // canonical with leading slash
@@ -762,7 +762,7 @@ impl Partition {
     }
 }
 
-/// Port of `_folder.Folder`.
+/// A folder: a partition plus its nested path segments.
 #[derive(Clone, PartialEq, Eq)]
 struct Folder {
     partition: Partition,
@@ -809,7 +809,7 @@ impl Folder {
     }
 }
 
-/// Port of `_folder.ObjectPath`.
+/// An object path: a folder plus the object's name.
 struct ObjectPath {
     folder: Folder,
     name: String,
@@ -854,7 +854,7 @@ impl ObjectPath {
     }
 }
 
-/// Port of `_destination.Destination`.
+/// A parsed BIG-IP destination (address, port, folder, route domain).
 struct Destination {
     address: TypedAddress,
     port: TypedPort,
@@ -864,7 +864,7 @@ struct Destination {
     port_separator: char,
 }
 
-/// Strip a trailing `%N` route domain — port of `_split_route_domain`.
+/// Strip a trailing `%N` route domain.
 /// Returns `(addr-without-rd, route-domain)`.
 fn split_route_domain(text: &str) -> (String, Option<u64>) {
     if !text.contains('%') {
@@ -896,7 +896,7 @@ fn looks_like_address(segment: &str) -> bool {
     segment.chars().next().is_some_and(|c| c.is_ascii_digit())
 }
 
-/// Port of `_split_folder_prefix`.
+/// Split a leading folder prefix off `text`, returning `(folder, remainder)`.
 fn split_folder_prefix(text: &str) -> (Option<Folder>, String) {
     if !text.starts_with('/') {
         return (None, text.to_string());
@@ -933,7 +933,7 @@ fn split_folder_prefix(text: &str) -> (Option<Folder>, String) {
 }
 
 impl Destination {
-    /// Port of `Destination.parse` (returns `None` instead of raising). The
+    /// Parse a destination (returns `None` instead of raising). The
     /// length comes from handling the bracket / IPv6 / IPv4-FQDN branches
     /// individually.
     #[allow(clippy::too_many_lines)]
@@ -1077,7 +1077,7 @@ impl Destination {
     }
 }
 
-/// Port of `_split_destination` — returns `(partition_prefix, address,
+/// Split a destination string into `(partition_prefix, address,
 /// route_domain, port)`.
 fn split_destination(value: &str) -> (String, String, String, String) {
     if let Some(dest) = Destination::try_parse(value) {
@@ -1110,7 +1110,7 @@ fn split_destination(value: &str) -> (String, String, String, String) {
     })
 }
 
-/// Port of the `_DEST_RE` fallback regex match.
+/// Fallback regex match for a destination string.
 fn legacy_dest_re(value: &str) -> Option<(String, String, String, String)> {
     let mut rest = value;
     let mut partition = String::new();
@@ -1160,7 +1160,7 @@ fn legacy_dest_re(value: &str) -> Option<(String, String, String, String)> {
     Some((partition, addr.to_string(), rd, port))
 }
 
-/// Port of `_rebuild_destination`.
+/// Reassemble a destination string from its parts.
 fn rebuild_destination(partition: &str, address: &str, route_domain: &str, port: &str) -> String {
     let mut out = format!("{partition}{address}");
     if !route_domain.is_empty() {
@@ -1172,7 +1172,7 @@ fn rebuild_destination(partition: &str, address: &str, route_domain: &str, port:
     out
 }
 
-/// Coerce to a typed `Address` — port of `_typed_address`.
+/// Coerce to a typed `Address`.
 fn typed_address(value: &Value, name: &str) -> Result<Option<TypedAddress>, QueryError> {
     if matches!(value, Value::Null) {
         return Ok(None);
@@ -1187,7 +1187,7 @@ fn typed_address(value: &Value, name: &str) -> Result<Option<TypedAddress>, Quer
     Ok(parse_address(&s))
 }
 
-/// Coerce to a typed `Network` — port of `_typed_network`.
+/// Coerce to a typed `Network`.
 fn typed_network(value: &Value, name: &str, arg: usize) -> Result<Option<Net>, QueryError> {
     if matches!(value, Value::Null) {
         return Ok(None);
@@ -1199,7 +1199,7 @@ fn typed_network(value: &Value, name: &str, arg: usize) -> Result<Option<Net>, Q
     Ok(network_try_parse(&s))
 }
 
-/// Port of `Network.try_parse` — integer CIDR, dotted-quad netmask,
+/// Parse a network: integer CIDR, dotted-quad netmask,
 /// space-separated `ADDR MASK`, and the `default` keywords.
 fn network_try_parse(text: &str) -> Option<Net> {
     let original = text.trim();
@@ -1622,7 +1622,7 @@ fn bi_collapse_cidrs(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::List(out))
 }
 
-/// Port of `ipaddress.collapse_addresses` for IPv4.
+/// Collapse adjacent / overlapping IPv4 networks.
 fn collapse_v4(nets: &[Ipv4Net]) -> Vec<Ipv4Net> {
     let ranges: Vec<(u128, u128)> = nets
         .iter()
@@ -2072,7 +2072,7 @@ struct PortSeg {
     high: u32,
 }
 
-/// Port of `PortSet.try_parse` → normalised segments, or `None`.
+/// Parse a port set into normalised segments, or `None`.
 fn port_set_try_parse(text: &str) -> Option<Vec<PortSeg>> {
     let text = text.trim();
     if text.is_empty() {
@@ -2119,7 +2119,7 @@ fn port_set_try_parse(text: &str) -> Option<Vec<PortSeg>> {
     Some(collapse_port_segments(raw))
 }
 
-/// Port of `_collapse_segments`.
+/// Collapse adjacent / overlapping port segments.
 fn collapse_port_segments(mut raw: Vec<PortSeg>) -> Vec<PortSeg> {
     raw.sort_by_key(|s| (s.low, s.high));
     let mut out: Vec<PortSeg> = vec![raw[0]];
@@ -2174,7 +2174,7 @@ fn bi_port_set_overlaps(args: &[Value]) -> Result<Value, QueryError> {
 
 // ---- IP ranges ------------------------------------------------------------
 
-/// Port of `IPRange.try_parse` → `(first, last)` as same-family `IpAddr`, or `None`.
+/// Parse an IP range into `(first, last)` as same-family `IpAddr`, or `None`.
 fn ip_range_try_parse(text: &str) -> Option<(IpAddr, IpAddr)> {
     let text = text.trim();
     if text.is_empty() {

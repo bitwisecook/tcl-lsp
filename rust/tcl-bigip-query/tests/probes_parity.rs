@@ -1,7 +1,7 @@
 //! Golden differential test for the deterministic probe surface.
 //!
 //! Two byte-parity guarantees are asserted against `tests/fixtures/probes.json`
-//! (captured from `dialects/f5/query/_probes.py` with `cryptography>=48`):
+//! (captured with `cryptography>=48`):
 //!
 //! 1. `x509_parse(<pem>)` — the rich `cryptography`-shaped dict (subject /
 //!    issuer / serial / validity / SANs / fingerprint / key-alg / key-size /
