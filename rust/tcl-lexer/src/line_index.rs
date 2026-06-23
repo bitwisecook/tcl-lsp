@@ -288,6 +288,7 @@ mod tests {
     /// edits only, so every byte offset is a `char` boundary; the alphabet is
     /// newline-heavy to exercise insert/delete of line-starts in every region.
     #[test]
+    #[allow(clippy::cast_possible_truncation)] // test indices are small + bounded
     fn apply_edit_matches_rebuild_under_fuzz() {
         let starts = |idx: &LineIndex| (0..idx.line_count()).map(|l| idx.line_start(l as u32)).collect::<Vec<_>>();
         // Deterministic xorshift PRNG — reproducible without a dev-dependency.
@@ -341,6 +342,7 @@ mod tests {
         assert!(starts_eq(&idx, "a\nZ\nb\nc"));
     }
 
+    #[allow(clippy::cast_possible_truncation)] // line_count fits u32 (4 GiB budget)
     fn starts_eq(idx: &LineIndex, expected_src: &str) -> bool {
         let want = LineIndex::new(expected_src);
         idx.line_count() == want.line_count()

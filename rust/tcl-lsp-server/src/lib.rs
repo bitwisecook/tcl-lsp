@@ -7023,6 +7023,7 @@ mod tests {
     /// edits must stay byte-identical to a rebuild from the final text — the
     /// invariant `DocumentState` relies on for its persisted index.
     #[test]
+    #[allow(clippy::cast_possible_truncation)] // line_count fits u32 (4 GiB budget)
     fn apply_content_change_indexed_keeps_line_index_consistent() {
         let line_starts =
             |idx: &tcl_lexer::LineIndex| (0..idx.line_count()).map(|l| idx.line_start(l as u32)).collect::<Vec<_>>();
