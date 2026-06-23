@@ -171,6 +171,24 @@ fn write_trace_error_info_reaches_triggering_command() {
     );
 }
 
+/// The compiled `linsert`/`lreplace` opcode rejects a non-integer index with
+/// the same `bad index` error as the command, rather than silently treating it
+/// as 0. Regression for linsert-2.2 / linsert-2.3.
+#[test]
+fn compiled_linsert_rejects_bad_index() {
+    let (ok, result, _) = run("catch {linsert a b} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result,
+        "bad index \"b\": must be integer?[+-]integer? or end?[+-]integer?"
+    );
+
+    // A valid index still inserts (no false positive).
+    let (ok, result, _) = run("linsert {a b c} end X");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "a b c X");
+}
+
 /// An error unwinding out of a runtime `eval $script` adds the uncompiled
 /// eval's `("eval" body line N)` frame to `errorInfo`, followed by the
 /// enclosing invocation's `invoked from within "eval $s"` frame — matching C's
@@ -276,7 +294,10 @@ fn while_for_reject_wrong_arg_count() {
 
     let (ok, result, _) = run("catch {for 1 2 3 4 5} m\nset m");
     assert!(ok, "script should complete: {result}");
-    assert_eq!(result, "wrong # args: should be \"for start test next command\"");
+    assert_eq!(
+        result,
+        "wrong # args: should be \"for start test next command\""
+    );
 }
 
 /// An inline-compiled command substitution interpolates a leading-`$` word that
@@ -301,7 +322,8 @@ fn inline_cmd_subst_interpolates_dollar_prefixed_word() {
 /// loop.
 #[test]
 fn break_continue_reject_arguments() {
-    let (ok, result, _) = run("set r {}\nforeach x {1 2 3} {catch {break foo} m; lappend r $m; break}\nset r");
+    let (ok, result, _) =
+        run("set r {}\nforeach x {1 2 3} {catch {break foo} m; lappend r $m; break}\nset r");
     assert!(ok, "script should complete: {result}");
     assert_eq!(result, "{wrong # args: should be \"break\"}");
 
@@ -310,7 +332,8 @@ fn break_continue_reject_arguments() {
     assert_eq!(result, "wrong # args: should be \"continue\"");
 
     // The bare forms still break/continue the loop.
-    let (ok, result, _) = run("set r {}\nforeach x {1 2 3 4} {if {$x==3} break; lappend r $x}\nset r");
+    let (ok, result, _) =
+        run("set r {}\nforeach x {1 2 3 4} {if {$x==3} break; lappend r $x}\nset r");
     assert!(ok, "script should complete: {result}");
     assert_eq!(result, "1 2");
 }
