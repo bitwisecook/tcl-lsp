@@ -36,24 +36,33 @@ type DiagnosticRow = (String, String, String, String, u32, u32, Option<String>);
 /// `dialect` is forwarded as-is; `None` selects plain Tcl.
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
-pub fn compiler_checks_run_all(source: &str, dialect: Option<&str>) -> Vec<DiagnosticRow> {
+pub fn compiler_checks_run_all(
+    py: Python<'_>,
+    source: &str,
+    dialect: Option<&str>,
+) -> Vec<DiagnosticRow> {
     let registry = crate::registry::default_registry();
-    let cu =
-        CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, dialect);
-    run_all_checks(&cu, registry, dialect)
-        .into_iter()
-        .map(|d| {
-            (
-                d.code,
-                d.category,
-                d.severity.as_str().to_owned(),
-                d.message,
-                d.span.start(),
-                d.span.end(),
-                d.replacement,
-            )
-        })
-        .collect()
+    let source = source.to_owned();
+    let dialect = dialect.map(str::to_owned);
+    py.detach(move || {
+        let dialect = dialect.as_deref();
+        let cu = CompilationUnit::build_for(&source, registry, false)
+            .with_interprocedural(registry, dialect);
+        run_all_checks(&cu, registry, dialect)
+            .into_iter()
+            .map(|d| {
+                (
+                    d.code,
+                    d.category,
+                    d.severity.as_str().to_owned(),
+                    d.message,
+                    d.span.start(),
+                    d.span.end(),
+                    d.replacement,
+                )
+            })
+            .collect()
+    })
 }
 
 pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {

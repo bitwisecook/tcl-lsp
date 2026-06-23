@@ -41,8 +41,8 @@ type PyLexWarning = (PySourcePosition, String);
 /// syntax error.
 #[pyfunction]
 #[pyo3(text_signature = "(source, /)")]
-pub fn lexer_tokenise(source: &str) -> PyResult<Vec<PyToken>> {
-    let (tokens, _warnings) = lexer_tokenise_with_config(source, true, false, false, 0, 0, 0)?;
+pub fn lexer_tokenise(py: Python<'_>, source: &str) -> PyResult<Vec<PyToken>> {
+    let (tokens, _warnings) = lexer_tokenise_with_config(py, source, true, false, false, 0, 0, 0)?;
     Ok(tokens)
 }
 
@@ -56,7 +56,9 @@ pub fn lexer_tokenise(source: &str) -> PyResult<Vec<PyToken>> {
 /// close-quote, unterminated strings, etc.).
 #[pyfunction]
 #[pyo3(signature = (source, expand_syntax=true, irules_brace_separator=false, strict_quoting=false, base_offset=0, base_line=0, base_col=0))]
+#[allow(clippy::too_many_arguments)]
 pub fn lexer_tokenise_with_config(
+    py: Python<'_>,
     source: &str,
     expand_syntax: bool,
     irules_brace_separator: bool,
@@ -73,23 +75,29 @@ pub fn lexer_tokenise_with_config(
         base_line,
         base_col,
     };
-    let source_map = SourceMap::new(source).with_base(base_offset, base_line, base_col);
-    let lexer = Lexer::with_source_map(source_map, config);
-    let sm = lexer.source_map().clone();
-    let (tokens, warnings) = lexer
-        .tokenise_all_with_warnings()
-        .map_err(|err| to_py_err(&err))?;
-    let py_tokens: Vec<PyToken> = tokens.into_iter().map(|tok| lift(tok, &sm)).collect();
-    let py_warnings: Vec<PyLexWarning> = warnings
-        .into_iter()
-        .map(|w| {
-            (
-                PySourcePosition::from_core(sm.position_at(w.offset)),
-                w.message,
-            )
-        })
-        .collect();
-    Ok((py_tokens, py_warnings))
+    let source = source.to_owned();
+    // Lexing and the span→position lift are pure Rust over owned data
+    // (`PyToken` / `PySourcePosition` carry no Python handles), so the
+    // whole compute runs with the GIL released; only error mapping
+    // happens back under the GIL.
+    let result = py.detach(move || {
+        let source_map = SourceMap::new(&source).with_base(base_offset, base_line, base_col);
+        let lexer = Lexer::with_source_map(source_map, config);
+        let sm = lexer.source_map().clone();
+        let (tokens, warnings) = lexer.tokenise_all_with_warnings()?;
+        let py_tokens: Vec<PyToken> = tokens.into_iter().map(|tok| lift(tok, &sm)).collect();
+        let py_warnings: Vec<PyLexWarning> = warnings
+            .into_iter()
+            .map(|w| {
+                (
+                    PySourcePosition::from_core(sm.position_at(w.offset)),
+                    w.message,
+                )
+            })
+            .collect();
+        Ok::<_, LexError>((py_tokens, py_warnings))
+    });
+    result.map_err(|err| to_py_err(&err))
 }
 
 /// Lift a pure-Rust `Token` into a Python-visible `PyToken`,

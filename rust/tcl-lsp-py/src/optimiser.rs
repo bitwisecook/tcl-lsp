@@ -48,12 +48,20 @@ fn lift_optimisation(o: optimiser::Optimisation) -> OptimisationRow {
 /// plain Tcl.
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
-pub fn optimiser_find_optimisations(source: &str, dialect: Option<&str>) -> Vec<OptimisationRow> {
+pub fn optimiser_find_optimisations(
+    py: Python<'_>,
+    source: &str,
+    dialect: Option<&str>,
+) -> Vec<OptimisationRow> {
     let registry = crate::registry::default_registry();
-    optimiser::optimise_with_dialect(source, registry, dialect)
-        .into_iter()
-        .map(lift_optimisation)
-        .collect()
+    let source = source.to_owned();
+    let dialect = dialect.map(str::to_owned);
+    py.detach(move || {
+        optimiser::optimise_with_dialect(&source, registry, dialect.as_deref())
+            .into_iter()
+            .map(lift_optimisation)
+            .collect()
+    })
 }
 
 /// Run every optimisation pass against `source` and
@@ -63,16 +71,21 @@ pub fn optimiser_find_optimisations(source: &str, dialect: Option<&str>) -> Vec<
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
 pub fn optimiser_find_optimisations_raw(
+    py: Python<'_>,
     source: &str,
     dialect: Option<&str>,
 ) -> Vec<OptimisationRow> {
     let registry = crate::registry::default_registry();
-    // optimise_raw already constructs a CompilationUnit internally;
-    // no need to build one here.
-    optimiser::optimise_raw(source, registry, dialect)
-        .into_iter()
-        .map(lift_optimisation)
-        .collect()
+    let source = source.to_owned();
+    let dialect = dialect.map(str::to_owned);
+    py.detach(move || {
+        // optimise_raw already constructs a CompilationUnit internally;
+        // no need to build one here.
+        optimiser::optimise_raw(&source, registry, dialect.as_deref())
+            .into_iter()
+            .map(lift_optimisation)
+            .collect()
+    })
 }
 
 /// Return the display priority for a given optimisation code.

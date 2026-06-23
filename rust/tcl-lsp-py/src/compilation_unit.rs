@@ -84,10 +84,18 @@ impl CompilationUnitHandle {
 /// other bindings.
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
-pub fn build_compilation_unit(source: &str, dialect: Option<&str>) -> CompilationUnitHandle {
+pub fn build_compilation_unit(
+    py: Python<'_>,
+    source: &str,
+    dialect: Option<&str>,
+) -> CompilationUnitHandle {
     let registry = crate::registry::default_registry();
-    let cu =
-        CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, dialect);
+    let source = source.to_owned();
+    let dialect = dialect.map(str::to_owned);
+    let cu = py.detach(move || {
+        CompilationUnit::build_for(&source, registry, false)
+            .with_interprocedural(registry, dialect.as_deref())
+    });
     CompilationUnitHandle {
         inner: Arc::new(cu),
     }
