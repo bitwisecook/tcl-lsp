@@ -89,10 +89,19 @@ pub mod cmd_var;
 pub mod codegen_abi;
 pub mod counters;
 pub mod dict;
+// The Tcl 9 stdlib embedded in the binary, seeded into the WASM VFS so the
+// filesystem-backed startup path (`init.tcl`, `package require`) works with no
+// host filesystem. Gated so non-WASM consumers don't carry the embedded bytes.
+#[cfg(feature = "wasm_stdlib")]
+pub mod embedded_stdlib;
 pub mod ensemble;
 #[cfg(have_tommath)]
 pub mod expr;
 pub mod frame;
+// The in-memory filesystem the WASM hosts mount. Compiled on the WASM-stdlib
+// build and under `cfg(test)` (its own unit tests run natively).
+#[cfg(any(feature = "wasm_stdlib", test))]
+pub mod mem_fs;
 // The placeholder `wasm32-unknown-unknown` capability host (native builds use
 // `tcl-host-native::NativeHost`).
 #[cfg(target_arch = "wasm32")]

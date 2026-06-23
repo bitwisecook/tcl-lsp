@@ -277,7 +277,7 @@ fn add_tcl_import(m: &mut WasmModule, name: &str, params: &[ValType], results: &
 /// for a standalone module (own memory) or one whose host keeps low memory free.
 #[must_use]
 pub fn wasm_codegen_module(module: &Module, source: &str) -> WasmModule {
-    codegen(module, source, 0, false)
+    codegen(module, source, 0, false, false)
 }
 
 /// As [`wasm_codegen_module`], but relocate the constant pool to `data_base` so
@@ -287,7 +287,7 @@ pub fn wasm_codegen_module(module: &Module, source: &str) -> WasmModule {
 /// `tcl_obj_new_string` are based at `data_base`.
 #[must_use]
 pub fn wasm_codegen_module_based(module: &Module, source: &str, data_base: i64) -> WasmModule {
-    codegen(module, source, data_base, false)
+    codegen(module, source, data_base, false, false)
 }
 
 /// As [`wasm_codegen_module_based`], but also emit a WASI-command entry point
@@ -301,12 +301,35 @@ pub fn wasm_codegen_module_based(module: &Module, source: &str, data_base: i64) 
 /// separate `_initialize` call is needed.
 #[must_use]
 pub fn wasm_codegen_module_standalone(module: &Module, source: &str, data_base: i64) -> WasmModule {
-    codegen(module, source, data_base, true)
+    codegen(module, source, data_base, true, false)
+}
+
+/// As [`wasm_codegen_module_standalone`], but the emitted `_start` also calls
+/// `tcl_runtime_init_library` (between `set_current_interp` and `::top`) to
+/// bootstrap the standard library — `source $TCL_LIBRARY/init.tcl`, bringing up
+/// `unknown`/auto-load/`package`. With the runtime built with the embedded
+/// stdlib (`--features wasm_stdlib`), the merged module runs a compiled script
+/// against a fully initialised interpreter — so `package require tcltest` and
+/// the rest of the stdlib work from a single `wasmtime merged.wasm`.
+#[must_use]
+pub fn wasm_codegen_module_standalone_init(
+    module: &Module,
+    source: &str,
+    data_base: i64,
+) -> WasmModule {
+    codegen(module, source, data_base, true, true)
 }
 
 /// Shared codegen for the linkable ([`wasm_codegen_module_based`]) and
-/// self-contained ([`wasm_codegen_module_standalone`]) forms.
-fn codegen(module: &Module, source: &str, data_base: i64, standalone: bool) -> WasmModule {
+/// self-contained ([`wasm_codegen_module_standalone`]) forms. `init` adds the
+/// `tcl_runtime_init_library` bootstrap call to a standalone `_start`.
+fn codegen(
+    module: &Module,
+    source: &str,
+    data_base: i64,
+    standalone: bool,
+    init: bool,
+) -> WasmModule {
     let mut wasm = WasmModule::new();
     let imports = Imports {
         obj_new_string: add_tcl_import(
@@ -330,7 +353,9 @@ fn codegen(module: &Module, source: &str, data_base: i64, standalone: bool) -> W
             &[ValType::I32],
             &[],
         );
-        (create, set_current)
+        let init_library = init
+            .then(|| add_tcl_import(&mut wasm, "tcl_runtime_init_library", &[], &[ValType::I32]));
+        (create, set_current, init_library)
     });
 
     // `::top` is the first *defined* function, so its call index is the import
@@ -370,33 +395,42 @@ fn codegen(module: &Module, source: &str, data_base: i64, standalone: bool) -> W
 
     wasm.data_segments = emitter.data;
 
-    if let Some((create, set_current)) = bootstrap {
+    if let Some((create, set_current, init_library)) = bootstrap {
         wasm.functions
-            .push(start_function(create, set_current, top_idx));
+            .push(start_function(create, set_current, init_library, top_idx));
     }
 
     wasm
 }
 
-/// The `_start` WASI-command entry: `set_current_interp(create_interp()); ::top()`.
+/// The `_start` WASI-command entry:
+/// `set_current_interp(create_interp()); [init_library();] ::top()`.
 /// `finish_function`'s usual trailing `end` is appended here by hand since this
 /// body is built directly rather than via the structured walk.
-fn start_function(create_interp: u32, set_current_interp: u32, top_idx: u32) -> WasmFunction {
+fn start_function(
+    create_interp: u32,
+    set_current_interp: u32,
+    init_library: Option<u32>,
+    top_idx: u32,
+) -> WasmFunction {
     let call =
         |idx: u32| WasmInstruction::with_operands(WasmOp::Call, leb128_unsigned(u64::from(idx)));
+    // create_interp() leaves the interp ptr on the stack; set_current_interp
+    // consumes it; the optional init_library() bootstraps the stdlib (its i32
+    // status is discarded); ::top runs against the now-current, initialised interp.
+    let mut body = vec![call(create_interp), call(set_current_interp)];
+    if let Some(init) = init_library {
+        body.push(call(init));
+        body.push(WasmInstruction::new(WasmOp::Drop));
+    }
+    body.push(call(top_idx));
+    body.push(WasmInstruction::new(WasmOp::End));
     WasmFunction {
         name: "_start".to_string(),
         params: Vec::new(),
         results: Vec::new(),
         locals: Vec::new(),
-        // create_interp() leaves the interp ptr on the stack; set_current_interp
-        // consumes it; ::top runs against the now-current interp.
-        body: vec![
-            call(create_interp),
-            call(set_current_interp),
-            call(top_idx),
-            WasmInstruction::new(WasmOp::End),
-        ],
+        body,
         local_names: Vec::new(),
         exported: true,
         source_range: None,

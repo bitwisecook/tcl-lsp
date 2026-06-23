@@ -93,9 +93,52 @@ Verified end to end (`demo.tcl`, `broad.tcl`): `expr`/bignums, `if`/`while`/`for
 recursive procs (`fib 10 = 55`), `string`/`list`/`dict`, and `puts` all run
 correctly from a single `wasmtime merged.wasm` invocation.
 
+## Running the real stdlib + tcltest (`build_test.sh`)
+
+`build_standalone.sh` runs a bare script. `build_test.sh` goes further: it runs a
+script (or a tcltest `.test` file) against the **real C-Tcl-9 standard library**
+— `init.tcl`, the `package`/Tcl-module machinery, and the `tcltest` package —
+all **embedded in the binary** and seeded into an in-memory VFS. No host
+filesystem, no `--dir` preopen, no source files shipped alongside.
+
+```
+./build_test.sh ../../../tmp/tcl9.0.3/tests/set.test set.wasm
+wasmtime set.wasm        # sources init.tcl, package require tcltest, runs the tests
+```
+
+Two pieces make this work, on top of the standalone path:
+
+1. **Embedded stdlib + VFS.** The runtime, built with `--features wasm_stdlib`,
+   embeds the read-closure of bootstrapping `init.tcl` and loading `tcltest`
+   (the 14 files vendored under `runtime/rust/vendor/tcl_library/`) and seeds
+   them into a [`MemFs`](../../rust/src/mem_fs.rs) the `WasiHost` mounts, reporting
+   its mount point as `$TCL_LIBRARY`. The channel layer's `open` reads through
+   the host filesystem when there is no native file (so `auto_load_index` can
+   `open`/`gets` the `tclIndex`; `source`/`glob`/`file` already used the host).
+2. **`init_library` in `_start`.** `emit_wasm --init` emits a `_start` that calls
+   `tcl_runtime_init_library` (C's `Tcl_Init` — `source $TCL_LIBRARY/init.tcl`)
+   between `set_current_interp` and `::top`, so the compiled script runs against
+   a fully initialised interpreter where `package require` works.
+
+### Status — `set.test` passes with full native parity
+
+`set.test` from C Tcl 9 runs end to end from a single `wasmtime set.wasm`:
+
+```
+set.test:  Total 64  Passed 59  Skipped 1  Failed 4
+```
+
+— byte-for-byte the same result as running it through the native runtime
+(`run_script --init`). The 4 failures and 1 skip are pre-existing runtime gaps
+(a quoted-word parse-error case, variable-trace `errorInfo` framing, and the
+`testset2` C-only constraint), **not** WASM/AOT/stdlib regressions — the WASM
+path adds none.
+
 ## Next step
 
 Lift more leaf commands out of the `tcl_eval` fallback into true inline AOT
 (variable slots, arithmetic, per-command hooks); shrink the merged binary
-(tree-shake unused runtime with `wasm-opt`); add `errorInfo`/framing assertions
-to the standalone path.
+(tree-shake unused runtime with `wasm-opt`); pre-compile the stdlib files
+themselves (today they are embedded as source and interpreted — the eval tier
+makes per-file AOT ~equivalent, but an inline-AOT tier would change that); fix
+the pre-existing runtime parser/trace gaps so `set.test` reaches 63/64.

@@ -16,14 +16,21 @@
 
 use std::collections::BTreeMap;
 use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Cursor, Read, Seek, Write};
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 
+/// A seekable read source for a channel: a real file (native) or an in-memory
+/// buffer (the host-filesystem read path used where there is no real filesystem,
+/// e.g. the embedded-stdlib VFS on `wasm32-wasip1`). `BufReader<File>` and
+/// `Cursor<Vec<u8>>` both satisfy it, so `read`/`gets`/`seek`/`tell` are uniform.
+pub trait ReadSeek: BufRead + Seek {}
+impl<T: BufRead + Seek> ReadSeek for T {}
+
 /// One open channel: a buffered reader (read modes) and/or a writable handle.
 pub struct ChanState {
-    reader: Option<BufReader<File>>,
+    reader: Option<Box<dyn ReadSeek>>,
     writer: Option<File>,
     eof: bool,
 }
@@ -59,15 +66,30 @@ impl ChannelTable {
             }
         } else {
             ChanState {
-                reader: Some(BufReader::new(file)),
+                reader: Some(Box::new(BufReader::new(file))),
                 writer: None,
                 eof: false,
             }
         };
+        Ok(self.insert(state))
+    }
+
+    /// Register an already-built channel state, returning its `fileN` id.
+    fn insert(&mut self, state: ChanState) -> Vec<u8> {
         self.next += 1;
         let id = format!("file{}", self.next).into_bytes();
         self.map.insert(id.clone(), state);
-        Ok(id)
+        id
+    }
+
+    /// Register a read-only channel over an in-memory buffer (a file read whole
+    /// from the host filesystem capability — the VFS read path).
+    fn open_mem(&mut self, bytes: Vec<u8>) -> Vec<u8> {
+        self.insert(ChanState {
+            reader: Some(Box::new(Cursor::new(bytes))),
+            writer: None,
+            eof: false,
+        })
     }
 }
 
@@ -152,15 +174,37 @@ fn open_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(&id);
             Code::Ok
         }
-        Err(e) => match e.kind() {
-            std::io::ErrorKind::NotFound => {
-                let mut m = b"couldn't open \"".to_vec();
-                m.extend_from_slice(&path);
-                m.extend_from_slice(b"\": no such file or directory");
-                interp.set_error(&m)
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // No real file. On a host with no native filesystem (wasm), the file
+            // may live in the host filesystem capability (the embedded-stdlib
+            // VFS). For read modes, read it whole and back the channel with that
+            // buffer. Native is unaffected — `std::fs` succeeded there, or the
+            // file genuinely does not exist (the VFS read then fails too).
+            let read_only =
+                mode.first() != Some(&b'w') && mode.first() != Some(&b'a') && !mode.contains(&b'+');
+            let vfs_bytes = if read_only {
+                interp
+                    .host()
+                    .filesystem()
+                    .and_then(|fs| fs.read(path_s).ok())
+            } else {
+                None
+            };
+            match vfs_bytes {
+                Some(bytes) => {
+                    let id = interp.channels.borrow_mut().open_mem(bytes);
+                    interp.set_result_bytes(&id);
+                    Code::Ok
+                }
+                None => {
+                    let mut m = b"couldn't open \"".to_vec();
+                    m.extend_from_slice(&path);
+                    m.extend_from_slice(b"\": no such file or directory");
+                    interp.set_error(&m)
+                }
             }
-            _ => io_error(interp, &e),
-        },
+        }
+        Err(e) => io_error(interp, &e),
     }
 }
 
@@ -435,7 +479,7 @@ fn fblocked_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn seek_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    use std::io::{Seek, SeekFrom};
+    use std::io::SeekFrom;
     if argv.len() < 3 || argv.len() > 4 {
         return wrong_args(interp, b"seek channelId offset ?origin?");
     }
@@ -480,7 +524,6 @@ fn seek_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn tell_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    use std::io::Seek;
     if argv.len() != 2 {
         return wrong_args(interp, b"tell channelId");
     }

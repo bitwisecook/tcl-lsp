@@ -87,6 +87,25 @@ pub extern "C" fn tcl_runtime_set_current_interp(interp: *mut Interp) {
     }
 }
 
+/// `tcl_runtime_init_library() -> i32` — bootstrap the standard library on the
+/// current interp, like C's `Tcl_Init`. [`tcl_runtime_set_current_interp`] must
+/// have run first. Sources `$TCL_LIBRARY/init.tcl` from the host filesystem —
+/// the embedded-stdlib VFS on the `wasm_stdlib` build — bringing up the
+/// `unknown`/auto-load/`package` machinery so `package require` works. Returns
+/// `0` on success, `1` on error or when no current interp is set. A standalone
+/// emitted module's `_start` calls this between `set_current_interp` and `::top`
+/// so the compiled script runs against a fully initialised interpreter.
+#[no_mangle]
+pub extern "C" fn tcl_runtime_init_library() -> i32 {
+    let interp = current_interp();
+    if interp.is_null() {
+        return 1;
+    }
+    // SAFETY: `interp` is the live current interp set by the bootstrap.
+    let code = unsafe { (*interp).init_library() };
+    i32::from(code == crate::interp::Code::Error)
+}
+
 /// `tcl_obj_new_string(ptr, len) -> obj` — box `len` bytes of (shared linear)
 /// memory as a fresh `TclObj` (`rc 0`). The consumer ([`tcl_eval`] /
 /// [`tcl_expr_bool`]) adopts and frees it.

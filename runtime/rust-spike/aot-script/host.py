@@ -10,8 +10,10 @@ runtime's reserved gap (`emit_wasm` passes `RESERVED_DATA_BASE`) — at base 0 t
 first boxed command lands at offset 0 and `tcl_obj_new_string(ptr=0, …)` reads as
 a null/empty pointer, silently dropping that command.
 """
+
 import sys
-from wasmtime import Engine, Store, Module, Linker, WasiConfig
+
+from wasmtime import Engine, Linker, Module, Store, WasiConfig
 
 rt_path, user_path = sys.argv[1], sys.argv[2]
 engine = Engine()

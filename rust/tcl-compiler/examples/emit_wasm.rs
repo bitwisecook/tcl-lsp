@@ -18,26 +18,32 @@ use std::fs;
 
 use tcl_compiler::codegen::wasm::{
     RESERVED_DATA_BASE, wasm_codegen_module_based, wasm_codegen_module_standalone,
+    wasm_codegen_module_standalone_init,
 };
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let (standalone, rest): (bool, Vec<&String>) = {
+    let (standalone, init, rest): (bool, bool, Vec<&String>) = {
         let mut standalone = false;
+        let mut init = false;
         let mut rest = Vec::new();
         for a in &args {
-            if a == "--standalone" {
-                standalone = true;
-            } else {
-                rest.push(a);
+            match a.as_str() {
+                "--standalone" => standalone = true,
+                // `--init` bootstraps the stdlib in `_start`; it implies standalone.
+                "--init" => {
+                    init = true;
+                    standalone = true;
+                }
+                _ => rest.push(a),
             }
         }
-        (standalone, rest)
+        (standalone, init, rest)
     };
     let [script_path, out_path] = rest.as_slice() else {
-        eprintln!("usage: emit_wasm [--standalone] <script-file> <out.wasm>");
+        eprintln!("usage: emit_wasm [--standalone] [--init] <script-file> <out.wasm>");
         std::process::exit(2);
     };
     let src = fs::read_to_string(script_path).expect("read script");
@@ -47,19 +53,21 @@ fn main() {
     // command strings sit at non-null offsets — at base 0 the first string lands
     // at offset 0 and `tcl_obj_new_string(ptr=0, …)` is read as a null/empty
     // pointer, silently dropping that command.
-    let mut wasm = if standalone {
+    let mut wasm = if init {
+        wasm_codegen_module_standalone_init(&module, &src, RESERVED_DATA_BASE)
+    } else if standalone {
         wasm_codegen_module_standalone(&module, &src, RESERVED_DATA_BASE)
     } else {
         wasm_codegen_module_based(&module, &src, RESERVED_DATA_BASE)
     };
     fs::write(out_path, wasm.to_bytes()).expect("write wasm");
+    let tag = match (standalone, init) {
+        (_, true) => " [standalone +_start +init_library]",
+        (true, false) => " [standalone +_start]",
+        _ => "",
+    };
     eprintln!(
-        "wrote {out_path} ({} bytes){}",
-        fs::metadata(out_path).map(|m| m.len()).unwrap_or(0),
-        if standalone {
-            " [standalone +_start]"
-        } else {
-            ""
-        }
+        "wrote {out_path} ({} bytes){tag}",
+        fs::metadata(out_path).map_or(0, |m| m.len()),
     );
 }
