@@ -123,3 +123,30 @@ pub fn tk_command_specs() -> Vec<CommandSpec> {
         wm::spec(),
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::tk_command_specs;
+
+    #[test]
+    fn tk_command_specs_are_well_formed_and_cover_core_widgets() {
+        let specs = tk_command_specs();
+        assert!(!specs.is_empty(), "tk specs are registered");
+        // Every spec carries a non-empty command name.
+        assert!(specs.iter().all(|s| !s.name.is_empty()));
+        // No duplicate command names slipped into the table.
+        let mut names: Vec<&str> = specs.iter().map(|s| s.name).collect();
+        let total = names.len();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), total, "duplicate tk command name in the table");
+        // The core widgets, geometry managers, and window utilities are present.
+        let has = |n: &str| specs.iter().any(|s| s.name == n);
+        for cmd in [
+            "button", "label", "frame", "entry", "canvas", "menu", "listbox", "text", "toplevel",
+            "pack", "grid", "place", "bind", "focus", "wm", "winfo",
+        ] {
+            assert!(has(cmd), "tk command `{cmd}` is registered");
+        }
+    }
+}
