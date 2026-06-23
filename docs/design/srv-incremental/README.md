@@ -360,11 +360,21 @@ exist yet — the verification-status table follows the list.
    | shimmer + thunking | ~10 ms | per-function |
    | **`solve_interprocedural_taints`** | **~385 ms** | **whole-unit fixpoint** |
 
-   - **2a — per-function check memo** *(S; ~16 ms ceiling).* SCCP / GVN / shimmer /
-     thunking read only the `FunctionUnit`; wrap them in a salsa query keyed on
-     `FnLatticeKey` so an unedited proc's checks are a cache hit. Easy, mirrors
-     `function_lattice` — but the measured ceiling is ~16 ms of ~411 ms (~4%): a
-     tidy-up, **not** the prize.
+   - **2a — per-function check memo** *(blocked — coupled to the whole-module
+     passes; refuted by experiment).* The draft assumed SCCP / GVN / shimmer /
+     thunking "read only the `FunctionUnit`", so wrapping them in a query keyed on
+     `FnLatticeKey` (mirroring `function_lattice`) would be an easy ~16 ms tidy-up.
+     **Attempted and reverted:** memoising on the offset-0 `function_lattice`
+     baseline produces **divergent shimmer / type diagnostics** — the focused
+     `graphops.tcl` differential caught S100/S101 spans differing from the
+     whole-module build. Root cause: the checks read the **post-whole-module-pass**
+     `FunctionUnit` (`specialise_factories`, `inline_uplevel_passthrough`,
+     cross-module type propagation modify a proc's `types`/`sccp` using *other*
+     procs' facts), **not** the raw per-proc lattice. So 2a has the **same blocker
+     as Task 3**: it needs the "cross-item facts as inputs" split (Task 3) before
+     the per-function checks can be memoised offset-invariantly. At a ~16 ms ceiling
+     (~10% of the post-2b checks path) it is **not worth** doing that L/XL
+     foundational work for — a documented tidy-up, gated behind Task 3, not the prize.
    - **2b — incremental interprocedural taint** *(XL; the real ~385 ms, and harder
      than the prior draft claimed).* `solve_interprocedural_taints` is **not**
      equivalent to the memoised `taint_cascade` (verified by reading the code): it is
@@ -530,6 +540,7 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | Salsa cycle recovery available for 2b/Task 6 (mutual recursion / `source` cycles) | **verified** (dep) | `salsa/src/cycle.rs` + `benches/dataflow.rs` (`cycle_fn`/`cycle_initial`); on salsa 0.27 |
 | 2b per-proc keys cannot be shared from `compilation_unit` (salsa return must be `'static`; cu carries only rebased `FunctionUnit`s) → dup-build required | **verified** (experiment) | reverted `BuiltUnit` threading spike — `lifetime may not live long enough` + `CompilationUnit: Eq` unsatisfied on salsa 0.27 |
 | **2b memo shipped:** `proc_summary_cascade`+`proc_taint_solve` — `compiler_check_diagnostics` 230→107 ms (~2.1×), per-edit 245→154 ms (~1.6×); dup-build ~28 ms warm | **measured + verified** | `tail_profile` + full-corpus `compiler_check` differential (510 s, guard live, byte-identical) + cross-edit/breadth/graphops tests |
+| 2a per-function check memo on `function_lattice` is sound (the "easy" framing) | **refuted** (experiment) | attempted + reverted: shimmer/type checks read the *post-whole-module-pass* `FunctionUnit`, so offset-0-baseline memo diverged on `graphops.tcl` — 2a is coupled to the whole-module passes (Task 3's blocker) |
 | Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |
 | Task 2 "cuts ~405 ms to one-proc cost" (the easy framing) | **refuted** | decomposition: ~16 ms easy (2a) + ~385 ms hard whole-unit taint solve (2b) |
 | Task 2 (2b) memo is sound | **measured + verified** (cold) | full-corpus `compiler_check` differential (memo vs uncached, debug guard live) passes; cross-edit pinned by `taint_cascade_matches_uncached_under_edits`. *Random-edit* fuzzer still to build |
