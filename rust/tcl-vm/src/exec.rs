@@ -455,7 +455,10 @@ fn un(f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
 
 /// The Tcl `wrong # args` usage message for a proc.
 fn proc_usage(proc: &ProcDef) -> String {
-    let simple = proc.name.rsplit("::").next().unwrap_or(&proc.name);
+    let simple = proc
+        .usage_name
+        .as_deref()
+        .unwrap_or_else(|| proc.name.rsplit("::").next().unwrap_or(&proc.name));
     let mut s = simple.to_owned();
     for p in &proc.params {
         s.push(' ');
