@@ -875,12 +875,18 @@ fn cmd_error(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `break`.
-fn cmd_break(_vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+fn cmd_break(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if !args.is_empty() {
+        return err("wrong # args: should be \"break\"");
+    }
     Completion::new(Code::Break, Value::empty(), Value::empty())
 }
 
 /// `continue`.
-fn cmd_continue(_vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+fn cmd_continue(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if !args.is_empty() {
+        return err("wrong # args: should be \"continue\"");
+    }
     Completion::new(Code::Continue, Value::empty(), Value::empty())
 }
 
