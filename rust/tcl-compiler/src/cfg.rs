@@ -211,6 +211,28 @@ impl Function {
         out
     }
 
+    /// Whether this function can be **ahead-of-time compiled in full** — its CFG
+    /// contains no [`Statement::Barrier`], the marker for a construct that must
+    /// defer to the interpreter (`eval $dynamic`, `uplevel $level`, `upvar`, …).
+    ///
+    /// This is the per-procedure AOT gate for the WASM backend (option A,
+    /// everything in-instance WASM): a clean function lowers entirely to native
+    /// WASM and can be exported as a directly-callable function, whereas one
+    /// containing a barrier needs an interpreter trampoline for the dynamic part.
+    /// Statically-bodied control flow (`if`/`while`/`for`/`foreach`) and a static
+    /// `uplevel`/`eval` body ([`Statement::Block`]/[`Statement::UpFrame`]) are
+    /// *already flattened* into the CFG by the builder, so they never appear here
+    /// and do not block AOT — only a residual barrier does. (A finer gate that
+    /// also accounts for computed command dispatch is a later refinement.)
+    #[must_use]
+    pub fn is_aot_clean(&self) -> bool {
+        !self
+            .blocks
+            .values()
+            .flat_map(|b| b.statements.iter())
+            .any(|s| matches!(s, Statement::Barrier { .. }))
+    }
+
     /// Compute the predecessor map: block name → set of predecessor block names.
     #[must_use]
     pub fn predecessors(&self) -> HashMap<String, HashSet<String>> {
@@ -324,6 +346,25 @@ pub struct CfgModule {
     pub procedures: HashMap<String, Function>,
 }
 
+impl CfgModule {
+    /// `(aot_clean, total)` — how many of this module's functions (the top-level
+    /// script plus every procedure) are fully AOT-compilable per
+    /// [`Function::is_aot_clean`]. The coverage signal for "as much AOT as
+    /// possible": the residual `total - aot_clean` functions are the ones that
+    /// still need an interpreter trampoline for a dynamic barrier.
+    #[must_use]
+    pub fn aot_clean_count(&self) -> (usize, usize) {
+        let total = 1 + self.procedures.len();
+        let clean = usize::from(self.top_level.is_aot_clean())
+            + self
+                .procedures
+                .values()
+                .filter(|f| f.is_aot_clean())
+                .count();
+        (clean, total)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -390,6 +431,57 @@ mod tests {
             span: Some(Span::new(0, 5)),
         };
         assert_eq!(t.span(), Some(Span::new(0, 5)));
+    }
+
+    // AOT-clean classifier tests
+
+    /// A dynamic barrier (`eval $x`) — the marker that blocks full AOT.
+    fn barrier_stmt() -> Statement {
+        Statement::Barrier {
+            span: Span::new(0, 0),
+            reason: "eval with dynamic body".into(),
+            command: "eval".into(),
+            canonical_command: None,
+            args: vec!["$x".into()],
+            tokens: None,
+        }
+    }
+
+    #[test]
+    fn aot_clean_when_no_barrier() {
+        // A barrier-free function (here: just an empty entry block) is AOT-clean.
+        let f = Function::new("::p", "entry");
+        assert!(f.is_aot_clean());
+    }
+
+    #[test]
+    fn not_aot_clean_with_barrier() {
+        let mut f = Function::new("::p", "entry");
+        f.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(barrier_stmt());
+        assert!(!f.is_aot_clean());
+    }
+
+    #[test]
+    fn module_aot_coverage_counts_clean_functions() {
+        // top-level clean, `::p` has a barrier, `::q` clean → 2 of 3.
+        let mut p = Function::new("::p", "entry");
+        p.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(barrier_stmt());
+        let mut procedures = HashMap::new();
+        procedures.insert("::p".to_string(), p);
+        procedures.insert("::q".to_string(), Function::new("::q", "entry"));
+        let m = CfgModule {
+            top_level: Function::new("::top", "entry"),
+            procedures,
+        };
+        assert_eq!(m.aot_clean_count(), (2, 3));
     }
 
     // Block tests
