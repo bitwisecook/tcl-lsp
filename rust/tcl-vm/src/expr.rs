@@ -231,17 +231,40 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
     Ok(Value::double(r))
 }
 
+/// The integer-only binary operators: a (valid) floating-point operand is itself
+/// the error (`cannot use floating-point value "x" as <side> operand of "OP"`),
+/// rather than routing to the double path.
+fn is_int_only(op: BinOp) -> bool {
+    use BinOp::{BitAnd, BitOr, BitXor, LShift, Mod, RShift};
+    matches!(op, BitAnd | BitOr | BitXor | LShift | RShift | Mod)
+}
+
+fn float_operand_err(v: &Value, side: &str, op: BinOp) -> TclError {
+    TclError::new(format!(
+        "cannot use floating-point value \"{}\" as {side} operand of \"{}\"",
+        v.to_str(),
+        op.as_str()
+    ))
+}
+
 /// Apply an arithmetic / bitwise / shift binary operator to two values.
 pub fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
-    match (
-        to_num_operand(a, "left", op)?,
-        to_num_operand(b, "right", op)?,
-    ) {
+    let x = to_num_operand(a, "left", op)?;
+    let y = to_num_operand(b, "right", op)?;
+    match (num_i128(x), num_i128(y)) {
         // Both operands are integers (in-range or i128-promoted): integer path.
-        (x, y) if num_i128(x).is_some() && num_i128(y).is_some() => {
-            int_arith(op, num_i128(x).unwrap(), num_i128(y).unwrap())
+        (Some(xi), Some(yi)) => int_arith(op, xi, yi),
+        // An integer-only operator with a (valid) float operand: that operand is
+        // the error. Name the offending side (the left operand wins if both are
+        // floats, matching C's left-to-right operand check).
+        _ if is_int_only(op) => {
+            if num_i128(x).is_none() {
+                Err(float_operand_err(a, "left", op))
+            } else {
+                Err(float_operand_err(b, "right", op))
+            }
         }
-        (x, y) => dbl_arith(op, num_f(x), num_f(y)),
+        _ => dbl_arith(op, num_f(x), num_f(y)),
     }
 }
 
