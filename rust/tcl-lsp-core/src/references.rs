@@ -123,7 +123,7 @@ pub fn references(
     let line_index = LineIndex::new(source);
 
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        let byte_offset = crate::definition::byte_offset_at(source, line, character);
+        let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
         let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
             &analysis.global_scope,
             byte_offset,
@@ -183,7 +183,7 @@ pub fn references(
     // (so `helper` at the `a::helper` decl resolves to *that* namespace's
     // proc, not a same-named one in another namespace); else the first proc
     // matching the word.
-    let cursor_off = crate::definition::byte_offset_at(source, line, character);
+    let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
     let proc_match = analysis
         .all_procs
         .iter()
@@ -233,7 +233,7 @@ pub fn references(
     // every invocation that names the same member, then append
     // external `$obj method` call sites.  Mirrors the
     // `rename_method` walk in `crate::rename`.
-    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some(spans) =
         find_class_member_references(source, dialect, &word, analysis, cursor_offset)
     {
@@ -673,7 +673,7 @@ pub fn document_highlights(
     let line_index = LineIndex::new(source);
 
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        let byte_offset = crate::definition::byte_offset_at(source, line, character);
+        let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
         let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
             &analysis.global_scope,
             byte_offset,
@@ -751,7 +751,7 @@ pub fn document_highlights(
     // Class-member highlights — re-segment sibling method
     // bodies via `find_class_member_references` and mark the
     // declaration as Write, every call site as Text.
-    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some((decl_span, call_spans)) =
         find_class_member_references(source, dialect, &word, analysis, cursor_offset)
     {

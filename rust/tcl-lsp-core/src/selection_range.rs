@@ -127,7 +127,7 @@ pub fn selection_range(
     // innermost first so the chain stays outward-growing.
     if let Some(analysis) = analysis {
         let line_index = LineIndex::new(source);
-        let cursor_offset = byte_offset_at(source, line, character);
+        let cursor_offset = byte_offset_at(&line_index, source, line, character);
         for span in enclosing_body_spans(analysis, cursor_offset) {
             ranges.push(span_to_range(source, &line_index, span));
         }

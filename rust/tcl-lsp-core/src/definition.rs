@@ -103,7 +103,7 @@ pub fn definition(
     //    whose body span contains the cursor's byte offset,
     //    then walk back outward looking for the var.
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        let cursor_offset = byte_offset_at(source, line, character);
+        let cursor_offset = byte_offset_at(&line_index, source, line, character);
         if let Some(var_def) =
             lookup_var_in_scope_chain(&analysis.global_scope, cursor_offset, &var_name)
         {
@@ -146,7 +146,7 @@ pub fn definition(
     // constructors / destructor for a name match.  Covers
     // `my method` calls inside the body plus bare member
     // references.
-    let cursor_offset = byte_offset_at(source, line, character);
+    let cursor_offset = byte_offset_at(&line_index, source, line, character);
     if let Some(span) = lookup_class_member(analysis, &word, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
     }
@@ -316,8 +316,16 @@ fn lookup_alias<'a>(
 
 /// Compute the byte offset of a 0-based LSP `(line, character)`
 /// pair in `source`. `character` is a UTF-16 code-unit offset.
-pub(crate) fn byte_offset_at(source: &str, line: u32, character: u32) -> u32 {
-    LineIndex::new(source).offset_at_utf16(line, character, source)
+///
+/// Takes a pre-built `line_index` so callers that perform several
+/// position conversions per request share a single index.
+pub(crate) fn byte_offset_at(
+    line_index: &LineIndex,
+    source: &str,
+    line: u32,
+    character: u32,
+) -> u32 {
+    line_index.offset_at_utf16(line, character, source)
 }
 
 /// Walk the scope tree to find the variable definition that
@@ -643,19 +651,21 @@ mod tests {
     #[test]
     fn byte_offset_at_handles_newlines() {
         let src = "abc\ndef\nghi\n";
-        assert_eq!(byte_offset_at(src, 0, 0), 0);
-        assert_eq!(byte_offset_at(src, 0, 3), 3);
-        assert_eq!(byte_offset_at(src, 1, 0), 4);
-        assert_eq!(byte_offset_at(src, 2, 2), 10);
+        let line_index = LineIndex::new(src);
+        assert_eq!(byte_offset_at(&line_index, src, 0, 0), 0);
+        assert_eq!(byte_offset_at(&line_index, src, 0, 3), 3);
+        assert_eq!(byte_offset_at(&line_index, src, 1, 0), 4);
+        assert_eq!(byte_offset_at(&line_index, src, 2, 2), 10);
     }
 
     #[test]
     fn byte_offset_at_uses_lsp_utf16_columns() {
         let src = "a😀b";
-        assert_eq!(byte_offset_at(src, 0, 0), 0);
-        assert_eq!(byte_offset_at(src, 0, 1), 1);
-        assert_eq!(byte_offset_at(src, 0, 3), 5);
-        assert_eq!(byte_offset_at(src, 0, 4), 6);
+        let line_index = LineIndex::new(src);
+        assert_eq!(byte_offset_at(&line_index, src, 0, 0), 0);
+        assert_eq!(byte_offset_at(&line_index, src, 0, 1), 1);
+        assert_eq!(byte_offset_at(&line_index, src, 0, 3), 5);
+        assert_eq!(byte_offset_at(&line_index, src, 0, 4), 6);
     }
 
     #[test]
