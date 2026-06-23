@@ -11,8 +11,8 @@
 //! actually appears in these goldens) with `__FIXTURES__`.
 //!
 //! `--shuffle` reaches byte-parity here: `tcl-bigip::redact` reproduces the
-//! `MT19937` `random.Random(seed_int).shuffle` permutation exactly, so the
-//! shuffled map + config are byte-identical to the captured golden output.
+//! `MT19937` Fisher-Yates shuffle permutation exactly, so the shuffled map
+//! + config are byte-identical to the captured golden output.
 
 use std::path::PathBuf;
 use std::process::Command;

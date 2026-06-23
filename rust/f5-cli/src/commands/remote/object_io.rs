@@ -21,8 +21,7 @@ fn encode_path(full_path: &str) -> String {
     if full_path.starts_with('/') {
         full_path.replace('/', "~")
     } else {
-        // urllib.parse.quote(..., safe="") — percent-encode everything but the
-        // RFC 3986 unreserved set.
+        // Percent-encode everything but the RFC 3986 unreserved set.
         percent_encode(full_path)
     }
 }

@@ -241,8 +241,8 @@ pub fn profile_graph_snapshot() -> Json {
 pub fn object_graph_snapshot() -> Json {
     let reg = default_registry();
 
-    // objectKinds: sorted by kind name; each kind is `_jsonable(spec)` —
-    // the `BigipObjectKindSpec` fields, whose keys the serialiser then
+    // objectKinds: sorted by kind name; each kind is the serialised
+    // `BigipObjectKindSpec` fields, whose keys the serialiser then
     // re-sorts alphabetically.
     let mut specs: Vec<_> = reg.specs().to_vec();
     specs.sort_by_key(|s| s.kind_spec.kind);
@@ -490,7 +490,7 @@ pub fn event_graph_snapshot() -> Json {
         })
         .collect();
 
-    // `_jsonable(FLOW_CHAINS)` — a `dict[chain_id, FlowChain]`.
+    // The flow chains, serialised as a map keyed by chain id.
     let mut flow_chains = BTreeMap::new();
     for chain in events.flow_chains() {
         let steps: Vec<Json> = chain
