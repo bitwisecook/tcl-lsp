@@ -3,7 +3,7 @@
 //! Two surfaces, with different parity guarantees:
 //!
 //! - **Byte-parity (golden-tested)**: [`x509_parse`] turns a PEM cert into the
-//!   exact dict `cryptography`'s `x509_parse` emits (subject / issuer / serial
+//!   x509 parse dict (subject / issuer / serial
 //!   / validity / SANs / fingerprint / key-alg / key-size / sig-alg / version
 //!   / public-key PEM), plus [`x509_eq`] and [`x509_from_config`] which are
 //!   deterministic projections. The `--enable-probes` gating error is also
@@ -30,8 +30,7 @@ use x509_parser::public_key::PublicKey;
 use crate::errors::QueryError;
 use crate::value::Value;
 
-/// Port of `_probes._require_probes` — the `--enable-probes` gate. Reproduces
-/// the error text verbatim.
+/// The `--enable-probes` gate. Reproduces the error text verbatim.
 pub(crate) fn require_probes(name: &str, enabled: bool) -> Result<(), QueryError> {
     if enabled {
         Ok(())
@@ -47,9 +46,9 @@ pub(crate) fn require_probes(name: &str, enabled: bool) -> Result<(), QueryError
 
 // x509_parse — the deterministic, byte-parity surface
 
-/// Port of `_probes.x509_parse` (the `cryptography`-backed rich path).
+/// Parse a PEM certificate into the rich x509 parse dict.
 ///
-/// Produces the same dict keys / values `cryptography`'s `x509_parse` emits.
+/// Produces the x509 parse dict (subject / issuer / serial / … keys).
 /// Raises [`QueryError::Builtin`] for input that doesn't decode as a cert,
 /// reproducing `not a PEM certificate (...)` wording shape.
 ///
@@ -132,26 +131,24 @@ fn hex_upper(bytes: &[u8]) -> String {
     s
 }
 
-/// Format a UTC unix timestamp as `cryptography`'s `datetime.isoformat()`
-/// does for a tz-aware UTC datetime: `YYYY-MM-DDTHH:MM:SS+00:00`.
+/// Format a UTC unix timestamp as ISO-8601 for a tz-aware UTC datetime:
+/// `YYYY-MM-DDTHH:MM:SS+00:00`.
 fn iso_utc(timestamp: i64) -> String {
     use chrono::{TimeZone as _, Utc};
     let dt = Utc.timestamp_opt(timestamp, 0).single().unwrap_or_default();
     dt.format("%Y-%m-%dT%H:%M:%S+00:00").to_string()
 }
 
-/// Serial as uppercase hex with no leading zeros — `format(serial, "x").upper()`
-/// (e.g. `12345678`, `3E8`).
+/// Serial as uppercase hex with no leading zeros (e.g. `12345678`, `3E8`).
 fn serial_hex(cert: &X509Certificate<'_>) -> String {
     // `tbs_certificate.serial` is a `BigUint`. `{:X}` gives uppercase hex with
-    // no leading zeros — matching `format(n, "x").upper()`. Zero
-    // serials render as `0` either side.
+    // no leading zeros. Zero serials render as `0`.
     format!("{:X}", cert.tbs_certificate.serial)
 }
 
-/// Render a `cryptography`-style RFC 4514 string from an x509-parser `X509Name`.
+/// Render an RFC 4514 string from an x509-parser `X509Name`.
 ///
-/// `cryptography.rfc4514_string()` emits the most-specific RDN first (CN before
+/// An RFC 4514 string emits the most-specific RDN first (CN before
 /// O before C), short attribute names (CN / O / OU / ST / C / …), and a `,`
 /// separator with no surrounding space. x509-parser iterates RDNs in
 /// least-specific-first (C, ST, O, CN) order, so we reverse.
@@ -175,7 +172,7 @@ fn rfc4514_string(name: &X509Name<'_>) -> String {
     parts.join(",")
 }
 
-/// Escape a value for an RFC 4514 string the way `cryptography` does:
+/// Escape a value for an RFC 4514 string:
 /// leading `#`, leading / trailing space, and the set `,+"\<>;` are
 /// backslash-escaped. Sufficient for the cert subjects we target.
 fn rfc4514_escape(value: &str) -> String {
@@ -195,9 +192,9 @@ fn rfc4514_escape(value: &str) -> String {
     out
 }
 
-/// Map an attribute-type OID to the short name `cryptography`'s RFC 4514 string
-/// uses. Unknown OIDs fall back to the dotted string (matching `cryptography`,
-/// which emits `OID.dotted=value` — but the common DN attributes are covered).
+/// Map an attribute-type OID to the short name the RFC 4514 string
+/// uses. Unknown OIDs fall back to the dotted string
+/// (emitted as `OID.dotted=value` — but the common DN attributes are covered).
 fn rdn_short_name(oid: &str) -> String {
     match oid {
         "2.5.4.3" => "CN",
@@ -215,7 +212,7 @@ fn rdn_short_name(oid: &str) -> String {
     .to_owned()
 }
 
-/// Collect SANs as `[str(n.value) for n in san_ext.value]` does:
+/// Collect SANs as the string form of each general name:
 /// DNS names and the dotted-string IP form, in cert order.
 fn collect_sans(cert: &X509Certificate<'_>) -> Vec<Value> {
     let mut out = Vec::new();
@@ -235,7 +232,7 @@ fn collect_sans(cert: &X509Certificate<'_>) -> Vec<Value> {
     out
 }
 
-/// Render an IP from its SAN octet form (`str(ipaddress.ip_address(...))`).
+/// Render an IP from its SAN octet form to its canonical string.
 fn ip_bytes_to_string(bytes: &[u8]) -> String {
     match bytes.len() {
         4 => std::net::Ipv4Addr::new(bytes[0], bytes[1], bytes[2], bytes[3]).to_string(),

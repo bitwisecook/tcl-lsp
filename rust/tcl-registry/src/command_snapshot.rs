@@ -113,7 +113,7 @@ fn arity_json(arity: Arity) -> Json {
     Json::Object(m)
 }
 
-/// `_jsonable(spec.dialects)`: `null` for "all dialects", else the sorted
+/// The spec's dialect set: `null` for "all dialects", else the sorted
 /// list of dialect-name strings.
 fn dialects_json(dialects: Option<DialectSet>) -> Json {
     match dialects {
