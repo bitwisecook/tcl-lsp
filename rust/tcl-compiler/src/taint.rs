@@ -85,9 +85,7 @@ use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, SsaStatement, ValueKey};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
-// ---------------------------------------------------------------------------
 // Colour lattice
-// ---------------------------------------------------------------------------
 
 bitflags! {
     /// A taint colour — each bit records one safety property or
@@ -252,9 +250,7 @@ impl TaintLattice {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Diagnostic type
-// ---------------------------------------------------------------------------
 
 /// Tainted data flowing into a dangerous sink.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -275,9 +271,7 @@ pub struct TaintWarning {
     pub replacement: Option<String>,
 }
 
-// ---------------------------------------------------------------------------
 // Source-command classification
-// ---------------------------------------------------------------------------
 
 /// Return `true` when `command` is a known taint source — i.e. its
 /// return value may carry attacker-influenced data.
@@ -374,9 +368,7 @@ fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> boo
     tcl_registry::taint::is_sanitiser(registry, command, args)
 }
 
-// ---------------------------------------------------------------------------
 // Taint propagation
-// ---------------------------------------------------------------------------
 
 /// Shared inputs for the per-statement taint helpers.
 ///
@@ -1094,9 +1086,7 @@ pub(crate) fn propagate_taints(
     taints
 }
 
-// ---------------------------------------------------------------------------
 // Sink detection
-// ---------------------------------------------------------------------------
 
 /// Return the diagnostic code and human-readable sink label for a
 /// statement that acts as a taint sink, or `None` if the statement is
@@ -2352,9 +2342,7 @@ fn emit_option_injection(
     }
 }
 
-// ---------------------------------------------------------------------------
 // IRULE3101 — setter-constraint violations
-// ---------------------------------------------------------------------------
 
 /// Find setter-constraint violations (IRULE3101) — ports
 /// `_find_setter_constraint_violations` in Python. Currently constrains
@@ -2452,9 +2440,7 @@ pub fn find_setter_constraint_warnings(
     out
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -3445,9 +3431,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // IRULE3001–3004 sink classifier + end-to-end detection
-    // -----------------------------------------------------------------------
 
     fn irules_warnings_for(source: &str) -> Vec<TaintWarning> {
         use crate::compilation_unit::CompilationUnit;
@@ -3770,9 +3754,7 @@ mod tests {
         ));
     }
 
-    // -----------------------------------------------------------------------
     // IRULE3101 — setter-constraint violations
-    // -----------------------------------------------------------------------
 
     /// Default helper: run the setter check under the `f5-irules` dialect
     /// (which is the only dialect that can surface IRULE3101 post-internal-gate).
@@ -3889,9 +3871,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // ARCH3 — registry-driven source / sink / setter-constraint coverage
-    // -----------------------------------------------------------------------
 
     /// The Tcl-core source classification flows from the registry's
     /// [`Traits::TAINT_SOURCE`] flag: registry-side query and

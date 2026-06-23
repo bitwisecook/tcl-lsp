@@ -201,7 +201,10 @@ mod tests {
     #[test]
     fn html_escapes_markup_and_quotes() {
         // ::test_html_and_sh_quote (html half)
-        assert_eq!(call(bi_html, &[s("<a>&b</a>")]), "&lt;a&gt;&amp;b&lt;/a&gt;");
+        assert_eq!(
+            call(bi_html, &[s("<a>&b</a>")]),
+            "&lt;a&gt;&amp;b&lt;/a&gt;"
+        );
     }
 
     #[test]

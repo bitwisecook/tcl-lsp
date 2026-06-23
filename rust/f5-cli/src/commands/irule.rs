@@ -435,9 +435,7 @@ fn deferred(sub: &str, engine: &str) -> u8 {
     2
 }
 
-// ---------------------------------------------------------------------------
 // event-order
-// ---------------------------------------------------------------------------
 
 /// Scan `when EVENT` blocks and return events in canonical firing order
 /// (mirrors `order_events_for_file` + `order_events`).
@@ -567,9 +565,7 @@ fn run_event_order(input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
     Ok(0)
 }
 
-// ---------------------------------------------------------------------------
 // event-info
-// ---------------------------------------------------------------------------
 
 /// `f5 irule event-info EVENT` — look up event metadata + valid commands.
 /// Port of `_run_event_info` (`tooling/f5/verbs/irule.py`) over the
@@ -662,9 +658,7 @@ fn push_json_string_array<'a>(out: &mut String, items: impl Iterator<Item = &'a 
     out.push_str("  ]");
 }
 
-// ---------------------------------------------------------------------------
 // lint
-// ---------------------------------------------------------------------------
 
 /// `f5 irule lint` — run only the iRule-category lint rules over iRule sources.
 /// Port of `_run_irule_lint` (`tooling/f5/verbs/irule.py`): it shares the
@@ -731,9 +725,7 @@ fn run_irule_lint(input: &IruleInputArgs, json: bool, severity: Option<&str>) ->
     }
 }
 
-// ---------------------------------------------------------------------------
 // context
-// ---------------------------------------------------------------------------
 
 /// `f5 irule context` — bundle each iRule with the BIG-IP objects it
 /// references. Port of `_run_irule_context` (`tooling/f5/verbs/irule.py`) over
@@ -837,9 +829,7 @@ fn run_irule_context(
     Ok(0)
 }
 
-// ---------------------------------------------------------------------------
 // trace
-// ---------------------------------------------------------------------------
 
 /// Return the body text inside the `{...}` starting at byte `open_brace` (port
 /// of `_slice_balanced_braces`). Brace-depth scan that skips `"…"` strings
@@ -1076,9 +1066,7 @@ fn push_str_array(out: &mut String, items: &[String], indent: usize) {
     out.push(']');
 }
 
-// ---------------------------------------------------------------------------
 // extract
-// ---------------------------------------------------------------------------
 
 fn run_extract(paths: &[String], output: &Path) -> Result<u8, u8> {
     if paths.is_empty() {
@@ -1139,9 +1127,7 @@ fn run_extract(paths: &[String], output: &Path) -> Result<u8, u8> {
     Ok(0)
 }
 
-// ---------------------------------------------------------------------------
 // format / minify
-// ---------------------------------------------------------------------------
 
 fn build_formatter_config(formatter: &IruleFormatterArgs) -> FormatterConfig {
     let mut config = FormatterConfig::default();

@@ -167,9 +167,7 @@ fn resolve_switch_pattern(pattern: &str) -> String {
     strip_word_delimiters(pattern)
 }
 
-// ---------------------------------------------------------------------------
 // Simulator
-// ---------------------------------------------------------------------------
 
 /// Execute one IR statement in the simulator, updating `env`.
 ///
@@ -302,9 +300,7 @@ fn exec_switch(
     }
 }
 
-// ---------------------------------------------------------------------------
 // For-loop summarisation
-// ---------------------------------------------------------------------------
 
 /// Summarise a simple static `for`-loop from its structured IR
 /// form. Returns the post-loop variable environment on success,

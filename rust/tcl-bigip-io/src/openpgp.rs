@@ -57,9 +57,7 @@ fn cipher_keylen(cipher_id: u8) -> Option<usize> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Packet framing
-// ---------------------------------------------------------------------------
 
 /// Read `n` big-endian bytes at `off`, erroring on truncation (the Python
 /// raises `IndexError`/`struct.error`, normalised to `OpenPgpError`).
@@ -156,9 +154,7 @@ fn parse_packets(data: &[u8]) -> Result<Vec<(u8, Vec<u8>)>, OpenPgpError> {
     Ok(packets)
 }
 
-// ---------------------------------------------------------------------------
 // String-to-key
-// ---------------------------------------------------------------------------
 
 struct S2k {
     hash_id: u8,
@@ -279,9 +275,7 @@ fn make_cipher(cipher_id: u8, key: &[u8]) -> Result<Aes, OpenPgpError> {
     Aes::new(key).map_err(OpenPgpError::new)
 }
 
-// ---------------------------------------------------------------------------
 // Packet handlers
-// ---------------------------------------------------------------------------
 
 /// Symmetric-Key Encrypted Session Key packet → `(cipher_id, session_key)`.
 fn decode_skesk(body: &[u8], passphrase: &[u8]) -> Result<(u8, Vec<u8>), OpenPgpError> {
@@ -390,9 +384,7 @@ fn extract_literal(data: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
     ))
 }
 
-// ---------------------------------------------------------------------------
 // ASCII armor (binary UCS files are not armored, but be liberal in input)
-// ---------------------------------------------------------------------------
 
 fn maybe_dearmor(data: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
     let lead = &data[..data.len().min(64)];
@@ -465,9 +457,7 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 /// Decrypt a passphrase-encrypted `OpenPGP` message; return the plaintext.
 ///

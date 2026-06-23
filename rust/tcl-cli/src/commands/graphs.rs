@@ -231,9 +231,7 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     Ok(0)
 }
 
-// ---------------------------------------------------------------------------
 // symbolgraph
-// ---------------------------------------------------------------------------
 
 /// 0-based source line of a span-start offset (Python `range.start.line`).
 fn line0(line_index: &LineIndex, offset: u32) -> u32 {
@@ -545,9 +543,7 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
     Ok(0)
 }
 
-// ---------------------------------------------------------------------------
 // callgraph
-// ---------------------------------------------------------------------------
 
 /// The synthetic caller node for calls made outside any proc body.
 const TOP_LEVEL: &str = "<top-level>";
@@ -883,9 +879,7 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     Ok(0)
 }
 
-// ---------------------------------------------------------------------------
 // dataflow
-// ---------------------------------------------------------------------------
 
 /// Aggregate every taint warning kind for one function unit into the
 /// dataflow JSON shape — a faithful port of the per-scope loop in Python

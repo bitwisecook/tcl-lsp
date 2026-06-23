@@ -44,9 +44,7 @@ use tcl_compiler::codegen::format::format_module_asm;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
-// ---------------------------------------------------------------------------
 // Pipeline wrappers
-// ---------------------------------------------------------------------------
 
 /// Compile `source` through the Rust pipeline and return the rendered
 /// disassembly string.
@@ -178,9 +176,7 @@ fn python_disasm(source: &str) -> OracleResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Disassembly normalisation
-// ---------------------------------------------------------------------------
 
 /// Strip label-comment lines (`  # label:`) so a semantic compare
 /// ignores Rust/Python disagreements over internal label names and
@@ -258,9 +254,7 @@ fn brief_diff(rust: &str, py: &str, context: usize) -> String {
     out
 }
 
-// ---------------------------------------------------------------------------
 // Fixture discovery
-// ---------------------------------------------------------------------------
 
 fn fixture_dir(subdir: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -291,9 +285,7 @@ fn gather_fixtures(dir: &Path) -> Vec<(String, String)> {
     entries
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 /// The matching corpus must at least semantic-match the Python oracle — unless
 /// the oracle itself has drifted from tclsh.
@@ -437,9 +429,7 @@ fn divergent_corpus_reports_progress() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Unit tests for the normalisation helpers
-// ---------------------------------------------------------------------------
 
 #[test]
 fn classify_exact_match() {

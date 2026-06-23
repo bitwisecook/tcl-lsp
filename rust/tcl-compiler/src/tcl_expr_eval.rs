@@ -87,9 +87,7 @@ pub type Env = HashMap<String, EnvValue>;
 /// previously a tighter `10_000` cap that diverged from C Tcl.
 const MAX_EXPONENT: i64 = (1 << 28) - 1;
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 /// Evaluate an expression AST against `env`. Returns `None` when the
 /// expression depends on runtime state or triggers a domain error.
@@ -152,9 +150,7 @@ fn eval_with_octal(node: &ExprNode, env: &Env, octal: Option<bool>) -> Option<Tc
     result.to_number()
 }
 
-// ---------------------------------------------------------------------------
 // FoldOps — the const-folder's value ops for the shared expr walk
-// ---------------------------------------------------------------------------
 
 /// A const-fold value. `Str` keeps the operand's **raw text** and is parsed
 /// lazily per context (numeric ops via [`parse_literal`]; string ops use it
@@ -398,17 +394,11 @@ pub fn format_tcl_value(v: TclValue) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Core dispatch
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
 // Math function calls
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
 // Literals and variables
-// ---------------------------------------------------------------------------
 
 /// Parse a numeric/boolean literal. Supports `0x`/`0o`/`0b` prefixes,
 /// Tcl-style leading-zero decimals (e.g. `0005`), floats, and the
@@ -455,9 +445,7 @@ fn strict_number(value: &FoldValue) -> Option<TclValue> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Binary operators
-// ---------------------------------------------------------------------------
 
 fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
     match op {
@@ -666,13 +654,9 @@ fn tcl_pow(a: TclValue, b: TclValue) -> Option<TclValue> {
     Some(TclValue::Int(acc))
 }
 
-// ---------------------------------------------------------------------------
 // Unary operators
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
 // iRules string ops (C22i1/i2)
-// ---------------------------------------------------------------------------
 
 /// Split a simple Tcl list string into elements.
 ///
@@ -750,9 +734,7 @@ fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue
     Some(TclValue::Int(i64::from(res)))
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

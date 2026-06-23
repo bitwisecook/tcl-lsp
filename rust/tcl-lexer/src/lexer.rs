@@ -1689,9 +1689,7 @@ mod tests {
         assert!(!tokens.is_empty());
     }
 
-    // ------------------------------------------------------------------
     // L4 — variable substitution
-    // ------------------------------------------------------------------
 
     fn var_token_text(source: &str) -> (Vec<(TokenType, String)>, SourceMap<'_>) {
         let lexer = Lexer::new(source);
@@ -2000,9 +1998,7 @@ mod tests {
         assert_eq!(map.line_index().line_count(), 3);
     }
 
-    // ------------------------------------------------------------------
     // L5 — command substitution
-    // ------------------------------------------------------------------
 
     fn cmd_token_rows(source: &str) -> (Vec<(TokenType, String)>, SourceMap<'_>) {
         let lexer = Lexer::new(source);
@@ -2190,9 +2186,7 @@ mod tests {
         assert!(rows.iter().any(|(k, _)| *k == TokenType::Cmd));
     }
 
-    // ------------------------------------------------------------------
     // L6 — braced strings
-    // ------------------------------------------------------------------
 
     fn str_token_rows(source: &str) -> (Vec<(TokenType, String)>, SourceMap<'_>) {
         let lexer = Lexer::new(source);
@@ -2383,9 +2377,7 @@ mod tests {
         assert_eq!(rows[2], (TokenType::Str, "c".into()));
     }
 
-    // ------------------------------------------------------------------
     // L7 — quoted strings
-    // ------------------------------------------------------------------
 
     fn quoted_rows(source: &str) -> (Vec<(TokenType, String, bool)>, SourceMap<'_>) {
         let lexer = Lexer::new(source);
@@ -2581,9 +2573,7 @@ mod tests {
         assert_eq!(rows[6], (TokenType::Esc, String::new(), false));
     }
 
-    // ------------------------------------------------------------------
     // L8 — `{*}` expansion prefix + dialect flags
-    // ------------------------------------------------------------------
 
     fn expand_rows(source: &str) -> Vec<(TokenType, String)> {
         let lexer = Lexer::new(source);

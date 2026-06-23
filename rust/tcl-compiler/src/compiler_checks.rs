@@ -32,9 +32,7 @@ use crate::taint::{
 use crate::uri_split::find_uri_split_suggestions;
 use tcl_registry::CommandRegistry;
 
-// ---------------------------------------------------------------------------
 // Unified diagnostic envelope
-// ---------------------------------------------------------------------------
 
 /// Severity of a compiler diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -217,9 +215,7 @@ impl Diagnostic {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Entry point
-// ---------------------------------------------------------------------------
 
 /// Absolutise a per-function diagnostic's span by adding the unit's
 /// `base_offset`.  The per-function checks read spans from `fu.cfg`/`fu.ssa`/

@@ -272,9 +272,7 @@ pub fn split_list(s: &str) -> Result<Vec<Cow<'_, str>>, ListError> {
     Ok(out)
 }
 
-// ---------------------------------------------------------------------------
 // Join — `Tcl_Merge` / `Tcl_ScanElement` + `Tcl_ConvertElement`.
-// ---------------------------------------------------------------------------
 
 /// How a value must be quoted to appear as one Tcl list element. Mirrors the
 /// `CONVERT_*` modes of `TclConvertElement` (tclUtil.c, COMPAT path).

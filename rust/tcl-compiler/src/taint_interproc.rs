@@ -34,9 +34,7 @@ use crate::ssa::ValueKey;
 use crate::taint::{TaintColour, TaintCtx, TaintLattice, propagate_taints, word_taint};
 use crate::value_shapes::parse_command_substitution;
 
-// ---------------------------------------------------------------------------
 // Basis lattices
-// ---------------------------------------------------------------------------
 
 /// Ordered taint-colour bases, mirroring Python `_BASIS_ORDER`. The
 /// per-parameter return scenarios are computed by seeding the parameter with
@@ -105,9 +103,7 @@ fn basis_names_for_taint(taint: TaintLattice) -> Vec<&'static str> {
     names
 }
 
-// ---------------------------------------------------------------------------
 // Proc taint summary
-// ---------------------------------------------------------------------------
 
 /// Context-insensitive return-taint transfer summary for one procedure.
 ///
@@ -233,9 +229,7 @@ pub fn apply_proc_return_summary(
     out
 }
 
-// ---------------------------------------------------------------------------
 // Return-taint collection
-// ---------------------------------------------------------------------------
 
 /// Build a `name -> version` use map for `text` from a block's exit versions,
 /// scanning the word for `$var` references. Mirrors Python
@@ -388,9 +382,7 @@ pub fn infer_proc_summary(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Call-flow resolution (entry-taint worklist)
-// ---------------------------------------------------------------------------
 
 /// Resolve the (callee, arg-taints) flows a function makes to known procs.
 /// Mirrors Python `_resolve_call_flows_for_function`.
@@ -455,9 +447,7 @@ fn resolve_call_flows(
     flows
 }
 
-// ---------------------------------------------------------------------------
 // Solver
-// ---------------------------------------------------------------------------
 
 /// Result of the interprocedural taint solve. Mirrors Python
 /// `_InterprocTaintResult` (summaries are dropped — the warning consumers
@@ -598,7 +588,9 @@ pub fn converge_summaries_with(
         let mut map: HashMap<&str, Vec<&str>> = HashMap::new();
         for (caller, summary) in &ia.procedures {
             for callee in &summary.direct_calls {
-                map.entry(callee.as_str()).or_default().push(caller.as_str());
+                map.entry(callee.as_str())
+                    .or_default()
+                    .push(caller.as_str());
             }
         }
         map

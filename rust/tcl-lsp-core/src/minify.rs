@@ -653,9 +653,7 @@ impl NameGenerator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Local-name compaction (compact_names tier)
-// ---------------------------------------------------------------------------
 
 /// A text edit: replace `length` bytes at `offset` with `text`.
 type Edit = (usize, usize, String);
@@ -1147,9 +1145,7 @@ fn process_scope(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Aggressive-tier aliasing (command / argument / string-literal)
-// ---------------------------------------------------------------------------
 
 /// Control-flow keywords that must stay literal (body/expr index
 /// detection checks them by value).  Mirrors `_CONTROL_FLOW_KEYWORDS`.
@@ -1646,9 +1642,7 @@ fn find_subslice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
     (from..=haystack.len() - needle.len()).find(|&i| &haystack[i..i + needle.len()] == needle)
 }
 
-// ---------------------------------------------------------------------------
 // Static-substring folding (aggressive phase 1.5)
-// ---------------------------------------------------------------------------
 
 /// Taint colours that prove a fixed-form value, so folding stays
 /// safe even when the underlying value is tainted.
@@ -2413,9 +2407,7 @@ fn reconstruct_arg(sm: &SourceMap, arg: &Arg, dialect: &str, registry: &CommandR
     }
 }
 
-// ---------------------------------------------------------------------------
 // switch case-list handling
-// ---------------------------------------------------------------------------
 
 /// Whether the post-name args use the braced case-list form (a
 /// single trailing word after any leading options).  Mirrors
@@ -2529,9 +2521,7 @@ fn minify_switch_case_list(source: &str, dialect: &str, registry: &CommandRegist
     parts.join(" ")
 }
 
-// ---------------------------------------------------------------------------
 // expr whitespace compression
-// ---------------------------------------------------------------------------
 
 /// One token of an `expr` body for whitespace compression.
 enum ExprTok {

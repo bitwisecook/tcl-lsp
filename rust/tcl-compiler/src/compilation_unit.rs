@@ -97,9 +97,7 @@ pub type ProcLatticeCache<'a> = dyn FnMut(&LatticeRequest<'_>) -> FunctionUnit +
 pub type TaintCascadeCallback<'a> =
     dyn FnMut(&str, &InterproceduralAnalysis) -> Option<HashMap<ValueKey, TaintLattice>> + 'a;
 
-// ---------------------------------------------------------------------------
 // Per-function analysis bundle
-// ---------------------------------------------------------------------------
 
 /// Analysis artefacts for one function (top-level or procedure).
 ///
@@ -378,9 +376,7 @@ impl FunctionUnit {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Module-level compilation unit
-// ---------------------------------------------------------------------------
 
 /// Complete compilation artefacts for a source document.
 ///

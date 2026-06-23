@@ -107,9 +107,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Library-iRule detection
-// ---------------------------------------------------------------------------
 
 /// Return `true` when the set of event names looks like a library
 /// iRule — nothing except optionally `RULE_INIT`.
@@ -117,9 +115,7 @@ fn is_library_irule(event_names: &HashSet<String>) -> bool {
     event_names.iter().all(|n| n == "RULE_INIT")
 }
 
-// ---------------------------------------------------------------------------
 // Reachability walk
-// ---------------------------------------------------------------------------
 
 fn reachable_procs(
     roots: &HashSet<String>,
@@ -142,9 +138,7 @@ fn reachable_procs(
     visited
 }
 
-// ---------------------------------------------------------------------------
 // Comment-out renderer
-// ---------------------------------------------------------------------------
 
 /// Comment every non-empty line of `text` (preserving empties as
 /// `#`) and prepend an explanatory banner.

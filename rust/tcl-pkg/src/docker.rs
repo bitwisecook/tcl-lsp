@@ -293,9 +293,7 @@ pub fn write_dockerfile(
     Ok(output.to_path_buf())
 }
 
-// ---------------------------------------------------------------------------
 // Recipe tables (verbatim from tooling/tclpkg/docker.py)
-// ---------------------------------------------------------------------------
 
 const DEBIAN_RECIPES: &[(&str, &str)] = &[
     (

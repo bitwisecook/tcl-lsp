@@ -147,11 +147,9 @@ pub fn format_constant(value: &ConstValue) -> Option<String> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Decimal int parsing (mirrors `parse_decimal_int` from the Python
 // token_helpers module — kept private so the rest of the crate is
 // not tempted to use it as a general-purpose integer parser).
-// ---------------------------------------------------------------------------
 
 fn parse_decimal_int(text: &str) -> Option<i64> {
     let s = text.trim();

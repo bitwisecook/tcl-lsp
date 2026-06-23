@@ -43,9 +43,7 @@ use tcl_registry::side_effects::{
 };
 use tcl_registry::{CommandRegistry, CommandSpec, Traits};
 
-// ---------------------------------------------------------------------------
 // StorageType — data shape of a target
-// ---------------------------------------------------------------------------
 
 /// Data shape of the target being read or written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -62,9 +60,7 @@ pub enum StorageType {
     Unknown,
 }
 
-// ---------------------------------------------------------------------------
 // StorageScope — where data resides
-// ---------------------------------------------------------------------------
 
 /// Where the data resides at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -105,9 +101,7 @@ pub enum StorageScope {
     Unknown,
 }
 
-// ---------------------------------------------------------------------------
 // ConnectionSide — F5 proxy context
-// ---------------------------------------------------------------------------
 
 /// F5 proxy connection context in which a side effect occurs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -124,9 +118,7 @@ pub enum ConnectionSide {
     None,
 }
 
-// ---------------------------------------------------------------------------
 // SideEffectTarget — what category of external resource is touched
-// ---------------------------------------------------------------------------
 
 /// The category of external resource that a command touches.
 ///
@@ -245,9 +237,7 @@ pub enum SideEffectTarget {
     Unknown,
 }
 
-// ---------------------------------------------------------------------------
 // EffectRegion — coarse bitflags for GVN / interprocedural kill checks
-// ---------------------------------------------------------------------------
 
 bitflags! {
     /// Abstract mutable regions used for effect invalidation.
@@ -299,9 +289,7 @@ pub fn target_to_region(target: SideEffectTarget, scope: StorageScope) -> Effect
     }
 }
 
-// ---------------------------------------------------------------------------
 // Scope / storage-type inference helpers (C23c)
-// ---------------------------------------------------------------------------
 
 /// Infer storage scope and namespace from a variable-name prefix.
 ///
@@ -391,9 +379,7 @@ pub fn storage_type_for_command(
     StorageType::Scalar
 }
 
-// ---------------------------------------------------------------------------
 // Dataclasses — SideEffect, CommandSideEffects (C23b)
-// ---------------------------------------------------------------------------
 
 /// One discrete read or write produced by a command invocation.
 ///
@@ -582,9 +568,7 @@ impl CommandSideEffects {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Classification (C23d)
-// ---------------------------------------------------------------------------
 
 /// Optional summary of a procedure's side effects, provided by
 /// interprocedural analysis. When supplied to

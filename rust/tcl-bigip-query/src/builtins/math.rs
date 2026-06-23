@@ -123,9 +123,7 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     ]
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Coerce an `as_number` result to `f64`.
 fn num_f64(v: &Value) -> f64 {
@@ -153,9 +151,7 @@ fn num_str(v: &Value) -> String {
     num_repr(v)
 }
 
-// ---------------------------------------------------------------------------
 // Rounding / sign
-// ---------------------------------------------------------------------------
 
 fn bi_round(args: &[Value]) -> Result<Value, QueryError> {
     // C `round` semantics (ties away from zero) — jq parity, not banker's.
@@ -210,9 +206,7 @@ fn py_round_half_even(x: f64) -> f64 {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Powers / roots / logs
-// ---------------------------------------------------------------------------
 
 fn bi_sqrt(args: &[Value]) -> Result<Value, QueryError> {
     let v = as_number(&args[0], "sqrt", 1)?;
@@ -331,9 +325,7 @@ fn bi_significand(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Float(n / 2.0f64.powf(e)))
 }
 
-// ---------------------------------------------------------------------------
 // Constants / classification
-// ---------------------------------------------------------------------------
 
 fn bi_nan(_args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Float(f64::NAN))
@@ -369,9 +361,7 @@ fn bi_isnormal(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(result))
 }
 
-// ---------------------------------------------------------------------------
 // Trig / hyperbolic (thin wrappers — domain errors surface "math domain error")
-// ---------------------------------------------------------------------------
 
 /// Port of Python's domain-checking `math` wrappers: when the result is NaN
 /// but the input was finite, Python raised `ValueError: math domain error`.
@@ -448,9 +438,7 @@ fn bi_atanh(args: &[Value]) -> Result<Value, QueryError> {
     domain_checked(n, n.atanh())
 }
 
-// ---------------------------------------------------------------------------
 // IEEE helpers
-// ---------------------------------------------------------------------------
 
 fn bi_copysign(args: &[Value]) -> Result<Value, QueryError> {
     let x = num_f64(&as_number(&args[0], "copysign", 1)?);
@@ -540,9 +528,7 @@ fn bi_remainder(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Float(libm::remainder(x, y)))
 }
 
-// ---------------------------------------------------------------------------
 // Gamma family
-// ---------------------------------------------------------------------------
 
 fn bi_gamma(args: &[Value]) -> Result<Value, QueryError> {
     // Shared by `gamma` and `tgamma`. Python wraps the C domain ValueError
@@ -587,14 +573,12 @@ fn bi_lgamma_r(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::List(vec![Value::Float(lg), Value::Int(sign)]))
 }
 
-// ---------------------------------------------------------------------------
 // CPython Lanczos gamma / lgamma (port of `Modules/mathmodule.c`
 // `m_tgamma` / `m_lgamma` / `m_sinpi`). Python's `math.gamma` / `lgamma` do
 // NOT use the platform libm — they ship this Lanczos approximation — so we
 // reproduce it verbatim for byte-identical results. The `errno`/`EDOM`
 // signalling is handled by the callers (`gamma_is_domain_error`); these
 // helpers just compute the value.
-// ---------------------------------------------------------------------------
 
 const LANCZOS_N: usize = 13;
 const LANCZOS_G: f64 = 6.024_680_040_776_729_5;
@@ -781,10 +765,8 @@ fn m_lgamma(x: f64) -> f64 {
     r
 }
 
-// ---------------------------------------------------------------------------
 // Bessel (Abramowitz & Stegun polynomial approximations — ported verbatim
 // from the Python source so results stay byte-identical).
-// ---------------------------------------------------------------------------
 
 fn bi_j0(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Float(bessel_j0(num_f64(&as_number(

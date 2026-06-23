@@ -117,9 +117,7 @@ fn is_numeric_string(text: &str) -> bool {
     !t.is_empty() && (t.parse::<i64>().is_ok() || t.parse::<f64>().is_ok())
 }
 
-// ---------------------------------------------------------------------------
 // Landed: try_fold_expr (O101 — fold constant expression)
-// ---------------------------------------------------------------------------
 
 /// Attempt to fold `expr` to a Tcl literal value by evaluating it
 /// with an empty environment.
@@ -195,9 +193,7 @@ pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
     Some(rendered)
 }
 
-// ---------------------------------------------------------------------------
 // Landed: try_unwrap_expr_in_expr (O115 — redundant nested expr)
-// ---------------------------------------------------------------------------
 
 /// Detect and strip a redundant `[expr {…}]` wrapper in
 /// expression context. Returns the inner expression text when the
@@ -236,9 +232,7 @@ pub fn try_unwrap_expr_in_expr(expr_text: &str) -> Option<String> {
     Some(body)
 }
 
-// ---------------------------------------------------------------------------
 // Landed: substitute_expr_constants (O100 — constant propagation)
-// ---------------------------------------------------------------------------
 
 /// Outcome of [`substitute_expr_constants`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -317,9 +311,7 @@ fn is_numeric_literal(text: &str) -> bool {
     text.trim().parse::<i64>().is_ok() || text.trim().parse::<f64>().is_ok()
 }
 
-// ---------------------------------------------------------------------------
 // Landed: instcombine / strength-reduce / strlen / streq
-// ---------------------------------------------------------------------------
 
 /// C30e4: InstCombine-style fixpoint simplification of an
 /// expression text.
@@ -714,9 +706,7 @@ pub fn try_eq_ne_string_compare_simplify_expr(expr: &str) -> (String, bool) {
     (rendered, changed)
 }
 
-// ---------------------------------------------------------------------------
 // AST-level rewriters (private helpers)
-// ---------------------------------------------------------------------------
 
 /// One pass of strength reduction. Returns `None` when no
 /// rewrite applies. Conservative — only obviously-safe rewrites

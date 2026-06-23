@@ -56,9 +56,7 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     ]
 }
 
-// ===========================================================================
 // Regex flag handling (port of `_jq_regex_flags`)
-// ===========================================================================
 
 /// Translate jq-style flag letters (`i` / `x` / `s` / `m`) to the leading
 /// inline flag group the `regex` crate understands, validating each letter
@@ -111,9 +109,7 @@ fn optional_flags(args: &[Value], idx: usize, name: &str) -> Result<String, Quer
     }
 }
 
-// ===========================================================================
 // Regex builtins
-// ===========================================================================
 
 fn bi_match(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "match", 1)?;
@@ -318,9 +314,7 @@ fn bi_splits(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::List(parts))
 }
 
-// ===========================================================================
 // Non-regex string builtins
-// ===========================================================================
 
 fn bi_index(args: &[Value]) -> Result<Value, QueryError> {
     let eq = |item: &Value, target: &Value| -> bool {

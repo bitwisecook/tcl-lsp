@@ -59,9 +59,7 @@ fn is_string_cmd(cmd: &str) -> bool {
     matches!(cmd, "string" | "::string")
 }
 
-// ---------------------------------------------------------------------------
 // URI family discovery
-// ---------------------------------------------------------------------------
 
 /// Map `uri_cmd → (path_cmd?, query_cmd?)` derived from the registry.
 pub type UriFamilies = HashMap<String, (Option<String>, Option<String>)>;
@@ -129,9 +127,7 @@ struct TraceCtx<'a> {
     phi_index: &'a HashMap<ValueKey, Phi>,
 }
 
-// ---------------------------------------------------------------------------
 // Tcl quoting helper
-// ---------------------------------------------------------------------------
 
 /// Strip surrounding Tcl quoting (double-quotes or braces) from a word.
 ///
@@ -150,9 +146,7 @@ fn strip_tcl_quotes(arg: &str) -> &str {
     stripped
 }
 
-// ---------------------------------------------------------------------------
 // Literal / SCCP resolution
-// ---------------------------------------------------------------------------
 
 /// Return the resolved literal string, or `None` if unknown.
 fn resolve_literal<S: std::hash::BuildHasher>(
@@ -181,9 +175,7 @@ fn resolve_literal<S: std::hash::BuildHasher>(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Pattern classification
-// ---------------------------------------------------------------------------
 
 /// Return `true` when `operand` is unambiguously a path pattern.
 ///
@@ -255,9 +247,7 @@ fn classify_regex_pattern(pattern: &str) -> Option<&'static str> {
     None
 }
 
-// ---------------------------------------------------------------------------
 // Backward SSA tracing
-// ---------------------------------------------------------------------------
 
 /// Map `(var_name, version) → (block_name, statement_index)`.
 fn build_def_site_map(ssa: &SsaFunction) -> HashMap<ValueKey, (String, usize)> {
@@ -389,9 +379,7 @@ fn arg_traces_to_uri_family(
     None
 }
 
-// ---------------------------------------------------------------------------
 // Message builders
-// ---------------------------------------------------------------------------
 
 fn split_message(families: &UriFamilies, uri_cmd: &str, sep: &str) -> String {
     let (path_cmd, query_cmd) = uri_siblings(families, uri_cmd);
@@ -502,9 +490,7 @@ fn expr_hit_message(
     comparison_message(families, uri_cmd, op_name, component)
 }
 
-// ---------------------------------------------------------------------------
 // Expression-level detection
-// ---------------------------------------------------------------------------
 
 /// Default classification for operators that pick `"path"` first
 /// (literal `/`-prefix or `.ext`) and otherwise `"query"`.
@@ -742,9 +728,7 @@ fn walk_expr(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Statement-level detection: split / string match / string first
-// ---------------------------------------------------------------------------
 
 /// Return `(input_arg, separator)` from a `split` call, or `None`.
 fn extract_split_info<S: std::hash::BuildHasher>(
@@ -837,9 +821,7 @@ fn extract_string_match_info<S: std::hash::BuildHasher>(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Main entry point
-// ---------------------------------------------------------------------------
 
 /// Statement-level dispatch: emits warnings for `split` /
 /// `string match` / `string first` / expression-eval calls and for
@@ -1018,9 +1000,7 @@ where
     deduped
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

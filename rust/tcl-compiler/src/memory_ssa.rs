@@ -32,9 +32,7 @@ use crate::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
 
-// ---------------------------------------------------------------------------
 // MemoryLocationKind / MemoryLocation (C24b1)
-// ---------------------------------------------------------------------------
 
 /// Classification of a memory location.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -120,9 +118,7 @@ impl MemoryLocation {
     }
 }
 
-// ---------------------------------------------------------------------------
 // AliasSet (C24b1)
-// ---------------------------------------------------------------------------
 
 /// A group of memory locations that may alias each other.
 ///
@@ -168,9 +164,7 @@ impl AliasSet {
     }
 }
 
-// ---------------------------------------------------------------------------
 // MemoryOpKind / MemoryOp (C24b2)
-// ---------------------------------------------------------------------------
 
 /// Kind of memory operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -271,9 +265,7 @@ impl MemoryOp {
     }
 }
 
-// ---------------------------------------------------------------------------
 // MemorySsaFunction (C24b2)
-// ---------------------------------------------------------------------------
 
 /// Memory-SSA annotations for a single function.
 ///
@@ -334,9 +326,7 @@ impl MemorySsaFunction {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Detection helpers (C24b2)
-// ---------------------------------------------------------------------------
 
 /// Return `true` if `stmt` is the call form `cmd args…` or the
 /// equivalent barrier form. Used by the detection helpers below.
@@ -430,9 +420,7 @@ pub fn is_clobber(stmt: &Statement) -> bool {
     }
 }
 
-// ---------------------------------------------------------------------------
 // compute_aliases + build_memory_ssa (C24b3)
-// ---------------------------------------------------------------------------
 
 /// Union-find over [`MemoryLocation`] values with per-root reason
 /// aggregation. Used by [`compute_aliases`] to merge aliases

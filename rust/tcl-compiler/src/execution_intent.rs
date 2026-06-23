@@ -22,9 +22,7 @@ use crate::cfg::Function as CfgFunction;
 use crate::ir::Statement;
 use crate::side_effects::classify_side_effects;
 
-// ---------------------------------------------------------------------------
 // Enums (C23e)
-// ---------------------------------------------------------------------------
 
 /// How a value is executed/evaluated by Tcl at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -79,9 +77,7 @@ pub enum EscapeClass {
     MayEscape,
 }
 
-// ---------------------------------------------------------------------------
 // Intent structures (C23e)
-// ---------------------------------------------------------------------------
 
 /// Intent for a bracketed value like `[llength $x]`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -168,9 +164,7 @@ impl FunctionExecutionIntent {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Builders (C23f)
-// ---------------------------------------------------------------------------
 
 /// Classify an argument's substitution category from its textual
 /// form. Ported from `execution_intent.py::_categorise_arg`.

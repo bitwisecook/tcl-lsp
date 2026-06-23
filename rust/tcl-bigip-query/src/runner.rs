@@ -391,9 +391,7 @@ fn merge_cross_file_edit(
     );
 }
 
-// ---------------------------------------------------------------------------
 // --merge: every loaded config as one logical namespace
-// ---------------------------------------------------------------------------
 
 /// The `BigipConfig` dataclass field-declaration index for each collision
 /// table this port models, mirroring Python's `__dataclass_fields__` order.

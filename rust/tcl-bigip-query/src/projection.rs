@@ -39,9 +39,7 @@ use crate::errors::QueryError;
 use crate::eval::Root;
 use crate::value::{FieldSlot, ObjectRef, PathRef, Value};
 
-// ---------------------------------------------------------------------------
 // Container
-// ---------------------------------------------------------------------------
 
 /// A navigable namespace / kind container projected from a `BigipConfig`
 /// (port of `projection.Container`).
@@ -141,9 +139,7 @@ impl Container {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Public entry point
-// ---------------------------------------------------------------------------
 
 /// Return the synthetic top-level container or external JSON — port of
 /// `projection.root_container`.
@@ -155,9 +151,7 @@ pub fn root_container(root: &Rc<Root>) -> Value {
     Value::Container(Container::new("<root>", Rc::clone(root)))
 }
 
-// ---------------------------------------------------------------------------
 // Module / kind tables
-// ---------------------------------------------------------------------------
 
 /// The module names exposed at `<root>` (Python `_MODULE_KINDS` keys).
 const MODULE_NAMES: &[&str] = &[
@@ -212,9 +206,7 @@ fn kind_to_label(kind: &str) -> Option<&'static str> {
         .map(|(label, _)| *label)
 }
 
-// ---------------------------------------------------------------------------
 // Entry building
-// ---------------------------------------------------------------------------
 
 fn build_entries(container: &Container) -> IndexMap<String, Value> {
     let root = &container.root;
@@ -279,9 +271,7 @@ fn placed_kind(placed: &Placed) -> Option<&'static str> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ObjectRef building
-// ---------------------------------------------------------------------------
 
 fn build_object_ref(kind: &str, full_path: &str, obj: &ModelObject, root: &Rc<Root>) -> Value {
     let cache_key = (kind.to_owned(), full_path.to_owned());
@@ -350,9 +340,7 @@ fn model_range(obj: &ModelObject) -> Option<tcl_bigip::range::Range> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Field-slot byte-range discovery — port of `_engine._collect_field_slots`
-// ---------------------------------------------------------------------------
 
 /// Locate each top-level scalar property's value span inside its stanza —
 /// port of `_engine._collect_field_slots`.
@@ -499,9 +487,7 @@ fn brace_depth_after_line(line: &str, depth: i32) -> i32 {
     depth
 }
 
-// ---------------------------------------------------------------------------
 // Per-kind field projection
-// ---------------------------------------------------------------------------
 
 fn project_fields(kind: &str, obj: &ModelObject, root: &Rc<Root>) -> IndexMap<String, Value> {
     match (kind, obj) {
@@ -1203,9 +1189,7 @@ fn str_list(values: &[String]) -> Value {
     Value::List(values.iter().map(|s| Value::Str(s.clone())).collect())
 }
 
-// ---------------------------------------------------------------------------
 // PathRef resolution
-// ---------------------------------------------------------------------------
 
 /// Resolve the `ObjectRef` a `PathRef` points to — port of
 /// `evaluator._resolve_pathref`. Forces the relevant kind's container so

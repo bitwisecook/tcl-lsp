@@ -16,9 +16,7 @@ use std::collections::{HashMap, HashSet};
 use crate::naming::{normalise_qualified_name, normalise_var_name, split_array_name};
 use crate::side_effects::EffectRegion;
 
-// ---------------------------------------------------------------------------
 // Summary types
-// ---------------------------------------------------------------------------
 
 /// A Tcl procedure's arity as declared in `proc name {args} …`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -344,9 +342,7 @@ pub fn collect_call_by_name_reads(
     out
 }
 
-// ---------------------------------------------------------------------------
 // Call-target resolution
-// ---------------------------------------------------------------------------
 
 /// Resolve a command name to a qualified procedure name if it
 /// refers to one defined in `known`.
@@ -424,9 +420,7 @@ pub fn namespace_parts_from_proc(qname: &str) -> Vec<String> {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // Summary building (C28x, partial)
-// ---------------------------------------------------------------------------
 
 /// Build conservative interprocedural summaries for every
 /// procedure in `ir_module`.

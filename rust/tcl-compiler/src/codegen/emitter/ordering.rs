@@ -9,9 +9,7 @@ use std::collections::{HashMap, HashSet};
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 
-// ---------------------------------------------------------------------------
 // Block-name prefix constants
-// ---------------------------------------------------------------------------
 
 /// Block-name prefixes for if/switch join blocks.
 ///
@@ -36,9 +34,7 @@ pub fn starts_with_any(name: &str, prefixes: &[&str]) -> bool {
     prefixes.iter().any(|p| name.starts_with(p))
 }
 
-// ---------------------------------------------------------------------------
 // Constant branch folding
-// ---------------------------------------------------------------------------
 
 /// Evaluate a branch condition at compile time.
 ///
@@ -71,9 +67,7 @@ pub fn fold_const_branch(cond: &ExprNode) -> Option<bool> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Linearisation
-// ---------------------------------------------------------------------------
 
 /// RPO traversal from entry, with dead-branch elimination.
 ///
@@ -135,9 +129,7 @@ fn dfs(cfg: &CfgFunction, name: &str, visited: &mut HashSet<String>, order: &mut
     order.push(name.to_owned());
 }
 
-// ---------------------------------------------------------------------------
 // Loop body collection and reordering
-// ---------------------------------------------------------------------------
 
 /// Collect blocks reachable from `start` that are part of a loop back
 /// to `header`.
@@ -262,9 +254,7 @@ pub fn reorder_bottom_tested(cfg: &CfgFunction, order: Vec<String>) -> Vec<Strin
     result
 }
 
-// ---------------------------------------------------------------------------
 // Loop context (continue / break targets)
-// ---------------------------------------------------------------------------
 
 /// Map each loop-body block to its `(continue_target, break_target)`.
 ///
@@ -363,9 +353,7 @@ pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (Option<String>,
     ctx
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
