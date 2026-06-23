@@ -244,56 +244,127 @@ fn w123_command(message: &str) -> Option<&str> {
     Some(&rest[..end])
 }
 
-/// The project's proc **tail** names — the cross-file W123 resolution domain.  A
-/// bare command `foo` is resolved if some project proc has tail `foo` (mirrors
-/// the analyser's own `proc_tail_names` suppression).  Shared by the salsa
-/// [`project_diagnostics`] query (push path) and the server's on-demand pull
-/// path so both suppress identically.
-#[must_use]
-pub fn project_proc_tails(db: &dyn TclDb, project: Project) -> HashSet<String> {
-    project_proc_names(db, project)
-        .iter()
-        .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_owned()))
-        .filter(|t| !t.is_empty())
-        .collect()
+/// Inclusive `(min, max)` argument-arity of a proc from its parameter list
+/// (`max == usize::MAX` ⇒ a trailing `args` makes it unbounded).  Required params
+/// (no default, excluding a trailing `args`) set the minimum; the rest are
+/// optional.
+fn proc_arity(params: &[tcl_compiler::signature_scan::types::ParamDef]) -> (usize, usize) {
+    let has_args = params.last().is_some_and(|p| p.name == "args");
+    let counted = if has_args {
+        &params[..params.len() - 1]
+    } else {
+        params
+    };
+    let min = counted.iter().filter(|p| !p.has_default).count();
+    let max = if has_args { usize::MAX } else { counted.len() };
+    (min, max)
 }
 
-/// Drop the W123 (unknown command) diagnostics whose command is in `project_tails`
-/// — i.e. resolved by a `proc` defined elsewhere in the workspace.  Pure; used by
-/// both the push ([`project_diagnostics`]) and pull diagnostics paths so they
-/// agree.
+/// The project's proc **arities**, keyed by **tail** name — the cross-file
+/// resolution domain *and* its argument-count signatures (SRV-INCREMENTAL
+/// Task 6).  A bare command `foo` is resolved if some project proc has tail `foo`
+/// (the map's keys); each key carries every such proc's `(min, max)` arity, so a
+/// call whose arg count fits *none* of them is a wrong-arg-count error.  Depends
+/// only on each file's `item_sigs` (the signature firewall), so a body edit
+/// anywhere recomputes nothing here.
+#[salsa::tracked]
+pub fn project_proc_arities(
+    db: &dyn TclDb,
+    project: Project,
+) -> Arc<HashMap<String, Vec<(usize, usize)>>> {
+    let mut map: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
+    for &file in project.files(db) {
+        for sig in item_sigs(db, file).iter() {
+            if sig.id.kind == tcl_compiler::analyser::ItemKind::Proc
+                && let Some((_, tail)) = sig.id.key.rsplit_once("::")
+                && !tail.is_empty()
+            {
+                map.entry(tail.to_owned()).or_default().push(proc_arity(&sig.params));
+            }
+        }
+    }
+    Arc::new(map)
+}
+
+/// Build the cross-file wrong-argument-count diagnostic (W124) for a call to a
+/// workspace proc whose arg count fits none of the proc's arities.
+fn cross_file_arity_diagnostic(
+    name: &str,
+    span: tcl_lexer::Span,
+    argc: usize,
+    candidates: &[(usize, usize)],
+) -> tcl_compiler::analyser::types::Diagnostic {
+    let min = candidates.iter().map(|&(lo, _)| lo).min().unwrap_or(0);
+    let max = candidates.iter().map(|&(_, hi)| hi).max().unwrap_or(0);
+    let expected = if max == usize::MAX {
+        format!("at least {min}")
+    } else if min == max {
+        format!("{min}")
+    } else {
+        format!("{min} to {max}")
+    };
+    tcl_compiler::analyser::types::Diagnostic {
+        code: "W124".to_string(),
+        span,
+        message: format!("wrong # args for '{name}': expected {expected}, got {argc}"),
+        severity: tcl_compiler::analyser::types::Severity::Warning,
+        fixes: Vec::new(),
+    }
+}
+
+/// Resolve a file's diagnostics against the project (Task 6): a W123 (unknown
+/// command) whose command tail is a workspace proc is **suppressed** (resolved
+/// cross-file); if that call's arg count is known and fits **none** of the
+/// proc's arities, a cross-file **W124** wrong-arg-count diagnostic replaces it.
+/// Pure; shared by the push ([`project_diagnostics`]) and pull paths so both
+/// agree.  `arities` empty ⇒ no project context ⇒ status-quo diagnostics.
 #[must_use]
-pub fn suppress_cross_file_w123<S: std::hash::BuildHasher>(
+pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
     diags: &[tcl_compiler::analyser::types::Diagnostic],
-    project_tails: &HashSet<String, S>,
+    invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
+    arities: &HashMap<String, Vec<(usize, usize)>, S>,
 ) -> Vec<tcl_compiler::analyser::types::Diagnostic> {
-    diags
+    if arities.is_empty() {
+        return diags.to_vec();
+    }
+    // Call-site arg count by (start, end) span, for the arity check.
+    let argc_by_span: HashMap<(u32, u32), Option<usize>> = invocations
         .iter()
-        .filter(|d| {
-            !(d.code == "W123"
-                && w123_command(&d.message).is_some_and(|name| project_tails.contains(name)))
-        })
-        .cloned()
-        .collect()
+        .map(|inv| ((inv.range.start(), inv.range.end()), inv.argc))
+        .collect();
+    let mut out = Vec::with_capacity(diags.len());
+    for d in diags {
+        if d.code == "W123"
+            && let Some(name) = w123_command(&d.message)
+            && let Some(candidates) = arities.get(name)
+        {
+            // Resolved cross-file: drop the W123.  If the arg count is known and
+            // fits no candidate arity, emit W124 in its place.
+            if let Some(Some(argc)) = argc_by_span.get(&(d.span.start(), d.span.end())) {
+                let argc = *argc;
+                if candidates.iter().all(|&(lo, hi)| argc < lo || argc > hi) {
+                    out.push(cross_file_arity_diagnostic(name, d.span, argc, candidates));
+                }
+            }
+            continue;
+        }
+        out.push(d.clone());
+    }
+    out
 }
 
-/// Analyser diagnostics for `file` with cross-file-resolvable W123 (unknown
-/// command) warnings suppressed against the project's proc names
-/// (SRV-INCREMENTAL Task 6 — cross-file unresolved-command resolution).
+/// Analyser diagnostics for `file` resolved against the project (SRV-INCREMENTAL
+/// Task 6): cross-file-resolvable W123 (unknown command) suppressed, plus W124
+/// (wrong # args) for calls to workspace procs with a bad arg count.
 ///
 /// Deliberately a **separate query off the paramount [`file_analysis`] path**:
 /// `file_analysis` stays project-independent (so a signature change in another
 /// file cannot regress this file's time-to-first-tokens), and this
-/// debounced/non-paramount query layers the cross-file suppression on top.  It
-/// depends only on `file_analysis(file, config)` + the firewalled
-/// [`project_proc_names`], so a **body** edit in any file recomputes nothing
-/// here; only a proc-decl change (or this file's own edit) does — precise
-/// cross-file reverse-dependency invalidation, for free, from salsa.
-///
-/// Mirrors the analyser's own `proc_tail_names` suppression in
-/// `emit_unresolved_command_diagnostics` — a bare `foo` resolves if some project
-/// proc has tail `foo` — extended across files.  Suppression only; the analyser's
-/// single-file "did you mean" suggestion is left as-is.
+/// debounced/non-paramount query layers cross-file resolution on top.  It depends
+/// only on `file_analysis(file, config)` + the firewalled [`project_proc_arities`],
+/// so a **body** edit in any file recomputes nothing here; only a proc-decl /
+/// signature change (or this file's own edit) does — precise cross-file
+/// reverse-dependency invalidation, for free, from salsa.
 #[salsa::tracked]
 pub fn project_diagnostics(
     db: &dyn TclDb,
@@ -305,8 +376,12 @@ pub fn project_diagnostics(
     // the per-item firewall result the diagnostics worker already computed for
     // `file` — a cache hit, not a second whole-file analysis.
     let analysis = file_analysis_incremental(db, file, config);
-    let project_tails = project_proc_tails(db, project);
-    Arc::new(suppress_cross_file_w123(&analysis.diagnostics, &project_tails))
+    let arities = project_proc_arities(db, project);
+    Arc::new(apply_cross_file_resolution(
+        &analysis.diagnostics,
+        &analysis.command_invocations,
+        &arities,
+    ))
 }
 
 /// Interned identity of a single `proc` body's isolated analysis — the per-item
@@ -1809,6 +1884,40 @@ mod tests {
             let fresh = mk(b_text);
             assert_eq!(inc, fresh, "incremental != fresh after b = {b_text:?}");
         }
+    }
+
+    /// SRV-INCREMENTAL Task 6 (cross-file arity): a call to a workspace-defined
+    /// proc with the wrong argument count emits W124 (and the W123 it would have
+    /// drawn is suppressed); a correct count emits neither.
+    #[test]
+    fn project_diagnostics_emits_cross_file_arity() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        // B defines `proc helper {x y}` — arity exactly 2.
+        let b = SourceFile::new(
+            &db,
+            "proc helper {x y} { return $x }\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let has = |diags: &[tcl_compiler::analyser::types::Diagnostic], code: &str| {
+            diags
+                .iter()
+                .any(|d| d.code == code && d.message.contains("helper"))
+        };
+
+        // 3 args to a 2-param proc → W124, and the W123 is suppressed (resolved).
+        let a3 = SourceFile::new(&db, "helper a b c\n".to_owned(), "tcl8.6".to_owned());
+        let p3 = Project::new(&db, vec![a3, b]);
+        let d3 = project_diagnostics(&db, a3, cfg, p3);
+        assert!(has(&d3, "W124"), "3 args to a 2-param cross-file proc must emit W124");
+        assert!(!has(&d3, "W123"), "W123 must be suppressed once resolved cross-file");
+
+        // Correct arity (2 args) → neither W124 nor W123.
+        let a2 = SourceFile::new(&db, "helper a b\n".to_owned(), "tcl8.6".to_owned());
+        let p2 = Project::new(&db, vec![a2, b]);
+        let d2 = project_diagnostics(&db, a2, cfg, p2);
+        assert!(!has(&d2, "W124"), "correct arity must not emit W124");
+        assert!(!has(&d2, "W123"), "resolved cross-file → no W123");
     }
 
     /// Regression (whole-file-shift determinism): a pure prepend that shifts every

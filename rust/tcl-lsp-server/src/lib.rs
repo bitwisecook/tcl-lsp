@@ -2768,13 +2768,13 @@ impl Backend {
         let analysis = self.analysis_for(uri, text.clone(), dialect.clone()).await;
         let registry = self.registry_for_dialect(&dialect).await;
 
-        // Cross-file (SRV-INCREMENTAL Task 6): the project's proc tail-names, so
-        // the pull path suppresses cross-file-resolved W123 exactly as the push
-        // path does.  Only gathered when `xcDiagnostics` is enabled.
+        // Cross-file (SRV-INCREMENTAL Task 6): the project's proc arities, so the
+        // pull path resolves cross-file W123 / emits cross-file W124 exactly as the
+        // push path does.  Only gathered when `xcDiagnostics` is enabled.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
-        let project_tails = if xc_on {
+        let project_arities = if xc_on {
             let db = self.db.lock().await.clone();
-            (*self.db_project.lock().await).map(|p| tcl_lsp_db::project_proc_tails(&db, p))
+            (*self.db_project.lock().await).map(|p| tcl_lsp_db::project_proc_arities(&db, p))
         } else {
             None
         };
@@ -2793,9 +2793,14 @@ impl Backend {
         };
 
         let xc_for_irules = dialect == "f5-irules" && xc_on;
-        // Cross-file W123 suppression (Task 6), matching the push path.
-        let analyser_diags = match &project_tails {
-            Some(tails) => tcl_lsp_db::suppress_cross_file_w123(&analysis.diagnostics, tails),
+        // Cross-file resolution (Task 6) — W123 suppression + W124 arity, matching
+        // the push path.
+        let analyser_diags = match &project_arities {
+            Some(arities) => tcl_lsp_db::apply_cross_file_resolution(
+                &analysis.diagnostics,
+                &analysis.command_invocations,
+                arities,
+            ),
             None => analysis.diagnostics.clone(),
         };
         tokio::task::spawn_blocking(move || {

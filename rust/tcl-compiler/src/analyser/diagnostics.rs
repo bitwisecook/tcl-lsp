@@ -12890,6 +12890,7 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
                 name: "random_cmd".to_string(),
                 range: Span::new(25, 35),
                 resolved_qualified_name: None,
+                argc: Some(0),
             },
         );
         let registry = tcl_registry::CommandRegistry::build_default();

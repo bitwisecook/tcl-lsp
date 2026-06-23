@@ -273,11 +273,20 @@ impl Analyser {
         // `file_decls_corpus` corpus test).
         if !self.structure_only {
             let resolved = self.resolve_command_qualified_name(cmd_name);
+            // Argument count for cross-file arity checking (Task 6).  A `{*}`-
+            // expanded argument makes the runtime count unknown, so record `None`
+            // and let arity checking skip conservatively.
+            let arg_count = if arg_expand_in.iter().skip(1).copied().any(|e| e) {
+                None
+            } else {
+                Some(args.len())
+            };
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name: cmd_name.to_string(),
                     range: cmd_tok.span,
                     resolved_qualified_name: Some(resolved),
+                    argc: arg_count,
                 },
             );
 
@@ -298,6 +307,9 @@ impl Analyser {
                         name: target_name.clone(),
                         range: target_tok.span,
                         resolved_qualified_name: Some(resolved),
+                        // iRules `call PROC ...` indirection — arity not
+                        // cross-file-checked here; skip conservatively.
+                        argc: None,
                     },
                 );
             }
@@ -1140,6 +1152,8 @@ impl Analyser {
                     name,
                     range,
                     resolved_qualified_name: Some(resolved),
+                    // Collected head with no recorded argument list — arity skip.
+                    argc: None,
                 },
             );
         }
@@ -1181,6 +1195,8 @@ impl Analyser {
                     name,
                     range: tcl_lexer::Span::new(abs_start, abs_end),
                     resolved_qualified_name: Some(resolved),
+                    // Nested `[cmd ...]` head, no recorded argument list — arity skip.
+                    argc: None,
                 },
             );
         }
