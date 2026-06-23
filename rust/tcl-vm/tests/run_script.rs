@@ -265,6 +265,21 @@ fn list_hooks_collapse_nonbraced_backslashes() {
     assert_eq!(result, "1 {unmatched open brace in list}");
 }
 
+/// An inline-compiled command substitution interpolates a leading-`$` word that
+/// is more than a bare variable (`$i.x`, `$a$b`): the word is decomposed into
+/// its `$var`/literal parts, not pushed raw. Regression for for-2.5 — `set m
+/// [concat a "$i.x"]` had yielded the literal `$i.x`.
+#[test]
+fn inline_cmd_subst_interpolates_dollar_prefixed_word() {
+    let (ok, result, _) = run("set i 5\nset m [concat a \"$i.x\"]\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "a 5.x");
+
+    let (ok, result, _) = run("set a 1\nset b 2\nset m [concat [list $a$b]]\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "12");
+}
+
 /// `break` / `continue` with any argument raise `wrong # args` — even inside a
 /// loop, where the bare forms compile to a jump. The compiler only takes the
 /// jump fast path when there are no arguments, so `break foo` reaches the
