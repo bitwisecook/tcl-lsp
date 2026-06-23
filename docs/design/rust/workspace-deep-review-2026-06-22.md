@@ -803,13 +803,17 @@ this review independently re-confirmed two of them plus O103 via `tcl opt`:
 - **OPT-M1 (CRITICAL — reproduced) — O122 tail-call rewrite emits a *braced*
   `lassign`, breaking every multi-argument tail-recursive proc.** The rewrite
   produces `lassign {[expr {$a - 1}] [expr {$b + $a}]} a b` — the `{…}` is a
-  braced word, so Tcl does **no** command substitution and `a`/`b` are assigned
-  the literal strings `[expr {$a - 1}]` / `[expr {$b + $a}]` instead of their
-  values. The design doc specifies `lassign [list …]` precisely to avoid this;
-  the implementation used braces. **Independently reproduced** (`tcl opt --profile
-  full` and `aggressive`). A "readability" rewrite in `optimiseDocument` that
-  silently corrupts the program — the single worst defect in the workspace
-  alongside the recursion crashes. `optimiser/tail_call.rs`.
+  braced word, so Tcl does **no** command substitution. For plain `$var` args the
+  params are assigned the literal strings (wrong value); for the common case where
+  an argument contains `[...]` (e.g. `[expr {…}]`) the braced list is **malformed**
+  and `tclsh` raises a **hard runtime error** — verified: `lassign {[expr {$a -
+  1}] …} a b` → `list element in braces followed by "]" instead of space`. The
+  design doc specifies `lassign [list …]` precisely to avoid this; the
+  implementation used braces. **Independently reproduced** on the
+  parameter-reassignment loop form (`tcl opt --profile full`/`aggressive`); note
+  the `return [self …]` form correctly fires O121 (`tailcall`) instead. A
+  one-char fix (`[list …]`), but until then `optimiseDocument` silently turns
+  working tail-recursive code into a runtime crash.
 - **OPT-M2 (CRITICAL — reproduced) — the builtin const-fold trust gate is dead in
   production.** `scan_module_command_mutations` is called only in the test-only
   `optimise_raw` (`manager.rs:625`); the production `optimise_unit` leaves
@@ -835,9 +839,18 @@ this review independently re-confirmed two of them plus O103 via `tcl opt`:
 - **(also independently reproduced) O103** — folding a conditionally-returning
   pure proc to its constant return ignores the implicit fall-through `""` (the
   CFG/dataflow section's MID-H2); `tcl opt` turns `set y [f $arg]` → `set y 42`.
+  **Correction (from the parity audit): this one is a *shared* bug — the Python
+  optimiser folds identically**, so it is a real miscompile but **not** a Rust
+  parity regression (both summary paths inspect only explicit `Return`s and miss
+  the implicit empty return). The other four (M1–M4) are **Rust-only**.
 
 That is **five distinct confirmed miscompiles in the user-facing
-`optimiseDocument` / `tcl opt` surface** — see *Cross-cutting theme D*.
+`optimiseDocument` / `tcl opt` surface** (four Rust-only + the shared O103) — see
+*Cross-cutting theme D*. The parity audit
+([`python-rust-parity-audit-2026-06-22.md`](python-rust-parity-audit-2026-06-22.md))
+confirms Rust has **no missing optimiser passes** and **exact profile-gating
+parity** — the optimiser gap is entirely these correctness regressions, each with
+a known one-to-few-line fix.
 
 ### Findings — codegen + other
 

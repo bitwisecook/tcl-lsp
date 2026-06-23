@@ -182,6 +182,11 @@ chunk-by-chunk dispatch story lives in
 - [rust/lsp-server-deep-review-2026-06-22.md](rust/lsp-server-deep-review-2026-06-22.md)
   — companion deep review of the native LSP server stack
   (``tcl-lsp-server`` / ``-core`` / ``-db`` / ``-py``), 18 findings.
+- [rust/python-rust-parity-audit-2026-06-22.md](rust/python-rust-parity-audit-2026-06-22.md)
+  — Python→Rust parity audit (registry, diagnostics, optimisations,
+  passes/features): one missing command (``ledit``), four Rust-only
+  optimiser miscompiles, an unwired inliner, and the deleted parity-check
+  tooling.
 - [rust/compiler-pipeline-parity.md](rust/compiler-pipeline-parity.md) —
   deep parity audit of the Rust rewrite's lexer, CST, IR/lowering, CFG/SSA,
   analyses, optimiser, and bytecode codegen against the Python source of
