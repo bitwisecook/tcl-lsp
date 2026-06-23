@@ -1,0 +1,16 @@
+[package]
+name = "tcl-sandbox"
+description = "Portable, deprivileged execution sandbox for the tcl package manager: a capability/policy-floor model over a portable baseline (environment scrubbing, working-directory confinement, wall-clock timeouts) with OS-native confinement layered on per platform."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+wait-timeout = "0.2"
+
+[lints]
+workspace = true
