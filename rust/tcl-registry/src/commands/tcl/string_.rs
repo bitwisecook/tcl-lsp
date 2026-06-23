@@ -61,8 +61,13 @@ fn fold_cat(args: &[&str]) -> Option<String> {
     Some(args.concat())
 }
 
-/// `string repeat string count` — repeat (bounded by a 10000 sanity
-/// cap).  No char transformation → sound for any input.
+/// Cap on a single constant-fold's materialised output (1 MiB). `s` may
+/// already be large from a nested fold, so bounding only the repeat count
+/// leaves an allocation bomb; bound the product and bail above the cap.
+const MAX_FOLD_OUTPUT_BYTES: usize = 1 << 20;
+
+/// `string repeat string count` — repeat (bounded by a 10000 count cap and a
+/// 1 MiB output cap).  No char transformation → sound for any input.
 /// A negative count fails the `usize` parse → bails.
 fn fold_repeat(args: &[&str]) -> Option<String> {
     let [s, count] = args else {
@@ -70,6 +75,9 @@ fn fold_repeat(args: &[&str]) -> Option<String> {
     };
     let n: usize = count.trim().parse().ok()?;
     if n > 10_000 {
+        return None;
+    }
+    if s.len().checked_mul(n).is_none_or(|bytes| bytes > MAX_FOLD_OUTPUT_BYTES) {
         return None;
     }
     Some(s.repeat(n))
