@@ -969,3 +969,16 @@ The pytest file stays in place as the oracle.
   the shared binary test vectors lifted into the crate first.
 
 The pytest file stays in place as the oracle.
+
+### `tests/test_f5_query*.py` (`in_cidr`) → `tcl-bigip-query::builtins::net`
+
+- **Ported (semantics).** The `in_cidr` IP/CIDR core →
+  `rust/tcl-bigip-query/src/builtins/net.rs::tests`
+  (`in_cidr_matches_v4_ranges`, `in_cidr_matches_v6_ranges`). The f5-query
+  pytest battery only exercises `in_cidr` *end-to-end* (e.g.
+  `select(in_cidr(.destination, "10.10.0.0/24"))`), and `net.rs` — the whole
+  IP/CIDR builtin module — had **zero** unit coverage. The new tests drive
+  `bi_in_cidr` directly for v4/v6 membership, the BIG-IP `addr:port`
+  destination form, and the non-address → `false` (not error) case.
+
+The pytest files stay in place as the oracle.
