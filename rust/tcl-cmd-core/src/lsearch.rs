@@ -572,3 +572,39 @@ fn str_of(b: &[u8]) -> String {
 fn str_opt(b: &[u8]) -> Option<&str> {
     core::str::from_utf8(b).ok()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `split_index` result as a `Vec<Vec<u8>>` (LsearchError has no Debug,
+    /// so we can't `.unwrap()`).
+    fn split_ok(arg: &[u8]) -> Vec<Vec<u8>> {
+        match split_index(arg) {
+            Ok(v) => v,
+            Err(_) => panic!("expected a parseable index list"),
+        }
+    }
+
+    #[test]
+    fn split_index_parses_list_specs() {
+        // `lsearch -index {…}` splits a Tcl list into component specs
+        // (cmd-core lsearch.rs had no unit coverage).
+        assert_eq!(
+            split_ok(b"0 1 2"),
+            vec![b"0".to_vec(), b"1".to_vec(), b"2".to_vec()]
+        );
+        assert_eq!(split_ok(b"{0} {1}"), vec![b"0".to_vec(), b"1".to_vec()]);
+    }
+
+    #[test]
+    fn validate_index_path_classifies_specs() {
+        // Parse-time `TclIndexEncode` validation: encodable → Ok, negative /
+        // `end+N` → out of range, garbage → bad index.
+        assert!(validate_index_path(&[b"0".to_vec(), b"1".to_vec()]).is_ok());
+        assert!(validate_index_path(&[b"end".to_vec()]).is_ok());
+        assert!(validate_index_path(&[b"-1".to_vec()]).is_err()); // out of range
+        assert!(validate_index_path(&[b"end+1".to_vec()]).is_err()); // out of range
+        assert!(validate_index_path(&[b"bad".to_vec()]).is_err()); // bad index
+    }
+}
