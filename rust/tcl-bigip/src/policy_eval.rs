@@ -524,7 +524,7 @@ fn split_query(uri: &str) -> String {
     }
 }
 
-/// Minimal `urllib.parse.urlsplit` for request URIs: strips a `#fragment`, an
+/// Minimal URL splitter for request URIs: strips a `#fragment`, an
 /// optional `scheme:` prefix and `//netloc`, then splits `path?query`. Exotic
 /// forms (`;params`) are not modelled, but `request_state_from_session` reaches
 /// here only when the walker left `http_path`/`http_query` empty.
