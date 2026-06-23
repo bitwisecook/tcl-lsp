@@ -485,10 +485,18 @@ exist yet — the verification-status table follows the list.
    same "cross-item facts as inputs" split the analyser walk used. Attacks the
    ~59 ms lowering floor.
 
-4. **Approach B follow-ups** *(M).* Per the same doc: remove the per-proc
-   deep-clone, and add the per-function `optimise_unit` memo (needs
-   `PassContext.interproc` to become `Arc` first — the naive memo was reverted for a
-   perf regression). Folds into Task 2's optimiser half.
+4. **Approach B follow-ups** *(deferred — one half negligible, one coupled to
+   Task 3).* Two sub-parts, both re-evaluated against measurement:
+   - *Remove the per-proc deep-clone* (`cu.interproc.clone()` in `optimise_unit`):
+     **measured 0.1 ms** on `linalg.tcl` (~0.09% of the post-2b checks path).
+     Removing it means making `PassContext.interproc` a borrow/`Arc`, which churns
+     **15+ call sites** (mostly tests passing an owned `InterproceduralAnalysis::
+     default()`). 15-site churn for 0.1 ms is below the value bar — the rope
+     tradeoff. Skipped.
+   - *Per-function `optimise_unit` memo:* coupled to **Task 3** — the optimiser
+     passes read the post-whole-module-pass `FunctionUnit` (same coupling that
+     refuted 2a), so an offset-0-baseline memo would diverge. Blocked behind the
+     Task 3 cross-item split.
 
 5. **Wire the structural-state index into the live re-lex path** *(blocked — no
    consumer exists; coupled to Task 7).* The intent: bound `did_change`'s re-lex /
