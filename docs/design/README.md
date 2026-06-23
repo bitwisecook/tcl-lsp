@@ -187,6 +187,20 @@ chunk-by-chunk dispatch story lives in
   passes/features): one missing command (``ledit``), four Rust-only
   optimiser miscompiles, an unwired inliner, and the deleted parity-check
   tooling.
+- [rust/production-readiness-2026-06-23.md](rust/production-readiness-2026-06-23.md)
+  — production-readiness assessment for **retiring Python**: the robustness
+  blockers (a malformed file crashes the server; a fold-bomb OOMs it), the
+  precision regression against [`../compiler/FP.md`](compiler/FP.md), the
+  safety-net collapse, the still-Python distribution, and the ordered
+  path-to-production.
+- [rust/architecture-and-quality-2026-06-23.md](rust/architecture-and-quality-2026-06-23.md)
+  — whole-workspace architecture & code-quality review (companion to the
+  production-readiness doc): cross-layer sharing/DRY, the unified
+  editor↔lexer↔CST↔runtime buffer, registry leverage & lowering hookup,
+  algorithms/data-structures (SipHash-everywhere, String-keyed SSA, confirmed
+  O(n²)/O(n³) hotspots), clippy/MSRV/dependency currency, documentation
+  accuracy, FP-catalog test-net coverage, and configuration layering — with a
+  consolidated production-readiness roadmap.
 - [rust/compiler-pipeline-parity.md](rust/compiler-pipeline-parity.md) —
   deep parity audit of the Rust rewrite's lexer, CST, IR/lowering, CFG/SSA,
   analyses, optimiser, and bytecode codegen against the Python source of
