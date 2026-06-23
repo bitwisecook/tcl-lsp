@@ -8,7 +8,7 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use tcl_cmd_core::scan::{scan_match, Scanned};
+use tcl_cmd_core::scan::{scan_match, validate_format, Scanned};
 
 use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
 use crate::obj::{new_double_obj, new_string_bytes, new_wide_int_obj, TclObj};
@@ -48,12 +48,18 @@ fn scan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let vars = &argv[3..];
     let inline = vars.is_empty();
 
+    // Reject malformed format strings up front, as C's `ValidateFormat` does.
+    if let Err(msg) = validate_format(&fmt, vars.len()) {
+        return interp.set_error(msg.as_bytes());
+    }
+
     let outcome = scan_match(&input, &fmt);
 
     if inline {
         // The list of scanned values; a failed (trailing) conversion renders as
-        // an empty string, but an outright EOF-before-anything is empty.
-        if outcome.values.is_empty() {
+        // an empty string, but an outright EOF-before-anything is empty (the
+        // analogue of variable mode's -1).
+        if outcome.values.is_empty() || (outcome.nconv == 0 && outcome.eof_before_conv) {
             interp.set_result_bytes(b"");
             return Code::Ok;
         }
