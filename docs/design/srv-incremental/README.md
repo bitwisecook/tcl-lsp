@@ -490,16 +490,23 @@ exist yet — the verification-status table follows the list.
    `PassContext.interproc` to become `Arc` first — the naive memo was reverted for a
    perf regression). Folds into Task 2's optimiser half.
 
-5. **Wire the structural-state index into the live re-lex path** *(M).* Bound
-   `did_change`'s re-lex / re-segment (and the inline structure extraction) to the
-   dirty span via the already-built `reparse_window` / `script_is_complete` /
-   bracket-brace-paren indexes in `tcl-lexer` (unit-tested in isolation but with **no
-   production callers** today; the server's own comment flags this a documented
-   follow-up). Modest absolute ms — re-lex is tens of µs–ms — but it removes the
-   whole-file segmentation floor and is the substrate the rope (Task 7) needs.
-   *Verification gate (must be built):* a differential check that dirty-span re-lex /
-   re-segment is byte-identical to a full re-lex over the edit-fuzz corpus — the
-   primitives are tested standalone, the *wired* path is not.
+5. **Wire the structural-state index into the live re-lex path** *(blocked — no
+   consumer exists; coupled to Task 7).* The intent: bound `did_change`'s re-lex /
+   re-segment to the dirty span via the already-built `reparse_window` /
+   `script_is_complete` / bracket-brace-paren indexes. **Verified blocked:** there
+   is **no windowed re-lex or incremental-segmentation API** to consume a dirty
+   span — `Lexer` (`new` / `with_source_map`) always lexes the *whole* source, and
+   `did_change` feeds the whole-file `String` to the salsa input, so the re-lex /
+   structure extraction happens inside whole-file salsa queries (`item_tree`,
+   `file_analysis_incremental`) keyed on the entire text. Wiring `reparse_window`
+   today computes a dirty span **nothing consumes** (dead code). Bounding the
+   re-lex requires either a chunk-addressable `SourceFile` input (so only the dirty
+   chunk's tokens recompute) or an analyser that re-segments a window and merges —
+   i.e. **Task 7's infrastructure**. So 5 is coupled to 7, not an independent
+   *(M)*. (`script_is_complete` is already wired where it matters — incomplete-input
+   fallback in `analyser/state.rs` / `per_item.rs` and the REPL; it is specifically
+   `reparse_window`'s windowed re-lex that has no consumer.) *When unblocked, the
+   gate:* dirty-span re-lex byte-identical to a full re-lex over the edit-fuzz corpus.
 
 6. **Cross-file cascade** *(XL — salsa mechanics spiked, core implementation
    unbuilt).* Lift the project signature table into salsa (`project_signatures` over
@@ -565,6 +572,7 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | **2b memo shipped:** `proc_summary_cascade`+`proc_taint_solve` — `compiler_check_diagnostics` 230→107 ms (~2.1×), per-edit 245→154 ms (~1.6×); dup-build ~28 ms warm | **measured + verified** | `tail_profile` + full-corpus `compiler_check` differential (510 s, guard live, byte-identical) + cross-edit/breadth/graphops tests |
 | 2a per-function check memo on `function_lattice` is sound (the "easy" framing) | **refuted** (experiment) | attempted + reverted: shimmer/type checks read the *post-whole-module-pass* `FunctionUnit`, so offset-0-baseline memo diverged on `graphops.tcl` — 2a is coupled to the whole-module passes (Task 3's blocker) |
 | Task 1: `LineIndex::apply_edit` patch == rebuild; persisted index wired into `DocumentState` | **measured + verified** (shipped) | 5000-edit fuzz gate + live-path index-consistency test; ~0.02% per-edit value as predicted |
+| Task 5: `reparse_window` can be wired to bound re-lex today | **refuted** (code) | no windowed re-lex / incremental-segmentation consumer exists; `Lexer` lexes whole source, `did_change` feeds whole text to salsa — coupled to Task 7's chunk input |
 | Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |
 | Task 2 "cuts ~405 ms to one-proc cost" (the easy framing) | **refuted** | decomposition: ~16 ms easy (2a) + ~385 ms hard whole-unit taint solve (2b) |
 | Task 2 (2b) memo is sound | **measured + verified** (cold) | full-corpus `compiler_check` differential (memo vs uncached, debug guard live) passes; cross-edit pinned by `taint_cascade_matches_uncached_under_edits`. *Random-edit* fuzzer still to build |
