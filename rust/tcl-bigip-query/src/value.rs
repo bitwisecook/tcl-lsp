@@ -2,7 +2,7 @@
 //!
 //! Covers the runtime values plus the scalar semantics the evaluator and
 //! builtins share (`_truthy`, `_eq`, `_sort_key`, scalar coercion) and a
-//! serialiser matching the canonical `json.dumps` byte format.
+//! serialiser matching the canonical JSON byte format.
 //!
 //! Most values flow as the plain JSON-shaped variants — `Null` / `Bool` /
 //! `Int` / `Float` / `Str` / `List` / `Object` — which keeps the evaluator
@@ -156,7 +156,7 @@ impl Value {
             ),
             Value::Stream(items) => format!("stream(len={})", items.len()),
             Value::List(items) => format!("list(len={})", items.len()),
-            // Falls back to the `type(value).__name__` spelling.
+            // Falls back to the type name.
             Value::Bool(_) => "bool".to_string(),
             Value::Int(_) => "int".to_string(),
             Value::Float(_) => "float".to_string(),
@@ -166,7 +166,7 @@ impl Value {
         }
     }
 
-    /// The `type(value).__name__` spelling, used by a few builtin
+    /// The type name, used by a few builtin
     /// error messages (`flatten`, `combinations`, …) and the `type` builtin
     /// is handled separately.
     #[must_use]

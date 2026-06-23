@@ -610,7 +610,7 @@ fn extract_braced(body: &str, keyword: &str) -> Option<String> {
 }
 
 /// `\b(tcp|udp|sctp):(\d+)\b` over `text`, in left-to-right match order.
-/// Returns `(proto_lower, port)` — matching `re.findall`'s document order with
+/// Returns `(proto_lower, port)` — in document order with
 /// non-overlapping, leftmost matches.
 fn allow_service_tokens(text: &str) -> Vec<(String, i64)> {
     let mut out = Vec::new();

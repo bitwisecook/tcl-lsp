@@ -55,7 +55,7 @@ impl IPRange {
             let single = parse_ip(text)?;
             return Self::new(single, single);
         }
-        // Split on the LAST hyphen (str.rpartition).
+        // Split on the LAST hyphen.
         let idx = text.rfind('-').unwrap();
         let lo = parse_ip(text[..idx].trim())?;
         let hi = parse_ip(text[idx + 1..].trim())?;

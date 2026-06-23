@@ -9,8 +9,7 @@ const SOURCE_SUFFIXES: &[&str] = &[
     "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl",
 ];
 
-/// Directory names skipped during recursive discovery (mirrors
-/// `_SKIP_DIRECTORY_NAMES`).
+/// Directory names skipped during recursive discovery.
 const SKIP_DIRECTORY_NAMES: &[&str] = &[
     ".git",
     ".hg",

@@ -248,8 +248,8 @@ fn ip_bytes_to_string(bytes: &[u8]) -> String {
     }
 }
 
-/// `(key_alg, key_size)` matching `type(public_key).__name__` and
-/// `getattr(public_key, "key_size", None)`.
+/// `(key_alg, key_size)` where `key_alg` is the public key's type name and
+/// `key_size` is its bit length (or `None` when unavailable).
 fn key_alg_and_size(spki: &SubjectPublicKeyInfo<'_>) -> (Option<String>, Option<u32>) {
     let oid = spki.algorithm.algorithm.to_id_string();
     let key_alg = pubkey_class_name(&oid);
@@ -263,7 +263,7 @@ fn key_alg_and_size(spki: &SubjectPublicKeyInfo<'_>) -> (Option<String>, Option<
     (key_alg, key_size)
 }
 
-/// Map a public-key OID to `type(public_key).__name__` from `cryptography`.
+/// Map a public-key OID to the public key's type name.
 fn pubkey_class_name(oid: &str) -> Option<String> {
     let name = match oid {
         "1.2.840.113549.1.1.1" => "RSAPublicKey",
@@ -648,7 +648,7 @@ pub(crate) fn cert_load(path: &str, _password: Option<&str>) -> Result<Value, Qu
     }
 }
 
-/// Port of `os.path.expanduser` for a leading `~` / `~/`.
+/// Tilde expansion of a leading `~` / `~/` in the path.
 fn expanduser(path: &str) -> String {
     if (path == "~" || path.starts_with("~/"))
         && let Some(home) = std::env::var_os("HOME")

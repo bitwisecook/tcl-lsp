@@ -1,12 +1,12 @@
-//! JSON serialisation of [`Value`]s matching the canonical `json.dumps` byte format.
+//! JSON serialisation of [`Value`]s matching the canonical JSON byte format.
 //!
 //! The query DSL emits JSON in two spellings:
 //!
-//! - **pretty** — `json.dumps(obj, indent=2)` (the `--json` output mode);
-//! - **compact** — `json.dumps(obj, separators=(",", ":"))` (`tojson`,
+//! - **pretty** — 2-space-indented JSON (the `--json` output mode);
+//! - **compact** — compact JSON (no spaces after `,` or `:`) (`tojson`,
 //!   `debug`, table cells).
 //!
-//! Both default to `ensure_ascii=True`, so non-ASCII code points are escaped
+//! Both escape non-ASCII so all output is ASCII, so non-ASCII code points are escaped
 //! as `\uXXXX` (with surrogate pairs above the BMP). The transformation from
 //! [`Value`] to JSON: an `ObjectRef` becomes
 //! `{"kind", "full-path", "fields"}`, a `PathRef` its full-path string, a
@@ -29,7 +29,7 @@ const MAX_JSON_DEPTH: usize = 512;
 /// well-formed JSON instead of crashing.
 const TRUNCATION_MARKER: &str = "<max depth exceeded>";
 
-/// Serialise *value* as `json.dumps(_to_json(value), indent=2)` would.
+/// Serialise *value* as 2-space-indented JSON.
 #[must_use]
 pub fn to_pretty(value: &Value) -> String {
     let mut out = String::new();
@@ -37,7 +37,7 @@ pub fn to_pretty(value: &Value) -> String {
     out
 }
 
-/// Serialise *value* as `json.dumps(_to_json(value), separators=(",", ":"))`.
+/// Serialise *value* as compact JSON (no spaces after `,` or `:`).
 #[must_use]
 pub fn to_compact(value: &Value) -> String {
     let mut out = String::new();
@@ -100,7 +100,7 @@ fn write_value(
             write_string(out, &format!("container({})", c.kind));
         }
         Value::ObjectRef(o) => {
-            // `_to_json(ObjectRef)` → {"kind", "full-path", "fields": {...}}.
+            // An `ObjectRef` serialises to {"kind", "full-path", "fields": {...}}.
             let fields = Value::Object(o.fields.clone());
             let entries: Vec<(&str, Value)> = vec![
                 ("kind", Value::Str(o.kind.clone())),
@@ -182,7 +182,7 @@ fn write_object<'a>(
     out.push('}');
 }
 
-/// Escape a string the way `json.dumps(..., ensure_ascii=True)`
+/// Escape a string the way ASCII-only JSON
 /// does: the JSON short escapes plus `\uXXXX` for every control character
 /// and every non-ASCII code point (surrogate pairs above the BMP).
 fn write_string(out: &mut String, s: &str) {
@@ -217,7 +217,7 @@ fn write_string(out: &mut String, s: &str) {
     out.push('"');
 }
 
-/// Render a float the way `repr()` / `json.dumps` would: a
+/// Render a float as the shortest round-tripping float text: a
 /// shortest round-tripping decimal, always carrying a `.0` for integral
 /// values, with `NaN` / `Infinity` / `-Infinity` for the non-finite cases
 /// (the non-standard JSON spelling for non-finite values).

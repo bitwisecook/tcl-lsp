@@ -16,8 +16,8 @@
 //! missed fold is never wrong. Only a fold that produces the *wrong* value
 //! fails the test.
 //!
-//! It is the Rust-side counterpart of `tests/test_const_fold_vs_tcl.py` on
-//! `main`. The whole O129 long-tail it was built to pin — the `string is`
+//! It is the Rust-side const-fold-vs-tclsh test. The whole O129 long-tail
+//! it was built to pin — the `string is`
 //! number classes, the full `format` flag/width/precision matrix, and `scan`
 //! — now folds and is verified here.
 //!

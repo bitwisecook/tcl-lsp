@@ -343,7 +343,7 @@ pub(crate) fn type_name(v: &Value) -> &'static str {
         Value::Stream(_) => "stream",
         Value::List(_) => "list",
         Value::Object(_) => "dict",
-        // Falls back to the type's `__name__` for a Container.
+        // Falls back to the type name for a Container.
         Value::Container(_) => "Container",
         Value::Drop => "Drop",
     }

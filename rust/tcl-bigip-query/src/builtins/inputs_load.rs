@@ -28,9 +28,9 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     ]
 }
 
-/// Implements `os.path.expanduser` for the `~` / `~/...` head only (the form
-/// the builtins document). `~user` expansion is not reproduced —
-/// `expanduser` leaves an unknown `~user` untouched too when the home
+/// Tilde (`~` / `~user`) expansion of the path head, for the `~` / `~/...`
+/// head only (the form the builtins document). `~user` expansion is not
+/// reproduced — an unknown `~user` is left untouched too when the home
 /// can't be resolved, so the common `~` / `~/` case is the load-bearing
 /// one.
 fn expanduser(p: &str) -> String {

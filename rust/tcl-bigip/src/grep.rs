@@ -308,7 +308,7 @@ fn to_grep_object(node: &ObjectNode, depth: usize, is_seed: bool) -> GrepObject 
     }
 }
 
-/// Split `text` into lines like `str.splitlines()`: split on every
+/// Split `text` into lines: split on every
 /// Unicode line boundary and never emit a trailing empty string for a final
 /// terminator.
 fn splitlines(text: &str) -> Vec<&str> {
@@ -732,7 +732,7 @@ fn obj_to_json(obj: &GrepObject, include_body: bool) -> String {
     s
 }
 
-/// Render `report` as `json.dumps(report_to_dict(report), indent=2)`. Built by
+/// Render `report` as 2-space-indented JSON. Built by
 /// hand for a deterministic key order (including the insertion-ordered
 /// `summary`), like the graph / stats exports.
 #[must_use]

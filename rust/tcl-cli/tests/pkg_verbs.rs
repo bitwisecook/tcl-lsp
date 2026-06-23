@@ -1,7 +1,7 @@
 //! Integration tests for the `pkg` / `venv` / `docker` verb groups.
 //!
 //! These drive the built `tcl` binary and assert deterministic output that was
-//! diffed byte-for-byte against the captured golden output (`tooling/tcl/verbs/*`). They
+//! diffed byte-for-byte against the captured golden output. They
 //! avoid any network or `tclsh` dependency so they are stable in CI.
 
 use std::path::PathBuf;

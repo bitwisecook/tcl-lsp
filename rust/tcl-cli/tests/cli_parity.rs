@@ -246,9 +246,8 @@ fn diff_ast_json_matches_python() {
     assert_eq!(normalised, expected);
 }
 
-// `diff --show ir` — the **IR layer** is byte-parity with the `ir` half of
-// `tooling/cli/serialise.py` (`_serialise_ir` / `_serialise_script` + the
-// `stmt_*` / `preview` helpers) via the `tcl-cli` `serialise` module: the
+// `diff --show ir` — the **IR layer** is byte-parity with the captured IR
+// fixtures via the `tcl-cli` `serialise` module: the
 // `tcl-compiler` `CompilationUnit` IR is rendered with the same statement kinds,
 // summaries, colour classes, control-flow children, and span-derived ranges
 // (incl. `widen_for_highlight` brace widening). The CFG layer still needs the
@@ -634,7 +633,7 @@ fn explore_text_renders_box_drawing_trees() {
     assert!(!text.contains('\x1b'), "no ANSI escapes with --no-colour");
 }
 
-// `find-legacy` (`tooling/tcl/verbs/misc.py::_run_find_legacy`) runs the
+// `find-legacy` runs the
 // analyser over the combined input, keeps the six convertible codes (W100,
 // W104, W110, W304, IRULE2001, IRULE5001), and reports each with its
 // modernisation hint. The firing condition, span, message, and severity match
@@ -712,10 +711,9 @@ fn find_legacy_empty_json_matches_python() {
     );
 }
 
-// `minimize` (`server/features/minimize.py` engine + `tooling/tcl/verbs/
-// minimize.py` verb) delta-debugs the input down to the smallest snippet that
+// `minimize` delta-debugs the input down to the smallest snippet that
 // still fires CODE, then verify-gated-renames identifiers to short `a b c …`
-// names. The diagnostic CODE is the trailing positional (argparse parity). The
+// names. The diagnostic CODE is the trailing positional. The
 // engine is membership-only ("does CODE fire?"), so the analyser's accepted
 // diagnostic-ordering divergence is irrelevant. These tcl goldens reduce to a
 // single well-formed line whose analysis matches the golden exactly, so they are

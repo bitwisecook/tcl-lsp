@@ -1,7 +1,7 @@
 //! End-to-end golden differential test for the query *projection* layer.
 //!
 //! The pipeline captured in `tests/fixtures/projection.json`
-//! (`scripts/codegen/gen_f5_query_projection_fixtures.py`): build a BIG-IP
+//! from the captured query DSL fixtures: build a BIG-IP
 //! `Root` from the real fixture config, parse → evaluate against the
 //! projected `Container` tree → `output::render`. For each `(query, mode)`
 //! the Rust output (or error message) must match the golden byte-for-byte.

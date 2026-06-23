@@ -1149,7 +1149,7 @@ fn to_mermaid(nodes: &[&ObjectNode], edges: &[&ObjectEdge], kept: &HashSet<&str>
     lines.join("\n") + "\n"
 }
 
-/// Serialise to `json.dumps(indent=2)`-compatible JSON, built by hand to match
+/// Serialise to 2-space-indented JSON, built by hand to match
 /// the intended key order (which `serde_json`'s sorted maps wouldn't preserve).
 fn to_json(nodes: &[&ObjectNode], edges: &[&ObjectEdge], kept: &HashSet<&str>) -> String {
     use std::fmt::Write as _;

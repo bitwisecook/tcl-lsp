@@ -4,7 +4,7 @@
 //!
 //! Both exact `(module, object_type)` matches (`"ltm rule"`, `"net vlan"`, …)
 //! and family fan-outs (`"ltm monitor"`, `"ltm profile"`, …) must match the
-//! golden exactly — the registry-data regen (`gen_bigip_rust.py`) brought the
+//! golden exactly — the registry-data regeneration brought the
 //! fan-out kind sets fully in sync.
 
 use tcl_registry::bigip::default_registry;

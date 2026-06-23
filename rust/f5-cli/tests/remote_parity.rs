@@ -5,7 +5,7 @@
 //! against the built `f5-query` binary:
 //!
 //! - `push --dry-run` (PUT-replace and POST-create): the request summary on
-//!   stderr + the `json.dumps(payload, indent=2)` body on stdout, asserted
+//!   stderr + the two-space-indented JSON payload body on stdout, asserted
 //!   against the committed golden output.
 //! - credential resolution errors (no host / user / password) for all three
 //!   verbs, including the env-supplies-host/user precedence.

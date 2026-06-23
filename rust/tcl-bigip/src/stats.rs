@@ -13,7 +13,7 @@ use crate::graph::{ObjectGraph, ObjectNode};
 use crate::parser::driver::BigipConfig;
 
 /// Aggregate stats over a set of configs.
-/// Count maps keep insertion order so the JSON matches `json.dumps`.
+/// Count maps keep insertion order so the JSON preserves that key order.
 pub struct StatsReport {
     /// `(category, count)` — pool/virtual/node/… in fixed category order.
     pub object_counts: Vec<(String, usize)>,
@@ -296,7 +296,7 @@ fn format_text(
     lines.join("\n")
 }
 
-/// `json.dumps(report_to_dict(report), indent=2)`-compatible JSON (built by hand
+/// 2-space-indented JSON (built by hand
 /// for a deterministic key order, like the graph export).
 #[must_use]
 pub fn report_to_json(report: &StatsReport) -> String {

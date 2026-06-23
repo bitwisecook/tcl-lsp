@@ -430,8 +430,8 @@ fn collision_field_index(table_name: &str) -> u32 {
 /// `head[:5]` / `... and N more` truncation) is reproduced byte-for-byte.
 fn detect_collisions(roots: &[Rc<crate::eval::Root>]) -> Result<(), QueryError> {
     // `(field_index, label, full_path)` for every collision candidate, in
-    // iteration order: roots in source order, then dataclass fields
-    // in declaration order, then dict / source order within each field.
+    // iteration order: roots in source order, then table fields by
+    // ascending field index, then dict / source order within each field.
     let mut seen: HashMap<(String, String), String> = HashMap::new();
     // (label, full_path, prior_uri, uri)
     let mut collisions: Vec<(String, String, String, String)> = Vec::new();

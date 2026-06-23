@@ -89,8 +89,6 @@ pub const KNOWN_DIALECTS: &[&str] = &[
 ];
 
 /// Return the canonical dialect profile names in sorted order.
-///
-/// Mirrors `available_dialects()` in `compiler/registry/runtime.py`.
 #[must_use]
 pub fn available_dialects() -> &'static [&'static str] {
     KNOWN_DIALECTS

@@ -2,8 +2,8 @@
 //! `scf2as3` (bigip.conf → AS3 declaration JSON).
 //!
 //! `ucs2scf` reuses the UCS-extraction path; `scf2as3` runs the
-//! `tcl_bigip::convert` AS3 engine and emits the declaration via the
-//! `json.dumps(indent=2)` serializer.
+//! `tcl_bigip::convert` AS3 engine and emits the declaration as
+//! two-space-indented JSON.
 
 use std::path::Path;
 

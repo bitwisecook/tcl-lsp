@@ -4,7 +4,7 @@
 //! Companion to `graph_pilot.rs`, which exercises the compound pilot specs on a
 //! synthetic fixture; this pins the full walk on real config. The Rust graph now
 //! reproduces the expected edge set exactly — the registry-data regen
-//! (`gen_bigip_rust.py`) cleared the former drift. Self-contained — no external oracle at
+//! cleared the former drift. Self-contained — no external oracle at
 //! test time.
 
 use tcl_bigip::graph::{GraphContext, build_bigip_object_graph};

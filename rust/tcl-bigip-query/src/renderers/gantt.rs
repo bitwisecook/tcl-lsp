@@ -151,7 +151,7 @@ fn strip_common(member: &str) -> &str {
     member.strip_prefix("/Common/").unwrap_or(member)
 }
 
-/// `str.rstrip()` with no args — strips trailing ASCII/Unicode whitespace.
+/// Strips trailing ASCII/Unicode whitespace.
 fn rstrip(s: &str) -> String {
     s.trim_end().to_owned()
 }

@@ -2,7 +2,7 @@
 //!
 //! Note the tab
 //! handling differs from the transform verbs: here highlighting runs *first*
-//! and tab expansion *after* (so `str.expandtabs` sees the escape codes), which
+//! and tab expansion *after* (so tab expansion sees the escape codes), which
 //! is the order for this verb specifically.
 
 use tcl_cli_support::{

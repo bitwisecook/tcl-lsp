@@ -17,11 +17,10 @@ use tcl_lexer::LineIndex;
 
 use crate::cli::InputArgs;
 
-/// Diagnostic codes with a known mechanical modernisation — mirrors
-/// `_CONVERTIBLE_CODES` in `tooling/tcl/verbs/misc.py`.
+/// Diagnostic codes with a known mechanical modernisation.
 const CONVERTIBLE_CODES: [&str; 6] = ["W100", "W104", "W110", "W304", "IRULE2001", "IRULE5001"];
 
-/// The modernisation hint shown per code — mirrors `_CONVERSION_MAP`. Codes not
+/// The modernisation hint shown per code. Codes not
 /// in this table fall back to `"modernise"` (the default;
 /// every convertible code is present, so the fallback is unreachable in practice).
 fn conversion_for(code: &str) -> &'static str {

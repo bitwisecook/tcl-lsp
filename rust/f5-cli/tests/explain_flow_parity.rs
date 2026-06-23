@@ -120,8 +120,8 @@ fn matched_virtual_with_irule_events_matches_golden() {
 
 #[test]
 fn json_output_matches_golden() {
-    // `--json` serialised like `json.dumps(indent=2)`:
-    // the full per-flow dicts, the event/annotation/policy structures, and the
+    // `--json` serialised as two-space-indented JSON:
+    // the full per-flow maps, the event/annotation/policy structures, and the
     // empty `simulated_*` fields. Covered for an iRule-event capture, a
     // policy-bearing capture, and an unmatched multi-flow capture.
     for (pcap, conf, golden_name) in [

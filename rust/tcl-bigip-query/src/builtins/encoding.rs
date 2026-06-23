@@ -12,8 +12,7 @@
 //!   safe="")`.
 //! - `html` reproduces `html.escape(s, quote=True)`: `&`→`&amp;`,
 //!   `<`→`&lt;`, `>`→`&gt;`, `"`→`&quot;`, `'`→`&#x27;`.
-//! - `tojson` is `json.dumps(_to_jsonable(value), separators=(",", ":"),
-//!   sort_keys=True)` — compact + sorted keys, routed through
+//! - `tojson` is compact JSON with sorted keys, routed through
 //!   `jsonfmt::to_compact_sorted`.
 //! - `fromjson` parses JSON into the value model (objects preserve key
 //!   order, integers stay `Int`). Its `JSONDecodeError` wording is custom
@@ -113,8 +112,8 @@ fn bi_fromjson(args: &[Value]) -> Result<Value, QueryError> {
     Ok(json_to_value(&parsed))
 }
 
-/// Convert a parsed `serde_json::Value` into the query value model, matching
-/// `json.loads`: integers stay `Int`, anything else `Float`, objects preserve
+/// Convert a parsed `serde_json::Value` into the query value model:
+/// integers stay `Int`, anything else `Float`, objects preserve
 /// key insertion order (the `preserve_order` feature backs this).
 pub(crate) fn json_to_value(j: &serde_json::Value) -> Value {
     match j {

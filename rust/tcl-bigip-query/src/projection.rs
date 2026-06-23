@@ -397,8 +397,8 @@ fn iter_top_level_scalar_slots(body: &str) -> Vec<(String, usize, usize, String)
     out
 }
 
-/// Split *body* into lines keeping the trailing `\n` — equivalent to
-/// `str.splitlines(keepends=True)` for the `\n`-only line endings SCF uses.
+/// Split *body* into lines keeping the trailing `\n` — splits on the
+/// `\n`-only line endings SCF uses, keeping the newline on each line.
 fn split_keep_ends(body: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut start = 0usize;
@@ -548,7 +548,7 @@ fn path_ref_list_strs(paths: &[String], expected_kind: &str) -> Value {
 }
 
 /// A `BigipList` projected as a list of its items' `str()` renderings
-/// (matching `output._to_json` over a `ListSpec`-projected `BigipList`).
+/// (matching the JSON output over a `ListSpec`-projected `BigipList`).
 fn list_str_values(list: &BigipList) -> Value {
     Value::List(
         list.items
