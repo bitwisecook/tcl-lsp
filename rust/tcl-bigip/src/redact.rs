@@ -181,8 +181,8 @@ impl Addr {
             Addr::V6(a) => u128::from(*a),
         }
     }
-    /// `str(addr)` per `ipaddress` (RFC 5952 compression for v6;
-    /// Rust std uses the same compression rules).
+    /// Canonical address string (RFC 5952 compression for v6; Rust std uses
+    /// the same compression rules).
     fn to_string_py(&self) -> String {
         match self {
             Addr::V4(a) => a.to_string(),
@@ -351,7 +351,7 @@ fn should_skip(addr: Addr, remap_private: bool) -> bool {
 
 // ── Network helpers ─────────────────────────────────────────────────
 
-/// `ip_network(f"{addr}/{prefix}", strict=False)` — host bits zeroed.
+/// The network enclosing `addr` at `prefix`, host bits zeroed.
 fn enclosing_cidr(addr: Addr, prefix: u32) -> Net {
     match addr {
         Addr::V4(a) => {
@@ -418,7 +418,7 @@ impl Net {
     }
 }
 
-/// `ip_network(s, strict=False)` — accepts both `addr` and `addr/prefix`.
+/// Parse a network (host bits zeroed) — accepts both `addr` and `addr/prefix`.
 fn parse_net(s: &str) -> Option<Net> {
     if s.contains(':') {
         if let Some((addr, pfx)) = split_net(s, 128) {

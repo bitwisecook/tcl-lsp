@@ -2,22 +2,21 @@
 //! `tojson` / `fromjson` / `sh`.
 //!
 //! Parity notes:
-//! - `base64` / `base64d` use the standard alphabet with padding, matching
-//!   `base64.b64encode` / `b64decode(validate=True)`. The
+//! - `base64` / `base64d` use the standard alphabet with padding —
+//!   standard base64 encode / strict decode. The
 //!   `base64d` failure text is custom (the
 //!   Rust `base64` crate has its own error strings), a documented
 //!   divergence kept out of the golden fixture.
-//! - `uri` percent-encodes everything outside the unreserved set
-//!   `A-Z a-z 0-9 - _ . ~` over the UTF-8 bytes — `urllib.parse.quote(s,
-//!   safe="")`.
-//! - `html` reproduces `html.escape(s, quote=True)`: `&`→`&amp;`,
+//! - `uri` percent-encodes every byte outside the unreserved set
+//!   `A-Z a-z 0-9 - _ . ~` over the UTF-8 bytes.
+//! - `html` HTML-escapes `&`→`&amp;`,
 //!   `<`→`&lt;`, `>`→`&gt;`, `"`→`&quot;`, `'`→`&#x27;`.
 //! - `tojson` is compact JSON with sorted keys, routed through
 //!   `jsonfmt::to_compact_sorted`.
 //! - `fromjson` parses JSON into the value model (objects preserve key
-//!   order, integers stay `Int`). Its `JSONDecodeError` wording is custom
+//!   order, integers stay `Int`). The JSON parse-error wording is custom
 //!   (divergent), a documented divergence kept out of the fixture.
-//! - `sh` is jq's `@sh` force-single-quote (NOT `shlex.quote`): every value
+//! - `sh` is jq's `@sh` force-single-quote (not POSIX shell quoting): every value
 //!   is wrapped in `'…'` with embedded `'` emitted as `'\''`; a list /
 //!   stream becomes space-separated quoted fields.
 
@@ -48,7 +47,7 @@ fn bi_base64(args: &[Value]) -> Result<Value, QueryError> {
 
 fn bi_base64d(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "base64d", 1)?;
-    // `validate=True` rejects any non-alphabet byte and demands
+    // Strict decoding rejects any non-alphabet byte and demands
     // correct padding — `STANDARD` (with no-trailing-bits checks) mirrors it.
     let bytes = STANDARD
         .decode(s.as_bytes())
@@ -60,7 +59,7 @@ fn bi_base64d(args: &[Value]) -> Result<Value, QueryError> {
 
 fn bi_html(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "html", 1)?;
-    // `html.escape(s, quote=True)` — `&` first, then the rest.
+    // HTML-escape — `&` first, then the rest.
     let mut out = String::with_capacity(s.len());
     for ch in s.chars() {
         match ch {
@@ -77,8 +76,8 @@ fn bi_html(args: &[Value]) -> Result<Value, QueryError> {
 
 fn bi_uri(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "uri", 1)?;
-    // `urllib.parse.quote(s, safe="")`: keep the unreserved set, percent-
-    // encode every other byte (upper-case hex) over the UTF-8 encoding.
+    // Percent-encode every byte outside the unreserved set: keep the unreserved
+    // set, percent-encode every other byte (upper-case hex) over the UTF-8 encoding.
     let mut out = String::with_capacity(s.len());
     for &byte in s.as_bytes() {
         if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {

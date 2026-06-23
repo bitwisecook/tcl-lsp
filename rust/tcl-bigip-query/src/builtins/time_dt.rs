@@ -1,5 +1,5 @@
-//! Time / date-category builtins, wrapping the `time` / `datetime` /
-//! `calendar` semantics.
+//! Time / date-category builtins, wrapping time / date / calendar
+//! semantics.
 //!
 //! Covers `now`, the jq date helpers (`todate` / `todateiso8601` / `date`,
 //! `fromdate` / `fromdateiso8601`), the broken-down-time family (`gmtime` /
@@ -9,7 +9,7 @@
 //! Parity notes:
 //! - Calendar conversions route through `chrono` (`DateTime<Utc>` /
 //!   `NaiveDateTime`), whose civil-date algorithm reproduces the proleptic
-//!   Gregorian calendar `time`/`datetime` use, so the UTC-based
+//!   Gregorian calendar, so the UTC-based
 //!   builtins (`todate`, `fromdate`, `gmtime`, `dateadd`, `datesub`) are
 //!   byte-identical.
 //! - **`now`** returns the current Unix time as a float (non-deterministic);
@@ -176,7 +176,7 @@ fn bi_mktime(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_strftime(args: &[Value]) -> Result<Value, QueryError> {
-    // `time.strftime(fmt, time.gmtime(n))` — UTC, sub-second part dropped.
+    // strftime over the UTC broken-down time — sub-second part dropped.
     let n = num_f64(&as_number(&args[0], "strftime", 1)?);
     let fmt = as_str(&args[1], "strftime", 2)?;
     let Some(dt) = utc_from_unix(n) else {
@@ -189,11 +189,11 @@ fn bi_strftime(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_strptime(args: &[Value]) -> Result<Value, QueryError> {
-    // `time.strptime(value, fmt)` → jq broken-down array.
+    // strptime-style parse of `value` against `fmt` → jq broken-down array.
     let s = as_str(&args[0], "strptime", 1)?;
     let fmt = as_str(&args[1], "strptime", 2)?;
     let naive = parse_strptime(&s, &fmt).ok_or_else(|| {
-        // Reproduce `time.strptime` ValueError text verbatim.
+        // Reproduce the strptime parse-error text verbatim.
         QueryError::builtin(format!(
             "strptime: cannot parse {} with {}: time data {} does not match format {}",
             py_str_repr(&s),
@@ -235,7 +235,7 @@ fn py_add(a: &Value, b: &Value, add: bool) -> Value {
 /// Convert a broken-down time to Unix seconds. Accepts the
 /// broken-down array `[year-1900, month, day, hour, minute, second, ...]`
 /// (months 0-indexed); fields beyond the 6th are ignored. Seconds are
-/// truncated to an integer (`int(second)`).
+/// truncated to an integer.
 fn broken_down_to_unix(value: &Value, name: &str) -> Result<i64, QueryError> {
     let items = match value {
         Value::List(items) | Value::Stream(items) => items,
@@ -251,10 +251,10 @@ fn broken_down_to_unix(value: &Value, name: &str) -> Result<i64, QueryError> {
             "{name}: broken-down time must be a list of at least 6 ints, got list"
         )));
     }
-    // `_as_number`-style coercion: each field is a number (int or float). The
-    // helper indexes the raw values; `timegm` then needs ints, with
-    // `int(second)` truncating. We truncate every field toward zero, matching
-    // `struct_time` construction (year/month/... are ints; the
+    // Number coercion: each field is a number (int or float). The
+    // helper indexes the raw values; `timegm` then needs ints, with the
+    // seconds truncated to an int. We truncate every field toward zero, matching
+    // broken-down-time construction (year/month/... are ints; the
     // generator only feeds ints save for the truncated seconds case).
     let f = |i: usize| -> Result<i64, QueryError> {
         match &items[i] {
@@ -306,7 +306,7 @@ fn parse_isoformat(s: &str) -> Result<f64, String> {
         s.to_string()
     };
     // Split off an optional trailing `+HH:MM` / `-HH:MM` offset (after the
-    // time). `datetime.fromisoformat` also accepts `+HH:MM:SS` and `Z`;
+    // time). ISO-8601 parsing also accepts `+HH:MM:SS` and `Z`;
     // we handle the offset uniformly below.
     let (body, offset_secs) = split_offset(&text);
     let naive = parse_naive_iso(body).ok_or_else(|| invalid_iso(s))?;
@@ -358,7 +358,7 @@ fn parse_offset(off: &str) -> Option<i64> {
 
 /// Parse the naive (offset-stripped) ISO body into a `NaiveDateTime`,
 /// covering the date-only, minute-precision, second-precision, and
-/// fractional-second forms `fromisoformat` accepts (with `T` or space sep).
+/// fractional-second forms ISO-8601 parsing accepts (with `T` or space sep).
 fn parse_naive_iso(body: &str) -> Option<NaiveDateTime> {
     if let Some(idx) = body.find(['T', ' ']) {
         let (date, time) = (&body[..idx], &body[idx + 1..]);
@@ -379,7 +379,7 @@ fn parse_naive_iso(body: &str) -> Option<NaiveDateTime> {
 
 /// Parse `value` with a strptime `fmt` into a `NaiveDateTime`. Tries a
 /// full date+time parse, then a date-only parse (filling midnight) the way
-/// `time.strptime` defaults unmatched fields.
+/// strptime defaults unmatched fields.
 fn parse_strptime(value: &str, fmt: &str) -> Option<NaiveDateTime> {
     if let Ok(dt) = NaiveDateTime::parse_from_str(value, fmt) {
         return Some(dt);
