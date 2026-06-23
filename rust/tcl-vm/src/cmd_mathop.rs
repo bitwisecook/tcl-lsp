@@ -13,12 +13,18 @@ use crate::value::Value;
 /// Drive one operator through the shared core over the VM's `ExprOps`.
 fn dispatch(vm: &mut Vm, op: &str, args: &[Value]) -> Completion<Value> {
     use tcl_cmd_core::mathop::MathopError;
+    // The usage names the operator as it was invoked: via `namespace path` the
+    // word is just `!`, so the message reads `should be "! boolean"` rather than
+    // the resolved `::tcl::mathop::!` (mathop-3.9/4.9/…).
+    let invoked = vm
+        .invoked_name()
+        .map_or_else(|| format!("::tcl::mathop::{op}"), str::to_owned);
     let mut ops = ExprEval { vm };
     match tcl_cmd_core::mathop::eval(&mut ops, op, args.to_vec()) {
         Ok(v) => ok(v),
-        Err(MathopError::WrongArgs(usage)) => err(format!(
-            "wrong # args: should be \"::tcl::mathop::{op} {usage}\""
-        )),
+        Err(MathopError::WrongArgs(usage)) => {
+            err(format!("wrong # args: should be \"{invoked} {usage}\""))
+        }
         Err(MathopError::Op(e)) => err(e.message),
     }
 }
@@ -35,6 +41,9 @@ macro_rules! mathops {
         )*
         pub(crate) fn register(vm: &mut Vm) {
             $( vm.register(concat!("::tcl::mathop::", $op), $fn); )*
+            // C exports every operator from `::tcl::mathop`, so
+            // `namespace import ::tcl::mathop::*` works (mathop-25.*).
+            vm.declare_namespace_exports("tcl::mathop", &["*"]);
         }
     };
 }
@@ -48,5 +57,6 @@ mathops! {
     "==" => mathop_eq, "!=" => mathop_ne,
     "<" => mathop_lt, "<=" => mathop_le, ">" => mathop_gt, ">=" => mathop_ge,
     "eq" => mathop_seq, "ne" => mathop_sne,
+    "lt" => mathop_slt, "le" => mathop_sle, "gt" => mathop_sgt, "ge" => mathop_sge,
     "in" => mathop_in, "ni" => mathop_ni,
 }

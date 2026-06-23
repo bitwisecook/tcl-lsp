@@ -1930,6 +1930,7 @@ mod tests {
             statement: Statement::AssignConst {
                 span: Span::new(0, 0),
                 name: "x".into(),
+                name_braced: false,
                 value: "1".into(),
             },
             uses: HashMap::new(),
@@ -2243,6 +2244,7 @@ mod tests {
             statement: Statement::AssignValue {
                 span: Span::new(0, 0),
                 name: "len".into(),
+                name_braced: false,
                 value: "[llength $y]".into(),
                 value_needs_backsubst: false,
                 tokens: None,
@@ -2499,6 +2501,7 @@ mod tests {
             statement: Statement::AssignConst {
                 span: Span::new(0, 0),
                 name: "i".into(),
+                name_braced: false,
                 value: "0".into(),
             },
             uses: Map::new(),
@@ -2779,6 +2782,7 @@ mod tests {
                 Statement::AssignConst {
                     span: Span::new(0, 0),
                     name: "x".into(),
+                    name_braced: false,
                     value: "1".into(),
                 },
                 Statement::Return {

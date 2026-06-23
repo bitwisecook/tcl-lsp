@@ -565,6 +565,7 @@ mod tests {
                 span: Span::new(0, 0),
                 name: "len".into(),
                 value: "[llength $x]".into(),
+                name_braced: false,
                 value_needs_backsubst: false,
                 tokens: None,
             });
@@ -572,6 +573,7 @@ mod tests {
                 span: Span::new(0, 0),
                 name: "plain".into(),
                 value: "hello".into(),
+                name_braced: false,
                 value_needs_backsubst: false,
                 tokens: None,
             });

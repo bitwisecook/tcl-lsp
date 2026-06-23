@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use tcl_bytecode::{FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand};
+use tcl_bytecode::{ErrorRegion, FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand};
 use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 
@@ -257,10 +257,19 @@ fn ilen(n: usize) -> i64 {
 }
 
 /// Resolve a bytecode-immediate index (`N`, or `end`-relative encoded relative
-/// to `INDEX_END`) against a length, mirroring `format.rs`'s decode.
+/// to `INDEX_END`) against a length.
+///
+/// `end-N` encodes as `INDEX_END - N` and `end+N` as `INDEX_END + N`
+/// (`parse_tcl_index`), so an end-relative index occupies a band *around*
+/// `INDEX_END`, not just `<= INDEX_END`. Detecting only `<= INDEX_END` (the old
+/// test) misread `end+N` as a huge negative plain index, so e.g. `lrange $l
+/// end+1 0` and `lrange $l 0 end+1` disagreed with the uncompiled command
+/// (lrange-5 battery). The band's half-width `1 << 29` sits midway between
+/// `INDEX_END` (`-2^30`) and 0: any plausible `end±N` lands inside it, while no
+/// realistic literal plain index is that far negative.
 fn imm_index(imm: i32, len: usize) -> isize {
     let n = isize::try_from(len).unwrap_or(isize::MAX);
-    if imm <= INDEX_END {
+    if imm <= INDEX_END + (1 << 29) {
         (n - 1) + (imm as isize - INDEX_END as isize)
     } else {
         imm as isize
@@ -270,6 +279,18 @@ fn imm_index(imm: i32, len: usize) -> isize {
 /// Resolve a runtime index value (`N`/`end`/`end-N`) against a length.
 fn imm_index_value(v: &Value, len: usize) -> isize {
     crate::command::resolve_index(&v.to_str(), len).unwrap_or(-1)
+}
+
+/// Resolve a runtime index value, erroring on a non-integer spec (`bad index`)
+/// — the validating form used by the inline `linsert`/`lreplace` opcode, so the
+/// compiled path rejects `linsert a b` like the command does (linsert-2.2).
+fn checked_index_value(v: &Value, len: usize) -> Result<isize, Completion<Value>> {
+    let s = v.to_str();
+    crate::command::resolve_index(&s, len).ok_or_else(|| {
+        err(format!(
+            "bad index \"{s}\": must be integer?[+-]integer? or end?[+-]integer?"
+        ))
+    })
 }
 
 /// List element at signed index, or empty when out of range.
@@ -287,7 +308,11 @@ fn get_at(items: &[Value], i: isize) -> Value {
 /// (`lset x {} v` == `set x v`); each index is `end`/`end±N`-aware, with range
 /// `0..=len` where `len` appends a fresh (possibly nested) slot. Error messages
 /// match tclsh 9.0 (the reference standard).
-fn lset_descend(list: &Value, path: &[Value], value: Value) -> Result<Value, Completion<Value>> {
+pub(crate) fn lset_descend(
+    list: &Value,
+    path: &[Value],
+    value: Value,
+) -> Result<Value, Completion<Value>> {
     let Some((spec, rest)) = path.split_first() else {
         // No (more) indices: `lset` is `set` — the value replaces the list.
         return Ok(value);
@@ -430,21 +455,28 @@ fn un(f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
 
 /// The Tcl `wrong # args` usage message for a proc.
 fn proc_usage(proc: &ProcDef) -> String {
-    let simple = proc.name.rsplit("::").next().unwrap_or(&proc.name);
-    let mut s = simple.to_owned();
+    let simple = proc
+        .usage_name
+        .as_deref()
+        .unwrap_or_else(|| proc.name.rsplit("::").next().unwrap_or(&proc.name));
+    // Each desired-arg word is list-quoted (C's `Tcl_WrongNumArgs`), so a param
+    // name containing spaces shows as `{a b c}` and an empty name as `{}`
+    // (proc-3.6/3.7). A trailing `args` becomes the raw `?arg ...?` suffix — not
+    // a list element, so its space isn't braced.
+    let mut elems: Vec<Value> = vec![Value::string(simple)];
+    let mut suffix = "";
     for p in &proc.params {
-        s.push(' ');
         if p.name == "args" {
-            s.push_str("?arg ...?");
+            suffix = " ?arg ...?";
+            break;
         } else if p.default.is_some() {
-            s.push('?');
-            s.push_str(&p.name);
-            s.push('?');
+            elems.push(Value::string(format!("?{}?", p.name)));
         } else {
-            s.push_str(&p.name);
+            elems.push(Value::string(p.name.clone()));
         }
     }
-    format!("wrong # args: should be \"{s}\"")
+    let joined = Value::list(elems).to_str();
+    format!("wrong # args: should be \"{joined}{suffix}\"")
 }
 
 impl Vm {
@@ -527,6 +559,48 @@ impl Vm {
         true
     }
 
+    /// As an error unwinds out of activation `act`, synthesise the `errorInfo`
+    /// body frames for every inlined command body (`FunctionAsm::error_regions`)
+    /// covering the failing instruction — the compiled analogue of C's
+    /// per-command `CmdFrame`. Innermost region first (a deeper region has the
+    /// larger start): each appends its `("LABEL" body line N)` frame — the
+    /// failing command's line made body-relative — then its enclosing command's
+    /// `invoked from within "…"` frame, whose line then drives the next-outer
+    /// frame (an enclosing region, or this activation's proc frame).
+    fn apply_error_regions(&mut self, act: &Frame) {
+        if act.asm.error_regions.is_empty() {
+            return;
+        }
+        // The failing instruction's source span — a region covers it when the
+        // span lies within the region's (the enclosing command's). Containment,
+        // not an index range, so an interleaved non-body instruction is excluded
+        // and layout reordering is irrelevant.
+        let Some(span) = act
+            .asm
+            .instructions
+            .get(act.pc.saturating_sub(1))
+            .and_then(|i| i.source_span)
+        else {
+            return;
+        };
+        let (s, e) = (span.start(), span.end());
+        let mut covering: Vec<&ErrorRegion> = act
+            .asm
+            .error_regions
+            .iter()
+            .filter(|r| r.start <= s && e <= r.end)
+            .collect();
+        // Innermost first: a deeper body has the larger start (ties broken by the
+        // smaller end). Each appends its body frame then its enclosing command's
+        // `invoked from within` frame, whose line drives the next-outer frame.
+        covering.sort_by(|a, b| b.start.cmp(&a.start).then(a.end.cmp(&b.end)));
+        for r in covering {
+            let body_line = self.error_line().saturating_sub(r.line_base).max(1);
+            self.append_body_frame_line(&r.label, body_line);
+            self.log_command_info(&r.cmd_text, "", r.cmd_line);
+        }
+    }
+
     /// Unwind one or more activations with completion `c`. Returns `Some` when
     /// the whole `run` is finished, `None` when a parent activation resumed.
     fn unwind(
@@ -536,6 +610,13 @@ impl Vm {
     ) -> Option<Completion<Value>> {
         loop {
             let act = acts.pop().expect("unwinding a non-empty stack");
+            // An error unwinding through an inlined command body (`eval {…}`)
+            // adds the body frames the uncompiled command would, before this
+            // activation's own proc frame (innermost first) — the compiled
+            // analogue of C's `CmdFrame` trace.
+            if c.code == Code::Error {
+                self.apply_error_regions(&act);
+            }
             if act.is_proc {
                 // An error unwinding out of a proc body adds a
                 // `(procedure "name" line N)` frame before the frame is popped,
@@ -544,13 +625,21 @@ impl Vm {
                 if c.code == Code::Error
                     && let Some(name) = self.current_proc_name()
                 {
-                    // Proc-relative line: absolute line − the body's base line + 1.
+                    // The `(procedure … line N)` frame reports the body-relative
+                    // line of the failing command. A runtime-compiled proc body
+                    // (the common case) carries body-relative instruction lines
+                    // with `body_base_line == 0`, so the line is used as-is; a proc
+                    // compiled inside a module carries absolute lines, so subtract
+                    // its definition line (`absolute − base + 1`).
                     let base = act.asm.body_base_line;
-                    let n = self
-                        .error_line()
-                        .saturating_sub(base)
-                        .saturating_add(1)
-                        .max(1);
+                    let n = if base == 0 {
+                        self.error_line().max(1)
+                    } else {
+                        self.error_line()
+                            .saturating_sub(base)
+                            .saturating_add(1)
+                            .max(1)
+                    };
                     self.append_proc_frame(&name, n);
                 }
                 self.pop_call_frame();
@@ -658,6 +747,25 @@ impl Vm {
             };
         }
 
+        // Like `try_op!`, but logs this instruction's command-source frame to
+        // `errorInfo` before unwinding — for compiled command-boundary ops
+        // (`set`/`incr` → STORE_*/INCR_*) so a failing compiled command
+        // contributes its `while executing`/`invoked from within "<cmd>"`
+        // frame just as the INVOKE path and reference Tcl's bytecode engine do
+        // (set-2.4: a write-trace rejection's `errorInfo` must reach the
+        // triggering `set x 1`).
+        macro_rules! try_cmd {
+            ($e:expr) => {
+                if let Err(c) = $e {
+                    let cmd_text = instr.source_cmd_text.clone();
+                    let line = instr.source_line;
+                    let msg = c.result.to_str().to_string();
+                    self.log_command_info(&cmd_text, &msg, line);
+                    return Tick::Return(c);
+                }
+            };
+        }
+
         let lvt_name = |slot: i32| -> String {
             lvt.get(usize::try_from(slot).unwrap_or(usize::MAX))
                 .cloned()
@@ -741,7 +849,7 @@ impl Vm {
             Op::STORE_STK => {
                 let value = pop(f);
                 let name = pop(f).to_str();
-                try_op!(self.set_var(&name, value.clone()));
+                try_cmd!(self.set_var(&name, value.clone()));
                 f.stack.push(value);
             }
             Op::INCR_STK_IMM => {
@@ -1071,11 +1179,16 @@ impl Vm {
                 let n = usize::try_from(imm0(instr)).unwrap_or(0);
                 let take = f.stack.len().saturating_sub(n);
                 let vals: Vec<Value> = f.stack.split_off(take);
+                // Backslash-aware trim per element (C `Tcl_ConcatObj`), shared
+                // with the `concat` builtin so `concat "a\ " b` keeps the
+                // escaped trailing space.
                 let joined = vals
                     .iter()
                     .map(Value::to_str)
-                    .filter(|s| !s.trim().is_empty())
-                    .map(|s| s.trim().to_string())
+                    .filter_map(|s| {
+                        let t = tcl_cmd_core::list::trim_concat_element(&s);
+                        (!t.is_empty()).then(|| t.to_string())
+                    })
                     .collect::<Vec<_>>()
                     .join(" ");
                 f.stack.push(Value::string(joined));
@@ -1111,8 +1224,20 @@ impl Vm {
                         let nlen = isize::try_from(n).unwrap_or(isize::MAX);
                         if mode == 1 {
                             // lreplace: list first last ?elem ...?
-                            let first = vals.get(1).map_or(0, |v| imm_index_value(v, n)).max(0);
-                            let last = vals.get(2).map_or(-1, |v| imm_index_value(v, n));
+                            let first = match vals.get(1) {
+                                Some(v) => match checked_index_value(v, n) {
+                                    Ok(i) => i.max(0),
+                                    Err(c) => return Tick::Return(c),
+                                },
+                                None => 0,
+                            };
+                            let last = match vals.get(2) {
+                                Some(v) => match checked_index_value(v, n) {
+                                    Ok(i) => i,
+                                    Err(c) => return Tick::Return(c),
+                                },
+                                None => -1,
+                            };
                             let new_elems = vals.get(3..).unwrap_or(&[]);
                             let fu = usize::try_from(first).unwrap_or(0).min(n);
                             let mut r = items[..fu].to_vec();
@@ -1127,7 +1252,13 @@ impl Vm {
                             r
                         } else {
                             // linsert: list index ?elem ...? ("end" → after last).
-                            let idx = vals.get(1).map_or(0, |v| imm_index_value(v, n + 1));
+                            let idx = match vals.get(1) {
+                                Some(v) => match checked_index_value(v, n + 1) {
+                                    Ok(i) => i,
+                                    Err(c) => return Tick::Return(c),
+                                },
+                                None => 0,
+                            };
                             let idx = usize::try_from(idx.max(0)).unwrap_or(0).min(n);
                             let new_elems = vals.get(2..).unwrap_or(&[]);
                             let mut r = items[..idx].to_vec();
@@ -1902,6 +2033,7 @@ impl Vm {
                 argv: words[1..].to_vec(),
             })),
             Some(Command::Builtin(bf)) => {
+                self.set_invoked_name(&name);
                 let res = bf(self, &words[1..]);
                 if res.code.is_ok() {
                     f.stack.push(res.result);
@@ -1957,7 +2089,10 @@ impl Vm {
     /// `return` are handled), and an alias re-evaluates its target prefix.
     pub(crate) fn invoke_command(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
         match self.lookup_command(name) {
-            Some(Command::Builtin(bf)) => bf(self, argv),
+            Some(Command::Builtin(bf)) => {
+                self.set_invoked_name(name);
+                bf(self, argv)
+            }
             Some(Command::Proc(p)) => match self.enter_proc(&p, argv) {
                 Ok(()) => self.run_activation(Frame::new(Rc::clone(&p.body), true)),
                 Err(c) => c,
@@ -2052,6 +2187,11 @@ impl Vm {
         name: &str,
         amount: i64,
     ) -> Result<(), Completion<Value>> {
+        if self.is_constant(name) {
+            return Err(err(format!(
+                "can't incr \"{name}\": variable is a constant"
+            )));
+        }
         let cur = self.var_get(name);
         let inc = Value::int(amount);
         let next = tcl_syntax::value::ValueOps::int_add(self, cur.as_ref(), &inc)

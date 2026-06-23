@@ -25,6 +25,14 @@ repository = "https://github.com/bitwisecook/tcl-lsp"
 description = "Rust port of the Tcl WASM runtime support library + interpreter fallback"
 publish = false
 
+[features]
+# Embed the Tcl 9 standard library (`init.tcl`, `tcltest`, the package indices)
+# in the binary and seed it into the WASM in-memory filesystem, so a
+# self-contained `wasm32-wasip1` module bootstraps the real stdlib (`source`,
+# `package require`) with no host filesystem. Off by default: only the
+# standalone WASM build needs the ~250 KB of embedded Tcl.
+wasm_stdlib = []
+
 [dependencies]
 tcl-lexer = { path = "../../rust/tcl-lexer" }
 tcl-syntax = { path = "../../rust/tcl-syntax" }

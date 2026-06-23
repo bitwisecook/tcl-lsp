@@ -360,6 +360,7 @@ mod tests {
             labels: HashMap::new(),
             loop_targets: HashMap::new(),
             body_base_line: 0,
+            error_regions: Vec::new(),
         };
 
         let output = format_function_asm(&asm);

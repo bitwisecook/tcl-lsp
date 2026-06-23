@@ -216,7 +216,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return body_comp;
     }
     let errorcode = if body_comp.code == Code::Error {
-        opt_get(&body_comp.options, "-errorcode").unwrap_or_else(|| Value::string("NONE"))
+        crate::command::resolved_error_code(&body_comp)
     } else {
         Value::empty()
     };

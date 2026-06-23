@@ -57,6 +57,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)
   — tcltest's `numTests(Failed)` reads as an empty string in the
   compiled counter-bundle run.
+- [kcs-issue-vm-set-test-codegen.md](kcs-issue-vm-set-test-codegen.md)
+  — VM `set.test` core slice: nested array-set, brace-suppressed array
+  keys, array reads in word templates, and `while executing` errorInfo
+  frames (now matches C Tcl 9: 63 / 1 / 0).
 
 ## Q&A
 
@@ -78,6 +82,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 ## How-Tos
 
+- [kcs-howto-lock-down-tcl-pkg.md](kcs-howto-lock-down-tcl-pkg.md) — deploy a
+  locked-down `tcl pkg` policy for an organisation: a sandbox floor developers
+  cannot loosen, registry allow-lists, operator scanning hooks, and gating
+  package build scripts.
 - [kcs-howto-build-multiplatform-vsix.md](kcs-howto-build-multiplatform-vsix.md)
   — build the universal VS Code `.vsix` that bundles a native server per
   platform, and add a new platform.

@@ -1286,6 +1286,7 @@ fn wrap_with_irreturn_loop(
         body_with_break.push(Statement::AssignValue {
             span,
             name: result_var.to_owned(),
+            name_braced: false,
             value: v.clone(),
             value_needs_backsubst: v.contains('\\'),
             tokens: None,
@@ -1297,6 +1298,7 @@ fn wrap_with_irreturn_loop(
         Statement::AssignConst {
             span,
             name: result_var.to_owned(),
+            name_braced: false,
             value: String::new(),
         },
         Statement::While {
@@ -1346,6 +1348,7 @@ fn substitute_irreturn(script: &Script, result_var: &str) -> Script {
             out.push(Statement::AssignValue {
                 span: *span,
                 name: result_var.to_owned(),
+                name_braced: false,
                 value: v.clone(),
                 value_needs_backsubst: v.contains('\\'),
                 tokens: None,
@@ -1520,12 +1523,14 @@ fn build_param_bindings(
             bindings.push(Statement::AssignConst {
                 span,
                 name,
+                name_braced: false,
                 value: v.clone(),
             });
         } else {
             bindings.push(Statement::AssignValue {
                 span,
                 name,
+                name_braced: false,
                 value: v.clone(),
                 value_needs_backsubst: v.contains('\\'),
                 tokens: None,
@@ -1602,12 +1607,14 @@ fn build_with_defaults(
                 Statement::AssignConst {
                     span: proc.span,
                     name,
+                    name_braced: false,
                     value: v.clone(),
                 }
             } else {
                 Statement::AssignValue {
                     span: proc.span,
                     name,
+                    name_braced: false,
                     value: v.clone(),
                     value_needs_backsubst: v.contains('\\'),
                     tokens: None,

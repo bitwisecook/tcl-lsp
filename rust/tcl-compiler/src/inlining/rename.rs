@@ -64,37 +64,53 @@ fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
 #[allow(clippy::too_many_lines)] // one arm per IR statement variant
 fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
     match stmt {
-        Statement::AssignConst { span, name, value } => Statement::AssignConst {
+        Statement::AssignConst {
+            span,
+            name,
+            name_braced,
+            value,
+        } => Statement::AssignConst {
             span: *span,
             name: rename_var_name(name, rename),
+            name_braced: *name_braced,
             value: value.clone(),
         },
         Statement::AssignValue {
             span,
             name,
+            name_braced,
             value,
             value_needs_backsubst,
             tokens,
         } => Statement::AssignValue {
             span: *span,
             name: rename_var_name(name, rename),
+            name_braced: *name_braced,
             value: rewrite_value_string(value, rename),
             value_needs_backsubst: *value_needs_backsubst,
             tokens: tokens.clone(),
         },
-        Statement::AssignExpr { span, name, expr } => Statement::AssignExpr {
+        Statement::AssignExpr {
+            span,
+            name,
+            name_braced,
+            expr,
+        } => Statement::AssignExpr {
             span: *span,
             name: rename_var_name(name, rename),
+            name_braced: *name_braced,
             expr: rewrite_expr(expr, rename),
         },
         Statement::Incr {
             span,
             name,
+            name_braced,
             amount,
             safe_on_uninit,
         } => Statement::Incr {
             span: *span,
             name: rename_var_name(name, rename),
+            name_braced: *name_braced,
             amount: amount.as_ref().map(|a| rewrite_value_string(a, rename)),
             safe_on_uninit: *safe_on_uninit,
         },

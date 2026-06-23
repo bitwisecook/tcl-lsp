@@ -81,25 +81,24 @@ fn resolve_tclsh(requested: Option<&str>) -> Result<PathBuf, TclPkgError> {
 }
 
 fn tclsh_version_string(tclsh: &Path) -> String {
-    use std::io::Write;
-    use std::process::{Command, Stdio};
+    use tcl_sandbox::{Profile, SandboxPolicy};
 
-    let Ok(mut child) = Command::new(tclsh)
+    let cwd = tclsh
+        .parent()
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+    // Trusted internal probe: no network, but tclsh needs its library to start,
+    // so PATH/HOME and the Tcl library env pass through. The script is fed on
+    // stdin via `tclsh -`.
+    let mut profile = Profile::new("tclsh-probe", tclsh, cwd)
         .arg("-")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-    else {
-        return String::new();
-    };
-    if let Some(stdin) = child.stdin.take() {
-        let mut stdin = stdin;
-        let _ = stdin.write_all(b"puts [info patchlevel]");
+        .network(false)
+        .stdin_bytes(b"puts [info patchlevel]".to_vec());
+    for name in ["PATH", "HOME", "TCL_LIBRARY", "TCLLIBPATH", "TMPDIR"] {
+        profile = profile.pass_env(name);
     }
-    match child.wait_with_output() {
-        Ok(out) => String::from_utf8_lossy(&out.stdout).trim().to_string(),
-        Err(_) => String::new(),
+    match crate::exec::execute(&profile, &SandboxPolicy::default()) {
+        Ok(out) if out.success => String::from_utf8_lossy(&out.stdout).trim().to_string(),
+        _ => String::new(),
     }
 }
 

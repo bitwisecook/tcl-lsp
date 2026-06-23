@@ -25,6 +25,45 @@ use crate::value::Value;
 /// A deeper nesting is a catchable error, not a native stack overflow.
 pub(crate) const RECURSION_LIMIT: usize = 1000;
 
+/// The on-demand autoloader bootstrap (see [`Vm::init_auto_load`]). A focused
+/// subset of C's `init.tcl`: `auto_load_index` reads each `tclIndex` on
+/// `auto_path` (which sets `auto_index(cmd)` to a `::tcl::Pkg::source <file>`
+/// loader), `auto_load` evaluates that loader on first reference, and `unknown`
+/// drives it — erroring `invalid command name` when no loader applies. No
+/// auto-exec of external programs (the VM is not a shell).
+const AUTO_LOAD_BOOTSTRAP: &str = r#"
+namespace eval ::tcl::Pkg {}
+proc ::tcl::Pkg::source {file} { uplevel #0 [list source $file] }
+proc auto_load_index {} {
+    global auto_index dir
+    foreach dir $::auto_path {
+        set f [file join $dir tclIndex]
+        if {[file exists $f]} { source $f }
+    }
+}
+proc auto_load {cmd args} {
+    global auto_index
+    if {![info exists auto_index]} { auto_load_index }
+    set bare [string trimleft $cmd :]
+    foreach name [list $cmd ::$bare $bare] {
+        if {[info exists auto_index($name)]} {
+            uplevel #0 $auto_index($name)
+            if {[llength [info commands $cmd]]} { return 1 }
+            if {[llength [info commands ::$bare]]} { return 1 }
+        }
+    }
+    return 0
+}
+proc unknown {cmd args} {
+    if {[auto_load $cmd]} {
+        return [uplevel 1 [linsert $args 0 $cmd]]
+    }
+    return -code error -errorcode [list TCL LOOKUP COMMAND $cmd] \
+        "invalid command name \"$cmd\""
+}
+if {![info exists ::auto_path]} { set ::auto_path [list [info library]] }
+"#;
+
 /// Build an `OK` completion (empty options dict).
 pub(crate) fn ok(result: Value) -> Completion<Value> {
     Completion::new(Code::Ok, result, Value::empty())
@@ -82,6 +121,12 @@ pub struct Vm {
     /// `ROOT_NS` = 0 = `""`), bridging the handle-based trait to the string model.
     ns_arena: Vec<String>,
     ns_intern: HashMap<String, NsId>,
+    /// Per-namespace command resolution path (`namespace path`): canonical
+    /// namespace name (no leading `::`, `""` = global) → the ordered list of
+    /// namespaces (canonical) consulted after the current namespace and before
+    /// the global one during command lookup. Absent / empty = the default
+    /// (current → global only).
+    ns_paths: HashMap<String, Vec<String>>,
     /// Command-FQN ⇆ dense raw `CommandId` arena for `Namespaces::find_command`
     /// and `Commands::dispatch_id`. Interior-mutable because `find_command` is
     /// `&self` but mints a handle on first sight. Bidirectional: `find_command`
@@ -142,6 +187,11 @@ pub struct Vm {
     /// `errorInfo` trace (C's `iPtr->errorLine`) — the line the `(procedure …
     /// line N)` / `("while" body line N)` frames report.
     error_line: u32,
+    /// The word a builtin was invoked under (the source `objv[0]`, before
+    /// namespace-path resolution). Lets a builtin report its invocation name in
+    /// error messages — e.g. `::tcl::mathop::!` reached via `namespace path` says
+    /// `wrong # args: should be "! boolean"`, not the resolved full name.
+    invoked_name: Option<String>,
     /// Open I/O channels (file handles), keyed by channel id (`file3`, …). The
     /// predefined `stdin`/`stdout`/`stderr` are not stored here; commands
     /// special-case those names.
@@ -204,6 +254,7 @@ impl Vm {
             ns_exports: HashMap::new(),
             ns_arena: vec![String::new()],
             ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
+            ns_paths: HashMap::new(),
             cmd_arena: RefCell::new(CmdArena::default()),
             packages: HashMap::new(),
             var_traces: HashMap::new(),
@@ -218,6 +269,7 @@ impl Vm {
             error_info: None,
             error_logged: false,
             error_line: 1,
+            invoked_name: None,
             channels: HashMap::new(),
             chan_counter: 2,
             script_stack: Vec::new(),
@@ -256,7 +308,7 @@ impl Vm {
         self.write_scalar_raw("argv0", Value::string("tcltest"));
         self.write_scalar_raw("argc", Value::int(0));
         self.write_scalar_raw("tcl_version", Value::string("9.0"));
-        self.write_scalar_raw("tcl_patchLevel", Value::string("9.0.0"));
+        self.write_scalar_raw("tcl_patchLevel", Value::string("9.0.3"));
         self.write_scalar_raw("tcl_interactive", Value::int(0));
         // `tcl_library` is the directory holding the script library; C Tcl's
         // init derives it from `$env(TCL_LIBRARY)` (set when the caller points
@@ -264,6 +316,21 @@ impl Vm {
         // load time, so default it to "" rather than leaving it unset.
         let tcl_library = std::env::var("TCL_LIBRARY").unwrap_or_default();
         self.write_scalar_raw("tcl_library", Value::string(tcl_library));
+    }
+
+    /// Install the on-demand autoloader: `unknown` / `auto_load` /
+    /// `auto_load_index` procs plus `auto_path`, so an unresolved command is
+    /// looked up in the library's `tclIndex` and its defining file sourced
+    /// (`word.tcl`, etc.) — the mechanism C bootstraps in `init.tcl`. The VM has
+    /// no full `init.tcl` path, so this is a focused subset: it does auto-load
+    /// (no auto-exec of external programs) and otherwise errors `invalid command
+    /// name`, matching C's miss. Requires a compiler (uses `eval_source`); call
+    /// after [`Self::set_compiler`]. Returns the bootstrap's completion.
+    pub fn init_auto_load(&mut self) -> Completion<Value> {
+        match self.eval_source(AUTO_LOAD_BOOTSTRAP) {
+            Ok(c) => c,
+            Err(e) => err(e.message),
+        }
     }
 
     /// Install a debug hook fired once per source command (the execution-control
@@ -429,6 +496,24 @@ impl Vm {
     /// namespace: an absolute `::a::b` name resolves exactly; an unqualified /
     /// relatively-qualified name is tried in the current namespace, then the
     /// global namespace (where builtins live).
+    /// The registered `tcl::mathfunc::*` function names, for `info functions`.
+    pub(crate) fn math_function_names(&self) -> Vec<String> {
+        self.commands
+            .keys()
+            .filter_map(|k| k.strip_prefix("tcl::mathfunc::").map(str::to_owned))
+            .collect()
+    }
+
+    /// The `info cmdtype` kind of `name` (`native`/`proc`/`alias`), or `None`
+    /// when there is no such command.
+    pub(crate) fn command_kind(&self, name: &str) -> Option<&'static str> {
+        self.lookup_command(name).map(|c| match c {
+            Command::Builtin(_) => "native",
+            Command::Proc(_) => "proc",
+            Command::Alias(_) => "alias",
+        })
+    }
+
     pub(crate) fn lookup_command(&self, name: &str) -> Option<Command> {
         if let Some(abs) = name.strip_prefix("::") {
             return self.commands.get(abs).cloned();
@@ -439,7 +524,37 @@ impl Vm {
         {
             return Some(c.clone());
         }
+        // `namespace path`: consult the current namespace's resolution path
+        // (in order) before falling back to the global namespace.
+        if let Some(path) = self.ns_paths.get(cur) {
+            for p in path {
+                let key = if p.is_empty() {
+                    name.to_string()
+                } else {
+                    format!("{p}::{name}")
+                };
+                if let Some(c) = self.commands.get(&key) {
+                    return Some(c.clone());
+                }
+            }
+        }
         self.commands.get(name).cloned()
+    }
+
+    /// Get the current namespace's command resolution path (`namespace path`)
+    /// as a list of canonical names (no leading `::`); empty by default.
+    pub(crate) fn ns_path_get(&self) -> Vec<String> {
+        self.ns_paths
+            .get(self.current_ns())
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Set the current namespace's command resolution path to `path` (canonical
+    /// names, no leading `::`).
+    pub(crate) fn ns_path_set(&mut self, path: Vec<String>) {
+        let cur = self.current_ns().to_string();
+        self.ns_paths.insert(cur, path);
     }
 
     /// The current namespace (canonical, no leading `::`; `""` = global).
@@ -539,6 +654,12 @@ impl Vm {
         }
     }
 
+    /// Whether namespace `ns` (canonical, unrooted; `""` is the always-present
+    /// global namespace) currently exists.
+    pub(crate) fn namespace_exists(&self, ns: &str) -> bool {
+        ns.is_empty() || self.namespaces.contains(ns)
+    }
+
     /// Register an existing namespace (and its ancestors).
     pub(crate) fn declare_namespace(&mut self, ns: &str) {
         if ns.is_empty() {
@@ -560,6 +681,21 @@ impl Vm {
             .entry(ns)
             .or_default()
             .extend_from_slice(patterns);
+    }
+
+    /// Declare a built-in namespace (`ns`, unrooted) and record its
+    /// `namespace export` patterns directly. Used for namespaces whose commands
+    /// are created in Rust rather than by a script `namespace export` — e.g.
+    /// `::tcl::mathop`, which C exports so `namespace import ::tcl::mathop::*`
+    /// works.
+    pub(crate) fn declare_namespace_exports(&mut self, ns: &str, patterns: &[&str]) {
+        self.declare_namespace(ns);
+        let entry = self.ns_exports.entry(ns.to_string()).or_default();
+        for p in patterns {
+            if !entry.iter().any(|e| e == p) {
+                entry.push((*p).to_string());
+            }
+        }
     }
 
     /// `namespace import` for `pattern` (e.g. `::tcltest::*`): alias every
@@ -809,8 +945,16 @@ impl Vm {
                 };
                 if let Some(msg) = failed {
                     match op {
-                        "write" => return Err(err(format!("can't set \"{name}\": {msg}"))),
-                        "read" => return Err(err(format!("can't read \"{name}\": {msg}"))),
+                        "write" | "read" => {
+                            // C's `TclCallVarTraces` logs a `(write|read trace
+                            // on "name")` frame, then clears ERR_ALREADY_LOGGED
+                            // so the command that triggered the trace logs its
+                            // own `invoked from within` frame as the error
+                            // unwinds (set-2.4 / set-4.4).
+                            self.append_var_trace_frame(op, name);
+                            let verb = if op == "write" { "set" } else { "read" };
+                            return Err(err(format!("can't {verb} \"{name}\": {msg}")));
+                        }
                         _ => {} // unset trace errors are ignored
                     }
                 }
@@ -1174,9 +1318,42 @@ impl Vm {
         )
     }
 
+    /// Resolve `name` to the `(frame, local-name)` owning its cell, mirroring
+    /// the scalar write path — the key for constant tracking (TIP 677).
+    fn const_slot(&self, name: &str) -> (usize, String) {
+        let resolved = self.ns_var_fallback(name);
+        self.locate(resolved.as_deref().unwrap_or(name))
+    }
+
+    /// Mark `name`'s scalar cell as a `const` (immutable).
+    pub(crate) fn mark_constant(&mut self, name: &str) {
+        let (lvl, nm) = self.const_slot(name);
+        if let Some(f) = self.frames.get_mut(lvl) {
+            f.consts.insert(nm);
+        }
+    }
+
+    /// Whether `name` resolves to a `const` cell.
+    pub(crate) fn is_constant(&self, name: &str) -> bool {
+        let (lvl, nm) = self.const_slot(name);
+        self.frames.get(lvl).is_some_and(|f| f.consts.contains(&nm))
+    }
+
+    /// The `const` names visible in the current frame matching `info consts`.
+    pub(crate) fn constant_names(&self) -> Vec<String> {
+        let lvl = self.frames.len().saturating_sub(1);
+        self.frames
+            .get(lvl)
+            .map(|f| f.consts.iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
     /// Write a scalar, firing `write` traces afterwards (the old value is
     /// restored if a trace callback aborts the write).
     pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
+        if self.is_constant(name) {
+            return Err(err(format!("can't set \"{name}\": variable is a constant")));
+        }
         if self.scalar_write_hits_array(name) {
             return Err(err(format!("can't set \"{name}\": variable is array")));
         }
@@ -1234,6 +1411,15 @@ impl Vm {
             && open > 0
         {
             self.array_unset_elem(&name[..open], &name[open + 1..name.len() - 1]);
+            return Ok(());
+        }
+        // A constant cannot be unset; `-nocomplain` leaves it intact (var-26.12).
+        if self.is_constant(name) {
+            if complain {
+                return Err(err(format!(
+                    "can't unset \"{name}\": variable is a constant"
+                )));
+            }
             return Ok(());
         }
         if !self.unset_var(name) && complain {
@@ -1579,13 +1765,32 @@ impl Vm {
     /// innermost logged command's line. Clears `error_logged` so the enclosing
     /// command then logs its own `invoked from within` frame.
     pub(crate) fn append_body_frame(&mut self, label: &str) {
-        let line = self.error_line;
+        self.append_body_frame_line(label, self.error_line);
+    }
+
+    /// Append a `("<label>" body line N)` frame with an explicit `line` — for an
+    /// *inlined* body (`FunctionAsm::error_regions`), whose body-relative line is
+    /// the innermost command's line minus the body's `line_base` (the uncompiled
+    /// [`Self::append_body_frame`] uses `error_line` directly, since that path
+    /// compiles the body standalone so its lines are already body-relative).
+    pub(crate) fn append_body_frame_line(&mut self, label: &str, line: u32) {
         let info = self.error_info.get_or_insert_with(String::new);
         info.push_str("\n    (\"");
         info.push_str(label);
         info.push_str("\" body line ");
         info.push_str(&line.to_string());
         info.push(')');
+        self.error_logged = false;
+    }
+
+    /// Seed `errorInfo` for an error that *originates* in a command (not from a
+    /// sub-command) with a context frame (C's `Tcl_AppendObjToErrorInfo`): start
+    /// it from `msg` if unset, append `frame` verbatim, and clear `error_logged`
+    /// so the enclosing command then logs its `invoked from within` frame.
+    /// Used by `apply` for the `(parsing lambda expression "…")` frame.
+    pub(crate) fn seed_error_info_frame(&mut self, msg: &str, frame: &str) {
+        let info = self.error_info.get_or_insert_with(|| msg.to_string());
+        info.push_str(frame);
         self.error_logged = false;
     }
 
@@ -1612,9 +1817,34 @@ impl Vm {
         self.error_logged = false;
     }
 
+    /// Append a `(<op> trace on "<name>")` frame — the context frame C's
+    /// `TclCallVarTraces` adds to `errorInfo` when a variable read/write trace
+    /// callback errors, before the triggering command (`set x 1`) logs its own
+    /// `invoked from within` frame. Clears `error_logged` so that command's
+    /// frame is logged next (set-2.4 / set-4.4).
+    pub(crate) fn append_var_trace_frame(&mut self, op: &str, name: &str) {
+        let info = self.error_info.get_or_insert_with(String::new);
+        info.push_str("\n    (");
+        info.push_str(op);
+        info.push_str(" trace on \"");
+        info.push_str(name);
+        info.push_str("\")");
+        self.error_logged = false;
+    }
+
     /// The innermost logged command's source line (C's `iPtr->errorLine`).
     pub(crate) fn error_line(&self) -> u32 {
         self.error_line
+    }
+
+    /// Record the word a builtin is being invoked under (its source `objv[0]`).
+    pub(crate) fn set_invoked_name(&mut self, name: &str) {
+        self.invoked_name = Some(name.to_owned());
+    }
+
+    /// The word the current builtin was invoked under, if recorded.
+    pub(crate) fn invoked_name(&self) -> Option<&str> {
+        self.invoked_name.as_deref()
     }
 
     /// Clear `ERR_ALREADY_LOGGED` at a frame boundary (a nested `eval`/`[subst]`

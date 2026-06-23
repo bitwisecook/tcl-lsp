@@ -8,9 +8,11 @@
 //! specifier *grammar* lives (reference Tcl 9.0 `Tcl_AppendFormatToObj`,
 //! `tmp/tcl9.0.3/generic/tclStringObj.c`).
 //!
-//! The modelled subset bails (`None`) on arg-driven `*` width/precision, an
-//! over-[`MAX_FIELD`] field, positional `%n$`, and size modifiers — a missed
-//! parse is never wrong for a const-fold, and the runtime can extend it.
+//! Arg-driven `*` width/`.*` precision parse into `width_star`/`precision_star`
+//! (the runtime renderer consumes a leading argument; the const-folder declines
+//! them). The modelled subset still bails (`None`) on an over-[`MAX_FIELD`]
+//! field, positional `%n$`, and unknown size modifiers — a missed parse is
+//! never wrong for a const-fold, and the runtime can extend it.
 
 /// Field sizes beyond this bail — never fold a literal into kilobytes of
 /// padding (sound: a missed fold is never wrong).
@@ -44,6 +46,11 @@ pub struct Spec {
     pub precision: Option<usize>,
     /// The conversion verb byte (`d`/`s`/`x`/…).
     pub verb: u8,
+    /// The width is `*` — taken from an argument at render time (consumed before
+    /// the value). A negative argument left-justifies (sets `MINUS`).
+    pub width_star: bool,
+    /// The precision is `.*` — taken from an argument at render time.
+    pub precision_star: bool,
 }
 
 /// The outcome of parsing a width / `.precision` field.
@@ -71,26 +78,48 @@ pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
         flags |= bit;
         *i += 1;
     }
-    if fmt.get(*i) == Some(&b'*') {
-        return None; // arg-driven width — unmodelled
-    }
-    let width = match parse_field(fmt, i)? {
-        Field::Absent => None,
-        Field::Size(n) => Some(n),
+    // `*` width: take it from an argument at render time.
+    let width_star = fmt.get(*i) == Some(&b'*');
+    let width = if width_star {
+        *i += 1;
+        None
+    } else {
+        match parse_field(fmt, i)? {
+            Field::Absent => None,
+            Field::Size(n) => Some(n),
+        }
     };
+    let mut precision_star = false;
     let precision = if fmt.get(*i) == Some(&b'.') {
         *i += 1;
         if fmt.get(*i) == Some(&b'*') {
-            return None; // arg-driven precision — unmodelled
+            *i += 1;
+            precision_star = true;
+            None
+        } else {
+            // a `.` with no digits means precision 0
+            Some(match parse_field(fmt, i)? {
+                Field::Absent => 0,
+                Field::Size(n) => n,
+            })
         }
-        // a `.` with no digits means precision 0
-        Some(match parse_field(fmt, i)? {
-            Field::Absent => 0,
-            Field::Size(n) => n,
-        })
     } else {
         None
     };
+    // C size modifiers: Tcl treats every integer as a wide, so these are parsed
+    // and discarded (`format %ld 5` → `5`). `l`/`ll`, or a single
+    // `h`/`j`/`z`/`q`/`t`/`L`. `hh` is *not* accepted — the second `h` is left to
+    // fail as the verb (`format %hhd` → `bad field specifier "h"`, matching C).
+    match fmt.get(*i) {
+        Some(b'l') => {
+            *i += 1;
+            if fmt.get(*i) == Some(&b'l') {
+                *i += 1;
+            }
+        }
+        Some(b'h' | b'j' | b'z' | b'q' | b't' | b'L') => *i += 1,
+        _ => {}
+    }
     let verb = *fmt.get(*i)?;
     *i += 1;
     Some(Spec {
@@ -98,6 +127,8 @@ pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
         width,
         precision,
         verb,
+        width_star,
+        precision_star,
     })
 }
 
@@ -164,9 +195,22 @@ mod tests {
     }
 
     #[test]
+    fn star_width_and_precision() {
+        let (s, i) = parse("*d").unwrap();
+        assert!(s.width_star);
+        assert_eq!(s.width, None);
+        assert_eq!(s.verb, b'd');
+        assert_eq!(i, 2);
+
+        let (s, _) = parse("5.*f").unwrap();
+        assert_eq!(s.width, Some(5));
+        assert!(s.precision_star);
+        assert_eq!(s.precision, None);
+        assert_eq!(s.verb, b'f');
+    }
+
+    #[test]
     fn bails() {
-        assert!(parse("*d").is_none()); // arg-driven width
-        assert!(parse("5.*f").is_none()); // arg-driven precision
         assert!(parse("99999d").is_none()); // over MAX_FIELD
         assert!(parse("5").is_none()); // missing verb
     }

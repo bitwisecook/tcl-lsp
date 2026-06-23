@@ -846,6 +846,7 @@ mod tests {
             name: "x".to_string(),
             value: "  hello  ".to_string(),
             span: Span::new(0, 0),
+            name_braced: false,
         };
         assert_eq!(
             possible_paste_fingerprint(&stmt),
@@ -858,6 +859,7 @@ mod tests {
             name: "x".to_string(),
             value: value.to_string(),
             span: Span::new(0, 0),
+            name_braced: false,
             value_needs_backsubst: false,
             tokens: None,
         }

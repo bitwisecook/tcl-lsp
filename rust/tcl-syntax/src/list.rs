@@ -272,6 +272,52 @@ pub fn split_list(s: &str) -> Result<Vec<Cow<'_, str>>, ListError> {
     Ok(out)
 }
 
+/// The largest number of elements `s` could hold as a list: a count of
+/// whitespace-separated runs, *ignoring* grouping (braces/quotes/backslashes).
+/// A fast over-estimate mirroring `TclMaxListLength` (`tclUtil.c`) — used to
+/// decide error phrasing, never as an actual element count (`{a b}` counts 2).
+#[must_use]
+pub fn max_list_length(s: &str) -> usize {
+    let bytes = s.as_bytes();
+    let Some(&first) = bytes.first() else {
+        return 0; // empty string: no elements
+    };
+    // No element precedes leading whitespace.
+    let mut count = usize::from(!is_list_space(first));
+    let mut i = 0;
+    while i < bytes.len() {
+        if is_list_space(bytes[i]) {
+            count += 1; // a whitespace run starts a (possible) new element
+            while i < bytes.len() && is_list_space(bytes[i]) {
+                i += 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+    // No element follows trailing whitespace.
+    count - usize::from(is_list_space(bytes[bytes.len() - 1]))
+}
+
+/// Describe a value that failed a numeric/boolean coercion, for the
+/// `expected <type> but got <here>` error. Matches C (`tclStrToD.c` `formaterr`
+/// and `tclObj.c` `TclSetBooleanFromAny`): a multi-token, well-formed list is
+/// reported as `a list`; any other value is quoted, truncated to 50 bytes with
+/// no ellipsis (`Tcl_AppendLimitedToObj(..., 50, "")`).
+#[must_use]
+pub fn describe_bad_value(s: &str) -> String {
+    if max_list_length(s) > 1 && split_list(s).is_ok() {
+        "a list".to_string()
+    } else {
+        let mut end = s.len().min(50);
+        while !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("\"{}\"", &s[..end])
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Join — `Tcl_Merge` / `Tcl_ScanElement` + `Tcl_ConvertElement`.
 
 /// How a value must be quoted to appear as one Tcl list element. Mirrors the
@@ -595,5 +641,41 @@ mod tests {
         ] {
             assert_eq!(list_element(value), want, "list_element({value:?})");
         }
+    }
+
+    #[test]
+    fn max_list_length_counts_whitespace_runs() {
+        // Empty / blank.
+        assert_eq!(max_list_length(""), 0);
+        assert_eq!(max_list_length("   "), 0);
+        // Leading/trailing whitespace does not add elements.
+        assert_eq!(max_list_length("a"), 1);
+        assert_eq!(max_list_length("  ++1  "), 1);
+        // A whitespace run is one separator regardless of width.
+        assert_eq!(max_list_length("a   b"), 2);
+        assert_eq!(max_list_length("- +1"), 2);
+        // Grouping/backslashes are *ignored* — this is an over-estimate, so a
+        // single braced/escaped element with inner space still counts > 1.
+        assert_eq!(max_list_length("{a b}"), 2);
+        assert_eq!(max_list_length("a\\ b"), 2);
+        assert_eq!(max_list_length("a b c"), 3);
+    }
+
+    #[test]
+    fn describe_bad_value_matches_c() {
+        // Multi-token well-formed lists report as "a list" (tclStrToD.c formaterr).
+        assert_eq!(describe_bad_value("- +1"), "a list");
+        assert_eq!(describe_bad_value("{a b}"), "a list");
+        assert_eq!(describe_bad_value("a\\ b"), "a list");
+        assert_eq!(describe_bad_value("a b c"), "a list");
+        // Single tokens are quoted verbatim.
+        assert_eq!(describe_bad_value("++1"), "\"++1\"");
+        assert_eq!(describe_bad_value("--1.0"), "\"--1.0\"");
+        assert_eq!(describe_bad_value("  ++1  "), "\"  ++1  \"");
+        // A multi-token string that is *not* a valid list falls back to quoting.
+        assert_eq!(describe_bad_value("{a b"), "\"{a b\"");
+        // The quoted form truncates to 50 bytes, no ellipsis.
+        let long = "x".repeat(60);
+        assert_eq!(describe_bad_value(&long), format!("\"{}\"", "x".repeat(50)));
     }
 }

@@ -39,6 +39,11 @@ pub struct ProcDef {
     pub body: Rc<FunctionAsm>,
     /// Original body source text — used by `info body`.
     pub body_src: Value,
+    /// Overrides the leading token of the `wrong # args` usage message. `None`
+    /// uses the (simple) proc name; `apply` sets `"apply lambdaExpr"` so the
+    /// message reads `wrong # args: should be "apply lambdaExpr …"` rather than
+    /// leaking the internal temp proc name (apply-4.*).
+    pub usage_name: Option<String>,
 }
 
 /// A registered command.
@@ -68,6 +73,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("expr", cmd_expr);
     vm.register("proc", cmd_proc);
     vm.register("return", cmd_return);
+    vm.register("const", cmd_const);
     vm.register("tailcall", cmd_tailcall);
     vm.register("time", cmd_time);
     vm.register("encoding", cmd_encoding);
@@ -192,7 +198,7 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `no-deprecate`, …) is absent and reports 0.
 fn cmd_build_info(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [] => ok(Value::string("9.0.0")),
+        [] => ok(Value::string("9.0.3")),
         [_option] => ok(Value::int(0)),
         _ => err("wrong # args: should be \"tcl::build-info ?option?\""),
     }
@@ -212,10 +218,18 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             .collect::<Vec<_>>()
             .join(" ")
     };
-    match vm.eval_source(&script) {
+    let c = match vm.eval_source(&script) {
         Ok(c) => c,
         Err(e) => err(e.message),
+    };
+    if c.code == Code::Error {
+        // An error unwinding out of an `eval` body adds an `("eval" body
+        // line N)` frame to errorInfo (C's uncompiled eval), before the
+        // enclosing INVOKE logs its `invoked from within "eval {…}"` frame
+        // (eval-2.5).
+        vm.append_body_frame("eval");
     }
+    c
 }
 
 /// Monotonic counter minting unique temporary command names for `apply`.
@@ -245,18 +259,34 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     let (params_vec, has_args) = match parse_params(&parts[0].to_str()) {
         Ok(p) => p,
-        Err(e) => return err(e),
+        Err(e) => {
+            // A malformed parameter list errors "while parsing the lambda": add
+            // the `(parsing lambda expression "<lambda>")` context frame so the
+            // enclosing `apply` INVOKE logs "invoked from within" (apply-2.*).
+            vm.seed_error_info_frame(
+                &e,
+                &format!("\n    (parsing lambda expression \"{}\")", lambda.to_str()),
+            );
+            return err(e);
+        }
     };
     let body = parts[1].clone();
     let Some(body_asm) = vm.compile_dynamic_body(&body.to_str()) else {
         return err("apply: could not compile lambda body");
     };
     // The optional third element is the namespace the body runs in (default
-    // global). Strip a leading `::` to the canonical form.
+    // global). Strip a leading `::` to the canonical form. A named namespace
+    // must already exist (apply-3.*); the message quotes the spelling given.
     let namespace = parts
         .get(2)
         .map(|v| v.to_str().trim_start_matches("::").to_string())
         .unwrap_or_default();
+    if parts.len() == 3 && !vm.namespace_exists(&namespace) {
+        // The message names the fully-qualified namespace: a relative third
+        // element is resolved from the global namespace, so it is reported with a
+        // leading `::` (apply-3.3 — `NONEXIST::…` → `::NONEXIST::…`).
+        return err(format!("namespace \"::{namespace}\" not found"));
+    }
 
     let name = fresh_apply_name();
     vm.define_proc(ProcDef {
@@ -266,6 +296,7 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         has_args,
         body: body_asm,
         body_src: body,
+        usage_name: Some("apply lambdaExpr".to_string()),
     });
     let mut words = Vec::with_capacity(call_args.len() + 1);
     words.push(Value::string(name.as_str()));
@@ -295,8 +326,14 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         ));
     }
     let Some(cmd) = vm.take_command(&old_name) else {
+        // Renaming to the empty name is a delete; C words the miss accordingly.
+        let verb = if new_name.is_empty() {
+            "delete"
+        } else {
+            "rename"
+        };
         return err(format!(
-            "can't rename \"{old_name}\": command doesn't exist"
+            "can't {verb} \"{old_name}\": command doesn't exist"
         ));
     };
     if !new_name.is_empty() {
@@ -406,30 +443,56 @@ fn cmd_auto_load(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `subst ?-nobackslashes? ?-nocommands? ?-novariables? string` — perform
 /// backslash / command / variable substitution on a string.
 fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let (mut backslashes, mut commands, mut variables) = (true, true, true);
-    let mut rest = args;
-    while let Some(first) = rest.first() {
-        match &*first.to_str() {
-            "-nobackslashes" => backslashes = false,
-            "-nocommands" => commands = false,
-            "-novariables" => variables = false,
-            s if s.starts_with('-') && s.len() > 1 => {
-                return err(format!(
-                    "bad switch \"{s}\": must be -nobackslashes, -nocommands, or -novariables"
-                ));
-            }
-            _ => break,
-        }
-        rest = &rest[1..];
-    }
-    let [string] = rest else {
+    // C (`TclNRSubstObjCmd`): the *last* argument is the string and every
+    // argument before it is an option, matched by unique abbreviation. So a
+    // non-option word anywhere but last is a `bad option` error (subst-1.2/7.1),
+    // and `-nov`/`-nob`/`-noc` are accepted as prefixes (subst-7.7).
+    let Some((string, opts)) = args.split_last() else {
         return err(
             "wrong # args: should be \"subst ?-nobackslashes? ?-nocommands? ?-novariables? string\"",
         );
     };
+    let (mut backslashes, mut commands, mut variables) = (true, true, true);
+    for opt in opts {
+        let s = opt.to_str();
+        match match_subst_option(&s) {
+            Ok(0) => backslashes = false,
+            Ok(1) => commands = false,
+            Ok(_) => variables = false,
+            Err(ambiguous) => {
+                let kind = if ambiguous { "ambiguous" } else { "bad" };
+                return err(format!(
+                    "{kind} option \"{s}\": must be -nobackslashes, -nocommands, or -novariables"
+                ));
+            }
+        }
+    }
     match crate::subst::subst_command(vm, &string.to_str(), backslashes, commands, variables) {
         Ok(s) => ok(Value::string(s)),
         Err(e) => err(e.message),
+    }
+}
+
+/// Match a `subst` option by unique abbreviation (Tcl's `Tcl_GetIndexFromObj`):
+/// `Ok(index)` into `[-nobackslashes, -nocommands, -novariables]`, or `Err(true)`
+/// when the prefix is ambiguous / `Err(false)` when it matches none.
+fn match_subst_option(s: &str) -> Result<usize, bool> {
+    const NAMES: [&str; 3] = ["-nobackslashes", "-nocommands", "-novariables"];
+    if let Some(i) = NAMES.iter().position(|n| *n == s) {
+        return Ok(i); // exact match
+    }
+    let mut found = None;
+    let mut count = 0u8;
+    for (i, n) in NAMES.iter().enumerate() {
+        if !s.is_empty() && n.starts_with(s) {
+            found = Some(i);
+            count += 1;
+        }
+    }
+    match (count, found) {
+        (1, Some(i)) => Ok(i),
+        (0, _) => Err(false),
+        _ => Err(true),
     }
 }
 
@@ -498,21 +561,36 @@ fn cmd_expr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-/// Resolve a Tcl index spec (`N`, `end`, `end-N`, `end+N`) against a length.
-/// Returns a possibly out-of-range signed index; callers clamp/empty as needed.
+/// Resolve a Tcl index spec against a length, returning a possibly out-of-range
+/// signed index (callers clamp/empty as needed). Delegates to the canonical
+/// `tcl_cmd_core::index` parser so the inline `lindex`/`string index` opcodes
+/// accept every form the commands do — including the arithmetic
+/// `integer?[+-]integer?` (`2+0`, `end-1+2`), which a bare `parse::<isize>` does
+/// not (the inline `LIST_INDEX` opcode otherwise returned the empty string for
+/// `lindex $l $i+1`).
 pub(crate) fn resolve_index(spec: &str, len: usize) -> Option<isize> {
-    let s = spec.trim();
-    let n = isize::try_from(len).unwrap_or(isize::MAX);
-    if s == "end" {
-        return Some(n - 1);
+    tcl_cmd_core::index::resolve_opt(spec, len).and_then(|i| isize::try_from(i).ok())
+}
+
+/// A formal parameter name must be a scalar: not an array element (`a(1)`) and
+/// not namespace-qualified (`a::b`). Scans left-to-right like C's `TclCreateProc`
+/// — the first `(` with a trailing `)` is an array element, the first `::` is a
+/// non-simple name.
+fn validate_param_name(name: &str) -> Result<(), String> {
+    let bytes = name.as_bytes();
+    let last_is_close = bytes.last() == Some(&b')');
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        if bytes[i] == b'(' {
+            if last_is_close {
+                return Err(format!("formal parameter \"{name}\" is an array element"));
+            }
+        } else if bytes[i] == b':' && bytes[i + 1] == b':' {
+            return Err(format!("formal parameter \"{name}\" is not a simple name"));
+        }
+        i += 1;
     }
-    if let Some(rest) = s.strip_prefix("end-") {
-        return rest.trim().parse::<isize>().ok().map(|k| n - 1 - k);
-    }
-    if let Some(rest) = s.strip_prefix("end+") {
-        return rest.trim().parse::<isize>().ok().map(|k| n - 1 + k);
-    }
-    s.parse::<isize>().ok()
+    Ok(())
 }
 
 /// Parse a proc parameter spec (`"a b {c 1} args"`) into params + `has_args`.
@@ -521,17 +599,14 @@ fn parse_params(spec: &str) -> Result<(Vec<Param>, bool), String> {
     let mut params = Vec::with_capacity(elems.len());
     for e in &elems {
         let parts = split_list(e.as_ref()).map_err(|err| err.message().to_string())?;
-        match parts.as_slice() {
-            [n] => params.push(Param {
-                name: n.to_string(),
-                default: None,
-            }),
-            [n, d] => params.push(Param {
-                name: n.to_string(),
-                default: Some(Value::string(d.as_ref())),
-            }),
+        let (name, default) = match parts.as_slice() {
+            [] => return Err("argument with no name".to_string()),
+            [n] => (n.to_string(), None),
+            [n, d] => (n.to_string(), Some(Value::string(d.as_ref()))),
             _ => return Err(format!("too many fields in argument specifier \"{e}\"")),
-        }
+        };
+        validate_param_name(&name)?;
+        params.push(Param { name, default });
     }
     let has_args = params.last().is_some_and(|p| p.name == "args");
     Ok((params, has_args))
@@ -558,6 +633,14 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let namespace = reg_name
         .rsplit_once("::")
         .map_or_else(String::new, |(ns, _)| ns.to_string());
+    // A namespace-qualified proc name requires its namespace to already exist
+    // (C's `TclGetNamespaceForQualName` → `nsPtr == NULL`). An unqualified name
+    // lands in the current namespace, which always exists (proc-1.2).
+    if name_s.contains("::") && !vm.namespace_exists(&namespace) {
+        return err(format!(
+            "can't create procedure \"{name_s}\": unknown namespace"
+        ));
+    }
     let (params_vec, has_args) = match parse_params(&params.to_str()) {
         Ok(p) => p,
         Err(e) => return err(e),
@@ -586,6 +669,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         has_args,
         body,
         body_src: body_text.clone(),
+        usage_name: None,
     });
     ok(Value::empty())
 }
@@ -643,6 +727,43 @@ pub(crate) fn completion_options(comp: &Completion<Value>) -> Value {
     }
 }
 
+/// Resolve the `-errorcode` an error completion publishes to `$errorCode`.
+///
+/// An explicit `-errorcode` in the completion's options wins (set by
+/// `error` / `throw` / `return -errorcode`, even when it is the literal
+/// `NONE`). A bare builtin error (`err(...)`, which carries no options) defaults
+/// to `NONE` — except a "wrong # args" usage error, which C's
+/// `Tcl_WrongNumArgs` tags `TCL WRONGARGS`. Matching that lets the many
+/// `… errors` tests (join-2.1, split-2.1, …) see the right `$errorCode` without
+/// retagging every wrong-args call site.
+pub(crate) fn resolved_error_code(comp: &Completion<Value>) -> Value {
+    if let Some(ec) = opt_get(&comp.options, "-errorcode") {
+        return ec;
+    }
+    Value::string(default_error_code(&comp.result.to_str()))
+}
+
+/// The `errorCode` a bare builtin error (no carried `-errorcode`) defaults to,
+/// keyed off its message — the codes C's `Tcl_WrongNumArgs` / list parser
+/// (`tclUtil.c`) attach. Only consulted when the completion carries no explicit
+/// `-errorcode`, so a user `error msg` (which sets `-errorcode NONE`) is never
+/// reclassified. Anything unrecognised is `NONE`.
+fn default_error_code(message: &str) -> &'static str {
+    if message.starts_with("wrong # args:") {
+        "TCL WRONGARGS"
+    } else if message == "unmatched open brace in list" {
+        "TCL VALUE LIST BRACE"
+    } else if message == "unmatched open quote in list" {
+        "TCL VALUE LIST QUOTE"
+    } else if message.starts_with("list element in braces followed by")
+        || message.starts_with("list element in quotes followed by")
+    {
+        "TCL VALUE LIST JUNK"
+    } else {
+        "NONE"
+    }
+}
+
 /// Look up a key in an options-dict value, returning the following element.
 pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
     let items = options.as_list().ok()?;
@@ -658,38 +779,67 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
 
 /// `return ?-code c? ?-level l? ?-errorcode ec? ?-errorinfo ei? ?value?`.
 fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // Apply one option pair, from a direct argument or an expanded `-options`
+    // dict. `-code`/`-level` drive the completion; every other key (`-errorcode`,
+    // `-errorinfo`, or a user option like `-foo`) is preserved in the options
+    // dict, later occurrences overriding earlier ones (C's `TclMergeReturnOptions`).
+    fn apply(
+        key: &str,
+        val: &Value,
+        ret_code: &mut Code,
+        level: &mut i64,
+        extra: &mut Vec<(String, Value)>,
+    ) {
+        match key {
+            "-code" => *ret_code = parse_code(&val.to_str()),
+            "-level" => *level = val.as_int().unwrap_or(1),
+            _ => match extra.iter_mut().find(|(k, _)| k == key) {
+                Some(slot) => slot.1 = val.clone(),
+                None => extra.push((key.to_string(), val.clone())),
+            },
+        }
+    }
+
     let mut value = Value::empty();
     let mut ret_code = Code::Ok;
     let mut level = 1i64;
-    let mut extra: Vec<(&str, Value)> = Vec::new();
+    let mut extra: Vec<(String, Value)> = Vec::new();
     let mut i = 0;
     while i < args.len() {
         let a = args[i].to_str();
-        match &*a {
-            "-code" if i + 1 < args.len() => {
-                ret_code = parse_code(&args[i + 1].to_str());
-                i += 2;
+        if &*a == "-options" && i + 1 < args.len() {
+            // Merge a return-options dict (TIP 90); a later explicit option
+            // overrides it, and an odd-sized list is not a dict.
+            let dict = &args[i + 1];
+            let pairs = match dict.as_list() {
+                Ok(p) if p.len() % 2 == 0 => p,
+                _ => return err(format!("expected dict but got \"{}\"", dict.to_str())),
+            };
+            let mut j = 0;
+            while j + 1 < pairs.len() {
+                apply(
+                    &pairs[j].to_str(),
+                    &pairs[j + 1],
+                    &mut ret_code,
+                    &mut level,
+                    &mut extra,
+                );
+                j += 2;
             }
-            "-level" if i + 1 < args.len() => {
-                level = args[i + 1].as_int().unwrap_or(1);
-                i += 2;
-            }
-            "-errorcode" if i + 1 < args.len() => {
-                extra.push(("-errorcode", args[i + 1].clone()));
-                i += 2;
-            }
-            "-errorinfo" if i + 1 < args.len() => {
-                extra.push(("-errorinfo", args[i + 1].clone()));
-                i += 2;
-            }
-            _ if i == args.len() - 1 => {
-                value = args[i].clone();
-                i += 1;
-            }
-            _ => return err(format!("bad option \"{a}\"")),
+            i += 2;
+        } else if a.starts_with('-') && a.len() > 1 && i + 1 < args.len() {
+            apply(&a, &args[i + 1], &mut ret_code, &mut level, &mut extra);
+            i += 2;
+        } else if i == args.len() - 1 {
+            value = args[i].clone();
+            i += 1;
+        } else {
+            return err(format!("bad option \"{a}\""));
         }
     }
-    let options = options_dict(ret_code, level, &extra);
+    let extra_refs: Vec<(&str, Value)> =
+        extra.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+    let options = options_dict(ret_code, level, &extra_refs);
     // `-level 0` makes the requested `-code` take effect *immediately* (the
     // completion IS that code, including `ok` — `return -level 0 -code N` is how
     // `try`/`catch` produce an arbitrary return code). A positive level raises
@@ -703,6 +853,38 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         ret_code
     };
     Completion::new(final_code, value, options)
+}
+
+/// `const varName value` — define an immutable scalar (TIP 677). Re-declaring an
+/// existing constant with any value is a silent no-op; declaring over a normal
+/// variable or an array (element) is an error. The value is written through the
+/// normal scalar path (so write traces fire) and only then flagged constant, so
+/// a trace that vetoes the write leaves no constant (var-26.14).
+fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [name_v, value] = args else {
+        return err("wrong # args: should be \"const varName value\"");
+    };
+    let name = name_v.to_str();
+    let bad = |reason: &str| err(format!("can't make constant \"{name}\": {reason}"));
+    if name.ends_with(')') && name.contains('(') {
+        return bad("name refers to an element in an array");
+    }
+    if vm.var_is_array(&name) {
+        return bad("variable is array");
+    }
+    if vm.exists_var(&name) {
+        // A constant re-`const` is a no-op; a normal variable is an error.
+        return if vm.is_constant(&name) {
+            ok(Value::empty())
+        } else {
+            bad("variable already exists")
+        };
+    }
+    if let Err(e) = vm.set_var(&name, value.clone()) {
+        return e;
+    }
+    vm.mark_constant(&name);
+    ok(Value::empty())
 }
 
 /// `tailcall ?command ?arg …??` — the runtime fallback for forms the codegen
@@ -828,12 +1010,18 @@ fn cmd_error(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `break`.
-fn cmd_break(_vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+fn cmd_break(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if !args.is_empty() {
+        return err("wrong # args: should be \"break\"");
+    }
     Completion::new(Code::Break, Value::empty(), Value::empty())
 }
 
 /// `continue`.
-fn cmd_continue(_vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+fn cmd_continue(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if !args.is_empty() {
+        return err("wrong # args: should be \"continue\"");
+    }
     Completion::new(Code::Continue, Value::empty(), Value::empty())
 }
 
@@ -876,7 +1064,7 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 |v| v.to_str().to_string(),
             )
         });
-        let ecode = opt_get(&comp.options, "-errorcode").unwrap_or_else(|| Value::string("NONE"));
+        let ecode = resolved_error_code(&comp);
         vm.publish_error(&einfo, &ecode);
     } else {
         // A non-error completion ends any in-flight trace (e.g. an inner error
@@ -967,26 +1155,82 @@ fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
+/// The outcome of parsing an `uplevel`/`upvar` level word (C's `TclObjGetFrame`).
+enum FrameLevel {
+    /// A valid absolute frame level.
+    Level(usize),
+    /// The word is not a level — the caller treats it as the start of the
+    /// command, using the default level.
+    NotLevel,
+    /// A number-like word that is not a usable level (carries the spelling for
+    /// the `bad level "…"` error).
+    Bad(String),
+}
+
+/// Parse an `uplevel`/`upvar` level word against the current level `cur`,
+/// mirroring C's `TclObjGetFrame`: a plain integer is *relative* (`cur - n`, and
+/// must land in `0..=cur`); `#n` is *absolute*; a number wider than the C `int`
+/// range, or any other purely-numeric word, is a `bad level`; a non-numeric word
+/// is not a level at all (the command, run one level up).
+fn parse_frame_level(cur: usize, obj: &Value) -> FrameLevel {
+    let s = obj.to_str();
+    let cur = i64::try_from(cur).unwrap_or(i64::MAX);
+    // A plain integer is a relative level. C parses with the `int` range, so a
+    // value outside it (e.g. `-0xffffffff` / `[expr -0xffffffff]`) is a bad level
+    // rather than a huge relative offset.
+    let bad = || FrameLevel::Bad(s.to_string());
+    if let Ok(w) = obj.as_int() {
+        let Ok(n) = i32::try_from(w) else {
+            return bad();
+        };
+        let level = cur - i64::from(n);
+        if n < 0 || level < 0 || level > cur {
+            return bad();
+        }
+        usize::try_from(level).map_or_else(|_| bad(), FrameLevel::Level)
+    } else if let Some(rest) = s.strip_prefix('#') {
+        // `#n` is an absolute level. `#-0` is level 0; any other negative
+        // spelling is bad.
+        let parsed = Value::string(rest)
+            .as_int()
+            .ok()
+            .and_then(|w| i32::try_from(w).ok());
+        match parsed {
+            Some(n) if n >= 0 && !(n > 0 && rest.starts_with('-')) && i64::from(n) <= cur => {
+                usize::try_from(n).map_or_else(|_| bad(), FrameLevel::Level)
+            }
+            _ => bad(),
+        }
+    } else {
+        // Anything non-numeric is the command, not a level.
+        FrameLevel::NotLevel
+    }
+}
+
 /// `uplevel ?level? arg ?arg ...?` — evaluate the concatenated args as a script
 /// in the call frame `level` up (default 1, the caller). `#N` selects an
 /// absolute level.
 fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let cur = vm.current_level();
     let mut rest = args;
-    let mut target = vm.current_level().saturating_sub(1);
+    let mut target = cur.saturating_sub(1);
+    let mut explicit = false;
     if let Some(first) = rest.first() {
-        let s = first.to_str();
-        if let Some(abs) = s.strip_prefix('#')
-            && let Ok(n) = abs.parse::<usize>()
-        {
-            target = n;
-            rest = &rest[1..];
-        } else if !s.is_empty()
-            && s.bytes().all(|b| b.is_ascii_digit())
-            && let Ok(n) = s.parse::<usize>()
-        {
-            target = vm.current_level().saturating_sub(n);
-            rest = &rest[1..];
+        match parse_frame_level(cur, first) {
+            FrameLevel::Level(level) => {
+                target = level;
+                rest = &rest[1..];
+                explicit = true;
+            }
+            FrameLevel::NotLevel => {}
+            FrameLevel::Bad(name) => return err(format!("bad level \"{name}\"")),
         }
+    }
+    // A non-`#`/non-numeric first word is the command, run one level up; at the
+    // global level there is no such frame, so an implicit level is `bad level "1"`
+    // (uplevel-4.0.1/4.0.2).
+    if !explicit && cur == 0 {
+        return err("bad level \"1\"");
     }
     if rest.is_empty() {
         return err("wrong # args: should be \"uplevel ?level? command ?arg ...?\"");

@@ -136,9 +136,10 @@ pub(crate) struct CfgBuilder {
     /// edge from a body that terminated without an explicit `error`/`throw`
     /// (a bare `return`).
     last_terminal_block: Option<String>,
-    /// Current `lower_script` recursion depth, bounded by
-    /// [`MAX_LOWER_DEPTH`].
-    depth: usize,
+    /// Source spans of inlined command bodies (`eval {…}`) flattened into the
+    /// function currently being built — drained into [`crate::cfg::Function`] so
+    /// codegen can re-derive each body's `errorInfo` frame (see that field).
+    inline_eval_spans: Vec<tcl_lexer::Span>,
 }
 
 /// Maximum nesting depth for the recursive `lower_script` descent.
@@ -174,7 +175,7 @@ impl CfgBuilder {
             faithful_exceptions: false,
             throw_blocks: None,
             last_terminal_block: None,
-            depth: 0,
+            inline_eval_spans: Vec::new(),
         }
     }
 
@@ -457,6 +458,7 @@ impl CfgBuilder {
 
         let loop_nodes = std::mem::take(&mut self.loop_nodes);
         let exception_edges = std::mem::take(&mut self.exception_edges);
+        let inline_eval_spans = std::mem::take(&mut self.inline_eval_spans);
 
         Function {
             name: name.to_owned(),
@@ -464,6 +466,7 @@ impl CfgBuilder {
             blocks: frozen,
             loop_nodes,
             exception_edges,
+            inline_eval_spans,
         }
     }
 
@@ -609,8 +612,11 @@ impl CfgBuilder {
 
                 // Inline block: flatten the body's statements
                 // into the current control-flow stream so SSA / codegen
-                // see them as plain inline statements.
-                Statement::Block { body, .. } => {
+                // see them as plain inline statements. Record the original
+                // command's span so codegen can rebuild its `errorInfo` body
+                // frame (`("eval" body line N)`); the body itself stays inline.
+                Statement::Block { body, span, .. } => {
+                    self.inline_eval_spans.push(*span);
                     if let Some(next_current) = self.lower_script(body, &current) {
                         current = next_current;
                     } else {
@@ -1526,11 +1532,13 @@ mod tests {
             Statement::AssignConst {
                 span: Span::new(0, 7),
                 name: "x".into(),
+                name_braced: false,
                 value: "1".into(),
             },
             Statement::AssignConst {
                 span: Span::new(8, 15),
                 name: "y".into(),
+                name_braced: false,
                 value: "2".into(),
             },
         ]);
@@ -1546,6 +1554,7 @@ mod tests {
             Statement::AssignConst {
                 span: Span::new(0, 7),
                 name: "x".into(),
+                name_braced: false,
                 value: "1".into(),
             },
             Statement::Return {
@@ -1557,6 +1566,7 @@ mod tests {
             Statement::AssignConst {
                 span: Span::new(17, 24),
                 name: "y".into(),
+                name_braced: false,
                 value: "2".into(), // dead code
             },
         ]);
@@ -1582,6 +1592,7 @@ mod tests {
                 body: Script::from_statements(vec![Statement::AssignConst {
                     span: Span::new(7, 14),
                     name: "y".into(),
+                    name_braced: false,
                     value: "1".into(),
                 }]),
                 body_span: Span::new(6, 15),
@@ -1616,6 +1627,7 @@ mod tests {
             body: Script::from_statements(vec![Statement::AssignConst {
                 span: Span::new(7, 14),
                 name: "inner".into(),
+                name_braced: false,
                 value: "1".into(),
             }]),
             body_span: Span::new(6, 15),
@@ -1645,6 +1657,7 @@ mod tests {
         let body = Script::from_statements(vec![Statement::AssignConst {
             span: Span::new(0, 0),
             name: "x".into(),
+            name_braced: false,
             value: "1".into(),
         }]);
         let script = Script::from_statements(vec![Statement::Foreach {

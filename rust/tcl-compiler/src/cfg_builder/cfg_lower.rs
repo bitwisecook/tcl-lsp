@@ -855,6 +855,7 @@ mod tests {
             init: Script::from_statements(vec![Statement::AssignConst {
                 span: Span::new(5, 12),
                 name: "i".into(),
+                name_braced: false,
                 value: "0".into(),
             }]),
             init_span: Span::new(4, 13),
@@ -876,6 +877,7 @@ mod tests {
             next: Script::from_statements(vec![Statement::Incr {
                 span: Span::new(24, 30),
                 name: "i".into(),
+                name_braced: false,
                 amount: None,
                 safe_on_uninit: false,
             }]),

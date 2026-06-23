@@ -184,9 +184,23 @@ def fire_traces(
                         traces.remove((ops, script))
                         continue
                     if op == "write":
-                        # Write trace errors reject the set — propagate
-                        # with the Tcl-standard "can't set" prefix.
-                        raise TclError(f'can\'t set "{var_name}": {exc}') from None
+                        # Write trace errors reject the set — propagate with
+                        # the Tcl-standard "can't set" prefix.  Preserve the
+                        # callback's errorInfo chain (the trace callback and
+                        # its own frames) so the unwinding stack survives into
+                        # the final errorInfo, matching Tcl's accumulation
+                        # rather than collapsing it to a single frame.
+                        rejected = TclError(f'can\'t set "{var_name}": {exc}')
+                        if isinstance(exc, TclError):
+                            if exc.error_info:
+                                rejected.error_info = list(exc.error_info)
+                            if exc.error_code is not None:
+                                rejected.error_code = exc.error_code
+                        # Signal invoke() to append the triggering command's
+                        # "while executing" frame (set-4.4); the compiled-op
+                        # escape path handles the same for ``set x 1``.
+                        interp._trace_rejected_cmd = True
+                        raise rejected from None
                     # Read/unset trace errors are silently ignored
     finally:
         active.discard(guard_key)

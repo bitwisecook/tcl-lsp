@@ -2496,6 +2496,7 @@ mod tests {
         let stmt = Statement::AssignValue {
             span: Span::new(0, 20),
             name: "x".into(),
+            name_braced: false,
             value: "[gets stdin]".into(),
             value_needs_backsubst: false,
             tokens: None,
@@ -2559,6 +2560,7 @@ mod tests {
         let assign = Statement::AssignValue {
             span: Span::new(0, 12),
             name: "x".into(),
+            name_braced: false,
             value: "[gets stdin]".into(),
             value_needs_backsubst: false,
             tokens: None,
@@ -2658,6 +2660,7 @@ mod tests {
         let assign = Statement::AssignValue {
             span: Span::new(0, 12),
             name: "x".into(),
+            name_braced: false,
             value: "[gets stdin]".into(),
             value_needs_backsubst: false,
             tokens: None,
@@ -2769,6 +2772,7 @@ mod tests {
         let s0 = Statement::AssignValue {
             span: Span::new(0, 12),
             name: "x".into(),
+            name_braced: false,
             value: "[gets stdin]".into(),
             value_needs_backsubst: false,
             tokens: None,
@@ -2776,6 +2780,7 @@ mod tests {
         let s1 = Statement::AssignValue {
             span: Span::new(13, 35),
             name: "y".into(),
+            name_braced: false,
             value: "[URI::encode $x]".into(),
             value_needs_backsubst: false,
             tokens: None,
@@ -2944,6 +2949,7 @@ mod tests {
         let assign = Statement::AssignValue {
             span: Span::new(0, 25),
             name: "p".into(),
+            name_braced: false,
             value: "[file normalize $base]".into(),
             value_needs_backsubst: false,
             tokens: None,
@@ -3031,6 +3037,7 @@ mod tests {
         let stmt = Statement::AssignConst {
             span: Span::new(0, 10),
             name: "x".into(),
+            name_braced: false,
             value: "hello".into(),
         };
         let ssa_stmt = SsaStatement {
@@ -3090,6 +3097,7 @@ mod tests {
         let assign = Statement::AssignValue {
             span: Span::new(0, 25),
             name: "pattern".into(),
+            name_braced: false,
             value: "[gets stdin]".into(),
             value_needs_backsubst: false,
             tokens: None,
@@ -3186,6 +3194,7 @@ mod tests {
         let assign = Statement::AssignValue {
             span: Span::new(0, 25),
             name: "pattern".into(),
+            name_braced: false,
             value: "[gets stdin]".into(),
             value_needs_backsubst: false,
             tokens: None,
