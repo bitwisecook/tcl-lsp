@@ -63,7 +63,7 @@ fn assert_query(golden: &str, ok_codes: &[i32], args: &[&str]) {
     let actual = run_query(args, ok_codes);
     assert_eq!(
         actual, expected,
-        "f5 query output does not match the Python CLI ({golden})\nargs: {args:?}"
+        "f5 query output does not match the golden ({golden})\nargs: {args:?}"
     );
 }
 

@@ -49,7 +49,7 @@ fn assert_unmatched_parity(pcap: &str) {
     assert_eq!(
         stdout,
         golden(&format!("explain-flow-{pcap}.golden")),
-        "explain-flow stdout for {pcap} must match the Python golden"
+        "explain-flow stdout for {pcap} must match the golden"
     );
     // No session matches the sample VS, so the verb exits 1.
     assert_eq!(code, 1, "exit code for {pcap}");
@@ -82,7 +82,7 @@ fn matched_virtual_with_back_side_matches_golden() {
     assert_eq!(
         stdout,
         golden("explain-flow-matched.golden"),
-        "matched explain-flow stdout must match the Python golden"
+        "matched explain-flow stdout must match the golden"
     );
     assert_eq!(code, 0, "exit code for a matched capture");
 }
@@ -98,7 +98,7 @@ fn matched_virtual_with_ltm_policies_matches_golden() {
     assert_eq!(
         stdout,
         golden("explain-flow-policy.golden"),
-        "matched explain-flow with LTM policy decisions must match the Python golden"
+        "matched explain-flow with LTM policy decisions must match the golden"
     );
     assert_eq!(code, 0, "exit code for a matched capture");
 }
@@ -113,7 +113,7 @@ fn matched_virtual_with_irule_events_matches_golden() {
     assert_eq!(
         stdout,
         golden("explain-flow-rich.golden"),
-        "matched explain-flow with iRule events must match the Python golden"
+        "matched explain-flow with iRule events must match the golden"
     );
     assert_eq!(code, 0, "exit code for a matched capture");
 }
@@ -145,7 +145,7 @@ fn json_output_matches_golden() {
         assert_eq!(
             stdout,
             golden(golden_name),
-            "explain-flow --json for {conf} must match the Python golden"
+            "explain-flow --json for {conf} must match the golden"
         );
     }
 }

@@ -58,7 +58,7 @@ fn assert_merge(golden: &str, ok_codes: &[i32], args: &[&str]) {
     );
     assert_eq!(
         actual, expected,
-        "f5 query --merge output does not match the Python CLI ({golden})\nargs: {args:?}"
+        "f5 query --merge output does not match the golden ({golden})\nargs: {args:?}"
     );
 }
 

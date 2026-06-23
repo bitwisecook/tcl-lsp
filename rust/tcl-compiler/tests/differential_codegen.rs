@@ -122,7 +122,7 @@ except Exception as e:
             Ok(())
         } else {
             Err(format!(
-                "python oracle unavailable (exit {:?}): {}",
+                "reference oracle unavailable (exit {:?}): {}",
                 output.status.code(),
                 String::from_utf8_lossy(&output.stderr).trim(),
             ))
@@ -235,7 +235,7 @@ fn brief_diff(rust: &str, py: &str, context: usize) -> String {
         out.push_str(line);
         out.push('\n');
     }
-    out.push_str("    --- python ---\n");
+    out.push_str("    --- reference ---\n");
     for line in &p[start..end_p] {
         out.push_str("    ");
         out.push_str(line);
@@ -244,7 +244,7 @@ fn brief_diff(rust: &str, py: &str, context: usize) -> String {
     if r.len() != p.len() {
         writeln!(
             out,
-            "    (rust has {} lines, python has {} lines)",
+            "    (rust has {} lines, reference has {} lines)",
             r.len(),
             p.len()
         )
@@ -335,7 +335,7 @@ fn matching_corpus_is_semantically_equivalent() {
                 }
             },
             OracleResult::Error(err) => {
-                failures.push((name.clone(), format!("python oracle error: {err}")));
+                failures.push((name.clone(), format!("reference oracle error: {err}")));
             }
             OracleResult::Unavailable(msg) => {
                 eprintln!("[differential_codegen] oracle went away mid-run: {msg}");
@@ -345,7 +345,7 @@ fn matching_corpus_is_semantically_equivalent() {
     }
 
     eprintln!(
-        "[differential_codegen] matching corpus: {} exact, {} semantic, {} python-drift, {} divergent / {} total",
+        "[differential_codegen] matching corpus: {} exact, {} semantic, {} reference-drift, {} divergent / {} total",
         exact,
         semantic,
         oracle_drift.len(),
@@ -354,7 +354,7 @@ fn matching_corpus_is_semantically_equivalent() {
     );
     if !oracle_drift.is_empty() {
         eprintln!(
-            "[differential_codegen] {} fixture(s) match their tclsh-verified golden but the Python oracle has drifted (not a Rust regression):",
+            "[differential_codegen] {} fixture(s) match their tclsh-verified golden but the reference oracle has drifted (not a Rust regression):",
             oracle_drift.len(),
         );
         for name in &oracle_drift {
@@ -364,7 +364,7 @@ fn matching_corpus_is_semantically_equivalent() {
 
     if !failures.is_empty() {
         let mut msg = format!(
-            "{} fixture(s) in matching/ diverged from the Python oracle:\n",
+            "{} fixture(s) in matching/ diverged from the reference oracle:\n",
             failures.len()
         );
         for (name, diff) in &failures {

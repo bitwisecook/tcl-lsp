@@ -74,12 +74,12 @@ fn assert_rename(base: &str, old: &str, new: &str, extra: &[&str], ok_codes: &[i
     assert_eq!(
         out,
         golden(&format!("{base}.out.golden")),
-        "{base}: stdout does not match the Python CLI"
+        "{base}: stdout does not match the golden"
     );
     assert_eq!(
         err,
         golden(&format!("{base}.err.golden")),
-        "{base}: stderr (renamed report / warning / error) does not match the Python CLI"
+        "{base}: stderr (renamed report / warning / error) does not match the golden"
     );
 }
 

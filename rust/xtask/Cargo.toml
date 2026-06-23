@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-description = "Native build/check task runner — the Rust replacement for the Python scripts/ toolchain (track API-PYO3, scripts→xtask)"
+description = "Build/check task runner for the workspace"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

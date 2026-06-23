@@ -81,7 +81,7 @@ fn x509_parse_matches_python_byte_for_byte() {
     let got = value_to_json(&values[0]);
     assert_eq!(
         &got, golden,
-        "x509_parse output diverged from the Python golden"
+        "x509_parse output diverged from the golden"
     );
 }
 

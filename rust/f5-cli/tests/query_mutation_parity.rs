@@ -62,7 +62,7 @@ fn assert_query(golden: &str, ok_codes: &[i32], args: &[&str]) {
     let actual = run_query(args, ok_codes);
     assert_eq!(
         actual, expected,
-        "f5 query mutation output does not match the Python CLI ({golden})\nargs: {args:?}"
+        "f5 query mutation output does not match the golden ({golden})\nargs: {args:?}"
     );
 }
 
@@ -117,12 +117,12 @@ fn assert_rename(base: &str, ok_codes: &[i32], extra: &[&str]) {
     assert_eq!(
         out,
         golden(&format!("{base}.out.golden")),
-        "{base}: stdout does not match the Python CLI"
+        "{base}: stdout does not match the golden"
     );
     assert_eq!(
         err,
         golden(&format!("{base}.err.golden")),
-        "{base}: stderr (renamed reports / error) does not match the Python CLI"
+        "{base}: stderr (renamed reports / error) does not match the golden"
     );
 }
 
@@ -341,7 +341,7 @@ fn cross_file_edit_targets_named_source() {
     assert_eq!(
         out,
         golden("query-crossfile-edit.golden"),
-        "cross-file edit diff does not match the Python CLI"
+        "cross-file edit diff does not match the golden"
     );
 }
 

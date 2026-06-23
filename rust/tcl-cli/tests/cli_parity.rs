@@ -581,7 +581,7 @@ fn registry_dump_faithful_subset_matches_python() {
         .unwrap_or_else(|e| panic!("read golden {}: {e}", golden_path.display()));
     assert_eq!(
         actual, expected,
-        "registry-dump faithful-subset snapshot does not match the Python golden"
+        "registry-dump faithful-subset snapshot does not match the golden"
     );
 }
 

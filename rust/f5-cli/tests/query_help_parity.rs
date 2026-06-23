@@ -34,7 +34,7 @@ fn assert_help(flag: &str, golden: &str) {
     let actual = run_help(flag);
     assert_eq!(
         actual, expected,
-        "`f5 query {flag}` output does not match the Python CLI ({golden})"
+        "`f5 query {flag}` output does not match the golden ({golden})"
     );
 }
 

@@ -247,7 +247,7 @@ fn enrich_pcapng_to(extra: &[&std::ffi::OsStr], out: &Path, golden: &str) -> Run
     assert_eq!(
         std::fs::read(out).unwrap(),
         read_fixture(golden),
-        "pcapng output must match Python golden ({golden})"
+        "pcapng output must match golden ({golden})"
     );
     r
 }
