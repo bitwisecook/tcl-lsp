@@ -136,7 +136,14 @@ pub struct ProcTaintSummary {
 impl ProcTaintSummary {
     /// An untainted seed summary (every scenario clean). Mirrors the initial
     /// `summaries` seeding in Python's solver.
-    fn untainted(qname: &str, params: &[String]) -> Self {
+    ///
+    /// Public so the LSP db's memoised `proc_summary_cascade` can reconstruct the
+    /// *whole-module* seeded map the worklist passes to `infer_proc_summary` — a
+    /// resolved callee must map to a (clean) summary, not be absent, or
+    /// `propagate_taints` falls through to its conservative bare-argument join and
+    /// over-taints (SRV-INCREMENTAL 2b).
+    #[must_use]
+    pub fn untainted(qname: &str, params: &[String]) -> Self {
         let clean = TaintLattice::clean();
         Self {
             qualified_name: qname.to_owned(),
@@ -455,7 +462,11 @@ fn resolve_call_flows(
 /// Result of the interprocedural taint solve. Mirrors Python
 /// `_InterprocTaintResult` (summaries are dropped — the warning consumers
 /// only read `top_taints` / `proc_taints`).
-#[derive(Debug, Clone, Default)]
+///
+/// `PartialEq` lets the LSP db return this from the memoised `proc_taint_solve`
+/// salsa query (early-cutoff via salsa's update-fallback: a re-solve that lands
+/// the same taints backdates, waking no downstream check).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InterprocTaintResult {
     /// Taints for the top-level script.
     pub top_taints: HashMap<ValueKey, TaintLattice>,

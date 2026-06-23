@@ -27,6 +27,13 @@ use tcl_compiler::ir::Script;
 use tcl_compiler::optimiser::Optimisation;
 use tcl_compiler::ssa::ValueKey;
 use tcl_compiler::taint::TaintLattice;
+// The compiler's per-proc return-taint summary (the colour-aware transfer
+// function the interprocedural fixpoint converges) — aliased to avoid clashing
+// with this crate's `ProcTaintSummary` (the *interproc-analysis* projection in
+// `TaintSummaryKey`).  Used to memoise the summary fixpoint per procedure.
+use tcl_compiler::taint_interproc::{
+    InterprocTaintResult, ProcTaintSummary as ReturnTaintSummary,
+};
 
 use tcl_compiler::analyser::per_item::{BodyFragment, DeferredBody, analyse_proc_body_isolated};
 use tcl_compiler::analyser::{
@@ -355,6 +362,30 @@ pub fn memoised_compilation_unit<'db>(
     config: tcl_lexer::LexerConfig,
     dialect_opt: Option<&str>,
 ) -> CompilationUnit {
+    build_unit_with_keys(db, source, registry, defer_top_level, config, dialect_opt).0
+}
+
+/// [`memoised_compilation_unit`] that also returns the per-procedure
+/// [`FnLatticeKey`] map built during lowering (qname → offset-0 baseline key).
+///
+/// [`proc_taint_solve`] needs those keys to memoise the interprocedural summary
+/// fixpoint per procedure ([`proc_summary_cascade`]), but they **cannot be
+/// threaded out of the shared [`compilation_unit`] query**: a salsa tracked
+/// return must be `'static`, and `FnLatticeKey<'db>` is `'db`-interned (the
+/// finished `CompilationUnit` keeps only the rebased `FunctionUnit`s, not the
+/// offset-0 bodies the keys are built from).  So the checks path re-derives them
+/// with this second build — whose per-procedure lattice/cascade demands hit the
+/// **same** [`function_lattice`] / [`taint_cascade`] memos the shared build
+/// already populated, making the duplicate build mostly cache hits (~29 ms warm
+/// vs ~57 ms cold, measured on `linalg.tcl`; SRV-INCREMENTAL 2b).
+fn build_unit_with_keys<'db>(
+    db: &'db dyn TclDb,
+    source: &str,
+    registry: &CommandRegistry,
+    defer_top_level: bool,
+    config: tcl_lexer::LexerConfig,
+    dialect_opt: Option<&str>,
+) -> (CompilationUnit, HashMap<String, FnLatticeKey<'db>>) {
     let dialect = dialect_opt.unwrap_or("");
     // The module CFG context is the same for every procedure in this build;
     // intern it once on the first request and reuse the id (O(procs), not
@@ -404,7 +435,7 @@ pub fn memoised_compilation_unit<'db>(
     // Memoise the per-procedure interprocedural taint re-run via `taint_cascade`.
     // The whole-module summary is still rebuilt here (it is the memo's input);
     // only unchanged procedures' `propagate_taints` is skipped.
-    cu.with_interprocedural_memoized(
+    let unit = cu.with_interprocedural_memoized(
         registry,
         dialect_opt,
         &mut |qname: &str, ia: &InterproceduralAnalysis| {
@@ -412,7 +443,8 @@ pub fn memoised_compilation_unit<'db>(
             let summary_key = taint_summary_key(db, ia, qname, dialect);
             Some((*taint_cascade(db, key, summary_key)).clone())
         },
-    )
+    );
+    (unit, lattice_keys)
 }
 
 /// The taint-relevant projection of one procedure's [`ProcSummary`], in the
@@ -539,6 +571,222 @@ pub fn taint_cascade<'db>(
     }
 
     Arc::new(baseline.interproc_taints(&registry, &ia, dialect_opt))
+}
+
+/// Interned identity of one procedure's *interprocedural summary-fixpoint*
+/// dependencies — the [`proc_summary_cascade`] key alongside its [`FnLatticeKey`]
+/// baseline (SRV-INCREMENTAL 2b).  `infer_proc_summary(P)` is a pure function of
+/// `P`'s offset-0 body (the `FnLatticeKey`) and, from the *current* summaries it
+/// reads: the resolution domain (`known_procs`), the interprocedural
+/// [`ProcSummary`] projection of `P`'s reachable set (`interproc_reachable` —
+/// what `propagate_taints` reads for call resolution + reachable-global seeding,
+/// identical to [`TaintSummaryKey`]), and the [`ReturnTaintSummary`] of every
+/// procedure in `P`'s transitive call closure (`callee_summaries` — the return
+/// transfer functions `propagate_taints` applies at `P`'s call sites).  A body
+/// edit that leaves all of these unchanged re-interns to the same key, so `P`'s
+/// inference is a cache hit; an edit that flips a reachable callee's summary
+/// re-keys exactly the callers that reach it.
+#[salsa::interned]
+pub struct SummaryDepsKey<'db> {
+    /// All procedure names in the module (sorted) — the call-resolution domain.
+    #[returns(ref)]
+    pub known_procs: Vec<String>,
+    /// The interproc-analysis projection of the root + its transitive callees
+    /// (sorted by qname) — mirrors [`TaintSummaryKey::reachable`].
+    #[returns(ref)]
+    pub interproc_reachable: Vec<ProcTaintSummary>,
+    /// The colour-aware return-taint summaries the root reads from `summaries`:
+    /// every procedure in its transitive call closure (sorted by qname, deduped).
+    #[returns(ref)]
+    pub callee_summaries: Vec<ReturnTaintSummary>,
+    #[returns(ref)]
+    pub dialect: String,
+}
+
+/// Build the [`SummaryDepsKey`] for procedure `qname` from the in-progress
+/// summary-fixpoint state.  Reachable set = the root + its transitive callees
+/// (`ProcSummary::calls`), exactly as [`taint_summary_key`] computes it, so the
+/// interproc projection is identical; `callee_summaries` overlays the
+/// return-taint summary of each reachable procedure (including `qname` itself
+/// when it is in its own closure — i.e. recursive).  Over-approximating the
+/// summaries read (transitive, not just direct callees) is sound: a wrong/missed
+/// dependency is caught by the debug fixpoint guard in `converge_summaries_with`,
+/// which re-runs the real `infer_proc_summary`.
+fn summary_deps_key<'db>(
+    db: &'db dyn TclDb,
+    qname: &str,
+    interproc: Option<&InterproceduralAnalysis>,
+    summaries: &HashMap<String, ReturnTaintSummary>,
+    known: &HashSet<String>,
+    dialect: &str,
+) -> SummaryDepsKey<'db> {
+    let mut known_procs: Vec<String> = known.iter().cloned().collect();
+    known_procs.sort();
+
+    let mut interproc_reachable: Vec<ProcTaintSummary> = Vec::new();
+    let mut callee_summaries: Vec<ReturnTaintSummary> = Vec::new();
+    if let Some(ia) = interproc {
+        if let Some(root) = ia.procedures.get(qname) {
+            let mut calls = root.calls.clone();
+            calls.sort();
+            calls.dedup();
+            // Root: full interproc projection (with its transitive `calls`), plus
+            // its own return summary when recursive (qname appears in `calls`).
+            interproc_reachable.push(ProcTaintSummary {
+                qname: qname.to_owned(),
+                params: root.params.clone(),
+                calls: calls.clone(),
+                writes_global: root.writes_global,
+                return_passthrough_param: root.return_passthrough_param.clone(),
+            });
+            for callee in &calls {
+                if callee != qname {
+                    if let Some(s) = ia.procedures.get(callee) {
+                        interproc_reachable.push(ProcTaintSummary {
+                            qname: callee.clone(),
+                            params: s.params.clone(),
+                            calls: Vec::new(),
+                            writes_global: s.writes_global,
+                            return_passthrough_param: s.return_passthrough_param.clone(),
+                        });
+                    }
+                }
+                if let Some(ts) = summaries.get(callee) {
+                    callee_summaries.push(ts.clone());
+                }
+            }
+        }
+    }
+    interproc_reachable.sort_by(|a, b| a.qname.cmp(&b.qname));
+    callee_summaries.sort_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
+    callee_summaries.dedup();
+
+    SummaryDepsKey::new(
+        db,
+        known_procs,
+        interproc_reachable,
+        callee_summaries,
+        dialect.to_owned(),
+    )
+}
+
+/// Memoised per-procedure interprocedural summary inference (SRV-INCREMENTAL 2b
+/// — the `infer_proc_summary` half of the summary fixpoint, layered on
+/// [`function_lattice`]'s offset-0 baseline the way [`taint_cascade`] layers the
+/// per-proc taint re-run).
+///
+/// Reconstructs the minimal context [`SummaryDepsKey`] encodes — every procedure
+/// name (so call resolution matches the whole summary), the interproc projection
+/// of the reachable set, and the reachable return-taint summaries — and re-runs
+/// the real [`tcl_compiler::taint_interproc::infer_proc_summary`] over the
+/// offset-0 baseline.  Span-free (the summary is a transfer function over
+/// parameter/return taint, not positions), so the offset-0 result is the same
+/// the whole-module build computes.  A body edit re-keys only the edited
+/// procedure and the callers that reach it; everything else is a cache hit.
+#[salsa::tracked]
+pub fn proc_summary_cascade<'db>(
+    db: &'db dyn TclDb,
+    lattice_key: FnLatticeKey<'db>,
+    deps_key: SummaryDepsKey<'db>,
+) -> Arc<ReturnTaintSummary> {
+    let fu = function_lattice(db, lattice_key);
+    let qname = lattice_key.qname(db);
+    let params = lattice_key.params(db);
+    let dialect = deps_key.dialect(db);
+    let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
+    let registry = db.registry(dialect);
+
+    // Reconstruct the minimal interproc summary (stub per known name + real
+    // fields for the reachable set) — identical to `taint_cascade`'s rebuild.
+    let mut ia = InterproceduralAnalysis::default();
+    for name in deps_key.known_procs(db) {
+        ia.procedures
+            .insert(name.clone(), ProcSummary::unknown(name));
+    }
+    for r in deps_key.interproc_reachable(db) {
+        let mut s = ProcSummary::unknown(&r.qname);
+        s.params.clone_from(&r.params);
+        s.calls.clone_from(&r.calls);
+        s.writes_global = r.writes_global;
+        s.return_passthrough_param
+            .clone_from(&r.return_passthrough_param);
+        ia.procedures.insert(r.qname.clone(), s);
+    }
+    let known: HashSet<String> = deps_key.known_procs(db).iter().cloned().collect();
+    // Seed the whole resolution domain with clean summaries — the worklist passes
+    // `infer_proc_summary` a map with an entry for *every* procedure, and a
+    // resolved callee that is *absent* (vs. present-but-clean) makes
+    // `propagate_taints` fall through to its conservative bare-argument join and
+    // over-taint (`taint.rs`'s `summaries.get(&target)?`).  So the seed is
+    // load-bearing; the reachable overlay then installs the real (possibly
+    // tainted) summaries the edited proc actually depends on.
+    let mut summaries: HashMap<String, ReturnTaintSummary> = deps_key
+        .known_procs(db)
+        .iter()
+        .map(|name| (name.clone(), ReturnTaintSummary::untainted(name, &[])))
+        .collect();
+    for s in deps_key.callee_summaries(db) {
+        summaries.insert(s.qualified_name.clone(), s.clone());
+    }
+
+    Arc::new(tcl_compiler::taint_interproc::infer_proc_summary(
+        qname,
+        params,
+        &fu,
+        &registry,
+        Some(&ia),
+        dialect_opt,
+        &known,
+        &summaries,
+    ))
+}
+
+/// The interprocedural taint solve for one document, with the summary fixpoint's
+/// per-procedure inference memoised across edits (SRV-INCREMENTAL 2b).
+///
+/// Runs on the **checks path only** (demanded by [`compiler_check_diagnostics`],
+/// never the analyser walk / `semantic_tokens`), so it cannot regress
+/// time-to-first-tokens.  Re-derives the offset-0 [`FnLatticeKey`]s with its own
+/// [`build_unit_with_keys`] (they cannot be shared from [`compilation_unit`] —
+/// salsa returns must be `'static`; the duplicate build is mostly
+/// `function_lattice` cache hits, ~29 ms warm), then drives
+/// [`tcl_compiler::taint_interproc::solve_interprocedural_taints_with`] with an
+/// `infer` that defers to [`proc_summary_cascade`].  The worklist still runs each
+/// edit, but an unchanged procedure's expensive `infer_proc_summary` is a cache
+/// hit, collapsing the ~120 ms pass-1 floor to the edited proc's caller cascade.
+/// Byte-identical to a bare `solve_interprocedural_taints`, guarded by the
+/// `compiler_check` corpus differential + the debug fixpoint guard.
+#[salsa::tracked]
+pub fn proc_taint_solve<'db>(
+    db: &'db dyn TclDb,
+    file: SourceFile,
+    cfg: LexerCfgKey<'db>,
+) -> Arc<InterprocTaintResult> {
+    let dialect = file.dialect(db).clone();
+    let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
+    let registry = db.registry(&dialect);
+    let (cu, lattice_keys) =
+        build_unit_with_keys(db, file.text(db), &registry, false, cfg.to_config(db), dialect_opt);
+    let interproc = cu.interproc.as_ref();
+
+    let result = tcl_compiler::taint_interproc::solve_interprocedural_taints_with(
+        &cu,
+        &registry,
+        dialect_opt,
+        &mut |qname, params, fu, known, summaries| match lattice_keys.get(qname) {
+            // Memoised path: the proc has an offset-0 baseline key.
+            Some(&lattice_key) => {
+                let deps_key = summary_deps_key(db, qname, interproc, summaries, known, &dialect);
+                (*proc_summary_cascade(db, lattice_key, deps_key)).clone()
+            }
+            // Fallback (a proc without a memoised lattice — e.g. an unanalysable
+            // body): run the real inference directly, exactly as the bare solve.
+            None => tcl_compiler::taint_interproc::infer_proc_summary(
+                qname, params, fu, &registry, interproc, dialect_opt, known, summaries,
+            ),
+        },
+    );
+    Arc::new(result)
 }
 
 /// Interned identity of the dialect-varying [`tcl_lexer::LexerConfig`] fields,
@@ -699,7 +947,20 @@ pub fn compiler_check_diagnostics(db: &dyn TclDb, file: SourceFile) -> Arc<Compi
     // config interns the same `LexerCfgKey` and reuses the same per-edit build.
     let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::for_dialect(&dialect));
     let cu = compilation_unit(db, file, cfg_key);
-    Arc::new(compiler_diagnostics_from_unit(&cu, &registry, dialect_opt))
+    // The interprocedural taint solve — ~95% of `run_all_checks` — comes from the
+    // memoised [`proc_taint_solve`] (SRV-INCREMENTAL 2b) so an unchanged
+    // procedure's summary inference is reused across edits, instead of being
+    // re-solved whole-unit every keystroke.  Byte-identical to the in-line solve
+    // `run_all_checks` would do (the shared and re-derived builds are the same
+    // source + config, so their `ValueKey`s coincide); guarded by the corpus
+    // differential.  The optimiser half is unchanged.
+    let solved = proc_taint_solve(db, file, cfg_key);
+    Arc::new(CompilerDiagnostics {
+        checks: tcl_compiler::compiler_checks::run_all_checks_with_solved(
+            &cu, &registry, dialect_opt, &solved,
+        ),
+        optimisations: tcl_compiler::optimiser::optimise_unit(&cu, &registry, dialect_opt),
+    })
 }
 
 /// No-salsa-input fallback for [`compiler_check_diagnostics`]: build the unit
@@ -1121,6 +1382,64 @@ mod tests {
             cascades(&log),
             1,
             "unrelated body edit -> exactly ONE taint cascade recomputes"
+        );
+    }
+
+    /// The interprocedural summary fixpoint memo (`proc_summary_cascade`,
+    /// SRV-INCREMENTAL 2b) must skip an unrelated procedure's `infer_proc_summary`
+    /// across edits: a body edit to one proc re-keys only that proc's summary
+    /// (its `FnLatticeKey` changed), while procedures it does not feed are cache
+    /// hits — this is what collapses the worklist's whole-unit pass-1 floor to the
+    /// edited proc's caller cascade.  Three procedures with no taint-relevant call
+    /// edges, so each is its own cascade root.
+    #[test]
+    fn proc_summary_cascade_reused_on_unrelated_edit() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let summaries = |log: &Arc<Mutex<Vec<String>>>| {
+            std::mem::take(&mut *log.lock().unwrap())
+                .into_iter()
+                .filter(|s| s.contains("proc_summary_cascade"))
+                .count()
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let file = SourceFile::new(
+            &db,
+            "proc a {} { set x 11111 }\n\
+             proc b {} { set y 22222 }\n\
+             proc c {} { set z 33333 }\n"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let _ = compiler_check_diagnostics(&db, file);
+        assert_eq!(
+            summaries(&log),
+            3,
+            "cold build: every procedure's summary inference runs"
+        );
+
+        // Edit only `b`'s body — `a`/`c` summaries are cache hits; only `b`'s
+        // `proc_summary_cascade` re-executes (its `FnLatticeKey` changed).
+        file.set_text(&mut db).to("proc a {} { set x 11111 }\n\
+             proc b {} { set y 99999999 }\n\
+             proc c {} { set z 33333 }\n"
+            .to_owned());
+        let _ = compiler_check_diagnostics(&db, file);
+        assert_eq!(
+            summaries(&log),
+            1,
+            "unrelated body edit -> exactly ONE summary inference recomputes"
         );
     }
 

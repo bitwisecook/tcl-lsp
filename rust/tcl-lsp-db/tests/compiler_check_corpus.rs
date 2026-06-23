@@ -45,6 +45,32 @@ fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
     }
 }
 
+/// Focused regression for the SRV-INCREMENTAL 2b memo: `graphops.tcl`'s
+/// `::struct::graph::op::distance` tripped the debug fixpoint guard when the
+/// memoised `proc_summary_cascade` reconstructed only the *reachable* summaries
+/// — a resolved callee that was absent (rather than present-and-clean) made
+/// `propagate_taints` fall through to its conservative bare-argument join and
+/// over-taint.  Fast (one file), runs in debug so the guard is live.
+#[test]
+fn compiler_check_memo_matches_uncached_graphops() {
+    let dialect = "tcl8.6";
+    let path = repo_root().join("tmp/tcllib-2.0/modules/struct/graphops.tcl");
+    let Ok(src) = std::fs::read_to_string(&path) else {
+        eprintln!("skip: {} not present", path.display());
+        return;
+    };
+    let db = TclDatabase::default();
+    let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
+    let got = compiler_check_diagnostics(&db, file);
+    let registry = db.registry(dialect);
+    let want = compiler_check_diagnostics_uncached(&src, &registry, dialect);
+    assert_eq!(got.checks, want.checks, "graphops checks diverge (memo vs uncached)");
+    assert_eq!(
+        got.optimisations, want.optimisations,
+        "graphops optimisations diverge (memo vs uncached)"
+    );
+}
+
 #[test]
 #[ignore = "slow corpus sweep (~100s over tmp/); run with --ignored"]
 fn compiler_check_memo_matches_uncached_over_corpus() {
