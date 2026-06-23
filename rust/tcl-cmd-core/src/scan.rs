@@ -12,7 +12,11 @@
 //! Conversions: `%d`/`%i`/`%u`/`%o`/`%x`/`%b`/`%c`/`%s`/`%e`/`%f`/`%g`/`%[...]`/
 //! `%n`/`%%`, with `*` (suppress), a field width, and ignored size modifiers
 //! (`h`/`l`/`L`/…). Operates on Unicode code points (so `%c` and widths count
-//! characters).
+//! characters). The specifier *grammar* is shared
+//! ([`tcl_syntax::scan::parse_conversion`]); this module is the matcher and the
+//! cross-specifier validator that build on it.
+
+use tcl_syntax::scan::{CharSet, ScanConversion, parse_conversion};
 
 /// One scanned value, typed so each runtime builds its natural object
 /// (`%d`/`%x`/…→int, `%e`/`%f`/`%g`→double, `%s`/`%[`→string, `%c`→the code
@@ -49,24 +53,7 @@ pub struct ScanOutcome {
 /// `%n$`, an out-of-range / duplicated `%n$` index, a width on `%c`, an
 /// unterminated `%[`, a bad conversion character, and a variable/specifier count
 /// mismatch.
-#[allow(clippy::missing_panics_doc, clippy::too_many_lines)]
 pub fn validate_format(fmt: &[char], num_vars: usize) -> Result<usize, String> {
-    let flen = fmt.len();
-    // The code point at `i`, or `'\0'` past the end (C's `*format`).
-    let peek = |i: usize| if i < flen { fmt[i] } else { '\0' };
-    // Parse a decimal run starting at `start`, returning `(value, end_index)`.
-    let decimal = |start: usize| {
-        let mut j = start;
-        let mut val: u64 = 0;
-        while j < flen && fmt[j].is_ascii_digit() {
-            val = val
-                .saturating_mul(10)
-                .saturating_add(u64::from(fmt[j].to_digit(10).unwrap()));
-            j += 1;
-        }
-        (val, j)
-    };
-
     let mut nassign: Vec<u32> = vec![0; num_vars];
     let mut got_xpg = false;
     let mut got_sequential = false;
@@ -82,57 +69,38 @@ pub fn validate_format(fmt: &[char], num_vars: usize) -> Result<usize, String> {
             "different numbers of variable names and field specifiers".to_string()
         }
     };
-    let unmatched = || "unmatched [ in format string".to_string();
-    let bad_size = |c: char| format!("field size modifier may not be specified in %{c} conversion");
 
-    let mut i = 0usize;
-    while i < flen {
-        if fmt[i] != '%' {
-            i += 1;
+    let mut fi = 0;
+    while fi < fmt.len() {
+        if fmt[fi] != '%' {
+            fi += 1;
             continue;
         }
-        i += 1;
-        let mut ch = peek(i);
-        i += 1; // C advances even when it reads the terminating NUL
-        if ch == '%' {
+        fi += 1;
+        // Per-specifier grammar + validation (width on `%c`, bad verb, an
+        // unterminated `%[`, …) is the shared parser's job.
+        let conv = parse_conversion(fmt, &mut fi).map_err(|e| e.message())?;
+        if conv.verb == '%' {
             continue;
         }
 
-        let mut suppress = false;
-        let mut has_width = false;
-
-        if ch == '*' {
-            suppress = true;
-            ch = peek(i);
-            i += 1;
-        } else if ch.is_ascii_digit() {
-            // Possible XPG `%n$`. The run starts at the digit just read (`i - 1`).
-            let (val, end) = decimal(i - 1);
-            if peek(end) == '$' {
-                i = end + 1; // past the `$`
-                ch = peek(i);
-                i += 1;
-                got_xpg = true;
-                if got_sequential {
-                    return Err(mixed());
-                }
-                if val == 0 || val >= u64::from(u32::MAX) {
-                    return Err(bad_index(true));
-                }
-                obj_index = usize::try_from(val - 1).unwrap_or(usize::MAX);
-                if num_vars != 0 && obj_index >= num_vars {
-                    return Err(bad_index(true));
-                }
-                if num_vars == 0 {
-                    xpg_size = xpg_size.max(usize::try_from(val).unwrap_or(usize::MAX));
-                }
-            } else {
-                // Not XPG: this digit run is a width, reparsed below. `ch` stays
-                // the first digit and `i` stays just past it.
-                got_sequential = true;
-                if got_xpg {
-                    return Err(mixed());
-                }
+        // Cross-specifier rules: `%` and `%n$` cannot be mixed, and an XPG index
+        // is bounded by the variable count (or grows the inline total).
+        if let Some(idx) = conv.xpg_index {
+            got_xpg = true;
+            if got_sequential {
+                return Err(mixed());
+            }
+            // 0 and >= INT_MAX (9.0 supports < INT_MAX args) are out of range.
+            if idx == 0 || idx >= 2_147_483_647 {
+                return Err(bad_index(true));
+            }
+            obj_index = idx as usize - 1;
+            if num_vars != 0 && obj_index >= num_vars {
+                return Err(bad_index(true));
+            }
+            if num_vars == 0 {
+                xpg_size = xpg_size.max(idx as usize);
             }
         } else {
             got_sequential = true;
@@ -141,102 +109,10 @@ pub fn validate_format(fmt: &[char], num_vars: usize) -> Result<usize, String> {
             }
         }
 
-        // Width.
-        if ch.is_ascii_digit() {
-            let (_, end) = decimal(i - 1);
-            has_width = true;
-            i = end;
-            ch = peek(i);
-            i += 1;
-        }
-
-        // Size modifier (parsed and discarded, like the matching engine).
-        let mut longer_or_big = false;
-        match ch {
-            'z' | 't' | 'L' | 'j' | 'q' => {
-                longer_or_big = true;
-                ch = peek(i);
-                i += 1;
+        if !conv.suppress {
+            if num_vars != 0 && obj_index >= num_vars {
+                return Err(bad_index(got_xpg));
             }
-            'l' => {
-                longer_or_big = true;
-                if peek(i) == 'l' {
-                    i += 1;
-                }
-                ch = peek(i);
-                i += 1;
-            }
-            'h' => {
-                ch = peek(i);
-                i += 1;
-            }
-            _ => {}
-        }
-
-        if !suppress && num_vars != 0 && obj_index >= num_vars {
-            return Err(bad_index(got_xpg));
-        }
-
-        // Field type.
-        match ch {
-            'c' => {
-                if has_width {
-                    return Err("field width may not be specified in %c conversion".to_string());
-                }
-                if longer_or_big {
-                    return Err(bad_size('c'));
-                }
-            }
-            'n' | 's' => {
-                if longer_or_big {
-                    return Err(bad_size(ch));
-                }
-            }
-            'd' | 'e' | 'E' | 'f' | 'g' | 'G' | 'i' | 'o' | 'x' | 'X' | 'b' | 'u' => {}
-            '[' => {
-                if longer_or_big {
-                    return Err(bad_size('['));
-                }
-                // The set must terminate with `]`; a leading `]` (after an
-                // optional `^`) is a literal member, not the terminator.
-                if peek(i) == '\0' {
-                    return Err(unmatched());
-                }
-                ch = peek(i);
-                i += 1;
-                if ch == '^' {
-                    if peek(i) == '\0' {
-                        return Err(unmatched());
-                    }
-                    ch = peek(i);
-                    i += 1;
-                }
-                if ch == ']' {
-                    if peek(i) == '\0' {
-                        return Err(unmatched());
-                    }
-                    ch = peek(i);
-                    i += 1;
-                }
-                while ch != ']' {
-                    if peek(i) == '\0' {
-                        return Err(unmatched());
-                    }
-                    ch = peek(i);
-                    i += 1;
-                }
-            }
-            other => {
-                let shown = if other == '\0' {
-                    String::new()
-                } else {
-                    other.to_string()
-                };
-                return Err(format!("bad scan conversion character \"{shown}\""));
-            }
-        }
-
-        if !suppress {
             if obj_index >= nassign.len() {
                 nassign.resize(obj_index + 1, 0);
             }
@@ -292,52 +168,35 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
             }
             break; // literal mismatch
         }
-        // A conversion specifier.
+        // A conversion specifier — parsed through the shared grammar (the
+        // runtime rejects malformed formats before matching, so a parse error
+        // here just stops the scan).
         fi += 1;
-        if fi >= fmt.len() {
+        let mut ci = fi;
+        let Ok(conv) = parse_conversion(fmt, &mut ci) else {
             break;
-        }
-        if fmt[fi] == '%' {
+        };
+        fi = ci;
+
+        // `%%` matches a literal `%`.
+        if conv.verb == '%' {
             if ii < input.len() && input[ii] == '%' {
                 ii += 1;
-                fi += 1;
                 continue;
             }
             break;
         }
-        let mut suppress = false;
-        if fmt[fi] == '*' {
-            suppress = true;
-            fi += 1;
-        }
-        let mut width = 0usize;
-        let mut has_width = false;
-        while fi < fmt.len() && fmt[fi].is_ascii_digit() {
-            has_width = true;
-            width = width * 10 + fmt[fi].to_digit(10).unwrap_or(0) as usize;
-            fi += 1;
-        }
-        // Ignore size modifiers (we scan into i64/f64).
-        while fi < fmt.len() && matches!(fmt[fi], 'h' | 'l' | 'L' | 'q' | 'j' | 'z' | 't') {
-            fi += 1;
-        }
-        if fi >= fmt.len() {
-            break;
-        }
-        let conv = fmt[fi];
-        fi += 1;
-
         // `%n` reports the characters consumed so far; it doesn't consume input
         // or count as a conversion.
-        if conv == 'n' {
-            if !suppress {
+        if conv.verb == 'n' {
+            if !conv.suppress {
                 values.push(Some(Scanned::Int(i64::try_from(ii).unwrap_or(i64::MAX))));
             }
             continue;
         }
 
         // Most conversions skip leading whitespace; `%c` and `%[` do not.
-        if !matches!(conv, 'c' | '[') {
+        if !matches!(conv.verb, 'c' | '[') {
             while ii < input.len() && input[ii].is_whitespace() {
                 ii += 1;
             }
@@ -346,15 +205,14 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
             eof_before_conv = true;
         }
 
-        let field_max = if has_width { width } else { usize::MAX };
-        if let Some(v) = scan_one(input, &mut ii, conv, field_max, fmt, &mut fi) {
-            if !suppress {
+        if let Some(v) = scan_one(input, &mut ii, &conv) {
+            if !conv.suppress {
                 values.push(Some(v));
                 nconv += 1;
             }
         } else {
             // Conversion failed: stop. Inline mode keeps a hole.
-            if !suppress {
+            if !conv.suppress {
                 values.push(None);
             }
             break;
@@ -368,17 +226,11 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
     }
 }
 
-/// Scan one field for `conv`, advancing `ii`. Returns the typed value, or
-/// `None` if nothing valid was read. `fi` is advanced past a `%[...]` set.
-fn scan_one(
-    input: &[char],
-    ii: &mut usize,
-    conv: char,
-    width: usize,
-    fmt: &[char],
-    fi: &mut usize,
-) -> Option<Scanned> {
-    match conv {
+/// Scan one field for the parsed `conv`, advancing `ii`. Returns the typed
+/// value, or `None` if nothing valid was read.
+fn scan_one(input: &[char], ii: &mut usize, conv: &ScanConversion) -> Option<Scanned> {
+    let width = conv.width.unwrap_or(usize::MAX);
+    match conv.verb {
         'c' => {
             // One character → its code point. (No width, no whitespace skip.)
             if *ii >= input.len() {
@@ -406,7 +258,7 @@ fn scan_one(
             Some(Scanned::Str(input[start..*ii].iter().collect()))
         }
         'e' | 'E' | 'f' | 'g' | 'G' => scan_float(input, ii, width),
-        '[' => scan_set(input, ii, width, fmt, fi),
+        '[' => scan_set(input, ii, width, conv.charset.as_ref()?),
         _ => None, // unknown conversion
     }
 }
@@ -541,53 +393,13 @@ fn scan_float(input: &[char], ii: &mut usize, width: usize) -> Option<Scanned> {
     Some(Scanned::Double(val))
 }
 
-/// `%[...]`: a run of characters in (or, with a leading `^`, not in) the set.
-/// `fi` points just past the `[`; it is advanced past the closing `]`.
-fn scan_set(
-    input: &[char],
-    ii: &mut usize,
-    width: usize,
-    fmt: &[char],
-    fi: &mut usize,
-) -> Option<Scanned> {
-    let mut negate = false;
-    if *fi < fmt.len() && fmt[*fi] == '^' {
-        negate = true;
-        *fi += 1;
-    }
-    // Collect set members (a `]` immediately after `[`/`[^` is a literal member).
-    let mut members: Vec<char> = Vec::new();
-    let mut ranges: Vec<(char, char)> = Vec::new();
-    let mut first = true;
-    while *fi < fmt.len() {
-        let c = fmt[*fi];
-        if c == ']' && !first {
-            *fi += 1;
-            break;
-        }
-        first = false;
-        // A range `a-z` (but not a trailing `-`).
-        if *fi + 2 < fmt.len() && fmt[*fi + 1] == '-' && fmt[*fi + 2] != ']' {
-            ranges.push((c, fmt[*fi + 2]));
-            *fi += 3;
-        } else {
-            members.push(c);
-            *fi += 1;
-        }
-    }
-    let in_set = |c: char| {
-        members.contains(&c)
-            || ranges
-                .iter()
-                .any(|&(a, b)| (a..=b).contains(&c) || (b..=a).contains(&c))
-    };
+/// `%[...]`: a run of characters matching the already-parsed `set` (its `^`
+/// negation handled by [`CharSet::matches`]).
+fn scan_set(input: &[char], ii: &mut usize, width: usize, set: &CharSet) -> Option<Scanned> {
     let start = *ii;
     let mut n = 0;
     while *ii < input.len() && n < width {
-        let c = input[*ii];
-        // Stop at the first character whose membership doesn't match the set's
-        // polarity (`negate` flips it for `%[^...]`).
-        if in_set(c) == negate {
+        if !set.matches(input[*ii]) {
             break;
         }
         *ii += 1;
