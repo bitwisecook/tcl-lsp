@@ -1136,18 +1136,21 @@ unit tests):
 - **`tcl-registry::bigip`** — object-kind resolution (`kind_for_header`
   round-trip + module disambiguation; `candidate_registry_kinds_for_display`
   exact-vs-family fan-out). 2 cases. ⇐ `test_bigip_object_registry.py`.
+- **`tcl-bigip::graph`** — `build_bigip_object_graph` forward edges: a virtual
+  links to its pool (legacy ObjectRef path) and its iRule (`rules { }` pilot
+  list path), attributed to the originating property; sources without a config
+  are skipped. 2 cases. ⇐ `test_bigip_link_extract.py`.
+- **`tcl-registry::commands::tk`** — `tk_command_specs()` table integrity
+  (non-empty names, no duplicates, core widget/geometry/window commands
+  present). 1 case. ⇐ `test_tk_registry.py`.
 
 Integration-covered, thin *unit* coverage (tracked follow-ups — behaviour is
 already exercised by a differential/parity harness, so these stay **Ported**):
 
-- `tcl-bigip::graph` (`build_bigip_object_graph`) — covered by the parser
-  differential (`test_bigip_rust_parity.py`) + the `f5-cli` graph consumers;
-  no in-module `mod tests`.
 - `tcl-bigip::flow::sessions` / `policy_eval` action traces — covered by
   `f5-cli/tests/explain_flow_parity.rs`.
-- `tcl-bigip-query::probes::tls` — offline cert-parse / x509-eq; thin.
-- `tcl-registry::commands::tk` — `tk_command_specs()` data present, coarse
-  registry coverage only.
+- `tcl-bigip-query::probes::tls` — offline cert-parse / x509-eq; thin (the
+  live-TLS-server arm is Deferred(TOOL-F5)).
 
 Not portable yet → correctly **Deferred** (the Rust replacement does not exist
 in any landed crate, so there is nothing to unit-test): `proc_fingerprint`
