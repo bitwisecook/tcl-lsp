@@ -23,6 +23,9 @@
 //!   setuptools-scm / hatch-vcs project version from `git describe`.
 //! - `tzdata-bundle` — port of `scripts/build/tzdata_bundle.py`: pack the
 //!   curated tzdata `TZBL` bundle for the WASM runtime.
+//! - `audit-option-dialects` — port of
+//!   `scripts/check/audit_option_dialects.py`: probe `OptionSpec` dialect
+//!   gates against real tclsh 8.4/8.5/8.6/9.0.
 
 #![forbid(unsafe_code)]
 
@@ -31,6 +34,7 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 
+mod audit_option_dialects;
 mod kcs_index_links;
 mod refcount_contract;
 mod tzdata_bundle;
@@ -83,6 +87,11 @@ enum Command {
         #[arg(long, value_name = "EPOCH")]
         trim_to: Option<i64>,
     },
+
+    /// Probe `OptionSpec` dialect gates against real tclsh 8.4/8.5/8.6/9.0.
+    ///
+    /// Port of `scripts/check/audit_option_dialects.py`.
+    AuditOptionDialects,
 }
 
 fn main() -> anyhow::Result<ExitCode> {
@@ -96,5 +105,6 @@ fn main() -> anyhow::Result<ExitCode> {
             trim_from,
             trim_to,
         } => tzdata_bundle::run(&zoneinfo, &output, trim_from, trim_to),
+        Command::AuditOptionDialects => audit_option_dialects::run(),
     }
 }

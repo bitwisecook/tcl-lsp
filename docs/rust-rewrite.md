@@ -1245,20 +1245,27 @@ final track** — every consumer above must port first.
   while the Python layer ships.
 - **partial** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
   Python toolchain dependency). The `rust/xtask` crate + `cargo xtask` alias
-  scaffold **landed**, with four scripts ported and parity-checked against the
+  scaffold **landed**, with five scripts ported and parity-checked against the
   Python originals: `refcount-contract` (⇐ `scripts/check/refcount_contract.py`)
   and `kcs-index-links` (⇐ `scripts/check/kcs_index_links.py`) — byte-for-byte
   identical stdout/stderr + exit codes; `version` (⇐ `scripts/print_version.py`),
   whose `git describe` → setuptools-scm scheme is unit-pinned against real
-  `setuptools_scm` outputs; and `tzdata-bundle` (⇐
+  `setuptools_scm` outputs; `tzdata-bundle` (⇐
   `scripts/build/tzdata_bundle.py`), whose packed `TZBL` artifact is byte-for-byte
   identical for both the verbatim and `--trim`-window paths (the `TZif` v1
-  trimmer included). Remaining: port the other build-artifact scripts
-  (`build/{kcs_db,zipapps}.py` — SQLite / zipapp builders) and the
-  environment-coupled audits (`check/audit_option_dialects.py`,
-  `check/wasm_command_parity.py`), then flip the Makefile/CI invocations and
-  retire the Python originals. (`bigip_kind_differential.py` stays Python — it
-  is a Python-vs-Rust differential oracle, not a toolchain script.)
+  trimmer included); and `audit-option-dialects` (⇐
+  `scripts/check/audit_option_dialects.py`), which probes every `OptionSpec`
+  dialect gate against the built tclsh 8.4/8.5/8.6/9.0 trees — the
+  `tmp/option_dialect_audit.json` artifact **and** the console log are
+  byte-for-byte identical to the Python (verified against the one tclsh tree
+  built in the dev env; a hand-rolled `json.dumps(indent=2)` emitter and a
+  `repr()`-faithful diagnostic formatter keep the bytes exact, and the probe
+  table / version order are transcribed 1:1). Remaining: port the other
+  build-artifact scripts (`build/{kcs_db,zipapps}.py` — SQLite / zipapp
+  builders) and the environment-coupled `check/wasm_command_parity.py`, then
+  flip the Makefile/CI invocations and retire the Python originals.
+  (`bigip_kind_differential.py` stays Python — it is a Python-vs-Rust
+  differential oracle, not a toolchain script.)
 - **open** PYTHON-RETIRE — delete `compiler/`, `analyser/`, `server/`, and the
   ported `tooling/` subtrees once their consumers are Rust. `ai/` (MCP server +
   Claude skills) stays Python by design.
