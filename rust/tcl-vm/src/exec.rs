@@ -281,6 +281,18 @@ fn imm_index_value(v: &Value, len: usize) -> isize {
     crate::command::resolve_index(&v.to_str(), len).unwrap_or(-1)
 }
 
+/// Resolve a runtime index value, erroring on a non-integer spec (`bad index`)
+/// — the validating form used by the inline `linsert`/`lreplace` opcode, so the
+/// compiled path rejects `linsert a b` like the command does (linsert-2.2).
+fn checked_index_value(v: &Value, len: usize) -> Result<isize, Completion<Value>> {
+    let s = v.to_str();
+    crate::command::resolve_index(&s, len).ok_or_else(|| {
+        err(format!(
+            "bad index \"{s}\": must be integer?[+-]integer? or end?[+-]integer?"
+        ))
+    })
+}
+
 /// List element at signed index, or empty when out of range.
 fn get_at(items: &[Value], i: isize) -> Value {
     usize::try_from(i)
@@ -1148,8 +1160,20 @@ impl Vm {
                         let nlen = isize::try_from(n).unwrap_or(isize::MAX);
                         if mode == 1 {
                             // lreplace: list first last ?elem ...?
-                            let first = vals.get(1).map_or(0, |v| imm_index_value(v, n)).max(0);
-                            let last = vals.get(2).map_or(-1, |v| imm_index_value(v, n));
+                            let first = match vals.get(1) {
+                                Some(v) => match checked_index_value(v, n) {
+                                    Ok(i) => i.max(0),
+                                    Err(c) => return Tick::Return(c),
+                                },
+                                None => 0,
+                            };
+                            let last = match vals.get(2) {
+                                Some(v) => match checked_index_value(v, n) {
+                                    Ok(i) => i,
+                                    Err(c) => return Tick::Return(c),
+                                },
+                                None => -1,
+                            };
                             let new_elems = vals.get(3..).unwrap_or(&[]);
                             let fu = usize::try_from(first).unwrap_or(0).min(n);
                             let mut r = items[..fu].to_vec();
@@ -1164,7 +1188,13 @@ impl Vm {
                             r
                         } else {
                             // linsert: list index ?elem ...? ("end" → after last).
-                            let idx = vals.get(1).map_or(0, |v| imm_index_value(v, n + 1));
+                            let idx = match vals.get(1) {
+                                Some(v) => match checked_index_value(v, n + 1) {
+                                    Ok(i) => i,
+                                    Err(c) => return Tick::Return(c),
+                                },
+                                None => 0,
+                            };
                             let idx = usize::try_from(idx.max(0)).unwrap_or(0).min(n);
                             let new_elems = vals.get(2..).unwrap_or(&[]);
                             let mut r = items[..idx].to_vec();
