@@ -116,3 +116,87 @@ pub fn pair_sessions(flows: &IndexMap<FlowKey, Flow>) -> Vec<Session> {
     }
     sessions
 }
+
+#[cfg(test)]
+mod tests {
+    use indexmap::IndexMap;
+
+    use super::super::model::{Flow, FlowKey};
+    use super::{pair_connections, pair_sessions};
+
+    fn flow(src: &str, sp: u16, dst: &str, dp: u16) -> Flow {
+        Flow::new(src.into(), sp, dst.into(), dp, 6)
+    }
+
+    #[test]
+    fn pair_connections_pairs_opposite_flows_with_syn_bearer_as_client() {
+        let mut client = flow("10.0.0.1", 1000, "10.0.0.2", 80);
+        client.tcp_syn = true;
+        client.packets = 5;
+        let mut server = flow("10.0.0.2", 80, "10.0.0.1", 1000);
+        server.tcp_synack = true;
+        server.packets = 4;
+
+        let mut flows: IndexMap<FlowKey, Flow> = IndexMap::new();
+        // Insert the server side first to show the SYN-bearer still wins.
+        flows.insert(server.key(), server.clone());
+        flows.insert(client.key(), client.clone());
+
+        let conns = pair_connections(&flows);
+        assert_eq!(conns.len(), 1);
+        assert_eq!(conns[0].client.src_port, 1000, "the SYN-bearer is the client");
+        assert_eq!(
+            conns[0].server.as_ref().map(|s| s.src_port),
+            Some(80),
+            "the reverse flow becomes the server"
+        );
+    }
+
+    #[test]
+    fn pair_connections_leaves_orphans_without_a_server() {
+        let mut only = flow("10.0.0.1", 1000, "10.0.0.2", 80);
+        only.tcp_syn = true;
+        let mut flows: IndexMap<FlowKey, Flow> = IndexMap::new();
+        flows.insert(only.key(), only.clone());
+        let conns = pair_connections(&flows);
+        assert_eq!(conns.len(), 1);
+        assert!(conns[0].server.is_none(), "no reverse flow → server is None");
+    }
+
+    #[test]
+    fn pair_sessions_links_front_and_back_via_peer_trailer() {
+        // A front-side client flow whose F5 trailer peer-tuple points at the
+        // back-side connection's client 5-tuple.
+        let mut front = flow("10.0.0.1", 1000, "10.0.0.2", 80);
+        front.tcp_syn = true;
+        front.peer_local_ip = "172.16.0.1".into();
+        front.peer_local_port = 5000;
+        front.peer_remote_ip = "192.168.1.1".into();
+        front.peer_remote_port = 443;
+        // The back connection's client flow, keyed exactly by that peer-tuple.
+        let mut back = flow("172.16.0.1", 5000, "192.168.1.1", 443);
+        back.tcp_syn = true;
+
+        let mut flows: IndexMap<FlowKey, Flow> = IndexMap::new();
+        flows.insert(front.key(), front.clone());
+        flows.insert(back.key(), back.clone());
+
+        let sessions = pair_sessions(&flows);
+        assert_eq!(sessions.len(), 1, "front and back fold into one session");
+        let s = &sessions[0];
+        assert_eq!(s.front.client.dst_port, 80);
+        let back_conn = s.back.as_ref().expect("back side is linked");
+        assert_eq!(back_conn.client.src_ip, "172.16.0.1");
+    }
+
+    #[test]
+    fn pair_sessions_without_peer_info_has_no_back() {
+        let mut lone = flow("10.0.0.1", 1000, "10.0.0.2", 80);
+        lone.tcp_syn = true;
+        let mut flows: IndexMap<FlowKey, Flow> = IndexMap::new();
+        flows.insert(lone.key(), lone.clone());
+        let sessions = pair_sessions(&flows);
+        assert_eq!(sessions.len(), 1);
+        assert!(sessions[0].back.is_none());
+    }
+}
