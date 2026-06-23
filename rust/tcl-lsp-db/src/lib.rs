@@ -1351,14 +1351,15 @@ pub fn compiler_check_diagnostics_uncached(
 }
 
 /// Document outline — wraps `document_symbols_from_analysis`, reusing the
-/// tracked [`file_analysis`].
+/// tracked [`file_analysis_incremental`] so the outline shares the per-item
+/// memoised analysis with the push-diagnostics path in the same edit.
 #[salsa::tracked]
 pub fn document_symbols(
-    db: &dyn salsa::Database,
+    db: &dyn TclDb,
     file: SourceFile,
     config: AnalyserConfig,
 ) -> Vec<DocumentSymbol> {
-    let analysis = file_analysis(db, file, config);
+    let analysis = file_analysis_incremental(db, file, config);
     tcl_lsp_core::document_symbols::document_symbols_from_analysis(file.text(db), &analysis)
 }
 

@@ -7,9 +7,10 @@
 //!
 //! - **Green** (this module) is *position-independent*: a node knows
 //!   only its *width* and its children, never an absolute offset.  Two
-//!   structurally identical regions (e.g. two empty `{}` words) are
-//!   structurally equal, and a green subtree is reusable verbatim across
-//!   edits.
+//!   structurally identical regions (e.g. two empty `{}` words) compare
+//!   equal by value, so a tree can be diffed or memoised by shape.
+//!   Children are held inline by value (`Vec<GreenElement>`); the layer
+//!   does not pointer-share subtrees, so there is no cross-edit reuse.
 //! - **Red** ([`super::super::syntax`]) overlays a green tree
 //!   with an anchoring and resolves absolute positions lazily,
 //!   reproducing exactly the `Token` offsets/lines/columns the lexer
