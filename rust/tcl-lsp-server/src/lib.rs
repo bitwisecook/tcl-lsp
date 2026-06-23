@@ -1178,35 +1178,6 @@ impl Backend {
         .unwrap_or_default()
     }
 
-    /// Recompute the analysis with W123 (unknown-command) **forced on**, off the
-    /// event loop — used by the pull diagnostics path when the user disabled W123
-    /// so the cross-file arity pass still sees the unknown-command sites it keys
-    /// off (the caller drops the W123s from the resolved output).  Returns `None`
-    /// when `need` is false (the caller uses the existing analysis) or the worker
-    /// fails.  Mirrors `project_diagnostics`'s `file_analysis_w123_forced`.
-    async fn xc_forced_analysis(
-        &self,
-        need: bool,
-        text: &str,
-        dialect: &str,
-        disabled: &HashSet<String>,
-        non_ascii_mode: NonAsciiMode,
-    ) -> Option<AnalysisResult> {
-        if !need {
-            return None;
-        }
-        let (t, d) = (text.to_owned(), dialect.to_owned());
-        let mut dis = disabled.clone();
-        dis.remove("W123");
-        tokio::task::spawn_blocking(move || {
-            Backend::configured_analyser(dis, non_ascii_mode)
-                .analyse(&t, &d)
-                .clone()
-        })
-        .await
-        .ok()
-    }
-
     /// Return a snapshot of the current workspace folder
     /// URLs.  Used by cross-document features (workspace
     /// symbols, cross-doc references / rename / call-
@@ -2877,7 +2848,7 @@ impl Backend {
         dialect: String,
         language_id: &str,
     ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
-        let (disabled, non_ascii_mode, optimiser_enabled, opt_disabled) =
+        let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
         // F5 dialect dispatch (FE-DIAG-F5): BIG-IP config / iApp APL
         // presentation documents have model-level validators, not the Tcl
@@ -2935,36 +2906,18 @@ impl Backend {
         };
 
         let xc_for_irules = dialect == "f5-irules" && xc_on;
-        // Cross-file arity must stay independent of the W123 toggle (matching the
-        // push path / `project_diagnostics`): if W123 is disabled the analysis lacks
-        // the unknown-command markers the arity pass keys off, so recompute with
-        // W123 forced on (off the event loop), then drop the W123s afterwards.
-        let w123_disabled = disabled.contains("W123");
-        let forced_analysis = self
-            .xc_forced_analysis(
-                project_arities.is_some() && w123_disabled,
-                &text,
-                &dialect,
-                &disabled,
-                non_ascii_mode,
-            )
-            .await;
-        let xc_src: &AnalysisResult = forced_analysis.as_ref().unwrap_or(&analysis);
-        // Cross-file resolution (Task 6) — W123 suppression + E002/E003 arity, matching
-        // the push path.
+        // Cross-file resolution (Task 6) — W123 suppression + E002/E003 arity,
+        // matching the push path.  Arity keys off `unresolved_command_sites`, which
+        // the analyser records regardless of the W123 toggle, so disabling W123
+        // does not also silence cross-file arity.
         let analyser_diags = match &project_arities {
-            Some(arities) => {
-                let mut resolved = tcl_lsp_db::apply_cross_file_resolution(
-                    &xc_src.diagnostics,
-                    &xc_src.command_invocations,
-                    arities,
-                    |code| disabled.contains(code),
-                );
-                if w123_disabled {
-                    resolved.retain(|d| d.code != "W123");
-                }
-                resolved
-            }
+            Some(arities) => tcl_lsp_db::apply_cross_file_resolution(
+                &analysis.diagnostics,
+                &analysis.unresolved_command_sites,
+                &analysis.command_invocations,
+                arities,
+                |code| disabled.contains(code),
+            ),
             None => analysis.diagnostics.clone(),
         };
         tokio::task::spawn_blocking(move || {
@@ -3476,6 +3429,14 @@ impl LanguageServer for Backend {
         // safe to call here.
         if !params.event.added.is_empty() {
             self.scan_workspace_folders().await;
+        }
+        // A folder add/remove shifts the salsa `Project` (and the cross-file
+        // resolution domain) without an open document's own edit, so reschedule
+        // open documents with cross-file diagnostics enabled — otherwise a
+        // push-diagnostic client keeps a stale suppressed-W123 / cross-file arity
+        // from a now-removed (or newly-added) folder.  Mirrors `did_change_watched_files`.
+        if !removed.is_empty() || !params.event.added.is_empty() {
+            self.reschedule_xc_open_documents().await;
         }
         // Per-folder config may differ between roots; re-pull so the resolved
         // settings reflect the new folder set.
@@ -8098,6 +8059,44 @@ mod tests {
                 .await
                 .iter()
                 .any(|f| f.as_str() == "file:///proj-a"),
+        );
+    }
+
+    /// Removing a workspace folder shifts the salsa `Project` without an open
+    /// document's own edit, so open documents with cross-file diagnostics enabled
+    /// must be rescheduled (matching the watched-file path) — otherwise a
+    /// push-diagnostic client keeps stale cross-file results.  Regression for Codex
+    /// review on #692.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn folder_removal_reschedules_open_xc_documents() {
+        let backend = test_backend();
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+        let caller = Url::parse("file:///proj/caller.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            caller.clone(),
+            DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        *backend.workspace_folders.lock().await = vec![Url::parse("file:///proj").unwrap()];
+
+        backend
+            .did_change_workspace_folders(DidChangeWorkspaceFoldersParams {
+                event: tower_lsp::lsp_types::WorkspaceFoldersChangeEvent {
+                    added: Vec::new(),
+                    removed: vec![tower_lsp::lsp_types::WorkspaceFolder {
+                        uri: Url::parse("file:///proj").unwrap(),
+                        name: "proj".to_owned(),
+                    }],
+                },
+            })
+            .await;
+
+        assert!(
+            backend.diag_slots.lock().await.contains_key(&caller),
+            "an open xcDiagnostics document must be rescheduled after a folder removal",
         );
     }
 

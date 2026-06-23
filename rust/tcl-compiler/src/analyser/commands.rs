@@ -879,7 +879,7 @@ impl Analyser {
         // immutable source borrow has ended.
         let heads = {
             let sm = SourceMap::new(&self.source);
-            let mut heads: Vec<(String, Span)> = Vec::new();
+            let mut heads: Vec<(String, Span, Option<usize>)> = Vec::new();
             // `arg_tok` is the *merged* argv token.  For a compound word
             // whose first fragment is a `[…]` substitution (`[foo]bar`,
             // `[foo]$x`, `[foo]bar[baz]`), `segments_from_tree` widens the
@@ -1135,25 +1135,27 @@ impl Analyser {
         let config = self.lexer_config();
         let heads = {
             let sm = SourceMap::new(&self.source);
-            let mut heads: Vec<(String, Span)> = Vec::new();
+            let mut heads: Vec<(String, Span, Option<usize>)> = Vec::new();
             collect_expr_substitutions(&sm, self.registry.as_ref(), expr_tok, config, &mut heads);
             heads
         };
         self.push_collected_heads(heads);
     }
 
-    /// Resolve each collected `(name, span)` head to a qualified name and
-    /// push it as a `command_invocations` entry.
-    fn push_collected_heads(&mut self, heads: Vec<(String, Span)>) {
-        for (name, range) in heads {
+    /// Resolve each collected `(name, span, argc)` head to a qualified name and
+    /// push it as a `command_invocations` entry.  `argc` carries the nested call's
+    /// statically-known argument count (`None` when `{*}`-expanded), so a wrong-arg
+    /// call to a cross-file proc *inside a substitution* (`set x [helper a b c]`)
+    /// still draws the cross-file arity error.
+    fn push_collected_heads(&mut self, heads: Vec<(String, Span, Option<usize>)>) {
+        for (name, range, argc) in heads {
             let resolved = self.resolve_command_qualified_name(&name);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name,
                     range,
                     resolved_qualified_name: Some(resolved),
-                    // Collected head with no recorded argument list — arity skip.
-                    argc: None,
+                    argc,
                 },
             );
         }
@@ -1350,12 +1352,27 @@ impl Analyser {
 /// each command is then handled by [`record_command_invocations`].
 /// Spans are absolute (the descent anchors the child tree at the
 /// substitution's position).
+/// Statically-known argument count of a segmented command for the cross-file
+/// arity check: `None` when any argument word is `{*}`-expanded (runtime count
+/// unknown), else the literal argument count (`argv` minus the head).  Mirrors the
+/// top-level `process_command` / signature-walker `argc` derivation.
+fn segment_argc(seg: &SegmentedCommand) -> Option<usize> {
+    if seg
+        .expand_word
+        .as_ref()
+        .is_some_and(|e| e.iter().skip(1).any(|&x| x))
+    {
+        return None;
+    }
+    Some(seg.argv.len().saturating_sub(1))
+}
+
 fn collect_substitution_heads(
     sm: &SourceMap<'_>,
     registry: Option<&CommandRegistry>,
     cmd_tok: Token,
     config: LexerConfig,
-    out: &mut Vec<(String, Span)>,
+    out: &mut Vec<(String, Span, Option<usize>)>,
 ) {
     if cmd_tok.kind != TokenType::Cmd || sm.token_text(cmd_tok).is_empty() {
         return;
@@ -1386,7 +1403,7 @@ fn record_command_invocations(
     registry: Option<&CommandRegistry>,
     seg: &SegmentedCommand,
     config: LexerConfig,
-    out: &mut Vec<(String, Span)>,
+    out: &mut Vec<(String, Span, Option<usize>)>,
 ) {
     // Head — main records ``argv_texts[0]`` (the `word_piece` form in
     // `texts[0]`) for *every* command, whatever the head's kind: a bare
@@ -1396,7 +1413,7 @@ fn record_command_invocations(
     if let (Some(&head), Some(name)) = (seg.argv.first(), seg.texts.first())
         && !name.is_empty()
     {
-        out.push((name.clone(), head.span));
+        out.push((name.clone(), head.span, segment_argc(seg)));
     }
     // Nested ``[...]`` substitutions in any position (args, or embedded
     // in a quoted word — both are `Cmd` tokens in the command's token
@@ -1471,7 +1488,7 @@ fn collect_expr_substitutions(
     registry: Option<&CommandRegistry>,
     expr_tok: Token,
     config: LexerConfig,
-    out: &mut Vec<(String, Span)>,
+    out: &mut Vec<(String, Span, Option<usize>)>,
 ) {
     if expr_tok.kind != TokenType::Str || sm.token_text(expr_tok).is_empty() {
         return;
