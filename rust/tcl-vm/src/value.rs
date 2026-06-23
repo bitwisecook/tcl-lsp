@@ -159,6 +159,38 @@ impl Value {
         Err(TclError::new(format!("expected integer but got \"{s}\"")))
     }
 
+    /// The value as a 128-bit integer, parsing an out-of-`i64`-range integer
+    /// literal whose magnitude fits `i128`. This is the VM's bounded stand-in
+    /// for Tcl's arbitrary-precision integers: it covers the common large-value
+    /// range (`2**70`, `10**21`, …) so `expr`/`mathop` arithmetic promotes on
+    /// `i64` overflow instead of wrapping. `None` for non-integers or magnitudes
+    /// beyond `i128`.
+    #[must_use]
+    pub fn as_i128(&self) -> Option<i128> {
+        if let Ok(n) = self.as_int() {
+            return Some(i128::from(n));
+        }
+        let s = self.to_str();
+        if let Some(Number::Big {
+            negative,
+            radix,
+            digits,
+        }) = number::parse_whole(s.trim())
+        {
+            let base = radix as u32;
+            let mut acc: u128 = 0;
+            for ch in digits.chars() {
+                let d = ch.to_digit(base)?;
+                acc = acc
+                    .checked_mul(u128::from(base))?
+                    .checked_add(u128::from(d))?;
+            }
+            let mag = i128::try_from(acc).ok()?;
+            return Some(if negative { -mag } else { mag });
+        }
+        None
+    }
+
     /// The value as a double (`Tcl_GetDoubleFromObj`).
     pub fn as_double(&self) -> Result<f64, TclError> {
         match &*self.0.intrep.borrow() {

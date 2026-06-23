@@ -189,6 +189,23 @@ fn compiled_linsert_rejects_bad_index() {
     assert_eq!(result, "a b c X");
 }
 
+/// Integer `expr` arithmetic promotes to i128 on i64 overflow instead of
+/// wrapping (the VM's bounded stand-in for Tcl bignums), covering the common
+/// large-value range that `expr`/`mathop` exercise.
+#[test]
+fn integer_arithmetic_promotes_on_overflow() {
+    for (e, want) in [
+        ("9223372036854775807 + 1", "9223372036854775808"),
+        ("2 ** 70", "1180591620717411303424"),
+        ("1000000000000000000000 + 5", "1000000000000000000005"),
+        ("100000000000 * 100000000000", "10000000000000000000000"),
+    ] {
+        let (ok, result, _) = run(&format!("expr {{{e}}}"));
+        assert!(ok, "`{e}` should evaluate: {result}");
+        assert_eq!(result, want, "expr {{{e}}}");
+    }
+}
+
 /// Unary minus of `9223372036854775808` (the magnitude 2^63, which overflows a
 /// positive wide) yields the most-negative wide — C narrows `-2^63`. This
 /// unblocks indexObj.test, whose `-result [expr {… ? -9223372036854775808 :
