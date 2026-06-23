@@ -191,7 +191,7 @@ fn eval(node: &Node, info_script: Option<&str>) -> Option<String> {
     }
 }
 
-/// Posix `os.path.dirname` — everything up to (not including) the last
+/// POSIX path dirname — everything up to (not including) the last
 /// `/`, collapsing trailing slashes on the head unless it is all
 /// slashes (the root).
 fn posix_dirname(p: &str) -> String {
@@ -204,7 +204,7 @@ fn posix_dirname(p: &str) -> String {
     }
 }
 
-/// Posix `os.path.join` — a later absolute component resets the
+/// POSIX path join — a later absolute component resets the
 /// accumulator; otherwise components are joined with a single `/`.
 fn posix_join(parts: &[String]) -> String {
     let mut result = parts[0].clone();
@@ -221,7 +221,7 @@ fn posix_join(parts: &[String]) -> String {
     result
 }
 
-/// Posix `os.path.expanduser` for the bare `~` and `~/…` forms; a
+/// POSIX path tilde-expansion for the bare `~` and `~/…` forms; a
 /// `~user` form is left unchanged (no passwd lookup).  `~` expands to
 /// `$HOME` when set.
 fn expanduser(p: &str) -> String {
@@ -239,7 +239,7 @@ fn expanduser(p: &str) -> String {
     p.to_owned()
 }
 
-/// Posix `os.path.abspath` — make `p` absolute against the current
+/// POSIX path absolutisation — make `p` absolute against the current
 /// working directory, then normalise (`.` / `..` / `//`).
 fn abspath(p: &str) -> String {
     let joined = if p.starts_with('/') {

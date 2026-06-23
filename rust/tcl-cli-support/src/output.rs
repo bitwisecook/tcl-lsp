@@ -76,7 +76,7 @@ pub fn write_binary_output(target: &OutputTarget, payload: &[u8]) -> Result<(), 
 /// Write Tcl source, optionally colourised, with faithful tab handling
 ///
 /// When writing to stdout with `tab_width > 0`, tabs are expanded to spaces
-/// just as `str.expandtabs` does — and, in the fixed order, this happens
+/// using tab-stop semantics — and, in the fixed order, this happens
 /// *before* ANSI highlighting (so escape codes don't shift the tab stops). The
 /// `highlight` verb uses the opposite order; see its handler.
 pub fn write_highlighted_output(
@@ -96,9 +96,8 @@ pub fn write_highlighted_output(
     write_text_output(target, &rendered)
 }
 
-/// Expand tab characters to spaces using tab-stop semantics identical to
-/// `str.expandtabs(tabsize)`: a tab advances to the next multiple of
-/// `tabsize`; column resets on `\n`/`\r`.
+/// Expand tab characters to spaces using tab-stop semantics: a tab advances
+/// to the next multiple of `tabsize`; column resets on `\n`/`\r`.
 #[must_use]
 pub fn expand_tabs(text: &str, tabsize: usize) -> String {
     let mut out = String::with_capacity(text.len());
@@ -128,7 +127,7 @@ pub fn expand_tabs(text: &str, tabsize: usize) -> String {
 }
 
 /// Escape non-ASCII characters as `\uXXXX` (with surrogate pairs for astral
-/// code points), matching `json.dumps(..., ensure_ascii=True)`.
+/// code points), producing ASCII-only output.
 ///
 /// Apply this to `serde_json::to_string_pretty` output so JSON verbs match the
 /// captured golden output byte-for-byte. Safe to apply to a whole JSON document: non-ASCII

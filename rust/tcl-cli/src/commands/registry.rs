@@ -1,7 +1,7 @@
 //! `registry-dump` verb: serialise the command registry as canonical JSON.
 //!
 //! Drives the snapshot builders in `tcl_registry::command_snapshot`. The output is
-//! `json.dumps(indent=2, sort_keys=True)`-faithful.
+//! canonical 2-space-indented JSON with keys sorted.
 
 use std::path::Path;
 

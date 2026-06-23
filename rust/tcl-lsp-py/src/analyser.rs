@@ -27,7 +27,7 @@
 //!   empty_stub, case_insensitive, has_pattern_dispatch, has_exec,
 //!   has_auto_load}` or ``None``
 //!
-//! Class dicts carry the full Python `ClassDef`
+//! Class dicts carry the full `ClassDef`
 //! field set: `metaclass`, `constructors`, `destructor`,
 //! `variables`, `properties`, `filters`, `exports`, `unexports`,
 //! and `doc`.

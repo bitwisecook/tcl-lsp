@@ -27,7 +27,7 @@ const MAX_EVENTS: usize = 12;
 const MAX_ARG_LEN: usize = 60;
 
 /// Truncate to `limit` characters with a trailing `...`
-/// (`CPython` slices by code point, so this counts/takes `char`s).
+/// (slices by code point, so this counts/takes `char`s).
 fn truncate(text: &str, limit: usize) -> String {
     if text.chars().count() <= limit {
         return text.to_owned();
@@ -37,10 +37,10 @@ fn truncate(text: &str, limit: usize) -> String {
 }
 
 /// Replace `token` with `repl` wherever it is bounded by whitespace on both
-/// sides — the consume-free equivalent of `CPython`'s
-/// `re.sub(r"(?<=\s)TOKEN(?=\s)", REPL, text)` (the `regex` crate has no
-/// lookbehind, so the surrounding whitespace is asserted by hand and left in
-/// place). Scans left-to-right, non-overlapping.
+/// sides — the consume-free equivalent of a regex substitution that matches the
+/// token between whitespace lookarounds (the `regex` crate has no lookbehind, so
+/// the surrounding whitespace is asserted by hand and left in place). Scans
+/// left-to-right, non-overlapping.
 fn replace_ws_bounded(text: &str, token: &str, repl: &str) -> String {
     let bytes = text.as_bytes();
     let tok = token.as_bytes();
@@ -66,9 +66,10 @@ fn replace_ws_bounded(text: &str, token: &str, repl: &str) -> String {
 }
 
 /// Replace a prefix logical `!` (at start or after whitespace, not `!=`) with
-/// `not ` — equivalent to `re.sub(r"(^|\s)!(?!=)", r"\1not ", text)`. The captured
-/// preceding whitespace is preserved (re-emitted), so this is equivalent to an
-/// in-place token rewrite keyed on the original surrounding characters.
+/// `not ` — equivalent to a regex substitution that rewrites a `!` at the start
+/// or after whitespace (but not before `=`). The captured preceding whitespace is
+/// preserved (re-emitted), so this is equivalent to an in-place token rewrite
+/// keyed on the original surrounding characters.
 fn replace_prefix_not(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out = String::with_capacity(text.len());

@@ -2,9 +2,8 @@
 //!
 //! [`bigip_parse_conf_json`] parses a BIG-IP `.conf` / `.scf` source with
 //! the native Rust parser and returns the canonical JSON document the
-//! Python `dialects.f5.bigip.parser._rust_bridge.rebuild` reconstructs
-//! the typed dataclasses from — the path the `f5` command consumes the
-//! Rust parser through.
+//! Python F5 bridge reconstructs the typed dataclasses from — the path
+//! the `f5` command consumes the Rust parser through.
 
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
@@ -22,8 +21,7 @@ pub fn bigip_parse_conf_json(source: &str, default_partition: &str) -> String {
 }
 
 /// Parse `source` as F5 iApp APL (presentation language) and return its
-/// canonical JSON document, which the Python
-/// `dialects.f5.bigip.parser._rust_bridge.rebuild_apl` reconstructs the
+/// canonical JSON document, which the Python F5 bridge reconstructs the
 /// `AplModel` dataclasses from.
 #[pyfunction]
 #[pyo3(signature = (source))]

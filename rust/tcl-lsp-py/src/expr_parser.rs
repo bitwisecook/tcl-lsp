@@ -2,8 +2,8 @@
 //!
 //! The full `ExprNode` type bridge (constructing Python-native
 //! `ExprLiteral`, `ExprBinary`, etc.) is not implemented. This module
-//! exposes `parse_expr_render` and `parse_expr_vars` for differential
-//! testing and `parse_expr_tag` for structural comparison.
+//! exposes `parse_expr_render` and `parse_expr_vars` for inspecting
+//! parse output and `parse_expr_tag` for structural comparison.
 
 use pyo3::prelude::*;
 use std::collections::BTreeSet;
@@ -35,8 +35,8 @@ pub fn parse_expr_vars(source: &str, dialect: Option<&str>) -> BTreeSet<String> 
 /// Parse a Tcl expression and return its structural tag.
 ///
 /// Returns a string like `"Binary:Add"`, `"Literal"`, `"Var"`,
-/// `"Raw"`, etc. — useful for differential tests that verify the
-/// parse tree shape without needing to bridge the full `ExprNode`
+/// `"Raw"`, etc. — useful for tests that verify the parse tree
+/// shape without needing to bridge the full `ExprNode`
 /// enum to Python.
 #[pyfunction]
 #[pyo3(signature = (source, /, dialect=None))]

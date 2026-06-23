@@ -203,7 +203,7 @@ fn write_string(out: &mut String, s: &str) {
             c => {
                 let cp = c as u32;
                 if cp > 0xFFFF {
-                    // Encode as a UTF-16 surrogate pair, matching CPython.
+                    // Encode as a UTF-16 surrogate pair.
                     let v = cp - 0x1_0000;
                     let hi = 0xD800 + (v >> 10);
                     let lo = 0xDC00 + (v & 0x3FF);
@@ -220,7 +220,7 @@ fn write_string(out: &mut String, s: &str) {
 /// Render a float the way `repr()` / `json.dumps` would: a
 /// shortest round-tripping decimal, always carrying a `.0` for integral
 /// values, with `NaN` / `Infinity` / `-Infinity` for the non-finite cases
-/// (the non-standard spelling `CPython`'s `json` emits).
+/// (the non-standard JSON spelling for non-finite values).
 #[must_use]
 pub fn py_float_repr(f: f64) -> String {
     if f.is_nan() {
