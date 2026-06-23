@@ -530,3 +530,42 @@ fn arith_series_len_dbl(start: f64, end: f64, step: f64, precision: u32) -> i64 
     let len = dist / st + 1.0;
     if len < 0.0 { 0 } else { len as i64 }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn as_number_parses_ints_doubles_and_precision() {
+        // `lseq` number parsing (cmd-core lseq.rs had no unit coverage):
+        // ints stay ints, doubles record their fractional precision, hex is
+        // an int, and non-numbers / bignums are rejected.
+        let i = as_number(b"42").unwrap();
+        assert!(!i.is_double);
+        assert_eq!(i.i, 42);
+
+        let d = as_number(b"3.14").unwrap();
+        assert!(d.is_double);
+        assert_eq!(d.prec, 2);
+        assert!((d.d - 3.14).abs() < 1e-9);
+
+        // Trailing zeros count toward the recorded precision.
+        assert_eq!(as_number(b"1.500").unwrap().prec, 3);
+
+        // Hex integer literal.
+        let h = as_number(b"0x10").unwrap();
+        assert!(!h.is_double);
+        assert_eq!(h.i, 16);
+
+        // Non-numbers are rejected.
+        assert!(as_number(b"abc").is_none());
+        assert!(as_number(b"").is_none());
+    }
+
+    #[test]
+    fn frac_digits_counts_fractional_part() {
+        assert_eq!(frac_digits(b"1.25"), 2);
+        assert_eq!(frac_digits(b"5"), 0);
+        assert_eq!(frac_digits(b"1.500"), 3);
+    }
+}

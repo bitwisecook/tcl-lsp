@@ -437,4 +437,43 @@ mod tests {
         assert_eq!(ValueKind::IpAddress.as_str(), "ip-address");
         assert_eq!(ValueKind::Reference.as_str(), "reference");
     }
+
+    #[test]
+    fn kind_for_header_resolves_known_stanzas_and_round_trips() {
+        let reg = default_registry();
+        // A known stanza header resolves to a kind that maps back to a spec
+        // carrying that same (module, object_type) header.
+        let pool_kind = reg
+            .kind_for_header("ltm", "pool")
+            .expect("`ltm pool` is registered");
+        let spec = reg.get(pool_kind).expect("kind round-trips to a spec");
+        assert!(
+            spec.header_types.iter().any(|&(m, o)| m == "ltm" && o == "pool"),
+            "the resolved kind's spec carries the ltm/pool header"
+        );
+        // An unregistered header resolves to nothing.
+        assert!(reg.kind_for_header("ltm", "__not_a_real_type__").is_none());
+        // The module disambiguates same-named object types across families.
+        if let Some(gtm_pool) = reg.kind_for_header("gtm", "pool") {
+            assert_ne!(pool_kind, gtm_pool, "ltm pool and gtm pool are distinct kinds");
+        }
+    }
+
+    #[test]
+    fn candidate_registry_kinds_for_display_matches_header_and_fans_out() {
+        let reg = default_registry();
+        // An empty display string yields no candidates.
+        assert!(reg.candidate_registry_kinds_for_display("").is_empty());
+        // An exact `module object_type` display yields exactly the header kind.
+        let by_display = reg.candidate_registry_kinds_for_display("ltm pool");
+        let by_header = reg.kind_for_header("ltm", "pool").expect("`ltm pool`");
+        assert_eq!(by_display, vec![by_header]);
+        // A bare family prefix (`ltm monitor`) fans out to its specific subtypes,
+        // each of which round-trips to a real spec.
+        let monitors = reg.candidate_registry_kinds_for_display("ltm monitor");
+        assert!(!monitors.is_empty(), "`ltm monitor` fans out to subtypes");
+        for kind in &monitors {
+            assert!(reg.get(kind).is_some(), "fanned-out kind {kind} round-trips");
+        }
+    }
 }

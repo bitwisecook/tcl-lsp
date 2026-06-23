@@ -12,15 +12,15 @@
 use std::collections::HashSet;
 use std::io::Write as _;
 
+use ratatui::Terminal;
+use ratatui::backend::TerminaBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::backend::TerminaBackend;
 use ratatui::termina::escape::csi::{self, Csi};
 use ratatui::termina::event::{KeyCode, KeyEventKind};
 use ratatui::termina::{Event, EventReader, PlatformTerminal, Terminal as _};
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
-use ratatui::Terminal;
 use serde_json::Value;
 
 /// The concrete terminal type: a Ratatui terminal over the Termina backend.

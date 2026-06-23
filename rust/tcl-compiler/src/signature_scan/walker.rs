@@ -62,6 +62,21 @@ pub(super) fn scan(
         if head.is_empty() {
             continue;
         }
+        // Argument count for cross-file arity (Task 6): words after the head, or
+        // `None` when any argument is `{*}`-expanded (runtime count unknown).
+        let arg_count = if cmd
+            .expand_word
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .skip(1)
+            .copied()
+            .any(|e| e)
+        {
+            None
+        } else {
+            Some(cmd.argv.len().saturating_sub(1))
+        };
         ctx.result
             .command_invocations
             .push(SignatureCommandInvocation {
@@ -72,6 +87,7 @@ pub(super) fn scan(
                 // full analyser fill it in when the same
                 // document is reopened in the foreground.
                 resolved_qualified_name: None,
+                argc: arg_count,
             });
         let texts = &cmd.texts;
         let argv = &cmd.argv;

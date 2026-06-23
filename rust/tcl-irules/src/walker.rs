@@ -323,3 +323,51 @@ fn record_set_binding(full: &str, cmd: &SegmentedCommand, scope: &mut BindingSco
         scope.widen(var);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Extract object references from `source` against an iRules-aware
+    /// registry (`pool` / `snatpool` / `class` are dialect commands).
+    fn refs(source: &str) -> Vec<IrulesObjectReference> {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        extract_irules_object_references(source, None, &registry)
+    }
+
+    #[test]
+    fn extracts_pool_snatpool_and_datagroup_refs() {
+        // Ported from `tests/test_bigip_irules_refs.py`
+        // ::test_extract_irules_refs_for_pool_snatpool_and_datagroup
+        // (TEST-MIGRATE — first tests for the `tcl-irules` crate).
+        let source = "\n\
+            when HTTP_REQUEST {\n\
+            \x20   if {[class match -- [HTTP::host] equals /Common/host_dg]} {\n\
+            \x20       snatpool /Common/sp1\n\
+            \x20       pool /Common/web_pool\n\
+            \x20   }\n\
+            }\n";
+        let by_name: Vec<(String, String)> = refs(source)
+            .iter()
+            .map(|r| (r.command.clone(), r.name.clone()))
+            .collect();
+        assert!(by_name.contains(&("class".to_owned(), "/Common/host_dg".to_owned())));
+        assert!(by_name.contains(&("snatpool".to_owned(), "/Common/sp1".to_owned())));
+        assert!(by_name.contains(&("pool".to_owned(), "/Common/web_pool".to_owned())));
+    }
+
+    #[test]
+    fn extracts_refs_nested_in_body_and_command_substitution() {
+        // Ported from
+        // ::test_extract_irules_refs_nested_in_body_and_command_substitution.
+        let source = "\n\
+            when HTTP_REQUEST {\n\
+            \x20   set count [active_members /Common/app_pool]\n\
+            \x20   LB::reselect pool /Common/fallback_pool\n\
+            }\n";
+        let names: Vec<String> = refs(source).iter().map(|r| r.name.clone()).collect();
+        assert!(names.contains(&"/Common/app_pool".to_owned()));
+        assert!(names.contains(&"/Common/fallback_pool".to_owned()));
+    }
+}

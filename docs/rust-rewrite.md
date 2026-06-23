@@ -898,8 +898,8 @@ listed residuals · 🟡 partial · 🔴 not started.
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🟡 | eval-fallback emitter + `tcl compwasm` wiring landed (binary/WAT, `wasmtime`-validated); residual: `IRInterpBoundary`; codegen DCE/GVN; `--link` (Binaryen) bundling → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after. `tclvm` CLI/REPL binary landed (`tcl-vm-cli`) → **RT-VM** |
 | Regex engine (ARE) | `tcl-regex` | ✅ | pure-Rust port of Tcl 9's Henry-Spencer ARE engine (no C FFI, no `unsafe`). Passes `reg.test` 544/544 + the `regexp.test` command corpus (engine-relevant cases) as Rust cargo tests vs the real engine. Drives **both** runtimes via the `cmd-core` `RegexEngine` provider — the VM (replacing the `regex` crate) and `runtime/rust` (replacing the C Henry-Spencer engine: `build.rs`/FFI/`regex_shim` removed, so `regexp` now works on wasm32 too). C consumers link the `runtime/rust` C-ABI shim (`regex_capi`, `TclReComp`/`TclReExec`/…). Residual: cmd-plumbing `-about`/`regsub -command`/`-start`-validation gaps live in `tcl-cmd-core`. See [rust-regex-port.md](design/runtime/rust-regex-port.md) |
-| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The rope-backed `DocumentState` is split out into its own **SRV-ROPE** track (need evaluated with measurements in [`design/rope/`](design/rope/README.md)) |
-| Document store / incrementality | `tcl-lsp-server`, `tcl-lexer`, `tcl-lsp-db` | 🔴 | rope-backed store + chunk-addressable salsa input + rope-slice re-lex → **SRV-ROPE** (see [`design/rope/`](design/rope/README.md)) |
+| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed — see [history](rust-rewrite-history.md). The document-store / per-edit-incrementality work is its own **SRV-INCREMENTAL** track (the rope was measured and demoted; design in [`design/srv-incremental/`](design/srv-incremental/README.md)) |
+| Document store / incrementality | `tcl-lsp-db`, `tcl-compiler`, `tcl-lsp-server`, `tcl-lexer` | 🔴 | per-proc `run_all_checks`/`optimise_unit` memo + IR-lowering floor (Approach A/B) + cross-file cascade + (optional) rope store → **SRV-INCREMENTAL** (see [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | ✅ | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
@@ -909,7 +909,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); WASM-runnability arm landed (`wasm-check`: compile→`wasmtime`, 600-program campaign clean); WASM **value**-differential arm landed (`wasm-diff`: in-process wasmtime with a `tcl-vm`-backed eval-fallback host, fuel-bounded `WasmHang` detection — verifies control-flow codegen, already caught a non-terminating-loop bug the runnability arm can't); residual: re-back that arm with the **real linked Zig runtime** for a full value differential, gated on **RT-WASM** → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
 | iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions; 14 integration tests green); framework Tcl embedded for self-contained consumers. RT-VM-gated work complete; only auto-broadening coverage remains → **TOOL-IRULE-TEST** |
-| PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🔴 | designed public surface; TEST-MIGRATE; PYTHON-RETIRE → **API-PYO3** |
+| PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🟡 | designed public surface **landed** (`parse_tcl`/`compile_tcl`/`analyse_tcl`/`format_tcl`/`parse_bigip_config`/`query_bigip` facades + `TclLspError` hierarchy, `tcl-lsp-py::public`); residual: TEST-MIGRATE; `scripts`→`xtask`; PYTHON-RETIRE → **API-PYO3** |
 | `ai/` (MCP + skills) | — | n/a | stays Python by design |
 
 ### Track map (dependency order)
@@ -926,7 +926,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | RT | **RT-WASM** 🟡 | `tcl-compiler::codegen::wasm`, `runtime/zig`, `tcl-wasm` bin | FE-CODEGEN | L |
 | RT | **RT-VM** 🟡 | `tcl-vm`, `tcl-vm-cli` (`tclvm` bin) | `tcl-bytecode` | L |
 | SRV | **SRV-LSP** ✅ | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | FE-DIAG, FE-DATAFLOW | L |
-| SRV | **SRV-ROPE** 🔴 | document store: `tcl-lsp-server` `DocumentState` + `tcl-lexer` rope-slice `SourceMap` + `tcl-lsp-db` chunk input | FE-LEX (CST/structural-state index), SRV-LSP | XL |
+| SRV | **SRV-INCREMENTAL** 🔴 | per-edit pipeline: per-proc `run_all_checks`/`optimise_unit` memo + IR-lowering floor + cross-file cascade (`tcl-lsp-db`/`tcl-compiler`); optional rope store | FE-LEX (structural-state index), SRV-LSP | XL |
 | TOOL | **TOOL-TCLPKG** ✅ | `tcl-pkg` crate | — | XL |
 | TOOL | **TOOL-REFACTOR** ✅ | `tcl-lsp-core::code_actions` | SRV-LSP | M |
 | TOOL | **TOOL-F5** ✅ | `f5-cli` | RT-VM, TOOL-IRULE-TEST | XS |
@@ -935,7 +935,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | TOOL | **TOOL-DEBUGGER** ✅ | `tcl-debugger` | RT-VM | L |
 | TOOL | **TOOL-IRULE-TEST** 🟢 | `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
 | TOOL | **TOOL-CLI** ✅ | `tcl-cli` | RT-WASM, RT-VM, TOOL-TCLPKG | S |
-| API | **API-PYO3** 🔴 | `tcl-lsp-py`, `scripts`→`xtask`, `tests` | everything above | L |
+| API | **API-PYO3** 🟡 | `tcl-lsp-py`, `scripts`→`xtask`, `tests` | everything above | L |
 
 ---
 
@@ -1118,46 +1118,52 @@ residuals handed over from **FE-DIAG** — GAP-C1 per-check config toggles and t
 IRULE5002/5004 flow-warning code actions — are all shipped; the detail is in the
 [history archive](rust-rewrite-history.md).
 
-The rope-backed `DocumentState` that previously sat here as a deferred bullet is
-now its own track, **SRV-ROPE** (below), with the need evaluated against
-measurements rather than asserted.
+The rope-backed `DocumentState` that previously sat here is **demoted**: a measured
+experiment put it at ~0.02% of per-edit latency. The document-store /
+per-edit-incrementality work is now the **SRV-INCREMENTAL** track (below), with the
+rope as an optional, gated final step.
 
-#### SRV-ROPE — rope-backed document store + incremental pipeline
-Owns the document-store seam across `tcl-lsp-server` (`DocumentState`),
-`tcl-lexer` (rope-slice `SourceMap`), and `tcl-lsp-db` (chunk-addressable salsa
-input). Depends on **FE-LEX** (the landed CST descent + structural-state index,
-which bounds the dirty re-lex region) and **SRV-LSP**. Full motivation, the
-reproducible experiment, and task breakdown live in
-[`design/rope/README.md`](design/rope/README.md); the headline:
+#### SRV-INCREMENTAL — making the per-edit pipeline incremental
+Owns finishing end-to-end per-edit incrementality across `tcl-lsp-db`,
+`tcl-compiler`, `tcl-lsp-server`, and `tcl-lexer` — *within a file and across the
+project*. Builds on the largely-shipped per-item analyser firewall
+([`design/rust/incremental-analysis.md`](design/rust/incremental-analysis.md)) and
+depends on **FE-LEX** (the landed structural-state index that bounds the dirty
+re-lex region) and **SRV-LSP**. Full measurement, the cross-file cascade design,
+and the task breakdown live in
+[`design/srv-incremental/README.md`](design/srv-incremental/README.md); the
+headline:
 
-- **Measured, not asserted.** A workspace-excluded harness
-  ([`design/rope/experiment/`](design/rope/experiment/)) compares the current
-  `String` edit path against `ropey` across file sizes, edit-burst sizes, high
-  edit rates, salsa-flatten cost, position lookups, and many-small-doc memory.
-- **A standalone `DocumentState` swap is not worth it.** A rope cannot help the
-  paramount metric (time-to-first-tokens is a full-buffer `didOpen`), cannot make
-  salsa incremental (the input interns a `String`; the rope must flatten `O(n)`
-  every edit), and costs **1.4–1.9× memory** for the many-small-files workload.
-  The per-edit bottleneck is *analysis* (re-lex + salsa invalidation), O(n) and
-  rope-invariant until the pipeline goes incremental.
-- **Most of the apply-side win needs no rope.** The `String` path is slow because
-  it rebuilds `LineIndex` and double-allocates a spliced `String` per edit; a
-  *persisted, incrementally-patched `LineIndex`* captures the bulk at ~0 memory
-  cost. **That is SRV-ROPE Task 1 and the recommended first step.**
-- **open** Tasks (smallest-first, each independently shippable): (1) persisted
-  incremental `LineIndex` on the `String` store — *do first, no rope*; (2) rope
-  behind a feature flag in `DocumentState` with burst-coalescing + a
-  many-small-doc memory guard; (3) `LineIndex::from_rope_slice` +
-  `Lexer::with_source_map` rope-slice re-lex in `tcl-lexer`; (4) **the real
-  prize** — chunk-addressable salsa `SourceFile` input so `set_text` interns only
-  changed chunks and `file_analysis_incremental` / the segmenter re-lex only the
-  dirty span (touches `tcl-lsp-db`, `tcl-compiler::parsing`, the recovery index);
-  (5) MVCC write-window minimisation (folds into 4); (6) a committed
-  `perf_track` bench gating **no time-to-first-tokens regression**.
-- **Exit criterion:** keep the rope only if, with Task 4 landed, end-to-end
-  per-edit latency on large files improves materially *and* many-small-doc memory
-  stays under ~1.2×. If Task 1 alone captures the realistic win, Tasks 2–5 stay
-  deferred and the `String` store is retained — the experiment is the gate.
+- **Measured, not asserted.** `tail_profile` on `linalg.tcl` (warm db, single-char
+  body edit) puts warm per-edit latency at ~411 ms, of which **whole-file
+  `run_all_checks` is ~405 ms**. Buffer apply — the rope's slice — is ~85 µs
+  (**0.02%**). Two workspace-excluded harnesses
+  ([`design/srv-incremental/experiment/`](design/srv-incremental/experiment/))
+  measure both halves.
+- **The prize is per-procedure check incrementality.** The shipped firewall makes
+  the analyser walk + per-proc lattices incremental, but `run_all_checks` /
+  `optimise_unit` re-run over the **whole unit** every edit (~99% of latency).
+  Memoising them per-proc (keyed on the offset-invariant `FnLatticeKey` the
+  lattices already use) is the highest-leverage change.
+- **Cross-file cascade is greenfield.** The `WorkspaceIndex` is off the salsa
+  graph, `resolve_proc_call` is per-file, and editing file A recomputes nothing in
+  file B. The design lifts the project signature table into salsa so cross-file
+  resolution / arity become tracked edges — reverse-dependency invalidation for
+  free, bounded by Tcl's dynamic dispatch.
+- **open** Tasks (smallest-first, each independently shippable, each fuzzer-gated):
+  (1) persisted incremental `LineIndex` on the `String` store — *do first, no
+  rope*; (2) **the prize** — per-proc `run_all_checks` / `optimise_unit` salsa
+  memo; (3) Approach A (incremental per-item IR lowering); (4) Approach B
+  follow-ups (deep-clone removal + `optimise_unit` memo); (5) wire the
+  `reparse_window` / structural-state index into the live re-lex path; (6)
+  cross-file cascade (project signature table in salsa + a multi-file differential
+  fuzzer); (7) **optional, gated** — rope store + chunk-addressable `SourceFile`
+  input.
+- **Exit criterion:** Tasks 1–2 capture the bulk of the win with no rope and no
+  cross-file work; 3–5 close the lowering / re-lex floor; 6 is the cross-file
+  feature, built incremental-first. The rope (7) lands only if its 0.02% slice has
+  grown measurable *and* many-small-doc memory stays under ~1.2× — otherwise the
+  `String` store is retained. The experiment is the gate.
 
 ### Stage 4 — Tooling (TOOL-*)
 
@@ -1212,22 +1218,67 @@ subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
 #### API-PYO3
 Owns `tcl-lsp-py`, the `scripts`→`xtask` migration, and `tests`. **This is the
 final track** — every consumer above must port first.
-- **open** the designed public PyO3 surface — re-derive it as a semver-stable
-  API for downstream embedders, not a transcription of in-tree calls. What
-  `tcl-lsp-py` exports **today** is the legacy soft-dependency shim set the
-  in-tree Python still imports (~39 `#[pyfunction]`s across `tokens` /
-  `expr_lexer` / `compiler_checks` / `interprocedural` / `gvn` /
-  `compilation_unit` / `signature_scan` / `optimiser` / `analyser` / `registry`
-  / `bigip`), plus exactly **two** LSP *feature* bindings — folding and document
-  symbols — against the native server's ~43 feature providers. Per the boundary
-  rule those shims are porting TODOs to retire, not the public API; the designed
-  surface (the `parse_tcl` / `compile_tcl` / `analyse_tcl` / … facades + typed
-  error hierarchy above) is still unbuilt.
-- **open** TEST-MIGRATE — port each remaining pytest file to per-crate Rust
-  tests (delete the `test_*.py` in the same change); the `test_fp_*` battery is
-  the analyser acceptance gate.
-- **open** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
-  Python toolchain dependency).
+- **landed (2026-06-22)** the designed public PyO3 surface — built as
+  `tcl-lsp-py::public`, additive alongside (not replacing) the legacy
+  soft-dependency shims. The six narrow facades (`parse_tcl` →
+  `ParseResult`, `compile_tcl` → `CompilationUnit`, `analyse_tcl` →
+  `AnalysisResult`, `format_tcl` → `str`, `parse_bigip_config` →
+  `BigipConfig`, `query_bigip` → `QueryResult`) take `source/options in,
+  structured result out` over the layered crates (`tcl-lexer`,
+  `tcl-compiler`, `tcl-lsp-core::formatting`, `tcl-bigip`,
+  `tcl-bigip-query`) and resolve every span to a `(line, character)`
+  position at the boundary. Paired with the typed error hierarchy
+  `TclLspError → TclParseError / TclCompileError / TclAnalysisError /
+  BigipParseError / BigipQueryError / UnsupportedFeatureError`, each
+  raised instance carrying `code` / `message` / `uri` / `range`,
+  translated at the facade boundary (the pure crates stay `pyo3`-free).
+  Acceptance test: `tests/test_public_pyo3_api.py` (30 cases, runs against
+  the built wheel; `importorskip`-guarded). Detail in the
+  [history archive](rust-rewrite-history.md). Still **open**: the legacy
+  shim set (~39 `#[pyfunction]`s across `tokens` / `expr_lexer` /
+  `compiler_checks` / `interprocedural` / `gvn` / `compilation_unit` /
+  `signature_scan` / `optimiser` / `analyser` / `registry` / `bigip` + the
+  folding / document-symbol feature bindings) stays until its in-tree
+  Python importers retire under PYTHON-RETIRE.
+- **partial** TEST-MIGRATE — the **porting** half is **complete** (the
+  **deletion** half stays gated on PYTHON-RETIRE). All 473 `tests/test_*.py`
+  files are now classified (ported / bridge-only / remove-at-end / deferred)
+  in the [test audit](rust-rewrite-test-audit.md#test-migrate--full-pytest-suite-classification-all-473-files):
+  every behaviour portable to a landed crate is Rust-covered (per-module
+  `#[cfg(test)]`, the `tcltest` reference sweeps, or `*_parity.rs`
+  differentials), and the un-ported remainder is attributed to a named
+  unlanded track (RT-WASM / RT-VM / SRV-ROPE / PKG / PGO — *deferred*) or to
+  Python-binding / `ai/` glue (*bridge-only*). The `test_fp_*` battery is the
+  analyser acceptance gate (C41 ✅, ~1,000 analyser `#[test]`s). The cleanly
+  portable pure-logic gaps that still had zero Rust unit coverage were ported
+  in the closing pass — `tcl-bigip::policy_eval` (LTM policy evaluator),
+  `tcl-bigip::validator` (BIGIP6003–6009), `tcl-registry::bigip` (object-kind
+  resolution), plus VM helper modules (`cmd_string`/`subst`/`exec`). The
+  **deletion** of the `test_*.py` is the terminal PYTHON-RETIRE sweep — gated,
+  since the pytest suite is the behavioural oracle while the Python layer ships.
+- **partial** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
+  Python toolchain dependency). The `rust/xtask` crate + `cargo xtask` alias
+  scaffold **landed**, with five scripts ported and parity-checked against the
+  Python originals: `refcount-contract` (⇐ `scripts/check/refcount_contract.py`)
+  and `kcs-index-links` (⇐ `scripts/check/kcs_index_links.py`) — byte-for-byte
+  identical stdout/stderr + exit codes; `version` (⇐ `scripts/print_version.py`),
+  whose `git describe` → setuptools-scm scheme is unit-pinned against real
+  `setuptools_scm` outputs; `tzdata-bundle` (⇐
+  `scripts/build/tzdata_bundle.py`), whose packed `TZBL` artifact is byte-for-byte
+  identical for both the verbatim and `--trim`-window paths (the `TZif` v1
+  trimmer included); and `audit-option-dialects` (⇐
+  `scripts/check/audit_option_dialects.py`), which probes every `OptionSpec`
+  dialect gate against the built tclsh 8.4/8.5/8.6/9.0 trees — the
+  `tmp/option_dialect_audit.json` artifact **and** the console log are
+  byte-for-byte identical to the Python (verified against the one tclsh tree
+  built in the dev env; a hand-rolled `json.dumps(indent=2)` emitter and a
+  `repr()`-faithful diagnostic formatter keep the bytes exact, and the probe
+  table / version order are transcribed 1:1). Remaining: port the other
+  build-artifact scripts (`build/{kcs_db,zipapps}.py` — SQLite / zipapp
+  builders) and the environment-coupled `check/wasm_command_parity.py`, then
+  flip the Makefile/CI invocations and retire the Python originals.
+  (`bigip_kind_differential.py` stays Python — it is a Python-vs-Rust
+  differential oracle, not a toolchain script.)
 - **open** PYTHON-RETIRE — delete `compiler/`, `analyser/`, `server/`, and the
   ported `tooling/` subtrees once their consumers are Rust. `ai/` (MCP server +
   Claude skills) stays Python by design.

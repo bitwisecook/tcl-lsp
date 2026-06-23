@@ -573,4 +573,59 @@ mod tests {
         let src = "ltm data-group internal /Common/ips {\n  type ip\n  records {\n    10.0.0.0/8 { }\n    192.168.1.1 { }\n  }\n}\n";
         assert!(!has(src, "BIGIP6011"));
     }
+
+    #[test]
+    fn bigip6003_fires_for_virtual_referencing_undefined_irule() {
+        let src = "ltm virtual /Common/vs {\n  rules {\n    /Common/no_such_rule\n  }\n}\n";
+        assert!(has(src, "BIGIP6003"));
+    }
+
+    #[test]
+    fn bigip6003_quiet_when_irule_is_defined() {
+        let src = "ltm rule /Common/r {\n  when HTTP_REQUEST { }\n}\nltm virtual /Common/vs {\n  rules {\n    /Common/r\n  }\n}\n";
+        assert!(!has(src, "BIGIP6003"));
+    }
+
+    #[test]
+    fn bigip6009_fires_for_duplicate_irule_attachment() {
+        let src = "ltm rule /Common/r {\n  when HTTP_REQUEST { }\n}\nltm virtual /Common/vs {\n  rules {\n    /Common/r\n    /Common/r\n  }\n}\n";
+        assert!(has(src, "BIGIP6009"));
+    }
+
+    #[test]
+    fn bigip6005_fires_for_virtual_referencing_undefined_pool() {
+        let src = "ltm virtual /Common/vs {\n  destination /Common/1.2.3.4:80\n  pool /Common/no_such_pool\n}\n";
+        assert!(has(src, "BIGIP6005"));
+    }
+
+    #[test]
+    fn bigip6004_fires_for_http_command_without_http_profile() {
+        let src = "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    HTTP::respond 200\n  }\n}\nltm virtual /Common/vs {\n  rules {\n    /Common/r\n  }\n}\n";
+        assert!(has(src, "BIGIP6004"));
+    }
+
+    #[test]
+    fn bigip6007_fires_for_missing_snatpool() {
+        let src = "ltm rule /Common/r {\n  when CLIENT_ACCEPTED {\n    snatpool /Common/no_such_snat\n  }\n}\n";
+        assert!(has(src, "BIGIP6007"));
+    }
+
+    #[test]
+    fn bigip6007_skips_variable_snatpool_reference() {
+        // A `$var` / `[cmd]` operand is dynamic — the checker must not flag it.
+        let src = "ltm rule /Common/r {\n  when CLIENT_ACCEPTED {\n    snatpool $dynamic_sp\n  }\n}\n";
+        assert!(!has(src, "BIGIP6007"));
+    }
+
+    #[test]
+    fn bigip6006_fires_for_unused_data_group() {
+        let src = "ltm data-group internal /Common/unused {\n  type string\n  records {\n    foo { }\n  }\n}\n";
+        assert!(has(src, "BIGIP6006"));
+    }
+
+    #[test]
+    fn bigip6006_quiet_when_data_group_is_referenced() {
+        let src = "ltm data-group internal /Common/used {\n  type string\n  records {\n    foo { }\n  }\n}\nltm rule /Common/r {\n  when HTTP_REQUEST {\n    if { [class match [HTTP::host] equals /Common/used] } { }\n  }\n}\n";
+        assert!(!has(src, "BIGIP6006"));
+    }
 }
