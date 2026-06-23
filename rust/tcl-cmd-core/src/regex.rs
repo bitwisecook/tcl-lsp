@@ -612,3 +612,31 @@ fn apply_subspec(
     }
     out.extend_from_slice(&sub[run..]);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_start_handles_integer_and_end_forms() {
+        // regexp `-start` index (cmd-core regex.rs had no unit coverage):
+        // integer / end / end±N against char length, clamped to 0.
+        assert_eq!(resolve_start(b"5", 10), 5);
+        assert_eq!(resolve_start(b"0", 10), 0);
+        assert_eq!(resolve_start(b"end", 10), 9);
+        assert_eq!(resolve_start(b"end-2", 10), 7);
+        assert_eq!(resolve_start(b"end+1", 10), 10);
+        assert_eq!(resolve_start(b"-3", 10), 0); // Tcl resets negatives to start
+        assert_eq!(resolve_start(b"bad", 10), 0); // unparseable → 0
+        assert_eq!(resolve_start(b"end", 0), 0); // end of empty clamps to 0
+    }
+
+    #[test]
+    fn parse_isize_trims_and_rejects_garbage() {
+        assert_eq!(parse_isize(b"42"), Some(42));
+        assert_eq!(parse_isize(b"-5"), Some(-5));
+        assert_eq!(parse_isize(b"  3  "), Some(3));
+        assert_eq!(parse_isize(b"x"), None);
+        assert_eq!(parse_isize(b""), None);
+    }
+}
