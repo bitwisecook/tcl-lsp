@@ -2061,3 +2061,62 @@ impl Vm {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{brace_safe, char_find, imm_index, quote_for_script};
+    use tcl_bytecode::INDEX_END;
+
+    #[test]
+    fn brace_safe_tracks_balance_and_escapes() {
+        // No braces / balanced braces are safe to `{…}`-wrap.
+        assert!(brace_safe("hello"));
+        assert!(brace_safe(""));
+        assert!(brace_safe("a {b} c"));
+        // Unbalanced in either direction is unsafe.
+        assert!(!brace_safe("a {b"));
+        assert!(!brace_safe("a }b"));
+        // Escaped braces don't count toward depth, so this stays balanced.
+        assert!(brace_safe(r"a \{ b"));
+        assert!(brace_safe(r"a\{b"));
+        // A trailing lone backslash would escape the wrapping `}` — unsafe.
+        assert!(!brace_safe("trailing\\"));
+    }
+
+    #[test]
+    fn quote_for_script_wraps_when_safe_and_falls_back_otherwise() {
+        // Brace-safe words are wrapped verbatim.
+        assert_eq!(quote_for_script("hello"), "{hello}");
+        assert_eq!(quote_for_script("a b c"), "{a b c}");
+        assert_eq!(quote_for_script(""), "{}");
+        // An unbalanced word cannot be naively brace-wrapped; it must fall back
+        // to canonical list-element quoting (delegated to `tcl_syntax::list`).
+        let unsafe_word = "a{b";
+        assert_ne!(quote_for_script(unsafe_word), format!("{{{unsafe_word}}}"));
+    }
+
+    #[test]
+    fn imm_index_decodes_literal_and_end_relative() {
+        // A plain non-negative immediate is the literal index.
+        assert_eq!(imm_index(3, 10), 3);
+        assert_eq!(imm_index(0, 10), 0);
+        // `INDEX_END` is `end`; `INDEX_END - k` is `end-k`.
+        assert_eq!(imm_index(INDEX_END, 10), 9);
+        assert_eq!(imm_index(INDEX_END - 1, 10), 8);
+        // `end` of an empty list is -1 (one before the first slot).
+        assert_eq!(imm_index(INDEX_END, 0), -1);
+    }
+
+    #[test]
+    fn char_find_returns_character_indices_not_byte_offsets() {
+        // ASCII: first vs last occurrence, and a miss.
+        assert_eq!(char_find("hello", "l", false), 2);
+        assert_eq!(char_find("hello", "l", true), 3);
+        assert_eq!(char_find("hello", "z", false), -1);
+        // Multi-byte: `é` is two UTF-8 bytes, but the result is a *character*
+        // index — `string first`/`last` operate on characters, not bytes.
+        assert_eq!(char_find("héllo", "é", false), 1);
+        assert_eq!(char_find("héllo", "llo", false), 2);
+        assert_eq!(char_find("héllo", "l", true), 3);
+    }
+}
