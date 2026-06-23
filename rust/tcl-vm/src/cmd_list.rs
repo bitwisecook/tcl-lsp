@@ -28,6 +28,7 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("linsert", cmd_linsert);
     vm.register("lreplace", cmd_lreplace);
     vm.register("ledit", cmd_ledit);
+    vm.register("lset", cmd_lset);
     vm.register("lpop", cmd_lpop);
     vm.register("lsearch", cmd_lsearch);
     vm.register("lsort", cmd_lsort);
@@ -172,6 +173,42 @@ fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return e;
     }
     ok(result)
+}
+
+/// `lset listVar ?index ...? newValue` — the runtime form of `lset` (the
+/// compiler inlines the common compiled cases via `LSET_LIST`/`LSET_FLAT`; this
+/// builtin is the fallback for the dynamic / wrong-arg / non-proc paths). It
+/// always reads the variable first (so a no-index `lset x v` on an undefined
+/// `x` still reports `can't read`), then descends the index path: a single
+/// index argument is itself an index *list*, several arguments are a flat path.
+fn cmd_lset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if args.len() < 2 {
+        return err("wrong # args: should be \"lset listVar ?index? ?index ...? value\"");
+    }
+    let n = args[0].to_str();
+    let value = args.last().expect("args.len() >= 2");
+    let indices = &args[1..args.len() - 1];
+    let Some(cur) = vm.var_get(&n) else {
+        return err(vm.read_miss_msg(&n));
+    };
+    let path: Vec<Value> = if indices.is_empty() {
+        Vec::new()
+    } else if let [single] = indices {
+        match single.as_list() {
+            Ok(p) => (*p).clone(),
+            Err(e) => return err(e.message),
+        }
+    } else {
+        indices.to_vec()
+    };
+    let new = match crate::exec::lset_descend(&cur, &path, value.clone()) {
+        Ok(r) => r,
+        Err(c) => return c,
+    };
+    if let Err(e) = vm.var_set(&n, new.clone()) {
+        return e;
+    }
+    ok(new)
 }
 
 /// `lpop listVar ?index ...?` — remove and return an element of the list held

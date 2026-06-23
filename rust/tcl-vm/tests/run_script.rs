@@ -265,6 +265,34 @@ fn list_hooks_collapse_nonbraced_backslashes() {
     assert_eq!(result, "1 {unmatched open brace in list}");
 }
 
+/// The runtime `lset` builtin (the fallback for the dynamic / wrong-arg paths
+/// the compiler does not inline) reports the usage error, replaces the whole
+/// value with no index, and descends a flat index path. Regression for
+/// lsetComp-1.1 (`lset` was only a codegen hook, so the fallback hit "invalid
+/// command name").
+#[test]
+fn lset_runtime_builtin() {
+    // Dispatched indirectly so it cannot be inlined → exercises the builtin.
+    let (ok, result, _) = run("set c lset\ncatch {$c} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result,
+        "wrong # args: should be \"lset listVar ?index? ?index ...? value\""
+    );
+
+    let (ok, result, _) = run("set l {{a b} {c d}}\nset c lset\n$c l 0 1 X\nset l");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "{a X} {c d}");
+}
+
+/// `lrepeat` rejects a negative count with C's exact message (lrepeat-1.4).
+#[test]
+fn lrepeat_negative_count_message() {
+    let (ok, result, _) = run("catch {lrepeat -3 1} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "bad count \"-3\": must be integer >= 0");
+}
+
 /// `lpop` removes and returns an element of the list in a variable (default the
 /// last), descending into nested sublists with several indices, and stores the
 /// trimmed list back. Out-of-range / non-integer indices error like C.

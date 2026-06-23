@@ -296,7 +296,11 @@ fn get_at(items: &[Value], i: isize) -> Value {
 /// (`lset x {} v` == `set x v`); each index is `end`/`end±N`-aware, with range
 /// `0..=len` where `len` appends a fresh (possibly nested) slot. Error messages
 /// match tclsh 9.0 (the reference standard).
-fn lset_descend(list: &Value, path: &[Value], value: Value) -> Result<Value, Completion<Value>> {
+pub(crate) fn lset_descend(
+    list: &Value,
+    path: &[Value],
+    value: Value,
+) -> Result<Value, Completion<Value>> {
     let Some((spec, rest)) = path.split_first() else {
         // No (more) indices: `lset` is `set` — the value replaces the list.
         return Ok(value);
