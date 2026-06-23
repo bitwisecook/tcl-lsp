@@ -58,6 +58,52 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("tcl::mathfunc::fmod", |_, a| {
         dom_fn2(a, "fmod", |x, y| x % y)
     });
+    // Classification predicates — one `double`, returns a boolean (never a
+    // domain error, since inspecting a NaN/Inf is their purpose).
+    vm.register("tcl::mathfunc::isfinite", |_, a| {
+        pred_fn(a, "isfinite", f64::is_finite)
+    });
+    vm.register("tcl::mathfunc::isinf", |_, a| {
+        pred_fn(a, "isinf", f64::is_infinite)
+    });
+    vm.register("tcl::mathfunc::isnan", |_, a| {
+        pred_fn(a, "isnan", f64::is_nan)
+    });
+    vm.register("tcl::mathfunc::isnormal", |_, a| {
+        pred_fn(a, "isnormal", f64::is_normal)
+    });
+    vm.register("tcl::mathfunc::issubnormal", |_, a| {
+        pred_fn(a, "issubnormal", |x| {
+            x.classify() == std::num::FpCategory::Subnormal
+        })
+    });
+    vm.register("tcl::mathfunc::isunordered", |_, a| {
+        pred_fn2(a, "isunordered", |x, y| x.is_nan() || y.is_nan())
+    });
+}
+
+/// A one-`double` classification predicate (`isnan`/`isinf`/…): coerce the
+/// argument and return its boolean as `0`/`1`, with no domain check.
+fn pred_fn(args: &[Value], name: &str, f: impl Fn(f64) -> bool) -> Completion<Value> {
+    let x = match one(args, name) {
+        Ok(v) => v,
+        Err(c) => return c,
+    };
+    match x.as_double() {
+        Ok(d) => ok(Value::bool(f(d))),
+        Err(e) => err(e.message),
+    }
+}
+
+/// A two-`double` predicate (`isunordered`).
+fn pred_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> bool) -> Completion<Value> {
+    let [lhs, rhs] = args else {
+        return err(format!("too many/few args to math function \"{name}\""));
+    };
+    match (lhs.as_double(), rhs.as_double()) {
+        (Ok(x), Ok(y)) => ok(Value::bool(f(x, y))),
+        (Err(e), _) | (_, Err(e)) => err(e.message),
+    }
 }
 
 fn one<'a>(args: &'a [Value], name: &str) -> Result<&'a Value, Completion<Value>> {
