@@ -81,6 +81,11 @@ pub fn eval<O: ExprOps>(
         "<=" => Ok(bool_chain(ops, &args, false, |o| o != Ordering::Greater)),
         ">=" => Ok(bool_chain(ops, &args, false, |o| o != Ordering::Less)),
         "eq" => Ok(bool_chain(ops, &args, true, |o| o == Ordering::Equal)),
+        // String-only chained ordering (the `eq`-style spellings of `<`/`>`/…).
+        "lt" => Ok(bool_chain(ops, &args, true, |o| o == Ordering::Less)),
+        "gt" => Ok(bool_chain(ops, &args, true, |o| o == Ordering::Greater)),
+        "le" => Ok(bool_chain(ops, &args, true, |o| o != Ordering::Greater)),
+        "ge" => Ok(bool_chain(ops, &args, true, |o| o != Ordering::Less)),
         // Strict-binary (in)equality.
         "!=" => ne_binary(ops, args, false),
         "ne" => ne_binary(ops, args, true),
