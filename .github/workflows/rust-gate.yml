@@ -47,3 +47,19 @@ jobs:
       # run lists all failing crates rather than aborting at the first.
       - name: cargo test --workspace --all-features
         run: cargo test --workspace --all-features --no-fail-fast
+
+  # Supply-chain audit: advisories / licenses / bans / sources, driven by the
+  # committed deny.toml.  Its own job (hence its own status check) so a denial
+  # is attributable independently of the cargo test surface above — same split
+  # rationale as rust-lsp-e2e.yml.  The action defaults match `make rust-deny`
+  # (`check --all-features`, manifest `./Cargo.toml`); deny.toml and the
+  # workspace manifest both live at the repo root.
+  cargo-deny:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: cargo deny check
+        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2.0.20
