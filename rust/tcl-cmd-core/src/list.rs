@@ -53,18 +53,17 @@ pub fn lindex<O: ValueOps>(
     for (k, spec) in specs.iter().enumerate() {
         let elems = ops.list_elements(&cur)?;
         let i = index::resolve(spec, elems.len())?;
-        match usize::try_from(i).ok().filter(|&i| i < elems.len()) {
-            Some(i) => cur = elems[i].clone(),
-            None => {
-                // Out of range yields the empty result, but a *malformed* later
-                // index is still an error — C parses every index before
-                // navigating, so `lindex {} end foo` reports `bad index "foo"`
-                // (lindex-17.0). The format check is length-independent.
-                for rest in &specs[k + 1..] {
-                    index::resolve(rest, 0)?;
-                }
-                return Ok(ops.empty());
+        if let Some(i) = usize::try_from(i).ok().filter(|&i| i < elems.len()) {
+            cur = elems[i].clone();
+        } else {
+            // Out of range yields the empty result, but a *malformed* later
+            // index is still an error — C parses every index before navigating,
+            // so `lindex {} end foo` reports `bad index "foo"` (lindex-17.0).
+            // The format check is length-independent.
+            for rest in &specs[k + 1..] {
+                index::resolve(rest, 0)?;
             }
+            return Ok(ops.empty());
         }
     }
     Ok(cur)
