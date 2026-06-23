@@ -4,22 +4,60 @@
 
 use tcl_runtime_api::Completion;
 
+use crate::command::err_with_code;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
+
+/// The message and `errorCode` C raises (`tclExecute.c`, errno `EDOM`) when a
+/// math function's argument is out of range — `sqrt(-1)`, `acos(2)`, `fmod(x,0)`,
+/// … . `isqrt` of a negative reuses the same code with its own message.
+const DOMAIN_MSG: &str = "domain error: argument not in valid range";
+const DOMAIN_CODE: &str = "ARITH DOMAIN {domain error: argument not in valid range}";
+
+fn domain_err() -> Completion<Value> {
+    err_with_code(DOMAIN_MSG, DOMAIN_CODE)
+}
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("tcl::mathfunc::abs", m_abs);
     vm.register("tcl::mathfunc::int", m_int);
     vm.register("tcl::mathfunc::wide", m_wide);
+    vm.register("tcl::mathfunc::entier", m_entier);
     vm.register("tcl::mathfunc::double", m_double);
     vm.register("tcl::mathfunc::round", m_round);
     vm.register("tcl::mathfunc::sqrt", m_sqrt);
+    vm.register("tcl::mathfunc::isqrt", m_isqrt);
     vm.register("tcl::mathfunc::floor", m_floor);
     vm.register("tcl::mathfunc::ceil", m_ceil);
     vm.register("tcl::mathfunc::pow", m_pow);
     vm.register("tcl::mathfunc::bool", m_bool);
     vm.register("tcl::mathfunc::max", m_max);
     vm.register("tcl::mathfunc::min", m_min);
+    // Trigonometric / transcendental — single `double` argument.
+    vm.register("tcl::mathfunc::sin", |_, a| dom_fn(a, "sin", f64::sin));
+    vm.register("tcl::mathfunc::cos", |_, a| dom_fn(a, "cos", f64::cos));
+    vm.register("tcl::mathfunc::tan", |_, a| dom_fn(a, "tan", f64::tan));
+    vm.register("tcl::mathfunc::asin", |_, a| dom_fn(a, "asin", f64::asin));
+    vm.register("tcl::mathfunc::acos", |_, a| dom_fn(a, "acos", f64::acos));
+    vm.register("tcl::mathfunc::atan", |_, a| dom_fn(a, "atan", f64::atan));
+    vm.register("tcl::mathfunc::sinh", |_, a| dom_fn(a, "sinh", f64::sinh));
+    vm.register("tcl::mathfunc::cosh", |_, a| dom_fn(a, "cosh", f64::cosh));
+    vm.register("tcl::mathfunc::tanh", |_, a| dom_fn(a, "tanh", f64::tanh));
+    vm.register("tcl::mathfunc::exp", |_, a| dom_fn(a, "exp", f64::exp));
+    vm.register("tcl::mathfunc::log", |_, a| dom_fn(a, "log", f64::ln));
+    vm.register("tcl::mathfunc::log10", |_, a| {
+        dom_fn(a, "log10", f64::log10)
+    });
+    // Two `double` arguments.
+    vm.register("tcl::mathfunc::atan2", |_, a| {
+        dom_fn2(a, "atan2", f64::atan2)
+    });
+    vm.register("tcl::mathfunc::hypot", |_, a| {
+        dom_fn2(a, "hypot", f64::hypot)
+    });
+    vm.register("tcl::mathfunc::fmod", |_, a| {
+        dom_fn2(a, "fmod", |x, y| x % y)
+    });
 }
 
 fn one<'a>(args: &'a [Value], name: &str) -> Result<&'a Value, Completion<Value>> {
@@ -107,8 +145,46 @@ fn dbl_fn(args: &[Value], name: &str, f: impl Fn(f64) -> f64) -> Completion<Valu
     }
 }
 
+/// A single-`double` libm function with Tcl's domain guard: a non-NaN argument
+/// that yields NaN (`sqrt(-1)`, `acos(2)`, `log(-1)`) is a domain error, while a
+/// pole that yields ±Inf (`log(0)`) is allowed. A NaN argument passes through.
+fn dom_fn(args: &[Value], name: &str, f: impl Fn(f64) -> f64) -> Completion<Value> {
+    let x = match one(args, name) {
+        Ok(v) => v,
+        Err(c) => return c,
+    };
+    match x.as_double() {
+        Ok(d) => {
+            let r = f(d);
+            if r.is_nan() && !d.is_nan() {
+                return domain_err();
+            }
+            ok(Value::double(r))
+        }
+        Err(e) => err(e.message),
+    }
+}
+
+/// A two-`double` libm function with the same domain guard (`atan2`, `hypot`,
+/// `fmod` — where `fmod(x, 0)` is the domain error).
+fn dom_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> f64) -> Completion<Value> {
+    let [lhs, rhs] = args else {
+        return err(format!("too many/few args to math function \"{name}\""));
+    };
+    match (lhs.as_double(), rhs.as_double()) {
+        (Ok(x), Ok(y)) => {
+            let r = f(x, y);
+            if r.is_nan() && !x.is_nan() && !y.is_nan() {
+                return domain_err();
+            }
+            ok(Value::double(r))
+        }
+        (Err(e), _) | (_, Err(e)) => err(e.message),
+    }
+}
+
 fn m_sqrt(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    dbl_fn(args, "sqrt", f64::sqrt)
+    dom_fn(args, "sqrt", f64::sqrt)
 }
 fn m_floor(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     dbl_fn(args, "floor", f64::floor)
@@ -122,9 +198,72 @@ fn m_pow(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("too many/few args to math function \"pow\"");
     };
     match (b.as_double(), e.as_double()) {
-        (Ok(bb), Ok(ee)) => ok(Value::double(bb.powf(ee))),
+        (Ok(bb), Ok(ee)) => {
+            let r = bb.powf(ee);
+            if r.is_nan() && !bb.is_nan() && !ee.is_nan() {
+                return domain_err();
+            }
+            ok(Value::double(r))
+        }
         (Err(er), _) | (_, Err(er)) => err(er.message),
     }
+}
+
+/// `entier(x)` — the integer part of `x` (truncated toward zero). Like `int` but
+/// without `int`'s word-size wrap; the VM's `i64` is its bound on the bignum C
+/// would return.
+fn m_entier(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let x = match one(args, "entier") {
+        Ok(v) => v,
+        Err(c) => return c,
+    };
+    if let Ok(n) = x.as_int() {
+        return ok(Value::int(n));
+    }
+    match x.as_double() {
+        Ok(f) => ok(Value::int(f.trunc() as i64)),
+        Err(e) => err(e.message),
+    }
+}
+
+/// `isqrt(n)` — the integer floor of `sqrt(n)` for a non-negative integer (a
+/// non-integer argument is truncated first). A negative argument is the error
+/// `square root of negative argument` (with the `ARITH DOMAIN` code).
+fn m_isqrt(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let x = match one(args, "isqrt") {
+        Ok(v) => v,
+        Err(c) => return c,
+    };
+    let n = if let Ok(n) = x.as_int() {
+        n
+    } else {
+        match x.as_double() {
+            Ok(f) => f.trunc() as i64,
+            Err(e) => return err(e.message),
+        }
+    };
+    if n < 0 {
+        return err_with_code("square root of negative argument", DOMAIN_CODE);
+    }
+    ok(Value::int(isqrt_i64(n)))
+}
+
+/// Integer floor-sqrt, correcting the `f64` seed for rounding so the result is
+/// exact even near a perfect square (the `i128` products avoid overflow at the
+/// top of the `i64` range).
+fn isqrt_i64(n: i64) -> i64 {
+    if n < 2 {
+        return n;
+    }
+    let nn = i128::from(n);
+    let mut r = (n as f64).sqrt() as i64;
+    while r > 0 && i128::from(r) * i128::from(r) > nn {
+        r -= 1;
+    }
+    while i128::from(r + 1) * i128::from(r + 1) <= nn {
+        r += 1;
+    }
+    r
 }
 
 fn m_bool(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -176,4 +315,31 @@ fn m_max(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 fn m_min(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     min_max(args, "min", false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::isqrt_i64;
+
+    #[test]
+    fn isqrt_small_and_perfect() {
+        assert_eq!(isqrt_i64(0), 0);
+        assert_eq!(isqrt_i64(1), 1);
+        assert_eq!(isqrt_i64(2), 1);
+        assert_eq!(isqrt_i64(3), 1);
+        assert_eq!(isqrt_i64(4), 2);
+        assert_eq!(isqrt_i64(17), 4); // 4*4=16 <= 17 < 25
+        assert_eq!(isqrt_i64(24), 4);
+        assert_eq!(isqrt_i64(25), 5);
+    }
+
+    #[test]
+    fn isqrt_large_exact_near_perfect_squares() {
+        // Values where an `f64` seed can land just over/under the true root.
+        assert_eq!(isqrt_i64(1_000_000_000_000_000_000), 1_000_000_000);
+        let big = 3_037_000_499_i64; // floor(sqrt(i64::MAX))
+        assert_eq!(isqrt_i64(big * big), big);
+        assert_eq!(isqrt_i64(big * big - 1), big - 1);
+        assert_eq!(isqrt_i64(i64::MAX), big);
+    }
 }
