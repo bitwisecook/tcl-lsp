@@ -472,6 +472,11 @@ pub(crate) fn extract_single_expr_arg(
 
     let mut words = Vec::new();
     let mut single = Vec::new();
+    // Whether each word is built only from *literal* tokens (`Esc`/`Str`). A
+    // `Var`/`Cmd` token has its sigil/brackets stripped in `token_text`, so the
+    // reconstructed word would lose them (`$e` → `e`); such an arg also needs the
+    // second round of evaluation the runtime `expr` performs, so it must not fuse.
+    let mut literal = Vec::new();
     let mut prev_is_sep = true;
     for tok in &tokens {
         match tok.kind {
@@ -480,17 +485,23 @@ pub(crate) fn extract_single_expr_arg(
             }
             _ => {
                 let t = sm.token_text(*tok);
+                let is_lit = matches!(tok.kind, TokenType::Esc | TokenType::Str);
                 if prev_is_sep {
                     words.push(t.to_owned());
                     single.push(true);
+                    literal.push(is_lit);
                 } else if let Some(last) = words.last_mut() {
                     last.push_str(t);
                     if let Some(s) = single.last_mut() {
                         *s = false;
                     }
+                    if let Some(l) = literal.last_mut() {
+                        *l = *l && is_lit;
+                    }
                 } else {
                     words.push(t.to_owned());
                     single.push(true);
+                    literal.push(is_lit);
                 }
                 prev_is_sep = false;
             }
@@ -505,6 +516,11 @@ pub(crate) fn extract_single_expr_arg(
         return None;
     }
     if !single[1] {
+        return None;
+    }
+    // A braced `{$e}` (a `Str` token) keeps its `$` and is a real expression
+    // operand, so it fuses; a bare `$e`/`[f]` must defer to the runtime `expr`.
+    if !literal[1] {
         return None;
     }
     Some(words[1].clone())
