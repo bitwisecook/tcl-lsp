@@ -7543,9 +7543,12 @@ file; this call falls through to the 'unknown' handler."
             return;
         }
         self.unresolved_commands_emitted = true;
-        if self.disabled_diagnostics.contains("W123") {
-            return;
-        }
+        // The W123 *diagnostic* honours `disabled_diagnostics`, but the
+        // unresolved-command *call sites* are recorded regardless (below), so a
+        // cross-file consumer can run its arity check independently of the W123
+        // toggle.  The knowability gates that follow (dynamic `package require` /
+        // `unknown` proc) still suppress both, since resolution is then unknown.
+        let emit_w123 = !self.disabled_diagnostics.contains("W123");
 
         // Conservative gate: if any ``package require`` was seen,
         // suppress W123 entirely.  The package may load arbitrary
@@ -7704,6 +7707,16 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
             if self.result.all_classes.contains_key(&format!("::{name}")) {
+                continue;
+            }
+
+            // Unresolved.  Record the call site so a cross-file consumer can run
+            // its arity check independently of the W123 toggle, then emit the W123
+            // diagnostic unless it is disabled.
+            self.result
+                .unresolved_command_sites
+                .push((inv.range, name.clone()));
+            if !emit_w123 {
                 continue;
             }
 
@@ -12890,6 +12903,7 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
                 name: "random_cmd".to_string(),
                 range: Span::new(25, 35),
                 resolved_qualified_name: None,
+                argc: Some(0),
             },
         );
         let registry = tcl_registry::CommandRegistry::build_default();
