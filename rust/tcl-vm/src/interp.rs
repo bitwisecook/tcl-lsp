@@ -187,6 +187,11 @@ pub struct Vm {
     /// `errorInfo` trace (C's `iPtr->errorLine`) — the line the `(procedure …
     /// line N)` / `("while" body line N)` frames report.
     error_line: u32,
+    /// The word a builtin was invoked under (the source `objv[0]`, before
+    /// namespace-path resolution). Lets a builtin report its invocation name in
+    /// error messages — e.g. `::tcl::mathop::!` reached via `namespace path` says
+    /// `wrong # args: should be "! boolean"`, not the resolved full name.
+    invoked_name: Option<String>,
     /// Open I/O channels (file handles), keyed by channel id (`file3`, …). The
     /// predefined `stdin`/`stdout`/`stderr` are not stored here; commands
     /// special-case those names.
@@ -264,6 +269,7 @@ impl Vm {
             error_info: None,
             error_logged: false,
             error_line: 1,
+            invoked_name: None,
             channels: HashMap::new(),
             chan_counter: 2,
             script_stack: Vec::new(),
@@ -1761,6 +1767,16 @@ impl Vm {
     /// The innermost logged command's source line (C's `iPtr->errorLine`).
     pub(crate) fn error_line(&self) -> u32 {
         self.error_line
+    }
+
+    /// Record the word a builtin is being invoked under (its source `objv[0]`).
+    pub(crate) fn set_invoked_name(&mut self, name: &str) {
+        self.invoked_name = Some(name.to_owned());
+    }
+
+    /// The word the current builtin was invoked under, if recorded.
+    pub(crate) fn invoked_name(&self) -> Option<&str> {
+        self.invoked_name.as_deref()
     }
 
     /// Clear `ERR_ALREADY_LOGGED` at a frame boundary (a nested `eval`/`[subst]`

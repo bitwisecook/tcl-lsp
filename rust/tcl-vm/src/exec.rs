@@ -1980,6 +1980,7 @@ impl Vm {
                 argv: words[1..].to_vec(),
             })),
             Some(Command::Builtin(bf)) => {
+                self.set_invoked_name(&name);
                 let res = bf(self, &words[1..]);
                 if res.code.is_ok() {
                     f.stack.push(res.result);
@@ -2035,7 +2036,10 @@ impl Vm {
     /// `return` are handled), and an alias re-evaluates its target prefix.
     pub(crate) fn invoke_command(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
         match self.lookup_command(name) {
-            Some(Command::Builtin(bf)) => bf(self, argv),
+            Some(Command::Builtin(bf)) => {
+                self.set_invoked_name(name);
+                bf(self, argv)
+            }
             Some(Command::Proc(p)) => match self.enter_proc(&p, argv) {
                 Ok(()) => self.run_activation(Frame::new(Rc::clone(&p.body), true)),
                 Err(c) => c,
