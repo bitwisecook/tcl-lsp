@@ -53,8 +53,12 @@ pub fn interprocedural_summaries<'py>(
     dialect: Option<&str>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let registry = crate::registry::default_registry();
-    let cu =
-        CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, dialect);
+    let owned_source = source.to_owned();
+    let owned_dialect = dialect.map(str::to_owned);
+    let cu = py.detach(move || {
+        CompilationUnit::build_for(&owned_source, registry, false)
+            .with_interprocedural(registry, owned_dialect.as_deref())
+    });
     let out = PyDict::new(py);
     let Some(ia) = cu.interproc.as_ref() else {
         return Ok(out);

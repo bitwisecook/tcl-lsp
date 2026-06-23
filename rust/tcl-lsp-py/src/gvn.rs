@@ -43,39 +43,55 @@ fn lift(r: RedundantComputation) -> GvnTuple {
 /// Full-redundancy detection (O105).
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
-pub fn gvn_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
+pub fn gvn_redundancies(py: Python<'_>, source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
     let registry = crate::registry::default_registry();
-    let cu = CompilationUnit::build_for(source, registry, false);
-    find_redundancies_for_cu(&cu, registry, dialect)
-        .into_iter()
-        .map(lift)
-        .collect()
+    let source = source.to_owned();
+    let dialect = dialect.map(str::to_owned);
+    py.detach(move || {
+        let cu = CompilationUnit::build_for(&source, registry, false);
+        find_redundancies_for_cu(&cu, registry, dialect.as_deref())
+            .into_iter()
+            .map(lift)
+            .collect()
+    })
 }
 
 /// Partial-redundancy detection (O105 — GVN-PRE shares the
 /// full-redundancy code).
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
-pub fn gvn_partial_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
+pub fn gvn_partial_redundancies(
+    py: Python<'_>,
+    source: &str,
+    dialect: Option<&str>,
+) -> Vec<GvnTuple> {
     let registry = crate::registry::default_registry();
-    let cu = CompilationUnit::build_for(source, registry, false);
-    find_partial_redundancies_for_cu(&cu, registry, dialect)
-        .into_iter()
-        .map(lift)
-        .collect()
+    let source = source.to_owned();
+    let dialect = dialect.map(str::to_owned);
+    py.detach(move || {
+        let cu = CompilationUnit::build_for(&source, registry, false);
+        find_partial_redundancies_for_cu(&cu, registry, dialect.as_deref())
+            .into_iter()
+            .map(lift)
+            .collect()
+    })
 }
 
 /// Loop-invariant detection (O106 — canonical loop-invariant
 /// code motion).
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
-pub fn gvn_loop_invariants(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
+pub fn gvn_loop_invariants(py: Python<'_>, source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
     let registry = crate::registry::default_registry();
-    let cu = CompilationUnit::build_for(source, registry, false);
-    find_loop_invariants_for_cu(&cu, registry, dialect)
-        .into_iter()
-        .map(lift)
-        .collect()
+    let source = source.to_owned();
+    let dialect = dialect.map(str::to_owned);
+    py.detach(move || {
+        let cu = CompilationUnit::build_for(&source, registry, false);
+        find_loop_invariants_for_cu(&cu, registry, dialect.as_deref())
+            .into_iter()
+            .map(lift)
+            .collect()
+    })
 }
 
 pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {

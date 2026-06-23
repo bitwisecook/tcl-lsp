@@ -60,8 +60,12 @@ pub fn analyser_analyse<'py>(
     source: &str,
     dialect: &str,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let mut analyser = Analyser::new();
-    let result = analyser.analyse(source, dialect);
+    let owned_source = source.to_owned();
+    let owned_dialect = dialect.to_owned();
+    let result = py.detach(move || {
+        let mut analyser = Analyser::new();
+        analyser.analyse(&owned_source, &owned_dialect)
+    });
     result_to_dict(py, &result)
 }
 
