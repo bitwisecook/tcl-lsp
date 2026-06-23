@@ -113,6 +113,11 @@ use tower_lsp::{Client, LanguageServer};
 #[derive(Debug, Clone)]
 struct DocumentState {
     text: String,
+    /// Persisted line-start index for `text`, patched in place on each edit
+    /// (`LineIndex::apply_edit`) rather than rebuilt per position lookup
+    /// (SRV-INCREMENTAL Task 1).  Kept in lock-step with `text`: every mutation
+    /// of `text` updates this alongside it.
+    line_index: tcl_lexer::LineIndex,
     dialect: String,
     /// The LSP `languageId` the client opened this document with (empty
     /// for documents materialised from disk by the folder scan).  Retained
@@ -133,8 +138,10 @@ struct DocumentState {
 
 impl DocumentState {
     fn new(text: String, dialect: String) -> Self {
+        let line_index = tcl_lexer::LineIndex::new(&text);
         Self {
             text,
+            line_index,
             dialect,
             language_id: String::new(),
             revision: 0,
@@ -143,8 +150,10 @@ impl DocumentState {
     }
 
     fn with_version(text: String, dialect: String, version: i32) -> Self {
+        let line_index = tcl_lexer::LineIndex::new(&text);
         Self {
             text,
+            line_index,
             dialect,
             language_id: String::new(),
             revision: 0,
@@ -1420,7 +1429,7 @@ impl Backend {
             let Some(target_doc) = self.read_document(&parsed).await else {
                 continue;
             };
-            let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
+            let line_index = target_doc.line_index.clone();
             let start = line_index.position_at_utf16(span.start(), &target_doc.text);
             let end = line_index.position_at_utf16(span.end(), &target_doc.text);
             locations.push(Location {
@@ -1569,7 +1578,7 @@ impl Backend {
             let Some(target_doc) = self.read_document(&parsed).await else {
                 continue;
             };
-            let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
+            let line_index = target_doc.line_index.clone();
             let start = line_index.position_at_utf16(intent.span.start(), &target_doc.text);
             let end = line_index.position_at_utf16(intent.span.end(), &target_doc.text);
             let edit = TextEdit {
@@ -1720,7 +1729,7 @@ impl Backend {
             let Some(target_doc) = self.read_document(&parsed).await else {
                 continue;
             };
-            let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
+            let line_index = target_doc.line_index.clone();
             let start = line_index.position_at_utf16(name_span.start(), &target_doc.text);
             let end = line_index.position_at_utf16(name_span.end(), &target_doc.text);
             let name_range = Range {
@@ -3047,10 +3056,15 @@ impl LanguageServer for Backend {
                 // session default dialect (no languageId is available here).
                 .or_insert_with(|| DocumentState::new(String::new(), default_dialect));
             let mut text = std::mem::take(&mut entry.text);
+            // Patch the persisted `LineIndex` alongside each splice instead of
+            // rebuilding it per edit / per position lookup (SRV-INCREMENTAL
+            // Task 1).  Take it out, patch through the edit sequence, put it back.
+            let mut index = std::mem::replace(&mut entry.line_index, tcl_lexer::LineIndex::new(""));
             for change in &params.content_changes {
-                text = apply_content_change(&text, change.range, &change.text);
+                text = apply_content_change_indexed(&text, change.range, &change.text, &mut index);
             }
             entry.text = text.clone();
+            entry.line_index = index;
             entry.bump_revision(change_version);
             let dialect = entry.dialect.clone();
             // Update the salsa `SourceFile` input + the cross-document index
@@ -4970,7 +4984,7 @@ impl LanguageServer for Backend {
             let Some(doc) = self.read_document(&dep_url).await else {
                 continue;
             };
-            let line_index = tcl_lexer::LineIndex::new(&doc.text);
+            let line_index = doc.line_index.clone();
             by_dep.entry(dep_url).or_default().push(TextEdit {
                 range: lift_span(&doc.text, &line_index, edit.span),
                 new_text: edit.new_text,
@@ -5423,16 +5437,40 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
 /// byte offsets via [`tcl_lexer::LineIndex::offset_at_utf16`] and spliced.
 /// Offsets are clamped and ordered so the splice indices are always valid
 /// char boundaries within `text`.
+#[cfg(test)]
 fn apply_content_change(text: &str, range: Option<Range>, new_text: &str) -> String {
+    // Throwaway index for the splice-behaviour tests; the live path persists one
+    // through [`apply_content_change_indexed`].
+    let mut index = tcl_lexer::LineIndex::new(text);
+    apply_content_change_indexed(text, range, new_text, &mut index)
+}
+
+/// [`apply_content_change`] that resolves the edit through a **persisted**
+/// [`tcl_lexer::LineIndex`] and **patches it in place** to match the returned
+/// text (SRV-INCREMENTAL Task 1) — so neither the offset resolution nor the
+/// index maintenance rescans the whole document.  A full-document replacement
+/// (`range == None`) rebuilds the index from the new text.
+fn apply_content_change_indexed(
+    text: &str,
+    range: Option<Range>,
+    new_text: &str,
+    index: &mut tcl_lexer::LineIndex,
+) -> String {
     let Some(range) = range else {
+        *index = tcl_lexer::LineIndex::new(new_text);
         return new_text.to_owned();
     };
-    let index = tcl_lexer::LineIndex::new(text);
     let a = index.offset_at_utf16(range.start.line, range.start.character, text) as usize;
     let b = index.offset_at_utf16(range.end.line, range.end.character, text) as usize;
     let len = text.len();
     let start = a.min(b).min(len);
     let end = a.max(b).min(len);
+    // Patch the index for the same [start, end) → new_text splice applied below.
+    index.apply_edit(
+        u32::try_from(start).expect("offset fits u32"),
+        u32::try_from(end).expect("offset fits u32"),
+        new_text,
+    );
     let mut out = String::with_capacity(len - (end - start) + new_text.len());
     out.push_str(&text[..start]);
     out.push_str(new_text);
@@ -6978,6 +7016,32 @@ mod tests {
             "ghij",
         );
         assert_eq!(text, "aXbc\nghij\n");
+    }
+
+    /// SRV-INCREMENTAL Task 1 (live path): a persisted `LineIndex` driven through
+    /// `apply_content_change_indexed` over a sequence of ranged + full-replace
+    /// edits must stay byte-identical to a rebuild from the final text — the
+    /// invariant `DocumentState` relies on for its persisted index.
+    #[test]
+    fn apply_content_change_indexed_keeps_line_index_consistent() {
+        let line_starts =
+            |idx: &tcl_lexer::LineIndex| (0..idx.line_count()).map(|l| idx.line_start(l as u32)).collect::<Vec<_>>();
+        let mut text = "abc\ndef\nghi\n".to_string();
+        let mut index = tcl_lexer::LineIndex::new(&text);
+        let edits = [
+            (Some(Range { start: pos(0, 1), end: pos(0, 1) }), "X\nY"), // insert with newline
+            (Some(Range { start: pos(2, 0), end: pos(3, 2) }), ""),     // multi-line deletion
+            (None, "p\nq\nr\ns"),                                       // full replacement
+            (Some(Range { start: pos(1, 1), end: pos(2, 0) }), "Z"),    // collapse a line
+        ];
+        for (range, new_text) in edits {
+            text = apply_content_change_indexed(&text, range, new_text, &mut index);
+            assert_eq!(
+                line_starts(&index),
+                line_starts(&tcl_lexer::LineIndex::new(&text)),
+                "persisted index diverged from rebuild after edit {new_text:?} -> {text:?}"
+            );
+        }
     }
 
     /// GAP-C1 strip 2: the source-style pass must reach the

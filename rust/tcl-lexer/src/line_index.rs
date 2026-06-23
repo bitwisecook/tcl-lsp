@@ -74,6 +74,56 @@ impl LineIndex {
         }
     }
 
+    /// Patch the index **in place** for an edit that replaces source bytes
+    /// `[start, old_end)` with `new_text`, instead of rebuilding from the whole
+    /// edited document (SRV-INCREMENTAL Task 1).  After the call the index equals
+    /// `LineIndex::new(edited_source)` for the document the same splice produces —
+    /// proven byte-identical over a random-edit fuzz corpus
+    /// (`apply_edit_matches_rebuild_under_fuzz`).
+    ///
+    /// The three regions of the new index: line-starts at or before `start` are
+    /// unchanged; line-starts inside the replaced span `(start, old_end]` are
+    /// dropped; line-starts after `old_end` shift by the byte delta; and one new
+    /// line-start is inserted per `\n` in `new_text`.  O(lines after the edit +
+    /// newlines inserted), not O(document).
+    ///
+    /// `start` / `old_end` are byte offsets into the *pre-edit* source and must be
+    /// on `char` boundaries and satisfy `start <= old_end`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the resulting offsets do not fit in a `u32` (the 4 GiB source
+    /// budget [`Self::new`] enforces).
+    pub fn apply_edit(&mut self, start: u32, old_end: u32, new_text: &str) {
+        debug_assert!(start <= old_end, "edit start must not exceed old_end");
+        let delta = i64::from(u32::try_from(new_text.len()).expect("insertion fits u32"))
+            - i64::from(old_end - start);
+        let inserted = new_text.bytes().filter(|&b| b == b'\n').count();
+        let mut next: Vec<u32> = Vec::with_capacity(self.line_starts.len() + inserted);
+
+        // Region 1 — line-starts at or before the edit: unchanged.
+        let mut i = 0;
+        while i < self.line_starts.len() && self.line_starts[i] <= start {
+            next.push(self.line_starts[i]);
+            i += 1;
+        }
+        // Region 2 — one new line-start just after each `\n` in `new_text`.
+        for (j, _) in new_text.bytes().enumerate().filter(|&(_, b)| b == b'\n') {
+            next.push(start + u32::try_from(j + 1).expect("offset fits u32"));
+        }
+        // Drop the line-starts that fell inside the replaced span `(start, old_end]`.
+        while i < self.line_starts.len() && self.line_starts[i] <= old_end {
+            i += 1;
+        }
+        // Region 3 — line-starts after the edit: shifted by the byte delta.
+        while i < self.line_starts.len() {
+            let shifted = i64::from(self.line_starts[i]) + delta;
+            next.push(u32::try_from(shifted).expect("shifted offset fits u32"));
+            i += 1;
+        }
+        self.line_starts = next.into_boxed_slice();
+    }
+
     /// Number of lines in the index. Always ≥ 1 for any `LineIndex`
     /// built from a non-`None` source (even an empty string contains
     /// one line).
@@ -232,6 +282,70 @@ impl LineIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// SRV-INCREMENTAL Task 1 gate: the in-place [`LineIndex::apply_edit`] patch
+    /// must be byte-identical to a full rebuild over a random-edit corpus.  ASCII
+    /// edits only, so every byte offset is a `char` boundary; the alphabet is
+    /// newline-heavy to exercise insert/delete of line-starts in every region.
+    #[test]
+    fn apply_edit_matches_rebuild_under_fuzz() {
+        let starts = |idx: &LineIndex| (0..idx.line_count()).map(|l| idx.line_start(l as u32)).collect::<Vec<_>>();
+        // Deterministic xorshift PRNG — reproducible without a dev-dependency.
+        let mut rng = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        let mut source = String::from("alpha\nbeta\n\ngamma\ndelta\n");
+        let mut idx = LineIndex::new(&source);
+        for step in 0..5000 {
+            let len = source.len();
+            let a = (next() as usize) % (len + 1);
+            let b = a + (next() as usize) % (len - a + 1);
+            // Build an ASCII replacement, newline-heavy (~1 in 3) and 0..6 long.
+            let ins_len = (next() as usize) % 7;
+            let mut ins = String::with_capacity(ins_len);
+            for _ in 0..ins_len {
+                ins.push(if next() % 3 == 0 { '\n' } else { 'x' });
+            }
+            idx.apply_edit(
+                u32::try_from(a).unwrap(),
+                u32::try_from(b).unwrap(),
+                &ins,
+            );
+            source.replace_range(a..b, &ins);
+            assert_eq!(
+                starts(&idx),
+                starts(&LineIndex::new(&source)),
+                "patched != rebuilt at step {step}: edit [{a},{b}) += {ins:?}\nsource={source:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn apply_edit_handles_pure_insert_delete_and_boundaries() {
+        // Pure insertion of a newline.
+        let mut idx = LineIndex::new("abcdef");
+        idx.apply_edit(3, 3, "\n");
+        assert_eq!(idx.line_count(), 2);
+        assert_eq!(idx.line_start(1), 4);
+        // Pure deletion spanning a newline collapses two lines into one.
+        let mut idx = LineIndex::new("ab\ncd\nef");
+        idx.apply_edit(2, 6, ""); // delete "\ncd\n"
+        assert_eq!(idx.line_count(), 1);
+        // Replace exactly at a line boundary (start == an existing line-start).
+        let mut idx = LineIndex::new("a\nb\nc");
+        idx.apply_edit(2, 2, "Z\n");
+        assert!(starts_eq(&idx, "a\nZ\nb\nc"));
+    }
+
+    fn starts_eq(idx: &LineIndex, expected_src: &str) -> bool {
+        let want = LineIndex::new(expected_src);
+        idx.line_count() == want.line_count()
+            && (0..idx.line_count()).all(|l| idx.line_start(l as u32) == want.line_start(l as u32))
+    }
 
     #[test]
     fn position_at_utf16_clamps_offset_past_eof() {
