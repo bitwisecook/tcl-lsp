@@ -569,13 +569,21 @@ impl Vm {
                 if c.code == Code::Error
                     && let Some(name) = self.current_proc_name()
                 {
-                    // Proc-relative line: absolute line − the body's base line + 1.
+                    // The `(procedure … line N)` frame reports the body-relative
+                    // line of the failing command. A runtime-compiled proc body
+                    // (the common case) carries body-relative instruction lines
+                    // with `body_base_line == 0`, so the line is used as-is; a proc
+                    // compiled inside a module carries absolute lines, so subtract
+                    // its definition line (`absolute − base + 1`).
                     let base = act.asm.body_base_line;
-                    let n = self
-                        .error_line()
-                        .saturating_sub(base)
-                        .saturating_add(1)
-                        .max(1);
+                    let n = if base == 0 {
+                        self.error_line().max(1)
+                    } else {
+                        self.error_line()
+                            .saturating_sub(base)
+                            .saturating_add(1)
+                            .max(1)
+                    };
                     self.append_proc_frame(&name, n);
                 }
                 self.pop_call_frame();
