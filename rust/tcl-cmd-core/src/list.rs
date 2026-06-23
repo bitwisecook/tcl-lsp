@@ -100,7 +100,9 @@ pub fn lrepeat<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let n = ops.as_int(count)?;
     if n < 0 {
-        return Err(CmdError::new(format!("bad count \"{n}\": must be >= 0")));
+        return Err(CmdError::new(format!(
+            "bad count \"{n}\": must be integer >= 0"
+        )));
     }
     let n = usize::try_from(n).unwrap_or(0);
     let mut out = Vec::with_capacity(n.saturating_mul(values.len()));
