@@ -653,6 +653,43 @@ pub(crate) fn completion_options(comp: &Completion<Value>) -> Value {
     }
 }
 
+/// Resolve the `-errorcode` an error completion publishes to `$errorCode`.
+///
+/// An explicit `-errorcode` in the completion's options wins (set by
+/// `error` / `throw` / `return -errorcode`, even when it is the literal
+/// `NONE`). A bare builtin error (`err(...)`, which carries no options) defaults
+/// to `NONE` — except a "wrong # args" usage error, which C's
+/// `Tcl_WrongNumArgs` tags `TCL WRONGARGS`. Matching that lets the many
+/// `… errors` tests (join-2.1, split-2.1, …) see the right `$errorCode` without
+/// retagging every wrong-args call site.
+pub(crate) fn resolved_error_code(comp: &Completion<Value>) -> Value {
+    if let Some(ec) = opt_get(&comp.options, "-errorcode") {
+        return ec;
+    }
+    Value::string(default_error_code(&comp.result.to_str()))
+}
+
+/// The `errorCode` a bare builtin error (no carried `-errorcode`) defaults to,
+/// keyed off its message — the codes C's `Tcl_WrongNumArgs` / list parser
+/// (`tclUtil.c`) attach. Only consulted when the completion carries no explicit
+/// `-errorcode`, so a user `error msg` (which sets `-errorcode NONE`) is never
+/// reclassified. Anything unrecognised is `NONE`.
+fn default_error_code(message: &str) -> &'static str {
+    if message.starts_with("wrong # args:") {
+        "TCL WRONGARGS"
+    } else if message == "unmatched open brace in list" {
+        "TCL VALUE LIST BRACE"
+    } else if message == "unmatched open quote in list" {
+        "TCL VALUE LIST QUOTE"
+    } else if message.starts_with("list element in braces followed by")
+        || message.starts_with("list element in quotes followed by")
+    {
+        "TCL VALUE LIST JUNK"
+    } else {
+        "NONE"
+    }
+}
+
 /// Look up a key in an options-dict value, returning the following element.
 pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
     let items = options.as_list().ok()?;
@@ -886,7 +923,7 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 |v| v.to_str().to_string(),
             )
         });
-        let ecode = opt_get(&comp.options, "-errorcode").unwrap_or_else(|| Value::string("NONE"));
+        let ecode = resolved_error_code(&comp);
         vm.publish_error(&einfo, &ecode);
     } else {
         // A non-error completion ends any in-flight trace (e.g. an inner error

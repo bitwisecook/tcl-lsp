@@ -190,6 +190,29 @@ fn dynamic_eval_error_info_carries_eval_body_frame() {
     );
 }
 
+/// A bare builtin error sets `$errorCode` to the code C attaches: a
+/// "wrong # args" usage error → `TCL WRONGARGS` (`Tcl_WrongNumArgs`), and a
+/// malformed-list parse error → `TCL VALUE LIST …` (`tclUtil.c`). An
+/// unrecognised error stays `NONE`. Regression for join-2.1/2.3, split-2.1.
+#[test]
+fn builtin_errors_publish_their_error_code() {
+    // wrong # args → TCL WRONGARGS
+    let (ok, result, _) = run("catch join\nset ::errorCode");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "TCL WRONGARGS");
+
+    // unmatched open brace in list → TCL VALUE LIST BRACE (the quoted `\{`
+    // collapses to a bare `{`, so the list parse fails).
+    let (ok, result, _) = run("set s \"a b c \\{\"\ncatch {llength $s}\nset ::errorCode");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "TCL VALUE LIST BRACE");
+
+    // a user `error` with no -errorcode keeps NONE (not reclassified).
+    let (ok, result, _) = run("catch {error {wrong # args: should be \"x\"}}\nset ::errorCode");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "NONE");
+}
+
 /// A brace-string array-element target keeps its key LITERAL: `set {a($x)} 5`
 /// stores the element whose key is the literal string `$x` (Tcl braces suppress
 /// substitution), so reading it back with the same braced key returns the value
