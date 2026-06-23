@@ -536,21 +536,15 @@ fn cmd_expr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-/// Resolve a Tcl index spec (`N`, `end`, `end-N`, `end+N`) against a length.
-/// Returns a possibly out-of-range signed index; callers clamp/empty as needed.
+/// Resolve a Tcl index spec against a length, returning a possibly out-of-range
+/// signed index (callers clamp/empty as needed). Delegates to the canonical
+/// `tcl_cmd_core::index` parser so the inline `lindex`/`string index` opcodes
+/// accept every form the commands do — including the arithmetic
+/// `integer?[+-]integer?` (`2+0`, `end-1+2`), which a bare `parse::<isize>` does
+/// not (the inline `LIST_INDEX` opcode otherwise returned the empty string for
+/// `lindex $l $i+1`).
 pub(crate) fn resolve_index(spec: &str, len: usize) -> Option<isize> {
-    let s = spec.trim();
-    let n = isize::try_from(len).unwrap_or(isize::MAX);
-    if s == "end" {
-        return Some(n - 1);
-    }
-    if let Some(rest) = s.strip_prefix("end-") {
-        return rest.trim().parse::<isize>().ok().map(|k| n - 1 - k);
-    }
-    if let Some(rest) = s.strip_prefix("end+") {
-        return rest.trim().parse::<isize>().ok().map(|k| n - 1 + k);
-    }
-    s.parse::<isize>().ok()
+    tcl_cmd_core::index::resolve_opt(spec, len).and_then(|i| isize::try_from(i).ok())
 }
 
 /// A formal parameter name must be a scalar: not an array element (`a(1)`) and
