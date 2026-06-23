@@ -1027,3 +1027,17 @@ The pytest file stays in place as the oracle.
   expressions). `string.rs` had zero unit coverage.
 
 The pytest file stays in place as the oracle.
+
+### tcltest `string.test` (subcommand resolution) → `tcl-vm::cmd_string`
+
+- **Ported (gap-fill).** The VM's `string` ensemble dispatcher had zero
+  direct unit coverage of its two pure resolution helpers, both exercised
+  end-to-end by the tcltest `string.test` sweep but never asserted in
+  isolation: `resolve_string_sub` (Tcl unique-prefix subcommand
+  abbreviation — exact-match-beats-prefix, unique-prefix acceptance,
+  ambiguous/empty/unknown rejection, and the `unknown or ambiguous
+  subcommand … must be …` Oxford-`or` error list) and `is_nocase`
+  (`-nocase` option abbreviation, length-2 minimum). Added
+  `rust/tcl-vm/src/cmd_string.rs::tests` (6 cases).
+
+The tcltest oracle stays in place.

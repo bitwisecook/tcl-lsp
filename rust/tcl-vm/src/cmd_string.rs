@@ -546,3 +546,67 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     ok(result)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{is_nocase, resolve_string_sub};
+
+    #[test]
+    fn resolve_string_sub_prefers_exact_over_prefix() {
+        // An exact subcommand wins even when it is itself a prefix of others:
+        // `trim` resolves to `trim`, never ambiguous against
+        // `trimleft`/`trimright` (Tcl's `Tcl_GetIndexFromObj` exact-match
+        // short-circuit). Likewise plain `is`.
+        assert_eq!(resolve_string_sub("trim"), Ok("trim"));
+        assert_eq!(resolve_string_sub("is"), Ok("is"));
+        assert_eq!(resolve_string_sub("length"), Ok("length"));
+    }
+
+    #[test]
+    fn resolve_string_sub_accepts_unique_prefix() {
+        // Unique non-empty prefixes resolve to their one canonical sub.
+        assert_eq!(resolve_string_sub("le"), Ok("length"));
+        assert_eq!(resolve_string_sub("eq"), Ok("equal"));
+        assert_eq!(resolve_string_sub("rev"), Ok("reverse"));
+        assert_eq!(resolve_string_sub("words"), Ok("wordstart"));
+    }
+
+    #[test]
+    fn resolve_string_sub_rejects_ambiguous_prefix() {
+        // `l` is ambiguous (last, length); `to` (tolower, totitle, toupper);
+        // `wor` (wordend, wordstart). All error rather than guessing.
+        assert!(resolve_string_sub("l").is_err());
+        assert!(resolve_string_sub("to").is_err());
+        assert!(resolve_string_sub("wor").is_err());
+    }
+
+    #[test]
+    fn resolve_string_sub_rejects_empty_and_unknown() {
+        // The empty string is not treated as a prefix of the first sub, and a
+        // non-matching token is unknown.
+        assert!(resolve_string_sub("").is_err());
+        assert!(resolve_string_sub("nope").is_err());
+    }
+
+    #[test]
+    fn resolve_string_sub_error_lists_canonical_subcommands() {
+        let err = resolve_string_sub("zzz").unwrap_err();
+        assert!(err.starts_with("unknown or ambiguous subcommand \"zzz\": must be "));
+        assert!(err.contains("cat, compare, equal,"));
+        // Oxford "or" before the final entry, matching Tcl's option-list error.
+        assert!(err.contains("trimright, wordend, or wordstart"));
+    }
+
+    #[test]
+    fn is_nocase_accepts_unique_abbreviations() {
+        // `-nocase` abbreviates to any prefix of length >= 2 (a bare "-" is too
+        // short to disambiguate); non-prefixes and the empty string are not.
+        assert!(is_nocase("-nocase"));
+        assert!(is_nocase("-n"));
+        assert!(is_nocase("-noc"));
+        assert!(!is_nocase("-"));
+        assert!(!is_nocase("-x"));
+        assert!(!is_nocase(""));
+        assert!(!is_nocase("-nocasex"));
+    }
+}
