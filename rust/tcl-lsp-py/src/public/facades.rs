@@ -78,10 +78,17 @@ pub(crate) fn parse_tcl(
 /// Lower `source` to a [`CompilationUnit`], returning the opaque handle
 /// downstream callers reuse across analyses.
 ///
-/// `dialect=None` is plain Tcl; a non-None dialect activates the
-/// dialect-aware lowering branches. `interprocedural=False` skips the
-/// (more expensive) interprocedural summary pass. Raises
-/// `TclCompileError` if the source cannot be lexed.
+/// `dialect=None` defaults to `tcl9.0` (the reference standard, matching
+/// `parse_tcl` / `analyse_tcl`); a non-None dialect (e.g. `"f5-irules"`)
+/// selects that dialect's registry and lowering branches.
+/// `interprocedural=False` skips the (more expensive) interprocedural
+/// summary pass. Raises `TclCompileError` if the source cannot be lexed.
+///
+/// The registry is built **for the effective dialect** so the lowering
+/// honours the right Tcl version (`tcl9.0` reads leading zeros as decimal,
+/// the 8.x-derived dialects as octal — `CommandRegistry::leading_zero_is_octal`)
+/// and loads dialect-only commands (iRules `when`, …) needed to emit the
+/// `::when::*` procedures.
 #[pyfunction]
 #[pyo3(signature = (source, *, dialect = None, interprocedural = true, uri = None))]
 pub(crate) fn compile_tcl(
@@ -91,8 +98,9 @@ pub(crate) fn compile_tcl(
     interprocedural: bool,
     uri: Option<String>,
 ) -> PyResult<CompilationUnitHandle> {
-    let registry = crate::registry::default_registry();
-    let config = LexerConfig::for_dialect(dialect.unwrap_or(DEFAULT_DIALECT));
+    let effective_dialect = dialect.unwrap_or(DEFAULT_DIALECT);
+    let registry = crate::registry::default_registry_for_dialect(effective_dialect);
+    let config = LexerConfig::for_dialect(effective_dialect);
     if let Err(e) = Lexer::with_source_map(SourceMap::new(source), config).tokenise_all() {
         return Err(PublicError::compile(e.to_string())
             .with_uri(uri)
@@ -101,7 +109,7 @@ pub(crate) fn compile_tcl(
 
     let unit = CompilationUnit::build_for_with_config(source, registry, false, config);
     let unit = if interprocedural {
-        unit.with_interprocedural(registry, dialect)
+        unit.with_interprocedural(registry, Some(effective_dialect))
     } else {
         unit
     };
