@@ -110,31 +110,37 @@ fn prefix_match(_vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let mut exact = false;
     let mut message = "option".to_string();
     let mut error_opts: Option<Value> = None;
+    // The trailing two words are always `table string`; everything before them
+    // is the option region (C parses `objv[2 .. objc-2]`). So a non-option there
+    // is `bad option` (not `wrong # args`), and a `-message`/`-error` with no
+    // following word *within* the region is `missing value` (string-26.x).
+    if rest.len() < 2 {
+        return err("wrong # args: should be \"tcl::prefix match ?options? table string\"");
+    }
+    let (opts, tail) = rest.split_at(rest.len() - 2);
+    let [table, sv] = tail else {
+        return err("wrong # args: should be \"tcl::prefix match ?options? table string\"");
+    };
     let mut i = 0;
-    while i < rest.len() {
-        let a = rest[i].to_str();
-        if !a.starts_with('-') || a.len() < 2 {
-            break;
-        }
-        match &*a {
-            "--" => {
+    while i < opts.len() {
+        match &*opts[i].to_str() {
+            "-exact" => {
+                exact = true;
                 i += 1;
-                break;
             }
-            "-exact" => exact = true,
             "-message" => {
-                let Some(v) = rest.get(i + 1) else {
+                let Some(v) = opts.get(i + 1) else {
                     return err("missing value for -message");
                 };
                 message = v.to_str().to_string();
-                i += 1;
+                i += 2;
             }
             "-error" => {
-                let Some(v) = rest.get(i + 1) else {
+                let Some(v) = opts.get(i + 1) else {
                     return err("missing value for -error");
                 };
                 error_opts = Some(v.clone());
-                i += 1;
+                i += 2;
             }
             other => {
                 return err(format!(
@@ -142,12 +148,7 @@ fn prefix_match(_vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                 ));
             }
         }
-        i += 1;
     }
-    let remaining = &rest[i..];
-    let [table, sv] = remaining else {
-        return err("wrong # args: should be \"tcl::prefix match ?options? table string\"");
-    };
     let table = match entries(table) {
         Ok(t) => t,
         Err(c) => return c,
@@ -182,15 +183,18 @@ fn prefix_match(_vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     match error_opts {
         // No `-error`: a normal error.
         None => err(msg),
-        Some(opts) => {
-            if opts.to_str().trim().is_empty() {
-                // `-error {}`: not an error at all — return the empty string.
-                ok(Value::empty())
-            } else {
-                // `-error <opts>`: report the message with the caller's return
-                // options attached (the trampoline applies `-code`/`-level`).
-                Completion::new(Code::Error, Value::string(msg), opts)
+        Some(opts) => match opts.as_list() {
+            // The `-error` value must be a proper, even-length list (a
+            // return-options dict): a malformed or odd one is reported as such
+            // (string-26.3).
+            Err(e) => err(e.message),
+            Ok(list) if list.is_empty() => ok(Value::empty()),
+            Ok(list) if list.len() % 2 != 0 => {
+                err("error options must have an even number of elements")
             }
-        }
+            // `-error <opts>`: report the message with the caller's return
+            // options attached (the trampoline applies `-code`/`-level`).
+            Ok(_) => Completion::new(Code::Error, Value::string(msg), opts),
+        },
     }
 }
