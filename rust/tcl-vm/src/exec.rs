@@ -459,20 +459,24 @@ fn proc_usage(proc: &ProcDef) -> String {
         .usage_name
         .as_deref()
         .unwrap_or_else(|| proc.name.rsplit("::").next().unwrap_or(&proc.name));
-    let mut s = simple.to_owned();
+    // Each desired-arg word is list-quoted (C's `Tcl_WrongNumArgs`), so a param
+    // name containing spaces shows as `{a b c}` and an empty name as `{}`
+    // (proc-3.6/3.7). A trailing `args` becomes the raw `?arg ...?` suffix — not
+    // a list element, so its space isn't braced.
+    let mut elems: Vec<Value> = vec![Value::string(simple)];
+    let mut suffix = "";
     for p in &proc.params {
-        s.push(' ');
         if p.name == "args" {
-            s.push_str("?arg ...?");
+            suffix = " ?arg ...?";
+            break;
         } else if p.default.is_some() {
-            s.push('?');
-            s.push_str(&p.name);
-            s.push('?');
+            elems.push(Value::string(format!("?{}?", p.name)));
         } else {
-            s.push_str(&p.name);
+            elems.push(Value::string(p.name.clone()));
         }
     }
-    format!("wrong # args: should be \"{s}\"")
+    let joined = Value::list(elems).to_str();
+    format!("wrong # args: should be \"{joined}{suffix}\"")
 }
 
 impl Vm {

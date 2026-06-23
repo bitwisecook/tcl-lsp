@@ -25,7 +25,7 @@ pub(crate) fn register(vm: &mut Vm) {
 /// `array option arrayName ?arg ...?` — dispatch to the subcommand handler.
 fn cmd_array(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
-        return err("wrong # args: should be \"array option arrayName ?arg ...?\"");
+        return err("wrong # args: should be \"array subcommand ?arg ...?\"");
     };
     array_op(vm, &sub.to_str(), rest)
 }
