@@ -1239,13 +1239,16 @@ final track** — every consumer above must port first.
   the analyser acceptance gate.
 - **partial** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
   Python toolchain dependency). The `rust/xtask` crate + `cargo xtask` alias
-  scaffold **landed**, with two check scripts ported byte-for-byte (stdout /
-  stderr + exit codes verified identical against the Python originals):
-  `refcount-contract` (⇐ `scripts/check/refcount_contract.py`) and
-  `kcs-index-links` (⇐ `scripts/check/kcs_index_links.py`). Remaining: port the
-  other build/check/release Python scripts (`build/{kcs_db,tzdata_bundle,
-  zipapps}.py`, the remaining `check/*.py`, `print_version.py`, …) one at a
-  time, then flip the Makefile/CI invocations and retire the Python originals.
+  scaffold **landed**, with three scripts ported and parity-checked against the
+  Python originals: `refcount-contract` (⇐ `scripts/check/refcount_contract.py`)
+  and `kcs-index-links` (⇐ `scripts/check/kcs_index_links.py`) — both
+  byte-for-byte identical stdout/stderr + exit codes — and `version` (⇐
+  `scripts/print_version.py`), whose `git describe` → setuptools-scm scheme is
+  unit-pinned against real `setuptools_scm` outputs. Remaining: port the
+  heavier build scripts (`build/{kcs_db,tzdata_bundle,zipapps}.py` — SQLite /
+  tzdata / zipapp artifact builders) and the environment-coupled audits
+  (`check/audit_option_dialects.py`, `check/wasm_command_parity.py`), then flip
+  the Makefile/CI invocations and retire the Python originals.
 - **open** PYTHON-RETIRE — delete `compiler/`, `analyser/`, `server/`, and the
   ported `tooling/` subtrees once their consumers are Rust. `ai/` (MCP server +
   Claude skills) stays Python by design.

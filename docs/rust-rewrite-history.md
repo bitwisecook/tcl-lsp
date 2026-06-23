@@ -11785,6 +11785,14 @@ tricky parsing helpers):
   markdown links and KCS/design index coverage under `docs/` (fenced-code
   stripping, anchor-trimming, parent-README index fallback, audience-header
   warnings). A shared `util::repo_root` was factored out for both subcommands.
+- `version` (⇐ `scripts/print_version.py`) — prints the project version from
+  `git describe`, implementing setuptools-scm's default guess-next-dev scheme
+  with `local_scheme=no-local-version` (exact tag → tag; N past tag →
+  `next(tag).devN`; no tags → `0.0.0.dev0`). The version-string logic is
+  factored behind `version_from_describe(&str)` and unit-pinned against real
+  `setuptools_scm.get_version(local_scheme="no-local-version")` outputs captured
+  from temp git repos (`v1.2.3-0-g…`→`1.2.3`, `v1.2.3-3-g…`→`1.2.4.dev3`,
+  `2.0.0-1-g…`→`2.0.1.dev1`).
 
 The Python scripts stay in place (rollout rule: fallback for one cycle). The
 scaffold is the landing point for the rest of the `build/` / `check/` /
