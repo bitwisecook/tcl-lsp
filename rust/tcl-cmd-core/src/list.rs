@@ -41,11 +41,14 @@ pub fn lindex<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let specs: Vec<String> = if idxs.len() == 1 {
         let s = ops.as_str(&idxs[0]);
-        tcl_syntax::list::split_list(&s)
-            .map_err(|e| CmdError::new(e.message()))?
-            .iter()
-            .map(|p| p.as_ref().to_string())
-            .collect()
+        // A single index argument is an index *list* (`lindex $l {0 1}`). When it
+        // is not a well-formed list (`lindex $l \{`), C falls back to treating it
+        // as one index spec — which then fails as `bad index "{"`, not as a list
+        // parse error (lindex-10.4).
+        tcl_syntax::list::split_list(&s).map_or_else(
+            |_| vec![s.to_string()],
+            |parts| parts.iter().map(|p| p.as_ref().to_string()).collect(),
+        )
     } else {
         idxs.iter().map(|i| ops.as_str(i).to_string()).collect()
     };
