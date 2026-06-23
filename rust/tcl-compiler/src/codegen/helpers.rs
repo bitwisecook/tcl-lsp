@@ -202,7 +202,7 @@ use std::collections::HashMap;
 /// Format a string as a canonical Tcl list element (`Tcl_ConvertElement`).
 ///
 /// Delegates to the shared [`tcl_syntax::list::list_element`] (now also used by
-/// the runtime port and the registry const-folder) — the single Tcl-faithful
+/// the runtime and the registry const-folder) — the single Tcl-faithful
 /// quoter, correct on the leading-`#` and control-char cases this local copy
 /// previously mis-quoted.
 #[must_use]

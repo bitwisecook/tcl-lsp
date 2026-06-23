@@ -28,8 +28,8 @@ pub use version::{Version, VersionError, max_version, parse_version};
 
 use std::path::PathBuf;
 
-/// Return the cache directory using platform-native conventions, mirroring
-/// `shared.user_config._cache_dir()`. `$XDG_CACHE_HOME` always wins; otherwise
+/// Return the cache directory using platform-native conventions.
+/// `$XDG_CACHE_HOME` always wins; otherwise
 /// `%LOCALAPPDATA%/tcl-lsp/Cache` (native Windows), `~/Library/Caches/tcl-lsp`
 /// (macOS), or `~/.cache/tcl-lsp` (Linux/BSD/WSL/MSYS).
 #[must_use]

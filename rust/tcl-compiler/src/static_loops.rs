@@ -501,7 +501,7 @@ mod tests {
     }
 
     /// `switch $mode { a {set v 1} default {set v 9} }` — shared by the
-    /// switch-dispatch port and its unresolvable-subject counterpart.
+    /// switch-dispatch case and its unresolvable-subject counterpart.
     fn mode_switch() -> Statement {
         Statement::Switch {
             span: sp(),

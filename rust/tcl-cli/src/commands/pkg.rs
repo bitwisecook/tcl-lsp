@@ -1353,8 +1353,8 @@ fn run_trust(package: &str, remove: bool) -> anyhow::Result<u8> {
     }
 }
 
-/// Build the canonical JSON object for a locked package (`LockedPackage.to_dict`
-/// in Python). Keys are sorted by the canonical-JSON emitter.
+/// Build the canonical JSON object for a locked package. Keys are sorted by the
+/// canonical-JSON emitter.
 fn locked_to_json(pkg: &LockedPackage) -> Value {
     let mut provides = pkg.provides.clone();
     provides.sort();

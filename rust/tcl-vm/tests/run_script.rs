@@ -1494,8 +1494,8 @@ fn set_inline_cmd_subst_expand() {
     );
 }
 
-/// `encoding` — mirrors the tree-walking runtime (`runtime/rust`), the VM's
-/// parity oracle: UTF-8 internal model, so `convertto`/`convertfrom` pass data
+/// `encoding` — matches the tree-walking runtime (`runtime/rust`): UTF-8
+/// internal model, so `convertto`/`convertfrom` pass data
 /// through, `system` is `utf-8`, `names` lists the supported set, `dirs` is
 /// ignored. (Real codepage conversion is unimplemented on both sides.)
 #[test]

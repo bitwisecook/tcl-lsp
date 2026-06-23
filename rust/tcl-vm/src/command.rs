@@ -950,8 +950,8 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ]))
 }
 
-/// `encoding subcommand ?arg …?` — mirrors the tree-walking runtime
-/// (`runtime/rust`), the VM's parity oracle: the internal string model is
+/// `encoding subcommand ?arg …?` — matches the tree-walking runtime
+/// (`runtime/rust`): the internal string model is
 /// UTF-8, so `convertto`/`convertfrom` pass the data through unchanged, `system`
 /// reports `utf-8`, `names` lists the supported set, and `dirs` is accepted and
 /// ignored (no encoding-file search). This is a documented simplification — real

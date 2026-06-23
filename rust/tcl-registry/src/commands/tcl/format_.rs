@@ -90,7 +90,7 @@ fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
 }
 
 /// The specifier *grammar* (flags / width / `.precision` / verb parsing) lives
-/// in the shared `tcl-syntax` crate so the runtime port reuses it; the
+/// in the shared `tcl-syntax` crate so the WASM runtime reuses it; the
 /// version-aware renderers below are this const-folder's own.
 use tcl_syntax::format::{FmtFlags, Spec, parse_spec};
 
