@@ -363,10 +363,11 @@ fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<Stri
 /// Constant-folds the **Tcl-faithful** classes
 /// the optimiser can decide soundly.
 ///
-/// Deliberately follows Tcl's classification, not a `str`-method
-/// analogue whose semantics diverge: e.g. `str.islower("abc1")` is
-/// `True` but `string is lower abc1` is `0` (Tcl requires *every* char
-/// to be a lowercase letter; a digit fails).  The ASCII character
+/// Deliberately follows Tcl's classification, not a naive
+/// letter-case predicate whose semantics diverge: e.g. a check that
+/// passes `"abc1"` as "lower" disagrees with `string is lower abc1`,
+/// which is `0` (Tcl requires *every* char to be a lowercase letter;
+/// a digit fails).  The ASCII character
 /// classes here apply the predicate to every char and **bail on
 /// non-ASCII input** (Unicode class membership isn't modelled — a
 /// missed fold, never a wrong one).  `ascii` is the membership test
@@ -1297,8 +1298,8 @@ mod tests {
         assert_eq!(is(&["wordchar", "a_b9"]).as_deref(), Some("1"));
         assert_eq!(is(&["wordchar", "a-b"]).as_deref(), Some("0"));
 
-        // A divergence worth pinning: `str.islower("abc1")` is True,
-        // but Tcl `string is lower` is 0
+        // A divergence worth pinning: a naive "all lowercase" check would
+        // pass `"abc1"`, but Tcl `string is lower` is 0
         // (a digit is not a lowercase *letter*).
         assert_eq!(is(&["lower", "abc1"]).as_deref(), Some("0"));
         assert_eq!(is(&["lower", "abc"]).as_deref(), Some("1"));

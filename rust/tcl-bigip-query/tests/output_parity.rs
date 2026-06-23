@@ -1,7 +1,7 @@
 //! Parity checks for the value model, `jsonfmt`, and `output` render modes.
 //!
 //! The expected strings are captured verbatim from the query DSL's reference
-//! output (`output.render` / `json.dumps`) — see the `gen`-comment beside
+//! output (`output.render` / JSON serialisation) — see the `gen`-comment beside
 //! each — and asserted against this crate. Self-contained: no external oracle at test
 //! time.
 
@@ -33,7 +33,7 @@ fn json_pretty_matches_python() {
         Value::List(vec![Value::Int(1), s("x")]),
         obj(&[("a", Value::Int(1))]),
     ]);
-    // json.dumps([...], indent=2)
+    // 2-space-indented JSON
     let expected = "[\n  1,\n  2.0,\n  \"\\u00e9\",\n  true,\n  null,\n  [\n    1,\n    \"x\"\n  ],\n  {\n    \"a\": 1\n  }\n]";
     assert_eq!(jsonfmt::to_pretty(&v), expected);
 }

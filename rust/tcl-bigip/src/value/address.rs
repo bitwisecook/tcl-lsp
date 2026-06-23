@@ -42,7 +42,7 @@ impl IPAddress {
             // Split on the LAST '%'.
             let idx = text.rfind('%').unwrap();
             let rd_text = &text[idx + 1..];
-            // ``str.isdigit()`` is true for a non-empty run of digits.
+            // A non-empty run of ASCII digits qualifies as a route domain.
             if !rd_text.is_empty() && rd_text.bytes().all(|b| b.is_ascii_digit()) {
                 rd = rd_text.parse::<u32>().ok();
                 host = &text[..idx];

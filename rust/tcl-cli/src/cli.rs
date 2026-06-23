@@ -1,7 +1,7 @@
 //! `clap` derive definitions for the `tcl` CLI command tree.
 //!
-//! Mirrors `tooling/tcl/main.py` + `tooling/tcl/verbs/*`. Verb names map to the
-//! kebab-cased enum-variant names; aliases map to `visible_aliases`.
+//! Verb names map to the kebab-cased enum-variant names; aliases map to
+//! `visible_aliases`.
 //!
 //! The common input/output/dialect surface every verb shares is modelled
 //! precisely (it is the bulk of the parity contract), with verb-specific flags
@@ -26,8 +26,7 @@ pub struct Cli {
     pub command: Command,
 }
 
-/// Input-resolution flags shared by most verbs (`tooling/cli/_utils.py`
-/// `_add_input_arguments`).
+/// Input-resolution flags shared by most verbs.
 #[derive(Debug, Args)]
 pub struct InputArgs {
     /// Input files, directories, or package names.
@@ -239,11 +238,10 @@ pub enum Command {
     /// Reduce a diagnostic to a minimal reproducer for bug reports.
     ///
     /// The diagnostic CODE is the **last** positional argument, with any
-    /// inputs before it — `tcl minimize script.tcl W220`. This mirrors the
-    /// argparse-style layout (`inputs` as `nargs="*"` followed by a
-    /// required `code`), which clap cannot express as two separate positionals
-    /// (a required positional may not follow a variadic one), so CODE is split
-    /// off the trailing input in the handler.
+    /// inputs before it — `tcl minimize script.tcl W220`. This is a variadic
+    /// `inputs` list followed by a required trailing `code`, which clap cannot
+    /// express as two separate positionals (a required positional may not follow
+    /// a variadic one), so CODE is split off the trailing input in the handler.
     #[command(visible_aliases = ["minimise", "repro"])]
     Minimize {
         #[command(flatten)]
@@ -419,7 +417,7 @@ pub struct DiagArgs {
     pub enable: Vec<String>,
 }
 
-/// Flags shared by most `pkg` sub-actions (`_common` in `verbs/pkg.py`).
+/// Flags shared by most `pkg` sub-actions.
 #[derive(Debug, Args)]
 pub struct PkgCommon {
     /// Emit JSON output.

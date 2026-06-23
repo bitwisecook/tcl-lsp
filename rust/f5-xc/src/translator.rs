@@ -169,8 +169,8 @@ fn glob_to_prefix(pattern: &str) -> XCPathMatch {
     }
 }
 
-/// Escape only the ASCII special characters, following `re.escape` (3.7+
-/// semantics), so emitted regex values are well-formed.
+/// Escape only the ASCII regex metacharacters (and ASCII whitespace),
+/// so emitted regex values are well-formed.
 fn re_escape(s: &str) -> String {
     const SPECIAL: &[char] = &[
         '(', ')', '[', ']', '{', '}', '?', '*', '+', '-', '|', '^', '$', '\\', '.', '&', '~', '#',

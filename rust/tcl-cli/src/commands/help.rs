@@ -426,7 +426,7 @@ fn run_help_inner(
 }
 
 /// JSON for the catalogue: `{category: [feature, ...]}`
-/// (`json.dumps(catalogue, indent=2)`), category order preserved.
+/// (2-space-indented JSON), category order preserved.
 fn catalogue_json(catalogue: &[(String, Vec<Feature>)]) -> String {
     let mut obj = Map::new();
     for (category, features) in catalogue {

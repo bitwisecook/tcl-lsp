@@ -1,7 +1,7 @@
 //! The `registry-dump` verb — canonical JSON snapshots of the F5 registries.
 //!
 //! Serialises the F5 registry / graph snapshots from [`tcl_registry::snapshot`]
-//! as `json.dumps(indent=2, sort_keys=True)` JSON.
+//! as two-space-indented, key-sorted JSON.
 //!
 //! ## Section coverage
 //!
@@ -36,7 +36,7 @@ pub fn run_registry_dump(section: &str, output: Option<&Path>) -> anyhow::Result
         other => anyhow::bail!("unknown registry-dump section: {other}"),
     };
 
-    // `json.dumps(payload, indent=2, sort_keys=True)` with a single trailing
+    // Two-space-indented, key-sorted JSON with a single trailing
     // newline appended (to stdout, or to the file).
     let mut text = json.dumps_indent2();
     text.push('\n');

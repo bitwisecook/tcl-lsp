@@ -1,7 +1,7 @@
 //! End-to-end golden differential test for the math-category builtins.
 //!
 //! The pipeline captured in `tests/fixtures/math.json`
-//! (`scripts/codegen/gen_f5_query_math_fixtures.py`): parse → evaluate
+//! from the captured query DSL fixtures: parse → evaluate
 //! against a JSON-backed root → `output::render`. For each `(query, input,
 //! mode)` the Rust output (or `error:` message) must match the expected value exactly.
 //! Self-contained — no external oracle at test time.

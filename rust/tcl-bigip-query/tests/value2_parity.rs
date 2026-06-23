@@ -2,7 +2,7 @@
 //! encoding-category builtins.
 //!
 //! The pipeline captured in `tests/fixtures/value2.json`
-//! (`scripts/codegen/gen_f5_query_value2_fixtures.py`): parse → evaluate
+//! from the captured query DSL fixtures: parse → evaluate
 //! against a JSON-backed root → `output::render`. For each `(query, input,
 //! mode)` the Rust output (or `error:` message) must match the expected value exactly.
 //! Self-contained — no external oracle at test time.

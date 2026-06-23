@@ -26,7 +26,7 @@ pub struct Cli {
     pub command: Command,
 }
 
-/// Output-format flag shared by config-producing verbs (`verbs/_emit.py`).
+/// Output-format flag shared by config-producing verbs.
 #[derive(Debug, Args)]
 pub struct FormatArgs {
     /// Output rendering: SCF text, a tmsh script, or a tmsh delta.

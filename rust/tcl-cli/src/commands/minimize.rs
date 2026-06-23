@@ -319,9 +319,8 @@ struct MinimizeItem {
 /// `tcl minimize [INPUT...] CODE` — reduce a diagnostic to a minimal
 /// reproducer.
 ///
-/// The diagnostic CODE is the final positional argument (argparse parity — see
-/// the `Minimize` command doc in `cli.rs`); the inputs are everything before
-/// it.
+/// The diagnostic CODE is the final positional argument (see the `Minimize`
+/// command doc in `cli.rs`); the inputs are everything before it.
 pub fn run_minimize(input: &InputArgs, no_rename: bool, json: bool) -> anyhow::Result<u8> {
     let Some((code_arg, file_inputs)) = input.inputs.split_last() else {
         anyhow::bail!("the following arguments are required: code");

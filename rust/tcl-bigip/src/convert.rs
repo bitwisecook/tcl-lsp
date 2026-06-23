@@ -7,7 +7,7 @@
 //! so nothing silently disappears.
 //!
 //! The declaration is built as an insertion-ordered [`Json`] tree and rendered
-//! with [`crate::jsonfmt::json_string`] for `json.dumps(indent=2)` byte-parity.
+//! with [`crate::jsonfmt::json_string`] for 2-space-indented JSON byte-parity.
 
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -73,8 +73,8 @@ impl Json {
         }
     }
 
-    /// Serialise this value as `json.dumps(value, indent=2)` would (no trailing
-    /// newline). `ensure_ascii=True` escaping is handled by `json_string`.
+    /// Serialise this value as 2-space-indented JSON (no trailing
+    /// newline). ASCII-escaping is handled by `json_string`.
     #[must_use]
     pub fn dumps_indent2(&self) -> String {
         let mut out = String::new();

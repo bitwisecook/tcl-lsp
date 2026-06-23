@@ -267,7 +267,7 @@ fn format_tmsh_script(
     lines.join("\n")
 }
 
-/// JSON compatible with `json.dumps(report_to_dict(report), indent=2)`, built
+/// 2-space-indented JSON, built
 /// by hand for a deterministic key order.
 #[must_use]
 pub fn report_to_json(report: &CleanupReport) -> String {

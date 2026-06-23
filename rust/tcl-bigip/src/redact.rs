@@ -1288,7 +1288,7 @@ fn substitute(
     out
 }
 
-// ── Secret stripping (rewrite.py redact half) ───────────────────────
+// ── Secret stripping (the redact half) ──────────────────────────────
 
 const SECRET_KEYS: [&str; 9] = [
     "passphrase",
@@ -1721,7 +1721,7 @@ mod tests {
 
     #[test]
     fn mt19937_shuffle_matches_cpython() {
-        // random.Random(N).shuffle(list(range(16)))
+        // MT19937 seeded with N, Fisher-Yates shuffling the indices 0..16.
         let cases: [(u128, [u32; 16]); 4] = [
             (0, [10, 14, 5, 1, 9, 2, 3, 11, 13, 7, 8, 4, 0, 6, 15, 12]),
             (1, [2, 10, 0, 14, 6, 5, 3, 8, 7, 11, 15, 1, 12, 13, 9, 4]),

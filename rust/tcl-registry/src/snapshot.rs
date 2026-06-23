@@ -24,12 +24,11 @@ use std::collections::BTreeMap;
 use crate::bigip::{BigipPropertySpec, default_registry};
 use crate::profiles::ProfileRegistry;
 
-/// Minimal JSON value tree with a `json.dumps(indent=2, sort_keys=True)`-parity
+/// Minimal JSON value tree with a two-space-indented, key-sorted
 /// serialiser.
 ///
-/// Object keys are always emitted in sorted (byte-wise) order, matching
-/// `sort_keys=True`. The serialiser escapes non-ASCII as `\uXXXX`
-/// (ASCII-only output).
+/// Object keys are always emitted in sorted (byte-wise) order. The
+/// serialiser escapes non-ASCII as `\uXXXX` (ASCII-only output).
 #[derive(Debug, Clone)]
 pub enum Json {
     /// JSON `null`.
@@ -243,7 +242,7 @@ pub fn object_graph_snapshot() -> Json {
     let reg = default_registry();
 
     // objectKinds: sorted by kind name; each kind is `_jsonable(spec)` —
-    // the BigipObjectKindSpec dataclass, whose keys `sort_keys=True` then
+    // the `BigipObjectKindSpec` fields, whose keys the serialiser then
     // re-sorts alphabetically.
     let mut specs: Vec<_> = reg.specs().to_vec();
     specs.sort_by_key(|s| s.kind_spec.kind);

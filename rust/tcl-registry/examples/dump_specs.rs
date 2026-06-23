@@ -1,9 +1,8 @@
 //! Registry-parity dumper.
 //!
 //! Emits one JSON object per command spec (JSONL) for a given dialect
-//! group, using a normalised schema shared with the reference dumper
-//! (`scripts/registry-audit/dump_python.py`). Used by the registry
-//! audit to diff against the reference dumper.
+//! group, using a normalised schema shared with the reference dumper.
+//! Used by the registry audit to diff against the reference dumper.
 //!
 //! Usage: `cargo run -q --example dump_specs -- <group>`
 //! where <group> is one of:
@@ -403,7 +402,7 @@ fn main() {
     });
 
     // Deep per-command dump (content-level completeness audit). Pairs
-    // with `scripts/registry-audit/dump_python_deep.py`.
+    // with the reference deep dumper.
     if let Some(g) = group.strip_prefix("deep-") {
         deep_dump(g);
         return;

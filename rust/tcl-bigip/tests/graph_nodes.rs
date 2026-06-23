@@ -1,5 +1,5 @@
 //! Differential parity for the BIG-IP graph **node** extraction against
-//! `build_bigip_object_graph` (`link_extract.py`).
+//! `build_bigip_object_graph`.
 //!
 //! Builds nodes for a representative `bigip.conf` and asserts each node's
 //! identity, resolved kind, byte offsets, and source range match a golden

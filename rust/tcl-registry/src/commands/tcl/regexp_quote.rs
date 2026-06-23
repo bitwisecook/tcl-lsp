@@ -23,7 +23,6 @@ pub fn spec() -> CommandSpec {
             return_value: "Returns a regex-escaped string.",
         }),
         // GAP-D2: regex-escaped literal output; double-encode → T106.
-        // Mirrors `tcl/regexp__quote.py`.
         taint_transform: Some(TaintColour::REGEX_LITERAL),
         taint_double_encode_colour: Some(TaintColour::REGEX_LITERAL),
         forms: FORMS,

@@ -143,7 +143,7 @@ fn bi_gsub(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Str(regex_sub(&rx, &s, &r, None)))
 }
 
-/// `re.sub` with a replacement template. `count = Some(1)`
+/// Regex substitution with a replacement template. `count = Some(1)`
 /// replaces only the first match (`sub`); `None` replaces all (`gsub`).
 /// Replacement templates use `re` backref syntax (`\1`,
 /// `\g<name>`, `\g<1>`); they are expanded by hand so the common subset
@@ -352,7 +352,7 @@ fn bi_index(args: &[Value]) -> Result<Value, QueryError> {
     }
 }
 
-/// `str.find` returns a code-point index (`-1` → `null`).
+/// Returns a code-point index of the first match (`-1` → `null`).
 fn byte_to_char_index(haystack: &str, needle: &str) -> Value {
     match haystack.find(needle) {
         Some(byte) => Value::Int(haystack[..byte].chars().count() as i64),

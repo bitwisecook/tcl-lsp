@@ -122,8 +122,7 @@ pub(crate) fn list_join<S: AsRef<str>>(elems: &[S]) -> String {
 }
 
 /// Parse a Tcl index expression (`end`, `end-N`, `end+N`, integer)
-/// against a string/list of `length`. in
-/// `dialects/tcl/const_fold.py`.  May return a negative or out-of-range
+/// against a string/list of `length`.  May return a negative or out-of-range
 /// value — the caller clamps.
 pub(crate) fn parse_index(s: &str, length: usize) -> Option<i64> {
     let s = s.trim();
