@@ -1234,9 +1234,15 @@ final track** — every consumer above must port first.
   `signature_scan` / `optimiser` / `analyser` / `registry` / `bigip` + the
   folding / document-symbol feature bindings) stays until its in-tree
   Python importers retire under PYTHON-RETIRE.
-- **open** TEST-MIGRATE — port each remaining pytest file to per-crate Rust
-  tests (delete the `test_*.py` in the same change); the `test_fp_*` battery is
-  the analyser acceptance gate.
+- **partial** TEST-MIGRATE — port each remaining pytest file to per-crate Rust
+  tests; the `test_fp_*` battery is the analyser acceptance gate. The
+  **porting** half proceeds now, non-destructively (add the Rust test, classify
+  each pytest as ported / bridge-only, keep the `test_*.py` as the oracle);
+  first port landed: `tests/test_dialect_helpers.py` →
+  `tcl-registry::dialects::tests::is_irules_dialect_accepts_canonical_and_legacy_alias`
+  (see the test audit). The **deletion** of the `test_*.py` is the terminal
+  PYTHON-RETIRE sweep — gated, since the pytest suite is the behavioural oracle
+  while the Python layer ships.
 - **partial** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
   Python toolchain dependency). The `rust/xtask` crate + `cargo xtask` alias
   scaffold **landed**, with four scripts ported and parity-checked against the

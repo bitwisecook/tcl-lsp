@@ -898,3 +898,27 @@ binary cannot link the interpreter). The public surface is exercised end-to-end
 through the wheel by the pytest file above; the underlying algorithms keep their
 own unit tests in the pure crates (`tcl-lexer`, `tcl-compiler`, `tcl-lsp-core`,
 `tcl-bigip`, `tcl-bigip-query`).
+
+## TEST-MIGRATE — incremental pytest → Rust ports (non-destructive)
+
+The TEST-MIGRATE half of **API-PYO3** that can proceed *now* is the
+**porting** (add an equivalent Rust crate test) — not the **deletion** of the
+`test_*.py` (that waits for PYTHON-RETIRE, since the pytest suite is the
+behavioural oracle while the Python layer ships). Ports land one file at a time,
+classifying each test as ported / bridge-only.
+
+### `tests/test_dialect_helpers.py` → `tcl-registry`
+
+- **Ported.** `test_value_predicate_accepts_canonical_and_legacy_alias` +
+  `test_value_predicate_rejects_other_dialects_and_none` +
+  `test_irules_dialect_names_membership` → the new
+  `rust/tcl-registry/src/dialects.rs::tests::is_irules_dialect_accepts_canonical_and_legacy_alias`
+  (the canonical `f5-irules` / legacy `irules` alias match; other dialects and
+  `None` do not — the named-set membership is the same predicate behaviour).
+- **Bridge-only.** `test_active_dialect_wrapper_delegates_to_value_predicate`
+  exercises the Python `dialect_scope` contextvar / active-dialect wrapper — a
+  thread-local mechanism the Rust side deliberately has no global equivalent
+  for (the rewrite forbids globals/thread-locals; callers pass the dialect
+  explicitly). Stays in pytest.
+
+The pytest file stays in place as the oracle.
