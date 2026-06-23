@@ -922,3 +922,18 @@ classifying each test as ported / bridge-only.
   explicitly). Stays in pytest.
 
 The pytest file stays in place as the oracle.
+
+### `tests/test_static_loops.py` → `tcl-compiler::static_loops`
+
+- **Ported.** All three cases →
+  `rust/tcl-compiler/src/static_loops.rs::tests` (`summarise_resolves_if_else_branch_in_body`,
+  `summarise_resolves_switch_dispatch_in_body`,
+  `summarise_bails_on_unresolvable_switch_subject`). The static for-loop
+  unroller already *implemented* `if`/`switch` body handling (`exec_if` /
+  `exec_switch`), but had no test exercising control flow inside the body — a
+  genuine coverage gap. The new tests build the `Statement::If` /
+  `Statement::Switch` AST directly (the Rust API is AST-in, vs. the Python
+  helper's string-in) and assert the same resolved-env outcomes (`x == 20`,
+  `v == 1`) and the unresolvable-subject bail (`None`).
+
+The pytest file stays in place as the oracle.
