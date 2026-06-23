@@ -38,6 +38,19 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     if cmd.single_token_word.len() < 2 || !cmd.single_token_word[1] {
         return None;
     }
+    // Only a *literal* single-token arg — a braced `{…}` or a bare word — is the
+    // expression itself. A lone substitution (`expr $e`, `expr [f]`) must be
+    // substituted *then* re-evaluated as an expression (`expr $e` with
+    // `e == "1+2"` is `3`, not `"1+2"`); inlining `parse_expr("$e")` would treat
+    // the variable's *value* as the final result. Defer those to the runtime
+    // `expr`, which does the second evaluation. (A braced `{$e}` correctly inlines:
+    // there the expression really is the operand `$e`.)
+    if !matches!(
+        cmd.arg_kinds.first(),
+        Some(ArgTokenKind::Str | ArgTokenKind::Esc)
+    ) {
+        return None;
+    }
     let expr = parse_expr(&cmd.args[0], None);
     Some(Statement::ExprEval {
         span: cmd.span,
