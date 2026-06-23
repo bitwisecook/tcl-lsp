@@ -23,9 +23,13 @@
 //!
 //! # Consumer
 //!
-//! The inliner's only consumer is the WASM codegen, so it is exposed
-//! but not yet wired into a pipeline. The IR-shape unit tests here are
-//! its current verification.
+//! Inlining is a pre-codegen IR transform — it dissolves call boundaries
+//! so the backend emits flatter code — so its only consumer is the WASM
+//! codegen. The LSP and CLI analysis paths report on the program *as
+//! written* and never lower to codegen, so they deliberately do not run
+//! the inliner; wiring it in is owned by the codegen consumer. It is thus
+//! exposed but unwired, with the IR-shape unit tests here as its current
+//! verification.
 //!
 //! # Soundness
 //!
