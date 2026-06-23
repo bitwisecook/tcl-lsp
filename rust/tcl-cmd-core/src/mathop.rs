@@ -67,11 +67,11 @@ pub fn eval<O: ExprOps>(
             Some([v]) => ops.unary(UnaryOp::BitNot, v).map_err(Op),
             None => Err(MathopError::WrongArgs("integer")),
         },
+        // `!` shares `expr`'s unary-not path so a non-boolean/NaN operand is the
+        // operand-type error (`cannot use … as operand of "!"`), not the generic
+        // "expected boolean value".
         "!" => match into_n::<O, 1>(args) {
-            Some([v]) => {
-                let b = ops.to_bool(&v).map_err(Op)?;
-                Ok(ops.bool_value(!b))
-            }
+            Some([v]) => ops.unary(UnaryOp::Not, v).map_err(Op),
             None => Err(MathopError::WrongArgs("boolean")),
         },
         // Chained comparisons (vacuously true for <2 args).
