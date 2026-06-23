@@ -219,10 +219,21 @@ pub fn compare(op: BinOp, a: &Value, b: &Value) -> Result<bool, TclError> {
 pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
     use UnaryOp::{BitNot, Neg, Not, Pos, WordNot};
     match op {
-        Neg => Ok(match to_num(v)? {
-            Num::Int(n) => Value::int(n.wrapping_neg()),
-            Num::Dbl(f) => Value::double(-f),
-        }),
+        Neg => match to_num(v) {
+            Ok(Num::Int(n)) => Ok(Value::int(n.wrapping_neg())),
+            Ok(Num::Dbl(f)) => Ok(Value::double(-f)),
+            // `-9223372036854775808`: the magnitude 2^63 overflows a positive
+            // wide, but its negation is exactly the most-negative wide (C
+            // narrows it). `as_wide` maps that lone bignum to `i64::MIN`; any
+            // other out-of-range literal still errors (no bignum rep yet).
+            Err(e) => {
+                if v.as_wide().ok() == Some(i64::MIN) {
+                    Ok(Value::int(i64::MIN))
+                } else {
+                    Err(e)
+                }
+            }
+        },
         Pos => Ok(match to_num(v)? {
             Num::Int(n) => Value::int(n),
             Num::Dbl(f) => Value::double(f),
