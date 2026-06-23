@@ -25,7 +25,7 @@ use crate::def_use::{DefUseResult, build_def_use_chains};
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
 use crate::lowering::lower_to_ir_with_config;
-use crate::memory_ssa::{MemorySSAFunction, build_memory_ssa};
+use crate::memory_ssa::{MemorySsaFunction, build_memory_ssa};
 use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
 use crate::sccp::{SccpResult, sccp};
 use crate::ssa::{SsaFunction, ValueKey, build_ssa};
@@ -141,7 +141,7 @@ pub struct FunctionUnit {
     /// implicitly `RenderedValueProps::bottom()`.
     pub rendered_props: HashMap<ValueKey, RenderedValueProps>,
     /// Optional memory-SSA annotations (populated on demand).
-    pub memory_ssa: Option<MemorySSAFunction>,
+    pub memory_ssa: Option<MemorySsaFunction>,
     /// Single source of truth for the deep-analysis complexity guard: when
     /// `true` (CFG block count **or** body bytes over the ceiling), `ssa` and
     /// the dataflow lattices are trivial and **every** per-proc diagnostic /

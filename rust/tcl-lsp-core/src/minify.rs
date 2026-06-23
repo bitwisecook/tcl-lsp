@@ -346,7 +346,11 @@ pub fn remap_line_references(
         return message.to_owned();
     }
     let map_line = |line_no: usize| -> Option<usize> {
-        if line_no > min_commands {
+        // Reject `line_no == 0` as well as out-of-range high values: the
+        // proportional map below computes `line_no - 1`, which underflows
+        // at zero (`(procedure "f" line 0)` is untrusted error text) — a
+        // debug panic / silent garbage line in release (F2b).
+        if line_no == 0 || line_no > min_commands {
             return None;
         }
         // Integer proportional map: (line_no-1)/(min_commands-1) of the
@@ -2817,7 +2821,15 @@ fn tokenise_expr(text: &str, dialect: &str, registry: &CommandRegistry) -> Vec<E
                 }
                 i += 1;
             }
-            let inner = &text[start + 1..i.saturating_sub(1).max(start + 1)];
+            // Clamp the inner slice to a char boundary: on an unbalanced
+            // `[` the scan runs to EOF and `i - 1` can land mid-codepoint
+            // (`expr {[é}`), which would panic the slice in debug *and*
+            // release (a char-boundary violation, not an overflow) (F2a).
+            let mut end = i.saturating_sub(1).max(start + 1);
+            while end > start + 1 && !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            let inner = &text[start + 1..end];
             out.push(ExprTok::Cmd(format!(
                 "[{}]",
                 minify_body(inner, dialect, registry)

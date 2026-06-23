@@ -3,7 +3,7 @@
 
 use tcl_lexer::LineIndex;
 
-use super::{Refactoring, RefactorEdit};
+use super::{RefactorEdit, Refactoring};
 use crate::code_actions::ActionKind;
 
 /// Whitespace-delimited binary operators that mark an arithmetic /
@@ -21,9 +21,7 @@ const EXPR_OPS: &[&str] = &[
 /// the operator (`\s OP \s`); this matches that by scanning for ` OP `
 /// with single ASCII spaces, which is what the oracle corpus uses.
 fn looks_like_expr(text: &str) -> bool {
-    EXPR_OPS
-        .iter()
-        .any(|op| text.contains(&format!(" {op} ")))
+    EXPR_OPS.iter().any(|op| text.contains(&format!(" {op} ")))
 }
 
 /// Extract the selection `[start_off, end_off)` into a `set` assignment.
@@ -111,7 +109,10 @@ mod tests {
         let source = "set x [string length $name]";
         // selection of `[string length $name]` (cols 6..27, all ASCII).
         let applied = run(source, 6, 27, "len").expect("result");
-        assert!(applied.contains("set len [string length $name]"), "{applied:?}");
+        assert!(
+            applied.contains("set len [string length $name]"),
+            "{applied:?}"
+        );
         assert!(applied.contains("$len"), "{applied:?}");
     }
 

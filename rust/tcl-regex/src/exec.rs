@@ -17,7 +17,7 @@
 
 use crate::ast::{Anchor, Node, Pref, case_variants};
 use crate::defs::{Chr, DUPINF, REG_ICASE, REG_NLANCH, REG_NOTBOL, REG_NOTEOL};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 // A `BTreeMap` (not `HashMap`) keeps the engine free of any RNG/entropy
 // dependency, so it embeds cleanly in freestanding / wasm / C-linked builds.
 use std::collections::BTreeMap;
@@ -29,6 +29,20 @@ pub struct Span {
     pub end: usize,
 }
 
+/// Total work budget shared by both matching strategies. The backtracking path
+/// ([`Bt`]) has exponential worst cases (`(a+)+\1$` on a run of "a"s) and the
+/// set-simulation path ([`Matcher::reach`]) is super-linear (plain `a*` on a
+/// long input is O(n²), `(a*)*` cubic). Counting every elementary step against
+/// one budget lets a pathological input bail in bounded time instead of hanging
+/// or appearing to lock up.
+///
+/// Each unit guards one frontier-point expansion or one backtracking node visit,
+/// so the bound on real work is the cap times a small constant (the per-step set
+/// bookkeeping). A few million units therefore keeps even the worst case to a
+/// fraction of a second, while staying orders of magnitude above what any
+/// realistic pattern/input needs — the `reg.test` corpus never comes close.
+const MATCH_FUEL: u64 = 4_000_000;
+
 pub(crate) struct Matcher<'a> {
     subj: &'a [Chr],
     cflags: i32,
@@ -36,6 +50,10 @@ pub(crate) struct Matcher<'a> {
     /// The whole RE prefers the shortest overall match (top-tree `SHORTER`).
     prefer_shortest: bool,
     memo: BTreeMap<(usize, usize), Vec<usize>>,
+    /// Remaining work budget for the `reach` core (see [`MATCH_FUEL`]). Once it
+    /// hits zero the reachability loops stop expanding, so a super-linear input
+    /// terminates rather than hangs.
+    fuel: u64,
 }
 
 fn is_word(c: Chr) -> bool {
@@ -59,11 +77,29 @@ impl<'a> Matcher<'a> {
             eflags,
             prefer_shortest,
             memo: BTreeMap::new(),
+            fuel: MATCH_FUEL,
         }
     }
 
     fn len(&self) -> usize {
         self.subj.len()
+    }
+
+    /// Charge one unit of work against the reach budget, returning `false` once
+    /// it is exhausted. Callers in the hot reachability loops use this to stop
+    /// expanding the frontier on a pathological input (see [`MATCH_FUEL`]).
+    fn spend_fuel(&mut self) -> bool {
+        self.spend_fuel_n(1)
+    }
+
+    /// Charge `n` units at once, for loops whose per-step cost is proportional
+    /// to the size of a reachable set (set copies, frontier expansions, dedup).
+    /// Tying the charge to element count — not merely to call count — is what
+    /// makes the budget a true bound on the cubic `(a*)*` blow-up, where each
+    /// individual set can itself grow to O(input length).
+    fn spend_fuel_n(&mut self, n: usize) -> bool {
+        self.fuel = self.fuel.saturating_sub(n as u64);
+        self.fuel > 0
     }
 
     fn lineanchor(&self) -> bool {
@@ -105,7 +141,12 @@ impl<'a> Matcher<'a> {
     fn reach(&mut self, node: &Node, pos: usize) -> Vec<usize> {
         let key = (std::ptr::from_ref(node) as usize, pos);
         if let Some(v) = self.memo.get(&key) {
-            return v.clone();
+            // A memo hit still copies the (possibly large) reachable set, which
+            // is the per-step cost that drives the `(a*)*` cubic — charge for it
+            // so the budget accounts for the copy, not just the lookup.
+            let v = v.clone();
+            self.spend_fuel_n(v.len());
+            return v;
         }
         let out = self.reach_uncached(node, pos);
         self.memo.insert(key, out.clone());
@@ -159,8 +200,16 @@ impl<'a> Matcher<'a> {
         for it in items {
             let mut next = Vec::new();
             for &p in &frontier {
+                // Charge per frontier point expanded; the sub-reach itself bills
+                // for the set it copies. Bail (returning the partial frontier)
+                // the moment the shared budget is spent.
+                if !self.spend_fuel() {
+                    return frontier;
+                }
                 next.extend(self.reach(it, p));
             }
+            // The sort/dedup is proportional to the accumulated set size.
+            self.spend_fuel_n(next.len());
             frontier = dedup_sorted(next);
             if frontier.is_empty() {
                 break;
@@ -192,8 +241,16 @@ impl<'a> Matcher<'a> {
         while count < cap && !frontier.is_empty() {
             let mut next = Vec::new();
             for &p in &frontier {
+                // Charge each operand re-reach; a nested star (`(a*)*`) makes
+                // this loop cubic, so the budget bounds its total work.
+                if !self.spend_fuel() {
+                    return dedup_sorted(ends);
+                }
                 next.extend(self.reach(sub, p));
             }
+            // The sort/dedup below scans the whole accumulated set; bill for it
+            // so a frontier that grows with the input drains the budget.
+            self.spend_fuel_n(next.len());
             next = dedup_sorted(next);
             count += 1;
             if count >= min {
@@ -225,6 +282,12 @@ impl<'a> Matcher<'a> {
         from: usize,
     ) -> Option<Vec<Option<Span>>> {
         for start in from..=self.len() {
+            // Re-anchoring `reach` at every start makes the outer scan itself a
+            // source of super-linear work; once the budget is spent, stop the
+            // scan (a bailed search reports no match — the standard DoS guard).
+            if !self.spend_fuel() {
+                return None;
+            }
             let ends = self.reach(root, start);
             // Leftmost start; then the overall length follows the top
             // preference — shortest for a non-greedy-led RE, else longest.
@@ -399,6 +462,7 @@ impl Matcher<'_> {
             cflags: self.cflags,
             eflags: self.eflags,
             caps: RefCell::new(vec![None; nsub + 1]),
+            fuel: Cell::new(MATCH_FUEL),
         };
         for start in from..=self.len() {
             // Try candidate end positions in preference order: shortest first
@@ -436,11 +500,25 @@ struct Bt<'a> {
     cflags: i32,
     eflags: i32,
     caps: RefCell<Vec<Option<Span>>>,
+    /// Remaining backtracking budget (see [`MATCH_FUEL`]). Held in a `Cell`
+    /// because the matcher threads everything through `&self`; each node visit
+    /// in [`Bt::m`] spends one unit, so an exponential search (`(a+)+\1$`) gives
+    /// up in bounded time and reports no match rather than melting a core.
+    fuel: Cell<u64>,
 }
 
 impl Bt<'_> {
     fn lineanchor(&self) -> bool {
         self.cflags & REG_NLANCH != 0
+    }
+
+    /// Spend one unit of backtracking budget, returning `false` when exhausted.
+    /// Every [`Bt::m`] entry is one elementary step of the search, so charging
+    /// here bounds the total number of backtracking states explored.
+    fn spend_fuel(&self) -> bool {
+        let remaining = self.fuel.get().saturating_sub(1);
+        self.fuel.set(remaining);
+        remaining > 0
     }
 
     fn anchor_ok(&self, anchor: Anchor, pos: usize) -> bool {
@@ -474,6 +552,12 @@ impl Bt<'_> {
     /// Match `node` from `pos` (not consuming past `hi`); call `k(end)` for each
     /// way it matches, returning `true` as soon as `k` accepts.
     fn m(&self, node: &Node, pos: usize, hi: usize, k: &mut dyn FnMut(usize) -> bool) -> bool {
+        // One step of the backtracking search. When the budget is gone, treat
+        // every remaining path as a non-match so an exponential pattern unwinds
+        // promptly (the search then reports no match — the standard ReDoS guard).
+        if !self.spend_fuel() {
+            return false;
+        }
         match node {
             Node::Empty => k(pos),
             Node::Anchor(a) => self.anchor_ok(*a, pos) && k(pos),

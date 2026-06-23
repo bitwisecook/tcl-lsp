@@ -57,7 +57,7 @@ fn severity_label(severity: Severity) -> &'static str {
     match severity {
         Severity::Error => "error",
         Severity::Warning => "warning",
-        Severity::Suggestion => "info",
+        Severity::Info | Severity::Suggestion => "info",
         Severity::Hint => "hint",
     }
 }

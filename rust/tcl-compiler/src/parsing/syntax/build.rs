@@ -226,7 +226,7 @@ impl<'a> Builder<'a> {
             }
             self.handle_fragment(tok, raw, region);
         }
-        self.finalize();
+        self.finalise();
         GreenNode::document(self.commands, self.pending)
     }
 
@@ -338,7 +338,7 @@ impl<'a> Builder<'a> {
 
     /// Close a command left open at end-of-stream (only reachable when the
     /// lexer emits no trailing `Eol` — `puts hi` without a final newline).
-    fn finalize(&mut self) {
+    fn finalise(&mut self) {
         if self.frag.is_empty() && self.cur_words.is_empty() && self.markers.is_empty() {
             return;
         }

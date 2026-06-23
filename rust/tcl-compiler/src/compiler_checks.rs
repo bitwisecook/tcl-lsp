@@ -153,7 +153,14 @@ impl Diagnostic {
             span: w.span,
             code: w.code.clone(),
             category: "taint".into(),
-            severity: Severity::Error,
+            // The taint family is a Warning by default (not an Error); T106
+            // and IRULE3103 are informational. Mirrors Python's
+            // `_TAINT_SEVERITY` map in `server/features/diagnostics.py` the
+            // way `from_shimmer` mirrors `_SHIMMER_SEVERITY`.
+            severity: match w.code.as_str() {
+                "T106" | "IRULE3103" => Severity::Info,
+                _ => Severity::Warning,
+            },
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes: Vec::new(),
@@ -165,7 +172,15 @@ impl Diagnostic {
             span: w.span,
             code: w.code.clone(),
             category: "irules".into(),
-            severity: Severity::Warning,
+            // IRULE1007/1008 (collect-without-release / release-without-
+            // collect) are hard connection-state errors; IRULE4004 is
+            // informational. Everything else is a Warning. Mirrors Python's
+            // `_IRULES_FLOW_SEVERITY` map.
+            severity: match w.code.as_str() {
+                "IRULE1007" | "IRULE1008" => Severity::Error,
+                "IRULE4004" => Severity::Info,
+                _ => Severity::Warning,
+            },
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes: w.fixes.clone(),
@@ -189,7 +204,12 @@ impl Diagnostic {
             span: w.span,
             code: w.code.clone(),
             category: "taint".into(),
-            severity: Severity::Warning,
+            // W201 (path concatenation) is a Hint in Python, not a Warning.
+            // Mirrors Python's per-code severity table.
+            severity: match w.code.as_str() {
+                "W201" => Severity::Hint,
+                _ => Severity::Warning,
+            },
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes: Vec::new(),

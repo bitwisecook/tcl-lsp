@@ -4,7 +4,7 @@
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 
-use super::{Refactoring, RefactorEdit, find_command_at, reindent_body};
+use super::{RefactorEdit, Refactoring, find_command_at, reindent_body};
 use crate::code_actions::ActionKind;
 
 /// Parsed equality condition: `(var_name, value, negated)`.
@@ -268,7 +268,8 @@ mod tests {
 
     #[test]
     fn different_vars_returns_none() {
-        let source = "if {$x eq \"a\"} {\n    puts \"x\"\n} elseif {$y eq \"b\"} {\n    puts \"y\"\n}";
+        let source =
+            "if {$x eq \"a\"} {\n    puts \"x\"\n} elseif {$y eq \"b\"} {\n    puts \"y\"\n}";
         assert!(run(source, 0).is_none());
     }
 
@@ -299,7 +300,8 @@ mod tests {
 
     #[test]
     fn values_with_spaces_are_braced() {
-        let source = "if {$x eq \"a b\"} {\n    puts one\n} elseif {$x eq \"c d\"} {\n    puts two\n}";
+        let source =
+            "if {$x eq \"a b\"} {\n    puts one\n} elseif {$x eq \"c d\"} {\n    puts two\n}";
         let applied = run(source, 0).expect("result").apply(source);
         assert!(applied.contains("{a b}"), "{applied:?}");
         assert!(applied.contains("{c d}"), "{applied:?}");
@@ -309,7 +311,7 @@ mod tests {
     fn inside_proc_body() {
         let source = "proc handler {method} {\n    if {$method eq \"GET\"} {\n        handle_get\n    } elseif {$method eq \"POST\"} {\n        handle_post\n    } elseif {$method eq \"PUT\"} {\n        handle_put\n    }\n}";
         // Cursor at line 1, col 4 — inside the `if`.
-        let cursor = source.find("if {").unwrap() as u32;
+        let cursor = u32::try_from(source.find("if {").unwrap()).unwrap();
         let r = run(source, cursor).expect("nested result");
         assert!(r.title.to_lowercase().contains("switch"));
     }

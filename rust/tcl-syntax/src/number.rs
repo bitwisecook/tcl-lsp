@@ -88,27 +88,87 @@ pub struct Parsed {
     pub end: usize,
 }
 
-/// Format an `f64` as Tcl's canonical double string (`Tcl_PrintDouble`-style):
-/// `NaN`, `Inf`/`-Inf`, an integer-valued finite double gets a `.0` suffix
-/// (so it re-parses as a double, e.g. `2.0` not `2`), else the shortest decimal
-/// that round-trips (Rust's `{}` for `f64`). The one shared number→string
-/// formatter for the runtime's `double` rep and the compiler's const-folder.
+/// Format an `f64` as Tcl's canonical double string, byte-for-byte with
+/// `Tcl_PrintDouble` (`tclStrToD.c`): `NaN`, `Inf`/`-Inf`, signed zero
+/// (`0.0`/`-0.0`), and otherwise the shortest decimal that round-trips, laid out
+/// `%g`-style — fixed notation when the decimal point sits in `[-3, 17]`, else
+/// scientific (`d.ddde±NN`). An integer-valued result in fixed notation keeps a
+/// `.0` suffix so it re-parses as a `Double`, not an `Int` (`2.0` not `2`,
+/// `1e16` as `10000000000000000.0` not `10000000000000000`). The one shared
+/// number→string formatter for the runtime's `double` rep and the compiler's
+/// const-folder.
+///
+/// We must NOT use Rust's bare `{}` here: for large/small magnitudes it picks a
+/// different fixed/scientific cutover than C Tcl (`{}` prints `1e300` as 301
+/// digits and `1e17` as `100000000000000000`, the latter re-parsing as an
+/// integer), so the `.0`-vs-Int round-trip and the canonical text both break.
+/// Instead we take Rust's shortest scientific form (`{:e}`, which selects the
+/// same minimal digits as C's `dtoa`) and re-lay it out under Tcl's rule.
 #[must_use]
-#[allow(clippy::cast_possible_truncation)]
 pub fn format_double(f: f64) -> String {
     if f.is_nan() {
-        "NaN".to_owned()
-    } else if f.is_infinite() {
-        if f.is_sign_negative() {
+        return "NaN".to_owned();
+    }
+    if f.is_infinite() {
+        return if f.is_sign_negative() {
             "-Inf".to_owned()
         } else {
             "Inf".to_owned()
-        }
-    } else if f.fract() == 0.0 && f.abs() < 1e16 {
-        format!("{}.0", f as i64)
-    } else {
-        format!("{f}")
+        };
     }
+    // Signed zero must keep its sign: `Tcl_PrintDouble` renders `-0.0` as `-0.0`,
+    // and `f == 0.0` is true for both zeros (so the sign bit is the only tell).
+    if f == 0.0 {
+        return if f.is_sign_negative() {
+            "-0.0".to_owned()
+        } else {
+            "0.0".to_owned()
+        };
+    }
+
+    // `{:e}` gives the shortest round-tripping mantissa + a base-10 exponent,
+    // e.g. `1.5e2`, `1e17`, `6.022e23`. Split them to drive Tcl's layout.
+    let neg = f < 0.0;
+    let sci = format!("{:e}", f.abs());
+    let (mantissa, exp_str) = sci
+        .split_once('e')
+        .expect("Rust's {:e} always emits an 'e' separator");
+    let exp: i32 = exp_str
+        .parse()
+        .expect("Rust's {:e} exponent is a valid integer");
+    // `digits` are the significant digits (point removed); `decpt` is the
+    // position of the decimal point measured from the first digit, so the value
+    // is `0.<digits> * 10^decpt` (matching `dtoa`'s `decpt`).
+    let digits: String = mantissa.chars().filter(|&c| c != '.').collect();
+    let ndigits = digits.len();
+    let decpt = exp + 1;
+
+    // Tcl's `%g` cutover: scientific outside `decpt ∈ [-3, 17]`, else fixed.
+    let out = if !(-3..=17).contains(&decpt) {
+        // Scientific: the shortest mantissa verbatim (a single digit stays bare,
+        // no `.0`), then `e`, an explicit sign, and the natural-width exponent.
+        let e = decpt - 1;
+        format!("{mantissa}e{}{}", if e < 0 { '-' } else { '+' }, e.abs())
+    } else if decpt <= 0 {
+        // Leading-zero fraction: `0.000<digits>` (`-decpt` is ≥ 0 here).
+        let lead = decpt.unsigned_abs() as usize;
+        let zeros = "0".repeat(lead);
+        format!("0.{zeros}{digits}")
+    } else {
+        // `decpt > 0` here, so it converts to a length cleanly.
+        let point = usize::try_from(decpt).unwrap_or(usize::MAX);
+        if point >= ndigits {
+            // Integer-valued in fixed notation: pad to the point, then the `.0`
+            // that keeps it parsing as a Double rather than an Int.
+            let zeros = "0".repeat(point - ndigits);
+            format!("{digits}{zeros}.0")
+        } else {
+            // A point inside the digits: `<int>.<frac>` (`0 < point < ndigits`).
+            let (int_part, frac_part) = digits.split_at(point);
+            format!("{int_part}.{frac_part}")
+        }
+    };
+    if neg { format!("-{out}") } else { out }
 }
 
 /// Tcl numeric whitespace: space, tab, newline, VT, FF, CR.
@@ -576,5 +636,45 @@ mod tests {
         let p = parse("42 rest", ParseFlags::default()).unwrap();
         assert_eq!(p.number, Number::Int(42));
         assert_eq!(p.end, 2);
+    }
+
+    #[test]
+    fn format_double_matches_tcl_print_double() {
+        // Specials and signed zero (the `-0.0` sign must survive — regression).
+        assert_eq!(format_double(f64::NAN), "NaN");
+        assert_eq!(format_double(f64::INFINITY), "Inf");
+        assert_eq!(format_double(f64::NEG_INFINITY), "-Inf");
+        assert_eq!(format_double(0.0), "0.0");
+        assert_eq!(format_double(-0.0), "-0.0");
+        // Ordinary fixed-notation values keep the distinguishing `.0`.
+        assert_eq!(format_double(2.0), "2.0");
+        assert_eq!(format_double(1.5), "1.5");
+        assert_eq!(format_double(0.5), "0.5");
+        assert_eq!(format_double(0.0001), "0.0001");
+        // Integer-valued doubles ≥ 1e16 keep `.0` (re-parse as Double, not Int):
+        // tclsh renders these with the trailing `.0`, not as a bare integer.
+        assert_eq!(format_double(1e16), "10000000000000000.0");
+        assert_eq!(format_double(1.5e16), "15000000000000000.0");
+        assert_eq!(format_double(-1e16), "-10000000000000000.0");
+        // At 1e17 tclsh switches to scientific (`1e+17`, single-digit mantissa
+        // stays bare, exponent has an explicit sign and natural width).
+        assert_eq!(format_double(1e17), "1e+17");
+        assert_eq!(format_double(-1e17), "-1e+17");
+        assert_eq!(format_double(1e-5), "1e-5");
+        assert_eq!(format_double(6.022e23), "6.022e+23");
+    }
+
+    #[test]
+    fn format_double_round_trips_to_double_not_int() {
+        // The point of the `.0`: every `format_double` output must re-parse as a
+        // `Double` (never an `Int`), so the numeric tower stays put across a
+        // string round-trip. 1e16/1e17 are the regression cases.
+        for &v in &[2.0, 1e16, 1.5e16, 1e17, -1e16, -1e17, 1e-5, 1.0, 0.0, -0.0] {
+            let s = format_double(v);
+            match parse_whole(&s) {
+                Some(Number::Double(_)) => {}
+                other => panic!("format_double({v}) = {s:?} re-parsed as {other:?}, not Double"),
+            }
+        }
     }
 }

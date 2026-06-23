@@ -135,16 +135,24 @@ struct TailSite {
 }
 
 /// Produce the replacement parameter reassignment for a tail
-/// call — `set p v` for a single param, `lassign {v1 v2 …} p1
-/// p2 …` for multiple. Matches the Python `_make_reassignment`
+/// call — `set p v` for a single param, `lassign [list v1 v2 …]
+/// p1 p2 …` for multiple. Matches the Python `_make_reassignment`
 /// output.
+///
+/// The multi-param form must use `[list …]`, **not** a braced
+/// `{v1 v2 …}` word: a braced word suppresses all substitution, so
+/// for plain `$var` args the params would be reassigned the literal
+/// strings, and for the common `[expr {…}]` argument the braced list
+/// is malformed (`list element in braces followed by "]"`) and Tcl
+/// raises a hard runtime error.  `[list …]` evaluates each argument
+/// and builds a proper list before `lassign` distributes it.
 fn make_reassignment(params: &[String], args: &[String]) -> String {
     if params.len() == 1 {
         format!("set {} {}", params[0], args[0])
     } else {
         let arg_list = args.join(" ");
         let param_list = params.join(" ");
-        format!("lassign {{{arg_list}}} {param_list}")
+        format!("lassign [list {arg_list}] {param_list}")
     }
 }
 
@@ -718,6 +726,38 @@ mod tests {
             opts.iter().all(|o| o.code != "O122"),
             "O122 must not fire on tcl8.4 multi-param body, got {opts:?}",
         );
+    }
+
+    #[test]
+    fn o122_multi_param_rewrite_uses_list_not_braces() {
+        // OPT-M1 regression: the multi-param reassignment must be
+        // `lassign [list …] a b`, never the braced `lassign {…} a b`
+        // form (which breaks `[expr {…}]` args with a hard tclsh error).
+        let src = "proc ::f {a b} {\n    if {$a <= 0} { return $b }\n    f [expr {$a - 1}] [expr {$b + $a}]\n}";
+        let opts = run_pass_with_dialect(src, "tcl8.6");
+        let opt = opts
+            .iter()
+            .find(|o| o.code == "O122")
+            .expect("O122 should fire on multi-param tail recursion");
+        assert!(
+            opt.replacement.contains("lassign [list "),
+            "O122 must use `lassign [list …]`, got {:?}",
+            opt.replacement,
+        );
+        assert!(
+            !opt.replacement.contains("lassign {"),
+            "O122 must not emit a braced `lassign {{…}}`, got {:?}",
+            opt.replacement,
+        );
+    }
+
+    #[test]
+    fn make_reassignment_multi_param_emits_list() {
+        let r = make_reassignment(
+            &["a".to_string(), "b".to_string()],
+            &["[expr {$a - 1}]".to_string(), "$b".to_string()],
+        );
+        assert_eq!(r, "lassign [list [expr {$a - 1}] $b] a b");
     }
 
     #[test]

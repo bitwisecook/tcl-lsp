@@ -87,10 +87,20 @@ pub fn vec_tagged<T: Canon>(v: &[T]) -> Value {
 }
 
 /// Canonical form of the pool-member `field_offsets` map.
+///
+/// The input is a `HashMap`, whose iteration order is randomised per run.
+/// With `serde_json/preserve_order` feature-unified on across the workspace,
+/// a `serde_json::Map` preserves insertion order, so iterating the `HashMap`
+/// directly would leak that random order into the canonical JSON string and
+/// make the PyO3 cross-language contract nondeterministic. Sort the keys
+/// first so the same input always serialises to the same bytes.
 #[must_use]
 pub fn field_offsets(m: &std::collections::HashMap<String, (usize, usize)>) -> Value {
+    let mut keys: Vec<&String> = m.keys().collect();
+    keys.sort();
     let mut obj = Map::new();
-    for (k, (a, b)) in m {
+    for k in keys {
+        let (a, b) = m[k];
         obj.insert(k.clone(), json!({"t": [a, b]}));
     }
     json!({"m": obj})
@@ -299,4 +309,64 @@ pub fn config_to_canonical(config: &BigipConfig) -> Value {
         "generic_objects": generic,
         "objects": objects,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::field_offsets;
+
+    /// Build a `field_offsets`-shaped map with enough keys that `HashMap`'s
+    /// randomised iteration order would surface if it leaked.
+    fn sample_map() -> HashMap<String, (usize, usize)> {
+        let mut m = HashMap::new();
+        for (i, key) in [
+            "session",
+            "address",
+            "state",
+            "monitor",
+            "ratio",
+            "priority-group",
+            "connection-limit",
+            "rate-limit",
+            "fqdn",
+            "description",
+        ]
+        .iter()
+        .enumerate()
+        {
+            m.insert((*key).to_string(), (i, i + 1));
+        }
+        m
+    }
+
+    /// F5-M1: the canonical `field_offsets` JSON must be deterministic — two
+    /// independently-seeded `HashMap`s with the same entries must serialise
+    /// to byte-identical JSON, otherwise the PyO3 cross-language contract
+    /// diverges run-to-run.
+    #[test]
+    fn field_offsets_key_order_is_deterministic() {
+        let a = field_offsets(&sample_map());
+        let b = field_offsets(&sample_map());
+        assert_eq!(
+            serde_json::to_string(&a).unwrap(),
+            serde_json::to_string(&b).unwrap(),
+            "field_offsets serialisation must not depend on HashMap iteration order",
+        );
+
+        // The same map serialised twice in a row must also match, and the
+        // emitted keys must be in sorted order.
+        let map = sample_map();
+        let first = serde_json::to_string(&field_offsets(&map)).unwrap();
+        let second = serde_json::to_string(&field_offsets(&map)).unwrap();
+        assert_eq!(first, second);
+
+        let value = field_offsets(&map);
+        let inner = value.get("m").and_then(|m| m.as_object()).unwrap();
+        let mut sorted: Vec<&String> = inner.keys().collect();
+        let observed: Vec<&String> = inner.keys().collect();
+        sorted.sort();
+        assert_eq!(observed, sorted, "keys must be emitted in sorted order");
+    }
 }

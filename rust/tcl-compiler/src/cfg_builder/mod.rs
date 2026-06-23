@@ -140,7 +140,21 @@ pub(crate) struct CfgBuilder {
     /// edge from a body that terminated without an explicit `error`/`throw`
     /// (a bare `return`). Mirrors Python's `_last_terminal_block`.
     last_terminal_block: Option<String>,
+    /// Current `lower_script` recursion depth, bounded by
+    /// [`MAX_LOWER_DEPTH`] (MID-H1).
+    depth: usize,
 }
+
+/// Maximum nesting depth for the recursive `lower_script` descent.
+/// `lower_script` ↔ `lower_if`/`lower_for`/`lower_while`/`lower_foreach`/
+/// `lower_switch`/`lower_try` are mutually recursive with one Rust frame
+/// per nesting level; deeply-nested (generated / minified) bodies would
+/// otherwise overflow the stack — an uncatchable SIGABRT that takes down
+/// the LSP worker or the `tcl` CLI. At the cap we stop descending and
+/// treat the over-deep script as a non-fall-through tail, yielding a
+/// truncated-but-valid CFG instead of a crash. No real source nests
+/// anywhere near this.
+const MAX_LOWER_DEPTH: usize = 256;
 
 impl CfgBuilder {
     fn new(inline_loops: bool) -> Self {
@@ -164,6 +178,7 @@ impl CfgBuilder {
             faithful_exceptions: false,
             throw_blocks: None,
             last_terminal_block: None,
+            depth: 0,
         }
     }
 
@@ -466,8 +481,25 @@ impl CfgBuilder {
     /// Returns `Some(tail_block)` — the block where subsequent code
     /// should go — or `None` if control doesn't fall through (e.g.
     /// the script ends with a `return`).
-    #[allow(clippy::too_many_lines)]
+    /// Depth-guarded entry to the recursive lowering (MID-H1). Every
+    /// nested body re-enters here, so bounding this one point caps the
+    /// whole `lower_*` recursion. At the cap we stop descending and report
+    /// "no fall-through" — `build_function` already handles a `None` tail,
+    /// so the result is a truncated-but-valid CFG rather than a stack
+    /// overflow.
     fn lower_script(&mut self, script: &Script, block_name: &str) -> Option<String> {
+        self.depth += 1;
+        if self.depth > MAX_LOWER_DEPTH {
+            self.depth -= 1;
+            return None;
+        }
+        let result = self.lower_script_inner(script, block_name);
+        self.depth -= 1;
+        result
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn lower_script_inner(&mut self, script: &Script, block_name: &str) -> Option<String> {
         let mut current = block_name.to_owned();
         // True once the *main* (reachable) path has hit an unconditional
         // terminator — everything after is dead code captured in orphan

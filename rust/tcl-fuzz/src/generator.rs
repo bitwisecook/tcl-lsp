@@ -460,22 +460,22 @@ mod tests {
         let cfg = GenConfig::default();
         for seed in 0..200 {
             let src = generate(seed, &cfg);
-            let (mut brace, mut brack) = (0i32, 0i32);
+            let (mut braces, mut brackets) = (0i32, 0i32);
             for b in src.bytes() {
                 match b {
-                    b'{' => brace += 1,
-                    b'}' => brace -= 1,
-                    b'[' => brack += 1,
-                    b']' => brack -= 1,
+                    b'{' => braces += 1,
+                    b'}' => braces -= 1,
+                    b'[' => brackets += 1,
+                    b']' => brackets -= 1,
                     _ => {}
                 }
                 assert!(
-                    brace >= 0 && brack >= 0,
+                    braces >= 0 && brackets >= 0,
                     "seed {seed}: closer before opener"
                 );
             }
-            assert_eq!(brace, 0, "seed {seed}: unbalanced braces\n{src}");
-            assert_eq!(brack, 0, "seed {seed}: unbalanced brackets\n{src}");
+            assert_eq!(braces, 0, "seed {seed}: unbalanced braces\n{src}");
+            assert_eq!(brackets, 0, "seed {seed}: unbalanced brackets\n{src}");
         }
     }
 
