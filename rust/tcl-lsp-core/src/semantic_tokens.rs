@@ -2836,7 +2836,7 @@ mod tests {
         assert_eq!(classify_command_head("if", &reg()), TokenKind::Keyword);
     }
 
-    // -- range variant -----------------------
+    // range variant
 
     #[test]
     fn range_filters_tokens_outside_window() {

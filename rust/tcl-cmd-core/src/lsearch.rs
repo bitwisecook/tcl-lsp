@@ -522,7 +522,7 @@ fn subindex_obj<O: ValueOps>(
     ops.new_list(out)
 }
 
-// -- index-path helpers -------------------------------------------------------
+// index-path helpers
 
 /// Split an `-index` argument (a Tcl list) into its component specs.
 fn split_index(arg: &[u8]) -> Result<Vec<Vec<u8>>, LsearchError> {

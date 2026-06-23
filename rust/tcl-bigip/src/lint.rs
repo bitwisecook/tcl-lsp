@@ -38,7 +38,7 @@ pub struct Finding {
     pub message: String,
 }
 
-// ── Per-kind views over the model ────────────────────────────────────
+// Per-kind views over the model
 //
 // Config holds one map per object kind, but the Rust model stores everything
 // in `config.objects` tagged with its `table_name`. `KindMap` provides those
@@ -187,7 +187,7 @@ pub(crate) fn resolve_name<T>(
         .map(|(k, _)| k.to_owned())
 }
 
-// ── Config merge ─────────────────────────────────────────────────────
+// Config merge
 
 /// Build a single merged [`BigipConfig`] that unions every input, later
 /// configs winning on key collision. Only the
@@ -229,7 +229,7 @@ pub fn merge_configs(configs: &[(String, &BigipConfig)]) -> BigipConfig {
     merged
 }
 
-// ── repr formatting (for `{name!r}` / `{event!r}` messages) ──────────
+// repr formatting (for `{name!r}` / `{event!r}` messages)
 
 /// The `repr()`-style rendering of a string, as used by `{value!r}`:
 /// single-quote-preferred quoting; object paths never contain quotes.
@@ -242,7 +242,7 @@ fn py_repr(s: &str) -> String {
     format!("{quote}{s}{quote}")
 }
 
-// ── The eight built-in rules ─────────────────────────────────────────
+// The eight built-in rules
 
 /// `orphan-monitor` (warning/config): a monitor referenced by no pool or
 /// pool-member; `/Common/<factory monitor>` downgrades to `info`.
@@ -564,7 +564,7 @@ fn rule_irule_missing_object(
     }
 }
 
-// ── run_lint ─────────────────────────────────────────────────────────
+// run_lint
 
 /// Run every registered rule against the union of `configs` and return the
 /// findings in registration order. `sources` is unused

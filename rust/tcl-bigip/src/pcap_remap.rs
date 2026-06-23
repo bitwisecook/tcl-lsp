@@ -104,7 +104,7 @@ type V4Lookup = HashMap<[u8; 4], [u8; 4]>;
 /// Packed IPv6 -> IPv6 byte lookup for the sweep fallback.
 type V6Lookup = HashMap<[u8; 16], [u8; 16]>;
 
-// ── checksum helpers ────────────────────────────────────────────────
+// checksum helpers
 
 fn u16_at(buf: &[u8], off: usize) -> u16 {
     u16::from_be_bytes([buf[off], buf[off + 1]])
@@ -793,7 +793,7 @@ fn rewrite_one_packet(
     Ok(counts)
 }
 
-// ── top-level entry ─────────────────────────────────────────────────
+// top-level entry
 
 // Classic libpcap magics -> (big_endian?).
 fn pcap_magic_endian(magic: u32) -> Option<bool> {

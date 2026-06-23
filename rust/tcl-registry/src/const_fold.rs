@@ -153,7 +153,7 @@ pub(crate) fn clamp_range(first: i64, last: i64, len: usize) -> Option<(usize, u
     Some((usize::try_from(first).ok()?, usize::try_from(last).ok()?))
 }
 
-// ── list commands ──────────────────────────────────────────────────
+// list commands
 
 /// `concat ?arg ...?` — trim each arg and space-join the non-empty ones
 /// (a flatten, not a re-quote) for the backslash-free subset. Tcl exposes
@@ -281,7 +281,7 @@ pub(crate) fn fold_lrange(args: &[&str]) -> Option<String> {
     }
 }
 
-// ── dict commands ──────────────────────────────────────────────────
+// dict commands
 
 /// Parse a flat Tcl dict string into key/value pairs (insertion order),
 /// or `None` when malformed (odd element count or unsplittable).

@@ -66,7 +66,7 @@ fn assert_error(expected_stderr: &str, args: &[&str]) {
     );
 }
 
-// --- mermaid ------------------------------------------------------------
+// mermaid
 
 #[test]
 fn mermaid_chain() {
@@ -93,7 +93,7 @@ fn mermaid_direction_tb() {
     );
 }
 
-// --- gantt --------------------------------------------------------------
+// gantt
 
 #[test]
 fn gantt_default() {
@@ -120,7 +120,7 @@ fn gantt_unit_minutes_10() {
     );
 }
 
-// --- ascii-blocks -------------------------------------------------------
+// ascii-blocks
 
 #[test]
 fn ascii_blocks_flat() {
@@ -168,7 +168,7 @@ fn ascii_blocks_square_min_width() {
     );
 }
 
-// --- error cases --------------------------------------------------------
+// error cases
 
 #[test]
 fn unknown_renderer() {

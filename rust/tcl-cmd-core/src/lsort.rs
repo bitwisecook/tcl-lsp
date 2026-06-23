@@ -331,7 +331,7 @@ fn build_result<O: ValueOps>(
     ops.new_list(out)
 }
 
-// -- option helpers -----------------------------------------------------------
+// option helpers
 
 fn split_index(arg: &[u8]) -> Result<Vec<Vec<u8>>, LsortError> {
     let Ok(s) = core::str::from_utf8(arg) else {

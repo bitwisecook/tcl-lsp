@@ -34,14 +34,14 @@ use ipnet::{Ipv4Net, Ipv6Net};
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
-// ── Defaults ────────────────────────────────────────────────────────
+// Defaults
 
 /// Default RFC1918 IPv4 target pool, walked in order.
 pub const DEFAULT_TARGET_CIDRS_V4: [&str; 3] = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"];
 /// Default IPv6 target pool.
 pub const DEFAULT_TARGET_CIDRS_V6: [&str; 1] = ["fd00::/8"];
 
-// ── Regexes ─────────────────────────────────────────────────────────
+// Regexes
 
 const RGXG_V4: &str = concat!(
     r"(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])",
@@ -153,7 +153,7 @@ fn find_bounded(
     out
 }
 
-// ── Address helpers ─────────────────────────────────────────────────
+// Address helpers
 
 /// An IP address (v4 or v6).
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -203,7 +203,7 @@ fn parse_v6(token: &str) -> Option<Ipv6Addr> {
     token.parse::<Ipv6Addr>().ok()
 }
 
-// ── is_private / is_skip predicates ─────────────────────────────────
+// is_private / is_skip predicates
 
 const V4_PRIVATE_NETS: [&str; 14] = [
     "0.0.0.0/8",
@@ -349,7 +349,7 @@ fn should_skip(addr: Addr, remap_private: bool) -> bool {
     false
 }
 
-// ── Network helpers ─────────────────────────────────────────────────
+// Network helpers
 
 /// The network enclosing `addr` at `prefix`, host bits zeroed.
 fn enclosing_cidr(addr: Addr, prefix: u32) -> Net {
@@ -451,7 +451,7 @@ fn direct_host(host_bits: u128, _source: Net, target: Net) -> Addr {
     }
 }
 
-// ── CidrAssignment / RedactionMap ───────────────────────────────────
+// CidrAssignment / RedactionMap
 
 /// One source CIDR mapped to one target CIDR of equal prefix length.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -626,7 +626,7 @@ impl RedactionMap {
     }
 }
 
-// ── Allocator ───────────────────────────────────────────────────────
+// Allocator
 
 /// Error raised when no non-overlapping target CIDR can be allocated.
 #[derive(Debug)]
@@ -822,7 +822,7 @@ impl Allocator {
     }
 }
 
-// ── Permutation (shuffle mode) ──────────────────────────────────────
+// Permutation (shuffle mode)
 
 fn derive_key(seed: &str, source_cidr: &str) -> Vec<u8> {
     let mut h = Sha256::new();
@@ -879,7 +879,7 @@ fn shuffle_host(addr: Addr, source: Net, target: Net, key: &[u8], invert: bool) 
     direct_host(u128::from(table[host_bits]), source, target)
 }
 
-// ── Map operations ──────────────────────────────────────────────────
+// Map operations
 
 fn normalise_token(token: &str) -> Option<Addr> {
     if let Some(a) = parse_v4(token) {
@@ -1288,7 +1288,7 @@ fn substitute(
     out
 }
 
-// ── Secret stripping (the redact half) ──────────────────────────────
+// Secret stripping (the redact half)
 
 const SECRET_KEYS: [&str; 9] = [
     "passphrase",
@@ -1453,7 +1453,7 @@ pub fn redact_secrets(source: &str, opts: RedactOptions) -> Result<RedactReport,
     }
 }
 
-// ── MT19937 random generator ─────────────────────────────────
+// MT19937 random generator
 
 /// A from-scratch implementation of an MT19937-based `random`-style PRNG
 /// sufficient for `shuffle` byte-parity: `init_by_array` integer seeding,
@@ -1599,7 +1599,7 @@ mod mt19937 {
     }
 }
 
-// ── Minimal TOML reader for the map file ────────────────────────────
+// Minimal TOML reader for the map file
 
 /// A tiny TOML reader tailored to the redact map-file shape (top-level
 /// string keys + string arrays, repeated `[[cidr]]` tables, and an `[ips]`
@@ -1713,7 +1713,7 @@ mod toml_lite {
     }
 }
 
-// ── Tests ───────────────────────────────────────────────────────────
+// Tests
 
 #[cfg(test)]
 mod tests {

@@ -578,7 +578,7 @@ mod tests {
         }
     }
 
-    // -- alias resolution ------------------------
+    // alias resolution
 
     #[test]
     fn jump_to_alias_target_proc() {
@@ -622,7 +622,7 @@ mod tests {
         }
     }
 
-    // -- scope-chain $var descent ---------------
+    // scope-chain $var descent
 
     #[test]
     fn proc_local_var_jumps_to_proc_scope_definition() {
@@ -681,7 +681,7 @@ mod tests {
         assert_eq!(range.end_character, 4);
     }
 
-    // -- class-member lookup ---------------------
+    // class-member lookup
 
     #[test]
     fn definition_jumps_to_method_inside_class_body() {
@@ -741,7 +741,7 @@ mod tests {
         assert!(locs.is_empty(), "{locs:?}");
     }
 
-    // -- $obj method dispatch --------------------
+    // $obj method dispatch
 
     #[test]
     fn definition_resolves_obj_method_call() {

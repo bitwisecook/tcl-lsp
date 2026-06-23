@@ -46,7 +46,7 @@ pub fn implementation(
     // offset so the response is deterministic.
     let mut spans: BTreeSet<(u32, u32)> = BTreeSet::new();
 
-    // ---- Case 1: the word names a class -------------------------------
+    // Case 1: the word names a class
     let target_qnames: Vec<&str> = analysis
         .all_classes
         .values()
@@ -62,7 +62,7 @@ pub fn implementation(
         return finish(source, &line_index, spans);
     }
 
-    // ---- Case 2/3: the word names a method ----------------------------
+    // Case 2/3: the word names a method
     let cursor = byte_offset_at(source, line, character);
     let enclosing = enclosing_class(analysis, cursor);
 

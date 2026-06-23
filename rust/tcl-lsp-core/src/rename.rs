@@ -955,7 +955,7 @@ mod tests {
         assert!(texts.contains(&"$y"), "{texts:?}");
     }
 
-    // -- brace-ref escaping ---------------------------
+    // brace-ref escaping
 
     #[test]
     fn rename_var_preserves_braced_reference_form() {
@@ -1090,7 +1090,7 @@ mod tests {
         );
     }
 
-    // -- safety gating --------------------------------
+    // safety gating
 
     #[test]
     fn is_safe_symbol_name_accepts_canonical_identifiers() {
@@ -1179,7 +1179,7 @@ mod tests {
         );
     }
 
-    // -- namespace-aware proc renames ----------------
+    // namespace-aware proc renames
 
     #[test]
     fn namespace_prefix_of_qualified_names() {
@@ -1256,7 +1256,7 @@ mod tests {
         );
     }
 
-    // -- class rename --------------------------------
+    // class rename
 
     #[test]
     fn rename_class_at_decl_rewrites_decl_and_calls() {
@@ -1329,7 +1329,7 @@ mod tests {
         assert_eq!(p.range.start_character, 17);
     }
 
-    // -- method rename --------------------------------
+    // method rename
 
     #[test]
     fn rename_method_at_decl_rewrites_decl_and_calls() {
@@ -1387,7 +1387,7 @@ mod tests {
         assert_eq!(p.placeholder, "greet");
     }
 
-    // -- external $obj method rename -----------------
+    // external $obj method rename
 
     #[test]
     fn rename_method_from_decl_rewrites_external_obj_sites() {

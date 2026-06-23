@@ -169,7 +169,7 @@ fn compute_new_literal(old_literal: &str, dep_path: &str, new_abs_path: &str) ->
     relpath(new_abs_path, posix_dirname(dep_path))
 }
 
-// -- posix path helpers (the test environment is Linux) -------------
+// posix path helpers (the test environment is Linux)
 
 fn posix_dirname(p: &str) -> &str {
     match p.rfind('/') {

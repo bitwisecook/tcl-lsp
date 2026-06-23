@@ -1259,7 +1259,7 @@ pub fn expr_has_command_subst(node: &ExprNode) -> bool {
 mod tests {
     use super::*;
 
-    // -- try_fold_expr ------------------------------------------------------
+    // try_fold_expr
 
     #[test]
     fn fold_integer_arithmetic() {
@@ -1293,7 +1293,7 @@ mod tests {
         assert!(try_fold_expr("   ", None).is_none());
     }
 
-    // -- try_unwrap_expr_in_expr --------------------------------------------
+    // try_unwrap_expr_in_expr
 
     #[test]
     fn unwrap_braced_body() {
@@ -1328,7 +1328,7 @@ mod tests {
         assert!(try_unwrap_expr_in_expr("[expr {}]").is_none());
     }
 
-    // -- substitute_expr_constants ------------------------------------------
+    // substitute_expr_constants
 
     fn consts(pairs: &[(&str, &str)]) -> std::collections::HashMap<String, String> {
         pairs
@@ -1377,7 +1377,7 @@ mod tests {
         assert_eq!(out.text, r#""he said \"hi\\there\"""#);
     }
 
-    // -- expr_has_command_subst --------------------------------------------
+    // expr_has_command_subst
 
     #[test]
     fn command_subst_detection() {
@@ -1389,7 +1389,7 @@ mod tests {
         assert!(!expr_has_command_subst(&expr));
     }
 
-    // -- try_strength_reduce_expr ------------------------------------------
+    // try_strength_reduce_expr
 
     #[test]
     fn strength_reduce_identity_mul_one() {
@@ -1470,7 +1470,7 @@ mod tests {
         assert!(!is_numeric_string(""));
     }
 
-    // -- try_strlen_simplify_expr ------------------------------------------
+    // try_strlen_simplify_expr
 
     #[test]
     fn strlen_zero_equal_becomes_eq_empty() {
@@ -1486,7 +1486,7 @@ mod tests {
         assert_eq!(out, "[string length $s] == 1");
     }
 
-    // -- try_eq_ne_string_compare_simplify_expr ----------------------------
+    // try_eq_ne_string_compare_simplify_expr
 
     #[test]
     fn streq_promotion_with_quoted_literal() {
@@ -1528,7 +1528,7 @@ mod tests {
         }
     }
 
-    // -- instcombine_expr (composite) --------------------------------------
+    // instcombine_expr (composite)
 
     #[test]
     fn o110_logical_identity_boolifies_outside_bool_context() {

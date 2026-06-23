@@ -34,7 +34,7 @@ pub const DUPMAX: i32 = 255;
 /// One past `DUPMAX`; the engine's "infinity" sentinel for `max`.
 pub const DUPINF: i32 = DUPMAX + 1;
 
-// -- compile flags (cflags) — regex.h ----------------------------------------
+// compile flags (cflags) — regex.h
 
 pub const REG_BASIC: i32 = 0o000000; // BREs
 pub const REG_EXTENDED: i32 = 0o000001; // EREs
@@ -55,7 +55,7 @@ pub const REG_DUMP: i32 = 0o004000;
 pub const REG_FAKE: i32 = 0o010000;
 pub const REG_PROGRESS: i32 = 0o020000;
 
-// -- execution flags (eflags) — regex.h --------------------------------------
+// execution flags (eflags) — regex.h
 
 pub const REG_NOTBOL: i32 = 0o0001; // BOS is not BOL
 pub const REG_NOTEOL: i32 = 0o0002; // EOS is not EOL
@@ -64,7 +64,7 @@ pub const REG_FTRACE: i32 = 0o0010;
 pub const REG_MTRACE: i32 = 0o0020;
 pub const REG_SMALL: i32 = 0o0040;
 
-// -- re_info bits — regex.h --------------------------------------------------
+// re_info bits — regex.h
 
 pub const REG_UBACKREF: i32 = 0o000001;
 pub const REG_ULOOKAHEAD: i32 = 0o000002;

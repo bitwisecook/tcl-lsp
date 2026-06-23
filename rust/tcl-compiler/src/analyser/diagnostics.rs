@@ -557,7 +557,7 @@ fn nearest_valid_mask(a: u32, b: u32, c: u32, d: u32) -> Option<String> {
     ))
 }
 
-// -- IP / ReDoS leaf scanners (regex-free) ----------------------------
+// IP / ReDoS leaf scanners (regex-free)
 
 /// A `\w` byte: ASCII alphanumeric or underscore (word boundary basis).
 fn is_word_byte(b: u8) -> bool {
@@ -9605,7 +9605,7 @@ mod tests {
         assert!(w004[0].message.contains("regsub"));
     }
 
-    // -- E002 / E003 arity ---------------
+    // E002 / E003 arity
 
     #[test]
     fn e003_not_emitted_for_leading_switches() {
@@ -9885,7 +9885,7 @@ mod tests {
         );
     }
 
-    // -- reachable, in-order shadow gating -------
+    // reachable, in-order shadow gating
 
     #[test]
     fn e003_top_level_call_before_shadowing_proc_fires() {
@@ -9939,7 +9939,7 @@ mod tests {
         );
     }
 
-    // -- BODY role on iRules nesting scripts ------
+    // BODY role on iRules nesting scripts
 
     #[test]
     fn analyser_recurses_into_irules_nesting_script_bodies() {
@@ -11479,7 +11479,7 @@ mod tests {
         );
     }
 
-    // ── info exists / array exists ──────────────────
+    // info exists / array exists
 
     fn codes_for(src: &str) -> Vec<String> {
         let mut a = Analyser::new();
@@ -12918,7 +12918,7 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
         assert_eq!(a.result.diagnostics.len(), 1);
     }
 
-    // -- W120: missing package require ------------------------------
+    // W120: missing package require
 
     #[test]
     fn w120_fires_for_package_gated_command_without_require() {

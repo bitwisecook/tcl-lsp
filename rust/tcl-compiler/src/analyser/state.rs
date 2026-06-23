@@ -3825,7 +3825,7 @@ mod tests {
         assert!(codes.contains("W211"));
     }
 
-    // ---- Incremental analysis differential oracle ------------------
+    // Incremental analysis differential oracle
 
     /// A projection of `AnalysisResult` capturing the observable
     /// identity an incremental analysis must preserve.

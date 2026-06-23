@@ -769,7 +769,7 @@ mod tests {
         );
     }
 
-    // -- incoming + outgoing calls -----------
+    // incoming + outgoing calls
 
     #[test]
     fn incoming_calls_from_other_procs() {
@@ -894,7 +894,7 @@ mod tests {
         assert_eq!(sibling.from_ranges.len(), 2, "{unresolved:?}");
     }
 
-    // -- class methods -----------------------
+    // class methods
 
     #[test]
     fn prepare_resolves_method_at_cursor() {
@@ -944,7 +944,7 @@ mod tests {
         assert_eq!(names, vec!["helper"], "{outgoing:?}");
     }
 
-    // -- workspace-index: cross-document incoming calls -------------
+    // workspace-index: cross-document incoming calls
 
     #[test]
     fn incoming_calls_for_target_finds_callers_in_other_doc() {

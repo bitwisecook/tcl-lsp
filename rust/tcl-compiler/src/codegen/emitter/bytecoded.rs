@@ -73,7 +73,7 @@ pub fn dispatch_codegen_hook(
     }
 }
 
-// ── list ──────────────────────────────────────────────────────────
+// list
 
 /// `llength $list` → `emit_word list; LIST_LENGTH; POP`.
 fn llength(ctx: &mut CodegenCtx, args: &[String]) -> bool {
@@ -230,7 +230,7 @@ fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
-// ── dict ──────────────────────────────────────────────────────────
+// dict
 
 /// `dict SUBCOMMAND …` — dispatch to a handful of specialised
 /// opcodes when the target variable is a proc-local (non-qualified)
@@ -377,7 +377,7 @@ fn dict_ensemble(ctx: &mut CodegenCtx, sub: &str, sub_args: &[String]) {
     ctx.seen_generic_invoke = true;
 }
 
-// ── array ─────────────────────────────────────────────────────────
+// array
 
 /// `array names $arr ...` / `array size $arr` in non-proc context:
 /// invoke the fully-qualified `::tcl::array::<sub>` form rather than
@@ -410,7 +410,7 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
     }
 }
 
-// ── append / lappend ───────────────────────────────────────────────
+// append / lappend
 
 /// True when `var` names a variable codegen can resolve to a compiled
 /// local — a proc context, a plain (non-`::`-qualified) name, and not a
@@ -545,7 +545,7 @@ fn lappend_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
-// ── unset ──────────────────────────────────────────────────────────
+// unset
 
 /// `unset ?-nocomplain? ?--? name ...` — statement-position specialisation
 /// in a proc body. Each variable unsets via `unsetScalar`/`unsetArray`
@@ -604,7 +604,7 @@ fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
-// ── tailcall ───────────────────────────────────────────────────────
+// tailcall
 
 /// `tailcall command ?arg ...?` — push the literal `"tailcall"` word, then
 /// each argument, and emit `tailcall N` where N counts the `"tailcall"`
@@ -627,7 +627,7 @@ fn tailcall_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
-// ── concat ─────────────────────────────────────────────────────────
+// concat
 
 /// `concat ?arg ...?` — const-fold when every argument is a plain literal
 /// (trim each, drop the empties, join with a single space — mirroring
@@ -662,7 +662,7 @@ fn concat_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
-// ── global / upvar ─────────────────────────────────────────────────
+// global / upvar
 
 /// `global varName ...` — link each (simple, proc-local) variable to the
 /// same-named global, byte-true with C Tcl's `TclCompileGlobalCmd`:

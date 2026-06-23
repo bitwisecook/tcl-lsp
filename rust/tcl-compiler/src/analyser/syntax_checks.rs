@@ -1017,7 +1017,7 @@ mod tests {
         assert!(!codes("set n [llength $x]\n").contains(&"E100".to_string()));
     }
 
-    // -- E202 / E203 recovery detectors ------------------------------
+    // E202 / E203 recovery detectors
 
     fn recovery_diags(src: &str, code: &str) -> Vec<(String, usize)> {
         let mut a = Analyser::new();

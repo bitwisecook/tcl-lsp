@@ -38,7 +38,7 @@ pub enum XCConstructKind {
     Note,
 }
 
-// ── Match criteria ───────────────────────────────────────────────────────
+// Match criteria
 
 /// XC path match criterion. `match_type` is `"prefix"` | `"exact"` |
 /// `"regex"` | `"suffix"`.
@@ -108,7 +108,7 @@ pub struct XCCookieMatch {
     pub invert: bool,
 }
 
-// ── Actions ──────────────────────────────────────────────────────────────
+// Actions
 
 /// An XC header-manipulation action. `operation` is `"add"` | `"replace"`
 /// | `"remove"`; `target` is `"request"` | `"response"`.
@@ -157,7 +157,7 @@ pub struct XCDirectResponseAction {
     pub source_range: Option<Span>,
 }
 
-// ── Routes ───────────────────────────────────────────────────────────────
+// Routes
 
 /// An L7 route in an XC HTTP load balancer.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -186,7 +186,7 @@ pub struct XCRoute {
     pub source_range: Option<Span>,
 }
 
-// ── Service policies ─────────────────────────────────────────────────────
+// Service policies
 
 /// A rule within an XC service policy. `action` is `"allow"` | `"deny"` |
 /// `"next_policy"`.
@@ -227,7 +227,7 @@ pub struct XCServicePolicy {
     pub rules: Vec<XCServicePolicyRule>,
 }
 
-// ── WAF exclusion rules ──────────────────────────────────────────────────
+// WAF exclusion rules
 
 /// An XC WAF exclusion rule (bypass App Firewall for matching traffic).
 /// Maps from iRule `ASM::disable` guarded by path / IP conditions.
@@ -245,7 +245,7 @@ pub struct XCWafExclusionRule {
     pub source_range: Option<Span>,
 }
 
-// ── Origin pools ─────────────────────────────────────────────────────────
+// Origin pools
 
 /// An XC origin pool placeholder. Actual server addresses and ports must
 /// be filled in manually since iRules reference pool names but not their
@@ -258,7 +258,7 @@ pub struct XCOriginPool {
     pub port: i64,
 }
 
-// ── Translation items (coverage tracking) ────────────────────────────────
+// Translation items (coverage tracking)
 
 /// One translated or untranslatable construct from the iRule.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -279,7 +279,7 @@ pub struct TranslationItem {
     pub diagnostic_code: String,
 }
 
-// ── Top-level result ─────────────────────────────────────────────────────
+// Top-level result
 
 /// Complete result of translating an iRule to XC.
 #[derive(Debug, Clone, PartialEq, Default)]

@@ -1483,7 +1483,7 @@ mod tests {
         );
     }
 
-    // -- IRULE5002 / IRULE5004 ----------------------------------------
+    // IRULE5002 / IRULE5004
 
     fn drop_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
@@ -1695,7 +1695,7 @@ mod tests {
         );
     }
 
-    // -- IRULE1005 / 1006 / 1007 / 1008 -------------------------------
+    // IRULE1005 / 1006 / 1007 / 1008
 
     fn flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let reg = registry();
@@ -1854,7 +1854,7 @@ mod tests {
         assert!(none.is_empty(), "got {none:?}");
     }
 
-    // -- IRULE1201 / 1202 ---------------------------------------------
+    // IRULE1201 / 1202
 
     fn http_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
@@ -2045,7 +2045,7 @@ mod tests {
         assert!(commits_response_commands().contains("HTTP::respond"));
     }
 
-    // -- IRULE4004 ----------------------------------------------------
+    // IRULE4004
 
     fn hoist_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
@@ -2101,7 +2101,7 @@ mod tests {
         assert!(none.is_empty(), "got {none:?}");
     }
 
-    // -- IRULE4002 ----------------------------------------------------
+    // IRULE4002
 
     fn generic_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);

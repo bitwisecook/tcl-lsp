@@ -112,7 +112,7 @@ impl Parser {
         self.depth -= 1;
     }
 
-    // --- token utilities ---------------------------------------------------
+    // token utilities
 
     fn peek(&self, offset: usize) -> Token {
         let idx = self.pos + offset;
@@ -149,7 +149,7 @@ impl Parser {
         }
     }
 
-    // --- top-level entry point ---------------------------------------------
+    // top-level entry point
 
     fn parse_program(&mut self) -> Result<Program, QueryError> {
         let mut stmts: Vec<Expr> = vec![self.parse_pipeline()?];
@@ -164,7 +164,7 @@ impl Parser {
         Ok(Program { statements: stmts })
     }
 
-    // --- expressions -------------------------------------------------------
+    // expressions
 
     fn parse_pipeline(&mut self) -> Result<Expr, QueryError> {
         let mut expr = self.parse_comma_chain()?;
@@ -587,7 +587,7 @@ impl Parser {
         })
     }
 
-    // --- path expressions --------------------------------------------------
+    // path expressions
 
     fn parse_path_starting_with_dot(&mut self) -> Result<Expr, QueryError> {
         let dot = self.consume(); // the leading '.'

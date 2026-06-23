@@ -406,7 +406,7 @@ pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
     }
 }
 
-// -- LRU-cached parse_expr ---------------------------------------
+// LRU-cached parse_expr
 //
 // The analyser callers are once-per-source, so the existing
 // `parse_expr` stays uncached; this sibling is for the VM, which
@@ -1107,7 +1107,7 @@ mod tests {
         assert_eq!(rendered, "-$x");
     }
 
-    // -- parse_expr_cached -------------------------------------------
+    // parse_expr_cached
     //
     // The global cache is shared across the whole test binary, so
     // tests that assert on cache state (length / eviction) run

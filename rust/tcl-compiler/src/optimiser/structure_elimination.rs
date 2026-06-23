@@ -432,7 +432,7 @@ mod tests {
         ctx.optimisations
     }
 
-    // -- internal helpers ---------------------------------------------------
+    // internal helpers
 
     #[test]
     fn pattern_matches_exact_nocase_and_glob() {
@@ -458,7 +458,7 @@ mod tests {
         assert!(resolve_subject("$missing", &env).is_none());
     }
 
-    // -- end-to-end tests ---------------------------------------------------
+    // end-to-end tests
 
     #[test]
     fn constant_true_if_replaces_with_body() {

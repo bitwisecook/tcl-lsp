@@ -308,7 +308,7 @@ mod tests {
         )
     }
 
-    // ----- build_file_join_fix unit tests ------------------------------------
+    // build_file_join_fix unit tests
 
     #[test]
     fn file_join_fix_simple_two_segments() {
@@ -361,7 +361,7 @@ mod tests {
         assert!(build_file_join_fix("/a/b;rm").is_none());
     }
 
-    // ----- is_file_normalize_of unit tests -----------------------------------
+    // is_file_normalize_of unit tests
 
     #[test]
     fn file_normalize_matches_bare_var() {
@@ -383,7 +383,7 @@ mod tests {
         assert!(!is_file_normalize_of("[file normalize $q]", "p"));
     }
 
-    // ----- end-to-end detection tests ----------------------------------------
+    // end-to-end detection tests
 
     /// Baseline: `set p "/tmp/$x"` flags W201.
     #[test]

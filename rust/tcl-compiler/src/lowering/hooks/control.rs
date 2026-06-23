@@ -126,7 +126,7 @@ mod tests {
         CommandRegistry::build_default()
     }
 
-    // ── expr — end-to-end via lower_to_ir ─────────────────────────
+    // expr — end-to-end via lower_to_ir
 
     #[test]
     fn expr_braced_lowers_to_expr_eval() {
@@ -166,7 +166,7 @@ mod tests {
         ));
     }
 
-    // ── return — end-to-end via lower_to_ir ───────────────────────
+    // return — end-to-end via lower_to_ir
 
     #[test]
     fn return_no_args_lowers_to_return() {
@@ -264,7 +264,7 @@ mod tests {
         );
     }
 
-    // ── Unit-level coverage of the hook entry points ──────────────
+    // Unit-level coverage of the hook entry points
 
     fn make_cmd<'a>(
         name: &'a str,

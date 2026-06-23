@@ -162,7 +162,7 @@ mod tests {
         assert_eq!(syms[0].name, "alpha");
     }
 
-    // -- class methods ---------------------
+    // class methods
 
     #[test]
     fn class_methods_surface_as_workspace_symbols() {

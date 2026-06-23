@@ -48,7 +48,7 @@ fn assert_stdout(golden_name: &str, code: i32, args: &[&str]) {
     );
 }
 
-// --- mutating queries rendered through --format -------------------------
+// mutating queries rendered through --format
 
 #[test]
 fn mutation_write_tmsh() {
@@ -114,7 +114,7 @@ fn in_place_tmsh_refused() {
     assert_eq!(err, golden("query-inplace-tmsh-refused.err.golden"));
 }
 
-// --- --partition --------------------------------------------------------
+// --partition
 
 #[test]
 fn partition_bare_qualifies_short_names() {
@@ -163,7 +163,7 @@ fn partition_path_form() {
     );
 }
 
-// --- -f/--from-file -----------------------------------------------------
+// -f/--from-file
 
 #[test]
 fn from_file_reads_expression() {

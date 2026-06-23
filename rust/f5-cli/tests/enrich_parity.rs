@@ -82,7 +82,7 @@ fn osv(s: &str) -> std::ffi::OsString {
     std::ffi::OsString::from(s)
 }
 
-// ── enrich-wireshark ────────────────────────────────────────────────
+// enrich-wireshark
 
 /// Generate a profile from `config_fixture` into a directory named
 /// `profile_name`, then assert every file matches the golden directory.
@@ -191,7 +191,7 @@ fn wireshark_refuses_non_directory_output() {
     );
 }
 
-// ── enrich-pcapng ───────────────────────────────────────────────────
+// enrich-pcapng
 
 #[test]
 fn pcapng_dry_run_name_index_matches() {

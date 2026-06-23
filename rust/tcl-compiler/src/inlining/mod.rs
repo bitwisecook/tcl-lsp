@@ -80,7 +80,7 @@ enum InlineSpec {
     Parameterised(Procedure),
 }
 
-// ── statement counting ──────────────────
+// statement counting
 
 /// Total number of leaf statements reachable in `script`, walking nested
 /// control-flow bodies transitively (the inlined code-size cost).
@@ -143,7 +143,7 @@ fn count_one(stmt: &Statement) -> usize {
     }
 }
 
-// ── static call counting ──────────────
+// static call counting
 
 /// Return `{qname: static_call_count}` over the whole module. Walks the
 /// top-level script and every proc body; an [`Statement::Call`] whose
@@ -263,7 +263,7 @@ fn tally_calls(
     }
 }
 
-// ── policy ─────────────────────────────────
+// policy
 
 /// Apply the inlining policy to a single proc. A proc is inlinable only if
 /// its escape summary is pure-leaf (`safe_to_inline`); among that set,
@@ -289,7 +289,7 @@ pub fn classify_proc(
     }
 }
 
-// ── splice-eligibility ────────────────────────────────
+// splice-eligibility
 
 /// Commands whose semantics are independent of the calling frame — a
 /// wrapped call to one of these can be spliced into any caller's frame.
@@ -381,7 +381,7 @@ fn stmt_is_splice_eligible(
     true
 }
 
-// ── v3 eligibility ─────────────────────
+// v3 eligibility
 
 /// Return true iff `proc` qualifies for parameterised (v3) inlining.
 fn v3_eligible(
@@ -582,7 +582,7 @@ fn v3_script_eligible(
     true
 }
 
-// ── catalogue → inlinable map ─────
+// catalogue → inlinable map
 
 /// Build the qname → [`InlineSpec`] map of inlinable procedures. Only
 /// [`InlineDecision::Always`] procs qualify; `IfSingleCall` is not
@@ -632,7 +632,7 @@ fn build_inlinable_map(
     map
 }
 
-// ── the pass ────────────────────────────
+// the pass
 
 /// Inline eligible statement-position calls throughout `module`,
 /// returning the rewritten module. Idempotent: a module with no remaining
@@ -1061,7 +1061,7 @@ fn rewrite_stmt(
     }
 }
 
-// ── per-call-site splice ─────────────
+// per-call-site splice
 
 /// Produce the inlined statement list for a single call site, or `None`
 /// to decline (keep the call).
@@ -1202,7 +1202,7 @@ fn with_span(stmt: &Statement, span: Span) -> Statement {
     }
 }
 
-// ── nested-return scanning ──────
+// nested-return scanning
 
 fn has_nested_irreturn(script: &Script) -> bool {
     script
@@ -1268,7 +1268,7 @@ fn capture_implicit_return_value(stmt: &Statement) -> Option<String> {
     }
 }
 
-// ── return-as-break wrap ────
+// return-as-break wrap
 
 /// Wrap `renamed_body` in a one-shot `while {1} { … }` loop that routes
 /// `return`-as-break. Uses `while`
@@ -1433,7 +1433,7 @@ fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
     }
 }
 
-// ── parameter bindings ─────────
+// parameter bindings
 
 /// Build the parameter-binding statement list for a v3 call. Returns
 /// `(cid, rename, bindings)` on success, or `None` to decline.
@@ -1751,7 +1751,7 @@ fn list_clean_for_splice(text: &str) -> bool {
     true
 }
 
-// ── local-name collection ──────
+// local-name collection
 
 /// Return the union of every local-variable name written inside `script`.
 /// Array-element writes contribute the array base name.

@@ -137,7 +137,7 @@ fn redefines_loop_control(body: &str) -> bool {
 }
 
 impl Lowerer<'_> {
-    // ── if ────────────────────────────────────────────────────────
+    // if
 
     /// Lower `if cond body ?elseif cond body ...? ?else body?`.
     pub(super) fn lower_if(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
@@ -263,7 +263,7 @@ impl Lowerer<'_> {
         }
     }
 
-    // ── for ───────────────────────────────────────────────────────
+    // for
 
     /// Lower `for init cond next body`.
     pub(super) fn lower_for(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
@@ -307,7 +307,7 @@ impl Lowerer<'_> {
         }
     }
 
-    // ── while ─────────────────────────────────────────────────────
+    // while
 
     /// Lower `while cond body`.
     pub(super) fn lower_while(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
@@ -342,7 +342,7 @@ impl Lowerer<'_> {
         }
     }
 
-    // ── foreach / lmap ────────────────────────────────────────────
+    // foreach / lmap
 
     /// Lower `foreach varList list ?varList list ...? body`.
     pub(super) fn lower_foreach(
@@ -479,7 +479,7 @@ impl Lowerer<'_> {
         }
     }
 
-    // ── catch ─────────────────────────────────────────────────────
+    // catch
 
     /// Lower `catch body ?resultVar? ?optionsVar?`.
     pub(super) fn lower_catch(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
@@ -519,7 +519,7 @@ impl Lowerer<'_> {
         }
     }
 
-    // ── try ───────────────────────────────────────────────────────
+    // try
 
     /// Lower `try body ?on|trap matchArg varList handlerBody ...? ?finally finallyBody?`.
     pub(super) fn lower_try(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
@@ -599,7 +599,7 @@ impl Lowerer<'_> {
         }
     }
 
-    // ── switch ────────────────────────────────────────────────────
+    // switch
 
     /// Lower `switch ?options? subject pattern body ...`.
     // Sequential `switch` lowering: option parsing, list-form
@@ -788,7 +788,7 @@ impl Lowerer<'_> {
         }
     }
 
-    // ── dict ──────────────────────────────────────────────────────
+    // dict
 
     /// Lower `dict` subcommands.
     pub(super) fn lower_dict(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
@@ -863,7 +863,7 @@ impl Lowerer<'_> {
         }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────
+    // Helpers
 
     /// Create a barrier statement from a segmented command.
     fn barrier(seg: &SegmentedCommand, reason: &str) -> Statement {

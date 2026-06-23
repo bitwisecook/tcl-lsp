@@ -1058,7 +1058,7 @@ mod tests {
         assert!(deep.is_empty());
     }
 
-    // -- stub-overlay integration ------------------------------------
+    // stub-overlay integration
     //
     // These tests pin the contract that a non-empty
     // [`StubOverlay`] threaded through `infer_param_traits` /

@@ -54,7 +54,7 @@ fn b64_val(c: u8) -> Option<u8> {
     }
 }
 
-// -- encode -----------------------------------------------------------------
+// encode
 
 /// `binary encode hex` — each byte as two lowercase hex digits.
 #[must_use]
@@ -138,7 +138,7 @@ pub fn uu_encode(data: &[u8], maxlen: usize, wrap: &[u8]) -> Vec<u8> {
     out
 }
 
-// -- decode -----------------------------------------------------------------
+// decode
 
 /// `binary decode hex` — pairs of hex digits to bytes; ASCII whitespace is
 /// skipped, any other non-hex byte is a [`DecodeError`].
@@ -242,7 +242,7 @@ pub fn uu_decode(s: &[u8]) -> Vec<u8> {
     out
 }
 
-// -- format (the pack grammar) ----------------------------------------------
+// format (the pack grammar)
 
 /// Endianness of a multi-byte numeric field.
 #[derive(Clone, Copy)]
@@ -576,7 +576,7 @@ fn field_count(count: &Count, available: usize) -> Result<usize, CmdError> {
     Ok(n)
 }
 
-// -- scan (the unpack grammar) ----------------------------------------------
+// scan (the unpack grammar)
 
 /// Read `size` bytes as a sign-extended integer in `end` order.
 #[allow(clippy::cast_possible_wrap)] // the unpacked bit pattern is the signed value

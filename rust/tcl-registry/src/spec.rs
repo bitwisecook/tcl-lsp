@@ -218,7 +218,7 @@ pub struct CommandSpec {
     /// Default `0` keeps every existing spec correct.
     pub body_arg_implicit_args: u8,
 
-    // --- Granular taint / security metadata -----------------------------
+    // Granular taint / security metadata
     //
     // The consumer (`tcl_compiler::taint`) reads these to drive the
     // W102/W103/W300/W301/W303/W309/W310/W312 + T106 + W313 emitters.
@@ -288,7 +288,7 @@ pub struct CommandSpec {
     /// `SETTER_CONSTRAINTS` table in `tcl_compiler::taint`.
     pub setter_constraints: &'static [SetterConstraint],
 
-    // --- Structured spec fields -----------------------------------------
+    // Structured spec fields
     //
     /// Kind of pattern language this command's pattern argument uses
     /// (`regexp`/`regsub` ⇒ `Regex`), for semantic-token sub-tokens and
@@ -594,7 +594,7 @@ pub struct SubCommand {
     /// [`CommandSpec::body_arg_implicit_args`].
     pub body_arg_implicit_args: u8,
 
-    // --- Granular taint / security metadata -----------------------------
+    // Granular taint / security metadata
     //
     /// Colour bits this subcommand adds to a tainted value it returns
     /// (`file join` ⇒ `PATH_JOINED`, `file normalize` ⇒
@@ -619,7 +619,7 @@ pub struct SubCommand {
     /// subcommand-shaped header sink. Empty = none.
     pub sensitive_headers: &'static [&'static str],
 
-    // --- Structured spec fields (subcommand overrides) ------------------
+    // Structured spec fields (subcommand overrides)
     //
     /// Pattern-language override for this subcommand (`string match`
     /// ⇒ `Glob`), taking priority over the parent command's

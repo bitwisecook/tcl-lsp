@@ -2685,7 +2685,7 @@ mod tests {
         assert!(text.contains("**Taint**: tainted (from I/O)"), "{text}");
     }
 
-    // -- clock format hover ----------------------------
+    // clock format hover
 
     #[test]
     fn scan_clock_specifiers_finds_each_specifier() {
@@ -2763,7 +2763,7 @@ mod tests {
         );
     }
 
-    // -- sprintf format hover --------------------------
+    // sprintf format hover
 
     #[test]
     fn scan_sprintf_specifiers_finds_basic_types() {
@@ -2837,7 +2837,7 @@ mod tests {
         );
     }
 
-    // -- binary format hover --------------------------
+    // binary format hover
 
     fn binary_ctx(text: &str) -> BinaryContext {
         BinaryContext {
@@ -2975,7 +2975,7 @@ mod tests {
         assert!(h.value.contains("binary format"), "{}", h.value);
     }
 
-    // -- regsub substitution-spec hover ---------------
+    // regsub substitution-spec hover
 
     #[test]
     fn scan_regsub_backrefs_finds_each_backref() {
@@ -3013,7 +3013,7 @@ mod tests {
         assert!(h.value.contains("Substitution spec"), "{}", h.value);
     }
 
-    // -- glob pattern hover ---------------------------
+    // glob pattern hover
 
     #[test]
     fn scan_glob_metachars_finds_star_and_question() {
@@ -3059,7 +3059,7 @@ mod tests {
         assert!(h.value.contains("Glob pattern"), "{}", h.value);
     }
 
-    // -- regex pattern hover --------------------------
+    // regex pattern hover
 
     #[test]
     fn scan_regex_components_finds_anchors_and_quantifiers() {
@@ -3111,7 +3111,7 @@ mod tests {
         assert!(h.value.contains("Regex pattern"), "{}", h.value);
     }
 
-    // -- IP address hover -----------------------------
+    // IP address hover
 
     #[test]
     fn ip_hover_classifies_private_ipv4() {
@@ -3168,7 +3168,7 @@ mod tests {
         assert!(h.value.contains("IPv4 address"), "{}", h.value);
     }
 
-    // -- registry-driven hovers -----------------------
+    // registry-driven hovers
 
     #[test]
     fn builtin_command_hover_surfaces_summary_from_registry() {
@@ -3230,7 +3230,7 @@ mod tests {
         assert!(h.value.contains("subcommand"), "{}", h.value);
     }
 
-    // -- docstring formatting --------------------------
+    // docstring formatting
 
     #[test]
     fn format_docstring_renders_brief_param_return_tags() {
@@ -3289,7 +3289,7 @@ mod tests {
         assert!(!rendered.contains("**naked** \u{2014}"), "{rendered}");
     }
 
-    // -- class-member hover ---------------------------
+    // class-member hover
 
     #[test]
     fn class_member_hover_fires_for_method_inside_body() {
@@ -3331,7 +3331,7 @@ mod tests {
         assert!(hover(src, 3, 2, &analysis, None).is_none());
     }
 
-    // -- $obj method dispatch -------------------------
+    // $obj method dispatch
 
     #[test]
     fn obj_method_hover_fires_for_known_instance() {

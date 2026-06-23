@@ -36,7 +36,7 @@ fn is_http_path_command(cmd: &str) -> bool {
     cmd == "HTTP::path" || cmd == "HTTP::uri"
 }
 
-// ── Enclosing context (threaded through from enclosing if/switch) ─────────
+// Enclosing context (threaded through from enclosing if/switch)
 
 /// Match criteria accumulated from enclosing conditions.
 #[derive(Debug, Clone, Default)]
@@ -51,7 +51,7 @@ struct EnclosingContext {
     ip_prefix_list: Vec<String>,
 }
 
-// ── Low-level helpers ────────────────────────────────────────────────────
+// Low-level helpers
 
 /// Strip a leading `[` / trailing `]` from a command-substitution text and
 /// trim surrounding whitespace.
@@ -282,7 +282,7 @@ fn decompose_or_condition<'a>(node: &'a ExprNode, out: &mut Vec<&'a ExprNode>) {
     out.push(node);
 }
 
-// ── Condition extraction helpers ─────────────────────────────────────────
+// Condition extraction helpers
 
 /// Helper: pull `(command_text, string_value)` out of a binary node where
 /// either operand may be the command/string (the `left or right` pattern
@@ -809,7 +809,7 @@ fn enclosing_has_matches(enc: &EnclosingContext) -> bool {
         || !enc.ip_prefix_list.is_empty()
 }
 
-// ── Translation state ────────────────────────────────────────────────────
+// Translation state
 
 /// Mutable accumulator for translation results.
 struct TranslationContext {
@@ -867,7 +867,7 @@ impl TranslationContext {
     }
 }
 
-// ── IR walking ───────────────────────────────────────────────────────────
+// IR walking
 
 fn walk_script(
     script: &Script,
@@ -1387,7 +1387,7 @@ fn walk_call(
     }
 }
 
-// ── Public API ───────────────────────────────────────────────────────────
+// Public API
 
 /// Build a [`CommandRegistry`] with the iRules dialect loaded, suitable for
 /// lowering and translating an iRule.

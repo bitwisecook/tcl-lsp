@@ -62,7 +62,7 @@ pub struct TmshScript {
     pub command_count: usize,
 }
 
-// ── Block index ─────────────────────────────────────────────────────────
+// Block index
 
 /// `(module, object_type, identifier)` → full stanza text.
 fn index_blocks(source: &str) -> HashMap<(String, String, String), String> {
@@ -89,7 +89,7 @@ fn index_blocks(source: &str) -> HashMap<(String, String, String), String> {
     out
 }
 
-// ── Per-kind container accessors ─────────────────────────────────────────
+// Per-kind container accessors
 
 macro_rules! kind_iter {
     ($cfg:expr, $table:expr, $variant:path) => {{
@@ -149,7 +149,7 @@ fn snatpool_members(sp: &BigipSnatPool) -> Vec<String> {
     sp.members.paths()
 }
 
-// ── emit_tmsh ───────────────────────────────────────────────────────────
+// emit_tmsh
 
 /// Render `cfg` as a tmsh script.
 ///
@@ -250,7 +250,7 @@ fn finish(lines: &[String]) -> TmshScript {
     }
 }
 
-// ── emit_tmsh_delta ─────────────────────────────────────────────────────
+// emit_tmsh_delta
 
 /// Emit only the *changed* objects between `old_cfg` and `new_cfg`.
 #[must_use]
@@ -272,7 +272,7 @@ pub fn emit_tmsh_delta(
     let mut lines: Vec<String> = Vec::new();
     let has = |k: &str| include.contains(&k);
 
-    // ── 1. Modifies (foundation first, then dependency order) ──────────
+    // 1. Modifies (foundation first, then dependency order)
     if has("generic-foundation") {
         for (gkey, obj) in &new_cfg.generic_objects {
             if !is_foundation(&obj.module, &obj.object_type) {
@@ -312,7 +312,7 @@ pub fn emit_tmsh_delta(
         );
     }
 
-    // ── 2. Deletes (reverse dependency order) ──────────────────────────
+    // 2. Deletes (reverse dependency order)
     for kind_name in include.iter().rev() {
         if *kind_name == "generic-foundation" {
             continue;
@@ -335,7 +335,7 @@ pub fn emit_tmsh_delta(
         }
     }
 
-    // ── 3. Creates (foundation first, then dependency order) ───────────
+    // 3. Creates (foundation first, then dependency order)
     if has("generic-foundation") {
         for (key, obj) in &new_cfg.generic_objects {
             if !is_foundation(&obj.module, &obj.object_type) {
@@ -573,7 +573,7 @@ fn delta_creates(
     }
 }
 
-// ── pool member delta ───────────────────────────────────────────────────
+// pool member delta
 
 /// Granular `tmsh modify ltm pool X members <op> { ... }` lines, or `None`
 /// when the member list is identical.
@@ -700,7 +700,7 @@ fn pool_non_member_changed(old_pool: &BigipPool, new_pool: &BigipPool) -> bool {
     a != b
 }
 
-// ── Renderers ───────────────────────────────────────────────────────────
+// Renderers
 
 /// Quote `value` for tmsh if it contains whitespace or braces.
 fn quote(value: &str) -> String {

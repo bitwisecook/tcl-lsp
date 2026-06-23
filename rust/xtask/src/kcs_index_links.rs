@@ -247,7 +247,7 @@ fn check_kcs_audience_headers(
     Ok(warnings)
 }
 
-// ── helpers ─────────────────────────────────────────────────────────────
+// helpers
 
 /// The portion of a link before its `#` anchor.
 fn link_before_anchor(link: &str) -> &str {

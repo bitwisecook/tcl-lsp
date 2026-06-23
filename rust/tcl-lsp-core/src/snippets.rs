@@ -103,7 +103,7 @@ fn var_choices(ctx: &SnippetContext, tabstop: u32, default: &str) -> String {
     format!("${{{tabstop}|{choices}|}}")
 }
 
-// -- Tcl-core generators --------------------------
+// Tcl-core generators
 
 fn gen_proc(ctx: &SnippetContext) -> String {
     let i = ctx.indent_unit;

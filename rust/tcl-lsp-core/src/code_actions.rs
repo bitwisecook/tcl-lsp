@@ -1731,7 +1731,7 @@ mod tests {
         assert!(titles.contains(&"A") && titles.contains(&"B"));
     }
 
-    // -- W213 unset -nocomplain action ----------
+    // W213 unset -nocomplain action
 
     #[test]
     fn w213_emits_unset_nocomplain_action() {
@@ -1788,7 +1788,7 @@ mod tests {
         );
     }
 
-    // -- catch-result-variable actions ----------
+    // catch-result-variable actions
 
     #[test]
     fn w302_emits_catch_result_variable_actions() {
@@ -1831,7 +1831,7 @@ mod tests {
         }
     }
 
-    // -- W120 package-require fix --------------
+    // W120 package-require fix
 
     #[test]
     fn w120_surfaces_add_package_require_action() {
@@ -1927,7 +1927,7 @@ mod tests {
         assert_eq!(word_at_position("  set y 1\n", 0, 3), "set");
     }
 
-    // -- check_diagnostic_actions: IRULE5002/5004 flow-warning fixes ------
+    // check_diagnostic_actions: IRULE5002/5004 flow-warning fixes
 
     #[test]
     fn check_actions_surface_irule5002_flow_fix() {
@@ -2018,8 +2018,8 @@ mod tests {
         );
     }
 
-    // -- refactor-engine dispatch (extract/inline var, if↔switch,
-    //    switch→dict, extract-datagroup) ----------------------------------
+    // refactor-engine dispatch (extract/inline var, if↔switch,
+    //    switch→dict, extract-datagroup)
 
     fn analyse(source: &str) -> AnalysisResult {
         Analyser::new().analyse(source, "tcl8.6").clone()

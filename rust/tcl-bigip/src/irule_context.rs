@@ -25,7 +25,7 @@ use crate::model::{
 use crate::parser::driver::{BigipConfig, Placed};
 use crate::range::Range;
 
-// ── Minimal insertion-ordered JSON (with `null`) ─────────────────────
+// Minimal insertion-ordered JSON (with `null`)
 //
 // Matches a 2-space-indented, ASCII-escaped JSON encoding that keeps
 // object keys in insertion order (not sorted). A sibling of
@@ -114,7 +114,7 @@ fn str_or_null(s: &str) -> Json {
     }
 }
 
-// ── The bundle ───────────────────────────────────────────────────────
+// The bundle
 
 /// A resolved iRule plus every BIG-IP object it references. Each per-kind
 /// list keeps the
@@ -173,7 +173,7 @@ impl<T> OrderedMap<T> {
     }
 }
 
-// ── Reference-kind classification ───────────────────────────────────
+// Reference-kind classification
 
 /// Map an object reference's kinds to a coarse bucket, or `None` to skip.
 /// Shared with the `f5 irule trace` verb.
@@ -209,7 +209,7 @@ pub fn classify_kind(kinds: &[&str]) -> Option<&'static str> {
     None
 }
 
-// ── Per-kind views over the merged config ────────────────────────────
+// Per-kind views over the merged config
 
 /// The per-kind object lists the resolver reasons about, in config source
 /// order (so the `resolve_name` suffix-match fallback is deterministic).
@@ -291,7 +291,7 @@ fn resolve_in<T>(name: &str, entries: &[(&str, &T)], default_partition: &str) ->
     entries.iter().position(|e| e.0.ends_with(&suffix))
 }
 
-// ── Source slicing ──────────────────────────────────────────────────
+// Source slicing
 
 /// Return the source text that contains an object: `sources[config_origin]`
 /// when present, else the sole source when there is exactly one, else `None`.
@@ -367,7 +367,7 @@ fn slice_for(range: Option<&Range>, source: Option<&str>) -> Option<String> {
     Some(format!("{}\n", chunk.trim_end()))
 }
 
-// ── build_irule_context ──────────────────────────────────────────────
+// build_irule_context
 
 /// Walk `rule` and return every BIG-IP object it references.
 ///
@@ -569,7 +569,7 @@ fn member_iter(pool: &BigipPool) -> impl Iterator<Item = &crate::model::BigipPoo
     })
 }
 
-// ── JSON rendering ──────────────────────────────────────────────────
+// JSON rendering
 
 fn summarise_pool(pool: &BigipPool) -> Json {
     let members: Vec<Json> = member_iter(pool)
@@ -779,7 +779,7 @@ pub fn bundles_to_json(bundles: &[IruleContextBundle]) -> String {
     .dumps_indent2()
 }
 
-// ── Text rendering ──────────────────────────────────────────────────
+// Text rendering
 
 fn render_pool_text(pool: &BigipPool) -> String {
     let mut lines = vec![format!("ltm pool {} {{", pool.full_path)];

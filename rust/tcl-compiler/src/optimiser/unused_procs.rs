@@ -180,7 +180,7 @@ mod tests {
         ip
     }
 
-    // -- helper tests --------------------------------------------------------
+    // helper tests
 
     #[test]
     fn library_irule_detected_when_only_rule_init_events() {
@@ -238,7 +238,7 @@ mod tests {
         assert!(!is_irules_dialect(None));
     }
 
-    // -- end-to-end tests ----------------------------------------------------
+    // end-to-end tests
 
     fn run_pass(
         source: &str,

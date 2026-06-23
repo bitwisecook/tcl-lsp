@@ -2088,7 +2088,7 @@ mod tests {
         );
     }
 
-    // -- summary-building tests --------------------------------------------
+    // summary-building tests
 
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
@@ -2113,7 +2113,7 @@ mod tests {
         assert_eq!(s.arity, Arity::exact(1));
     }
 
-    // -- writes_global recognises scope aliases ------------
+    // writes_global recognises scope aliases
 
     #[test]
     fn global_alias_write_counts_as_writes_global() {
@@ -2149,7 +2149,7 @@ mod tests {
         }
     }
 
-    // -- method-purity summary tests ------------------
+    // method-purity summary tests
 
     #[test]
     fn pure_getter_method_is_summarised_pure() {

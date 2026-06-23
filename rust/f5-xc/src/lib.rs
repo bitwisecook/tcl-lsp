@@ -6,7 +6,6 @@
 //! **XC100-301** translatability diagnostics for the LSP pipeline.
 //!
 //! Public API
-//! ----------
 //! - [`translate_irule`] — analyse an iRule and return an
 //!   [`XCTranslationResult`].
 //! - [`get_xc_diagnostics`] — analyse an iRule and return XC-series

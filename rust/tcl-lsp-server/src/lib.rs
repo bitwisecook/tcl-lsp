@@ -7324,7 +7324,7 @@ mod tests {
         assert!(codes.iter().any(|c| c == "W112"), "W112 should remain");
     }
 
-    // ── F5 dialect diagnostics ──────────────────────────────────────────
+    // F5 dialect diagnostics
 
     /// Collect the string codes from a lifted diagnostic set.
     fn diag_codes(diags: &[tower_lsp::lsp_types::Diagnostic]) -> Vec<String> {

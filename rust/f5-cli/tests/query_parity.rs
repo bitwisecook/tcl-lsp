@@ -60,7 +60,7 @@ fn conf() -> String {
         .into_owned()
 }
 
-// --- core query matrix --------------------------------------------------
+// core query matrix
 
 #[test]
 fn vs_names() {
@@ -146,7 +146,7 @@ fn select_pool() {
     );
 }
 
-// --- output modes -------------------------------------------------------
+// output modes
 
 #[test]
 fn mode_json() {
@@ -193,7 +193,7 @@ fn mode_table() {
     );
 }
 
-// --- cookbook examples (read-only, non-`.refs`, fully supported) --------
+// cookbook examples (read-only, non-`.refs`, fully supported)
 
 #[test]
 fn ex1_vs_pool() {
@@ -298,7 +298,7 @@ fn ex24_index() {
     );
 }
 
-// --- multi-file (banners + JSON envelope) -------------------------------
+// multi-file (banners + JSON envelope)
 
 #[test]
 fn multi_file_banner() {

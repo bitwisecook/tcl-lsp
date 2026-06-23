@@ -1124,7 +1124,7 @@ mod tests {
         }
     }
 
-    // -- canonical_command_or_source helper -------------------
+    // canonical_command_or_source helper
 
     #[test]
     fn canonical_command_or_source_falls_back_to_source_when_none() {

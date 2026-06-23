@@ -362,7 +362,7 @@ mod tests {
         assert_eq!(lenses[0].range.start_character, 5);
     }
 
-    // -- class lenses -----------------------------
+    // class lenses
 
     #[test]
     fn lens_per_class() {
@@ -409,7 +409,7 @@ mod tests {
         );
     }
 
-    // -- class-member lenses ----------------------
+    // class-member lenses
 
     #[test]
     fn lens_counts_method_calls_within_class_body() {
@@ -444,7 +444,7 @@ mod tests {
         assert_eq!(orphan_lens.command_title, "0 references", "{lenses:?}");
     }
 
-    // -- workspace-index: cross-document reference counts -----------
+    // workspace-index: cross-document reference counts
 
     #[test]
     fn proc_lens_counts_cross_document_calls() {

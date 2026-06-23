@@ -1130,7 +1130,7 @@ mod tests {
         ctx.optimisations
     }
 
-    // -- internal helper tests -----------------------------------------------
+    // internal helper tests
 
     #[test]
     fn unreachable_blocks_empty_when_all_executable() {
@@ -1139,7 +1139,7 @@ mod tests {
         assert!(unreach.is_empty());
     }
 
-    // -- end-to-end tests ---------------------------------------------------
+    // end-to-end tests
 
     #[test]
     fn empty_source_produces_nothing() {
@@ -1379,7 +1379,7 @@ mod tests {
         );
     }
 
-    // -- O126/O109 RHS-purity gate ----------------------------------------
+    // O126/O109 RHS-purity gate
 
     #[test]
     fn o126_preserved_for_impure_command_sub_rhs() {
@@ -1421,7 +1421,7 @@ mod tests {
         );
     }
 
-    // -- method-body O126 -------------------------------------------------
+    // method-body O126
 
     #[test]
     fn sf2_o126_folds_pure_my_dispatch_in_method_body() {
