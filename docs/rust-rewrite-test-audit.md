@@ -994,3 +994,14 @@ The pytest files stay in place as the oracle.
   end-to-end query path the pytest uses.
 
 The pytest file stays in place as the oracle.
+
+### `tests/test_f5_query.py` (string/regex builtins) → `tcl-bigip-query::builtins::regex_str`
+
+- **Ported.** `test_sub_and_gsub_accept_flags`, `test_ascii_codepoint_to_char`,
+  `test_utf8bytelength_counts_bytes_not_codepoints` →
+  `rust/tcl-bigip-query/src/builtins/regex_str.rs::tests` (`bi_sub`/`bi_gsub`
+  first-vs-all replacement with the `"i"` flag, `bi_ascii` codepoint→char,
+  `bi_utf8bytelength` byte-vs-codepoint counting). `regex_str.rs` had zero unit
+  coverage.
+
+The pytest file stays in place as the oracle.
