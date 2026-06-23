@@ -414,6 +414,31 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
     out
 }
 
+/// [`file_analysis`] with W123 (unknown-command) **forced on** regardless of the
+/// config's disabled set.  The cross-file arity pass keys off the
+/// unresolved-command call sites that W123 marks, so when a user disables W123 the
+/// analyser would otherwise drop them and cross-file arity would silently vanish
+/// (unlike local arity).  [`project_diagnostics`] consumes this only when W123 is
+/// disabled, and drops the W123s from its output afterwards to honour the setting.
+/// A whole-file analyse (not the per-item incremental) — only reached in that rare
+/// config, so the extra pass is acceptable.
+#[salsa::tracked]
+pub fn file_analysis_w123_forced(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Arc<AnalysisResult> {
+    let disabled: HashSet<String> = config
+        .disabled_diagnostics(db)
+        .iter()
+        .filter(|c| c.as_str() != "W123")
+        .cloned()
+        .collect();
+    let mut analyser = Analyser::with_disabled_diagnostics(disabled)
+        .with_non_ascii_mode(config.non_ascii_mode(db));
+    Arc::new(analyser.analyse(file.text(db), file.dialect(db)))
+}
+
 /// Analyser diagnostics for `file` resolved against the project (SRV-INCREMENTAL
 /// Task 6): cross-file-resolvable W123 (unknown command) suppressed, plus a
 /// cross-file arity error (`E002`/`E003`) for calls to workspace procs with a bad
@@ -427,6 +452,12 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
 /// so a **body** edit in any file recomputes nothing here; only a proc-decl /
 /// signature change (or this file's own edit) does — precise cross-file
 /// reverse-dependency invalidation, for free, from salsa.
+///
+/// Cross-file arity is kept **independent of the W123 toggle**: if the user
+/// disabled W123, the analyser dropped the unknown-command markers the arity pass
+/// needs, so we drive resolution off [`file_analysis_w123_forced`] (W123 retained)
+/// and drop the W123s afterwards — so a wrong-arg cross-file call still reports
+/// `E002`/`E003`, matching local arity.
 #[salsa::tracked]
 pub fn project_diagnostics(
     db: &dyn TclDb,
@@ -434,14 +465,26 @@ pub fn project_diagnostics(
     config: AnalyserConfig,
     project: Project,
 ) -> Arc<Vec<tcl_compiler::analyser::types::Diagnostic>> {
-    // `file_analysis_incremental` (not the coarse `file_analysis`) so this reuses
-    // the per-item firewall result the diagnostics worker already computed for
-    // `file` — a cache hit, not a second whole-file analysis.
-    let analysis = file_analysis_incremental(db, file, config);
     let arities = project_command_arities(db, project);
-    // Honour `disabled_diagnostics` for the synthesized arity code (the analyser
-    // already filtered its own codes; this one is added afterwards).
     let disabled = config.disabled_diagnostics(db);
+    // W123 disabled + a project to resolve against: the normal analysis lacks the
+    // unknown-command markers the arity pass keys off, so drive resolution off a
+    // W123-forced analysis and drop the W123s from the result afterwards.
+    if !arities.is_empty() && disabled.iter().any(|c| c == "W123") {
+        let forced = file_analysis_w123_forced(db, file, config);
+        let mut resolved = apply_cross_file_resolution(
+            &forced.diagnostics,
+            &forced.command_invocations,
+            &arities,
+            |code| disabled.iter().any(|c| c == code),
+        );
+        resolved.retain(|d| d.code != "W123");
+        return Arc::new(resolved);
+    }
+    // Common path: `file_analysis_incremental` (not the coarse `file_analysis`) so
+    // this reuses the per-item firewall result the diagnostics worker already
+    // computed for `file` — a cache hit, not a second whole-file analysis.
+    let analysis = file_analysis_incremental(db, file, config);
     Arc::new(apply_cross_file_resolution(
         &analysis.diagnostics,
         &analysis.command_invocations,
@@ -2210,6 +2253,45 @@ mod tests {
             !has(&d_off, "W123"),
             "W123 stays suppressed even with E003 disabled"
         );
+    }
+
+    /// SRV-INCREMENTAL Task 6 (cross-file arity independent of the W123 toggle):
+    /// disabling W123 (unknown-command) must NOT also silence cross-file arity —
+    /// the analyser drops the W123 markers the arity pass keys off, so
+    /// `project_diagnostics` drives off a W123-forced analysis.  A wrong-arg
+    /// cross-file call must still report `E003` (matching local arity), with no
+    /// W123 leaking through.  Regression for Codex review #692.
+    #[test]
+    fn cross_file_arity_survives_w123_disabled() {
+        let db = TclDatabase::default();
+        let b = SourceFile::new(
+            &db,
+            "proc helper {x y} { return $x }\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let has = |diags: &[tcl_compiler::analyser::types::Diagnostic], code: &str| {
+            diags.iter().any(|d| d.code == code)
+        };
+        // W123 disabled, E003 left enabled.
+        let cfg = AnalyserConfig::new(&db, vec!["W123".to_owned()], NonAsciiMode::Default);
+
+        // Wrong arity (3 args to a 2-param proc) → E003 still fires; no W123.
+        let bad = SourceFile::new(&db, "helper a b c\n".to_owned(), "tcl8.6".to_owned());
+        let pb = Project::new(&db, vec![bad, b]);
+        let d_bad = project_diagnostics(&db, bad, cfg, pb);
+        assert!(
+            has(&d_bad, "E003"),
+            "cross-file arity must survive W123 being disabled, got: {:?}",
+            d_bad.iter().map(|d| &d.code).collect::<Vec<_>>()
+        );
+        assert!(!has(&d_bad, "W123"), "W123 stays suppressed (it is disabled)");
+
+        // Correct arity → no arity error and no W123 (resolved, W123 disabled).
+        let ok = SourceFile::new(&db, "helper a b\n".to_owned(), "tcl8.6".to_owned());
+        let pok = Project::new(&db, vec![ok, b]);
+        let d_ok = project_diagnostics(&db, ok, cfg, pok);
+        assert!(!has(&d_ok, "E002") && !has(&d_ok, "E003"), "correct arity → no arity error");
+        assert!(!has(&d_ok, "W123"), "no W123 (disabled, and resolved anyway)");
     }
 
     /// SRV-INCREMENTAL Task 6 (cross-file classes): a command resolving to a

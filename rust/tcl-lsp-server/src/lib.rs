@@ -1178,6 +1178,35 @@ impl Backend {
         .unwrap_or_default()
     }
 
+    /// Recompute the analysis with W123 (unknown-command) **forced on**, off the
+    /// event loop — used by the pull diagnostics path when the user disabled W123
+    /// so the cross-file arity pass still sees the unknown-command sites it keys
+    /// off (the caller drops the W123s from the resolved output).  Returns `None`
+    /// when `need` is false (the caller uses the existing analysis) or the worker
+    /// fails.  Mirrors `project_diagnostics`'s `file_analysis_w123_forced`.
+    async fn xc_forced_analysis(
+        &self,
+        need: bool,
+        text: &str,
+        dialect: &str,
+        disabled: &HashSet<String>,
+        non_ascii_mode: NonAsciiMode,
+    ) -> Option<AnalysisResult> {
+        if !need {
+            return None;
+        }
+        let (t, d) = (text.to_owned(), dialect.to_owned());
+        let mut dis = disabled.clone();
+        dis.remove("W123");
+        tokio::task::spawn_blocking(move || {
+            Backend::configured_analyser(dis, non_ascii_mode)
+                .analyse(&t, &d)
+                .clone()
+        })
+        .await
+        .ok()
+    }
+
     /// Return a snapshot of the current workspace folder
     /// URLs.  Used by cross-document features (workspace
     /// symbols, cross-doc references / rename / call-
@@ -2848,7 +2877,7 @@ impl Backend {
         dialect: String,
         language_id: &str,
     ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
-        let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
+        let (disabled, non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
         // F5 dialect dispatch (FE-DIAG-F5): BIG-IP config / iApp APL
         // presentation documents have model-level validators, not the Tcl
@@ -2870,12 +2899,24 @@ impl Backend {
         let registry = self.registry_for_dialect(&dialect).await;
 
         // Cross-file (SRV-INCREMENTAL Task 6): the project's proc arities, so the
-        // pull path resolves cross-file W123 / emits the cross-file arity error exactly as the
-        // push path does.  Only gathered when `xcDiagnostics` is enabled.
+        // pull path resolves cross-file W123 / emits the cross-file arity error
+        // exactly as the push path does.  Only gathered when `xcDiagnostics` is
+        // enabled.  Computed inside `spawn_blocking`: on a cold cache (or after a
+        // signature change) this tracked query can demand `item_sigs` / `item_tree`
+        // for every project file — now the *whole* workspace — so it must not run
+        // on the async event-loop thread and stall other LSP traffic.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
         let project_arities = if xc_on {
             let db = self.db.lock().await.clone();
-            (*self.db_project.lock().await).map(|p| tcl_lsp_db::project_command_arities(&db, p))
+            let project = *self.db_project.lock().await;
+            match project {
+                Some(p) => {
+                    tokio::task::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
+                        .await
+                        .ok()
+                }
+                None => None,
+            }
         } else {
             None
         };
@@ -2894,15 +2935,36 @@ impl Backend {
         };
 
         let xc_for_irules = dialect == "f5-irules" && xc_on;
+        // Cross-file arity must stay independent of the W123 toggle (matching the
+        // push path / `project_diagnostics`): if W123 is disabled the analysis lacks
+        // the unknown-command markers the arity pass keys off, so recompute with
+        // W123 forced on (off the event loop), then drop the W123s afterwards.
+        let w123_disabled = disabled.contains("W123");
+        let forced_analysis = self
+            .xc_forced_analysis(
+                project_arities.is_some() && w123_disabled,
+                &text,
+                &dialect,
+                &disabled,
+                non_ascii_mode,
+            )
+            .await;
+        let xc_src: &AnalysisResult = forced_analysis.as_ref().unwrap_or(&analysis);
         // Cross-file resolution (Task 6) — W123 suppression + E002/E003 arity, matching
         // the push path.
         let analyser_diags = match &project_arities {
-            Some(arities) => tcl_lsp_db::apply_cross_file_resolution(
-                &analysis.diagnostics,
-                &analysis.command_invocations,
-                arities,
-                |code| disabled.contains(code),
-            ),
+            Some(arities) => {
+                let mut resolved = tcl_lsp_db::apply_cross_file_resolution(
+                    &xc_src.diagnostics,
+                    &xc_src.command_invocations,
+                    arities,
+                    |code| disabled.contains(code),
+                );
+                if w123_disabled {
+                    resolved.retain(|d| d.code != "W123");
+                }
+                resolved
+            }
             None => analysis.diagnostics.clone(),
         };
         tokio::task::spawn_blocking(move || {
@@ -8594,6 +8656,43 @@ mod tests {
         );
 
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// SRV-INCREMENTAL Task 6 (pull path, W123 disabled): cross-file arity must
+    /// stay independent of the W123 toggle on the pull path too — disabling W123
+    /// while keeping E002/E003 must still report the cross-file `E003` (matching
+    /// the push path / local arity).  Regression for Codex review on #692.
+    #[tokio::test]
+    async fn cross_file_arity_survives_w123_disabled_on_pull_path() {
+        let backend = test_backend();
+        *backend.disabled_diagnostics.lock().await = ["W123".to_owned()].into_iter().collect();
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+        let a = Url::parse("file:///caller.tcl").unwrap();
+        let b = Url::parse("file:///lib.tcl").unwrap();
+        backend
+            .db_set_source(
+                &b,
+                "proc helper {x y} { return $x }\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        // 3 args to a 2-param cross-file proc → E003, even with W123 disabled.
+        let diags = backend
+            .full_diagnostics_for(&a, "helper a b c\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        let codes = diag_codes(&diags);
+        assert!(
+            codes.iter().any(|c| c == "E003"),
+            "cross-file E003 must survive W123 disabled on the pull path, got: {codes:?}",
+        );
+        assert!(
+            !codes.iter().any(|c| c == "W123"),
+            "W123 stays disabled, got: {codes:?}",
+        );
     }
 
     #[tokio::test]
