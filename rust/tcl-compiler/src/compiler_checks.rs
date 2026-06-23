@@ -222,38 +222,120 @@ pub fn run_all_checks(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<Diagnostic> {
+    let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
+    run_all_checks_with_solved(cu, registry, dialect, &solved)
+}
+
+/// Like [`run_all_checks`] but consumes a pre-computed interprocedural taint
+/// solve, so a caller can supply a memoised one (SRV-INCREMENTAL 2b) instead of
+/// re-solving the whole module on every edit — that solve is ~95% of this pass.
+#[must_use]
+pub fn run_all_checks_with_solved(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+    solved: &crate::taint_interproc::InterprocTaintResult,
+) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
 
-    // SCCP constant branches (per function).
+    // Per-function non-taint checks (SCCP constant branches, GVN redundancies,
+    // shimmer / thunking / byte-array), computed on each procedure and rebased to
+    // its offset.  Factored into [`function_nontaint_checks`] so the LSP db can
+    // memoise it per procedure on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL
+    // 2a): an unedited procedure's checks are a cache hit instead of recomputed
+    // over the whole unit every edit.
     for fu in cu.analysable_functions() {
-        for cb in &fu.sccp.constant_branches {
-            out.push(shift(fu, Diagnostic::from_constant_branch(cb)));
+        for d in function_nontaint_checks(fu, registry, dialect) {
+            out.push(shift(fu, d));
         }
     }
 
-    // GVN full + partial redundancies + loop invariants.
-    for fu in cu.analysable_functions() {
-        for r in find_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
-            out.push(shift(fu, Diagnostic::from_redundant(&r)));
-        }
-        for r in find_partial_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
-            out.push(shift(fu, Diagnostic::from_redundant(&r)));
-        }
-        for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
-            out.push(shift(fu, Diagnostic::from_redundant(&r)));
-        }
+    // Taint (per-function, reading the interprocedural `solved`) + iRules
+    // module-level checks — the half that is not per-function-pure.
+    push_taint_and_module_checks(cu, registry, dialect, solved, &mut out);
+
+    // Deterministic ordering (producers emit in `HashMap`-iteration order);
+    // see [`sort_diagnostics`].
+    sort_diagnostics(&mut out);
+
+    out
+}
+
+/// Every per-function **non-taint** check for one procedure, returned at the
+/// procedure's **offset-0** spans (the caller rebases — `shift` for a built
+/// unit, or `+ body_offset` for the LSP db's offset-0 memo): SCCP constant
+/// branches, GVN full / partial / loop redundancies, and the intrep-shimmer
+/// family (shimmer S100/S101, thunking S102, byte-array S110).
+///
+/// These read only the `FunctionUnit`, so the LSP db wraps this in a salsa query
+/// keyed on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL 2a) — an unedited
+/// procedure's checks are a cache hit.  The S110 `*::payload` byte-command set is
+/// dialect-gated (empty outside iRules).
+#[must_use]
+pub fn function_nontaint_checks(
+    fu: &FunctionUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<Diagnostic> {
+    let mut out: Vec<Diagnostic> = Vec::new();
+    for cb in &fu.sccp.constant_branches {
+        out.push(Diagnostic::from_constant_branch(cb));
     }
+    for r in find_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
+        out.push(Diagnostic::from_redundant(&r));
+    }
+    for r in find_partial_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
+        out.push(Diagnostic::from_redundant(&r));
+    }
+    for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
+        out.push(Diagnostic::from_redundant(&r));
+    }
+    for w in find_shimmer_warnings(
+        &fu.cfg,
+        &fu.ssa,
+        &fu.types,
+        &fu.sccp.executable_blocks,
+        registry,
+        &fu.sccp.values,
+    ) {
+        out.push(Diagnostic::from_shimmer(&w));
+    }
+    for w in find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks) {
+        out.push(Diagnostic::from_thunking(&w));
+    }
+    let payload_layouts = if is_irules_dialect(dialect) {
+        registry.byte_array_payload_layouts()
+    } else {
+        std::collections::HashMap::new()
+    };
+    for w in find_byte_array_warnings(
+        &fu.cfg,
+        &fu.ssa,
+        &fu.sccp.executable_blocks,
+        registry,
+        &payload_layouts,
+    ) {
+        out.push(Diagnostic::from_shimmer(&w));
+    }
+    out
+}
 
-    // Shimmer + thunking + byte-array corruption (S110).
-    push_shimmer_checks(cu, registry, dialect, &mut out);
-
-    // Taint. The interprocedural solve produces colour-aware return
-    // summaries and parameter entry taints; its `top_taints` / `proc_taints`
-    // supersede the bare per-function `fu.taints` for the warning families so
-    // a tainted argument flowing into a callee parameter and then a sink is
-    // reported (cross-proc entry-taint). Mirrors Python `find_taint_warnings`,
-    // which consumes `_solve_interprocedural_taints`.
-    let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
+/// Append the taint-family warnings (per function, reading the interprocedural
+/// `solved` taints) and the iRules module-level flow checks — the half of
+/// [`run_all_checks_with_solved`] that is *not* per-function-pure (taint already
+/// arrives pre-solved), so SRV-INCREMENTAL 2a does not memoise it.
+pub fn push_taint_and_module_checks(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+    solved: &crate::taint_interproc::InterprocTaintResult,
+    out: &mut Vec<Diagnostic>,
+) {
+    // The interprocedural solve produces colour-aware return summaries and
+    // parameter entry taints; its `top_taints` / `proc_taints` supersede the bare
+    // per-function `fu.taints` for the warning families so a tainted argument
+    // flowing into a callee parameter and then a sink is reported (cross-proc
+    // entry-taint). Mirrors Python `find_taint_warnings`.
     for fu in cu.analysable_functions() {
         let taints = solved.taints_for(&fu.name, &fu.taints);
         for w in find_taint_warnings(
@@ -314,58 +396,7 @@ pub fn run_all_checks(
     }
 
     // iRules-dialect non-taint (module-level / control-flow) checks.
-    push_irules_flow_checks(cu, registry, dialect, &mut out);
-
-    // Deterministic ordering (producers emit in `HashMap`-iteration order);
-    // see [`sort_diagnostics`].
-    sort_diagnostics(&mut out);
-
-    out
-}
-
-/// Append the per-function intrep-shimmer family: use-site / phi / expr
-/// shimmer (S100/S101), thunking (S102), and byte-array corruption (S110).
-///
-/// The S110 `*::payload` byte-command set is dialect-gated — empty under
-/// non-iRules dialects, so a plain-Tcl document naming a `*::payload` command
-/// never trips (the plain `binary` / `encoding` sources stay on everywhere).
-/// Split out of [`run_all_checks`] to keep that aggregator within the line
-/// budget.
-fn push_shimmer_checks(
-    cu: &CompilationUnit,
-    registry: &CommandRegistry,
-    dialect: Option<&str>,
-    out: &mut Vec<Diagnostic>,
-) {
-    let payload_layouts = if is_irules_dialect(dialect) {
-        registry.byte_array_payload_layouts()
-    } else {
-        std::collections::HashMap::new()
-    };
-    for fu in cu.analysable_functions() {
-        for w in find_shimmer_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            registry,
-            &fu.sccp.values,
-        ) {
-            out.push(shift(fu, Diagnostic::from_shimmer(&w)));
-        }
-        for w in find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks) {
-            out.push(shift(fu, Diagnostic::from_thunking(&w)));
-        }
-        for w in find_byte_array_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.sccp.executable_blocks,
-            registry,
-            &payload_layouts,
-        ) {
-            out.push(shift(fu, Diagnostic::from_shimmer(&w)));
-        }
-    }
+    push_irules_flow_checks(cu, registry, dialect, out);
 }
 
 /// Append the iRules-dialect module-level checks (IRULE5002/5004 +
@@ -406,7 +437,7 @@ fn push_irules_flow_checks(
 /// order, so a stable sort on `(span, code, category, severity, message,
 /// replacement)` is what makes the output byte-identical between the memoised
 /// per-procedure build and the whole-module build.
-fn sort_diagnostics(out: &mut [Diagnostic]) {
+pub fn sort_diagnostics(out: &mut [Diagnostic]) {
     out.sort_by(|a, b| {
         (
             a.span.start(),

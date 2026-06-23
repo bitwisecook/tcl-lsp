@@ -11206,7 +11206,7 @@ completing the track. The sole remaining item is deferred by design (rope-backed
 - **split into its own track (SRV-ROPE)** a rope-backed `DocumentState` — the
   analysis pipeline is `&str`/byte-offset throughout, so a rope would still have
   to materialise a `String` (`O(n)`) for every analysis. The need was evaluated
-  with a reproducible benchmark (see [`design/rope/`](design/rope/README.md)):
+  with a reproducible benchmark (see [`design/srv-incremental/`](design/srv-incremental/README.md)):
   a standalone swap is net-neutral-to-negative (no time-to-first-tokens benefit,
   no salsa incrementality, 1.4–1.9× memory for many small docs), so the work is
   scoped as the cross-crate **SRV-ROPE** track in `rust-rewrite.md`, with the

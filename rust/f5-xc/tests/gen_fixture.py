@@ -14,10 +14,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from compiler.registry.runtime import configure_signatures
-from dialects.f5.xc.diagnostics import get_xc_diagnostics
-from dialects.f5.xc.translator import translate_irule
-from dialects.f5.xc.xc_model import TranslateStatus
+from compiler.registry.runtime import configure_signatures  # noqa: E402
+from dialects.f5.xc.diagnostics import get_xc_diagnostics  # noqa: E402
+from dialects.f5.xc.translator import translate_irule  # noqa: E402
+from dialects.f5.xc.xc_model import TranslateStatus  # noqa: E402
 
 CORPUS: list[tuple[str, str]] = [
     ("simple_pool", "when HTTP_REQUEST {\n    pool my_pool\n}"),
@@ -79,7 +79,7 @@ CORPUS: list[tuple[str, str]] = [
     ),
     (
         "if_unmappable",
-        'when HTTP_REQUEST {\n    if {[clientside] && rand() > 0.5} {\n        pool x_pool\n    }\n}',
+        "when HTTP_REQUEST {\n    if {[clientside] && rand() > 0.5} {\n        pool x_pool\n    }\n}",
     ),
     (
         "redirect",
@@ -107,7 +107,7 @@ CORPUS: list[tuple[str, str]] = [
     ),
     (
         "class_match",
-        'when HTTP_REQUEST {\n    if {[class match [HTTP::path] equals url_allowlist]} {\n        pool allow_pool\n    }\n}',
+        "when HTTP_REQUEST {\n    if {[class match [HTTP::path] equals url_allowlist]} {\n        pool allow_pool\n    }\n}",
     ),
     (
         "asm_disable",
@@ -176,16 +176,12 @@ def summarise(source: str) -> dict:
     return {
         "item_codes": item_codes,
         "statuses": {
-            "translated": sum(
-                1 for i in result.items if i.status == TranslateStatus.TRANSLATED
-            ),
+            "translated": sum(1 for i in result.items if i.status == TranslateStatus.TRANSLATED),
             "partial": sum(1 for i in result.items if i.status == TranslateStatus.PARTIAL),
             "untranslatable": sum(
                 1 for i in result.items if i.status == TranslateStatus.UNTRANSLATABLE
             ),
-            "advisory": sum(
-                1 for i in result.items if i.status == TranslateStatus.ADVISORY
-            ),
+            "advisory": sum(1 for i in result.items if i.status == TranslateStatus.ADVISORY),
         },
         "coverage_pct": result.coverage_pct,
         "counts": {
