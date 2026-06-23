@@ -265,6 +265,27 @@ fn list_hooks_collapse_nonbraced_backslashes() {
     assert_eq!(result, "1 {unmatched open brace in list}");
 }
 
+/// `break` / `continue` with any argument raise `wrong # args` — even inside a
+/// loop, where the bare forms compile to a jump. The compiler only takes the
+/// jump fast path when there are no arguments, so `break foo` reaches the
+/// builtin. Regression for for-2.1 / for-3.1. The bare forms still control the
+/// loop.
+#[test]
+fn break_continue_reject_arguments() {
+    let (ok, result, _) = run("set r {}\nforeach x {1 2 3} {catch {break foo} m; lappend r $m; break}\nset r");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "{wrong # args: should be \"break\"}");
+
+    let (ok, result, _) = run("catch {continue foo} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "wrong # args: should be \"continue\"");
+
+    // The bare forms still break/continue the loop.
+    let (ok, result, _) = run("set r {}\nforeach x {1 2 3 4} {if {$x==3} break; lappend r $x}\nset r");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "1 2");
+}
+
 /// The runtime `lset` builtin (the fallback for the dynamic / wrong-arg paths
 /// the compiler does not inline) reports the usage error, replaces the whole
 /// value with no index, and descends a flat index path. Regression for

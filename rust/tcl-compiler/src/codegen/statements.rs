@@ -602,14 +602,19 @@ impl CodegenCtx<'_> {
         tokens: Option<&crate::ir::CommandTokens>,
         used_generic_invoke: &mut bool,
     ) {
-        // break/continue inside loops: emit jump instead of invokeStk
+        // break/continue inside loops: emit jump instead of invokeStk. Only the
+        // bare forms take the fast path — `break foo` / `continue foo` carry
+        // arguments and must reach the builtin to raise `wrong # args`
+        // (for-2.1 / for-3.1).
         if cmd == "continue"
+            && args.is_empty()
             && let Some(cont_lbl) = self.continue_target.clone()
         {
             self.emit_comment(Op::JUMP4, vec![Operand::Label(cont_lbl)], "continue");
             return;
         }
         if cmd == "break"
+            && args.is_empty()
             && let Some(brk_lbl) = self.break_target.clone()
         {
             self.emit_comment(Op::JUMP4, vec![Operand::Label(brk_lbl)], "break");
