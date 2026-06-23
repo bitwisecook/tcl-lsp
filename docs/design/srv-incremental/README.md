@@ -506,13 +506,18 @@ exist yet — the verification-status table follows the list.
    conservative fallback for dynamic dispatch. *Prerequisite experiment — **done**:*
    `experiment-xfile/` spiked the cross-file fixpoint and **retired the three
    salsa-mechanics risks** (cycle convergence, reverse-dep precision, body-edit
-   early-cutoff — see the open-risks block, all measured). *Remaining (the XL core):*
-   (a) lift a project file set into salsa (`WorkspaceIndex` is a plain struct today,
-   not an input); (b) wire `item_tree`/`item_sigs`/`file_decls` into
-   `project_signatures` over it; (c) build the multi-file `incremental == fresh`
-   fuzzer to settle the **still-open** heuristic-edge correctness risk. The spike
-   proves the machinery works; the name-resolution edges and the workspace-input
-   refactor remain to build.
+   early-cutoff — see the open-risks block, all measured). *Step 1 — **landed**:* a
+   `Project` salsa input + `project_proc_names` query (the cross-file W123
+   resolution domain) now aggregate per-file `file_decls` on the real graph, with
+   the **cross-file firewall proven** (`project_proc_names_firewall`: a body edit in
+   any file recomputes it zero times; a decl change, once). *Remaining (the XL
+   core):* (a) the server must create/populate the `Project` input (today it owns a
+   plain `WorkspaceIndex`); (b) cross-file resolution + arity tracked queries that
+   *consume* `project_proc_names` / per-symbol signatures; (c) the multi-file
+   `incremental == fresh` fuzzer to settle the **still-open** heuristic-edge
+   correctness risk before any cross-file diagnostic ships. The graph foundation and
+   its firewall are built; the resolution edges, the server wiring, and the
+   soundness fuzzer remain.
 
 7. **(Optional, late) rope-backed store + chunk-addressable salsa input** *(XL,
    gated).* The demoted SRV-ROPE work — full sub-task breakdown and measurements in
@@ -559,6 +564,7 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | Task 2 "cuts ~405 ms to one-proc cost" (the easy framing) | **refuted** | decomposition: ~16 ms easy (2a) + ~385 ms hard whole-unit taint solve (2b) |
 | Task 2 (2b) memo is sound | **measured + verified** (cold) | full-corpus `compiler_check` differential (memo vs uncached, debug guard live) passes; cross-edit pinned by `taint_cascade_matches_uncached_under_edits`. *Random-edit* fuzzer still to build |
 | Task 6 cross-file salsa *mechanics* (cycle convergence, reverse-dep precision, body-edit cutoff) | **measured + verified** (spike) | `experiment-xfile/` — A↔B cycle → (5,5) no panic; sig change → exactly N+1 dependents; body change → 0 |
+| Task 6 step 1: `project_proc_names` (cross-file resolution domain) firewalls on the real graph | **measured + verified** | `project_proc_names_firewall` — body edit re-runs it 0×, decl change 1× (in `tcl-lsp-db`, on `file_decls`) |
 | Task 6 cross-file cascade is correct (heuristic edges) + scales as a real `project_signatures` | **hypothesis** | needs the workspace-input refactor + multi-file differential fuzzer — *neither exists* |
 
 Differential-fuzzer coverage **today**:
