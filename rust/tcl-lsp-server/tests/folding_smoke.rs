@@ -1,6 +1,6 @@
 //! End-to-end LSP smoke test for `tcl-lsp-server`.
 //!
-//! Drives the server through `tower_lsp::LspService` over an
+//! Drives the server through `tower_lsp_server::LspService` over an
 //! in-memory duplex pipe so the test exercises the same
 //! `initialize` → `textDocument/didOpen` →
 //! `textDocument/foldingRange` sequence a real client would.
@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use tcl_lsp_server::Backend;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tower_lsp::{LspService, Server};
+use tower_lsp_server::{LspService, Server};
 
 /// Frame `body` as an LSP `Content-Length: …\r\n\r\n<body>` packet.
 ///

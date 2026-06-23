@@ -53,7 +53,7 @@ pub struct SelectionRange {
 /// innermost first.  Parent links are wired so each child's
 /// `parent_index` points to the next outward link in the
 /// chain.  The server is responsible for materialising the
-/// recursive `tower_lsp::lsp_types::SelectionRange` tree from
+/// recursive `ls_types::SelectionRange` tree from
 /// this flat representation.
 ///
 /// Chain order (each link strictly contains the next):

@@ -1,6 +1,6 @@
 //! End-to-end LSP smoke test for `tcl-lsp-server` inlay hints.
 //!
-//! Drives the server through `tower_lsp::LspService` over an in-memory
+//! Drives the server through `tower_lsp_server::LspService` over an in-memory
 //! duplex pipe and verifies the **default-off** contract: inlay hints are
 //! opt-in, so a request against a document with hintable content (a proc
 //! definition plus a call site) still answers with a well-formed empty
@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use tcl_lsp_server::Backend;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tower_lsp::{LspService, Server};
+use tower_lsp_server::{LspService, Server};
 
 /// Frame `body` as an LSP `Content-Length: …\r\n\r\n<body>` packet.
 fn frame(body: &str) -> String {

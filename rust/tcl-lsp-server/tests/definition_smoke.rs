@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use tcl_lsp_server::Backend;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tower_lsp::{LspService, Server};
+use tower_lsp_server::{LspService, Server};
 
 fn frame(body: &str) -> String {
     format!("Content-Length: {}\r\n\r\n{body}", body.len())
