@@ -1124,26 +1124,82 @@ fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
+/// The outcome of parsing an `uplevel`/`upvar` level word (C's `TclObjGetFrame`).
+enum FrameLevel {
+    /// A valid absolute frame level.
+    Level(usize),
+    /// The word is not a level — the caller treats it as the start of the
+    /// command, using the default level.
+    NotLevel,
+    /// A number-like word that is not a usable level (carries the spelling for
+    /// the `bad level "…"` error).
+    Bad(String),
+}
+
+/// Parse an `uplevel`/`upvar` level word against the current level `cur`,
+/// mirroring C's `TclObjGetFrame`: a plain integer is *relative* (`cur - n`, and
+/// must land in `0..=cur`); `#n` is *absolute*; a number wider than the C `int`
+/// range, or any other purely-numeric word, is a `bad level`; a non-numeric word
+/// is not a level at all (the command, run one level up).
+fn parse_frame_level(cur: usize, obj: &Value) -> FrameLevel {
+    let s = obj.to_str();
+    let cur = i64::try_from(cur).unwrap_or(i64::MAX);
+    // A plain integer is a relative level. C parses with the `int` range, so a
+    // value outside it (e.g. `-0xffffffff` / `[expr -0xffffffff]`) is a bad level
+    // rather than a huge relative offset.
+    let bad = || FrameLevel::Bad(s.to_string());
+    if let Ok(w) = obj.as_int() {
+        let Ok(n) = i32::try_from(w) else {
+            return bad();
+        };
+        let level = cur - i64::from(n);
+        if n < 0 || level < 0 || level > cur {
+            return bad();
+        }
+        usize::try_from(level).map_or_else(|_| bad(), FrameLevel::Level)
+    } else if let Some(rest) = s.strip_prefix('#') {
+        // `#n` is an absolute level. `#-0` is level 0; any other negative
+        // spelling is bad.
+        let parsed = Value::string(rest)
+            .as_int()
+            .ok()
+            .and_then(|w| i32::try_from(w).ok());
+        match parsed {
+            Some(n) if n >= 0 && !(n > 0 && rest.starts_with('-')) && i64::from(n) <= cur => {
+                usize::try_from(n).map_or_else(|_| bad(), FrameLevel::Level)
+            }
+            _ => bad(),
+        }
+    } else {
+        // Anything non-numeric is the command, not a level.
+        FrameLevel::NotLevel
+    }
+}
+
 /// `uplevel ?level? arg ?arg ...?` — evaluate the concatenated args as a script
 /// in the call frame `level` up (default 1, the caller). `#N` selects an
 /// absolute level.
 fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let cur = vm.current_level();
     let mut rest = args;
-    let mut target = vm.current_level().saturating_sub(1);
+    let mut target = cur.saturating_sub(1);
+    let mut explicit = false;
     if let Some(first) = rest.first() {
-        let s = first.to_str();
-        if let Some(abs) = s.strip_prefix('#')
-            && let Ok(n) = abs.parse::<usize>()
-        {
-            target = n;
-            rest = &rest[1..];
-        } else if !s.is_empty()
-            && s.bytes().all(|b| b.is_ascii_digit())
-            && let Ok(n) = s.parse::<usize>()
-        {
-            target = vm.current_level().saturating_sub(n);
-            rest = &rest[1..];
+        match parse_frame_level(cur, first) {
+            FrameLevel::Level(level) => {
+                target = level;
+                rest = &rest[1..];
+                explicit = true;
+            }
+            FrameLevel::NotLevel => {}
+            FrameLevel::Bad(name) => return err(format!("bad level \"{name}\"")),
         }
+    }
+    // A non-`#`/non-numeric first word is the command, run one level up; at the
+    // global level there is no such frame, so an implicit level is `bad level "1"`
+    // (uplevel-4.0.1/4.0.2).
+    if !explicit && cur == 0 {
+        return err("bad level \"1\"");
     }
     if rest.is_empty() {
         return err("wrong # args: should be \"uplevel ?level? command ?arg ...?\"");
