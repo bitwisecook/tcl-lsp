@@ -189,6 +189,15 @@ fn compiled_linsert_rejects_bad_index() {
     assert_eq!(result, "a b c X");
 }
 
+/// `string map` with three arguments whose first is not `-nocase` reports a
+/// bad-option error, not a wrong-arg-count error (string-10.2).
+#[test]
+fn string_map_three_args_bad_option() {
+    let (ok, result, _) = run("catch {string map {a b} abba oops} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "bad option \"a b\": must be -nocase");
+}
+
 /// An error unwinding out of a runtime `eval $script` adds the uncompiled
 /// eval's `("eval" body line N)` frame to `errorInfo`, followed by the
 /// enclosing invocation's `invoked from within "eval $s"` frame — matching C's
