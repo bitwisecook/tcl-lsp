@@ -24,6 +24,8 @@ use std::{env, fs};
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=TCL_TOMMATH_DIR");
+    println!("cargo:rerun-if-env-changed=TCL_WASM_CC");
+    println!("cargo:rerun-if-env-changed=TCL_WASM_AR");
     // Register the cfg unconditionally — *before* any early return — so the
     // `#[cfg(have_tommath)]` gate is never reported as `unexpected_cfgs`
     // (which `-D warnings` turns into a hard lint failure) in the wasm or
@@ -34,12 +36,8 @@ fn main() {
     // dependency); no C is compiled for it here. Only the bignum backend
     // (libtommath) is still linked from C.
 
-    // The wasm cdylib link (Track 3) supplies these C libraries; don't
-    // cross-compile C with the host toolchain here.
     let target = env::var("TARGET").unwrap_or_default();
-    if target.contains("wasm") {
-        return;
-    }
+    let is_wasm = target.contains("wasm");
 
     let Some(ltm) = locate_libtommath() else {
         // No source tree (e.g. a checkout without `tmp/` fetched): skip the
@@ -51,9 +49,38 @@ fn main() {
     };
     println!("cargo:rerun-if-changed={}", ltm.display());
 
+    // Pick the C cross-compiler + archiver and target flags.
+    //
+    // Native: the host `cc`/`ar` (overridable via `CC`/`AR`), `-fPIC` for the
+    // shared `cdylib`/`staticlib`.
+    //
+    // WASM: `zig cc`/`zig ar` cross-compile the *same* pristine libtommath to a
+    // `wasm32-wasi` object archive, which rustc's wasm link (`rust-lld`) pulls
+    // into the runtime `cdylib` — so the numeric tower (`expr`, `::tcl::math*`,
+    // `lseq`, the bignum obj rep) is present on wasm exactly as on native, and a
+    // whole-program AOT link gets a self-contained tower with no host tower
+    // dependency. `zig cc` bundles clang + wasi-libc and emits relocatable wasm
+    // objects; `zig ar` (LLVM ar) writes a wasm-aware archive symbol index that
+    // the host `ar` (GNU) does not. If `zig` is unavailable we degrade to the
+    // prior tower-less wasm build rather than fail.
+    let (cc, ar, extra_cflags): (String, String, &[&str]) = if is_wasm {
+        let cc = env::var("TCL_WASM_CC").unwrap_or_else(|_| "zig cc".into());
+        if !cc_available(&cc) {
+            println!(
+                "cargo:warning=wasm C compiler ({cc}) not found; bignum backend \
+                 disabled on wasm (set TCL_WASM_CC to a wasm32-wasi clang)"
+            );
+            return;
+        }
+        let ar = env::var("TCL_WASM_AR").unwrap_or_else(|_| "zig ar".into());
+        (cc, ar, &["--target=wasm32-wasi"])
+    } else {
+        let cc = env::var("CC").unwrap_or_else(|_| "cc".into());
+        let ar = env::var("AR").unwrap_or_else(|_| "ar".into());
+        (cc, ar, &["-fPIC"])
+    };
+
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
-    let cc = env::var("CC").unwrap_or_else(|_| "cc".into());
-    let ar = env::var("AR").unwrap_or_else(|_| "ar".into());
 
     let mut objs = Vec::new();
     for entry in fs::read_dir(&ltm).expect("read libtommath dir") {
@@ -66,8 +93,9 @@ fn main() {
             continue;
         }
         let obj = out.join(format!("{name}.o"));
-        let status = Command::new(&cc)
-            .args(["-c", "-O2", "-fPIC"])
+        let status = split_cmd(&cc)
+            .args(["-c", "-O2"])
+            .args(extra_cflags)
             .args(["-DTCL_WITH_EXTERNAL_TOMMATH", "-DLTM_ALL", "-DMP_64BIT"])
             .arg("-I")
             .arg(&ltm)
@@ -83,7 +111,7 @@ fn main() {
 
     let lib = out.join("libtommath.a");
     let _ = fs::remove_file(&lib);
-    let mut cmd = Command::new(&ar);
+    let mut cmd = split_cmd(&ar);
     cmd.arg("rcs").arg(&lib);
     cmd.args(&objs);
     assert!(cmd.status().expect("ar").success(), "archiving failed");
@@ -93,6 +121,30 @@ fn main() {
     // Signals the bignum obj rep + FFI are available (gates `src/bignum.rs`).
     // (`rustc-check-cfg` for `have_tommath` is emitted unconditionally up top.)
     println!("cargo:rustc-cfg=have_tommath");
+}
+
+/// Build a [`Command`] from a possibly multi-word program string (e.g.
+/// `"zig cc"` → program `zig`, arg `cc`). The first whitespace-separated token
+/// is the program; the rest are leading arguments.
+fn split_cmd(cmd: &str) -> Command {
+    let mut parts = cmd.split_whitespace();
+    let prog = parts.next().expect("empty compiler/archiver command");
+    let mut c = Command::new(prog);
+    c.args(parts);
+    c
+}
+
+/// Whether the wasm C compiler can be spawned at all (a cheap `--version`
+/// probe), so a missing `zig` degrades to a tower-less wasm build instead of a
+/// hard `build.rs` panic.
+fn cc_available(cmd: &str) -> bool {
+    split_cmd(cmd)
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 /// Find the pristine libtommath source dir.
