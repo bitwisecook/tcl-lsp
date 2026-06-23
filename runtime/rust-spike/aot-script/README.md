@@ -26,27 +26,39 @@ uv run --with wasmtime python host.py \
     ../../rust/.../tcl_runtime.wasm simple_top.wasm
 ```
 
-## Status (proven vs. open)
+## Status — WORKING for simple computational scripts
 
-**Proven (structural path works):**
-- The real Rust runtime builds clean to `wasm32-wasip1`.
-- The emitted `::top` module links against the runtime in one wasmtime instance,
-  **sharing the runtime's linear memory** (host write/read round-trip verified).
-- `::top` runs to completion **without trapping**.
+A simple AOT-compiled script runs **correctly** end to end:
 
-**Open (the remaining bug):** the wasm runtime's **eval/expr execution returns
-the empty/false (no-result) outcome for everything** — `tcl_expr_bool("1 == 1")`
-is `0`, `set`/`incr` side effects are not observable — even though the runtime's
-**native** `codegen_abi` unit tests (`set x 42`→`42`, `1<2`→`1`) pass. This path
-had never been exercised in the wasm build. The `thread_local! CURRENT_INTERP`
-could not work in the bare wasip1 cdylib (no `_initialize`/TLS bootstrap) and was
-changed to a single-threaded `AtomicPtr` global (`codegen_abi.rs`, `cfg(wasm32)`
-only) — necessary but **not sufficient**: a deeper eval-path issue remains.
+```
+set x 41 ; incr x                         ->  x = 42
+set greeting "hello world"
+set n [string length $greeting]           ->  n = 11   (command subst works)
+set doubled [string repeat ab 3]          ->  doubled = ababab
+```
+
+The emitted `::top` links against the real runtime in one wasmtime instance,
+shares the runtime's linear memory, and its eval-fallback `tcl_eval` calls
+execute genuine Tcl with persistent side effects.
+
+Two fixes got it there:
+1. `codegen_abi.rs` — `CURRENT_INTERP` is a single-threaded `AtomicPtr` global on
+   wasm32 (the `thread_local!` reads an uninitialised `__tls_base` in the bare
+   wasip1 cdylib and never observes `set_current_interp`).
+2. `emit_wasm` relocates the constant pool to `RESERVED_DATA_BASE` — at base 0
+   the first boxed command sits at offset 0, and `tcl_obj_new_string(ptr=0, …)`
+   is read as a null/empty pointer, silently dropping that command.
+
+## Open (runtime command/IO gaps, not AOT-pipeline gaps)
+
+- **`expr` command unregistered** — `expr 1+1` → `invalid command name "expr"`,
+  so arithmetic via `expr` (and `tcl_expr_bool`) fails. `incr`/`string`/`set`/
+  `list` work.
+- **`puts` → WASI stdout not wired** — `puts` runs but emits no output.
 
 ## Next step
 
-Debug why `tcl_eval`/`tcl_expr_bool` are inert in the wasm build (the runtime
-has no `_initialize` export — investigate whether required global/interp setup
-is skipped, or whether `Interp::new()` / the expr evaluator hits a wasm-only
-failure). Once a simple script runs correctly, move from this dynamic-link host
-to the single-binary static link (see `../static-link/`).
+Close the two runtime gaps (register `expr`; wire `puts`/channels to WASI
+`fd_write`), broaden the script set, add `errorInfo`/framing checks, then move
+from this dynamic-link host to the single self-contained binary (static link
+via `wasm-ld`, see `../static-link/`).
