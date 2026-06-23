@@ -58,7 +58,9 @@ fn fold_scan(args: &[&str]) -> Option<String> {
         return None;
     }
     let s = string.as_bytes();
-    let f = fmt.as_bytes();
+    // The conversion grammar is shared with the runtime (`tcl_syntax::scan`); we
+    // only fold the dialect-invariant plain conversions and bail on the rest.
+    let f: Vec<char> = fmt.chars().collect();
     let mut out: Vec<String> = Vec::new();
     let mut si = 0;
     let mut fi = 0;
@@ -72,32 +74,44 @@ fn fold_scan(args: &[&str]) -> Option<String> {
             fi += 1;
             continue;
         }
-        if fc != b'%' {
-            if si < s.len() && s[si] == fc {
+        if fc != '%' {
+            if si < s.len() && s[si] == fc as u8 {
                 si += 1;
                 fi += 1;
                 continue;
             }
             return None; // literal mismatch
         }
-        // A conversion specifier.
+        // A conversion specifier — parsed through the shared grammar; a malformed
+        // spec bails (the runtime errors on it, so folding it would be unsound).
         fi += 1;
-        let conv = *f.get(fi)?;
-        fi += 1;
-        if conv == b'%' {
+        let mut ci = fi;
+        let conv = tcl_syntax::scan::parse_conversion(&f, &mut ci).ok()?;
+        fi = ci;
+        if conv.verb == '%' {
             if si < s.len() && s[si] == b'%' {
                 si += 1;
                 continue;
             }
             return None;
         }
-        let (value, next) = match conv {
+        // A width, `*` suppression, a positional `%n$`, a size modifier, or a
+        // `%[set]` makes the value version-dependent or unmodelled here — bail.
+        if conv.suppress
+            || conv.xpg_index.is_some()
+            || conv.width.is_some()
+            || conv.size.is_some()
+            || conv.charset.is_some()
+        {
+            return None;
+        }
+        let (value, next) = match conv.verb {
             // One character, no whitespace skip (ASCII → codepoint < 128).
-            b'c' => (u32::from(*s.get(si)?).to_string(), si + 1),
-            b's' => scan_str_run(s, si)?,
-            b'd' | b'o' | b'x' | b'X' => scan_int(s, si, conv)?,
-            // `%i` / `%u` / `%f` / `%e` / `%g`, a width digit, `*`, `%[`, a
-            // size modifier, a positional `$` — all bail.
+            'c' => (u32::from(*s.get(si)?).to_string(), si + 1),
+            's' => scan_str_run(s, si)?,
+            'd' | 'o' | 'x' | 'X' => scan_int(s, si, conv.verb as u8)?,
+            // `%i` / `%u` / `%f` / `%e` / `%g` / `%b` — value or availability is
+            // version-dependent — bail.
             _ => return None,
         };
         out.push(value);
