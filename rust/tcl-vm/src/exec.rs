@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use tcl_bytecode::{FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand};
+use tcl_bytecode::{ErrorRegion, FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand};
 use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 
@@ -555,6 +555,48 @@ impl Vm {
         true
     }
 
+    /// As an error unwinds out of activation `act`, synthesise the `errorInfo`
+    /// body frames for every inlined command body (`FunctionAsm::error_regions`)
+    /// covering the failing instruction — the compiled analogue of C's
+    /// per-command `CmdFrame`. Innermost region first (a deeper region has the
+    /// larger start): each appends its `("LABEL" body line N)` frame — the
+    /// failing command's line made body-relative — then its enclosing command's
+    /// `invoked from within "…"` frame, whose line then drives the next-outer
+    /// frame (an enclosing region, or this activation's proc frame).
+    fn apply_error_regions(&mut self, act: &Frame) {
+        if act.asm.error_regions.is_empty() {
+            return;
+        }
+        // The failing instruction's source span — a region covers it when the
+        // span lies within the region's (the enclosing command's). Containment,
+        // not an index range, so an interleaved non-body instruction is excluded
+        // and layout reordering is irrelevant.
+        let Some(span) = act
+            .asm
+            .instructions
+            .get(act.pc.saturating_sub(1))
+            .and_then(|i| i.source_span)
+        else {
+            return;
+        };
+        let (s, e) = (span.start(), span.end());
+        let mut covering: Vec<&ErrorRegion> = act
+            .asm
+            .error_regions
+            .iter()
+            .filter(|r| r.start <= s && e <= r.end)
+            .collect();
+        // Innermost first: a deeper body has the larger start (ties broken by the
+        // smaller end). Each appends its body frame then its enclosing command's
+        // `invoked from within` frame, whose line drives the next-outer frame.
+        covering.sort_by(|a, b| b.start.cmp(&a.start).then(a.end.cmp(&b.end)));
+        for r in covering {
+            let body_line = self.error_line().saturating_sub(r.line_base).max(1);
+            self.append_body_frame_line(&r.label, body_line);
+            self.log_command_info(&r.cmd_text, "", r.cmd_line);
+        }
+    }
+
     /// Unwind one or more activations with completion `c`. Returns `Some` when
     /// the whole `run` is finished, `None` when a parent activation resumed.
     fn unwind(
@@ -564,6 +606,13 @@ impl Vm {
     ) -> Option<Completion<Value>> {
         loop {
             let act = acts.pop().expect("unwinding a non-empty stack");
+            // An error unwinding through an inlined command body (`eval {…}`)
+            // adds the body frames the uncompiled command would, before this
+            // activation's own proc frame (innermost first) — the compiled
+            // analogue of C's `CmdFrame` trace.
+            if c.code == Code::Error {
+                self.apply_error_regions(&act);
+            }
             if act.is_proc {
                 // An error unwinding out of a proc body adds a
                 // `(procedure "name" line N)` frame before the frame is popped,

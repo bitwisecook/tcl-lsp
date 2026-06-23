@@ -1765,7 +1765,15 @@ impl Vm {
     /// innermost logged command's line. Clears `error_logged` so the enclosing
     /// command then logs its own `invoked from within` frame.
     pub(crate) fn append_body_frame(&mut self, label: &str) {
-        let line = self.error_line;
+        self.append_body_frame_line(label, self.error_line);
+    }
+
+    /// Append a `("<label>" body line N)` frame with an explicit `line` — for an
+    /// *inlined* body (`FunctionAsm::error_regions`), whose body-relative line is
+    /// the innermost command's line minus the body's `line_base` (the uncompiled
+    /// [`Self::append_body_frame`] uses `error_line` directly, since that path
+    /// compiles the body standalone so its lines are already body-relative).
+    pub(crate) fn append_body_frame_line(&mut self, label: &str, line: u32) {
         let info = self.error_info.get_or_insert_with(String::new);
         info.push_str("\n    (\"");
         info.push_str(label);

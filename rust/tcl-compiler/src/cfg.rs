@@ -169,6 +169,12 @@ pub struct Function {
     /// builds so the default bytecode is unchanged.  Mirrors Python's
     /// `CFGFunction.exception_edges`.
     pub exception_edges: Vec<(String, String)>,
+    /// Source spans of the inlined command bodies (`eval {…}`) the CFG builder
+    /// flattened into this function's statement stream. Codegen turns each into
+    /// a [`tcl_bytecode::ErrorRegion`] so an error unwinding through the inlined
+    /// body still gets the body frame the uncompiled command would add to
+    /// `errorInfo` (the LSP keeps its inlined view). Empty when none were folded.
+    pub inline_eval_spans: Vec<tcl_lexer::Span>,
 }
 
 impl Function {
@@ -184,6 +190,7 @@ impl Function {
             blocks,
             loop_nodes: HashMap::new(),
             exception_edges: Vec::new(),
+            inline_eval_spans: Vec::new(),
         }
     }
 

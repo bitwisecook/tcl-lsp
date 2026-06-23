@@ -168,14 +168,44 @@ impl<'r> CodegenCtx<'r> {
 
     /// The surface text of the construct at `current_span`, for `errorInfo`.
     /// Empty when no span is set or no source was supplied.
+    ///
+    /// A command ending in a quoted (`"…"`) word has its `current_span` end at
+    /// the word's inner end — [`segmenter::widen_word_end`] deliberately does not
+    /// widen quoted words (other `cmd.range` consumers rely on the inner end), so
+    /// the closing `"` sits one byte past `span.end()`. The `errorInfo` frame must
+    /// quote the *whole* command (`"error "test error""`, eval-2.5), so include a
+    /// trailing `"` here — the analogue of `widen_word_end`'s brace/bracket widen,
+    /// scoped to error reporting.
     fn span_text(&self) -> String {
         match self.current_span {
             Some(sp) => {
-                let (s, e) = (sp.start() as usize, sp.end() as usize);
+                let (s, mut e) = (sp.start() as usize, sp.end() as usize);
+                if self.source.as_bytes().get(e) == Some(&b'"') {
+                    e += 1;
+                }
                 self.source.get(s..e).unwrap_or("").to_string()
             }
             None => String::new(),
         }
+    }
+
+    /// The surface text of an explicit `span` within the module source — for
+    /// inline-body error regions, whose enclosing command's span differs from the
+    /// per-instruction `current_span`. Empty when no source was supplied.
+    pub(crate) fn source_text(&self, span: Span) -> String {
+        let (s, e) = (span.start() as usize, span.end() as usize);
+        self.source.get(s..e).unwrap_or("").to_string()
+    }
+
+    /// The 1-based source line of an explicit `span`'s start (its first byte).
+    /// `0` when no source was supplied (the span can't be located).
+    pub(crate) fn source_line(&self, span: Span) -> u32 {
+        if self.source.is_empty() {
+            return 0;
+        }
+        let start = span.start() as usize;
+        let prefix = self.source.get(..start).unwrap_or("");
+        1 + u32::try_from(prefix.bytes().filter(|&b| b == b'\n').count()).unwrap_or(0)
     }
 
     /// The 1-based line of `current_span` within the module source — the line a
@@ -243,6 +273,7 @@ impl<'r> CodegenCtx<'r> {
             labels,
             loop_targets: HashMap::new(),
             body_base_line: 0,
+            error_regions: Vec::new(),
         }
     }
 }
