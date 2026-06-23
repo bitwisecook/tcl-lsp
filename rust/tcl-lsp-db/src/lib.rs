@@ -260,26 +260,39 @@ fn proc_arity(params: &[tcl_compiler::signature_scan::types::ParamDef]) -> (usiz
     (min, max)
 }
 
-/// The project's proc **arities**, keyed by **tail** name — the cross-file
-/// resolution domain *and* its argument-count signatures (SRV-INCREMENTAL
-/// Task 6).  A bare command `foo` is resolved if some project proc has tail `foo`
-/// (the map's keys); each key carries every such proc's `(min, max)` arity, so a
-/// call whose arg count fits *none* of them is a wrong-arg-count error.  Depends
-/// only on each file's `item_sigs` (the signature firewall), so a body edit
-/// anywhere recomputes nothing here.
+/// The project's cross-file command-resolution domain, keyed by **tail** name,
+/// each carrying the `(min, max)` arities of any **procs** with that tail
+/// (SRV-INCREMENTAL Task 6).  A bare command `foo` is resolved cross-file if some
+/// project declaration has tail `foo` — procs, classes (the class command),
+/// `interp alias`es, and ensembles, matching the analyser's *local* suppression
+/// domains (`proc_tail_names` / `class_tail_names` / `alias_names` /
+/// `ensemble_cmds`).  Non-proc kinds carry an **empty** arity list (resolved, but
+/// no arg-count signature), so they suppress W123 without ever drawing W124.
+/// Depends only on each file's `item_sigs` (the signature firewall), so a body
+/// edit anywhere recomputes nothing here.
 #[salsa::tracked]
-pub fn project_proc_arities(
+pub fn project_command_arities(
     db: &dyn TclDb,
     project: Project,
 ) -> Arc<HashMap<String, Vec<(usize, usize)>>> {
+    use tcl_compiler::analyser::ItemKind;
     let mut map: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
     for &file in project.files(db) {
         for sig in item_sigs(db, file).iter() {
-            if sig.id.kind == tcl_compiler::analyser::ItemKind::Proc
+            // Command-resolvable kinds only — methods are object-dispatched and
+            // namespaces aren't commands, so neither suppresses a bare-command W123.
+            let resolvable = matches!(
+                sig.id.kind,
+                ItemKind::Proc | ItemKind::Class | ItemKind::Alias | ItemKind::Ensemble
+            );
+            if resolvable
                 && let Some((_, tail)) = sig.id.key.rsplit_once("::")
                 && !tail.is_empty()
             {
-                map.entry(tail.to_owned()).or_default().push(proc_arity(&sig.params));
+                let entry = map.entry(tail.to_owned()).or_default();
+                if sig.id.kind == ItemKind::Proc {
+                    entry.push(proc_arity(&sig.params));
+                }
             }
         }
     }
@@ -338,9 +351,13 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
             && let Some(name) = w123_command(&d.message)
             && let Some(candidates) = arities.get(name)
         {
-            // Resolved cross-file: drop the W123.  If the arg count is known and
-            // fits no candidate arity, emit W124 in its place.
-            if let Some(Some(argc)) = argc_by_span.get(&(d.span.start(), d.span.end())) {
+            // Resolved cross-file: drop the W123.  If the resolved name is a proc
+            // (non-empty arity list) and the arg count is known and fits no
+            // candidate arity, emit W124 in its place.  Non-proc kinds (class /
+            // alias / ensemble) have no arities → suppress only.
+            if !candidates.is_empty()
+                && let Some(Some(argc)) = argc_by_span.get(&(d.span.start(), d.span.end()))
+            {
                 let argc = *argc;
                 if candidates.iter().all(|&(lo, hi)| argc < lo || argc > hi) {
                     out.push(cross_file_arity_diagnostic(name, d.span, argc, candidates));
@@ -376,7 +393,7 @@ pub fn project_diagnostics(
     // the per-item firewall result the diagnostics worker already computed for
     // `file` — a cache hit, not a second whole-file analysis.
     let analysis = file_analysis_incremental(db, file, config);
-    let arities = project_proc_arities(db, project);
+    let arities = project_command_arities(db, project);
     Arc::new(apply_cross_file_resolution(
         &analysis.diagnostics,
         &analysis.command_invocations,
@@ -1918,6 +1935,33 @@ mod tests {
         let d2 = project_diagnostics(&db, a2, cfg, p2);
         assert!(!has(&d2, "W124"), "correct arity must not emit W124");
         assert!(!has(&d2, "W123"), "resolved cross-file → no W123");
+    }
+
+    /// SRV-INCREMENTAL Task 6 (cross-file classes): a command resolving to a
+    /// class (the class command) defined in another project file is resolved —
+    /// W123 suppressed — and, being a non-proc, never draws W124.
+    #[test]
+    fn project_diagnostics_resolves_cross_file_class() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        // B defines a TclOO class `Widget`.
+        let b = SourceFile::new(
+            &db,
+            "oo::class create Widget { method draw {} {} }\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        // A invokes the `Widget` class command (defined cross-file).
+        let a = SourceFile::new(&db, "Widget new\n".to_owned(), "tcl8.6".to_owned());
+        let proj = Project::new(&db, vec![a, b]);
+        let d = project_diagnostics(&db, a, cfg, proj);
+        assert!(
+            !d.iter().any(|x| x.code == "W123" && x.message.contains("Widget")),
+            "cross-file class command must resolve (no W123)"
+        );
+        assert!(
+            !d.iter().any(|x| x.code == "W124"),
+            "a class command has no proc arity → no W124"
+        );
     }
 
     /// Regression (whole-file-shift determinism): a pure prepend that shifts every

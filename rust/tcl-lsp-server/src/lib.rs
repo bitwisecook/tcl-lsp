@@ -2774,7 +2774,7 @@ impl Backend {
         let xc_on = self.xc_diagnostics_enabled(uri).await;
         let project_arities = if xc_on {
             let db = self.db.lock().await.clone();
-            (*self.db_project.lock().await).map(|p| tcl_lsp_db::project_proc_arities(&db, p))
+            (*self.db_project.lock().await).map(|p| tcl_lsp_db::project_command_arities(&db, p))
         } else {
             None
         };
