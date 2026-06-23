@@ -1472,6 +1472,30 @@ impl Backend {
         }
     }
 
+    /// Reschedule diagnostics for every open document that has cross-file
+    /// diagnostics enabled.  Called after a change to the workspace's on-disk
+    /// signature domain that did **not** originate from an open document's own
+    /// edit (a watched-file create / change / delete), so push-diagnostic clients
+    /// refresh their cross-file results instead of showing stale W123 / W124 until
+    /// the caller is next touched.  Documents without `xcDiagnostics` enabled are
+    /// skipped — their diagnostics don't depend on other files.
+    async fn reschedule_xc_open_documents(&self) {
+        // Snapshot `(uri, dialect)` first so the per-document
+        // `xc_diagnostics_enabled` / `schedule_diagnostics` calls don't run while
+        // the `documents` lock is held.
+        let snapshot: Vec<(Url, String)> = {
+            let docs = self.documents.lock().await;
+            docs.iter()
+                .map(|(uri, doc)| (uri.clone(), doc.dialect.clone()))
+                .collect()
+        };
+        for (uri, dialect) in snapshot {
+            if self.xc_diagnostics_enabled(&uri).await {
+                self.schedule_diagnostics(uri, dialect).await;
+            }
+        }
+    }
+
     /// Shared helper for the goto-definition family — runs the
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
@@ -3402,6 +3426,7 @@ impl LanguageServer for Backend {
         // definition / references / rename / call-hierarchy keep seeing the
         // project's true on-disk state between restarts.  Mirrors the Python
         // `didChangeWatchedFiles` handler.
+        let mut domain_changed = false;
         for change in params.changes {
             // Files the editor has open are driven by did_open/did_change; their
             // unsaved buffer must not be clobbered by the on-disk copy.
@@ -3422,6 +3447,16 @@ impl LanguageServer for Backend {
                 // or drop it if it no longer reads as one.
                 self.reindex_index_from_disk(&change.uri).await;
             }
+            domain_changed = true;
+        }
+        // A watched (non-open) file's create/change/delete shifts the cross-file
+        // resolution domain, but no open document's own edit triggered it — so a
+        // push-diagnostic client would keep stale cross-file results (a suppressed
+        // W123, or a W124 sourced from the now-changed file) until the caller is
+        // next edited.  Reschedule open documents that have cross-file diagnostics
+        // enabled so their cross-file pass re-runs against the new domain.
+        if domain_changed {
+            self.reschedule_xc_open_documents().await;
         }
     }
 
@@ -7912,6 +7947,44 @@ mod tests {
                 .iter()
                 .any(|u| u == uri.as_str()),
             "a DELETED watched-file event must drop the index entry",
+        );
+    }
+
+    /// A watched-file create/change/delete shifts the cross-file resolution domain
+    /// without an open document's own edit, so open documents with cross-file
+    /// diagnostics enabled must be rescheduled — otherwise a push-diagnostic client
+    /// keeps stale W123/W124 after a defining file disappears (git checkout /
+    /// delete).  Regression for Codex review on #692.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn watched_file_delete_reschedules_open_xc_documents() {
+        let backend = test_backend();
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+        // An open caller with xcDiagnostics enabled.
+        let caller = Url::parse("file:///caller.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            caller.clone(),
+            DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
+        );
+
+        // A watched, non-open file is deleted — its procs leave the `Project`.
+        let deleted = Url::parse("file:///lib.tcl").unwrap();
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp::lsp_types::FileEvent {
+                    uri: deleted,
+                    typ: FileChangeType::DELETED,
+                }],
+            })
+            .await;
+
+        // The open caller was rescheduled — a diagnostics slot now exists for it.
+        assert!(
+            backend.diag_slots.lock().await.contains_key(&caller),
+            "an open xcDiagnostics document must be rescheduled after a watched-file delete",
         );
     }
 

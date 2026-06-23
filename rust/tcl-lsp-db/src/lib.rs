@@ -268,6 +268,13 @@ fn proc_arity(params: &[tcl_compiler::signature_scan::types::ParamDef]) -> (usiz
 /// domains (`proc_tail_names` / `class_tail_names` / `alias_names` /
 /// `ensemble_cmds`).  Non-proc kinds carry an **empty** arity list (resolved, but
 /// no arg-count signature), so they suppress W123 without ever drawing W124.
+///
+/// **Mixed tails are arity-less.**  If a tail is claimed by *both* a proc and a
+/// non-proc command (e.g. `oo::class create Widget` plus `proc ns::Widget`), a
+/// call to it may dispatch to the class/alias/ensemble — which has no fixed
+/// arity — so the proc arities are dropped (empty list): the tail still suppresses
+/// W123 but never draws a (possibly wrong) W124.
+///
 /// Depends only on each file's `item_sigs` (the signature firewall), so a body
 /// edit anywhere recomputes nothing here.
 #[salsa::tracked]
@@ -276,7 +283,8 @@ pub fn project_command_arities(
     project: Project,
 ) -> Arc<HashMap<String, Vec<(usize, usize)>>> {
     use tcl_compiler::analyser::ItemKind;
-    let mut map: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
+    // tail -> (proc arities, has a non-proc command claiming this tail).
+    let mut acc: HashMap<String, (Vec<(usize, usize)>, bool)> = HashMap::new();
     for &file in project.files(db) {
         for sig in item_sigs(db, file).iter() {
             // Command-resolvable kinds only — methods are object-dispatched and
@@ -289,13 +297,24 @@ pub fn project_command_arities(
                 && let Some((_, tail)) = sig.id.key.rsplit_once("::")
                 && !tail.is_empty()
             {
-                let entry = map.entry(tail.to_owned()).or_default();
+                let entry = acc.entry(tail.to_owned()).or_default();
                 if sig.id.kind == ItemKind::Proc {
-                    entry.push(proc_arity(&sig.params));
+                    entry.0.push(proc_arity(&sig.params));
+                } else {
+                    entry.1 = true;
                 }
             }
         }
     }
+    // A tail with any non-proc resolver can't be arity-checked (the call may
+    // dispatch to the arity-less class/alias/ensemble), so drop its proc arities —
+    // it still resolves (suppresses W123) but never draws W124.
+    let map: HashMap<String, Vec<(usize, usize)>> = acc
+        .into_iter()
+        .map(|(tail, (arities, has_non_proc))| {
+            (tail, if has_non_proc { Vec::new() } else { arities })
+        })
+        .collect();
     Arc::new(map)
 }
 
@@ -2093,6 +2112,46 @@ mod tests {
         let d2 = project_diagnostics(&db, a2, cfg, p2);
         assert!(!has(&d2, "W124"), "correct arity must not emit W124");
         assert!(!has(&d2, "W123"), "resolved cross-file → no W123");
+    }
+
+    /// SRV-INCREMENTAL Task 6 (mixed proc / non-proc tail): when a class (or alias
+    /// / ensemble) and a proc share a tail name, a call may dispatch to the
+    /// arity-less class command, so no W124 may fire even when the arg count fits
+    /// no proc arity — while the call still resolves (no W123).  Regression for
+    /// Codex review on #692.
+    #[test]
+    fn cross_file_arity_suppressed_for_mixed_proc_nonproc_tail() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        // B: a class `Widget` AND a proc whose tail is also `Widget` (arity 1).
+        let b = SourceFile::new(
+            &db,
+            "oo::class create Widget { method draw {} {} }\n\
+             namespace eval ns { proc Widget {x} {} }\n"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        // The arity table must record `Widget` as resolvable but arity-less
+        // (mixed), so it can never draw W124.
+        let proj_names = Project::new(&db, vec![b]);
+        assert_eq!(
+            project_command_arities(&db, proj_names).get("Widget").cloned(),
+            Some(Vec::new()),
+            "a mixed proc/non-proc tail must carry an empty arity list"
+        );
+        // A calls `Widget new extra` (3 args) — fits no proc arity, but resolves to
+        // the class → neither W124 nor W123.
+        let a = SourceFile::new(&db, "Widget new extra\n".to_owned(), "tcl8.6".to_owned());
+        let proj = Project::new(&db, vec![a, b]);
+        let d = project_diagnostics(&db, a, cfg, proj);
+        assert!(
+            !d.iter().any(|x| x.code == "W124"),
+            "a mixed proc/non-proc tail must never draw W124"
+        );
+        assert!(
+            !d.iter().any(|x| x.code == "W123" && x.message.contains("Widget")),
+            "the call still resolves cross-file (no W123)"
+        );
     }
 
     /// SRV-INCREMENTAL Task 6 (cross-file arity honours `disabled_diagnostics`):
