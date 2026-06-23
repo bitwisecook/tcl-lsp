@@ -285,9 +285,9 @@ fn build_matcher(
         return Ok(Matcher::Cidr(parse_cidr_pattern(pattern)?));
     }
     if use_regex {
-        return Regex::new(pattern).map(Matcher::Regex).map_err(|exc| {
-            BigipError::grep(format!("invalid regex pattern {pattern:?}: {exc}"))
-        });
+        return Regex::new(pattern)
+            .map(Matcher::Regex)
+            .map_err(|exc| BigipError::grep(format!("invalid regex pattern {pattern:?}: {exc}")));
     }
     if use_exact {
         return Ok(Matcher::Exact(pattern.to_owned()));

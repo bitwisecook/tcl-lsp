@@ -32,12 +32,18 @@ fn check(name: &str, keep_paths: &[&str], keep_partitions: &[&str]) {
     }
     let want_tmsh = std::fs::read_to_string(format!("{dir}/cleanup_{name}.tmsh.golden"))
         .expect("read tmsh golden");
-    assert_eq!(tmsh, want_tmsh, "cleanup tmsh ({name}) differs from the expected fixture");
+    assert_eq!(
+        tmsh, want_tmsh,
+        "cleanup tmsh ({name}) differs from the expected fixture"
+    );
 
     let json = report_to_json(&report);
     let want_json = std::fs::read_to_string(format!("{dir}/cleanup_{name}.json.golden"))
         .expect("read json golden");
-    assert_eq!(json, want_json, "cleanup JSON ({name}) differs from the expected fixture");
+    assert_eq!(
+        json, want_json,
+        "cleanup JSON ({name}) differs from the expected fixture"
+    );
 }
 
 #[test]

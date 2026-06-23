@@ -288,7 +288,11 @@ mod tests {
     #[test]
     #[allow(clippy::cast_possible_truncation)] // test indices are small + bounded
     fn apply_edit_matches_rebuild_under_fuzz() {
-        let starts = |idx: &LineIndex| (0..idx.line_count()).map(|l| idx.line_start(l as u32)).collect::<Vec<_>>();
+        let starts = |idx: &LineIndex| {
+            (0..idx.line_count())
+                .map(|l| idx.line_start(l as u32))
+                .collect::<Vec<_>>()
+        };
         // Deterministic xorshift PRNG — reproducible without a dev-dependency.
         let mut rng = 0x9E37_79B9_7F4A_7C15_u64;
         let mut next = move || {
@@ -309,11 +313,7 @@ mod tests {
             for _ in 0..ins_len {
                 ins.push(if next() % 3 == 0 { '\n' } else { 'x' });
             }
-            idx.apply_edit(
-                u32::try_from(a).unwrap(),
-                u32::try_from(b).unwrap(),
-                &ins,
-            );
+            idx.apply_edit(u32::try_from(a).unwrap(), u32::try_from(b).unwrap(), &ins);
             source.replace_range(a..b, &ins);
             assert_eq!(
                 starts(&idx),

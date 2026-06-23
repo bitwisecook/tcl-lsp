@@ -542,7 +542,9 @@ mod schema_toml {
             .trim()
             .strip_prefix('[')
             .and_then(|s| s.strip_suffix(']'))
-            .ok_or_else(|| BigipError::schema(format!("schema: ip_fields must be an array: {val}")))?;
+            .ok_or_else(|| {
+                BigipError::schema(format!("schema: ip_fields must be an array: {val}"))
+            })?;
         let mut out = Vec::new();
         for chunk in inner.split('}') {
             let chunk = chunk.trim().trim_start_matches(',').trim();
@@ -613,12 +615,14 @@ mod schema_toml {
                 current = Some(Entry::default());
                 continue;
             }
-            let (key, val) = line.split_once('=').ok_or_else(|| {
-                BigipError::schema(format!("schema: cannot parse line: {line}"))
-            })?;
+            let (key, val) = line
+                .split_once('=')
+                .ok_or_else(|| BigipError::schema(format!("schema: cannot parse line: {line}")))?;
             let (key, val) = (key.trim(), val.trim());
             let entry = current.as_mut().ok_or_else(|| {
-                BigipError::schema(format!("schema: `{key}` outside a [[legacy]]/[[dpt]] table"))
+                BigipError::schema(format!(
+                    "schema: `{key}` outside a [[legacy]]/[[dpt]] table"
+                ))
             })?;
             if key == "ip_fields" {
                 entry.fields = parse_ip_fields(val)?;
