@@ -276,7 +276,7 @@ fn resolve_path(path: &str, workspace_root: Option<&str>, home: Option<&str>) ->
 /// rather than `file://C:/foo`.
 /// The path bytes are percent-encoded per RFC 3986 so special
 /// characters (spaces, `#`, `%`, non-ASCII) survive parsing
-/// through `Url::parse`.
+/// as a URI.
 fn file_uri_for_path(path: &str) -> String {
     let normalised: String = path
         .chars()
@@ -302,9 +302,9 @@ fn file_uri_for_path(path: &str) -> String {
 ///   / `,` / `;` / `=`
 /// * pchar adds `:` / `@`, and the path layer adds `/`.
 ///
-/// Everything else is encoded.  Mirrors the conservative
-/// percent-encoding the `url` crate's `Url::from_file_path`
-/// performs.
+/// Everything else is encoded.  Keeps the encoded path
+/// conservative enough to round-trip through a `file://` URI
+/// parser.
 fn percent_encode_path(path: &str) -> String {
     let mut out = String::with_capacity(path.len());
     for &b in path.as_bytes() {

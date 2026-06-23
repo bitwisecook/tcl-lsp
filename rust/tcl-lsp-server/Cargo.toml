@@ -1,6 +1,6 @@
 [package]
 name = "tcl-lsp-server"
-description = "Native LSP server for Tcl, built on tower-lsp + tcl-lsp-core"
+description = "Native LSP server for Tcl, built on tower-lsp-server + tcl-lsp-core"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -23,7 +23,7 @@ tcl-lsp-db = { path = "../tcl-lsp-db" }
 salsa = "0.27"
 serde_json = "1"
 tokio = { version = "1", features = ["io-std", "io-util", "rt-multi-thread", "sync", "macros", "time"] }
-tower-lsp = "0.20"
+tower-lsp-server = "0.23"
 
 [dev-dependencies]
 temp-env = "0.3"

@@ -1,19 +1,20 @@
 //! Native LSP server backend for Tcl.
 //!
-//! Exposes a [`Backend`] that implements [`tower_lsp::LanguageServer`]
+//! Exposes a [`Backend`] that implements [`tower_lsp_server::LanguageServer`]
 //! and is wrapped in an `LspService` by the binary. This crate is the
 //! second consumer of [`tcl_lsp_core`] (the first is `tcl-lsp-rust`),
 //! so the pure-Rust crate boundary now has both production drivers
 //! exercising it.
 //!
 //! LSP methods without a wired provider return
-//! [`tower_lsp::jsonrpc::ErrorCode::MethodNotFound`].
+//! [`tower_lsp_server::jsonrpc::ErrorCode::MethodNotFound`].
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Arc;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
@@ -46,21 +47,17 @@ use tcl_lsp_core::signature_help::{
     SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
 };
 use tcl_lsp_core::type_definition as core_type_definition;
+use tcl_lsp_core::type_hierarchy as core_type_hierarchy;
 use tcl_lsp_core::workspace_index as core_workspace_index;
-use tcl_lsp_db::TclDb as _;
-// tower-lsp's LanguageServer trait does not expose the
-// type-hierarchy methods, so the core provider is not wired here.
-// The module is registered in `tcl_lsp_core` for downstream
-// callers.
-// use tcl_lsp_core::type_hierarchy as core_type_hierarchy;
 use tcl_lsp_core::workspace_symbols::{
     self as core_workspace_symbols, WorkspaceSymbolKind as CoreWorkspaceSymbolKind,
 };
+use tcl_lsp_db::TclDb as _;
 use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
 use tokio::sync::Mutex;
-use tower_lsp::jsonrpc;
-use tower_lsp::lsp_types::{
+use tower_lsp_server::jsonrpc;
+use tower_lsp_server::ls_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CallHierarchyServerCapability, CodeAction, CodeActionOrCommand, CodeActionParams,
@@ -71,12 +68,12 @@ use tower_lsp::lsp_types::{
     DidChangeWatchedFilesRegistrationOptions, DidChangeWorkspaceFoldersParams,
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentChanges,
     DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
-    DocumentFormattingParams, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
-    DocumentLink, DocumentLinkOptions, DocumentLinkParams, DocumentRangeFormattingParams,
-    DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, Documentation,
-    ExecuteCommandOptions, ExecuteCommandParams, FileChangeType, FileOperationFilter,
-    FileOperationPattern, FileOperationRegistrationOptions, FileSystemWatcher, FoldingRange,
-    FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
+    DocumentFilter, DocumentFormattingParams, DocumentHighlight, DocumentHighlightKind,
+    DocumentHighlightParams, DocumentLink, DocumentLinkOptions, DocumentLinkParams,
+    DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse,
+    Documentation, ExecuteCommandOptions, ExecuteCommandParams, FileChangeType,
+    FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions, FileSystemWatcher,
+    FoldingRange, FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
     FullDocumentDiagnosticReport, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
     InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
@@ -91,20 +88,21 @@ use tower_lsp::lsp_types::{
     SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
     SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
     SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
-    TextDocumentEdit, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions, TextEdit, TypeDefinitionProviderCapability,
-    UnchangedDocumentDiagnosticReport, Url, WatchKind, WillSaveTextDocumentParams,
-    WorkDoneProgressOptions, WorkspaceDiagnosticParams, WorkspaceDiagnosticReport,
-    WorkspaceDiagnosticReportResult, WorkspaceDocumentDiagnosticReport, WorkspaceEdit,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    TextDocumentEdit, TextDocumentPositionParams, TextDocumentRegistrationOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, TextEdit,
+    TypeDefinitionProviderCapability, TypeHierarchyItem, TypeHierarchyPrepareParams,
+    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport,
+    Uri, WatchKind, WillSaveTextDocumentParams, WorkDoneProgressOptions, WorkspaceDiagnosticParams,
+    WorkspaceDiagnosticReport, WorkspaceDiagnosticReportResult, WorkspaceDocumentDiagnosticReport,
+    WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceFullDocumentDiagnosticReport, WorkspaceServerCapabilities, WorkspaceSymbolParams,
-    WorkspaceUnchangedDocumentDiagnosticReport,
+    WorkspaceSymbolResponse, WorkspaceUnchangedDocumentDiagnosticReport,
     request::{
         GotoDeclarationParams, GotoDeclarationResponse, GotoImplementationParams,
         GotoImplementationResponse, GotoTypeDefinitionParams, GotoTypeDefinitionResponse,
     },
 };
-use tower_lsp::{Client, LanguageServer};
+use tower_lsp_server::{Client, LanguageServer};
 
 /// Document store value: source text + dialect string.
 #[derive(Debug, Clone)]
@@ -210,7 +208,7 @@ struct PullDiagEntry {
     /// pull handler compares it against the live document so a cache entry from
     /// an older edit is recomputed rather than served as current.
     revision: u64,
-    diagnostics: Vec<tower_lsp::lsp_types::Diagnostic>,
+    diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
 }
 
 /// Monotonic `result_id` for the pull-diagnostic cache.  A fresh id each time a
@@ -248,14 +246,14 @@ struct DiagInputs {
     non_ascii_mode: NonAsciiMode,
     optimiser_enabled: bool,
     opt_disabled: HashSet<String>,
-    documents: Arc<Mutex<HashMap<Url, DocumentState>>>,
+    documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
     workspace_index: Arc<Mutex<core_workspace_index::WorkspaceIndex>>,
     /// The salsa db handle.  Each run clones a *fresh, short-lived* snapshot and
     /// drops it immediately, so an idle worker never holds a clone across the
     /// debounce sleep (which would block the next edit's `set_text` — salsa's
     /// exclusive-access write waits for all outstanding handles to drop).
     db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
-    db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
+    db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
     /// The salsa `Project` input handle (workspace file set), read by the worker
     /// for cross-file `project_diagnostics` when `xc_diagnostics` is enabled.
     db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
@@ -264,11 +262,11 @@ struct DiagInputs {
     /// [`Backend::folder_db_configs`]); `capture_job` resolves the right one by
     /// the document's URI so folder-scoped W-code suppression reaches the
     /// cached analysis, falling back to `db_config`.
-    folder_db_configs: Arc<Mutex<Vec<(Url, tcl_lsp_db::AnalyserConfig)>>>,
+    folder_db_configs: Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
     /// Pull-diagnostic cache, updated as each push run publishes so the
     /// `textDocument/diagnostic` / `workspace/diagnostic` paths return the
     /// last-published set.
-    pull_diag_cache: Arc<Mutex<HashMap<Url, PullDiagEntry>>>,
+    pull_diag_cache: Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
     /// Whether the opt-in XC100-301 translatability diagnostics are enabled
     /// for this document (resolved per folder in [`Backend::diag_inputs`]).
     /// Only takes effect on `f5-irules` documents.
@@ -281,7 +279,7 @@ impl DiagInputs {
     /// debounce, once a burst's edits have settled — makes the worker robust to
     /// out-of-order edit processing: it always analyses the latest committed
     /// state.  `None` when the document is not open.
-    async fn capture_job(&self, uri: &Url) -> Option<DiagJob> {
+    async fn capture_job(&self, uri: &Uri) -> Option<DiagJob> {
         let (text, dialect, language_id, revision, version) = {
             let docs = self.documents.lock().await;
             let doc = docs.get(uri)?;
@@ -326,7 +324,7 @@ impl DiagInputs {
 /// diagnostics path no longer needs the uncancellable direct-`analyse` detour
 /// that previously decoupled it from salsa to avoid write-contention stalls.
 #[allow(clippy::too_many_lines)]
-async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bool {
+async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bool {
     // Returns whether this version is **settled** (published, intentionally
     // skipped as superseded, or a BIG-IP no-op).  `false` means the run was
     // cancelled mid-flight and the caller should retry the document's latest
@@ -449,8 +447,9 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
             // diagnostics rather than spinning the CPU.
             Err(e) => {
                 eprintln!(
-                    "tcl-lsp: diagnostics worker panicked for {uri} (is_panic={}); \
+                    "tcl-lsp: diagnostics worker panicked for {} (is_panic={}); \
                      skipping this document's diagnostics to avoid a retry livelock",
+                    uri.as_str(),
                     e.is_panic(),
                 );
                 return true;
@@ -490,8 +489,9 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
             // Deterministic worker panic — settle instead of livelocking.
             Err(e) => {
                 eprintln!(
-                    "tcl-lsp: compiler-check worker panicked for {uri} (is_panic={}); \
+                    "tcl-lsp: compiler-check worker panicked for {} (is_panic={}); \
                      skipping this document's diagnostics to avoid a retry livelock",
+                    uri.as_str(),
                     e.is_panic(),
                 );
                 return true;
@@ -614,7 +614,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
 /// Holds the LSP `Client` for outbound notifications, a document
 /// store keyed on URL, and a per-dialect [`CommandRegistry`]
 /// cache. Constructed once per LSP session by
-/// [`tower_lsp::LspService::new`].
+/// [`tower_lsp_server::LspService::new`].
 ///
 /// Each dialect gets its own cached registry built lazily on the
 /// first request that names it — feature providers in
@@ -625,7 +625,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
 pub struct Backend {
     client: Client,
     /// Open documents. `Arc` so the detached diagnostics task can hold it.
-    documents: Arc<Mutex<HashMap<Url, DocumentState>>>,
+    documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
     /// Per-URI coalescing diagnostics scheduler state.  Each edit marks the
     /// document dirty and, if no worker is running, starts one; the single
     /// worker debounces, then repeatedly analyses the document's **latest**
@@ -634,7 +634,7 @@ pub struct Backend {
     /// are always published even under heavy edit bursts / CPU load — replacing
     /// the older per-edit generation-counter scheme, which could drop the last
     /// run with no retry.
-    diag_slots: Arc<Mutex<HashMap<Url, DiagSlot>>>,
+    diag_slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     /// Fallback dialect string used when ``did_open`` cannot derive
     /// one from the ``languageId`` and no per-session
     /// ``workspace/didChangeConfiguration`` has been received yet.
@@ -643,11 +643,11 @@ pub struct Backend {
     default_dialect: Mutex<String>,
     /// Workspace folder roots received from `initialize` /
     /// `workspace/didChangeWorkspaceFolders`.  Stored as
-    /// `Url` (typically `file://...` directories).
+    /// `Uri` (typically `file://...` directories).
     /// The folder list
     /// supports cross-document features (workspace symbols
     /// already walks every cached document).
-    workspace_folders: Mutex<Vec<Url>>,
+    workspace_folders: Mutex<Vec<Uri>>,
     /// Optional per-folder dialect override map keyed on the
     /// folder URL prefix (typically `file://...`).  Populated
     /// from the `initializationOptions.folderDialects` JSON
@@ -655,20 +655,20 @@ pub struct Backend {
     /// with mixed dialects to parse correctly by selecting the
     /// longest-prefix folder's dialect when a document is
     /// opened.
-    folder_dialects: Mutex<Vec<(Url, String)>>,
+    folder_dialects: Mutex<Vec<(Uri, String)>>,
     /// Per-folder editor configuration overrides (diagnostics, optimiser,
     /// formatting, feature toggles), keyed by folder URI and resolved by
     /// longest prefix at read time.  Populated by the per-folder
     /// `workspace/configuration` pull.  Empty in a single-root workspace, where
     /// every read falls back to the process-global fields below.
-    folder_configs: Mutex<Vec<(Url, FolderConfig)>>,
+    folder_configs: Mutex<Vec<(Uri, FolderConfig)>>,
     /// Per-folder salsa `AnalyserConfig` input handles, present only for folders
     /// that override the disabled-diagnostics set or non-ASCII mode.  The
     /// diagnostics path resolves the handle by longest prefix so a folder's
     /// W-code suppression reaches the cached `file_analysis` query, not just the
     /// server-side lift.  Folders without such overrides fall back to
     /// [`Backend::db_config`].
-    folder_db_configs: Arc<Mutex<Vec<(Url, tcl_lsp_db::AnalyserConfig)>>>,
+    folder_db_configs: Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
     /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
     /// [`NonAsciiMode::Default`] until an editor configures it via
     /// `initializationOptions` or `workspace/didChangeConfiguration`.
@@ -713,7 +713,7 @@ pub struct Backend {
     db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
     /// Per-URI salsa `SourceFile` input handles — the input-of-record the
     /// query graph reads.  Kept current by `did_open` / `did_change`.
-    db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
+    db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
     /// The salsa `Project` input — the workspace file set, kept in lock-step with
     /// `db_files` (re-set only when membership changes, on open/close), driving
     /// the cross-file `project_diagnostics` query.
@@ -727,7 +727,7 @@ pub struct Backend {
     /// pull-diagnostic path.  Written by the push pipeline and read by the
     /// `textDocument/diagnostic` / `workspace/diagnostic` handlers; evicted on
     /// `did_close`.
-    pull_diag_cache: Arc<Mutex<HashMap<Url, PullDiagEntry>>>,
+    pull_diag_cache: Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
 }
 
 /// Resolved `tclLsp.features.*` toggle state.
@@ -872,8 +872,8 @@ struct FolderConfig {
 
 /// Pick the value associated with the **longest** folder URI that `uri` sits
 /// under.
-fn longest_folder_match<'a, T>(entries: &'a [(Url, T)], uri: &Url) -> Option<&'a T> {
-    let mut best: Option<&'a (Url, T)> = None;
+fn longest_folder_match<'a, T>(entries: &'a [(Uri, T)], uri: &Uri) -> Option<&'a T> {
+    let mut best: Option<&'a (Uri, T)> = None;
     for entry in entries {
         if uri_under_folder(uri.as_str(), entry.0.as_str())
             && best.is_none_or(|b| entry.0.as_str().len() > b.0.as_str().len())
@@ -934,7 +934,7 @@ impl Backend {
     /// Create or update the salsa `SourceFile` input for `uri`.  Called by
     /// `did_open` / `did_change` so the query graph always reads current text.
     /// Lock order is always `db` then `db_files`.
-    async fn db_set_source(&self, uri: &Url, text: String, dialect: String) {
+    async fn db_set_source(&self, uri: &Uri, text: String, dialect: String) {
         use salsa::Setter as _;
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
@@ -954,7 +954,7 @@ impl Backend {
 
     /// Drop the salsa `SourceFile` input for `uri` (on `did_close`).  Lock order
     /// is `db` → `db_files` → `db_project`, matching [`Self::db_set_source`].
-    async fn db_remove_source(&self, uri: &Url) {
+    async fn db_remove_source(&self, uri: &Uri) {
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
         if files.remove(uri).is_some() {
@@ -969,7 +969,7 @@ impl Backend {
     /// large tree).  Used so cross-file diagnostics resolve against the *whole*
     /// workspace (matching `workspace_index`), not only open documents.  Lock order
     /// is `db` → `db_files` → `db_project`, as everywhere.
-    async fn db_set_sources_batch(&self, entries: &[(Url, String, String)]) {
+    async fn db_set_sources_batch(&self, entries: &[(Uri, String, String)]) {
         use salsa::Setter as _;
         if entries.is_empty() {
             return;
@@ -996,7 +996,7 @@ impl Backend {
     /// Drop many salsa `SourceFile` inputs at once (files under a removed workspace
     /// folder), re-setting the `Project` once if membership changed.  Lock order is
     /// `db` → `db_files` → `db_project`.
-    async fn db_remove_sources_batch(&self, uris: &[Url]) {
+    async fn db_remove_sources_batch(&self, uris: &[Uri]) {
         if uris.is_empty() {
             return;
         }
@@ -1022,11 +1022,11 @@ impl Backend {
     /// re-sets, so workers holding it keep reading the current value.
     fn sync_db_project(
         db: &mut tcl_lsp_db::TclDatabase,
-        files: &HashMap<Url, tcl_lsp_db::SourceFile>,
+        files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
         project: &mut Option<tcl_lsp_db::Project>,
     ) {
         use salsa::Setter as _;
-        let mut entries: Vec<(&Url, &tcl_lsp_db::SourceFile)> = files.iter().collect();
+        let mut entries: Vec<(&Uri, &tcl_lsp_db::SourceFile)> = files.iter().collect();
         entries.sort_by(|a, b| a.0.cmp(b.0));
         let sources: Vec<tcl_lsp_db::SourceFile> = entries.into_iter().map(|(_, &f)| f).collect();
         match *project {
@@ -1046,7 +1046,7 @@ impl Backend {
         // Snapshot `(uri, language_id, current dialect)` first — the async
         // `dialect_for_open` calls lock `folder_dialects` / `default_dialect`,
         // so they must not run while the `documents` lock is held.
-        let snapshot: Vec<(Url, String, String)> = {
+        let snapshot: Vec<(Uri, String, String)> = {
             let docs = self.documents.lock().await;
             docs.iter()
                 .map(|(uri, doc)| (uri.clone(), doc.language_id.clone(), doc.dialect.clone()))
@@ -1105,7 +1105,7 @@ impl Backend {
     /// back to a direct computation (behaviour preserved).
     async fn db_document_symbols(
         &self,
-        uri: &Url,
+        uri: &Uri,
     ) -> Option<Vec<tcl_lsp_core::document_symbols::DocumentSymbol>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = *self.db_config.lock().await;
@@ -1126,7 +1126,7 @@ impl Backend {
     /// keeps the on-demand feature analyses (hover / definition / references /
     /// completion / code-actions) consistent with the published squiggles in a
     /// multi-root workspace.
-    async fn resolved_db_config(&self, uri: &Url) -> tcl_lsp_db::AnalyserConfig {
+    async fn resolved_db_config(&self, uri: &Uri) -> tcl_lsp_db::AnalyserConfig {
         let folder = self.folder_db_configs.lock().await;
         match longest_folder_match(&folder, uri) {
             Some(cfg) => *cfg,
@@ -1140,7 +1140,7 @@ impl Backend {
     /// shares the memoised analysis (no deep clone of `AnalysisResult`).
     async fn db_file_analysis(
         &self,
-        uri: &Url,
+        uri: &Uri,
     ) -> Option<Arc<tcl_compiler::analyser::AnalysisResult>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
@@ -1157,7 +1157,7 @@ impl Backend {
     /// `None` when the input is absent or a concurrent edit cancels the read.
     async fn db_semantic_tokens(
         &self,
-        uri: &Url,
+        uri: &Uri,
     ) -> Option<tcl_lsp_core::semantic_tokens::SemanticTokens> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let snapshot = self.db.lock().await.clone();
@@ -1177,7 +1177,7 @@ impl Backend {
     /// concurrent edit cancelled the read.
     async fn cached_analysis(
         &self,
-        uri: &Url,
+        uri: &Uri,
     ) -> Option<Arc<tcl_compiler::analyser::AnalysisResult>> {
         self.db_file_analysis(uri).await
     }
@@ -1188,7 +1188,7 @@ impl Backend {
     /// a `spawn_blocking` worker (providers deref it via `&`).
     async fn analysis_for(
         &self,
-        uri: &Url,
+        uri: &Uri,
         text: String,
         dialect: String,
     ) -> Arc<tcl_compiler::analyser::AnalysisResult> {
@@ -1218,7 +1218,7 @@ impl Backend {
     /// URLs.  Used by cross-document features (workspace
     /// symbols, cross-doc references / rename / call-
     /// hierarchy).
-    pub async fn workspace_folder_urls(&self) -> Vec<Url> {
+    pub async fn workspace_folder_urls(&self) -> Vec<Uri> {
         self.workspace_folders.lock().await.clone()
     }
 
@@ -1227,9 +1227,10 @@ impl Backend {
     /// document features can resolve relative paths.
     /// Both the newer `workspace_folders` field and the
     /// single-root `root_uri` fallback are supported.
+    #[allow(deprecated)] // `root_uri` is the documented single-root fallback when a client sends no `workspace_folders`.
     async fn apply_workspace_folders(&self, params: &InitializeParams) {
         if let Some(folders) = &params.workspace_folders {
-            let urls: Vec<Url> = folders.iter().map(|f| f.uri.clone()).collect();
+            let urls: Vec<Uri> = folders.iter().map(|f| f.uri.clone()).collect();
             *self.workspace_folders.lock().await = urls;
         } else if let Some(root) = &params.root_uri {
             *self.workspace_folders.lock().await = vec![root.clone()];
@@ -1257,9 +1258,9 @@ impl Backend {
             .and_then(|m| m.get("folderDialects"))
             .and_then(serde_json::Value::as_object)
         {
-            let mut parsed: Vec<(Url, String)> = Vec::new();
+            let mut parsed: Vec<(Uri, String)> = Vec::new();
             for (folder_url, dialect_val) in entries {
-                let Ok(url) = Url::parse(folder_url) else {
+                let Ok(url) = Uri::from_str(folder_url) else {
                     continue;
                 };
                 let Some(dialect) = dialect_val.as_str() else {
@@ -1295,7 +1296,7 @@ impl Backend {
     ///    the document URI sits under one of the configured folder
     ///    URLs, use the deepest-matching folder's dialect.
     /// 3. The session-wide ``default_dialect`` fallback.
-    async fn dialect_for_open(&self, uri: &Url, language_id: &str) -> String {
+    async fn dialect_for_open(&self, uri: &Uri, language_id: &str) -> String {
         // An explicit BIG-IP language id (`tcl-bigip`, advertised by the VS
         // Code extension, or the canonical `f5-bigip`) selects the BIG-IP
         // config dialect even when the basename is not a canonical
@@ -1340,7 +1341,7 @@ impl Backend {
     /// Look up the per-folder dialect override for `uri`,
     /// preferring the deepest (longest-prefix) match so nested
     /// folders shadow their parents.
-    async fn resolve_folder_dialect(&self, uri: &Url) -> Option<String> {
+    async fn resolve_folder_dialect(&self, uri: &Uri) -> Option<String> {
         let folders = self.folder_dialects.lock().await;
         folder_dialect_for(uri, &folders)
     }
@@ -1383,7 +1384,7 @@ impl Backend {
         Some(mapped)
     }
 
-    async fn read_document(&self, url: &Url) -> Option<DocumentState> {
+    async fn read_document(&self, url: &Uri) -> Option<DocumentState> {
         if let Some(doc) = self.documents.lock().await.get(url).cloned() {
             return Some(doc);
         }
@@ -1392,8 +1393,9 @@ impl Backend {
         // Read them from disk so cross-document span→range
         // resolution (references / rename / call-hierarchy) can
         // reach their sources.  Non-`file://` URLs and unreadable
-        // paths fall through to `None`.
-        let path = url.to_file_path().ok()?;
+        // paths fall through to `None`.  `to_file_path` yields a borrowed
+        // `Cow<Path>`; take ownership so the path can move into the blocking task.
+        let path = url.to_file_path()?.into_owned();
         let text = tokio::task::spawn_blocking(move || std::fs::read_to_string(path))
             .await
             .ok()?
@@ -1422,16 +1424,16 @@ impl Backend {
     /// one of `folders` and is not currently open in the editor.  Used when a
     /// workspace folder is removed (`did_change_workspace_folders`) so its
     /// files stop contributing definitions / references / symbols.
-    async fn drop_index_under_folders(&self, folders: &[Url]) {
+    async fn drop_index_under_folders(&self, folders: &[Uri]) {
         if folders.is_empty() {
             return;
         }
-        let folder_strs: Vec<String> = folders.iter().map(ToString::to_string).collect();
+        let folder_strs: Vec<String> = folders.iter().map(|u| u.as_str().to_owned()).collect();
         // Hold `documents` across the open-set read + index removals (the
         // `documents` → `workspace_index` order used since the global gate was
         // retired) so a file opening mid-reconcile keeps its open-buffer entry.
         let docs = self.documents.lock().await;
-        let open: HashSet<String> = docs.keys().map(ToString::to_string).collect();
+        let open: HashSet<String> = docs.keys().map(|u| u.as_str().to_owned()).collect();
         let mut index = self.workspace_index.lock().await;
         let to_remove: Vec<String> = index
             .document_uris()
@@ -1453,36 +1455,36 @@ impl Backend {
         // Drop the same files from the salsa `Project` so their procs stop
         // resolving cross-file.  Lock order: documents (held) → db → db_files →
         // db_project, matching `did_open`.
-        let removed_urls: Vec<Url> = to_remove
+        let removed_urls: Vec<Uri> = to_remove
             .iter()
-            .filter_map(|u| Url::parse(u).ok())
+            .filter_map(|u| Uri::from_str(u).ok())
             .collect();
         self.db_remove_sources_batch(&removed_urls).await;
         drop(docs);
     }
 
-    async fn reindex_index_from_disk(&self, uri: &Url) {
+    async fn reindex_index_from_disk(&self, uri: &Uri) {
         // Read + analyse off-lock.  Keep the source text + dialect too: the salsa
         // db (cross-file diagnostics) must track the same on-disk population as the
         // workspace index, so a proc defined in a closed/never-opened file still
         // suppresses W123 / drives the arity error in its siblings.
-        let scanned: Option<(String, String, AnalysisResult)> = if let Ok(path) = uri.to_file_path()
-        {
-            let dialect = match self.resolve_folder_dialect(uri).await {
-                Some(d) => d,
-                None => self.default_dialect.lock().await.clone(),
+        let scanned: Option<(String, String, AnalysisResult)> =
+            if let Some(path) = uri.to_file_path().map(std::borrow::Cow::into_owned) {
+                let dialect = match self.resolve_folder_dialect(uri).await {
+                    Some(d) => d,
+                    None => self.default_dialect.lock().await.clone(),
+                };
+                tokio::task::spawn_blocking(move || {
+                    let text = std::fs::read_to_string(path).ok()?;
+                    let analysis = Analyser::new().analyse(&text, &dialect).clone();
+                    Some((text, dialect, analysis))
+                })
+                .await
+                .ok()
+                .flatten()
+            } else {
+                None
             };
-            tokio::task::spawn_blocking(move || {
-                let text = std::fs::read_to_string(path).ok()?;
-                let analysis = Analyser::new().analyse(&text, &dialect).clone();
-                Some((text, dialect, analysis))
-            })
-            .await
-            .ok()
-            .flatten()
-        } else {
-            None
-        };
         // Hold `documents` across the still-closed re-check and both updates (the
         // `documents` → db → `workspace_index` order established by `did_open`) so a
         // concurrent `did_open` cannot open the buffer between them and have its
@@ -1519,7 +1521,7 @@ impl Backend {
         // Snapshot `(uri, dialect)` first so the per-document
         // `xc_diagnostics_enabled` / `schedule_diagnostics` calls don't run while
         // the `documents` lock is held.
-        let snapshot: Vec<(Url, String)> = {
+        let snapshot: Vec<(Uri, String)> = {
             let docs = self.documents.lock().await;
             docs.iter()
                 .map(|(uri, doc)| (uri.clone(), doc.dialect.clone()))
@@ -1535,7 +1537,7 @@ impl Backend {
     /// Shared helper for the goto-definition family — runs the
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
-    async fn compute_definition(&self, uri: &Url, pos: Position) -> jsonrpc::Result<Vec<Location>> {
+    async fn compute_definition(&self, uri: &Uri, pos: Position) -> jsonrpc::Result<Vec<Location>> {
         let Some(doc) = self.read_document(uri).await else {
             return Ok(Vec::new());
         };
@@ -1585,7 +1587,7 @@ impl Backend {
     /// documents.
     async fn cross_document_definition(
         &self,
-        uri: &Url,
+        uri: &Uri,
         source: &str,
         pos: Position,
     ) -> jsonrpc::Result<Vec<Location>> {
@@ -1627,7 +1629,7 @@ impl Backend {
     ) -> Vec<Location> {
         let mut locations = Vec::new();
         for (target_uri, span) in targets {
-            let Ok(parsed) = Url::parse(&target_uri) else {
+            let Ok(parsed) = Uri::from_str(&target_uri) else {
                 continue;
             };
             let Some(target_doc) = self.read_document(&parsed).await else {
@@ -1661,7 +1663,7 @@ impl Backend {
     /// symbol's call sites to gather.
     async fn resolve_workspace_symbol(
         &self,
-        uri: &Url,
+        uri: &Uri,
         source: &str,
         analysis: &AnalysisResult,
         pos: Position,
@@ -1712,7 +1714,7 @@ impl Backend {
     /// against their defining documents.
     async fn cross_document_references(
         &self,
-        uri: &Url,
+        uri: &Uri,
         source: &str,
         analysis: &AnalysisResult,
         pos: Position,
@@ -1752,12 +1754,12 @@ impl Backend {
     /// and merges into the per-URI edit map (deduped).
     async fn add_cross_document_rename_edits(
         &self,
-        uri: &Url,
+        uri: &Uri,
         source: &str,
         analysis: &AnalysisResult,
         pos: Position,
         new_name: &str,
-        changes: &mut std::collections::HashMap<Url, Vec<TextEdit>>,
+        changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
     ) {
         let Some((simple, qualified)) = self
             .resolve_workspace_symbol(uri, source, analysis, pos)
@@ -1776,7 +1778,7 @@ impl Backend {
             )
         };
         for intent in intents {
-            let Ok(parsed) = Url::parse(&intent.uri) else {
+            let Ok(parsed) = Uri::from_str(&intent.uri) else {
                 continue;
             };
             let Some(target_doc) = self.read_document(&parsed).await else {
@@ -1814,9 +1816,9 @@ impl Backend {
     /// `None` for the declaration span so nothing is skipped).
     async fn cross_document_incoming_calls(
         &self,
-        current_uri: &Url,
+        current_uri: &Uri,
         qualified: &str,
-    ) -> Vec<(Url, core_call_hierarchy::IncomingCall)> {
+    ) -> Vec<(Uri, core_call_hierarchy::IncomingCall)> {
         let simple = qualified.rsplit("::").next().unwrap_or(qualified);
         // Collect (uri, source, dialect) for every document *other
         // than* the current one: first the open buffers, then the
@@ -1825,8 +1827,8 @@ impl Backend {
         // files the editor never opened would be missing from the
         // incoming-call results even though they are indexed for
         // every other cross-document feature.
-        let mut open_uris: HashSet<Url> = HashSet::new();
-        let mut docs: Vec<(Url, String, String)> = {
+        let mut open_uris: HashSet<Uri> = HashSet::new();
+        let mut docs: Vec<(Uri, String, String)> = {
             let store = self.documents.lock().await;
             store
                 .iter()
@@ -1839,7 +1841,7 @@ impl Backend {
         };
         let indexed = self.workspace_index.lock().await.document_uris();
         for uri_str in indexed {
-            let Ok(uri) = Url::parse(&uri_str) else {
+            let Ok(uri) = Uri::from_str(&uri_str) else {
                 continue;
             };
             if uri == *current_uri || open_uris.contains(&uri) {
@@ -1876,7 +1878,7 @@ impl Backend {
     /// ranges from the *current* document.
     async fn cross_document_outgoing_calls(
         &self,
-        current_uri: &Url,
+        current_uri: &Uri,
         source: &str,
         dialect: &str,
         item: &core_call_hierarchy::CallHierarchyItem,
@@ -1927,7 +1929,7 @@ impl Backend {
             };
             // Convert the sibling definition's name span to a range
             // against that document's source.
-            let Ok(parsed) = Url::parse(&target_uri) else {
+            let Ok(parsed) = Uri::from_str(&target_uri) else {
                 continue;
             };
             let Some(target_doc) = self.read_document(&parsed).await else {
@@ -1977,7 +1979,7 @@ impl Backend {
         let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
             return Ok(None);
         };
-        let Ok(uri) = Url::parse(uri_str) else {
+        let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
         let Some(doc) = self.read_document(&uri).await else {
@@ -2050,7 +2052,7 @@ impl Backend {
         let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
             return Ok(None);
         };
-        let Ok(uri) = Url::parse(uri_str) else {
+        let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
         let Some(doc) = self.read_document(&uri).await else {
@@ -2257,7 +2259,7 @@ impl Backend {
         let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
             return Ok(None);
         };
-        let Ok(uri) = Url::parse(uri_str) else {
+        let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
         let Some(doc) = self.read_document(&uri).await else {
@@ -2344,7 +2346,7 @@ impl Backend {
         // Resolve the dialect via the open document when the URI names one,
         // else the session default — never `null`, so a polling client always
         // sees a concrete value.
-        let dialect = match Url::parse(uri_str) {
+        let dialect = match Uri::from_str(uri_str) {
             Ok(uri) => match self.read_document(&uri).await {
                 Some(doc) => doc.dialect,
                 None => self.default_dialect.lock().await.clone(),
@@ -2361,7 +2363,7 @@ impl Backend {
         // reflect what actually applies to `uri_str`.  A URI naming no
         // overriding folder (or a single-root workspace) falls back to the
         // global `db_config`, matching the previous behaviour exactly.
-        let (mut disabled_sorted, mode) = if let Ok(uri) = Url::parse(uri_str) {
+        let (mut disabled_sorted, mode) = if let Ok(uri) = Uri::from_str(uri_str) {
             let config = self.resolved_db_config(&uri).await;
             let db = self.db.lock().await;
             (
@@ -2490,7 +2492,7 @@ impl Backend {
                 })
                 .collect();
             if let Ok(values) = self.client.configuration(items).await {
-                let parsed: Vec<(Url, FolderConfig)> = folders
+                let parsed: Vec<(Uri, FolderConfig)> = folders
                     .into_iter()
                     .zip(values)
                     .filter_map(|(folder, cfg)| parse_folder_config(&cfg).map(|fc| (folder, fc)))
@@ -2505,7 +2507,7 @@ impl Backend {
     /// overrides the disabled-diagnostics set or non-ASCII mode (others inherit
     /// [`Backend::db_config`]); existing handles are reused across re-pulls so
     /// the salsa store does not accumulate dead config inputs.
-    async fn apply_folder_configs(&self, parsed: Vec<(Url, FolderConfig)>) {
+    async fn apply_folder_configs(&self, parsed: Vec<(Uri, FolderConfig)>) {
         use salsa::Setter as _;
         {
             let mut global_disabled: Vec<String> = self
@@ -2519,7 +2521,7 @@ impl Backend {
             let global_mode = *self.non_ascii_mode.lock().await;
             let mut db = self.db.lock().await;
             let mut handles = self.folder_db_configs.lock().await;
-            let mut next: Vec<(Url, tcl_lsp_db::AnalyserConfig)> = Vec::new();
+            let mut next: Vec<(Uri, tcl_lsp_db::AnalyserConfig)> = Vec::new();
             for (folder, fc) in &parsed {
                 if fc.disabled_diagnostics.is_none() && fc.non_ascii_mode.is_none() {
                     continue;
@@ -2545,7 +2547,7 @@ impl Backend {
     }
 
     /// Whether the named `tclLsp.features.*` provider is enabled.
-    async fn feature_enabled(&self, feature: &str, uri: &Url) -> bool {
+    async fn feature_enabled(&self, feature: &str, uri: &Uri) -> bool {
         // A folder that explicitly sets the toggle wins for documents under it;
         // otherwise fall back to the process-global toggle state.
         {
@@ -2565,7 +2567,7 @@ impl Backend {
     /// multi-root workspace, but — unlike the default-on feature toggles — it
     /// defaults **off**, so it cannot reuse
     /// `feature_enabled` (whose absent-key fallback is `true`).
-    async fn will_save_format_enabled(&self, uri: &Url) -> bool {
+    async fn will_save_format_enabled(&self, uri: &Uri) -> bool {
         {
             let configs = self.folder_configs.lock().await;
             if let Some(fc) = longest_folder_match(&configs, uri)
@@ -2589,7 +2591,7 @@ impl Backend {
     /// `inlayTypeHints` on input (see [`FeatureToggles::apply`]).  Resolves
     /// per folder like [`Self::feature_enabled`] so a folder-scoped opt-in
     /// works in a multi-root workspace.
-    async fn inlay_family_enabled(&self, uri: &Url, family: &str) -> bool {
+    async fn inlay_family_enabled(&self, uri: &Uri, family: &str) -> bool {
         {
             let configs = self.folder_configs.lock().await;
             if let Some(fc) = longest_folder_match(&configs, uri)
@@ -2609,7 +2611,7 @@ impl Backend {
     /// per folder like [`Self::inlay_family_enabled`].  Surfaced only on
     /// `f5-irules` documents (the only dialect the `f5-xc` translator runs
     /// on).
-    async fn xc_diagnostics_enabled(&self, uri: &Url) -> bool {
+    async fn xc_diagnostics_enabled(&self, uri: &Uri) -> bool {
         self.inlay_family_enabled(uri, "xcDiagnostics").await
     }
 
@@ -2753,7 +2755,7 @@ impl Backend {
     /// configs) this is exactly the global state.
     async fn resolved_analysis_settings(
         &self,
-        uri: &Url,
+        uri: &Uri,
     ) -> (HashSet<String>, NonAsciiMode, bool, HashSet<String>) {
         let folder = {
             let configs = self.folder_configs.lock().await;
@@ -2802,7 +2804,7 @@ impl Backend {
 
     /// Resolve the formatter line length for `uri` (per-folder override, else
     /// the global `tclLsp.formatting.lineLength`).
-    async fn resolved_line_length(&self, uri: &Url) -> u32 {
+    async fn resolved_line_length(&self, uri: &Uri) -> u32 {
         let folder = {
             let configs = self.folder_configs.lock().await;
             longest_folder_match(&configs, uri).and_then(|f| f.line_length)
@@ -2844,7 +2846,7 @@ impl Backend {
     /// event loop stays responsive.
     /// Gather the document-independent handles a detached diagnostics run needs
     /// (per-edit state travels in a [`DiagJob`]).
-    async fn diag_inputs(&self, uri: &Url, dialect: &str) -> DiagInputs {
+    async fn diag_inputs(&self, uri: &Uri, dialect: &str) -> DiagInputs {
         let (disabled, non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
         let registry = self.registry_for_dialect(dialect).await;
@@ -2882,11 +2884,11 @@ impl Backend {
     /// cache.
     async fn full_diagnostics_for(
         &self,
-        uri: &Url,
+        uri: &Uri,
         text: String,
         dialect: String,
         language_id: &str,
-    ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+    ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
         let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
         // F5 dialect dispatch: BIG-IP config / iApp APL
@@ -2996,7 +2998,7 @@ impl Backend {
     #[cfg_attr(not(test), allow(dead_code))]
     async fn publish_analyser_diagnostics(
         &self,
-        uri: Url,
+        uri: Uri,
         _text: String,
         dialect: String,
         _revision: u64,
@@ -3022,7 +3024,7 @@ impl Backend {
     /// version's diagnostics are always published, even under a heavy edit burst
     /// on a loaded machine, and never runs two analyses for one document
     /// concurrently (so an edit's write is never blocked behind a stale read).
-    async fn schedule_diagnostics(&self, uri: Url, dialect: String) {
+    async fn schedule_diagnostics(&self, uri: Uri, dialect: String) {
         let start_worker = {
             let mut slots = self.diag_slots.lock().await;
             let slot = slots.entry(uri.clone()).or_default();
@@ -3107,6 +3109,35 @@ impl Backend {
         }
     }
 
+    /// Best-effort dynamic registration of
+    /// `textDocument/prepareTypeHierarchy` for Tcl source files.
+    /// `ServerCapabilities` carries no static type-hierarchy field, so the
+    /// capability is advertised through `client/registerCapability` instead.
+    /// A client without dynamic-registration support rejects the request;
+    /// that is logged and ignored.
+    async fn register_type_hierarchy(&self) {
+        let registration = Registration {
+            id: "tcl-lsp-type-hierarchy".to_owned(),
+            method: "textDocument/prepareTypeHierarchy".to_owned(),
+            register_options: serde_json::to_value(TextDocumentRegistrationOptions {
+                document_selector: Some(vec![DocumentFilter {
+                    language: Some("tcl".to_owned()),
+                    scheme: None,
+                    pattern: None,
+                }]),
+            })
+            .ok(),
+        };
+        if let Err(err) = self.client.register_capability(vec![registration]).await {
+            self.client
+                .log_message(
+                    MessageType::LOG,
+                    format!("type-hierarchy registration declined by client: {err}"),
+                )
+                .await;
+        }
+    }
+
     /// On-disk workspace-folder scan: analyse `.tcl` / `.tm`
     /// files in the workspace folders that the editor hasn't
     /// opened, merging their definitions / invocation sites into
@@ -3129,7 +3160,7 @@ impl Backend {
         let folders = self.workspace_folder_urls().await;
         let roots: Vec<PathBuf> = folders
             .iter()
-            .filter_map(|f| f.to_file_path().ok())
+            .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
             .collect();
         if roots.is_empty() {
             return;
@@ -3137,7 +3168,7 @@ impl Backend {
         // Snapshot the dialect-resolution inputs and the set of
         // open documents so the blocking worker can run without
         // touching any async mutex.
-        let open: HashSet<Url> = self.documents.lock().await.keys().cloned().collect();
+        let open: HashSet<Uri> = self.documents.lock().await.keys().cloned().collect();
         let folder_dialects = self.folder_dialects.lock().await.clone();
         let default_dialect = self.default_dialect.lock().await.clone();
 
@@ -3148,9 +3179,9 @@ impl Backend {
             }
             // Carry the source text + dialect alongside the analysis so the salsa
             // db (cross-file diagnostics) can index the same disk-backed files.
-            let mut out: Vec<(Url, String, String, AnalysisResult)> = Vec::new();
+            let mut out: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
             for path in files {
-                let Ok(uri) = Url::from_file_path(&path) else {
+                let Some(uri) = Uri::from_file_path(&path) else {
                     continue;
                 };
                 if open.contains(&uri) {
@@ -3184,17 +3215,17 @@ impl Backend {
     /// analysis cannot overwrite the open-buffer entry in either store.
     async fn merge_workspace_scan_results(
         &self,
-        analysed: &[(Url, String, String, AnalysisResult)],
+        analysed: &[(Uri, String, String, AnalysisResult)],
     ) {
         // Hold `documents` across the open-set read, the salsa-db batch, and the
         // index merge (the `documents` → db → `workspace_index` order established
         // by `did_open`) so a file opening mid-merge can't have its live buffer
         // overwritten by this disk-backed scan result in either store.
         let docs = self.documents.lock().await;
-        let open: HashSet<String> = docs.keys().map(ToString::to_string).collect();
+        let open: HashSet<String> = docs.keys().map(|u| u.as_str().to_owned()).collect();
         // Salsa db first (db → db_files → db_project), before the workspace_index
         // lock, to preserve the global lock order.
-        let db_entries: Vec<(Url, String, String)> = analysed
+        let db_entries: Vec<(Uri, String, String)> = analysed
             .iter()
             .filter(|(uri, _, _, _)| !open.contains(uri.as_str()))
             .map(|(uri, text, dialect, _)| (uri.clone(), text.clone(), dialect.clone()))
@@ -3211,7 +3242,6 @@ impl Backend {
     }
 }
 
-#[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         self.apply_workspace_folders(&params).await;
@@ -3240,6 +3270,7 @@ impl LanguageServer for Backend {
                 name: "tcl-lsp".to_owned(),
                 version: Some(env!("CARGO_PKG_VERSION").to_owned()),
             }),
+            ..Default::default()
         })
     }
 
@@ -3257,6 +3288,9 @@ impl LanguageServer for Backend {
         // Best-effort: clients without dynamic-registration support reject
         // this, which is harmless — the startup scan still seeds the index.
         self.register_file_watchers().await;
+        // Advertise type-hierarchy support; `ServerCapabilities` has no
+        // static field for it, so register it dynamically here.
+        self.register_type_hierarchy().await;
         // Seed the cross-document index with on-disk project files
         // the editor hasn't opened yet.
         self.scan_workspace_folders().await;
@@ -3443,7 +3477,7 @@ impl LanguageServer for Backend {
         // index and configuration so multi-root behaviour is not frozen at the
         // `initialize` snapshot.  Drops removed-folder state, loads/scans
         // added folders, and re-pulls config.
-        let removed: Vec<Url> = params.event.removed.iter().map(|f| f.uri.clone()).collect();
+        let removed: Vec<Uri> = params.event.removed.iter().map(|f| f.uri.clone()).collect();
         {
             let mut folders = self.workspace_folders.lock().await;
             for uri in &removed {
@@ -4074,7 +4108,7 @@ impl LanguageServer for Backend {
             data: None,
         })?;
         // Tag local results with the request URI.
-        let mut tagged: Vec<(Url, core_call_hierarchy::IncomingCall)> =
+        let mut tagged: Vec<(Uri, core_call_hierarchy::IncomingCall)> =
             local.into_iter().map(|c| (uri.clone(), c)).collect();
         // Cross-document callers: run the externally-targeted
         // incoming-calls pass over every *other* analysed doc.
@@ -4166,11 +4200,67 @@ impl LanguageServer for Backend {
         Ok(Some(lifted))
     }
 
-    // Note: type_hierarchy LSP methods aren't exposed by
-    // tower-lsp 0.20's `LanguageServer` trait. The core
-    // provider in `tcl_lsp_core::type_hierarchy` exists but
-    // cannot be wired until a tower-lsp version surfaces
-    // these methods.
+    async fn prepare_type_hierarchy(
+        &self,
+        params: TypeHierarchyPrepareParams,
+    ) -> jsonrpc::Result<Option<Vec<TypeHierarchyItem>>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let pos = params.text_document_position_params.position;
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let items = tokio::task::spawn_blocking(move || {
+            core_type_hierarchy::prepare(&doc.text, pos.line, pos.character, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("type_hierarchy worker panicked: {err}").into(),
+            data: None,
+        })?;
+        if items.is_empty() {
+            return Ok(None);
+        }
+        let lifted = items
+            .into_iter()
+            .map(|i| TypeHierarchyItem {
+                name: i.name,
+                kind: SymbolKind::CLASS,
+                tags: None,
+                detail: i.detail,
+                uri: uri.clone(),
+                range: lift_lsp_range(i.range),
+                selection_range: lift_lsp_range(i.selection_range),
+                data: None,
+            })
+            .collect();
+        Ok(Some(lifted))
+    }
+
+    async fn supertypes(
+        &self,
+        _params: TypeHierarchySupertypesParams,
+    ) -> jsonrpc::Result<Option<Vec<TypeHierarchyItem>>> {
+        // Supertype resolution needs the class-hierarchy index the analyser
+        // does not yet populate; report no supertypes rather than an error.
+        Ok(Some(Vec::new()))
+    }
+
+    async fn subtypes(
+        &self,
+        _params: TypeHierarchySubtypesParams,
+    ) -> jsonrpc::Result<Option<Vec<TypeHierarchyItem>>> {
+        // Subtype resolution needs the class-hierarchy index the analyser
+        // does not yet populate; report no subtypes rather than an error.
+        Ok(Some(Vec::new()))
+    }
 
     async fn linked_editing_range(
         &self,
@@ -4313,21 +4403,21 @@ impl LanguageServer for Backend {
         // Workspace pull: report every open document's last-published set from
         // the cache, honouring the per-URI `previousResultId` the client sends
         // so unchanged documents cost nothing.
-        let previous: HashMap<Url, String> = params
+        let previous: HashMap<Uri, String> = params
             .previous_result_ids
             .into_iter()
             .map(|p| (p.uri, p.value))
             .collect();
         // Snapshot the cache (clone out) so we don't hold its lock while also
         // taking the `documents` lock for versions.
-        let entries: Vec<(Url, PullDiagEntry)> = self
+        let entries: Vec<(Uri, PullDiagEntry)> = self
             .pull_diag_cache
             .lock()
             .await
             .iter()
             .map(|(uri, entry)| (uri.clone(), entry.clone()))
             .collect();
-        let versions: HashMap<Url, Option<i64>> = {
+        let versions: HashMap<Uri, Option<i64>> = {
             let docs = self.documents.lock().await;
             entries
                 .iter()
@@ -4482,7 +4572,7 @@ impl LanguageServer for Backend {
     async fn symbol(
         &self,
         params: WorkspaceSymbolParams,
-    ) -> jsonrpc::Result<Option<Vec<SymbolInformation>>> {
+    ) -> jsonrpc::Result<Option<WorkspaceSymbolResponse>> {
         // Walk every cached document and collect matching
         // symbols.  This iterates the document
         // store on the LSP loop (acquiring the mutex briefly).
@@ -4529,7 +4619,7 @@ impl LanguageServer for Backend {
         if all.is_empty() {
             return Ok(None);
         }
-        Ok(Some(all))
+        Ok(Some(WorkspaceSymbolResponse::Flat(all)))
     }
 
     async fn document_link(
@@ -4553,7 +4643,6 @@ impl LanguageServer for Backend {
         // root unset and only absolute paths surface as links.
         let workspace_root = uri
             .to_file_path()
-            .ok()
             .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
             .and_then(|p| p.to_str().map(str::to_owned));
         // Pure-CPU segmentation on a worker so a parser panic is contained
@@ -4584,7 +4673,7 @@ impl LanguageServer for Backend {
                         character: l.end_character,
                     },
                 },
-                target: Url::parse(&l.target).ok(),
+                target: Uri::from_str(&l.target).ok(),
                 tooltip: l.tooltip,
                 data: None,
             })
@@ -4709,7 +4798,7 @@ impl LanguageServer for Backend {
                 // informational (their eager title is authoritative).
                 data: (!l.qname.is_empty())
                     .then(|| serde_json::json!({ "qname": l.qname, "uri": uri_str.clone() })),
-                command: Some(tower_lsp::lsp_types::Command {
+                command: Some(tower_lsp_server::ls_types::Command {
                     title: l.command_title,
                     command: l.command,
                     arguments: None,
@@ -4737,7 +4826,7 @@ impl LanguageServer for Backend {
             .and_then(|data| {
                 let qname = data.get("qname").and_then(serde_json::Value::as_str)?;
                 let uri = data.get("uri").and_then(serde_json::Value::as_str)?;
-                Some((qname.to_owned(), Url::parse(uri).ok()?))
+                Some((qname.to_owned(), Uri::from_str(uri).ok()?))
             })
         else {
             return Ok(lens);
@@ -4767,7 +4856,7 @@ impl LanguageServer for Backend {
         })?;
         let mut lens = lens;
         if let Some(matching) = lenses.into_iter().find(|l| l.qname == qname) {
-            lens.command = Some(tower_lsp::lsp_types::Command {
+            lens.command = Some(tower_lsp_server::ls_types::Command {
                 title: matching.command_title,
                 command: matching.command,
                 arguments: None,
@@ -4813,8 +4902,8 @@ impl LanguageServer for Backend {
             .iter()
             .filter_map(|d| {
                 let code = match d.code.as_ref()? {
-                    tower_lsp::lsp_types::NumberOrString::String(s) => s.clone(),
-                    tower_lsp::lsp_types::NumberOrString::Number(n) => n.to_string(),
+                    tower_lsp_server::ls_types::NumberOrString::String(s) => s.clone(),
+                    tower_lsp_server::ls_types::NumberOrString::Number(n) => n.to_string(),
                 };
                 Some(core_code_actions::ContextDiagnostic {
                     code,
@@ -4906,7 +4995,7 @@ impl LanguageServer for Backend {
                     })
                     .collect();
                 changes.insert(uri.clone(), lifted_edits);
-                let command = a.command.map(|c| tower_lsp::lsp_types::Command {
+                let command = a.command.map(|c| tower_lsp_server::ls_types::Command {
                     title: a.title.clone(),
                     command: c.command,
                     arguments: Some(c.args.into_iter().map(serde_json::Value::from).collect()),
@@ -4919,7 +5008,9 @@ impl LanguageServer for Backend {
                     .map(|def| serde_json::json!({ "data_group_definition": def }));
                 CodeActionOrCommand::CodeAction(CodeAction {
                     title: a.title,
-                    kind: Some(tower_lsp::lsp_types::CodeActionKind::new(a.kind.as_str())),
+                    kind: Some(tower_lsp_server::ls_types::CodeActionKind::new(
+                        a.kind.as_str(),
+                    )),
                     diagnostics: None,
                     edit: Some(WorkspaceEdit {
                         changes: Some(changes),
@@ -5161,7 +5252,7 @@ impl LanguageServer for Backend {
             message: format!("rename worker panicked: {err}").into(),
             data: None,
         })?;
-        let mut changes: std::collections::HashMap<Url, Vec<TextEdit>> =
+        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
         // An empty in-document result means the rename was *rejected*
         // (collision with an existing symbol, an unsafe / built-in target
@@ -5226,7 +5317,7 @@ impl LanguageServer for Backend {
             .workspace_folder_urls()
             .await
             .iter()
-            .map(Url::to_string)
+            .map(|u| u.as_str().to_owned())
             .collect();
         let raw_edits: Vec<core_file_ops::RenameEdit> = {
             let index = self.workspace_index.lock().await;
@@ -5243,9 +5334,9 @@ impl LanguageServer for Backend {
         }
         // Group by dependent URI, resolving each span against that
         // document's source (open buffer or on-disk fallback).
-        let mut by_dep: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+        let mut by_dep: HashMap<Uri, Vec<TextEdit>> = HashMap::new();
         for edit in raw_edits {
-            let Ok(dep_url) = Url::parse(&edit.uri) else {
+            let Ok(dep_url) = Uri::from_str(&edit.uri) else {
                 continue;
             };
             let Some(doc) = self.read_document(&dep_url).await else {
@@ -5280,13 +5371,13 @@ impl LanguageServer for Backend {
     /// cross-document features (including future renames) stay current.
     async fn did_rename_files(&self, params: RenameFilesParams) {
         for f in &params.files {
-            if let Ok(old_url) = Url::parse(&f.old_uri) {
+            if let Ok(old_url) = Uri::from_str(&f.old_uri) {
                 self.workspace_index
                     .lock()
                     .await
                     .remove_document(old_url.as_str());
             }
-            if let Ok(new_url) = Url::parse(&f.new_uri) {
+            if let Ok(new_url) = Uri::from_str(&f.new_uri) {
                 self.reindex_index_from_disk(&new_url).await;
             }
         }
@@ -5400,17 +5491,17 @@ fn lift_completion_item(item: CoreCompletionItem, line: u32) -> CompletionItem {
     // An explicit single-line replacement edit (var / switch / array) — the
     // editor applies it verbatim so the `$`/`-` prefix isn't dropped/duplicated.
     let text_edit = item.text_edit.map(|e| {
-        tower_lsp::lsp_types::CompletionTextEdit::Edit(tower_lsp::lsp_types::TextEdit {
-            range: tower_lsp::lsp_types::Range {
-                start: tower_lsp::lsp_types::Position::new(line, e.start_char),
-                end: tower_lsp::lsp_types::Position::new(line, e.end_char),
+        tower_lsp_server::ls_types::CompletionTextEdit::Edit(tower_lsp_server::ls_types::TextEdit {
+            range: tower_lsp_server::ls_types::Range {
+                start: tower_lsp_server::ls_types::Position::new(line, e.start_char),
+                end: tower_lsp_server::ls_types::Position::new(line, e.end_char),
             },
             new_text: e.new_text,
         })
     });
     let documentation = item
         .documentation
-        .map(tower_lsp::lsp_types::Documentation::String);
+        .map(tower_lsp_server::ls_types::Documentation::String);
     CompletionItem {
         label: item.label,
         kind: Some(lift_completion_kind(item.kind)),
@@ -5422,7 +5513,7 @@ fn lift_completion_item(item: CoreCompletionItem, line: u32) -> CompletionItem {
         // filter on their `tcl-…` prefix.
         insert_text_format: item
             .is_snippet
-            .then_some(tower_lsp::lsp_types::InsertTextFormat::SNIPPET),
+            .then_some(tower_lsp_server::ls_types::InsertTextFormat::SNIPPET),
         filter_text: item.filter_text,
         text_edit,
         ..CompletionItem::default()
@@ -5430,7 +5521,7 @@ fn lift_completion_item(item: CoreCompletionItem, line: u32) -> CompletionItem {
 }
 
 /// Materialise the `tcl-lsp-core::selection_range` flat-vector
-/// representation into a `tower_lsp` `SelectionRange` tree.
+/// representation into an `ls_types` `SelectionRange` tree.
 ///
 /// The chain in `core` is innermost first, with each link
 /// pointing at its parent index; the LSP wire shape recurses
@@ -5552,7 +5643,7 @@ fn parse_non_ascii_mode(s: &str) -> NonAsciiMode {
 /// overrides the server's default indentation by LSP contract; every
 /// other formatter knob keeps its default.
 fn formatter_config_from_options(
-    options: &tower_lsp::lsp_types::FormattingOptions,
+    options: &tower_lsp_server::ls_types::FormattingOptions,
 ) -> core_formatting::FormatterConfig {
     let indent_size = usize::try_from(options.tab_size).unwrap_or(4).max(1);
     let indent_style = if options.insert_spaces {
@@ -5777,9 +5868,9 @@ const BIGIP_DEFAULT_PARTITION: &str = "Common";
 /// end column is `end.character + 1`.
 fn lift_config_diagnostic(
     d: &tcl_bigip::validator::ConfigDiagnostic,
-) -> tower_lsp::lsp_types::Diagnostic {
-    use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
-    tower_lsp::lsp_types::Diagnostic {
+) -> tower_lsp_server::ls_types::Diagnostic {
+    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
+    tower_lsp_server::ls_types::Diagnostic {
         range: Range {
             start: Position {
                 line: d.range.start.line,
@@ -5832,8 +5923,8 @@ fn lift_xc_diagnostics(
     source: &str,
     disabled: &HashSet<String>,
     suppressed: &std::collections::HashMap<i32, HashSet<String>>,
-) -> Vec<tower_lsp::lsp_types::Diagnostic> {
-    use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
     f5_xc::get_xc_diagnostics(source)
         .into_iter()
         .filter(|d| !disabled.contains(&d.code))
@@ -5844,7 +5935,7 @@ fn lift_xc_diagnostics(
                 suppressed,
             )
         })
-        .map(|d| tower_lsp::lsp_types::Diagnostic {
+        .map(|d| tower_lsp_server::ls_types::Diagnostic {
             range: Range {
                 start: Position {
                     line: d.range.start.line,
@@ -5878,7 +5969,7 @@ fn lift_xc_diagnostics(
 fn bigip_config_diagnostics(
     text: &str,
     disabled: &HashSet<String>,
-) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     tcl_bigip::validator::validate_bigip_source(text, BIGIP_DEFAULT_PARTITION)
         .into_iter()
         .filter(|d| !disabled.contains(&d.code))
@@ -5896,7 +5987,7 @@ fn apl_presentation_diagnostics(
     text: &str,
     impl_var_refs: Option<&[tcl_bigip::apl::IappVarRef]>,
     disabled: &HashSet<String>,
-) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     let model = tcl_bigip::apl::parse_apl(text);
     tcl_bigip::apl::validate_iapp_presentation(&model, impl_var_refs, "f5-iapps")
         .into_iter()
@@ -5908,7 +5999,7 @@ fn apl_presentation_diagnostics(
 /// Whether `uri` (with its editor `language_id`) is an iApp APL
 /// presentation document: an explicit APL
 /// language id, or a basename of `*.apl` / `presentation`.
-fn is_apl_source(uri: &Url, language_id: &str) -> bool {
+fn is_apl_source(uri: &Uri, language_id: &str) -> bool {
     if matches!(
         language_id.to_ascii_lowercase().as_str(),
         "tcl-apl" | "apl-lang" | "apl"
@@ -5934,10 +6025,10 @@ fn is_apl_source(uri: &Url, language_id: &str) -> bool {
 /// is named `implementation` or carries a `.iapp` / `.iappimpl` / `.impl`
 /// extension.
 async fn find_sibling_impl_vars(
-    uri: &Url,
-    documents: &Mutex<HashMap<Url, DocumentState>>,
+    uri: &Uri,
+    documents: &Mutex<HashMap<Uri, DocumentState>>,
 ) -> Option<Vec<tcl_bigip::apl::IappVarRef>> {
-    let path = uri.to_file_path().ok()?;
+    let path = uri.to_file_path()?;
     let dir = path.parent()?.to_path_buf();
     let is_impl_name = |p: &Path| {
         p.file_name()
@@ -5960,7 +6051,7 @@ async fn find_sibling_impl_vars(
             if doc_uri == uri {
                 continue;
             }
-            let Ok(doc_path) = doc_uri.to_file_path() else {
+            let Some(doc_path) = doc_uri.to_file_path() else {
                 continue;
             };
             if doc_path.parent() != Some(dir.as_path()) {
@@ -6011,13 +6102,13 @@ async fn find_sibling_impl_vars(
 /// `spawn_blocking` for the same parser-panic containment the analyser path
 /// uses.
 async fn f5_dialect_diagnostics(
-    uri: &Url,
+    uri: &Uri,
     text: &str,
     dialect: &str,
     language_id: &str,
     disabled: &HashSet<String>,
-    documents: &Mutex<HashMap<Url, DocumentState>>,
-) -> Option<Vec<tower_lsp::lsp_types::Diagnostic>> {
+    documents: &Mutex<HashMap<Uri, DocumentState>>,
+) -> Option<Vec<tower_lsp_server::ls_types::Diagnostic>> {
     if Backend::is_bigip_dialect(dialect) {
         let (t, dis) = (text.to_owned(), disabled.clone());
         let diags = tokio::task::spawn_blocking(move || bigip_config_diagnostics(&t, &dis))
@@ -6041,30 +6132,30 @@ async fn f5_dialect_diagnostics(
 fn lift_analyser_diagnostics(
     text: &str,
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
-) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     let line_index = tcl_lexer::LineIndex::new(text);
     diagnostics
         .iter()
         .filter(|d| !DEFAULT_OFF_CODES.contains(&d.code.as_str()))
         .cloned()
-        .map(|d| tower_lsp::lsp_types::Diagnostic {
+        .map(|d| tower_lsp_server::ls_types::Diagnostic {
             range: lift_span(text, &line_index, d.span),
             severity: Some(match d.severity {
                 tcl_compiler::analyser::Severity::Error => {
-                    tower_lsp::lsp_types::DiagnosticSeverity::ERROR
+                    tower_lsp_server::ls_types::DiagnosticSeverity::ERROR
                 }
                 tcl_compiler::analyser::Severity::Warning => {
-                    tower_lsp::lsp_types::DiagnosticSeverity::WARNING
+                    tower_lsp_server::ls_types::DiagnosticSeverity::WARNING
                 }
                 tcl_compiler::analyser::Severity::Info => {
-                    tower_lsp::lsp_types::DiagnosticSeverity::INFORMATION
+                    tower_lsp_server::ls_types::DiagnosticSeverity::INFORMATION
                 }
                 tcl_compiler::analyser::Severity::Hint
                 | tcl_compiler::analyser::Severity::Suggestion => {
-                    tower_lsp::lsp_types::DiagnosticSeverity::HINT
+                    tower_lsp_server::ls_types::DiagnosticSeverity::HINT
                 }
             }),
-            code: Some(tower_lsp::lsp_types::NumberOrString::String(d.code)),
+            code: Some(tower_lsp_server::ls_types::NumberOrString::String(d.code)),
             code_description: None,
             source: Some("tcl-lsp".to_string()),
             message: d.message,
@@ -6092,11 +6183,11 @@ fn lift_source_style_diagnostics(
     text: &str,
     suppressed: &std::collections::HashMap<i32, std::collections::HashSet<String>>,
     user_disabled: &std::collections::HashSet<String>,
-) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     use tcl_lsp_core::source_style::{
         DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, StyleSeverity, style_diagnostics,
     };
-    use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
+    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
 
     // The file-level (`-1`) directive bucket doubles as a per-code
     // disabled set (mirrors how the Rust analyser folds a
@@ -6115,7 +6206,7 @@ fn lift_source_style_diagnostics(
         suppressed,
     )
     .into_iter()
-    .map(|d| tower_lsp::lsp_types::Diagnostic {
+    .map(|d| tower_lsp_server::ls_types::Diagnostic {
         range: Range {
             start: Position {
                 line: d.range.start_line,
@@ -6162,12 +6253,12 @@ fn lift_compiler_diagnostics(
     optimiser_enabled: bool,
     disabled_optimisations: &std::collections::HashSet<String>,
     disabled_diagnostics: &std::collections::HashSet<String>,
-) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     use tcl_compiler::compiler_checks::Severity as CheckSeverity;
-    use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
+    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
 
     let line_index = tcl_lexer::LineIndex::new(text);
-    let mut out: Vec<tower_lsp::lsp_types::Diagnostic> = Vec::new();
+    let mut out: Vec<tower_lsp_server::ls_types::Diagnostic> = Vec::new();
 
     // Compiler checks: GVN / shimmer / thunking / taint / iRules-flow / SCCP,
     // all keyed off a single interprocedurally-summarised compilation unit whose
@@ -6195,7 +6286,7 @@ fn lift_compiler_diagnostics(
         if disabled_diagnostics.contains(&d.code) {
             continue;
         }
-        out.push(tower_lsp::lsp_types::Diagnostic {
+        out.push(tower_lsp_server::ls_types::Diagnostic {
             range: lift_span(text, &line_index, d.span),
             severity: Some(match d.severity {
                 CheckSeverity::Error => DiagnosticSeverity::ERROR,
@@ -6240,7 +6331,7 @@ fn lift_compiler_diagnostics(
                 "endOffset": o.span.end(),
             })
         });
-        out.push(tower_lsp::lsp_types::Diagnostic {
+        out.push(tower_lsp_server::ls_types::Diagnostic {
             range: lift_span(text, &line_index, o.span),
             severity: Some(DiagnosticSeverity::HINT),
             code: Some(NumberOrString::String(o.code)),
@@ -6275,7 +6366,7 @@ fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
 /// shadows its parent. Returns `None` when no folder covers the
 /// URI, in which case the caller falls back to the session
 /// default.
-fn folder_dialect_for(uri: &Url, folders: &[(Url, String)]) -> Option<String> {
+fn folder_dialect_for(uri: &Uri, folders: &[(Uri, String)]) -> Option<String> {
     let mut best: Option<(usize, &str)> = None;
     let target = uri.as_str();
     for (folder, dialect) in folders {
@@ -6499,15 +6590,14 @@ fn build_server_capabilities(
         }),
         code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
         call_hierarchy_provider: Some(CallHierarchyServerCapability::Simple(true)),
-        // Note: tower-lsp 0.20 does not expose
-        // `type_hierarchy_provider` on `ServerCapabilities`;
-        // the type-hierarchy core provider lives in
-        // `tcl-lsp-core::type_hierarchy` but cannot be
-        // advertised until tower-lsp exposes the capability.
+        // `ServerCapabilities` carries no `type_hierarchy_provider` field, so
+        // the type-hierarchy core provider (`tcl-lsp-core::type_hierarchy`) is
+        // advertised through dynamic `client/registerCapability` in
+        // `register_type_hierarchy` instead.
         semantic_tokens_provider: Some(semantic_tokens_capability()),
         workspace_symbol_provider: Some(OneOf::Left(true)),
         linked_editing_range_provider: Some(
-            tower_lsp::lsp_types::LinkedEditingRangeServerCapabilities::Simple(true),
+            tower_lsp_server::ls_types::LinkedEditingRangeServerCapabilities::Simple(true),
         ),
         // `S-diagnostics-pipeline`: advertise pull-based
         // diagnostics so editors that support it can request
@@ -6588,11 +6678,11 @@ fn semantic_tokens_capability() -> SemanticTokensServerCapabilities {
         legend: SemanticTokensLegend {
             token_types: core_semantic_tokens::legend_token_types()
                 .into_iter()
-                .map(tower_lsp::lsp_types::SemanticTokenType::new)
+                .map(tower_lsp_server::ls_types::SemanticTokenType::new)
                 .collect(),
             token_modifiers: core_semantic_tokens::legend_token_modifiers()
                 .into_iter()
-                .map(tower_lsp::lsp_types::SemanticTokenModifier::new)
+                .map(tower_lsp_server::ls_types::SemanticTokenModifier::new)
                 .collect(),
         },
         range: Some(true),
@@ -6614,10 +6704,11 @@ fn next_semantic_tokens_id() -> String {
 /// Convert the core's `Vec<u32>` packed semantic-tokens
 /// stream (`[deltaLine, deltaCol, length, type, modifiers]`
 /// per token) into a `Vec<SemanticToken>` for the wire layer.
-fn lift_semantic_token_data(data: &[u32]) -> Vec<tower_lsp::lsp_types::SemanticToken> {
-    let mut tokens: Vec<tower_lsp::lsp_types::SemanticToken> = Vec::with_capacity(data.len() / 5);
+fn lift_semantic_token_data(data: &[u32]) -> Vec<tower_lsp_server::ls_types::SemanticToken> {
+    let mut tokens: Vec<tower_lsp_server::ls_types::SemanticToken> =
+        Vec::with_capacity(data.len() / 5);
     for chunk in data.chunks_exact(5) {
-        tokens.push(tower_lsp::lsp_types::SemanticToken {
+        tokens.push(tower_lsp_server::ls_types::SemanticToken {
             delta_line: chunk[0],
             delta_start: chunk[1],
             length: chunk[2],
@@ -6741,7 +6832,7 @@ fn lift_folding_range(r: tcl_lsp_core::folding::FoldingRange) -> FoldingRange {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tower_lsp::lsp_types::{
+    use tower_lsp_server::ls_types::{
         PartialResultParams, ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
     };
 
@@ -6761,7 +6852,7 @@ mod tests {
         assert!(
             !lifted.iter().any(|d| matches!(
                 &d.code,
-                Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "W242"
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W242"
             )),
             "W242 must be filtered from the published set"
         );
@@ -6786,7 +6877,7 @@ mod tests {
         assert!(
             diags.iter().any(|d| matches!(
                 &d.code,
-                Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "O100"
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "O100"
             )),
             "expected an O100 constant-branch diagnostic, got: {:?}",
             diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
@@ -6799,7 +6890,7 @@ mod tests {
     fn lift_compiler_diagnostics_honours_optimiser_master_switch_and_per_code() {
         let registry = CommandRegistry::build_default();
         let src = "if {1} { set x 1 } else { set y 2 }\n";
-        let is_o100 = |d: &tower_lsp::lsp_types::Diagnostic| matches!(&d.code, Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "O100");
+        let is_o100 = |d: &tower_lsp_server::ls_types::Diagnostic| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "O100");
         // Master switch off: no optimiser O-codes at all (compiler checks still run).
         let off = lift_compiler_diagnostics(
             src,
@@ -6849,7 +6940,7 @@ mod tests {
         assert!(
             diags.iter().any(|d| matches!(
                 &d.code,
-                Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "IRULE3001"
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "IRULE3001"
             )),
             "expected IRULE3001, got: {:?}",
             diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
@@ -6867,7 +6958,7 @@ mod tests {
         registry.load_irules();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
         let cdiags = tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules");
-        let is_irule3001 = |d: &tower_lsp::lsp_types::Diagnostic| matches!(&d.code, Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "IRULE3001");
+        let is_irule3001 = |d: &tower_lsp_server::ls_types::Diagnostic| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "IRULE3001");
         // Baseline: IRULE3001 is present with no disabled codes.
         let baseline = lift_compiler_diagnostics(
             src,
@@ -6941,7 +7032,7 @@ mod tests {
 
     #[test]
     fn position_encoding_negotiation() {
-        use tower_lsp::lsp_types::{ClientCapabilities, GeneralClientCapabilities};
+        use tower_lsp_server::ls_types::{ClientCapabilities, GeneralClientCapabilities};
         let params_with = |encs: Option<Vec<PositionEncodingKind>>| InitializeParams {
             capabilities: ClientCapabilities {
                 general: Some(GeneralClientCapabilities {
@@ -7155,7 +7246,7 @@ mod tests {
 
     #[test]
     fn formatter_config_honours_request_indent() {
-        let mut opts = tower_lsp::lsp_types::FormattingOptions {
+        let mut opts = tower_lsp_server::ls_types::FormattingOptions {
             tab_size: 2,
             insert_spaces: true,
             ..Default::default()
@@ -7330,7 +7421,7 @@ mod tests {
         let codes: Vec<String> = diags
             .iter()
             .filter_map(|d| match &d.code {
-                Some(tower_lsp::lsp_types::NumberOrString::String(c)) => Some(c.clone()),
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) => Some(c.clone()),
                 _ => None,
             })
             .collect();
@@ -7359,7 +7450,7 @@ mod tests {
         let codes: Vec<String> = diags
             .iter()
             .filter_map(|d| match &d.code {
-                Some(tower_lsp::lsp_types::NumberOrString::String(c)) => Some(c.clone()),
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) => Some(c.clone()),
                 _ => None,
             })
             .collect();
@@ -7373,11 +7464,11 @@ mod tests {
     // F5 dialect diagnostics
 
     /// Collect the string codes from a lifted diagnostic set.
-    fn diag_codes(diags: &[tower_lsp::lsp_types::Diagnostic]) -> Vec<String> {
+    fn diag_codes(diags: &[tower_lsp_server::ls_types::Diagnostic]) -> Vec<String> {
         diags
             .iter()
             .filter_map(|d| match &d.code {
-                Some(tower_lsp::lsp_types::NumberOrString::String(c)) => Some(c.clone()),
+                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) => Some(c.clone()),
                 _ => None,
             })
             .collect()
@@ -7434,9 +7525,9 @@ mod tests {
     /// basename.
     #[test]
     fn is_apl_source_detects_apl_documents() {
-        let apl_ext = Url::parse("file:///app/iapp/foo.apl").unwrap();
-        let presentation = Url::parse("file:///app/iapp/presentation").unwrap();
-        let plain = Url::parse("file:///app/util.tcl").unwrap();
+        let apl_ext = Uri::from_str("file:///app/iapp/foo.apl").unwrap();
+        let presentation = Uri::from_str("file:///app/iapp/presentation").unwrap();
+        let plain = Uri::from_str("file:///app/util.tcl").unwrap();
         assert!(is_apl_source(&apl_ext, "tcl"));
         assert!(is_apl_source(&presentation, "tcl"));
         // An explicit APL language id wins regardless of basename.
@@ -7472,7 +7563,7 @@ mod tests {
         assert_eq!(lifted.range.end.character, 10);
         assert_eq!(
             lifted.severity,
-            Some(tower_lsp::lsp_types::DiagnosticSeverity::WARNING)
+            Some(tower_lsp_server::ls_types::DiagnosticSeverity::WARNING)
         );
     }
 
@@ -7482,7 +7573,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn full_diagnostics_for_routes_bigip_to_validator() {
         let backend = test_backend();
-        let uri = Url::parse("file:///Common/bigip.conf").unwrap();
+        let uri = Uri::from_str("file:///Common/bigip.conf").unwrap();
         let src =
             "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    pool /Common/no_such_pool\n  }\n}\n";
         let diags = backend
@@ -7523,7 +7614,7 @@ mod tests {
     /// enabled.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn xc_diagnostics_are_opt_in_on_irules_documents() {
-        let uri = Url::parse("file:///rule.irul").unwrap();
+        let uri = Uri::from_str("file:///rule.irul").unwrap();
         let src = "when HTTP_REQUEST {\n    pool my_pool\n}";
 
         // Default-off: no XC codes surface.
@@ -7561,8 +7652,8 @@ mod tests {
     #[tokio::test]
     async fn cross_file_w123_suppressed_when_workspace_defines_proc() {
         let backend = test_backend();
-        let a = Url::parse("file:///a.tcl").unwrap();
-        let b = Url::parse("file:///b.tcl").unwrap();
+        let a = Uri::from_str("file:///a.tcl").unwrap();
+        let b = Uri::from_str("file:///b.tcl").unwrap();
         // Track B (defines `proc helper`) so the `Project` input includes it.
         backend
             .db_set_source(
@@ -7789,7 +7880,7 @@ mod tests {
     /// `LspService::new` and copy the wrapped `Client` into a
     /// fresh `Backend` with reset state.
     fn test_backend() -> Backend {
-        let (service, _socket) = tower_lsp::LspService::new(Backend::new);
+        let (service, _socket) = tower_lsp_server::LspService::new(Backend::new);
         let db = tcl_lsp_db::TclDatabase::default();
         let db_config = tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
         Backend {
@@ -7825,7 +7916,7 @@ mod tests {
         let backend = test_backend();
         *backend.optimiser_profile.lock().await =
             tcl_compiler::optimiser::profiles::OptimisationProfile::Full;
-        let uri = Url::parse("file:///pull.tcl").unwrap();
+        let uri = Uri::from_str("file:///pull.tcl").unwrap();
         let src = "if {1} { set x 1 } else { set y 2 }\n";
         let full = backend
             .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned(), "tcl")
@@ -7835,9 +7926,9 @@ mod tests {
             let analysis = a.analyse(src, "tcl8.6").clone();
             lift_analyser_diagnostics(src, &analysis.diagnostics)
         };
-        let has_o100 = |ds: &[tower_lsp::lsp_types::Diagnostic]| {
+        let has_o100 = |ds: &[tower_lsp_server::ls_types::Diagnostic]| {
             ds.iter().any(|d| {
-                matches!(&d.code, Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "O100")
+                matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "O100")
             })
         };
         assert!(
@@ -7851,13 +7942,14 @@ mod tests {
         );
     }
 
-    fn doc_diag_params(uri: &Url, previous: Option<&str>) -> DocumentDiagnosticParams {
+    fn doc_diag_params(uri: &Uri, previous: Option<&str>) -> DocumentDiagnosticParams {
         DocumentDiagnosticParams {
-            text_document: tower_lsp::lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+            text_document: tower_lsp_server::ls_types::TextDocumentIdentifier { uri: uri.clone() },
             identifier: None,
             previous_result_id: previous.map(str::to_owned),
-            work_done_progress_params: tower_lsp::lsp_types::WorkDoneProgressParams::default(),
-            partial_result_params: tower_lsp::lsp_types::PartialResultParams::default(),
+            work_done_progress_params: tower_lsp_server::ls_types::WorkDoneProgressParams::default(
+            ),
+            partial_result_params: tower_lsp_server::ls_types::PartialResultParams::default(),
         }
     }
 
@@ -7867,7 +7959,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn pull_diagnostic_returns_unchanged_when_result_id_matches() {
         let backend = test_backend();
-        let uri = Url::parse("file:///pull-unchanged.tcl").unwrap();
+        let uri = Uri::from_str("file:///pull-unchanged.tcl").unwrap();
         register(&backend, &uri, "set x 1\n").await;
 
         let first = backend
@@ -7902,7 +7994,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn workspace_diagnostic_reports_cached_documents() {
         let backend = test_backend();
-        let uri = Url::parse("file:///ws-diag.tcl").unwrap();
+        let uri = Uri::from_str("file:///ws-diag.tcl").unwrap();
         register(&backend, &uri, "set x 1\n").await;
         // Prime the pull cache through the document handler.
         let first = backend
@@ -7918,12 +8010,13 @@ mod tests {
 
         let params = WorkspaceDiagnosticParams {
             identifier: None,
-            previous_result_ids: vec![tower_lsp::lsp_types::PreviousResultId {
+            previous_result_ids: vec![tower_lsp_server::ls_types::PreviousResultId {
                 uri: uri.clone(),
                 value: result_id.clone(),
             }],
-            work_done_progress_params: tower_lsp::lsp_types::WorkDoneProgressParams::default(),
-            partial_result_params: tower_lsp::lsp_types::PartialResultParams::default(),
+            work_done_progress_params: tower_lsp_server::ls_types::WorkDoneProgressParams::default(
+            ),
+            partial_result_params: tower_lsp_server::ls_types::PartialResultParams::default(),
         };
         let report = backend.workspace_diagnostic(params).await.unwrap();
         let WorkspaceDiagnosticReportResult::Report(report) = report else {
@@ -7953,7 +8046,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn watched_files_deletion_drops_index_entry() {
         let backend = test_backend();
-        let uri = Url::parse("file:///watched-gone.tcl").unwrap();
+        let uri = Uri::from_str("file:///watched-gone.tcl").unwrap();
         // Index a file that is NOT open (no `documents` entry).
         {
             let mut a = Analyser::new();
@@ -7977,7 +8070,7 @@ mod tests {
 
         backend
             .did_change_watched_files(DidChangeWatchedFilesParams {
-                changes: vec![tower_lsp::lsp_types::FileEvent {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
                     uri: uri.clone(),
                     typ: FileChangeType::DELETED,
                 }],
@@ -8010,17 +8103,17 @@ mod tests {
                 .unwrap(),
         );
         // An open caller with xcDiagnostics enabled.
-        let caller = Url::parse("file:///caller.tcl").unwrap();
+        let caller = Uri::from_str("file:///caller.tcl").unwrap();
         backend.documents.lock().await.insert(
             caller.clone(),
             DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
         );
 
         // A watched, non-open file is deleted — its procs leave the `Project`.
-        let deleted = Url::parse("file:///lib.tcl").unwrap();
+        let deleted = Uri::from_str("file:///lib.tcl").unwrap();
         backend
             .did_change_watched_files(DidChangeWatchedFilesParams {
-                changes: vec![tower_lsp::lsp_types::FileEvent {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
                     uri: deleted,
                     typ: FileChangeType::DELETED,
                 }],
@@ -8039,8 +8132,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn workspace_folder_removal_drops_index_under_folder() {
         let backend = test_backend();
-        let gone = Url::parse("file:///proj-a/lib.tcl").unwrap();
-        let kept = Url::parse("file:///proj-b/lib.tcl").unwrap();
+        let gone = Uri::from_str("file:///proj-a/lib.tcl").unwrap();
+        let kept = Uri::from_str("file:///proj-b/lib.tcl").unwrap();
         {
             let mut a = Analyser::new();
             let analysis = a.analyse("proc p {} {}\n", "tcl8.6").clone();
@@ -8049,16 +8142,16 @@ mod tests {
             index.add_document(kept.as_str(), &analysis);
         }
         *backend.workspace_folders.lock().await = vec![
-            Url::parse("file:///proj-a").unwrap(),
-            Url::parse("file:///proj-b").unwrap(),
+            Uri::from_str("file:///proj-a").unwrap(),
+            Uri::from_str("file:///proj-b").unwrap(),
         ];
 
         backend
             .did_change_workspace_folders(DidChangeWorkspaceFoldersParams {
-                event: tower_lsp::lsp_types::WorkspaceFoldersChangeEvent {
+                event: tower_lsp_server::ls_types::WorkspaceFoldersChangeEvent {
                     added: Vec::new(),
-                    removed: vec![tower_lsp::lsp_types::WorkspaceFolder {
-                        uri: Url::parse("file:///proj-a").unwrap(),
+                    removed: vec![tower_lsp_server::ls_types::WorkspaceFolder {
+                        uri: Uri::from_str("file:///proj-a").unwrap(),
                         name: "proj-a".to_owned(),
                     }],
                 },
@@ -8097,19 +8190,19 @@ mod tests {
                 .as_object()
                 .unwrap(),
         );
-        let caller = Url::parse("file:///proj/caller.tcl").unwrap();
+        let caller = Uri::from_str("file:///proj/caller.tcl").unwrap();
         backend.documents.lock().await.insert(
             caller.clone(),
             DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
         );
-        *backend.workspace_folders.lock().await = vec![Url::parse("file:///proj").unwrap()];
+        *backend.workspace_folders.lock().await = vec![Uri::from_str("file:///proj").unwrap()];
 
         backend
             .did_change_workspace_folders(DidChangeWorkspaceFoldersParams {
-                event: tower_lsp::lsp_types::WorkspaceFoldersChangeEvent {
+                event: tower_lsp_server::ls_types::WorkspaceFoldersChangeEvent {
                     added: Vec::new(),
-                    removed: vec![tower_lsp::lsp_types::WorkspaceFolder {
-                        uri: Url::parse("file:///proj").unwrap(),
+                    removed: vec![tower_lsp_server::ls_types::WorkspaceFolder {
+                        uri: Uri::from_str("file:///proj").unwrap(),
                         name: "proj".to_owned(),
                     }],
                 },
@@ -8128,10 +8221,10 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn per_folder_config_overrides_global_settings() {
         let backend = test_backend();
-        let folder_a = Url::parse("file:///proj-a").unwrap();
-        let folder_b = Url::parse("file:///proj-b").unwrap();
-        let inside = Url::parse("file:///proj-a/sub/file.tcl").unwrap();
-        let outside = Url::parse("file:///proj-b/file.tcl").unwrap();
+        let folder_a = Uri::from_str("file:///proj-a").unwrap();
+        let folder_b = Uri::from_str("file:///proj-b").unwrap();
+        let inside = Uri::from_str("file:///proj-a/sub/file.tcl").unwrap();
+        let outside = Uri::from_str("file:///proj-b/file.tcl").unwrap();
         *backend.workspace_folders.lock().await = vec![folder_a.clone(), folder_b.clone()];
 
         // proj-a turns hover off and disables W100; the global state keeps both
@@ -8189,7 +8282,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn pull_diagnostic_recomputes_after_edit_bumps_revision() {
         let backend = test_backend();
-        let uri = Url::parse("file:///pull-stale.tcl").unwrap();
+        let uri = Uri::from_str("file:///pull-stale.tcl").unwrap();
         register(&backend, &uri, "set x 1\n").await;
         let first = backend
             .diagnostic(doc_diag_params(&uri, None))
@@ -8233,9 +8326,9 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn will_save_format_respects_per_folder_opt_in() {
         let backend = test_backend();
-        let folder = Url::parse("file:///proj-a").unwrap();
-        let inside = Url::parse("file:///proj-a/file.tcl").unwrap();
-        let outside = Url::parse("file:///other/file.tcl").unwrap();
+        let folder = Uri::from_str("file:///proj-a").unwrap();
+        let inside = Uri::from_str("file:///proj-a/file.tcl").unwrap();
+        let outside = Uri::from_str("file:///other/file.tcl").unwrap();
         *backend.workspace_folders.lock().await = vec![folder.clone()];
         register(&backend, &inside, "set    x     1\n").await;
         register(&backend, &outside, "set    x     1\n").await;
@@ -8254,9 +8347,9 @@ mod tests {
             .apply_folder_configs(vec![(folder.clone(), fc)])
             .await;
 
-        let params = |uri: &Url| WillSaveTextDocumentParams {
-            text_document: tower_lsp::lsp_types::TextDocumentIdentifier { uri: uri.clone() },
-            reason: tower_lsp::lsp_types::TextDocumentSaveReason::MANUAL,
+        let params = |uri: &Uri| WillSaveTextDocumentParams {
+            text_document: tower_lsp_server::ls_types::TextDocumentIdentifier { uri: uri.clone() },
+            reason: tower_lsp_server::ls_types::TextDocumentSaveReason::MANUAL,
         };
         assert!(
             backend
@@ -8281,11 +8374,11 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn will_save_format_is_opt_in() {
         let backend = test_backend();
-        let uri = Url::parse("file:///will-save.tcl").unwrap();
+        let uri = Uri::from_str("file:///will-save.tcl").unwrap();
         register(&backend, &uri, "set    x     1\n").await;
         let params = WillSaveTextDocumentParams {
-            text_document: tower_lsp::lsp_types::TextDocumentIdentifier { uri: uri.clone() },
-            reason: tower_lsp::lsp_types::TextDocumentSaveReason::MANUAL,
+            text_document: tower_lsp_server::ls_types::TextDocumentIdentifier { uri: uri.clone() },
+            reason: tower_lsp_server::ls_types::TextDocumentSaveReason::MANUAL,
         };
 
         let disabled = backend.will_save_wait_until(params.clone()).await.unwrap();
@@ -8310,7 +8403,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn stale_diagnostics_worker_cannot_overwrite_current_analysis() {
         let backend = test_backend();
-        let uri = Url::parse("file:///stale.tcl").unwrap();
+        let uri = Uri::from_str("file:///stale.tcl").unwrap();
         let current_src = "proc current {} {}\n";
         let stale_src = "proc stale {} {}\n";
 
@@ -8375,7 +8468,7 @@ mod tests {
         std::fs::write(root.join("main.tcl"), "greet world\n").unwrap();
 
         let backend = test_backend();
-        let root_url = Url::from_file_path(&root).unwrap();
+        let root_url = Uri::from_file_path(&root).unwrap();
         *backend.workspace_folders.lock().await = vec![root_url];
 
         backend.scan_workspace_folders().await;
@@ -8408,8 +8501,8 @@ mod tests {
         std::fs::write(&on_disk, "proc stale {} {}\n").unwrap();
 
         let backend = test_backend();
-        let root_url = Url::from_file_path(&root).unwrap();
-        let uri = Url::from_file_path(&on_disk).unwrap();
+        let root_url = Uri::from_file_path(&root).unwrap();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
         *backend.workspace_folders.lock().await = vec![root_url];
         backend.documents.lock().await.insert(
             uri.clone(),
@@ -8445,7 +8538,7 @@ mod tests {
     #[tokio::test]
     async fn workspace_scan_merge_does_not_clobber_open_document() {
         let backend = test_backend();
-        let uri = Url::parse("file:///workspace/live.tcl").unwrap();
+        let uri = Uri::from_str("file:///workspace/live.tcl").unwrap();
         backend.documents.lock().await.insert(
             uri.clone(),
             DocumentState::new("proc fresh {} {}\n".to_owned(), "tcl8.6".to_owned()),
@@ -8488,7 +8581,7 @@ mod tests {
         std::fs::write(&on_disk, "proc helper {} {}\n").unwrap();
 
         let backend = test_backend();
-        let uri = Url::from_file_path(&on_disk).unwrap();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
         // Seed the index with a now-closed buffer version (proc `fresh`),
         // standing in for what did_open would have indexed.
         {
@@ -8525,7 +8618,7 @@ mod tests {
         std::fs::write(&on_disk, "proc stale {} {}\n").unwrap();
 
         let backend = test_backend();
-        let uri = Url::from_file_path(&on_disk).unwrap();
+        let uri = Uri::from_file_path(&on_disk).unwrap();
         backend.documents.lock().await.insert(
             uri.clone(),
             DocumentState::new("proc fresh {} {}\n".to_owned(), "tcl8.6".to_owned()),
@@ -8559,7 +8652,7 @@ mod tests {
     #[tokio::test]
     async fn reindex_from_disk_drops_entry_when_file_is_gone() {
         let backend = test_backend();
-        let uri = Url::parse("file:///does/not/exist/gone.tcl").unwrap();
+        let uri = Uri::from_str("file:///does/not/exist/gone.tcl").unwrap();
         {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse("proc ghost {} {}\n", "tcl8.6").clone();
@@ -8592,8 +8685,8 @@ mod tests {
         std::fs::write(&on_disk, "proc helper {x y} { return $x }\n").unwrap();
 
         let backend = test_backend();
-        let b = Url::from_file_path(&on_disk).unwrap();
-        let a = Url::parse("file:///caller.tcl").unwrap();
+        let b = Uri::from_file_path(&on_disk).unwrap();
+        let a = Uri::from_str("file:///caller.tcl").unwrap();
 
         // B is on disk but never opened — the did_close / scan path indexes it
         // into both the workspace index and the salsa `Project`.
@@ -8649,8 +8742,8 @@ mod tests {
         std::fs::write(&on_disk, "proc helper {x y} { return $x }\n").unwrap();
 
         let backend = test_backend();
-        let b = Url::from_file_path(&on_disk).unwrap();
-        let a = Url::parse("file:///caller.tcl").unwrap();
+        let b = Uri::from_file_path(&on_disk).unwrap();
+        let a = Uri::from_str("file:///caller.tcl").unwrap();
         backend.feature_toggles.lock().await.apply(
             serde_json::json!({ "xcDiagnostics": true })
                 .as_object()
@@ -8707,8 +8800,8 @@ mod tests {
                 .as_object()
                 .unwrap(),
         );
-        let a = Url::parse("file:///caller.tcl").unwrap();
-        let b = Url::parse("file:///lib.tcl").unwrap();
+        let a = Uri::from_str("file:///caller.tcl").unwrap();
+        let b = Uri::from_str("file:///lib.tcl").unwrap();
         backend
             .db_set_source(
                 &b,
@@ -8736,25 +8829,25 @@ mod tests {
         let backend = test_backend();
         *backend.folder_dialects.lock().await = vec![
             (
-                Url::parse("file:///workspace/").unwrap(),
+                Uri::from_str("file:///workspace/").unwrap(),
                 "tcl9.0".to_owned(),
             ),
             (
-                Url::parse("file:///workspace/irules/").unwrap(),
+                Uri::from_str("file:///workspace/irules/").unwrap(),
                 "f5-irules".to_owned(),
             ),
         ];
-        let inside = Url::parse("file:///workspace/irules/rule.tcl").expect("parse target uri");
+        let inside = Uri::from_str("file:///workspace/irules/rule.tcl").expect("parse target uri");
         assert_eq!(
             backend.resolve_folder_dialect(&inside).await,
             Some("f5-irules".to_owned()),
         );
-        let outside_irules = Url::parse("file:///workspace/main.tcl").expect("parse target uri");
+        let outside_irules = Uri::from_str("file:///workspace/main.tcl").expect("parse target uri");
         assert_eq!(
             backend.resolve_folder_dialect(&outside_irules).await,
             Some("tcl9.0".to_owned()),
         );
-        let unrelated = Url::parse("file:///elsewhere/x.tcl").unwrap();
+        let unrelated = Uri::from_str("file:///elsewhere/x.tcl").unwrap();
         assert_eq!(backend.resolve_folder_dialect(&unrelated).await, None);
     }
 
@@ -8766,21 +8859,21 @@ mod tests {
         let backend = test_backend();
         *backend.folder_dialects.lock().await = vec![
             (
-                Url::parse("file:///workspace/app").unwrap(),
+                Uri::from_str("file:///workspace/app").unwrap(),
                 "f5-irules".to_owned(),
             ),
             (
-                Url::parse("file:///workspace/app2/").unwrap(),
+                Uri::from_str("file:///workspace/app2/").unwrap(),
                 "tcl9.0".to_owned(),
             ),
         ];
-        let sibling = Url::parse("file:///workspace/app2/main.tcl").unwrap();
+        let sibling = Uri::from_str("file:///workspace/app2/main.tcl").unwrap();
         assert_eq!(
             backend.resolve_folder_dialect(&sibling).await,
             Some("tcl9.0".to_owned()),
             "sibling folder must not inherit prefix-matched dialect",
         );
-        let inside_app = Url::parse("file:///workspace/app/inner.tcl").unwrap();
+        let inside_app = Uri::from_str("file:///workspace/app/inner.tcl").unwrap();
         assert_eq!(
             backend.resolve_folder_dialect(&inside_app).await,
             Some("f5-irules".to_owned()),
@@ -8813,27 +8906,27 @@ mod tests {
     #[test]
     fn folder_dialect_for_prefers_deepest_match() {
         let folders = vec![
-            (Url::parse("file:///ws/").unwrap(), "tcl8.6".to_owned()),
+            (Uri::from_str("file:///ws/").unwrap(), "tcl8.6".to_owned()),
             (
-                Url::parse("file:///ws/irules/").unwrap(),
+                Uri::from_str("file:///ws/irules/").unwrap(),
                 "f5-irules".to_owned(),
             ),
         ];
         // A file under the nested folder picks up the nested
         // (deepest-prefix) dialect, not the parent's.
-        let nested = Url::parse("file:///ws/irules/app.tcl").unwrap();
+        let nested = Uri::from_str("file:///ws/irules/app.tcl").unwrap();
         assert_eq!(
             folder_dialect_for(&nested, &folders).as_deref(),
             Some("f5-irules"),
         );
         // A file only under the root folder gets the root dialect.
-        let top = Url::parse("file:///ws/util.tcl").unwrap();
+        let top = Uri::from_str("file:///ws/util.tcl").unwrap();
         assert_eq!(
             folder_dialect_for(&top, &folders).as_deref(),
             Some("tcl8.6"),
         );
         // A file outside every folder has no override.
-        let outside = Url::parse("file:///other/x.tcl").unwrap();
+        let outside = Uri::from_str("file:///other/x.tcl").unwrap();
         assert_eq!(folder_dialect_for(&outside, &folders), None);
     }
 
@@ -8917,10 +9010,10 @@ mod tests {
     async fn dialect_for_open_falls_back_to_folder_dialect() {
         let backend = test_backend();
         *backend.folder_dialects.lock().await = vec![(
-            Url::parse("file:///workspace/").unwrap(),
+            Uri::from_str("file:///workspace/").unwrap(),
             "f5-irules".to_owned(),
         )];
-        let doc = Url::parse("file:///workspace/main.tcl").unwrap();
+        let doc = Uri::from_str("file:///workspace/main.tcl").unwrap();
         // A `tcl` language id maps to `tcl8.6` directly, so the
         // folder override is *not* consulted (language_id is the
         // most specific signal we have).
@@ -8943,7 +9036,7 @@ mod tests {
     #[tokio::test]
     async fn dialect_for_open_maps_bigip_language_id() {
         let backend = test_backend();
-        let doc = Url::parse("file:///workspace/device_config.txt").unwrap();
+        let doc = Uri::from_str("file:///workspace/device_config.txt").unwrap();
         assert_eq!(
             backend.dialect_for_open(&doc, "tcl-bigip").await,
             "f5-bigip".to_owned(),
@@ -8969,8 +9062,8 @@ mod tests {
         let backend = test_backend();
         *backend.default_dialect.lock().await = "tcl8.6".to_owned();
 
-        let plain = Url::parse("file:///plain.tcl").unwrap();
-        let irule = Url::parse("file:///app.irule").unwrap();
+        let plain = Uri::from_str("file:///plain.tcl").unwrap();
+        let irule = Uri::from_str("file:///app.irule").unwrap();
         {
             let mut docs = backend.documents.lock().await;
             // No recognised language id → opened under the session default.
@@ -9045,8 +9138,8 @@ mod tests {
     #[tokio::test]
     async fn cross_document_definition_resolves_sibling_proc() {
         let backend = test_backend();
-        let lib_uri = Url::parse("file:///lib.tcl").unwrap();
-        let main_uri = Url::parse("file:///main.tcl").unwrap();
+        let lib_uri = Uri::from_str("file:///lib.tcl").unwrap();
+        let main_uri = Uri::from_str("file:///main.tcl").unwrap();
         let lib_src = "proc shared_helper {} {}\n";
         let main_src = "shared_helper\n";
         // Register both documents.
@@ -9087,7 +9180,7 @@ mod tests {
     #[tokio::test]
     async fn minify_document_command_returns_minified_source() {
         let backend = test_backend();
-        let uri = Url::parse("file:///m.tcl").unwrap();
+        let uri = Uri::from_str("file:///m.tcl").unwrap();
         backend.documents.lock().await.insert(
             uri.clone(),
             DocumentState::new("# c\nputs   hi\n".to_owned(), "tcl8.6".to_owned()),
@@ -9112,7 +9205,7 @@ mod tests {
     #[tokio::test]
     async fn minify_document_command_compact_includes_symbol_map() {
         let backend = test_backend();
-        let uri = Url::parse("file:///m.tcl").unwrap();
+        let uri = Uri::from_str("file:///m.tcl").unwrap();
         backend.documents.lock().await.insert(
             uri.clone(),
             DocumentState::new(
@@ -9160,7 +9253,7 @@ mod tests {
     #[tokio::test]
     async fn cross_document_definition_skipped_when_local_match_exists() {
         let backend = test_backend();
-        let uri = Url::parse("file:///main.tcl").unwrap();
+        let uri = Uri::from_str("file:///main.tcl").unwrap();
         let src = "proc greet {} {}\ngreet\n";
         backend.documents.lock().await.insert(
             uri.clone(),
@@ -9178,7 +9271,7 @@ mod tests {
     }
 
     /// Register a document in the store and the workspace index.
-    async fn register(backend: &Backend, uri: &Url, src: &str) {
+    async fn register(backend: &Backend, uri: &Uri, src: &str) {
         backend.documents.lock().await.insert(
             uri.clone(),
             DocumentState::new(src.to_owned(), "tcl8.6".to_owned()),
@@ -9195,8 +9288,8 @@ mod tests {
     #[tokio::test]
     async fn cross_document_references_finds_sibling_call_sites() {
         let backend = test_backend();
-        let lib = Url::parse("file:///lib.tcl").unwrap();
-        let consumer = Url::parse("file:///consumer.tcl").unwrap();
+        let lib = Uri::from_str("file:///lib.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer.tcl").unwrap();
         let lib_src = "proc helper {} {}\nhelper\n";
         register(&backend, &lib, lib_src).await;
         register(&backend, &consumer, "helper\nhelper\n").await;
@@ -9216,8 +9309,8 @@ mod tests {
     #[tokio::test]
     async fn references_handler_merges_local_and_cross_document() {
         let backend = test_backend();
-        let lib = Url::parse("file:///lib.tcl").unwrap();
-        let consumer = Url::parse("file:///consumer.tcl").unwrap();
+        let lib = Uri::from_str("file:///lib.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer.tcl").unwrap();
         // lib.tcl: declaration + one local call.
         register(&backend, &lib, "proc helper {} {}\nhelper\n").await;
         // consumer.tcl: one cross-doc call.
@@ -9244,8 +9337,8 @@ mod tests {
     #[tokio::test]
     async fn rename_edits_span_multiple_documents() {
         let backend = test_backend();
-        let lib = Url::parse("file:///lib.tcl").unwrap();
-        let consumer = Url::parse("file:///consumer.tcl").unwrap();
+        let lib = Uri::from_str("file:///lib.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer.tcl").unwrap();
         register(&backend, &lib, "proc helper {} {}\nhelper\n").await;
         register(&backend, &consumer, "helper\nhelper\n").await;
         let params = RenameParams {
@@ -9273,8 +9366,8 @@ mod tests {
     #[tokio::test]
     async fn rename_to_builtin_blocked_cross_document() {
         let backend = test_backend();
-        let lib = Url::parse("file:///lib.tcl").unwrap();
-        let consumer = Url::parse("file:///consumer.tcl").unwrap();
+        let lib = Uri::from_str("file:///lib.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer.tcl").unwrap();
         register(&backend, &lib, "proc helper {} {}\n").await;
         register(&backend, &consumer, "helper\n").await;
         let params = RenameParams {
@@ -9294,11 +9387,11 @@ mod tests {
     #[tokio::test]
     async fn will_rename_rewrites_dependent_source_literal() {
         let backend = test_backend();
-        let main = Url::parse("file:///proj/main.tcl").unwrap();
+        let main = Uri::from_str("file:///proj/main.tcl").unwrap();
         // main.tcl sources lib/old.tcl via a relative literal.
         register(&backend, &main, "source lib/old.tcl\nputs hi\n").await;
         let params = RenameFilesParams {
-            files: vec![tower_lsp::lsp_types::FileRename {
+            files: vec![tower_lsp_server::ls_types::FileRename {
                 old_uri: "file:///proj/lib/old.tcl".to_owned(),
                 new_uri: "file:///proj/lib/new.tcl".to_owned(),
             }],
@@ -9327,10 +9420,10 @@ mod tests {
     #[tokio::test]
     async fn will_rename_returns_none_without_dependents() {
         let backend = test_backend();
-        let main = Url::parse("file:///proj/main.tcl").unwrap();
+        let main = Uri::from_str("file:///proj/main.tcl").unwrap();
         register(&backend, &main, "source other.tcl\n").await;
         let params = RenameFilesParams {
-            files: vec![tower_lsp::lsp_types::FileRename {
+            files: vec![tower_lsp_server::ls_types::FileRename {
                 old_uri: "file:///proj/lib/old.tcl".to_owned(),
                 new_uri: "file:///proj/lib/new.tcl".to_owned(),
             }],
@@ -9348,11 +9441,11 @@ mod tests {
     #[tokio::test]
     async fn did_rename_reindexes_moved_document() {
         let backend = test_backend();
-        let old = Url::parse("file:///gone.tcl").unwrap();
+        let old = Uri::from_str("file:///gone.tcl").unwrap();
         register(&backend, &old, "proc helper {} {}\n").await;
         assert_eq!(backend.workspace_index.lock().await.procs().len(), 1);
         let params = RenameFilesParams {
-            files: vec![tower_lsp::lsp_types::FileRename {
+            files: vec![tower_lsp_server::ls_types::FileRename {
                 old_uri: old.to_string(),
                 // New path doesn't exist on disk (test env) — reindex
                 // drops the stale old entry and finds nothing to add.
@@ -9368,8 +9461,8 @@ mod tests {
     #[tokio::test]
     async fn incoming_calls_span_multiple_documents() {
         let backend = test_backend();
-        let lib = Url::parse("file:///lib.tcl").unwrap();
-        let consumer = Url::parse("file:///consumer.tcl").unwrap();
+        let lib = Uri::from_str("file:///lib.tcl").unwrap();
+        let consumer = Uri::from_str("file:///consumer.tcl").unwrap();
         register(&backend, &lib, "proc helper {} {}\n").await;
         register(&backend, &consumer, "proc caller {} { helper }\n").await;
         // prepare the `helper` item from lib.tcl.
@@ -9393,8 +9486,8 @@ mod tests {
     #[tokio::test]
     async fn outgoing_calls_resolve_sibling_document_callee() {
         let backend = test_backend();
-        let lib = Url::parse("file:///lib.tcl").unwrap();
-        let main = Url::parse("file:///main.tcl").unwrap();
+        let lib = Uri::from_str("file:///lib.tcl").unwrap();
+        let main = Uri::from_str("file:///main.tcl").unwrap();
         register(&backend, &lib, "proc helper {} {}\n").await;
         // `caller` calls a builtin (`puts`) and the sibling-file
         // proc `helper`; only `helper` resolves cross-document.

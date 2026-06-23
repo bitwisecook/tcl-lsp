@@ -48,7 +48,7 @@ pub enum HoverKind {
 ///
 /// The subset this provider emits today carries no `range` and no
 /// `PlainText`.  The lift in `tcl-lsp-server` materialises this
-/// onto `tower_lsp::lsp_types::Hover`.
+/// onto `ls_types::Hover`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Hover {
     /// Markdown body of the hover.
