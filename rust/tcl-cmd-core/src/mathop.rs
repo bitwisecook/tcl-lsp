@@ -91,16 +91,32 @@ pub fn eval<O: ExprOps>(
     }
 }
 
-/// Variadic fold from `identity` over `op` (`+`/`*`/`&`/`|`/`^`).
+/// Variadic fold over `op` (`+`/`*`/`&`/`|`/`^`).
+///
+/// No args → `identity`. Otherwise the *first* argument seeds the accumulator
+/// (matching C: `+ a b` is `a + b`, so `a` is the left operand — `+ x 0`
+/// reports x as the *left* operand, not the right). A lone argument is still
+/// validated by combining it with the identity on the right, so `+ x` errors on
+/// the left operand while `+ 5` stays 5.
 fn fold<O: ExprOps>(
     ops: &mut O,
     args: Vec<O::Value>,
     identity: &str,
     op: BinOp,
 ) -> Result<O::Value, MathopError<O::Error>> {
-    let mut acc = ops.literal(identity).map_err(MathopError::Op)?;
-    for a in args {
+    let mut it = args.into_iter();
+    let Some(first) = it.next() else {
+        return ops.literal(identity).map_err(MathopError::Op);
+    };
+    let mut acc = first;
+    let mut folded = false;
+    for a in it {
         acc = ops.arith(op, acc, a).map_err(MathopError::Op)?;
+        folded = true;
+    }
+    if !folded {
+        let id = ops.literal(identity).map_err(MathopError::Op)?;
+        acc = ops.arith(op, acc, id).map_err(MathopError::Op)?;
     }
     Ok(acc)
 }
