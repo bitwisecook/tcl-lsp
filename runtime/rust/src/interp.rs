@@ -739,12 +739,16 @@ impl Interp {
         // SAFETY: `result` is freshly created; the interp takes the owning ref.
         unsafe { obj::incr_ref_count(result) };
         // The default capability host. Native builds get the full-capability
-        // std-backed `NativeHost`; the `wasm32-unknown-unknown` build gets the
+        // std-backed `NativeHost`. The `wasm32-wasip1` build gets `WasiHost`
+        // (stdout/stderr reach WASI `fd_write`, so `puts` is visible — the
+        // AOT-script target). The `wasm32-unknown-unknown` build gets the
         // placeholder `BrowserHost` (mandatory caps stubbed, no fs/sockets/process)
         // so the runtime links — a real browser host plugs into the same trait.
         #[cfg(not(target_arch = "wasm32"))]
         let host: Rc<dyn tcl_platform::Host> = Rc::new(tcl_host_native::NativeHost::new());
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(all(target_arch = "wasm32", target_os = "wasi"))]
+        let host: Rc<dyn tcl_platform::Host> = Rc::new(crate::host_wasm::WasiHost::new());
+        #[cfg(all(target_arch = "wasm32", not(target_os = "wasi")))]
         let host: Rc<dyn tcl_platform::Host> = Rc::new(crate::host_wasm::BrowserHost::new());
         let mut interp = Interp(Rc::new(InterpState {
             frames: RefCell::new(FrameStack::new()),
