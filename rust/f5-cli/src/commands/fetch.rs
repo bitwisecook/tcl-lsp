@@ -33,7 +33,7 @@ pub struct FetchArgs<'a> {
     pub print_path: bool,
 }
 
-/// A fetched config bundle + provenance (Rust analogue of `FetchResult`).
+/// A fetched config bundle + provenance.
 struct FetchResult {
     host: String,
     transport: String,

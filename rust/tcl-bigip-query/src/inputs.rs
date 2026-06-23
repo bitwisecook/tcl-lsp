@@ -233,13 +233,13 @@ pub fn parse_csv(
     Ok(Value::List(out))
 }
 
-/// Parse CSV text into rows of cells, matching `csv.reader`
-/// defaults (RFC 4180: `"`-quoting, `""` escapes a quote, embedded
+/// Parse CSV text into rows of cells, following RFC 4180
+/// defaults (`"`-quoting, `""` escapes a quote, embedded
 /// commas / newlines inside quotes).
 ///
-/// `csv.reader` over a `StringIO` splits records on `\r\n`,
-/// `\r`, or `\n` (outside quotes) and treats a quoted field's embedded
-/// newlines literally. A trailing newline does not produce an extra
+/// Records are split on `\r\n`,
+/// `\r`, or `\n` (outside quotes) and a quoted field's embedded
+/// newlines are treated literally. A trailing newline does not produce an extra
 /// empty record.
 fn read_csv_records(text: &str) -> Vec<Vec<String>> {
     let mut records: Vec<Vec<String>> = Vec::new();
@@ -423,7 +423,7 @@ fn strip_pri_prefix(line: &str) -> &str {
 fn strip_source_tag(text: &str) -> &str {
     let (head, rest) = take_token(text);
     if !head.is_empty() && SOURCE_TAGS.contains(&head.as_str()) {
-        // `rest.lstrip()` — return a slice into the original `text`.
+        // Strip leading whitespace, returning a slice into the original `text`.
         let trimmed = rest.trim_start();
         // Find where `trimmed` begins within `text`.
         let offset = text.len() - trimmed.len();
