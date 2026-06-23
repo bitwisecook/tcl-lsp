@@ -78,9 +78,16 @@ fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
     if let Ok(f) = v.as_double() {
         return Ok(Num::Dbl(f));
     }
+    // `nan` (and `±NaN`) is a valid floating-point *value* that simply cannot be
+    // an arithmetic operand — C words that differently from a non-number string.
+    let s = v.to_str();
+    let kind = if matches!(number::parse_whole(s.trim()), Some(Number::Nan { .. })) {
+        "floating-point value"
+    } else {
+        "string"
+    };
     Err(TclError::new(format!(
-        "cannot use non-numeric string \"{}\" as {side} operand of \"{}\"",
-        v.to_str(),
+        "cannot use non-numeric {kind} \"{s}\" as {side} operand of \"{}\"",
         op.as_str()
     )))
 }

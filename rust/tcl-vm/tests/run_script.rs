@@ -189,6 +189,18 @@ fn compiled_linsert_rejects_bad_index() {
     assert_eq!(result, "a b c X");
 }
 
+/// A `nan` arithmetic operand is reported as a non-numeric floating-point
+/// *value*, not a string (mathop operator error tests).
+#[test]
+fn nan_operand_error_wording() {
+    let (ok, result, _) = run("catch {tcl::mathop::+ nan 0} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result,
+        "cannot use non-numeric floating-point value \"nan\" as left operand of \"+\""
+    );
+}
+
 /// Integer `expr` arithmetic promotes to i128 on i64 overflow instead of
 /// wrapping (the VM's bounded stand-in for Tcl bignums), covering the common
 /// large-value range that `expr`/`mathop` exercise.
