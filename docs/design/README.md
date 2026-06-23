@@ -234,6 +234,8 @@ chunk-by-chunk dispatch story lives in
 - [runtime/rust-runtime-port.md](runtime/rust-runtime-port.md) —
   productionising the C-Tcl-extension-to-WASM port on the Rust runtime:
   status, bootstrapping plan, and the end-to-end build mechanism.
+- [runtime/rust-vm-tier-parity.md](runtime/rust-vm-tier-parity.md) — the
+  Rust bytecode VM's Tier 1/2/3 tcltest parity scoreboard versus C Tcl 9.
 - [runtime/rust-regex-port.md](runtime/rust-regex-port.md) — the
   `tcl-regex` crate: a pure-Rust port of Tcl 9's Henry-Spencer ARE engine,
   its architecture, and the `reg.test` corpus that validates it.

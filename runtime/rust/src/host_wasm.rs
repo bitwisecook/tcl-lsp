@@ -83,24 +83,39 @@ impl StdIo for BrowserStdIo {
     fn write_stderr(&self, _bytes: &[u8]) {}
 }
 
-/// The WASI preview-1 host: the [`BrowserHost`] stubs (clock/env) plus real
-/// `stdout`/`stderr` via WASI `fd_write`.
+/// The WASI preview-1 host: the [`BrowserHost`] stubs (clock) plus real
+/// `stdout`/`stderr` via WASI `fd_write`, a writable [`WasiEnv`], and — under the
+/// `wasm_stdlib` feature — an in-memory [`MemFs`](crate::mem_fs::MemFs) seeded
+/// with the embedded Tcl 9 standard library. With the stdlib mounted, the
+/// filesystem-backed startup path (`init_library()` → `source init.tcl` →
+/// `package require tcltest`) runs on a target with no host filesystem.
 #[cfg(target_os = "wasi")]
 pub struct WasiHost {
     clock: BrowserClock,
     stdio: WasiStdIo,
-    env: BrowserEnv,
+    env: WasiEnv,
+    #[cfg(feature = "wasm_stdlib")]
+    fs: crate::mem_fs::MemFs,
 }
 
 #[cfg(target_os = "wasi")]
 impl WasiHost {
-    /// Create the host.
+    /// Create the host. With `wasm_stdlib`, seed the VFS with the embedded
+    /// standard library and report its mount point as `$TCL_LIBRARY`.
     #[must_use]
     pub fn new() -> Self {
+        #[cfg(feature = "wasm_stdlib")]
+        let fs = {
+            let fs = crate::mem_fs::MemFs::new();
+            crate::embedded_stdlib::seed(&fs);
+            fs
+        };
         Self {
             clock: BrowserClock,
             stdio: WasiStdIo,
-            env: BrowserEnv,
+            env: WasiEnv::new(),
+            #[cfg(feature = "wasm_stdlib")]
+            fs,
         }
     }
 }
@@ -115,8 +130,16 @@ impl Default for WasiHost {
 #[cfg(target_os = "wasi")]
 impl Host for WasiHost {
     fn capabilities(&self) -> Capabilities {
-        // stdio reaches WASI; fs/sockets/process stay absent under preview 1.
-        Capabilities::empty()
+        // stdio reaches WASI; the VFS provides filesystem under `wasm_stdlib`.
+        // Sockets/process stay absent under preview 1.
+        #[cfg(feature = "wasm_stdlib")]
+        {
+            Capabilities::FILESYSTEM
+        }
+        #[cfg(not(feature = "wasm_stdlib"))]
+        {
+            Capabilities::empty()
+        }
     }
     fn clock(&self) -> &dyn Clock {
         &self.clock
@@ -126,6 +149,10 @@ impl Host for WasiHost {
     }
     fn env(&self) -> &dyn Env {
         &self.env
+    }
+    #[cfg(feature = "wasm_stdlib")]
+    fn filesystem(&self) -> Option<&dyn tcl_platform::Filesystem> {
+        Some(&self.fs)
     }
 }
 
@@ -176,5 +203,58 @@ impl Env for BrowserEnv {
     }
     fn chdir(&self, _path: &str) -> Result<(), HostError> {
         Err(HostError::Unsupported)
+    }
+}
+
+/// The WASI environment: a writable variable map plus a tracked working
+/// directory. Seeded with `TCL_LIBRARY` (the embedded-stdlib mount) under the
+/// `wasm_stdlib` feature so `init_library()` locates the library on a host with
+/// no real environment.
+#[cfg(target_os = "wasi")]
+struct WasiEnv {
+    vars: core::cell::RefCell<std::collections::BTreeMap<String, String>>,
+    cwd: core::cell::RefCell<String>,
+}
+
+#[cfg(target_os = "wasi")]
+impl WasiEnv {
+    fn new() -> Self {
+        #[allow(unused_mut)]
+        let mut vars = std::collections::BTreeMap::new();
+        #[cfg(feature = "wasm_stdlib")]
+        vars.insert(
+            "TCL_LIBRARY".to_string(),
+            crate::embedded_stdlib::TCL_LIBRARY_MOUNT.to_string(),
+        );
+        Self {
+            vars: core::cell::RefCell::new(vars),
+            cwd: core::cell::RefCell::new("/".to_string()),
+        }
+    }
+}
+
+#[cfg(target_os = "wasi")]
+impl Env for WasiEnv {
+    fn get(&self, key: &str) -> Option<String> {
+        self.vars.borrow().get(key).cloned()
+    }
+    fn set(&self, key: &str, val: &str) {
+        self.vars
+            .borrow_mut()
+            .insert(key.to_string(), val.to_string());
+    }
+    fn vars(&self) -> Vec<(String, String)> {
+        self.vars
+            .borrow()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    }
+    fn cwd(&self) -> Result<String, HostError> {
+        Ok(self.cwd.borrow().clone())
+    }
+    fn chdir(&self, path: &str) -> Result<(), HostError> {
+        *self.cwd.borrow_mut() = path.to_string();
+        Ok(())
     }
 }
