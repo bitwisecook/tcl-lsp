@@ -307,31 +307,40 @@ open risks and the spike that must precede committing it are listed after the st
    (the current one is single-file and analyser-only); building it is part of this
    task, not a backstop it can lean on.
 
-**Open risks a spike must settle before this design is committed** (none resolved
-today):
-- **Cycles.** Cross-file dependency graphs are routinely cyclic (mutual `source`,
-  mutually-recursive cross-file calls). No cycle handling is *configured* in this
-  codebase yet (the only fixpoints are manual and intra-unit), and an unhandled
-  salsa cycle panics — **but the mechanism exists**: salsa (0.27) provides
-  fixpoint cycle recovery via `#[salsa::tracked(cycle_fn=…, cycle_initial=…)]`
-  (verified — `salsa/src/cycle.rs`, with a `benches/dataflow.rs` fixpoint
-  that is the same monotone shape as the taint summary solve). So the policy is
-  *available* (salsa fixed-point recovery: `cycle_initial` = the lattice bottom,
-  `cycle_fn` = converge-or-iterate); the spike's remaining job is to wire it and
-  prove convergence + correctness, not to invent it.
-- **Heuristic edges vs. precise invalidation.** Tcl name resolution is best-effort,
-  so the salsa dependency edges are *heuristic* — a wrong edge can leave a stale
-  diagnostic that today's reanalyse-on-next-touch would not. "No-worse-than-today"
-  has to be *demonstrated* by the multi-file fuzzer, not assumed.
-- **Scaling.** `project_signatures` is O(project) to rebuild on any signature edit;
-  the per-symbol `signature(qname)` early-cutoff bounds *consumers*, but the table
-  build itself must be shown cheap on a large workspace.
+**Open risks — the salsa-mechanics three are now retired by a spike; the
+heuristic-edge one remains:**
+- **Cycles — RETIRED (spike, measured).** Cross-file dependency graphs are
+  routinely cyclic (mutual `source`, mutually-recursive cross-file calls); an
+  unhandled salsa cycle panics. The `experiment-xfile/` spike models the
+  cross-file resolved-signature fixpoint (`resolved(file) = max(own sig, imports'
+  resolved)`) with salsa 0.27 fixpoint recovery (`cycle_fn`/`cycle_initial`,
+  bottom = 0) and **converges an induced A↔B mutual-import cycle to the lattice
+  join (5, 5) with no panic** — the policy is now *wired and proven*, not just
+  available.
+- **Reverse-dependency precision — VALIDATED (spike).** On a fan of N leaves
+  importing one utility, changing the utility's **signature** recomputes exactly
+  `U + N` dependents (101 / 1001 — measured); nothing else.
+- **Scaling / early-cutoff — VALIDATED (spike).** A **body-only** edit to the
+  utility (a field `resolved` does not read) wakes **zero** dependents — it is not
+  even a dependency, so no leaf is dirtied. The per-signature recompute is
+  O(dependents), not O(project); the project table is O(project) to *rebuild* but
+  per-symbol early-cutoff bounds the fan-out (1000-leaf fan resolves in ~0.5 ms).
+- **Heuristic edges vs. precise invalidation — STILL OPEN.** Tcl name resolution
+  is best-effort, so the salsa dependency *edges* are heuristic — a wrong edge can
+  leave a stale diagnostic that today's reanalyse-on-next-touch would not. The
+  spike proves the *machinery* (cycles / invalidation / cutoff); it does **not**
+  prove the edges are right. "No-worse-than-today" must still be *demonstrated* by
+  the multi-file fuzzer, which does not exist.
 
-*Prerequisite experiment:* a throwaway two-file spike — `project_signatures` over
-two `SourceFile`s with an induced cross-file cycle — to settle the cycle policy and
-measure table-rebuild cost before Task 6 is designed for real. *Dependency:* the
-signature-firewall queries (`item_tree`/`item_sigs`/`file_decls`) must first be
-**wired into the live path** (built but unused today).
+*Prerequisite experiment — done:* `docs/design/srv-incremental/experiment-xfile/`
+(run: `cargo run --release --manifest-path …/experiment-xfile/Cargo.toml`) settled
+the cycle policy + measured reverse-dep/cutoff/scaling above. *Remaining
+dependencies before Task 6 ships:* (a) lift a project-level file set into salsa
+(`WorkspaceIndex` is a plain server struct today, **not** a salsa input — the XL
+core of the task); (b) wire the signature-firewall queries
+(`item_tree`/`item_sigs`/`file_decls`, built but unused) into a `project_signatures`
+query over it; (c) build the multi-file `incremental == fresh` fuzzer to settle the
+heuristic-edge risk.
 
 ## The work to do — SRV-INCREMENTAL tasks
 
@@ -488,17 +497,22 @@ exist yet — the verification-status table follows the list.
    re-segment is byte-identical to a full re-lex over the edit-fuzz corpus — the
    primitives are tested standalone, the *wired* path is not.
 
-6. **Cross-file cascade** *(XL — design sketch, unprototyped).* Lift the project
-   signature table into salsa (`project_signatures` over per-file `file_decls`), make
-   cross-file resolution + arity tracked queries (reverse-dependency invalidation
-   then falls out of salsa), and apply the E4/E8 input-setting discipline
-   project-wide. Brings cross-file arity / W123 onto the incremental graph with
-   precise invalidation for the resolvable subset and a conservative fallback for
-   dynamic dispatch. *Prerequisite experiment:* the two-file cycle/scaling spike (see
-   the design section's open-risks block — cycles, heuristic-edge correctness, and
-   table-rebuild scaling are all unresolved). *Dependencies:* wire the
-   signature-firewall queries into the live path first; build the multi-file
-   `incremental == fresh` fuzzer (neither exists today).
+6. **Cross-file cascade** *(XL — salsa mechanics spiked, core implementation
+   unbuilt).* Lift the project signature table into salsa (`project_signatures` over
+   per-file `file_decls`), make cross-file resolution + arity tracked queries
+   (reverse-dependency invalidation then falls out of salsa), and apply the E4/E8
+   input-setting discipline project-wide. Brings cross-file arity / W123 onto the
+   incremental graph with precise invalidation for the resolvable subset and a
+   conservative fallback for dynamic dispatch. *Prerequisite experiment — **done**:*
+   `experiment-xfile/` spiked the cross-file fixpoint and **retired the three
+   salsa-mechanics risks** (cycle convergence, reverse-dep precision, body-edit
+   early-cutoff — see the open-risks block, all measured). *Remaining (the XL core):*
+   (a) lift a project file set into salsa (`WorkspaceIndex` is a plain struct today,
+   not an input); (b) wire `item_tree`/`item_sigs`/`file_decls` into
+   `project_signatures` over it; (c) build the multi-file `incremental == fresh`
+   fuzzer to settle the **still-open** heuristic-edge correctness risk. The spike
+   proves the machinery works; the name-resolution edges and the workspace-input
+   refactor remain to build.
 
 7. **(Optional, late) rope-backed store + chunk-addressable salsa input** *(XL,
    gated).* The demoted SRV-ROPE work — full sub-task breakdown and measurements in
@@ -544,7 +558,8 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |
 | Task 2 "cuts ~405 ms to one-proc cost" (the easy framing) | **refuted** | decomposition: ~16 ms easy (2a) + ~385 ms hard whole-unit taint solve (2b) |
 | Task 2 (2b) memo is sound | **measured + verified** (cold) | full-corpus `compiler_check` differential (memo vs uncached, debug guard live) passes; cross-edit pinned by `taint_cascade_matches_uncached_under_edits`. *Random-edit* fuzzer still to build |
-| Task 6 cross-file cascade is correct, cycle-safe, bounded | **hypothesis** | two-file spike (cycles + scaling) + multi-file differential fuzzer — *neither exists* |
+| Task 6 cross-file salsa *mechanics* (cycle convergence, reverse-dep precision, body-edit cutoff) | **measured + verified** (spike) | `experiment-xfile/` — A↔B cycle → (5,5) no panic; sig change → exactly N+1 dependents; body change → 0 |
+| Task 6 cross-file cascade is correct (heuristic edges) + scales as a real `project_signatures` | **hypothesis** | needs the workspace-input refactor + multi-file differential fuzzer — *neither exists* |
 
 Differential-fuzzer coverage **today**:
 
