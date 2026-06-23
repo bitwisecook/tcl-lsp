@@ -86,12 +86,11 @@ fn scan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let Some(value) = v else { break };
         let name = obj_bytes(var);
         let o = scanned_obj(value);
-        if interp.var_set(&name, o).is_err() {
+        if let Err(e) = interp.var_set(&name, o) {
             drop_fresh(o);
-            let mut m = b"can't set \"".to_vec();
-            m.extend_from_slice(&name);
-            m.extend_from_slice(b"\"");
-            return interp.set_error(&m);
+            // Surface the real variable error (`: variable is array`, …) the way
+            // the VM and the other writers do (scan-8.12..8.16).
+            return crate::builtins::var_error(interp, &name, e);
         }
         assigned += 1;
     }
