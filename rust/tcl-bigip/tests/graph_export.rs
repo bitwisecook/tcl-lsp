@@ -21,7 +21,10 @@ fn graph_export_matches_python() {
         let want = std::fs::read_to_string(format!("{dir}/graph_export.{fmt}.golden"))
             .expect("read golden");
         let export = export_graph(&graph, fmt, &[], false, None).expect("export");
-        assert_eq!(export.text, want, "{fmt} export differs from the expected fixture");
+        assert_eq!(
+            export.text, want,
+            "{fmt} export differs from the expected fixture"
+        );
         assert_eq!(export.node_count, 5, "{fmt} node_count");
         assert_eq!(export.edge_count, 8, "{fmt} edge_count");
     }

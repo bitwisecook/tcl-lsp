@@ -1851,9 +1851,10 @@ impl Backend {
         }
         let mut out = Vec::new();
         for (doc_uri, source, dialect) in docs {
-            let analysis = self.cached_analysis(&doc_uri).await.unwrap_or_else(|| {
-                Arc::new(Analyser::new().analyse(&source, &dialect).clone())
-            });
+            let analysis = self
+                .cached_analysis(&doc_uri)
+                .await
+                .unwrap_or_else(|| Arc::new(Analyser::new().analyse(&source, &dialect).clone()));
             let calls = core_call_hierarchy::incoming_calls_for_target(
                 &source, &analysis, simple, qualified, None,
             );

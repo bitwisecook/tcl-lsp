@@ -343,7 +343,10 @@ mod tests {
     fn esc_c0_controls_and_named_forms() {
         // Named: \t \n \r \v \f; every other control byte is \uXXXX.
         assert_eq!(esc("\x0b\x0c", 40), "\\v\\f");
-        assert_eq!(esc("\x01\x08\x07\x1b\x7f", 40), "\\u0001\\u0008\\u0007\\u001b\\u007f");
+        assert_eq!(
+            esc("\x01\x08\x07\x1b\x7f", 40),
+            "\\u0001\\u0008\\u0007\\u001b\\u007f"
+        );
     }
 
     #[test]

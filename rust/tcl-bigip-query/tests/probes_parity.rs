@@ -79,10 +79,7 @@ fn x509_parse_matches_python_byte_for_byte() {
     let values = run_disabled(&query).expect("x509_parse succeeds");
     assert_eq!(values.len(), 1, "x509_parse yields a single dict");
     let got = value_to_json(&values[0]);
-    assert_eq!(
-        &got, golden,
-        "x509_parse output diverged from the golden"
-    );
+    assert_eq!(&got, golden, "x509_parse output diverged from the golden");
 }
 
 #[test]

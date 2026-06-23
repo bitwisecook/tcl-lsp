@@ -250,7 +250,10 @@ pub(crate) fn fold_lrepeat(args: &[&str]) -> Option<String> {
     }
     let elems = &args[1..];
     let elem_bytes: usize = elems.iter().map(|e| e.len() + 1).sum();
-    if elem_bytes.checked_mul(count).is_none_or(|bytes| bytes > MAX_FOLD_OUTPUT_BYTES) {
+    if elem_bytes
+        .checked_mul(count)
+        .is_none_or(|bytes| bytes > MAX_FOLD_OUTPUT_BYTES)
+    {
         return None;
     }
     let repeated: Vec<&str> = (0..count).flat_map(|_| elems.iter().copied()).collect();

@@ -1068,7 +1068,8 @@ pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, BigipError> {
         allocator.forbid(source_cidr_for(addr));
     }
     for a in &rm.cidr_assignments {
-        allocator.forbid(parse_net(&a.source).ok_or_else(|| BigipError::redact("bad source CIDR"))?);
+        allocator
+            .forbid(parse_net(&a.source).ok_or_else(|| BigipError::redact("bad source CIDR"))?);
     }
     for net in &explicit {
         allocator.forbid(*net);
@@ -1674,8 +1675,7 @@ mod toml_lite {
                     table.insert(key.to_owned(), unquote(val).unwrap_or_default());
                 }
                 Section::Ips => {
-                    let k = unquote(key)
-                        .ok_or_else(|| BigipError::redact("ips key not quoted"))?;
+                    let k = unquote(key).ok_or_else(|| BigipError::redact("ips key not quoted"))?;
                     let v = unquote(val).unwrap_or_default();
                     ips.push((k, v));
                 }

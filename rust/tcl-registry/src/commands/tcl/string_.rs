@@ -77,7 +77,10 @@ fn fold_repeat(args: &[&str]) -> Option<String> {
     if n > 10_000 {
         return None;
     }
-    if s.len().checked_mul(n).is_none_or(|bytes| bytes > MAX_FOLD_OUTPUT_BYTES) {
+    if s.len()
+        .checked_mul(n)
+        .is_none_or(|bytes| bytes > MAX_FOLD_OUTPUT_BYTES)
+    {
         return None;
     }
     Some(s.repeat(n))

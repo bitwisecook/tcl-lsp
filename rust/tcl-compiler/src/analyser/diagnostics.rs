@@ -5638,9 +5638,11 @@ file; this call falls through to the 'unknown' handler."
         &self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) -> FxHashSet<String> {
-        self.registry.as_ref().map_or_else(FxHashSet::default, |reg| {
-            Self::substitution_hidden_reads_of(fu, reg)
-        })
+        self.registry
+            .as_ref()
+            .map_or_else(FxHashSet::default, |reg| {
+                Self::substitution_hidden_reads_of(fu, reg)
+            })
     }
 
     /// `self`-free core of [`Self::substitution_hidden_reads`] so the explorer's

@@ -116,8 +116,6 @@ fn main() -> std::process::ExitCode {
     std::process::ExitCode::SUCCESS
 }
 
-
-
 /// Run a control operation and report the resulting stop (or end of program).
 fn control(
     backend: &mut VmBackend,

@@ -299,8 +299,7 @@ pub fn completions(
     // current document's procs (already present above) and
     // any same-named workspace proc don't double up.
     if let Some(index) = workspace {
-        let present: FxHashSet<String> =
-            items.iter().map(|i| i.label.clone()).collect();
+        let present: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
         let mut ws: Vec<&crate::workspace_index::WorkspaceProc> =
             index.procs_matching(&partial, "");
         // Stable, name-sorted order so cross-doc results don't
@@ -619,8 +618,7 @@ fn variable_completions(
     // Cross-namespace candidates — variables in *other* namespaces, offered in
     // fully-qualified `::ns::var` form (vars in the cursor's own namespace
     // chain are already above as bare names).
-    let mut seen: FxHashSet<String> =
-        items.iter().map(|i| i.label.clone()).collect();
+    let mut seen: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
     let chain = crate::definition::lexical_namespace_chain(scope, byte_offset);
     let mut qnames = crate::definition::cross_namespace_qualified_vars(scope, &chain);
     qnames.sort_unstable();

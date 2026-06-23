@@ -82,10 +82,7 @@ fn libpcap_forward_byte_identical() {
     assert_eq!(r.code, 0, "stderr: {}", r.stderr);
     let got = std::fs::read(&output).expect("read output");
     let golden = read_fixture("pcap-remap-sample.forward.pcap.golden");
-    assert_eq!(
-        got, golden,
-        "forward libpcap output must match golden"
-    );
+    assert_eq!(got, golden, "forward libpcap output must match golden");
     assert_eq!(
         r.stderr,
         "pcap-remap: 6/7 packet(s) rewritten, 14 address(es) changed; \
