@@ -373,21 +373,25 @@ exist yet — the verification-status table follows the list.
    | shimmer + thunking | ~10 ms | per-function |
    | **`solve_interprocedural_taints`** | **~385 ms** | **whole-unit fixpoint** |
 
-   - **2a — per-function check memo** *(blocked — coupled to the whole-module
-     passes; refuted by experiment).* The draft assumed SCCP / GVN / shimmer /
-     thunking "read only the `FunctionUnit`", so wrapping them in a query keyed on
-     `FnLatticeKey` (mirroring `function_lattice`) would be an easy ~16 ms tidy-up.
-     **Attempted and reverted:** memoising on the offset-0 `function_lattice`
-     baseline produces **divergent shimmer / type diagnostics** — the focused
-     `graphops.tcl` differential caught S100/S101 spans differing from the
-     whole-module build. Root cause: the checks read the **post-whole-module-pass**
-     `FunctionUnit` (`specialise_factories`, `inline_uplevel_passthrough`,
-     cross-module type propagation modify a proc's `types`/`sccp` using *other*
-     procs' facts), **not** the raw per-proc lattice. So 2a has the **same blocker
-     as Task 3**: it needs the "cross-item facts as inputs" split (Task 3) before
-     the per-function checks can be memoised offset-invariantly. At a ~16 ms ceiling
-     (~10% of the post-2b checks path) it is **not worth** doing that L/XL
-     foundational work for — a documented tidy-up, gated behind Task 3, not the prize.
+   - **2a — per-function check memo** *(**DONE**; an earlier "blocked" finding was
+     itself a bug).* SCCP / GVN / shimmer / thunking read only the `FunctionUnit`,
+     so they are memoised per proc via `function_checks(FnLatticeKey)` on the
+     offset-0 `function_lattice` unit (gathered by `proc_taint_solve` alongside 2b,
+     fed to `compiler_check_diagnostics` through `push_taint_and_module_checks` +
+     `sort_diagnostics`). **Correction of the record:** a first attempt was reverted
+     as "coupled to the whole-module passes" — that diagnosis was **wrong**. The
+     divergence was a **rebasing bug**: `function_lattice` returns the *offset-0*
+     unit (`rebase_function_unit` rewrites spans to absolute only inside the
+     whole-module build), so the memo's checks must be rebased by the proc's
+     `body_offset` — I had used `shift`/`abs_span`, which is identity at
+     `base_offset == 0`. The corpus then surfaced a second subtlety: an O100
+     constant branch with a `None` span lowers to the `(0, 0)` "unknown" sentinel,
+     which the whole-module build rebases as an `Option` (`None` stays `None`)
+     *before* lowering — so `(0, 0)` must **not** get `body_offset` added. Both
+     fixed; byte-identical over the full release corpus (893 files). **Measured:**
+     `compiler_check_diagnostics` 107 → **83 ms**, per-edit 154 → **125 ms** — more
+     than the ~16 ms ceiling estimate (the warm memo also skips unchanged procs'
+     full per-function recompute).
    - **2b — incremental interprocedural taint** *(XL; the real ~385 ms, and harder
      than the prior draft claimed).* `solve_interprocedural_taints` is **not**
      equivalent to the memoised `taint_cascade` (verified by reading the code): it is
@@ -493,10 +497,16 @@ exist yet — the verification-status table follows the list.
      **15+ call sites** (mostly tests passing an owned `InterproceduralAnalysis::
      default()`). 15-site churn for 0.1 ms is below the value bar — the rope
      tradeoff. Skipped.
-   - *Per-function `optimise_unit` memo:* coupled to **Task 3** — the optimiser
-     passes read the post-whole-module-pass `FunctionUnit` (same coupling that
-     refuted 2a), so an offset-0-baseline memo would diverge. Blocked behind the
-     Task 3 cross-item split.
+   - *Per-function `optimise_unit` memo:* harder than 2a's per-function check memo,
+     for two concrete reasons (not the 2a "coupling", which was a rebasing bug):
+     (a) the optimiser reads **absolute `source[span]` slices** (e.g.
+     `consumed_var_count` counts `$var` refs in the original source span), so an
+     offset-0 memo would need the source window threaded + rebased, not just span
+     arithmetic; (b) `optimise_unit` does **whole-module overlap selection**
+     (`select_non_overlapping`) + group renumbering across *all* functions'
+     optimisations, so the per-function raw optimisations would memoise but the
+     selection/renumbering stays whole-module (the 2b shape). Tractable on the 2a/2b
+     pattern, but a separate M-sized piece; not yet built.
 
 5. **Wire the structural-state index into the live re-lex path** *(blocked — no
    consumer exists; coupled to Task 7).* The intent: bound `did_change`'s re-lex /
@@ -578,7 +588,7 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | Salsa cycle recovery available for 2b/Task 6 (mutual recursion / `source` cycles) | **verified** (dep) | `salsa/src/cycle.rs` + `benches/dataflow.rs` (`cycle_fn`/`cycle_initial`); on salsa 0.27 |
 | 2b per-proc keys cannot be shared from `compilation_unit` (salsa return must be `'static`; cu carries only rebased `FunctionUnit`s) → dup-build required | **verified** (experiment) | reverted `BuiltUnit` threading spike — `lifetime may not live long enough` + `CompilationUnit: Eq` unsatisfied on salsa 0.27 |
 | **2b memo shipped:** `proc_summary_cascade`+`proc_taint_solve` — `compiler_check_diagnostics` 230→107 ms (~2.1×), per-edit 245→154 ms (~1.6×); dup-build ~28 ms warm | **measured + verified** | `tail_profile` + full-corpus `compiler_check` differential (510 s, guard live, byte-identical) + cross-edit/breadth/graphops tests |
-| 2a per-function check memo on `function_lattice` is sound (the "easy" framing) | **refuted** (experiment) | attempted + reverted: shimmer/type checks read the *post-whole-module-pass* `FunctionUnit`, so offset-0-baseline memo diverged on `graphops.tcl` — 2a is coupled to the whole-module passes (Task 3's blocker) |
+| **2a per-function check memo shipped** — `compiler_check_diagnostics` 107→83 ms, per-edit 154→125 ms | **measured + verified** | `function_checks(FnLatticeKey)` rebased by `body_offset`; byte-identical over the full release corpus (893 files) + graphops debug-guard regression. (A first attempt's "coupled to Task 3" reading was a rebasing bug, since corrected.) |
 | Task 1: `LineIndex::apply_edit` patch == rebuild; persisted index wired into `DocumentState` | **measured + verified** (shipped) | 5000-edit fuzz gate + live-path index-consistency test; ~0.02% per-edit value as predicted |
 | Task 5: `reparse_window` can be wired to bound re-lex today | **refuted** (code) | no windowed re-lex / incremental-segmentation consumer exists; `Lexer` lexes whole source, `did_change` feeds whole text to salsa — coupled to Task 7's chunk input |
 | Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |

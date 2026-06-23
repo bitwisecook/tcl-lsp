@@ -71,6 +71,29 @@ fn compiler_check_memo_matches_uncached_graphops() {
     );
 }
 
+/// Focused regression for SRV-INCREMENTAL 2a (per-function check memo):
+/// `init.tcl` has `foreach` loops whose constant-true condition emits an O100
+/// with a **`None`** span → the `(0, 0)` "unknown" sentinel.  The per-proc memo
+/// returns offset-0 spans rebased by `body_offset`, but that sentinel must be
+/// left alone (the whole-module build rebases the `Option<Span>` before lowering,
+/// so `None` stays `(0, 0)`).  A blanket `+ body_offset` regressed this; fast
+/// (one file) so it pins the fix without the corpus sweep.
+#[test]
+fn compiler_check_memo_matches_uncached_init() {
+    let dialect = "tcl8.6";
+    let path = repo_root().join("tmp/tcl8.6.16/library/init.tcl");
+    let Ok(src) = std::fs::read_to_string(&path) else {
+        eprintln!("skip: {} not present", path.display());
+        return;
+    };
+    let db = TclDatabase::default();
+    let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
+    let got = compiler_check_diagnostics(&db, file);
+    let registry = db.registry(dialect);
+    let want = compiler_check_diagnostics_uncached(&src, &registry, dialect);
+    assert_eq!(got.checks, want.checks, "init.tcl checks diverge (memo vs uncached)");
+}
+
 #[test]
 #[ignore = "slow corpus sweep (~100s over tmp/); run with --ignored"]
 fn compiler_check_memo_matches_uncached_over_corpus() {
