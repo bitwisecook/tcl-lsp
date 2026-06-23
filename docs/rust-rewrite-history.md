@@ -11793,6 +11793,13 @@ tricky parsing helpers):
   `setuptools_scm.get_version(local_scheme="no-local-version")` outputs captured
   from temp git repos (`v1.2.3-0-g…`→`1.2.3`, `v1.2.3-3-g…`→`1.2.4.dev3`,
   `2.0.0-1-g…`→`2.0.1.dev1`).
+- `tzdata-bundle` (⇐ `scripts/build/tzdata_bundle.py`) — packs the curated
+  `TZBL` tzdata bundle (the WASM-runtime fallback). Replicates the curated zone
+  list, the alias-dedup payload layout, the sorted index, and the `TZif` v1
+  transition trimmer (`--trim-from`/`--trim-to`, leap tables dropped). The
+  produced binary artifact is **byte-for-byte identical** to the Python output
+  for both the verbatim path (137 KB) and a trimmed window (verified via `cmp`),
+  and the `wrote N,NNN bytes` stderr matches (thousands grouping included).
 
 The Python scripts stay in place (rollout rule: fallback for one cycle). The
 scaffold is the landing point for the rest of the `build/` / `check/` /

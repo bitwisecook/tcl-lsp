@@ -1239,16 +1239,20 @@ final track** — every consumer above must port first.
   the analyser acceptance gate.
 - **partial** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
   Python toolchain dependency). The `rust/xtask` crate + `cargo xtask` alias
-  scaffold **landed**, with three scripts ported and parity-checked against the
+  scaffold **landed**, with four scripts ported and parity-checked against the
   Python originals: `refcount-contract` (⇐ `scripts/check/refcount_contract.py`)
-  and `kcs-index-links` (⇐ `scripts/check/kcs_index_links.py`) — both
-  byte-for-byte identical stdout/stderr + exit codes — and `version` (⇐
-  `scripts/print_version.py`), whose `git describe` → setuptools-scm scheme is
-  unit-pinned against real `setuptools_scm` outputs. Remaining: port the
-  heavier build scripts (`build/{kcs_db,tzdata_bundle,zipapps}.py` — SQLite /
-  tzdata / zipapp artifact builders) and the environment-coupled audits
-  (`check/audit_option_dialects.py`, `check/wasm_command_parity.py`), then flip
-  the Makefile/CI invocations and retire the Python originals.
+  and `kcs-index-links` (⇐ `scripts/check/kcs_index_links.py`) — byte-for-byte
+  identical stdout/stderr + exit codes; `version` (⇐ `scripts/print_version.py`),
+  whose `git describe` → setuptools-scm scheme is unit-pinned against real
+  `setuptools_scm` outputs; and `tzdata-bundle` (⇐
+  `scripts/build/tzdata_bundle.py`), whose packed `TZBL` artifact is byte-for-byte
+  identical for both the verbatim and `--trim`-window paths (the `TZif` v1
+  trimmer included). Remaining: port the other build-artifact scripts
+  (`build/{kcs_db,zipapps}.py` — SQLite / zipapp builders) and the
+  environment-coupled audits (`check/audit_option_dialects.py`,
+  `check/wasm_command_parity.py`), then flip the Makefile/CI invocations and
+  retire the Python originals. (`bigip_kind_differential.py` stays Python — it
+  is a Python-vs-Rust differential oracle, not a toolchain script.)
 - **open** PYTHON-RETIRE — delete `compiler/`, `analyser/`, `server/`, and the
   ported `tooling/` subtrees once their consumers are Rust. `ai/` (MCP server +
   Claude skills) stays Python by design.
