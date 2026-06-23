@@ -1143,14 +1143,18 @@ unit tests):
 - **`tcl-registry::commands::tk`** — `tk_command_specs()` table integrity
   (non-empty names, no duplicates, core widget/geometry/window commands
   present). 1 case. ⇐ `test_tk_registry.py`.
+- **`tcl-bigip::flow::sessions`** — flow→connection→session pairing: opposite
+  flows pair with the SYN-bearer as client (orphans get `server = None`); a
+  front flow whose F5 trailer peer-tuple matches a back connection's client
+  5-tuple folds into one front/back `Session`. 4 cases. ⇐ `test_f5_explain_flow.py`.
+- **`tcl-bigip-query::probes::tls`** — `classify_verify_kind` buckets a rustls
+  verification error into the `reason.kind` tag (expired / not_yet_valid /
+  self_signed / untrusted_ca / hostname_mismatch / other), case-insensitively.
+  1 case (the live-TLS-server handshake arm stays Deferred(TOOL-F5)).
+  ⇐ `test_f5_query_tls_server.py`.
 
-Integration-covered, thin *unit* coverage (tracked follow-ups — behaviour is
-already exercised by a differential/parity harness, so these stay **Ported**):
-
-- `tcl-bigip::flow::sessions` / `policy_eval` action traces — covered by
-  `f5-cli/tests/explain_flow_parity.rs`.
-- `tcl-bigip-query::probes::tls` — offline cert-parse / x509-eq; thin (the
-  live-TLS-server arm is Deferred(TOOL-F5)).
+Every identified portable gap (a landed module with zero/thin unit coverage)
+is now ported; no thin-unit-coverage follow-ups remain.
 
 Not portable yet → correctly **Deferred** (the Rust replacement does not exist
 in any landed crate, so there is nothing to unit-test): `proc_fingerprint`
