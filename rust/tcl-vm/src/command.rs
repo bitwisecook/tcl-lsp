@@ -559,6 +559,7 @@ fn parse_params(spec: &str) -> Result<(Vec<Param>, bool), String> {
     for e in &elems {
         let parts = split_list(e.as_ref()).map_err(|err| err.message().to_string())?;
         let (name, default) = match parts.as_slice() {
+            [] => return Err("argument with no name".to_string()),
             [n] => (n.to_string(), None),
             [n, d] => (n.to_string(), Some(Value::string(d.as_ref()))),
             _ => return Err(format!("too many fields in argument specifier \"{e}\"")),
