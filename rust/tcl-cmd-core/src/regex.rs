@@ -188,6 +188,13 @@ fn parse_isize(b: &[u8]) -> Option<isize> {
 
 /// Resolve a `-start` index spec (integer / `end` / `end±N`) against the
 /// character length, clamped to `0` (Tcl resets negatives to the start).
+///
+/// `N` in `end±N` is a user-supplied integer, so `len - 1 ± N` is done with
+/// `saturating_*`: `end+9999999999999999999` would otherwise overflow `isize`
+/// and wrap to a bogus (possibly in-range) offset. Saturating pins it to the
+/// `isize` extremes — a too-large `+N` becomes "past the end" (the match loop's
+/// `offset >= char_len` check then yields no match) and a too-large `-N` becomes
+/// the start, both the intended clamp behaviour.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 fn resolve_start(spec: &[u8], char_len: usize) -> usize {
     let len = char_len as isize;
@@ -195,8 +202,8 @@ fn resolve_start(spec: &[u8], char_len: usize) -> usize {
         len - 1
     } else if let Some(rest) = spec.strip_prefix(b"end") {
         match rest.first() {
-            Some(b'-') => parse_isize(&rest[1..]).map_or(0, |n| len - 1 - n),
-            Some(b'+') => parse_isize(&rest[1..]).map_or(0, |n| len - 1 + n),
+            Some(b'-') => parse_isize(&rest[1..]).map_or(0, |n| (len - 1).saturating_sub(n)),
+            Some(b'+') => parse_isize(&rest[1..]).map_or(0, |n| (len - 1).saturating_add(n)),
             _ => 0,
         }
     } else {
@@ -408,6 +415,19 @@ pub fn regexp<O: ValueOps, E: RegexEngine>(
     })
 }
 
+/// Slice the original bytes for the character range `[so, eo)` via the char→byte
+/// table, **guarding every index**. `byteoff` has one entry per character plus a
+/// final `bytes.len()`, so `so`/`eo` must be `<= char_len`; the FFI ARE engine is
+/// the behavioural oracle and should always honour that, but it is foreign code,
+/// so an out-of-range or inverted `[so, eo)` must not index-panic here. Anything
+/// off the table or backwards yields an empty slice rather than aborting.
+fn slice_match<'a>(str_bytes: &'a [u8], byteoff: &[usize], so: usize, eo: usize) -> &'a [u8] {
+    match (byteoff.get(so), byteoff.get(eo)) {
+        (Some(&a), Some(&b)) if a <= b && b <= str_bytes.len() => &str_bytes[a..b],
+        _ => &[],
+    }
+}
+
 /// Build the value for match item `k`: an `{start end}` index pair (`-indices`)
 /// or the matched substring (default). A non-participating group yields
 /// `{-1 -1}` / the empty string, per `Tcl_RegexpObjCmd`.
@@ -437,7 +457,7 @@ fn build_match_item<O: ValueOps>(
     } else {
         match m {
             Some(rm) if rm.so != NO_MATCH && rm.eo > 0 => {
-                ops.new_bytes(&str_bytes[byteoff[rm.so]..byteoff[rm.eo]])
+                ops.new_bytes(slice_match(str_bytes, byteoff, rm.so, rm.eo))
             }
             _ => ops.new_bytes(b""),
         }
@@ -605,7 +625,9 @@ fn apply_subspec(
             && let Some(rm) = matches.get(idx)
             && rm.so != NO_MATCH
         {
-            out.extend_from_slice(&str_bytes[byteoff[rm.so]..byteoff[rm.eo]]);
+            // Guard the engine-supplied offsets (see `slice_match`): a foreign ARE
+            // engine returning an out-of-range `[so, eo)` must not index-panic.
+            out.extend_from_slice(slice_match(str_bytes, byteoff, rm.so, rm.eo));
         }
         k += if ch == b'\\' { 2 } else { 1 };
         run = k;
@@ -629,6 +651,36 @@ mod tests {
         assert_eq!(resolve_start(b"-3", 10), 0); // Tcl resets negatives to start
         assert_eq!(resolve_start(b"bad", 10), 0); // unparseable → 0
         assert_eq!(resolve_start(b"end", 0), 0); // end of empty clamps to 0
+    }
+
+    #[test]
+    fn resolve_start_end_offset_saturates_without_overflow() {
+        // FN-C3: a giant `end±N` must not overflow the isize add/sub. An `N` near
+        // `isize::MAX` still parses, so `(len-1) ± N` is where the wrap would
+        // happen — `saturating_*` pins it instead: `end+N` to "past the end" (the
+        // match loop then finds nothing), `end-N` back to the start.
+        let big = b"end+9223372036854775800"; // close to isize::MAX, parses fine
+        assert_eq!(resolve_start(big, 10), isize::MAX as usize);
+        assert_eq!(resolve_start(b"end-9223372036854775800", 10), 0);
+        // A value too big to even parse as isize falls back to 0 (also panic-free).
+        assert_eq!(resolve_start(b"end+99999999999999999999999", 10), 0);
+    }
+
+    #[test]
+    fn slice_match_guards_out_of_range_engine_offsets() {
+        // FN-L: the byte-offset slice must never index-panic on a (foreign)
+        // engine offset past the char→byte table or with `eo < so`.
+        let bytes = b"hello";
+        let byteoff = [0usize, 1, 2, 3, 4, 5]; // 5 chars + final len
+        assert_eq!(slice_match(bytes, &byteoff, 1, 4), b"ell");
+        // `eo` past the table → empty, not a panic.
+        assert_eq!(slice_match(bytes, &byteoff, 0, 99), b"");
+        // `so` past the table → empty.
+        assert_eq!(slice_match(bytes, &byteoff, 99, 100), b"");
+        // Inverted range → empty.
+        assert_eq!(slice_match(bytes, &byteoff, 4, 1), b"");
+        // The `NO_MATCH` sentinel as an index → empty (never indexes).
+        assert_eq!(slice_match(bytes, &byteoff, NO_MATCH, NO_MATCH), b"");
     }
 
     #[test]

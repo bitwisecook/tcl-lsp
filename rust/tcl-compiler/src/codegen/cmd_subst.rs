@@ -880,8 +880,27 @@ impl CodegenCtx<'_> {
                 self.emit(Op::INCR_STK_IMM, vec![Operand::Imm(1)]);
             } else {
                 let amt_str = &args[1].0;
-                if let Ok(amt) = amt_str.parse::<i32>() {
-                    self.emit(Op::INCR_STK_IMM, vec![Operand::Imm(amt)]);
+                // OPT-C1: `INCR_STK_IMM` carries a 1-byte signed operand, so it
+                // must be range-checked exactly like the proc-local
+                // `INCR_SCALAR1_IMM` branch above. Without the check,
+                // `[incr ::g 200]` overflowed the operand, and an amount
+                // outside `i32` (e.g. `3000000000`) fell through to a
+                // `load_var` of a variable *named* after the number — a
+                // phantom-variable read. Parse as `i64` and fall back to the
+                // full `INCR_STK` for anything outside the 1-byte range.
+                if let Ok(amt) = amt_str.parse::<i64>() {
+                    if (-128..=127).contains(&amt) {
+                        self.emit(
+                            Op::INCR_STK_IMM,
+                            vec![Operand::Imm(
+                                i32::try_from(amt)
+                                    .expect("incr literal fits in i32 after range check"),
+                            )],
+                        );
+                    } else {
+                        self.push_lit(amt_str);
+                        self.emit(Op::INCR_STK, vec![]);
+                    }
                 } else {
                     let var_ref = amt_str.strip_prefix('$').unwrap_or(amt_str);
                     self.load_var(var_ref);

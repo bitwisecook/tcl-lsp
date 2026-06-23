@@ -75,6 +75,14 @@ pub fn optimise_unit(
     let ia = cu.interproc.clone().unwrap_or_default();
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
+    // SYNC-JUN02b-4: the whole-module builtin-fold trust gate (O129/O116/O118).
+    // Without this the production path leaves `command_mutations` at its default,
+    // whose `trusts()` returns `true` for everything, so renamed/redefined
+    // builtins (`rename string {}; [string length …]`) get const-folded — a
+    // silent miscompile. The test-only `optimise_raw` already wired this; the
+    // shipping `optimise_unit` did not.
+    ctx.command_mutations =
+        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
     run_passes(&mut ctx, cu, &PassId::all());
 
     // Determinism chokepoint.  Several passes iterate `HashMap`s
@@ -570,6 +578,8 @@ pub fn find_dead_stores(
     let ia = cu.interproc.clone().unwrap_or_default();
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
+    ctx.command_mutations =
+        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
     run_passes(&mut ctx, cu, &PassId::all());
     ctx.dead_stores
 }
@@ -591,6 +601,8 @@ pub fn optimise_by_pass(
     let ia = cu.interproc.clone().unwrap_or_default();
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
+    ctx.command_mutations =
+        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
     let mut by_pass = Vec::new();
     for pass in PassId::all() {
         let before = ctx.optimisations.len();

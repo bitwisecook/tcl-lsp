@@ -89,7 +89,13 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
         let mut has_width = false;
         while fi < fmt.len() && fmt[fi].is_ascii_digit() {
             has_width = true;
-            width = width * 10 + fmt[fi].to_digit(10).unwrap_or(0) as usize;
+            // The field width is taken from the format string, so a pathological
+            // run of digits (`%999…9d`) would overflow usize here. Saturate
+            // instead: a width past `usize::MAX` is already effectively unbounded
+            // (it can never exceed the input length used as the real cap).
+            width = width
+                .saturating_mul(10)
+                .saturating_add(fmt[fi].to_digit(10).unwrap_or(0) as usize);
             fi += 1;
         }
         // Ignore size modifiers (we scan into i64/f64).
@@ -438,6 +444,16 @@ mod tests {
             vec![Some(Scanned::Str("abc".into())), Some(Scanned::Int(3))]
         );
         // `%n` is not a conversion for the count.
+        assert_eq!(o.nconv, 1);
+    }
+
+    #[test]
+    fn huge_field_width_saturates_without_overflow() {
+        // FN-C3: a giant width in the format string must not overflow the usize
+        // accumulator; it saturates and behaves as an unbounded field (the input
+        // length is the real cap), so the whole string scans as one `%s`.
+        let o = scan_match(&chars("hello"), &chars("%999999999999999999999s"));
+        assert_eq!(o.values, vec![Some(Scanned::Str("hello".into()))]);
         assert_eq!(o.nconv, 1);
     }
 }

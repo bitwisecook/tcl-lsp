@@ -536,6 +536,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::approx_constant)] // `3.14` is parsed test data, not π
     fn as_number_parses_ints_doubles_and_precision() {
         // `lseq` number parsing (cmd-core lseq.rs had no unit coverage):
         // ints stay ints, doubles record their fractional precision, hex is

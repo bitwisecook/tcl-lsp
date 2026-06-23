@@ -6,7 +6,7 @@ use tcl_compiler::analyser::types::{Scope, VarDef};
 use tcl_lexer::{LineIndex, Token, TokenType};
 use tcl_registry::CommandRegistry;
 
-use super::{Refactoring, RefactorEdit, find_command_at, token_end_offset};
+use super::{RefactorEdit, Refactoring, find_command_at, token_end_offset};
 use crate::code_actions::ActionKind;
 
 /// Inline the variable defined by the `set` command at byte offset
@@ -86,10 +86,7 @@ pub fn inline_variable(
         value_text.to_owned()
     } else {
         let inner = dequote(value_text);
-        let in_quoted_string = source
-            .as_bytes()
-            .get(ctx.word_start as usize)
-            == Some(&b'"');
+        let in_quoted_string = source.as_bytes().get(ctx.word_start as usize) == Some(&b'"');
         if !in_quoted_string && inner.chars().any(char::is_whitespace) {
             return None;
         }

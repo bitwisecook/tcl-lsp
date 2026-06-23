@@ -92,8 +92,20 @@ pub struct Parser<'a> {
     /// `subs_defined[n]` is set once capture group `n` has been fully parsed
     /// (the backref-validity gate from `parseqatom`'s `BACKREF` case).
     subs_defined: Vec<bool>,
+    /// Current recursive-descent nesting depth. Bumped on entry to [`parse`]
+    /// and dropped on exit; guards against stack overflow from pathologically
+    /// nested groups (see [`MAX_PARSE_DEPTH`]).
+    depth: usize,
     err: Option<Err>,
 }
+
+/// Recursion budget for the `parse` → `parsebranch` → `parseqatom` → `parse`
+/// cycle (one extra level per `(`). A hostile pattern such as `(`×4000 would
+/// otherwise drive the recursive descent into a stack overflow (SIGABRT) before
+/// any error could be reported. Real patterns never nest groups this deeply, so
+/// capping at 1000 — comfortably within an 8 MB stack at this frame size — turns
+/// the abort into a clean `REG_ETOOBIG` compile error.
+const MAX_PARSE_DEPTH: usize = 1000;
 
 /// Compile `input` (codepoints) under `cflags`, returning the AST + metadata.
 ///
@@ -119,6 +131,7 @@ pub fn compile(input: &[Chr], cflags: i32) -> Result<Compiled, Err> {
         lasttype: Tok::Empty,
         nsubexp: 0,
         subs_defined: vec![false],
+        depth: 0,
         err: None,
     };
     p.lexstart();
@@ -1107,6 +1120,22 @@ impl Parser<'_> {
 
     /// Parse an alternation up to a stopper (`)` if `!top`, else EOS).
     fn parse(&mut self, top: bool, in_lacon: bool) -> Node {
+        // Guard the recursion: each nested group re-enters `parse` one frame
+        // deeper, so a deeply nested pattern would overflow the stack. Bail with
+        // the engine's resource-exhaustion error before that happens.
+        if self.depth >= MAX_PARSE_DEPTH {
+            self.fail(Err::Etoobig);
+            return Node::Empty;
+        }
+        self.depth += 1;
+        let node = self.parse_inner(top, in_lacon);
+        self.depth -= 1;
+        node
+    }
+
+    /// The body of [`parse`]; split out so the depth counter is restored on
+    /// every return path without repeating the decrement at each `return`.
+    fn parse_inner(&mut self, top: bool, in_lacon: bool) -> Node {
         let mut branches: Vec<Node> = Vec::new();
         loop {
             let b = self.parsebranch(false, in_lacon, top);

@@ -524,6 +524,15 @@ fn emit_dead_stores_and_unused(
         if scope_aliases.contains(var) {
             continue;
         }
+        // Skip `::`-qualified globals (OPT-M3): a direct write to a
+        // fully-qualified global (`set ::counter 42`) inside a proc is
+        // visible to every other scope, so it is never a dead/unused
+        // store. The SCCP side and the manager's
+        // `couple_propagated_const_dead_stores` already guard `::`; this
+        // pass omitted it and so deleted cross-proc global writes.
+        if var.starts_with("::") {
+            continue;
+        }
         // Skip cross-event vars (iRules scope).
         if ctx.cross_event_vars.contains(var) {
             continue;
@@ -1222,6 +1231,26 @@ mod tests {
         assert!(
             opts.iter().any(|o| o.code == "O109"),
             "expected O109 for overwritten store, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn qualified_global_write_is_not_a_dead_store() {
+        // OPT-M3: `set ::counter 42` inside a proc is a global write
+        // visible to other scopes; eliminating it (O109/O126) leaves
+        // `::counter` undefined. It must be kept even though the proc
+        // never reads it.
+        let src = "proc ::setit {} { set ::counter 42 }\n::setit\nputs $::counter";
+        let opts = crate::optimiser::optimise(src, &registry());
+        let removes_counter = opts.iter().any(|o| {
+            (o.code == "O109" || o.code == "O126")
+                && src
+                    .get(o.span.start() as usize..o.span.end() as usize)
+                    .is_some_and(|t| t.contains("::counter"))
+        });
+        assert!(
+            !removes_counter,
+            "must not remove the `set ::counter` global write, got {opts:?}",
         );
     }
 

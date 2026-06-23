@@ -16,11 +16,24 @@ use std::fmt::Write as _;
 
 use crate::value::Value;
 
+/// Nesting ceiling for serialisation. `write_value` descends one native
+/// stack frame per nested array / object, so a maliciously deep `Value`
+/// (e.g. a `Stream` of a `Stream` of … built by an adversarial query) would
+/// otherwise overflow the stack while rendering. At the cap we emit a
+/// truncation marker in place of the sub-value rather than recurse; 512 is
+/// far deeper than any real query output yet safely below the stack limit.
+const MAX_JSON_DEPTH: usize = 512;
+
+/// Stand-in emitted (as a JSON string) when a value nests past
+/// [`MAX_JSON_DEPTH`], so deeply-nested input renders to bounded, still
+/// well-formed JSON instead of crashing.
+const TRUNCATION_MARKER: &str = "<max depth exceeded>";
+
 /// Serialise *value* as `json.dumps(_to_json(value), indent=2)` would.
 #[must_use]
 pub fn to_pretty(value: &Value) -> String {
     let mut out = String::new();
-    write_value(&mut out, value, Some(0), false);
+    write_value(&mut out, value, Some(0), false, 0);
     out
 }
 
@@ -28,7 +41,7 @@ pub fn to_pretty(value: &Value) -> String {
 #[must_use]
 pub fn to_compact(value: &Value) -> String {
     let mut out = String::new();
-    write_value(&mut out, value, None, false);
+    write_value(&mut out, value, None, false, 0);
     out
 }
 
@@ -37,7 +50,7 @@ pub fn to_compact(value: &Value) -> String {
 #[must_use]
 pub fn to_compact_sorted(value: &Value) -> String {
     let mut out = String::new();
-    write_value(&mut out, value, None, true);
+    write_value(&mut out, value, None, true, 0);
     out
 }
 
@@ -48,7 +61,21 @@ fn indent(out: &mut String, level: usize) {
     }
 }
 
-fn write_value(out: &mut String, value: &Value, level: Option<usize>, sort_keys: bool) {
+fn write_value(
+    out: &mut String,
+    value: &Value,
+    level: Option<usize>,
+    sort_keys: bool,
+    depth: usize,
+) {
+    // Bound recursion: past the ceiling, substitute a marker string for the
+    // sub-value so a pathologically deep `Value` renders without overflowing
+    // the stack. Scalars are leaves and can never recurse, so the guard only
+    // needs to gate the composite arms below.
+    if depth >= MAX_JSON_DEPTH {
+        write_string(out, TRUNCATION_MARKER);
+        return;
+    }
     match value {
         Value::Null | Value::Drop => out.push_str("null"),
         Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
@@ -56,13 +83,16 @@ fn write_value(out: &mut String, value: &Value, level: Option<usize>, sort_keys:
         Value::Float(f) => out.push_str(&py_float_repr(*f)),
         Value::Str(s) => write_string(out, s),
         Value::PathRef(p) => write_string(out, &p.full_path),
-        Value::List(items) | Value::Stream(items) => write_array(out, items, level, sort_keys),
+        Value::List(items) | Value::Stream(items) => {
+            write_array(out, items, level, sort_keys, depth);
+        }
         Value::Object(map) => {
             write_object(
                 out,
                 map.iter().map(|(k, v)| (k.as_str(), v)),
                 level,
                 sort_keys,
+                depth,
             );
         }
         Value::Container(c) => {
@@ -77,12 +107,24 @@ fn write_value(out: &mut String, value: &Value, level: Option<usize>, sort_keys:
                 ("full-path", Value::Str(o.full_path.clone())),
                 ("fields", fields),
             ];
-            write_object(out, entries.iter().map(|(k, v)| (*k, v)), level, sort_keys);
+            write_object(
+                out,
+                entries.iter().map(|(k, v)| (*k, v)),
+                level,
+                sort_keys,
+                depth,
+            );
         }
     }
 }
 
-fn write_array(out: &mut String, items: &[Value], level: Option<usize>, sort_keys: bool) {
+fn write_array(
+    out: &mut String,
+    items: &[Value],
+    level: Option<usize>,
+    sort_keys: bool,
+    depth: usize,
+) {
     if items.is_empty() {
         out.push_str("[]");
         return;
@@ -96,7 +138,7 @@ fn write_array(out: &mut String, items: &[Value], level: Option<usize>, sort_key
         if let Some(l) = inner {
             indent(out, l);
         }
-        write_value(out, item, inner, sort_keys);
+        write_value(out, item, inner, sort_keys, depth + 1);
     }
     if let Some(l) = level {
         indent(out, l);
@@ -109,6 +151,7 @@ fn write_object<'a>(
     entries: impl Iterator<Item = (&'a str, &'a Value)>,
     level: Option<usize>,
     sort_keys: bool,
+    depth: usize,
 ) {
     let mut entries: Vec<(&str, &Value)> = entries.collect();
     if sort_keys {
@@ -131,7 +174,7 @@ fn write_object<'a>(
         // With `indent` set, Python's key separator is `": "`; compact mode
         // uses `":"`.
         out.push_str(if level.is_some() { ": " } else { ":" });
-        write_value(out, val, inner, sort_keys);
+        write_value(out, val, inner, sort_keys, depth + 1);
     }
     if let Some(l) = level {
         indent(out, l);

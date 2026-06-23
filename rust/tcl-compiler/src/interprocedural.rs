@@ -543,6 +543,10 @@ fn build_method_summaries(
             &mut facts,
             &params,
         );
+        // Fall-through exit is non-constant (MID-H2/O103); see `scan_proc`.
+        if !script_always_returns(&method.body) {
+            facts.returns.push(ReturnKind::Other);
+        }
 
         // Instance-variable writes mutate object state and survive the
         // call — so a method that writes any in-scope instance var is
@@ -881,6 +885,18 @@ fn materialise_summaries(
         direct_calls.sort();
         let is_pure = *pure.get(qname).unwrap_or(&false);
 
+        // MID-H4: `writes_global` / `has_unknown_calls` are documented as
+        // transitive, but were copied straight from local facts — so a proc
+        // that writes a global (or calls an unknown command) only via a
+        // callee reported `false`, and `propagate_taints` then failed to
+        // seed its globals as tainted. `calls_list` is the full transitive
+        // closure, so OR in every transitive callee's local flag.
+        let transitive_flag = |pick: fn(&LocalFacts) -> bool| -> bool {
+            pick(facts) || calls_list.iter().any(|c| local.get(c).is_some_and(pick))
+        };
+        let writes_global = transitive_flag(|f| f.writes_global);
+        let has_unknown_calls = transitive_flag(|f| f.has_unknown_calls);
+
         let (returns_constant, constant_return, passthrough, depends) =
             summarise_returns(&facts.returns);
         // A proc is foldable at a call site when its return is
@@ -902,8 +918,8 @@ fn materialise_summaries(
                 calls: calls_list,
                 direct_calls,
                 has_barrier: facts.has_barrier,
-                has_unknown_calls: facts.has_unknown_calls,
-                writes_global: facts.writes_global,
+                has_unknown_calls,
+                writes_global,
                 pure: is_pure,
                 effect_reads: *effect_reads
                     .get(qname)
@@ -1007,6 +1023,14 @@ fn scan_proc(
     scan_script(
         &proc.body, qname, known, registry, dialect, &mut facts, &params,
     );
+    // If the body can fall off the end, its implicit exit returns the
+    // result of the last command — not a constant. Record a non-constant
+    // exit so `summarise_returns` won't fold a conditional `return CONST`
+    // to a constant when a fall-through path returns something else
+    // (MID-H2/O103).
+    if !script_always_returns(&proc.body) {
+        facts.returns.push(ReturnKind::Other);
+    }
     facts
 }
 
@@ -1876,6 +1900,34 @@ fn is_plain_proc_name(text: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':'))
 }
 
+/// Whether every path through `script` reaches an explicit `return`, so
+/// the proc cannot fall off the end. A fall-through exit returns the
+/// result of the body's last command — generally **not** a compile-time
+/// constant — so a proc that returns a literal on one path but can fall
+/// through on another is not constant-returning (MID-H2/O103).
+///
+/// Deliberately conservative: it recognises only `return` and a
+/// fully-covered `if`/`elseif`/`else` whose every arm returns. Anything
+/// else is treated as "may fall through", which costs only a missed fold,
+/// never a miscompile.
+fn script_always_returns(script: &crate::ir::Script) -> bool {
+    script.statements.iter().any(stmt_always_returns)
+}
+
+fn stmt_always_returns(stmt: &crate::ir::Statement) -> bool {
+    use crate::ir::Statement;
+    match stmt {
+        Statement::Return { .. } => true,
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            else_body.as_ref().is_some_and(script_always_returns)
+                && clauses.iter().all(|c| script_always_returns(&c.body))
+        }
+        _ => false,
+    }
+}
+
 /// Derive the return-value summary fields from a proc's
 /// collected [`ReturnKind`] list. Returns `(returns_constant,
 /// constant_return, passthrough_param, depends_on_params)`.
@@ -2334,6 +2386,31 @@ mod tests {
         let s = ia.procedures.get("::f").unwrap();
         assert!(s.returns_constant);
         assert_eq!(s.constant_return, Some(ConstantReturn::Int(1)));
+    }
+
+    #[test]
+    fn conditional_return_is_not_constant_when_body_falls_through() {
+        // MID-H2/O103: `f` returns 42 only when `$x > 0`; otherwise it
+        // falls off the end (the `if` returns "" on the no-match path),
+        // so it is NOT constant-returning and must not be folded.
+        let ia = build("proc ::f {x} { if {$x > 0} { return 42 } }");
+        let s = ia.procedures.get("::f").unwrap();
+        assert!(
+            !s.returns_constant,
+            "fall-through proc must not be constant-returning, got {:?}",
+            s.constant_return,
+        );
+        assert_eq!(s.constant_return, None);
+    }
+
+    #[test]
+    fn conditional_return_is_constant_when_all_paths_return() {
+        // Fully covered if/else, both arms return the same literal →
+        // genuinely constant, still folds.
+        let ia = build("proc ::f {x} { if {$x > 0} { return 7 } else { return 7 } }");
+        let s = ia.procedures.get("::f").unwrap();
+        assert!(s.returns_constant);
+        assert_eq!(s.constant_return, Some(ConstantReturn::Int(7)));
     }
 
     #[test]

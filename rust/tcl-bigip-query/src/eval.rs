@@ -269,11 +269,60 @@ pub fn evaluate(
 // Core dispatch
 // ---------------------------------------------------------------------------
 
+/// Recursion-depth ceiling for the evaluator. `eval` spends a native stack
+/// frame (plus its per-node helper's frame) per nested AST form, so a
+/// pathological program — a hand-built AST, or one that nests deeper at eval
+/// than at parse — could otherwise overflow the stack.
+///
+/// Sized empirically: a debug build overflows a small 2 MiB worker stack near
+/// ~700 nested `eval` frames. 256 sits well below that on the tightest stack
+/// we run on, yet stays above the parser's `MAX_PARSE_DEPTH` (64) with ample
+/// headroom so every tree the parser accepts still evaluates — the guard only
+/// ever fires on an abusive (typically hand-built) AST.
+const MAX_EVAL_DEPTH: usize = 256;
+
+thread_local! {
+    /// Per-thread evaluation recursion depth, reset to zero between
+    /// top-level statements. A thread-local keeps the guard off the public
+    /// `EvalContext` struct (which callers build with field literals) while
+    /// still bounding every `eval` re-entry.
+    static EVAL_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// RAII counter for [`EVAL_DEPTH`]: increments on construction, decrements on
+/// drop so the depth unwinds correctly through `?` early returns and panics.
+struct DepthGuard;
+
+impl DepthGuard {
+    /// Enter one evaluation level, or return the eval error at the cap.
+    fn enter() -> Result<DepthGuard, QueryError> {
+        let depth = EVAL_DEPTH.with(|d| {
+            let next = d.get() + 1;
+            d.set(next);
+            next
+        });
+        if depth > MAX_EVAL_DEPTH {
+            // No `DepthGuard` is constructed on this path, so undo the bump
+            // by hand before bailing — the whole evaluation then unwinds.
+            EVAL_DEPTH.with(|d| d.set(d.get() - 1));
+            return Err(QueryError::eval("query nests too deeply to evaluate"));
+        }
+        Ok(DepthGuard)
+    }
+}
+
+impl Drop for DepthGuard {
+    fn drop(&mut self) {
+        EVAL_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
+    }
+}
+
 pub(crate) fn eval(
     node: &Expr,
     current: &Value,
     ctx: &mut EvalContext,
 ) -> Result<Value, QueryError> {
+    let _guard = DepthGuard::enter()?;
     match node {
         Expr::Literal { value, .. } => Ok(lit_to_value(value)),
         Expr::Identity { .. } => Ok(current.clone()),
@@ -1129,13 +1178,23 @@ fn num_parts(v: &Value) -> Option<(NumKind, f64, i64)> {
     }
 }
 
+/// The runtime error raised when integer arithmetic on untrusted query
+/// operands exceeds the `i64` range. Phrased like tclsh's `expr` overflow so
+/// the message reads naturally for the DSL's users.
+fn int_overflow() -> QueryError {
+    QueryError::eval("integer overflow")
+}
+
 fn add(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
     if let (Value::Str(a), Value::Str(b)) = (&lhs, &rhs) {
         return Ok(Value::Str(format!("{a}{b}")));
     }
     if let Some((kind, lf, rf, li, ri)) = num_pair(&lhs, &rhs) {
         return Ok(match kind {
-            NumKind::Int => Value::Int(li + ri),
+            // The operands come from untrusted query input; mirror tclsh's
+            // "integer overflow" rather than panicking in debug / silently
+            // wrapping in release the way `li + ri` would.
+            NumKind::Int => Value::Int(li.checked_add(ri).ok_or_else(int_overflow)?),
             NumKind::Float => Value::Float(lf + rf),
         });
     }
@@ -1186,7 +1245,9 @@ fn scalar_to_string(value: &Value) -> String {
 fn sub(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
     if let Some((kind, lf, rf, li, ri)) = num_pair(&lhs, &rhs) {
         return Ok(match kind {
-            NumKind::Int => Value::Int(li - ri),
+            // See `add`: subtraction of two untrusted integers can overflow
+            // (e.g. `i64::MIN - 1`), so report it instead of wrapping.
+            NumKind::Int => Value::Int(li.checked_sub(ri).ok_or_else(int_overflow)?),
             NumKind::Float => Value::Float(lf - rf),
         });
     }
@@ -1215,7 +1276,9 @@ fn sub(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
 fn mul(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
     if let Some((kind, lf, rf, li, ri)) = num_pair(&lhs, &rhs) {
         return Ok(match kind {
-            NumKind::Int => Value::Int(li * ri),
+            // See `add`: multiplication of two untrusted integers overflows
+            // fastest of all, so report it instead of wrapping.
+            NumKind::Int => Value::Int(li.checked_mul(ri).ok_or_else(int_overflow)?),
             NumKind::Float => Value::Float(lf * rf),
         });
     }

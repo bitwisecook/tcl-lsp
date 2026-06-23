@@ -442,10 +442,24 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
         .await
         {
             Ok(Some(pair)) => pair,
-            // Cancelled mid-read (a concurrent `set_text` on the shared db) or
-            // the worker panicked — don't publish; signal a retry of the
-            // document's latest state.
-            Ok(None) | Err(_) => return false,
+            // A genuine salsa cancellation (a concurrent `set_text` on the
+            // shared db) — don't publish; signal a retry of the document's
+            // latest state.
+            Ok(None) => return false,
+            // The worker PANICKED. A panic in the analysis pipeline is
+            // deterministic for this document, so retrying it livelocks the
+            // debounce loop (~20 failed analyses/second, diagnostics never
+            // published). Treat the run as *settled* so the scheduler stops
+            // re-marking the slot dirty; the document keeps its prior
+            // diagnostics rather than spinning the CPU (F1).
+            Err(e) => {
+                eprintln!(
+                    "tcl-lsp: diagnostics worker panicked for {uri} (is_panic={}); \
+                     skipping this document's diagnostics to avoid a retry livelock",
+                    e.is_panic(),
+                );
+                return true;
+            }
         }
     } else {
         let (a_text, a_dialect, a_disabled) = (text.clone(), dialect.clone(), disabled.clone());
@@ -476,7 +490,17 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
         .await
         {
             Ok(Some(d)) => d,
-            Ok(None) | Err(_) => return false,
+            // Genuine cancellation — retry the latest state.
+            Ok(None) => return false,
+            // Deterministic worker panic — settle instead of livelocking (F1).
+            Err(e) => {
+                eprintln!(
+                    "tcl-lsp: compiler-check worker panicked for {uri} (is_panic={}); \
+                     skipping this document's diagnostics to avoid a retry livelock",
+                    e.is_panic(),
+                );
+                return true;
+            }
         }
     } else {
         let (c_text, c_dialect) = (text.clone(), dialect.clone());
@@ -1419,7 +1443,10 @@ impl Backend {
         // Drop the same files from the salsa `Project` so their procs stop
         // resolving cross-file.  Lock order: documents (held) → db → db_files →
         // db_project, matching `did_open`.
-        let removed_urls: Vec<Url> = to_remove.iter().filter_map(|u| Url::parse(u).ok()).collect();
+        let removed_urls: Vec<Url> = to_remove
+            .iter()
+            .filter_map(|u| Url::parse(u).ok())
+            .collect();
         self.db_remove_sources_batch(&removed_urls).await;
         drop(docs);
     }
@@ -1429,8 +1456,7 @@ impl Backend {
         // db (cross-file diagnostics) must track the same on-disk population as the
         // workspace index, so a proc defined in a closed/never-opened file still
         // suppresses W123 / drives the arity error in its siblings.
-        let scanned: Option<(String, String, AnalysisResult)> = if let Ok(path) =
-            uri.to_file_path()
+        let scanned: Option<(String, String, AnalysisResult)> = if let Ok(path) = uri.to_file_path()
         {
             let dialect = match self.resolve_folder_dialect(uri).await {
                 Some(d) => d,
@@ -6046,6 +6072,9 @@ fn lift_analyser_diagnostics(
                 tcl_compiler::analyser::Severity::Warning => {
                     tower_lsp::lsp_types::DiagnosticSeverity::WARNING
                 }
+                tcl_compiler::analyser::Severity::Info => {
+                    tower_lsp::lsp_types::DiagnosticSeverity::INFORMATION
+                }
                 tcl_compiler::analyser::Severity::Hint
                 | tcl_compiler::analyser::Severity::Suggestion => {
                     tower_lsp::lsp_types::DiagnosticSeverity::HINT
@@ -7268,15 +7297,36 @@ mod tests {
     #[test]
     #[allow(clippy::cast_possible_truncation)] // line_count fits u32 (4 GiB budget)
     fn apply_content_change_indexed_keeps_line_index_consistent() {
-        let line_starts =
-            |idx: &tcl_lexer::LineIndex| (0..idx.line_count()).map(|l| idx.line_start(l as u32)).collect::<Vec<_>>();
+        let line_starts = |idx: &tcl_lexer::LineIndex| {
+            (0..idx.line_count())
+                .map(|l| idx.line_start(l as u32))
+                .collect::<Vec<_>>()
+        };
         let mut text = "abc\ndef\nghi\n".to_string();
         let mut index = tcl_lexer::LineIndex::new(&text);
         let edits = [
-            (Some(Range { start: pos(0, 1), end: pos(0, 1) }), "X\nY"), // insert with newline
-            (Some(Range { start: pos(2, 0), end: pos(3, 2) }), ""),     // multi-line deletion
-            (None, "p\nq\nr\ns"),                                       // full replacement
-            (Some(Range { start: pos(1, 1), end: pos(2, 0) }), "Z"),    // collapse a line
+            (
+                Some(Range {
+                    start: pos(0, 1),
+                    end: pos(0, 1),
+                }),
+                "X\nY",
+            ), // insert with newline
+            (
+                Some(Range {
+                    start: pos(2, 0),
+                    end: pos(3, 2),
+                }),
+                "",
+            ), // multi-line deletion
+            (None, "p\nq\nr\ns"), // full replacement
+            (
+                Some(Range {
+                    start: pos(1, 1),
+                    end: pos(2, 0),
+                }),
+                "Z",
+            ), // collapse a line
         ];
         for (range, new_text) in edits {
             text = apply_content_change_indexed(&text, range, new_text, &mut index);
@@ -8589,7 +8639,12 @@ mod tests {
         // Correct arity (2 args) → resolves cross-file, no W123, proving the
         // never-opened disk file is in the resolution domain.
         let ok = backend
-            .full_diagnostics_for(&a, "helper foo bar\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(
+                &a,
+                "helper foo bar\n".to_owned(),
+                "tcl8.6".to_owned(),
+                "tcl",
+            )
             .await;
         assert!(
             !diag_codes(&ok).iter().any(|c| c == "W123"),
@@ -8633,7 +8688,12 @@ mod tests {
         // Present on disk → resolves cross-file (no W123).
         backend.reindex_index_from_disk(&b).await;
         let present = backend
-            .full_diagnostics_for(&a, "helper foo bar\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(
+                &a,
+                "helper foo bar\n".to_owned(),
+                "tcl8.6".to_owned(),
+                "tcl",
+            )
             .await;
         assert!(
             !diag_codes(&present).iter().any(|c| c == "W123"),
@@ -8646,7 +8706,12 @@ mod tests {
         std::fs::remove_file(&on_disk).unwrap();
         backend.reindex_index_from_disk(&b).await;
         let gone = backend
-            .full_diagnostics_for(&a, "helper foo bar\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .full_diagnostics_for(
+                &a,
+                "helper foo bar\n".to_owned(),
+                "tcl8.6".to_owned(),
+                "tcl",
+            )
             .await;
         assert!(
             diag_codes(&gone).iter().any(|c| c == "W123"),

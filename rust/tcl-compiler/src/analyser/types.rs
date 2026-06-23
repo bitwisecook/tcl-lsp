@@ -32,6 +32,10 @@ pub enum Severity {
     Hint,
     /// Suggestion — minor improvement opportunity.
     Suggestion,
+    /// Info — observational note (LSP `Information`), not a problem.
+    /// Used by the constant-branch I230/I231 family so it renders as
+    /// `Information` rather than collapsing to `Hint` (Python parity).
+    Info,
     /// Warning — likely-incorrect code that still compiles.
     Warning,
     /// Error — definitely-incorrect code.
@@ -48,6 +52,7 @@ impl Severity {
         match self {
             Self::Hint => "hint",
             Self::Suggestion => "suggestion",
+            Self::Info => "info",
             Self::Warning => "warning",
             Self::Error => "error",
         }

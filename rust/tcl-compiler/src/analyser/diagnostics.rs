@@ -5487,10 +5487,24 @@ file; this call falls through to the 'unknown' handler."
             self.emit_cfg_ssa_diagnostics_with_cu(&cu, &registry);
             return;
         }
-        let dialect_opt = (!self.dialect.is_empty()).then_some(self.dialect.as_str());
-        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
-            .with_interprocedural(&registry, dialect_opt);
-        self.emit_cfg_ssa_diagnostics_with_cu(&cu, &registry);
+        // Own the dialect so the firewall closure below doesn't hold an
+        // immutable borrow of `self` (via `self.dialect`) while it also needs
+        // `&mut self` for the emission.
+        let dialect_owned: Option<String> =
+            (!self.dialect.is_empty()).then(|| self.dialect.clone());
+        // AN-H1: firewall the lowering→CFG→SSA→interprocedural build (and the
+        // emission that consumes it). A panic on adversarial input is contained
+        // to "no CFG/SSA diagnostics for this document" instead of crashing the
+        // whole document's diagnostics — the same conservative containment the
+        // `unknown`-proc lowering path uses (`oo.rs`). (Deep-nesting stack
+        // overflow is separately bounded by the lowering depth guards;
+        // `catch_unwind` cannot contain a SIGABRT.)
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let dialect_opt = dialect_owned.as_deref();
+            let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
+                .with_interprocedural(&registry, dialect_opt);
+            self.emit_cfg_ssa_diagnostics_with_cu(&cu, &registry);
+        }));
     }
 
     /// Emit the CFG/SSA-derived diagnostics from an already-built
@@ -7035,6 +7049,16 @@ file; this call falls through to the 'unknown' handler."
             ];
             let is_switch = names.iter().any(|n| n.starts_with("switch_"));
             let is_if = names.iter().any(|n| n.starts_with("if_"));
+            let is_loop = names.iter().any(|n| {
+                n.starts_with("while_") || n.starts_with("for_") || n.starts_with("foreach_")
+            });
+            // Python suppresses the idiomatic infinite loop `while 1 { … }`:
+            // a constant-TRUE loop condition is intentional, not a bug (a
+            // constant-FALSE loop still flags its unreachable body). Mirrors
+            // `_diag_branches.py`'s `is_loop` guard.
+            if is_loop && branch.value {
+                continue;
+            }
 
             let (code, message) = if is_switch {
                 let code = "I231";
@@ -7079,7 +7103,9 @@ file; this call falls through to the 'unknown' handler."
                 code: code.to_string(),
                 span,
                 message,
-                severity: Severity::Hint,
+                // I230/I231 are observational (LSP `Information`), matching
+                // Python; they previously collapsed to `Hint`.
+                severity: Severity::Info,
                 fixes: Vec::new(),
             });
         }
@@ -7126,7 +7152,8 @@ file; this call falls through to the 'unknown' handler."
                 code: "I230".to_string(),
                 span,
                 message,
-                severity: Severity::Hint,
+                // I230 is observational (LSP `Information`), Python parity.
+                severity: Severity::Info,
                 fixes: Vec::new(),
             });
         }

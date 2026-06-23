@@ -62,6 +62,7 @@ mod interp;
 mod join_;
 mod lappend_;
 mod lassign;
+mod ledit;
 mod lindex;
 mod linsert;
 mod list_;
@@ -243,6 +244,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         join_::spec(),
         lappend_::spec(),
         lassign::spec(),
+        ledit::spec(),
         lindex::spec(),
         linsert::spec(),
         list_::spec(),

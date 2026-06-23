@@ -20,7 +20,7 @@
 //!
 //! Ported from `core/compiler/memory_ssa.py` in three strips:
 //! - **C24b1** (this file) — location types and alias-set queries.
-//! - **C24b2** — memory-op types + `MemorySSAFunction` + detection
+//! - **C24b2** — memory-op types + `MemorySsaFunction` + detection
 //!   helpers.
 //! - **C24b3** — `compute_aliases` + `build_memory_ssa` driver.
 
@@ -272,7 +272,7 @@ impl MemoryOp {
 }
 
 // ---------------------------------------------------------------------------
-// MemorySSAFunction (C24b2)
+// MemorySsaFunction (C24b2)
 // ---------------------------------------------------------------------------
 
 /// Memory-SSA annotations for a single function.
@@ -285,7 +285,7 @@ impl MemoryOp {
 /// - pre-computed counts (`count_defs`, `count_uses`, `count_clobbers`)
 ///   for O(1) summary queries.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct MemorySSAFunction {
+pub struct MemorySsaFunction {
     /// Alias sets covering this function's aliased variables.
     pub alias_sets: Vec<AliasSet>,
     /// Memory operations in emission order.
@@ -300,7 +300,7 @@ pub struct MemorySSAFunction {
     pub count_clobbers: usize,
 }
 
-impl MemorySSAFunction {
+impl MemorySsaFunction {
     /// All variable names involved in aliasing.
     #[must_use]
     pub fn aliased_names(&self) -> BTreeSet<String> {
@@ -580,7 +580,7 @@ pub fn compute_aliases(ssa: &SsaFunction) -> Vec<AliasSet> {
 /// stack emulation) for consistent versioning, mirroring the
 /// Python port.
 #[must_use]
-pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySSAFunction {
+pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
     let alias_sets = compute_aliases(ssa);
     let aliased_names: BTreeSet<String> = alias_sets.iter().flat_map(AliasSet::names).collect();
 
@@ -677,7 +677,7 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySSAFunction {
         .filter(|o| o.kind == MemoryOpKind::Clobber)
         .count();
 
-    MemorySSAFunction {
+    MemorySsaFunction {
         alias_sets,
         memory_ops,
         memory_phis,
@@ -734,7 +734,7 @@ mod tests {
         assert_eq!(names.len(), 2);
     }
 
-    // -- C24b2: MemoryOp + MemorySSAFunction + detection --
+    // -- C24b2: MemoryOp + MemorySsaFunction + detection --
 
     fn call(cmd: &str, args: &[&str]) -> Statement {
         Statement::Call {
@@ -786,7 +786,7 @@ mod tests {
 
     #[test]
     fn may_alias_same_name_trivial() {
-        let f = MemorySSAFunction::default();
+        let f = MemorySsaFunction::default();
         assert!(f.may_alias("x", "x"));
         assert!(!f.may_alias("x", "y"));
     }
@@ -796,9 +796,9 @@ mod tests {
         let mut locs = BTreeSet::new();
         locs.insert(MemoryLocation::new(MemoryLocationKind::Local, "a"));
         locs.insert(MemoryLocation::new(MemoryLocationKind::Local, "b"));
-        let f = MemorySSAFunction {
+        let f = MemorySsaFunction {
             alias_sets: vec![AliasSet::new(locs, "upvar")],
-            ..MemorySSAFunction::default()
+            ..MemorySsaFunction::default()
         };
         assert!(f.may_alias("a", "b"));
         assert!(f.may_alias("b", "a"));

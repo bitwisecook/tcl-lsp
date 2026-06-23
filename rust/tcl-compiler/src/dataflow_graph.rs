@@ -19,7 +19,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::def_use::{DefKind, DefUseResult, UseKind};
-use crate::memory_ssa::{MemoryLocation, MemorySSAFunction};
+use crate::memory_ssa::{MemoryLocation, MemorySsaFunction};
 use crate::sccp::SccpResult;
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
@@ -306,7 +306,7 @@ pub fn extract_function_dataflow(
     ssa: &SsaFunction,
     du: &DefUseResult,
     sccp: Option<&SccpResult>,
-    mem: Option<&MemorySSAFunction>,
+    mem: Option<&MemorySsaFunction>,
     types: Option<&HashMap<ValueKey, TypeLattice>>,
 ) -> FunctionDataFlowGraph {
     let _ = ssa; // SSA is consumed indirectly via def-use + type maps.
@@ -423,7 +423,7 @@ pub struct FunctionInputs<'a> {
     /// Optional SCCP result for lattice rendering.
     pub sccp: Option<&'a SccpResult>,
     /// Optional memory-SSA for alias-info extraction.
-    pub mem: Option<&'a MemorySSAFunction>,
+    pub mem: Option<&'a MemorySsaFunction>,
     /// Optional type-lattice map for the per-node `typeInfo` projection.
     pub types: Option<&'a HashMap<ValueKey, TypeLattice>>,
 }
@@ -655,9 +655,9 @@ mod tests {
         let mut locs = BTreeSet::new();
         locs.insert(MemoryLocation::new(MemoryLocationKind::Global, "g"));
         locs.insert(MemoryLocation::new(MemoryLocationKind::Local, "g"));
-        let mem = MemorySSAFunction {
+        let mem = MemorySsaFunction {
             alias_sets: vec![AliasSet::new(locs, "global")],
-            ..MemorySSAFunction::default()
+            ..MemorySsaFunction::default()
         };
         let du = DefUseResult::default();
         let ssa = SsaFunction {

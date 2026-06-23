@@ -11,7 +11,7 @@ use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 
 use super::{
-    Refactoring, RefactorEdit, command_span_offsets, find_command_at, line_indent, reindent_body,
+    RefactorEdit, Refactoring, command_span_offsets, find_command_at, line_indent, reindent_body,
     token_end_offset,
 };
 use crate::code_actions::ActionKind;
@@ -165,7 +165,11 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
             && let Some(var) = parse_var_word(cond[..pos].trim())
         {
             let is_ne = *op == "ne" || *op == "!=";
-            return Some((var, cond[pos + needle.len()..].trim().to_owned(), negated ^ is_ne));
+            return Some((
+                var,
+                cond[pos + needle.len()..].trim().to_owned(),
+                negated ^ is_ne,
+            ));
         }
     }
     // `value OP $var`.
@@ -238,7 +242,10 @@ fn extract_var_name(subject: &str) -> Option<String> {
     }
     if let Some(name) = s.strip_prefix('$')
         && !name.is_empty()
-        && name.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_')
+        && name
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_alphabetic() || c == '_')
         && name.chars().all(|c| c.is_alphanumeric() || c == '_')
     {
         return Some(name.to_owned());
@@ -361,8 +368,7 @@ pub fn extract_to_datagroup_from_if(
 
     let indent = command_indent(source, &cmd, line_index).to_owned();
     let bodies_identical = {
-        let set: std::collections::BTreeSet<&str> =
-            chain.bodies.iter().map(|b| b.trim()).collect();
+        let set: std::collections::BTreeSet<&str> = chain.bodies.iter().map(|b| b.trim()).collect();
         set.len() <= 1
     };
 
@@ -393,12 +399,22 @@ pub fn extract_to_datagroup_from_if(
         let replacement = if use_return {
             format!("return [class lookup ${} {dg_name}]", chain.target_var)
         } else {
-            format!("set {set_var} [class lookup ${} {dg_name}]", chain.target_var)
+            format!(
+                "set {set_var} [class lookup ${} {dg_name}]",
+                chain.target_var
+            )
         };
         (dg, replacement)
     };
 
-    Some(build_result(source, &cmd, &dg_name, value_type, replacement, data_group))
+    Some(build_result(
+        source,
+        &cmd,
+        &dg_name,
+        value_type,
+        replacement,
+        data_group,
+    ))
 }
 
 /// A parsed if/elseif equality chain.
@@ -620,7 +636,14 @@ pub fn extract_to_datagroup_from_switch(
         )?
     };
 
-    Some(build_result(source, &cmd, &dg_name, value_type, replacement, data_group))
+    Some(build_result(
+        source,
+        &cmd,
+        &dg_name,
+        value_type,
+        replacement,
+        data_group,
+    ))
 }
 
 /// Build the value-mapping (`class lookup`) extraction for a switch.
@@ -823,7 +846,7 @@ mod tests {
         let source = "when HTTP_REQUEST {\n    if {$host eq \"a.com\"} {\n        pool web_pool\n    } elseif {$host eq \"b.com\"} {\n        pool web_pool\n    } elseif {$host eq \"c.com\"} {\n        pool web_pool\n    }\n}";
         let r = reg();
         let li = LineIndex::new(source);
-        let cursor = source.find("if {").unwrap() as u32;
+        let cursor = u32::try_from(source.find("if {").unwrap()).unwrap();
         let res = extract_to_datagroup(source, cursor, "", &r, &li).expect("nested result");
         let g = dg(&res);
         assert_eq!(g.value_type, "string");

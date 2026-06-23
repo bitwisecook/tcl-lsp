@@ -498,7 +498,7 @@ mod tests {
         let reg = test_registry();
         let src = "proc handler {m} {\n    if {$m eq \"GET\"} { go }\n}";
         // Cursor on the inner `if` (line 1).
-        let cursor = src.find("if {").unwrap() as u32 + 1;
+        let cursor = u32::try_from(src.find("if {").unwrap()).unwrap() + 1;
         let cmd = find_command_at(src, cursor, Some("if"), &reg).expect("inner if");
         assert_eq!(cmd.name(), "if");
         // The returned span is in the outer buffer's offsets.
@@ -512,4 +512,3 @@ mod tests {
         assert_eq!(out, "    puts hi");
     }
 }
-

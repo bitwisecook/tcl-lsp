@@ -5,7 +5,7 @@ use tcl_compiler::segmenter::segment_commands_with_offset;
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 
-use super::{Refactoring, RefactorEdit, find_command_at, token_end_offset};
+use super::{RefactorEdit, Refactoring, find_command_at, token_end_offset};
 use crate::code_actions::ActionKind;
 
 /// A parsed single-command arm body.
@@ -174,9 +174,13 @@ fn build_dict_replacement(arms: &ParsedArms, subject: &str, indent: &str) -> Str
 
     let mut parts: Vec<String> = vec![format!("set {dict_name} [dict create {dict_items}]")];
     if let Some(default) = &arms.default_value {
-        parts.push(format!("{indent}if {{[dict exists ${dict_name} {subject}]}} {{"));
+        parts.push(format!(
+            "{indent}if {{[dict exists ${dict_name} {subject}]}} {{"
+        ));
         if arms.use_return {
-            parts.push(format!("{indent}    return [dict get ${dict_name} {subject}]"));
+            parts.push(format!(
+                "{indent}    return [dict get ${dict_name} {subject}]"
+            ));
             parts.push(format!("{indent}}} else {{"));
             parts.push(format!("{indent}    return {default}"));
         } else {
@@ -273,7 +277,7 @@ mod tests {
         let mut reg = CommandRegistry::build_default();
         reg.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
         let li = LineIndex::new(source);
-        let cursor = source.find("switch").unwrap() as u32;
+        let cursor = u32::try_from(source.find("switch").unwrap()).unwrap();
         let r = switch_to_dict(source, cursor, &reg, &li).expect("nested result");
         assert!(r.title.to_lowercase().contains("dict"));
     }

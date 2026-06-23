@@ -35,6 +35,16 @@ use crate::segmenter::SegmentedCommand;
 use super::state::Analyser;
 use super::types::{CodeFix, Diagnostic, Severity};
 
+/// Maximum nested-body recursion depth for [`Analyser::analyse_body`]
+/// (AN-C1). `analyse_body` ↔ `process_command` ↔ `dispatch_body_arguments`
+/// recurse one frame group per braced-body nesting level; generated /
+/// minified Tcl and machine-emitted iRules can nest deeply enough to
+/// overflow the stack — an uncatchable SIGABRT that crashes the LSP
+/// diagnostics worker and the `tcl diag` / `lint` / `validate` CLIs. At
+/// the cap we stop descending into further nested bodies (the diagnostics
+/// already collected stand); no real source nests anywhere near this.
+const MAX_BODY_DEPTH: u32 = 256;
+
 /// Parent command for a control-flow keyword that is only valid as an
 /// argument *within* a parent command, or `None` for any other name.
 ///
@@ -84,6 +94,13 @@ impl Analyser {
             return;
         }
         self.body_depth += 1;
+        if self.body_depth > MAX_BODY_DEPTH {
+            // AN-C1: stop descending before the recursive body walk
+            // overflows the stack. Restore the depth and return — the
+            // diagnostics collected up to this nesting level still stand.
+            self.body_depth -= 1;
+            return;
+        }
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         // Absolute byte offset at which this body region ends. The E202 /
         // E203 detectors test "reaches end of region" against this, not the

@@ -165,21 +165,13 @@ fn command_context_with_args(
         if line_count <= line {
             return None;
         }
-        let line_start = line_index.line_start(line);
-        let source_len = u32::try_from(source.len()).unwrap_or(u32::MAX);
-        // Clamp to the END OF THIS LINE (before its `\n`), not the end of the
-        // source: a client may report a virtual column past EOL, and crossing
-        // into the newline would reset the command segment and drop the
-        // signature (matching Python's per-line cursor clamp).
-        let line_end = if line + 1 < line_count {
-            line_index.line_start(line + 1).saturating_sub(1)
-        } else {
-            source_len
-        };
-        line_start
-            .saturating_add(character)
-            .min(line_end)
-            .min(source_len)
+        // `character` is an LSP UTF-16 column; resolve it to a byte offset
+        // with `offset_at_utf16` (which snaps to a char boundary and clamps
+        // to this line's content end, before its newline). Adding the column
+        // to `line_start` directly is a byte+UTF-16 mismatch that selects the
+        // wrong active parameter on any line with non-ASCII text before the
+        // cursor (F3) — the same encoding hazard the rest of the crate fixed.
+        line_index.offset_at_utf16(line, character, source)
     };
 
     // Lex the document up to the cursor's byte offset.  We
