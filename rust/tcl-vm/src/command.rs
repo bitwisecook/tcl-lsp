@@ -37,9 +37,7 @@ pub struct ProcDef {
     pub has_args: bool,
     /// Pre-compiled body bytecode.
     pub body: Rc<FunctionAsm>,
-    /// Original body source text — retained for `info body` (M3). Keeping it
-    /// now avoids a frame/proc-model rework when `info` lands.
-    #[allow(dead_code)]
+    /// Original body source text — used by `info body`.
     pub body_src: Value,
 }
 

@@ -1801,9 +1801,9 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     );
 
     // WASM views: drive the eval-fallback WASM emitter (the same one `tcl
-    // compwasm` uses) and surface its WAT. The rich per-instruction explorer
-    // shape (`to_explorer_json`) is not ported yet — these carry the full
-    // module WAT plus per-function headers, which the text/`wasm` view renders.
+    // compwasm` uses) and surface its WAT plus the rich per-instruction
+    // explorer shape (resolved `call`/branch targets, per-instruction ranges)
+    // alongside per-function headers, which the text/`wasm` view renders.
     out.insert(
         "wasm".to_owned(),
         serialise_wasm(&result.unit.ir_module, &result.source),

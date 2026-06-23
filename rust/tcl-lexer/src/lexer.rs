@@ -426,7 +426,6 @@ impl<'src> Lexer<'src> {
     /// pattern. Called from `parse_brace`, `parse_command`, and
     /// `parse_quoted` for unterminated constructs and
     /// extra-chars-after-close violations.
-    #[allow(dead_code)]
     fn warn_or_error(&mut self, message: &str) -> Result<(), LexError> {
         if self.config.strict_quoting {
             Err(LexError::SyntaxError {

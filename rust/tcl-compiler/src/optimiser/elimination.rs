@@ -429,7 +429,7 @@ struct DseEntry {
     msg: &'static str,
     key: (String, u32),
     block: String,
-    stmt_index: i32,
+    statement_index: i32,
 }
 
 /// Emit O109 (dead store) + O126 (unused variable) for each
@@ -578,7 +578,7 @@ fn emit_dead_stores_and_unused(
             msg,
             key: chain.key.clone(),
             block: chain.definition.block.clone(),
-            stmt_index: chain.definition.statement_index,
+            statement_index: chain.definition.statement_index,
         });
     }
 
@@ -592,7 +592,7 @@ fn emit_dead_stores_and_unused(
             ctx.dead_stores.push(DeadStore {
                 function: fu.name.clone(),
                 block: e.block.clone(),
-                statement_index: e.stmt_index,
+                statement_index: e.statement_index,
                 variable: e.key.0.clone(),
                 version: e.key.1,
             });

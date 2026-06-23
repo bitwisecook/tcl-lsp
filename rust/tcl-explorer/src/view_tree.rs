@@ -1141,7 +1141,7 @@ pub const TREE_VIEWS: &[&str] = &[
     "shimmer",
     "taint",
     "irules",
-    "event-order",
+    "eventOrder",
     "callouts",
 ];
 
@@ -1168,7 +1168,7 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
         "shimmer" => build_shimmer(data),
         "taint" => build_taint(data),
         "irules" => build_irules(data),
-        "event-order" => build_event_order(data),
+        "eventOrder" => build_event_order(data),
         "callouts" => build_callouts(data),
         _ => Vec::new(),
     }
@@ -1181,6 +1181,24 @@ mod tests {
 
     fn data(src: &str) -> Value {
         serialise_result(&run_pipeline(src, "tcl8.6"))
+    }
+
+    #[test]
+    fn tree_views_are_a_subset_of_view_meta() {
+        // The TUI's `TREE_VIEWS` ids and the canonical `VIEW_META` registry
+        // are two hand-synced vocabularies; an id present in one but spelled
+        // differently in the other (e.g. `event-order` vs `eventOrder`) would
+        // silently break the TUI's label/data lookup. Pin the contract.
+        let meta_ids: std::collections::HashSet<&str> = crate::views::VIEW_META
+            .iter()
+            .map(|(id, _, _)| *id)
+            .collect();
+        for id in TREE_VIEWS {
+            assert!(
+                meta_ids.contains(id),
+                "TREE_VIEWS id {id:?} is not a known VIEW_META id",
+            );
+        }
     }
 
     #[test]

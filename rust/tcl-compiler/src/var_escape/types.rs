@@ -286,13 +286,11 @@ pub struct ProcEscapeSummary {
     /// Mirrors Python's `ProcEscapeSummary.barriers` field added
     /// by upstream commit ``015288cf`` (PR #356).
     ///
-    /// **Status:** the analysis pipeline (`propagation` /
-    /// `cfg_propagation` / `interprocedural`) does not yet
-    /// populate this field — that's tracked as a deferred
-    /// follow-up.  Consumers see an empty `Vec` until the
-    /// population work lands; `reasons_for` synthesises a single
-    /// `Barrier` reason from `dynamic_barrier()` so LSP / explorer
-    /// surfaces still get a structured fallback.
+    /// The walker populates this from each frame-crossing barrier it
+    /// encounters (`state.rs` `record_barrier`); `reasons_for` also
+    /// synthesises a `Barrier` reason from `dynamic_barrier()` so a
+    /// summary built without a captured barrier list still surfaces a
+    /// structured reason to the LSP / explorer.
     pub barriers: Vec<Barrier>,
     /// Per-variable escape reasons.  `tag_reasons[name]` lists
     /// every trigger that contributed to `tags[name] == Frame`.

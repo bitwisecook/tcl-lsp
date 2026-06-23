@@ -54,8 +54,6 @@ pub struct ObjectNode {
 /// A graph-building context: the BIG-IP registry + the object-type header index
 /// + the iRules command registry, built once and reused across sources.
 pub struct GraphContext {
-    #[allow(dead_code)]
-    registry: BigipRegistry,
     index: ObjectTypeIndex,
     /// Tcl command registry with the iRules dialect loaded, for the iRule edge
     /// walker.
@@ -71,7 +69,6 @@ impl GraphContext {
         let mut irules_registry = tcl_registry::CommandRegistry::build_default();
         irules_registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
         Self {
-            registry,
             index,
             irules_registry,
         }

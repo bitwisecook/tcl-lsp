@@ -112,13 +112,13 @@ fn walk(
 
         // Resolve declared references *before* mutating the binding table, so a
         // same-command `set` re-bind doesn't leak into this call's refs.
-        for (arg_index, kinds) in resolve_object_ref_args(cmd.name(), &args, rule_module) {
-            if let Some((name, range)) = resolve_arg_value(full, &cmd, arg_index, scope) {
+        for (argument_index, kinds) in resolve_object_ref_args(cmd.name(), &args, rule_module) {
+            if let Some((name, range)) = resolve_arg_value(full, &cmd, argument_index, scope) {
                 out.push(IrulesObjectReference {
                     name,
                     kinds,
                     command: cmd.name().to_owned(),
-                    argument_index: arg_index,
+                    argument_index,
                     range,
                 });
             }
