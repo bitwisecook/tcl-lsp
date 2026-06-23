@@ -1041,3 +1041,17 @@ The pytest file stays in place as the oracle.
   `rust/tcl-vm/src/cmd_string.rs::tests` (6 cases).
 
 The tcltest oracle stays in place.
+
+### tcltest `subst.test` / `parse.test` (substitution parsing) → `tcl-vm::subst`
+
+- **Ported (gap-fill).** The VM's runtime word-substitution module had zero
+  unit coverage of its three pure parsing helpers (all exercised end-to-end
+  by `subst`/parsing tcltest sweeps but never asserted in isolation):
+  `command_end` (matching-`]` scan honouring nested `[...]`, brace-protected
+  brackets, and `\]` escapes; `None` when unbalanced), `whole_braced`
+  (whole-word balanced brace-group detection — empty/nested groups accepted,
+  non-whole `{a} {b}` and escaped `\}` handled), and `parse_var_ref`
+  (`$name` / `${name with spaces}` / `$name(idx)` / `$a::b` namespace forms,
+  plus bare-`$` rejection). Added `rust/tcl-vm/src/subst.rs::tests` (7 cases).
+
+The tcltest oracle stays in place.
