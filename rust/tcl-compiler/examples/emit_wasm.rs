@@ -10,7 +10,7 @@
 
 use std::fs;
 
-use tcl_compiler::codegen::wasm::wasm_codegen_module;
+use tcl_compiler::codegen::wasm::{RESERVED_DATA_BASE, wasm_codegen_module_based};
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
@@ -23,7 +23,11 @@ fn main() {
     let src = fs::read_to_string(script_path).expect("read script");
     let registry = CommandRegistry::build_default();
     let module = lower_to_ir(&src, &registry);
-    let mut wasm = wasm_codegen_module(&module, &src);
+    // Relocate the constant pool into the runtime's reserved gap so boxed
+    // command strings sit at non-null offsets — at base 0 the first string lands
+    // at offset 0 and `tcl_obj_new_string(ptr=0, …)` is read as a null/empty
+    // pointer, silently dropping that command.
+    let mut wasm = wasm_codegen_module_based(&module, &src, RESERVED_DATA_BASE);
     fs::write(out_path, wasm.to_bytes()).expect("write wasm");
     eprintln!(
         "wrote {out_path} ({} bytes)",
