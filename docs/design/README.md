@@ -201,6 +201,16 @@ chunk-by-chunk dispatch story lives in
   O(n²)/O(n³) hotspots), clippy/MSRV/dependency currency, documentation
   accuracy, FP-catalog test-net coverage, and configuration layering — with a
   consolidated production-readiness roadmap.
+- [rust/coherence-and-coverage-2026-06-23.md](rust/coherence-and-coverage-2026-06-23.md)
+  — closing review pass: a coverage map proving every goal aspect is documented
+  across the six reviews, plus the remaining axes — **type-system coherence**
+  (bimodal: the value/registry half is the template, the editor half fractures
+  along the UTF-16 seam — raw offsets, 3 `Severity` enums, 2 `Diagnostic`
+  structs, stringly-typed IR), **naming coherence + glossary currency**, the
+  **explorer trio (CLI/TUI/GUI)** (the model of one-core reuse), and the
+  **"information" subsystem** (Info→Hint severity collapse; `info`-command
+  `VM ⊂ WASM` parity gap). Reconciled against the just-landed `origin/rust`
+  API-PYO3 / xtask / TEST-MIGRATE work.
 - [rust/compiler-pipeline-parity.md](rust/compiler-pipeline-parity.md) —
   deep parity audit of the Rust rewrite's lexer, CST, IR/lowering, CFG/SSA,
   analyses, optimiser, and bytecode codegen against the Python source of
