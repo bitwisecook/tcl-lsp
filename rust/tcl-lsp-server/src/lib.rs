@@ -113,6 +113,11 @@ use tower_lsp::{Client, LanguageServer};
 #[derive(Debug, Clone)]
 struct DocumentState {
     text: String,
+    /// Persisted line-start index for `text`, patched in place on each edit
+    /// (`LineIndex::apply_edit`) rather than rebuilt per position lookup
+    /// (SRV-INCREMENTAL Task 1).  Kept in lock-step with `text`: every mutation
+    /// of `text` updates this alongside it.
+    line_index: tcl_lexer::LineIndex,
     dialect: String,
     /// The LSP `languageId` the client opened this document with (empty
     /// for documents materialised from disk by the folder scan).  Retained
@@ -133,8 +138,10 @@ struct DocumentState {
 
 impl DocumentState {
     fn new(text: String, dialect: String) -> Self {
+        let line_index = tcl_lexer::LineIndex::new(&text);
         Self {
             text,
+            line_index,
             dialect,
             language_id: String::new(),
             revision: 0,
@@ -143,8 +150,10 @@ impl DocumentState {
     }
 
     fn with_version(text: String, dialect: String, version: i32) -> Self {
+        let line_index = tcl_lexer::LineIndex::new(&text);
         Self {
             text,
+            line_index,
             dialect,
             language_id: String::new(),
             revision: 0,
@@ -251,6 +260,9 @@ struct DiagInputs {
     /// exclusive-access write waits for all outstanding handles to drop).
     db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
     db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
+    /// The salsa `Project` input handle (workspace file set), read by the worker
+    /// for cross-file `project_diagnostics` when `xc_diagnostics` is enabled.
+    db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
     /// Per-folder salsa `AnalyserConfig` handles (see
     /// [`Backend::folder_db_configs`]); `capture_job` resolves the right one by
@@ -333,6 +345,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
         documents,
         workspace_index,
         db,
+        db_project,
         pull_diag_cache,
         xc_diagnostics,
         // The worker captures the job from these before calling us; unused here.
@@ -396,20 +409,39 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
     // stalling behind an uncancellable analyse.  On cancellation we drop the
     // run — the superseding edit schedules a fresh one.  `file` is `None` only
     // if the salsa input is somehow absent; then fall back to a direct analyse.
-    let analysis: Arc<AnalysisResult> = if let Some(file) = file {
+    // Cross-file (SRV-INCREMENTAL Task 6): when `xcDiagnostics` is enabled, the
+    // worker also computes `project_diagnostics` — `file_analysis`'s diagnostics
+    // with W123 (unknown command) suppressed for commands defined as procs
+    // elsewhere in the workspace.  Read the current `Project` handle now (it is
+    // stable across re-sets); `None` ⇒ no cross-file pass (status-quo per-file
+    // diagnostics).  Both halves come from the *same* snapshot so the cross-file
+    // pass reuses the analyser read (a cache hit, not a second analysis).
+    let project = if xc_diagnostics {
+        *db_project.lock().await
+    } else {
+        None
+    };
+    let (analysis, analyser_diags): (Arc<AnalysisResult>, Vec<_>) = if let Some(file) = file {
         // Clone a fresh, short-lived snapshot for just this read and move it
         // into the worker; it drops when the read finishes, so it never holds
         // exclusive-access-blocking references across the debounce sleep.
         let snapshot = db.lock().await.clone();
         match tokio::task::spawn_blocking(move || {
             salsa::Cancelled::catch(|| {
-                tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                let analysis = tcl_lsp_db::file_analysis_incremental(&snapshot, file, config);
+                let diags = match project {
+                    Some(project) => {
+                        (*tcl_lsp_db::project_diagnostics(&snapshot, file, config, project)).clone()
+                    }
+                    None => analysis.diagnostics.clone(),
+                };
+                (analysis, diags)
             })
             .ok()
         })
         .await
         {
-            Ok(Some(analysis)) => analysis,
+            Ok(Some(pair)) => pair,
             // Cancelled mid-read (a concurrent `set_text` on the shared db) or
             // the worker panicked — don't publish; signal a retry of the
             // document's latest state.
@@ -417,7 +449,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
         }
     } else {
         let (a_text, a_dialect, a_disabled) = (text.clone(), dialect.clone(), disabled.clone());
-        tokio::task::spawn_blocking(move || {
+        let analysis = tokio::task::spawn_blocking(move || {
             Arc::new(
                 Backend::configured_analyser(a_disabled, non_ascii_mode)
                     .analyse(&a_text, &a_dialect)
@@ -425,7 +457,9 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
             )
         })
         .await
-        .unwrap_or_default()
+        .unwrap_or_default();
+        let diags = analysis.diagnostics.clone();
+        (analysis, diags)
     };
 
     // Optimiser / compiler-checks diagnostics, also off the event loop via the
@@ -467,7 +501,9 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
     let lift_text = text.clone();
     let xc_for_irules = xc_diagnostics && dialect == "f5-irules";
     let result = tokio::task::spawn_blocking(move || {
-        let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analysis_lifts.diagnostics);
+        // `analyser_diags` is the cross-file-filtered set when `xcDiagnostics` is
+        // on (else identical to `analysis_lifts.diagnostics`).
+        let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analyser_diags);
         diagnostics.extend(lift_compiler_diagnostics(
             &lift_text,
             &compiler_diags,
@@ -667,6 +703,11 @@ pub struct Backend {
     /// Per-URI salsa `SourceFile` input handles — the input-of-record the
     /// query graph reads.  Kept current by `did_open` / `did_change`.
     db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
+    /// The salsa `Project` input — the workspace file set, kept in lock-step with
+    /// `db_files` (re-set only when membership changes, on open/close), driving
+    /// the cross-file `project_diagnostics` query (SRV-INCREMENTAL Task 6).
+    /// `None` until the first document is tracked.
+    db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     /// The salsa `AnalyserConfig` input (disabled diagnostics + non-ASCII
     /// mode); `set_*` on `workspace/didChangeConfiguration`.  Used as the
     /// fallback when no per-folder override applies to the document.
@@ -877,6 +918,7 @@ impl Backend {
             line_length: Mutex::new(80),
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
+            db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -890,17 +932,102 @@ impl Backend {
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
         if let Some(&file) = files.get(uri) {
+            // Text/dialect edit: membership unchanged, so the `Project` input is
+            // untouched (a body edit then backdates `project_proc_names`).
             file.set_text(&mut *db).to(text);
             file.set_dialect(&mut *db).to(dialect);
         } else {
             let file = tcl_lsp_db::SourceFile::new(&*db, text, dialect);
             files.insert(uri.clone(), file);
+            // Membership changed — re-set the `Project` file set.
+            let mut project = self.db_project.lock().await;
+            Self::sync_db_project(&mut db, &files, &mut project);
         }
     }
 
-    /// Drop the salsa `SourceFile` input for `uri` (on `did_close`).
+    /// Drop the salsa `SourceFile` input for `uri` (on `did_close`).  Lock order
+    /// is `db` → `db_files` → `db_project`, matching [`Self::db_set_source`].
     async fn db_remove_source(&self, uri: &Url) {
-        self.db_files.lock().await.remove(uri);
+        let mut db = self.db.lock().await;
+        let mut files = self.db_files.lock().await;
+        if files.remove(uri).is_some() {
+            let mut project = self.db_project.lock().await;
+            Self::sync_db_project(&mut db, &files, &mut project);
+        }
+    }
+
+    /// Add/update many salsa `SourceFile` inputs at once (disk-backed workspace
+    /// files from the startup scan), re-setting the [`tcl_lsp_db::Project`] **once**
+    /// if membership changed — not once per file (which would be O(files²) over a
+    /// large tree).  Used so cross-file diagnostics resolve against the *whole*
+    /// workspace (matching `workspace_index`), not only open documents.  Lock order
+    /// is `db` → `db_files` → `db_project`, as everywhere.
+    async fn db_set_sources_batch(&self, entries: &[(Url, String, String)]) {
+        use salsa::Setter as _;
+        if entries.is_empty() {
+            return;
+        }
+        let mut db = self.db.lock().await;
+        let mut files = self.db_files.lock().await;
+        let mut membership_changed = false;
+        for (uri, text, dialect) in entries {
+            if let Some(&file) = files.get(uri) {
+                file.set_text(&mut *db).to(text.clone());
+                file.set_dialect(&mut *db).to(dialect.clone());
+            } else {
+                let file = tcl_lsp_db::SourceFile::new(&*db, text.clone(), dialect.clone());
+                files.insert(uri.clone(), file);
+                membership_changed = true;
+            }
+        }
+        if membership_changed {
+            let mut project = self.db_project.lock().await;
+            Self::sync_db_project(&mut db, &files, &mut project);
+        }
+    }
+
+    /// Drop many salsa `SourceFile` inputs at once (files under a removed workspace
+    /// folder), re-setting the `Project` once if membership changed.  Lock order is
+    /// `db` → `db_files` → `db_project`.
+    async fn db_remove_sources_batch(&self, uris: &[Url]) {
+        if uris.is_empty() {
+            return;
+        }
+        let mut db = self.db.lock().await;
+        let mut files = self.db_files.lock().await;
+        let mut membership_changed = false;
+        for uri in uris {
+            if files.remove(uri).is_some() {
+                membership_changed = true;
+            }
+        }
+        if membership_changed {
+            let mut project = self.db_project.lock().await;
+            Self::sync_db_project(&mut db, &files, &mut project);
+        }
+    }
+
+    /// Re-set the salsa [`tcl_lsp_db::Project`] input to the current `db_files`
+    /// set (sorted by URI for a stable, iteration-order-independent `Vec` so the
+    /// input only changes when membership does — not on `HashMap` reshuffles).
+    /// Called when membership changes (open/close/scan), so a text edit never
+    /// re-derives the project aggregates.  The `Project` handle is stable across
+    /// re-sets, so workers holding it keep reading the current value.
+    fn sync_db_project(
+        db: &mut tcl_lsp_db::TclDatabase,
+        files: &HashMap<Url, tcl_lsp_db::SourceFile>,
+        project: &mut Option<tcl_lsp_db::Project>,
+    ) {
+        use salsa::Setter as _;
+        let mut entries: Vec<(&Url, &tcl_lsp_db::SourceFile)> = files.iter().collect();
+        entries.sort_by(|a, b| a.0.cmp(b.0));
+        let sources: Vec<tcl_lsp_db::SourceFile> = entries.into_iter().map(|(_, &f)| f).collect();
+        match *project {
+            Some(p) => {
+                p.set_files(db).to(sources);
+            }
+            None => *project = Some(tcl_lsp_db::Project::new(&*db, sources)),
+        }
     }
 
     /// Re-resolve every open document's dialect after a session-default
@@ -1282,20 +1409,37 @@ impl Backend {
                         .any(|folder| uri_under_folder(uri, folder))
             })
             .collect();
-        for uri in to_remove {
-            index.remove_document(&uri);
+        for uri in &to_remove {
+            index.remove_document(uri);
         }
+        // Release workspace_index before taking the db locks (never hold
+        // workspace_index while acquiring db), but keep `documents` held so the
+        // open-file filter above stays current across the db removal too.
+        drop(index);
+        // Drop the same files from the salsa `Project` so their procs stop
+        // resolving cross-file.  Lock order: documents (held) → db → db_files →
+        // db_project, matching `did_open`.
+        let removed_urls: Vec<Url> = to_remove.iter().filter_map(|u| Url::parse(u).ok()).collect();
+        self.db_remove_sources_batch(&removed_urls).await;
+        drop(docs);
     }
 
     async fn reindex_index_from_disk(&self, uri: &Url) {
-        let analysed: Option<AnalysisResult> = if let Ok(path) = uri.to_file_path() {
+        // Read + analyse off-lock.  Keep the source text + dialect too: the salsa
+        // db (cross-file diagnostics) must track the same on-disk population as the
+        // workspace index, so a proc defined in a closed/never-opened file still
+        // suppresses W123 / drives the arity error in its siblings.
+        let scanned: Option<(String, String, AnalysisResult)> = if let Ok(path) =
+            uri.to_file_path()
+        {
             let dialect = match self.resolve_folder_dialect(uri).await {
                 Some(d) => d,
                 None => self.default_dialect.lock().await.clone(),
             };
             tokio::task::spawn_blocking(move || {
                 let text = std::fs::read_to_string(path).ok()?;
-                Some(Analyser::new().analyse(&text, &dialect).clone())
+                let analysis = Analyser::new().analyse(&text, &dialect).clone();
+                Some((text, dialect, analysis))
             })
             .await
             .ok()
@@ -1303,19 +1447,52 @@ impl Backend {
         } else {
             None
         };
-        // Hold `documents` across the still-closed re-check and the index
-        // update (the `documents` → `workspace_index` order used everywhere
-        // since the global gate was retired) so a concurrent `did_open` cannot
-        // open the buffer between them and have its index entry clobbered by
-        // this disk-backed one.
+        // Hold `documents` across the still-closed re-check and both updates (the
+        // `documents` → db → `workspace_index` order established by `did_open`) so a
+        // concurrent `did_open` cannot open the buffer between them and have its
+        // live text clobbered by this disk-backed copy.
         let docs = self.documents.lock().await;
         if docs.contains_key(uri) {
             return;
         }
+        // Salsa db first (locks db → db_files → db_project, all *before* the
+        // workspace_index lock) to preserve the global lock order.
+        match &scanned {
+            Some((text, dialect, _)) => {
+                self.db_set_source(uri, text.clone(), dialect.clone()).await;
+            }
+            // No readable on-disk copy (untitled / deleted) — drop it from the
+            // project so a stale definition can't keep resolving cross-file.
+            None => self.db_remove_source(uri).await,
+        }
         let mut index = self.workspace_index.lock().await;
         index.remove_document(uri.as_str());
-        if let Some(analysis) = analysed {
-            index.add_document(uri.as_str(), &analysis);
+        if let Some((_, _, analysis)) = &scanned {
+            index.add_document(uri.as_str(), analysis);
+        }
+    }
+
+    /// Reschedule diagnostics for every open document that has cross-file
+    /// diagnostics enabled.  Called after a change to the workspace's on-disk
+    /// signature domain that did **not** originate from an open document's own
+    /// edit (a watched-file create / change / delete), so push-diagnostic clients
+    /// refresh their cross-file results instead of showing stale W123 / arity until
+    /// the caller is next touched.  Documents without `xcDiagnostics` enabled are
+    /// skipped — their diagnostics don't depend on other files.
+    async fn reschedule_xc_open_documents(&self) {
+        // Snapshot `(uri, dialect)` first so the per-document
+        // `xc_diagnostics_enabled` / `schedule_diagnostics` calls don't run while
+        // the `documents` lock is held.
+        let snapshot: Vec<(Url, String)> = {
+            let docs = self.documents.lock().await;
+            docs.iter()
+                .map(|(uri, doc)| (uri.clone(), doc.dialect.clone()))
+                .collect()
+        };
+        for (uri, dialect) in snapshot {
+            if self.xc_diagnostics_enabled(&uri).await {
+                self.schedule_diagnostics(uri, dialect).await;
+            }
         }
     }
 
@@ -1420,7 +1597,7 @@ impl Backend {
             let Some(target_doc) = self.read_document(&parsed).await else {
                 continue;
             };
-            let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
+            let line_index = target_doc.line_index.clone();
             let start = line_index.position_at_utf16(span.start(), &target_doc.text);
             let end = line_index.position_at_utf16(span.end(), &target_doc.text);
             locations.push(Location {
@@ -1569,7 +1746,7 @@ impl Backend {
             let Some(target_doc) = self.read_document(&parsed).await else {
                 continue;
             };
-            let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
+            let line_index = target_doc.line_index.clone();
             let start = line_index.position_at_utf16(intent.span.start(), &target_doc.text);
             let end = line_index.position_at_utf16(intent.span.end(), &target_doc.text);
             let edit = TextEdit {
@@ -1720,7 +1897,7 @@ impl Backend {
             let Some(target_doc) = self.read_document(&parsed).await else {
                 continue;
             };
-            let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
+            let line_index = target_doc.line_index.clone();
             let start = line_index.position_at_utf16(name_span.start(), &target_doc.text);
             let end = line_index.position_at_utf16(name_span.end(), &target_doc.text);
             let name_range = Range {
@@ -2644,6 +2821,7 @@ impl Backend {
             workspace_index: Arc::clone(&self.workspace_index),
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
+            db_project: Arc::clone(&self.db_project),
             db_config: Arc::clone(&self.db_config),
             folder_db_configs: Arc::clone(&self.folder_db_configs),
             pull_diag_cache: Arc::clone(&self.pull_diag_cache),
@@ -2691,6 +2869,29 @@ impl Backend {
         let analysis = self.analysis_for(uri, text.clone(), dialect.clone()).await;
         let registry = self.registry_for_dialect(&dialect).await;
 
+        // Cross-file (SRV-INCREMENTAL Task 6): the project's proc arities, so the
+        // pull path resolves cross-file W123 / emits the cross-file arity error
+        // exactly as the push path does.  Only gathered when `xcDiagnostics` is
+        // enabled.  Computed inside `spawn_blocking`: on a cold cache (or after a
+        // signature change) this tracked query can demand `item_sigs` / `item_tree`
+        // for every project file — now the *whole* workspace — so it must not run
+        // on the async event-loop thread and stall other LSP traffic.
+        let xc_on = self.xc_diagnostics_enabled(uri).await;
+        let project_arities = if xc_on {
+            let db = self.db.lock().await.clone();
+            let project = *self.db_project.lock().await;
+            match project {
+                Some(p) => {
+                    tokio::task::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
+                        .await
+                        .ok()
+                }
+                None => None,
+            }
+        } else {
+            None
+        };
+
         let compiler_diags = {
             let (c_text, c_dialect, c_registry) =
                 (text.clone(), dialect.clone(), Arc::clone(&registry));
@@ -2704,9 +2905,23 @@ impl Backend {
             })
         };
 
-        let xc_for_irules = dialect == "f5-irules" && self.xc_diagnostics_enabled(uri).await;
+        let xc_for_irules = dialect == "f5-irules" && xc_on;
+        // Cross-file resolution (Task 6) — W123 suppression + E002/E003 arity,
+        // matching the push path.  Arity keys off `unresolved_command_sites`, which
+        // the analyser records regardless of the W123 toggle, so disabling W123
+        // does not also silence cross-file arity.
+        let analyser_diags = match &project_arities {
+            Some(arities) => tcl_lsp_db::apply_cross_file_resolution(
+                &analysis.diagnostics,
+                &analysis.unresolved_command_sites,
+                &analysis.command_invocations,
+                arities,
+                |code| disabled.contains(code),
+            ),
+            None => analysis.diagnostics.clone(),
+        };
         tokio::task::spawn_blocking(move || {
-            let mut diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
+            let mut diagnostics = lift_analyser_diagnostics(&text, &analyser_diags);
             diagnostics.extend(lift_compiler_diagnostics(
                 &text,
                 &compiler_diags,
@@ -2892,7 +3107,9 @@ impl Backend {
             for root in &roots {
                 collect_tcl_files(root, WORKSPACE_SCAN_FILE_CAP, &mut files);
             }
-            let mut out: Vec<(String, AnalysisResult)> = Vec::new();
+            // Carry the source text + dialect alongside the analysis so the salsa
+            // db (cross-file diagnostics) can index the same disk-backed files.
+            let mut out: Vec<(Url, String, String, AnalysisResult)> = Vec::new();
             for path in files {
                 let Ok(uri) = Url::from_file_path(&path) else {
                     continue;
@@ -2907,7 +3124,7 @@ impl Backend {
                     .unwrap_or_else(|| default_dialect.clone());
                 let mut analyser = Analyser::new();
                 let analysis = analyser.analyse(&text, &dialect).clone();
-                out.push((uri.to_string(), analysis));
+                out.push((uri, text, dialect, analysis));
             }
             out
         })
@@ -2917,26 +3134,40 @@ impl Backend {
         self.merge_workspace_scan_results(&analysed).await;
     }
 
-    /// Merge disk-backed workspace scan results into the shared index.
+    /// Merge disk-backed workspace scan results into the shared index **and** the
+    /// salsa `Project`, so cross-file diagnostics resolve against the whole
+    /// workspace (not just open documents), matching the other cross-document
+    /// features.
     ///
     /// The blocking scan snapshots open documents before it starts, but
     /// an editor can open a file while the scan is still running. Recheck
     /// the live document map at publication time so stale on-disk
-    /// analysis cannot overwrite the open-buffer entry.
-    async fn merge_workspace_scan_results(&self, analysed: &[(String, AnalysisResult)]) {
-        // Hold `documents` across the open-set read + index merge (the
-        // `documents` → `workspace_index` order that replaced the global gate)
-        // so a file opening mid-merge can't have its open-buffer index entry
-        // overwritten by this disk-backed scan result.
+    /// analysis cannot overwrite the open-buffer entry in either store.
+    async fn merge_workspace_scan_results(
+        &self,
+        analysed: &[(Url, String, String, AnalysisResult)],
+    ) {
+        // Hold `documents` across the open-set read, the salsa-db batch, and the
+        // index merge (the `documents` → db → `workspace_index` order established
+        // by `did_open`) so a file opening mid-merge can't have its live buffer
+        // overwritten by this disk-backed scan result in either store.
         let docs = self.documents.lock().await;
         let open: HashSet<String> = docs.keys().map(ToString::to_string).collect();
+        // Salsa db first (db → db_files → db_project), before the workspace_index
+        // lock, to preserve the global lock order.
+        let db_entries: Vec<(Url, String, String)> = analysed
+            .iter()
+            .filter(|(uri, _, _, _)| !open.contains(uri.as_str()))
+            .map(|(uri, text, dialect, _)| (uri.clone(), text.clone(), dialect.clone()))
+            .collect();
+        self.db_set_sources_batch(&db_entries).await;
         let mut index = self.workspace_index.lock().await;
-        for (uri, analysis) in analysed {
-            if open.contains(uri) {
+        for (uri, _, _, analysis) in analysed {
+            if open.contains(uri.as_str()) {
                 continue;
             }
-            index.remove_document(uri);
-            index.add_document(uri, analysis);
+            index.remove_document(uri.as_str());
+            index.add_document(uri.as_str(), analysis);
         }
     }
 }
@@ -3047,10 +3278,15 @@ impl LanguageServer for Backend {
                 // session default dialect (no languageId is available here).
                 .or_insert_with(|| DocumentState::new(String::new(), default_dialect));
             let mut text = std::mem::take(&mut entry.text);
+            // Patch the persisted `LineIndex` alongside each splice instead of
+            // rebuilding it per edit / per position lookup (SRV-INCREMENTAL
+            // Task 1).  Take it out, patch through the edit sequence, put it back.
+            let mut index = std::mem::replace(&mut entry.line_index, tcl_lexer::LineIndex::new(""));
             for change in &params.content_changes {
-                text = apply_content_change(&text, change.range, &change.text);
+                text = apply_content_change_indexed(&text, change.range, &change.text, &mut index);
             }
             entry.text = text.clone();
+            entry.line_index = index;
             entry.bump_revision(change_version);
             let dialect = entry.dialect.clone();
             // Update the salsa `SourceFile` input + the cross-document index
@@ -3152,16 +3388,15 @@ impl LanguageServer for Backend {
         // sweep no longer reports the now-closed document and a later reopen
         // recomputes from scratch.
         self.pull_diag_cache.lock().await.remove(uri);
-        self.db_remove_source(uri).await;
-        // Re-index the file from disk rather than dropping it: the
-        // file still exists on disk and was (or would be) part of
-        // the on-disk index, so cross-document definition /
-        // references / rename / call-hierarchy must keep seeing it
-        // after the editor closes the buffer.  `scan_workspace_folders`
-        // only runs at `initialized`, so a plain `remove_document`
-        // here would make the file vanish until restart. The helper
-        // rechecks that this URI is still closed before publishing
-        // the disk-backed index entry.
+        // Re-index the file from disk rather than dropping it: the file still
+        // exists on disk and was (or would be) part of the on-disk index, so
+        // cross-document definition / references / rename / call-hierarchy — and
+        // cross-file diagnostics (the salsa `Project`) — must keep seeing it after
+        // the editor closes the buffer.  `scan_workspace_folders` only runs at
+        // `initialized`, so dropping it here would make the file vanish until
+        // restart.  The helper rechecks that this URI is still closed, then
+        // refreshes both the salsa db source and the disk-backed index entry (or
+        // drops both when the URI is not a readable file).
         self.reindex_index_from_disk(uri).await;
     }
 
@@ -3195,6 +3430,14 @@ impl LanguageServer for Backend {
         if !params.event.added.is_empty() {
             self.scan_workspace_folders().await;
         }
+        // A folder add/remove shifts the salsa `Project` (and the cross-file
+        // resolution domain) without an open document's own edit, so reschedule
+        // open documents with cross-file diagnostics enabled — otherwise a
+        // push-diagnostic client keeps a stale suppressed-W123 / cross-file arity
+        // from a now-removed (or newly-added) folder.  Mirrors `did_change_watched_files`.
+        if !removed.is_empty() || !params.event.added.is_empty() {
+            self.reschedule_xc_open_documents().await;
+        }
         // Per-folder config may differ between roots; re-pull so the resolved
         // settings reflect the new folder set.
         self.pull_and_apply_config().await;
@@ -3206,6 +3449,7 @@ impl LanguageServer for Backend {
         // definition / references / rename / call-hierarchy keep seeing the
         // project's true on-disk state between restarts.  Mirrors the Python
         // `didChangeWatchedFiles` handler.
+        let mut domain_changed = false;
         for change in params.changes {
             // Files the editor has open are driven by did_open/did_change; their
             // unsaved buffer must not be clobbered by the on-disk copy.
@@ -3218,11 +3462,24 @@ impl LanguageServer for Backend {
                     .lock()
                     .await
                     .remove_document(change.uri.as_str());
+                // Drop it from the salsa `Project` too, so a deleted file's procs
+                // stop suppressing W123 / driving the arity error cross-file.
+                self.db_remove_source(&change.uri).await;
             } else {
                 // CREATED or CHANGED: re-analyse from disk (a Tcl source file)
                 // or drop it if it no longer reads as one.
                 self.reindex_index_from_disk(&change.uri).await;
             }
+            domain_changed = true;
+        }
+        // A watched (non-open) file's create/change/delete shifts the cross-file
+        // resolution domain, but no open document's own edit triggered it — so a
+        // push-diagnostic client would keep stale cross-file results (a suppressed
+        // W123, or an arity error sourced from the now-changed file) until the caller is
+        // next edited.  Reschedule open documents that have cross-file diagnostics
+        // enabled so their cross-file pass re-runs against the new domain.
+        if domain_changed {
+            self.reschedule_xc_open_documents().await;
         }
     }
 
@@ -4970,7 +5227,7 @@ impl LanguageServer for Backend {
             let Some(doc) = self.read_document(&dep_url).await else {
                 continue;
             };
-            let line_index = tcl_lexer::LineIndex::new(&doc.text);
+            let line_index = doc.line_index.clone();
             by_dep.entry(dep_url).or_default().push(TextEdit {
                 range: lift_span(&doc.text, &line_index, edit.span),
                 new_text: edit.new_text,
@@ -5423,16 +5680,40 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
 /// byte offsets via [`tcl_lexer::LineIndex::offset_at_utf16`] and spliced.
 /// Offsets are clamped and ordered so the splice indices are always valid
 /// char boundaries within `text`.
+#[cfg(test)]
 fn apply_content_change(text: &str, range: Option<Range>, new_text: &str) -> String {
+    // Throwaway index for the splice-behaviour tests; the live path persists one
+    // through [`apply_content_change_indexed`].
+    let mut index = tcl_lexer::LineIndex::new(text);
+    apply_content_change_indexed(text, range, new_text, &mut index)
+}
+
+/// [`apply_content_change`] that resolves the edit through a **persisted**
+/// [`tcl_lexer::LineIndex`] and **patches it in place** to match the returned
+/// text (SRV-INCREMENTAL Task 1) — so neither the offset resolution nor the
+/// index maintenance rescans the whole document.  A full-document replacement
+/// (`range == None`) rebuilds the index from the new text.
+fn apply_content_change_indexed(
+    text: &str,
+    range: Option<Range>,
+    new_text: &str,
+    index: &mut tcl_lexer::LineIndex,
+) -> String {
     let Some(range) = range else {
+        *index = tcl_lexer::LineIndex::new(new_text);
         return new_text.to_owned();
     };
-    let index = tcl_lexer::LineIndex::new(text);
     let a = index.offset_at_utf16(range.start.line, range.start.character, text) as usize;
     let b = index.offset_at_utf16(range.end.line, range.end.character, text) as usize;
     let len = text.len();
     let start = a.min(b).min(len);
     let end = a.max(b).min(len);
+    // Patch the index for the same [start, end) → new_text splice applied below.
+    index.apply_edit(
+        u32::try_from(start).expect("offset fits u32"),
+        u32::try_from(end).expect("offset fits u32"),
+        new_text,
+    );
     let mut out = String::with_capacity(len - (end - start) + new_text.len());
     out.push_str(&text[..start]);
     out.push_str(new_text);
@@ -6980,6 +7261,33 @@ mod tests {
         assert_eq!(text, "aXbc\nghij\n");
     }
 
+    /// SRV-INCREMENTAL Task 1 (live path): a persisted `LineIndex` driven through
+    /// `apply_content_change_indexed` over a sequence of ranged + full-replace
+    /// edits must stay byte-identical to a rebuild from the final text — the
+    /// invariant `DocumentState` relies on for its persisted index.
+    #[test]
+    #[allow(clippy::cast_possible_truncation)] // line_count fits u32 (4 GiB budget)
+    fn apply_content_change_indexed_keeps_line_index_consistent() {
+        let line_starts =
+            |idx: &tcl_lexer::LineIndex| (0..idx.line_count()).map(|l| idx.line_start(l as u32)).collect::<Vec<_>>();
+        let mut text = "abc\ndef\nghi\n".to_string();
+        let mut index = tcl_lexer::LineIndex::new(&text);
+        let edits = [
+            (Some(Range { start: pos(0, 1), end: pos(0, 1) }), "X\nY"), // insert with newline
+            (Some(Range { start: pos(2, 0), end: pos(3, 2) }), ""),     // multi-line deletion
+            (None, "p\nq\nr\ns"),                                       // full replacement
+            (Some(Range { start: pos(1, 1), end: pos(2, 0) }), "Z"),    // collapse a line
+        ];
+        for (range, new_text) in edits {
+            text = apply_content_change_indexed(&text, range, new_text, &mut index);
+            assert_eq!(
+                line_starts(&index),
+                line_starts(&tcl_lexer::LineIndex::new(&text)),
+                "persisted index diverged from rebuild after edit {new_text:?} -> {text:?}"
+            );
+        }
+    }
+
     /// GAP-C1 strip 2: the source-style pass must reach the
     /// published set.  A long line + trailing whitespace + CRLF
     /// endings exercise W111 / W112 / W118 — none of which the
@@ -7222,6 +7530,57 @@ mod tests {
         );
     }
 
+    /// SRV-INCREMENTAL Task 6 (server wiring): a command unresolved in file A but
+    /// defined as a `proc` in file B (tracked in the salsa `Project`) must have
+    /// its W123 suppressed once `xcDiagnostics` is enabled — and remain present
+    /// when it is off.  Exercises the live `db_set_source` → `Project`-sync →
+    /// `project_proc_tails` path end to end.
+    #[tokio::test]
+    async fn cross_file_w123_suppressed_when_workspace_defines_proc() {
+        let backend = test_backend();
+        let a = Url::parse("file:///a.tcl").unwrap();
+        let b = Url::parse("file:///b.tcl").unwrap();
+        // Track B (defines `proc helper`) so the `Project` input includes it.
+        backend
+            .db_set_source(
+                &b,
+                "proc helper {x y} { return $x }\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        // The `Project` input is now maintained with B.
+        assert!(
+            backend.db_project.lock().await.is_some(),
+            "Project input must be created when the first file is tracked"
+        );
+        let a_src = "helper foo bar\n";
+
+        // xcDiagnostics OFF: `helper` is unresolved in A → W123 present.
+        let off = backend
+            .full_diagnostics_for(&a, a_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            diag_codes(&off).iter().any(|c| c == "W123"),
+            "W123 must be present when xcDiagnostics is off, got: {:?}",
+            diag_codes(&off),
+        );
+
+        // xcDiagnostics ON: `helper` resolves cross-file (B defines it) → no W123.
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+        let on = backend
+            .full_diagnostics_for(&a, a_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diag_codes(&on).iter().any(|c| c == "W123"),
+            "W123 must be suppressed cross-file when B defines proc helper, got: {:?}",
+            diag_codes(&on),
+        );
+    }
+
     #[test]
     fn dialect_from_language_id_recognises_editor_ids() {
         assert_eq!(
@@ -7429,6 +7788,7 @@ mod tests {
             line_length: Mutex::new(80),
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
+            db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -7613,6 +7973,44 @@ mod tests {
         );
     }
 
+    /// A watched-file create/change/delete shifts the cross-file resolution domain
+    /// without an open document's own edit, so open documents with cross-file
+    /// diagnostics enabled must be rescheduled — otherwise a push-diagnostic client
+    /// keeps stale W123/arity after a defining file disappears (git checkout /
+    /// delete).  Regression for Codex review on #692.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn watched_file_delete_reschedules_open_xc_documents() {
+        let backend = test_backend();
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+        // An open caller with xcDiagnostics enabled.
+        let caller = Url::parse("file:///caller.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            caller.clone(),
+            DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
+        );
+
+        // A watched, non-open file is deleted — its procs leave the `Project`.
+        let deleted = Url::parse("file:///lib.tcl").unwrap();
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp::lsp_types::FileEvent {
+                    uri: deleted,
+                    typ: FileChangeType::DELETED,
+                }],
+            })
+            .await;
+
+        // The open caller was rescheduled — a diagnostics slot now exists for it.
+        assert!(
+            backend.diag_slots.lock().await.contains_key(&caller),
+            "an open xcDiagnostics document must be rescheduled after a watched-file delete",
+        );
+    }
+
     /// Removing a workspace folder drops index entries for its (closed) files
     /// while leaving files under other folders intact.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -7661,6 +8059,44 @@ mod tests {
                 .await
                 .iter()
                 .any(|f| f.as_str() == "file:///proj-a"),
+        );
+    }
+
+    /// Removing a workspace folder shifts the salsa `Project` without an open
+    /// document's own edit, so open documents with cross-file diagnostics enabled
+    /// must be rescheduled (matching the watched-file path) — otherwise a
+    /// push-diagnostic client keeps stale cross-file results.  Regression for Codex
+    /// review on #692.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn folder_removal_reschedules_open_xc_documents() {
+        let backend = test_backend();
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+        let caller = Url::parse("file:///proj/caller.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            caller.clone(),
+            DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        *backend.workspace_folders.lock().await = vec![Url::parse("file:///proj").unwrap()];
+
+        backend
+            .did_change_workspace_folders(DidChangeWorkspaceFoldersParams {
+                event: tower_lsp::lsp_types::WorkspaceFoldersChangeEvent {
+                    added: Vec::new(),
+                    removed: vec![tower_lsp::lsp_types::WorkspaceFolder {
+                        uri: Url::parse("file:///proj").unwrap(),
+                        name: "proj".to_owned(),
+                    }],
+                },
+            })
+            .await;
+
+        assert!(
+            backend.diag_slots.lock().await.contains_key(&caller),
+            "an open xcDiagnostics document must be rescheduled after a folder removal",
         );
     }
 
@@ -8003,7 +8439,12 @@ mod tests {
 
         let mut analyser = Analyser::new();
         let stale_analysis = analyser.analyse("proc stale {} {}\n", "tcl8.6").clone();
-        let scan_results = vec![(uri.to_string(), stale_analysis)];
+        let scan_results = vec![(
+            uri.clone(),
+            "proc stale {} {}\n".to_owned(),
+            "tcl8.6".to_owned(),
+            stale_analysis,
+        )];
 
         backend.merge_workspace_scan_results(&scan_results).await;
 
@@ -8113,6 +8554,143 @@ mod tests {
         assert!(
             index.proc_definitions("ghost", "other").is_empty(),
             "an entry whose file no longer exists must be dropped",
+        );
+    }
+
+    /// SRV-INCREMENTAL Task 6 (whole-workspace scope): a proc defined in a file
+    /// that is on disk but **not open** in the editor (driven here through
+    /// `reindex_index_from_disk`, the `did_close` / scan / watched-file path) must
+    /// still suppress a sibling's W123 and drive its arity error — cross-file diagnostics
+    /// tracks the same on-disk population as the workspace index, not only open
+    /// documents.  Regression for Codex review on #692.
+    #[tokio::test]
+    async fn cross_file_resolves_against_disk_backed_file() {
+        let root = unique_scratch_dir("xc-disk");
+        let on_disk = root.join("lib.tcl");
+        std::fs::write(&on_disk, "proc helper {x y} { return $x }\n").unwrap();
+
+        let backend = test_backend();
+        let b = Url::from_file_path(&on_disk).unwrap();
+        let a = Url::parse("file:///caller.tcl").unwrap();
+
+        // B is on disk but never opened — the did_close / scan path indexes it
+        // into both the workspace index and the salsa `Project`.
+        backend.reindex_index_from_disk(&b).await;
+        assert!(
+            backend.db_project.lock().await.is_some(),
+            "a disk-backed file must seed the salsa Project"
+        );
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+
+        // Correct arity (2 args) → resolves cross-file, no W123, proving the
+        // never-opened disk file is in the resolution domain.
+        let ok = backend
+            .full_diagnostics_for(&a, "helper foo bar\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diag_codes(&ok).iter().any(|c| c == "W123"),
+            "W123 must be suppressed against a disk-backed (unopened) file, got: {:?}",
+            diag_codes(&ok),
+        );
+
+        // Wrong arity (3 args to the 2-param proc) → E003 (too many) from the
+        // disk-backed proc's arity signature.
+        let bad = backend
+            .full_diagnostics_for(&a, "helper a b c\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            diag_codes(&bad).iter().any(|c| c == "E003"),
+            "E003 must fire against a disk-backed proc's arity, got: {:?}",
+            diag_codes(&bad),
+        );
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// When a disk-backed workspace file disappears (deletion / no longer readable)
+    /// and is reindexed, it must drop out of the salsa `Project` too, so its procs
+    /// stop resolving cross-file (a sibling's W123 returns).  Guards the removal
+    /// half of the whole-workspace scope.
+    #[tokio::test]
+    async fn cross_file_drops_disk_backed_file_when_gone() {
+        let root = unique_scratch_dir("xc-disk-gone");
+        let on_disk = root.join("lib.tcl");
+        std::fs::write(&on_disk, "proc helper {x y} { return $x }\n").unwrap();
+
+        let backend = test_backend();
+        let b = Url::from_file_path(&on_disk).unwrap();
+        let a = Url::parse("file:///caller.tcl").unwrap();
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+
+        // Present on disk → resolves cross-file (no W123).
+        backend.reindex_index_from_disk(&b).await;
+        let present = backend
+            .full_diagnostics_for(&a, "helper foo bar\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diag_codes(&present).iter().any(|c| c == "W123"),
+            "precondition: resolves while the file is present, got: {:?}",
+            diag_codes(&present),
+        );
+
+        // Delete the file and reindex — it must leave the Project, so `helper` is
+        // unresolved again (W123 returns).
+        std::fs::remove_file(&on_disk).unwrap();
+        backend.reindex_index_from_disk(&b).await;
+        let gone = backend
+            .full_diagnostics_for(&a, "helper foo bar\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            diag_codes(&gone).iter().any(|c| c == "W123"),
+            "W123 must return once the defining file is gone, got: {:?}",
+            diag_codes(&gone),
+        );
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// SRV-INCREMENTAL Task 6 (pull path, W123 disabled): cross-file arity must
+    /// stay independent of the W123 toggle on the pull path too — disabling W123
+    /// while keeping E002/E003 must still report the cross-file `E003` (matching
+    /// the push path / local arity).  Regression for Codex review on #692.
+    #[tokio::test]
+    async fn cross_file_arity_survives_w123_disabled_on_pull_path() {
+        let backend = test_backend();
+        *backend.disabled_diagnostics.lock().await = ["W123".to_owned()].into_iter().collect();
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+        let a = Url::parse("file:///caller.tcl").unwrap();
+        let b = Url::parse("file:///lib.tcl").unwrap();
+        backend
+            .db_set_source(
+                &b,
+                "proc helper {x y} { return $x }\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        // 3 args to a 2-param cross-file proc → E003, even with W123 disabled.
+        let diags = backend
+            .full_diagnostics_for(&a, "helper a b c\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        let codes = diag_codes(&diags);
+        assert!(
+            codes.iter().any(|c| c == "E003"),
+            "cross-file E003 must survive W123 disabled on the pull path, got: {codes:?}",
+        );
+        assert!(
+            !codes.iter().any(|c| c == "W123"),
+            "W123 stays disabled, got: {codes:?}",
         );
     }
 

@@ -112,7 +112,12 @@ fn basis_names_for_taint(taint: TaintLattice) -> Vec<&'static str> {
 /// Context-insensitive return-taint transfer summary for one procedure.
 ///
 /// Mirrors Python `ProcTaintSummary`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// `Hash` lets the LSP db intern a procedure's direct-callee summaries into the
+/// `SummaryDepsKey` of its memoised `proc_summary_cascade` query (SRV-INCREMENTAL
+/// 2b) — a body edit that leaves a callee's summary unchanged keeps the key, and
+/// the caller's inference is a cache hit.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ProcTaintSummary {
     /// Fully-qualified procedure name.
     pub qualified_name: String,
@@ -131,7 +136,14 @@ pub struct ProcTaintSummary {
 impl ProcTaintSummary {
     /// An untainted seed summary (every scenario clean). Mirrors the initial
     /// `summaries` seeding in Python's solver.
-    fn untainted(qname: &str, params: &[String]) -> Self {
+    ///
+    /// Public so the LSP db's memoised `proc_summary_cascade` can reconstruct the
+    /// *whole-module* seeded map the worklist passes to `infer_proc_summary` — a
+    /// resolved callee must map to a (clean) summary, not be absent, or
+    /// `propagate_taints` falls through to its conservative bare-argument join and
+    /// over-taints (SRV-INCREMENTAL 2b).
+    #[must_use]
+    pub fn untainted(qname: &str, params: &[String]) -> Self {
         let clean = TaintLattice::clean();
         Self {
             qualified_name: qname.to_owned(),
@@ -317,10 +329,31 @@ fn return_ctx<'a>(
     }
 }
 
+/// Per-proc summary-inference callback driven by the summary-fixpoint worklist
+/// ([`converge_summaries_with`]). Receives `(qname, params, fu, known,
+/// summaries)` and returns the procedure's inferred [`ProcTaintSummary`] under
+/// the *current* summaries. The default is [`infer_proc_summary`]; the LSP db
+/// injects a salsa-memoised variant (SRV-INCREMENTAL 2b) that returns an
+/// unchanged proc's summary from cache (keyed on its offset-0 body + its
+/// direct callees' summaries) instead of re-running the propagation here.
+pub type InferProcSummaryFn<'a> = dyn FnMut(
+        &str,
+        &[String],
+        &FunctionUnit,
+        &HashSet<String>,
+        &HashMap<String, ProcTaintSummary>,
+    ) -> ProcTaintSummary
+    + 'a;
+
 /// Infer a procedure's return-taint summary under the current summaries.
 /// Mirrors Python `_infer_proc_summary`.
-#[allow(clippy::too_many_arguments)]
-fn infer_proc_summary(
+///
+/// Exposed (with [`InferProcSummaryFn`]) so the LSP db can both (a) re-run the
+/// real inference inside its memoised `proc_summary_cascade` query and (b) keep
+/// the debug fixpoint guard validating against the *genuine* result.
+#[must_use]
+#[allow(clippy::too_many_arguments, clippy::implicit_hasher)]
+pub fn infer_proc_summary(
     qname: &str,
     params: &[String],
     fu: &FunctionUnit,
@@ -429,7 +462,11 @@ fn resolve_call_flows(
 /// Result of the interprocedural taint solve. Mirrors Python
 /// `_InterprocTaintResult` (summaries are dropped — the warning consumers
 /// only read `top_taints` / `proc_taints`).
-#[derive(Debug, Clone, Default)]
+///
+/// `PartialEq` lets the LSP db return this from the memoised `proc_taint_solve`
+/// salsa query (early-cutoff via salsa's update-fallback: a re-solve that lands
+/// the same taints backdates, waking no downstream check).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InterprocTaintResult {
     /// Taints for the top-level script.
     pub top_taints: HashMap<ValueKey, TaintLattice>,
@@ -512,6 +549,113 @@ fn update_entry(
     changed
 }
 
+/// Run the per-procedure return-taint summary fixpoint to convergence — the
+/// dominant cost of [`solve_interprocedural_taints`] (~95% of `run_all_checks`
+/// on a large file). `infer_proc_summary(P)` is a pure function of `P`'s body and
+/// its *callees'* summaries, so this is driven by a dirty set: a procedure is
+/// re-inferred only once one of its direct callees' summaries changed on the
+/// previous pass (`callers[Q]` = the procedures that directly call `Q`, from the
+/// interprocedural call graph). The lattice is monotone, so this converges to the
+/// same fixpoint a full round-robin would — guarded in debug by a final
+/// round-robin pass and by the `compiler_check` corpus differential. Without a
+/// call graph every procedure is re-queued, exactly reproducing the round-robin.
+///
+/// Split out of [`solve_interprocedural_taints`] so the cheap entry-taint worklist
+/// stays separate, and so this — the expensive, per-procedure-memoisable phase —
+/// can be served by a salsa-memoised variant (SRV-INCREMENTAL 2b): the per-proc
+/// `infer` step is injectable via [`InferProcSummaryFn`], so the LSP db can plug
+/// in a `proc_summary_cascade` query keyed on each proc's offset-0 body + its
+/// callees' summaries. The worklist itself (monotone convergence, the call-graph
+/// dirty-set, mutual-recursion handling) is unchanged; only `infer` is redirected.
+/// The debug-only fixpoint guard deliberately re-runs the **real**
+/// [`infer_proc_summary`] (not `infer_fn`), so it validates the worklist's
+/// convergence *and* an injected memo's correctness at once — a stale memo entry
+/// trips the same assertion a missed call-graph edge would.
+pub fn converge_summaries_with(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
+    dialect: Option<&str>,
+    infer_fn: &mut InferProcSummaryFn<'_>,
+) -> HashMap<String, ProcTaintSummary> {
+    let mut proc_names: Vec<&String> = cu.ir_module.procedures.keys().collect();
+    proc_names.sort();
+
+    // Seed summaries (all scenarios untainted).
+    let mut summaries: HashMap<String, ProcTaintSummary> = HashMap::new();
+    for qname in &proc_names {
+        let proc = &cu.ir_module.procedures[*qname];
+        summaries.insert(
+            (*qname).clone(),
+            ProcTaintSummary::untainted(qname, &proc.params),
+        );
+    }
+    let known: HashSet<String> = summaries.keys().cloned().collect();
+
+    // `callers[Q]` = procedures that directly call `Q`; when `Q`'s summary changes
+    // its callers are re-queued. Without a call graph, re-queue everything.
+    let callers: Option<HashMap<&str, Vec<&str>>> = interproc.map(|ia| {
+        let mut map: HashMap<&str, Vec<&str>> = HashMap::new();
+        for (caller, summary) in &ia.procedures {
+            for callee in &summary.direct_calls {
+                map.entry(callee.as_str()).or_default().push(caller.as_str());
+            }
+        }
+        map
+    });
+    let mut dirty: HashSet<&str> = proc_names.iter().map(|q| q.as_str()).collect();
+    while !dirty.is_empty() {
+        let mut next: HashSet<&str> = HashSet::new();
+        for qname in &proc_names {
+            if !dirty.contains(qname.as_str()) {
+                continue;
+            }
+            let Some(fu) = cu.procedures.get(*qname) else {
+                continue;
+            };
+            let proc = &cu.ir_module.procedures[*qname];
+            let inferred = infer_fn(qname, &proc.params, fu, &known, &summaries);
+            if summaries.get(*qname) != Some(&inferred) {
+                summaries.insert((*qname).clone(), inferred);
+                match &callers {
+                    Some(map) => next.extend(map.get(qname.as_str()).into_iter().flatten()),
+                    None => next.extend(proc_names.iter().map(|q| q.as_str())),
+                }
+            }
+        }
+        dirty = next;
+    }
+
+    // Debug-only soundness guard: one full round-robin pass must find the dirty-set
+    // fixpoint already stable. If this fires, the call graph (`direct_calls`) missed
+    // a callee-summary dependency and the worklist under-converged (a taint
+    // false-negative risk). Zero cost in release; proven clean over the tcllib corpus.
+    #[cfg(debug_assertions)]
+    for qname in &proc_names {
+        if let Some(fu) = cu.procedures.get(*qname) {
+            let proc = &cu.ir_module.procedures[*qname];
+            let reinferred = infer_proc_summary(
+                qname,
+                &proc.params,
+                fu,
+                registry,
+                interproc,
+                dialect,
+                &known,
+                &summaries,
+            );
+            debug_assert_eq!(
+                summaries.get(*qname),
+                Some(&reinferred),
+                "interproc taint summary fixpoint under-converged for `{qname}` \
+                 (call graph missed a callee-summary edge)"
+            );
+        }
+    }
+
+    summaries
+}
+
 /// Solve interprocedural taints for a compilation unit. Mirrors Python
 /// `_solve_interprocedural_taints`.
 ///
@@ -527,51 +671,40 @@ pub fn solve_interprocedural_taints(
     dialect: Option<&str>,
 ) -> InterprocTaintResult {
     let interproc = cu.interproc.as_ref();
+    solve_interprocedural_taints_with(
+        cu,
+        registry,
+        dialect,
+        &mut |qname, params, fu, known, summaries| {
+            infer_proc_summary(
+                qname, params, fu, registry, interproc, dialect, known, summaries,
+            )
+        },
+    )
+}
 
-    // Procedures in deterministic (sorted) order. The summary lattice is
-    // monotone, so the fixpoint is order-independent; sorting keeps the
-    // intermediate visit order reproducible across runs.
+/// [`solve_interprocedural_taints`] with the per-proc summary inference
+/// injectable via [`InferProcSummaryFn`]. Only the *summary fixpoint* phase
+/// (`converge_summaries_with`) is redirected through `infer_fn`; the cheap
+/// entry-taint worklist that follows is unchanged. The LSP db uses this to feed
+/// a salsa-memoised `infer` (SRV-INCREMENTAL 2b) so an unchanged procedure's
+/// summary is a cache hit instead of a re-propagation — the ~120 ms pass-1
+/// floor the bare worklist still pays every edit.
+#[must_use]
+pub fn solve_interprocedural_taints_with(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+    infer_fn: &mut InferProcSummaryFn<'_>,
+) -> InterprocTaintResult {
+    let interproc = cu.interproc.as_ref();
+    let summaries = converge_summaries_with(cu, registry, interproc, dialect, infer_fn);
+
+    // Procedures in deterministic (sorted) order, and the name set — both consumed
+    // by the entry-taint worklist below.
     let mut proc_names: Vec<&String> = cu.ir_module.procedures.keys().collect();
     proc_names.sort();
-
-    // Seed summaries (all scenarios untainted).
-    let mut summaries: HashMap<String, ProcTaintSummary> = HashMap::new();
-    for qname in &proc_names {
-        let proc = &cu.ir_module.procedures[*qname];
-        summaries.insert(
-            (*qname).clone(),
-            ProcTaintSummary::untainted(qname, &proc.params),
-        );
-    }
     let known: HashSet<String> = summaries.keys().cloned().collect();
-
-    // Summary worklist: recompute every proc's summary until a fixpoint.
-    // In-place updates are visible to later procs within a pass (Gauss-Seidel,
-    // matching Python's `summaries` dict mutation under the live provider).
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for qname in &proc_names {
-            let Some(fu) = cu.procedures.get(*qname) else {
-                continue;
-            };
-            let proc = &cu.ir_module.procedures[*qname];
-            let inferred = infer_proc_summary(
-                qname,
-                &proc.params,
-                fu,
-                registry,
-                interproc,
-                dialect,
-                &known,
-                &summaries,
-            );
-            if summaries.get(*qname) != Some(&inferred) {
-                summaries.insert((*qname).clone(), inferred);
-                changed = true;
-            }
-        }
-    }
 
     // Top-level taints under the converged summaries.
     let top_taints = run_propagation(

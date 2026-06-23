@@ -188,6 +188,12 @@ pub struct SignatureCommandInvocation {
     /// the full analyser.  Mirrors Python's
     /// `CommandInvocation.resolved_qualified_name`.
     pub resolved_qualified_name: Option<String>,
+    /// Number of **argument** words at the call site (the words after the command
+    /// head).  Used by cross-file arity checking (SRV-INCREMENTAL Task 6): a call
+    /// to a workspace-defined proc whose `argc` fits none of that proc's
+    /// arities is a wrong-argument-count error.  `{*}`-expanded args make the true
+    /// count unknown, recorded as `None` so arity checking conservatively skips.
+    pub argc: Option<usize>,
 }
 
 /// The full result returned by `extract_signatures`.
