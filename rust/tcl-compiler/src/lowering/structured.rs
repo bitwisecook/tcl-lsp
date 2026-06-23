@@ -125,6 +125,17 @@ fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool, bool) {
     (i, mode, nocase, unknown)
 }
 
+/// Whether a loop body (or `for` next-clause) redefines `break`/`continue` via
+/// `proc break …` / `proc continue …`. Such a loop is compiled through the
+/// runtime builtin (a barrier) rather than the inline JUMP fast-path: the
+/// builtin dispatches break/continue as commands, honouring the redefinition,
+/// whereas the inline JUMP fires unconditionally and would loop forever
+/// (proc-7.3, Bug 729692). A conservative substring test — a false positive
+/// merely takes the correct (if slower) runtime path.
+fn redefines_loop_control(body: &str) -> bool {
+    body.contains("proc break") || body.contains("proc continue")
+}
+
 impl Lowerer<'_> {
     // ── if ────────────────────────────────────────────────────────
 
@@ -257,6 +268,13 @@ impl Lowerer<'_> {
         if !(arg_single[0] && arg_single[1] && arg_single[2] && arg_single[3]) {
             return Self::barrier(seg, "for with dynamic arguments");
         }
+        // A body/next that redefines break/continue must run through the runtime
+        // builtin, which dispatches them (so the redefinition is honoured) rather
+        // than firing the compiled JUMP fast-path unconditionally and looping
+        // forever (proc-7.3).
+        if redefines_loop_control(&args[2]) || redefines_loop_control(&args[3]) {
+            return Self::barrier(seg, "for redefines break/continue");
+        }
 
         let init = self.lower_body_from_tok(&args[0], Some(&arg_tokens[0]), namespace);
         let next = self.lower_body_from_tok(&args[2], Some(&arg_tokens[2]), namespace);
@@ -292,6 +310,11 @@ impl Lowerer<'_> {
         }
         if !(arg_single[0] && arg_single[1]) {
             return Self::barrier(seg, "while with dynamic arguments");
+        }
+        // See `lower_for`: a body redefining break/continue must use the runtime
+        // builtin so the redefinition is dispatched (proc-7.3).
+        if redefines_loop_control(&args[1]) {
+            return Self::barrier(seg, "while redefines break/continue");
         }
 
         let body = self.lower_body_from_tok(&args[1], Some(&arg_tokens[1]), namespace);

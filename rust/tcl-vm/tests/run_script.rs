@@ -189,6 +189,24 @@ fn compiled_linsert_rejects_bad_index() {
     assert_eq!(result, "a b c X");
 }
 
+/// A loop whose body redefines `break`/`continue` runs through the runtime
+/// builtin (which dispatches them) instead of the inline JUMP fast-path, so the
+/// redefinition is honoured rather than looping forever. Regression for
+/// proc-7.3 (Bug 729692) — this previously hung.
+#[test]
+fn loop_body_redefining_continue_is_honoured() {
+    let (ok, result, _) = run(concat!(
+        "set i 0\n",
+        "while {1} {\n",
+        "  if {[incr i] > 3} { proc continue {} {return -code break} }\n",
+        "  continue\n",
+        "}\n",
+        "set i",
+    ));
+    assert!(ok, "loop should terminate (no hang): {result}");
+    assert_eq!(result, "4");
+}
+
 /// `init_auto_load` installs the `unknown`/`auto_load` procs so an unresolved
 /// command is looked up on demand. With an empty `auto_path` (no library scan)
 /// a genuinely unknown command still raises the standard `invalid command name`
