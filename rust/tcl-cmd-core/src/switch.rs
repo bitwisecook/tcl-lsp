@@ -389,3 +389,41 @@ fn compile_error(detail: &[u8]) -> CmdError {
         String::from_utf8_lossy(detail)
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_index_matches_exact_and_unique_prefix() {
+        // Tcl unambiguous-prefix option matching (cmd-core switch.rs had no
+        // unit coverage). OPT_NAMES = -exact -glob -indexvar -matchvar
+        // -nocase … — `IdxErr` has no derives, so match with `matches!`.
+        assert!(matches!(get_index("-exact"), Ok(0)));
+        assert!(matches!(get_index("-glob"), Ok(1)));
+        assert!(matches!(get_index("-e"), Ok(0))); // unique prefix
+        assert!(matches!(get_index("-g"), Ok(1)));
+        assert!(matches!(get_index("-i"), Ok(2)));
+        assert!(matches!(get_index("-m"), Ok(3)));
+        assert!(matches!(get_index("-n"), Ok(4)));
+        assert!(matches!(get_index("-"), Err(IdxErr::Ambiguous))); // prefixes all
+        assert!(matches!(get_index("-zzz"), Err(IdxErr::Bad)));
+    }
+
+    #[test]
+    fn switch_error_message_formats() {
+        assert_eq!(
+            extra_pattern_error(false).message(),
+            "extra switch pattern with no body"
+        );
+        assert!(
+            extra_pattern_error(true)
+                .message()
+                .contains("comment incorrectly placed")
+        );
+        assert_eq!(
+            no_body_error("foo").message(),
+            r#"no body specified for pattern "foo""#
+        );
+    }
+}
