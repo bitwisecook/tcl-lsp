@@ -351,12 +351,16 @@ must validate it before the design is trusted and the *verification gate* (a
 differential fuzzer) that must exist to ship it. Most of those gates do **not**
 exist yet — the verification-status table follows the list.
 
-1. **Persisted incremental `LineIndex` on the `String` store** *(S, no rope, do
-   first).* Hold the `LineIndex` beside `DocumentState.text`; patch it in place on
-   edit (shift line-starts past the splice; add/remove entries for the `\n` delta)
-   instead of rebuilding per change; reuse it for `lift_span` / position lookups.
-   ~0 memory cost. *Gate:* patched index byte-identical to a rebuilt one over an
-   edit-fuzz corpus.
+1. **Persisted incremental `LineIndex` on the `String` store** *(S — **DONE**).*
+   `DocumentState` now holds a `line_index` beside `text`; `LineIndex::apply_edit`
+   patches it in place on edit (drop line-starts inside the splice; shift those
+   after by the byte delta; insert one per `\n` in the new text) instead of
+   rebuilding per change, and the doc-holding position-lookup sites reuse it
+   instead of `LineIndex::new` per request. ~0 memory cost. *Gate (built):* patched
+   index byte-identical to a rebuild over a 5000-edit fuzz corpus
+   (`apply_edit_matches_rebuild_under_fuzz`) + the live-path index-consistency test.
+   Measured value is small (the apply/lookup slice is ~0.02% of per-edit), as the
+   TL;DR predicted — but self-contained and zero-regression.
 
 2. **Per-procedure check memo + incremental interprocedural taint.** A
    `run_all_checks` cost-decomposition (profiler phase tier, `linalg.tcl`, 81
@@ -560,6 +564,7 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | 2b per-proc keys cannot be shared from `compilation_unit` (salsa return must be `'static`; cu carries only rebased `FunctionUnit`s) → dup-build required | **verified** (experiment) | reverted `BuiltUnit` threading spike — `lifetime may not live long enough` + `CompilationUnit: Eq` unsatisfied on salsa 0.27 |
 | **2b memo shipped:** `proc_summary_cascade`+`proc_taint_solve` — `compiler_check_diagnostics` 230→107 ms (~2.1×), per-edit 245→154 ms (~1.6×); dup-build ~28 ms warm | **measured + verified** | `tail_profile` + full-corpus `compiler_check` differential (510 s, guard live, byte-identical) + cross-edit/breadth/graphops tests |
 | 2a per-function check memo on `function_lattice` is sound (the "easy" framing) | **refuted** (experiment) | attempted + reverted: shimmer/type checks read the *post-whole-module-pass* `FunctionUnit`, so offset-0-baseline memo diverged on `graphops.tcl` — 2a is coupled to the whole-module passes (Task 3's blocker) |
+| Task 1: `LineIndex::apply_edit` patch == rebuild; persisted index wired into `DocumentState` | **measured + verified** (shipped) | 5000-edit fuzz gate + live-path index-consistency test; ~0.02% per-edit value as predicted |
 | Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |
 | Task 2 "cuts ~405 ms to one-proc cost" (the easy framing) | **refuted** | decomposition: ~16 ms easy (2a) + ~385 ms hard whole-unit taint solve (2b) |
 | Task 2 (2b) memo is sound | **measured + verified** (cold) | full-corpus `compiler_check` differential (memo vs uncached, debug guard live) passes; cross-edit pinned by `taint_cascade_matches_uncached_under_edits`. *Random-edit* fuzzer still to build |
