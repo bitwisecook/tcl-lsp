@@ -653,6 +653,21 @@ impl Vm {
             .extend_from_slice(patterns);
     }
 
+    /// Declare a built-in namespace (`ns`, unrooted) and record its
+    /// `namespace export` patterns directly. Used for namespaces whose commands
+    /// are created in Rust rather than by a script `namespace export` — e.g.
+    /// `::tcl::mathop`, which C exports so `namespace import ::tcl::mathop::*`
+    /// works.
+    pub(crate) fn declare_namespace_exports(&mut self, ns: &str, patterns: &[&str]) {
+        self.declare_namespace(ns);
+        let entry = self.ns_exports.entry(ns.to_string()).or_default();
+        for p in patterns {
+            if !entry.iter().any(|e| e == p) {
+                entry.push((*p).to_string());
+            }
+        }
+    }
+
     /// `namespace import` for `pattern` (e.g. `::tcltest::*`): alias every
     /// exported command of the source namespace matching the glob into the
     /// current namespace under its tail name. Returns the imported tail names.
