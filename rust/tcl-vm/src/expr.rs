@@ -15,23 +15,46 @@ use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
 
-/// A coerced numeric operand.
+/// A coerced numeric operand. `Big` carries an out-of-`i64` integer that still
+/// fits `i128` — the VM's bounded stand-in for Tcl's arbitrary-precision
+/// integers, so arithmetic promotes on overflow instead of wrapping.
 #[derive(Clone, Copy)]
 enum Num {
     Int(i64),
+    Big(i128),
     Dbl(f64),
 }
 
 fn num_f(n: Num) -> f64 {
     match n {
         Num::Int(i) => i as f64,
+        Num::Big(i) => i as f64,
         Num::Dbl(f) => f,
     }
+}
+
+/// The integer (`i128`) view of a non-float operand, for the integer arithmetic
+/// path. `None` for a float (which routes to `dbl_arith`).
+fn num_i128(n: Num) -> Option<i128> {
+    match n {
+        Num::Int(i) => Some(i128::from(i)),
+        Num::Big(i) => Some(i),
+        Num::Dbl(_) => None,
+    }
+}
+
+/// Wrap an `i128` arithmetic result as a value: a plain wide when it fits,
+/// otherwise the decimal string (the VM has no wider integer rep).
+fn int_value(r: i128) -> Value {
+    i64::try_from(r).map_or_else(|_| Value::string(r.to_string()), Value::int)
 }
 
 fn to_num(v: &Value) -> Result<Num, TclError> {
     if let Ok(n) = v.as_int() {
         return Ok(Num::Int(n));
+    }
+    if let Some(b) = v.as_i128() {
+        return Ok(Num::Big(b));
     }
     match v.as_double() {
         Ok(f) => Ok(Num::Dbl(f)),
@@ -49,6 +72,9 @@ fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
     if let Ok(n) = v.as_int() {
         return Ok(Num::Int(n));
     }
+    if let Some(b) = v.as_i128() {
+        return Ok(Num::Big(b));
+    }
     if let Ok(f) = v.as_double() {
         return Ok(Num::Dbl(f));
     }
@@ -64,7 +90,7 @@ fn divzero() -> TclError {
 }
 
 /// Floored integer division (Tcl `/`: rounds toward negative infinity).
-fn fdiv(x: i64, y: i64) -> i64 {
+fn fdiv(x: i128, y: i128) -> i128 {
     let q = x.wrapping_div(y);
     let r = x.wrapping_rem(y);
     if r != 0 && ((r < 0) != (y < 0)) {
@@ -75,7 +101,7 @@ fn fdiv(x: i64, y: i64) -> i64 {
 }
 
 /// Floored integer modulo (Tcl `%`: result takes the sign of the divisor).
-fn fmod_i(x: i64, y: i64) -> i64 {
+fn fmod_i(x: i128, y: i128) -> i128 {
     let r = x.wrapping_rem(y);
     if r != 0 && ((r < 0) != (y < 0)) {
         r + y
@@ -84,7 +110,7 @@ fn fmod_i(x: i64, y: i64) -> i64 {
     }
 }
 
-fn ipow(mut base: i64, mut exp: i64) -> i64 {
+fn ipow(mut base: i128, mut exp: i128) -> i128 {
     if exp < 0 {
         return match base {
             1 => 1,
@@ -98,7 +124,7 @@ fn ipow(mut base: i64, mut exp: i64) -> i64 {
             _ => 0,
         };
     }
-    let mut acc: i64 = 1;
+    let mut acc: i128 = 1;
     while exp > 0 {
         if exp & 1 == 1 {
             acc = acc.wrapping_mul(base);
@@ -111,7 +137,12 @@ fn ipow(mut base: i64, mut exp: i64) -> i64 {
     acc
 }
 
-fn int_arith(op: BinOp, x: i64, y: i64) -> Result<Value, TclError> {
+/// Integer arithmetic in `i128`, narrowing the result to a wide when it fits.
+/// `i64`-range operands and results behave exactly as before; an `i64`-overflow
+/// now promotes (e.g. `2**70`, `9223372036854775807 + 1`) instead of wrapping,
+/// up to the `i128` range (the VM's bounded stand-in for Tcl's bignums — a
+/// genuinely `i128`-overflowing result still wraps, lacking a wider rep).
+fn int_arith(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
     use BinOp::{Add, BitAnd, BitOr, BitXor, Div, LShift, Mod, Mul, Pow, RShift, Sub};
     let r = match op {
         Add => x.wrapping_add(y),
@@ -131,18 +162,18 @@ fn int_arith(op: BinOp, x: i64, y: i64) -> Result<Value, TclError> {
         }
         Pow => ipow(x, y),
         LShift => {
-            if (0..64).contains(&y) {
+            if (0..128).contains(&y) {
                 x.wrapping_shl(u32::try_from(y).unwrap_or(0))
-            } else if y >= 64 {
+            } else if y >= 128 {
                 0
             } else {
                 return Err(TclError::new("negative shift count"));
             }
         }
         RShift => {
-            if (0..64).contains(&y) {
+            if (0..128).contains(&y) {
                 x >> u32::try_from(y).unwrap_or(0)
-            } else if y >= 64 {
+            } else if y >= 128 {
                 if x < 0 { -1 } else { 0 }
             } else {
                 return Err(TclError::new("negative shift count"));
@@ -153,7 +184,7 @@ fn int_arith(op: BinOp, x: i64, y: i64) -> Result<Value, TclError> {
         BitXor => x ^ y,
         _ => return Err(TclError::new("unsupported integer operator")),
     };
-    Ok(Value::int(r))
+    Ok(int_value(r))
 }
 
 fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
@@ -179,15 +210,18 @@ pub fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
         to_num_operand(a, "left", op)?,
         to_num_operand(b, "right", op)?,
     ) {
-        (Num::Int(x), Num::Int(y)) => int_arith(op, x, y),
+        // Both operands are integers (in-range or i128-promoted): integer path.
+        (x, y) if num_i128(x).is_some() && num_i128(y).is_some() => {
+            int_arith(op, num_i128(x).unwrap(), num_i128(y).unwrap())
+        }
         (x, y) => dbl_arith(op, num_f(x), num_f(y)),
     }
 }
 
 fn num_cmp(x: Num, y: Num) -> Ordering {
-    match (x, y) {
-        (Num::Int(a), Num::Int(b)) => a.cmp(&b),
-        (a, b) => num_f(a).partial_cmp(&num_f(b)).unwrap_or(Ordering::Equal),
+    match (num_i128(x), num_i128(y)) {
+        (Some(a), Some(b)) => a.cmp(&b),
+        _ => num_f(x).partial_cmp(&num_f(y)).unwrap_or(Ordering::Equal),
     }
 }
 
@@ -219,26 +253,26 @@ pub fn compare(op: BinOp, a: &Value, b: &Value) -> Result<bool, TclError> {
 pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
     use UnaryOp::{BitNot, Neg, Not, Pos, WordNot};
     match op {
-        Neg => match to_num(v) {
-            Ok(Num::Int(n)) => Ok(Value::int(n.wrapping_neg())),
-            Ok(Num::Dbl(f)) => Ok(Value::double(-f)),
-            // `-9223372036854775808`: the magnitude 2^63 overflows a positive
-            // wide, but its negation is exactly the most-negative wide (C
-            // narrows it). `as_wide` maps that lone bignum to `i64::MIN`; any
-            // other out-of-range literal still errors (no bignum rep yet).
-            Err(e) => {
-                if v.as_wide().ok() == Some(i64::MIN) {
-                    Ok(Value::int(i64::MIN))
-                } else {
-                    Err(e)
-                }
-            }
-        },
+        // `to_num` promotes an out-of-wide literal to `Big`, so `-2^63` (and the
+        // rest of the i128 range) negates correctly: `int_value` narrows
+        // `-9223372036854775808` back to the most-negative wide.
+        Neg => Ok(match to_num(v)? {
+            Num::Int(n) => Value::int(n.wrapping_neg()),
+            Num::Big(b) => int_value(b.wrapping_neg()),
+            Num::Dbl(f) => Value::double(-f),
+        }),
         Pos => Ok(match to_num(v)? {
             Num::Int(n) => Value::int(n),
+            Num::Big(b) => int_value(b),
             Num::Dbl(f) => Value::double(f),
         }),
-        BitNot => Ok(Value::int(!v.as_int()?)),
+        BitNot => match to_num(v)? {
+            Num::Int(n) => Ok(Value::int(!n)),
+            Num::Big(b) => Ok(int_value(!b)),
+            Num::Dbl(_) => Err(TclError::new(
+                "can't use floating-point value as operand of \"~\"",
+            )),
+        },
         Not => Ok(Value::bool(!v.as_bool()?)),
         WordNot => Err(TclError::new("unsupported operator")),
     }
