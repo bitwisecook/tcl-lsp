@@ -404,6 +404,17 @@ fn pack_hex(s: &[u8], n: usize, high_first: bool) -> Result<Vec<u8>, CmdError> {
     Ok(out)
 }
 
+/// The error for a non-integer count-less integer field value: C reports a
+/// multi-element value as `a list`, a single bad token verbatim.
+fn int_value_error(arg: &[u8]) -> CmdError {
+    let text = String::from_utf8_lossy(arg);
+    if split_list(&text).is_ok_and(|e| e.len() != 1) {
+        CmdError::new("expected integer but got a list".to_string())
+    } else {
+        CmdError::new(format!("expected integer but got \"{text}\""))
+    }
+}
+
 /// C's `expected <kind> string but got "<arg>" instead` for an invalid `b`/`B`/
 /// `h`/`H` `binary format` field value.
 fn expected_string(kind: &str, arg: &[u8]) -> CmdError {
@@ -477,13 +488,20 @@ pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
             b'c' | b's' | b'S' | b't' | b'i' | b'I' | b'n' | b'w' | b'W' | b'm' => {
                 let (size, end) = int_kind(ty);
                 let arg = next_arg(args, &mut ai)?;
-                let elems = split_field(arg)?;
-                let n = field_count(&count, elems.len())?;
-                for e in &elems[..n] {
-                    let v = parse_wide(e.as_bytes()).ok_or_else(|| {
-                        CmdError::new(format!("expected integer but got \"{e}\""))
-                    })?;
+                if matches!(count, Count::None) {
+                    // No count: the value is a *single* integer, not a list whose
+                    // first element is taken (C: `binary format c {1 2}` errors).
+                    let v = parse_wide(arg).ok_or_else(|| int_value_error(arg))?;
                     put(&mut out, &mut cur, &int_bytes(v, size, end));
+                } else {
+                    let elems = split_field(arg)?;
+                    let n = field_count(&count, elems.len())?;
+                    for e in &elems[..n] {
+                        let v = parse_wide(e.as_bytes()).ok_or_else(|| {
+                            CmdError::new(format!("expected integer but got \"{e}\""))
+                        })?;
+                        put(&mut out, &mut cur, &int_bytes(v, size, end));
+                    }
                 }
             }
             b'f' | b'r' | b'R' | b'd' | b'q' | b'Q' => {
