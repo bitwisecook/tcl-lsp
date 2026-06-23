@@ -121,6 +121,12 @@ pub struct Vm {
     /// `ROOT_NS` = 0 = `""`), bridging the handle-based trait to the string model.
     ns_arena: Vec<String>,
     ns_intern: HashMap<String, NsId>,
+    /// Per-namespace command resolution path (`namespace path`): canonical
+    /// namespace name (no leading `::`, `""` = global) → the ordered list of
+    /// namespaces (canonical) consulted after the current namespace and before
+    /// the global one during command lookup. Absent / empty = the default
+    /// (current → global only).
+    ns_paths: HashMap<String, Vec<String>>,
     /// Command-FQN ⇆ dense raw `CommandId` arena for `Namespaces::find_command`
     /// and `Commands::dispatch_id`. Interior-mutable because `find_command` is
     /// `&self` but mints a handle on first sight. Bidirectional: `find_command`
@@ -243,6 +249,7 @@ impl Vm {
             ns_exports: HashMap::new(),
             ns_arena: vec![String::new()],
             ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
+            ns_paths: HashMap::new(),
             cmd_arena: RefCell::new(CmdArena::default()),
             packages: HashMap::new(),
             var_traces: HashMap::new(),
@@ -493,7 +500,37 @@ impl Vm {
         {
             return Some(c.clone());
         }
+        // `namespace path`: consult the current namespace's resolution path
+        // (in order) before falling back to the global namespace.
+        if let Some(path) = self.ns_paths.get(cur) {
+            for p in path {
+                let key = if p.is_empty() {
+                    name.to_string()
+                } else {
+                    format!("{p}::{name}")
+                };
+                if let Some(c) = self.commands.get(&key) {
+                    return Some(c.clone());
+                }
+            }
+        }
         self.commands.get(name).cloned()
+    }
+
+    /// Get the current namespace's command resolution path (`namespace path`)
+    /// as a list of canonical names (no leading `::`); empty by default.
+    pub(crate) fn ns_path_get(&self) -> Vec<String> {
+        self.ns_paths
+            .get(self.current_ns())
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Set the current namespace's command resolution path to `path` (canonical
+    /// names, no leading `::`).
+    pub(crate) fn ns_path_set(&mut self, path: Vec<String>) {
+        let cur = self.current_ns().to_string();
+        self.ns_paths.insert(cur, path);
     }
 
     /// The current namespace (canonical, no leading `::`; `""` = global).
