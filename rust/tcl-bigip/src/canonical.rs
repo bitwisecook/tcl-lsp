@@ -1,10 +1,10 @@
 //! Canonical JSON serialisation matching the `_rust_bridge` schema, so
 //! `rebuild(config_to_canonical(rust_parse(src)))` reconstructs the exact
-//! canonical dataclass-style structs the `f5` layer consumes.
+//! canonical structs the `f5` layer consumes.
 //!
 //! Tags: `{"r":[6]}` Range, `{"S":[2]}` SourceSpan, `{"e":NAME}` enum,
 //! `{"s":STR}` scalar value, `{"t":[…]}` tuple, `{"m":{…}}` dict,
-//! `{"__t":NAME,"d":{…}}` nested dataclass, `{"L":{…}}` BigipList.
+//! `{"__t":NAME,"d":{…}}` nested struct, `{"L":{…}}` BigipList.
 
 #![allow(
     clippy::wildcard_imports,
@@ -20,7 +20,7 @@ use crate::range::Range;
 use crate::value::bigip_list::{BigipList, ListItem, ListItemValue, SourceSpan};
 
 /// A type that serialises to the canonical `"d"` field-map and knows its
-/// canonical dataclass-style type name.
+/// canonical type name.
 pub trait Canon {
     /// The canonical type name (e.g. `"BigipPoolMember"`).
     fn canon_type(&self) -> &'static str;
@@ -28,7 +28,7 @@ pub trait Canon {
     fn canon_fields(&self) -> Value;
 }
 
-/// Wrap a [`Canon`] value as a tagged nested dataclass.
+/// Wrap a [`Canon`] value as a tagged nested struct.
 #[must_use]
 pub fn tagged<T: Canon + ?Sized>(v: &T) -> Value {
     json!({"__t": v.canon_type(), "d": v.canon_fields()})

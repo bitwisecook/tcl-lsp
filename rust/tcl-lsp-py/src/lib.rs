@@ -111,7 +111,7 @@ pub fn backslash_subst(text: &str) -> Cow<'_, str> {
 /// Register every public binding on the Python module `m`.
 ///
 /// Both `#[pymodule] tcl_lsp_py` (this crate's cdylib) and
-/// `#[pymodule] tcl_lsp_rust` (the legacy alias crate) call this
+/// `#[pymodule] tcl_lsp_rust` (the alias crate) call this
 /// function so the two wheels expose identical surfaces.
 pub fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hello_rust, m)?)?;

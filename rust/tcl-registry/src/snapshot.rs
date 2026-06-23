@@ -28,8 +28,8 @@ use crate::profiles::ProfileRegistry;
 /// serialiser.
 ///
 /// Object keys are always emitted in sorted (byte-wise) order, matching
-/// `sort_keys=True`. The serialiser escapes strings exactly like
-/// `CPython`'s `json` module with the default `ensure_ascii=True`.
+/// `sort_keys=True`. The serialiser escapes non-ASCII as `\uXXXX`
+/// (ASCII-only output).
 #[derive(Debug, Clone)]
 pub enum Json {
     /// JSON `null`.
@@ -128,8 +128,8 @@ fn push_spaces(out: &mut String, n: usize) {
     }
 }
 
-/// Escape `value` as a JSON string literal exactly like `CPython`'s `json` module
-/// with the default `ensure_ascii=True`: the standard short escapes, `\uXXXX`
+/// Escape `value` as a JSON string literal with ASCII-only output
+/// (escape non-ASCII as `\uXXXX`): the standard short escapes, `\uXXXX`
 /// for every other control character, and `\uXXXX` (with surrogate pairs for
 /// astral code points) for every non-ASCII character.
 fn write_json_string(out: &mut String, value: &str) {
@@ -148,8 +148,8 @@ fn write_json_string(out: &mut String, value: &str) {
             }
             c if (c as u32) < 0x7f => out.push(c),
             c => {
-                // ensure_ascii=True: emit \uXXXX, surrogate-pairing astral
-                // code points (matching `CPython`'s behaviour).
+                // ASCII-only output: emit \uXXXX, surrogate-pairing astral
+                // code points.
                 let cp = c as u32;
                 if cp <= 0xffff {
                     push_u_escape(out, cp);

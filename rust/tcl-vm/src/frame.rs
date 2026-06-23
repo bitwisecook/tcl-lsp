@@ -3,7 +3,7 @@
 //! Frame 0 is the global scope. Each frame holds local variables; a [`Local`]
 //! is either a scalar value or a cross-frame [`Local::Link`] (the
 //! `upvar`/`global`/`variable` alias). Name resolution follows links to the
-//! owning frame, mirroring `tooling/vm/scope.py::CallFrame._resolve`.
+//! owning frame.
 
 use std::collections::{BTreeMap, HashMap};
 

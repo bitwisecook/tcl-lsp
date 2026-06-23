@@ -1,7 +1,7 @@
 //! Live VM driver — run the TMM-sim orchestrator Tcl on [`tcl-vm`] and drive a
 //! real event round-trip.
 //!
-//! This is the runtime half of `tooling/irule_test/bridge.py::IruleTestSession`.
+//! This is the runtime half of the iRule test session.
 //! Where [`crate::session::SessionPlan`] assembles the *bootstrap script*, a
 //! [`LiveSession`] actually stands the orchestrator up on a bytecode VM, loads
 //! an iRule, fires events, and reads back the pool/node decisions, captured

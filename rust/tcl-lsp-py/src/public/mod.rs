@@ -4,10 +4,8 @@
 //! public API: a small, semver-stable set of narrow facades —
 //! `source/bytes/options in, structured result out` — over the layered
 //! Rust crates, paired with a typed error hierarchy. It is deliberately
-//! **not** a re-export of the whole crate graph, and **not** a
-//! transcription of whatever the in-tree Python layer happened to call
-//! (those are the legacy soft-dependency shims in the sibling binding
-//! modules).
+//! **not** a re-export of the whole crate graph (the broader
+//! per-subsystem surface lives in the sibling binding modules).
 //!
 //! The surface:
 //!

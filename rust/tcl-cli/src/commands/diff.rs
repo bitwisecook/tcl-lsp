@@ -113,7 +113,7 @@ fn resolve_subcommand<'a>(cmd: &'a SegmentedCommand, registry: &CommandRegistry)
 }
 
 /// The `ast` layer payload (`{"commands": [...]}`), as canonical
-/// `json.dumps(indent=2, sort_keys=True)` text.
+/// 2-space-indented JSON (keys sorted).
 fn serialise_command_ast(
     source: &str,
     registry: &CommandRegistry,
@@ -230,7 +230,7 @@ fn cfg_layer_payload(src: &str, dialect: &str) -> String {
 
 /// Convert a `serde_json::Value` (the explorer serialisers' output) into the
 /// snapshot [`Json`] so it renders through the shared `dumps_indent2`
-/// (`json.dumps(indent=2, sort_keys=True)`) adapter the AST/IR layers use. The
+/// (2-space-indented JSON, keys sorted) adapter the AST/IR layers use. The
 /// CFG payload is integer-only (offsets / versions / counts), so a JSON number
 /// is always an `i64`.
 fn value_to_json(value: &serde_json::Value) -> Json {

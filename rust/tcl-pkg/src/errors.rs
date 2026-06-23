@@ -35,9 +35,9 @@ impl Category {
 
 /// Base error type for every tclpkg-specific failure.
 ///
-/// Mirrors `TclPkgError` and its subclasses. The variant carries a fully
-/// composed `message` plus an optional `hint`; the `Display` impl reproduces
-/// `__str__` (message, then `\n  hint: <hint>` when present).
+/// The variant carries a fully composed `message` plus an optional
+/// `hint`; the `Display` impl renders the message, then
+/// `\n  hint: <hint>` when present.
 #[derive(Debug, Clone)]
 pub struct TclPkgError {
     pub category: Category,

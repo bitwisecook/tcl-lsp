@@ -27,13 +27,13 @@ use crate::range::Range;
 
 // ── Minimal insertion-ordered JSON (with `null`) ─────────────────────
 //
-// Matches the format of `json.dumps(value, indent=2, ensure_ascii=True)`
-// without `sort_keys` (object keys keep insertion order). A sibling of
+// Matches a 2-space-indented, ASCII-escaped JSON encoding that keeps
+// object keys in insertion order (not sorted). A sibling of
 // `convert::Json`, extended with a `Null` variant for the `None` fields the
 // context dict carries.
 
 /// A minimal insertion-ordered JSON value. Object keys preserve insertion
-/// order; serialised with `json.dumps(indent=2)`-parity.
+/// order; serialised with 2-space indentation.
 enum Json {
     /// JSON `null`.
     Null,
@@ -90,7 +90,7 @@ impl Json {
         }
     }
 
-    /// Serialise as `json.dumps(value, indent=2)` would (no trailing newline).
+    /// Serialise as 2-space-indented JSON (no trailing newline).
     fn dumps_indent2(&self) -> String {
         let mut out = String::new();
         self.write(&mut out, 0);
@@ -762,14 +762,13 @@ fn bundle_to_json(bundle: &IruleContextBundle) -> Json {
     ])
 }
 
-/// Serialise a single bundle as `json.dumps(context_bundle_to_dict(bundle),
-/// indent=2)` (no trailing newline).
+/// Serialise a single bundle as 2-space-indented JSON (no trailing newline).
 #[must_use]
 pub fn context_bundle_to_json(bundle: &IruleContextBundle) -> String {
     bundle_to_json(bundle).dumps_indent2()
 }
 
-/// Serialise many bundles as `json.dumps({"bundles": [...]}, indent=2)` (no
+/// Serialise many bundles as a 2-space-indented `{"bundles": [...]}` object (no
 /// trailing newline) — the stdout/single-file multi-bundle form.
 #[must_use]
 pub fn bundles_to_json(bundles: &[IruleContextBundle]) -> String {

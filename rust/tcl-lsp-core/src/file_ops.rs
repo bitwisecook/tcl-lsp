@@ -189,7 +189,7 @@ fn posix_join(dir: &str, rel: &str) -> String {
     }
 }
 
-/// Collapse `.` / `..` / repeated slashes (posix `os.path.normpath`).
+/// Collapse `.` / `..` / repeated slashes (POSIX path normalisation).
 fn normpath(p: &str) -> String {
     if p.is_empty() {
         return ".".to_string();
@@ -219,7 +219,7 @@ fn normpath(p: &str) -> String {
     }
 }
 
-/// Relative path from `start` to `target` (posix `os.path.relpath`).
+/// Relative path from `start` to `target`.
 fn relpath(target: &str, start: &str) -> String {
     let target_norm = normpath(target);
     let start_norm = normpath(start);

@@ -2,8 +2,7 @@
 //!
 //! Every facade returns a small, frozen `#[pyclass]` (or a `str`)
 //! rather than an `Any`-shaped dict, so downstream embedders get a
-//! stable, typed surface they can introspect and that survives the
-//! eventual retirement of the legacy soft-dependency shims. Each
+//! stable, typed surface they can introspect. Each
 //! positional field is exposed as a resolved
 //! `(line, character)` pair — the facade resolves [`Span`]s against a
 //! [`SourceMap`] at the boundary, so Python never sees a bare byte

@@ -41,7 +41,7 @@ impl CliError {
     }
 }
 
-/// A resolved input document (mirrors the `InputDocument` dataclass).
+/// A resolved input document.
 #[derive(Debug, Clone)]
 pub struct InputDocument {
     /// Human-readable label: a file path, `<inline:N>`, or `<stdin>`.

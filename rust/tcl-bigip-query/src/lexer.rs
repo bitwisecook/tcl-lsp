@@ -533,7 +533,7 @@ pub fn tokenise(source: &str) -> Result<Vec<Token>, QueryError> {
 /// Render *s* the way `repr()` would for a `str` — the spelling
 /// the DSL's error messages embed via `{value!r}`. Single-quoted by
 /// default, switching to double quotes only when the string contains a
-/// single quote but no double quote (matching `CPython`'s quote choice), with
+/// single quote but no double quote (the single-quote choice), with
 /// backslash / newline / tab / carriage-return escaping.
 ///
 /// Shared by the lexer (`unexpected character {ch!r}`) and the parser

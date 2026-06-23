@@ -22,8 +22,6 @@ use crate::ir::{CommandTokens, Statement};
 use crate::naming::normalise_var_name;
 
 /// Parsed command context passed to lowering hooks.
-///
-/// This replaces `_Command` dataclass.
 pub struct LoweringCommand<'a> {
     /// Source span of the full command.
     pub span: Span,

@@ -446,7 +446,7 @@ pub fn fold_cmd_args(value: &str, prefix: &str) -> Option<String> {
 }
 
 /// Resolve backslash-newline continuations (`\<newline><whitespace>`)
-/// to a single space, matching `re.sub(r"\\\n\s*", " ", s)`.
+/// to a single space, matching the regex `\\\n\s*` replaced with a space.
 fn resolve_backslash_newline(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let bytes = s.as_bytes();

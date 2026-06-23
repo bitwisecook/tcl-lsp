@@ -3,8 +3,8 @@
 //! line-oriented string-sequence use the CLI diff verbs need.
 //!
 //! The output — `--- ` / `+++ ` file headers, `@@ -a,b +c,d @@` hunk
-//! headers, and the ` ` / `-` / `+` line prefixes — reproduces `CPython`'s
-//! `difflib` exactly, including the `autojunk` popular-element purge that
+//! headers, and the ` ` / `-` / `+` line prefixes — is the standard
+//! unified-diff format, including the `autojunk` popular-element purge that
 //! kicks in for sequences of 200+ lines and the leading/trailing
 //! context-group fixups in `get_grouped_opcodes`.
 //!
@@ -307,7 +307,7 @@ fn format_range_unified(start: usize, stop: usize) -> String {
 /// with `lineterm="\n"` and the default empty file-dates. Returns each
 /// yielded line as its own `String` (control lines carry the trailing
 /// `"\n"`; data lines carry whatever terminator the caller's
-/// [`splitlines_keepends`] preserved), mirroring `CPython`'s generator so a
+/// [`splitlines_keepends`] preserved), produced lazily line by line so a
 /// caller can `rstrip` and count lines exactly.
 #[must_use]
 pub fn unified_diff(a: &[&str], b: &[&str], fromfile: &str, tofile: &str, n: usize) -> Vec<String> {

@@ -4,7 +4,7 @@
 //! Parity notes:
 //! - `base64` / `base64d` use the standard alphabet with padding, matching
 //!   `base64.b64encode` / `b64decode(validate=True)`. The
-//!   `base64d` failure text differs from `CPython`'s `binascii` wording (the
+//!   `base64d` failure text is custom (the
 //!   Rust `base64` crate has its own error strings), a documented
 //!   divergence kept out of the golden fixture.
 //! - `uri` percent-encodes everything outside the unreserved set
@@ -16,8 +16,8 @@
 //!   sort_keys=True)` — compact + sorted keys, routed through
 //!   `jsonfmt::to_compact_sorted`.
 //! - `fromjson` parses JSON into the value model (objects preserve key
-//!   order, integers stay `Int`). Its `JSONDecodeError` wording differs
-//!   from `CPython`'s, a documented divergence kept out of the fixture.
+//!   order, integers stay `Int`). Its `JSONDecodeError` wording is custom
+//!   (divergent), a documented divergence kept out of the fixture.
 //! - `sh` is jq's `@sh` force-single-quote (NOT `shlex.quote`): every value
 //!   is wrapped in `'…'` with embedded `'` emitted as `'\''`; a list /
 //!   stream becomes space-separated quoted fields.

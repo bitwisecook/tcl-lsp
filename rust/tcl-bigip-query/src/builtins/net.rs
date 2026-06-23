@@ -14,8 +14,8 @@
 //!   zero-run-compressed form bit-for-bit (including IPv4-mapped dotted
 //!   form). Network canonicalisation uses `ipnet`.
 //! - Address **classification** (`is_private` / `is_global` / `is_reserved`
-//!   / …) is implemented against the exact IANA range tables `CPython` 3.11's
-//!   `ipaddress` module ships, because std's equivalents are unstable on
+//!   / …) is implemented against the exact IANA special-purpose-address range
+//!   tables, because std's equivalents are unstable on
 //!   stable Rust and would not build under `unsafe_code = "forbid"`.
 //! - `collapse_cidrs` reproduces `ipaddress.collapse_addresses`; range
 //!   summarisation reproduces `ipaddress.summarize_address_range`.
@@ -346,7 +346,7 @@ fn netmask_to_prefix(mask: u32) -> Option<u8> {
     }
 }
 
-// ---- IPv4 classification (CPython 3.11 range tables) ----------------------
+// ---- IPv4 classification (IANA range tables) ----------------------
 
 fn v4_in(ip: u32, net_addr: [u8; 4], prefix: u8) -> bool {
     let base = u32::from_be_bytes(net_addr);
@@ -409,7 +409,7 @@ fn v4_is_unspecified(ip: u32) -> bool {
     ip == 0
 }
 
-// ---- IPv6 classification (CPython 3.11 range tables) ----------------------
+// ---- IPv6 classification (IANA range tables) ----------------------
 
 fn v6_in(ip: u128, net: &str) -> bool {
     let n: Ipv6Net = net.parse().unwrap();

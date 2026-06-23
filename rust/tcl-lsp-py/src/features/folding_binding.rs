@@ -13,10 +13,9 @@
 //!
 //! Folding ranges are line-based, not byte-based, so the dict shape
 //! omits the `(start, end)` `u32` byte tuple that other Rust→Python
-//! bindings (`signature_scan`, `analyser`) use; resolving via
-//! `core/compiler/rust_spans.py::build_position_resolver` would be
-//! a no-op here (the line index Rust already computed is the
-//! authoritative answer).
+//! bindings (`signature_scan`, `analyser`) use; byte-offset
+//! resolution would be a no-op here (the line index Rust already
+//! computed is the authoritative answer).
 
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
