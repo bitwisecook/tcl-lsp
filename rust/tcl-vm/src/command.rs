@@ -75,6 +75,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("expr", cmd_expr);
     vm.register("proc", cmd_proc);
     vm.register("return", cmd_return);
+    vm.register("const", cmd_const);
     vm.register("tailcall", cmd_tailcall);
     vm.register("time", cmd_time);
     vm.register("encoding", cmd_encoding);
@@ -854,6 +855,38 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         ret_code
     };
     Completion::new(final_code, value, options)
+}
+
+/// `const varName value` — define an immutable scalar (TIP 677). Re-declaring an
+/// existing constant with any value is a silent no-op; declaring over a normal
+/// variable or an array (element) is an error. The value is written through the
+/// normal scalar path (so write traces fire) and only then flagged constant, so
+/// a trace that vetoes the write leaves no constant (var-26.14).
+fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [name_v, value] = args else {
+        return err("wrong # args: should be \"const varName value\"");
+    };
+    let name = name_v.to_str();
+    let bad = |reason: &str| err(format!("can't make constant \"{name}\": {reason}"));
+    if name.ends_with(')') && name.contains('(') {
+        return bad("name refers to an element in an array");
+    }
+    if vm.var_is_array(&name) {
+        return bad("variable is array");
+    }
+    if vm.exists_var(&name) {
+        // A constant re-`const` is a no-op; a normal variable is an error.
+        return if vm.is_constant(&name) {
+            ok(Value::empty())
+        } else {
+            bad("variable already exists")
+        };
+    }
+    if let Err(e) = vm.set_var(&name, value.clone()) {
+        return e;
+    }
+    vm.mark_constant(&name);
+    ok(Value::empty())
 }
 
 /// `tailcall ?command ?arg …??` — the runtime fallback for forms the codegen

@@ -2134,6 +2134,11 @@ impl Vm {
         name: &str,
         amount: i64,
     ) -> Result<(), Completion<Value>> {
+        if self.is_constant(name) {
+            return Err(err(format!(
+                "can't incr \"{name}\": variable is a constant"
+            )));
+        }
         let cur = self.var_get(name);
         let inc = Value::int(amount);
         let next = tcl_syntax::value::ValueOps::int_add(self, cur.as_ref(), &inc)
