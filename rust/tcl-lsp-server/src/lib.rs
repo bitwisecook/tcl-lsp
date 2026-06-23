@@ -2800,6 +2800,7 @@ impl Backend {
                 &analysis.diagnostics,
                 &analysis.command_invocations,
                 arities,
+                disabled.contains("W124"),
             ),
             None => analysis.diagnostics.clone(),
         };

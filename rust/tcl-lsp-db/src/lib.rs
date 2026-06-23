@@ -331,11 +331,19 @@ fn cross_file_arity_diagnostic(
 /// proc's arities, a cross-file **W124** wrong-arg-count diagnostic replaces it.
 /// Pure; shared by the push ([`project_diagnostics`]) and pull paths so both
 /// agree.  `arities` empty ⇒ no project context ⇒ status-quo diagnostics.
+///
+/// `w124_disabled` honours the user's `disabled_diagnostics` for the synthesized
+/// code: this diagnostic is produced *after* the analyser has already applied its
+/// own [`apply_disabled_diagnostics`](tcl_compiler::analyser::Analyser) code
+/// filter, so the filter must be replicated here or a user who disables W124 (but
+/// not W123) would still see cross-file arity warnings.  W123 suppression is
+/// independent of this flag — the call genuinely resolves cross-file regardless.
 #[must_use]
 pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
     diags: &[tcl_compiler::analyser::types::Diagnostic],
     invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
     arities: &HashMap<String, Vec<(usize, usize)>, S>,
+    w124_disabled: bool,
 ) -> Vec<tcl_compiler::analyser::types::Diagnostic> {
     if arities.is_empty() {
         return diags.to_vec();
@@ -352,10 +360,11 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
             && let Some(candidates) = arities.get(name)
         {
             // Resolved cross-file: drop the W123.  If the resolved name is a proc
-            // (non-empty arity list) and the arg count is known and fits no
-            // candidate arity, emit W124 in its place.  Non-proc kinds (class /
-            // alias / ensemble) have no arities → suppress only.
+            // (non-empty arity list), W124 is not disabled, and the arg count is
+            // known and fits no candidate arity, emit W124 in its place.  Non-proc
+            // kinds (class / alias / ensemble) have no arities → suppress only.
             if !candidates.is_empty()
+                && !w124_disabled
                 && let Some(Some(argc)) = argc_by_span.get(&(d.span.start(), d.span.end()))
             {
                 let argc = *argc;
@@ -394,10 +403,17 @@ pub fn project_diagnostics(
     // `file` — a cache hit, not a second whole-file analysis.
     let analysis = file_analysis_incremental(db, file, config);
     let arities = project_command_arities(db, project);
+    // Honour `disabled_diagnostics` for the synthesized W124 (the analyser already
+    // filtered its own codes; this one is added afterwards).
+    let w124_disabled = config
+        .disabled_diagnostics(db)
+        .iter()
+        .any(|c| c == "W124");
     Arc::new(apply_cross_file_resolution(
         &analysis.diagnostics,
         &analysis.command_invocations,
         &arities,
+        w124_disabled,
     ))
 }
 
@@ -2077,6 +2093,48 @@ mod tests {
         let d2 = project_diagnostics(&db, a2, cfg, p2);
         assert!(!has(&d2, "W124"), "correct arity must not emit W124");
         assert!(!has(&d2, "W123"), "resolved cross-file → no W123");
+    }
+
+    /// SRV-INCREMENTAL Task 6 (cross-file arity honours `disabled_diagnostics`):
+    /// the synthesized W124 is produced *after* the analyser's own code filter, so
+    /// it must replicate it — disabling W124 (while keeping W123) must drop the
+    /// cross-file arity warning, yet the call still resolves (no W123).  Regression
+    /// for Codex review #692.
+    #[test]
+    fn cross_file_arity_honors_disabled_w124() {
+        let db = TclDatabase::default();
+        // B defines a 2-param proc; A calls it with 3 args (wrong arity).
+        let b = SourceFile::new(
+            &db,
+            "proc helper {x y} { return $x }\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let a = SourceFile::new(&db, "helper a b c\n".to_owned(), "tcl8.6".to_owned());
+        let proj = Project::new(&db, vec![a, b]);
+        let has = |diags: &[tcl_compiler::analyser::types::Diagnostic], code: &str| {
+            diags
+                .iter()
+                .any(|d| d.code == code && d.message.contains("helper"))
+        };
+
+        // W124 enabled (default): wrong arity surfaces as W124, W123 suppressed.
+        let cfg_on = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let d_on = project_diagnostics(&db, a, cfg_on, proj);
+        assert!(has(&d_on, "W124"), "baseline: W124 present when enabled");
+        assert!(!has(&d_on, "W123"), "baseline: W123 suppressed (resolved)");
+
+        // W124 disabled (W123 left enabled): no W124, W123 still suppressed — the
+        // call genuinely resolves cross-file regardless of the W124 toggle.
+        let cfg_off = AnalyserConfig::new(&db, vec!["W124".to_owned()], NonAsciiMode::Default);
+        let d_off = project_diagnostics(&db, a, cfg_off, proj);
+        assert!(
+            !has(&d_off, "W124"),
+            "disabling W124 must suppress the cross-file arity warning"
+        );
+        assert!(
+            !has(&d_off, "W123"),
+            "W123 stays suppressed even with W124 disabled"
+        );
     }
 
     /// SRV-INCREMENTAL Task 6 (cross-file classes): a command resolving to a
