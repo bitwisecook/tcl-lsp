@@ -1137,6 +1137,7 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
         labels,
         loop_targets: std::collections::HashMap::new(),
         body_base_line: 0,
+        error_regions: Vec::new(),
     };
     let module = ModuleAsm {
         top_level: top,
