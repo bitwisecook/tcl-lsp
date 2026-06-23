@@ -780,38 +780,67 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
 
 /// `return ?-code c? ?-level l? ?-errorcode ec? ?-errorinfo ei? ?value?`.
 fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // Apply one option pair, from a direct argument or an expanded `-options`
+    // dict. `-code`/`-level` drive the completion; every other key (`-errorcode`,
+    // `-errorinfo`, or a user option like `-foo`) is preserved in the options
+    // dict, later occurrences overriding earlier ones (C's `TclMergeReturnOptions`).
+    fn apply(
+        key: &str,
+        val: &Value,
+        ret_code: &mut Code,
+        level: &mut i64,
+        extra: &mut Vec<(String, Value)>,
+    ) {
+        match key {
+            "-code" => *ret_code = parse_code(&val.to_str()),
+            "-level" => *level = val.as_int().unwrap_or(1),
+            _ => match extra.iter_mut().find(|(k, _)| k == key) {
+                Some(slot) => slot.1 = val.clone(),
+                None => extra.push((key.to_string(), val.clone())),
+            },
+        }
+    }
+
     let mut value = Value::empty();
     let mut ret_code = Code::Ok;
     let mut level = 1i64;
-    let mut extra: Vec<(&str, Value)> = Vec::new();
+    let mut extra: Vec<(String, Value)> = Vec::new();
     let mut i = 0;
     while i < args.len() {
         let a = args[i].to_str();
-        match &*a {
-            "-code" if i + 1 < args.len() => {
-                ret_code = parse_code(&args[i + 1].to_str());
-                i += 2;
+        if &*a == "-options" && i + 1 < args.len() {
+            // Merge a return-options dict (TIP 90); a later explicit option
+            // overrides it, and an odd-sized list is not a dict.
+            let dict = &args[i + 1];
+            let pairs = match dict.as_list() {
+                Ok(p) if p.len() % 2 == 0 => p,
+                _ => return err(format!("expected dict but got \"{}\"", dict.to_str())),
+            };
+            let mut j = 0;
+            while j + 1 < pairs.len() {
+                apply(
+                    &pairs[j].to_str(),
+                    &pairs[j + 1],
+                    &mut ret_code,
+                    &mut level,
+                    &mut extra,
+                );
+                j += 2;
             }
-            "-level" if i + 1 < args.len() => {
-                level = args[i + 1].as_int().unwrap_or(1);
-                i += 2;
-            }
-            "-errorcode" if i + 1 < args.len() => {
-                extra.push(("-errorcode", args[i + 1].clone()));
-                i += 2;
-            }
-            "-errorinfo" if i + 1 < args.len() => {
-                extra.push(("-errorinfo", args[i + 1].clone()));
-                i += 2;
-            }
-            _ if i == args.len() - 1 => {
-                value = args[i].clone();
-                i += 1;
-            }
-            _ => return err(format!("bad option \"{a}\"")),
+            i += 2;
+        } else if a.starts_with('-') && a.len() > 1 && i + 1 < args.len() {
+            apply(&a, &args[i + 1], &mut ret_code, &mut level, &mut extra);
+            i += 2;
+        } else if i == args.len() - 1 {
+            value = args[i].clone();
+            i += 1;
+        } else {
+            return err(format!("bad option \"{a}\""));
         }
     }
-    let options = options_dict(ret_code, level, &extra);
+    let extra_refs: Vec<(&str, Value)> =
+        extra.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+    let options = options_dict(ret_code, level, &extra_refs);
     // `-level 0` makes the requested `-code` take effect *immediately* (the
     // completion IS that code, including `ok` — `return -level 0 -code N` is how
     // `try`/`catch` produce an arbitrary return code). A positive level raises
