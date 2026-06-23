@@ -1,7 +1,7 @@
 //! Syntax highlighter (ANSI + HTML).
 //!
 //! Lexer-driven (no analyser/optimiser dependency), so this reaches byte-for-byte
-//! parity with the Python CLI. Command heads and registry-resolved subcommands
+//! parity with the captured golden output. Command heads and registry-resolved subcommands
 //! are detected via the command segmenter + registry, exactly as
 //! `_collect_command_spans` does.
 

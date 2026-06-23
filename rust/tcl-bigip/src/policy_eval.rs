@@ -420,7 +420,7 @@ fn apply_operator(operator: &str, actual: &str, values: &[String], case_insensit
         "ends-with" => vs.iter().any(|v| a.ends_with(v)),
         "contains" => vs.iter().any(|v| a.contains(v.as_str())),
         // `matches` uses the original-case values + actual with an IGNORECASE
-        // flag. An invalid regex no-matches here (Python would raise; flagged).
+        // flag. An invalid regex no-matches here (it is flagged separately).
         "matches" => values.iter().any(|v| {
             RegexBuilder::new(v)
                 .case_insensitive(case_insensitive)
@@ -553,8 +553,8 @@ fn urlsplit(url: &str) -> (String, String) {
     (path.to_owned(), query.to_owned())
 }
 
-/// Render a string in Python `repr()` form (single-quoted, with the standard
-/// escapes), used in the unevaluable-condition notes.
+/// Render a string in `repr()` form: single-quoted, with the standard
+/// escapes, used in the unevaluable-condition notes.
 fn py_repr(s: &str) -> String {
     let use_double = s.contains('\'') && !s.contains('"');
     let quote = if use_double { '"' } else { '\'' };

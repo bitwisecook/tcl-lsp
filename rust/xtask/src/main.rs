@@ -1,8 +1,8 @@
 //! `cargo xtask` — the native task runner for the workspace's build and check
 //! tasks.
 //!
-//! Each subcommand is kept byte-compatible with `scripts/` tool it
-//! replaces so the Makefile / CI can switch over incrementally; the Python
+//! Each subcommand is kept byte-compatible with the `scripts/` tool it
+//! replaces so the Makefile / CI can switch over incrementally; the legacy
 //! script stays as the fallback for one release cycle, then retires.
 //!
 //! Run a task with `cargo xtask <command>` (the workspace `.cargo/config.toml`

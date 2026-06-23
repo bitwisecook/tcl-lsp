@@ -2348,11 +2348,10 @@ mod tests {
         );
         // Outer proc registered.
         assert!(a.result.all_procs.contains_key("::outer"));
-        // Inner proc registered under outer's qualified prefix? In
-        // Python, ``namespace_from_scope_path`` skips proc scopes —
+        // Inner proc registered under outer's qualified prefix?
+        // Namespace resolution skips proc scopes —
         // so an `inner` proc declared inside ``outer`` qualifies as
-        // ``::inner`` (the outer proc is not a namespace). Match
-        // that contract here.
+        // ``::inner`` (the outer proc is not a namespace).
         assert!(a.result.all_procs.contains_key("::inner"));
         // Outer's proc scope holds the nested proc scope as a child.
         let outer_scope = &a.result.global_scope.children[0];
@@ -2894,7 +2893,7 @@ mod tests {
         assert!(a.result.global_scope.variables.contains_key("q"));
         // The `on error {result options}` var-list binds the result message +
         // options dict in the handler body — both are defined (so completion
-        // offers `$result` / `$options`), matching the Python server.
+        // offers `$result` / `$options`).
         assert!(a.result.global_scope.variables.contains_key("result"));
         assert!(a.result.global_scope.variables.contains_key("options"));
     }
@@ -3556,7 +3555,7 @@ mod tests {
     #[test]
     fn analyse_w123_suppressed_when_unknown_proc_chains_original() {
         // ``proc unknown`` that chains the original handler is
-        // a *dynamic* shape — Python suppresses W123 entirely
+        // a *dynamic* shape — W123 is suppressed entirely
         // because runtime can resolve any command name.
         let mut a = crate::analyser::Analyser::new();
         let r = a.analyse(

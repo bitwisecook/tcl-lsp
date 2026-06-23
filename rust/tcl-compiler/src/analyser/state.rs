@@ -444,7 +444,7 @@ impl Analyser {
     ///    `# tcl-lsp: disable=CODE` directives via
     ///    [`super::utils::parse_file_suppression`].
     /// 2. Segments `source` with the registry's known-commands
-    ///    set (uses Seg2 recovery) so unclosed delimiters mid-file
+    ///    set (uses re-segmentation recovery) so unclosed delimiters mid-file
     ///    don't drop later declarations.
     /// 3. Walks each segmented command through
     ///    [`Self::process_command`].
@@ -512,7 +512,7 @@ impl Analyser {
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;
 
-        // Segment with Seg2 recovery so an unclosed delimiter
+        // Segment with re-segmentation recovery so an unclosed delimiter
         // mid-file doesn't drop later top-level declarations.
         // Build the dialect-aware registry once and stash on
         // ``self`` so per-command handlers (registry-driven body

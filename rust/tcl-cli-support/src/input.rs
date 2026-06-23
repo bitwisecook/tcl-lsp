@@ -26,7 +26,7 @@ const SKIP_DIRECTORY_NAMES: &[&str] = &[
 /// `TclCliError`). Rendered as `error: {msg}` by the binary, exit code 2.
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
-    /// A user-facing input/usage problem, message matched to the Python text.
+    /// A user-facing input/usage problem, message matched to the captured text.
     #[error("{0}")]
     Input(String),
     /// An underlying I/O failure while reading a file or stdin.
@@ -122,8 +122,8 @@ fn read_dir_sorted(dir: &Path) -> Result<Vec<PathBuf>, CliError> {
     Ok(entries)
 }
 
-/// Resolve to an absolute path, falling back to the input on failure (the
-/// Python code uses `Path.resolve()`, which does not require existence here
+/// Resolve to an absolute path, falling back to the input on failure (uses
+/// `Path.resolve()` semantics, which does not require existence here
 /// since the caller has already checked).
 fn canonical(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
@@ -201,7 +201,7 @@ pub fn read_input_documents(
         }
         let bytes = std::fs::read(&file_path)
             .map_err(|e| CliError::input(format!("failed to read {}: {e}", file_path.display())))?;
-        // Python reads with errors="replace": decode UTF-8 lossily.
+        // Decode UTF-8 lossily (errors="replace").
         let source = String::from_utf8_lossy(&bytes).into_owned();
         documents.push(InputDocument {
             label: file_path.display().to_string(),

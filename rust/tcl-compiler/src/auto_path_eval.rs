@@ -17,11 +17,10 @@
 //! commands are *not* evaluated — anything outside the subset returns
 //! `None` and the caller skips the entry.  We never guess.
 //!
-//! The Rust `signature_scan` handler records only the raw literal of
-//! each entry; this evaluator is the idiom-resolver the audit flagged
-//! as missing (GAP-B5).  It is consulted when a workspace / package
-//! index has the analysed file's path (the `[info script]` value)
-//! available.
+//! The `signature_scan` handler records only the raw literal of
+//! each entry; this evaluator resolves those idioms.  It is consulted
+//! when a workspace / package index has the analysed file's path (the
+//! `[info script]` value) available.
 
 /// A parsed word: a literal, or a command substitution
 /// `[name arg …]`.
@@ -255,9 +254,9 @@ fn abspath(p: &str) -> String {
     normpath(&joined)
 }
 
-/// Posix `os.path.normpath` — collapse `.` / `..` / repeated slashes.
-/// A leading `//` (exactly two) is preserved per POSIX, matching
-/// `CPython`; three or more collapse to one.
+/// POSIX path normalisation — collapse `.` / `..` / repeated slashes.
+/// A leading `//` (exactly two) is preserved per POSIX; three or more
+/// collapse to one.
 fn normpath(p: &str) -> String {
     if p.is_empty() {
         return ".".to_owned();

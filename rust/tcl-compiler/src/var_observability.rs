@@ -207,8 +207,7 @@ impl VarObservability<'_> {
     }
 
     /// Whole-function union: every name that is ever aliased or traced
-    /// at any point in the body.  The flow-insensitive view that
-    /// replaces the old `_escaping_var_names`.
+    /// at any point in the body.  The flow-insensitive view.
     #[must_use]
     pub fn escaping_var_names(&self) -> std::collections::HashSet<String> {
         let mut names = std::collections::HashSet::new();

@@ -25,7 +25,7 @@ pub fn spec() -> CommandSpec {
         // `oo::define`; share the resolver.
         arg_role_resolver: Some(oo_define_arg_roles),
         return_type: Some(TclType::String),
-        // SYNC2: same structural-body rule as `oo::define` — bodies
+        // Same structural-body rule as `oo::define` — bodies
         // run in a per-object definition context, not the caller's
         // frame.
         body_kind: BodyKind::Structural,

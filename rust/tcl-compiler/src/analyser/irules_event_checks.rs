@@ -129,7 +129,7 @@ fn var_write_index(cmd_name: &str) -> Option<usize> {
     }
 }
 
-/// `_static_var_from_set` — return the `static::` variable name a command
+/// Return the `static::` variable name a command
 /// writes, or `None`.
 fn static_var_from_set<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str> {
     if cmd_name == "set" && args.first().is_some_and(|f| f.starts_with("static::")) {
@@ -142,7 +142,7 @@ fn static_var_from_set<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str
     None
 }
 
-/// `_global_var_from_command` — return the `::`-qualified global variable
+/// Return the `::`-qualified global variable
 /// name a command writes, or `None`.
 fn global_var_from_command<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str> {
     let idx = var_write_index(cmd_name)?;
@@ -154,7 +154,7 @@ fn global_var_from_command<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a
     }
 }
 
-/// `_implicit_global_var_from_command` — a plain variable name that is
+/// A plain variable name that is
 /// implicitly global when written in `RULE_INIT`.
 fn implicit_global_var_from_command<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str> {
     let idx = var_write_index(cmd_name)?;
@@ -229,8 +229,7 @@ impl Analyser {
     }
 
     /// **IRULE1001.** A command used in an iRules event where it is invalid or
-    /// ineffective — registry-legality-matrix driven (Python
-    /// `check_command_event_validity`):
+    /// ineffective — registry-legality-matrix driven:
     ///
     /// - **Warning** when the command is illegal in the event: either
     ///   explicitly excluded (`'X' cannot be used in EVENT. Available in: …`)
@@ -261,7 +260,7 @@ impl Analyser {
         if registry.is_irules_command_legal_in_event(cmd_name, event, events, profiles) {
             // Legal — only an informational profile hint may fire.  Namespace
             // profiles (`HTTP::respond` ⇒ HTTP) take precedence over the
-            // command's own `event_requires.profiles`, matching Python.
+            // command's own `event_requires.profiles`.
             let file_profiles: Vec<&str> = self
                 .irules_file_profiles
                 .as_deref()
@@ -841,7 +840,7 @@ fn scan_when_blocks(source: &str) -> Vec<(String, Vec<String>)> {
     result
 }
 
-/// `_var_referenced_in` — is `$var_name` referenced in *body*?  Matches
+/// Is `$var_name` referenced in *body*?  Matches
 /// `$name` (not followed by a word char) or `${name}`.
 fn var_referenced_in(var_name: &str, body: &str) -> bool {
     let bytes = body.as_bytes();

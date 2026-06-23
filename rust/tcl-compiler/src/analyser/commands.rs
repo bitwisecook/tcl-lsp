@@ -45,7 +45,7 @@ impl Analyser {
     /// `handle_catch_command`, etc.).
     ///
     /// Body recursion does **not** use the segmenter's re-segmentation
-    /// recovery (Seg2) — that splits a runaway top-level command and only
+    /// recovery — that splits a runaway top-level command and only
     /// fires at the top level. The per-command syntax *detectors* (E100 /
     /// E102 stray closers, E201 unterminated `[`, E202 unterminated `"`,
     /// E203 unterminated `{`) do run on every body. Dynamic bodies
@@ -1142,8 +1142,8 @@ impl Analyser {
                 // (`${ns}::define::[…]`) merges into one Var word token, so the
                 // raw text spans the whole word.  The dispatched variable is
                 // only the braced name (`${ns}` → `ns`); the `}` closes it and
-                // the rest is a literal / substituted suffix.  Python reads the
-                // first VAR sub-token's clean name — mirror that by truncating
+                // the rest is a literal / substituted suffix.  Read the
+                // first VAR sub-token's clean name by truncating
                 // at the first `}` (a simple `$obj` or namespaced `$ns::v` head
                 // contains no `}` and is unchanged).
                 let raw = sm.token_text(cmd_tok);
@@ -1344,8 +1344,8 @@ fn record_command_invocations(
         let arg_tokens: Vec<Token> = seg.argv.iter().skip(1).copied().collect();
         // The `switch … {pattern body …}` list-form arg is a Tcl *list*,
         // not a script — the registry still marks it `Body`, but walking
-        // it as one mis-reads a pattern as a command head.  Main
-        // special-cases it (`_recurse_switch_list_body`): parse the list
+        // it as one mis-reads a pattern as a command head.  It is
+        // special-cased: parse the list
         // into pattern/body pairs and descend each arm *body*.
         let switch_list_idx = if name == "switch" {
             switch_list_body_index(&args)

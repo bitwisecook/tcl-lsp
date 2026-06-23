@@ -2,8 +2,7 @@
 //!
 //! Thin wrappers over the `tcl_pkg` modules: parse args, drive the library,
 //! format output. Handler-level errors
-//! print `error: <msg>` to stderr and return exit code 1, matching the Python
-//! verb's `except Exception` paths.
+//! print `error: <msg>` to stderr and return exit code 1.
 
 // Handlers return `anyhow::Result<u8>` for a uniform dispatch signature even
 // when a given verb cannot fail; the wrap is the interface contract.
@@ -973,8 +972,8 @@ fn run_search(query: &str, json: bool, offline: bool) -> anyhow::Result<u8> {
     Ok(0)
 }
 
-/// Build the canonical JSON object for a locked package (`LockedPackage.to_dict`
-/// in Python). Keys are sorted by the canonical-JSON emitter.
+/// Build the canonical JSON object for a locked package (`LockedPackage.to_dict`).
+/// Keys are sorted by the canonical-JSON emitter.
 fn locked_to_json(pkg: &LockedPackage) -> Value {
     let mut provides = pkg.provides.clone();
     provides.sort();

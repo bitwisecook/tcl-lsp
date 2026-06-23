@@ -196,8 +196,9 @@ const HTTP_RESPONSE_PREFIX: &[u8] = b"HTTP/";
 fn split_http_headers(raw: &[u8]) -> IndexMap<String, String> {
     let mut out: IndexMap<String, String> = IndexMap::new();
     for line in raw.split(|&b| b == b'\n') {
-        // Python splits on b"\r\n"; we split on \n and trim a trailing \r so a
-        // bare-\n payload behaves the same as the CRLF form for our purposes.
+        // The reference splits on CRLF; we split on \n and trim a trailing \r
+        // so a bare-\n payload behaves the same as the CRLF form for our
+        // purposes.
         let line = line.strip_suffix(b"\r").unwrap_or(line);
         if line.is_empty() || !line.contains(&b':') {
             continue;
@@ -484,7 +485,7 @@ fn extract_rst_cause_from_trailer(trailer: &[u8]) -> Vec<String> {
 /// Walk *pcap* bytes and accumulate one [`Flow`] per unique 5-tuple.
 ///
 /// Returns an `IndexMap` keyed as `(src_ip, src_port, dst_ip, dst_port,
-/// proto)`, preserving first-seen order to match Python's dict iteration.
+/// proto)`, preserving first-seen insertion order.
 #[allow(clippy::too_many_lines)]
 pub fn extract_flows(data: &[u8]) -> Result<IndexMap<FlowKey, Flow>, String> {
     let mut flows: IndexMap<FlowKey, Flow> = IndexMap::new();

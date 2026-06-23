@@ -205,7 +205,7 @@ fn split_sub_blocks(body: &str) -> (Vec<String>, Vec<(String, String)>) {
             if idx < raw_tokens.len() {
                 idx += 1; // skip closing brace
             }
-            // Python dict: last assignment for a repeated key wins.
+            // Last assignment for a repeated key wins.
             let joined = sub_parts.join(" ");
             if let Some(slot) = sub_bodies.iter_mut().find(|(k, _)| k == tok) {
                 slot.1 = joined;

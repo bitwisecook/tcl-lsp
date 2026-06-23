@@ -188,8 +188,8 @@ pub fn parse_jsonl(text: &str, source: &str) -> Result<Value, QueryError> {
 ///
 /// # Errors
 ///
-/// Returns a [`QueryError`] when there are no header columns (matches
-/// the Python "no header columns" message).
+/// Returns a [`QueryError`] when there are no header columns (the
+/// "no header columns" message).
 pub fn parse_csv(
     text: &str,
     headers: Option<&[String]>,
@@ -336,7 +336,7 @@ pub fn parse_f5log(text: &str) -> Value {
         if raw_line.trim().is_empty() {
             continue;
         }
-        // Python `rstrip("\n")`; `.lines()` already strips the newline.
+        // `rstrip("\n")`; `.lines()` already strips the newline.
         let event = parse_one_f5log(raw_line);
         events.push(event_to_value(&event));
     }
@@ -475,7 +475,7 @@ fn take_timestamp(text: &str) -> (Option<String>, &str, bool) {
     if !bytes[..3].iter().all(u8::is_ascii_alphabetic) {
         return (None, text, false);
     }
-    // Python `text.split(None, 3)` — split on runs of whitespace, max 4 parts.
+    // `text.split(None, 3)` — split on runs of whitespace, max 4 parts.
     let parts = py_split_whitespace(text, 3);
     if parts.len() < 4 {
         return (None, text, false);
@@ -504,9 +504,8 @@ fn take_timestamp(text: &str) -> (Option<String>, &str, bool) {
     (Some(text[..i].to_string()), &text[i..], false)
 }
 
-/// Python `str.split(None, maxsplit)` — split on whitespace runs, up to
-/// `maxsplit` splits (so at most `maxsplit + 1` parts), leading
-/// whitespace ignored.
+/// Split on whitespace runs, up to `maxsplit` splits (so at most
+/// `maxsplit + 1` parts), leading whitespace ignored.
 fn py_split_whitespace(text: &str, maxsplit: usize) -> Vec<String> {
     let mut parts: Vec<String> = Vec::new();
     let chars: Vec<char> = text.chars().collect();

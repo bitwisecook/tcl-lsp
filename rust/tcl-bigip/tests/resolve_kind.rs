@@ -3,7 +3,7 @@
 //!
 //! Resolves a broad set of `(kind, reference, preferred_module)` probes over a
 //! representative `bigip.conf` and asserts each resolves to the same source span
-//! (or miss) as Python. Self-contained — no Python at test time.
+//! (or miss) as the reference. Self-contained — no external oracle at test time.
 
 use tcl_bigip::graph::resolve_kind_in_configs;
 use tcl_bigip::parser::parse_bigip_conf;

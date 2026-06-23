@@ -5,9 +5,9 @@
 //! `feature_tags` table; screenshots are omitted — the `tcl help` verb's
 //! `search_help` / `list_features` never touch them). The result is written to
 //! `$OUT_DIR/kcs_help.db` and embedded by `commands::help` via `include_bytes!`,
-//! so the binary carries the index with no committed blob and no Python at
-//! build time. Indexing the same column values with the same `porter unicode61`
-//! tokenizer reproduces Python's BM25 ranks byte-for-byte.
+//! so the binary carries the index with no committed blob.
+//! Indexing the same column values with the same `porter unicode61`
+//! tokenizer reproduces the BM25 ranks byte-for-byte.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -228,7 +228,7 @@ fn build_database(paths: &[PathBuf], out_db: &Path) {
         }
     }
 
-    // Merge FTS index segments (matches the Python builder; query results are
+    // Merge FTS index segments (query results are
     // unaffected, but keeps the index layout consistent).
     conn.execute(
         "INSERT INTO kcs_features(kcs_features) VALUES('optimize')",

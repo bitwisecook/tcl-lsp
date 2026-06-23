@@ -248,7 +248,7 @@ fn summarize(first: u128, last: u128, is_v4: bool) -> Vec<Cidr> {
         let prefix = (ip_bits - nbits) as u8;
         out.push(make_cidr(first_int, prefix, is_v4));
         // ``first_int += 1 << nbits``; break when we've consumed the whole
-        // address space (CPython's ``first_int - 1 == _ALL_ONES`` guard).
+        // address space (the ``first_int - 1 == _ALL_ONES`` all-ones guard).
         let step = 1u128 << nbits;
         match first_int.checked_add(step) {
             Some(next) => {

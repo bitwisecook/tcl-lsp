@@ -10,12 +10,10 @@
 //! The pure-Rust lexer produces `Token` values carrying only a
 //! [`Span`]; the binding crate is responsible for resolving each
 //! span to owned `text` / `start` / `end` fields so Python callers
-//! see the same dataclass shape they always have.
+//! see the full token shape.
 //!
-//! Exposes a single function, `lexer_tokenise(source)`, used by
-//! the differential test harness in
-//! `tests/test_rust_lexer_differential.py` to compare Rust and
-//! Python token streams on known-simple inputs.
+//! Exposes `lexer_tokenise(source)`, which tokenises known-simple
+//! inputs and returns the resulting token stream.
 //!
 //! [`Span`]: tcl_lexer::Span
 //! [`SourceMap`]: tcl_lexer::SourceMap
@@ -27,8 +25,8 @@ use tcl_lexer::{LexError, Lexer, LexerConfig, SourceMap, Token};
 
 use crate::tokens::{PySourcePosition, PyToken, PyTokenType};
 
-/// `(SourcePosition, message)` tuple matching Python's
-/// `TclLexer.warnings` element shape.
+/// `(SourcePosition, message)` tuple — one recoverable-syntax
+/// warning element.
 type PyLexWarning = (PySourcePosition, String);
 
 /// Tokenise `source` via the Rust lexer using the default config
@@ -50,14 +48,12 @@ pub fn lexer_tokenise(source: &str) -> PyResult<Vec<PyToken>> {
 
 /// Tokenise `source` via the Rust lexer with explicit config.
 ///
-/// This is the full-config entry point used by the Python shim
-/// when dialect flags or sub-lexing offsets are in play. Returns
-/// `(tokens, warnings)` where `warnings` is a list of
-/// `(SourcePosition, message)` tuples matching the Python
-/// reference's `TclLexer.warnings` shape, so the fast-path can
-/// merge them back without losing recoverable-syntax
-/// diagnostics (extra chars after close-brace / close-quote,
-/// unterminated strings, etc.).
+/// This is the full-config entry point used when dialect flags or
+/// sub-lexing offsets are in play. Returns `(tokens, warnings)`
+/// where `warnings` is a list of `(SourcePosition, message)`
+/// tuples, so the fast-path can merge them back without losing
+/// recoverable-syntax diagnostics (extra chars after close-brace /
+/// close-quote, unterminated strings, etc.).
 #[pyfunction]
 #[pyo3(signature = (source, expand_syntax=true, irules_brace_separator=false, strict_quoting=false, base_offset=0, base_line=0, base_col=0))]
 pub fn lexer_tokenise_with_config(
@@ -102,11 +98,11 @@ pub fn lexer_tokenise_with_config(
 ///
 /// Note that the Rust `Token.span` covers the full extent of the
 /// token including any leading `$` / `${` wrappers, so that
-/// `range_positions(span)` produces the same start/end the Python
-/// lexer does. The text field, however, uses `source_map.token_text`
-/// which strips those wrappers — matching Python's quirky-but-
-/// long-standing convention that `tok.text` is the "human-readable"
-/// content (e.g. `"foo"` for `$foo`, `"name"` for `${name}`).
+/// `range_positions(span)` produces a start/end spanning the whole
+/// token. The text field, however, uses `source_map.token_text`
+/// which strips those wrappers — by convention `tok.text` is the
+/// "human-readable" content (e.g. `"foo"` for `$foo`, `"name"` for
+/// `${name}`).
 fn lift(tok: Token, source_map: &SourceMap<'_>) -> PyToken {
     let (start_pos, end_pos) = source_map.range_positions(tok.span);
     PyToken::new_from_core(

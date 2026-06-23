@@ -17,7 +17,7 @@
 //! edit-plan engine can rewrite a single property in place; pool members
 //! get their slots from `BigipPoolMember.field_offsets`. `stanza_slot` is
 //! populated from each object's range so `--scf` / auto output matches
-//! Python. The synthesised `ltm rule .refs` sub-object is built by
+//! the canonical layout. The synthesised `ltm rule .refs` sub-object is built by
 //! `rule_refs_value`.
 
 use std::cell::RefCell;
@@ -173,7 +173,7 @@ const MODULE_NAMES: &[&str] = &[
 /// order matches the tail of `_MODULE_KINDS["ltm"]`. Labels not listed
 /// here (the long-tail LTM kinds the Rust model doesn't carry) are simply
 /// absent — navigating into them yields an empty container, matching the
-/// "no entry" surface Python gives for a config that has no such objects.
+/// "no entry" surface produced for a config that has no such objects.
 const LTM_KINDS: &[(&str, &str)] = &[
     ("virtual", "ltm virtual"),
     ("virtual-address", "ltm virtual-address"),
@@ -558,8 +558,8 @@ fn list_str_values(list: &BigipList) -> Value {
     )
 }
 
-/// The string a `ListItemValue` projects to when read as a path (Python
-/// iterates `item.value` and `PathRef(full_path=p)` coerces via `str`).
+/// The string a `ListItemValue` projects to when read as a path (iterating
+/// `item.value`, where `PathRef(full_path=p)` coerces via string conversion).
 fn list_item_string(value: &ListItemValue) -> String {
     match value {
         ListItemValue::Str(s) => s.clone(),
@@ -589,16 +589,16 @@ fn list_item_display(value: &ListItemValue) -> String {
     }
 }
 
-/// Project a typed value to its canonical string (Python `typed=True`
-/// branch: `str(raw)` or `""`).
+/// Project a typed value to its canonical string (the `typed=True`
+/// branch: string coercion of `raw`, or `""`).
 fn typed_str<T: std::fmt::Display>(opt: Option<&T>) -> Value {
     Value::Str(opt.map_or_else(String::new, ToString::to_string))
 }
 
 /// Project a `monitor` field through the `MonitorExpression` pilot — parse
-/// the raw string and re-render so the JSON surface matches Python's
+/// the raw string and re-render so the JSON surface matches
 /// `MonitorExpressionSpec.project`. Empty / unparseable strings fall back
-/// to the raw text (Python returns the string verbatim).
+/// to the raw text (the string is returned verbatim).
 fn monitor_value(raw: &str) -> Value {
     if raw.trim().is_empty() {
         return Value::Str(String::new());

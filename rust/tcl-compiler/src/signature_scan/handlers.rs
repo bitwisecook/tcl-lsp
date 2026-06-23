@@ -28,8 +28,7 @@ use super::types::{
 /// indexes as `::foo::bar`.
 ///
 /// `ns_prefix` is expected to be the call-site namespace **without**
-/// a leading `::` (the walker carries it that way to match the
-/// Python convention).
+/// a leading `::` (the walker carries it that way by convention).
 pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
     if name.starts_with("::") {
         name.to_string()

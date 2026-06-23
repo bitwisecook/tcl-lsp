@@ -7,8 +7,8 @@
 //!
 //! - exactly on a tag      → the tag, with any leading `v` stripped;
 //! - N commits past a tag  → `guess_next(tag).devN` (last component + 1);
-//! - no tags in history    → `0.0.0.dev0`, the Python script's stable
-//!   fallback (matches `print_version.py`'s `LookupError` branch).
+//! - no tags in history    → `0.0.0.dev0`, the stable fallback when no tag
+//!   can be looked up.
 //!
 //! The expected outputs were captured from real `setuptools_scm`
 //! (`local_scheme="no-local-version"`) and are pinned by the unit tests.

@@ -5,15 +5,14 @@
 //! `docs/kcs/features/*.md`). The database is compiled into the binary
 //! (`include_bytes!`) and opened read-only via `rusqlite`'s bundled `SQLite`
 //! (which ships `FTS5`); to give `SQLite` a file path it is written to a unique
-//! temp file for the duration of the queries (mirroring the Python
-//! pre-3.12 fallback path).
+//! temp file for the duration of the queries.
 //!
 //! `--json` embeds the raw `BM25` `rank` float. Codes, content and ordering
-//! match Python byte-for-byte, but the `rank` value is computed by whichever
-//! `SQLite` version is linked (Python the host's, this crate rusqlite's bundled
+//! match the captured golden output byte-for-byte, but the `rank` value is computed by whichever
+//! `SQLite` version is linked (this crate uses rusqlite's bundled
 //! one) and the two diverge in the low-order digits on some corpora — so it is
 //! not a cross-environment-stable parity field (the json golden is captured
-//! from this binary, not the Python CLI).
+//! from this binary).
 
 use std::io::Write as _;
 use std::path::PathBuf;
@@ -119,7 +118,7 @@ fn fetch_tags(conn: &Connection, file: &str) -> rusqlite::Result<Vec<String>> {
 
 /// Full-text search across KCS features, ranked by relevance. Falls back to a
 /// `LIKE` scan if the FTS `MATCH` query
-/// errors, exactly as the Python helper does.
+/// errors.
 fn search_help(conn: &Connection, query: &str, limit: usize) -> anyhow::Result<Vec<Feature>> {
     let safe = query.replace('"', "\"\"");
     let match_expr = format!("\"{safe}\" OR {safe}*");
@@ -161,7 +160,7 @@ fn search_help(conn: &Connection, query: &str, limit: usize) -> anyhow::Result<V
     let mut features = if let Ok(rows) = fts {
         rows
     } else {
-        // Fallback: simple LIKE search (Python's `except OperationalError`).
+        // Fallback: simple LIKE search (`except OperationalError`).
         {
             let like = format!("%{query}%");
             let mut stmt = conn.prepare(

@@ -74,7 +74,7 @@ pub fn run_format(
 
 /// `tcl opt` — run the optimiser and emit rewritten Tcl.
 ///
-/// Follows the Python CLI's profile semantics: `full` (the default) is a single
+/// Profile semantics: `full` (the default) is a single
 /// pass; only `aggressive` runs multi-pass to a fixpoint (max 5 iterations).
 pub fn run_opt(
     input: &InputArgs,
@@ -110,7 +110,7 @@ pub fn run_opt(
         }
     }
 
-    // Python `profile_spec`: only `aggressive` is multi-pass (max 5 iters);
+    // Profile spec (`profile_spec`): only `aggressive` is multi-pass (max 5 iters);
     // every other profile (including `full`) is a single pass. Both honour the
     // disabled set on every pass (matching `optimise_source_multipass(disabled=…)`).
     let max_iterations = if matches!(profile, OptimisationProfile::Aggressive) {
@@ -139,7 +139,7 @@ pub fn run_opt(
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let mut rendered = optimised;
-    // On stdout the Python CLI appends a comment block summarising the rewrites.
+    // On stdout a comment block summarising the rewrites is appended.
     if target.is_stdout() && !optimisations.is_empty() {
         let mut lines = vec![
             "\n\n# -------------".to_owned(),

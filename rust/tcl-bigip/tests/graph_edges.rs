@@ -3,8 +3,8 @@
 //! dispatch, the legacy token-scan fallback, AND the iRule body walker.
 //! Companion to `graph_pilot.rs`, which exercises the compound pilot specs on a
 //! synthetic fixture; this pins the full walk on real config. The Rust graph now
-//! reproduces the Python edge set exactly — the registry-data regen
-//! (`gen_bigip_rust.py`) cleared the former drift. Self-contained — no Python at
+//! reproduces the expected edge set exactly — the registry-data regen
+//! (`gen_bigip_rust.py`) cleared the former drift. Self-contained — no external oracle at
 //! test time.
 
 use tcl_bigip::graph::{GraphContext, build_bigip_object_graph};
@@ -37,5 +37,5 @@ fn graph_edges_match_python() {
     let want: Vec<&str> = golden.lines().collect();
 
     // Exact ordered parity — the registry-data regen cleared the former drift.
-    assert_eq!(got, want, "graph edges differ from Python");
+    assert_eq!(got, want, "graph edges differ from the expected set");
 }

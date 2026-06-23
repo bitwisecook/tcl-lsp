@@ -54,7 +54,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 
 /// Names whose **every** SSA version is a known `TclType::Int`. A name absent
 /// here is treated as not provably integer, so the `set/expr → incr` rewrite
-/// (O114) is suppressed — matching Python, which proves the loop variable is
+/// (O114) is suppressed — the loop variable must be proven
 /// `INT` (not `DOUBLE` / `NUMERIC` / `BOOLEAN`) at the use point before
 /// rewriting. `expr {$x + 1}` silently promotes a float operand, whereas
 /// `incr` errors, so the function-level join (all versions must be `INT`) is a
@@ -288,7 +288,7 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, int_vars: &HashSe
 
 /// If `expr` is of the shape `$var ± literal` (where `var`
 /// normalises to `target_name`), return the equivalent `incr`
-/// command text. Matches `_try_incr_idiom`.
+/// command text.
 ///
 /// Rewrites:
 ///
@@ -454,7 +454,7 @@ mod tests {
     #[test]
     fn set_expr_on_untyped_var_is_not_incr() {
         // No prior definition → `x` is not provably INT at the use point;
-        // the unsound rewrite is suppressed (matches Python).
+        // the unsound rewrite is suppressed.
         let opts = run_pass("set x [expr {$x + 1}]");
         assert!(
             opts.iter().all(|o| o.code != "O114"),

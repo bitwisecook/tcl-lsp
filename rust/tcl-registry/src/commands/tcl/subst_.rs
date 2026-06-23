@@ -37,7 +37,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "subst ?options? string",
 }];
 
-/// SYNC-JUN02d-1 (#525 B4): fold a literal `subst string`.
+/// Fold a literal `subst string`.
 ///
 /// `subst` performs variable, command, and backslash substitution on
 /// its string argument — even inside braces (`subst {$x}` substitutes
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn subst_folds_only_substitution_free_strings() {
-        // SYNC-JUN02d-1 (#525 B4): a plain `subst string` is its own
+        // A plain `subst string` is its own
         // result; anything with $ / [ / \ bails (sound subset).
         assert_eq!(fold_subst(&["hello"]).as_deref(), Some("hello"));
         assert_eq!(fold_subst(&["a b c"]).as_deref(), Some("a b c"));

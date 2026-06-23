@@ -50,7 +50,7 @@
 //!
 //! ## Source / sink / sanitiser facts live in the registry
 //!
-//! ARCH3 moved the source / sanitiser tables into
+//! The source / sanitiser tables live in
 //! [`tcl_registry::taint`]. This module asks the registry the
 //! questions it used to answer locally:
 //!
@@ -386,8 +386,7 @@ pub(crate) struct TaintCtx<'a> {
     /// solve (`taint_interproc::solve_interprocedural_taints`). When
     /// present, calls to a known proc apply the full
     /// [`crate::taint_interproc::apply_proc_return_summary`] transfer
-    /// instead of the conservative single-passthrough rule. Mirrors
-    /// `_make_call_return_provider`.
+    /// instead of the conservative single-passthrough rule.
     pub(crate) taint_summaries:
         Option<&'a HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
 }
@@ -545,10 +544,10 @@ fn interpolation_carve_out(value: &str, joined: TaintLattice) -> TaintLattice {
 /// Return the leading literal character of `value`, or `None` when the
 /// word starts with a variable/command substitution (dynamic prefix).
 ///
-/// Ports Python `_leading_literal_prefix_char`: the first `Esc` token is
-/// rendered through `backslash_subst` (so `\x2f` → `/`); the first `Str`
-/// (braced) token contributes its literal first char; a leading `Var` or
-/// `Cmd` token means the prefix is dynamic.
+/// The first `Esc` token is rendered through `backslash_subst` (so
+/// `\x2f` → `/`); the first `Str` (braced) token contributes its literal
+/// first char; a leading `Var` or `Cmd` token means the prefix is
+/// dynamic.
 fn leading_literal_prefix_char(value: &str) -> Option<char> {
     let source_map = SourceMap::new(value);
     let tokens = Lexer::new(value).tokenise_all().ok()?;
@@ -767,13 +766,12 @@ fn colour_from_rendered(lat: TaintLattice, props: RenderedValueProps) -> TaintLa
 ///
 /// Version-0 (`(name, 0)`) taints arise from two sources: the
 /// interprocedural solve's parameter entry-taint (a genuine cross-proc
-/// flow that Python surfaces) and the conservative cross-procedure
-/// global-write seeding ([`collect_global_reads`], which only ever seeds
-/// `::`-prefixed global / namespace names). Python never surfaces the
-/// latter, so a version-0 use is suppressed only when its name is
-/// global/namespace-scoped; a non-`::` version-0 use is a real parameter
-/// entry-taint and is reported, matching Python's
-/// `for name, ver in uses.items(): taints.get((name, ver))`.
+/// flow) and the conservative cross-procedure global-write seeding
+/// ([`collect_global_reads`], which only ever seeds `::`-prefixed global
+/// / namespace names). The latter is not a genuine taint, so a version-0
+/// use is suppressed only when its name is global/namespace-scoped; a
+/// non-`::` version-0 use is a real parameter entry-taint and is
+/// reported.
 fn is_seeded_global_v0(name: &str, ver: u32) -> bool {
     ver == 0 && name.starts_with("::")
 }
@@ -1142,8 +1140,7 @@ fn classify_sink(
 ///
 /// TODO: once the Rust command registry carries `taint_hints` /
 /// `taint_output_sink_subcommands` metadata, replace the hardcoded
-/// command list with registry lookups (matching the Python path via
-/// `REGISTRY.classify_taint_sinks`).
+/// command list with registry lookups.
 fn classify_irules_sink(command: &str, args: &[String]) -> Option<(&'static str, String)> {
     match command {
         "HTTP::respond" => Some(("IRULE3001", command.to_owned())),
@@ -1321,8 +1318,8 @@ fn destructive_file_subs(registry: &CommandRegistry) -> HashSet<&'static str> {
 }
 
 /// Variable names referenced (via `$name` / `${name}`) anywhere in `arg`.
-/// A lightweight stand-in for `_arg_var_names`'s VAR-token scan covering
-/// the path-argument shapes W313 cares about (`$p`, `${p}`, `"$d/$f"`).
+/// A lightweight VAR-token scan covering the path-argument shapes W313
+/// cares about (`$p`, `${p}`, `"$d/$f"`).
 fn arg_var_names(arg: &str) -> HashSet<String> {
     arg_var_names_ordered(arg).into_iter().collect()
 }
@@ -1382,8 +1379,7 @@ fn is_normalised_def(name: &str, ver: u32, ssa: &SsaFunction) -> bool {
 
 /// Build a `block → {bounds-checked var}` map: a `Branch` whose condition
 /// is `[string match|first|equal … $var]` marks `$var` as `PATH_BOUNDED`
-/// in the guarded successor (and its exclusive successors).  Mirrors
-/// `_compute_branch_guard_map`.
+/// in the guarded successor (and its exclusive successors).
 fn compute_branch_guard_map(
     cfg: &CfgFunction,
     registry: &CommandRegistry,
@@ -1420,10 +1416,9 @@ fn compute_branch_guard_map(
     guarded
 }
 
-/// Extract `(negated, path-var)` from a branch condition.  Mirrors
-/// `_extract_guard_var`: a unary operator flips negation; a binary
-/// operator checks both sides; a `[string …]` command sub yields the
-/// bounds-checked variable.
+/// Extract `(negated, path-var)` from a branch condition: a unary
+/// operator flips negation; a binary operator checks both sides; a
+/// `[string …]` command sub yields the bounds-checked variable.
 fn extract_guard_var(expr: &ExprNode, negated: bool) -> (bool, Option<String>) {
     match expr {
         ExprNode::Unary { operand, .. } => extract_guard_var(operand, !negated),
@@ -1473,8 +1468,8 @@ fn guard_var_from_string_command(text: &str) -> Option<String> {
     }
 }
 
-/// Extract a variable name from a `$name` / `${name}` word.  Mirrors
-/// `_extract_var_name` (identifier chars only — no `::` qualification).
+/// Extract a variable name from a `$name` / `${name}` word (identifier
+/// chars only — no `::` qualification).
 fn extract_var_name(arg: &str) -> Option<String> {
     let text = arg.trim();
     if let Some(inner) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
@@ -1491,8 +1486,7 @@ fn extract_var_name(arg: &str) -> Option<String> {
 
 /// True when `block_name` executes a block-terminating command
 /// (`error` / `return` / `exit` — the `TERMINATES_BLOCK` trait) so its
-/// successors are unreachable from this path.  Mirrors
-/// `_is_dead_end_block`.
+/// successors are unreachable from this path.
 fn is_dead_end_block(cfg: &CfgFunction, block_name: &str, registry: &CommandRegistry) -> bool {
     let Some(block) = cfg.blocks.get(block_name) else {
         return false;
@@ -1506,8 +1500,7 @@ fn is_dead_end_block(cfg: &CfgFunction, block_name: &str, registry: &CommandRegi
 /// Mark `guarded_target` and its successors that aren't also reachable
 /// from `other_target` (i.e. before the merge point) as guarding `var`.
 /// When `other_target` is a dead-end (error/return), the merge is only
-/// reachable through the guard, so the guard extends through it.  Mirrors
-/// `_propagate_guard`.
+/// reachable through the guard, so the guard extends through it.
 fn propagate_guard(
     cfg: &CfgFunction,
     guarded_target: &str,
@@ -1599,8 +1592,7 @@ fn emit_double_encode_warnings(
 }
 
 /// Return `true` when a tainted value `lat` is mitigated for the given
-/// iRules sink code. in
-/// Python for the IRULE3001/3002/3003/3004 branches.
+/// iRules sink code (the IRULE3001/3002/3003/3004 branches).
 ///
 /// For IRULE3002 in the name-position (arg-index 1 of
 /// `HTTP::header`/`HTTP::cookie` `insert`/`replace`), the
@@ -1693,11 +1685,9 @@ pub fn find_taint_warnings_for_cu(
 /// Emit taint sink warnings (`T100` family) for one function.
 ///
 /// This is the per-function sink scan; the whole-unit `dataflow` / `diag`
-/// aggregation calls it over the top level and every procedure unit. Mirrors
-/// the `_find_taint_sinks` half of Python's
-/// `compiler.taint.find_taint_warnings`; the other Python warning kinds
-/// (setter-constraint / uri-split / path-concat / destructive-file) are not
-/// ported yet (the documented T-code gap).
+/// aggregation calls it over the top level and every procedure unit. The
+/// other warning kinds (setter-constraint / uri-split / path-concat /
+/// destructive-file) are not emitted here yet.
 #[allow(clippy::implicit_hasher)]
 pub fn find_taint_warnings(
     cfg: &CfgFunction,
@@ -1774,8 +1764,8 @@ fn emit_statement_warnings(
     };
 
     // Emission order per statement:
-    // T103 (regexp pattern) → T106 (double-encode) → the sink loop in
-    // `_classify_sink` order (T100/output/log, then T102, then T104/T105).
+    // T103 (regexp pattern) → T106 (double-encode) → the sink loop
+    // (T100/output/log, then T102, then T104/T105).
 
     // T103: tainted data in a regexp/regsub pattern position.
     emit_regexp_pattern_warnings(
@@ -1810,7 +1800,7 @@ fn emit_statement_warnings(
     }
 
     // T102: option injection — only for Call statements, after the primary
-    // sink (`_classify_sink` lists T102 after T100/output/log).
+    // sink (T100/output/log).
     if let Statement::Call { args, .. } = stmt {
         emit_option_injection(
             command,
@@ -1841,8 +1831,7 @@ fn emit_statement_warnings(
 
 /// First positional (pattern) argument index of `regexp` / `regsub`,
 /// after skipping option switches (`-start` consumes a value, `--`
-/// terminates). `args` excludes the command name. Mirrors
-/// `compiler.registry.runtime.regexp_pattern_index`.
+/// terminates). `args` excludes the command name.
 fn regexp_pattern_index(args: &[String]) -> Option<usize> {
     let mut i = 0;
     while i < args.len() {
@@ -1976,7 +1965,7 @@ struct SinkCall<'a> {
 /// Positional argument strings of `args` under `spec`, skipping option
 /// flags (`-foo`) and the value of any option whose [`OptionSpec`] declares
 /// `takes_value`. `--` ends option processing; everything after is
-/// positional. Mirrors the option-skipping arity walk in the analyser.
+/// positional.
 fn positional_arg_strings(spec: &tcl_registry::CommandSpec, args: &[String]) -> Vec<String> {
     let mut out = Vec::new();
     let mut i = 0;
@@ -2329,8 +2318,7 @@ fn emit_option_injection(
 
 // IRULE3101 — setter-constraint violations
 
-/// Find setter-constraint violations (IRULE3101) — ports
-/// `_find_setter_constraint_violations` in Python. Currently constrains
+/// Find setter-constraint violations (IRULE3101). Currently constrains
 /// `HTTP::uri` / `HTTP::path` setters to paths beginning with `/`.
 ///
 /// Dialect-gated: returns an empty vector unless `dialect` is
@@ -2482,7 +2470,7 @@ mod tests {
 
     #[test]
     fn crlf_safe_mask_matches_python() {
-        // Mirror `_CRLF_SAFE = CRLF_FREE | IP_ADDRESS | PORT | FQDN`.
+        // `CRLF_SAFE = CRLF_FREE | IP_ADDRESS | PORT | FQDN`.
         // HEADER_TOKEN_SAFE only suppresses IRULE3002 in the name position
         // (handled by `irule3002_name_position_safe`); HTML_ESCAPED / URL_ENCODED
         // do not prove CRLF-injection safety in the value position.
@@ -3317,7 +3305,7 @@ mod tests {
         // `TAINT_HINTS` is an import-time global, so `HTTP::uri`
         // is a taint source in *every* dialect — including a `tcl8.6`
         // document whose registry never loaded the iRules commands. (The
-        // Python analyser taints `u` here; only the separate W002
+        // analyser taints `u` here; only the separate W002
         // "disabled command" check is dialect-gated.) The getter form
         // carries the path-prefixed, option-injection-safe colours.
         for dialect in [None, Some("f5-irules")] {
@@ -3574,8 +3562,8 @@ mod tests {
     fn irule3004_redirect_safe_suppresses_via_lattice() {
         // Direct lattice check: tainted + REDIRECT_SAFE must suppress.
         // (Latent as an end-to-end test until iRules sources are tagged
-        // with PATH_PREFIXED from their `taint_hints` — `HTTP::path` in
-        // Python carries PATH_PREFIXED on the getter form.)
+        // with PATH_PREFIXED from their `taint_hints` — `HTTP::path`
+        // carries PATH_PREFIXED on the getter form.)
         let lat = TaintLattice::tainted().with(TaintColour::PATH_PREFIXED);
         assert!(irules_sink_suppressed("IRULE3004", lat));
         let lat = TaintLattice::tainted().with(TaintColour::PATH_NORMALISED);
@@ -3619,8 +3607,8 @@ mod tests {
                 .any(|w| w.code == "T103" && w.sink_command == "regexp"),
             "expected T103 for tainted regexp pattern, got {warnings:?}",
         );
-        // T103 must precede the regexp T102 (Python `_find_taint_sinks`
-        // emits the pattern check before the sink loop).
+        // T103 must precede the regexp T102 (the pattern check is
+        // emitted before the sink loop).
         let regexp_codes: Vec<&str> = warnings
             .iter()
             .filter(|w| w.sink_command == "regexp")
@@ -3689,15 +3677,15 @@ mod tests {
         assert!(irules_sink_suppressed("IRULE3001", tainted_html));
         // IRULE3002/3003 (header / log) — HTML_ESCAPED does NOT prove
         // CRLF-injection safety (the escape rewrites `<`/`>`/`&` but
-        // leaves raw CR/LF untouched). Python parity: `_CRLF_SAFE`
-        // excludes `HTML_ESCAPED`.
+        // leaves raw CR/LF untouched). The CRLF-safe mask excludes
+        // `HTML_ESCAPED`.
         assert!(!irules_sink_suppressed("IRULE3002", tainted_html));
         assert!(!irules_sink_suppressed("IRULE3003", tainted_html));
         // IRULE3004 (redirect) — also not mitigated by HTML_ESCAPED.
         assert!(!irules_sink_suppressed("IRULE3004", tainted_html));
 
         // `CRLF_FREE` does suppress IRULE3002/3003 (the one mitigation
-        // Python accepts in the value position).
+        // accepted in the value position).
         let tainted_crlf_free = TaintLattice::tainted().with(TaintColour::CRLF_FREE);
         assert!(irules_sink_suppressed("IRULE3002", tainted_crlf_free));
         assert!(irules_sink_suppressed("IRULE3003", tainted_crlf_free));
@@ -3808,9 +3796,9 @@ mod tests {
 
     #[test]
     fn irule3101_pure_var_ref_always_warns_without_safe_colour() {
-        // Matches Python parity: a plain `$p` setter value (no taint +
-        // no provable path colour) cannot be proved `/`-prefixed by the
-        // static analyser, so IRULE3101 fires. Latent suppression paths
+        // A plain `$p` setter value (no taint + no provable path colour)
+        // cannot be proved `/`-prefixed by the static analyser, so
+        // IRULE3101 fires. Latent suppression paths
         // via tainted-with-PATH_PREFIXED / _NORMALISED / _BOUNDED colours
         // will light up once iRules source `taint_hints` reach the Rust
         // lattice.
@@ -3824,7 +3812,7 @@ mod tests {
     #[test]
     fn irule3101_dynamic_command_sub_warns() {
         // RHS is a command sub `[foo]` → hits the dynamic branch, which
-        // always warns. The Python literal-check also bails on `[`.
+        // always warns. The literal-check also bails on `[`.
         let w = setter_warnings_for("HTTP::uri [something]");
         assert!(
             w.iter().any(|x| x.code == "IRULE3101"),
@@ -3856,7 +3844,7 @@ mod tests {
         );
     }
 
-    // ARCH3 — registry-driven source / sink / setter-constraint coverage
+    // registry-driven source / sink / setter-constraint coverage
 
     /// The Tcl-core source classification flows from the registry's
     /// [`Traits::TAINT_SOURCE`] flag: registry-side query and

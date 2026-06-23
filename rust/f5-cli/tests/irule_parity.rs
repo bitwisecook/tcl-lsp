@@ -1,11 +1,11 @@
 //! Differential parity tests for the `f5 irule` verb group.
 //!
 //! Runs the built `f5-query` binary against committed `.irule` / `.conf`
-//! fixtures and asserts stdout matches goldens captured from
-//! `python -m tooling.f5.main irule <sub> …` for the implemented
-//! sub-subcommands (event-order, event-info, lint, context, trace, format,
-//! minify, extract). Self-contained: no Python at test time. Also asserts the
-//! unimplemented `pgo` sub exits 2 with the expected error message.
+//! fixtures and asserts stdout matches the captured golden output for
+//! `irule <sub> …` for the implemented sub-subcommands (event-order,
+//! event-info, lint, context, trace, format, minify, extract). Self-contained:
+//! no external tool runs at test time. Also asserts the unimplemented `pgo` sub
+//! exits 2 with the expected error message.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -36,7 +36,7 @@ fn run(args: &[&str]) -> (i32, String, String) {
     )
 }
 
-// Implemented subs — byte-for-byte stdout parity with the Python CLI.
+// Implemented subs — byte-for-byte stdout parity with the captured golden output.
 
 #[test]
 fn event_order_text_matches_python() {
@@ -124,7 +124,7 @@ fn extract_writes_per_rule_files_matching_python() {
 
 #[test]
 fn extract_rejects_standalone_irule() {
-    // Matches Python: extract only consumes configs.
+    // Contract: extract only consumes configs.
     let (code, _out, stderr) = run(&[
         "irule",
         "extract",
@@ -204,7 +204,7 @@ fn event_info_client_accepted() {
 
 #[test]
 fn event_info_props_deprecated_still_reports_no() {
-    // HTTP_CLASS_FAILED carries EventProps.deprecated=true, but Python's
+    // HTTP_CLASS_FAILED carries EventProps.deprecated=true, but the
     // `when`-argument-value path reports `deprecated: no` — so do we.
     assert_event_info("class-failed", "HTTP_CLASS_FAILED", 0);
 }
@@ -486,7 +486,7 @@ fn trace_full_config_all_reference_kinds_json() {
 
 #[test]
 fn trace_event_name_is_case_insensitive() {
-    // `http_request` matches `when HTTP_REQUEST` (Python uses re.IGNORECASE);
+    // `http_request` matches `when HTTP_REQUEST` (event-name match is case-insensitive);
     // the `event` field echoes the query as typed, so the golden differs only
     // in that one string from the upper-case run.
     let (code, out, _) = run(&[

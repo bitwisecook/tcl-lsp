@@ -1443,7 +1443,7 @@ mod tests {
         ]));
     }
 
-    /// ARCH3 — IRULE3102 must derive its command set from the
+    /// IRULE3102 must derive its command set from the
     /// registry's `OptionSpec` table (not a hardcoded list). When
     /// the registry-side option is present, the check fires; when
     /// the registered command does not declare `-normalized`, no

@@ -5,8 +5,8 @@
 //! against the built `f5-query` binary:
 //!
 //! - `push --dry-run` (PUT-replace and POST-create): the request summary on
-//!   stderr + the `json.dumps(payload, indent=2)` body on stdout, captured from
-//!   `python -m tooling.f5.main push … --dry-run` into the committed goldens.
+//!   stderr + the `json.dumps(payload, indent=2)` body on stdout, asserted
+//!   against the committed golden output.
 //! - credential resolution errors (no host / user / password) for all three
 //!   verbs, including the env-supplies-host/user precedence.
 //! - payload errors: missing file (`[Errno 2] …`) and invalid-JSON position
@@ -14,7 +14,7 @@
 //! - the SSH-transport deferral and clap arg validation (unknown kind /
 //!   transport).
 //!
-//! Self-contained: no live connection and no Python at test time. Every child
+//! Self-contained: no live connection and no external tool at test time. Every child
 //! process has the ambient `F5_*` environment scrubbed; each case sets exactly
 //! the variables it needs, so the host's env can never leak in.
 

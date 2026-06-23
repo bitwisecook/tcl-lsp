@@ -99,7 +99,7 @@ fn node_label(v: &Value) -> String {
     text.replace('"', "'").replace('\n', " ")
 }
 
-/// Python `str(value)` for the title/label/name field.
+/// String coercion of a value, for the title/label/name field.
 fn py_str_value(v: &Value) -> String {
     match v {
         Value::Str(s) => s.clone(),

@@ -10,7 +10,7 @@
 //! (projection over a real `BigipConfig`), and the assignment → edit-plan
 //! path.
 
-// Index / length casts between `usize` and `i64` model Python's unbounded
+// Index / length casts between `usize` and `i64` model unbounded
 // integer indexing and are intentional throughout the evaluator. The
 // arithmetic operators take operands by value to consume them on the
 // list/string branches.
@@ -1272,7 +1272,7 @@ fn mul(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
 }
 
 fn div(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
-    // Python 3 true division always yields a float.
+    // True division always yields a float.
     if let Some((_, lf, rf, _, _)) = num_pair(&lhs, &rhs) {
         if rf == 0.0 {
             return Err(QueryError::eval("division by zero"));
@@ -1359,7 +1359,7 @@ pub fn eval_from_builtin_pub(e: QueryError) -> QueryError {
     eval_from_builtin(e)
 }
 
-/// Python `repr()` of a string for `{name!r}`-style error messages.
+/// Repr-style rendering of a string for `{name!r}`-style error messages.
 fn pyr(s: &str) -> String {
     crate::lexer::py_repr_str(s)
 }
@@ -1374,7 +1374,7 @@ pub fn pyr_pub(s: &str) -> String {
 //
 // Assignments collect into an edit plan and return the post-edit value. This
 // resolves the LHS targets so the error paths (which are all an external-JSON
-// query can hit, since JSON has no `ObjectRef`s) match Python exactly.
+// query can hit, since JSON has no `ObjectRef`s) match the canonical behaviour exactly.
 
 fn eval_assignment(
     target: &Expr,

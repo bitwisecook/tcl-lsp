@@ -103,9 +103,8 @@ fn brace_corrected_span(source: &str, span: Span) -> Span {
 fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // Note: `constants` may be empty — the cascade (strength-reduce, streq,
     // instcombine) and the O115 redundant-`expr` unwrap still apply to a
-    // branch condition with no propagable constants, matching Python's
-    // `propagate_into_branches` (which does not gate on a non-empty constant
-    // map). Substitution is simply a no-op in that case.
+    // branch condition with no propagable constants; this does not gate on a
+    // non-empty constant map. Substitution is simply a no-op in that case.
     let constants = sccp_constants_for(fu);
     // Numeric-type context so identity rewrites (`$x + 0` → `$x`, etc.) on a
     // branch condition fire only when the dropped operand is provably numeric.
@@ -165,7 +164,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
 
         // O115: a branch condition that is itself a redundant `[expr {…}]`
         // wrapper (`if {[expr {$x}]} …`) unwraps to its inner expression.
-        // Checked before the constant cascade, mirroring the Python order.
+        // Checked before the constant cascade.
         if let Some(unwrapped) = try_unwrap_expr_in_expr(inner)
             && unwrapped != inner
         {

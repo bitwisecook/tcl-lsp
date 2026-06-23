@@ -3,9 +3,9 @@
 //! `--merge` treats every loaded config as one logical namespace:
 //! `.ltm.virtual[]` enumerates virtuals from every source, `refs` /
 //! `referenced_by` walk references across files, and two sources defining the
-//! same `(kind, full-path)` are refused. Each golden was captured from
-//! `python -m tooling.f5.main query --merge ...`; self-contained (no Python at
-//! test time).
+//! same `(kind, full-path)` are refused. Each test asserts stdout against the
+//! captured golden output for `query --merge ...`; self-contained (no external
+//! tool runs at test time).
 //!
 //! Goldens embed the `__FIXTURES__` placeholder in place of the absolute
 //! `file://` URI of the fixtures directory; the test substitutes the real

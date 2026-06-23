@@ -1,8 +1,8 @@
 //! E100 / E102 stray-closer syntax checks.
 //!
-//! Implements `check_unmatched_close_bracket` (E100) and
-//! `check_unmatched_close_brace` (E102), plus their
-//! `_find_bracket_insertion_point` / `_stray_brace_fix` quick-fixes.
+//! Detects an unmatched close bracket (E100) and an unmatched close
+//! brace (E102), plus their bracket-insertion-point and stray-brace
+//! quick-fixes.
 //!
 //! These are *targeted token checks* — a bare `]` outside command
 //! substitution almost always means a missing `[`, and a bare `}`

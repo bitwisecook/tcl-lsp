@@ -1,7 +1,7 @@
 //! `Network` value type — IPv4 or IPv6 CIDR.
 //!
-//! Hand-rolled against `std::net` to match Python `ipaddress.ip_network`
-//! semantics exactly (host-bit masking, dotted-quad netmasks, the
+//! Hand-rolled against `std::net` to implement `ip_network`-style parsing
+//! (host-bit masking, dotted-quad netmasks, the
 //! `default` keyword) without pulling in a CIDR crate.
 
 use super::address::IPAddress;
@@ -307,7 +307,7 @@ fn masked_eq_v6(a: u128, net: u128, prefix: u8) -> bool {
 }
 
 /// Parse `ADDR/PREFIX` or `ADDR/NETMASK` with `ipaddress.ip_network`
-/// semantics. The error message text matches `CPython`'s "does not appear
+/// semantics. The error message text is "does not appear
 /// to be an IPv4 or IPv6 network" / "has host bits set".
 fn parse_network(text: &str, strict: bool) -> Result<Cidr, ValueError> {
     let reject = || {
@@ -465,7 +465,7 @@ mod tests {
         assert!(!sub.contains_network(&n));
     }
 
-    /// Differential parity: `str(Network.parse(input))` from Python.
+    /// Differential parity fixtures: `str(Network.parse(input))`.
     #[test]
     fn parity_against_python() {
         let cases: &[(&str, &str)] = &[

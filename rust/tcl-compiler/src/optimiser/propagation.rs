@@ -111,8 +111,8 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
         }
         // Find the defining statement — must be an AssignConst
         // with a literal value to forward. AssignValue without
-        // substitutions could also work, but we're conservative:
-        // the Python pass restricts to the same shapes.
+        // substitutions could also work, but we're conservative
+        // and restrict to the same shapes.
         let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
             continue;
         };
@@ -327,12 +327,11 @@ fn forward_candidate(
     let (ctx, fu) = (env.ctx, env.fu);
 
     // Exactly one *non-terminator* use, and it must be a statement operand.
-    // A `return $x` / branch-condition read is a `Terminator` use; Rust's
-    // def-use records those in the chain but Python's does not. The forward
-    // preserves the assignment (`[set x …]`), and the operand use precedes
-    // the block terminator, so any terminator read still sees `x` — exclude
-    // terminator uses from the single-use test to match Python's
-    // `optimise_load_forwarding`. (A phi use, like Python, still blocks it.)
+    // A `return $x` / branch-condition read is a `Terminator` use; def-use
+    // records those in the chain. The forward preserves the assignment
+    // (`[set x …]`), and the operand use precedes the block terminator, so
+    // any terminator read still sees `x` — exclude terminator uses from the
+    // single-use test. (A phi use still blocks it.)
     let mut non_terminator = chain.uses.iter().filter(|u| u.kind != UseKind::Terminator);
     let use_site = non_terminator.next()?;
     if non_terminator.next().is_some() || use_site.kind != UseKind::Operand {
@@ -835,8 +834,7 @@ fn fold_return_under_lattice(
     // after a `foreach`) is a phi whose exit value is Overdefined, even
     // though an earlier `set total 0` left a stale Const(0) under another
     // version. Reading the precise version is what makes us bail on
-    // `sum_list` / `fibonacci` (matching `_try_fold_return_value`
-    // path 2) instead of mis-folding to the pre-loop value.
+    // `sum_list` / `fibonacci` instead of mis-folding to the pre-loop value.
     if let Some(name) = simple_var_ref(value) {
         let ver = fu
             .ssa
@@ -1014,9 +1012,9 @@ fn try_fold_static_proc_call(
     };
     // The span here covers the whole Statement::Call — applying
     // the literal replacement would turn `::answer` into a
-    // command named `42`, which is invalid Tcl. The Python pass
-    // targets `[procName …]` command substitutions with their
-    // token span instead. Until the Rust side tracks CMD-subst
+    // command named `42`, which is invalid Tcl. Targeting
+    // `[procName …]` command substitutions with their token span
+    // would avoid this. Until the Rust side tracks CMD-subst
     // spans at the call argument level, emit as a hint so
     // editors surface the fold without proposing an applicable
     // quick-fix.
@@ -1039,10 +1037,9 @@ fn try_fold_static_proc_call(
 /// the original source was `return [expr …]`.
 ///
 /// Uses `O100` (the canonical constant-propagation code) rather
-/// than the `O104` that earlier Rust commits emitted — `O104` is
+/// than the `O104` that earlier commits emitted — `O104` is
 /// reserved by `docs/generated/optimisation_codes.md` for the
-/// pattern-recognition string-build chain fold (matching the
-/// Python optimiser's allocation).
+/// pattern-recognition string-build chain fold.
 fn try_fold_return_terminator(
     ctx: &mut PassContext<'_>,
     span: tcl_lexer::Span,
@@ -1161,7 +1158,7 @@ fn try_substitute_assign_expr(
         return;
     }
     // After substitution, try to fold the result to a constant
-    // — matches the Python cascade where O100 enables O101. When
+    // — the cascade where O100 enables O101. When
     // the substituted expression is fully constant we can emit
     // the unwrapped ``set name VALUE`` form directly. Otherwise
     // keep the expression wrapper around the substituted text.
@@ -1272,9 +1269,9 @@ fn visit_call_cmd_subst_folds(
                 // with `$a`/`$b` proven constant collapses to its value (the
                 // SCCP `[expr …]` fold doesn't reach a Call-argument position).
                 // A quoted / bare `expr "…"` substitutes the variable values
-                // textually before parsing; Python is conservative there and
+                // textually before parsing; this is conservative there and
                 // never folds it, so keep the historical literal-only fold (no
-                // constants env) to preserve parity.
+                // constants env).
                 let folded = if let Some(braced_body) =
                     raw_body.strip_prefix('{').and_then(|b| b.strip_suffix('}'))
                 {
@@ -1897,8 +1894,8 @@ fn substitute_dollar_refs(
         // Inside a `[…]` command substitution the value becomes a command
         // word, so it must be a single self-contained word — a value with
         // whitespace (a list literal like `tran 1n 100n uic`) would split
-        // into multiple arguments. Bail rather than propagate (matches
-        // Python, which leaves the `$var` in place). Plain string-text
+        // into multiple arguments. Bail rather than propagate, leaving the
+        // `$var` in place. Plain string-text
         // occurrences (`cmd_depth == 0`) inline the value verbatim as before.
         if cmd_depth > 0 && !is_value_safe_bare_word(value) {
             return None;
@@ -2090,11 +2087,10 @@ mod tests {
     #[test]
     fn o127_forwards_past_extra_terminator_use() {
         // `$x` has one operand use (`baz $x`) plus a terminator use
-        // (`return $x`). Python's def-use chain excludes terminator reads,
-        // so it still forwards into the operand use while preserving the
-        // assignment for the `return`. Rust records the terminator use but
-        // must not let it block the forward — the inlined `[set x …]` keeps
-        // `x` defined for the trailing `return`.
+        // (`return $x`). Def-use records the terminator use, but it must not
+        // block the forward — the forward still fires into the operand use
+        // while preserving the assignment for the `return`. The inlined
+        // `[set x …]` keeps `x` defined for the trailing `return`.
         let src = "proc p {y} {\n    set x [llength $y]\n    baz $x\n    return $x\n}\n";
         let opts = o127(src);
         assert_eq!(opts.len(), 2, "{opts:?}");
@@ -2262,8 +2258,8 @@ mod tests {
 
     #[test]
     fn quoted_expr_cmd_sub_arg_not_folded_under_constants() {
-        // `puts [expr "$a + $b"]` is the quoted form — Python is conservative
-        // and never folds it (textual substitution), so neither do we.
+        // `puts [expr "$a + $b"]` is the quoted form — it uses textual
+        // substitution, so we conservatively never fold it.
         let opts = run_pass("set a 3\nset b 4\nputs [expr \"$a + $b\"]");
         assert!(
             opts.iter()
@@ -2306,7 +2302,7 @@ mod tests {
             Some("x=a b c"),
         );
         // The SAME value inside a `[…]` command substitution would split one
-        // argument into several — bail (matches Python, which keeps `$lst`).
+        // argument into several — bail, keeping `$lst`.
         assert!(substitute_dollar_refs("r: [lsearch $lst x]", &c).is_none());
         // A single-word value inside a cmd-sub is still safe to inline.
         assert_eq!(
@@ -2523,9 +2519,9 @@ mod tests {
     fn o103_folds_arg_sensitive_passthrough_cmd_subst() {
         // `::not_const {x} { return $x }` has no argument-*independent*
         // constant return, but with the call's constant arg bound it folds:
-        // `[::not_const 1]` → `1` (matching Python, which folds the
-        // passthrough). The applicable rewrite fires only for the CMD-subst
-        // form; the bare-call form stays hint-only.
+        // `[::not_const 1]` → `1` (the passthrough folds). The applicable
+        // rewrite fires only for the CMD-subst form; the bare-call form
+        // stays hint-only.
         use tcl_registry::CommandRegistry;
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(

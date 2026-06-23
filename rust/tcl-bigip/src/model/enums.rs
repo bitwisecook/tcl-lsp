@@ -11,7 +11,7 @@ pub enum DataGroupType {
 }
 
 impl DataGroupType {
-    /// The Python `DataGroupType` member name (`"INTERNAL"` / `"EXTERNAL"`).
+    /// The canonical `DataGroupType` member name (`"INTERNAL"` / `"EXTERNAL"`).
     #[must_use]
     pub const fn py_name(self) -> &'static str {
         match self {
@@ -70,7 +70,7 @@ pub enum ProfileType {
 }
 
 impl ProfileType {
-    /// The Python `ProfileType` member name (`"HTTP"`, `"CLIENT_SSL"`, …).
+    /// The canonical `ProfileType` member name (`"HTTP"`, `"CLIENT_SSL"`, …).
     #[must_use]
     pub const fn py_name(self) -> &'static str {
         match self {

@@ -446,7 +446,7 @@ fn format_text_report(
 pub struct GrepArgs<'a> {
     /// The search pattern.
     pub pattern: &'a str,
-    /// Treat the pattern as a Python-style regex.
+    /// Treat the pattern as a regex.
     pub use_regex: bool,
     /// Treat the pattern as one or more IP / CIDR values.
     pub use_cidr: bool,

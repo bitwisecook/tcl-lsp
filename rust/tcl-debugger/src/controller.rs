@@ -27,7 +27,7 @@ impl Default for DebugController {
     fn default() -> Self {
         Self {
             breakpoints: BTreeSet::new(),
-            // Stop at the first line, like the Python controller.
+            // Stop at the first line by default.
             step_mode: StepMode::StepIn,
             step_depth: 0,
         }

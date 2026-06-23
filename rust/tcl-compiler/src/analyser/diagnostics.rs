@@ -893,9 +893,7 @@ fn is_safe_literal_expr(text: &str, dialect: &str) -> bool {
 }
 
 /// Resolve which argument indices (into `args`, command-name excluded)
-/// must be plain variable *names* for `cmd_name`.  Port of
-/// `_NAME_ARG_INDICES` + its four resolvers (`_first_arg_name`,
-/// `_unset_name_args`, `_info_exists_arg`, `_upvar_local_name_args`).
+/// must be plain variable *names* for `cmd_name`.
 fn name_arg_indices(cmd_name: &str, args: &[String]) -> Vec<usize> {
     match cmd_name {
         // First argument is the variable name.

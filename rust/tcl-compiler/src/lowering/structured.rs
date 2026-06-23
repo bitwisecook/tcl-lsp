@@ -384,14 +384,9 @@ impl Lowerer<'_> {
     /// a file rather than iterating a Tcl list.
     ///
     /// **Downstream codegen / runtime-emission consumers MUST NOT
-    /// treat this IR as a real list-iteration `foreach`.**  Today
-    /// the Rust path emits no runtime instructions from
-    /// [`Statement::Foreach`] (codegen happens via the Python WASM /
-    /// bytecode pipeline, which dispatches on the command name
-    /// before lowering); if a Rust runtime codegen is added in the
-    /// future, it must detect `raw_args[0] == "foreachLine"` (or
-    /// equivalent) before treating this as a list iteration.  The
-    /// Python lowerer carries the same invariant.
+    /// treat this IR as a real list-iteration `foreach`.**  A codegen
+    /// consumer must detect `raw_args[0] == "foreachLine"` (or
+    /// equivalent) before treating this as a list iteration.
     pub(super) fn lower_foreach_line(
         &mut self,
         seg: &SegmentedCommand,

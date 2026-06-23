@@ -2,10 +2,10 @@
 //! results exactly.
 //!
 //! `std::net` lacks stable predicates for `is_private` / `is_global` /
-//! `is_reserved`, so these are hand-rolled against the same RFC ranges
-//! (and exception lists) the `CPython` `ipaddress` module uses, including
-//! the IPv4-mapped IPv6 delegation. The constant lists mirror
-//! `IPv4Address._constants` / `IPv6Address._constants`.
+//! `is_reserved`, so these are hand-rolled against the RFC ranges
+//! (and exception lists) that define each classification, including
+//! the IPv4-mapped IPv6 delegation. The constant lists hold the
+//! per-family special-purpose-address ranges.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
@@ -130,7 +130,7 @@ const V6_MULTICAST: V6Net = (0xFF00_0000_0000_0000_0000_0000_0000_0000, 8); // f
 const V6_MAPPED: V6Net = (0x0000_0000_0000_0000_0000_FFFF_0000_0000, 96); // ::ffff:0:0/96
 
 /// Return the embedded IPv4 address of an IPv4-mapped IPv6 address
-/// (`::ffff:a.b.c.d`), matching `CPython`'s `IPv6Address.ipv4_mapped`.
+/// (`::ffff:a.b.c.d`), per the IPv4-mapped IPv6 address rule.
 fn ipv4_mapped(addr: u128) -> Option<u32> {
     if v6_in(addr, V6_MAPPED) {
         #[allow(clippy::cast_possible_truncation)]
@@ -190,7 +190,7 @@ fn v6_is_unspecified(addr: u128) -> bool {
     addr == 0
 }
 
-/// `Ipv4Addr::is_loopback` etc. match Python for these, but to keep one
+/// `Ipv4Addr::is_loopback` etc. agree for these, but to keep one
 /// code path we route everything through the integer predicates.
 #[must_use]
 pub(crate) fn is_loopback(addr: IpAddr) -> bool {

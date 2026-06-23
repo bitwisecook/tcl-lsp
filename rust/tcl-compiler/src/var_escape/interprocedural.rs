@@ -216,13 +216,12 @@ fn propagate_transitive_sources<S: BuildHasher>(
     (transitive_sources, transitive_unbounded)
 }
 
-/// **S3.4 — transitive `pure_leaf` fixpoint.** A proc stays `pure_leaf` only
+/// Transitive `pure_leaf` fixpoint. A proc stays `pure_leaf` only
 /// if every direct callee is itself `pure_leaf` — or an unresolved but
 /// known frameless runtime builtin (`puts` / `list` / `string` / …), which
 /// captures no caller locals and introduces no upvar alias, so a wrapper
 /// around it is still safe to splice. Iterates to a fixpoint (bounded by
-/// the proc count). Mirrors the loop in Python's
-/// `solve_interprocedural_escape`.
+/// the proc count).
 fn downgrade_non_pure_leaf_callers<S: BuildHasher>(
     result: &mut HashMap<String, ProcEscapeSummary, S>,
 ) {

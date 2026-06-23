@@ -94,7 +94,7 @@ pub fn render(values: &[Value], opts: &BTreeMap<String, String>) -> Result<Strin
         "square" => &SQUARE,
         "ascii" => &ASCII,
         _ => {
-            // Python: ", ".join(sorted(_STYLES)) → "ascii, rounded, square".
+            // The sorted style names joined by ", " → "ascii, rounded, square".
             return Err(QueryError::Renderer(format!(
                 "ascii-blocks: unknown style '{style_name}' (expected one of ascii, rounded, square)"
             )));
@@ -228,7 +228,7 @@ fn render_box(b: &Box, glyphs: &Glyphs, min_width: i64) -> String {
         out.push(glyphs.stem.to_owned());
         let child_text = render_box(child, glyphs, min_width);
         let child_lines: Vec<&str> = child_text.split('\n').collect();
-        // Python `str.splitlines()` drops a trailing empty element from the
+        // Line-splitting drops a trailing empty element from the
         // final newline; mirror that by ignoring the empty tail.
         let child_lines: Vec<&str> = if child_lines.last() == Some(&"") {
             child_lines[..child_lines.len() - 1].to_vec()
@@ -281,7 +281,7 @@ fn truthy(v: &Value) -> bool {
     crate::value::truthy(v)
 }
 
-/// Python `str(value)` for `str(title)` / `str(note)`.
+/// String coercion of a value, for the `title` / `note` fields.
 fn py_str_value(v: &Value) -> String {
     match v {
         Value::Str(s) => s.clone(),

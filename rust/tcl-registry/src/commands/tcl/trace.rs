@@ -13,7 +13,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "trace option ?arg arg ...?",
 }];
 
-/// SYNC4: arg-role resolver for `trace add`.
+/// Arg-role resolver for `trace add`.
 ///
 /// `trace add variable name ops commandPrefix` writes to `name` —
 /// the trace handler can rewrite the variable at runtime, so SSA

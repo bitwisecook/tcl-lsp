@@ -1,7 +1,7 @@
 //! `clap` derive definitions for the `tcl` CLI command tree.
 //!
 //! Mirrors `tooling/tcl/main.py` + `tooling/tcl/verbs/*`. Verb names map to the
-//! kebab-cased enum-variant names; Python aliases map to `visible_aliases`.
+//! kebab-cased enum-variant names; aliases map to `visible_aliases`.
 //!
 //! The common input/output/dialect surface every verb shares is modelled
 //! precisely (it is the bulk of the parity contract), with verb-specific flags
@@ -240,7 +240,7 @@ pub enum Command {
     ///
     /// The diagnostic CODE is the **last** positional argument, with any
     /// inputs before it — `tcl minimize script.tcl W220`. This mirrors the
-    /// Python verb's argparse layout (`inputs` as `nargs="*"` followed by a
+    /// argparse-style layout (`inputs` as `nargs="*"` followed by a
     /// required `code`), which clap cannot express as two separate positionals
     /// (a required positional may not follow a variadic one), so CODE is split
     /// off the trailing input in the handler.

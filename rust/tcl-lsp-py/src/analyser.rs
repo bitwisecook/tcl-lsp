@@ -8,8 +8,7 @@
 //! Returns a dict serialising the [`AnalysisResult`] produced
 //! by the Rust analyser walk + diagnostic emitters.  Spans are
 //! encoded as `(start, end)` `u32` tuples; the materialiser on
-//! the Python side resolves them to LSP `Range` via
-//! `core/compiler/rust_spans.py::build_position_resolver`.
+//! the Python side resolves them to LSP `Range`.
 //!
 //! Dict shape:
 //!

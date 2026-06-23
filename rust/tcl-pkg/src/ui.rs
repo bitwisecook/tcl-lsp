@@ -80,8 +80,8 @@ pub fn bold(text: &str, colour: bool) -> String {
     colourise(BOLD, text, colour)
 }
 
-/// Render `data` as canonical JSON (sorted keys, 2-space indent), matching the
-/// Python `--json` output, with a trailing newline ready for `println!`-style
+/// Render `data` as canonical JSON (sorted keys, 2-space indent) for the
+/// `--json` output, with a trailing newline ready for `println!`-style
 /// printing without doubling the newline.
 #[must_use]
 pub fn json_output(data: &Value) -> String {

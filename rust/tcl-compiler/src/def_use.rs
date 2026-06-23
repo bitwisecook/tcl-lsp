@@ -268,9 +268,8 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
 }
 
 /// Variable names a terminator reads: a `Branch` condition's vars, or a
-/// `return $x` value's reads.  Recording the latter (so an earlier
-/// overwritten store is a real dead store, not a "truly unused" var) matches
-/// Python, whose CFG models the return value's reads.
+/// `return $x` value's reads.  The latter is recorded so an earlier
+/// overwritten store is a real dead store, not a "truly unused" var.
 fn terminator_read_vars(terminator: Option<&Terminator>) -> Vec<String> {
     match terminator {
         Some(Terminator::Branch { condition, .. }) => condition.vars().into_iter().collect(),

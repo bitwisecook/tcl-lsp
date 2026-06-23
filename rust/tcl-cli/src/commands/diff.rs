@@ -1,7 +1,7 @@
 //! Diff verb: compare two sources at the AST / IR / CFG layers.
 //!
-//! Compares two sources across three layers, byte-parity with the Python CLI
-//! (modulo a residual CFG/SSA construction gap on complex scripts):
+//! Compares two sources across three layers, byte-parity with the captured
+//! golden output (modulo a residual CFG/SSA construction gap on complex scripts):
 //!
 //! - **AST** — segments each side (`tcl-compiler` segmenter) and serialises
 //!   the command list to canonical JSON (`sort_keys`).
@@ -29,7 +29,7 @@ use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 use tcl_registry::snapshot::Json;
 
-/// Unified-diff context lines. The Python verb exposes `--context` (default
+/// Unified-diff context lines. Exposes `--context` (default
 /// 3); the Rust CLI surface does not, so the default is used.
 const CONTEXT: usize = 3;
 
@@ -192,7 +192,7 @@ fn layer_payload(
     match layer {
         "ast" => Ok(serialise_command_ast(src, registry, line_index)),
         "ir" => {
-            // Python's diff reads `serialise_result(compiled)["ir"]`; the
+            // The diff reads `serialise_result(compiled)["ir"]`; the
             // native `tcl-explorer` serialiser reproduces that view, so reuse
             // it (through the shared `value_to_json` adapter) rather than
             // carrying a second IR serialiser.
@@ -206,7 +206,7 @@ fn layer_payload(
 }
 
 /// Build the `cfg` diff layer payload: `{preSsa, postSsa}` from the explorer's
-/// CFG/SSA serialisers (which match the Python CLI), rendered through the
+/// CFG/SSA serialisers (which match the captured golden output), rendered through the
 /// shared sort-keys indent-2 adapter the AST/IR layers use. The two views are
 /// read off `serialise_result`.
 ///

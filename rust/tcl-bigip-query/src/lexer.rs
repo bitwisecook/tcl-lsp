@@ -63,7 +63,7 @@ pub enum TokenKind {
 }
 
 impl TokenKind {
-    /// The Python `TokenKind` member name, used by the differential test.
+    /// The `TokenKind` member name, used by the differential test.
     #[must_use]
     pub fn name(self) -> &'static str {
         match self {

@@ -1453,9 +1453,9 @@ fn format_report(report: &ExplainFlowReport) -> String {
     format!("{}\n", joined.trim_end())
 }
 
-/// Split a string the way Python's `str.splitlines()` does: break on the
-/// Unicode line boundaries Python recognises, treat `\r\n` as one break, and
-/// emit no trailing empty segment when the string ends on a boundary.
+/// Split a string on Unicode line boundaries: break on each recognised
+/// line-boundary character, treat `\r\n` as one break, and emit no trailing
+/// empty segment when the string ends on a boundary.
 fn py_splitlines(s: &str) -> Vec<&str> {
     fn is_boundary(c: char) -> bool {
         matches!(
@@ -1494,18 +1494,18 @@ fn py_splitlines(s: &str) -> Vec<&str> {
     out
 }
 
-/// Render a `bool` the way Python's `str(bool)` does (`True`/`False`).
+/// Render a `bool` as the capitalised `True`/`False` tokens the HUD uses.
 fn py_bool(b: bool) -> &'static str {
     if b { "True" } else { "False" }
 }
 
-/// Render a list of strings as Python `repr(list)` does: `['a', 'b']`.
+/// Render a list of strings in the `['a', 'b']` repr form.
 fn py_list_repr(values: &[String]) -> String {
     let inner: Vec<String> = values.iter().map(|v| py_repr(v)).collect();
     format!("[{}]", inner.join(", "))
 }
 
-/// Render a string the way Python's `repr()` does for the HUD annotations
+/// Render a string in repr form for the HUD annotations
 /// (single-quoted, with `\\`, `\'`, `\n`, `\r`, `\t` escapes).
 fn py_repr(s: &str) -> String {
     let use_double = s.contains('\'') && !s.contains('"');

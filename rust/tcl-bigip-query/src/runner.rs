@@ -52,7 +52,7 @@ pub struct QueryOptions {
     /// KIND`). Each entry binds `$name` to a JSON-backed [`Root`] parsed from
     /// `source` per its [`InputSpec`]. The `uri` is the side-input's file
     /// URI; it participates in the multi-file source count (so a single
-    /// config + one side input renders with a banner, matching Python) but
+    /// config + one side input renders with a banner) but
     /// never iterates as the primary `.` input.
     pub side_inputs: Vec<SideInput>,
     /// Opt the query in to live network probes (`--enable-probes`). When
@@ -151,7 +151,7 @@ fn build_root(uri: &str, source: &str, opts: &QueryOptions) -> std::rc::Rc<Root>
 ///
 /// Each side-input's `source` is parsed per its [`InputSpec`] into a
 /// [`Value`] and wrapped in [`Root::json`]; parse failures surface with the
-/// same `{uri}: invalid {kind} input (...)` wording the Python runner uses.
+/// same `{uri}: invalid {kind} input (...)` wording the runner uses.
 fn build_side_roots(
     side_inputs: &[SideInput],
 ) -> Result<HashMap<String, std::rc::Rc<Root>>, QueryError> {
@@ -430,7 +430,7 @@ fn collision_field_index(table_name: &str) -> u32 {
 /// `head[:5]` / `... and N more` truncation) is reproduced byte-for-byte.
 fn detect_collisions(roots: &[Rc<crate::eval::Root>]) -> Result<(), QueryError> {
     // `(field_index, label, full_path)` for every collision candidate, in
-    // Python's iteration order: roots in source order, then dataclass fields
+    // iteration order: roots in source order, then dataclass fields
     // in declaration order, then dict / source order within each field.
     let mut seen: HashMap<(String, String), String> = HashMap::new();
     // (label, full_path, prior_uri, uri)
@@ -527,8 +527,8 @@ fn run_query_merged(
     let mut accumulated_field_edits_per_uri: HashMap<String, usize> = HashMap::new();
     let mut attempted_mutation = false;
 
-    // Up-front collision check against the initial parse (Python builds the
-    // roots once and runs `_detect_collisions` before the statement loop).
+    // Up-front collision check against the initial parse (build the
+    // roots once and run `_detect_collisions` before the statement loop).
     let initial_roots: Vec<Rc<crate::eval::Root>> = current_sources
         .iter()
         .map(|(uri, src)| build_root(uri, src, opts))

@@ -9,11 +9,11 @@
 //! guard). Everything is text-level: no parser round-trip, so comments,
 //! whitespace, key order, and unknown stanzas all survive.
 //!
-//! The Python pattern uses look-behind / look-ahead assertions
+//! The reference pattern uses look-behind / look-ahead assertions
 //! (`(?<![A-Za-z0-9_/.\-])…(?![A-Za-z0-9_/.\-])`) that the `regex` crate
 //! cannot express; the token-boundary match is reproduced here with a manual
 //! byte scan so the occurrence count and rewritten text stay byte-identical to
-//! the Python engine. The other-kind header scan keeps the `regex` crate (its
+//! the reference. The other-kind header scan keeps the `regex` crate (its
 //! pattern has no look-around).
 //!
 //! Secret redaction (`redact_secrets` / `RedactReport`) is a different verb
@@ -34,7 +34,7 @@ pub struct RenameReport {
     pub new_source: String,
 }
 
-/// Whether `b` is a BIG-IP identifier character — the class the Python
+/// Whether `b` is a BIG-IP identifier character — the class the
 /// look-behind / look-ahead bounds the match with: `[A-Za-z0-9_/.\-]`.
 fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'/' | b'.' | b'-')
@@ -44,7 +44,7 @@ fn is_ident_byte(b: u8) -> bool {
 ///
 /// A match at byte offset `i` is token-bounded when the byte before it (if
 /// any) and the byte after the match (if any) are both **not** identifier
-/// characters. Matches do not overlap (Python `re` scans left-to-right,
+/// characters. Matches do not overlap (the scan runs left-to-right,
 /// resuming past each match), which matters when `old` could otherwise overlap
 /// itself; BIG-IP full-paths don't self-overlap, but the non-overlapping scan
 /// is reproduced for fidelity.
@@ -123,7 +123,7 @@ fn other_kind_header_spans(source: &str, old: &str, kind_scope: &str) -> Vec<(us
 ///
 /// # Errors
 /// Returns an error message when `old` or `new` is empty, matching the
-/// Python `ValueError`.
+/// reference `ValueError`.
 pub fn rename_object(
     source: &str,
     old: &str,
@@ -163,7 +163,7 @@ pub fn rename_object(
     }
     out.push_str(&source[cursor..]);
 
-    // Python re-parses the rewritten SCF as a sanity check and raises on
+    // The reference re-parses the rewritten SCF as a sanity check and raises on
     // failure; the Rust `parse_bigip_conf` is infallible, so the field-edit
     // path likewise omits the reparse. Nothing to validate here.
 

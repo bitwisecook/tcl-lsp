@@ -8,7 +8,7 @@
 //! All four are [`Builtin::Ctx`](super::Builtin::Ctx) — they need the parsed
 //! config (for the active source URI and, for `rename`, the reference graph).
 //!
-//! Each returns the integer occurrence / match count, matching Python.
+//! Each returns the integer occurrence / match count.
 
 use regex::Regex;
 use tcl_bigip::value::{Folder, ObjectPath};
@@ -20,7 +20,7 @@ use crate::value::Value;
 
 use super::{BuiltinSpec, as_str};
 
-/// `regex::escape`-equivalent of Python `re.escape`, used to build the
+/// `regex::escape`-equivalent metacharacter escaping, used to build the
 /// token-bounded cascade patterns.
 fn re_escape(s: &str) -> String {
     regex::escape(s)
@@ -139,10 +139,10 @@ fn bi_rename_partition(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Q
     }
 
     // `/Old/...` -> `/New/...`: token-bounded so a longer name isn't matched.
-    // Python: `(?<![A-Za-z0-9_/.\-])/Old/(?=[A-Za-z0-9_])` -> `/New/`.
+    // Pattern: `(?<![A-Za-z0-9_/.\-])/Old/(?=[A-Za-z0-9_])` -> `/New/`.
     let prefix_re = compile(&format!(r"/{}/", re_escape(&old_name)))?;
     // `auth partition Old { ... }` — the standalone partition stanza.
-    // Python: `(?<![…])(auth\s+partition\s+)Old(?![…])` -> `\g<1>New`.
+    // Pattern: `(?<![…])(auth\s+partition\s+)Old(?![…])` -> `\g<1>New`.
     let header_re = compile(&format!(r"(auth\s+partition\s+){}", re_escape(&old_name)))?;
 
     let prefix_count = count_matches(
@@ -173,7 +173,7 @@ fn bi_rename_partition(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Q
         pattern: header_re,
         before: Before::NotIdent,
         after: After::NotIdent,
-        // Python `\g<1>New`; the regex crate uses `${1}`.
+        // The `\g<1>New`-style template; the regex crate uses `${1}`.
         replacement: format!("${{1}}{new_name}"),
         human_new: format!("auth partition {new_name}"),
     });
@@ -208,7 +208,7 @@ fn bi_rename_folder(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Quer
         return Ok(Value::Int(0));
     }
 
-    // Python: `(?<![A-Za-z0-9_/.\-])Old/(?=[A-Za-z0-9_])` -> `New/`.
+    // Pattern: `(?<![A-Za-z0-9_/.\-])Old/(?=[A-Za-z0-9_])` -> `New/`.
     let prefix_re = compile(&format!(r"{}/", re_escape(&old_canonical)))?;
     let count = count_matches(
         &prefix_re,
@@ -255,7 +255,7 @@ fn bi_rename_prefix(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Quer
     if old_text == new_text {
         return Ok(Value::Int(0));
     }
-    // Python: `(?<![A-Za-z0-9_./\-])Old(?=[A-Za-z0-9_])` -> `New`. The
+    // Pattern: `(?<![A-Za-z0-9_./\-])Old(?=[A-Za-z0-9_])` -> `New`. The
     // look-behind char set is the same identifier class.
     let prefix_re = compile(&re_escape(&old_text))?;
     let count = count_matches(
@@ -340,7 +340,7 @@ fn is_partition_name(name: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
 }
 
-/// Compile a cascade *core* pattern (the Python pattern with its look-behind /
+/// Compile a cascade *core* pattern (the pattern with its look-behind /
 /// look-ahead boundaries stripped — those are carried out-of-band as
 /// [`Before`] / [`After`]).
 fn compile(core: &str) -> Result<Regex, QueryError> {

@@ -25,7 +25,7 @@ impl DataGroupRecord {
         let tokens: Vec<&str> = body.split_whitespace().collect();
         for (i, tok) in tokens.iter().enumerate() {
             if *tok == "data" && i + 1 < tokens.len() {
-                // Last-wins, matching the Python loop with no break.
+                // Last-wins: keep scanning with no break.
                 tokens[i + 1].clone_into(&mut data);
             }
         }

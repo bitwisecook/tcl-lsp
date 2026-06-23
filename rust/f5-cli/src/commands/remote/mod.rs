@@ -23,7 +23,7 @@ pub fn os_error_string(err: &std::io::Error, path: &str) -> String {
 }
 
 /// The libc `strerror` text for the handful of errnos a file read surfaces.
-/// Matches the GNU/Linux messages Python echoes (the CI / dev target).
+/// Matches the GNU/Linux messages of the CI / dev target.
 fn strerror(errno: i32) -> &'static str {
     match errno {
         2 => "No such file or directory",

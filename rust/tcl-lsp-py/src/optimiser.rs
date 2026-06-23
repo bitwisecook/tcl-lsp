@@ -1,10 +1,7 @@
 //! `PyO3` bindings for the optimiser passes.
 //!
 //! Exposes `optimiser_find_optimisations(source, dialect)` to
-//! Python. The Python `core.compiler.optimiser._manager`
-//! `find_optimisations` entry point delegates here when the
-//! Rust wheel is importable, falling back to the Python pass
-//! pipeline otherwise.
+//! Python.
 //!
 //! Optimisation records are returned as tuples rather than a
 //! full `pyclass` so the Python side can construct its own
@@ -79,7 +76,6 @@ pub fn optimiser_find_optimisations_raw(
 }
 
 /// Return the display priority for a given optimisation code.
-/// Mirrors `_OPT_PRIORITY` table.
 #[pyfunction]
 #[pyo3(signature = (code, /))]
 pub fn optimiser_opt_priority(code: &str) -> u8 {

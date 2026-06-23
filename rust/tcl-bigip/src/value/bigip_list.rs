@@ -29,7 +29,7 @@ impl SourceSpan {
 }
 
 /// The lexical shape of a [`BigipList`]. [`ListSyntax::as_str`] returns the
-/// Python string literal.
+/// canonical string literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ListSyntax {
     /// Unbraced scalar list (`ip-protocol icmp tcp`).
@@ -45,7 +45,7 @@ pub enum ListSyntax {
 }
 
 impl ListSyntax {
-    /// The Python string literal for this syntax.
+    /// The canonical string literal for this syntax.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
@@ -220,7 +220,7 @@ impl BigipList {
         self.items.len()
     }
 
-    /// `true` when the list has no items (Python `__bool__` is the inverse).
+    /// `true` when the list has no items (the bool test is the inverse).
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
@@ -259,7 +259,7 @@ impl BigipList {
         out
     }
 
-    /// `true` when `needle` matches an item's path (Python `__contains__`
+    /// `true` when `needle` matches an item's path (the containment test
     /// for the string case).
     #[must_use]
     pub fn contains_path(&self, needle: &str) -> bool {

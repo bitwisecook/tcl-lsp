@@ -372,7 +372,7 @@ mod tests {
         ]);
         let opts = run_pass(source, Some("f5-irules"), ip);
         assert_eq!(opts.len(), 3);
-        // Python sorts by qualified name; Rust matches.
+        // Results are sorted by qualified name.
         let names: Vec<&str> = opts.iter().map(|o| o.message.as_str()).collect();
         assert!(names[0].contains("alpha"));
         assert!(names[1].contains("beta"));

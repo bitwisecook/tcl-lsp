@@ -1,10 +1,11 @@
 //! Differential parity for `candidate_registry_kinds_for_display` (display
-//! `Reference.target_kind` → registry kinds) against the Python registry.
+//! `Reference.target_kind` → registry kinds) against the captured golden
+//! registry.
 //!
 //! Both exact `(module, object_type)` matches (`"ltm rule"`, `"net vlan"`, …)
-//! and family fan-outs (`"ltm monitor"`, `"ltm profile"`, …) must match Python
-//! exactly — the registry-data regen (`gen_bigip_rust.py`) brought the fan-out
-//! kind sets fully in sync.
+//! and family fan-outs (`"ltm monitor"`, `"ltm profile"`, …) must match the
+//! golden exactly — the registry-data regen (`gen_bigip_rust.py`) brought the
+//! fan-out kind sets fully in sync.
 
 use tcl_registry::bigip::default_registry;
 

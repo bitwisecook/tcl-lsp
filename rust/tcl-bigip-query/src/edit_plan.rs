@@ -62,7 +62,7 @@ pub struct EditOp {
 pub enum Before {
     /// No constraint.
     Any,
-    /// The Python negative look-behind `(?<![A-Za-z0-9_/.\-])` — the preceding
+    /// The negative look-behind `(?<![A-Za-z0-9_/.\-])` — the preceding
     /// byte must not be a BIG-IP identifier char (start-of-string passes).
     NotIdent,
 }
@@ -72,11 +72,11 @@ pub enum Before {
 pub enum After {
     /// No constraint.
     Any,
-    /// The Python look-ahead `(?=[A-Za-z0-9_])` — the next byte must be a name
+    /// The look-ahead `(?=[A-Za-z0-9_])` — the next byte must be a name
     /// char (so an exact-prefix match still hits but trailing whitespace /
     /// punctuation does not).
     RequireNameChar,
-    /// The Python negative look-ahead `(?![A-Za-z0-9_/.\-])` — the next byte
+    /// The negative look-ahead `(?![A-Za-z0-9_/.\-])` — the next byte
     /// must not be an identifier char (end-of-string passes).
     NotIdent,
 }
@@ -89,23 +89,23 @@ pub enum After {
 /// names, iRule body literals) that are not standalone object identifiers and
 /// so fall outside [`rename_object`]'s token-bounded match.
 ///
-/// Python compiles a single `re.Pattern` with look-behind / look-ahead token
+/// The reference compiles a single `re.Pattern` with look-behind / look-ahead token
 /// boundaries; the `regex` crate supports neither, so the boundaries are
 /// hoisted out of the [`Regex`] into [`Before`] / [`After`] and applied as a
 /// manual byte check around each `core` match in [`apply`]. The substitution
-/// stays identifier-safe and byte-identical to Python.
+/// stays identifier-safe and byte-identical to the reference.
 #[derive(Debug, Clone)]
 pub struct PrefixRewrite {
     pub source_uri: String,
     /// Human-readable LHS, for stderr summaries.
     pub label: String,
-    /// The match core — the Python pattern with its look-behind / look-ahead
+    /// The match core — the reference pattern with its look-behind / look-ahead
     /// assertions stripped (those move to `before` / `after`).
     pub pattern: Regex,
     pub before: Before,
     pub after: After,
     /// Replacement template using `$1` / `${1}` back-refs against `pattern`'s
-    /// capture groups (Python `\g<1>` becomes `$1`).
+    /// capture groups (`\g<1>` becomes `$1`).
     pub replacement: String,
     /// Human-readable rendering of the destination for the stderr summary —
     /// `replacement` may carry regex back-refs (`$1`) that confuse users.
@@ -344,7 +344,7 @@ fn apply_prefix_rewrite(pr: &PrefixRewrite, source: &str) -> (String, usize) {
         let m = caps.get(0).unwrap();
         let (start, end) = (m.start(), m.end());
         // Token-boundary checks around the matched core. A boundary failure is
-        // not a match (Python's look-around fails silently and `re` advances
+        // not a match (the look-around fails silently and the engine advances
         // one position), so re-search from `start + 1` rather than consuming.
         let before_ok = match pr.before {
             Before::Any => true,

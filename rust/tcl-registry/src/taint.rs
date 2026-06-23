@@ -265,8 +265,8 @@ pub struct TaintSinkInfo {
 /// Classify all taint-sink properties of `command` (with optional
 /// `subcommand`) in a single pass, filtered to `dialect`.
 ///
-/// Ports `CommandRegistry.classify_taint_sinks`. Returns the default
-/// (all-clear) [`TaintSinkInfo`] when the command is unknown.
+/// Returns the default (all-clear) [`TaintSinkInfo`] when the command is
+/// unknown.
 #[must_use]
 pub fn classify_taint_sinks(
     registry: &CommandRegistry,

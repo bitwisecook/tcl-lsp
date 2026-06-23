@@ -177,7 +177,7 @@ fn bi_http_server_error(args: &[Value]) -> Result<Value, QueryError> {
     status_in_range(&args[0], 500, 599, "http_server_error")
 }
 
-/// Python `str(value)` for the non-string `body` coercion path.
+/// String coercion of a value for the non-string `body` coercion path.
 fn py_str(v: &Value) -> String {
     match v {
         Value::Str(s) => s.clone(),

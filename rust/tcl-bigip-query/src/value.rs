@@ -2,7 +2,7 @@
 //!
 //! Covers the runtime values plus the scalar semantics the evaluator and
 //! builtins share (`_truthy`, `_eq`, `_sort_key`, scalar coercion) and a
-//! Python-`json.dumps`-faithful serialiser.
+//! serialiser matching the canonical `json.dumps` byte format.
 //!
 //! Most values flow as the plain JSON-shaped variants — `Null` / `Bool` /
 //! `Int` / `Float` / `Str` / `List` / `Object` — which keeps the evaluator
@@ -97,7 +97,7 @@ impl ObjectRef {
     #[must_use]
     pub fn partition(&self) -> &str {
         if let Some(rest) = self.full_path.strip_prefix('/') {
-            // `full_path.split("/", 2)[1]` in Python.
+            // Equivalent to `full_path.split("/", 2)[1]`.
             return rest.split('/').next().unwrap_or("");
         }
         ""
@@ -117,7 +117,7 @@ pub enum Value {
     Str(String),
     /// An explicit list (a literal array or a builtin result like `keys`).
     List(Vec<Value>),
-    /// An object — insertion-ordered, matching Python `dict`.
+    /// An object — insertion-ordered, like a dict.
     Object(IndexMap<String, Value>),
     /// A flat sequence produced by `[]` / `map(...)` / `select(...)`.
     Stream(Vec<Value>),
@@ -156,7 +156,7 @@ impl Value {
             ),
             Value::Stream(items) => format!("stream(len={})", items.len()),
             Value::List(items) => format!("list(len={})", items.len()),
-            // Python falls back to `type(value).__name__`.
+            // Falls back to the `type(value).__name__` spelling.
             Value::Bool(_) => "bool".to_string(),
             Value::Int(_) => "int".to_string(),
             Value::Float(_) => "float".to_string(),
@@ -166,7 +166,7 @@ impl Value {
         }
     }
 
-    /// The Python `type(value).__name__` spelling, used by a few builtin
+    /// The `type(value).__name__` spelling, used by a few builtin
     /// error messages (`flatten`, `combinations`, …) and the `type` builtin
     /// is handled separately.
     #[must_use]
@@ -210,7 +210,8 @@ pub fn truthy(value: &Value) -> bool {
     }
 }
 
-/// Equality, with Python `==` semantics.
+/// Equality semantics: a bool equals the matching int (`True == 1`,
+/// `False == 0`) and numbers compare across int/float/bool by value.
 ///
 /// Reproduces the quirks that matter to the DSL: `1 == 1.0`, `True == 1`,
 /// `False == 0`, deep list / object comparison (object equality is
@@ -219,7 +220,7 @@ pub fn truthy(value: &Value) -> bool {
 pub fn py_eq(lhs: &Value, rhs: &Value) -> bool {
     match (lhs, rhs) {
         (Value::Null, Value::Null) => true,
-        // Python: `bool` is a subclass of `int`, so `True == 1`, and
+        // A `bool` counts as the matching `int`, so `True == 1`, and
         // numbers compare across int/float/bool by numeric value.
         _ if is_number_like(lhs) && is_number_like(rhs) => num_value(lhs) == num_value(rhs),
         (Value::Str(a), Value::Str(b)) => a == b,
@@ -247,8 +248,8 @@ fn is_number_like(v: &Value) -> bool {
     matches!(v, Value::Bool(_) | Value::Int(_) | Value::Float(_))
 }
 
-/// The numeric value of a `bool`/`int`/`float` (Python's int-subclass-of
-/// view of `bool`), as `f64` for cross-type comparison.
+/// The numeric value of a `bool`/`int`/`float` (a `bool` counting as the
+/// matching `int`), as `f64` for cross-type comparison.
 #[allow(clippy::cast_precision_loss)]
 fn num_value(v: &Value) -> f64 {
     match v {

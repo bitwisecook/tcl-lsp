@@ -17,7 +17,7 @@
 //!   exponents.
 //! - Comparisons always return `Int(0)` or `Int(1)`; `eq`/`ne`/`lt`… compare the
 //!   operands' raw text (so `5.00 eq 5.0` → 0).
-//! - `round()` ties away from zero (not Python/Rust banker's rounding).
+//! - `round()` ties away from zero (not banker's round-half-to-even rounding).
 //!
 //! The iRules
 //! word operators (`contains`/`starts_with`/`matches_glob`/`matches_regex`/
@@ -855,7 +855,7 @@ mod tests {
 
     #[test]
     fn arithmetic_int_floor_division_negative() {
-        // Tcl / Python: floor toward -inf.
+        // Tcl: floor toward -inf.
         assert_eq!(eval_str("-7 / 2"), Some(TclValue::Int(-4)));
         assert_eq!(eval_str("7 / -2"), Some(TclValue::Int(-4)));
         // Modulo sign follows divisor.

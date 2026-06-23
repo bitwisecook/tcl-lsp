@@ -2,7 +2,7 @@
 //!
 //! The live request path is **not implemented**: a real `ureq` 3.x + custom
 //! `rustls` CA bundle request is non-deterministic / un-golden-testable, so
-//! this backend instead returns the same result-dict shape Python emits
+//! this backend instead returns the same result-dict shape the live path would emit
 //! (`{status, headers, body, body_json, peer_cert, error}`) with an
 //! explanatory `error`, so a `--enable-probes` `url_*` query degrades
 //! gracefully rather than failing to compile. The deterministic probe surface

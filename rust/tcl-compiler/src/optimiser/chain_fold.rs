@@ -23,7 +23,7 @@
 //!
 //! - The writes must be **strictly consecutive** — no statement runs
 //!   between them, so no intermediate value can be observed (the
-//!   `var_observability` flow-sensitive read check Python performs is
+//!   `var_observability` flow-sensitive read check is
 //!   subsumed: a read between writes would be a non-write statement and
 //!   ends the run).
 //! - Every value word must be a static literal (`Esc`/`Str` single-token
@@ -33,7 +33,7 @@
 //!   cross-event iRules state variable — folding would drop a trace
 //!   callback or a value a later scope / event observes.
 //!
-//! These gates make the fold conservative (it can miss a chain Python's
+//! These gates make the fold conservative (it can miss a chain a
 //! flow-sensitive pass would fold) but never unsound.
 
 use std::collections::HashSet;

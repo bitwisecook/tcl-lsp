@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn scalar_parser_matches_python_ltm_nat() {
-        // Body + expected field values captured from the live Python
+        // Body + expected field values captured as fixtures from the reference
         // `_parse_ltm_nat` (see the differential corpus).
         let body = "\n    translation-address 1.2.3.4\n    originating-address 5.6.7.8\n    \
                     traffic-group /Common/tg\n    description \"my nat\"\n    \

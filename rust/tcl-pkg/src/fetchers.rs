@@ -114,7 +114,7 @@ fn extract_tar(bytes: &[u8], dest: &Path, lower: &str) -> Result<(), TclPkgError
     {
         let mut entry = entry.map_err(|e| fetch_error(format!("corrupt tar entry: {e}")))?;
         let entry_type = entry.header().entry_type();
-        // Skip symlinks and hardlinks (parity with the Python member filter).
+        // Skip symlinks and hardlinks.
         if entry_type.is_symlink() || entry_type.is_hard_link() {
             continue;
         }

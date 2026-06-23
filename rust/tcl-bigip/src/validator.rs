@@ -61,8 +61,8 @@ pub struct ConfigDiagnostic {
 
 // ── iRule source-scanning regexes ────────────────────────────────────────
 //
-// The `regex` crate has no look-around, so the two Python negative
-// look-aheads (`pool (?!member)`, `persist (?!none)`) are handled by
+// The `regex` crate has no look-around, so the two negative look-ahead
+// guards (`pool (?!member)`, `persist (?!none)`) are handled by
 // filtering the captured name in code instead.
 
 const CLASS_OPERATORS: &str = "equals|starts_with|ends_with|contains|matches_glob|matches_regex";
@@ -459,8 +459,8 @@ fn check_ip_data_group_records(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnos
                 continue;
             }
             let addr_ok = addr_text.parse::<std::net::IpAddr>().is_ok();
-            // Fall back to a network form ("10.0.0.0/8") like Python's
-            // ip_network(strict=False).
+            // Fall back to a network form ("10.0.0.0/8"), parsed non-strictly
+            // (host bits need not be zero).
             let net_ok = record.trim().parse::<ipnet::IpNet>().is_ok();
             if !addr_ok && !net_ok {
                 out.push(ConfigDiagnostic {
@@ -480,8 +480,8 @@ fn check_ip_data_group_records(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnos
 // ── Public API ───────────────────────────────────────────────────────────
 
 /// Run all BIG-IP cross-reference validations over a parsed config,
-/// returning ranged diagnostics in the same order as Python's
-/// `validate_bigip_config`.
+/// returning ranged diagnostics in a stable, deterministic order (per-iRule
+/// checks, then virtual-server checks, then config-wide checks).
 #[must_use]
 pub fn validate_bigip_config(config: &BigipConfig) -> Vec<ConfigDiagnostic> {
     let view = ModelView::build(config);

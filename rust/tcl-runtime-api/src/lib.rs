@@ -7,9 +7,8 @@
 //! interpreted code reaches into. This crate is the published contract for that
 //! store — the completion type, opaque handles, the `CompileService` injection
 //! point, and a set of small **role traits** generic over an associated
-//! `Value`. It deliberately contains no implementations; the bytecode VM
-//! (`tcl-vm`) and, later, the Rust WASM runtime (`runtime/rust`) each satisfy
-//! it over their own value/storage models.
+//! `Value`. It deliberately contains no implementations; a runtime such as the
+//! bytecode VM (`tcl-vm`) satisfies it over its own value/storage model.
 //!
 //! See `docs/design/common-runtime-emitter-architecture.md` §4 (Family B).
 
@@ -139,8 +138,8 @@ pub trait Commands {
     fn dispatch_id(&mut self, cmd: CommandId, argv: &[Self::Value]) -> Completion<Self::Value>;
 }
 
-/// The namespace tree and name resolution. Corresponds to `tcl_ns.zig`
-/// / `runtime/rust`'s `namespace.rs`. (Contract surface; not yet implemented.)
+/// The namespace tree and name resolution. (Contract surface; not yet
+/// implemented.)
 pub trait Namespaces {
     /// Resolve `name` (qualified or unqualified) from context `cxt` to the
     /// command it names, following the `cxt → namespace path → root` order. The
@@ -187,8 +186,8 @@ pub trait Namespaces {
     fn vars_in(&self, ns: NsId) -> Vec<String>;
 }
 
-/// Variable traces (read/write/unset). Corresponds to
-/// `tcl_var_trace.zig`. (Contract surface; not yet implemented.)
+/// Variable traces (read/write/unset). (Contract surface; not yet
+/// implemented.)
 pub trait Traces {
     /// The runtime's value type.
     type Value;

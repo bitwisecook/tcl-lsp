@@ -15,7 +15,7 @@
 //! The pure engine is I/O-free (typed in → typed out); the prompts and
 //! stdout shaping live in the `f5-cli` binary.
 
-// The DSL models Python's unbounded `int`; index / length / numeric casts
+// The DSL models an unbounded integer; index / length / numeric casts
 // between `usize`, `i64`, and `f64` are intentional and pervasive, as is
 // type-dispatch with arms that happen to share a body.
 #![allow(

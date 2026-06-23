@@ -131,8 +131,8 @@ fn read_members(ucs_bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, UcsError> {
 /// order). Members not present in the archive are silently skipped.
 pub fn ucs_to_scf(ucs_bytes: &[u8], include_extras: bool) -> Result<String, UcsError> {
     let members = read_members(ucs_bytes)?;
-    // Build a name → last-occurrence index map (Python dict-comprehension
-    // semantics: a later member with the same name wins).
+    // Build a name → last-occurrence index map (last write wins:
+    // a later member with the same name wins).
     let mut by_name: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
     for (i, (name, _)) in members.iter().enumerate() {
         by_name.insert(name.as_str(), i);

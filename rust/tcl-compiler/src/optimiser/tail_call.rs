@@ -14,9 +14,8 @@
 //! - **O123** (hint-only) — "Accumulator-eligible non-tail
 //!   self-recursion". Fires when there is at least one non-tail
 //!   self-call inside an expression body (e.g., `return [expr
-//!   {$n * [f [expr {$n - 1}]]}]`) — a common pattern that the
-//!   Python pass flags as worth converting to an accumulator
-//!   recurrence.
+//!   {$n * [f [expr {$n - 1}]]}]`) — a common pattern worth
+//!   converting to an accumulator recurrence.
 
 use std::collections::HashSet;
 
@@ -105,7 +104,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         }
 
         // O123: any non-tail self-call embedded in an expression
-        // → accumulator candidate (hint-only, matches Python).
+        // → accumulator candidate (hint-only).
         if non_tail_self_call_in_expression(&proc.body, &self_names) {
             let mut opt = Optimisation::new(
                 "O123",
@@ -135,8 +134,7 @@ struct TailSite {
 
 /// Produce the replacement parameter reassignment for a tail
 /// call — `set p v` for a single param, `lassign [list v1 v2 …]
-/// p1 p2 …` for multiple. Matches `_make_reassignment`
-/// output.
+/// p1 p2 …` for multiple.
 ///
 /// The multi-param form must use `[list …]`, **not** a braced
 /// `{v1 v2 …}` word: a braced word suppresses all substitution, so
@@ -420,8 +418,8 @@ fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
             }
             is_accumulator_pattern(v, self_names)
         }
-        // `_find_accumulator_sites` inspects `return` statements
-        // only, so an assignment never contributes an O123 candidate.
+        // Accumulator sites come from `return` statements only, so
+        // an assignment never contributes an O123 candidate.
         Statement::If {
             clauses, else_body, ..
         } => {
@@ -471,10 +469,9 @@ fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
     }
 }
 
-/// Return the set of command names that refer to `qname`.
-/// Matches `_self_name_variants` — the normalised
-/// qualified name, its short (final) segment, and the global
-/// form without the leading `::`.
+/// Return the set of command names that refer to `qname` — the
+/// normalised qualified name, its short (final) segment, and the
+/// global form without the leading `::`.
 fn self_name_variants(qname: &str) -> HashSet<String> {
     let mut names: HashSet<String> = HashSet::new();
     let normalised = normalise_qualified_name(qname);

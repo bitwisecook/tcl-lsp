@@ -3,8 +3,8 @@
 //! The pipeline captured in `tests/fixtures/time.json`
 //! (`scripts/codegen/gen_f5_query_time_fixtures.py`): parse → evaluate
 //! against a JSON-backed root → `output::render`. For each `(query, input,
-//! mode)` the Rust output (or `error:` message) must match Python exactly.
-//! Self-contained — no Python at test time.
+//! mode)` the Rust output (or `error:` message) must match the expected value exactly.
+//! Self-contained — no external oracle at test time.
 //!
 //! `TZ=UTC` is pinned for every case (via `temp_env`) so the timezone-aware
 //! builtins (`localtime` / `mktime` / `strftime`) are deterministic, matching

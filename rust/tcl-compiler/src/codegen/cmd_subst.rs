@@ -1666,7 +1666,7 @@ mod tests {
 
     #[test]
     fn try_inline_list_without_target_emits_break_as_literal() {
-        // Matches Python: when `[list ... [break] ...]` appears without
+        // When `[list ... [break] ...]` appears without
         // a loop target in scope, the pattern still claims the value
         // and emits `[break]` as a literal list element. The generic
         // fallback is never reached.

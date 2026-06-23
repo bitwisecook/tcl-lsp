@@ -37,7 +37,7 @@ pub struct LoweringCommand<'a> {
     pub expand_word: Option<&'a [bool]>,
     /// Snapshot of parsed tokens for downstream passes.
     pub tokens: Option<CommandTokens>,
-    /// Per-arg token kinds (mapped from Python `arg_tokens[i].type`).
+    /// Per-arg token kinds.
     /// Uses a simplified enum since we only check STR/ESC/CMD.
     pub arg_kinds: &'a [ArgTokenKind],
 }
@@ -379,7 +379,6 @@ fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     // in which case the alias is a no-op and reading `$local` errors — so the
     // local is possibly-unset and must not be recorded as a def (read-before-set
     // fires on an unconditional read).
-    // and Python's dynamic-target read-before-set firing.
     let rest = &cmd.args[start..];
     let mut my_vars: Vec<String> = Vec::new();
     let mut i = 0;

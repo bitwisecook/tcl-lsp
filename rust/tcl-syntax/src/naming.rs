@@ -318,7 +318,7 @@ pub fn split_array_name(name: &str) -> (&str, Option<&str>) {
         }
         return (inner, None);
     }
-    // No closing brace — fall through (Python gates on `"}" in base`).
+    // No closing brace — fall through (gated on `"}" in base`).
     let base = name.strip_prefix('$').unwrap_or(name);
     if base.ends_with(')')
         && let Some(idx) = base.find('(')

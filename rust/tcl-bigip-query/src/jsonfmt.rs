@@ -1,4 +1,4 @@
-//! Python-`json.dumps`-faithful serialisation of [`Value`]s.
+//! JSON serialisation of [`Value`]s matching the canonical `json.dumps` byte format.
 //!
 //! The query DSL emits JSON in two spellings:
 //!
@@ -171,7 +171,7 @@ fn write_object<'a>(
             indent(out, l);
         }
         write_string(out, key);
-        // With `indent` set, Python's key separator is `": "`; compact mode
+        // With `indent` set, the key separator is `": "`; compact mode
         // uses `":"`.
         out.push_str(if level.is_some() { ": " } else { ":" });
         write_value(out, val, inner, sort_keys, depth + 1);

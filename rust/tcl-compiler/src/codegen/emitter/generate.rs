@@ -608,9 +608,7 @@ fn build_loop_targets(
 ///
 /// A for-init block ends with a `Goto` to a `for_header_N` block and
 /// is not itself a `for_step_*` block. The init statement is the
-/// last one in the block (the Python implementation prefers statements
-/// whose source offset is within the for command's span, falling back
-/// to the last statement).
+/// last one in the block.
 fn detect_for_init_last_stmt(
     ctx: &CodegenCtx,
     cfg: &CfgFunction,

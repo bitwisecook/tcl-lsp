@@ -17,7 +17,7 @@ use std::collections::HashSet;
 use super::super::{Optimisation, opt_priority};
 
 /// Return the overlap-free subset of `optimisations`, applying
-/// the Python pass-order / invalidation rules.
+/// the pass-order / invalidation rules described above.
 #[must_use]
 pub fn select_non_overlapping(optimisations: &[Optimisation]) -> Vec<Optimisation> {
     let hints: Vec<Optimisation> = optimisations
@@ -49,9 +49,9 @@ pub fn select_non_overlapping(optimisations: &[Optimisation]) -> Vec<Optimisatio
         let end = opt.span.end();
         let overlap = selected.iter().any(|kept| {
             // Spans overlap iff neither ends before the other
-            // starts. Python compares inclusive-end offsets; Rust
-            // `Span::end` is exclusive, so two spans `[a1, a2)`
-            // and `[b1, b2)` overlap when `a1 < b2 && b1 < a2`.
+            // starts. `Span::end` is exclusive, so two spans
+            // `[a1, a2)` and `[b1, b2)` overlap when
+            // `a1 < b2 && b1 < a2`.
             start < kept.span.end() && kept.span.start() < end
         });
         if overlap {

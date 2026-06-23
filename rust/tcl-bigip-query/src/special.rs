@@ -662,7 +662,7 @@ fn path_from_steps(steps: &[PathStep]) -> Option<Vec<Value>> {
     Some(out)
 }
 
-/// Python `str(key)` for INDEX keys (scalar shapes).
+/// String coercion of an INDEX key (scalar shapes).
 fn py_str_key(v: &Value) -> String {
     match v {
         Value::Str(s) => s.clone(),

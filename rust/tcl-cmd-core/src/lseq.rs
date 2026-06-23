@@ -7,7 +7,7 @@
 //! lseq count ?by step?
 //! ```
 //!
-//! Ported from C's `Tcl_LseqObjCmd` (`tclCmdIL.c`) + `TclNewArithSeriesObj`
+//! Follows C's `Tcl_LseqObjCmd` (`tclCmdIL.c`) and `TclNewArithSeriesObj`
 //! (`tclArithSeries.c`): the same argument-decode key, the same `..`/`to`/
 //! `count`/`by` keywords, the same int-vs-double selection and length formula
 //! (`ArithSeriesLenInt`/`ArithSeriesLenDbl`), and the same double-precision

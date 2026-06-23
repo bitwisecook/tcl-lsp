@@ -15,7 +15,7 @@
 //!   live results (the test env has no reliable network).
 //!
 //! Every network probe is gated by `ctx.probes_enabled` (the `--enable-probes`
-//! flag). The pure x509 helpers are NOT gated, matching Python.
+//! flag). The pure x509 helpers are NOT gated.
 
 use std::io::{Read as _, Write as _};
 use std::net::{TcpStream, ToSocketAddrs, UdpSocket};
@@ -31,7 +31,7 @@ use crate::errors::QueryError;
 use crate::value::Value;
 
 /// Port of `_probes._require_probes` — the `--enable-probes` gate. Reproduces
-/// the Python error text verbatim.
+/// the error text verbatim.
 pub(crate) fn require_probes(name: &str, enabled: bool) -> Result<(), QueryError> {
     if enabled {
         Ok(())
@@ -705,7 +705,7 @@ fn ok_rtt_error(ok: bool, rtt_ms: Option<f64>, error: Option<String>) -> Value {
 /// Port of `_probes.dns` — forward DNS via the system resolver. Returns the
 /// sorted, unique list of resolved addresses (empty on failure).
 pub(crate) fn dns(name: &str) -> Vec<Value> {
-    // Python uses `getaddrinfo(name, None, type=SOCK_STREAM)`. `(host, 0)` with
+    // Mirrors `getaddrinfo(name, None, type=SOCK_STREAM)`. `(host, 0)` with
     // `to_socket_addrs` resolves both A and AAAA.
     let mut addrs: Vec<String> = match (name, 0u16).to_socket_addrs() {
         Ok(it) => it.map(|sa| sa.ip().to_string()).collect(),
@@ -718,7 +718,7 @@ pub(crate) fn dns(name: &str) -> Vec<Value> {
 
 /// Port of `_probes.rev_dns` — reverse DNS (`gethostbyaddr`-style). Returns the
 /// canonical name (empty on failure). `getnameinfo` yields one name, so the
-/// alias list Python collects is not reproduced (best-effort parity).
+/// alias list the canonical path collects is not reproduced (best-effort parity).
 pub(crate) fn rev_dns(ip: &str) -> Vec<Value> {
     let Ok(addr) = ip.parse::<std::net::IpAddr>() else {
         return Vec::new();
@@ -913,7 +913,7 @@ pub(crate) fn socket_get(host: &str, port: i64, send: &str) -> Result<Value, Que
 
 /// TLS connect and report peer metadata.
 ///
-/// Faithful-but-not-golden: produces the same dict shape Python emits
+/// Faithful-but-not-golden: produces the same dict shape the live path emits
 /// (`protocol` / `cipher` / `peer_cert` / `alpn_selected` / `verify_status` /
 /// `reason` / `error`). Verification failures don't abort — the peer cert is
 /// captured from the (non-verifying) handshake so audit queries still get it.
@@ -997,7 +997,7 @@ fn opt_str<'a>(
     }
 }
 
-// `dns` / `rev_dns` are NOT gated in Python (they have no `_require_probes`
+// `dns` / `rev_dns` are NOT gated (they have no `_require_probes`
 // call) — a forward / reverse name lookup is treated as benign. They stay
 // `Plain` to match: a bare `dns("host")` resolves without `--enable-probes`.
 fn bi_dns(args: &[Value]) -> Result<Value, QueryError> {
@@ -1102,7 +1102,7 @@ fn bi_url_post(a: &[Value], c: &mut EvalContext) -> Result<Value, QueryError> {
     url_method("POST", a, c)
 }
 
-// --- ungated pure x509 surface (plain in Python; not probe-gated) ---
+// --- ungated pure x509 surface (plain; not probe-gated) ---
 
 fn bi_x509_parse(args: &[Value]) -> Result<Value, QueryError> {
     x509_parse(&as_str(&args[0], "x509_parse", 1)?)
@@ -1182,7 +1182,7 @@ fn bi_ucs_cert(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryErro
 /// [`crate::builtins`].
 pub(crate) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     vec![
-        // DNS lookups are ungated in Python (benign name resolution).
+        // DNS lookups are ungated (benign name resolution).
         plain("dns", "net", 1, Some(1), false, bi_dns),
         plain("rev_dns", "net", 1, Some(1), false, bi_rev_dns),
         // Network probes — gated on `--enable-probes`; `Ctx` so they can read
@@ -1197,7 +1197,7 @@ pub(crate) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
         ctx("url_options", "net", 1, Some(2), bi_url_options),
         ctx("url_post", "net", 1, Some(3), bi_url_post),
         ctx("ucs_cert", "net", 1, Some(1), bi_ucs_cert),
-        // Pure x509 surface — ungated (plain in Python, deterministic here).
+        // Pure x509 surface — ungated (plain, deterministic here).
         plain("x509_parse", "net", 1, Some(1), false, bi_x509_parse),
         plain(
             "x509_from_config",

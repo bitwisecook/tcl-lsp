@@ -239,12 +239,12 @@ fn walk_statement(
             args,
             ..
         } => {
-            // Python matches on `IRCall.canonical_command` (the stamped
+            // Matching is on `IRCall.canonical_command` (the stamped
             // namespace-qualified form). The Rust lowerer only stamps it for
             // alias / namespace resolution, leaving plain calls `None`; for
             // those the source spelling *is* the canonical (modulo a leading
             // `::`, which `is_diagram_action` / the registry strip), so fall
-            // back to it to reproduce Python's resolution.
+            // back to it to reproduce the resolution.
             let canonical = canonical_command.as_deref().unwrap_or(command.as_str());
             let display = command.as_str();
             // Skip the top-level `when` calls — their bodies are in procedures.
@@ -366,7 +366,7 @@ fn extract_diagram_data(source: &str, dialect: &str) -> Value {
     let cu = CompilationUnit::build_for(source, registry, false);
     let module = &cu.ir_module;
 
-    // Recover Python's source-order dict iteration (the procedures map is a
+    // Recover the source-order dict iteration (the procedures map is a
     // `HashMap`) by sorting on the defining-token offset.
     let mut items: Vec<(&String, &Procedure)> = module.procedures.iter().collect();
     items.sort_by_key(|(_, proc)| proc.span.start());

@@ -67,8 +67,8 @@ pub struct SegmentedCommand {
     /// Concatenated text of comment line(s) immediately preceding
     /// the command (without the leading ``#`` and with leading
     /// whitespace trimmed); ``None``
-    /// when no comment precedes.  Used by `_handle_proc` /
-    /// `_handle_oo_class_command` for `ProcDef.doc` / `ClassDef.doc`.
+    /// when no comment precedes.  Used to populate `ProcDef.doc` /
+    /// `ClassDef.doc`.
     pub preceding_comment: Option<String>,
 }
 

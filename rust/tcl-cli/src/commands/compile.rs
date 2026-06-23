@@ -12,7 +12,7 @@
 //!   text form).
 //!
 //! `--optimise` runs the source-to-source optimiser first, exactly as the
-//! Python `compile_script(optimise=...)` path does (`apply_optimisations` over
+//! `compile_script(optimise=...)` path does (`apply_optimisations` over
 //! the `optimise` rewrites), then compiles the rewritten source.
 
 use tcl_cli_support::{
@@ -30,7 +30,7 @@ use tcl_registry::CommandRegistry;
 use crate::cli::InputArgs;
 
 /// Apply the source-to-source optimiser when `optimise` is set, mirroring the
-/// Python `compile_script(optimise=...)` entry: collect the rewrites, apply
+/// `compile_script(optimise=...)` entry: collect the rewrites, apply
 /// them, and compile the rewritten text. Returns the (possibly unchanged)
 /// source.
 fn maybe_optimise(source: &str, registry: &CommandRegistry, optimise_on: bool) -> String {
