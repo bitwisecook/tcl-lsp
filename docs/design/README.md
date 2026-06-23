@@ -71,6 +71,9 @@ rules for the KCS/documentation split live in
 
 - [tclpkg-architecture.md](tclpkg-architecture.md) — architecture overview,
   contracts, file-path anchors, test anchors.
+- [tclpkg-security.md](tclpkg-security.md) — sandboxing (the `tcl-sandbox`
+  crate), operator hooks, and the layered, admin-lockable policy for the Rust
+  package manager, with the supply-chain threat model that drives it.
 - [contracts/tclpkg-manifest.md](contracts/tclpkg-manifest.md) — manifest
   directives, safe-mode whitelist, validation rules.
 - [contracts/tclpkg-lockfile.md](contracts/tclpkg-lockfile.md) — canonical
