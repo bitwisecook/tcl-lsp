@@ -520,6 +520,19 @@ impl CodegenCtx<'_> {
     /// markers are backslash-escaped is decoded; otherwise it is interpolated.
     /// Shared by the plain ([`emit_call`](Self::emit_call)) and `{*}`-expanded
     /// ([`emit_expanded_call`](Self::emit_expanded_call)) word loops.
+    /// Emit the `i`-th argument of the command currently dispatching to a
+    /// codegen hook, honouring whether that word was braced (see
+    /// [`Self::cmd_arg_braced`]). Hooks that emit a word as a runtime value
+    /// (`concat`, `llength`, …) call this instead of
+    /// [`Self::emit_value_interpolated`] so a non-braced literal's backslash
+    /// escapes are collapsed exactly like the generic per-word path — a braced
+    /// word stays verbatim. Falls back to non-braced when no flags are recorded
+    /// (hand-built test contexts).
+    pub(crate) fn emit_word_arg(&mut self, i: usize, a: &str) {
+        let braced = self.cmd_arg_braced.get(i).copied().unwrap_or(false);
+        self.emit_word(a, braced);
+    }
+
     fn emit_word(&mut self, a: &str, braced: bool) {
         if braced {
             self.push_lit_verbatim(a);
@@ -603,9 +616,26 @@ impl CodegenCtx<'_> {
             return;
         }
 
+        // A braced single-token word (`{…}`, lexed as `TokenType::Str`) is a
+        // verbatim literal — e.g. a `proc` body — so it is pushed as-is and its
+        // backslashes are NOT collapsed; a non-braced word's escapes are. `argv[0]`
+        // is the command word, so arg `i` maps to `argv_kinds[i + 1]`. Computed
+        // once and stashed so a codegen hook can collapse its list args the same
+        // way the generic per-word path below does (concat-1.4, llength-2.3).
+        let braced_flags: Vec<bool> = (0..args.len())
+            .map(|i| {
+                tokens.is_some_and(|t| {
+                    t.argv_kinds.get(i + 1) == Some(&tcl_lexer::TokenType::Str)
+                        && t.single_token_word.get(i + 1).copied().unwrap_or(false)
+                })
+            })
+            .collect();
+
         // C21: try a registered per-command codegen hook before the
         // generic invoke fallback.
+        self.cmd_arg_braced = braced_flags;
         if super::emitter::bytecoded::try_bytecoded(self, cmd, args, used_generic_invoke) {
+            self.cmd_arg_braced = Vec::new();
             return;
         }
 
@@ -614,16 +644,10 @@ impl CodegenCtx<'_> {
         // still lowers to a single `push`, so normal calls are unchanged.
         self.emit_cmd_word(cmd, false);
         for (i, a) in args.iter().enumerate() {
-            // A braced single-token word (`{…}`, lexed as `TokenType::Str`) is
-            // a verbatim literal — e.g. a `proc` body — so push it as-is and
-            // suppress runtime substitution. `argv[0]` is the command word, so
-            // arg `i` maps to `argv_kinds[i + 1]`.
-            let braced = tokens.is_some_and(|t| {
-                t.argv_kinds.get(i + 1) == Some(&tcl_lexer::TokenType::Str)
-                    && t.single_token_word.get(i + 1).copied().unwrap_or(false)
-            });
+            let braced = self.cmd_arg_braced.get(i).copied().unwrap_or(false);
             self.emit_word(a, braced);
         }
+        self.cmd_arg_braced = Vec::new();
         let arg_count = i32::try_from(1 + args.len())
             .expect("invoke argument count fits in i32 (bytecode limit)");
         let op = if arg_count < 256 {
