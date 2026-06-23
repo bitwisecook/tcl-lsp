@@ -35,6 +35,9 @@ macro_rules! mathops {
         )*
         pub(crate) fn register(vm: &mut Vm) {
             $( vm.register(concat!("::tcl::mathop::", $op), $fn); )*
+            // C exports every operator from `::tcl::mathop`, so
+            // `namespace import ::tcl::mathop::*` works (mathop-25.*).
+            vm.declare_namespace_exports("tcl::mathop", &["*"]);
         }
     };
 }
