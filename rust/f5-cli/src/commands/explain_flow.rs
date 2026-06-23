@@ -982,7 +982,7 @@ fn compute_explain_flow(
     //   * neither → built-in walker alone.
     let mut used_tshark = false;
     let flows = if tshark_filter.is_empty() {
-        let mut flows = extract_flows(pcap_bytes)?;
+        let mut flows = extract_flows(pcap_bytes).map_err(|e| e.to_string())?;
         if use_tshark && tshark_available() {
             used_tshark = enrich_with_tshark(&mut flows, pcap_path, keylog_path, "");
         }

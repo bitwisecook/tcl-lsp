@@ -11,6 +11,7 @@ pub mod apl;
 pub mod canonical;
 pub mod cleanup;
 pub mod convert;
+pub mod error;
 pub mod f5_trailer;
 pub mod flow;
 pub mod graph;
@@ -33,4 +34,5 @@ pub mod validator;
 pub mod value;
 pub mod wireshark_profile;
 
+pub use error::BigipError;
 pub use range::{Position, Range};

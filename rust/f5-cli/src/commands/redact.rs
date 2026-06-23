@@ -92,7 +92,7 @@ pub fn run_redact(
     if let Some(mp) = map_path.as_ref().filter(|mp| mp.is_file()) {
         let loaded = std::fs::read_to_string(mp)
             .map_err(|e| e.to_string())
-            .and_then(|text| RedactionMap::from_toml(&text));
+            .and_then(|text| RedactionMap::from_toml(&text).map_err(|e| e.to_string()));
         match loaded {
             Ok(rm) => existing_map = Some(rm),
             Err(e) => {
