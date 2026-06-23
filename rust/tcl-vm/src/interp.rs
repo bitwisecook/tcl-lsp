@@ -1300,9 +1300,42 @@ impl Vm {
         )
     }
 
+    /// Resolve `name` to the `(frame, local-name)` owning its cell, mirroring
+    /// the scalar write path — the key for constant tracking (TIP 677).
+    fn const_slot(&self, name: &str) -> (usize, String) {
+        let resolved = self.ns_var_fallback(name);
+        self.locate(resolved.as_deref().unwrap_or(name))
+    }
+
+    /// Mark `name`'s scalar cell as a `const` (immutable).
+    pub(crate) fn mark_constant(&mut self, name: &str) {
+        let (lvl, nm) = self.const_slot(name);
+        if let Some(f) = self.frames.get_mut(lvl) {
+            f.consts.insert(nm);
+        }
+    }
+
+    /// Whether `name` resolves to a `const` cell.
+    pub(crate) fn is_constant(&self, name: &str) -> bool {
+        let (lvl, nm) = self.const_slot(name);
+        self.frames.get(lvl).is_some_and(|f| f.consts.contains(&nm))
+    }
+
+    /// The `const` names visible in the current frame matching `info consts`.
+    pub(crate) fn constant_names(&self) -> Vec<String> {
+        let lvl = self.frames.len().saturating_sub(1);
+        self.frames
+            .get(lvl)
+            .map(|f| f.consts.iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
     /// Write a scalar, firing `write` traces afterwards (the old value is
     /// restored if a trace callback aborts the write).
     pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
+        if self.is_constant(name) {
+            return Err(err(format!("can't set \"{name}\": variable is a constant")));
+        }
         if self.scalar_write_hits_array(name) {
             return Err(err(format!("can't set \"{name}\": variable is array")));
         }
@@ -1360,6 +1393,15 @@ impl Vm {
             && open > 0
         {
             self.array_unset_elem(&name[..open], &name[open + 1..name.len() - 1]);
+            return Ok(());
+        }
+        // A constant cannot be unset; `-nocomplain` leaves it intact (var-26.12).
+        if self.is_constant(name) {
+            if complain {
+                return Err(err(format!(
+                    "can't unset \"{name}\": variable is a constant"
+                )));
+            }
             return Ok(());
         }
         if !self.unset_var(name) && complain {

@@ -119,6 +119,19 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "vars" => ok(tcl_cmd_core::info::vars(vm, rest.first())),
         "locals" => ok(tcl_cmd_core::info::locals(vm, rest.first())),
         "globals" => ok(tcl_cmd_core::info::globals(vm, rest.first())),
+        // `info constant name` — whether `name` is a `const`; `info consts
+        // ?pattern?` — the constant names in scope (glob-filtered).
+        "constant" => match rest {
+            [name] => ok(Value::bool(vm.is_constant(&name.to_str()))),
+            _ => err("wrong # args: should be \"info constant varname\""),
+        },
+        "consts" => {
+            let names = vm.constant_names().into_iter().filter(|n| {
+                rest.first()
+                    .is_none_or(|p| tcl_syntax::glob::string_match(&p.to_str(), n))
+            });
+            ok(Value::list(names.map(Value::string).collect()))
+        }
         // body/args/default route through the shared `info` core over the `Procs`
         // role trait; the var-write for `default` stays here (it is trace-aware).
         "body" => match rest {
