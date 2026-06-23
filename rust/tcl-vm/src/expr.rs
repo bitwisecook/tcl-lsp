@@ -8,6 +8,7 @@
 
 use std::cmp::Ordering;
 
+use tcl_runtime_api::Code;
 use tcl_syntax::expr::{BinOp, ExprOps, UnaryOp};
 use tcl_syntax::number::{self, Number};
 
@@ -319,7 +320,18 @@ impl ExprOps for ExprEval<'_> {
     }
 
     fn command(&mut self, script: &str) -> Result<Value, TclError> {
-        self.vm.eval_source(script).map(|c| c.result)
+        // A command substitution inside an expression yields the command's result
+        // *only* when it completes normally; otherwise the completion must
+        // propagate, not be taken as the value — otherwise `expr {[error msg]}`
+        // would silently evaluate to the string "msg" (if-5.2). An error becomes a
+        // plain `TclError`; a `break`/`continue`/`return` escaping the substitution
+        // carries its code so the enclosing construct sees it.
+        let c = self.vm.eval_source(script)?;
+        match c.code {
+            Code::Ok => Ok(c.result),
+            Code::Error => Err(TclError::new(c.result.to_str().to_string())),
+            code => Err(TclError::with_code(c.result.to_str().to_string(), code)),
+        }
     }
 
     fn call(&mut self, function: &str, args: Vec<Value>) -> Result<Value, TclError> {
