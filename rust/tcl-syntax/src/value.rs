@@ -61,9 +61,22 @@ impl ValueError {
     #[must_use]
     pub fn message(&self) -> String {
         match self {
-            ValueError::NotInteger(s) => format!("expected integer but got \"{s}\""),
-            ValueError::NotDouble(s) => format!("expected floating-point number but got \"{s}\""),
-            ValueError::NotBoolean(s) => format!("expected boolean value but got \"{s}\""),
+            ValueError::NotInteger(s) => {
+                format!(
+                    "expected integer but got {}",
+                    crate::list::describe_bad_value(s)
+                )
+            }
+            ValueError::NotDouble(s) => format!(
+                "expected floating-point number but got {}",
+                crate::list::describe_bad_value(s)
+            ),
+            ValueError::NotBoolean(s) => {
+                format!(
+                    "expected boolean value but got {}",
+                    crate::list::describe_bad_value(s)
+                )
+            }
             ValueError::BadList(msg) => msg.clone(),
             ValueError::IntegerOverflow => "integer value too large to represent".to_string(),
         }
