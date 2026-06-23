@@ -528,8 +528,8 @@ exist yet — the verification-status table follows the list.
    `reparse_window`'s windowed re-lex that has no consumer.) *When unblocked, the
    gate:* dirty-span re-lex byte-identical to a full re-lex over the edit-fuzz corpus.
 
-6. **Cross-file cascade** *(cross-file W123 **SHIPPED**; arity / classes are the
-   remaining extensions).* Lift the project signature table into salsa
+6. **Cross-file cascade** *(cross-file W123 + arity **SHIPPED**; classes are the
+   remaining extension).* Lift the project signature table into salsa
    (`project_signatures` over per-file `file_decls`), make cross-file resolution
    tracked queries (reverse-dependency invalidation then falls out of salsa), and
    apply the E4/E8 input-setting discipline project-wide.
@@ -542,27 +542,34 @@ exist yet — the verification-status table follows the list.
      recomputes it zero times; a decl change, once).
    - `project_diagnostics(file, config, project)` — a **separate query off the
      paramount `file_analysis` path** (so a signature change elsewhere can't regress
-     this file's time-to-first-tokens) that suppresses **W123 (unknown command)**
-     for a command defined as a `proc` anywhere in the workspace, via
-     `project_proc_tails` + `suppress_cross_file_w123` (mirrors the analyser's own
-     `proc_tail_names` suppression, extended across files).
+     this file's time-to-first-tokens) that, via `project_proc_arities` +
+     `apply_cross_file_resolution`: (a) suppresses **W123 (unknown command)** for a
+     command defined as a `proc` anywhere in the workspace (mirrors the analyser's
+     own `proc_tail_names` suppression, extended across files); and (b) emits
+     **W124 (wrong # args)** when such a call's argument count fits *none* of that
+     proc's arities. Conservative: a `{*}`-expanded call (`argc` unknown) or a
+     tail-name collision where any candidate accepts the count emits nothing.
+     Per-call-site `argc` is recorded on `SignatureCommandInvocation`; arities come
+     from `item_sigs` params (required params set the min; a trailing `args` is
+     unbounded).
    - **Live server wiring:** the server maintains the `Project` input in lock-step
      with `db_files` (re-set only on open/close); both diagnostics paths
      (`run_diagnostics_core` push + `full_diagnostics_for` pull) consume it behind
      the existing `xcDiagnostics` opt-in — off ⇒ zero behaviour change.
    - **Soundness gates built:** the multi-file `incremental == fresh` fuzzer
      (`project_diagnostics_incremental_matches_fresh_under_edits` — 60 edits to the
-     defining file, caller's diagnostics always match a fresh rebuild) + a focused
-     suppression test + an end-to-end server test
+     defining file, caller's diagnostics always match a fresh rebuild) + focused
+     W123-suppression and W124-arity tests
+     (`project_diagnostics_suppresses_cross_file_w123`,
+     `project_diagnostics_emits_cross_file_arity`) + an end-to-end server test
      (`cross_file_w123_suppressed_when_workspace_defines_proc`). ci-fast (805 e2e)
      green; no regression.
 
    *Remaining extensions (not blockers — the cross-file machinery + its fuzzer
-   now exist):* cross-file **arity** (W124) needs a per-symbol signature query
-   carrying params (not just names); cross-file **class / ensemble** resolution
-   (today `project_proc_names` is procs only); a per-symbol `signature(qname)`
-   query for finer-than-whole-set invalidation; and broadening the multi-file
-   fuzzer to a corpus-scale differential for the heuristic-edge risk.
+   now exist):* cross-file **class / ensemble** resolution (today the resolution
+   domain is procs only); a per-symbol `signature(qname)` query for
+   finer-than-whole-project-set invalidation; and broadening the multi-file fuzzer
+   to a corpus-scale differential for the heuristic-edge risk.
 
 7. **(Optional, late) rope-backed store + chunk-addressable salsa input** *(XL,
    gated).* The demoted SRV-ROPE work — full sub-task breakdown and measurements in
@@ -613,7 +620,8 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | Task 6 cross-file salsa *mechanics* (cycle convergence, reverse-dep precision, body-edit cutoff) | **measured + verified** (spike) | `experiment-xfile/` — A↔B cycle → (5,5) no panic; sig change → exactly N+1 dependents; body change → 0 |
 | Task 6 step 1: `project_proc_names` (cross-file resolution domain) firewalls on the real graph | **measured + verified** | `project_proc_names_firewall` — body edit re-runs it 0×, decl change 1× (in `tcl-lsp-db`, on `file_decls`) |
 | **Task 6 cross-file W123 SHIPPED** — `project_diagnostics` suppresses unknown-command warnings for workspace-defined procs; live in the server (push + pull), `xcDiagnostics`-gated | **measured + verified** | multi-file `incremental == fresh` fuzzer (60 edits) + focused + end-to-end server test; ci-fast (805 e2e) green, off-by-default ⇒ no regression |
-| Task 6 cross-file **arity / classes** + corpus-scale heuristic-edge correctness | **hypothesis** | needs a per-symbol signature query (params) + a corpus-scale multi-file differential — the W123 fuzzer exists; these extensions don't |
+| **Task 6 cross-file arity (W124) SHIPPED** — wrong-arg-count to a workspace proc; W123 suppressed when resolved | **measured + verified** | `project_diagnostics_emits_cross_file_arity` (3 args to a 2-param proc → W124 + W123 suppressed; correct count → neither); conservative on `{*}` / tail collisions |
+| Task 6 cross-file **classes / ensembles** + corpus-scale heuristic-edge correctness | **hypothesis** | resolution domain is procs only; needs a per-symbol signature query + a corpus-scale multi-file differential |
 
 Differential-fuzzer coverage **today**:
 
