@@ -63,7 +63,7 @@ pub fn implementation(
     }
 
     // Case 2/3: the word names a method
-    let cursor = byte_offset_at(source, line, character);
+    let cursor = byte_offset_at(&line_index, source, line, character);
     let enclosing = enclosing_class(analysis, cursor);
 
     match enclosing {

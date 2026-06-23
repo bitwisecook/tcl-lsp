@@ -524,7 +524,8 @@ fn variable_completions(
     let edit_start = dollar.map(|d| char_col_to_utf16(line_text, d));
     let edit_end = char_col_to_utf16(line_text, end);
 
-    let byte_offset = crate::definition::byte_offset_at(source, line, character);
+    let line_index = tcl_lexer::LineIndex::new(source);
+    let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
 
     // Array-element completion: `$arr(` / `$arr(prefix` — offer the recorded
     // indices of `arr` as `$arr(index)`.

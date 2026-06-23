@@ -99,13 +99,17 @@ pub fn hover(
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
 ) -> Option<Hover> {
+    // One index shared by the position conversions below.
+    let line_index = tcl_lexer::LineIndex::new(source);
+
     // Variable hover takes precedence — `$var` resolution sits
     // at a position where `find_word_span_at_position` would
     // also match the unqualified name, but a `$`-led ref should
     // surface the [`VarDef`] not the (typically absent) proc of
     // the same name.
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        let var_byte_offset = crate::definition::byte_offset_at(source, line, character);
+        let var_byte_offset =
+            crate::definition::byte_offset_at(&line_index, source, line, character);
         // Use the byte-offset scope-chain lookup (the local line-based helper
         // mis-resolves namespace/proc-scoped vars).
         if let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
@@ -186,7 +190,7 @@ pub fn hover(
     // a one-line method / property summary.  Fires when the
     // cursor sits inside a class body and `word` matches one
     // of that class's members.
-    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some(text) = class_member_hover_text(analysis, &word, cursor_offset) {
         return Some(Hover::markdown(text));
     }

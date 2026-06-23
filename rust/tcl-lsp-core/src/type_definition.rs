@@ -45,7 +45,7 @@ pub fn type_definition(
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
-    let cursor = byte_offset_at(source, line, character);
+    let cursor = byte_offset_at(&line_index, source, line, character);
     if let Some(cd) = innermost_class_containing(analysis, cursor)
         && (cd.methods.contains_key(&word) || cd.class_methods.contains_key(&word))
     {

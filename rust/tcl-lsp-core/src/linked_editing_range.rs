@@ -53,8 +53,8 @@ pub fn linked_editing_ranges(
     analysis: &AnalysisResult,
 ) -> Option<LinkedEditingRanges> {
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
-    let proc = cursor_proc(source, line, character, &word, analysis)?;
     let line_index = LineIndex::new(source);
+    let proc = cursor_proc(&line_index, source, line, character, &word, analysis)?;
 
     let mut ranges: Vec<LspRange> = Vec::new();
     ranges.push(span_to_range(source, &line_index, proc.name_span));
@@ -91,13 +91,14 @@ pub fn linked_editing_ranges(
 /// span or anywhere in its body.  Matches the proc by short or
 /// qualified name.
 fn cursor_proc<'a>(
+    line_index: &LineIndex,
     source: &str,
     line: u32,
     character: u32,
     word: &str,
     analysis: &'a AnalysisResult,
 ) -> Option<&'a ProcDef> {
-    let byte_offset = crate::definition::byte_offset_at(source, line, character);
+    let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     for proc in analysis.all_procs.values() {
         if proc.name != word && proc.qualified_name != word {
             continue;

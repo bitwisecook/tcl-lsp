@@ -47,9 +47,9 @@ pub fn declaration(
     };
     let target = bare_name(&var_name);
 
-    let cursor = byte_offset_at(source, line, character);
-    let visible = scope_body_spans_at(&analysis.global_scope, cursor);
     let line_index = LineIndex::new(source);
+    let cursor = byte_offset_at(&line_index, source, line, character);
+    let visible = scope_body_spans_at(&analysis.global_scope, cursor);
 
     // Regions to scan: each visible scope body, or the whole file when
     // the cursor sits at global scope (no enclosing body span).

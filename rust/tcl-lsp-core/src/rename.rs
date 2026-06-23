@@ -139,7 +139,7 @@ pub fn prepare_rename(
     let line_index = LineIndex::new(source);
     // Variable?
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        let byte_offset = crate::definition::byte_offset_at(source, line, character);
+        let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
         if let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
             &analysis.global_scope,
             byte_offset,
@@ -153,7 +153,7 @@ pub fn prepare_rename(
     }
     // Variable definition site (`set x` / `variable x`) — no `$`, so resolve
     // by the declaration span covering the cursor.
-    let def_byte = crate::definition::byte_offset_at(source, line, character);
+    let def_byte = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some(var_name) =
         crate::definition::var_name_at_definition_offset(&analysis.global_scope, def_byte)
         && let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
@@ -187,7 +187,7 @@ pub fn prepare_rename(
         }
     }
     // Method / classmethod / property inside a class body?
-    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     for class_def in analysis.all_classes.values() {
         let body = class_def.body_span;
         if !(body.start() < cursor_offset && cursor_offset < body.end()) {
@@ -278,7 +278,7 @@ pub fn rename(
     // Definition-site rename: the cursor sits on a `set x` / `variable x`
     // declaration name (no `$`), so the `$ref` scan above missed it.  Resolve
     // the variable by the declaration span that covers the cursor.
-    let def_byte = crate::definition::byte_offset_at(source, line, character);
+    let def_byte = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some(var_name) =
         crate::definition::var_name_at_definition_offset(&analysis.global_scope, def_byte)
     {
@@ -325,7 +325,7 @@ pub fn rename(
     }
     // Method rename — match `word` against any class's methods
     // / classmethods / properties at the cursor's byte offset.
-    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some(edits) = rename_method(
         source,
         dialect,
@@ -384,7 +384,7 @@ fn rename_var(
     line_index: &LineIndex,
     var_name: &str,
 ) -> Vec<TextEdit> {
-    let byte_offset = crate::definition::byte_offset_at(source, line, character);
+    let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     let Some(var_def) =
         crate::definition::lookup_var_in_scope_chain(&analysis.global_scope, byte_offset, var_name)
     else {

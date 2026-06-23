@@ -71,7 +71,7 @@ pub fn prepare(
     }
     // Class-method fallback — cursor inside a class body on a
     // method / classmethod name.
-    let cursor_offset = crate::definition::byte_offset_at(source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some((class_def, method)) = enclosing_class_method(analysis, &word, cursor_offset) {
         return vec![item_for_method(source, class_def, method, &line_index)];
     }
