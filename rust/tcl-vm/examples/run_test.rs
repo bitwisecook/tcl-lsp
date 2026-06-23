@@ -78,6 +78,12 @@ fn run() -> i32 {
 
     let mut vm = Vm::with_output(Box::new(Stdout));
     vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    // Install the autoloader so library procs (word.tcl, …) resolve on demand,
+    // like `tclsh` after `init.tcl`.
+    let init = vm.init_auto_load();
+    if !init.code.is_ok() {
+        eprintln!("auto-load bootstrap error: {}", init.result.to_str());
+    }
     let c = vm.run_module(&asm);
     if c.code.is_ok() {
         0

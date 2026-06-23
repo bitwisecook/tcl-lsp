@@ -25,6 +25,45 @@ use crate::value::Value;
 /// A deeper nesting is a catchable error, not a native stack overflow.
 pub(crate) const RECURSION_LIMIT: usize = 1000;
 
+/// The on-demand autoloader bootstrap (see [`Vm::init_auto_load`]). A focused
+/// subset of C's `init.tcl`: `auto_load_index` reads each `tclIndex` on
+/// `auto_path` (which sets `auto_index(cmd)` to a `::tcl::Pkg::source <file>`
+/// loader), `auto_load` evaluates that loader on first reference, and `unknown`
+/// drives it — erroring `invalid command name` when no loader applies. No
+/// auto-exec of external programs (the VM is not a shell).
+const AUTO_LOAD_BOOTSTRAP: &str = r#"
+namespace eval ::tcl::Pkg {}
+proc ::tcl::Pkg::source {file} { uplevel #0 [list source $file] }
+proc auto_load_index {} {
+    global auto_index dir
+    foreach dir $::auto_path {
+        set f [file join $dir tclIndex]
+        if {[file exists $f]} { source $f }
+    }
+}
+proc auto_load {cmd args} {
+    global auto_index
+    if {![info exists auto_index]} { auto_load_index }
+    set bare [string trimleft $cmd :]
+    foreach name [list $cmd ::$bare $bare] {
+        if {[info exists auto_index($name)]} {
+            uplevel #0 $auto_index($name)
+            if {[llength [info commands $cmd]]} { return 1 }
+            if {[llength [info commands ::$bare]]} { return 1 }
+        }
+    }
+    return 0
+}
+proc unknown {cmd args} {
+    if {[auto_load $cmd]} {
+        return [uplevel 1 [linsert $args 0 $cmd]]
+    }
+    return -code error -errorcode [list TCL LOOKUP COMMAND $cmd] \
+        "invalid command name \"$cmd\""
+}
+if {![info exists ::auto_path]} { set ::auto_path [list [info library]] }
+"#;
+
 /// Build an `OK` completion (empty options dict).
 pub(crate) fn ok(result: Value) -> Completion<Value> {
     Completion::new(Code::Ok, result, Value::empty())
@@ -264,6 +303,21 @@ impl Vm {
         // load time, so default it to "" rather than leaving it unset.
         let tcl_library = std::env::var("TCL_LIBRARY").unwrap_or_default();
         self.write_scalar_raw("tcl_library", Value::string(tcl_library));
+    }
+
+    /// Install the on-demand autoloader: `unknown` / `auto_load` /
+    /// `auto_load_index` procs plus `auto_path`, so an unresolved command is
+    /// looked up in the library's `tclIndex` and its defining file sourced
+    /// (`word.tcl`, etc.) — the mechanism C bootstraps in `init.tcl`. The VM has
+    /// no full `init.tcl` path, so this is a focused subset: it does auto-load
+    /// (no auto-exec of external programs) and otherwise errors `invalid command
+    /// name`, matching C's miss. Requires a compiler (uses `eval_source`); call
+    /// after [`Self::set_compiler`]. Returns the bootstrap's completion.
+    pub fn init_auto_load(&mut self) -> Completion<Value> {
+        match self.eval_source(AUTO_LOAD_BOOTSTRAP) {
+            Ok(c) => c,
+            Err(e) => err(e.message),
+        }
     }
 
     /// Install a debug hook fired once per source command (the execution-control

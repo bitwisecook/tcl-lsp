@@ -116,6 +116,8 @@ fn usage() {
 fn new_vm() -> Vm {
     let mut vm = Vm::with_output(Box::new(Stdout));
     vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    // Install the on-demand autoloader so library procs (word.tcl, …) resolve.
+    let _ = vm.init_auto_load();
     vm
 }
 
