@@ -41,6 +41,11 @@ pub struct ProcDef {
     /// now avoids a frame/proc-model rework when `info` lands.
     #[allow(dead_code)]
     pub body_src: Value,
+    /// Overrides the leading token of the `wrong # args` usage message. `None`
+    /// uses the (simple) proc name; `apply` sets `"apply lambdaExpr"` so the
+    /// message reads `wrong # args: should be "apply lambdaExpr …"` rather than
+    /// leaking the internal temp proc name (apply-4.*).
+    pub usage_name: Option<String>,
 }
 
 /// A registered command.
@@ -282,6 +287,7 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         has_args,
         body: body_asm,
         body_src: body,
+        usage_name: Some("apply lambdaExpr".to_string()),
     });
     let mut words = Vec::with_capacity(call_args.len() + 1);
     words.push(Value::string(name.as_str()));
@@ -634,6 +640,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         has_args,
         body,
         body_src: body_text.clone(),
+        usage_name: None,
     });
     ok(Value::empty())
 }
