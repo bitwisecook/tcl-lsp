@@ -31,43 +31,119 @@ C_REF = REPO / "tests" / "baselines" / "tcl9-tcltest" / "c-tclsh.ndjson"
 TIERS: dict[str, list[str]] = {
     "1": [
         # parser / lexer / word-level
-        "parse", "parseOld", "parseExpr", "word", "subst",
+        "parse",
+        "parseOld",
+        "parseExpr",
+        "word",
+        "subst",
         # bytecode compiler & VM internals
-        "compile", "execute", "basic", "misc", "compExpr", "compExpr-old",
-        "appendComp", "lsetComp", "regexpComp", "assemble", "obj", "nre",
+        "compile",
+        "execute",
+        "basic",
+        "misc",
+        "compExpr",
+        "compExpr-old",
+        "appendComp",
+        "lsetComp",
+        "regexpComp",
+        "assemble",
+        "obj",
+        "nre",
         # eval / control flow / errors
-        "eval", "if", "if-old", "for", "for-old", "foreach", "while",
-        "while-old", "switch", "error", "result",
+        "eval",
+        "if",
+        "if-old",
+        "for",
+        "for-old",
+        "foreach",
+        "while",
+        "while-old",
+        "switch",
+        "error",
+        "result",
         # expressions & math
-        "expr", "expr-old", "mathop", "incr", "incr-old",
+        "expr",
+        "expr-old",
+        "mathop",
+        "incr",
+        "incr-old",
         # procs / scope / namespaces
-        "proc", "proc-old", "apply", "uplevel", "upvar", "namespace",
-        "namespace-old", "var",
+        "proc",
+        "proc-old",
+        "apply",
+        "uplevel",
+        "upvar",
+        "namespace",
+        "namespace-old",
+        "var",
         # introspection / runtime services
-        "info", "cmdInfo", "trace", "rename", "unknown",
+        "info",
+        "cmdInfo",
+        "trace",
+        "rename",
+        "unknown",
         # non-I/O data commands — strings
-        "string", "set", "set-old", "append", "format", "scan", "split",
-        "join", "concat", "regexp", "stringObj", "dstring",
+        "string",
+        "set",
+        "set-old",
+        "append",
+        "format",
+        "scan",
+        "split",
+        "join",
+        "concat",
+        "regexp",
+        "stringObj",
+        "dstring",
         # lists
-        "list", "lindex", "linsert", "llength", "lrange", "lrepeat",
-        "lreplace", "lsearch", "lset", "lmap", "lpop", "lseq", "listObj",
-        "listRep", "abstractlist",
+        "list",
+        "lindex",
+        "linsert",
+        "llength",
+        "lrange",
+        "lrepeat",
+        "lreplace",
+        "lsearch",
+        "lset",
+        "lmap",
+        "lpop",
+        "lseq",
+        "listObj",
+        "listRep",
+        "abstractlist",
         # grouped command suites + helpers
-        "cmdAH", "cmdIL", "cmdMZ", "util", "dict", "indexObj", "get", "assocd",
+        "cmdAH",
+        "cmdIL",
+        "cmdMZ",
+        "util",
+        "dict",
+        "indexObj",
+        "get",
+        "assocd",
     ],
     "2": [
-        "coroutine", "tailcall", "interp", "binary",
-        "oo", "ooNext2", "ooProp", "ooUtil",
+        "coroutine",
+        "tailcall",
+        "interp",
+        "binary",
+        "oo",
+        "ooNext2",
+        "ooProp",
+        "ooUtil",
     ],
     "3": [
-        "encoding", "utf", "clock", "msgcat",
-        "safe", "safe-stock", "safe-stock86", "safe-zipfs",
+        "encoding",
+        "utf",
+        "clock",
+        "msgcat",
+        "safe",
+        "safe-stock",
+        "safe-stock86",
+        "safe-zipfs",
     ],
 }
 
-SUMMARY_RE = re.compile(
-    r"Total\s+(\d+)\s+Passed\s+(\d+)\s+Skipped\s+(\d+)\s+Failed\s+(\d+)"
-)
+SUMMARY_RE = re.compile(r"Total\s+(\d+)\s+Passed\s+(\d+)\s+Skipped\s+(\d+)\s+Failed\s+(\d+)")
 
 
 def load_c_ref() -> dict[str, tuple[int, int, int, int]]:
@@ -128,7 +204,9 @@ def main() -> int:
     args = ap.parse_args()
 
     if not RUN_TEST.exists():
-        print(f"run_test not built: {RUN_TEST}\n  build: cargo build --release -p tcl-vm --example run_test")
+        print(
+            f"run_test not built: {RUN_TEST}\n  build: cargo build --release -p tcl-vm --example run_test"
+        )
         return 2
 
     cref = load_c_ref()
