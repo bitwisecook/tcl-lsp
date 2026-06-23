@@ -262,11 +262,17 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("apply: could not compile lambda body");
     };
     // The optional third element is the namespace the body runs in (default
-    // global). Strip a leading `::` to the canonical form.
+    // global). Strip a leading `::` to the canonical form. A named namespace
+    // must already exist (apply-3.*); the message quotes the spelling given.
     let namespace = parts
         .get(2)
         .map(|v| v.to_str().trim_start_matches("::").to_string())
         .unwrap_or_default();
+    if let Some(ns_arg) = parts.get(2)
+        && !vm.namespace_exists(&namespace)
+    {
+        return err(format!("namespace \"{}\" not found", ns_arg.to_str()));
+    }
 
     let name = fresh_apply_name();
     vm.define_proc(ProcDef {
