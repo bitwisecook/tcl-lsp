@@ -26,39 +26,45 @@ uv run --with wasmtime python host.py \
     ../../rust/.../tcl_runtime.wasm simple_top.wasm
 ```
 
-## Status — WORKING for simple computational scripts
+## Status — WORKING incl. arithmetic, bignums, and conditions
 
-A simple AOT-compiled script runs **correctly** end to end:
+An AOT-compiled script runs **correctly** end to end, including the numeric
+tower and structured control flow:
 
 ```
 set x 41 ; incr x                         ->  x = 42
-set greeting "hello world"
-set n [string length $greeting]           ->  n = 11   (command subst works)
+set n [string length "hello world"]       ->  n = 11   (command subst works)
 set doubled [string repeat ab 3]          ->  doubled = ababab
+set product [expr {6 * 7}]                ->  product = 42      (expr tower)
+set big [expr {2 ** 70}]                  ->  big = 1180591620717411303424 (bignum)
+if {$product == 42} { ... }               ->  taken              (condition)
+while {$i <= 5} { ... }                   ->  total = 15, i = 6  (loop condition)
 ```
 
 The emitted `::top` links against the real runtime in one wasmtime instance,
-shares the runtime's linear memory, and its eval-fallback `tcl_eval` calls
-execute genuine Tcl with persistent side effects.
+shares the runtime's linear memory, and its eval-fallback `tcl_eval` calls (and
+`tcl_expr_bool` condition checks) execute genuine Tcl with persistent side
+effects.
 
-Two fixes got it there:
+Three fixes got it there:
 1. `codegen_abi.rs` — `CURRENT_INTERP` is a single-threaded `AtomicPtr` global on
    wasm32 (the `thread_local!` reads an uninitialised `__tls_base` in the bare
    wasip1 cdylib and never observes `set_current_interp`).
 2. `emit_wasm` relocates the constant pool to `RESERVED_DATA_BASE` — at base 0
    the first boxed command sits at offset 0, and `tcl_obj_new_string(ptr=0, …)`
    is read as a null/empty pointer, silently dropping that command.
+3. `runtime/rust/build.rs` cross-compiles libtommath to `wasm32-wasi` with
+   `zig cc`/`zig ar` and sets `have_tommath` on wasm — so the numeric tower
+   (`expr`, `::tcl::math*`, `lseq`, the bignum obj rep) is present on wasm, and
+   `tcl_expr_bool` uses the real evaluator (AOT `if`/`while` conditions, which
+   previously always read false on the tower-less wasm build, now work).
 
-## Open (runtime command/IO gaps, not AOT-pipeline gaps)
+## Open (runtime IO gap, not an AOT-pipeline gap)
 
-- **`expr` command unregistered** — `expr 1+1` → `invalid command name "expr"`,
-  so arithmetic via `expr` (and `tcl_expr_bool`) fails. `incr`/`string`/`set`/
-  `list` work.
 - **`puts` → WASI stdout not wired** — `puts` runs but emits no output.
 
 ## Next step
 
-Close the two runtime gaps (register `expr`; wire `puts`/channels to WASI
-`fd_write`), broaden the script set, add `errorInfo`/framing checks, then move
-from this dynamic-link host to the single self-contained binary (static link
-via `wasm-ld`, see `../static-link/`).
+Wire `puts`/channels to WASI `fd_write` so output is visible, broaden the script
+set / framing checks, then move from this dynamic-link host to the single
+self-contained binary (static link via `wasm-ld`, see `../static-link/`).

@@ -152,7 +152,10 @@ pub unsafe extern "C" fn tcl_obj_release(obj: *mut TclObj) {
 
 /// `tcl_expr_bool(expr) -> i32` — evaluate `expr` as a Tcl boolean (`1`/`0`).
 /// **Adopts (frees)** the `rc 0` `expr`. On an expression error — or in a build
-/// without the numeric tower (wasm32 today, no `expr` evaluator) — yields `0`.
+/// without the numeric tower (no `expr` evaluator) — yields `0`. The wasm
+/// runtime now links libtommath (`build.rs`), so `have_tommath` is set and this
+/// uses the real evaluator there too — AOT-emitted `if`/`while` conditions
+/// evaluate correctly.
 ///
 /// # Safety
 /// `expr` must be a live `rc 0` object from [`tcl_obj_new_string`]; the current
@@ -182,8 +185,10 @@ unsafe fn expr_bool_impl(interp: *mut Interp, expr: *mut TclObj) -> i32 {
 }
 
 /// Without the numeric tower there is no `expr` evaluator (the `expr` module is
-/// `have_tommath`-gated), so conditions evaluate false until tommath-on-wasm32
-/// lands. The export still exists so emitted modules link.
+/// `have_tommath`-gated), so conditions evaluate false. This branch now only
+/// applies to a build that deliberately omits the tower (e.g. a wasm build where
+/// `zig`/libtommath was unavailable and `build.rs` degraded the backend off).
+/// The export still exists so emitted modules link.
 ///
 /// # Safety
 /// Trivially safe (dereferences nothing).
