@@ -234,6 +234,11 @@ pub(crate) fn fold_split(args: &[&str]) -> Option<String> {
     Some(list_join(&pieces))
 }
 
+/// Cap on a single constant-fold's materialised output (1 MiB) — bound the
+/// product (count × element bytes), not just the count, so large elements
+/// can't blow up the fold.
+const MAX_FOLD_OUTPUT_BYTES: usize = 1 << 20;
+
 /// `lrepeat count ?element ...?`.
 pub(crate) fn fold_lrepeat(args: &[&str]) -> Option<String> {
     if args.len() < 2 {
@@ -244,6 +249,10 @@ pub(crate) fn fold_lrepeat(args: &[&str]) -> Option<String> {
         return None; // sanity cap
     }
     let elems = &args[1..];
+    let elem_bytes: usize = elems.iter().map(|e| e.len() + 1).sum();
+    if elem_bytes.checked_mul(count).is_none_or(|bytes| bytes > MAX_FOLD_OUTPUT_BYTES) {
+        return None;
+    }
     let repeated: Vec<&str> = (0..count).flat_map(|_| elems.iter().copied()).collect();
     Some(list_join(&repeated))
 }

@@ -214,10 +214,13 @@ pub fn format_function_asm(asm: &FunctionAsm) -> String {
 
     lines.push("  Instructions:".into());
 
-    // Build offset→labels map
+    // Build offset→labels map; names sorted within an offset for determinism.
     let mut off2labels: HashMap<usize, Vec<&str>> = HashMap::new();
     for (label, &off) in &asm.labels {
         off2labels.entry(off).or_default().push(label.as_str());
+    }
+    for labels in off2labels.values_mut() {
+        labels.sort_unstable();
     }
 
     for instr in &asm.instructions {
@@ -257,8 +260,12 @@ pub fn format_function_asm(asm: &FunctionAsm) -> String {
         if instr.op == Op::JUMP_TABLE
             && let Some(ref jt) = instr.jump_table
         {
-            let entries: Vec<String> = jt
-                .iter()
+            // `jump_table` is a `HashMap`, so sort by pattern for deterministic
+            // output (the table is order-independent at run time).
+            let mut sorted: Vec<(&String, &String)> = jt.iter().collect();
+            sorted.sort_unstable_by(|a, b| a.0.cmp(b.0));
+            let entries: Vec<String> = sorted
+                .into_iter()
                 .map(|(pattern, label)| {
                     let target_pc = asm.labels.get(label.as_str()).copied().unwrap_or(0);
                     format!("\"{}\"->pc {target_pc}", esc(pattern, 40))
