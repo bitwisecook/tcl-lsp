@@ -14,8 +14,8 @@
 //!   force pessimism.
 //! * [`interprocedural`]: thread escapes across call
 //!   edges.
-//! * [`slot_resolution`]: compile-time
-//!   slot indices for proc-locals.
+//! * [`slot_resolution`]: compile-time slot indices for
+//!   proc-locals.
 
 pub mod api;
 pub mod cfg_propagation;
