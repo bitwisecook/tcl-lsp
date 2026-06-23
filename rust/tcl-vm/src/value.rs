@@ -123,8 +123,75 @@ impl Value {
                 *self.0.intrep.borrow_mut() = IntRep::Int(n);
                 Ok(n)
             }
-            _ => Err(TclError::new(format!("expected integer but got \"{s}\""))),
+            _ => Err(TclError::new(format!(
+                "expected integer but got {}",
+                list::describe_bad_value(&s)
+            ))),
         }
+    }
+
+    /// The value truncated to a 64-bit wide (`wide()`): an in-range integer
+    /// as-is, else a bignum literal reduced modulo 2^64 and bit-cast to `i64`
+    /// (two's-complement wrap — what C's `wide()` does, e.g.
+    /// `wide(0x8000000000000000)` is `-9223372036854775808`). The VM has no
+    /// arbitrary-precision rep, so this is the truncating window onto one.
+    pub fn as_wide(&self) -> Result<i64, TclError> {
+        if let Ok(n) = self.as_int() {
+            return Ok(n);
+        }
+        let s = self.to_str();
+        if let Some(Number::Big {
+            negative,
+            radix,
+            digits,
+        }) = number::parse_whole(s.trim())
+        {
+            let base = radix as u32;
+            let mut acc: u64 = 0;
+            for ch in digits.chars() {
+                let d = ch.to_digit(base).unwrap_or(0);
+                acc = acc.wrapping_mul(u64::from(base)).wrapping_add(u64::from(d));
+            }
+            let signed = acc.cast_signed();
+            return Ok(if negative {
+                signed.wrapping_neg()
+            } else {
+                signed
+            });
+        }
+        Err(TclError::new(format!("expected integer but got \"{s}\"")))
+    }
+
+    /// The value as a 128-bit integer, parsing an out-of-`i64`-range integer
+    /// literal whose magnitude fits `i128`. This is the VM's bounded stand-in
+    /// for Tcl's arbitrary-precision integers: it covers the common large-value
+    /// range (`2**70`, `10**21`, …) so `expr`/`mathop` arithmetic promotes on
+    /// `i64` overflow instead of wrapping. `None` for non-integers or magnitudes
+    /// beyond `i128`.
+    #[must_use]
+    pub fn as_i128(&self) -> Option<i128> {
+        if let Ok(n) = self.as_int() {
+            return Some(i128::from(n));
+        }
+        let s = self.to_str();
+        if let Some(Number::Big {
+            negative,
+            radix,
+            digits,
+        }) = number::parse_whole(s.trim())
+        {
+            let base = radix as u32;
+            let mut acc: u128 = 0;
+            for ch in digits.chars() {
+                let d = ch.to_digit(base)?;
+                acc = acc
+                    .checked_mul(u128::from(base))?
+                    .checked_add(u128::from(d))?;
+            }
+            let mag = i128::try_from(acc).ok()?;
+            return Some(if negative { -mag } else { mag });
+        }
+        None
     }
 
     /// The value as a double (`Tcl_GetDoubleFromObj`).
@@ -140,7 +207,8 @@ impl Value {
             Some(Number::Int(n)) => Ok(n as f64),
             Some(Number::Double(f)) => Ok(f),
             _ => Err(TclError::new(format!(
-                "expected floating-point number but got \"{s}\""
+                "expected floating-point number but got {}",
+                list::describe_bad_value(&s)
             ))),
         }
     }
@@ -166,7 +234,8 @@ impl Value {
             "true" | "yes" | "on" => Ok(true),
             "false" | "no" | "off" => Ok(false),
             _ => Err(TclError::new(format!(
-                "expected boolean value but got \"{s}\""
+                "expected boolean value but got {}",
+                list::describe_bad_value(&s)
             ))),
         }
     }

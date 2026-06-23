@@ -57,6 +57,7 @@ fn canon_ns(vm: &Vm, name: &str) -> String {
     vm.qualify_name(name)
 }
 
+#[allow(clippy::too_many_lines)] // One subcommand-dispatch match; splitting obscures it.
 fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"namespace subcommand ?arg ...?\"");
@@ -157,6 +158,28 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             ok(Value::empty())
         }
+        // `namespace path ?nsList?` — get/set the current namespace's command
+        // resolution path. With no list it returns the path as `::`-qualified
+        // names; with a list it sets it (entries canonicalised relative to the
+        // current namespace). lookup_command consults it (mathop, cmdIL).
+        "path" => match rest {
+            [] => ok(Value::list(
+                vm.ns_path_get()
+                    .iter()
+                    .map(|n| Value::string(display_ns(n)))
+                    .collect(),
+            )),
+            [list] => {
+                let elems = match list.as_list() {
+                    Ok(e) => e,
+                    Err(e) => return err(e.message),
+                };
+                let path: Vec<String> = elems.iter().map(|e| canon_ns(vm, &e.to_str())).collect();
+                vm.ns_path_set(path);
+                ok(Value::empty())
+            }
+            _ => err("wrong # args: should be \"namespace path ?nsList?\""),
+        },
         // Accepted no-ops (metadata only, for now).
         "forget" | "ensemble" | "unknown" => ok(Value::empty()),
         other => err(format!(

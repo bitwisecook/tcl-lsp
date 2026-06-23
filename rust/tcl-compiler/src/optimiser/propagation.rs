@@ -709,7 +709,9 @@ fn walk_statement(
                 constants,
             );
         }
-        Statement::AssignExpr { span, name, expr } => {
+        Statement::AssignExpr {
+            span, name, expr, ..
+        } => {
             try_substitute_assign_expr(ctx, *span, name, expr, constants, numeric);
         }
         Statement::If {

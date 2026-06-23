@@ -19,7 +19,7 @@ use crate::obj::TclObj;
 /// Every operator spelling, registered as `::tcl::mathop::<op>`.
 const MATHOPS: &[&str] = &[
     "~", "!", "+", "-", "*", "/", "%", "**", "&", "|", "^", "<<", ">>", "==", "!=", "<", "<=", ">",
-    ">=", "eq", "ne", "in", "ni",
+    ">=", "eq", "ne", "lt", "le", "gt", "ge", "in", "ni",
 ];
 
 /// Register `::tcl::mathop::*`.

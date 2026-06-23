@@ -8,6 +8,7 @@
 
 use std::cmp::Ordering;
 
+use tcl_runtime_api::Code;
 use tcl_syntax::expr::{BinOp, ExprOps, UnaryOp};
 use tcl_syntax::number::{self, Number};
 
@@ -15,23 +16,46 @@ use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
 
-/// A coerced numeric operand.
+/// A coerced numeric operand. `Big` carries an out-of-`i64` integer that still
+/// fits `i128` — the VM's bounded stand-in for Tcl's arbitrary-precision
+/// integers, so arithmetic promotes on overflow instead of wrapping.
 #[derive(Clone, Copy)]
 enum Num {
     Int(i64),
+    Big(i128),
     Dbl(f64),
 }
 
 fn num_f(n: Num) -> f64 {
     match n {
         Num::Int(i) => i as f64,
+        Num::Big(i) => i as f64,
         Num::Dbl(f) => f,
     }
+}
+
+/// The integer (`i128`) view of a non-float operand, for the integer arithmetic
+/// path. `None` for a float (which routes to `dbl_arith`).
+fn num_i128(n: Num) -> Option<i128> {
+    match n {
+        Num::Int(i) => Some(i128::from(i)),
+        Num::Big(i) => Some(i),
+        Num::Dbl(_) => None,
+    }
+}
+
+/// Wrap an `i128` arithmetic result as a value: a plain wide when it fits,
+/// otherwise the decimal string (the VM has no wider integer rep).
+fn int_value(r: i128) -> Value {
+    i64::try_from(r).map_or_else(|_| Value::string(r.to_string()), Value::int)
 }
 
 fn to_num(v: &Value) -> Result<Num, TclError> {
     if let Ok(n) = v.as_int() {
         return Ok(Num::Int(n));
+    }
+    if let Some(b) = v.as_i128() {
+        return Ok(Num::Big(b));
     }
     match v.as_double() {
         Ok(f) => Ok(Num::Dbl(f)),
@@ -49,12 +73,22 @@ fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
     if let Ok(n) = v.as_int() {
         return Ok(Num::Int(n));
     }
+    if let Some(b) = v.as_i128() {
+        return Ok(Num::Big(b));
+    }
     if let Ok(f) = v.as_double() {
         return Ok(Num::Dbl(f));
     }
+    // `nan` (and `±NaN`) is a valid floating-point *value* that simply cannot be
+    // an arithmetic operand — C words that differently from a non-number string.
+    let s = v.to_str();
+    let kind = if matches!(number::parse_whole(s.trim()), Some(Number::Nan { .. })) {
+        "floating-point value"
+    } else {
+        "string"
+    };
     Err(TclError::new(format!(
-        "cannot use non-numeric string \"{}\" as {side} operand of \"{}\"",
-        v.to_str(),
+        "cannot use non-numeric {kind} \"{s}\" as {side} operand of \"{}\"",
         op.as_str()
     )))
 }
@@ -63,8 +97,27 @@ fn divzero() -> TclError {
     TclError::new("divide by zero")
 }
 
+/// The C `IllegalExprOperandType` message for a *unary* operator whose operand
+/// cannot be used: `cannot use <desc> "<v>" as operand of "<op>"`. `<desc>` is
+/// `floating-point value` (a double handed to `~`), `non-numeric floating-point
+/// value` (NaN), `a list` (a multi-element list — phrased without quotes), or
+/// `non-numeric string`. (`errorCode ARITH DOMAIN <desc>` is not threaded here;
+/// the VM does not yet set arith error codes — same as `divide by zero`.)
+fn unary_operand_err(v: &Value, op: &str) -> TclError {
+    let s = v.to_str();
+    if tcl_syntax::list::max_list_length(&s) > 1 && tcl_syntax::list::split_list(&s).is_ok() {
+        return TclError::new(format!("cannot use a list as operand of \"{op}\""));
+    }
+    let desc = match number::parse_whole(s.trim()) {
+        Some(Number::Double(_)) => "floating-point value",
+        Some(Number::Nan { .. }) => "non-numeric floating-point value",
+        _ => "non-numeric string",
+    };
+    TclError::new(format!("cannot use {desc} \"{s}\" as operand of \"{op}\""))
+}
+
 /// Floored integer division (Tcl `/`: rounds toward negative infinity).
-fn fdiv(x: i64, y: i64) -> i64 {
+fn fdiv(x: i128, y: i128) -> i128 {
     let q = x.wrapping_div(y);
     let r = x.wrapping_rem(y);
     if r != 0 && ((r < 0) != (y < 0)) {
@@ -75,7 +128,7 @@ fn fdiv(x: i64, y: i64) -> i64 {
 }
 
 /// Floored integer modulo (Tcl `%`: result takes the sign of the divisor).
-fn fmod_i(x: i64, y: i64) -> i64 {
+fn fmod_i(x: i128, y: i128) -> i128 {
     let r = x.wrapping_rem(y);
     if r != 0 && ((r < 0) != (y < 0)) {
         r + y
@@ -84,7 +137,7 @@ fn fmod_i(x: i64, y: i64) -> i64 {
     }
 }
 
-fn ipow(mut base: i64, mut exp: i64) -> i64 {
+fn ipow(mut base: i128, mut exp: i128) -> i128 {
     if exp < 0 {
         return match base {
             1 => 1,
@@ -98,7 +151,7 @@ fn ipow(mut base: i64, mut exp: i64) -> i64 {
             _ => 0,
         };
     }
-    let mut acc: i64 = 1;
+    let mut acc: i128 = 1;
     while exp > 0 {
         if exp & 1 == 1 {
             acc = acc.wrapping_mul(base);
@@ -111,7 +164,12 @@ fn ipow(mut base: i64, mut exp: i64) -> i64 {
     acc
 }
 
-fn int_arith(op: BinOp, x: i64, y: i64) -> Result<Value, TclError> {
+/// Integer arithmetic in `i128`, narrowing the result to a wide when it fits.
+/// `i64`-range operands and results behave exactly as before; an `i64`-overflow
+/// now promotes (e.g. `2**70`, `9223372036854775807 + 1`) instead of wrapping,
+/// up to the `i128` range (the VM's bounded stand-in for Tcl's bignums — a
+/// genuinely `i128`-overflowing result still wraps, lacking a wider rep).
+fn int_arith(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
     use BinOp::{Add, BitAnd, BitOr, BitXor, Div, LShift, Mod, Mul, Pow, RShift, Sub};
     let r = match op {
         Add => x.wrapping_add(y),
@@ -131,18 +189,18 @@ fn int_arith(op: BinOp, x: i64, y: i64) -> Result<Value, TclError> {
         }
         Pow => ipow(x, y),
         LShift => {
-            if (0..64).contains(&y) {
+            if (0..128).contains(&y) {
                 x.wrapping_shl(u32::try_from(y).unwrap_or(0))
-            } else if y >= 64 {
+            } else if y >= 128 {
                 0
             } else {
                 return Err(TclError::new("negative shift count"));
             }
         }
         RShift => {
-            if (0..64).contains(&y) {
+            if (0..128).contains(&y) {
                 x >> u32::try_from(y).unwrap_or(0)
-            } else if y >= 64 {
+            } else if y >= 128 {
                 if x < 0 { -1 } else { 0 }
             } else {
                 return Err(TclError::new("negative shift count"));
@@ -153,7 +211,7 @@ fn int_arith(op: BinOp, x: i64, y: i64) -> Result<Value, TclError> {
         BitXor => x ^ y,
         _ => return Err(TclError::new("unsupported integer operator")),
     };
-    Ok(Value::int(r))
+    Ok(int_value(r))
 }
 
 fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
@@ -173,21 +231,47 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
     Ok(Value::double(r))
 }
 
+/// The integer-only binary operators: a (valid) floating-point operand is itself
+/// the error (`cannot use floating-point value "x" as <side> operand of "OP"`),
+/// rather than routing to the double path.
+fn is_int_only(op: BinOp) -> bool {
+    use BinOp::{BitAnd, BitOr, BitXor, LShift, Mod, RShift};
+    matches!(op, BitAnd | BitOr | BitXor | LShift | RShift | Mod)
+}
+
+fn float_operand_err(v: &Value, side: &str, op: BinOp) -> TclError {
+    TclError::new(format!(
+        "cannot use floating-point value \"{}\" as {side} operand of \"{}\"",
+        v.to_str(),
+        op.as_str()
+    ))
+}
+
 /// Apply an arithmetic / bitwise / shift binary operator to two values.
 pub fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
-    match (
-        to_num_operand(a, "left", op)?,
-        to_num_operand(b, "right", op)?,
-    ) {
-        (Num::Int(x), Num::Int(y)) => int_arith(op, x, y),
-        (x, y) => dbl_arith(op, num_f(x), num_f(y)),
+    let x = to_num_operand(a, "left", op)?;
+    let y = to_num_operand(b, "right", op)?;
+    match (num_i128(x), num_i128(y)) {
+        // Both operands are integers (in-range or i128-promoted): integer path.
+        (Some(xi), Some(yi)) => int_arith(op, xi, yi),
+        // An integer-only operator with a (valid) float operand: that operand is
+        // the error. Name the offending side (the left operand wins if both are
+        // floats, matching C's left-to-right operand check).
+        _ if is_int_only(op) => {
+            if num_i128(x).is_none() {
+                Err(float_operand_err(a, "left", op))
+            } else {
+                Err(float_operand_err(b, "right", op))
+            }
+        }
+        _ => dbl_arith(op, num_f(x), num_f(y)),
     }
 }
 
 fn num_cmp(x: Num, y: Num) -> Ordering {
-    match (x, y) {
-        (Num::Int(a), Num::Int(b)) => a.cmp(&b),
-        (a, b) => num_f(a).partial_cmp(&num_f(b)).unwrap_or(Ordering::Equal),
+    match (num_i128(x), num_i128(y)) {
+        (Some(a), Some(b)) => a.cmp(&b),
+        _ => num_f(x).partial_cmp(&num_f(y)).unwrap_or(Ordering::Equal),
     }
 }
 
@@ -219,16 +303,43 @@ pub fn compare(op: BinOp, a: &Value, b: &Value) -> Result<bool, TclError> {
 pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
     use UnaryOp::{BitNot, Neg, Not, Pos, WordNot};
     match op {
-        Neg => Ok(match to_num(v)? {
-            Num::Int(n) => Value::int(n.wrapping_neg()),
-            Num::Dbl(f) => Value::double(-f),
-        }),
-        Pos => Ok(match to_num(v)? {
-            Num::Int(n) => Value::int(n),
-            Num::Dbl(f) => Value::double(f),
-        }),
-        BitNot => Ok(Value::int(!v.as_int()?)),
-        Not => Ok(Value::bool(!v.as_bool()?)),
+        // `to_num` promotes an out-of-wide literal to `Big`, so `-2^63` (and the
+        // rest of the i128 range) negates correctly: `int_value` narrows
+        // `-9223372036854775808` back to the most-negative wide. A non-numeric
+        // operand is the C operand-type error (`as operand of "-"`).
+        Neg => match to_num(v) {
+            Ok(Num::Int(n)) => Ok(Value::int(n.wrapping_neg())),
+            Ok(Num::Big(b)) => Ok(int_value(b.wrapping_neg())),
+            Ok(Num::Dbl(f)) => Ok(Value::double(-f)),
+            Err(_) => Err(unary_operand_err(v, "-")),
+        },
+        Pos => match to_num(v) {
+            Ok(Num::Int(n)) => Ok(Value::int(n)),
+            Ok(Num::Big(b)) => Ok(int_value(b)),
+            Ok(Num::Dbl(f)) => Ok(Value::double(f)),
+            Err(_) => Err(unary_operand_err(v, "+")),
+        },
+        // `~` needs an integer; a double is a "floating-point value" operand
+        // error, a non-number a "non-numeric string" one.
+        BitNot => match to_num(v) {
+            Ok(Num::Int(n)) => Ok(Value::int(!n)),
+            Ok(Num::Big(b)) => Ok(int_value(!b)),
+            Ok(Num::Dbl(_)) | Err(_) => Err(unary_operand_err(v, "~")),
+        },
+        // `!` accepts any boolean (incl. numbers and the boolean words); a NaN or
+        // non-numeric non-boolean is the operand error (not "expected boolean").
+        Not => {
+            if matches!(
+                number::parse_whole(v.to_str().trim()),
+                Some(Number::Nan { .. })
+            ) {
+                return Err(unary_operand_err(v, "!"));
+            }
+            match v.as_bool() {
+                Ok(b) => Ok(Value::bool(!b)),
+                Err(_) => Err(unary_operand_err(v, "!")),
+            }
+        }
         WordNot => Err(TclError::new("unsupported operator")),
     }
 }
@@ -254,7 +365,11 @@ impl ExprOps for ExprEval<'_> {
     }
 
     fn string(&mut self, inner: &str) -> Result<Value, TclError> {
-        Ok(Value::string(inner))
+        // A `"…"` expr operand is a double-quoted word: substitute `$var` /
+        // `[cmd]` / backslashes (the runtime-`expr` analogue of the compiler's
+        // `emit_expr_string`), so `expr {"item $i"}` is `item 0`, not `item $i`.
+        let s = crate::subst::subst_command(self.vm, inner, true, true, true)?;
+        Ok(Value::string(s))
     }
 
     fn var(&mut self, name: &str) -> Result<Value, TclError> {
@@ -267,7 +382,18 @@ impl ExprOps for ExprEval<'_> {
     }
 
     fn command(&mut self, script: &str) -> Result<Value, TclError> {
-        self.vm.eval_source(script).map(|c| c.result)
+        // A command substitution inside an expression yields the command's result
+        // *only* when it completes normally; otherwise the completion must
+        // propagate, not be taken as the value — otherwise `expr {[error msg]}`
+        // would silently evaluate to the string "msg" (if-5.2). An error becomes a
+        // plain `TclError`; a `break`/`continue`/`return` escaping the substitution
+        // carries its code so the enclosing construct sees it.
+        let c = self.vm.eval_source(script)?;
+        match c.code {
+            Code::Ok => Ok(c.result),
+            Code::Error => Err(TclError::new(c.result.to_str().to_string())),
+            code => Err(TclError::with_code(c.result.to_str().to_string(), code)),
+        }
     }
 
     fn call(&mut self, function: &str, args: Vec<Value>) -> Result<Value, TclError> {

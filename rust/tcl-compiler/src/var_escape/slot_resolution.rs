@@ -431,6 +431,7 @@ mod tests {
             span: Span::new(0, 0),
             name: name.to_string(),
             value: value.to_string(),
+            name_braced: false,
         }
     }
 
@@ -670,6 +671,7 @@ mod tests {
                 span: Span::new(0, 0),
                 name: "$varname".into(),
                 value: "v".into(),
+                name_braced: false,
                 value_needs_backsubst: false,
                 tokens: None,
             },
@@ -687,6 +689,7 @@ mod tests {
             Statement::Incr {
                 span: Span::new(0, 0),
                 name: "$varname".into(),
+                name_braced: false,
                 amount: None,
                 safe_on_uninit: false,
             },

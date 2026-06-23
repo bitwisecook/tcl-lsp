@@ -14,12 +14,73 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("info", cmd_info);
 }
 
+/// Resolve an `info` subcommand word to its canonical Tcl 9 name with Tcl's
+/// unambiguous-prefix rule (`Tcl_GetIndexFromObj`): an exact match wins,
+/// otherwise a unique prefix — so `info command` resolves to `commands`
+/// (cmdAH.test). Returns `None` when the word matches nothing or is an
+/// ambiguous prefix of several; the caller then reports the error. The table is
+/// the full Tcl 9 `info` option set so ambiguity matches C even for
+/// subcommands the VM does not yet implement (those resolve then fall through
+/// to the unknown-subcommand arm).
+fn canonical_info_sub(sub: &str) -> Option<&'static str> {
+    const SUBS: &[&str] = &[
+        "args",
+        "body",
+        "cmdcount",
+        "cmdtype",
+        "commands",
+        "complete",
+        "constant",
+        "consts",
+        "coroutine",
+        "default",
+        "errorstack",
+        "exists",
+        "frame",
+        "functions",
+        "globals",
+        "hostname",
+        "level",
+        "library",
+        "loaded",
+        "locals",
+        "nameofexecutable",
+        "object",
+        "patchlevel",
+        "procs",
+        "script",
+        "sharedlibextension",
+        "tclversion",
+        "vars",
+    ];
+    if sub.is_empty() {
+        return None;
+    }
+    if let Some(&exact) = SUBS.iter().find(|&&s| s == sub) {
+        return Some(exact);
+    }
+    let mut found = None;
+    let mut count = 0u32;
+    for &s in SUBS {
+        if s.starts_with(sub) {
+            found = Some(s);
+            count += 1;
+        }
+    }
+    if count == 1 { found } else { None }
+}
+
 #[allow(clippy::too_many_lines)]
 fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"info subcommand ?arg ...?\"");
     };
-    match &*sub.to_str() {
+    let sub_str = sub.to_str();
+    let canon: &str = match canonical_info_sub(&sub_str) {
+        Some(c) => c,
+        None => &sub_str,
+    };
+    match canon {
         // `info exists varName` — the shared Family-B core over `VarStore::exists`.
         "exists" => match rest {
             [name] => ok(tcl_cmd_core::info::exists(vm, name)),
@@ -58,6 +119,19 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "vars" => ok(tcl_cmd_core::info::vars(vm, rest.first())),
         "locals" => ok(tcl_cmd_core::info::locals(vm, rest.first())),
         "globals" => ok(tcl_cmd_core::info::globals(vm, rest.first())),
+        // `info constant name` — whether `name` is a `const`; `info consts
+        // ?pattern?` — the constant names in scope (glob-filtered).
+        "constant" => match rest {
+            [name] => ok(Value::bool(vm.is_constant(&name.to_str()))),
+            _ => err("wrong # args: should be \"info constant varname\""),
+        },
+        "consts" => {
+            let names = vm.constant_names().into_iter().filter(|n| {
+                rest.first()
+                    .is_none_or(|p| tcl_syntax::glob::string_match(&p.to_str(), n))
+            });
+            ok(Value::list(names.map(Value::string).collect()))
+        }
         // body/args/default route through the shared `info` core over the `Procs`
         // role trait; the var-write for `default` stays here (it is trace-aware).
         "body" => match rest {
@@ -86,8 +160,66 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             },
             _ => err("wrong # args: should be \"info default procname arg varname\""),
         },
-        "tclversion" => ok(Value::string("9.0")),
-        "patchlevel" => ok(Value::string("9.0.0")),
+        "tclversion" => match rest {
+            [] => ok(Value::string("9.0")),
+            _ => err("wrong # args: should be \"info tclversion\""),
+        },
+        "patchlevel" => match rest {
+            [] => ok(Value::string("9.0.3")),
+            _ => err("wrong # args: should be \"info patchlevel\""),
+        },
+        // `info functions ?pattern?` — the registered `tcl::mathfunc::*` names.
+        "functions" => match rest {
+            [] => ok(Value::list(
+                vm.math_function_names()
+                    .into_iter()
+                    .map(Value::string)
+                    .collect(),
+            )),
+            [pat] => {
+                let p = pat.to_str();
+                ok(Value::list(
+                    vm.math_function_names()
+                        .into_iter()
+                        .filter(|n| tcl_syntax::glob::string_match(&p, n))
+                        .map(Value::string)
+                        .collect(),
+                ))
+            }
+            _ => err("wrong # args: should be \"info functions ?pattern?\""),
+        },
+        // `info loaded ?interp? ?prefix?` — no binary extensions are loaded, so
+        // the result is empty for the current interp; a named interp must exist.
+        "loaded" => {
+            let interp = match rest {
+                [] => None,
+                [i] | [i, _] => Some(i.to_str()),
+                _ => return err("wrong # args: should be \"info loaded ?interp? ?prefix?\""),
+            };
+            match interp {
+                Some(i) if !i.is_empty() => err(format!("could not find interpreter \"{i}\"")),
+                _ => ok(Value::empty()),
+            }
+        }
+        // `info cmdtype commandName` — native / proc / alias (interp/object kinds
+        // need those subsystems).
+        "cmdtype" => match rest {
+            [name] => {
+                let n = name.to_str();
+                match vm.command_kind(&n) {
+                    Some(kind) => ok(Value::string(kind)),
+                    None => err(format!("unknown command \"{n}\"")),
+                }
+            }
+            _ => err("wrong # args: should be \"info cmdtype commandName\""),
+        },
+        // `info library` is the script library directory — the `tcl_library`
+        // global the bootstrap seeds from `$env(TCL_LIBRARY)`. The autoloader
+        // (`auto_path` defaults to `[info library]`) and library procs read it.
+        "library" => match vm.get_var("tcl_library") {
+            Some(v) if !v.to_str().is_empty() => ok(v),
+            _ => err("no library has been specified for Tcl"),
+        },
         "script" => ok(Value::string(vm.current_script())),
         "nameofexecutable" => ok(Value::empty()),
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),

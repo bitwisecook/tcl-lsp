@@ -68,6 +68,7 @@ fn set_const_toplevel() {
     let cfg = toplevel_with(vec![Statement::AssignConst {
         span: sp(),
         name: "x".into(),
+        name_braced: false,
         value: "42".into(),
     }]);
     let registry = CommandRegistry::build_default();
@@ -83,11 +84,13 @@ fn multiple_statements_numbered() {
         Statement::AssignConst {
             span: sp(),
             name: "a".into(),
+            name_braced: false,
             value: "1".into(),
         },
         Statement::AssignConst {
             span: sp(),
             name: "b".into(),
+            name_braced: false,
             value: "2".into(),
         },
     ]);
@@ -184,6 +187,7 @@ fn if_else_diamond_emits_conditional_jump() {
         .push(Statement::AssignConst {
             span: sp(),
             name: "r".into(),
+            name_braced: false,
             value: "1".into(),
         });
     cfg.blocks.get_mut("if_then_1").unwrap().terminator = Some(Terminator::Goto {
@@ -197,6 +201,7 @@ fn if_else_diamond_emits_conditional_jump() {
         .push(Statement::AssignConst {
             span: sp(),
             name: "r".into(),
+            name_braced: false,
             value: "2".into(),
         });
     cfg.blocks.get_mut("if_else_1").unwrap().terminator = Some(Terminator::Goto {
@@ -309,6 +314,7 @@ fn switch_dispatch_emits_jump_table() {
         .push(Statement::AssignConst {
             span: sp(),
             name: "r".into(),
+            name_braced: false,
             value: "1".into(),
         });
     cfg.blocks.get_mut("arm_a").unwrap().terminator = Some(Terminator::Goto {
@@ -322,6 +328,7 @@ fn switch_dispatch_emits_jump_table() {
         .push(Statement::AssignConst {
             span: sp(),
             name: "r".into(),
+            name_braced: false,
             value: "2".into(),
         });
     cfg.blocks.get_mut("arm_b").unwrap().terminator = Some(Terminator::Goto {
@@ -421,6 +428,7 @@ fn switch_glob_emits_generic_invoke_not_jump_table() {
         body: Some(Script::from_statements(vec![Statement::AssignConst {
             span: sp(),
             name: "r".into(),
+            name_braced: false,
             value: "1".into(),
         }])),
         body_span: Some(sp()),
@@ -518,6 +526,7 @@ fn foreach_emits_native_opcodes() {
         .push(Statement::AssignConst {
             span: sp(),
             name: "r".into(),
+            name_braced: false,
             value: "42".into(),
         });
     cfg.blocks.get_mut("foreach_body_1").unwrap().terminator = Some(Terminator::Goto {
@@ -696,6 +705,7 @@ fn while_in_proc_emits_start_cmd() {
         .push(Statement::AssignConst {
             span: sp(),
             name: "i".into(),
+            name_braced: false,
             value: "0".into(),
         });
     cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Goto {
@@ -720,6 +730,7 @@ fn while_in_proc_emits_start_cmd() {
         .push(Statement::Incr {
             span: sp(),
             name: "i".into(),
+            name_braced: false,
             amount: None,
             safe_on_uninit: false,
         });

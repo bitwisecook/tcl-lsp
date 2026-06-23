@@ -66,16 +66,77 @@ fn path_str(bytes: &[u8]) -> Completion<Value> {
 }
 
 #[allow(clippy::too_many_lines)]
-fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((sub, rest)) = args.split_first() else {
-        return err("wrong # args: should be \"file subcommand ?arg ...?\"");
-    };
+/// Resolve a `file` subcommand word to its canonical Tcl 9 name with Tcl's
+/// unambiguous-prefix rule (`Tcl_GetIndexFromObj`): exact match wins, else a
+/// unique prefix — so `file ext` resolves to `extension` (cmdAH.test). The
+/// table is the full Tcl 9 `file` option set so ambiguity matches C even for
+/// subcommands the VM does not yet implement (those resolve then fall through
+/// to the unknown-subcommand arm). `None` ⇒ no match or ambiguous.
+fn canonical_file_sub(sub: &str) -> Option<&'static str> {
+    const SUBS: &[&str] = &[
+        "atime",
+        "attributes",
+        "channels",
+        "copy",
+        "delete",
+        "dirname",
+        "executable",
+        "exists",
+        "extension",
+        "isdirectory",
+        "isfile",
+        "join",
+        "link",
+        "lstat",
+        "mkdir",
+        "mtime",
+        "nativename",
+        "normalize",
+        "owned",
+        "pathtype",
+        "readable",
+        "readlink",
+        "rename",
+        "rootname",
+        "separator",
+        "size",
+        "split",
+        "stat",
+        "system",
+        "tail",
+        "tempdir",
+        "tempfile",
+        "type",
+        "volumes",
+        "writable",
+    ];
+    if sub.is_empty() {
+        return None;
+    }
+    if let Some(&exact) = SUBS.iter().find(|&&s| s == sub) {
+        return Some(exact);
+    }
+    let mut found = None;
+    let mut count = 0u32;
+    for &s in SUBS {
+        if s.starts_with(sub) {
+            found = Some(s);
+            count += 1;
+        }
+    }
+    if count == 1 { found } else { None }
+}
+
+/// The platform-independent path-text subcommands of `file` (no filesystem
+/// access): `join`, `dirname`, `tail`, `extension`, `rootname`, `split`,
+/// `normalize`, `nativename`, `pathtype`, `separator`. The `/`-based path text
+/// ops are the shared `tcl_cmd_core::path` core (platform-independent, unlike
+/// the VM's old `std::path::Path` versions). Returns `None` for any other
+/// subcommand so the caller falls through to the filesystem-backed ops.
+fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<Value>> {
     let s = |v: &Value| v.to_str().to_string();
-    match &*sub.to_str() {
-        // -- pure path manipulation --
+    Some(match canon {
         "join" => ok(Value::string(file_join(rest))),
-        // The `/`-based path text ops are the shared `tcl_cmd_core::path` core
-        // (platform-independent, unlike the VM's old `std::path::Path` versions).
         "dirname" => match rest {
             [p] => path_str(tcl_cmd_core::path::dirname(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file dirname name\""),
@@ -121,6 +182,26 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             _ => err("wrong # args: should be \"file pathtype name\""),
         },
         "separator" => ok(Value::string("/")),
+        _ => return None,
+    })
+}
+
+fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some((sub, rest)) = args.split_first() else {
+        return err("wrong # args: should be \"file subcommand ?arg ...?\"");
+    };
+    let s = |v: &Value| v.to_str().to_string();
+    let sub_str = sub.to_str();
+    let canon: &str = match canonical_file_sub(&sub_str) {
+        Some(c) => c,
+        None => &sub_str,
+    };
+    // Pure path-text subcommands (no filesystem access) are handled first; the
+    // rest fall through to the filesystem-backed ops below.
+    if let Some(c) = file_path_op(vm, canon, rest) {
+        return c;
+    }
+    match canon {
         // -- filesystem queries --
         // `readable`/`writable`/`executable` only check existence (good enough
         // for the test host where files are owned by the runner).

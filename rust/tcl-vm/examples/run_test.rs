@@ -24,6 +24,9 @@ struct Svc(CommandRegistry);
 impl CompileService for Svc {
     type Module = tcl_bytecode::ModuleAsm;
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
+            return Err(CompileError(msg));
+        }
         let ir = lower_to_ir(src, &self.0);
         let cfg = build_cfg(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.0))
@@ -75,6 +78,12 @@ fn run() -> i32 {
 
     let mut vm = Vm::with_output(Box::new(Stdout));
     vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    // Install the autoloader so library procs (word.tcl, …) resolve on demand,
+    // like `tclsh` after `init.tcl`.
+    let init = vm.init_auto_load();
+    if !init.code.is_ok() {
+        eprintln!("auto-load bootstrap error: {}", init.result.to_str());
+    }
     let c = vm.run_module(&asm);
     if c.code.is_ok() {
         0

@@ -12,7 +12,11 @@
 //! Conversions: `%d`/`%i`/`%u`/`%o`/`%x`/`%b`/`%c`/`%s`/`%e`/`%f`/`%g`/`%[...]`/
 //! `%n`/`%%`, with `*` (suppress), a field width, and ignored size modifiers
 //! (`h`/`l`/`L`/…). Operates on Unicode code points (so `%c` and widths count
-//! characters).
+//! characters). The specifier *grammar* is shared
+//! ([`tcl_syntax::scan::parse_conversion`]); this module is the matcher and the
+//! cross-specifier validator that build on it.
+
+use tcl_syntax::scan::{CharSet, ScanConversion, parse_conversion};
 
 /// One scanned value, typed so each runtime builds its natural object
 /// (`%d`/`%x`/…→int, `%e`/`%f`/`%g`→double, `%s`/`%[`→string, `%c`→the code
@@ -40,6 +44,103 @@ pub struct ScanOutcome {
     pub eof_before_conv: bool,
 }
 
+/// Validate a scan `fmt` the way C's `ValidateFormat` (`tclScan.c`) does, before
+/// any matching: `num_vars` is the count of `varName` arguments (`0` for the
+/// inline form). On success returns the number of variables the format requires;
+/// on failure the diagnostic message (the runtime turns it into an error).
+///
+/// This catches the malformed-format cases (scan-3.x / scan-8.x): mixing `%` and
+/// `%n$`, an out-of-range / duplicated `%n$` index, a width on `%c`, an
+/// unterminated `%[`, a bad conversion character, and a variable/specifier count
+/// mismatch.
+pub fn validate_format(fmt: &[char], num_vars: usize) -> Result<usize, String> {
+    let mut nassign: Vec<u32> = vec![0; num_vars];
+    let mut got_xpg = false;
+    let mut got_sequential = false;
+    let mut obj_index: usize = 0;
+    let mut xpg_size: usize = 0;
+
+    let mixed = || "cannot mix \"%\" and \"%n$\" conversion specifiers".to_string();
+    // `got_xpg` distinguishes the XPG index error from the plain count mismatch.
+    let bad_index = |xpg: bool| {
+        if xpg {
+            "\"%n$\" argument index out of range".to_string()
+        } else {
+            "different numbers of variable names and field specifiers".to_string()
+        }
+    };
+
+    let mut fi = 0;
+    while fi < fmt.len() {
+        if fmt[fi] != '%' {
+            fi += 1;
+            continue;
+        }
+        fi += 1;
+        // Per-specifier grammar + validation (width on `%c`, bad verb, an
+        // unterminated `%[`, …) is the shared parser's job.
+        let conv = parse_conversion(fmt, &mut fi).map_err(|e| e.message())?;
+        if conv.verb == '%' {
+            continue;
+        }
+
+        // Cross-specifier rules: `%` and `%n$` cannot be mixed, and an XPG index
+        // is bounded by the variable count (or grows the inline total).
+        if let Some(idx) = conv.xpg_index {
+            got_xpg = true;
+            if got_sequential {
+                return Err(mixed());
+            }
+            // 0 and >= INT_MAX (9.0 supports < INT_MAX args) are out of range.
+            if idx == 0 || idx >= 2_147_483_647 {
+                return Err(bad_index(true));
+            }
+            obj_index = idx as usize - 1;
+            if num_vars != 0 && obj_index >= num_vars {
+                return Err(bad_index(true));
+            }
+            if num_vars == 0 {
+                xpg_size = xpg_size.max(idx as usize);
+            }
+        } else {
+            got_sequential = true;
+            if got_xpg {
+                return Err(mixed());
+            }
+        }
+
+        if !conv.suppress {
+            if num_vars != 0 && obj_index >= num_vars {
+                return Err(bad_index(got_xpg));
+            }
+            if obj_index >= nassign.len() {
+                nassign.resize(obj_index + 1, 0);
+            }
+            nassign[obj_index] += 1;
+            obj_index += 1;
+        }
+    }
+
+    let total = if num_vars != 0 {
+        num_vars
+    } else if xpg_size != 0 {
+        xpg_size
+    } else {
+        obj_index
+    };
+    for k in 0..total {
+        let cnt = nassign.get(k).copied().unwrap_or(0);
+        if cnt > 1 {
+            return Err(
+                "variable is assigned by multiple \"%n$\" conversion specifiers".to_string(),
+            );
+        } else if xpg_size == 0 && cnt == 0 {
+            return Err("variable is not assigned by any conversion specifiers".to_string());
+        }
+    }
+    Ok(total)
+}
+
 /// Match `fmt` against `input` (both code-point slices), producing the scanned
 /// values. Pure: no value model, no interp.
 #[must_use]
@@ -65,54 +166,42 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
                 fi += 1;
                 continue;
             }
+            // Running out of input (rather than a wrong char) before any
+            // conversion is an underflow → -1 (scan-4.15).
+            if ii >= input.len() && nconv == 0 {
+                eof_before_conv = true;
+            }
             break; // literal mismatch
         }
-        // A conversion specifier.
+        // A conversion specifier — parsed through the shared grammar (the
+        // runtime rejects malformed formats before matching, so a parse error
+        // here just stops the scan).
         fi += 1;
-        if fi >= fmt.len() {
+        let mut ci = fi;
+        let Ok(conv) = parse_conversion(fmt, &mut ci) else {
             break;
-        }
-        if fmt[fi] == '%' {
+        };
+        fi = ci;
+
+        // `%%` matches a literal `%`.
+        if conv.verb == '%' {
             if ii < input.len() && input[ii] == '%' {
                 ii += 1;
-                fi += 1;
                 continue;
             }
             break;
         }
-        let mut suppress = false;
-        if fmt[fi] == '*' {
-            suppress = true;
-            fi += 1;
-        }
-        let mut width = 0usize;
-        let mut has_width = false;
-        while fi < fmt.len() && fmt[fi].is_ascii_digit() {
-            has_width = true;
-            width = width * 10 + fmt[fi].to_digit(10).unwrap_or(0) as usize;
-            fi += 1;
-        }
-        // Ignore size modifiers (we scan into i64/f64).
-        while fi < fmt.len() && matches!(fmt[fi], 'h' | 'l' | 'L' | 'q' | 'j' | 'z' | 't') {
-            fi += 1;
-        }
-        if fi >= fmt.len() {
-            break;
-        }
-        let conv = fmt[fi];
-        fi += 1;
-
         // `%n` reports the characters consumed so far; it doesn't consume input
         // or count as a conversion.
-        if conv == 'n' {
-            if !suppress {
+        if conv.verb == 'n' {
+            if !conv.suppress {
                 values.push(Some(Scanned::Int(i64::try_from(ii).unwrap_or(i64::MAX))));
             }
             continue;
         }
 
         // Most conversions skip leading whitespace; `%c` and `%[` do not.
-        if !matches!(conv, 'c' | '[') {
+        if !matches!(conv.verb, 'c' | '[') {
             while ii < input.len() && input[ii].is_whitespace() {
                 ii += 1;
             }
@@ -121,15 +210,20 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
             eof_before_conv = true;
         }
 
-        let field_max = if has_width { width } else { usize::MAX };
-        if let Some(v) = scan_one(input, &mut ii, conv, field_max, fmt, &mut fi) {
-            if !suppress {
+        if let Some(v) = scan_one(input, &mut ii, &conv) {
+            if !conv.suppress {
                 values.push(Some(v));
                 nconv += 1;
             }
         } else {
-            // Conversion failed: stop. Inline mode keeps a hole.
-            if !suppress {
+            // Conversion failed: stop. A numeric conversion that consumed only a
+            // leading sign / `0x` before EOF is an underflow (-1), unlike a stop
+            // on a non-matching character (scan-4.44/4.55).
+            if nconv == 0 && numeric_underflow(input, ii, conv.verb) {
+                eof_before_conv = true;
+            }
+            // Inline mode keeps a hole.
+            if !conv.suppress {
                 values.push(None);
             }
             break;
@@ -143,17 +237,12 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
     }
 }
 
-/// Scan one field for `conv`, advancing `ii`. Returns the typed value, or
-/// `None` if nothing valid was read. `fi` is advanced past a `%[...]` set.
-fn scan_one(
-    input: &[char],
-    ii: &mut usize,
-    conv: char,
-    width: usize,
-    fmt: &[char],
-    fi: &mut usize,
-) -> Option<Scanned> {
-    match conv {
+/// Scan one field for the parsed `conv`, advancing `ii`. Returns the typed
+/// value, or `None` if nothing valid was read.
+fn scan_one(input: &[char], ii: &mut usize, conv: &ScanConversion) -> Option<Scanned> {
+    // A width of 0 means "no limit" (`%0s` reads the whole word, scan-4.21/4.25).
+    let width = conv.width.filter(|&w| w != 0).unwrap_or(usize::MAX);
+    match conv.verb {
         'c' => {
             // One character → its code point. (No width, no whitespace skip.)
             if *ii >= input.len() {
@@ -163,11 +252,11 @@ fn scan_one(
             *ii += 1;
             Some(Scanned::Int(cp))
         }
-        'd' | 'u' => scan_int(input, ii, width, 10, true),
+        'd' | 'u' => scan_int(input, ii, width, 10),
         'i' => scan_int_auto(input, ii, width),
-        'o' => scan_int(input, ii, width, 8, false),
-        'x' | 'X' => scan_int(input, ii, width, 16, false),
-        'b' => scan_int(input, ii, width, 2, false),
+        'o' => scan_int(input, ii, width, 8),
+        'x' | 'X' => scan_int(input, ii, width, 16),
+        'b' => scan_int(input, ii, width, 2),
         's' => {
             let start = *ii;
             let mut n = 0;
@@ -181,23 +270,42 @@ fn scan_one(
             Some(Scanned::Str(input[start..*ii].iter().collect()))
         }
         'e' | 'E' | 'f' | 'g' | 'G' => scan_float(input, ii, width),
-        '[' => scan_set(input, ii, width, fmt, fi),
+        '[' => scan_set(input, ii, width, conv.charset.as_ref()?),
         _ => None, // unknown conversion
     }
 }
 
-/// `%d`/`%o`/`%x`/`%b`/`%u`: an optionally-signed integer in `radix`.
-fn scan_int(
-    input: &[char],
-    ii: &mut usize,
-    width: usize,
-    radix: u32,
-    signed: bool,
-) -> Option<Scanned> {
+/// Whether a *failed* numeric conversion at `start` ran out of input — it
+/// consumed only a leading sign (and, for `%x`/`%i`, a `0x` prefix) before EOF.
+/// This is C's underflow (which yields -1), as opposed to stopping on a present
+/// non-matching character (which yields the conversion count).
+fn numeric_underflow(input: &[char], start: usize, verb: char) -> bool {
+    if !matches!(
+        verb,
+        'd' | 'i' | 'o' | 'x' | 'X' | 'b' | 'u' | 'e' | 'E' | 'f' | 'g' | 'G'
+    ) {
+        return false;
+    }
+    let mut k = start;
+    if matches!(input.get(k), Some('+' | '-')) {
+        k += 1;
+    }
+    if matches!(verb, 'x' | 'X' | 'i')
+        && input.get(k) == Some(&'0')
+        && matches!(input.get(k + 1), Some('x' | 'X'))
+    {
+        k += 2;
+    }
+    k >= input.len()
+}
+
+/// `%d`/`%o`/`%x`/`%b`/`%u`: an optionally-signed integer in `radix`. Every
+/// conversion reads a leading sign (C's `scanf` does, even for `%x`/`%o`/`%u`).
+fn scan_int(input: &[char], ii: &mut usize, width: usize, radix: u32) -> Option<Scanned> {
     let start = *ii;
     let mut s = String::new();
     let mut n = 0;
-    if signed && *ii < input.len() && (input[*ii] == '+' || input[*ii] == '-') {
+    if *ii < input.len() && (input[*ii] == '+' || input[*ii] == '-') {
         s.push(input[*ii]);
         *ii += 1;
         n += 1;
@@ -224,7 +332,10 @@ fn scan_int(
     Some(Scanned::Int(val))
 }
 
-/// `%i`: an integer with C-style base detection (`0x`→16, `0`→8, else 10).
+/// `%i`: an integer with C base-0 detection — `0x`/`0X` (when a hex digit
+/// follows) is hex, a leading `0` is octal, else decimal. `0b` is *not*
+/// recognised by scan's `%i` (scan-4.41), and a `0x` with no hex digit folds
+/// back to the `0` (scan-4.45).
 fn scan_int_auto(input: &[char], ii: &mut usize, width: usize) -> Option<Scanned> {
     let save = *ii;
     let mut sign = 1i64;
@@ -236,20 +347,15 @@ fn scan_int_auto(input: &[char], ii: &mut usize, width: usize) -> Option<Scanned
         *ii += 1;
         n += 1;
     }
-    let radix = if *ii + 1 < input.len() && input[*ii] == '0' {
-        match input[*ii + 1].to_ascii_lowercase() {
-            'x' => {
-                *ii += 2;
-                n += 2;
-                16u32
-            }
-            'b' => {
-                *ii += 2;
-                n += 2;
-                2u32
-            }
-            _ => 8u32,
-        }
+    let radix = if input.get(*ii) == Some(&'0')
+        && matches!(input.get(*ii + 1), Some('x' | 'X'))
+        && input.get(*ii + 2).is_some_and(char::is_ascii_hexdigit)
+    {
+        *ii += 2; // consume the `0x` prefix
+        n += 2;
+        16u32
+    } else if input.get(*ii) == Some(&'0') {
+        8u32 // a leading `0` (the `0` itself is the first octal digit)
     } else {
         10u32
     };
@@ -316,53 +422,13 @@ fn scan_float(input: &[char], ii: &mut usize, width: usize) -> Option<Scanned> {
     Some(Scanned::Double(val))
 }
 
-/// `%[...]`: a run of characters in (or, with a leading `^`, not in) the set.
-/// `fi` points just past the `[`; it is advanced past the closing `]`.
-fn scan_set(
-    input: &[char],
-    ii: &mut usize,
-    width: usize,
-    fmt: &[char],
-    fi: &mut usize,
-) -> Option<Scanned> {
-    let mut negate = false;
-    if *fi < fmt.len() && fmt[*fi] == '^' {
-        negate = true;
-        *fi += 1;
-    }
-    // Collect set members (a `]` immediately after `[`/`[^` is a literal member).
-    let mut members: Vec<char> = Vec::new();
-    let mut ranges: Vec<(char, char)> = Vec::new();
-    let mut first = true;
-    while *fi < fmt.len() {
-        let c = fmt[*fi];
-        if c == ']' && !first {
-            *fi += 1;
-            break;
-        }
-        first = false;
-        // A range `a-z` (but not a trailing `-`).
-        if *fi + 2 < fmt.len() && fmt[*fi + 1] == '-' && fmt[*fi + 2] != ']' {
-            ranges.push((c, fmt[*fi + 2]));
-            *fi += 3;
-        } else {
-            members.push(c);
-            *fi += 1;
-        }
-    }
-    let in_set = |c: char| {
-        members.contains(&c)
-            || ranges
-                .iter()
-                .any(|&(a, b)| (a..=b).contains(&c) || (b..=a).contains(&c))
-    };
+/// `%[...]`: a run of characters matching the already-parsed `set` (its `^`
+/// negation handled by [`CharSet::matches`]).
+fn scan_set(input: &[char], ii: &mut usize, width: usize, set: &CharSet) -> Option<Scanned> {
     let start = *ii;
     let mut n = 0;
     while *ii < input.len() && n < width {
-        let c = input[*ii];
-        // Stop at the first character whose membership doesn't match the set's
-        // polarity (`negate` flips it for `%[^...]`).
-        if in_set(c) == negate {
+        if !set.matches(input[*ii]) {
             break;
         }
         *ii += 1;

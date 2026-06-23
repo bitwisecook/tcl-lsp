@@ -162,7 +162,31 @@ def _parse_subst_template(
                     i += 1
                 if i == start:
                     return None
-                parts.append(("var", template[start:i]))
+                # ``$name(index)`` — an array-element reference.  Capture the
+                # parenthesised index as part of the var ref so the emitter
+                # resolves the element (the index may itself carry ``$``/``[...]``
+                # substitutions, resolved when the part is emitted).  Tcl's
+                # variable-name parser does not nest parens, so the index ends
+                # at the first ``)`` outside any ``[...]`` command substitution.
+                if i < n and template[i] == "(":
+                    j = i + 1
+                    bracket_depth = 0
+                    while j < n:
+                        cj = template[j]
+                        if cj == "[":
+                            bracket_depth += 1
+                        elif cj == "]":
+                            if bracket_depth > 0:
+                                bracket_depth -= 1
+                        elif cj == ")" and bracket_depth == 0:
+                            break
+                        j += 1
+                    if j >= n:
+                        return None  # unterminated index — cannot inline
+                    parts.append(("var", template[start : j + 1]))
+                    i = j + 1
+                else:
+                    parts.append(("var", template[start:i]))
             continue
         buf.append(ch)
         i += 1
