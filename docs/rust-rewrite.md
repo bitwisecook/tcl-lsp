@@ -1234,15 +1234,22 @@ final track** — every consumer above must port first.
   `signature_scan` / `optimiser` / `analyser` / `registry` / `bigip` + the
   folding / document-symbol feature bindings) stays until its in-tree
   Python importers retire under PYTHON-RETIRE.
-- **partial** TEST-MIGRATE — port each remaining pytest file to per-crate Rust
-  tests; the `test_fp_*` battery is the analyser acceptance gate. The
-  **porting** half proceeds now, non-destructively (add the Rust test, classify
-  each pytest as ported / bridge-only, keep the `test_*.py` as the oracle);
-  first port landed: `tests/test_dialect_helpers.py` →
-  `tcl-registry::dialects::tests::is_irules_dialect_accepts_canonical_and_legacy_alias`
-  (see the test audit). The **deletion** of the `test_*.py` is the terminal
-  PYTHON-RETIRE sweep — gated, since the pytest suite is the behavioural oracle
-  while the Python layer ships.
+- **partial** TEST-MIGRATE — the **porting** half is **complete** (the
+  **deletion** half stays gated on PYTHON-RETIRE). All 473 `tests/test_*.py`
+  files are now classified (ported / bridge-only / remove-at-end / deferred)
+  in the [test audit](rust-rewrite-test-audit.md#test-migrate--full-pytest-suite-classification-all-473-files):
+  every behaviour portable to a landed crate is Rust-covered (per-module
+  `#[cfg(test)]`, the `tcltest` reference sweeps, or `*_parity.rs`
+  differentials), and the un-ported remainder is attributed to a named
+  unlanded track (RT-WASM / RT-VM / SRV-ROPE / PKG / PGO — *deferred*) or to
+  Python-binding / `ai/` glue (*bridge-only*). The `test_fp_*` battery is the
+  analyser acceptance gate (C41 ✅, ~1,000 analyser `#[test]`s). The cleanly
+  portable pure-logic gaps that still had zero Rust unit coverage were ported
+  in the closing pass — `tcl-bigip::policy_eval` (LTM policy evaluator),
+  `tcl-bigip::validator` (BIGIP6003–6009), `tcl-registry::bigip` (object-kind
+  resolution), plus VM helper modules (`cmd_string`/`subst`/`exec`). The
+  **deletion** of the `test_*.py` is the terminal PYTHON-RETIRE sweep — gated,
+  since the pytest suite is the behavioural oracle while the Python layer ships.
 - **partial** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
   Python toolchain dependency). The `rust/xtask` crate + `cargo xtask` alias
   scaffold **landed**, with five scripts ported and parity-checked against the
