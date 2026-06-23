@@ -39,6 +39,7 @@ set product [expr {6 * 7}]                ->  product = 42      (expr tower)
 set big [expr {2 ** 70}]                  ->  big = 1180591620717411303424 (bignum)
 if {$product == 42} { ... }               ->  taken              (condition)
 while {$i <= 5} { ... }                   ->  total = 15, i = 6  (loop condition)
+puts "the answer is $n"                   ->  visible on stdout  (WASI fd_write)
 ```
 
 The emitted `::top` links against the real runtime in one wasmtime instance,
@@ -46,7 +47,7 @@ shares the runtime's linear memory, and its eval-fallback `tcl_eval` calls (and
 `tcl_expr_bool` condition checks) execute genuine Tcl with persistent side
 effects.
 
-Three fixes got it there:
+Four fixes got it there:
 1. `codegen_abi.rs` — `CURRENT_INTERP` is a single-threaded `AtomicPtr` global on
    wasm32 (the `thread_local!` reads an uninitialised `__tls_base` in the bare
    wasip1 cdylib and never observes `set_current_interp`).
@@ -58,13 +59,13 @@ Three fixes got it there:
    (`expr`, `::tcl::math*`, `lseq`, the bignum obj rep) is present on wasm, and
    `tcl_expr_bool` uses the real evaluator (AOT `if`/`while` conditions, which
    previously always read false on the tower-less wasm build, now work).
-
-## Open (runtime IO gap, not an AOT-pipeline gap)
-
-- **`puts` → WASI stdout not wired** — `puts` runs but emits no output.
+4. `host_wasm.rs` adds a `WasiHost` (selected on `wasm32-wasip1`) whose
+   `stdout`/`stderr` reach the real WASI `fd_write` via `std::io`, so `puts` is
+   visible under `wasmtime`/any WASI host (the `wasm32-unknown-unknown`
+   `BrowserHost` still discards — a browser console import lands later).
 
 ## Next step
 
-Wire `puts`/channels to WASI `fd_write` so output is visible, broaden the script
-set / framing checks, then move from this dynamic-link host to the single
-self-contained binary (static link via `wasm-ld`, see `../static-link/`).
+Broaden the script set / framing checks, then move from this dynamic-link host
+to the single self-contained binary (static link via `wasm-ld`, see
+`../static-link/`).
