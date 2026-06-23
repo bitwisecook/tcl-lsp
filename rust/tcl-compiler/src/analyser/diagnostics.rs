@@ -1449,7 +1449,7 @@ struct UndefSuppression {
     /// Names with a concrete (version > 0) statement/phi definition.
     explicitly_defined: HashSet<String>,
     /// Local-alias tails declared by a qualified `variable ns::tail`.
-    alias_tails: HashSet<String>,
+    alias_tails: FxHashSet<String>,
     /// Names written by a command substitution buried inside an `expr`
     /// argument (`set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during
     /// expr evaluation).  The `[…]` is opaque to SSA def tracking, so a later
@@ -1785,8 +1785,8 @@ fn globals_written_by_procs(cu: &crate::compilation_unit::CompilationUnit) -> Ha
     use crate::ir::Statement;
     let mut result: HashSet<String> = HashSet::new();
     for fu in cu.procedures.values() {
-        let mut global_aliases: HashSet<String> = HashSet::new();
-        let mut written: HashSet<String> = HashSet::new();
+        let mut global_aliases: FxHashSet<String> = FxHashSet::default();
+        let mut written: FxHashSet<String> = FxHashSet::default();
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
                 let names: Vec<&String> = match stmt {
@@ -2672,7 +2672,7 @@ Use braces: {{ \u{2026} }}"
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        let mut seen: FxHashSet<u32> = FxHashSet::default();
         for (tok, text) in arg_tokens.iter().zip(args.iter()) {
             if seen.contains(&tok.span.start()) {
                 continue;
@@ -2746,7 +2746,7 @@ Use braces: {{ \u{2026} }}"
             return;
         }
 
-        let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        let mut seen: FxHashSet<u32> = FxHashSet::default();
         for tok in arg_tokens {
             if seen.contains(&tok.span.start()) {
                 continue;
@@ -3019,7 +3019,7 @@ Use braces: {{ \u{2026} }}"
         // idiom and must not fire W216.
         let cmd_name = cmd.texts[0].as_str();
         let args = &cmd.texts[1..];
-        let mut varname_word_starts: HashSet<u32> = HashSet::new();
+        let mut varname_word_starts: FxHashSet<u32> = FxHashSet::default();
         for ai in w216_varname_word_indices(cmd_name, args) {
             let wi = ai + 1;
             if let Some(tok) = cmd.argv.get(wi) {
@@ -3747,7 +3747,7 @@ Consider capturing the result: catch {\u{2026}} result"
         // ensemble namespaces *are* the command name).  These always
         // exist by the time the script runs, so they suppress the
         // builtin arity check regardless of definition order.
-        let mut non_proc_qnames: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        let mut non_proc_qnames: FxHashSet<&str> = FxHashSet::default();
         non_proc_qnames.extend(self.result.all_classes.keys().map(String::as_str));
         non_proc_qnames.extend(self.result.command_aliases.keys().map(String::as_str));
         non_proc_qnames.extend(self.ensemble_namespaces.iter().map(String::as_str));
@@ -3759,7 +3759,7 @@ Consider capturing the result: catch {\u{2026}} result"
         // shadowing here — distinguishing unconditionally-reachable
         // definitions needs the CFG dominator model, which is not
         // modelled here.
-        let proc_offsets: std::collections::HashMap<&str, u32> = self
+        let proc_offsets: FxHashMap<&str, u32> = self
             .result
             .all_procs
             .iter()
@@ -5637,8 +5637,8 @@ file; this call falls through to the 'unknown' handler."
     fn substitution_hidden_reads(
         &self,
         fu: &crate::compilation_unit::FunctionUnit,
-    ) -> HashSet<String> {
-        self.registry.as_ref().map_or_else(HashSet::new, |reg| {
+    ) -> FxHashSet<String> {
+        self.registry.as_ref().map_or_else(FxHashSet::default, |reg| {
             Self::substitution_hidden_reads_of(fu, reg)
         })
     }
@@ -5648,9 +5648,9 @@ file; this call falls through to the 'unknown' handler."
     pub(crate) fn substitution_hidden_reads_of(
         fu: &crate::compilation_unit::FunctionUnit,
         registry: &tcl_registry::CommandRegistry,
-    ) -> HashSet<String> {
+    ) -> FxHashSet<String> {
         use crate::var_refs::{VarReferenceScanner, VarScanOptions};
-        let mut out = HashSet::new();
+        let mut out = FxHashSet::default();
         // Command-argument + AssignValue substitutions (deep RMW scan minus
         // shallow), already factored out for the optimiser's elimination pass.
         out.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
@@ -6026,12 +6026,11 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
         use crate::def_use::DefKind;
-        use std::collections::HashMap;
 
         // Pre-compute, per block, the set of statement indices
         // that are dead stores.  Walk every dead Statement-kind
         // chain in def_use, bucket by block.
-        let mut dead_idx: HashMap<&str, HashSet<usize>> = HashMap::new();
+        let mut dead_idx: FxHashMap<&str, FxHashSet<usize>> = FxHashMap::default();
         for chain in fu.def_use.chains.values() {
             if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
                 continue;
@@ -6199,9 +6198,8 @@ file; this call falls through to the 'unknown' handler."
     /// leading-param signature dictated by an arity-compatible
     /// variable-command dispatcher.
     fn dispatch_protocol_signatures(&self) -> HashSet<(String, Vec<String>)> {
-        use std::collections::HashMap;
         // Group user procs by (namespace, leading-param-tuple stopping at `args`).
-        let mut groups: HashMap<(String, Vec<String>), usize> = HashMap::new();
+        let mut groups: FxHashMap<(String, Vec<String>), usize> = FxHashMap::default();
         for (qname, pdef) in &self.result.all_procs {
             let leading: Vec<String> = pdef
                 .params
@@ -6224,7 +6222,7 @@ file; this call falls through to the 'unknown' handler."
         }
         // Dispatcher evidence: map each dispatcher namespace → the argument
         // counts observed at its variable-command sites.
-        let mut dispatcher_ns_argc: HashMap<String, HashSet<usize>> = HashMap::new();
+        let mut dispatcher_ns_argc: FxHashMap<String, FxHashSet<usize>> = FxHashMap::default();
         for site in &self.var_command_sites {
             let off = site.cmd_span.start();
             let dns = self
@@ -6488,7 +6486,7 @@ file; this call falls through to the 'unknown' handler."
             include_reads_before_write: false,
         });
 
-        let mut reported: HashSet<String> = HashSet::new();
+        let mut reported: FxHashSet<String> = FxHashSet::default();
         // Deterministic block order for stable diagnostics.
         let mut block_names: Vec<&String> = considered.iter().collect();
         block_names.sort();
@@ -6661,7 +6659,7 @@ file; this call falls through to the 'unknown' handler."
 
         // Fire on every executable use after the def (same block) or in a
         // block dominated by the def block.
-        let mut reported: HashSet<String> = HashSet::new();
+        let mut reported: FxHashSet<String> = FxHashSet::default();
         let mut block_names: Vec<&String> = considered.iter().collect();
         block_names.sort();
         for bn in block_names {
@@ -7180,7 +7178,7 @@ file; this call falls through to the 'unknown' handler."
         use std::net::Ipv6Addr;
         use std::str::FromStr;
 
-        let mut seen_offsets: HashSet<u32> = HashSet::new();
+        let mut seen_offsets: FxHashSet<u32> = FxHashSet::default();
         for (key, lv) in &fu.sccp.values {
             let Some(text) = (match lv {
                 LatticeValue::Const(ConstValue::String(s)) => Some(s.as_str()),
@@ -7262,7 +7260,7 @@ file; this call falls through to the 'unknown' handler."
         key: &crate::ssa::ValueKey,
         message: &str,
         severity: Severity,
-        seen_offsets: &mut HashSet<u32>,
+        seen_offsets: &mut FxHashSet<u32>,
     ) {
         let (var_name, version) = key;
         let Some(chain) = fu.def_use.chain_for(var_name, *version) else {
@@ -7442,7 +7440,7 @@ file; this call falls through to the 'unknown' handler."
         // stubs / unknown-proc dispatch_targets) is unioned
         // independently — dedupe via a ``HashSet`` filter
         // while preserving stable iteration order.
-        let mut seen_candidate_strs: HashSet<&str> = HashSet::new();
+        let mut seen_candidate_strs: FxHashSet<&str> = FxHashSet::default();
         let candidate_strs: Vec<&str> = candidates
             .iter()
             .map(String::as_str)
@@ -7572,7 +7570,7 @@ file; this call falls through to the 'unknown' handler."
         // `package require` name plus every `package provide`
         // name (a file that provides a package needn't require
         // it).
-        let mut imported: HashSet<&str> = HashSet::new();
+        let mut imported: FxHashSet<&str> = FxHashSet::default();
         for pr in &self.result.package_requires {
             imported.insert(pr.name.as_str());
         }
@@ -7819,13 +7817,13 @@ file; this call falls through to the 'unknown' handler."
 
         // Per-proc: factory-local vars (non-user-proc factory heads), the last
         // returned var, and the `{var -> rhs command head}` assignment map.
-        let mut factory_locals: HashMap<String, HashSet<String>> = HashMap::new();
-        let mut return_var: HashMap<String, Option<String>> = HashMap::new();
-        let mut assigns: HashMap<String, HashMap<String, String>> = HashMap::new();
-        let mut object_returning: HashSet<String> = HashSet::new();
+        let mut factory_locals: FxHashMap<String, HashSet<String>> = FxHashMap::default();
+        let mut return_var: FxHashMap<String, Option<String>> = FxHashMap::default();
+        let mut assigns: FxHashMap<String, FxHashMap<String, String>> = FxHashMap::default();
+        let mut object_returning: FxHashSet<String> = FxHashSet::default();
         for (qname, fu) in &units {
             let mut names = HashSet::new();
-            let mut amap = HashMap::new();
+            let mut amap = FxHashMap::default();
             for block in fu.cfg.blocks.values() {
                 for stmt in &block.statements {
                     let Statement::AssignValue { name, value, .. } = stmt else {
@@ -7868,7 +7866,7 @@ file; this call falls through to the 'unknown' handler."
         }
 
         // Bare-name → qualified-name index for resolving relative call heads.
-        let mut bare_to_qnames: HashMap<&str, Vec<&str>> = HashMap::new();
+        let mut bare_to_qnames: FxHashMap<&str, Vec<&str>> = FxHashMap::default();
         for qname in cu.ir_module.procedures.keys() {
             let bare = qname.rsplit_once("::").map_or(qname.as_str(), |(_, t)| t);
             bare_to_qnames.entry(bare).or_default().push(qname.as_str());
@@ -7906,7 +7904,7 @@ file; this call falls through to the 'unknown' handler."
         // Extend factory locals: `set X [user_proc]` where the proc is now
         // proven object-returning makes `X` a factory local too.
         for (qname, amap) in &assigns {
-            let mut add = HashSet::new();
+            let mut add = FxHashSet::default();
             for (var, head) in amap {
                 if factory_locals.get(qname).is_some_and(|s| s.contains(var)) {
                     continue;
@@ -8141,7 +8139,7 @@ file; this call falls through to the 'unknown' handler."
         let scope_qname = |idx: Option<usize>| -> &str {
             idx.map_or(W307_TOP_SCOPE, |i| proc_body_ranges[i].2.as_str())
         };
-        let mut dispatch_counts: HashMap<(String, String), usize> = HashMap::new();
+        let mut dispatch_counts: FxHashMap<(String, String), usize> = FxHashMap::default();
         for site in &sites {
             let qname = scope_qname(enclosing_idx(site.cmd_span.start()));
             *dispatch_counts
@@ -8158,7 +8156,7 @@ file; this call falls through to the 'unknown' handler."
                 .map(|((var, _ver), _)| var.clone())
                 .collect()
         };
-        let mut tainted_by_scope: HashMap<String, HashSet<String>> = HashMap::new();
+        let mut tainted_by_scope: FxHashMap<String, HashSet<String>> = FxHashMap::default();
         let top_tainted = tainted_names_of(&cu.top_level);
         if !top_tainted.is_empty() {
             tainted_by_scope.insert(W307_TOP_SCOPE.to_owned(), top_tainted);
@@ -8671,8 +8669,8 @@ file; this call falls through to the 'unknown' handler."
     /// Lines come from the [`SourceMap`] over `self.source`.
     pub fn dedupe_diagnostics(&mut self) {
         let sm = SourceMap::new(&self.source);
-        let mut e101_lines: HashSet<u32> = HashSet::new();
-        let mut w124_lines: HashSet<u32> = HashSet::new();
+        let mut e101_lines: FxHashSet<u32> = FxHashSet::default();
+        let mut w124_lines: FxHashSet<u32> = FxHashSet::default();
         for d in &self.result.diagnostics {
             let line = sm.range_positions(d.span).0.line;
             match d.code.as_str() {
@@ -8686,7 +8684,7 @@ file; this call falls through to the 'unknown' handler."
             }
         }
 
-        let mut seen: HashSet<(String, u32, u32, String, Severity)> = HashSet::new();
+        let mut seen: FxHashSet<(String, u32, u32, String, Severity)> = FxHashSet::default();
         let drained = std::mem::take(&mut self.result.diagnostics);
         let mut deduped = Vec::with_capacity(drained.len());
         for d in drained {
@@ -8777,7 +8775,7 @@ file; this call falls through to the 'unknown' handler."
         if self.disabled_diagnostics.contains("IRULE4005") {
             return;
         }
-        let mut emitted_spans: HashSet<u32> = HashSet::new();
+        let mut emitted_spans: FxHashSet<u32> = FxHashSet::default();
         for block in fu.ssa.blocks.values() {
             for stmt in &block.statements {
                 // Skip unset — not a real write.
