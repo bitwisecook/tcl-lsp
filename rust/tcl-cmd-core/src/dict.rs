@@ -53,14 +53,47 @@ pub fn upsert<O: ValueOps>(
     }
 }
 
+/// Key → position index over `pairs`, so the dict build commands can upsert
+/// in O(1) instead of [`upsert`]'s O(N) linear scan (D3).
+fn index_of_pairs<O: ValueOps>(
+    ops: &mut O,
+    pairs: &[(O::Value, O::Value)],
+) -> std::collections::HashMap<String, usize> {
+    let mut index = std::collections::HashMap::with_capacity(pairs.len());
+    for (i, (k, _)) in pairs.iter().enumerate() {
+        index.insert(ops.as_str(k).to_string(), i);
+    }
+    index
+}
+
+/// [`upsert`] against a maintained key→position `index` (last value wins,
+/// position preserved). Keeps the batch dict builders O(N) overall rather
+/// than O(N²).
+fn upsert_indexed<O: ValueOps>(
+    ops: &mut O,
+    pairs: &mut Vec<(O::Value, O::Value)>,
+    index: &mut std::collections::HashMap<String, usize>,
+    key: &O::Value,
+    value: O::Value,
+) {
+    let ks = ops.as_str(key).to_string();
+    if let Some(&i) = index.get(&ks) {
+        pairs[i].1 = value;
+    } else {
+        index.insert(ks, pairs.len());
+        pairs.push((key.clone(), value));
+    }
+}
+
 /// `dict create ?key value ...?`.
 pub fn create<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
     if args.len() % 2 != 0 {
         return Err(CmdError::wrong_args("dict create ?key value ...?"));
     }
     let mut pairs: Vec<(O::Value, O::Value)> = Vec::new();
+    let mut index = std::collections::HashMap::new();
     for chunk in args.chunks_exact(2) {
-        upsert(ops, &mut pairs, &chunk[0], chunk[1].clone());
+        upsert_indexed(ops, &mut pairs, &mut index, &chunk[0], chunk[1].clone());
     }
     Ok(ops.new_dict(pairs))
 }
@@ -174,10 +207,11 @@ pub fn filter<O: ValueOps>(
 /// `dict merge ?dictionary ...?` — later dicts override earlier keys.
 pub fn merge<O: ValueOps>(ops: &mut O, dicts: &[O::Value]) -> Result<O::Value, CmdError> {
     let mut acc: Vec<(O::Value, O::Value)> = Vec::new();
+    let mut index = std::collections::HashMap::new();
     for d in dicts {
         let pairs = ops.dict_pairs(d)?;
         for (k, v) in pairs {
-            upsert(ops, &mut acc, &k, v);
+            upsert_indexed(ops, &mut acc, &mut index, &k, v);
         }
     }
     Ok(ops.new_dict(acc))
@@ -196,8 +230,9 @@ pub fn replace<O: ValueOps>(
         ));
     }
     let mut pairs = ops.dict_pairs(dict)?;
+    let mut index = index_of_pairs(ops, &pairs);
     for chunk in kv.chunks_exact(2) {
-        upsert(ops, &mut pairs, &chunk[0], chunk[1].clone());
+        upsert_indexed(ops, &mut pairs, &mut index, &chunk[0], chunk[1].clone());
     }
     Ok(ops.new_dict(pairs))
 }
