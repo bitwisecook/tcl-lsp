@@ -50,9 +50,9 @@ pub type NumericCtx<'a> = Option<&'a HashSet<String>>;
 /// Build the set of variable names whose **every** SSA version is a known
 /// numeric type (Int / Double / Numeric / Boolean). A name absent here is
 /// treated as not provably numeric, so a `$x + 0` / `$x * 0` identity is
-/// kept — matching Python, which proves numericity per use from the type
-/// lattice. Using the function-level join (all versions must agree) is a
-/// sound over-approximation of the per-use check.
+/// kept. Numericity is properly a per-use property of the type lattice;
+/// using the function-level join (all versions must agree) is a sound
+/// over-approximation of the per-use check.
 #[must_use]
 pub fn numeric_var_names(fu: &FunctionUnit) -> HashSet<String> {
     use std::collections::HashMap;
@@ -413,8 +413,8 @@ fn simplify_node_once(node: &ExprNode, bool_context: bool, numeric: NumericCtx<'
 /// noise. All non-constant terms are preserved, so numeric-coercion error
 /// semantics are unchanged. The two term-dropping cases that *would* need a
 /// provably-numeric guard (annihilating `* 0`, dropping a lone `* 1`) are
-/// skipped — Python proves numericity from the SSA type lattice, which this
-/// AST-level pass cannot, so it conservatively leaves them be.
+/// skipped — proving numericity needs the SSA type lattice, which this
+/// AST-level pass cannot consult, so it conservatively leaves them be.
 fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
     let ExprNode::Binary { op, left, right } = node else {
         return None;
@@ -465,8 +465,8 @@ fn is_mul(n: &ExprNode) -> bool {
 
 /// Flatten an `+`/`-` chain: accumulate the literal constant and push every
 /// non-literal term onto `terms`. A `-` is followed only when its RHS is an
-/// integer literal (otherwise the whole node is an opaque term — Python does
-/// not negate a non-literal subtrahend here). `None` on integer overflow.
+/// integer literal (otherwise the whole node is an opaque term — a
+/// non-literal subtrahend is not negated here). `None` on integer overflow.
 fn collect_add_terms(node: &ExprNode, terms: &mut Vec<ExprNode>) -> Option<i64> {
     if let ExprNode::Binary { op, left, right } = node {
         match op {
@@ -1158,11 +1158,10 @@ fn is_boolean_expr(node: &ExprNode) -> bool {
 /// be a number. A bare string literal is not enough: `$x == "1"` must
 /// stay numeric (`"1"` parses as the integer 1), or the rewrite flips the
 /// result when `$x` is numeric. We require a string literal whose
-/// delimiter-stripped text does **not** parse as a number, mirroring
-/// `_is_provably_non_numeric_expr_node`. The variable-with-SCCP-
-/// CONST refinement Python also accepts needs lattice values not threaded
-/// here, so it is conservatively skipped (a missed rewrite, never an
-/// unsound one).
+/// delimiter-stripped text does **not** parse as a number to prove an
+/// operand non-numeric. The variable-with-SCCP-CONST refinement needs
+/// lattice values not threaded here, so it is conservatively skipped (a
+/// missed rewrite, never an unsound one).
 fn streq_promote_node(node: &ExprNode) -> Option<ExprNode> {
     let ExprNode::Binary { op, left, right } = node else {
         return None;
@@ -1230,7 +1229,7 @@ fn make_int_literal(value: i64) -> ExprNode {
 }
 
 /// Return `true` when `node` contains any command-substitution
-/// subtree. Matches `_expr_has_command_subst`.
+/// subtree.
 #[must_use]
 pub fn expr_has_command_subst(node: &ExprNode) -> bool {
     match node {

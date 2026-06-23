@@ -225,13 +225,13 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
         } => {
             match op {
                 // BITWISE / shift → always Int (Tcl `expr` coerces the
-                // operands to integers).  GAP-B4(c): these were grouped
+                // operands to integers). Previously these were grouped
                 // with arithmetic and degraded to Numeric.
                 BinOp::LShift | BinOp::RShift | BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor => {
                     TypeLattice::of(TclType::Int)
                 }
 
-                // LOGICAL / COMPARISON → always Boolean.  GAP-B4(b): the
+                // LOGICAL / COMPARISON → always Boolean.  The
                 // six iRules string predicates (`contains` / `starts_with`
                 // / `ends_with` / `equals` / `matches_glob` /
                 // `matches_regex`) plus the word-logical `and` / `or` used
@@ -280,7 +280,7 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
             // Arithmetic sign is identity (same intrep as the operand);
             // bitwise NOT always coerces to `Int` (`~$double` → Int);
             // logical NOT yields `Boolean`.'
-            // `UnaryOpKind` BITWISE arm (GAP-B4: `~` was grouped with
+            // `UnaryOpKind` BITWISE arm (`~` was grouped with
             // the identity ops and leaked the operand's `Double`).
             UnaryOp::Neg | UnaryOp::Pos => infer_expr_type(operand, var_types),
             UnaryOp::BitNot => TypeLattice::of(TclType::Int),
@@ -298,7 +298,7 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
         }
 
         // Math-function calls resolve through the expr-function table
-        // (GAP-B4(a)) — `sqrt($x)` is Double, `int(...)` is Int, etc.,
+        // — `sqrt($x)` is Double, `int(...)` is Int, etc.,
         // where they previously degraded to overdefined.
         ExprNode::Call { function, args, .. } => expr_call_type(function, args, var_types),
 
@@ -935,7 +935,7 @@ mod tests {
         assert!(n_is_int, "expected n to be Int (llength return type)");
     }
 
-    // GAP-B4: expr type-inference precision
+    // expr type-inference precision
 
     /// Infer the type of a standalone expression string (no SSA
     /// context — variable refs stay `Unknown`).

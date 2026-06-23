@@ -61,8 +61,8 @@ impl Json {
         Json::Array(items.into_iter().map(|v| Json::Str(v.into())).collect())
     }
 
-    /// Serialise to a string matching Python `json.dumps(indent=2,
-    /// sort_keys=True)` byte-for-byte (no trailing newline).
+    /// Serialise to a string as JSON with a 2-space indent and keys sorted
+    /// alphabetically (no trailing newline).
     #[must_use]
     pub fn dumps_indent2(&self) -> String {
         let mut out = String::new();

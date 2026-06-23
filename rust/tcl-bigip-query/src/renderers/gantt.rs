@@ -50,7 +50,7 @@ fn render_gantt(
     year: i64,
 ) -> Result<String, QueryError> {
     // Preserve first-seen member order for the events map, but the output is
-    // emitted in sorted-member order (Python iterates `sorted(by_member)`).
+    // emitted in sorted-member order.
     let mut members: Vec<String> = Vec::new();
     let mut by_member: BTreeMap<String, Vec<(NaiveDateTime, String)>> = BTreeMap::new();
     for (ts, member, state) in rows {
@@ -116,7 +116,7 @@ fn render_gantt(
     // `sorted(by_member)` — BTreeMap already yields keys in sorted order.
     for (member, events_ref) in &by_member {
         let mut events = events_ref.clone();
-        // Python `sorted(by_member[member])` sorts tuples (datetime, state).
+        // Sort the (datetime, state) tuples for each member.
         events.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
         let mut state_row: Vec<char> = vec![' '; width];
         let mut cur = "UP".to_owned();
@@ -187,7 +187,7 @@ fn parse_year(value: Option<&String>) -> Result<i64, QueryError> {
         .map_err(|()| QueryError::Renderer(format!("gantt: year must be an integer (got '{raw}')")))
 }
 
-/// Python `int(str)` semantics: strips surrounding whitespace, accepts an
+/// Integer-from-string semantics: strips surrounding whitespace, accepts an
 /// optional sign, rejects floats / trailing junk.
 fn parse_py_int(s: &str) -> Result<i64, ()> {
     s.trim().parse::<i64>().map_err(|_| ())
@@ -239,7 +239,7 @@ fn coerce_rows(
     Ok(())
 }
 
-/// Python `v.get(k)` is falsy-or-missing aware via `or`; the truthiness chain
+/// Falsy-or-missing-aware key lookup; the chain
 /// `v.get("timestamp") or v.get("ts") or v.get("time")` skips falsy values.
 fn first_present<'a>(
     map: &'a indexmap::IndexMap<String, Value>,
@@ -259,7 +259,7 @@ fn is_none(v: &Value) -> bool {
     matches!(v, Value::Null)
 }
 
-/// `isinstance(c, (str, int, float, PathRef))` — bool counts as int in Python.
+/// Accepts a `str`, `int`, `float`, or `PathRef` cell — a bool counts as int.
 fn is_row_cell(v: &Value) -> bool {
     matches!(
         v,
@@ -301,12 +301,12 @@ fn cell(v: &Value) -> String {
     }
 }
 
-/// Python `type(v).__name__` for the unsupported-shape error.
+/// The value's type name for the unsupported-shape error.
 fn type_name_for_gantt(v: &Value) -> &'static str {
     v.type_name()
 }
 
-/// Render a list of dict keys as a Python `repr` of a sorted str list, e.g.
+/// Render a list of dict keys in repr style as a sorted str list, e.g.
 /// `['member', 'state']`.
 fn py_str_list(keys: &[&String]) -> String {
     let inner: Vec<String> = keys.iter().map(|k| format!("'{k}'")).collect();

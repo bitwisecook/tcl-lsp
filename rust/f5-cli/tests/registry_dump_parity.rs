@@ -1,8 +1,8 @@
 //! Differential parity tests for the `f5 registry-dump` verb.
 //!
-//! Runs the built `f5-query` binary and asserts stdout matches a golden
-//! captured from `python -m tooling.f5.main registry-dump …`. Self-contained:
-//! no Python at test time.
+//! Runs the built `f5-query` binary and asserts stdout matches the captured
+//! golden output for `registry-dump …`. Self-contained: no external tool runs
+//! at test time.
 //!
 //! The byte-parity sections (`profiles`, `objects`, `events`) are asserted
 //! against a golden. The `commands` / `all` sections are not implemented (they

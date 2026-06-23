@@ -123,8 +123,8 @@ pub struct ProcSummary {
     /// Names of procedures this one calls (transitive closure).
     pub calls: Vec<String>,
     /// Names of procedures this one calls *directly* (no transitive
-    /// closure), sorted and resolved to in-module proc qnames. Mirrors
-    /// Python's local (non-transitive) `ProcSummary.calls`; consumed by
+    /// closure), sorted and resolved to in-module proc qnames. The
+    /// proc's local, non-transitive direct-call set; consumed by
     /// the `callgraph` verb's `build_call_graph`, which needs the direct
     /// call set so the edge list carries no spurious A→C transitive edges.
     pub direct_calls: Vec<String>,
@@ -607,8 +607,8 @@ fn build_method_summaries(
 }
 
 /// Recursively collect the base names of instance-variable *writes* in
-/// a method body, comparing each written name against `ivars`. Mirrors
-/// Python's CFG walk: every `defs` of a non-`::variable` / `::upvar`
+/// a method body, comparing each written name against `ivars`. Walks
+/// the CFG, counting every `defs` of a non-`::variable` / `::upvar`
 /// Call, plus every assign / incr / loop / catch target. Array-element
 /// writes (`counter(0)`) compare on the base scalar name so they are
 /// not missed. Over-approximating writes is the sound direction (a
@@ -1045,17 +1045,17 @@ fn scan_call_facts(
         resolve_internal_call(command, caller, known)
     };
 
-    // Mirror Python `_scan_local_facts`: a call that resolves to an internal
-    // proc contributes ONLY a call-graph edge — its purity / effects flow
-    // through the interprocedural fixpoints from the callee's summary, so the
+    // A call that resolves to an internal proc contributes ONLY a
+    // call-graph edge — its purity / effects flow through the
+    // interprocedural fixpoints from the callee's summary, so the
     // command's own side-effect classification is NOT applied locally.
     // Non-internal commands apply their classified side effects.
     if let Some(target) = &internal_target {
         facts.direct_calls.insert(target.clone());
     } else {
-        // Side-effect classification is dialect-agnostic here, mirroring
-        // Python's interproc (`classify_side_effects(cmd_word, cmd_args)` —
-        // no dialect): a command's effect profile reflects what it *does*,
+        // Side-effect classification is dialect-agnostic here
+        // (`classify_side_effects` is called with no dialect): a
+        // command's effect profile reflects what it *does*,
         // not which dialect it is valid in. (The document `dialect` still
         // drives the lexer above so `[cmd …]` / bodies tokenise correctly.)
         // This is why e.g. `log`/`puts` resolve to their LOG_IO/FILE_IO
@@ -1230,9 +1230,9 @@ fn scan_statement(
         }
         Statement::AssignValue { name, value, .. } => {
             note_assign_global_write(name, facts);
-            // Mirror Python `_scan_local_facts`'s `IRAssignValue` path: a
-            // `[cmd …]` substitution in the assigned value is a call site
-            // (`set y [double $x]`), so its callees become call-graph edges.
+            // For an assigned value, a `[cmd …]` substitution in that
+            // value is a call site (`set y [double $x]`), so its callees
+            // become call-graph edges.
             if value.contains('[') {
                 scan_value_substitutions(value, caller, known, registry, dialect, facts, params);
             }
@@ -1248,8 +1248,8 @@ fn scan_statement(
         Statement::Return { value, expr, .. } => {
             let kind = classify_return(value.as_deref(), expr.as_ref(), params);
             facts.returns.push(kind);
-            // Mirror `IRReturn` path: scan `[cmd …]` substitutions in
-            // the return value (`return [add $x $x]`) for call-graph edges.
+            // For a return, scan `[cmd …]` substitutions in the return
+            // value (`return [add $x $x]`) for call-graph edges.
             if let Some(value) = value
                 && value.contains('[')
             {
@@ -2233,8 +2233,8 @@ mod tests {
     fn variable_decl_is_not_counted_as_instance_var_write() {
         // A method-local `variable x` is a link/declaration, not a
         // write — its def must not land in `writes_instance_vars`
-        // (Python soundness fix: a read-only instance-var method isn't
-        // forced impure by *that* path).  Note: the Rust registry models
+        // (soundness fix: a read-only instance-var method isn't
+        // forced impure by *that* path).  Note: the registry models
         // `variable` itself as a scope-alias barrier, so `peek` is still
         // impure overall — but not via the instance-var-write channel.
         let ia = build(

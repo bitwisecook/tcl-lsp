@@ -334,7 +334,7 @@ fn format_text(report: &DiffReport) -> String {
     lines.join("\n")
 }
 
-/// Render a string as a Python-style `repr()` (single-quoted with escapes).
+/// Render a string in repr form (single-quoted with escapes).
 fn py_repr(s: &str) -> String {
     use std::fmt::Write as _;
     let use_double = s.contains('\'') && !s.contains('"');

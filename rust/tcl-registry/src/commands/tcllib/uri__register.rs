@@ -17,7 +17,7 @@ pub fn spec() -> CommandSpec {
         name: "uri::register",
         dialects: None,
         arity: Arity::exact(2),
-        // SYNC2: `uri::register schemeList {script}` registers a
+        // `uri::register schemeList {script}` registers a
         // scheme handler — the script runs at parse time inside the
         // uri:: registration namespace, not the caller's scope.
         arg_roles: &[(1, ArgRole::Body)],

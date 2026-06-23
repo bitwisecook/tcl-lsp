@@ -212,8 +212,8 @@ fn resolve_generic_object<'a>(
             continue;
         }
         let ident = &obj.identifier;
-        // `ident == clean` (first disjunct) already covers the equality the
-        // Python repeats inside its non-absolute branch.
+        // `ident == clean` (first disjunct) already covers the equality that
+        // is otherwise repeated inside the non-absolute branch.
         let matches = ident == clean
             || (clean.starts_with('/') && ident.ends_with(clean))
             || (!clean.starts_with('/') && ident.ends_with(&format!("/{clean}")));
@@ -261,8 +261,8 @@ pub fn resolve_kind_in_configs(
             };
             let Some(placed) = resolved else { continue };
             // For a table-backed kind every object shares the kind's module
-            // (`ks.module`), so it stands in for the per-object `obj.module` the
-            // Python reads; the `spec.module` self-check never fires.
+            // (`ks.module`), so it stands in for the per-object `obj.module`
+            // read here; the `spec.module` self-check never fires.
             if let (Some(pm), Some(om)) = (preferred_module, ks.module)
                 && om != pm
             {
@@ -461,7 +461,7 @@ fn build_forward_edges(
         for node in nodes {
             for (key, prop) in parse_properties_with_spans(&node.body) {
                 // Registry-first (pilot value-spec) dispatch — runs BEFORE the
-                // legacy path, exactly like Python, so its edges win the shared
+                // legacy path, so its edges win the shared
                 // dedup and the output order matches. Migrated properties whose
                 // legacy `references` were cleared (e.g. `policies`/`vlans` on
                 // `ltm virtual`) get their edges only from here.
@@ -726,8 +726,8 @@ fn pilot_references(
     // Migrated but reference-free for raw-string input: `DestinationSpec` (no
     // `references()`), `DataGroupRecordSpec` / `GtmRegionMemberSpec` (no refs),
     // and `LtmPolicyRuleSpec` (no `parse()`, so it sees a string with no
-    // `actions`). All fall through to the legacy path, exactly like Python's
-    // empty pilot result followed by the unconditional legacy passes.
+    // `actions`). All fall through to the legacy path: an empty pilot result
+    // followed by the unconditional legacy passes.
     None
 }
 
@@ -1150,7 +1150,7 @@ fn to_mermaid(nodes: &[&ObjectNode], edges: &[&ObjectEdge], kept: &HashSet<&str>
 }
 
 /// Serialise to `json.dumps(indent=2)`-compatible JSON, built by hand to match
-/// Python's key order (which `serde_json`'s sorted maps wouldn't preserve).
+/// the intended key order (which `serde_json`'s sorted maps wouldn't preserve).
 fn to_json(nodes: &[&ObjectNode], edges: &[&ObjectEdge], kept: &HashSet<&str>) -> String {
     use std::fmt::Write as _;
 

@@ -18,7 +18,7 @@
 //! primary     := literal | call | path_start | '(' pipeline ')'
 //! ```
 //!
-//! See the Python module docstring for the divergences from jq (comma-
+//! The divergences from jq are documented in the parser overview (comma-
 //! separated call args, assignment as a trailing pipe-stage operator,
 //! single `PathExpr` nodes, and `["~pattern"]` regex subscripts).
 
@@ -48,7 +48,7 @@ fn cmp_op(kind: TokenKind) -> Option<&'static str> {
     }
 }
 
-/// Python `str(value)` coercion for the few token-value reads the parser
+/// String coercion of a value for the few token-value reads the parser
 /// performs (always a `Str` in practice — `IDENT` / `$IDENT` / `STRING`).
 fn lit_str(v: &LitValue) -> String {
     match v {

@@ -47,8 +47,8 @@ pub(super) fn build_predecessors(
 }
 
 /// Blocks of the natural loop with `header`: `{header}` plus every block that
-/// reaches a back-edge source without passing through the header.  Mirrors the
-/// per-loop block set `build_loop_forest` provides Python's S102 pass, so a
+/// reaches a back-edge source without passing through the header.  This is the
+/// per-loop block set `build_loop_forest` provides for the S102 pass, so a
 /// sibling loop's type effect on the same name never pollutes this loop's
 /// oscillation check.
 pub(super) fn natural_loop_blocks(
@@ -106,8 +106,8 @@ pub(super) fn empty_value_versions(ssa: &SsaFunction) -> HashMap<String, HashSet
 
 /// Foreach-header blocks whose body is a single `break` — the destructure
 /// idiom (`foreach {a b c} $l break`), a one-time multi-assign whose bindings
-/// must not count as per-iteration loop-body types.  Mirrors
-/// `_destructure_foreach_blocks` (block-shape heuristic).
+/// must not count as per-iteration loop-body types.  Detected by a
+/// block-shape heuristic.
 pub(super) fn destructure_foreach_blocks(cfg: &CfgFunction) -> HashSet<String> {
     let mut out = HashSet::new();
     for (bn, block) in &cfg.blocks {
@@ -122,8 +122,7 @@ pub(super) fn destructure_foreach_blocks(cfg: &CfgFunction) -> HashSet<String> {
 }
 
 /// KNOWN, non-empty intreps each name is *defined as* inside the per-loop
-/// blocks of `header` (destructure foreach blocks excluded).  Mirrors the
-/// per-loop `per_header_body_types` build in `_find_thunking`.
+/// blocks of `header` (destructure foreach blocks excluded).
 pub(super) fn per_loop_body_types(
     header: &str,
     loop_block_set: &HashSet<String>,
@@ -395,7 +394,7 @@ mod tests {
     /// (`set x "s"; set x [list 1]` — STRING then LIST) genuinely re-thunks
     /// every pass and fires S102.  (A *one-time* promotion — `set x 0; while …
     /// { set x "hello" }`, where x stabilises at STRING after the first pass —
-    /// is suppressed, matching Python; see the sibling/accumulator tests.)
+    /// is suppressed; see the sibling/accumulator tests.)
     #[test]
     fn thunking_detected_for_two_type_loop_body() {
         // Non-constant condition so SCCP keeps both edges executable.

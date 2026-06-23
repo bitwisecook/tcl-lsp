@@ -48,12 +48,12 @@ bitflags! {
 
         /// Every modelled dialect *except* F5 iRules and Tk.
         ///
-        /// The Python registry marks the math-operator commands
-        /// (`+`, `eq`, `tcl::mathop::*`, …) valid in every command
+        /// The math-operator commands
+        /// (`+`, `eq`, `tcl::mathop::*`, …) are valid in every command
         /// dialect *except* `f5-irules` (in iRules, operators live
         /// inside `expr`, never as standalone command heads) and
-        /// `tk`. Mirrors that membership so the iRules event/command
-        /// cross-product (`commands_for_event`) excludes them.
+        /// `tk`. This set captures that membership so the iRules
+        /// event/command cross-product (`commands_for_event`) excludes them.
         const NON_IRULES_OPERATORS = Self::ALL_TCL.bits()
             | Self::IAPPS.bits() | Self::EXPECT.bits()
             | Self::SYNOPSYS.bits() | Self::CADENCE.bits()

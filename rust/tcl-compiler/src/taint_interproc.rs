@@ -82,8 +82,7 @@ fn basis_lattice(basis: &str) -> TaintLattice {
 }
 
 /// Basis names whose lattice colour intersects `taint`'s colour, excluding
-/// `"generic"` (falling back to `["generic"]` when none match). Mirrors
-/// Python `_basis_names_for_taint`.
+/// `"generic"` (falling back to `["generic"]` when none match).
 fn basis_names_for_taint(taint: TaintLattice) -> Vec<&'static str> {
     if !taint.is_tainted() {
         return Vec::new();
@@ -148,8 +147,7 @@ impl ProcTaintSummary {
         }
     }
 
-    /// The return taint when `param` is tainted with `basis`. Mirrors
-    /// Python `ProcTaintSummary.scenario`.
+    /// The return taint when `param` is tainted with `basis`.
     fn scenario(&self, param: &str, basis_idx: usize) -> TaintLattice {
         for (p_name, values) in &self.return_by_param_basis {
             if p_name == param && basis_idx < values.len() {
@@ -770,7 +768,7 @@ mod tests {
     fn cross_proc_entry_taint_into_sink_warns() {
         // A tainted argument flowing into a proc parameter and then into a
         // sink inside that proc is reported (cross-proc entry-taint) — the
-        // gap `_solve_interprocedural_taints` closes.
+        // gap interprocedural taint solving closes.
         let src = "proc s {v} { eval $v }\nset x [gets stdin]\ns $x\n";
         let w = warnings(src);
         assert_eq!(w.len(), 1, "expected one cross-proc sink warning: {w:?}");
@@ -808,7 +806,7 @@ mod tests {
         let out =
             apply_proc_return_summary(&summary, &[TaintLattice::clean(), TaintLattice::clean()]);
         assert!(!out.is_tainted());
-        // Wrong arity → untainted (matches Python `_apply_proc_return_summary`).
+        // Wrong arity → untainted.
         let out = apply_proc_return_summary(&summary, &[TaintLattice::tainted()]);
         assert!(!out.is_tainted());
     }

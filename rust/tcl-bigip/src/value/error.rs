@@ -1,7 +1,7 @@
 //! Crate-local error type for the value layer, modelling the `ValueError`
 //! raised by the `parse` classmethods on the typed value dataclasses.
 //!
-//! The message text matches the Python source where practical so
+//! The message text is kept stable where practical so
 //! differential-parity comparisons line up.
 
 use std::fmt;

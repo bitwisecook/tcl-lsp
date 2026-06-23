@@ -6,9 +6,9 @@
 //! the matching conversion hint (`_CONVERSION_MAP`).
 //!
 //! This verb only *reports*; it never rewrites source. The diagnostic firing
-//! conditions, spans, and messages match the Python analyser byte-for-byte —
+//! conditions, spans, and messages are asserted against the captured golden output —
 //! only the emission *order* may differ (Rust sorts diagnostics by source
-//! position; Python emits in pass order).
+//! position; emitted in pass order).
 
 use serde::Serialize;
 use tcl_cli_support::{OutputTarget, combine_sources, ensure_ascii, read_input_documents};
@@ -22,7 +22,7 @@ use crate::cli::InputArgs;
 const CONVERTIBLE_CODES: [&str; 6] = ["W100", "W104", "W110", "W304", "IRULE2001", "IRULE5001"];
 
 /// The modernisation hint shown per code — mirrors `_CONVERSION_MAP`. Codes not
-/// in this table fall back to `"modernise"` (matching the Python `.get` default;
+/// in this table fall back to `"modernise"` (the default;
 /// every convertible code is present, so the fallback is unreachable in practice).
 fn conversion_for(code: &str) -> &'static str {
     match code {

@@ -135,7 +135,7 @@ pub enum CodegenHookId {
 /// Typed identifier for a WASM-runtime codegen specialisation.
 ///
 /// Reserved for the WASM-target codegen path
-/// (`vm/`, the Zig WASM runtime). Currently empty — no command
+/// (`vm/`, the WASM runtime). Currently empty — no command
 /// has a WASM-specific emitter yet — but the field exists on
 /// [`crate::CommandSpec`] / [`crate::SubCommand`] /
 /// [`crate::forms::CommandForm`] so the per-command coverage

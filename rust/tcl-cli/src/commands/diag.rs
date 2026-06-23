@@ -2,7 +2,7 @@
 //!
 //! Drive the analyser in `tcl-compiler`. Unlike the transform verbs, these
 //! analyse each input
-//! document separately (matching the Python per-file loop).
+//! document separately (a per-file loop).
 
 use std::collections::HashSet;
 
@@ -13,7 +13,7 @@ use tcl_lexer::LineIndex;
 
 use crate::cli::{DiagArgs, InputArgs};
 
-/// One diagnostic in the `diag` report (field order matches the Python dict).
+/// One diagnostic in the `diag` report (fields are emitted in a fixed order).
 #[derive(Serialize)]
 struct DiagItem {
     line: u32,
@@ -50,9 +50,9 @@ struct ValidatePayload {
     errors: Vec<ValidateError>,
 }
 
-/// Map a Rust analyser severity to the Python `Severity.name.lower()`
-/// vocabulary (`error` / `warning` / `info` / `hint`). The Rust `Suggestion`
-/// tier corresponds to the Python `INFO`.
+/// Map a severity to its lowercase name (`Severity.name.lower()`)
+/// vocabulary (`error` / `warning` / `info` / `hint`). The `Suggestion`
+/// tier corresponds to the `info` severity.
 fn severity_label(severity: Severity) -> &'static str {
     match severity {
         Severity::Error => "error",

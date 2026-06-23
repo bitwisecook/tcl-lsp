@@ -547,8 +547,8 @@ pub fn parse_pool(full_path: &str, body: &str, range: Range, ctx: BespokeCtx) ->
     {
         let members_abs = ctx.block_start + 1 + prop.value_start.unwrap_or(0);
         members = parse_pool_members(&prop.value, members_abs);
-        // `field_offsets` are absolute source offsets; Python stores
-        // them as code-point indices (str indexing), so convert the
+        // `field_offsets` are absolute source offsets; the canonical form
+        // stores them as code-point indices, so convert the
         // byte offsets to code points for non-ASCII fidelity.
         for m in &mut members {
             for span in m.field_offsets.values_mut() {
@@ -1138,7 +1138,7 @@ pub fn parse_gtm_pool(
         }
     }
     obj.members = members;
-    // Python prefers ``qos-kilobytes-second`` over ``qos-kbps``.
+    // Prefer ``qos-kilobytes-second`` over ``qos-kbps``.
     let kbps = props
         .get("qos-kilobytes-second")
         .filter(|v| !v.is_empty())
@@ -1842,7 +1842,7 @@ mod tests {
             members[0].address.as_ref().unwrap().to_string(),
             "10.0.1.10"
         );
-        // address present -> port stays 0 (Python only parses port from the
+        // address present -> port stays 0 (the port is only parsed from the
         // name when no explicit address is set).
         assert_eq!(members[0].port, 0);
         assert!(members[0].field_offsets.contains_key("address"));

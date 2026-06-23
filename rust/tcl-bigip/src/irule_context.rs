@@ -909,7 +909,7 @@ pub fn context_bundle_to_text(bundle: &IruleContextBundle) -> String {
         parts.push("}".to_owned());
     }
 
-    // (kind label, entries) in the fixed Python order.
+    // (kind label, entries) in the fixed order.
     let mut sections: Vec<(&str, Vec<(String, String)>)> = Vec::new();
     sections.push((
         "pool",

@@ -1,9 +1,9 @@
 //! Integration tests for the `dis` and `compwasm` verbs.
 //!
 //! These assert structural properties of the output rather than byte-for-byte
-//! Python parity: the Rust bytecode codegen and the greenfield WASM emitter are
+//! Golden parity: the bytecode codegen and the greenfield WASM emitter are
 //! still reaching feature parity (notably `expr`/command-substitution inlining),
-//! so the verbs are asserted to faithfully render whatever the current Rust
+//! so the verbs are asserted to faithfully render whatever the current
 //! pipeline produces — a valid disassembly and a structurally valid WASM module.
 
 use std::process::Command;
@@ -87,8 +87,8 @@ fn compwasm_emits_valid_module_header() {
 
 #[test]
 fn compwasm_defaults_to_out_wasm_file() {
-    // With no `-o`, compwasm must write `out.wasm` in the cwd (the Python
-    // default) rather than dumping raw bytes to the terminal. Run in a scratch
+    // With no `-o`, compwasm must write `out.wasm` in the cwd
+    // rather than dumping raw bytes to the terminal. Run in a scratch
     // dir so the artifact lands somewhere hermetic.
     let dir = std::env::temp_dir().join("tcl_compwasm_default");
     std::fs::create_dir_all(&dir).expect("mkdir");
@@ -114,7 +114,7 @@ fn compwasm_defaults_to_out_wasm_file() {
 
 #[test]
 fn compwasm_dash_o_writes_stdout() {
-    // An explicit `-o -` still selects stdout (matching the Python verb).
+    // An explicit `-o -` still selects stdout.
     let out = run_tcl(&["compwasm", "--source", "set x 1\n", "-o", "-"]);
     assert_eq!(&out[0..4], b"\0asm", "stdout payload is not a wasm module");
 }

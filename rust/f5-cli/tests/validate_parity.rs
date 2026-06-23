@@ -1,8 +1,8 @@
 //! Differential parity tests for `f5 validate` (alias `lint`).
 //!
 //! Runs the built `f5-query` binary on committed fixtures and asserts stdout +
-//! exit code match goldens captured from `python -m tooling.f5.main validate`.
-//! Self-contained: no Python is needed at test time.
+//! exit code match the captured golden output for `validate`.
+//! Self-contained: no external tool is needed at test time.
 //!
 //! The lint engine is a *sibling* of the query engine — it walks the BIG-IP
 //! model directly (reusing `tcl-bigip`'s model, the `tcl-irules` object-ref
@@ -209,7 +209,7 @@ fn lint_alias_matches_validate() {
 }
 
 // ── Input error: missing file → `error: not a file: <path>` on stderr,
-//    exit 2 (matches Python's OSError path). ────────────────────────────
+//    exit 2 (the OS-error path). ────────────────────────────
 
 #[test]
 fn missing_file_errors_like_python() {

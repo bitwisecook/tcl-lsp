@@ -443,7 +443,7 @@ mod tests {
     #[test]
     fn rejects_factory_with_multiple_statements() {
         // Two statements in body — current detector only matches the
-        // single-statement shape (matches Python's gate).
+        // single-statement shape.
         let m = lower_to_ir(
             "proc Configure {name default} {\n  set foo 1\n  proc $name {x} [subst -nocommands {return $default}]\n}",
             &reg(),

@@ -3,7 +3,7 @@
 //! Note the tab
 //! handling differs from the transform verbs: here highlighting runs *first*
 //! and tab expansion *after* (so `str.expandtabs` sees the escape codes), which
-//! is the Python order for this verb specifically.
+//! is the order for this verb specifically.
 
 use tcl_cli_support::{
     OutputTarget, combine_sources, expand_tabs, highlight_ansi, highlight_html,

@@ -3,7 +3,7 @@
 //!
 //! For every proc whose body satisfies a small set of safety
 //! checks the pass assigns indices ``0..LOCALS_ARRAY_CAP-1`` to
-//! its scalar literal locals.  The codegen consumer (Zig WASM
+//! its scalar literal locals.  The codegen consumer (the WASM
 //! emitter on the runtime side) swaps the name-keyed
 //! ``tcl_local_set`` / ``tcl_local_get`` calls for the indexed
 //! accessors.
@@ -37,9 +37,9 @@ use tcl_registry::{CommandRegistry, Traits};
 use crate::ir::{Module, Script, Statement};
 use crate::var_escape::types::ProcEscapeSummary;
 
-/// Cap on the indexed-locals array.  Must mirror
-/// :data:`runtime.zig.interp.tcl_frames.LOCALS_ARRAY_CAP`; bumping
-/// the runtime side should bump this constant too.
+/// Cap on the indexed-locals array.  Must match the runtime side's
+/// locals-array capacity; bumping the runtime side should bump this
+/// constant too.
 pub const LOCALS_ARRAY_CAP: usize = 16;
 
 /// Commands whose call shape forces the entire proc out of slot

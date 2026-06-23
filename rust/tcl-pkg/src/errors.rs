@@ -2,8 +2,7 @@
 //!
 //! The CLI prints the
 //! [`Display`] form verbatim, so the message composition (location prefixes,
-//! `hint:` suffix, integrity expected/got detail) must match the Python output
-//! byte-for-byte.
+//! `hint:` suffix, integrity expected/got detail) is stable and canonical.
 
 use std::fmt;
 

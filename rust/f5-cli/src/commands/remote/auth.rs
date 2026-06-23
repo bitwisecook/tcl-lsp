@@ -122,7 +122,7 @@ pub struct ResolveOptions<'a> {
 /// Resolve a complete [`Credentials`] from layered sources.
 ///
 /// # Errors
-/// Returns the exact Python error strings (`"no host configured (set --host or
+/// Returns the exact error strings (`"no host configured (set --host or
 /// F5_HOST)"`, etc.) when a required field cannot be resolved non-interactively,
 /// or an I/O message when an interactive prompt fails.
 pub fn resolve_credentials(opts: &ResolveOptions) -> Result<Credentials, String> {

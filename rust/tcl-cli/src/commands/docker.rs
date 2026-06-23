@@ -2,7 +2,7 @@
 //!
 //! Thin wrappers over `tcl_pkg::docker`: parse CLI args, call the library,
 //! format output. Library errors print
-//! `error: <msg>` to stderr and return exit code 1, matching the Python verb.
+//! `error: <msg>` to stderr and return exit code 1.
 
 // Handlers return `anyhow::Result<u8>` for a uniform dispatch signature even
 // when a given verb cannot fail; the wrap is the interface contract.

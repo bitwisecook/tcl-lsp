@@ -388,7 +388,7 @@ fn resolve_pool_member_address(member_name: &str, cfg: &BigipConfig) -> String {
         return addr;
     }
     let base = member_name.rsplit('/').next().unwrap_or(member_name);
-    // Python: base.split(":",1)[0].split(".",1)[0]
+    // Strip from the first ':' and then the first '.': split(":",1)[0].split(".",1)[0]
     let short_no_port = {
         let s = base.split_once(':').map_or(base, |(h, _)| h);
         s.split_once('.').map_or(s, |(h, _)| h)

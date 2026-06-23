@@ -1,15 +1,15 @@
 //! Differential parity tests for the `f5 tmsh` verb (SCF → tmsh emit engine).
 //!
 //! Runs the built `f5-query` binary against the committed `bigip.conf`
-//! fixture and asserts stdout matches goldens captured from
-//! `python -m tooling.f5.main tmsh …`. Self-contained: no Python at test
-//! time.
+//! fixture and asserts stdout matches the captured golden output.
+//! Self-contained: the goldens are committed, so no external tool runs at
+//! test time.
 //!
-//! The delta engine (`emit_tmsh_delta`) has no direct CLI verb (the Python
-//! `tmsh` verb has no `--delta`; delta lives in the shared `render_config`
-//! helper consumed by the config verbs), so its cases drive
-//! `tcl_bigip::tmsh_emit::emit_tmsh_delta` directly against goldens captured
-//! from `tooling.f5.verbs._emit.render_config(..., fmt="tmsh-delta")`.
+//! The delta engine (`emit_tmsh_delta`) has no direct CLI verb (the `tmsh`
+//! verb has no `--delta`; delta lives in the shared config-render helper
+//! consumed by the config verbs), so its cases drive
+//! `tcl_bigip::tmsh_emit::emit_tmsh_delta` directly against the captured
+//! `tmsh-delta` golden output.
 
 use std::path::PathBuf;
 use std::process::Command;

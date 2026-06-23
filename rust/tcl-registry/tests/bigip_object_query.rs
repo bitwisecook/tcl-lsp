@@ -2,14 +2,14 @@
 //!
 //! Asserts the Rust `kind_for_header` / `candidate_kinds_for_key` /
 //! `candidate_kinds_for_section_item` reproduce `object_registry.py` exactly,
-//! over a golden captured from the Python registry (every header in the
-//! registry, plus every property name per container, probed across several
-//! sections). Self-contained — no Python at test time.
+//! over a captured golden registry (every header in the registry, plus every
+//! property name per container, probed across several sections).
+//! Self-contained — no external oracle at test time.
 //!
 //! `kind_for_header` (the structural header→kind map), `candidate_kinds_for_key`,
-//! and `candidate_kinds_for_section_item` must all match Python **exactly** —
+//! and `candidate_kinds_for_section_item` must all match the golden **exactly** —
 //! every probe, no exceptions. The registry **data** (`bigip/data`) is
-//! regenerated from the reconciled Python `OBJECT_SPECS` by
+//! regenerated from the reconciled `OBJECT_SPECS` by
 //! `scripts/registry-audit/gen_bigip_rust.py`, so there is no data drift to pin.
 
 use std::collections::BTreeSet;
@@ -76,7 +76,7 @@ fn object_query_matches_python() {
         header_mismatches.join("\n")
     );
 
-    // candidate_kinds_* must match Python on every probe.
+    // candidate_kinds_* must match the golden on every probe.
     assert!(
         candidate_mismatches.is_empty(),
         "candidate_kinds diverged from Python ({} rows):\n{}",

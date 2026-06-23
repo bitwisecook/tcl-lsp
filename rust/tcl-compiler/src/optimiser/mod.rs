@@ -146,8 +146,7 @@ pub struct ProcCfgEntry {
 
 /// Shared mutable state threaded through all optimisation passes.
 ///
-/// The state mirrors `PassContext` field-for-field so
-/// passes ported straight can
+/// The state mirrors `PassContext` field-for-field so passes can
 /// consult the same bookkeeping:
 ///
 /// - [`optimisations`](Self::optimisations) — accumulated rewrites.
@@ -156,14 +155,14 @@ pub struct ProcCfgEntry {
 ///   by propagation to fold calls.
 /// - [`propagated_branch_uses`](Self::propagated_branch_uses) —
 ///   `(var, ssa_version)` pairs whose branch use has been
-///   propagated, so `_elimination` can drop dead stores feeding
+///   propagated, so the elimination pass can drop dead stores feeding
 ///   those uses.
 /// - [`propagated_use_groups`](Self::propagated_use_groups) —
 ///   group-id assignment for propagated uses, enabling
 ///   all-or-nothing application of the associated rewrite group.
 /// - [`propagated_expr_stmts`](Self::propagated_expr_stmts) —
 ///   `(block_name, stmt_index)` of propagated expression
-///   statements, again to coordinate with `_elimination`.
+///   statements, again to coordinate with the elimination pass.
 /// - [`cross_event_vars`](Self::cross_event_vars) — names whose
 ///   values must be preserved across `when <event>` boundaries
 ///   (iRules-specific; empty for plain Tcl).
@@ -277,8 +276,6 @@ impl<'a> PassContext<'a> {
 
     /// Reset the per-function scratch state (`propagated_*`) so
     /// the same context can drive multiple functions in sequence.
-    /// Python's manager does this at the top of
-    /// `_process_function`.
     pub fn reset_function_state(&mut self) {
         self.propagated_branch_uses.clear();
         self.propagated_use_groups.clear();
@@ -330,7 +327,7 @@ impl PassId {
         ]
     }
 
-    /// Short text form matching the Python pass module names.
+    /// Short text form of the pass name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {

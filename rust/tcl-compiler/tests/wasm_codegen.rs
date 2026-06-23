@@ -204,8 +204,7 @@ fn foreach_is_opaque_eval_fallback() {
 
 /// Every emitted module is **structurally valid WASM** — confirmed by
 /// `wasmtime compile` (which fully validates before native compilation). Skips
-/// gracefully where the `wasmtime` CLI isn't available, mirroring the Python
-/// oracle skip in `differential_codegen.rs`.
+/// gracefully where the `wasmtime` CLI isn't available.
 #[test]
 fn wasmtime_validates_emitted_modules() {
     let have_wasmtime = std::process::Command::new("wasmtime")

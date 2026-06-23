@@ -297,7 +297,7 @@ fn scan_element(s: &str, leading_hash_unsafe: bool) -> Quote {
         return Quote::Brace; // the empty element renders as `{}`.
     }
     let b = s.as_bytes();
-    // Ported from `TclScanElement` (tclUtil.c, `COMPAT 1` — the form Tcl 9.0
+    // Follows `TclScanElement` (tclUtil.c, `COMPAT 1` — the form Tcl 9.0
     // actually ships). Flags:
     //   forbid_none    ⇒ cannot copy verbatim (must brace or escape).
     //   require_escape ⇒ cannot brace-quote (must escape every special byte).

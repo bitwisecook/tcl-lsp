@@ -21,8 +21,8 @@
 //!
 //! The pass is driven from a [`CompilationUnit`] because
 //! per-function SCCP values come from the [`FunctionUnit`]
-//! bundle; the Python manager's `_process_function` loop is
-//! folded into the `run_function` entry point.
+//! bundle; the per-function loop is folded into the
+//! `run_function` entry point.
 
 use std::collections::HashMap;
 
@@ -38,8 +38,7 @@ use super::helpers::tokens::extract_body_text;
 use super::{Optimisation, PassContext};
 
 /// Run the structure-elimination pass across every function in
-/// `cu`. Matches `optimise_structure_elimination`
-/// entry point — walks the top-level IR script and each
+/// `cu` — walks the top-level IR script and each
 /// procedure body, evaluating each compound-statement condition
 /// against the per-function SCCP lattice.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
@@ -59,8 +58,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 
 /// Project a function's SCCP lattice into an [`Env`] keyed by
 /// variable name. Only variables whose every tracked version
-/// collapses to the same `Const` value survive — mirrors the
-/// Python `sccp_constants` construction.
+/// collapses to the same `Const` value survive.
 fn sccp_env_for(fu: &FunctionUnit) -> Env {
     let mut per_var: HashMap<String, Vec<&ConstValue>> = HashMap::new();
     let mut dirty: std::collections::HashSet<String> = std::collections::HashSet::new();

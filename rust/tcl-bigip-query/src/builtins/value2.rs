@@ -12,7 +12,7 @@
 //!   `_truthy`, recovering the "did the predicate hold?" semantics for
 //!   `any(stream | map(predicate))`.
 //! - `halt` / `halt_error` raise `BuiltinError`; `halt_error` reads an
-//!   optional integer exit-code argument (default 5) and reproduces Python's
+//!   optional integer exit-code argument (default 5) and produces the
 //!   `halt_error: query halted (exit_code=N)` text.
 //! - `json_parse` parses a JSON string into the value model (objects
 //!   preserve key order, integers stay `Int`); its `JSONDecodeError` line /
@@ -195,7 +195,7 @@ fn bi_partition(args: &[Value]) -> Result<Value, QueryError> {
     if !s.starts_with('/') {
         return Ok(Value::Str(String::new()));
     }
-    // Python `s.split("/", 2)` => ["", first, rest?]; index 1 is the first
+    // `s.split("/", 2)` => ["", first, rest?]; index 1 is the first
     // segment after the leading slash.
     let part = s.split('/').nth(1).unwrap_or("");
     Ok(Value::Str(part.to_string()))

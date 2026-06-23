@@ -336,7 +336,7 @@ impl CodegenCtx<'_> {
 
     /// Emit a simple value — handles `${var}` references and literals.
     ///
-    /// This is a simplified `_emit_value` that handles the common cases.
+    /// This is a simplified value emitter that handles the common cases.
     /// Full interpolation with command substitution requires the main
     /// emitter pipeline.
     pub fn emit_value_interpolated(&mut self, value: &str) {

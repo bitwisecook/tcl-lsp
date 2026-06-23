@@ -4,7 +4,7 @@
 //! source fetchers, registry client, virtual
 //! environments, and Dockerfile generation. The `tcl pkg` / `tcl venv` /
 //! `tcl docker` CLI verb groups in `tcl-cli` drive these modules; behaviour and
-//! on-disk formats match the Python implementation byte-for-byte.
+//! on-disk formats are stable and canonical.
 
 pub mod cas;
 pub mod docker;

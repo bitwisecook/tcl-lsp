@@ -12,8 +12,8 @@ use tcl_lexer::LineIndex;
 
 use crate::range::Range;
 
-/// Match `$::name` or `${::name}` (with an optional `(index)`). Like the
-/// Python regex, the identifier is captured in one greedy chunk and the
+/// Match `$::name` or `${::name}` (with an optional `(index)`). The
+/// identifier is captured in one greedy chunk and the
 /// iApp `__` separator is enforced by a post-filter rather than nested
 /// quantifiers (which risk catastrophic backtracking — `CodeQL`
 /// `py/redos`). Group 1 is the braced form, group 2 the unbraced form.

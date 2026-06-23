@@ -27,7 +27,8 @@ fn encode_path(full_path: &str) -> String {
     }
 }
 
-/// Percent-encode like Python's `urllib.parse.quote(s, safe="")`.
+/// Percent-encode every byte that is not an unreserved character
+/// (`A-Z a-z 0-9 _ . - ~`), encoding all others including `/`.
 fn percent_encode(s: &str) -> String {
     use std::fmt::Write as _;
     let mut out = String::with_capacity(s.len());
@@ -142,7 +143,7 @@ pub fn push_object(
             format!("/mgmt/tm/{module}/{otype}/{}", encode_path(full_path)),
         )
     };
-    // Compact body, matching Python's `json.dumps(payload)` default separators.
+    // Compact body, using the default `(',', ':')`-style separators (no spaces).
     let body = serde_json::to_vec(payload).map_err(|e| e.to_string())?;
     let resp = rest::request(credentials, method, &path, Some(&body), insecure, timeout)?;
     if resp.status >= 400 {
@@ -249,8 +250,8 @@ pub fn object_to_scf_stanza(kind: &str, obj: &Value) -> String {
     }
 }
 
-/// Parse a JSON payload, reproducing Python `json.JSONDecodeError`'s
-/// `Expecting value: line L column C (char N)` message for the common
+/// Parse a JSON payload, reproducing the
+/// `Expecting value: line L column C (char N)` decoder message for the common
 /// no-value / leading-garbage cases. The position is recomputed from the first
 /// non-whitespace character (serde reports a different offset), per the parity
 /// contract.
@@ -281,9 +282,9 @@ fn expecting_value_position(raw: &str) -> (usize, usize, usize) {
     char_position(raw, idx)
 }
 
-/// Translate a byte offset into Python's 1-based `(line, column, char)` triple.
+/// Translate a byte offset into a 1-based `(line, column, char)` triple.
 /// Inputs here are ASCII-dominated config payloads; the char index counts
-/// Unicode scalar values to match Python's string indexing.
+/// Unicode scalar values to match the decoder's string indexing.
 fn char_position(raw: &str, byte_idx: usize) -> (usize, usize, usize) {
     let mut line = 1usize;
     let mut col = 1usize;

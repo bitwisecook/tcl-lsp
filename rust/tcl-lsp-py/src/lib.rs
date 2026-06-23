@@ -1,8 +1,8 @@
 //! Public `PyO3` bindings exposing the tcl-lsp Rust crates to Python.
 //!
 //! This crate is the sole place where Python-compatibility concerns live:
-//! `#[pyclass]` wrappers, `PyErr` translations, and any back-compat shims
-//! that mimic the current Python API surface. The underlying Rust crates
+//! `#[pyclass]` wrappers, `PyErr` translations, and compatibility shims
+//! for the public API surface. The underlying Rust crates
 //! (starting with `tcl-lexer`) remain free of `pyo3` and are shaped for
 //! idiomatic Rust use.
 //!
@@ -16,9 +16,8 @@
 //!
 //! - `tcl_lsp_py` — the canonical, public API. New Python code
 //!   should `import tcl_lsp_py`.
-//! - `tcl_lsp_rust` — a legacy alias that re-exports the same
-//!   functions and classes via [`register_with`]. Existing Python
-//!   code keeps working unchanged.
+//! - `tcl_lsp_rust` — an alias that re-exports the same
+//!   functions and classes via [`register_with`].
 //!
 //! Both wheels share the same Rust binding source; only the
 //! `#[pymodule]` entry-point name differs.
@@ -29,20 +28,18 @@
 //!   `compile_tcl` / `analyse_tcl` / `format_tcl` / `parse_bigip_config`
 //!   / `query_bigip` facades plus the
 //!   [`TclLspError`](public::errors::TclLspError) hierarchy. This
-//!   is the semver-stable surface downstream embedders target; it is
-//!   not a transcription of in-tree calls.
-//! - The **legacy soft-dependency shims** — the per-subsystem
-//!   `#[pyfunction]`s the in-tree Python still imports.
+//!   is the semver-stable surface downstream embedders target.
+//! - The **per-subsystem shims** — the subsystem-level
+//!   `#[pyfunction]`s callers import directly.
 //!
-//! Legacy shims exposed:
+//! Subsystem shims exposed:
 //!
 //! - `hello_rust()` / `lexer_version()` — smoke-test bridge.
 //! - `backslash_subst(text)` — backslash substitution.
 //! - `TokenType`, `SourcePosition`, `Token` — the lexer data types.
 //! - `lexer_tokenise(source)` — the Tcl lexer skeleton
 //!   (EOF / SEP / EOL / COMMENT / plain ESC). Inputs containing
-//!   unsupported constructs (`$ [ ] {} " \`) raise `ValueError` so the
-//!   differential harness can filter them.
+//!   unsupported constructs (`$ [ ] {} " \`) raise `ValueError`.
 
 #![deny(missing_docs)]
 
@@ -74,9 +71,8 @@ pub(crate) mod tokens;
 
 /// Return the Rust-side greeting used by the smoke test.
 ///
-/// The exact return value is asserted by
-/// `tests/test_rust_bindings_smoke.py`; if you change it, update the test
-/// in the same commit.
+/// The exact return value is part of the public contract; changing it is
+/// a breaking change for callers asserting on it.
 #[pyfunction]
 #[must_use]
 pub fn hello_rust() -> &'static str {

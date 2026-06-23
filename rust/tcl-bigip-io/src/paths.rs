@@ -52,7 +52,7 @@ pub struct PassphraseOptions {
     /// `explicit` nor the env var resolved a value, this is invoked as the last
     /// resort (a binary wires a secure TTY prompt here). `Err`/empty falls
     /// through to the standard "set the env var" error — e.g. when there is no
-    /// controlling terminal — matching the Python provider's TTY fallback.
+    /// controlling terminal — matching the provider's TTY fallback.
     pub prompt: Option<fn() -> Result<String, String>>,
 }
 
@@ -125,8 +125,8 @@ fn looks_like_ucs(raw: &[u8], is_ucs_ext: bool, is_stdin: bool) -> bool {
 ///
 /// `.ucs` archives (plain or OpenPGP-encrypted) — and gzip / `OpenPGP` streams
 /// from stdin — are transparently extracted to SCF via [`ucs_archive_to_scf`].
-/// Other inputs are decoded UTF-8 with lossy replacement (Python `errors=
-/// "replace"`); `strict` makes an undecodable byte an error instead.
+/// Other inputs are decoded UTF-8 with lossy replacement (invalid bytes →
+/// U+FFFD); `strict` makes an undecodable byte an error instead.
 pub fn read_path(
     path_str: &str,
     strict: bool,
@@ -207,8 +207,8 @@ pub fn load_paths(
     Ok(out)
 }
 
-/// Build a `file://` URI from an absolute path, percent-encoding like Python's
-/// `Path.as_uri()` (`urllib.quote` with `safe="/"`).
+/// Build a `file://` URI from an absolute path, percent-encoding the path bytes
+/// and leaving `/` plus ASCII alphanumerics and `_.-~` unescaped.
 fn file_uri(abs: &Path) -> String {
     use std::fmt::Write as _;
     let s = abs.to_string_lossy();

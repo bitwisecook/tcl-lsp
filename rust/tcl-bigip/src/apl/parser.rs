@@ -8,8 +8,8 @@ use crate::range::{Position, Range};
 
 use super::model::{AplField, AplInclude, AplModel, AplSection, AplTable};
 
-/// APL field-type keywords (sorted, matching the Python frozenset order
-/// used to build the alternation).
+/// APL field-type keywords (sorted into the canonical set order used to build
+/// the alternation).
 const FIELD_TYPE_KEYWORDS: &[&str] = &[
     "addrport",
     "choice",
@@ -65,7 +65,7 @@ fn required_re() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r"\brequired\b").unwrap())
 }
 
-/// Convert a byte offset to a code-point (Python str) index.
+/// Convert a byte offset to a code-point (character) index.
 fn byte_to_cp(source: &str, byte: usize) -> usize {
     source
         .get(..byte.min(source.len()))
@@ -171,7 +171,7 @@ fn parse_fields_in_block(
             is_required: is_req,
             range: name_range(source, abs_byte, fname),
         };
-        // Python dict: last-wins on duplicate field name, first-seen order.
+        // Last-wins on duplicate field name, first-seen order.
         if let Some(slot) = fields.iter_mut().find(|(k, _)| k == fname) {
             slot.1 = field;
         } else {
@@ -207,7 +207,7 @@ pub fn parse_apl(source: &str) -> AplModel {
     for m in define_re().captures_iter(source) {
         let underlying = m.get(1).unwrap().as_str().to_owned();
         let name = m.get(2).unwrap().as_str().to_owned();
-        // Python dict assignment: last-wins.
+        // Last-wins assignment.
         if let Some(slot) = model.defines.iter_mut().find(|(k, _)| *k == name) {
             slot.1 = underlying;
         } else {

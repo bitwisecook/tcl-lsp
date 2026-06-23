@@ -111,7 +111,7 @@ impl PortRange {
                 py_repr(text)
             )));
         }
-        // Python str.partition splits on the FIRST '-'.
+        // Split on the FIRST '-'.
         let (low_text, high_text) = text.split_once('-').unwrap_or((text, ""));
         let parse_part = |s: &str| parse_decimal_int(s.trim());
         let (Some(low), Some(high)) = (parse_part(low_text), parse_part(high_text)) else {
@@ -185,7 +185,7 @@ pub(crate) fn parse_decimal_int(text: &str) -> Option<i64> {
 /// Render `text` the way `repr()` would for a short single-line
 /// string: wrapped in single quotes (double quotes when the value itself
 /// contains a single quote and no double quote), matching the `{text!r}`
-/// interpolation used in the Python error messages.
+/// interpolation used in the error messages.
 pub(crate) fn py_repr(text: &str) -> String {
     let has_single = text.contains('\'');
     let has_double = text.contains('"');

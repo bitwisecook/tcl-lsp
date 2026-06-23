@@ -3,7 +3,7 @@
 //! Walks every `pub export fn` in `runtime/zig/` and warns when an export
 //! is missing a row in the refcount contract doc
 //! (`docs/design/runtime/refcount-contract.md`). Output and exit codes
-//! match the Python script byte-for-byte:
+//! are stable and canonical:
 //!
 //! - exit 0: every export has a contract row, **or** there are gaps but
 //!   `--strict` was not passed (warnings only);
@@ -28,8 +28,8 @@ pub fn run(strict: bool) -> Result<ExitCode> {
     let rows = collect_rows(&contract)?;
 
     let export_names: BTreeSet<&String> = exports.keys().collect();
-    // `BTreeSet` iteration is sorted, so `missing` / `extra` come out in the
-    // same order as the Python script's `sorted(...)`.
+    // `BTreeSet` iteration is sorted, so `missing` / `extra` come out in
+    // sorted order.
     let missing: Vec<&String> = export_names
         .iter()
         .filter(|name| !rows.contains(**name))
@@ -94,9 +94,8 @@ pub fn run(strict: bool) -> Result<ExitCode> {
 }
 
 /// Walk `runtime/zig` and return `{export_name: [files containing it]}`,
-/// in source order per name (one entry per occurrence, mirroring the
-/// Python `finditer` behaviour). Vendored C-bridge sources under
-/// `vendor/` are skipped.
+/// in source order per name (one entry per regex-match occurrence, left to
+/// right). Vendored C-bridge sources under `vendor/` are skipped.
 fn collect_exports(root: &Path, runtime: &Path) -> Result<BTreeMap<String, Vec<String>>> {
     // `\bpub\s+export\s+fn\s+(name)\s*\(` — the export-declaration form.
     let fn_re = Regex::new(r"\bpub\s+export\s+fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(")

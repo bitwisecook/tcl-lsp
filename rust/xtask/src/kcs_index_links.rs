@@ -1,7 +1,7 @@
 //! KCS / design-docs link + index-coverage check.
 //!
-//! Validates four things, matching the Python script's stdout and exit
-//! codes byte-for-byte:
+//! Validates four things, producing the expected stdout and exit
+//! codes:
 //!
 //! 1. every local markdown link in `docs/` (+ `CONTRIBUTING.md` /
 //!    `AGENTS.md`) resolves;

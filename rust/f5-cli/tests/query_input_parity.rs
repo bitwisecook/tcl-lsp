@@ -5,8 +5,8 @@
 //! file's parsed content as `$NAME`) and the in-query `json_load` /
 //! `jsonl_load` / `csv_load` / `f5log_load` loader builtins.
 //!
-//! Goldens are captured from `python -m tooling.f5.main query`; the suite is
-//! self-contained (no Python at test time). Binding goldens embed a
+//! The captured golden output drives the `query` assertions; the suite is
+//! self-contained (no external tool runs at test time). Binding goldens embed a
 //! `__FIXTURES__` placeholder in place of the absolute fixtures `file://`
 //! URI (the per-file banner / JSON envelope embeds it). Loader-builtin
 //! goldens are path-independent (single positional config → no banner, and

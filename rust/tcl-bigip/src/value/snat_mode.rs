@@ -4,7 +4,7 @@ use std::fmt;
 
 /// The variant of a [`SnatMode`].
 ///
-/// [`SnatModeKind::as_str`] returns the exact Python string literal.
+/// [`SnatModeKind::as_str`] returns the canonical string literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SnatModeKind {
     /// SNAT disabled (`type none`).
@@ -18,7 +18,7 @@ pub enum SnatModeKind {
 }
 
 impl SnatModeKind {
-    /// The Python string literal for this kind.
+    /// The canonical string literal for this kind.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {

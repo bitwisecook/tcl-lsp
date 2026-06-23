@@ -39,7 +39,7 @@ impl QueryError {
         }
     }
 
-    /// The byte offset (Python: code-point offset) the error points at, for
+    /// The byte offset (a code-point offset in the reference) the error points at, for
     /// the front-end variants that carry one.
     #[must_use]
     pub fn offset(&self) -> usize {

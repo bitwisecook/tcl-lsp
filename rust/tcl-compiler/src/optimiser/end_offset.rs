@@ -11,8 +11,7 @@
 //! Each statement's source slice is re-segmented (the IR `Statement`
 //! carries only argv *texts*, not per-word spans, so the index
 //! argument's command-substitution span is recovered by re-tokenising),
-//! and nested `[…]` command substitutions are walked recursively —
-//! mirroring `_walk_nested_cmd_tokens`.
+//! and nested `[…]` command substitutions are walked recursively.
 
 use tcl_lexer::{Span, TokenType};
 

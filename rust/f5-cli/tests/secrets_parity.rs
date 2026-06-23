@@ -6,7 +6,7 @@
 //! vectors themselves live in the `f5mku` unit tests; here we assert the
 //! verbs' observable behaviour.
 //!
-//! Self-contained: no Python at test time.
+//! Self-contained: no external tool runs at test time.
 
 use std::path::PathBuf;
 use std::process::Command;

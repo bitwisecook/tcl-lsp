@@ -49,7 +49,7 @@ pub const fn spec() -> CommandSpec {
         arity: Arity::new(2, 6),
         arg_role_resolver: Some(when_arg_roles),
         lowering_hook: Some(LoweringHookId::When),
-        // SYNC2: iRules event handler bodies run in the event
+        // iRules event handler bodies run in the event
         // dispatcher's frame — separate from the top-level rule
         // file's evaluation context.
         body_kind: BodyKind::Structural,

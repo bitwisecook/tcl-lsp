@@ -22,7 +22,7 @@
 //! — now folds and is verified here.
 //!
 //! Skips cleanly (the test passes trivially) when no `tclsh9.0` is on `PATH`,
-//! the same contract as the Python harness's `skipif`.
+//! the same as the harness's skip contract.
 
 use std::io::Write;
 use std::process::{Command, Stdio};

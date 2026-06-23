@@ -216,7 +216,7 @@ fn scalar_str(v: &Value) -> String {
     }
 }
 
-/// Python `str(value)` for the scalar values the renderers reach.
+/// String coercion of a value for the scalar values the renderers reach.
 fn py_str(v: &Value) -> String {
     match v {
         Value::Str(s) => s.clone(),

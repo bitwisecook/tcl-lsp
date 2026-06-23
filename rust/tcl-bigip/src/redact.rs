@@ -11,13 +11,13 @@
 //!
 //! The default (direct) mode preserves host bits. The `shuffle` mode permutes
 //! host bits within each source CIDR via a Fisher-Yates shuffle seeded from
-//! CPython's `random.Random(seed_int)`. CPython's MT19937 PRNG and its
-//! `_randbelow_with_getrandbits` / `shuffle` are implemented here exactly (see
-//! [`mt19937`]) so `--shuffle` output is byte-identical.
+//! a Mersenne-Twister (MT19937) PRNG seeded from the integer. The MT19937 PRNG
+//! and its `_randbelow_with_getrandbits` / `shuffle` are implemented here
+//! exactly (see [`mt19937`]) so `--shuffle` output is byte-identical.
 
 // IP / network maths is inherently full of width-exact casts between
 // u8/u32/u128 (octets, prefix lengths, address ints) and the MT19937
-// implementation uses CPython's 32-bit word arithmetic. The casts are
+// implementation uses 32-bit word arithmetic. The casts are
 // deliberate and width-checked by construction, so the cast lints are noise
 // here.
 #![allow(
@@ -60,7 +60,7 @@ const RGXG_V6: &str = concat!(
     r"(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3})"
 );
 
-/// IPv4 literal regex with Python's lookaround boundary guards emulated.
+/// IPv4 literal regex with the lookaround boundary guards emulated.
 ///
 /// The `regex` crate has no lookaround, so we capture the literal in group 1
 /// and manually verify the preceding/following byte is not `[\w.]` (for v4) or
@@ -75,8 +75,8 @@ fn ipv6_re() -> &'static Regex {
     RE.get_or_init(|| Regex::new(RGXG_V6).expect("valid v6 regex"))
 }
 
-/// `\w` in Python's default (unicode) mode for ASCII is `[A-Za-z0-9_]`; the
-/// inputs here are ASCII config text so an ASCII-only check matches CPython.
+/// `\w` for ASCII text is `[A-Za-z0-9_]`; the inputs here are ASCII config
+/// text so an ASCII-only word-character check is exact.
 fn is_word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
@@ -192,10 +192,10 @@ impl Addr {
 }
 
 fn parse_v4(token: &str) -> Option<Ipv4Addr> {
-    // Python's IPv4Address rejects leading zeros / non-canonical octets.
-    // `Ipv4Addr::from_str` is equally strict on octet count and range, but
-    // Rust *accepts* nothing extra here that Python rejects for the tokens the
-    // RGXG regex emits (no leading zeros possible beyond a single "0").
+    // Leading zeros / non-canonical octets are rejected.
+    // `Ipv4Addr::from_str` is strict on octet count and range, and accepts
+    // nothing extra for the tokens the RGXG regex emits (no leading zeros
+    // possible beyond a single "0").
     token.parse::<Ipv4Addr>().ok()
 }
 
@@ -259,7 +259,7 @@ fn v6_in(nets: &[&str], a: Ipv6Addr) -> bool {
     })
 }
 
-/// `ipv4_mapped` per Python: an `::ffff:a.b.c.d` address yields the embedded v4.
+/// `ipv4_mapped`: an `::ffff:a.b.c.d` address yields the embedded v4.
 fn ipv4_mapped(a: Ipv6Addr) -> Option<Ipv4Addr> {
     let ip = u128::from(a);
     if (ip >> 32) != 0xFFFF {
@@ -398,7 +398,7 @@ impl Net {
             _ => false,
         }
     }
-    /// `str(network)` per Python: `network_address/prefixlen`.
+    /// Format as `network_address/prefixlen`.
     fn to_string_py(&self) -> String {
         match self {
             Net::V4(n) => format!("{}/{}", n.network(), n.prefix_len()),
@@ -504,8 +504,8 @@ impl Default for RedactionMap {
 }
 
 impl RedactionMap {
-    /// Serialise to the sidecar map-file TOML (byte-identical to Python's
-    /// `RedactionMap.to_toml`).
+    /// Serialise to the sidecar map-file TOML. Deterministic and stable: a
+    /// fixed key/section order so re-serialising the same map is byte-identical.
     #[must_use]
     pub fn to_toml(&self) -> String {
         let mut lines: Vec<String> = Vec::new();
@@ -544,7 +544,7 @@ impl RedactionMap {
         }
         if !self.forward.is_empty() {
             lines.push("[ips]".to_owned());
-            // Python: sorted(self.forward.items()) — lexicographic by key.
+            // Emit the IP entries sorted lexicographically by key.
             let mut items: Vec<(&String, &String)> = self.forward.iter().collect();
             items.sort_by(|a, b| a.0.cmp(b.0));
             for (real, fake) in items {
@@ -552,7 +552,7 @@ impl RedactionMap {
             }
         }
         let mut out = lines.join("\n");
-        // Python: "\n".join(lines).rstrip() + "\n"
+        // Join with newlines, strip trailing whitespace, then end with one "\n".
         let trimmed = out.trim_end();
         out.truncate(trimmed.len());
         out.push('\n');
@@ -833,7 +833,7 @@ fn derive_key(seed: &str, source_cidr: &str) -> Vec<u8> {
 const SHUFFLE_MAX_WIDTH: u32 = 20;
 
 /// Return `(forward, inverse)` permutations for `host_width` bits, using
-/// CPython's `random.Random(seed_int).shuffle`.
+/// the MT19937 `random`-style PRNG's integer-seeded `shuffle`.
 fn build_permutation(host_width: u32, key: &[u8]) -> (Vec<u32>, Vec<u32>) {
     let size = 1usize << host_width;
     let digest = {
@@ -1453,11 +1453,12 @@ pub fn redact_secrets(source: &str, opts: RedactOptions) -> Result<RedactReport,
     }
 }
 
-// ── CPython random.Random (MT19937) ─────────────────────────────────
+// ── MT19937 random generator ─────────────────────────────────
 
-/// A from-scratch implementation of CPython's `random.Random` sufficient for
-/// `shuffle` byte-parity: `init_by_array` integer seeding, `getrandbits`,
-/// `_randbelow_with_getrandbits`, and the reverse Fisher-Yates `shuffle`.
+/// A from-scratch implementation of an MT19937-based `random`-style PRNG
+/// sufficient for `shuffle` byte-parity: `init_by_array` integer seeding,
+/// `getrandbits`, `_randbelow_with_getrandbits`, and the reverse Fisher-Yates
+/// `shuffle`.
 mod mt19937 {
     const N: usize = 624;
     const M: usize = 397;
@@ -1465,7 +1466,7 @@ mod mt19937 {
     const UPPER_MASK: u32 = 0x8000_0000;
     const LOWER_MASK: u32 = 0x7fff_ffff;
 
-    /// Mersenne-Twister state + the helpers CPython layers on top.
+    /// Mersenne-Twister state + the helpers layered on top.
     pub struct Random {
         mt: [u32; N],
         mti: usize,
@@ -1520,11 +1521,11 @@ mod mt19937 {
             r
         }
 
-        /// CPython `random_seed` for an integer seed: take the absolute value,
+        /// Integer-seed initialisation: take the absolute value,
         /// split into 32-bit little-endian words, then `init_by_array`.
         #[must_use]
         pub fn from_int(seed: u128) -> Random {
-            // CPython operates on abs(n); our seeds are always non-negative.
+            // The algorithm operates on abs(n); our seeds are always non-negative.
             let mut key: Vec<u32> = Vec::new();
             let mut n = seed;
             if n == 0 {
@@ -1561,7 +1562,7 @@ mod mt19937 {
             y
         }
 
-        /// CPython `getrandbits(k)` for `k <= 32` (host widths here are
+        /// `getrandbits(k)` for `k <= 32` (host widths here are
         /// `<= SHUFFLE_MAX_WIDTH == 20`).
         fn getrandbits(&mut self, k: u32) -> u32 {
             debug_assert!(k <= 32);
@@ -1571,7 +1572,7 @@ mod mt19937 {
             self.genrand_uint32() >> (32 - k)
         }
 
-        /// CPython `_randbelow_with_getrandbits(n)`.
+        /// Rejection-sampling `randbelow(n)` via `getrandbits`.
         fn randbelow(&mut self, n: u32) -> u32 {
             if n == 0 {
                 return 0;
@@ -1584,7 +1585,7 @@ mod mt19937 {
             r
         }
 
-        /// CPython `Random.shuffle` (reverse Fisher-Yates).
+        /// Fisher-Yates shuffle (reverse iteration).
         pub fn shuffle(&mut self, x: &mut [u32]) {
             let len = x.len();
             if len <= 1 {

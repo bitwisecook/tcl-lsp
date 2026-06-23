@@ -59,7 +59,7 @@ pub fn parse_real(b: &[u8]) -> Option<f64> {
 
 /// Dictionary comparison (`lsort -dictionary`): case-insensitive, with embedded
 /// decimal runs compared as numbers; a run with more leading zeros sorts later
-/// only as a secondary tiebreak. Ported from C's `DictionaryCompare`.
+/// only as a secondary tiebreak. Follows C's `DictionaryCompare`.
 #[must_use]
 pub fn dictionary_compare(left: &[u8], right: &[u8]) -> Ordering {
     let (mut li, mut ri) = (0usize, 0usize);

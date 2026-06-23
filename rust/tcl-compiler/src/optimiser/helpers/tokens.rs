@@ -15,7 +15,7 @@ use tcl_lexer::Span;
 /// its outer braces, leading newline, trailing whitespace, and
 /// re-indented to match `stmt_span`'s column.
 ///
-/// Matches `_extract_body_text` behaviour:
+/// Extracts body text as follows:
 ///
 /// 1. Slice `source[body_span]`.
 /// 2. Strip one leading `{` and one trailing `}`.

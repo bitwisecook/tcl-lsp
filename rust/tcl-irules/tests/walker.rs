@@ -1,7 +1,7 @@
-//! Differential parity for the iRules walker (`extract_irules_object_references`)
-//! against `irules_refs.extract_irules_object_references`, covering
-//! literal refs, `set`-binding copy-propagation, widening, nested bodies, `if`
-//! conditions, and GTM pool fan-out. Self-contained — no Python at test time.
+//! Behavioural coverage for the iRules walker (`extract_irules_object_references`),
+//! exercising literal refs, `set`-binding copy-propagation, widening, nested
+//! bodies, `if` conditions, and GTM pool fan-out against fixed expected outputs.
+//! Self-contained — runs entirely in-process.
 
 use tcl_irules::extract_irules_object_references;
 use tcl_registry::CommandRegistry;

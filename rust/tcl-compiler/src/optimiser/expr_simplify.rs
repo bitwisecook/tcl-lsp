@@ -146,9 +146,8 @@ fn walk_statement(
 /// 3. `InstCombine` identities (`$x + 0` → `$x`, `$x * 0` → `0`)
 ///    → O110
 ///
-/// Matches `_expr_simplify` behaviour for
-/// `IRAssignExpr` nodes. Skipped when the expression contains a
-/// command substitution (side-effect risk).
+/// Applies to `set name [expr {…}]` assignments. Skipped when the
+/// expression contains a command substitution (side-effect risk).
 fn try_rewrite_assign_expr(
     ctx: &mut PassContext<'_>,
     span: Span,
@@ -199,12 +198,11 @@ fn try_rewrite_assign_expr(
     // reduction. The helpers operate on text form, so render
     // first, then re-wrap in ``expr { … }``.
     //
-    // Match the Python priority: InstCombine (identities and
-    // reassociation) fires before strength-reduction, because the
-    // identities collapse to simpler forms (`$x + 0` → `$x`)
-    // while strength-reduction produces same-complexity rewrites
-    // (`$x ** 2` → `$x * $x`). Running instcombine first keeps
-    // the categorisation in line with the Python tests.
+    // Priority: InstCombine (identities and reassociation) fires
+    // before strength-reduction, because the identities collapse to
+    // simpler forms (`$x + 0` → `$x`) while strength-reduction
+    // produces same-complexity rewrites (`$x ** 2` → `$x * $x`).
+    // Running instcombine first keeps the categorisation stable.
     let rendered_expr = crate::expr_ast::render_expr(expr);
     let (simplified, inst_changed) = instcombine_expr_typed(&rendered_expr, false, numeric);
     if inst_changed {

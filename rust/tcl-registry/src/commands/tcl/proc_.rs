@@ -36,7 +36,7 @@ pub fn spec() -> CommandSpec {
         ],
         return_type: Some(TclType::String),
         lowering_hook: Some(LoweringHookId::Proc),
-        // SYNC2: a `proc` body runs in the proc's own frame on each
+        // A `proc` body runs in the proc's own frame on each
         // call — never the caller's frame.  Stamping `Structural`
         // here lets generic `body_indices_to_skip` consumers (SSA,
         // dead-store, def-use) treat `proc` like every other

@@ -102,7 +102,7 @@ impl Gen {
             self.leaf_statement(depth);
         } else {
             // proc / namespace definitions are top-level only (matching the
-            // Python oracle): nesting them changes scope semantics in ways the
+            // oracle): nesting them changes scope semantics in ways the
             // generator doesn't model.
             let arms = if depth == 0 { 9 } else { 7 };
             match self.rng.below(arms) {

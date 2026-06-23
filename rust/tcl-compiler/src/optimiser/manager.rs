@@ -148,7 +148,7 @@ pub fn optimise_unit(
 /// Deliberately excludes the expr / proc *folds* (O101 / O103): those consume
 /// a `$var` inside a `[expr …]` / `[proc …]` that collapses to a literal,
 /// which makes the feeding def merely *unused* rather than *propagated*. At
-/// the top level Python keeps such a def (the conservative O126 "maybe a
+/// the top level the optimiser keeps such a def (the conservative O126 "maybe a
 /// global" case — `set a 3; puts [expr {$a + 1}]` keeps `set a 3`), and inside
 /// a proc the ordinary dead-store pass removes it. Counting the fold here
 /// would wrongly couple-remove the top-level def.
@@ -579,8 +579,7 @@ pub fn find_dead_stores(
 /// Run the passes one at a time over a shared context and return, for each
 /// [`PassId`] in [`PassId::all`] order, the optimisations *that pass*
 /// produced (raw, before overlap arbitration). Powers the explorer's
-/// Rust-native "optimiser pass pipeline" view — there is no Python analogue
-/// because the Python optimiser is not structured as this pass sequence.
+/// Rust-native "optimiser pass pipeline" view onto this pass sequence.
 ///
 /// Equivalent to [`optimise_unit`] in effect (each pass sees the prior
 /// passes' context), but it attributes every finding to its originating pass.
@@ -730,7 +729,7 @@ mod tests {
         // opening brace of the braced condition (the CFG loop-condition span
         // omits the closing `}`, which previously produced `while 1}`).
         // `while {1}` is already minimal → unchanged; `while {1 < 2}` folds
-        // to `while {1}` (braces preserved), matching Python.
+        // to `while {1}` (braces preserved).
         assert_eq!(optimised("while {1} { break }\n"), "while {1} { break }\n");
         assert_eq!(
             optimised("while {1 < 2} { break }\n"),
@@ -771,11 +770,10 @@ mod tests {
     #[test]
     fn couples_sccp_const_expr_dead_store_removal() {
         // `set x [expr {1+1}]` folds to a constant SCCP proves; once its only
-        // use is propagated the computed def is dead — removed (matching
-        // Python). The O101 expr-fold inside the def line is superseded by the
-        // line deletion.
+        // use is propagated the computed def is dead — removed. The O101
+        // expr-fold inside the def line is superseded by the line deletion.
         assert_eq!(optimised("set x [expr {1+1}]\nputs $x\n"), "puts 2\n");
-        // The quoted-expr form folds the same way — Python removes it too.
+        // The quoted-expr form folds the same way — it is removed too.
         assert_eq!(optimised("set x [expr \"1+1\"]\nputs $x\n"), "puts 2\n");
         // Inside a proc, with a string-interpolation read.
         assert_eq!(

@@ -71,8 +71,7 @@ pub fn parse_literal_value(text: &str) -> StaticValue {
 /// Evaluate an expression string under `env`.
 ///
 /// Returns `Some(int)` when the result folds to an integer (or an
-/// integer-valued float), `None` otherwise. Python returns
-/// `int | bool | None`; in Rust we collapse booleans into
+/// integer-valued float), `None` otherwise. Booleans collapse into
 /// `i64` (0/1) for simpler call-sites.
 #[must_use]
 pub fn evaluate_expr_with_constants(expr: &ExprNode, env: &StaticEnv) -> Option<i64> {

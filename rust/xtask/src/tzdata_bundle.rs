@@ -2,8 +2,8 @@
 //!
 //! Packs a curated set of IANA zones from a host `zoneinfo` directory into
 //! the `TZBL` bundle the WASM runtime falls back on when it can't preopen
-//! `/usr/share/zoneinfo`. The output format is byte-for-byte identical to
-//! the Python script (verified by `cmp` on the produced artifact):
+//! `/usr/share/zoneinfo`. The output format is stable and canonical
+//! (verified by `cmp` on the produced artifact):
 //!
 //! ```text
 //! magic     "TZBL"   version u8=1   pad 3   n_entries u32 LE
@@ -233,7 +233,7 @@ fn build_bundle(
     }
 
     // Sorted index — the resolver binary-searches it. Zone names are
-    // ASCII, so byte order matches the Python code-point sort.
+    // ASCII, so byte order matches the code-point sort.
     entries.sort_by(|a, b| a.0.cmp(b.0));
 
     // First pass: lay out payload addresses (first-occurrence order over
@@ -392,7 +392,7 @@ fn count_entries(blob: &[u8]) -> u32 {
     u32::from_le_bytes([blob[8], blob[9], blob[10], blob[11]])
 }
 
-/// Format `n` with `,` thousands separators (matches Python `{:,}`).
+/// Format `n` with `,` thousands separators.
 fn group_thousands(n: usize) -> String {
     let digits = n.to_string();
     let len = digits.len();

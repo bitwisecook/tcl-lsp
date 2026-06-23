@@ -19,9 +19,8 @@ pub enum PatternType {
 }
 
 impl PatternType {
-    /// Stable lowercase tag matching the Python enum *value*
-    /// (`"glob"` / `"regex"`) — used by the audit dumper so both sides
-    /// normalise identically.
+    /// Stable lowercase tag (`"glob"` / `"regex"`) — used by the audit
+    /// dumper so both sides normalise identically.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -46,7 +45,7 @@ pub enum FormatType {
 }
 
 impl FormatType {
-    /// Stable lowercase tag matching the Python enum *value*
+    /// Stable lowercase tag
     /// (`"sprintf"` / `"clock"` / `"binary"` / `"regsub"`).
     #[must_use]
     pub const fn as_str(self) -> &'static str {

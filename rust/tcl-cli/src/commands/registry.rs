@@ -8,8 +8,7 @@ use std::path::Path;
 use tcl_cli_support::{OutputTarget, registry_for_dialect, write_text_output};
 use tcl_registry::command_snapshot::{command_registry_snapshot, command_registry_snapshots};
 
-/// The Tcl dialects `--all-dialects` snapshots, in stable order — Python
-/// `TCL_DIALECTS`.
+/// The Tcl dialects `--all-dialects` snapshots, in stable order.
 const TCL_DIALECTS: [&str; 4] = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"];
 
 /// `tcl registry-dump` — dump the command registry for one dialect (or

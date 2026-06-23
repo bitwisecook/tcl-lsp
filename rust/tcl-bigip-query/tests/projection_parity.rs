@@ -4,8 +4,8 @@
 //! (`scripts/codegen/gen_f5_query_projection_fixtures.py`): build a BIG-IP
 //! `Root` from the real fixture config, parse → evaluate against the
 //! projected `Container` tree → `output::render`. For each `(query, mode)`
-//! the Rust output (or error message) must match Python byte-for-byte.
-//! Self-contained — no Python at test time; the `bigip.conf` fixture is
+//! the Rust output (or error message) must match the golden byte-for-byte.
+//! Self-contained — no external oracle at test time; the `bigip.conf` fixture is
 //! embedded via `include_str!`.
 
 use serde_json::Value as J;

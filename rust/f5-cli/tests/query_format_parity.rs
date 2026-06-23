@@ -1,11 +1,11 @@
-//! Differential parity tests for `f5 query` surfaces added to reach Python
-//! parity: the `--format tmsh` / `tmsh-delta` / `--transaction` rendering of
-//! **mutating** queries, the `--in-place` + tmsh incompatibility guard, the
-//! `--partition` loader binding, and `-f/--from-file`.
+//! Differential parity tests for additional `f5 query` surfaces: the
+//! `--format tmsh` / `tmsh-delta` / `--transaction` rendering of **mutating**
+//! queries, the `--in-place` + tmsh incompatibility guard, the `--partition`
+//! loader binding, and `-f/--from-file`.
 //!
-//! Each golden was captured from `python -m tooling.f5.main query …`; the test
-//! runs the built `f5-query` binary against the committed fixtures and asserts
-//! byte-equality. Self-contained: no Python at test time.
+//! Each test asserts byte-equality against the captured golden output for
+//! `query …`; the test runs the built `f5-query` binary against the committed
+//! fixtures. Self-contained: no external tool runs at test time.
 
 use std::path::PathBuf;
 use std::process::Command;

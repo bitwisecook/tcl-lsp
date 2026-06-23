@@ -20,8 +20,8 @@
 //! * ZIP / ZLIB inner compression (raw / zlib-wrapped DEFLATE via `flate2`).
 //! * Old- and new-format packet headers including partial body lengths.
 //!
-//! Out of scope (returns [`OpenPgpError`], pointing at gpg, exactly like the
-//! Python): public-key encryption, non-AES ciphers, AEAD / SEIPD v2, BZIP2
+//! Out of scope (returns [`OpenPgpError`], pointing at gpg): public-key
+//! encryption, non-AES ciphers, AEAD / SEIPD v2, BZIP2
 //! inner compression, and the obsolete MDC-less SED packet (tag 9).
 
 use std::io::Read;
@@ -58,8 +58,8 @@ fn cipher_keylen(cipher_id: u8) -> Option<usize> {
 
 // Packet framing
 
-/// Read `n` big-endian bytes at `off`, erroring on truncation (the Python
-/// raises `IndexError`/`struct.error`, normalised to `OpenPgpError`).
+/// Read `n` big-endian bytes at `off`, erroring on truncation (a read past
+/// the end of `data` yields `OpenPgpError`).
 fn be(data: &[u8], off: usize, n: usize) -> Result<u32, OpenPgpError> {
     if off + n > data.len() {
         return Err(OpenPgpError::new("malformed or truncated OpenPGP message"));

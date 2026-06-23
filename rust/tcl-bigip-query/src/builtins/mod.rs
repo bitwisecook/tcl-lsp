@@ -8,7 +8,7 @@
 //! Plain builtins raise [`QueryError::Builtin`] for argument-type mistakes so
 //! the CLI can map them to `error:` uniformly.
 
-// The DSL models Python's unbounded `int`; index / length / numeric
+// The DSL models an unbounded `int`; index / length / numeric
 // conversions between `usize`, `i64`, and `f64` are intentional and
 // pervasive.
 #![allow(
@@ -73,8 +73,8 @@ pub struct BuiltinSpec {
     pub stream_aware: bool,
     /// Whether stream arguments broadcast element-wise (the scalar-builtin
     /// default). `with_ctx` builtins normally skip broadcast; `refs` /
-    /// `referenced_by` are the exception (plain — and so broadcasting — in
-    /// Python, but need `ctx` for the config here).
+    /// `referenced_by` are the exception (plain — and so broadcasting —
+    /// but need `ctx` for the config here).
     pub broadcasts: bool,
     pub imp: Builtin,
 }
@@ -206,8 +206,8 @@ pub(crate) fn ctx(
 }
 
 /// Like [`ctx`] but with stream arguments broadcasting element-wise — for the
-/// `refs` / `referenced_by` builtins, which are plain (broadcasting) in
-/// Python but need `ctx` for config access here.
+/// `refs` / `referenced_by` builtins, which are plain (broadcasting)
+/// but need `ctx` for config access here.
 pub(crate) fn ctx_broadcast(
     name: &'static str,
     category: &'static str,
@@ -610,7 +610,7 @@ pub(crate) fn set_at_path(
             let sub = map.get(&key).cloned().unwrap_or(Value::Null);
             let placed = set_at_path(sub, rest, new_value)?;
             // `IndexMap::insert` updates an existing key in place (keeping its
-            // position) and appends a new one — matching Python dict semantics.
+            // position) and appends a new one — matching dict insertion order.
             map.insert(key, placed);
             Ok(Value::Object(map))
         }
@@ -777,8 +777,8 @@ fn flatten_go(seq: &[Value], remaining: i64) -> Vec<Value> {
 const MAX_REGEX_PATTERN_LENGTH: usize = 1024;
 
 /// Compile a regex with length + nested-quantifier guards.
-/// The pattern dialect is the `regex` crate's, which differs from
-/// Python `re` on backreferences / lookaround (documented divergence).
+/// The pattern dialect is the `regex` crate's, which differs on
+/// backreferences / lookaround (documented divergence).
 pub(crate) fn safe_regex_compile(pattern: &str, name: &str) -> Result<Regex, QueryError> {
     if pattern.chars().count() > MAX_REGEX_PATTERN_LENGTH {
         return Err(QueryError::builtin(format!(
@@ -798,9 +798,9 @@ pub(crate) fn safe_regex_compile(pattern: &str, name: &str) -> Result<Regex, Que
             crate::lexer::py_repr_str(pattern)
         )));
     }
-    // The `regex` crate's parse error wording differs from Python `re`'s, so
+    // The `regex` crate's parse error wording differs, so
     // the `: {e}` tail is not byte-identical (documented divergence); the
-    // `{pattern!r}` spelling still matches Python's repr quoting.
+    // `{pattern!r}` spelling still uses repr-style quoting.
     Regex::new(pattern).map_err(|e| {
         QueryError::builtin(format!(
             "{name}: invalid pattern {}: {e}",
@@ -1106,7 +1106,7 @@ fn bi_max(args: &[Value]) -> Result<Value, QueryError> {
     Ok(extreme(items, false))
 }
 
-/// Python `min`/`max` with `key=_sort_key`: first occurrence wins ties.
+/// `min`/`max` with `key=_sort_key`: first occurrence wins ties.
 fn extreme(items: Vec<Value>, want_min: bool) -> Value {
     let mut it = items.into_iter();
     let Some(mut best) = it.next() else {

@@ -1515,7 +1515,7 @@ pub fn find_partial_redundancies(
     results
 }
 
-// Compilation-unit-level convenience wrappers (ARCH7)
+// Compilation-unit-level convenience wrappers
 
 /// Run [`find_redundancies`] across every function in the
 /// compilation unit, concatenating the per-function findings in

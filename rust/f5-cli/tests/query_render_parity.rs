@@ -3,9 +3,9 @@
 //! wiring.
 //!
 //! Runs the built `f5-query` binary against the committed `bigip.conf`
-//! fixture and asserts stdout matches a golden captured from
-//! `python -m tooling.f5.main query ... --render ...`. Self-contained: no
-//! Python at test time. Error cases assert stderr + exit code directly.
+//! fixture and asserts stdout matches the captured golden output for
+//! `query ... --render ...`. Self-contained: no external tool runs at test
+//! time. Error cases assert stderr + exit code directly.
 
 use std::path::PathBuf;
 use std::process::{Command, Output};

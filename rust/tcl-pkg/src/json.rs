@@ -1,11 +1,10 @@
 //! Canonical JSON emitter.
 //!
-//! Reproduces Python `json.dumps(..., indent=2, sort_keys=True,
-//! ensure_ascii=False)`: object keys sorted alphabetically (recursively),
-//! 2-space indent, `": "` key separator, `,` item separator, no trailing
-//! whitespace. Callers append the final newline. This keeps the lockfile and
-//! `--json` output byte-identical with the Python implementation regardless of
-//! whether `serde_json`'s `preserve_order` feature is active workspace-wide.
+//! Emits compact-indented JSON with non-ASCII preserved: object keys sorted
+//! alphabetically (recursively), 2-space indent, `": "` key separator, `,`
+//! item separator, no trailing whitespace. Callers append the final newline.
+//! This keeps the lockfile and `--json` output stable and canonical regardless
+//! of whether `serde_json`'s `preserve_order` feature is active workspace-wide.
 
 use serde_json::Value;
 
@@ -72,10 +71,10 @@ fn write_value(value: &Value, indent: usize, out: &mut String) {
     }
 }
 
-/// Escape a string the way `serde_json` does, which matches Python's
-/// `ensure_ascii=False` for the ASCII identifiers/URLs in our data: `"` and `\`
-/// escaped, control characters as short forms or `\u00XX`, non-ASCII passed
-/// through, forward slash left unescaped.
+/// Escape a string the way `serde_json` does, preserving non-ASCII for the
+/// ASCII identifiers/URLs in our data: `"` and `\` escaped, control characters
+/// as short forms or `\u00XX`, non-ASCII passed through, forward slash left
+/// unescaped.
 fn escape_string(s: &str) -> String {
     serde_json::to_string(s).expect("string serialises")
 }

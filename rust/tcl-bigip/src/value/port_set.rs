@@ -18,8 +18,7 @@ pub struct PortSegment {
 
 impl PortSegment {
     /// Construct a segment from arbitrary integer bounds, validating the
-    /// `[0, 65535]` range and `low <= high` exactly like the Python
-    /// `__post_init__`.
+    /// `[0, 65535]` range and `low <= high`.
     ///
     /// # Errors
     /// Returns [`ValueError`] when out of range or `low > high`.
@@ -109,7 +108,7 @@ impl PortSet {
                 continue;
             }
             if piece.contains('-') {
-                // Python str.partition('-') splits on the FIRST '-'.
+                // Split on the FIRST '-'.
                 let (lo_text, hi_text) = piece.split_once('-').unwrap_or((piece, ""));
                 let (Some(lo), Some(hi)) = (parse_int(lo_text), parse_int(hi_text)) else {
                     return Err(ValueError(format!(
@@ -177,7 +176,7 @@ impl fmt::Display for PortSet {
     }
 }
 
-/// Python `int()` on a port token: strips surrounding whitespace, accepts
+/// Parse a port token like an integer: strip surrounding whitespace, accept
 /// an optional sign and ASCII digits.
 fn parse_int(text: &str) -> Option<i64> {
     parse_decimal_int(text)

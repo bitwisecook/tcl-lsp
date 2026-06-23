@@ -3,8 +3,8 @@
 //! This crate owns the algorithmic LSP feature surface — folding,
 //! document symbols, hover, diagnostic projection, completion,
 //! references, rename, and semantic tokens. It
-//! contains no `pyo3` dependency and no Python-compat shims; the
-//! binding crate wraps these providers for Python callers, and
+//! contains no `pyo3` dependency and no binding-compat shims; the
+//! binding crate wraps these providers for its callers, and
 //! the `tcl-lsp-server` binary links against this crate
 //! directly over the LSP protocol.
 

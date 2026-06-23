@@ -2862,8 +2862,7 @@ mod tests {
         // `proc foo {} "pre${body}post"` — the body is a quoted
         // multi-token word.  Even though the first token is Str,
         // single_token_word is false so the whole word is dynamic
-        // and we route through Barrier (matching Python's
-        // multi-token guard).
+        // and we route through Barrier (the multi-token guard).
         let m = lower_to_ir(
             r#"proc factory {} { set body {return hi}; proc inner {} "pre${body}post" }"#,
             &reg(),

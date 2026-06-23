@@ -21,10 +21,9 @@
 //! the map (a global `::ns::var`, a namespace variable, a name that's
 //! neither parameter nor local of the callee) passes through verbatim.
 //!
-//! Unlike the Python original — which leans on frozen-dataclass identity
-//! to skip untouched sub-trees — the Rust IR is owned, so this walker
-//! always rebuilds. The result is value-identical; only the structural-
-//! sharing micro-optimisation is dropped.
+//! The IR is owned rather than structurally shared, so this walker always
+//! rebuilds every sub-tree instead of skipping untouched ones; the rebuilt
+//! body is value-identical to the input.
 
 use std::collections::HashMap;
 
@@ -48,8 +47,7 @@ pub(super) fn rewrite_script(script: &Script, rename: &HashMap<String, String>) 
 
 /// Apply `rename` to a variable-name field, handling array-element
 /// references. For `arr(idx)` shapes the array base carries the binding
-/// identity; the `(idx)` suffix is preserved verbatim. Mirrors
-/// `_rename_var_name`.
+/// identity; the `(idx)` suffix is preserved verbatim.
 fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
     if let Some(paren) = name.find('(') {
         let base = &name[..paren];

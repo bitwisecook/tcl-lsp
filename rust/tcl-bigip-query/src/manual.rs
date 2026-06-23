@@ -4,7 +4,7 @@
 //! cookbook, composing the three sections from the [`crate::grammar`],
 //! [`crate::builtins`], and [`crate::examples`] formatters. The builtins
 //! section is the metadata-driven catalogue (see
-//! [`crate::builtins::format_catalogue`]) rather than the Python per-function
+//! [`crate::builtins::format_catalogue`]) rather than per-function
 //! prose.
 
 /// Render the comprehensive manual: grammar + builtins + cookbook.

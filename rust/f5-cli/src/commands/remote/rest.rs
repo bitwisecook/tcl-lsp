@@ -137,7 +137,7 @@ fn read_body(body: &mut Body) -> Result<Vec<u8>, ureq::Error> {
     body.with_config().limit(MAX_BODY).read_to_vec()
 }
 
-/// Render the `data[:n]` Python `repr(bytes)` prefix used in error messages
+/// Render the `data[:n]` bytes-repr prefix used in error messages
 /// (`b'...'`). Best-effort: only the common printable / escape cases are
 /// reproduced, which is all the error paths surface.
 #[must_use]

@@ -85,7 +85,7 @@ fn bi_join(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_upper(args: &[Value]) -> Result<Value, QueryError> {
-    // Python `.upper()` is full-Unicode; the DSL's ascii_upcase / upcase
+    // `.upper()` is full-Unicode; the DSL's ascii_upcase / upcase
     // both delegate to it.
     Ok(Value::Str(as_str(&args[0], "upcase", 1)?.to_uppercase()))
 }

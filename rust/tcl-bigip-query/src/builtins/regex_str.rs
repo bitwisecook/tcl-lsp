@@ -7,13 +7,13 @@
 //! - Every regex compile routes through the parent `safe_regex_compile`
 //!   chokepoint (length + nested-quantifier guards) so the guard error
 //!   text matches `_safe_regex_compile`.
-//! - The `regex` crate's dialect differs from Python `re` on
+//! - The `regex` crate's dialect differs on
 //!   backreferences / lookaround (documented divergence the user accepted).
-//!   `sub` / `gsub` reproduce Python's replacement-template syntax
+//!   `sub` / `gsub` reproduce the `\g<1>`-style replacement-template syntax
 //!   (`\1`, `\g<name>`, `\g<1>`) by expanding it by hand rather than using
 //!   the crate's `$`-expansion, so the common-subset cases stay identical.
 //! - `match` / `capture` / `scan` offsets are byte offsets in the `regex`
-//!   crate vs code points in Python `re`; for ASCII inputs they coincide.
+//!   crate vs code points; for ASCII inputs they coincide.
 //!   `match` / `test` are boolean predicates here (this DSL's `match` is
 //!   jq's `test`, not jq's structured `match`).
 //! - `explode` / `implode` use Unicode code points (`char as u32`);
@@ -79,7 +79,7 @@ fn jq_regex_flags(flags: &str, name: &str) -> Result<String, QueryError> {
     Ok(out)
 }
 
-/// Python `repr` of a single character (used in the flag error text).
+/// Repr-style rendering of a single character (used in the flag error text).
 fn py_char_repr(ch: char) -> String {
     if ch == '\'' {
         "\"'\"".to_string()
@@ -99,7 +99,7 @@ fn compile_with_flags(pattern: &str, flags: &str, name: &str) -> Result<Regex, Q
     }
 }
 
-/// Read the optional trailing `flags` argument (Python: `flags != ""` test).
+/// Read the optional trailing `flags` argument (the `flags != ""` test).
 fn optional_flags(args: &[Value], idx: usize, name: &str) -> Result<String, QueryError> {
     match args.get(idx) {
         None => Ok(String::new()),
@@ -166,7 +166,7 @@ fn regex_sub(rx: &Regex, text: &str, template: &str, count: Option<usize>) -> St
     out
 }
 
-/// Expand a Python-`re`-style replacement template against one match.
+/// Expand a `\g<1>`-style replacement template against one match.
 fn expand_template(template: &str, caps: &regex::Captures) -> String {
     let mut out = String::new();
     let chars: Vec<char> = template.chars().collect();
@@ -186,7 +186,7 @@ fn expand_template(template: &str, caps: &regex::Captures) -> String {
         }
         let next = chars[i + 1];
         if next.is_ascii_digit() {
-            // `\1` .. `\99` — numbered group (Python reads up to two digits).
+            // `\1` .. `\99` — numbered group (reads up to two digits).
             let mut j = i + 1;
             let mut num = String::new();
             while j < chars.len() && num.len() < 2 && chars[j].is_ascii_digit() {
@@ -231,7 +231,7 @@ fn expand_template(template: &str, caps: &regex::Captures) -> String {
             out.push('\r');
             i += 2;
         } else {
-            // Unknown escape: Python keeps the backslash and the character.
+            // Unknown escape: keep the backslash and the character.
             out.push('\\');
             out.push(next);
             i += 2;
@@ -292,7 +292,7 @@ fn bi_capture(args: &[Value]) -> Result<Value, QueryError> {
     }
 }
 
-/// Rewrite jq-style `(?<name>` to Python/`regex`-crate `(?P<name>`.
+/// Rewrite jq-style `(?<name>` to the `regex`-crate `(?P<name>`.
 fn rewrite_named_groups(pattern: &str) -> String {
     static REWRITE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
     let re = REWRITE.get_or_init(|| {
@@ -352,7 +352,7 @@ fn bi_index(args: &[Value]) -> Result<Value, QueryError> {
     }
 }
 
-/// Python `str.find` returns a code-point index (`-1` → `null`).
+/// `str.find` returns a code-point index (`-1` → `null`).
 fn byte_to_char_index(haystack: &str, needle: &str) -> Value {
     match haystack.find(needle) {
         Some(byte) => Value::Int(haystack[..byte].chars().count() as i64),
@@ -491,7 +491,7 @@ fn csv_quote(cell: &str) -> String {
     }
 }
 
-/// Python `repr` of a string (single-quoted), used in `capture`'s no-match
+/// Repr-style rendering of a string (single-quoted), used in `capture`'s no-match
 /// error. The patterns we interpolate are ASCII without quotes.
 fn py_str_repr(s: &str) -> String {
     if s.contains('\'') && !s.contains('"') {

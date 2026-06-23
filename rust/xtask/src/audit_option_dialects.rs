@@ -696,10 +696,9 @@ fn drain<R: Read>(reader: Option<&mut R>) -> String {
     s
 }
 
-/// Serialise the audit results to match Python's
-/// `json.dumps(serialisable, indent=2) + "\n"` byte-for-byte. Every value
-/// here is ASCII (command/option/version identifiers), so no escaping is
-/// required.
+/// Serialise the audit results as JSON with a 2-space indent and a trailing
+/// newline. Every value here is ASCII (command/option/version identifiers),
+/// so no escaping is required.
 fn render_json(entries: &[Entry]) -> String {
     if entries.is_empty() {
         return "[]\n".to_string();
@@ -745,10 +744,11 @@ fn render_json(entries: &[Entry]) -> String {
     s
 }
 
-/// Python `repr()` of a string for the failure diagnostics. Picks single
+/// Render a string in repr style for the failure diagnostics. Picks single
 /// quotes unless the string contains a single quote and no double quote
 /// (then double), escaping the active quote, backslash, and the common
-/// control characters exactly as `CPython` does for ASCII text.
+/// control characters (`\n`, `\r`, `\t`, and `\xHH` for other ASCII
+/// controls).
 fn py_repr(s: &str) -> String {
     let has_single = s.contains('\'');
     let has_double = s.contains('"');
@@ -779,7 +779,7 @@ fn py_repr(s: &str) -> String {
     out
 }
 
-/// Python `repr()` of a list of strings — `['a', 'b']`, single-quoted
+/// Render a list of strings in repr style — `['a', 'b']`, single-quoted
 /// items, comma-space separated; `[]` when empty.
 fn py_list_repr(items: &[&str]) -> String {
     let mut sorted: Vec<&str> = items.to_vec();

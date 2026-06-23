@@ -6,7 +6,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "format formatString ?arg arg ...?",
 }];
 
-/// SYNC-JUN02d (#525 B-tail) + SYNC-JUN03 follow-up: constant-fold the
+/// Constant-fold the
 /// integer (`%d` / `%i` / `%u`), radix (`%x` / `%X` / `%o` / `%b`), character
 /// (`%c`), float (`%f` / `%F` / `%e` / `%E` / `%g` / `%G`) and string (`%s`)
 /// conversions of `format`, with the printf flag / width / precision matrix.

@@ -14,7 +14,7 @@
 //!   as text or JSON.
 //!
 //! The predicate is membership-only ("does CODE fire?"), so the accepted
-//! diagnostic-ordering divergence between the Rust and Python analysers is
+//! diagnostic-ordering divergence between the analysers is
 //! irrelevant to the reduction — both engines reduce to a snippet that still
 //! fires CODE.
 
@@ -58,8 +58,8 @@ const RESERVED_NAMES: [&str; 13] = [
     "selfns",
 ];
 
-/// Outcome of minimising a diagnostic to a minimal reproducer (mirrors the
-/// Python `MinimizeResult` dataclass).
+/// Outcome of minimising a diagnostic to a minimal reproducer (the
+/// `MinimizeResult` structure).
 #[derive(Debug, Clone)]
 pub struct MinimizeResult {
     pub source: String,
@@ -301,8 +301,8 @@ pub fn minimize_diagnostic(
     })
 }
 
-/// One per-document result in the `minimize --json` payload. Field order matches
-/// the Python dict (`file, code, original_lines, reduced_lines, renamed,
+/// One per-document result in the `minimize --json` payload. Field order is
+/// fixed (`file, code, original_lines, reduced_lines, renamed,
 /// reproduces, source`); `serde_json::to_string_pretty` preserves declaration
 /// order, so the JSON is byte-faithful.
 #[derive(Serialize)]

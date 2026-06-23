@@ -10,8 +10,8 @@
 //!
 //! Parity notes:
 //! - IP parsing + canonical string forms route through `std::net`
-//!   (`Ipv4Addr` / `Ipv6Addr`), whose `Display` matches Python's
-//!   `ipaddress` compression bit-for-bit (including IPv4-mapped dotted
+//!   (`Ipv4Addr` / `Ipv6Addr`), whose `Display` produces the canonical
+//!   zero-run-compressed form bit-for-bit (including IPv4-mapped dotted
 //!   form). Network canonicalisation uses `ipnet`.
 //! - Address **classification** (`is_private` / `is_global` / `is_reserved`
 //!   / …) is implemented against the exact IANA range tables `CPython` 3.11's
@@ -189,12 +189,12 @@ fn coerce_pathlike(v: &Value, name: &str, arg: usize) -> Result<String, QueryErr
     }
 }
 
-/// Python `repr` of a string (single-quoted, like `{x!r}`). The inputs we
-/// interpolate are address tokens — plain ASCII without quotes — so a simple
-/// single-quote wrap matches `CPython`'s `repr` for the cases we hit.
+/// Repr-style rendering of a string (single-quoted, like `{x!r}`). The inputs
+/// we interpolate are address tokens — plain ASCII without quotes — so a simple
+/// single-quote wrap matches the repr quoting for the cases we hit.
 fn py_str_repr(s: &str) -> String {
-    // CPython prefers single quotes unless the string contains a single quote
-    // and no double quote.
+    // Repr quoting prefers single quotes unless the string contains a single
+    // quote and no double quote.
     if s.contains('\'') && !s.contains('"') {
         format!("\"{s}\"")
     } else {
@@ -222,7 +222,7 @@ fn net_value_error(text: &str) -> String {
 // IP address parsing + classification
 
 /// Parse a bare host (v4 or v6) the way `ipaddress.ip_address` does.
-/// Python is strict: it rejects leading zeros in IPv4 octets, zone ids, etc.
+/// Parsing is strict: it rejects leading zeros in IPv4 octets, zone ids, etc.
 /// `std`'s parser matches on the shapes we care about.
 fn parse_ip_address(text: &str) -> Option<IpAddr> {
     // `ipaddress.ip_address` does not strip whitespace; callers strip first.
@@ -1382,8 +1382,8 @@ fn bi_port(args: &[Value]) -> Result<Value, QueryError> {
     if port.is_empty() {
         Ok(Value::Null)
     } else {
-        // Python `int(port)`; a non-numeric port (e.g. the wildcard spelling
-        // `"any"`) raises the stdlib ValueError verbatim.
+        // `int(port)`; a non-numeric port (e.g. the wildcard spelling
+        // `"any"`) raises the ValueError verbatim.
         match port.parse::<i64>() {
             Ok(n) => Ok(Value::Int(n)),
             Err(_) => Err(QueryError::builtin(format!(
@@ -1529,7 +1529,7 @@ fn bi_broadcast_address(args: &[Value]) -> Result<Value, QueryError> {
 ///
 /// `hosts()` excludes the network + broadcast addresses for IPv4 prefixes
 /// shorter than /31, and the network address for IPv6 prefixes shorter than
-/// /127. For /31, /32 (v6 /127, /128) it yields the whole range. The Python
+/// /127. For /31, /32 (v6 /127, /128) it yields the whole range. The
 /// builtins fall back to the network address when the list is empty — which,
 /// given these ranges, never happens, so first/last always exist.
 fn net_first_last_host(n: Net) -> (String, String) {

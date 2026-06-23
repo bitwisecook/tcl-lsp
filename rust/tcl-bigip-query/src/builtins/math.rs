@@ -7,25 +7,25 @@
 //! `floor`, `ceil`, and `abs` live in the parent module and are NOT
 //! re-registered here.
 //!
-//! Numeric result types mirror Python exactly (int vs float) because the
-//! output formatter renders `2.0` and `2` differently. For byte-identical
+//! Float results render with a trailing `.0` and integers without, so each
+//! builtin tracks the int-vs-float result type precisely. For byte-identical
 //! results we mostly use Rust's `std::f64` methods (which bind to the same
 //! system libm `math` calls), fall back to the pure-Rust `libm`
 //! crate for the few C functions `std` lacks (`expm1`, `log1p`, `ldexp`,
 //! `remainder`, `fmod`, `frexp`, `modf`), and implement two families exactly
 //! so they stay byte-identical: the Bessel functions (an Abramowitz & Stegun
-//! polynomial approximation) and gamma / lgamma (`CPython`'s Lanczos
-//! approximation — Python's gamma / lgamma do not use the platform libm).
+//! polynomial approximation) and gamma / lgamma (the Lanczos
+//! approximation for gamma / lgamma — these do not use the platform libm).
 
-// This module reproduces Python/C `math` numerics bit-for-bit, which means
-// transcribing the source's exact float literals and float-equality checks:
+// This module reproduces the C `math` numerics bit-for-bit, which means
+// transcribing the exact float literals and float-equality checks:
 // - `approx_constant` / `unreadable_literal` / `excessive_precision`: the
 //   Bessel polynomials use truncated constants (e.g. `0.636619772` ≈ 2/π and
-//   long coefficient literals) copied verbatim from the DSL; "tidying" them
+//   long coefficient literals) copied verbatim; "tidying" them
 //   would change the result bits.
 // - `float_cmp`: integral / tie / zero tests (`x == x.floor()`, `… == 0.5`,
-//   `x == 0.0`) are exact by design — they mirror CPython's `m_tgamma` /
-//   `m_lgamma` and the round-half-even path.
+//   `x == 0.0`) are exact by design — they belong to the Lanczos gamma /
+//   lgamma approximation and the round-half-even path.
 #![allow(
     clippy::approx_constant,
     clippy::unreadable_literal,
@@ -38,16 +38,16 @@ use crate::errors::QueryError;
 use crate::jsonfmt;
 use crate::value::Value;
 
-// `math` module mostly delegates to the platform C library (glibc
+// The `math` surface mostly delegates to the platform C library (glibc
 // on the reference host). Rust's `std::f64` transcendental methods bind to
-// the same system libm, so they reproduce Python's results bit-for-bit —
+// the same system libm, so they reproduce the reference results bit-for-bit —
 // whereas the pure-Rust `libm` crate diverges by ~1 ULP on some functions
 // (`exp`, `cosh`, …). We therefore prefer `std` methods, and use the `libm`
 // crate only for the C functions `std` lacks where its result already agrees
 // with glibc bit-for-bit on the relevant domain: `expm1`, `log1p`, `ldexp`,
 // `remainder`, `fmod`, plus the exact bit-manipulation `frexp` / `modf`. The
-// `gamma`/`lgamma` family is NOT libm-backed: it uses the same Lanczos
-// approximation Python ships, reproduced below so results match bit-for-bit.
+// `gamma`/`lgamma` family is NOT libm-backed: it uses the Lanczos
+// approximation reproduced below so results match bit-for-bit.
 // (`unsafe_code = "forbid"` rules out binding the system libm via
 // `extern "C"`, which is why these choices matter for byte parity.)
 
@@ -133,8 +133,8 @@ fn num_f64(v: &Value) -> f64 {
     }
 }
 
-/// Python `repr` of an int-or-float number value, used inside domain-error
-/// messages that interpolate `{n!r}`.
+/// Repr-style rendering of an int-or-float number value, used inside
+/// domain-error messages that interpolate `{n!r}`.
 fn num_repr(v: &Value) -> String {
     match v {
         Value::Int(i) => i.to_string(),
@@ -170,14 +170,14 @@ fn bi_fabs(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_trunc(args: &[Value]) -> Result<Value, QueryError> {
-    // Python `math.trunc` returns an int.
+    // `trunc` returns an int.
     Ok(Value::Int(
         num_f64(&as_number(&args[0], "trunc", 1)?).trunc() as i64,
     ))
 }
 
 fn bi_rint(args: &[Value]) -> Result<Value, QueryError> {
-    // Python `int(round(x))` — banker's rounding, then int.
+    // `int(round(x))` — banker's rounding, then int.
     Ok(Value::Int(
         py_round_half_even(num_f64(&as_number(&args[0], "rint", 1)?)) as i64,
     ))
@@ -189,7 +189,7 @@ fn bi_nearbyint(args: &[Value]) -> Result<Value, QueryError> {
     ))
 }
 
-/// Python 3 `round(x)` (to nearest int) — ties to even.
+/// Round `x` to the nearest int — ties to even.
 fn py_round_half_even(x: f64) -> f64 {
     let r = x.round(); // ties away from zero
     if (x - x.trunc()).abs() == 0.5 {
@@ -220,7 +220,7 @@ fn bi_sqrt(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_cbrt(args: &[Value]) -> Result<Value, QueryError> {
-    // Python uses `n ** (1/3)` (not C cbrt), negating for negative inputs.
+    // Uses `n ** (1/3)` (not C cbrt), negating for negative inputs.
     let n = num_f64(&as_number(&args[0], "cbrt", 1)?);
     let r = if n < 0.0 {
         -(-n).powf(1.0 / 3.0)
@@ -241,14 +241,14 @@ fn bi_exp(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_exp2(args: &[Value]) -> Result<Value, QueryError> {
-    // Python: math.pow(2.0, value).
+    // Computes `pow(2.0, value)`.
     Ok(Value::Float(
         2.0f64.powf(num_f64(&as_number(&args[0], "exp2", 1)?)),
     ))
 }
 
 fn bi_exp10(args: &[Value]) -> Result<Value, QueryError> {
-    // Python: math.pow(10.0, value) — shared by `exp10` and `pow10`.
+    // Computes `pow(10.0, value)` — shared by `exp10` and `pow10`.
     Ok(Value::Float(
         10.0f64.powf(num_f64(&as_number(&args[0], "exp10", 1)?)),
     ))
@@ -303,7 +303,7 @@ fn bi_log1p(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_logb(args: &[Value]) -> Result<Value, QueryError> {
-    // Python: -inf for 0, +inf for inf, else float(floor(log2(|n|))).
+    // -inf for 0, +inf for inf, else float(floor(log2(|n|))).
     let n = num_f64(&as_number(&args[0], "logb", 1)?);
     if n == 0.0 {
         return Ok(Value::Float(f64::NEG_INFINITY));
@@ -446,7 +446,7 @@ fn bi_copysign(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_fdim(args: &[Value]) -> Result<Value, QueryError> {
-    // Python: max(float(x - y), 0.0).
+    // Computes `max(float(x - y), 0.0)`.
     let x = num_f64(&as_number(&args[0], "fdim", 1)?);
     let y = num_f64(&as_number(&args[1], "fdim", 2)?);
     let d = x - y;
@@ -469,7 +469,7 @@ fn bi_ldexp(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_modf(args: &[Value]) -> Result<Value, QueryError> {
-    // Python `math.modf` returns (frac, int) — both floats; libm::modf
+    // `modf` returns (frac, int) — both floats; libm::modf
     // returns the same `(frac, int)` order. Pure bit manipulation, so this
     // matches the platform C library exactly.
     let n = num_f64(&as_number(&args[0], "modf", 1)?);
@@ -484,7 +484,7 @@ fn bi_hypot(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_fma(args: &[Value]) -> Result<Value, QueryError> {
-    // Python computes the naive expression float(x)*float(y) + float(z).
+    // Computes the naive expression float(x)*float(y) + float(z).
     let x = num_f64(&as_number(&args[0], "fma", 1)?);
     let y = num_f64(&as_number(&args[1], "fma", 2)?);
     let z = num_f64(&as_number(&args[2], "fma", 3)?);
@@ -492,7 +492,7 @@ fn bi_fma(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_fmax(args: &[Value]) -> Result<Value, QueryError> {
-    // Python `max(x, y)` preserves the winning operand's int/float type and
+    // `max(x, y)` preserves the winning operand's int/float type and
     // its tie behaviour (returns the first when equal).
     py_max_min(&args[0], &args[1], true)
 }
@@ -509,7 +509,7 @@ fn py_max_min(a: &Value, b: &Value, want_max: bool) -> Result<Value, QueryError>
     let bv = as_number(b, if want_max { "fmax" } else { "fmin" }, 2)?;
     let af = num_f64(&av);
     let bf = num_f64(&bv);
-    // Python `max(x, y)` returns y only when y > x; otherwise x.
+    // `max(x, y)` returns y only when y > x; otherwise x.
     let pick_b = if want_max { bf > af } else { bf < af };
     Ok(if pick_b { bv } else { av })
 }
@@ -530,7 +530,7 @@ fn bi_remainder(args: &[Value]) -> Result<Value, QueryError> {
 // Gamma family
 
 fn bi_gamma(args: &[Value]) -> Result<Value, QueryError> {
-    // Shared by `gamma` and `tgamma`. Python wraps the C domain ValueError
+    // Shared by `gamma` and `tgamma`. The C domain error surfaces
     // as `BuiltinError("gamma: math domain error")`.
     let n = num_f64(&as_number(&args[0], "gamma", 1)?);
     if gamma_is_domain_error(n) {
@@ -540,7 +540,7 @@ fn bi_gamma(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 /// `math.gamma` raises `ValueError` for non-positive integers and for
-/// negative infinity (`CPython` `m_tgamma` sets `EDOM` there).
+/// negative infinity (a domain error there).
 fn gamma_is_domain_error(n: f64) -> bool {
     if n.is_nan() {
         return false;
@@ -562,7 +562,7 @@ fn bi_lgamma_r(args: &[Value]) -> Result<Value, QueryError> {
     // gamma-domain-error fallback), else -1.
     let n = num_f64(&as_number(&args[0], "lgamma_r", 1)?);
     let lg = m_lgamma(n);
-    // Python falls back to sign +1 when `gamma(n)` raises (the domain-error
+    // Sign falls back to +1 when `gamma(n)` raises (the domain-error
     // case); otherwise the sign of `gamma(n)`.
     let sign: i64 = if !gamma_is_domain_error(n) && m_tgamma(n) < 0.0 {
         -1
@@ -572,10 +572,9 @@ fn bi_lgamma_r(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::List(vec![Value::Float(lg), Value::Int(sign)]))
 }
 
-// CPython Lanczos gamma / lgamma (follows `Modules/mathmodule.c`
-// `m_tgamma` / `m_lgamma` / `m_sinpi`). `math.gamma` / `lgamma` do
-// NOT use the platform libm — they ship this Lanczos approximation — so we
-// reproduce it verbatim for byte-identical results. The `errno`/`EDOM`
+// Lanczos approximation for gamma / lgamma. `math.gamma` / `lgamma` do
+// NOT use the platform libm — they use this Lanczos approximation — so we
+// compute it directly for byte-identical results. The `errno`/`EDOM`
 // signalling is handled by the callers (`gamma_is_domain_error`); these
 // helpers just compute the value.
 

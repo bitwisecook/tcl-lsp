@@ -463,7 +463,7 @@ pub fn run_explain(
     Ok(u8::from(!report.found))
 }
 
-/// Render a string as a Python-style `repr()` (only the simple, quote-free path
+/// Render a string in repr form (only the simple, quote-free path
 /// is needed for the not-found message).
 fn py_repr(s: &str) -> String {
     let quote = if s.contains('\'') && !s.contains('"') {

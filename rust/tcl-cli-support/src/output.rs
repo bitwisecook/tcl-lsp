@@ -73,10 +73,10 @@ pub fn write_binary_output(target: &OutputTarget, payload: &[u8]) -> Result<(), 
     }
 }
 
-/// Write Tcl source, optionally colourised, with Python-faithful tab handling
+/// Write Tcl source, optionally colourised, with faithful tab handling
 ///
 /// When writing to stdout with `tab_width > 0`, tabs are expanded to spaces
-/// just as `str.expandtabs` does — and, matching the Python order, this happens
+/// just as `str.expandtabs` does — and, in the fixed order, this happens
 /// *before* ANSI highlighting (so escape codes don't shift the tab stops). The
 /// `highlight` verb uses the opposite order; see its handler.
 pub fn write_highlighted_output(
@@ -131,7 +131,7 @@ pub fn expand_tabs(text: &str, tabsize: usize) -> String {
 /// code points), matching `json.dumps(..., ensure_ascii=True)`.
 ///
 /// Apply this to `serde_json::to_string_pretty` output so JSON verbs match the
-/// Python CLI byte-for-byte. Safe to apply to a whole JSON document: non-ASCII
+/// captured golden output byte-for-byte. Safe to apply to a whole JSON document: non-ASCII
 /// only ever appears inside already-quoted string values.
 #[must_use]
 pub fn ensure_ascii(s: &str) -> String {

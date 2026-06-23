@@ -264,7 +264,7 @@ pub fn resolve_object_ref_args(
     let mut seen: HashSet<usize> = HashSet::new();
 
     // Try a single materialised spec: filter the positional token, dedup by
-    // index, and record `(idx, kinds)`. Mirrors the body of the Python loop.
+    // index, and record `(idx, kinds)`.
     let consider = |position: &ObjectRefArg,
                     kinds: Vec<&'static str>,
                     matches: &mut Vec<(usize, Vec<&'static str>)>,
@@ -286,8 +286,8 @@ pub fn resolve_object_ref_args(
         matches.push((idx, kinds));
     };
 
-    // Base specs first, then the pool templates — the same order
-    // `_materialise_specs` produces, so the shared `seen` dedup matches Python.
+    // Base specs first, then the pool templates, so the shared `seen` set
+    // dedups indices across both passes in a stable order.
     for spec in &t.base_specs {
         if spec.command != lower {
             continue;

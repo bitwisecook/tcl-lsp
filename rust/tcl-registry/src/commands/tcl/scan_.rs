@@ -23,7 +23,7 @@ fn scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
         .collect()
 }
 
-/// SYNC-JUN03 follow-up: constant-fold the *inline* `scan string format` form
+/// Constant-fold the *inline* `scan string format` form
 /// (no `varName` — that form writes variables and must never fold).
 ///
 /// The scanf semantics are modelled **directly on tclsh**.  A naive fold

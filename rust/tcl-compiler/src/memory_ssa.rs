@@ -93,8 +93,8 @@ impl MemoryLocation {
         }
     }
 
-    /// Render the location in the same format used by the Python
-    /// `MemoryLocation.__str__` for diagnostic parity.
+    /// Render the location in its canonical textual format for
+    /// diagnostics.
     #[must_use]
     pub fn display(&self) -> String {
         match self.kind {
@@ -344,8 +344,7 @@ fn call_parts(stmt: &Statement) -> Option<(&str, &[String])> {
 /// [`upvar_local_declaration_indices`] for the grammar, so all
 /// level-word forms (decimal, negative decimal, `#N`) and both
 /// `namespace upvar` entry points (lowered or pre-composed) are
-/// handled the same way the LSP declaration provider and the
-/// Python port see them.
+/// handled the same way the LSP declaration provider sees them.
 #[must_use]
 pub fn detect_upvar(stmt: &Statement) -> Vec<(String, String)> {
     let Some((cmd, args)) = call_parts(stmt) else {
@@ -564,8 +563,7 @@ pub fn compute_aliases(ssa: &SsaFunction) -> Vec<AliasSet> {
 /// eval / uplevel).
 ///
 /// Walks blocks in dominator-tree order (reverse iteration for
-/// stack emulation) for consistent versioning, mirroring the
-/// Python port.
+/// stack emulation) for consistent versioning.
 #[must_use]
 pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
     let alias_sets = compute_aliases(ssa);
@@ -642,8 +640,8 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
         }
 
         // Push dominator-tree children in reverse so the iterative
-        // stack visits them left-to-right, matching the Python
-        // recursion order.
+        // stack visits them left-to-right, preserving the recursive
+        // visitation order.
         if let Some(children) = ssa.dominator_tree.get(&bn) {
             for child in children.iter().rev() {
                 stack.push(child.clone());

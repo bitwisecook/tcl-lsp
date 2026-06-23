@@ -3,11 +3,11 @@
 //!
 //! Runs the built `f5-query` binary against committed, hand-emitted libpcap and
 //! PCAPNG fixtures plus a redaction `.map`, and asserts the OUTPUT capture is
-//! byte-for-byte identical to a golden produced by `python -m tooling.f5.main
-//! pcap-remap`. Also covers the stderr summary line, the `--list-schemas`
-//! stdout, and the `--on-unknown error/preserve/sweep` policies (incl. the
-//! exit-2 unknown-trailer error and its message). Self-contained: no Python at
-//! test time.
+//! byte-for-byte identical to the captured golden output. Also covers the
+//! stderr summary line, the `--list-schemas` stdout, and the
+//! `--on-unknown error/preserve/sweep` policies (incl. the exit-2
+//! unknown-trailer error and its message). Self-contained: no external tool
+//! runs at test time.
 
 use std::path::PathBuf;
 use std::process::Command;

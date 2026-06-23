@@ -4,7 +4,7 @@ use crate::analyses::ConstValue;
 use crate::tcl_expr_eval::{TclValue, format_tcl_value};
 
 /// Grammar of a word that can be emitted into Tcl source without
-/// needing brace quoting. Matches `_SAFE_WORD_RE`:
+/// needing brace quoting:
 /// `[A-Za-z0-9_./:+-]+`.
 #[must_use]
 pub fn is_safe_word(text: &str) -> bool {
@@ -15,7 +15,7 @@ pub fn is_safe_word(text: &str) -> bool {
 }
 
 /// Grammar of a static variable-name word (identifier-only, plus
-/// namespace separator). Matches `_STATIC_VAR_WORD_RE`:
+/// namespace separator):
 /// `[A-Za-z_][A-Za-z0-9_:]*`.
 #[must_use]
 pub fn is_static_var_word(text: &str) -> bool {
@@ -30,8 +30,7 @@ pub fn is_static_var_word(text: &str) -> bool {
 }
 
 /// Return `true` when `text` contains no substitutions — no `$`,
-/// no `[`, no `{`, no backslash. Matches
-/// `_is_plain_literal`.
+/// no `[`, no `{`, no backslash.
 #[must_use]
 pub fn is_plain_literal(text: &str) -> bool {
     !text.contains(['$', '[', '{', '\\'])
@@ -40,7 +39,7 @@ pub fn is_plain_literal(text: &str) -> bool {
 /// Parse `value` into a `Literal` (int / bool / safe string), or
 /// `None` when the text does not fit those grammars.
 ///
-/// Matches `_literal_from_constant_str`:
+/// Parses as:
 ///
 /// - decimal integer literal → `Literal::Int`,
 /// - case-insensitive `"true"` / `"false"` → `Literal::Bool`,
@@ -78,8 +77,7 @@ pub enum Literal {
     Str(String),
 }
 
-/// Render a folded value back to Tcl source text. Matches
-/// `_render_folded_literal`:
+/// Render a folded value back to Tcl source text. Renders as:
 ///
 /// - bool → `"1"` / `"0"`.
 /// - int → decimal string.
@@ -107,7 +105,7 @@ pub fn render_folded_literal(value: &Literal) -> Option<String> {
 }
 
 /// Quote a string value into a Tcl word suitable for emission.
-/// Matches `_render_static_string_word`:
+/// Renders as:
 ///
 /// - empty → `"{}"`.
 /// - [`is_safe_word`] → unwrapped.
@@ -129,9 +127,8 @@ pub fn render_static_string_word(value: &str) -> Option<String> {
 }
 
 /// Render a [`ConstValue`] (from the SCCP lattice) as Tcl source
-/// text. Matches `_format_constant`. The float case delegates to
-/// [`format_tcl_value`] so we stay parity-matched with Python's
-/// round-tripping behaviour.
+/// text. The float case delegates to [`format_tcl_value`] so the
+/// rendered value round-trips.
 #[must_use]
 pub fn format_constant(value: &ConstValue) -> Option<String> {
     match value {

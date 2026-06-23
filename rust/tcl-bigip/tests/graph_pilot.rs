@@ -7,8 +7,8 @@
 //! The fixture exercises pilot-only edges (`policies`/`vlans`/`persist`, whose
 //! legacy references are cleared) plus the compound specs (monitor min-of, SNAT
 //! pool, cert-key-chain, firewall source/destination lists). The Rust graph
-//! reproduces the Python edge set exactly — the registry-data regen cleared the
-//! former drift. Self-contained — no Python at test time.
+//! reproduces the expected edge set exactly — the registry-data regen cleared the
+//! former drift. Self-contained — no external oracle at test time.
 
 use tcl_bigip::graph::{GraphContext, build_bigip_object_graph};
 use tcl_bigip::parser::parse_bigip_conf;
@@ -41,7 +41,7 @@ fn graph_pilot_edges_match_python() {
 
     // Exact ordered parity — including the pilot-only `policies`/`vlans`/`persist`
     // edges legacy can't emit, with no drift edges after the registry-data regen.
-    assert_eq!(got, want, "pilot graph edges differ from Python");
+    assert_eq!(got, want, "pilot graph edges differ from the expected set");
     assert!(
         got.iter()
             .any(|e| e.contains("\tpersist\tltm_persistence_cookie")),

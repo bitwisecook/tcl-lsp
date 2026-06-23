@@ -2,15 +2,15 @@
 //! PCAP flow tracer (`tcl-bigip::flow` + the `explain_flow` driver).
 //!
 //! Runs the built `f5-query` binary against committed libpcap / PCAPNG fixtures
-//! plus a small `bigip.conf`, and asserts stdout is byte-for-byte identical to a
-//! golden produced by `python -m tooling.f5.main explain-flow`. The binary runs
-//! with its working directory set to the fixtures dir and bare filenames, so the
+//! plus a small `bigip.conf`, and asserts stdout is byte-for-byte identical to
+//! the captured golden output for `explain-flow`. The binary runs with its
+//! working directory set to the fixtures dir and bare filenames, so the
 //! `explain-flow: <pcap>` header line is path-stable across machines.
 //!
 //! These captures do not target the sample VS, so they exercise the
 //! flow-extraction + session-pairing + unmatched-report path end to end
 //! (libpcap and pcapng readers, IPv4/IPv6, TCP/UDP/ICMP, HTTP request peek).
-//! Self-contained: no Python at test time.
+//! Self-contained: no external tool runs at test time.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -184,7 +184,7 @@ fn tshark_enrichment_marks_used_tshark() {
     // The `--tshark` overlay path runs the built-in walker, then enriches via
     // `tcl_bigip::flow::tshark`. `used_tshark` reflects whether the tshark run
     // succeeded — which depends on this tshark's EK support, exactly as the
-    // Python reference does. The byte-level Rust↔Python parity of the enriched
+    // golden was captured. The byte-level parity of the enriched
     // fields is checked by the differential harness offline.
     if !tshark_available() {
         eprintln!("skipping: tshark not on PATH");
@@ -225,7 +225,8 @@ fn tshark_enrichment_marks_used_tshark() {
 fn tshark_filter_is_reported_python_repr_style() {
     // `--tshark-filter` makes tshark the canonical flow source: `used_tshark`
     // is true whenever a tshark binary exists, independent of EK support, and
-    // the filter is echoed in the header rendered Python-`repr()`-style.
+    // the filter is echoed in the header rendered `repr()`-style
+    // (single-quoted).
     if !tshark_available() {
         eprintln!("skipping: tshark not on PATH");
         return;

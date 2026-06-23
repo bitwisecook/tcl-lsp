@@ -2,10 +2,10 @@
 //!
 //! Compiles each fixture under `tests/fixtures/codegen/matching/` through the
 //! Rust pipeline and compares the (label-stripped) disassembly to a checked-in
-//! `*.golden`. Unlike `differential_codegen.rs` — which oracles against the
-//! Python emitter and silently skips when `python3` is absent — this needs no
-//! Python, so the byte-identity safety net for the bytecode emitter survives
-//! Python's retirement. It also guards the bytecode emitter against accidental
+//! `*.golden`. Unlike `differential_codegen.rs` — which oracles against an
+//! external emitter and silently skips when that oracle is absent — this is
+//! fully self-contained, so the byte-identity safety net for the bytecode
+//! emitter always runs. It also guards the bytecode emitter against accidental
 //! churn while the greenfield WASM backend is built alongside it.
 //!
 //! Regenerate the goldens after an *intentional* codegen change:

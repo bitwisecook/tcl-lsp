@@ -4,8 +4,8 @@
 //! The pipeline captured in `tests/fixtures/regex_str.json`
 //! (`scripts/codegen/gen_f5_query_regex_fixtures.py`): parse → evaluate
 //! against a JSON-backed root → `output::render`. For each `(query, input,
-//! mode)` the Rust output (or `error:` message) must match Python exactly.
-//! Self-contained — no Python at test time.
+//! mode)` the Rust output (or `error:` message) must match the expected value exactly.
+//! Self-contained — no external oracle at test time.
 
 use indexmap::IndexMap;
 use serde_json::Value as J;

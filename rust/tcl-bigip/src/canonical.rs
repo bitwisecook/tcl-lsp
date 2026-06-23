@@ -1,6 +1,6 @@
 //! Canonical JSON serialisation matching the `_rust_bridge` schema, so
 //! `rebuild(config_to_canonical(rust_parse(src)))` reconstructs the exact
-//! Python dataclasses the `f5` layer consumes.
+//! canonical dataclass-style structs the `f5` layer consumes.
 //!
 //! Tags: `{"r":[6]}` Range, `{"S":[2]}` SourceSpan, `{"e":NAME}` enum,
 //! `{"s":STR}` scalar value, `{"t":[…]}` tuple, `{"m":{…}}` dict,
@@ -20,9 +20,9 @@ use crate::range::Range;
 use crate::value::bigip_list::{BigipList, ListItem, ListItemValue, SourceSpan};
 
 /// A type that serialises to the canonical `"d"` field-map and knows its
-/// Python dataclass name.
+/// canonical dataclass-style type name.
 pub trait Canon {
-    /// The Python dataclass type name (e.g. `"BigipPoolMember"`).
+    /// The canonical type name (e.g. `"BigipPoolMember"`).
     fn canon_type(&self) -> &'static str;
     /// The canonical `"d"` field map (a JSON object).
     fn canon_fields(&self) -> Value;
@@ -283,8 +283,8 @@ impl Canon for BigipMinimalObject {
     }
 }
 
-/// Serialise a [`BigipConfig`] to the canonical JSON document the Python
-/// `_rust_bridge.rebuild` consumes.
+/// Serialise a [`BigipConfig`] to the canonical JSON document the
+/// `_rust_bridge.rebuild` step consumes.
 #[must_use]
 pub fn config_to_canonical(config: &BigipConfig) -> Value {
     let generic: Vec<Value> = config

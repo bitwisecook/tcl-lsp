@@ -3,8 +3,8 @@
 //! rename engine (identity-field writes + the `rename*` builtins).
 //!
 //! Runs the built `f5-query` binary against the committed `bigip.conf`
-//! fixture and asserts stdout matches a golden captured from
-//! `python -m tooling.f5.main query`. Self-contained: no Python at test time.
+//! fixture and asserts stdout matches the captured golden output for `query`.
+//! Self-contained: no external tool runs at test time.
 //!
 //! Goldens embed a `__FIXTURES__` placeholder where the diff's `--- ` /
 //! `+++ ` headers (and any error text) carry the on-disk path of the fixtures
@@ -100,9 +100,9 @@ fn golden(name: &str) -> String {
         .replace("__FIXTURES__", &fixtures_path())
 }
 
-/// Assert a rename query reproduces the Python CLI byte-for-byte on **both**
-/// stdout (the diff / `--write` payload) and stderr (the `renamed …` reports /
-/// `error:` line), matching `<base>.out.golden` / `<base>.err.golden`.
+/// Assert a rename query reproduces the captured golden output byte-for-byte on
+/// **both** stdout (the diff / `--write` payload) and stderr (the `renamed …`
+/// reports / `error:` line), matching `<base>.out.golden` / `<base>.err.golden`.
 ///
 /// The fixture is passed as its canonical absolute path so the diff headers and
 /// any error text embed exactly the prefix the goldens capture (under
@@ -325,7 +325,7 @@ fn cross_file_edit_targets_named_source() {
     // A mutation reaching another loaded source via `$name` (here `$xfb`,
     // while the per-file runner iterates `xfa` then `xfb`) must apply against
     // that source — not fail with "no source loaded". The diff lands on the
-    // named file, byte-identical to the Python runner.
+    // named file, byte-identical to the captured golden output.
     let xfa = std::fs::canonicalize(fixtures_dir().join("xfa.conf"))
         .expect("canonicalize xfa.conf")
         .to_string_lossy()

@@ -8,7 +8,7 @@ use serde::Serialize;
 use tcl_cli_support::{OutputTarget, registry_for_dialect, write_text_output};
 use tcl_registry::dialects::DialectSet;
 
-/// JSON payload when the command resolves (field order matches the Python dict).
+/// JSON payload when the command resolves (fields are emitted in a fixed order).
 #[derive(Serialize)]
 struct FoundPayload {
     found: bool,

@@ -4,7 +4,7 @@ use std::fmt;
 
 /// The grammatical shape of a parsed `monitor` expression.
 ///
-/// [`MonitorMode::as_str`] returns the exact Python string literal for
+/// [`MonitorMode::as_str`] returns the canonical string literal for
 /// each variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MonitorMode {
@@ -21,7 +21,7 @@ pub enum MonitorMode {
 }
 
 impl MonitorMode {
-    /// The Python string literal for this mode.
+    /// The canonical string literal for this mode.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
@@ -239,7 +239,7 @@ impl MonitorExpression {
         self.monitors.is_empty()
     }
 
-    /// Python `__bool__`: truthy unless `default` mode with empty `raw`.
+    /// Truthy unless `default` mode with empty `raw`.
     #[must_use]
     pub fn is_truthy(&self) -> bool {
         self.mode != MonitorMode::Default || !self.raw.is_empty()
@@ -284,7 +284,7 @@ impl fmt::Display for MonitorExpression {
     }
 }
 
-/// Python `str.isspace()` for the ASCII whitespace characters that appear
+/// `true` for the ASCII whitespace characters that appear
 /// in monitor expressions.
 fn is_py_space(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)

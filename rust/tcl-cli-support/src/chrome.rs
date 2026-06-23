@@ -50,7 +50,7 @@ pub fn dim_style() -> Style {
 /// Print `error: {msg}` to stderr with the prefix styled.
 ///
 /// On a non-terminal stderr (pipes, the test harness) anstream strips the
-/// styling, leaving the exact `error: {msg}` line the Python CLI emits.
+/// styling, leaving the exact `error: {msg}` line.
 pub fn eprint_error(msg: impl Display) {
     let s = error_style();
     let mut err = anstream::stderr();

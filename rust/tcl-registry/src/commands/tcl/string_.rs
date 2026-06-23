@@ -8,7 +8,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "string option arg ?arg ...?",
 }];
 
-/// SYNC-JUN02b-6 (#519): compile-time folds for pure `string`
+/// Compile-time folds for pure `string`
 /// subcommands, consumed by the optimiser's O129 general-builtin
 /// constant-fold path through the registry `const_fold` callbacks.
 ///
@@ -359,8 +359,8 @@ fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<Stri
     Some(out)
 }
 
-/// `string is class ?-strict? ?-failindex var? string` (SYNC-JUN02d-1
-/// follow-up, #525 B-tail).  Constant-folds the **Tcl-faithful** classes
+/// `string is class ?-strict? ?-failindex var? string`.
+/// Constant-folds the **Tcl-faithful** classes
 /// the optimiser can decide soundly.
 ///
 /// Deliberately follows Tcl's classification, not a `str`-method
@@ -1553,7 +1553,7 @@ mod tests {
 
     #[test]
     fn pure_string_subcommands_carry_const_fold() {
-        // SYNC-JUN02b-6 (#519): toupper / tolower / reverse expose a
+        // toupper / tolower / reverse expose a
         // const_fold callback for the optimiser's O129 path.
         let reg = CommandRegistry::build_default();
         let spec = reg.get("string").expect("string spec");
@@ -1591,7 +1591,7 @@ mod tests {
 
     #[test]
     fn string_value_folds_match_tcl() {
-        // SYNC-JUN02d-1 (#525): the cat / repeat / trim* / totitle folds.
+        // The cat / repeat / trim* / totitle folds.
         let reg = CommandRegistry::build_default();
         let spec = reg.get("string").expect("string spec");
         let f = |sub: &str| spec.subcommand(sub).and_then(|s| s.const_fold).unwrap();
@@ -1613,7 +1613,7 @@ mod tests {
 
     #[test]
     fn string_index_comparison_folds_match_tcl() {
-        // SYNC-JUN02d-1 (#525): index / range / replace / first / last /
+        // index / range / replace / first / last /
         // compare / equal, with `end` / `end-N` index parsing.
         let reg = CommandRegistry::build_default();
         let spec = reg.get("string").expect("string spec");
@@ -1660,7 +1660,7 @@ mod tests {
 
     #[test]
     fn string_map_folds_match_tcl() {
-        // SYNC-JUN02d-1 (#525): `string map` greedy left-to-right replace.
+        // `string map` greedy left-to-right replace.
         let reg = CommandRegistry::build_default();
         let m = reg
             .get("string")

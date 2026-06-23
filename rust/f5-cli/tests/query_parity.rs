@@ -1,8 +1,8 @@
 //! Differential parity tests for the read-only `f5 query` verb.
 //!
 //! Runs the built `f5-query` binary against the committed `bigip.conf`
-//! fixture and asserts stdout matches a golden captured from
-//! `python -m tooling.f5.main query`. Self-contained: no Python at test time.
+//! fixture and asserts stdout matches the captured golden output.
+//! Self-contained: no external tool runs at test time.
 //!
 //! Multi-file goldens embed a `__FIXTURES__` placeholder in place of the
 //! absolute `file://` URI of the fixtures directory; the test substitutes the
