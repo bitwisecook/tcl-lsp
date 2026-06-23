@@ -160,8 +160,59 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             },
             _ => err("wrong # args: should be \"info default procname arg varname\""),
         },
-        "tclversion" => ok(Value::string("9.0")),
-        "patchlevel" => ok(Value::string("9.0.0")),
+        "tclversion" => match rest {
+            [] => ok(Value::string("9.0")),
+            _ => err("wrong # args: should be \"info tclversion\""),
+        },
+        "patchlevel" => match rest {
+            [] => ok(Value::string("9.0.3")),
+            _ => err("wrong # args: should be \"info patchlevel\""),
+        },
+        // `info functions ?pattern?` — the registered `tcl::mathfunc::*` names.
+        "functions" => match rest {
+            [] => ok(Value::list(
+                vm.math_function_names()
+                    .into_iter()
+                    .map(Value::string)
+                    .collect(),
+            )),
+            [pat] => {
+                let p = pat.to_str();
+                ok(Value::list(
+                    vm.math_function_names()
+                        .into_iter()
+                        .filter(|n| tcl_syntax::glob::string_match(&p, n))
+                        .map(Value::string)
+                        .collect(),
+                ))
+            }
+            _ => err("wrong # args: should be \"info functions ?pattern?\""),
+        },
+        // `info loaded ?interp? ?prefix?` — no binary extensions are loaded, so
+        // the result is empty for the current interp; a named interp must exist.
+        "loaded" => {
+            let interp = match rest {
+                [] => None,
+                [i] | [i, _] => Some(i.to_str()),
+                _ => return err("wrong # args: should be \"info loaded ?interp? ?prefix?\""),
+            };
+            match interp {
+                Some(i) if !i.is_empty() => err(format!("could not find interpreter \"{i}\"")),
+                _ => ok(Value::empty()),
+            }
+        }
+        // `info cmdtype commandName` — native / proc / alias (interp/object kinds
+        // need those subsystems).
+        "cmdtype" => match rest {
+            [name] => {
+                let n = name.to_str();
+                match vm.command_kind(&n) {
+                    Some(kind) => ok(Value::string(kind)),
+                    None => err(format!("unknown command \"{n}\"")),
+                }
+            }
+            _ => err("wrong # args: should be \"info cmdtype commandName\""),
+        },
         // `info library` is the script library directory — the `tcl_library`
         // global the bootstrap seeds from `$env(TCL_LIBRARY)`. The autoloader
         // (`auto_path` defaults to `[info library]`) and library procs read it.
