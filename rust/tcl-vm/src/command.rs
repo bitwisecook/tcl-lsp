@@ -282,10 +282,11 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .get(2)
         .map(|v| v.to_str().trim_start_matches("::").to_string())
         .unwrap_or_default();
-    if let Some(ns_arg) = parts.get(2)
-        && !vm.namespace_exists(&namespace)
-    {
-        return err(format!("namespace \"{}\" not found", ns_arg.to_str()));
+    if parts.len() == 3 && !vm.namespace_exists(&namespace) {
+        // The message names the fully-qualified namespace: a relative third
+        // element is resolved from the global namespace, so it is reported with a
+        // leading `::` (apply-3.3 — `NONEXIST::…` → `::NONEXIST::…`).
+        return err(format!("namespace \"::{namespace}\" not found"));
     }
 
     let name = fresh_apply_name();
