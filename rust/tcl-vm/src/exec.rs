@@ -257,10 +257,19 @@ fn ilen(n: usize) -> i64 {
 }
 
 /// Resolve a bytecode-immediate index (`N`, or `end`-relative encoded relative
-/// to `INDEX_END`) against a length, mirroring `format.rs`'s decode.
+/// to `INDEX_END`) against a length.
+///
+/// `end-N` encodes as `INDEX_END - N` and `end+N` as `INDEX_END + N`
+/// (`parse_tcl_index`), so an end-relative index occupies a band *around*
+/// `INDEX_END`, not just `<= INDEX_END`. Detecting only `<= INDEX_END` (the old
+/// test) misread `end+N` as a huge negative plain index, so e.g. `lrange $l
+/// end+1 0` and `lrange $l 0 end+1` disagreed with the uncompiled command
+/// (lrange-5 battery). The band's half-width `1 << 29` sits midway between
+/// `INDEX_END` (`-2^30`) and 0: any plausible `end±N` lands inside it, while no
+/// realistic literal plain index is that far negative.
 fn imm_index(imm: i32, len: usize) -> isize {
     let n = isize::try_from(len).unwrap_or(isize::MAX);
-    if imm <= INDEX_END {
+    if imm <= INDEX_END + (1 << 29) {
         (n - 1) + (imm as isize - INDEX_END as isize)
     } else {
         imm as isize

@@ -96,7 +96,7 @@ fn lassign(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if args.len() < 2 {
         return false;
     }
-    ctx.emit_value_interpolated(&args[0]);
+    ctx.emit_word_arg(0, &args[0]);
     let var_names = &args[1..];
     for (i, var) in var_names.iter().enumerate() {
         ctx.push_lit(var);
@@ -129,7 +129,7 @@ fn lrange(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     let Some(end_idx) = parse_tcl_index(&args[2]) else {
         return false;
     };
-    ctx.emit_value_interpolated(&args[0]);
+    ctx.emit_word_arg(0, &args[0]);
     ctx.emit(
         Op::LIST_RANGE_IMM,
         vec![Operand::Imm(start_idx), Operand::Imm(end_idx)],
@@ -145,9 +145,8 @@ fn linsert(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if args.len() < 2 {
         return false;
     }
-    ctx.emit_value_interpolated(&args[0]);
-    for a in &args[1..] {
-        ctx.emit_value_interpolated(a);
+    for (i, a) in args.iter().enumerate() {
+        ctx.emit_word_arg(i, a);
     }
     ctx.emit(
         Op::LREPLACE4,

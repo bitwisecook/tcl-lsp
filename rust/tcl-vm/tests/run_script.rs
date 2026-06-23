@@ -265,6 +265,25 @@ fn list_hooks_collapse_nonbraced_backslashes() {
     assert_eq!(result, "1 {unmatched open brace in list}");
 }
 
+/// The compiled `LIST_RANGE_IMM` path resolves `end+N` indices like the
+/// uncompiled command: as the last index `end+N` clamps to the end (keeps
+/// everything), as the first index it is past the end (empty). Regression for
+/// lrange.test's lrange-5 "shared compiled" battery, where `end+N` encodes as
+/// `INDEX_END + N` (above the old `<= INDEX_END` detection) and was misread as a
+/// huge plain index.
+#[test]
+fn compiled_lrange_handles_end_plus_n() {
+    // `end+1` as the last index includes through the end.
+    let (ok, result, _) = run("join [lrange {a b c} 0 end+1] -");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "a-b-c");
+
+    // `end+1` as the first index is past the end → empty.
+    let (ok, result, _) = run("list [lrange {a b c} end+1 end]");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "{}");
+}
+
 /// A brace-string array-element target keeps its key LITERAL: `set {a($x)} 5`
 /// stores the element whose key is the literal string `$x` (Tcl braces suppress
 /// substitution), so reading it back with the same braced key returns the value
