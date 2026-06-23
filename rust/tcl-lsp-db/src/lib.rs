@@ -244,6 +244,39 @@ fn w123_command(message: &str) -> Option<&str> {
     Some(&rest[..end])
 }
 
+/// The project's proc **tail** names — the cross-file W123 resolution domain.  A
+/// bare command `foo` is resolved if some project proc has tail `foo` (mirrors
+/// the analyser's own `proc_tail_names` suppression).  Shared by the salsa
+/// [`project_diagnostics`] query (push path) and the server's on-demand pull
+/// path so both suppress identically.
+#[must_use]
+pub fn project_proc_tails(db: &dyn TclDb, project: Project) -> HashSet<String> {
+    project_proc_names(db, project)
+        .iter()
+        .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_owned()))
+        .filter(|t| !t.is_empty())
+        .collect()
+}
+
+/// Drop the W123 (unknown command) diagnostics whose command is in `project_tails`
+/// — i.e. resolved by a `proc` defined elsewhere in the workspace.  Pure; used by
+/// both the push ([`project_diagnostics`]) and pull diagnostics paths so they
+/// agree.
+#[must_use]
+pub fn suppress_cross_file_w123<S: std::hash::BuildHasher>(
+    diags: &[tcl_compiler::analyser::types::Diagnostic],
+    project_tails: &HashSet<String, S>,
+) -> Vec<tcl_compiler::analyser::types::Diagnostic> {
+    diags
+        .iter()
+        .filter(|d| {
+            !(d.code == "W123"
+                && w123_command(&d.message).is_some_and(|name| project_tails.contains(name)))
+        })
+        .cloned()
+        .collect()
+}
+
 /// Analyser diagnostics for `file` with cross-file-resolvable W123 (unknown
 /// command) warnings suppressed against the project's proc names
 /// (SRV-INCREMENTAL Task 6 — cross-file unresolved-command resolution).
@@ -268,23 +301,12 @@ pub fn project_diagnostics(
     config: AnalyserConfig,
     project: Project,
 ) -> Arc<Vec<tcl_compiler::analyser::types::Diagnostic>> {
-    let analysis = file_analysis(db, file, config);
-    let proc_names = project_proc_names(db, project);
-    let project_tails: HashSet<String> = proc_names
-        .iter()
-        .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_owned()))
-        .filter(|t| !t.is_empty())
-        .collect();
-    let filtered: Vec<tcl_compiler::analyser::types::Diagnostic> = analysis
-        .diagnostics
-        .iter()
-        .filter(|d| {
-            !(d.code == "W123"
-                && w123_command(&d.message).is_some_and(|name| project_tails.contains(name)))
-        })
-        .cloned()
-        .collect();
-    Arc::new(filtered)
+    // `file_analysis_incremental` (not the coarse `file_analysis`) so this reuses
+    // the per-item firewall result the diagnostics worker already computed for
+    // `file` — a cache hit, not a second whole-file analysis.
+    let analysis = file_analysis_incremental(db, file, config);
+    let project_tails = project_proc_tails(db, project);
+    Arc::new(suppress_cross_file_w123(&analysis.diagnostics, &project_tails))
 }
 
 /// Interned identity of a single `proc` body's isolated analysis — the per-item

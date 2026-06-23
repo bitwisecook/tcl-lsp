@@ -260,6 +260,9 @@ struct DiagInputs {
     /// exclusive-access write waits for all outstanding handles to drop).
     db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
     db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
+    /// The salsa `Project` input handle (workspace file set), read by the worker
+    /// for cross-file `project_diagnostics` when `xc_diagnostics` is enabled.
+    db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
     /// Per-folder salsa `AnalyserConfig` handles (see
     /// [`Backend::folder_db_configs`]); `capture_job` resolves the right one by
@@ -342,6 +345,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
         documents,
         workspace_index,
         db,
+        db_project,
         pull_diag_cache,
         xc_diagnostics,
         // The worker captures the job from these before calling us; unused here.
@@ -405,20 +409,39 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
     // stalling behind an uncancellable analyse.  On cancellation we drop the
     // run — the superseding edit schedules a fresh one.  `file` is `None` only
     // if the salsa input is somehow absent; then fall back to a direct analyse.
-    let analysis: Arc<AnalysisResult> = if let Some(file) = file {
+    // Cross-file (SRV-INCREMENTAL Task 6): when `xcDiagnostics` is enabled, the
+    // worker also computes `project_diagnostics` — `file_analysis`'s diagnostics
+    // with W123 (unknown command) suppressed for commands defined as procs
+    // elsewhere in the workspace.  Read the current `Project` handle now (it is
+    // stable across re-sets); `None` ⇒ no cross-file pass (status-quo per-file
+    // diagnostics).  Both halves come from the *same* snapshot so the cross-file
+    // pass reuses the analyser read (a cache hit, not a second analysis).
+    let project = if xc_diagnostics {
+        *db_project.lock().await
+    } else {
+        None
+    };
+    let (analysis, analyser_diags): (Arc<AnalysisResult>, Vec<_>) = if let Some(file) = file {
         // Clone a fresh, short-lived snapshot for just this read and move it
         // into the worker; it drops when the read finishes, so it never holds
         // exclusive-access-blocking references across the debounce sleep.
         let snapshot = db.lock().await.clone();
         match tokio::task::spawn_blocking(move || {
             salsa::Cancelled::catch(|| {
-                tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                let analysis = tcl_lsp_db::file_analysis_incremental(&snapshot, file, config);
+                let diags = match project {
+                    Some(project) => {
+                        (*tcl_lsp_db::project_diagnostics(&snapshot, file, config, project)).clone()
+                    }
+                    None => analysis.diagnostics.clone(),
+                };
+                (analysis, diags)
             })
             .ok()
         })
         .await
         {
-            Ok(Some(analysis)) => analysis,
+            Ok(Some(pair)) => pair,
             // Cancelled mid-read (a concurrent `set_text` on the shared db) or
             // the worker panicked — don't publish; signal a retry of the
             // document's latest state.
@@ -426,7 +449,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
         }
     } else {
         let (a_text, a_dialect, a_disabled) = (text.clone(), dialect.clone(), disabled.clone());
-        tokio::task::spawn_blocking(move || {
+        let analysis = tokio::task::spawn_blocking(move || {
             Arc::new(
                 Backend::configured_analyser(a_disabled, non_ascii_mode)
                     .analyse(&a_text, &a_dialect)
@@ -434,7 +457,9 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
             )
         })
         .await
-        .unwrap_or_default()
+        .unwrap_or_default();
+        let diags = analysis.diagnostics.clone();
+        (analysis, diags)
     };
 
     // Optimiser / compiler-checks diagnostics, also off the event loop via the
@@ -476,7 +501,9 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
     let lift_text = text.clone();
     let xc_for_irules = xc_diagnostics && dialect == "f5-irules";
     let result = tokio::task::spawn_blocking(move || {
-        let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analysis_lifts.diagnostics);
+        // `analyser_diags` is the cross-file-filtered set when `xcDiagnostics` is
+        // on (else identical to `analysis_lifts.diagnostics`).
+        let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analyser_diags);
         diagnostics.extend(lift_compiler_diagnostics(
             &lift_text,
             &compiler_diags,
@@ -676,6 +703,11 @@ pub struct Backend {
     /// Per-URI salsa `SourceFile` input handles — the input-of-record the
     /// query graph reads.  Kept current by `did_open` / `did_change`.
     db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
+    /// The salsa `Project` input — the workspace file set, kept in lock-step with
+    /// `db_files` (re-set only when membership changes, on open/close), driving
+    /// the cross-file `project_diagnostics` query (SRV-INCREMENTAL Task 6).
+    /// `None` until the first document is tracked.
+    db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     /// The salsa `AnalyserConfig` input (disabled diagnostics + non-ASCII
     /// mode); `set_*` on `workspace/didChangeConfiguration`.  Used as the
     /// fallback when no per-folder override applies to the document.
@@ -886,6 +918,7 @@ impl Backend {
             line_length: Mutex::new(80),
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
+            db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -899,17 +932,51 @@ impl Backend {
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
         if let Some(&file) = files.get(uri) {
+            // Text/dialect edit: membership unchanged, so the `Project` input is
+            // untouched (a body edit then backdates `project_proc_names`).
             file.set_text(&mut *db).to(text);
             file.set_dialect(&mut *db).to(dialect);
         } else {
             let file = tcl_lsp_db::SourceFile::new(&*db, text, dialect);
             files.insert(uri.clone(), file);
+            // Membership changed — re-set the `Project` file set.
+            let mut project = self.db_project.lock().await;
+            Self::sync_db_project(&mut db, &files, &mut project);
         }
     }
 
-    /// Drop the salsa `SourceFile` input for `uri` (on `did_close`).
+    /// Drop the salsa `SourceFile` input for `uri` (on `did_close`).  Lock order
+    /// is `db` → `db_files` → `db_project`, matching [`Self::db_set_source`].
     async fn db_remove_source(&self, uri: &Url) {
-        self.db_files.lock().await.remove(uri);
+        let mut db = self.db.lock().await;
+        let mut files = self.db_files.lock().await;
+        if files.remove(uri).is_some() {
+            let mut project = self.db_project.lock().await;
+            Self::sync_db_project(&mut db, &files, &mut project);
+        }
+    }
+
+    /// Re-set the salsa [`tcl_lsp_db::Project`] input to the current `db_files`
+    /// set (sorted by URI for a stable, iteration-order-independent `Vec` so the
+    /// input only changes when membership does — not on `HashMap` reshuffles).
+    /// Called only when membership changes (open/close), so a text edit never
+    /// re-derives the project aggregates.  The `Project` handle is stable across
+    /// re-sets, so workers holding it keep reading the current value.
+    fn sync_db_project(
+        db: &mut tcl_lsp_db::TclDatabase,
+        files: &HashMap<Url, tcl_lsp_db::SourceFile>,
+        project: &mut Option<tcl_lsp_db::Project>,
+    ) {
+        use salsa::Setter as _;
+        let mut entries: Vec<(&Url, &tcl_lsp_db::SourceFile)> = files.iter().collect();
+        entries.sort_by(|a, b| a.0.cmp(b.0));
+        let sources: Vec<tcl_lsp_db::SourceFile> = entries.into_iter().map(|(_, &f)| f).collect();
+        match *project {
+            Some(p) => {
+                p.set_files(db).to(sources);
+            }
+            None => *project = Some(tcl_lsp_db::Project::new(&*db, sources)),
+        }
     }
 
     /// Re-resolve every open document's dialect after a session-default
@@ -2653,6 +2720,7 @@ impl Backend {
             workspace_index: Arc::clone(&self.workspace_index),
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
+            db_project: Arc::clone(&self.db_project),
             db_config: Arc::clone(&self.db_config),
             folder_db_configs: Arc::clone(&self.folder_db_configs),
             pull_diag_cache: Arc::clone(&self.pull_diag_cache),
@@ -2700,6 +2768,17 @@ impl Backend {
         let analysis = self.analysis_for(uri, text.clone(), dialect.clone()).await;
         let registry = self.registry_for_dialect(&dialect).await;
 
+        // Cross-file (SRV-INCREMENTAL Task 6): the project's proc tail-names, so
+        // the pull path suppresses cross-file-resolved W123 exactly as the push
+        // path does.  Only gathered when `xcDiagnostics` is enabled.
+        let xc_on = self.xc_diagnostics_enabled(uri).await;
+        let project_tails = if xc_on {
+            let db = self.db.lock().await.clone();
+            (*self.db_project.lock().await).map(|p| tcl_lsp_db::project_proc_tails(&db, p))
+        } else {
+            None
+        };
+
         let compiler_diags = {
             let (c_text, c_dialect, c_registry) =
                 (text.clone(), dialect.clone(), Arc::clone(&registry));
@@ -2713,9 +2792,14 @@ impl Backend {
             })
         };
 
-        let xc_for_irules = dialect == "f5-irules" && self.xc_diagnostics_enabled(uri).await;
+        let xc_for_irules = dialect == "f5-irules" && xc_on;
+        // Cross-file W123 suppression (Task 6), matching the push path.
+        let analyser_diags = match &project_tails {
+            Some(tails) => tcl_lsp_db::suppress_cross_file_w123(&analysis.diagnostics, tails),
+            None => analysis.diagnostics.clone(),
+        };
         tokio::task::spawn_blocking(move || {
-            let mut diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
+            let mut diagnostics = lift_analyser_diagnostics(&text, &analyser_diags);
             diagnostics.extend(lift_compiler_diagnostics(
                 &text,
                 &compiler_diags,
@@ -7287,6 +7371,57 @@ mod tests {
         );
     }
 
+    /// SRV-INCREMENTAL Task 6 (server wiring): a command unresolved in file A but
+    /// defined as a `proc` in file B (tracked in the salsa `Project`) must have
+    /// its W123 suppressed once `xcDiagnostics` is enabled — and remain present
+    /// when it is off.  Exercises the live `db_set_source` → `Project`-sync →
+    /// `project_proc_tails` path end to end.
+    #[tokio::test]
+    async fn cross_file_w123_suppressed_when_workspace_defines_proc() {
+        let backend = test_backend();
+        let a = Url::parse("file:///a.tcl").unwrap();
+        let b = Url::parse("file:///b.tcl").unwrap();
+        // Track B (defines `proc helper`) so the `Project` input includes it.
+        backend
+            .db_set_source(
+                &b,
+                "proc helper {x y} { return $x }\n".to_owned(),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        // The `Project` input is now maintained with B.
+        assert!(
+            backend.db_project.lock().await.is_some(),
+            "Project input must be created when the first file is tracked"
+        );
+        let a_src = "helper foo bar\n";
+
+        // xcDiagnostics OFF: `helper` is unresolved in A → W123 present.
+        let off = backend
+            .full_diagnostics_for(&a, a_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            diag_codes(&off).iter().any(|c| c == "W123"),
+            "W123 must be present when xcDiagnostics is off, got: {:?}",
+            diag_codes(&off),
+        );
+
+        // xcDiagnostics ON: `helper` resolves cross-file (B defines it) → no W123.
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+        let on = backend
+            .full_diagnostics_for(&a, a_src.to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diag_codes(&on).iter().any(|c| c == "W123"),
+            "W123 must be suppressed cross-file when B defines proc helper, got: {:?}",
+            diag_codes(&on),
+        );
+    }
+
     #[test]
     fn dialect_from_language_id_recognises_editor_ids() {
         assert_eq!(
@@ -7494,6 +7629,7 @@ mod tests {
             line_length: Mutex::new(80),
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
+            db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
         }
