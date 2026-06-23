@@ -166,6 +166,11 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
                 fi += 1;
                 continue;
             }
+            // Running out of input (rather than a wrong char) before any
+            // conversion is an underflow → -1 (scan-4.15).
+            if ii >= input.len() && nconv == 0 {
+                eof_before_conv = true;
+            }
             break; // literal mismatch
         }
         // A conversion specifier — parsed through the shared grammar (the
@@ -211,7 +216,13 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
                 nconv += 1;
             }
         } else {
-            // Conversion failed: stop. Inline mode keeps a hole.
+            // Conversion failed: stop. A numeric conversion that consumed only a
+            // leading sign / `0x` before EOF is an underflow (-1), unlike a stop
+            // on a non-matching character (scan-4.44/4.55).
+            if nconv == 0 && numeric_underflow(input, ii, conv.verb) {
+                eof_before_conv = true;
+            }
+            // Inline mode keeps a hole.
             if !conv.suppress {
                 values.push(None);
             }
@@ -241,11 +252,11 @@ fn scan_one(input: &[char], ii: &mut usize, conv: &ScanConversion) -> Option<Sca
             *ii += 1;
             Some(Scanned::Int(cp))
         }
-        'd' | 'u' => scan_int(input, ii, width, 10, true),
+        'd' | 'u' => scan_int(input, ii, width, 10),
         'i' => scan_int_auto(input, ii, width),
-        'o' => scan_int(input, ii, width, 8, false),
-        'x' | 'X' => scan_int(input, ii, width, 16, false),
-        'b' => scan_int(input, ii, width, 2, false),
+        'o' => scan_int(input, ii, width, 8),
+        'x' | 'X' => scan_int(input, ii, width, 16),
+        'b' => scan_int(input, ii, width, 2),
         's' => {
             let start = *ii;
             let mut n = 0;
@@ -264,18 +275,37 @@ fn scan_one(input: &[char], ii: &mut usize, conv: &ScanConversion) -> Option<Sca
     }
 }
 
-/// `%d`/`%o`/`%x`/`%b`/`%u`: an optionally-signed integer in `radix`.
-fn scan_int(
-    input: &[char],
-    ii: &mut usize,
-    width: usize,
-    radix: u32,
-    signed: bool,
-) -> Option<Scanned> {
+/// Whether a *failed* numeric conversion at `start` ran out of input — it
+/// consumed only a leading sign (and, for `%x`/`%i`, a `0x` prefix) before EOF.
+/// This is C's underflow (which yields -1), as opposed to stopping on a present
+/// non-matching character (which yields the conversion count).
+fn numeric_underflow(input: &[char], start: usize, verb: char) -> bool {
+    if !matches!(
+        verb,
+        'd' | 'i' | 'o' | 'x' | 'X' | 'b' | 'u' | 'e' | 'E' | 'f' | 'g' | 'G'
+    ) {
+        return false;
+    }
+    let mut k = start;
+    if matches!(input.get(k), Some('+' | '-')) {
+        k += 1;
+    }
+    if matches!(verb, 'x' | 'X' | 'i')
+        && input.get(k) == Some(&'0')
+        && matches!(input.get(k + 1), Some('x' | 'X'))
+    {
+        k += 2;
+    }
+    k >= input.len()
+}
+
+/// `%d`/`%o`/`%x`/`%b`/`%u`: an optionally-signed integer in `radix`. Every
+/// conversion reads a leading sign (C's `scanf` does, even for `%x`/`%o`/`%u`).
+fn scan_int(input: &[char], ii: &mut usize, width: usize, radix: u32) -> Option<Scanned> {
     let start = *ii;
     let mut s = String::new();
     let mut n = 0;
-    if signed && *ii < input.len() && (input[*ii] == '+' || input[*ii] == '-') {
+    if *ii < input.len() && (input[*ii] == '+' || input[*ii] == '-') {
         s.push(input[*ii]);
         *ii += 1;
         n += 1;
@@ -302,7 +332,10 @@ fn scan_int(
     Some(Scanned::Int(val))
 }
 
-/// `%i`: an integer with C-style base detection (`0x`→16, `0`→8, else 10).
+/// `%i`: an integer with C base-0 detection — `0x`/`0X` (when a hex digit
+/// follows) is hex, a leading `0` is octal, else decimal. `0b` is *not*
+/// recognised by scan's `%i` (scan-4.41), and a `0x` with no hex digit folds
+/// back to the `0` (scan-4.45).
 fn scan_int_auto(input: &[char], ii: &mut usize, width: usize) -> Option<Scanned> {
     let save = *ii;
     let mut sign = 1i64;
@@ -314,20 +347,15 @@ fn scan_int_auto(input: &[char], ii: &mut usize, width: usize) -> Option<Scanned
         *ii += 1;
         n += 1;
     }
-    let radix = if *ii + 1 < input.len() && input[*ii] == '0' {
-        match input[*ii + 1].to_ascii_lowercase() {
-            'x' => {
-                *ii += 2;
-                n += 2;
-                16u32
-            }
-            'b' => {
-                *ii += 2;
-                n += 2;
-                2u32
-            }
-            _ => 8u32,
-        }
+    let radix = if input.get(*ii) == Some(&'0')
+        && matches!(input.get(*ii + 1), Some('x' | 'X'))
+        && input.get(*ii + 2).is_some_and(char::is_ascii_hexdigit)
+    {
+        *ii += 2; // consume the `0x` prefix
+        n += 2;
+        16u32
+    } else if input.get(*ii) == Some(&'0') {
+        8u32 // a leading `0` (the `0` itself is the first octal digit)
     } else {
         10u32
     };
