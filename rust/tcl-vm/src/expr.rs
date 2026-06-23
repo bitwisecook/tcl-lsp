@@ -97,6 +97,25 @@ fn divzero() -> TclError {
     TclError::new("divide by zero")
 }
 
+/// The C `IllegalExprOperandType` message for a *unary* operator whose operand
+/// cannot be used: `cannot use <desc> "<v>" as operand of "<op>"`. `<desc>` is
+/// `floating-point value` (a double handed to `~`), `non-numeric floating-point
+/// value` (NaN), `a list` (a multi-element list — phrased without quotes), or
+/// `non-numeric string`. (`errorCode ARITH DOMAIN <desc>` is not threaded here;
+/// the VM does not yet set arith error codes — same as `divide by zero`.)
+fn unary_operand_err(v: &Value, op: &str) -> TclError {
+    let s = v.to_str();
+    if tcl_syntax::list::max_list_length(&s) > 1 && tcl_syntax::list::split_list(&s).is_ok() {
+        return TclError::new(format!("cannot use a list as operand of \"{op}\""));
+    }
+    let desc = match number::parse_whole(s.trim()) {
+        Some(Number::Double(_)) => "floating-point value",
+        Some(Number::Nan { .. }) => "non-numeric floating-point value",
+        _ => "non-numeric string",
+    };
+    TclError::new(format!("cannot use {desc} \"{s}\" as operand of \"{op}\""))
+}
+
 /// Floored integer division (Tcl `/`: rounds toward negative infinity).
 fn fdiv(x: i128, y: i128) -> i128 {
     let q = x.wrapping_div(y);
@@ -263,25 +282,41 @@ pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
     match op {
         // `to_num` promotes an out-of-wide literal to `Big`, so `-2^63` (and the
         // rest of the i128 range) negates correctly: `int_value` narrows
-        // `-9223372036854775808` back to the most-negative wide.
-        Neg => Ok(match to_num(v)? {
-            Num::Int(n) => Value::int(n.wrapping_neg()),
-            Num::Big(b) => int_value(b.wrapping_neg()),
-            Num::Dbl(f) => Value::double(-f),
-        }),
-        Pos => Ok(match to_num(v)? {
-            Num::Int(n) => Value::int(n),
-            Num::Big(b) => int_value(b),
-            Num::Dbl(f) => Value::double(f),
-        }),
-        BitNot => match to_num(v)? {
-            Num::Int(n) => Ok(Value::int(!n)),
-            Num::Big(b) => Ok(int_value(!b)),
-            Num::Dbl(_) => Err(TclError::new(
-                "can't use floating-point value as operand of \"~\"",
-            )),
+        // `-9223372036854775808` back to the most-negative wide. A non-numeric
+        // operand is the C operand-type error (`as operand of "-"`).
+        Neg => match to_num(v) {
+            Ok(Num::Int(n)) => Ok(Value::int(n.wrapping_neg())),
+            Ok(Num::Big(b)) => Ok(int_value(b.wrapping_neg())),
+            Ok(Num::Dbl(f)) => Ok(Value::double(-f)),
+            Err(_) => Err(unary_operand_err(v, "-")),
         },
-        Not => Ok(Value::bool(!v.as_bool()?)),
+        Pos => match to_num(v) {
+            Ok(Num::Int(n)) => Ok(Value::int(n)),
+            Ok(Num::Big(b)) => Ok(int_value(b)),
+            Ok(Num::Dbl(f)) => Ok(Value::double(f)),
+            Err(_) => Err(unary_operand_err(v, "+")),
+        },
+        // `~` needs an integer; a double is a "floating-point value" operand
+        // error, a non-number a "non-numeric string" one.
+        BitNot => match to_num(v) {
+            Ok(Num::Int(n)) => Ok(Value::int(!n)),
+            Ok(Num::Big(b)) => Ok(int_value(!b)),
+            Ok(Num::Dbl(_)) | Err(_) => Err(unary_operand_err(v, "~")),
+        },
+        // `!` accepts any boolean (incl. numbers and the boolean words); a NaN or
+        // non-numeric non-boolean is the operand error (not "expected boolean").
+        Not => {
+            if matches!(
+                number::parse_whole(v.to_str().trim()),
+                Some(Number::Nan { .. })
+            ) {
+                return Err(unary_operand_err(v, "!"));
+            }
+            match v.as_bool() {
+                Ok(b) => Ok(Value::bool(!b)),
+                Err(_) => Err(unary_operand_err(v, "!")),
+            }
+        }
         WordNot => Err(TclError::new("unsupported operator")),
     }
 }
