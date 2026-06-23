@@ -1005,3 +1005,16 @@ The pytest file stays in place as the oracle.
   coverage.
 
 The pytest file stays in place as the oracle.
+
+### `tests/test_f5_query.py` (math builtins) → `tcl-bigip-query::builtins::math`
+
+- **Ported.** `test_floor_ceil_round_match_jq_semantics` (round half) +
+  `test_abs_and_fabs` (fabs half) → `math.rs::tests`
+  (`round_ties_away_from_zero` — C/jq ties-away-from-zero, not banker's;
+  `fabs_returns_float_magnitude` — always a float). `math.rs` had zero unit
+  coverage.
+- **Deferred.** The `floor` / `ceil` / `abs` halves of those pytest functions
+  live in a different builtin module (not `math.rs`); they'll be covered when
+  that module is reached.
+
+The pytest file stays in place as the oracle.
