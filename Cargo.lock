@@ -3059,6 +3059,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
  "rayon",
+ "rustc-hash",
  "tcl-bytecode",
  "tcl-lexer",
  "tcl-registry",
@@ -3150,6 +3151,7 @@ name = "tcl-lsp-core"
 version = "0.1.0"
 dependencies = [
  "regex",
+ "rustc-hash",
  "tcl-compiler",
  "tcl-irules",
  "tcl-lexer",
@@ -3243,6 +3245,7 @@ name = "tcl-registry"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
+ "rustc-hash",
  "sha2",
  "tcl-syntax",
 ]
