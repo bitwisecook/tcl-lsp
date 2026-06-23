@@ -113,7 +113,7 @@ fn render_gantt(
     out.push(rstrip(&ruler.iter().collect::<String>()));
     out.push(" ".repeat(22) + "+" + &"-".repeat(width - 1));
 
-    // `sorted(by_member)` — BTreeMap already yields keys in sorted order.
+    // BTreeMap already yields keys in sorted order.
     for (member, events_ref) in &by_member {
         let mut events = events_ref.clone();
         // Sort the (datetime, state) tuples for each member.

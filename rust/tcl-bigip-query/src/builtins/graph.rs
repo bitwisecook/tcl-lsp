@@ -61,7 +61,7 @@ fn related_one_hop<'g>(
     let node_by_id =
         |id: &str| -> Option<&ObjectNode> { all_nodes.iter().copied().find(|n| n.node_id == id) };
 
-    // Seeds: nodes whose identifier matches exactly, sorted by `_sort_key`.
+    // Seeds: nodes whose identifier matches exactly, sorted by `sort_key`.
     // The seed *order* does not affect the related set (related is re-sorted),
     // but it is sorted for determinism.
     let mut seeds: Vec<&ObjectNode> = all_nodes
@@ -108,8 +108,8 @@ fn related_one_hop<'g>(
         }
     }
 
-    // `related_ids = sorted(..., key=(depths[nid], _sort_key(nid)))`; all
-    // depths are 1 here, so this is `_sort_key` order.
+    // Related ids sorted by (depth, sort-key); all
+    // depths are 1 here, so this is `sort_key` order.
     related.sort_by(|a, b| sort_key(a).cmp(&sort_key(b)));
     related
 }
@@ -253,7 +253,7 @@ fn bi_check_partition_visibility(
 
 /// Compute a rule's forward references (`max_depth=1`) classified into
 /// `(pools, persists, data_groups)`.
-/// Each bucket is de-duplicated and sorted, matching `set` + `sorted`.
+/// Each bucket is de-duplicated and sorted.
 #[must_use]
 pub(crate) fn extract_rule_refs(
     full_path: &str,

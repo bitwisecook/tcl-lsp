@@ -101,8 +101,7 @@ impl Json {
                 }
                 out.push('{');
                 let child = indent + 2;
-                // BTreeMap already iterates in sorted key order, matching
-                // `sort_keys=True`.
+                // BTreeMap already iterates in sorted key order.
                 for (i, (key, value)) in map.iter().enumerate() {
                     if i > 0 {
                         out.push(',');
@@ -291,7 +290,7 @@ pub fn object_graph_snapshot() -> Json {
     // propertyReferences: for every
     // (module, object_type) header, the properties carrying references,
     // keyed by property name. The snapshot iterates
-    // sorted((module, object_type)) then sorted(property_name); within a
+    // sorted by (module, object_type) then property name; within a
     // property name the spec tuple preserves registration (append) order.
     let property_references = build_property_references(reg.specs());
 
@@ -433,7 +432,7 @@ pub fn event_graph_snapshot() -> Json {
     let mut cmds = CommandRegistry::build_default();
     cmds.load_irules();
 
-    // `sorted(NAMESPACE_REGISTRY.all_event_names())`.
+    // Sorted event names.
     let mut names = events.all_event_names();
     names.sort_unstable();
 
@@ -475,7 +474,7 @@ pub fn event_graph_snapshot() -> Json {
         event_items.push(Json::Object(entry));
     }
 
-    // `[{"event": event, "profiles": sorted(profiles)} for event, profiles in MASTER_ORDER]`.
+    // One entry per event with its sorted profiles, in MASTER_ORDER.
     let master_order: Vec<Json> = events
         .master_order()
         .iter()

@@ -10,8 +10,8 @@
 //! - `events` — emits the event graph snapshot (the per-event valid-command
 //!   list is content-addressed via `validCommandsDigest`).
 //! - `commands` — not implemented. It would embed the full per-command
-//!   traits/scalars dicts and the hover prose catalogue (`summary`), which have
-//!   no clean Rust equivalent. It (and `all`, which contains it) exits with a
+//!   traits/scalars dicts and the hover prose catalogue (`summary`).
+//!   It (and `all`, which contains it) exits with a
 //!   not-implemented error.
 
 use std::path::Path;

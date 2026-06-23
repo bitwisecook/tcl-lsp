@@ -42,7 +42,7 @@ pub struct RendererSpec {
 /// The static catalogue of built-in renderers, sorted by name.
 ///
 /// Sorted at definition time so [`list_renderers`] and the registered-names
-/// list in error messages match `sorted(..., key=name)` output.
+/// list in error messages is sorted by name.
 const REGISTRY: &[RendererSpec] = &[
     RendererSpec {
         name: "ascii-blocks",
