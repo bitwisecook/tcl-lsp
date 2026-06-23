@@ -299,13 +299,15 @@ open risks and the spike that must precede committing it are listed after the st
    server) absorb edit bursts; a keystroke that does not alter a signature wakes
    nobody.
 
-7. **Correctness gate (must be built): a multi-file differential fuzzer.** Extend
-   `incremental == fresh` to *project* scope — a corpus of edit sequences that
-   include cross-file signature changes, proc add/remove, and `source` /
-   `package require` graph edits — asserting the incrementally-maintained project
-   diagnostics equal a from-scratch project rebuild. **No such fuzzer exists today**
-   (the current one is single-file and analyser-only); building it is part of this
-   task, not a backstop it can lean on.
+7. **Correctness gate — first multi-file fuzzer BUILT (W123); corpus-scale TODO.**
+   `project_diagnostics_incremental_matches_fresh_under_edits` extends
+   `incremental == fresh` to *project* scope for the shipped cross-file W123: a
+   2-file project driven through 60 edits to the defining file (proc add/remove),
+   asserting the caller's cross-file diagnostics always equal a from-scratch
+   project rebuild. Remaining: broaden it to a **corpus-scale** sequence
+   (`source` / `package require` graph edits, many files) as cross-file arity /
+   class resolution lands — each new cross-file surface gets fuzzed before it
+   ships, the same discipline the single-file path follows.
 
 **Open risks — the salsa-mechanics three are now retired by a spike; the
 heuristic-edge one remains:**
@@ -526,27 +528,41 @@ exist yet — the verification-status table follows the list.
    `reparse_window`'s windowed re-lex that has no consumer.) *When unblocked, the
    gate:* dirty-span re-lex byte-identical to a full re-lex over the edit-fuzz corpus.
 
-6. **Cross-file cascade** *(XL — salsa mechanics spiked, core implementation
-   unbuilt).* Lift the project signature table into salsa (`project_signatures` over
-   per-file `file_decls`), make cross-file resolution + arity tracked queries
-   (reverse-dependency invalidation then falls out of salsa), and apply the E4/E8
-   input-setting discipline project-wide. Brings cross-file arity / W123 onto the
-   incremental graph with precise invalidation for the resolvable subset and a
-   conservative fallback for dynamic dispatch. *Prerequisite experiment — **done**:*
-   `experiment-xfile/` spiked the cross-file fixpoint and **retired the three
-   salsa-mechanics risks** (cycle convergence, reverse-dep precision, body-edit
-   early-cutoff — see the open-risks block, all measured). *Step 1 — **landed**:* a
-   `Project` salsa input + `project_proc_names` query (the cross-file W123
-   resolution domain) now aggregate per-file `file_decls` on the real graph, with
-   the **cross-file firewall proven** (`project_proc_names_firewall`: a body edit in
-   any file recomputes it zero times; a decl change, once). *Remaining (the XL
-   core):* (a) the server must create/populate the `Project` input (today it owns a
-   plain `WorkspaceIndex`); (b) cross-file resolution + arity tracked queries that
-   *consume* `project_proc_names` / per-symbol signatures; (c) the multi-file
-   `incremental == fresh` fuzzer to settle the **still-open** heuristic-edge
-   correctness risk before any cross-file diagnostic ships. The graph foundation and
-   its firewall are built; the resolution edges, the server wiring, and the
-   soundness fuzzer remain.
+6. **Cross-file cascade** *(cross-file W123 **SHIPPED**; arity / classes are the
+   remaining extensions).* Lift the project signature table into salsa
+   (`project_signatures` over per-file `file_decls`), make cross-file resolution
+   tracked queries (reverse-dependency invalidation then falls out of salsa), and
+   apply the E4/E8 input-setting discipline project-wide.
+   *Prerequisite experiment — done:* `experiment-xfile/` spiked the cross-file
+   fixpoint and retired the three salsa-mechanics risks (cycle convergence,
+   reverse-dep precision, body-edit early-cutoff). *Shipped:*
+   - A `Project` salsa input + `project_proc_names` query (the cross-file
+     resolution domain), aggregating per-file `file_decls` with the **cross-file
+     firewall proven** (`project_proc_names_firewall`: a body edit in any file
+     recomputes it zero times; a decl change, once).
+   - `project_diagnostics(file, config, project)` — a **separate query off the
+     paramount `file_analysis` path** (so a signature change elsewhere can't regress
+     this file's time-to-first-tokens) that suppresses **W123 (unknown command)**
+     for a command defined as a `proc` anywhere in the workspace, via
+     `project_proc_tails` + `suppress_cross_file_w123` (mirrors the analyser's own
+     `proc_tail_names` suppression, extended across files).
+   - **Live server wiring:** the server maintains the `Project` input in lock-step
+     with `db_files` (re-set only on open/close); both diagnostics paths
+     (`run_diagnostics_core` push + `full_diagnostics_for` pull) consume it behind
+     the existing `xcDiagnostics` opt-in — off ⇒ zero behaviour change.
+   - **Soundness gates built:** the multi-file `incremental == fresh` fuzzer
+     (`project_diagnostics_incremental_matches_fresh_under_edits` — 60 edits to the
+     defining file, caller's diagnostics always match a fresh rebuild) + a focused
+     suppression test + an end-to-end server test
+     (`cross_file_w123_suppressed_when_workspace_defines_proc`). ci-fast (805 e2e)
+     green; no regression.
+
+   *Remaining extensions (not blockers — the cross-file machinery + its fuzzer
+   now exist):* cross-file **arity** (W124) needs a per-symbol signature query
+   carrying params (not just names); cross-file **class / ensemble** resolution
+   (today `project_proc_names` is procs only); a per-symbol `signature(qname)`
+   query for finer-than-whole-set invalidation; and broadening the multi-file
+   fuzzer to a corpus-scale differential for the heuristic-edge risk.
 
 7. **(Optional, late) rope-backed store + chunk-addressable salsa input** *(XL,
    gated).* The demoted SRV-ROPE work — full sub-task breakdown and measurements in
@@ -596,7 +612,8 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | Task 2 (2b) memo is sound | **measured + verified** (cold) | full-corpus `compiler_check` differential (memo vs uncached, debug guard live) passes; cross-edit pinned by `taint_cascade_matches_uncached_under_edits`. *Random-edit* fuzzer still to build |
 | Task 6 cross-file salsa *mechanics* (cycle convergence, reverse-dep precision, body-edit cutoff) | **measured + verified** (spike) | `experiment-xfile/` — A↔B cycle → (5,5) no panic; sig change → exactly N+1 dependents; body change → 0 |
 | Task 6 step 1: `project_proc_names` (cross-file resolution domain) firewalls on the real graph | **measured + verified** | `project_proc_names_firewall` — body edit re-runs it 0×, decl change 1× (in `tcl-lsp-db`, on `file_decls`) |
-| Task 6 cross-file cascade is correct (heuristic edges) + scales as a real `project_signatures` | **hypothesis** | needs the workspace-input refactor + multi-file differential fuzzer — *neither exists* |
+| **Task 6 cross-file W123 SHIPPED** — `project_diagnostics` suppresses unknown-command warnings for workspace-defined procs; live in the server (push + pull), `xcDiagnostics`-gated | **measured + verified** | multi-file `incremental == fresh` fuzzer (60 edits) + focused + end-to-end server test; ci-fast (805 e2e) green, off-by-default ⇒ no regression |
+| Task 6 cross-file **arity / classes** + corpus-scale heuristic-edge correctness | **hypothesis** | needs a per-symbol signature query (params) + a corpus-scale multi-file differential — the W123 fuzzer exists; these extensions don't |
 
 Differential-fuzzer coverage **today**:
 
