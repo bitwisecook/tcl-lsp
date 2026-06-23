@@ -1118,6 +1118,22 @@ impl Backend {
         .flatten()
     }
 
+    /// Resolve the salsa `AnalyserConfig` handle for `uri`, mirroring
+    /// [`DiagInputs::capture_job`]: a folder that overrides the disabled-codes
+    /// set / non-ASCII mode (and so has its own handle in `folder_db_configs`)
+    /// wins by longest-prefix match; otherwise the process-global
+    /// [`Self::db_config`].  Using the *same* handle the diagnostics path uses
+    /// keeps the on-demand feature analyses (hover / definition / references /
+    /// completion / code-actions) consistent with the published squiggles in a
+    /// multi-root workspace.
+    async fn resolved_db_config(&self, uri: &Url) -> tcl_lsp_db::AnalyserConfig {
+        let folder = self.folder_db_configs.lock().await;
+        match longest_folder_match(&folder, uri) {
+            Some(cfg) => *cfg,
+            None => *self.db_config.lock().await,
+        }
+    }
+
     /// Run the salsa `file_analysis` query for `uri` on a worker thread,
     /// reading the current `SourceFile` input.  Returns `None` when the input
     /// is absent or a concurrent edit cancels the read.  The returned `Arc`
@@ -1127,7 +1143,7 @@ impl Backend {
         uri: &Url,
     ) -> Option<Arc<tcl_compiler::analyser::AnalysisResult>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
-        let config = *self.db_config.lock().await;
+        let config = self.resolved_db_config(uri).await;
         let snapshot = self.db.lock().await.clone();
         tokio::task::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::file_analysis(&snapshot, file, config)).ok()
@@ -1154,31 +1170,45 @@ impl Backend {
     }
 
     /// Read the memoised `AnalysisResult` for `uri` from the query database, if
-    /// the document has a `SourceFile` input.  Returns an owned clone so the
-    /// caller can move it into a `spawn_blocking` worker.  `None` when there is
-    /// no input (the caller analyses fresh) or a concurrent edit cancelled the
-    /// read.
-    async fn cached_analysis(&self, uri: &Url) -> Option<tcl_compiler::analyser::AnalysisResult> {
-        self.db_file_analysis(uri).await.map(|a| (*a).clone())
+    /// the document has a `SourceFile` input.  Returns the shared `Arc` so the
+    /// caller can move a refcounted handle into a `spawn_blocking` worker (and
+    /// deref it there) rather than paying an O(file) deep copy per feature
+    /// request.  `None` when there is no input (the caller analyses fresh) or a
+    /// concurrent edit cancelled the read.
+    async fn cached_analysis(
+        &self,
+        uri: &Url,
+    ) -> Option<Arc<tcl_compiler::analyser::AnalysisResult>> {
+        self.db_file_analysis(uri).await
     }
 
     /// Resolve an analysis for the document.  Consults the
     /// cache first; computes a fresh analysis when no entry
-    /// exists.  Returns owned data the caller can move into
-    /// a `spawn_blocking` worker.
+    /// exists.  Returns a shared `Arc` the caller can move into
+    /// a `spawn_blocking` worker (providers deref it via `&`).
     async fn analysis_for(
         &self,
         uri: &Url,
         text: String,
         dialect: String,
-    ) -> tcl_compiler::analyser::AnalysisResult {
+    ) -> Arc<tcl_compiler::analyser::AnalysisResult> {
         if let Some(cached) = self.cached_analysis(uri).await {
             return cached;
         }
-        let (disabled, na_mode) = self.analyser_config().await;
+        // No salsa input for this document (e.g. an unindexed buffer): analyse
+        // fresh with the same per-folder config the cached path would have used,
+        // so the on-demand result still honours folder-scoped suppression.
+        let config = self.resolved_db_config(uri).await;
+        let (disabled, na_mode) = {
+            let db = self.db.lock().await;
+            (
+                config.disabled_diagnostics(&*db).iter().cloned().collect(),
+                config.non_ascii_mode(&*db),
+            )
+        };
         tokio::task::spawn_blocking(move || {
             let mut analyser = Self::configured_analyser(disabled, na_mode);
-            analyser.analyse(&text, &dialect).clone()
+            Arc::new(analyser.analyse(&text, &dialect).clone())
         })
         .await
         .unwrap_or_default()
@@ -1821,10 +1851,9 @@ impl Backend {
         }
         let mut out = Vec::new();
         for (doc_uri, source, dialect) in docs {
-            let analysis = self
-                .cached_analysis(&doc_uri)
-                .await
-                .unwrap_or_else(|| Analyser::new().analyse(&source, &dialect).clone());
+            let analysis = self.cached_analysis(&doc_uri).await.unwrap_or_else(|| {
+                Arc::new(Analyser::new().analyse(&source, &dialect).clone())
+            });
             let calls = core_call_hierarchy::incoming_calls_for_target(
                 &source, &analysis, simple, qualified, None,
             );
@@ -2324,8 +2353,24 @@ impl Backend {
         let features = self.feature_toggles.lock().await.resolved_map();
         let optimiser_enabled = *self.optimiser_enabled.lock().await;
         let line_length = *self.line_length.lock().await;
-        let (disabled, mode) = self.analyser_config().await;
-        let mut disabled_sorted: Vec<String> = disabled.into_iter().collect();
+        // Report the *per-folder* analyser settings (the same resolver the
+        // feature/diagnostics paths use), not the process-global ones: in a
+        // multi-root workspace a folder may override the disabled-codes set /
+        // non-ASCII mode, and this "trace where a setting comes from" tool must
+        // reflect what actually applies to `uri_str`.  A URI naming no
+        // overriding folder (or a single-root workspace) falls back to the
+        // global `db_config`, matching the previous behaviour exactly.
+        let (mut disabled_sorted, mode) = if let Ok(uri) = Url::parse(uri_str) {
+            let config = self.resolved_db_config(&uri).await;
+            let db = self.db.lock().await;
+            (
+                config.disabled_diagnostics(&*db).clone(),
+                config.non_ascii_mode(&*db),
+            )
+        } else {
+            let (disabled, mode) = self.analyser_config().await;
+            (disabled.into_iter().collect::<Vec<String>>(), mode)
+        };
         disabled_sorted.sort();
         Ok(Some(serde_json::json!({
             "uri": uri_str,
