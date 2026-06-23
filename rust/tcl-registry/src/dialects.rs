@@ -180,6 +180,22 @@ mod tests {
     }
 
     #[test]
+    fn is_irules_dialect_accepts_canonical_and_legacy_alias() {
+        // Ported from `tests/test_dialect_helpers.py` (TEST-MIGRATE): the
+        // canonical `f5-irules` and the legacy `irules` alias both match;
+        // every other dialect — and `None` — do not. The Python
+        // `dialect_scope` active-dialect-wrapper case is bridge-only (a
+        // contextvar mechanism the Rust side has no global equivalent for
+        // by design).
+        assert!(DialectSet::is_irules_dialect(Some("f5-irules")));
+        assert!(DialectSet::is_irules_dialect(Some("irules")));
+        assert!(!DialectSet::is_irules_dialect(Some("tcl8.6")));
+        assert!(!DialectSet::is_irules_dialect(Some("f5-iapps")));
+        assert!(!DialectSet::is_irules_dialect(Some("f5-bigip")));
+        assert!(!DialectSet::is_irules_dialect(None));
+    }
+
+    #[test]
     fn tcl85_plus_contains_86_and_90() {
         assert!(DialectSet::TCL85_PLUS.contains(DialectSet::TCL85));
         assert!(DialectSet::TCL85_PLUS.contains(DialectSet::TCL86));
