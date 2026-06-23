@@ -782,27 +782,66 @@ pub fn proc_summary_cascade<'db>(
     ))
 }
 
-/// The interprocedural taint solve for one document, with the summary fixpoint's
-/// per-procedure inference memoised across edits (SRV-INCREMENTAL 2b).
+/// Memoised per-procedure **non-taint** compiler checks (SCCP constant branches,
+/// GVN redundancies, shimmer / thunking / byte-array) for one procedure's
+/// offset-0 baseline — the `function_lattice` analogue for the checks pass
+/// (SRV-INCREMENTAL 2a).  Returns spans at **offset 0** (it computes on the
+/// offset-0 [`function_lattice`] unit, *before* `rebase_function_unit`); the
+/// caller adds the procedure's `body_offset`.  A body edit re-runs only the
+/// edited procedure's checks; every other proc is a cache hit.
+#[salsa::tracked]
+pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<Vec<CompilerCheck>> {
+    let fu = function_lattice(db, key);
+    let dialect = key.dialect(db);
+    let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
+    let registry = db.registry(dialect);
+    Arc::new(tcl_compiler::compiler_checks::function_nontaint_checks(
+        &fu,
+        &registry,
+        dialect_opt,
+    ))
+}
+
+/// The checks-path memoised solve for one document: the interprocedural taint
+/// result (2b) **and** the rebased per-procedure non-taint checks (2a), both
+/// gathered from a single re-derived [`build_unit_with_keys`] so the duplicate
+/// build is paid once for both halves.  `PartialEq` for salsa early-cutoff.
+#[derive(Clone, PartialEq)]
+pub struct CheckSolve {
+    /// Interprocedural taint solve (`proc_summary_cascade`-memoised summaries).
+    pub taints: InterprocTaintResult,
+    /// Per-procedure non-taint checks (`function_checks`-memoised), already
+    /// rebased to each procedure's real position.
+    pub fn_checks: Vec<CompilerCheck>,
+}
+
+/// The checks-path memoised solve for one document (SRV-INCREMENTAL 2a + 2b).
 ///
 /// Runs on the **checks path only** (demanded by [`compiler_check_diagnostics`],
 /// never the analyser walk / `semantic_tokens`), so it cannot regress
 /// time-to-first-tokens.  Re-derives the offset-0 [`FnLatticeKey`]s with its own
 /// [`build_unit_with_keys`] (they cannot be shared from [`compilation_unit`] —
 /// salsa returns must be `'static`; the duplicate build is mostly
-/// `function_lattice` cache hits, ~29 ms warm), then drives
-/// [`tcl_compiler::taint_interproc::solve_interprocedural_taints_with`] with an
-/// `infer` that defers to [`proc_summary_cascade`].  The worklist still runs each
-/// edit, but an unchanged procedure's expensive `infer_proc_summary` is a cache
-/// hit, collapsing the ~120 ms pass-1 floor to the edited proc's caller cascade.
-/// Byte-identical to a bare `solve_interprocedural_taints`, guarded by the
-/// `compiler_check` corpus differential + the debug fixpoint guard.
+/// `function_lattice` cache hits, ~28 ms warm), then from that one build produces
+/// both:
+/// * **2b** — the interprocedural taint solve via
+///   [`tcl_compiler::taint_interproc::solve_interprocedural_taints_with`] with an
+///   `infer` deferring to [`proc_summary_cascade`] (collapses the ~120 ms pass-1
+///   floor);
+/// * **2a** — the per-procedure non-taint checks via [`function_checks`] (an
+///   unchanged proc's checks are a cache hit), each rebased here by the
+///   procedure's `body_offset` (`ir_module.procedures[qname].span.start()` — the
+///   same delta `rebase_function_unit` applies in the whole-module build, since
+///   `function_checks` returns offset-0 spans).
+///
+/// Byte-identical to a bare `run_all_checks`, guarded by the `compiler_check`
+/// corpus differential + the debug fixpoint guard.
 #[salsa::tracked]
 pub fn proc_taint_solve<'db>(
     db: &'db dyn TclDb,
     file: SourceFile,
     cfg: LexerCfgKey<'db>,
-) -> Arc<InterprocTaintResult> {
+) -> Arc<CheckSolve> {
     let dialect = file.dialect(db).clone();
     let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
     let registry = db.registry(&dialect);
@@ -810,7 +849,7 @@ pub fn proc_taint_solve<'db>(
         build_unit_with_keys(db, file.text(db), &registry, false, cfg.to_config(db), dialect_opt);
     let interproc = cu.interproc.as_ref();
 
-    let result = tcl_compiler::taint_interproc::solve_interprocedural_taints_with(
+    let taints = tcl_compiler::taint_interproc::solve_interprocedural_taints_with(
         &cu,
         &registry,
         dialect_opt,
@@ -827,7 +866,53 @@ pub fn proc_taint_solve<'db>(
             ),
         },
     );
-    Arc::new(result)
+
+    // 2a: per-procedure non-taint checks.  The memoised [`function_checks`] returns
+    // **offset-0** spans (it runs on the offset-0 `function_lattice` unit), so we
+    // add the procedure's `body_offset` here — the same rebase the whole-module
+    // build's `rebase_function_unit` applies.  A proc without a lattice key (e.g.
+    // the top level, or a complexity-guarded body) falls back to the direct
+    // per-function computation on the *already-rebased* built unit (no offset add).
+    let mut fn_checks: Vec<CompilerCheck> = Vec::new();
+    for fu in cu.analysable_functions() {
+        match lattice_keys.get(&fu.name) {
+            Some(&key) => {
+                let body_offset = cu
+                    .ir_module
+                    .procedures
+                    .get(&fu.name)
+                    .map_or(0, |p| p.span.start());
+                for d in function_checks(db, key).iter() {
+                    let mut d = d.clone();
+                    // Rebase real spans by the procedure's offset, but leave the
+                    // `(0, 0)` "unknown span" sentinel alone: a spanless check (an
+                    // O100 constant branch whose `cb.span` is `None`) renders to
+                    // `(0, 0)` in *both* paths — the whole-module build rebases the
+                    // `Option<Span>` (so `None` stays `None`) *before* the
+                    // `None → (0,0)` lowering, so the offset must not be added here.
+                    if d.span.start() != 0 || d.span.end() != 0 {
+                        d.span = tcl_lexer::Span::new(
+                            d.span.start() + body_offset,
+                            d.span.end() + body_offset,
+                        );
+                    }
+                    fn_checks.push(d);
+                }
+            }
+            None => {
+                // The built unit's fallback fus (complexity-guarded / top level)
+                // carry **absolute** spans already (`base_offset == 0`), so the
+                // per-function checks need no rebase.
+                for d in
+                    tcl_compiler::compiler_checks::function_nontaint_checks(fu, &registry, dialect_opt)
+                {
+                    fn_checks.push(d);
+                }
+            }
+        }
+    }
+
+    Arc::new(CheckSolve { taints, fn_checks })
 }
 
 /// Interned identity of the dialect-varying [`tcl_lexer::LexerConfig`] fields,
@@ -988,18 +1073,27 @@ pub fn compiler_check_diagnostics(db: &dyn TclDb, file: SourceFile) -> Arc<Compi
     // config interns the same `LexerCfgKey` and reuses the same per-edit build.
     let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::for_dialect(&dialect));
     let cu = compilation_unit(db, file, cfg_key);
-    // The interprocedural taint solve — ~95% of `run_all_checks` — comes from the
-    // memoised [`proc_taint_solve`] (SRV-INCREMENTAL 2b) so an unchanged
-    // procedure's summary inference is reused across edits, instead of being
-    // re-solved whole-unit every keystroke.  Byte-identical to the in-line solve
-    // `run_all_checks` would do (the shared and re-derived builds are the same
-    // source + config, so their `ValueKey`s coincide); guarded by the corpus
-    // differential.  The optimiser half is unchanged.
-    let solved = proc_taint_solve(db, file, cfg_key);
+    // Both halves of `run_all_checks` come from the memoised [`proc_taint_solve`]
+    // (SRV-INCREMENTAL 2a + 2b): the interprocedural taint solve (`solve.taints`)
+    // and the per-procedure non-taint checks (`solve.fn_checks`, already rebased),
+    // so an unchanged procedure contributes neither a re-solve nor a re-check.
+    // The remaining taint-family + iRules module checks (which read the solved
+    // taints) are appended over the shared build, then the combined set is sorted
+    // into the same deterministic order `run_all_checks` produces.  Byte-identical
+    // to the in-line build; guarded by the corpus differential.  Optimiser
+    // unchanged.
+    let solve = proc_taint_solve(db, file, cfg_key);
+    let mut checks = solve.fn_checks.clone();
+    tcl_compiler::compiler_checks::push_taint_and_module_checks(
+        &cu,
+        &registry,
+        dialect_opt,
+        &solve.taints,
+        &mut checks,
+    );
+    tcl_compiler::compiler_checks::sort_diagnostics(&mut checks);
     Arc::new(CompilerDiagnostics {
-        checks: tcl_compiler::compiler_checks::run_all_checks_with_solved(
-            &cu, &registry, dialect_opt, &solved,
-        ),
+        checks,
         optimisations: tcl_compiler::optimiser::optimise_unit(&cu, &registry, dialect_opt),
     })
 }
