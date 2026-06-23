@@ -204,7 +204,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
 .PHONY: check-wasm-parity snapshot-wasm-parity capture-bytecode-refs
 # Lint / format / typecheck
-.PHONY: lint format lint-py lint-ts format-py format-ts typecheck-py typecheck-py-full typecheck-ts check-zig check-rust
+.PHONY: lint format lint-py lint-ts format-py format-ts typecheck-py typecheck-py-full typecheck-ts check-zig check-rust rust-deny
 # Coverage
 .PHONY: coverage coverage-py coverage-ext
 # Compile + codegen + generated assets
@@ -841,6 +841,25 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 		cd $(EXPLORER_WASM_DIR) && cargo fmt --all --check && \
 			cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
 	fi
+
+# Supply-chain audit for the Rust workspace: RustSec advisories, license
+# policy, banned/duplicate crates, and source allowlist — all four checks
+# configured in the repo-root deny.toml.  CI runs the equivalent via
+# EmbarkStudios/cargo-deny-action (ci.yml + rust-gate.yml); this is the local
+# mirror.  deny.toml and the workspace manifest both live at $(ROOT), so the
+# audit runs from there with `--all-features check` (matching deny.toml's
+# header).  Installs cargo-deny on demand if it isn't already on PATH.
+rust-deny: ## Audit the Rust workspace with cargo-deny (advisories/licenses/bans/sources via deny.toml)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; exit 1; \
+	fi; \
+	if ! cargo deny --version >/dev/null 2>&1; then \
+		echo "==> cargo-deny not found — installing (cargo install cargo-deny)"; \
+		cargo install cargo-deny --locked; \
+	fi; \
+	echo "==> Auditing Rust workspace with cargo-deny (deny.toml)"; \
+	cd $(ROOT) && cargo deny --all-features check
 
 # All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
 # extra languages CI doesn't cover (Zig, Rust, full TS).  On success writes

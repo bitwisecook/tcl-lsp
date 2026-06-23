@@ -197,6 +197,59 @@ jobs:
       - name: Run extension tests
         run: make test-ext
 
+  # Rust product gate for `main`.  rust-gate.yml / rust-lsp-e2e.yml are the
+  # blocking checks on the `rust` branch during the rewrite; once `rust` merges
+  # into `main` those workflows no longer fire, so this job is what keeps the
+  # Rust workspace + native-server lsp_e2e suite green on `main`.  Runs on every
+  # PR and push (unlike the push-only Python/extension backstops) because, with
+  # rust-gate gone, nothing else exercises the Rust product on a PR to `main`.
+  #
+  # Kept consistent with rust-gate.yml: same `cargo test --workspace
+  # --all-features --no-fail-fast` invocation, same Swatinem cache, toolchain
+  # resolved from rust-toolchain.toml.  The lsp_e2e step mirrors rust-lsp-e2e.yml
+  # (build the release server, drive the backend-neutral suite against it).
+  rust-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      # uv + Python: a handful of workspace crates (PyO3 surfaces) build against
+      # the project's Python env, and the lsp_e2e suite is driven by pytest.
+      - uses: ./.github/actions/setup-build
+
+      # rust-toolchain.toml pins the channel (stable); rustup on the runner
+      # resolves it on the first cargo call.  Cache registry + target dir.
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+
+      # --no-fail-fast: run every test binary even after one fails, so a single
+      # run lists all failing crates rather than aborting at the first.  Matches
+      # rust-gate.yml exactly.
+      - name: cargo test --workspace --all-features
+        run: cargo test --workspace --all-features --no-fail-fast
+
+      # Native-server lsp_e2e (the `lsp-e2e` required check on `rust`).  Build
+      # only the release server the suite drives (matches `make rust-server`),
+      # then run the backend-neutral suite against it.  Mirrors rust-lsp-e2e.yml.
+      - name: Build native tcl-lsp-server
+        run: make rust-server
+
+      - name: lsp_e2e against the native Rust server
+        env:
+          TCL_LSP_SERVER_KIND: rust
+          TCL_LSP_SERVER_BIN: ${{ github.workspace }}/target/release/tcl-lsp-server
+        run: uv run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
+
+      # Supply-chain audit (advisories / licenses / bans / sources) via the
+      # committed deny.toml.  Action defaults already match the `make rust-deny`
+      # invocation: `command: check`, `arguments: --all-features`,
+      # `manifest-path: ./Cargo.toml` — deny.toml and the workspace manifest
+      # both live at the repo root.
+      - name: cargo deny check
+        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2.0.20
+
   # Release: create (or verify) the GitHub Release so each build job
   # can upload its artifact independently — no single slow or failing
   # build blocks the others.
