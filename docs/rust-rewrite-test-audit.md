@@ -1018,3 +1018,12 @@ The pytest file stays in place as the oracle.
   that module is reached.
 
 The pytest file stays in place as the oracle.
+
+### `tests/test_f5_query.py` (string builtins) → `tcl-bigip-query::builtins::string`
+
+- **Ported.** `test_ascii_upcase_downcase_aliases` → `string.rs::tests`
+  (`bi_upper`/`bi_lower`), plus direct coverage of `startswith` / `endswith` /
+  `contains` / `split` / `join` (exercised by the battery via `select(…)`
+  expressions). `string.rs` had zero unit coverage.
+
+The pytest file stays in place as the oracle.
