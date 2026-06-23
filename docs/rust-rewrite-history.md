@@ -11709,3 +11709,116 @@ verbs are wired through to the `tcl-pkg` handlers that landed under
 **TOOL-TCLPKG**. The dispatch `match` is exhaustive (the not-yet-implemented
 fallthrough is gone). Any deeper WASM-emitter precision residual is **RT-WASM**'s,
 not the CLI verb's.
+
+## API-PYO3 — designed public PyO3 surface (landed 2026-06-22)
+
+The first (and largest single) item of the otherwise-last **API-PYO3** track:
+the *designed* public API the rewrite plan calls the terminal product — a
+small, semver-stable surface for downstream embedders, deliberately **not** a
+re-export of the crate graph and **not** a transcription of the legacy
+soft-dependency shims. Built as a new `tcl-lsp-py::public` module, additive
+alongside the existing shims (which stay until their in-tree Python importers
+retire under PYTHON-RETIRE — the boundary rule).
+
+**Shape.** Six narrow facades, `source/options in, structured result out`,
+each a thin translation over one pure crate entry point (no analysis logic in
+the binding):
+
+| Facade | Returns | Over |
+|---|---|---|
+| `parse_tcl(source, *, dialect, uri)` | `ParseResult` (`tokens`, `commands`, `warnings`) | `tcl-lexer` + `tcl-compiler::segmenter` |
+| `compile_tcl(source, *, dialect, interprocedural, uri)` | `CompilationUnit` handle | `tcl-compiler::compilation_unit` |
+| `analyse_tcl(source, *, dialect, uri)` | `AnalysisResult` (`diagnostics`, `procs`, `classes`, `variables`) | `tcl-compiler::analyser` |
+| `format_tcl(source, *, options)` | `str` | `tcl-lsp-core::formatting` |
+| `parse_bigip_config(source, *, default_partition, strict, uri)` | `BigipConfig` (`object_count`, `object_keys`, `to_json()`) | `tcl-bigip` |
+| `query_bigip(sources, query, *, names, partitions, merge, enable_probes, output)` | `QueryResult` (`values` / `edits`, `has_mutation`) | `tcl-bigip-query` |
+
+Plus the typed result classes (`LexToken`, `ParsedCommand`, `Diagnostic`,
+`FormatOptions`, `QueryFile`, `QueryEdit`), all frozen `#[pyclass]`es that
+resolve every span to a 0-based `(line, character)` pair at the boundary — the
+Python caller never sees a bare byte offset.
+
+**Error hierarchy.** `TclLspError` (base) → `TclParseError` / `TclCompileError`
+/ `TclAnalysisError` / `BigipParseError` / `BigipQueryError` /
+`UnsupportedFeatureError`, all registered on the module and catchable as the
+base. Each raised instance carries `code` (stable identifier, e.g.
+`BIGIP_QUERY_LEX`), `message` (also `str(err)`), `uri`, and `range`, set as
+attributes at the facade boundary by `public::errors::PublicError::into_pyerr`
+— the single place the pure-crate error enums (`LexError`, `QueryError`) are
+translated, keeping the pure crates `pyo3`-free. Genuine raise paths:
+`parse_tcl` (strict-quoting `LexError`), `compile_tcl` / `analyse_tcl`
+(pre-lex guard), `parse_bigip_config` (`strict=True` over a non-empty source
+that yields no objects — the "wrong file" guard), `query_bigip` (`run_query`
+/ render `QueryError`, with a resolved range for the positional lex/parse
+variants), and `UnsupportedFeatureError` (unknown formatter `indent_style` or
+query `output` mode).
+
+**Test.** `tests/test_public_pyo3_api.py` — 30 cases over the six facades,
+the dialect gating (`{*}` EXPAND under 9.0 vs literal under 8.4), the read +
+mutation query paths, and every error type. `importorskip`-guarded so it runs
+against the built wheel in CI and no-ops on a fresh clone (the soft-dependency
+philosophy). Added the `tcl-bigip-query` dependency to `tcl-lsp-py` and a
+`proc_names` getter to the `CompilationUnit` handle.
+
+**Still open under API-PYO3** (the rest of the track, gated on every consumer
+porting first): TEST-MIGRATE (port the remaining pytest files to per-crate Rust
+tests), the `scripts`→`xtask` build/release migration, and PYTHON-RETIRE
+(delete the ported Python subtrees + the legacy shims once nothing imports
+them). The legacy `#[pyfunction]` shim set is untouched and still backs the
+in-tree Python.
+
+### scripts→xtask — `cargo xtask` scaffold + first port (landed 2026-06-22)
+
+The second API-PYO3 item starts: the `scripts/` Python toolchain begins moving
+to a native `cargo xtask` runner. Landed the `rust/xtask` crate (clap-derive
+subcommands, `anyhow`, `forbid(unsafe_code)`, workspace member) and the
+`cargo xtask = "run --package xtask --"` alias in `.cargo/config.toml`. First
+scripts ported (both verified **byte-for-byte identical** stdout/stderr + exit
+codes against their Python originals on the current tree, with unit tests on the
+tricky parsing helpers):
+
+- `refcount-contract` (⇐ `scripts/check/refcount_contract.py`) — walks
+  `runtime/zig/` for `pub export fn` declarations and lints them against the
+  refcount-contract doc's table rows (302 missing / 3 stale / "33 of 332 …
+  (9%)"; default + `--strict` exit codes matched).
+- `kcs-index-links` (⇐ `scripts/check/kcs_index_links.py`) — validates local
+  markdown links and KCS/design index coverage under `docs/` (fenced-code
+  stripping, anchor-trimming, parent-README index fallback, audience-header
+  warnings). A shared `util::repo_root` was factored out for both subcommands.
+- `version` (⇐ `scripts/print_version.py`) — prints the project version from
+  `git describe`, implementing setuptools-scm's default guess-next-dev scheme
+  with `local_scheme=no-local-version` (exact tag → tag; N past tag →
+  `next(tag).devN`; no tags → `0.0.0.dev0`). The version-string logic is
+  factored behind `version_from_describe(&str)` and unit-pinned against real
+  `setuptools_scm.get_version(local_scheme="no-local-version")` outputs captured
+  from temp git repos (`v1.2.3-0-g…`→`1.2.3`, `v1.2.3-3-g…`→`1.2.4.dev3`,
+  `2.0.0-1-g…`→`2.0.1.dev1`).
+- `tzdata-bundle` (⇐ `scripts/build/tzdata_bundle.py`) — packs the curated
+  `TZBL` tzdata bundle (the WASM-runtime fallback). Replicates the curated zone
+  list, the alias-dedup payload layout, the sorted index, and the `TZif` v1
+  transition trimmer (`--trim-from`/`--trim-to`, leap tables dropped). The
+  produced binary artifact is **byte-for-byte identical** to the Python output
+  for both the verbatim path (137 KB) and a trimmed window (verified via `cmp`),
+  and the `wrote N,NNN bytes` stderr matches (thousands grouping included).
+- `audit-option-dialects` (⇐ `scripts/check/audit_option_dialects.py`, landed
+  2026-06-23) — probes every `OptionSpec` dialect gate (102 `(command,
+  subcommand?, option)` probes, transcribed 1:1 in declaration order) against
+  the built tclsh 8.4/8.5/8.6/9.0 trees and writes the per-version availability
+  to `tmp/option_dialect_audit.json`. Each probe is run under a 5 s wall-clock
+  deadline (reader-threaded `std::process` runner, `LD_LIBRARY_PATH` pinned to
+  the tclsh build dir, `catch`-wrapped so runtime errors still count as
+  "option recognised"); a missing tclsh short-circuits to `"tclsh not found"`
+  exactly like the Python `exists()` check. Both the JSON artifact **and** the
+  console log are **byte-for-byte identical** to the Python — a hand-rolled
+  `json.dumps(indent=2)` emitter (no `serde_json`, so no key-order/`indent`
+  drift) plus a `repr()`-faithful diagnostic formatter (quote selection,
+  `\xNN` control escapes) and a Python-list-repr summary line. Verified by
+  diffing both streams against the Python original on the one tclsh tree built
+  in the dev env (8.4/8.5/8.6 source-only → uniform `tclsh not found`, which is
+  itself parity-correct). Pure helpers (`classify`, `py_repr`, `py_list_repr`,
+  `render_json`, `label`, probe-table integrity) carry unit tests.
+
+The Python scripts stay in place (rollout rule: fallback for one cycle). The
+scaffold is the landing point for the rest of the `build/` / `check/` /
+`release/` Python scripts; the shell scripts under `scripts/` are already
+Python-free and need no port.

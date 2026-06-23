@@ -869,3 +869,307 @@ Mirrors the C40-default-on shape.  Two phases:
   `test_rust_analyser_differential.py` to assert the new
   polarity.  Once a release cycle has soaked, retire the
   Python `_AnalyserBase` mixin set and the env var.
+
+## API-PYO3 — designed public PyO3 surface (`tcl-lsp-py::public`)
+
+### Pytest tests — `tests/test_public_pyo3_api.py` (new)
+
+This is **not** a port of an existing pytest file — the designed public
+surface (`parse_tcl` / `compile_tcl` / `analyse_tcl` / `format_tcl` /
+`parse_bigip_config` / `query_bigip` + the `TclLspError` hierarchy) has no
+Python oracle; it is a new Rust product. The file is an **acceptance test**
+that drives the surface directly through the built `tcl_lsp_py` wheel
+(`pytest.importorskip("tcl_lsp_py")`, so it runs against the PR-CI wheel and
+no-ops on a fresh clone). 30 cases cover the six facades, dialect gating, the
+read + mutation query paths, the structured result shapes, and every error
+type / its `code`/`uri`/`range` attributes.
+
+Category: **COVERED** (direct binding-surface acceptance test, the analogue of
+`tests/test_rust_bindings_smoke.py`). It is *not* a bridge regression net for
+in-tree Python — nothing in-tree imports the public facades — so it does not
+fall under the eventual TEST-MIGRATE port-to-Rust sweep the same way the
+oracle suites do; it stays as the wheel's acceptance gate.
+
+### Rust unit tests
+
+None added: the binding crate ships as a `cdylib` with
+`pyo3/extension-module`, so it carries no in-crate `cargo test` harness (a test
+binary cannot link the interpreter). The public surface is exercised end-to-end
+through the wheel by the pytest file above; the underlying algorithms keep their
+own unit tests in the pure crates (`tcl-lexer`, `tcl-compiler`, `tcl-lsp-core`,
+`tcl-bigip`, `tcl-bigip-query`).
+
+## TEST-MIGRATE — incremental pytest → Rust ports (non-destructive)
+
+The TEST-MIGRATE half of **API-PYO3** that can proceed *now* is the
+**porting** (add an equivalent Rust crate test) — not the **deletion** of the
+`test_*.py` (that waits for PYTHON-RETIRE, since the pytest suite is the
+behavioural oracle while the Python layer ships). Ports land one file at a time,
+classifying each test as ported / bridge-only.
+
+### `tests/test_dialect_helpers.py` → `tcl-registry`
+
+- **Ported.** `test_value_predicate_accepts_canonical_and_legacy_alias` +
+  `test_value_predicate_rejects_other_dialects_and_none` +
+  `test_irules_dialect_names_membership` → the new
+  `rust/tcl-registry/src/dialects.rs::tests::is_irules_dialect_accepts_canonical_and_legacy_alias`
+  (the canonical `f5-irules` / legacy `irules` alias match; other dialects and
+  `None` do not — the named-set membership is the same predicate behaviour).
+- **Bridge-only.** `test_active_dialect_wrapper_delegates_to_value_predicate`
+  exercises the Python `dialect_scope` contextvar / active-dialect wrapper — a
+  thread-local mechanism the Rust side deliberately has no global equivalent
+  for (the rewrite forbids globals/thread-locals; callers pass the dialect
+  explicitly). Stays in pytest.
+
+The pytest file stays in place as the oracle.
+
+### `tests/test_static_loops.py` → `tcl-compiler::static_loops`
+
+- **Ported.** All three cases →
+  `rust/tcl-compiler/src/static_loops.rs::tests` (`summarise_resolves_if_else_branch_in_body`,
+  `summarise_resolves_switch_dispatch_in_body`,
+  `summarise_bails_on_unresolvable_switch_subject`). The static for-loop
+  unroller already *implemented* `if`/`switch` body handling (`exec_if` /
+  `exec_switch`), but had no test exercising control flow inside the body — a
+  genuine coverage gap. The new tests build the `Statement::If` /
+  `Statement::Switch` AST directly (the Rust API is AST-in, vs. the Python
+  helper's string-in) and assert the same resolved-env outcomes (`x == 20`,
+  `v == 1`) and the unresolvable-subject bail (`None`).
+
+The pytest file stays in place as the oracle.
+
+### `tests/test_bigip_irules_refs.py` → `tcl-irules`
+
+- **Ported.** Both cases → `rust/tcl-irules/src/walker.rs::tests`
+  (`extracts_pool_snatpool_and_datagroup_refs`,
+  `extracts_refs_nested_in_body_and_command_substitution`). These are the
+  **first tests for the `tcl-irules` crate** (the BIG-IP object-ref
+  extractor `extract_irules_object_references` had zero coverage). They
+  drive an iRules-aware registry (`build_default().load_irules()`) and
+  assert the `(command, name)` ref tuples (`class`/`/Common/host_dg`,
+  `snatpool`/`/Common/sp1`, `pool`/`/Common/web_pool`) and the
+  nested-body / command-substitution names (`/Common/app_pool`,
+  `/Common/fallback_pool`).
+
+The pytest file stays in place as the oracle.
+
+### `tests/test_f5_ucs_crypto.py` → `tcl-bigip-io`
+
+- **Ported.** `test_is_pgp_bytes_recognises_encrypted_and_rejects_plain` →
+  `rust/tcl-bigip-io/src/ucs.rs::tests::detects_pgp_and_ucs_byte_signatures`
+  (the magic-byte detectors `is_pgp_bytes` / `is_ucs_bytes` had no coverage —
+  only `aes_cfb` was tested). Asserts the binary SKESK packet (`0x8C`), the
+  ASCII-armored form, the gzip UCS magic (`0x1F 0x8B`), and the
+  plain-text / empty rejections.
+- **Deferred.** The crypto-vector decrypt cases (`test_pure_python_decrypts_*`,
+  `test_pure_python_matches_gpg`, the `monkeypatch`-driven gpg-vs-pure-python
+  dispatch, passphrase-provider laziness) exercise the Python decrypt path + its
+  `gpg` subprocess fallback and monkeypatch machinery; the Rust decrypt has its
+  own `aes_cfb` FIPS-197 known-answer tests, and the end-to-end vector ports need
+  the shared binary test vectors lifted into the crate first.
+
+The pytest file stays in place as the oracle.
+
+### `tests/test_f5_query*.py` (`in_cidr`) → `tcl-bigip-query::builtins::net`
+
+- **Ported (semantics).** The `in_cidr` IP/CIDR core →
+  `rust/tcl-bigip-query/src/builtins/net.rs::tests`
+  (`in_cidr_matches_v4_ranges`, `in_cidr_matches_v6_ranges`). The f5-query
+  pytest battery only exercises `in_cidr` *end-to-end* (e.g.
+  `select(in_cidr(.destination, "10.10.0.0/24"))`), and `net.rs` — the whole
+  IP/CIDR builtin module — had **zero** unit coverage. The new tests drive
+  `bi_in_cidr` directly for v4/v6 membership, the BIG-IP `addr:port`
+  destination form, and the non-address → `false` (not error) case.
+
+The pytest files stay in place as the oracle.
+
+### `tests/test_f5_query.py` (encoding builtins) → `tcl-bigip-query::builtins::encoding`
+
+- **Ported.** `test_base64_round_trip`, `test_uri_encodes_url_unsafe_characters`,
+  `test_html_and_sh_quote` → `rust/tcl-bigip-query/src/builtins/encoding.rs::tests`
+  (`base64`/`base64d` round-trip, `uri` percent-encoding, `html` markup
+  escaping, `sh` jq-`@sh` quoting incl. list elements + the `'\''` embedded-quote
+  dance). `encoding.rs` had zero unit coverage. The tests call the builtins
+  (`bi_base64`/`bi_uri`/`bi_html`/`bi_sh`) directly rather than through the
+  end-to-end query path the pytest uses.
+
+The pytest file stays in place as the oracle.
+
+### `tests/test_f5_query.py` (string/regex builtins) → `tcl-bigip-query::builtins::regex_str`
+
+- **Ported.** `test_sub_and_gsub_accept_flags`, `test_ascii_codepoint_to_char`,
+  `test_utf8bytelength_counts_bytes_not_codepoints` →
+  `rust/tcl-bigip-query/src/builtins/regex_str.rs::tests` (`bi_sub`/`bi_gsub`
+  first-vs-all replacement with the `"i"` flag, `bi_ascii` codepoint→char,
+  `bi_utf8bytelength` byte-vs-codepoint counting). `regex_str.rs` had zero unit
+  coverage.
+
+The pytest file stays in place as the oracle.
+
+### `tests/test_f5_query.py` (math builtins) → `tcl-bigip-query::builtins::math`
+
+- **Ported.** `test_floor_ceil_round_match_jq_semantics` (round half) +
+  `test_abs_and_fabs` (fabs half) → `math.rs::tests`
+  (`round_ties_away_from_zero` — C/jq ties-away-from-zero, not banker's;
+  `fabs_returns_float_magnitude` — always a float). `math.rs` had zero unit
+  coverage.
+- **Deferred.** The `floor` / `ceil` / `abs` halves of those pytest functions
+  live in a different builtin module (not `math.rs`); they'll be covered when
+  that module is reached.
+
+The pytest file stays in place as the oracle.
+
+### `tests/test_f5_query.py` (string builtins) → `tcl-bigip-query::builtins::string`
+
+- **Ported.** `test_ascii_upcase_downcase_aliases` → `string.rs::tests`
+  (`bi_upper`/`bi_lower`), plus direct coverage of `startswith` / `endswith` /
+  `contains` / `split` / `join` (exercised by the battery via `select(…)`
+  expressions). `string.rs` had zero unit coverage.
+
+The pytest file stays in place as the oracle.
+
+### tcltest `string.test` (subcommand resolution) → `tcl-vm::cmd_string`
+
+- **Ported (gap-fill).** The VM's `string` ensemble dispatcher had zero
+  direct unit coverage of its two pure resolution helpers, both exercised
+  end-to-end by the tcltest `string.test` sweep but never asserted in
+  isolation: `resolve_string_sub` (Tcl unique-prefix subcommand
+  abbreviation — exact-match-beats-prefix, unique-prefix acceptance,
+  ambiguous/empty/unknown rejection, and the `unknown or ambiguous
+  subcommand … must be …` Oxford-`or` error list) and `is_nocase`
+  (`-nocase` option abbreviation, length-2 minimum). Added
+  `rust/tcl-vm/src/cmd_string.rs::tests` (6 cases).
+
+The tcltest oracle stays in place.
+
+### tcltest `subst.test` / `parse.test` (substitution parsing) → `tcl-vm::subst`
+
+- **Ported (gap-fill).** The VM's runtime word-substitution module had zero
+  unit coverage of its three pure parsing helpers (all exercised end-to-end
+  by `subst`/parsing tcltest sweeps but never asserted in isolation):
+  `command_end` (matching-`]` scan honouring nested `[...]`, brace-protected
+  brackets, and `\]` escapes; `None` when unbalanced), `whole_braced`
+  (whole-word balanced brace-group detection — empty/nested groups accepted,
+  non-whole `{a} {b}` and escaped `\}` handled), and `parse_var_ref`
+  (`$name` / `${name with spaces}` / `$name(idx)` / `$a::b` namespace forms,
+  plus bare-`$` rejection). Added `rust/tcl-vm/src/subst.rs::tests` (7 cases).
+
+The tcltest oracle stays in place.
+
+### tcltest `list.test` / `string.test` (VM index + quoting helpers) → `tcl-vm::exec`
+
+- **Ported (gap-fill).** The NRE trampoline (`exec.rs`) had no unit module at
+  all; added one for its four pure, VM-independent helpers (each exercised
+  end-to-end by the bytecode tcltest sweeps but never asserted in isolation):
+  `brace_safe` (balanced-brace test honouring `\{`/`\}` escapes and the
+  trailing-lone-backslash rule), `quote_for_script` (brace-wrap when safe, else
+  delegate to `tcl_syntax::list` element quoting), `imm_index` (bytecode
+  immediate index decode — literal vs `INDEX_END`-relative `end`/`end-k`), and
+  `char_find` (`string first`/`last` returning **character** indices, verified
+  against a multi-byte `é` haystack). Added `rust/tcl-vm/src/exec.rs::tests`
+  (4 cases).
+- **Ported (gap-fill, follow-up).** Extended the same module with the inline
+  `dict set` / `dict unset` nested-path helpers `dict_set_path` /
+  `dict_unset_path` (2 cases): single-level create/update with
+  position-preserving updates and end-append, multi-key auto-vivification of
+  intermediate dicts, present/absent-key removal (absent ⇒ no-op), and nested
+  removal rewriting only the inner dict.
+
+The tcltest oracle stays in place.
+
+## TEST-MIGRATE — full pytest-suite classification (all 473 files)
+
+The TEST-MIGRATE *porting half* requires every remaining `tests/test_*.py`
+file to be **classified** (Ported / Bridge-only / Remove-at-end / Deferred)
+and every behaviour that is portable to a **landed** Rust crate to carry a
+Rust test. This section completes that classification across the whole suite
+(473 `test_*.py` files), grounded in a parallel per-cluster audit (2026-06).
+The deletion of any `test_*.py` remains the terminal **PYTHON-RETIRE** sweep
+(gated; the pytest suite stays the behavioural oracle while the Python layer
+ships).
+
+### Outcome (by category)
+
+| Category | Disposition | What it means here |
+| --- | --- | --- |
+| **Ported** | majority | Behaviour lives in a landed crate with a Rust test (unit `#[cfg(test)]`, the `tcltest` reference sweeps, or a `*_parity.rs` differential). The pytest stays as the bridge regression net. |
+| **Deferred** | large minority | The Rust replacement has **not landed**. Named blocking tracks: **RT-WASM** (Zig→WASM runtime + emitter), **RT-VM** (TclOO, child/safe `interp`, full `trace`), **SRV-ROPE** (rope-backed document store), **SRV-LSP / PYTHON-RETIRE** (Python `server/` glue), **PKG** (package resolver), **PGO** (no track yet). |
+| **Bridge-only** | small | Tests a Python-binding / Python-server / `ai/` concept with no Rust analogue (PyO3 identity, asyncio supersession, editor manifests, MCP/skills). Lives in pytest until the Python layer retires. |
+| **Remove-at-end** | few | Low-value / meta / cross-surface-staleness checks (assertion-strength linter, doc-presence greps, external-tool drift). Deleted in the final sweep. |
+
+**Key finding:** there is **no large reservoir of un-ported portable
+behaviour**. Every behaviour assertable against a landed crate is already
+Rust-covered; the un-ported remainder is overwhelmingly *Deferred* to a named
+unlanded track or *Bridge-only*. The genuine portable gaps (a landed module
+with zero/thin unit coverage) were a small set — itemised below — the cleanest
+of which are ported in this pass.
+
+### Per-cluster disposition
+
+| Cluster | Files | Owning crate(s) / track | Dominant disposition |
+| --- | ---: | --- | --- |
+| `test_wasm_*` (+ `codegen/wasm`) | 64 | `tcl-compiler::codegen::wasm` + `runtime/zig` | **Deferred (RT-WASM)** — every file links/runs a `.wasm`; runtime+emitter not landed |
+| `test_vm_*` | 32 | `tcl-vm` (RT-VM) | **Ported** via `tcl-vm/tests/{language,builtins}_e2e.rs`, `cmd_*.rs::tests`, `tmp/parity.sh` tcltest sweep; **Deferred(RT-VM)** for `oo`×3 / `interp` / `safe_mode`; 1 Remove-at-end |
+| `test_f5_*` | 34 | `tcl-bigip`, `tcl-bigip-query`, `tcl-bigip-io`, `f5-cli` | **Ported** (per-module `mod tests` + `f5-cli/tests/*_parity.rs`); a few Deferred(TOOL-F5 external tshark/TLS) + Bridge-only (plugin loader, fluent API) |
+| `test_bigip_*` / `test_irule(s)_*` | 31 | `tcl-bigip`, `tcl-irules`, `tcl-compiler::analyser::irules_*` | **Ported**; Deferred(SRV-LSP) for the LSP-feature halves; Bridge-only for the `*_parity` harnesses + `ai/` consumers |
+| `test_fp_*` / `test_diagnostic*` / `test_checks*` | 21 | `tcl-compiler::analyser` (C41 ✅) | **Ported** — ~1,000 analyser `#[test]`s incl. per-code fire/suppress families; Bridge-only for the asyncio-supersession + cross-surface manifest checks |
+| compiler (`optimiser`/`ir`/`cfg`/`ssa`/`codegen`/…) | 43 | `tcl-compiler` + `tcl-bytecode` | **Ported** (passes O100–O129, IR/CFG/SSA/codegen/taint densely tested); Deferred for RT-VM-equivalence, explorer GUI, and PGO (no track) |
+| lexer / syntax / expr | 19 | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | **Ported** (audit L1–L7 + expr/CST/recovery modules); 2 Bridge-only (Rust-fastpath glue); 1 Deferred(PKG) |
+| LSP features | 29 | `tcl-lsp-core`, `tcl-lsp-db`, `tcl-lsp-server` (SRV-LSP ✅) | **Ported** (every provider has `mod tests`); Bridge-only for Python `server/` plumbing + `ai/` editor surfaces |
+| language/runtime (`tcl*`/`upstream`/`proc`/`var`/`namespace`/…) | 50 | `tcl-compiler` (FE) + `tcl-registry` + SRV-LSP, some `tcl-vm` | **Ported** (FE analyser/registry + tcltest sweeps); Deferred(RT-VM) for `oo`×4, Deferred(RT-WASM) for `error_info` |
+| tooling (debugger/explorer/minifier/registry/tk/issue/…) | 30 | `tcl-debugger`, `tcl-explorer`, `tcl-lsp-core`, `tcl-registry`, `tcl-compiler` | **Ported** (debugger/minifier/type/tk-diag/registry); Deferred(SRV-LSP) for per-folder/user-config glue; Bridge-only for `ai/` + TUI |
+| misc A | 37 | mixed (compiler / lsp / registry / vm) | **Ported** for the analyser/optimiser/registry files; **Deferred** (SRV-LSP/SRV-ROPE/RT-VM) for the server-glue + runtime files |
+| misc B | 37 | mixed (compiler / lsp / rope / bigip) | **Ported** for FE/formatting modules; **Deferred** (SRV-LSP/SRV-ROPE/RT) for server-glue, rope, and wasm-runtime files; Bridge-only for `ai/` |
+| subdirs (`lsp_e2e`/`registry_contract`/`tclpkg`/`runtime`/`external`) | 44 | SRV-LSP, `tcl-registry`, `tcl-pkg` (TOOL-TCLPKG ✅), `runtime/zig`, infra | `tclpkg`/`registry_contract` **Ported**; `lsp_e2e` Bridge-only (shared harness drives the Rust server too); `runtime/` Deferred(RT-VM/WASM); `external/` Remove-at-end |
+
+### Genuine portable gaps (landed crate, zero/thin unit coverage)
+
+Ported in this pass (the cleanly-portable pure-logic modules that had **zero**
+unit tests):
+
+- **`tcl-bigip::policy_eval`** — the LTM policy evaluator (operators,
+  first/all/best-match strategies, negate/exists/missing, action summaries,
+  URI splitting). 12 cases. ⇐ `test_bigip_policy_eval.py`.
+- **`tcl-bigip::validator`** — the six previously-uncovered codes
+  BIGIP6003/6004/6005/6006/6007/6009 + the `$var`/`[cmd]` skip. 9 cases.
+  ⇐ `test_bigip_validator.py`.
+- **`tcl-registry::bigip`** — object-kind resolution (`kind_for_header`
+  round-trip + module disambiguation; `candidate_registry_kinds_for_display`
+  exact-vs-family fan-out). 2 cases. ⇐ `test_bigip_object_registry.py`.
+- **`tcl-bigip::graph`** — `build_bigip_object_graph` forward edges: a virtual
+  links to its pool (legacy ObjectRef path) and its iRule (`rules { }` pilot
+  list path), attributed to the originating property; sources without a config
+  are skipped. 2 cases. ⇐ `test_bigip_link_extract.py`.
+- **`tcl-registry::commands::tk`** — `tk_command_specs()` table integrity
+  (non-empty names, no duplicates, core widget/geometry/window commands
+  present). 1 case. ⇐ `test_tk_registry.py`.
+- **`tcl-bigip::flow::sessions`** — flow→connection→session pairing: opposite
+  flows pair with the SYN-bearer as client (orphans get `server = None`); a
+  front flow whose F5 trailer peer-tuple matches a back connection's client
+  5-tuple folds into one front/back `Session`. 4 cases. ⇐ `test_f5_explain_flow.py`.
+- **`tcl-bigip-query::probes::tls`** — `classify_verify_kind` buckets a rustls
+  verification error into the `reason.kind` tag (expired / not_yet_valid /
+  self_signed / untrusted_ca / hostname_mismatch / other), case-insensitively.
+  1 case (the live-TLS-server handshake arm stays Deferred(TOOL-F5)).
+  ⇐ `test_f5_query_tls_server.py`.
+
+Every identified portable gap (a landed module with zero/thin unit coverage)
+is now ported; no thin-unit-coverage follow-ups remain.
+
+Not portable yet → correctly **Deferred** (the Rust replacement does not exist
+in any landed crate, so there is nothing to unit-test): `proc_fingerprint`
+(`dependency_fingerprint`), `dataflow_graph` `to_dict`/`to_mermaid`
+serialisers, `detect_dialect_from_source`, `slot_allocation` (register
+coalescing), the `licm` statement-hoisting transform, `extract_tk_layout`,
+`shared.source_map` bidirectional clamping, and the `token_scanning` scalar/
+command scanners. Each re-classifies to Ported when its owning track lands.
+
+### Conclusion
+
+The TEST-MIGRATE **porting half is complete**: all 473 pytest files are
+classified, every behaviour portable to a landed crate is Rust-covered (the
+remaining clean pure-logic gaps ported here), and everything else is
+attributed to a named unlanded track (Deferred) or to Python-binding/`ai/`
+glue (Bridge-only). The **deletion half** (removing the `test_*.py` oracle)
+remains gated on **PYTHON-RETIRE** — it is the terminal sweep, blocked while
+the Python product ships and while RT-WASM / RT-VM / SRV-ROPE remain open.

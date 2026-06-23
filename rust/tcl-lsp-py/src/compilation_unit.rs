@@ -49,6 +49,14 @@ impl CompilationUnitHandle {
         self.inner.interproc.is_some()
     }
 
+    /// The names of every procedure discovered in the source, sorted.
+    #[getter]
+    fn proc_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.inner.procedures.keys().cloned().collect();
+        names.sort();
+        names
+    }
+
     /// Length of the source text.
     #[getter]
     fn source_len(&self) -> usize {

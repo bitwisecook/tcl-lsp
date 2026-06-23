@@ -279,3 +279,70 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     out.push_str(&tcl_syntax::backslash::decode(&word[lit..n]));
     Ok(Value::string(out))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{command_end, parse_var_ref, whole_braced};
+
+    #[test]
+    fn command_end_finds_matching_bracket() {
+        // Flat: the lone `]` closes the substitution.
+        assert_eq!(command_end(b"[set x]", 0), Some(6));
+        // Nested `[...]` raises/lowers depth; the outer `]` matches.
+        assert_eq!(command_end(b"[a [b] c]", 0), Some(8));
+    }
+
+    #[test]
+    fn command_end_ignores_brackets_inside_braces() {
+        // A `]` inside a brace group is literal and must not close the subst.
+        // `[set x {]}]`: the `]` at index 8 is brace-protected; index 10 closes.
+        assert_eq!(command_end(b"[set x {]}]", 0), Some(10));
+    }
+
+    #[test]
+    fn command_end_skips_backslash_escapes_and_reports_unbalanced() {
+        // `\]` is an escaped bracket, not the closer; the real `]` is at 5.
+        assert_eq!(command_end(br"[a\]b]", 0), Some(5));
+        // No closing bracket at all.
+        assert_eq!(command_end(b"[a b", 0), None);
+    }
+
+    #[test]
+    fn whole_braced_strips_a_balanced_whole_word_group() {
+        assert_eq!(whole_braced("{abc}"), Some("abc"));
+        assert_eq!(whole_braced("{}"), Some("")); // empty group
+        // Nested balanced braces stay inside the returned content.
+        assert_eq!(whole_braced("{a {b} c}"), Some("a {b} c"));
+    }
+
+    #[test]
+    fn whole_braced_rejects_non_whole_or_unbalanced_words() {
+        // The first `}` closes the leading `{` before the word ends.
+        assert_eq!(whole_braced("{a} {b}"), None);
+        // Not brace-wrapped / no closer / too short.
+        assert_eq!(whole_braced("abc"), None);
+        assert_eq!(whole_braced("{abc"), None);
+        assert_eq!(whole_braced(""), None);
+        // An escaped brace does not count toward depth, so the group is whole.
+        assert_eq!(whole_braced(r"{a\}b}"), Some(r"a\}b"));
+    }
+
+    #[test]
+    fn parse_var_ref_handles_plain_braced_array_and_namespace() {
+        // `$name` — bare alphanumeric run.
+        assert_eq!(parse_var_ref("$foo", 0), Some(("foo", 4)));
+        // `${name}` — braces allow spaces and end the reference at `}`.
+        assert_eq!(parse_var_ref("${foo bar}", 0), Some(("foo bar", 10)));
+        // `$name(idx)` — the array index is part of the captured name.
+        assert_eq!(parse_var_ref("$foo(1)", 0), Some(("foo(1)", 7)));
+        // `$a::b` — namespace separators extend the name.
+        assert_eq!(parse_var_ref("$a::b", 0), Some(("a::b", 5)));
+    }
+
+    #[test]
+    fn parse_var_ref_rejects_a_bare_dollar() {
+        // `$` at end of string, or `$` not followed by a name char.
+        assert_eq!(parse_var_ref("$", 0), None);
+        assert_eq!(parse_var_ref("$ x", 0), None);
+    }
+}

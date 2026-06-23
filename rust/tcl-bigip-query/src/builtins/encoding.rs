@@ -167,3 +167,52 @@ fn bi_sh(args: &[Value]) -> Result<Value, QueryError> {
 fn sh_quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', "'\\''"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Call a builtin and unwrap its `Str` result.
+    fn call(f: fn(&[Value]) -> Result<Value, QueryError>, args: &[Value]) -> String {
+        match f(args) {
+            Ok(Value::Str(text)) => text,
+            other => panic!("expected Str, got {other:?}"),
+        }
+    }
+
+    fn s(text: &str) -> Value {
+        Value::Str(text.to_owned())
+    }
+
+    #[test]
+    fn base64_round_trip() {
+        // Ported from `tests/test_f5_query.py::test_base64_round_trip`
+        // (TEST-MIGRATE — encoding.rs had no unit coverage).
+        assert_eq!(call(bi_base64, &[s("hello")]), "aGVsbG8=");
+        assert_eq!(call(bi_base64d, &[s("aGVsbG8=")]), "hello");
+    }
+
+    #[test]
+    fn uri_percent_encodes_unsafe_characters() {
+        // ::test_uri_encodes_url_unsafe_characters
+        assert_eq!(call(bi_uri, &[s("hello world")]), "hello%20world");
+    }
+
+    #[test]
+    fn html_escapes_markup_and_quotes() {
+        // ::test_html_and_sh_quote (html half)
+        assert_eq!(call(bi_html, &[s("<a>&b</a>")]), "&lt;a&gt;&amp;b&lt;/a&gt;");
+    }
+
+    #[test]
+    fn sh_quotes_strings_lists_and_embedded_quotes() {
+        // ::test_html_and_sh_quote (sh half) — jq `@sh` parity: every list
+        // element is single-quoted, embedded `'` → the `'\''` dance.
+        assert_eq!(call(bi_sh, &[s("hello world")]), "'hello world'");
+        assert_eq!(
+            call(bi_sh, &[Value::List(vec![s("a"), s("b c")])]),
+            "'a' 'b c'"
+        );
+        assert_eq!(call(bi_sh, &[s("a'b")]), "'a'\\''b'");
+    }
+}

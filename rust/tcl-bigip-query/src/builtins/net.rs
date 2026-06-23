@@ -2286,3 +2286,38 @@ fn bi_ip_range_contains(args: &[Value]) -> Result<Value, QueryError> {
     let c = ip_to_u128(candidate);
     Ok(Value::Bool(ip_to_u128(first) <= c && c <= ip_to_u128(last)))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The `in_cidr(addr, net)` builtin as a bool (panics on a non-bool
+    /// result, which the builtin never returns).
+    fn in_cidr(addr: &str, net: &str) -> bool {
+        match bi_in_cidr(&[Value::Str(addr.to_owned()), Value::Str(net.to_owned())]) {
+            Ok(Value::Bool(b)) => b,
+            other => panic!("in_cidr returned {other:?}"),
+        }
+    }
+
+    #[test]
+    fn in_cidr_matches_v4_ranges() {
+        // Mirrors the `in_cidr` semantics the f5-query pytest battery
+        // (`tests/test_f5_query*.py`) exercises end-to-end via
+        // `select(in_cidr(.destination, "10.10.0.0/24"))` — net.rs had no
+        // unit coverage for the IP/CIDR core (TEST-MIGRATE).
+        assert!(in_cidr("10.10.0.5", "10.10.0.0/24"));
+        assert!(in_cidr("10.10.255.1", "10.10.0.0/16"));
+        assert!(!in_cidr("192.168.0.1", "10.10.0.0/16"));
+        // A BIG-IP destination (addr:port) has its host extracted first.
+        assert!(in_cidr("10.10.0.7:443", "10.10.0.0/24"));
+        // A non-address is `false`, not an error.
+        assert!(!in_cidr("not-an-ip", "10.0.0.0/8"));
+    }
+
+    #[test]
+    fn in_cidr_matches_v6_ranges() {
+        assert!(in_cidr("2001:db8::1", "2001:db8::/32"));
+        assert!(!in_cidr("2001:db9::1", "2001:db8::/32"));
+    }
+}

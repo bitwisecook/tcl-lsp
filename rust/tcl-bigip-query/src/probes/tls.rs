@@ -158,3 +158,35 @@ fn client_config(ca_bundle: Option<&str>) -> Result<rustls::ClientConfig, rustls
         .with_root_certificates(roots)
         .with_no_client_auth())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::classify_verify_kind;
+
+    #[test]
+    fn classify_verify_kind_buckets_rustls_messages() {
+        // Each rustls verification message maps to the Python `reason.kind` tag.
+        assert_eq!(classify_verify_kind("the certificate has expired"), "expired");
+        assert_eq!(classify_verify_kind("CertNotValidYet"), "not_yet_valid");
+        assert_eq!(
+            classify_verify_kind("the certificate is not yet valid"),
+            "not_yet_valid"
+        );
+        assert_eq!(
+            classify_verify_kind("self-signed certificate in chain"),
+            "self_signed"
+        );
+        assert_eq!(classify_verify_kind("UnknownIssuer"), "untrusted_ca");
+        assert_eq!(
+            classify_verify_kind("presented certificate is not valid for name foo.example.com"),
+            "hostname_mismatch"
+        );
+        assert_eq!(classify_verify_kind("hostname check failed"), "hostname_mismatch");
+        assert_eq!(
+            classify_verify_kind("decryption failed or bad record mac"),
+            "other_verification"
+        );
+        // Classification is case-insensitive (precedence: expired wins first).
+        assert_eq!(classify_verify_kind("EXPIRED"), "expired");
+    }
+}

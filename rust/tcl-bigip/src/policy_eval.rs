@@ -578,3 +578,300 @@ fn py_repr(s: &str) -> String {
     out.push(quote);
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        ActionTrace, BigipPolicyAction, RequestState, action_summary_value, apply_operator,
+        evaluate_policy, split_path, split_query, urlsplit,
+    };
+    use crate::model::{BigipPolicy, BigipPolicyCondition, BigipPolicyRule};
+
+    fn vals(xs: &[&str]) -> Vec<String> {
+        xs.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    fn cond(operand: &str, selector: &str, operator: &str, values: &[&str]) -> BigipPolicyCondition {
+        BigipPolicyCondition {
+            index: 0,
+            operand: operand.into(),
+            selector: selector.into(),
+            operator: operator.into(),
+            values: vals(values),
+            name: String::new(),
+            negate: false,
+            case_insensitive: false,
+            event: String::new(),
+        }
+    }
+
+    fn fwd(pool: &str) -> BigipPolicyAction {
+        BigipPolicyAction {
+            index: 0,
+            target: "forward".into(),
+            verb: "select".into(),
+            pool: pool.into(),
+            location: String::new(),
+            name: String::new(),
+            value: String::new(),
+            path: String::new(),
+            query: String::new(),
+            host: String::new(),
+            event: String::new(),
+        }
+    }
+
+    fn rule(
+        name: &str,
+        ordinal: i64,
+        conditions: Vec<BigipPolicyCondition>,
+        actions: Vec<BigipPolicyAction>,
+    ) -> BigipPolicyRule {
+        BigipPolicyRule {
+            name: name.into(),
+            ordinal,
+            conditions,
+            actions,
+        }
+    }
+
+    fn policy(strategy: &str, rules: Vec<BigipPolicyRule>) -> BigipPolicy {
+        BigipPolicy {
+            name: "p".into(),
+            full_path: "/Common/p".into(),
+            strategy: strategy.into(),
+            requires: Vec::new(),
+            controls: Vec::new(),
+            rules,
+            description: String::new(),
+            status: String::new(),
+            last_modified: String::new(),
+            range: None,
+        }
+    }
+
+    #[test]
+    fn apply_operator_covers_string_and_numeric_ops() {
+        assert!(apply_operator("equals", "GET", &vals(&["GET", "POST"]), false));
+        assert!(!apply_operator("equals", "PUT", &vals(&["GET"]), false));
+        assert!(apply_operator("starts-with", "/api/v1", &vals(&["/api"]), false));
+        assert!(apply_operator("ends-with", "/login", &vals(&[".com", "/login"]), false));
+        assert!(apply_operator("contains", "abcdef", &vals(&["cde"]), false));
+        // `matches` honours the case-insensitive flag (regex over the original).
+        assert!(apply_operator("matches", "GET", &vals(&["^g.t$"]), true));
+        assert!(!apply_operator("matches", "GET", &vals(&["^g.t$"]), false));
+        // Numeric comparisons parse both sides as f64.
+        assert!(apply_operator("greater", "443", &vals(&["80"]), false));
+        assert!(apply_operator("less", "80", &vals(&["443"]), false));
+        assert!(apply_operator("greater-or-equal", "443", &vals(&["443"]), false));
+        assert!(apply_operator("less-or-equal", "80", &vals(&["80"]), false));
+        // Edge cases: empty values, unknown operator, non-numeric operand → no match.
+        assert!(!apply_operator("equals", "x", &[], false));
+        assert!(!apply_operator("frobnicate", "x", &vals(&["x"]), false));
+        assert!(!apply_operator("greater", "notnum", &vals(&["1"]), false));
+    }
+
+    #[test]
+    fn apply_operator_case_insensitive_folds_both_sides() {
+        assert!(apply_operator("equals", "GET", &vals(&["get"]), true));
+        assert!(apply_operator("contains", "ABCDEF", &vals(&["cde"]), true));
+        assert!(!apply_operator("equals", "GET", &vals(&["get"]), false));
+    }
+
+    #[test]
+    fn first_match_fires_only_the_first_matching_rule() {
+        let state = RequestState {
+            method: "GET".into(),
+            path: "/api/x".into(),
+            ..Default::default()
+        };
+        let r1 = rule(
+            "r1",
+            0,
+            vec![cond("http-method", "", "equals", &["GET"])],
+            vec![fwd("/Common/pool1")],
+        );
+        let r2 = rule(
+            "r2",
+            1,
+            vec![cond("http-uri", "path", "starts-with", &["/api"])],
+            vec![fwd("/Common/pool2")],
+        );
+        let d = evaluate_policy(&policy("first-match", vec![r1, r2]), &state);
+        assert_eq!(d.strategy, "first-match");
+        assert!(d.rules[0].matched && d.rules[0].fired);
+        // r2 matches too, but first-match means only r1 fires.
+        assert!(d.rules[1].matched && !d.rules[1].fired);
+        assert_eq!(d.rules[0].actions[0].value, "/Common/pool1");
+        assert!(d.rules[1].actions.is_empty());
+    }
+
+    #[test]
+    fn all_match_fires_every_matching_rule() {
+        let state = RequestState {
+            method: "GET".into(),
+            path: "/api/x".into(),
+            ..Default::default()
+        };
+        let r1 = rule("r1", 0, vec![cond("http-method", "", "equals", &["GET"])], vec![]);
+        let r2 = rule(
+            "r2",
+            1,
+            vec![cond("http-uri", "path", "starts-with", &["/api"])],
+            vec![],
+        );
+        let d = evaluate_policy(&policy("all-match", vec![r1, r2]), &state);
+        assert_eq!(d.strategy, "all-match");
+        assert!(d.rules[0].fired && d.rules[1].fired);
+    }
+
+    #[test]
+    fn best_match_prefers_the_rule_with_more_conditions() {
+        let state = RequestState {
+            method: "GET".into(),
+            path: "/api/x".into(),
+            ..Default::default()
+        };
+        let ra = rule("a", 0, vec![cond("http-method", "", "equals", &["GET"])], vec![]);
+        let rb = rule(
+            "b",
+            1,
+            vec![
+                cond("http-method", "", "equals", &["GET"]),
+                cond("http-uri", "path", "starts-with", &["/api"]),
+            ],
+            vec![],
+        );
+        // An unknown strategy name also reports as best-match-approx.
+        let d = evaluate_policy(&policy("weighted", vec![ra, rb]), &state);
+        assert_eq!(d.strategy, "best-match-approx");
+        assert!(!d.rules[0].fired && d.rules[1].fired);
+    }
+
+    #[test]
+    fn unconditional_rule_always_matches() {
+        let r = rule("catchall", 0, vec![], vec![fwd("/Common/default")]);
+        let d = evaluate_policy(&policy("first-match", vec![r]), &RequestState::default());
+        assert!(d.rules[0].matched && d.rules[0].fired);
+    }
+
+    #[test]
+    fn negate_inverts_a_condition() {
+        let mut c = cond("http-method", "", "equals", &["POST"]);
+        c.negate = true;
+        let state = RequestState {
+            method: "GET".into(),
+            ..Default::default()
+        };
+        let d = evaluate_policy(&policy("first-match", vec![rule("r", 0, vec![c], vec![])]), &state);
+        // method is GET, "equals POST" is false, negated → matches.
+        assert!(d.rules[0].matched);
+    }
+
+    #[test]
+    fn exists_and_missing_test_header_presence() {
+        let mut exists = cond("http-header", "", "exists", &[]);
+        exists.name = "X-Foo".into();
+        let mut missing = cond("http-header", "", "missing", &[]);
+        missing.name = "X-Bar".into();
+        let state = RequestState {
+            headers: vec![("x-foo".into(), "1".into())],
+            ..Default::default()
+        };
+        let d = evaluate_policy(
+            &policy(
+                "all-match",
+                vec![
+                    rule("has", 0, vec![exists], vec![]),
+                    rule("lacks", 1, vec![missing], vec![]),
+                ],
+            ),
+            &state,
+        );
+        assert!(d.rules[0].matched, "X-Foo exists");
+        assert!(d.rules[1].matched, "X-Bar is missing");
+    }
+
+    #[test]
+    fn unsupported_operand_is_unevaluable_and_noted() {
+        let r = rule("r", 0, vec![cond("geoip", "", "equals", &["US"])], vec![]);
+        let d = evaluate_policy(&policy("first-match", vec![r]), &RequestState::default());
+        assert!(!d.rules[0].matched);
+        assert!(d.rules[0].conditions[0].note.contains("not supported in v1"));
+    }
+
+    #[test]
+    fn action_summary_value_picks_the_salient_field_per_target() {
+        let act = |f: &dyn Fn(&mut BigipPolicyAction)| {
+            let mut a = BigipPolicyAction {
+                index: 0,
+                target: String::new(),
+                verb: String::new(),
+                pool: String::new(),
+                location: String::new(),
+                name: String::new(),
+                value: String::new(),
+                path: String::new(),
+                query: String::new(),
+                host: String::new(),
+                event: String::new(),
+            };
+            f(&mut a);
+            a
+        };
+        let fwd = act(&|a| {
+            a.target = "forward".into();
+            a.pool = "/Common/p".into();
+        });
+        assert_eq!(action_summary_value(&fwd), "/Common/p");
+        let reply = act(&|a| {
+            a.target = "http-reply".into();
+            a.location = "https://x".into();
+        });
+        assert_eq!(action_summary_value(&reply), "https://x");
+        let rewrite = act(&|a| {
+            a.target = "http-uri".into();
+            a.verb = "replace".into();
+            a.path = "/new".into();
+        });
+        assert_eq!(action_summary_value(&rewrite), "path=/new");
+        let insert = act(&|a| {
+            a.target = "http-header".into();
+            a.verb = "insert".into();
+            a.name = "X".into();
+            a.value = "1".into();
+        });
+        assert_eq!(action_summary_value(&insert), "X=1");
+        let reset = act(&|a| {
+            a.target = "tcp".into();
+            a.verb = "reset".into();
+        });
+        assert_eq!(action_summary_value(&reset), "RST");
+    }
+
+    #[test]
+    fn action_trace_is_returned_on_fired_rules() {
+        let d = evaluate_policy(
+            &policy(
+                "first-match",
+                vec![rule("r", 0, vec![], vec![fwd("/Common/pool")])],
+            ),
+            &RequestState::default(),
+        );
+        let ActionTrace { target, value, .. } = &d.rules[0].actions[0];
+        assert_eq!((target.as_str(), value.as_str()), ("forward", "/Common/pool"));
+    }
+
+    #[test]
+    fn uri_splitting_matches_urlsplit_with_fallbacks() {
+        assert_eq!(
+            urlsplit("http://h/a/b?x=1"),
+            ("/a/b".to_string(), "x=1".to_string())
+        );
+        assert_eq!(urlsplit("/p#frag"), ("/p".to_string(), String::new()));
+        assert_eq!(split_path("/p?q=1"), "/p");
+        assert_eq!(split_query("/p?q=1"), "q=1");
+        assert_eq!(split_path(""), "");
+        assert_eq!(split_query("/nopath"), "");
+    }
+}
