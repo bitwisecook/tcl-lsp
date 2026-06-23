@@ -265,6 +265,20 @@ fn list_hooks_collapse_nonbraced_backslashes() {
     assert_eq!(result, "1 {unmatched open brace in list}");
 }
 
+/// `while` / `for` with the wrong argument count raise `wrong # args` rather
+/// than lowering a truncated loop and running an argument as a command.
+/// Regression for while-old-4.3 / for-old-1.7.
+#[test]
+fn while_for_reject_wrong_arg_count() {
+    let (ok, result, _) = run("catch {while 1 2 3} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "wrong # args: should be \"while test command\"");
+
+    let (ok, result, _) = run("catch {for 1 2 3 4 5} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "wrong # args: should be \"for start test next command\"");
+}
+
 /// An inline-compiled command substitution interpolates a leading-`$` word that
 /// is more than a bare variable (`$i.x`, `$a$b`): the word is decomposed into
 /// its `$var`/literal parts, not pushed raw. Regression for for-2.5 — `set m

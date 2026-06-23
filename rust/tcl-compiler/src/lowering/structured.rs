@@ -248,7 +248,10 @@ impl Lowerer<'_> {
         let arg_tokens = seg.arg_tokens();
         let arg_single = seg.arg_single_token();
 
-        if args.len() < 4 || arg_tokens.len() < 4 {
+        // `for` takes exactly four arguments; a wrong count barriers to the
+        // runtime builtin, which raises `wrong # args` (for-old-1.7). Lowering a
+        // ≥4 form would silently drop the extras and run arg[0] as the body.
+        if args.len() != 4 || arg_tokens.len() < 4 {
             return Self::barrier(seg, "malformed for");
         }
         if !(arg_single[0] && arg_single[1] && arg_single[2] && arg_single[3]) {
@@ -282,7 +285,9 @@ impl Lowerer<'_> {
         let arg_tokens = seg.arg_tokens();
         let arg_single = seg.arg_single_token();
 
-        if args.len() < 2 || arg_tokens.len() < 2 {
+        // `while` takes exactly two arguments; a wrong count barriers to the
+        // runtime builtin, which raises `wrong # args` (while-old-4.3).
+        if args.len() != 2 || arg_tokens.len() < 2 {
             return Self::barrier(seg, "malformed while");
         }
         if !(arg_single[0] && arg_single[1]) {
