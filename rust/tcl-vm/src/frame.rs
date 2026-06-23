@@ -33,20 +33,13 @@ pub(crate) struct CallFrame {
     /// Local variables by name.
     pub locals: HashMap<String, Local>,
     /// The namespace this frame executes in (global-only for M2).
-    #[allow(dead_code)]
     pub ns: NsId,
     /// Absolute frame level (0 = global).
-    #[allow(dead_code)]
     pub level: usize,
     /// The proc this frame belongs to (for `errorInfo`/`info level`); `None` at
-    /// top level. Retained now so the `info` family (M3) needs no rework.
-    #[allow(dead_code)]
+    /// top level.
     pub proc_name: Option<String>,
-    /// The invocation argv (proc name + args) — retained for `info level N`.
-    /// Kept now so the `info` family (M3) needs no frame-model rework; this is
-    /// exactly the metadata whose absence made `info.test` painful in the WASM
-    /// work.
-    #[allow(dead_code)]
+    /// The invocation argv (proc name + args) — used by `info level N`.
     pub call_argv: Vec<Value>,
     /// For a `namespace eval`/`inscope` body frame, the canonical namespace it
     /// runs in (no leading `::`; `""` = global). `None` for proc activations and

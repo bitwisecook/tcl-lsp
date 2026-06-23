@@ -23,12 +23,12 @@
 //! `oo.rs` + `recovery.rs` (**C41e**), and the public entry +
 //! `PyO3` binding (**C41f**).
 //!
-//! The `PyO3` binding for ``analyser_analyse(source, dialect)``
-//! lives in the ``tcl-lsp-rust`` crate; the dispatch shim in
-//! ``core.analysis._analyser.__init__`` will route to the Rust
-//! binding via ``TCL_LSP_RUST_ANALYSER=1`` (default-off at first;
-//! flip to default-on once the differential corpus has baked, same
-//! as ``C40-default-on``).
+//! This pure analyser is consumed directly by the native
+//! `tcl-lsp-server` (ungated — it is the default and only path) and
+//! exposed to Python wheel consumers through the `tcl-lsp-py` `PyO3`
+//! surface (`tcl-lsp-rust` is now a transitional re-export alias).
+//! The earlier `TCL_LSP_RUST_ANALYSER` Python-dispatch routing has
+//! been retired.
 
 pub mod bounds_checks;
 pub mod class_hierarchy;

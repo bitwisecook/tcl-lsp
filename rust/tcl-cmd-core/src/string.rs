@@ -5,10 +5,12 @@
 //! in [`tcl_syntax::value`]), so a byte-oriented runtime conforms via its
 //! `ValueOps` impl and these bodies stay correct everywhere.
 //!
-//! This is the Phase-1 proving subset (`length`/`index`/`range`/`reverse`/
-//! `repeat`/`toupper`/`tolower`); the remaining subcommands fill in during
-//! rollout. [`dispatch`] returns `None` for a not-yet-ported subcommand so a
-//! runtime can fall back to its legacy implementation during migration.
+//! [`dispatch`] covers the portable subcommands shared across both
+//! runtimes (`length`/`index`/`range`/`map`/`match`/`replace`/`insert`/
+//! `first`/`last`/`trim*`/`wordstart`/`wordend`/`to{upper,lower,title}`/
+//! `reverse`/`repeat`/`cat`). It returns `None` for any subcommand a given
+//! runtime still implements itself, so a host can fall back to its own
+//! body for the few not routed here.
 
 use tcl_syntax::value::ValueOps;
 
