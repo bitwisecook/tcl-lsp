@@ -222,9 +222,8 @@ fn render(interp: &mut Interp, conv: u8, spec: &Spec, arg: &[u8]) -> Result<Vec<
         }
         b'e' | b'E' | b'f' | b'g' | b'G' => {
             let v = parse_f64(arg).ok_or_else(|| {
-                let mut m = b"expected floating-point number but got \"".to_vec();
-                m.extend_from_slice(arg);
-                m.push(b'"');
+                let mut m = b"expected floating-point number but got ".to_vec();
+                m.extend_from_slice(bad_value_desc(arg).as_bytes());
                 interp.set_error(&m)
             })?;
             Ok(float_field(spec, conv, v))
@@ -239,10 +238,17 @@ fn render(interp: &mut Interp, conv: u8, spec: &Spec, arg: &[u8]) -> Result<Vec<
 }
 
 fn bad_int(interp: &mut Interp, arg: &[u8]) -> Code {
-    let mut m = b"expected integer but got \"".to_vec();
-    m.extend_from_slice(arg);
-    m.push(b'"');
+    let mut m = b"expected integer but got ".to_vec();
+    m.extend_from_slice(bad_value_desc(arg).as_bytes());
     interp.set_error(&m)
+}
+
+/// The `got <here>` tail of a numeric-coercion error: a multi-token, well-formed
+/// list reads as `a list`, any other value is quoted (truncated to 50 bytes) —
+/// matching C (`tclStrToD.c` formaterr). Shared with the VM via
+/// [`tcl_syntax::list::describe_bad_value`].
+fn bad_value_desc(arg: &[u8]) -> String {
+    tcl_syntax::list::describe_bad_value(&String::from_utf8_lossy(arg))
 }
 
 /// Assemble an integer field: sign/prefix + precision-padded digits, then
@@ -461,29 +467,19 @@ fn read_uint(f: &[u8], i: &mut usize) -> (usize, bool) {
     (n, got)
 }
 
-/// Parse a Tcl integer (optional sign, `0x`/`0o`/`0b` radix prefixes, else
-/// decimal), tolerating surrounding whitespace.
+/// Parse a Tcl integer via the shared canonical parser (`tcl_syntax::number`),
+/// tolerating surrounding whitespace. Going through `parse_whole` rather than
+/// rolling our own keeps this faithful to `tclsh`: a doubled sign (`++1`,
+/// `--1`) is rejected, unlike a naive strip-one-sign + `i64::from_str_radix`
+/// (which would silently re-accept the inner sign). An out-of-`i64`-range
+/// magnitude (a `Big`) yields `None` here — the bignum widening of `%d` is a
+/// separate follow-up.
 fn parse_i64(b: &[u8]) -> Option<i64> {
-    let s = core::str::from_utf8(b).ok()?.trim();
-    if s.is_empty() {
-        return None;
+    let s = core::str::from_utf8(b).ok()?;
+    match tcl_syntax::number::parse_whole(s.trim()) {
+        Some(tcl_syntax::number::Number::Int(n)) => Some(n),
+        _ => None,
     }
-    let (neg, rest) = match s.strip_prefix('-') {
-        Some(r) => (true, r),
-        None => (false, s.strip_prefix('+').unwrap_or(s)),
-    };
-    let (radix, digits) =
-        if let Some(h) = rest.strip_prefix("0x").or_else(|| rest.strip_prefix("0X")) {
-            (16, h)
-        } else if let Some(o) = rest.strip_prefix("0o").or_else(|| rest.strip_prefix("0O")) {
-            (8, o)
-        } else if let Some(bb) = rest.strip_prefix("0b").or_else(|| rest.strip_prefix("0B")) {
-            (2, bb)
-        } else {
-            (10, rest)
-        };
-    let val = i64::from_str_radix(digits, radix).ok()?;
-    Some(if neg { -val } else { val })
 }
 
 fn parse_f64(b: &[u8]) -> Option<f64> {
