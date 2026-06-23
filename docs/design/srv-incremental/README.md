@@ -390,71 +390,69 @@ exist yet — the verification-status table follows the list.
      385 → 158 ms, `run_all_checks` 405 → 179 ms, warm per-edit 411 → 237 ms (~1.7×) —
      output verified identical to the round-robin over the whole tcllib corpus (the
      guard never fires; 2878 `tcl-compiler` + 59 taint tests green).
-     *Remaining 2b — incremental across edits (seams landed; one design constraint
-     resolved empirically, memo is the open XL piece):*
-     the worklist still re-infers all procs on pass 1 of every solve (~120 ms floor);
-     making *that* incremental needs the per-proc summaries memoised across edits via a
-     `proc_summary_cascade(db, FnLatticeKey, SummaryDepsKey)` salsa query (the
-     `taint_cascade` pattern applied to `infer_proc_summary` — keyed on the offset-0
-     body + the callees' summaries), driven by a checks-path-only `proc_taint_solve`
-     query that feeds the result into `run_all_checks_with_solved` (landed). The two
-     injection seams are in place: `converge_summaries` (extracted) and
-     `run_all_checks_with_solved` (the solve is hoisted out).
-     **Resolved by experiment — the keys cannot be shared, they must be re-derived:**
-     the first plan was to thread the per-proc `FnLatticeKey`s out of the shared
-     `compilation_unit` (interned during its build, then discarded) as
-     `BuiltUnit { cu, lattice_keys }`, to avoid a second lowering. That is **not
-     possible**: a salsa `#[tracked]` query's return must be `'static`, and
-     `FnLatticeKey<'db>` is `'db`-interned — threading it through `compilation_unit`'s
-     return fails to compile (`lifetime may not live long enough`; also
-     `CompilationUnit: Eq` is unsatisfied — it is `PartialEq` only). Confirmed against
-     salsa 0.27 by a reverted spike. The finished `Arc<CompilationUnit>` carries only
-     the *rebased* `FunctionUnit`s, not the offset-0 bodies `FnLatticeKey` is built
-     from, so the keys cannot be recovered from it either. **Therefore the viable path
-     is the dup-build:** `proc_taint_solve(db, file, cfg)` runs its own
-     `build_for_memoized` to re-derive the offset-0 keys *locally* (never threaded),
-     runs `converge_summaries` via the `proc_summary_cascade` memo, and returns a
-     `'static` `InterprocTaintResult`. Two properties make the duplicate build cheap
-     and safe:
-       - **The duplicate lowering is mostly cache hits, not a re-lower.**
-         `build_for_memoized`'s per-proc lattice demands route through the *same*
-         `function_lattice` memo the shared build already populated (offset-0 keys), so
-         the second build pays only the whole-file structural reassembly
-         (lex + segment + IR-module skeleton), not the ~57 ms full lowering.
-         **Measured** (`tail_profile`, `linalg.tcl`, warm db, 2b-gate tier): the second
-         `memoised_compilation_unit` is **~29 ms** — the lattice/cascade cache absorbs
-         roughly half the cold cost. Against the ~120 ms summary-floor this memo
-         removes, the gate is **GREEN**: a clear net win on the checks path.
+     *2b — incremental across edits — **SHIPPED**.* The worklist alone still re-inferred
+     all procs on pass 1 of every solve (~120 ms floor). That is now memoised: a
+     checks-path-only `proc_taint_solve(db, file, cfg)` query drives
+     `converge_summaries_with` through `proc_summary_cascade(db, FnLatticeKey,
+     SummaryDepsKey)` — the `taint_cascade` pattern applied to `infer_proc_summary`,
+     keyed on the proc's offset-0 body + its callees' summaries — and feeds the result
+     into `run_all_checks_with_solved`. An unchanged proc's summary inference is a cache
+     hit, so a body edit re-infers only the edited proc + its caller cascade.
+     **Measured** (`tail_profile`, `linalg.tcl`, warm db): `compiler_check_diagnostics`
+     **230 → 107 ms (~2.1×)**, warm per-edit (both queries) **245 → 154 ms (~1.6×)**;
+     the analyser walk is untouched (78 ms, no time-to-first-tokens risk). Combined with
+     the worklist, the checks path is **107 ms vs the original 445 ms (~4.2×)**.
+     **Design decision — the worklist drives the fixpoint, not salsa cycles.** Rather
+     than make `proc_summary_cascade` a salsa fixpoint query (which would be the
+     codebase's first `cycle_fn`/`cycle_initial` use and carry convergence-proof risk),
+     the existing `converge_summaries` worklist keeps driving the iteration and mutual
+     recursion; salsa only memoises the *per-proc* `infer_proc_summary`. The debug
+     fixpoint guard re-runs the **real** `infer_proc_summary` against the final
+     summaries, so it validates the memo's correctness as well as worklist convergence.
+     **Resolved by experiment — the keys cannot be shared, they must be re-derived.**
+     The first plan was to thread the per-proc `FnLatticeKey`s out of the shared
+     `compilation_unit` as `BuiltUnit { cu, lattice_keys }`, to avoid a second lowering.
+     That is **not possible**: a salsa `#[tracked]` return must be `'static`, and
+     `FnLatticeKey<'db>` is `'db`-interned — threading it fails to compile (`lifetime
+     may not live long enough`; also `CompilationUnit: Eq` is unsatisfied — `PartialEq`
+     only). Confirmed against salsa 0.27 by a reverted spike. The finished
+     `Arc<CompilationUnit>` carries only the *rebased* `FunctionUnit`s, not the offset-0
+     bodies the keys are built from. **So `proc_taint_solve` re-derives them with its
+     own `build_unit_with_keys`** (keys local, never threaded), returning a `'static`
+     `InterprocTaintResult`. Two properties keep that duplicate build cheap and safe:
+       - **Mostly cache hits, not a re-lower.** Its per-proc lattice/cascade demands
+         route through the *same* `function_lattice` / `taint_cascade` memos the shared
+         build populated, so it pays only the whole-file structural reassembly:
+         **measured ~28 ms warm** vs ~57 ms cold — well under the ~120 ms floor removed.
        - **Off the time-to-first-tokens path.** `proc_taint_solve` is demanded only by
          `compiler_check_diagnostics` (debounced diagnostics), never by `semantic_tokens`
-         / the analyser walk, so the duplicate build cannot regress first-token latency
-         and the solve stays checks-path-only (the analyser never pays it).
-     Mutual recursion is handled by salsa 0.27's fixpoint cycle recovery
-     (`cycle_fn`/`cycle_initial`). A body edit then re-infers only the edited proc + its
-     caller cascade. The debug fixpoint guard + corpus differential + the
-     check-diagnostics differential fuzzer (below) make it safe to build (a wrong key is
-     caught before push). XL, indivisible — a focused pass.
-     **Cost/benefit (measured, gated like the rope):** the prize was the worklist (411 →
-     237 ms, landed). This memo targets the residual ~120 ms pass-1 floor on the
-     *non-paramount* checks-diagnostics path, against the cost of a second build
-     (**measured ~29 ms warm**) + a per-proc summary memo + a dependency key. The
-     duplicate-build delta is well under the floor it removes, so the "measure-then-decide"
-     gate (the same one the rope is held to) is **passed** and 2b proceeds. **Design note
-     — the fixpoint stays in the worklist, not salsa:** rather than a salsa cycle-recovery
-     query (which would be the codebase's first, and carries convergence-proof risk), the
-     existing `converge_summaries` worklist keeps driving the iteration and mutual
-     recursion; salsa only memoises the *per-proc* `infer_proc_summary` via
-     `proc_summary_cascade(db, FnLatticeKey, SummaryDepsKey)`, where `SummaryDepsKey`
-     encodes the proc's offset-0 body's *direct-callee summary projections* + resolution
-     domain (the `taint_cascade`/`TaintSummaryKey` pattern). Across edits the convergence
-     trajectory of an unchanged proc with unchanged callees re-keys identically → cache
-     hit; only the edited proc's caller-cascade re-infers. The debug fixpoint guard
-     (re-runs the *real* `infer_proc_summary` and asserts equality) + the corpus
-     differential catch a wrong key before push.
-   *Verification gate (still to build):* a random-edit differential fuzzer comparing
-   memoised `compiler_check_diagnostics` against a fresh whole-unit `run_all_checks` on
-   the salsa path. The worklist above is meanwhile gated by the corpus differential +
-   the debug fixpoint guard.
+         / the analyser walk — the duplicate build cannot regress first-token latency.
+     **Soundness subtlety found + fixed (the graphops case).** `infer_proc_summary`
+     passes `Some(summaries)` to `propagate_taints` (the colour-aware return-summary
+     transfer) — which `taint_cascade`'s path does **not** — so the reconstructed
+     `summaries` map must have an entry for *every* proc, not just the reachable set:
+     a resolved callee that is *absent* (rather than present-and-clean) makes
+     `propagate_taints` fall through to its conservative bare-argument join and
+     **over-taint** (`taint.rs`'s `summaries.get(&target)?`). `::struct::graph::op::distance`
+     in `graphops.tcl` tripped the debug guard on exactly this; the fix seeds the whole
+     resolution domain clean before overlaying the reachable real summaries.
+     **Verified:** the `compiler_check` corpus differential (debug, guard live) is
+     **byte-identical to the uncached solve over the whole tcllib + Tcl 8.4/8.5/8.6/9.0
+     corpus** (~1500 files, 510 s, guard never fires); plus `taint_cascade_matches_uncached_under_edits`
+     (cross-edit correctness through the new path), `proc_summary_cascade_reused_on_unrelated_edit`
+     (breadth: cold 3 → unrelated edit 1), and a focused `graphops` regression.
+     **Cost/benefit (measured, gated like the rope):** the duplicate-build delta
+     (~28 ms) is well under the ~120 ms pass-1 floor it removes, so the
+     "measure-then-decide" gate (the one the rope is held to) **passed** before this
+     shipped — not an assumption. The win is on the *non-paramount* checks-diagnostics
+     path; the analyser walk / first-token latency is untouched.
+   *Verification gate — partially built:* the cold `compiler_check` corpus differential
+   (memo vs uncached, debug guard live) now exists and passes over the whole corpus. A
+   **random-edit** differential fuzzer (memoised `compiler_check_diagnostics` vs a fresh
+   whole-unit `run_all_checks` under fuzzed edit sequences) is still to build — the
+   cross-edit correctness is meanwhile pinned by `taint_cascade_matches_uncached_under_edits`
+   (a hand-written callee-flip edit sequence) + the corpus differential + the debug
+   fixpoint guard.
 
 3. **Approach A — incremental per-item IR lowering / CFG** *(L).* Per
    [`../rust/incremental-analysis.md`](../rust/incremental-analysis.md): lower per
@@ -531,9 +529,10 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | Worklist win holds on the merged tree (FE-OPT inliner): `run_all_checks` 405→177 ms, per-edit →231 ms | **measured** | re-profile post-merge + 59 taint tests (guard active) |
 | Salsa cycle recovery available for 2b/Task 6 (mutual recursion / `source` cycles) | **verified** (dep) | `salsa/src/cycle.rs` + `benches/dataflow.rs` (`cycle_fn`/`cycle_initial`); on salsa 0.27 |
 | 2b per-proc keys cannot be shared from `compilation_unit` (salsa return must be `'static`; cu carries only rebased `FunctionUnit`s) → dup-build required | **verified** (experiment) | reverted `BuiltUnit` threading spike — `lifetime may not live long enough` + `CompilationUnit: Eq` unsatisfied on salsa 0.27 |
+| **2b memo shipped:** `proc_summary_cascade`+`proc_taint_solve` — `compiler_check_diagnostics` 230→107 ms (~2.1×), per-edit 245→154 ms (~1.6×); dup-build ~28 ms warm | **measured + verified** | `tail_profile` + full-corpus `compiler_check` differential (510 s, guard live, byte-identical) + cross-edit/breadth/graphops tests |
 | Signature-firewall + `reparse_window` substrate built but unwired | **measured** (code) | grep: no production callers |
 | Task 2 "cuts ~405 ms to one-proc cost" (the easy framing) | **refuted** | decomposition: ~16 ms easy (2a) + ~385 ms hard whole-unit taint solve (2b) |
-| Task 2 memo is sound | **hypothesis** | check-diagnostics differential fuzzer on the salsa path — *does not exist* |
+| Task 2 (2b) memo is sound | **measured + verified** (cold) | full-corpus `compiler_check` differential (memo vs uncached, debug guard live) passes; cross-edit pinned by `taint_cascade_matches_uncached_under_edits`. *Random-edit* fuzzer still to build |
 | Task 6 cross-file cascade is correct, cycle-safe, bounded | **hypothesis** | two-file spike (cycles + scaling) + multi-file differential fuzzer — *neither exists* |
 
 Differential-fuzzer coverage **today**:
@@ -542,7 +541,7 @@ Differential-fuzzer coverage **today**:
 |---|---|
 | Analyser-walk diagnostics, test-only `analyse_incremental` path | ✅ `differential_incremental.rs` |
 | Live salsa `file_analysis_incremental` | ⚠️ corpus equality only (no random-edit fuzz) |
-| `compiler_check_diagnostics` (the checks) | ❌ none — **Task 2 must build it** |
+| `compiler_check_diagnostics` (the checks) | ⚠️ cold corpus differential (memo vs uncached) ✅ + debug fixpoint guard; random-edit fuzz still to build |
 | Cross-file / multi-file | ❌ none — **Task 6 must build it** |
 
 ## Experiment (evidence)
