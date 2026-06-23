@@ -1068,5 +1068,11 @@ The tcltest oracle stays in place.
   `char_find` (`string first`/`last` returning **character** indices, verified
   against a multi-byte `é` haystack). Added `rust/tcl-vm/src/exec.rs::tests`
   (4 cases).
+- **Ported (gap-fill, follow-up).** Extended the same module with the inline
+  `dict set` / `dict unset` nested-path helpers `dict_set_path` /
+  `dict_unset_path` (2 cases): single-level create/update with
+  position-preserving updates and end-append, multi-key auto-vivification of
+  intermediate dicts, present/absent-key removal (absent ⇒ no-op), and nested
+  removal rewriting only the inner dict.
 
 The tcltest oracle stays in place.
