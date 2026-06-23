@@ -3,11 +3,11 @@
 //!
 //! Two layers:
 //!
-//! - The engine: delta-debugging (`_ddmin`)
+//! - The engine: delta-debugging
 //!   over source lines, gated by "the target diagnostic still fires", followed
-//!   by a verify-gated identifier-rename pass (`_collect_rename_edits` over the
-//!   tokeniser + segmenter, `_apply_edits`, `_dedent`). `minimize_diagnostic`
-//!   raises `ValueError` when the code does not fire on the input; here that is
+//!   by a verify-gated identifier-rename pass (collect rename edits over the
+//!   tokeniser + segmenter, apply them, then dedent). When the code does not
+//!   fire on the input the reduction fails with
 //!   `Err(MinimizeError::NotPresent)`.
 //! - The verb: iterate the input documents,
 //!   skip those where the code does not fire, and print the per-document result
@@ -29,8 +29,7 @@ use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
 use crate::cli::InputArgs;
 
 /// Variable-target commands: arguments at these positions name a variable (not
-/// a value), so a rename must rewrite them alongside `$` references. Mirrors
-/// `_VAR_TARGET_CMDS`.
+/// a value), so a rename must rewrite them alongside `$` references.
 fn var_target_positions(cmd: &str) -> Option<&'static [usize]> {
     match cmd {
         "set" | "variable" | "incr" | "append" | "lappend" => Some(&[0]),
@@ -41,7 +40,7 @@ fn var_target_positions(cmd: &str) -> Option<&'static [usize]> {
 }
 
 /// Tcl specials / globals whose names are semantically load-bearing — never
-/// renamed. Mirrors `_RESERVED_NAMES`.
+/// renamed.
 const RESERVED_NAMES: [&str; 13] = [
     "argv",
     "argv0",
@@ -120,7 +119,7 @@ where
 }
 
 /// Assign the next short name (`a`, `b`, …, `z`, `a1`, `b1`, …) for `name`,
-/// or `None` for names that must never be renamed. Mirrors `_short_for`.
+/// or `None` for names that must never be renamed.
 fn short_for(name: &str, names_seen: &mut HashMap<String, String>) -> Option<String> {
     if RESERVED_NAMES.contains(&name)
         || name.contains("::")
@@ -146,7 +145,7 @@ fn short_for(name: &str, names_seen: &mut HashMap<String, String>) -> Option<Str
 
 /// Return `(start, end, new_text)` byte-offset edits renaming user variables.
 /// Covers `$`/`${}` references (VAR tokens, base name only) and variable-target
-/// command arguments. Mirrors `_collect_rename_edits`.
+/// command arguments.
 fn collect_rename_edits(
     source: &str,
     names_seen: &mut HashMap<String, String>,
@@ -206,8 +205,7 @@ fn collect_rename_edits(
     edits
 }
 
-/// Apply non-overlapping `(start, end, text)` edits right-to-left. Mirrors
-/// `_apply_edits`.
+/// Apply non-overlapping `(start, end, text)` edits right-to-left.
 fn apply_edits(source: &str, edits: &[(usize, usize, String)]) -> String {
     let mut seen: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
     let mut uniq: Vec<(usize, usize, String)> = Vec::new();
@@ -224,7 +222,7 @@ fn apply_edits(source: &str, edits: &[(usize, usize, String)]) -> String {
     out
 }
 
-/// Strip common leading whitespace from non-blank lines. Mirrors `_dedent`.
+/// Strip common leading whitespace from non-blank lines.
 fn dedent(source: &str) -> String {
     let lines: Vec<&str> = source.split('\n').collect();
     let common = lines
@@ -252,7 +250,7 @@ fn dedent(source: &str) -> String {
 }
 
 /// Reduce `source` to the minimum code still firing diagnostic `code` under
-/// `dialect`. Mirrors `minimize_diagnostic`.
+/// `dialect`.
 pub fn minimize_diagnostic(
     source: &str,
     code: &str,

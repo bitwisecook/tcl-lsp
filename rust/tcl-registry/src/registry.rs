@@ -1129,7 +1129,7 @@ mod tests {
         assert_eq!(
             reg.get("const").expect("registered").dialects,
             None,
-            "const should be universal (Python marks it dialects=None)",
+            "const should be universal (it is dialect-agnostic)",
         );
     }
 

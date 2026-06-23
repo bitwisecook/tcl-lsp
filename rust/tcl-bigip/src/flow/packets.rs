@@ -675,7 +675,7 @@ fn splitn_space(hay: &[u8], n: usize) -> Vec<&[u8]> {
     parts
 }
 
-/// `bytes.decode("ascii", errors="replace")` — non-ASCII bytes become U+FFFD.
+/// Decode as ASCII, non-ASCII bytes become U+FFFD.
 fn decode_ascii_replace(bytes: &[u8]) -> String {
     bytes
         .iter()
@@ -683,7 +683,7 @@ fn decode_ascii_replace(bytes: &[u8]) -> String {
         .collect()
 }
 
-/// `bytes.decode("utf-8", errors="replace")`.
+/// Decode as UTF-8 with lossy replacement.
 fn decode_utf8_replace(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }

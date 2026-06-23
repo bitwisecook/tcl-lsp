@@ -52,7 +52,7 @@ fn assert_grep_matches(args: &[&str], golden: &str) {
     assert_eq!(
         normalise_fixture_uri(&String::from_utf8_lossy(&output.stdout)),
         normalise_fixture_uri(&String::from_utf8_lossy(&expected)),
-        "f5 grep output does not match the Python CLI ({golden})"
+        "f5 grep output does not match the golden ({golden})"
     );
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "tcl-bigip-query"
-description = "Faithful Rust port of the F5 BIG-IP query DSL (dialects/f5/query): the jq-flavoured language powering `f5 query`. Front-end (lexer + parser + AST) landed; evaluator / projection / builtins follow."
+description = "The F5 BIG-IP query DSL: the jq-flavoured language powering `f5 query` (lexer, parser, evaluator, projection, builtins)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -17,9 +17,9 @@ ipnet = "2"
 libm = "0.2"
 regex = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
-# Network-probe layer (port of dialects/f5/query/_probes.py), gated behind
+# Network-probe layer, gated behind
 # --enable-probes. x509-parser + sha2 back the deterministic, byte-parity
-# `x509_parse`; ureq / rustls / dns-lookup back the faithful-only live probes.
+# `x509_parse`; ureq / rustls / dns-lookup back the live probes.
 x509-parser = "0.18"
 sha2 = "0.10"
 dns-lookup = "3"

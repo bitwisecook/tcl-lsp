@@ -79,8 +79,7 @@ fn token_kind(
     }
 }
 
-/// Collect the spans of command heads and resolved subcommands (mirrors
-/// `_collect_command_spans` + `_resolve_subcommands`).
+/// Collect the spans of command heads and resolved subcommands.
 fn collect_command_spans(source: &str, dialect: &str) -> (HashSet<SpanKey>, HashSet<SpanKey>) {
     let registry = registry_for_dialect(dialect);
     let mut command_spans = HashSet::new();
@@ -114,7 +113,7 @@ fn is_body_token(text: &str) -> bool {
 }
 
 /// ANSI-highlight `source` for the given dialect. Caller decides whether colour
-/// is wanted (mirrors `_highlight_source_ansi` with `use_colour=True`).
+/// is wanted (ANSI colour variant).
 #[must_use]
 pub fn highlight_ansi(source: &str, dialect: &str) -> String {
     highlight_ansi_inner(source, dialect, 0)

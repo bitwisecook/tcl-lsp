@@ -10,7 +10,7 @@ authors.workspace = true
 
 [lib]
 # cdylib → Python loads the wheel as a native extension module.
-# rlib   → the transitional `tcl-lsp-rust` crate links against this
+# rlib   → the `tcl-lsp-rust` alias crate links against this
 #          to re-expose the same symbols under the legacy module name.
 crate-type = ["cdylib", "rlib"]
 

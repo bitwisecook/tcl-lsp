@@ -21,8 +21,8 @@ const SKIP_DIRECTORY_NAMES: &[&str] = &[
     "dist",
 ];
 
-/// Errors raised while resolving CLI input (the Rust analogue of
-/// `TclCliError`). Rendered as `error: {msg}` by the binary, exit code 2.
+/// Errors raised while resolving CLI input. Rendered as `error: {msg}`
+/// by the binary, exit code 2.
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
     /// A user-facing input/usage problem, message matched to the captured text.
@@ -66,8 +66,7 @@ fn is_supported_source_file(path: &Path) -> bool {
 }
 
 /// Discover supported source files under `directory`, sorted, honouring the
-/// skip-directory set and the leading-dot rule (mirrors
-/// `_iter_directory_sources`).
+/// skip-directory set and the leading-dot rule.
 fn iter_directory_sources(directory: &Path, recursive: bool) -> Result<Vec<PathBuf>, CliError> {
     let mut files = Vec::new();
     if recursive {
@@ -85,7 +84,7 @@ fn iter_directory_sources(directory: &Path, recursive: bool) -> Result<Vec<PathB
 }
 
 /// Recursive directory walk, visiting child directories in sorted order and
-/// files in sorted order (mirrors the `os.walk` + `sorted(...)` shape).
+/// files in sorted order.
 fn walk_recursive(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), CliError> {
     let entries = read_dir_sorted(dir)?;
     let mut subdirs: Vec<PathBuf> = Vec::new();
@@ -121,16 +120,15 @@ fn read_dir_sorted(dir: &Path) -> Result<Vec<PathBuf>, CliError> {
     Ok(entries)
 }
 
-/// Resolve to an absolute path, falling back to the input on failure (uses
-/// `Path.resolve()` semantics, which does not require existence here
-/// since the caller has already checked).
+/// Resolve to an absolute path, falling back to the input on failure. Does
+/// not require the path to exist, since the caller has already checked.
 fn canonical(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 /// Resolve CLI inputs into ordered [`InputDocument`]s.
 ///
-/// Mirrors `_read_input_documents`: inline `--source` snippets come first
+/// Resolves inputs in order: inline `--source` snippets come first
 /// (labelled `<inline:N>`), then files and directory-discovered files
 /// (deduplicated, UTF-8 with lossy replacement). If nothing resolves and stdin
 /// is not a TTY, stdin is read as `<stdin>`; otherwise an error is returned.
@@ -179,7 +177,7 @@ pub fn read_input_documents(
 
     if !package_names.is_empty() {
         return Err(CliError::input(format!(
-            "package resolution is not yet implemented in the Rust port: {}",
+            "package resolution is not yet implemented: {}",
             package_names.join(", ")
         )));
     }
@@ -200,7 +198,7 @@ pub fn read_input_documents(
         }
         let bytes = std::fs::read(&file_path)
             .map_err(|e| CliError::input(format!("failed to read {}: {e}", file_path.display())))?;
-        // Decode UTF-8 lossily (errors="replace").
+        // Decode UTF-8 lossily (lossy replacement).
         let source = String::from_utf8_lossy(&bytes).into_owned();
         documents.push(InputDocument {
             label: file_path.display().to_string(),
@@ -242,8 +240,7 @@ pub fn combine_sources(documents: &[InputDocument]) -> String {
         .join("\n\n")
 }
 
-/// Expand a leading `~` to the user's home directory (best-effort; mirrors
-/// `Path.expanduser`).
+/// Expand a leading `~` to the user's home directory (best-effort).
 fn expand_user(path: &Path) -> PathBuf {
     let Some(s) = path.to_str() else {
         return path.to_path_buf();

@@ -89,7 +89,7 @@ fn resolve_disabled(disable: &[String], enable: &[String]) -> HashSet<String> {
     set
 }
 
-/// Render one diagnostic text line (mirrors `_format_diagnostic_line` and the
+/// Render one diagnostic text line (the
 /// inline `diag` format): `label:line:col: severity<7> code<8> message`.
 fn format_line(
     file: &str,

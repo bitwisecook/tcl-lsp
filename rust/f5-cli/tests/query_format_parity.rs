@@ -44,7 +44,7 @@ fn assert_stdout(golden_name: &str, code: i32, args: &[&str]) {
     assert_eq!(
         out,
         golden(golden_name),
-        "stdout does not match the Python CLI ({golden_name})\nargs: {args:?}"
+        "stdout does not match the golden ({golden_name})\nargs: {args:?}"
     );
 }
 

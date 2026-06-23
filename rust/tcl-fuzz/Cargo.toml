@@ -4,7 +4,7 @@
 # expr, string/list/dict ops, control flow, procs, arrays — no I/O), runs each
 # script through both the native `tclvm` and a reference `tclsh`, and flags any
 # divergence in stdout / exit status as a finding. The campaign runner +
-# generator + findings registry are the Rust port of `tooling/fuzzing/`.
+# generator + findings registry drive the differential fuzzer.
 #
 # Both backends run as subprocesses with a wall-clock timeout, so a generated
 # script that hangs one engine is recorded as a finding rather than wedging the

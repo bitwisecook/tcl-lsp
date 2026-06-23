@@ -116,17 +116,17 @@ fn assert_redact(base: &str, extra: &[&str]) {
     assert_eq!(
         config,
         golden(&format!("redact-{base}.conf.golden")),
-        "{base}: redacted config does not match the Python CLI"
+        "{base}: redacted config does not match the golden"
     );
     assert_eq!(
         map,
         golden(&format!("redact-{base}.map.golden")),
-        "{base}: sidecar map file does not match the Python CLI"
+        "{base}: sidecar map file does not match the golden"
     );
     assert_eq!(
         stderr,
         golden(&format!("redact-{base}.err.golden")),
-        "{base}: summary line does not match the Python CLI"
+        "{base}: summary line does not match the golden"
     );
 }
 
@@ -176,7 +176,7 @@ fn keep_ips_redacts_secrets_only() {
     assert_eq!(
         config,
         golden("redact-keepips.conf.golden"),
-        "keep-ips: config does not match the Python CLI"
+        "keep-ips: config does not match the golden"
     );
     // No map file is derived (no --map-file, but -o derives one) — but with
     // --keep-ips a map file is never written. Assert it was not created.
@@ -189,7 +189,7 @@ fn keep_ips_redacts_secrets_only() {
     assert_eq!(
         stderr,
         golden("redact-keepips.err.golden"),
-        "keep-ips: summary line does not match the Python CLI"
+        "keep-ips: summary line does not match the golden"
     );
 }
 
@@ -307,12 +307,12 @@ fn redact_unredact_round_trip() {
     assert_eq!(
         back,
         golden("redact-roundtrip.conf.golden"),
-        "round-trip: unredacted config does not match the Python CLI"
+        "round-trip: unredacted config does not match the golden"
     );
     let uerr = String::from_utf8_lossy(&u.stderr).into_owned();
     assert_eq!(
         uerr,
         golden("redact-roundtrip.uerr.golden"),
-        "round-trip: unredact summary does not match the Python CLI"
+        "round-trip: unredact summary does not match the golden"
     );
 }

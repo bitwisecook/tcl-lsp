@@ -51,9 +51,9 @@ impl Aes {
 
 /// Standard CFB-128 decryption (`OpenPGP` SEIPD v1 uses an all-zero IV).
 ///
-/// Mirrors `_cfb_decrypt`: the keystream is `E(feedback)` and the feedback for
+/// AES-CFB decryption: the keystream is `E(feedback)` and the feedback for
 /// the next block is the *ciphertext* block just consumed. A short trailing
-/// block is `XORed` against the leading keystream bytes (`zip` stops at
+/// block is `XORed` against the leading keystream bytes (truncated to
 /// the shorter operand) and never re-used as feedback.
 pub(crate) fn cfb_decrypt(cipher: &Aes, iv: &[u8; BLOCK], data: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(data.len());

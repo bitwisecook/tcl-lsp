@@ -37,7 +37,7 @@ fn assert_diff_matches(args: &[&str], golden: &str) {
     assert_eq!(
         String::from_utf8_lossy(&actual),
         String::from_utf8_lossy(&expected),
-        "f5 diff output does not match the Python CLI ({golden})"
+        "f5 diff output does not match the golden ({golden})"
     );
 }
 
@@ -51,7 +51,7 @@ fn merge_matches_python() {
     assert_eq!(
         String::from_utf8_lossy(&actual),
         String::from_utf8_lossy(&expected),
-        "f5 merge output does not match the Python CLI"
+        "f5 merge output does not match the golden"
     );
 }
 
@@ -72,7 +72,7 @@ fn split_then_merge_matches_python() {
     assert_eq!(
         String::from_utf8_lossy(&actual),
         String::from_utf8_lossy(&expected),
-        "f5 split→merge round-trip does not match the Python CLI"
+        "f5 split→merge round-trip does not match the golden"
     );
 }
 
@@ -158,7 +158,7 @@ fn assert_extract_matches(args: &[&str], passphrase: Option<&str>, golden: &str)
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&expected),
-        "f5 extract output does not match the Python CLI ({golden})"
+        "f5 extract output does not match the golden ({golden})"
     );
 }
 

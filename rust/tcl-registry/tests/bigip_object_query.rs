@@ -71,14 +71,14 @@ fn object_query_matches_python() {
     // The structural header→kind mapping must be exactly in sync.
     assert!(
         header_mismatches.is_empty(),
-        "kind_for_header diverged from Python:\n{}",
+        "kind_for_header diverged from the reference:\n{}",
         header_mismatches.join("\n")
     );
 
     // candidate_kinds_* must match the golden on every probe.
     assert!(
         candidate_mismatches.is_empty(),
-        "candidate_kinds diverged from Python ({} rows):\n{}",
+        "candidate_kinds diverged from the reference ({} rows):\n{}",
         candidate_mismatches.len(),
         candidate_mismatches
             .iter()

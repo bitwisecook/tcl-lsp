@@ -2,9 +2,8 @@
 #
 # The TMM simulation itself is the body of Tcl under `tooling/irule_test/tcl/`
 # (orchestrator + TMM shim + command mocks) that runs an iRule inside a Tcl
-# interpreter — in the Rust port, on `tcl-vm`. This crate is the Rust-side glue
-# the Python `tooling/irule_test/` package provides: turning a parsed BIG-IP
-# config into orchestrator setup commands (topology), and driving the
+# interpreter — on `tcl-vm`. This crate is the glue that turns a parsed BIG-IP
+# config into orchestrator setup commands (topology), and drives the
 # orchestrator through a session API.
 #
 # Status: the topology generator is portable today (it consumes the Rust

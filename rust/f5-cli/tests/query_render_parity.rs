@@ -50,7 +50,7 @@ fn assert_stdout(golden: &str, ok_codes: &[i32], args: &[&str]) {
     let actual = String::from_utf8_lossy(&output.stdout);
     assert_eq!(
         actual, expected,
-        "render output does not match the Python CLI ({golden})\nargs: {args:?}"
+        "render output does not match the golden ({golden})\nargs: {args:?}"
     );
 }
 
@@ -62,7 +62,7 @@ fn assert_error(expected_stderr: &str, args: &[&str]) {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(
         stderr, expected_stderr,
-        "render error does not match the Python CLI\nargs: {args:?}"
+        "render error does not match the golden\nargs: {args:?}"
     );
 }
 

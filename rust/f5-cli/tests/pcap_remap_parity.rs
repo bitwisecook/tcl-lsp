@@ -84,7 +84,7 @@ fn libpcap_forward_byte_identical() {
     let golden = read_fixture("pcap-remap-sample.forward.pcap.golden");
     assert_eq!(
         got, golden,
-        "forward libpcap output must match Python golden"
+        "forward libpcap output must match golden"
     );
     assert_eq!(
         r.stderr,
@@ -129,7 +129,7 @@ fn pcapng_forward_byte_identical() {
     assert_eq!(
         std::fs::read(&output).unwrap(),
         read_fixture("pcap-remap-sample.pcapng.golden"),
-        "pcapng output must match Python golden"
+        "pcapng output must match golden"
     );
     assert_eq!(
         r.stderr,
@@ -274,7 +274,7 @@ fn list_schemas_with_overlay_byte_identical() {
     assert_eq!(
         r.stdout.into_bytes(),
         read_fixture("pcap-remap-list-schemas-overlay.golden"),
-        "list-schemas-with-overlay must match the Python golden"
+        "list-schemas-with-overlay must match the golden"
     );
 }
 

@@ -64,7 +64,7 @@ fn line_of(line_index: &LineIndex, offset: u32) -> u32 {
 /// Detect `when EVENT` iRules entries via the regex
 /// `\bwhen\s+([A-Z_][A-Z0-9_]*)`, deduplicated, in first-seen order.
 ///
-/// Mirrors `_detect_event_entries`: runs unconditionally (every dialect),
+/// Runs unconditionally (every dialect),
 /// each entry at depth 0 with its 1-based line.
 fn detect_event_entries(source: &str, line_index: &LineIndex) -> Vec<SymbolEntry> {
     fn is_word(b: u8) -> bool {
@@ -117,7 +117,7 @@ fn detect_event_entries(source: &str, line_index: &LineIndex) -> Vec<SymbolEntry
 
 /// Recursively collect proc/variable/namespace symbol entries from a scope.
 ///
-/// Mirrors `_collect_scope_symbol_entries`: procs first (source order), then
+/// Procs first (source order), then
 /// global/namespace-scope variables, then children — namespace children get
 /// an entry and recurse, proc children only recurse (to surface nested procs).
 fn collect_scope_entries(
@@ -240,7 +240,7 @@ fn line0(line_index: &LineIndex, offset: u32) -> u32 {
 }
 
 /// `{"line": L, "character": C}` for a span-start offset, 0-based and counted
-/// in UTF-16 code units (mirrors `_pos_dict` over the analyser `Range`).
+/// in UTF-16 code units, over the analyser `Range`.
 fn pos_value(line_index: &LineIndex, source: &str, offset: u32) -> Value {
     let pos = line_index.position_at_utf16(offset, source);
     json!({ "line": pos.line, "character": pos.character })
@@ -551,8 +551,7 @@ const TOP_LEVEL: &str = "<top-level>";
 /// Human-readable string for an [`EffectRegion`].
 /// Empty → `"NONE"`; otherwise the contained
 /// single-bit member names joined with `|` in definition order (which, for
-/// a single member, yields just that name — matching the `IntFlag`
-/// `.name`).
+/// a single member, yields just that name).
 fn effect_region_str(er: EffectRegion) -> String {
     const MEMBERS: &[(EffectRegion, &str)] = &[
         (EffectRegion::HTTP_STATE, "HTTP_STATE"),
@@ -880,7 +879,7 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
 
 /// Aggregate every taint warning kind for one function unit into the
 /// dataflow JSON shape. Runs five families in a
-/// fixed order: sink injection (`_find_taint_sinks`), setter-constraint,
+/// fixed order: sink injection, setter-constraint,
 /// uri-split, path-concat, then destructive-file — the same order
 /// and dialect gating as `compiler_checks::run_all_checks`. Every kind
 /// yields a `variable` + `sink_command` (the path-concat warning is a
@@ -969,22 +968,22 @@ fn collect_taint_warnings(
 }
 
 /// Tainted variable names in `fu` (deduplicated, sorted for a
-/// deterministic order). The per-unit taint lattice map (`analysis.taints`)
+/// deterministic order). The per-unit taint lattice map
 /// is iterated in SSA insertion order; the taint map is a `HashMap`, so the
 /// order is recovered by sorting.
 ///
 /// Version-0 entries are skipped: a `(name, 0)` slot is the enclosing-
 /// scope / pre-existing value, and the only way it becomes tainted is the
 /// conservative cross-procedure global-write seeding in `propagate_taints`
-/// (e.g. `::store` in `proc save {v} { set ::store $v }`). The per-unit
-/// `analysis.taints` does no such seeding, so it never surfaces a
+/// (e.g. `::store` in `proc save {v} { set ::store $v }`). The raw per-unit
+/// taint map does no such seeding, so it never surfaces a
 /// version-0-tainted variable — filtering them here keeps the
 /// `tainted_variables` output without disturbing the seeding the sink
 /// warnings rely on.
 fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
     // Definition-site offset of each `(name, version)` SSA value, so
     // tainted variables order by where they are defined — recovering
-    // the SSA/source iteration order over `analysis.taints` rather
+    // the SSA/source iteration order over the per-unit taint map rather
     // than an alphabetical sort. Each SSA version is defined once, so
     // `or_insert` records that single site.
     let mut def_offset: std::collections::HashMap<(&str, u32), u32> =
@@ -1035,7 +1034,7 @@ fn build_dataflow_graph(source: &str, dialect: &str) -> Value {
     // entry taints. Its `top_taints` / `proc_taints` feed the warning
     // families (cross-proc entry-taint), feeding
     // `find_taint_warnings`. The `tainted_variables` listing below keeps the
-    // per-unit `fu.taints` lattice, matching `analysis.taints`.
+    // per-unit `fu.taints` lattice.
     let solved =
         tcl_compiler::taint_interproc::solve_interprocedural_taints(&cu, registry, Some(dialect));
 
