@@ -1428,7 +1428,7 @@ impl Backend {
         // Read + analyse off-lock.  Keep the source text + dialect too: the salsa
         // db (cross-file diagnostics) must track the same on-disk population as the
         // workspace index, so a proc defined in a closed/never-opened file still
-        // suppresses W123 / drives W124 in its siblings.
+        // suppresses W123 / drives the arity error in its siblings.
         let scanned: Option<(String, String, AnalysisResult)> = if let Ok(path) =
             uri.to_file_path()
         {
@@ -1476,7 +1476,7 @@ impl Backend {
     /// diagnostics enabled.  Called after a change to the workspace's on-disk
     /// signature domain that did **not** originate from an open document's own
     /// edit (a watched-file create / change / delete), so push-diagnostic clients
-    /// refresh their cross-file results instead of showing stale W123 / W124 until
+    /// refresh their cross-file results instead of showing stale W123 / arity until
     /// the caller is next touched.  Documents without `xcDiagnostics` enabled are
     /// skipped — their diagnostics don't depend on other files.
     async fn reschedule_xc_open_documents(&self) {
@@ -2870,7 +2870,7 @@ impl Backend {
         let registry = self.registry_for_dialect(&dialect).await;
 
         // Cross-file (SRV-INCREMENTAL Task 6): the project's proc arities, so the
-        // pull path resolves cross-file W123 / emits cross-file W124 exactly as the
+        // pull path resolves cross-file W123 / emits the cross-file arity error exactly as the
         // push path does.  Only gathered when `xcDiagnostics` is enabled.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
         let project_arities = if xc_on {
@@ -2894,14 +2894,14 @@ impl Backend {
         };
 
         let xc_for_irules = dialect == "f5-irules" && xc_on;
-        // Cross-file resolution (Task 6) — W123 suppression + W124 arity, matching
+        // Cross-file resolution (Task 6) — W123 suppression + E002/E003 arity, matching
         // the push path.
         let analyser_diags = match &project_arities {
             Some(arities) => tcl_lsp_db::apply_cross_file_resolution(
                 &analysis.diagnostics,
                 &analysis.command_invocations,
                 arities,
-                disabled.contains("W124"),
+                |code| disabled.contains(code),
             ),
             None => analysis.diagnostics.clone(),
         };
@@ -3440,7 +3440,7 @@ impl LanguageServer for Backend {
                     .await
                     .remove_document(change.uri.as_str());
                 // Drop it from the salsa `Project` too, so a deleted file's procs
-                // stop suppressing W123 / driving W124 cross-file.
+                // stop suppressing W123 / driving the arity error cross-file.
                 self.db_remove_source(&change.uri).await;
             } else {
                 // CREATED or CHANGED: re-analyse from disk (a Tcl source file)
@@ -3452,7 +3452,7 @@ impl LanguageServer for Backend {
         // A watched (non-open) file's create/change/delete shifts the cross-file
         // resolution domain, but no open document's own edit triggered it — so a
         // push-diagnostic client would keep stale cross-file results (a suppressed
-        // W123, or a W124 sourced from the now-changed file) until the caller is
+        // W123, or an arity error sourced from the now-changed file) until the caller is
         // next edited.  Reschedule open documents that have cross-file diagnostics
         // enabled so their cross-file pass re-runs against the new domain.
         if domain_changed {
@@ -7953,7 +7953,7 @@ mod tests {
     /// A watched-file create/change/delete shifts the cross-file resolution domain
     /// without an open document's own edit, so open documents with cross-file
     /// diagnostics enabled must be rescheduled — otherwise a push-diagnostic client
-    /// keeps stale W123/W124 after a defining file disappears (git checkout /
+    /// keeps stale W123/arity after a defining file disappears (git checkout /
     /// delete).  Regression for Codex review on #692.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn watched_file_delete_reschedules_open_xc_documents() {
@@ -8499,7 +8499,7 @@ mod tests {
     /// SRV-INCREMENTAL Task 6 (whole-workspace scope): a proc defined in a file
     /// that is on disk but **not open** in the editor (driven here through
     /// `reindex_index_from_disk`, the `did_close` / scan / watched-file path) must
-    /// still suppress a sibling's W123 and drive its W124 — cross-file diagnostics
+    /// still suppress a sibling's W123 and drive its arity error — cross-file diagnostics
     /// tracks the same on-disk population as the workspace index, not only open
     /// documents.  Regression for Codex review on #692.
     #[tokio::test]
@@ -8536,14 +8536,14 @@ mod tests {
             diag_codes(&ok),
         );
 
-        // Wrong arity (3 args to the 2-param proc) → W124 from the disk-backed
-        // proc's arity signature.
+        // Wrong arity (3 args to the 2-param proc) → E003 (too many) from the
+        // disk-backed proc's arity signature.
         let bad = backend
             .full_diagnostics_for(&a, "helper a b c\n".to_owned(), "tcl8.6".to_owned(), "tcl")
             .await;
         assert!(
-            diag_codes(&bad).iter().any(|c| c == "W124"),
-            "W124 must fire against a disk-backed proc's arity, got: {:?}",
+            diag_codes(&bad).iter().any(|c| c == "E003"),
+            "E003 must fire against a disk-backed proc's arity, got: {:?}",
             diag_codes(&bad),
         );
 

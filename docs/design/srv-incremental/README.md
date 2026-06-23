@@ -548,9 +548,12 @@ exist yet — the verification-status table follows the list.
      command defined anywhere in the workspace as a **proc / class / alias /
      ensemble** (mirrors the analyser's own `proc_tail_names` / `class_tail_names` /
      `alias_names` / `ensemble_cmds` suppression, extended across files); and (b)
-     emits **W124 (wrong # args)** when a call resolving to a workspace **proc** has
-     an argument count fitting *none* of that proc's arities. Conservative: a
-     `{*}`-expanded call (`argc` unknown), a non-proc resolution (no arity), or a
+     emits a **cross-file arity error** — the analyser's own `E002` (too few) /
+     `E003` (too many), *not* the unrelated `W124` IP-literal warning — when a call
+     resolving to a workspace **proc** has an argument count fitting *none* of that
+     proc's arities. Conservative: a `{*}`-expanded call (`argc` unknown), a
+     non-proc resolution (no arity), a **mixed tail** (a proc and a class/alias/
+     ensemble share the name → may dispatch to the arity-less command), or a
      tail-name collision where any candidate accepts the count emits nothing.
      Per-call-site `argc` is recorded on `SignatureCommandInvocation`; arities come
      from `item_sigs` params (required params set the min; a trailing `args` is
@@ -573,7 +576,8 @@ exist yet — the verification-status table follows the list.
      (`project_diagnostics_incremental_matches_fresh_under_edits` — 60 edits to the
      defining file, caller's diagnostics always match a fresh rebuild; plus
      `…_both_files_edited`, editing caller and callee) + focused W123-suppression,
-     W124-arity, arity-edge-case, disabled-W124, and `{*}`-expansion tests + a
+     E002/E003-arity, arity-edge-case, disabled-code, mixed-tail, and
+     `{*}`-expansion tests + a
      `project_command_arities_firewall` (body edit re-runs the arity table 0×, a
      signature edit 1×) + end-to-end server tests
      (`cross_file_w123_suppressed_when_workspace_defines_proc`,
@@ -636,8 +640,8 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | Task 6 cross-file salsa *mechanics* (cycle convergence, reverse-dep precision, body-edit cutoff) | **measured + verified** (spike) | `experiment-xfile/` — A↔B cycle → (5,5) no panic; sig change → exactly N+1 dependents; body change → 0 |
 | Task 6 step 1: `project_proc_names` (cross-file resolution domain) firewalls on the real graph | **measured + verified** | `project_proc_names_firewall` — body edit re-runs it 0×, decl change 1× (in `tcl-lsp-db`, on `file_decls`) |
 | **Task 6 cross-file W123 SHIPPED** — `project_diagnostics` suppresses unknown-command warnings for workspace-defined procs; live in the server (push + pull), `xcDiagnostics`-gated | **measured + verified** | multi-file `incremental == fresh` fuzzer (60 edits) + focused + end-to-end server test; ci-fast (805 e2e) green, off-by-default ⇒ no regression |
-| **Task 6 cross-file arity (W124) SHIPPED** — wrong-arg-count to a workspace proc; W123 suppressed when resolved | **measured + verified** | `project_diagnostics_emits_cross_file_arity` (3 args to a 2-param proc → W124 + W123 suppressed; correct count → neither); conservative on `{*}` / tail collisions |
-| **Task 6 cross-file classes / aliases / ensembles SHIPPED** — resolution domain matches the analyser's local suppression kinds | **measured + verified** | `project_diagnostics_resolves_cross_file_class` (cross-file `Widget` class command → no W123, no W124) |
+| **Task 6 cross-file arity (E002/E003) SHIPPED** — wrong-arg-count to a workspace proc reuses the analyser's own arity codes (not the unrelated `W124` IP warning); W123 suppressed when resolved | **measured + verified** | `project_diagnostics_emits_cross_file_arity` (3 args to a 2-param proc → E003 + W123 suppressed; correct count → neither); conservative on `{*}` / mixed tails / tail collisions |
+| **Task 6 cross-file classes / aliases / ensembles SHIPPED** — resolution domain matches the analyser's local suppression kinds | **measured + verified** | `project_diagnostics_resolves_cross_file_class` (cross-file `Widget` class command → no W123, no arity error) |
 | Task 6 per-symbol precision + corpus-scale heuristic-edge correctness | **hypothesis** | needs a per-symbol `signature(qname)` query + a corpus-scale multi-file differential |
 
 Differential-fuzzer coverage **today**:

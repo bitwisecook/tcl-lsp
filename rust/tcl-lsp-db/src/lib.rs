@@ -267,13 +267,13 @@ fn proc_arity(params: &[tcl_compiler::signature_scan::types::ParamDef]) -> (usiz
 /// `interp alias`es, and ensembles, matching the analyser's *local* suppression
 /// domains (`proc_tail_names` / `class_tail_names` / `alias_names` /
 /// `ensemble_cmds`).  Non-proc kinds carry an **empty** arity list (resolved, but
-/// no arg-count signature), so they suppress W123 without ever drawing W124.
+/// no arg-count signature), so they suppress W123 without ever drawing an arity error.
 ///
 /// **Mixed tails are arity-less.**  If a tail is claimed by *both* a proc and a
 /// non-proc command (e.g. `oo::class create Widget` plus `proc ns::Widget`), a
 /// call to it may dispatch to the class/alias/ensemble — which has no fixed
 /// arity — so the proc arities are dropped (empty list): the tail still suppresses
-/// W123 but never draws a (possibly wrong) W124.
+/// W123 but never draws a (possibly wrong) arity error.
 ///
 /// Depends only on each file's `item_sigs` (the signature firewall), so a body
 /// edit anywhere recomputes nothing here.
@@ -308,7 +308,7 @@ pub fn project_command_arities(
     }
     // A tail with any non-proc resolver can't be arity-checked (the call may
     // dispatch to the arity-less class/alias/ensemble), so drop its proc arities —
-    // it still resolves (suppresses W123) but never draws W124.
+    // it still resolves (suppresses W123) but never draws an arity error.
     let map: HashMap<String, Vec<(usize, usize)>> = acc
         .into_iter()
         .map(|(tail, (arities, has_non_proc))| {
@@ -318,51 +318,68 @@ pub fn project_command_arities(
     Arc::new(map)
 }
 
-/// Build the cross-file wrong-argument-count diagnostic (W124) for a call to a
-/// workspace proc whose arg count fits none of the proc's arities.
+/// Build the cross-file wrong-argument-count diagnostic for a call to a workspace
+/// proc whose arg count fits none of the proc's arities.  Reuses the analyser's
+/// **own** arity codes — `E002` (too few) / `E003` (too many), `Severity::Error`,
+/// same message shape — so a cross-file arity problem is classified, linked, and
+/// disabled exactly like the local one.  (The code `W124` is the *unrelated*
+/// invalid-IP-literal warning and must not be reused here.)
+///
+/// Returns `None` when `argc` sits inside the candidates' `(min, max)` envelope —
+/// i.e. it fits some arity, or falls in a rare gap between disjoint same-tail
+/// arities, which is too ambiguous to flag.
 fn cross_file_arity_diagnostic(
     name: &str,
     span: tcl_lexer::Span,
     argc: usize,
     candidates: &[(usize, usize)],
-) -> tcl_compiler::analyser::types::Diagnostic {
-    let min = candidates.iter().map(|&(lo, _)| lo).min().unwrap_or(0);
-    let max = candidates.iter().map(|&(_, hi)| hi).max().unwrap_or(0);
-    let expected = if max == usize::MAX {
-        format!("at least {min}")
-    } else if min == max {
-        format!("{min}")
+) -> Option<tcl_compiler::analyser::types::Diagnostic> {
+    use tcl_compiler::analyser::types::{Diagnostic, Severity};
+    let min = candidates.iter().map(|&(lo, _)| lo).min()?;
+    let max = candidates.iter().map(|&(_, hi)| hi).max()?;
+    let (code, message) = if argc < min {
+        (
+            "E002",
+            format!("Too few arguments for '{name}': expected at least {min}, got {argc}"),
+        )
+    } else if max != usize::MAX && argc > max {
+        (
+            "E003",
+            format!("Too many arguments for '{name}': expected at most {max}, got {argc}"),
+        )
     } else {
-        format!("{min} to {max}")
+        return None;
     };
-    tcl_compiler::analyser::types::Diagnostic {
-        code: "W124".to_string(),
+    Some(Diagnostic {
+        code: code.to_string(),
         span,
-        message: format!("wrong # args for '{name}': expected {expected}, got {argc}"),
-        severity: tcl_compiler::analyser::types::Severity::Warning,
+        message,
+        severity: Severity::Error,
         fixes: Vec::new(),
-    }
+    })
 }
 
 /// Resolve a file's diagnostics against the project (Task 6): a W123 (unknown
 /// command) whose command tail is a workspace proc is **suppressed** (resolved
 /// cross-file); if that call's arg count is known and fits **none** of the
-/// proc's arities, a cross-file **W124** wrong-arg-count diagnostic replaces it.
-/// Pure; shared by the push ([`project_diagnostics`]) and pull paths so both
-/// agree.  `arities` empty ⇒ no project context ⇒ status-quo diagnostics.
+/// proc's arities, a cross-file arity error (`E002`/`E003`, the analyser's own
+/// codes) replaces it.  Pure; shared by the push ([`project_diagnostics`]) and
+/// pull paths so both agree.  `arities` empty ⇒ no project context ⇒ status-quo
+/// diagnostics.
 ///
-/// `w124_disabled` honours the user's `disabled_diagnostics` for the synthesized
-/// code: this diagnostic is produced *after* the analyser has already applied its
-/// own [`apply_disabled_diagnostics`](tcl_compiler::analyser::Analyser) code
-/// filter, so the filter must be replicated here or a user who disables W124 (but
-/// not W123) would still see cross-file arity warnings.  W123 suppression is
-/// independent of this flag — the call genuinely resolves cross-file regardless.
+/// `is_disabled` honours the user's `disabled_diagnostics` for the synthesized
+/// code: the arity diagnostic is produced *after* the analyser has applied its own
+/// [`apply_disabled_diagnostics`](tcl_compiler::analyser::Analyser) code filter
+/// (and the LSP lift does not re-filter the disabled set), so the filter must be
+/// replicated here or a user who disables `E002`/`E003` would still see the
+/// cross-file arity error.  W123 suppression is independent — the call genuinely
+/// resolves cross-file regardless.
 #[must_use]
 pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
     diags: &[tcl_compiler::analyser::types::Diagnostic],
     invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
     arities: &HashMap<String, Vec<(usize, usize)>, S>,
-    w124_disabled: bool,
+    is_disabled: impl Fn(&str) -> bool,
 ) -> Vec<tcl_compiler::analyser::types::Diagnostic> {
     if arities.is_empty() {
         return diags.to_vec();
@@ -378,18 +395,17 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
             && let Some(name) = w123_command(&d.message)
             && let Some(candidates) = arities.get(name)
         {
-            // Resolved cross-file: drop the W123.  If the resolved name is a proc
-            // (non-empty arity list), W124 is not disabled, and the arg count is
-            // known and fits no candidate arity, emit W124 in its place.  Non-proc
-            // kinds (class / alias / ensemble) have no arities → suppress only.
+            // Resolved cross-file: drop the W123.  If it resolves to a proc
+            // (non-empty arity list) with a known arg count that fits no arity,
+            // emit a cross-file arity error (E002/E003) in its place — unless that
+            // code is disabled.  Non-proc kinds (class / alias / ensemble, or a
+            // mixed tail) carry an empty arity list → suppress only.
             if !candidates.is_empty()
-                && !w124_disabled
                 && let Some(Some(argc)) = argc_by_span.get(&(d.span.start(), d.span.end()))
+                && let Some(diag) = cross_file_arity_diagnostic(name, d.span, *argc, candidates)
+                && !is_disabled(&diag.code)
             {
-                let argc = *argc;
-                if candidates.iter().all(|&(lo, hi)| argc < lo || argc > hi) {
-                    out.push(cross_file_arity_diagnostic(name, d.span, argc, candidates));
-                }
+                out.push(diag);
             }
             continue;
         }
@@ -399,8 +415,9 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
 }
 
 /// Analyser diagnostics for `file` resolved against the project (SRV-INCREMENTAL
-/// Task 6): cross-file-resolvable W123 (unknown command) suppressed, plus W124
-/// (wrong # args) for calls to workspace procs with a bad arg count.
+/// Task 6): cross-file-resolvable W123 (unknown command) suppressed, plus a
+/// cross-file arity error (`E002`/`E003`) for calls to workspace procs with a bad
+/// arg count.
 ///
 /// Deliberately a **separate query off the paramount [`file_analysis`] path**:
 /// `file_analysis` stays project-independent (so a signature change in another
@@ -422,17 +439,14 @@ pub fn project_diagnostics(
     // `file` — a cache hit, not a second whole-file analysis.
     let analysis = file_analysis_incremental(db, file, config);
     let arities = project_command_arities(db, project);
-    // Honour `disabled_diagnostics` for the synthesized W124 (the analyser already
-    // filtered its own codes; this one is added afterwards).
-    let w124_disabled = config
-        .disabled_diagnostics(db)
-        .iter()
-        .any(|c| c == "W124");
+    // Honour `disabled_diagnostics` for the synthesized arity code (the analyser
+    // already filtered its own codes; this one is added afterwards).
+    let disabled = config.disabled_diagnostics(db);
     Arc::new(apply_cross_file_resolution(
         &analysis.diagnostics,
         &analysis.command_invocations,
         &arities,
-        w124_disabled,
+        |code| disabled.iter().any(|c| c == code),
     ))
 }
 
@@ -2022,10 +2036,10 @@ mod tests {
     fn project_diagnostics_incremental_matches_fresh_both_files_edited() {
         use salsa::Setter as _;
         // Caller variants: vary which commands are called and with how many args
-        // (so the cross-file arity W124 path is exercised, not just W123).
+        // (so the cross-file arity error path is exercised, not just W123).
         let a_variants = [
             "alpha 1\nbeta 2\n",
-            "alpha 1 2 3\nbeta\n",       // wrong arg counts → W124 once resolved
+            "alpha 1 2 3\nbeta\n",       // wrong arg counts → arity error once resolved
             "alpha\nset x 1\ngamma 9\n", // gamma may be unresolved → W123
             "beta 1 2\nalpha 7\n",
             "",
@@ -2081,8 +2095,9 @@ mod tests {
     }
 
     /// SRV-INCREMENTAL Task 6 (cross-file arity): a call to a workspace-defined
-    /// proc with the wrong argument count emits W124 (and the W123 it would have
-    /// drawn is suppressed); a correct count emits neither.
+    /// proc with the wrong argument count emits the analyser's arity error
+    /// (`E003` too many here) — *not* the unrelated `W124` IP-literal warning — and
+    /// the W123 it would have drawn is suppressed; a correct count emits neither.
     #[test]
     fn project_diagnostics_emits_cross_file_arity() {
         let db = TclDatabase::default();
@@ -2099,25 +2114,26 @@ mod tests {
                 .any(|d| d.code == code && d.message.contains("helper"))
         };
 
-        // 3 args to a 2-param proc → W124, and the W123 is suppressed (resolved).
+        // 3 args to a 2-param proc → E003 (too many), and the W123 is suppressed.
         let a3 = SourceFile::new(&db, "helper a b c\n".to_owned(), "tcl8.6".to_owned());
         let p3 = Project::new(&db, vec![a3, b]);
         let d3 = project_diagnostics(&db, a3, cfg, p3);
-        assert!(has(&d3, "W124"), "3 args to a 2-param cross-file proc must emit W124");
+        assert!(has(&d3, "E003"), "3 args to a 2-param cross-file proc must emit E003");
+        assert!(!has(&d3, "W124"), "must not reuse W124 (the IP-literal warning)");
         assert!(!has(&d3, "W123"), "W123 must be suppressed once resolved cross-file");
 
-        // Correct arity (2 args) → neither W124 nor W123.
+        // Correct arity (2 args) → no arity error and no W123.
         let a2 = SourceFile::new(&db, "helper a b\n".to_owned(), "tcl8.6".to_owned());
         let p2 = Project::new(&db, vec![a2, b]);
         let d2 = project_diagnostics(&db, a2, cfg, p2);
-        assert!(!has(&d2, "W124"), "correct arity must not emit W124");
+        assert!(!has(&d2, "E002") && !has(&d2, "E003"), "correct arity → no arity error");
         assert!(!has(&d2, "W123"), "resolved cross-file → no W123");
     }
 
     /// SRV-INCREMENTAL Task 6 (mixed proc / non-proc tail): when a class (or alias
     /// / ensemble) and a proc share a tail name, a call may dispatch to the
-    /// arity-less class command, so no W124 may fire even when the arg count fits
-    /// no proc arity — while the call still resolves (no W123).  Regression for
+    /// arity-less class command, so no arity error may fire even when the arg count
+    /// fits no proc arity — while the call still resolves (no W123).  Regression for
     /// Codex review on #692.
     #[test]
     fn cross_file_arity_suppressed_for_mixed_proc_nonproc_tail() {
@@ -2132,7 +2148,7 @@ mod tests {
             "tcl8.6".to_owned(),
         );
         // The arity table must record `Widget` as resolvable but arity-less
-        // (mixed), so it can never draw W124.
+        // (mixed), so it can never draw an arity error.
         let proj_names = Project::new(&db, vec![b]);
         assert_eq!(
             project_command_arities(&db, proj_names).get("Widget").cloned(),
@@ -2140,13 +2156,13 @@ mod tests {
             "a mixed proc/non-proc tail must carry an empty arity list"
         );
         // A calls `Widget new extra` (3 args) — fits no proc arity, but resolves to
-        // the class → neither W124 nor W123.
+        // the class → neither an arity error nor W123.
         let a = SourceFile::new(&db, "Widget new extra\n".to_owned(), "tcl8.6".to_owned());
         let proj = Project::new(&db, vec![a, b]);
         let d = project_diagnostics(&db, a, cfg, proj);
         assert!(
-            !d.iter().any(|x| x.code == "W124"),
-            "a mixed proc/non-proc tail must never draw W124"
+            !d.iter().any(|x| x.code == "E002" || x.code == "E003"),
+            "a mixed proc/non-proc tail must never draw an arity error"
         );
         assert!(
             !d.iter().any(|x| x.code == "W123" && x.message.contains("Widget")),
@@ -2155,14 +2171,14 @@ mod tests {
     }
 
     /// SRV-INCREMENTAL Task 6 (cross-file arity honours `disabled_diagnostics`):
-    /// the synthesized W124 is produced *after* the analyser's own code filter, so
-    /// it must replicate it — disabling W124 (while keeping W123) must drop the
-    /// cross-file arity warning, yet the call still resolves (no W123).  Regression
-    /// for Codex review #692.
+    /// the synthesized arity error is produced *after* the analyser's own code
+    /// filter (and the LSP lift doesn't re-filter), so it must replicate it —
+    /// disabling `E003` (while keeping W123) must drop the cross-file arity error,
+    /// yet the call still resolves (no W123).  Regression for Codex review #692.
     #[test]
-    fn cross_file_arity_honors_disabled_w124() {
+    fn cross_file_arity_honors_disabled_code() {
         let db = TclDatabase::default();
-        // B defines a 2-param proc; A calls it with 3 args (wrong arity).
+        // B defines a 2-param proc; A calls it with 3 args (too many → E003).
         let b = SourceFile::new(
             &db,
             "proc helper {x y} { return $x }\n".to_owned(),
@@ -2176,29 +2192,29 @@ mod tests {
                 .any(|d| d.code == code && d.message.contains("helper"))
         };
 
-        // W124 enabled (default): wrong arity surfaces as W124, W123 suppressed.
+        // E003 enabled (default): wrong arity surfaces as E003, W123 suppressed.
         let cfg_on = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
         let d_on = project_diagnostics(&db, a, cfg_on, proj);
-        assert!(has(&d_on, "W124"), "baseline: W124 present when enabled");
+        assert!(has(&d_on, "E003"), "baseline: E003 present when enabled");
         assert!(!has(&d_on, "W123"), "baseline: W123 suppressed (resolved)");
 
-        // W124 disabled (W123 left enabled): no W124, W123 still suppressed — the
-        // call genuinely resolves cross-file regardless of the W124 toggle.
-        let cfg_off = AnalyserConfig::new(&db, vec!["W124".to_owned()], NonAsciiMode::Default);
+        // E003 disabled (W123 left enabled): no E003, W123 still suppressed — the
+        // call genuinely resolves cross-file regardless of the arity-code toggle.
+        let cfg_off = AnalyserConfig::new(&db, vec!["E003".to_owned()], NonAsciiMode::Default);
         let d_off = project_diagnostics(&db, a, cfg_off, proj);
         assert!(
-            !has(&d_off, "W124"),
-            "disabling W124 must suppress the cross-file arity warning"
+            !has(&d_off, "E003"),
+            "disabling E003 must suppress the cross-file arity error"
         );
         assert!(
             !has(&d_off, "W123"),
-            "W123 stays suppressed even with W124 disabled"
+            "W123 stays suppressed even with E003 disabled"
         );
     }
 
     /// SRV-INCREMENTAL Task 6 (cross-file classes): a command resolving to a
     /// class (the class command) defined in another project file is resolved —
-    /// W123 suppressed — and, being a non-proc, never draws W124.
+    /// W123 suppressed — and, being a non-proc, never draws an arity error.
     #[test]
     fn project_diagnostics_resolves_cross_file_class() {
         let db = TclDatabase::default();
@@ -2218,15 +2234,16 @@ mod tests {
             "cross-file class command must resolve (no W123)"
         );
         assert!(
-            !d.iter().any(|x| x.code == "W124"),
-            "a class command has no proc arity → no W124"
+            !d.iter().any(|x| x.code == "E002" || x.code == "E003"),
+            "a class command has no proc arity → no arity error"
         );
     }
 
     /// SRV-INCREMENTAL Task 6 (cross-file arity edge cases): exercise the
     /// `proc_arity` `(min, max)` computation across required-only, optional
     /// defaults, a trailing `args` (unbounded), and the no-parameter proc — the
-    /// subtle part where an off-by-one would mis-fire W124.
+    /// subtle part where an off-by-one would mis-fire the arity error.  Checks the
+    /// *specific* code too: too-few → `E002`, too-many → `E003`.
     #[test]
     fn cross_file_arity_edge_cases() {
         let db = TclDatabase::default();
@@ -2237,35 +2254,40 @@ mod tests {
                 .to_owned(),
             "tcl8.6".to_owned(),
         );
-        // Does calling `src` (in a fresh file A over project {A, B}) draw W124?
-        let w124 = |src: &str| -> bool {
+        // The cross-file arity code drawn by calling `src` (file A over {A, B}):
+        // Some("E002") too few, Some("E003") too many, None if it fits.
+        let arity_code = |src: &str| -> Option<String> {
             let a = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
             let proj = Project::new(&db, vec![a, b]);
             project_diagnostics(&db, a, cfg, proj)
                 .iter()
-                .any(|d| d.code == "W124")
+                .find(|d| d.code == "E002" || d.code == "E003")
+                .map(|d| d.code.clone())
         };
+        let e002 = || Some("E002".to_owned());
+        let e003 = || Some("E003".to_owned());
         // two {a b} → arity (2, 2).
-        assert!(w124("two 1\n"), "1 arg to a 2-param proc → too few");
-        assert!(!w124("two 1 2\n"), "2 args → ok");
-        assert!(w124("two 1 2 3\n"), "3 args → too many");
+        assert_eq!(arity_code("two 1\n"), e002(), "1 arg to a 2-param proc → too few");
+        assert_eq!(arity_code("two 1 2\n"), None, "2 args → ok");
+        assert_eq!(arity_code("two 1 2 3\n"), e003(), "3 args → too many");
         // opt {a {b 1}} → arity (1, 2).
-        assert!(w124("opt\n"), "0 args to (1,2) → too few");
-        assert!(!w124("opt 1\n"), "1 arg to (1,2) → ok");
-        assert!(!w124("opt 1 2\n"), "2 args to (1,2) → ok");
-        assert!(w124("opt 1 2 3\n"), "3 args to (1,2) → too many");
+        assert_eq!(arity_code("opt\n"), e002(), "0 args to (1,2) → too few");
+        assert_eq!(arity_code("opt 1\n"), None, "1 arg to (1,2) → ok");
+        assert_eq!(arity_code("opt 1 2\n"), None, "2 args to (1,2) → ok");
+        assert_eq!(arity_code("opt 1 2 3\n"), e003(), "3 args to (1,2) → too many");
         // variadic {a args} → arity (1, unbounded).
-        assert!(w124("variadic\n"), "0 args to (1,∞) → too few");
-        assert!(!w124("variadic 1\n"), "1 arg → ok");
-        assert!(!w124("variadic 1 2 3 4 5\n"), "many args → ok (trailing args)");
+        assert_eq!(arity_code("variadic\n"), e002(), "0 args to (1,∞) → too few");
+        assert_eq!(arity_code("variadic 1\n"), None, "1 arg → ok");
+        assert_eq!(arity_code("variadic 1 2 3 4 5\n"), None, "many → ok (trailing args)");
         // none {} → arity (0, 0).
-        assert!(!w124("none\n"), "0 args to a no-param proc → ok");
-        assert!(w124("none 1\n"), "1 arg to a 0-param proc → too many");
+        assert_eq!(arity_code("none\n"), None, "0 args to a no-param proc → ok");
+        assert_eq!(arity_code("none 1\n"), e003(), "1 arg to a 0-param proc → too many");
     }
 
     /// SRV-INCREMENTAL Task 6 (conservative arity): a `{*}`-expanded call has an
-    /// unknown runtime arg count (`argc == None`), so it must never draw W124 even
-    /// though its literal word count looks wrong — while still resolving (no W123).
+    /// unknown runtime arg count (`argc == None`), so it must never draw an arity
+    /// error even though its literal word count looks wrong — while still resolving
+    /// (no W123).
     #[test]
     fn cross_file_arity_skips_expanded_call() {
         let db = TclDatabase::default();
@@ -2280,8 +2302,8 @@ mod tests {
         let proj = Project::new(&db, vec![a, b]);
         let d = project_diagnostics(&db, a, cfg, proj);
         assert!(
-            !d.iter().any(|x| x.code == "W124"),
-            "a {{*}}-expanded call must not draw W124 (argc unknown)"
+            !d.iter().any(|x| x.code == "E002" || x.code == "E003"),
+            "a {{*}}-expanded call must not draw an arity error (argc unknown)"
         );
         assert!(
             !d.iter().any(|x| x.code == "W123" && x.message.contains("two")),
