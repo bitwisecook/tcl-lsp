@@ -567,3 +567,35 @@ pub fn dispatch<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Option<Result<O:
     let sub = ops.as_str(args.first()?).to_string();
     dispatch_canon(ops, &sub, &args[1..])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn chars(s: &str) -> Vec<char> {
+        s.chars().collect()
+    }
+
+    #[test]
+    fn word_start_finds_word_boundaries() {
+        // Tcl `string wordstart` semantics — cmd-core string.rs had no unit
+        // coverage (TEST-MIGRATE). "abc def" = indices a0 b1 c2 ' '3 d4 e5 f6.
+        let c = chars("abc def");
+        assert_eq!(word_start(&c, 1), 0); // inside "abc"
+        assert_eq!(word_start(&c, 5), 4); // inside "def"
+        assert_eq!(word_start(&c, 3), 3); // the space is its own word
+        assert_eq!(word_start(&c, 0), 0);
+        assert_eq!(word_start(&c, 100), 4); // clamps to last char of "def"
+        assert_eq!(word_start(&[], 3), 0); // empty
+    }
+
+    #[test]
+    fn word_end_finds_word_boundaries() {
+        // Tcl `string wordend` — end is one past the last word char.
+        let c = chars("abc def");
+        assert_eq!(word_end(&c, 1), 3); // end of "abc" (exclusive)
+        assert_eq!(word_end(&c, 4), 7); // end of "def"
+        assert_eq!(word_end(&c, 3), 4); // a non-word char advances exactly one
+        assert_eq!(word_end(&c, 100), 7); // past end → length
+    }
+}

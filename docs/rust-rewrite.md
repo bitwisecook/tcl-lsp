@@ -909,7 +909,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Differential fuzzer | `tcl-fuzz` | 🟢 | campaign runner + seeded generator + findings registry land (`tclvm` vs `tclsh`); generator grammar broadened to procs/namespaces/dict/`catch`/`try`/`switch` (RT-VM-gated work done, 1.5 K-iter campaign @ 0 findings); WASM-runnability arm landed (`wasm-check`: compile→`wasmtime`, 600-program campaign clean); WASM **value**-differential arm landed (`wasm-diff`: in-process wasmtime with a `tcl-vm`-backed eval-fallback host, fuel-bounded `WasmHang` detection — verifies control-flow codegen, already caught a non-terminating-loop bug the runnability arm can't); residual: re-back that arm with the **real linked Zig runtime** for a full value differential, gated on **RT-WASM** → **TOOL-FUZZ** |
 | Debugger | `tcl-debugger` | ✅ | record-and-replay step debugger over `tcl-vm` (VM debug-hook seam) with a `tcl-debug` CLI **and** a DAP server for editors (`--dap`): breakpoints, step in/over/out, continue, stack/scopes/variables, evaluate → **TOOL-DEBUGGER** |
 | iRule test framework | `tcl-irule-test` | 🟢 | SCF→orchestrator topology generator + `LiveSession` running the TMM-sim orchestrator live on `tcl-vm` (load iRule, fire events, read pool/logs/decisions; 14 integration tests green); framework Tcl embedded for self-contained consumers. RT-VM-gated work complete; only auto-broadening coverage remains → **TOOL-IRULE-TEST** |
-| PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🔴 | designed public surface; TEST-MIGRATE; PYTHON-RETIRE → **API-PYO3** |
+| PyO3 public API + retirement | `tcl-lsp-py`, `xtask` | 🟡 | designed public surface **landed** (`parse_tcl`/`compile_tcl`/`analyse_tcl`/`format_tcl`/`parse_bigip_config`/`query_bigip` facades + `TclLspError` hierarchy, `tcl-lsp-py::public`); residual: TEST-MIGRATE; `scripts`→`xtask`; PYTHON-RETIRE → **API-PYO3** |
 | `ai/` (MCP + skills) | — | n/a | stays Python by design |
 
 ### Track map (dependency order)
@@ -935,7 +935,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | TOOL | **TOOL-DEBUGGER** ✅ | `tcl-debugger` | RT-VM | L |
 | TOOL | **TOOL-IRULE-TEST** 🟢 | `tcl-irule-test` | RT-VM, `tcl-registry` | XL |
 | TOOL | **TOOL-CLI** ✅ | `tcl-cli` | RT-WASM, RT-VM, TOOL-TCLPKG | S |
-| API | **API-PYO3** 🔴 | `tcl-lsp-py`, `scripts`→`xtask`, `tests` | everything above | L |
+| API | **API-PYO3** 🟡 | `tcl-lsp-py`, `scripts`→`xtask`, `tests` | everything above | L |
 
 ---
 
@@ -1212,22 +1212,67 @@ subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
 #### API-PYO3
 Owns `tcl-lsp-py`, the `scripts`→`xtask` migration, and `tests`. **This is the
 final track** — every consumer above must port first.
-- **open** the designed public PyO3 surface — re-derive it as a semver-stable
-  API for downstream embedders, not a transcription of in-tree calls. What
-  `tcl-lsp-py` exports **today** is the legacy soft-dependency shim set the
-  in-tree Python still imports (~39 `#[pyfunction]`s across `tokens` /
-  `expr_lexer` / `compiler_checks` / `interprocedural` / `gvn` /
-  `compilation_unit` / `signature_scan` / `optimiser` / `analyser` / `registry`
-  / `bigip`), plus exactly **two** LSP *feature* bindings — folding and document
-  symbols — against the native server's ~43 feature providers. Per the boundary
-  rule those shims are porting TODOs to retire, not the public API; the designed
-  surface (the `parse_tcl` / `compile_tcl` / `analyse_tcl` / … facades + typed
-  error hierarchy above) is still unbuilt.
-- **open** TEST-MIGRATE — port each remaining pytest file to per-crate Rust
-  tests (delete the `test_*.py` in the same change); the `test_fp_*` battery is
-  the analyser acceptance gate.
-- **open** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
-  Python toolchain dependency).
+- **landed (2026-06-22)** the designed public PyO3 surface — built as
+  `tcl-lsp-py::public`, additive alongside (not replacing) the legacy
+  soft-dependency shims. The six narrow facades (`parse_tcl` →
+  `ParseResult`, `compile_tcl` → `CompilationUnit`, `analyse_tcl` →
+  `AnalysisResult`, `format_tcl` → `str`, `parse_bigip_config` →
+  `BigipConfig`, `query_bigip` → `QueryResult`) take `source/options in,
+  structured result out` over the layered crates (`tcl-lexer`,
+  `tcl-compiler`, `tcl-lsp-core::formatting`, `tcl-bigip`,
+  `tcl-bigip-query`) and resolve every span to a `(line, character)`
+  position at the boundary. Paired with the typed error hierarchy
+  `TclLspError → TclParseError / TclCompileError / TclAnalysisError /
+  BigipParseError / BigipQueryError / UnsupportedFeatureError`, each
+  raised instance carrying `code` / `message` / `uri` / `range`,
+  translated at the facade boundary (the pure crates stay `pyo3`-free).
+  Acceptance test: `tests/test_public_pyo3_api.py` (30 cases, runs against
+  the built wheel; `importorskip`-guarded). Detail in the
+  [history archive](rust-rewrite-history.md). Still **open**: the legacy
+  shim set (~39 `#[pyfunction]`s across `tokens` / `expr_lexer` /
+  `compiler_checks` / `interprocedural` / `gvn` / `compilation_unit` /
+  `signature_scan` / `optimiser` / `analyser` / `registry` / `bigip` + the
+  folding / document-symbol feature bindings) stays until its in-tree
+  Python importers retire under PYTHON-RETIRE.
+- **partial** TEST-MIGRATE — the **porting** half is **complete** (the
+  **deletion** half stays gated on PYTHON-RETIRE). All 473 `tests/test_*.py`
+  files are now classified (ported / bridge-only / remove-at-end / deferred)
+  in the [test audit](rust-rewrite-test-audit.md#test-migrate--full-pytest-suite-classification-all-473-files):
+  every behaviour portable to a landed crate is Rust-covered (per-module
+  `#[cfg(test)]`, the `tcltest` reference sweeps, or `*_parity.rs`
+  differentials), and the un-ported remainder is attributed to a named
+  unlanded track (RT-WASM / RT-VM / SRV-ROPE / PKG / PGO — *deferred*) or to
+  Python-binding / `ai/` glue (*bridge-only*). The `test_fp_*` battery is the
+  analyser acceptance gate (C41 ✅, ~1,000 analyser `#[test]`s). The cleanly
+  portable pure-logic gaps that still had zero Rust unit coverage were ported
+  in the closing pass — `tcl-bigip::policy_eval` (LTM policy evaluator),
+  `tcl-bigip::validator` (BIGIP6003–6009), `tcl-registry::bigip` (object-kind
+  resolution), plus VM helper modules (`cmd_string`/`subst`/`exec`). The
+  **deletion** of the `test_*.py` is the terminal PYTHON-RETIRE sweep — gated,
+  since the pytest suite is the behavioural oracle while the Python layer ships.
+- **partial** rewrite `scripts/` build/release as `cargo xtask` (eliminate the
+  Python toolchain dependency). The `rust/xtask` crate + `cargo xtask` alias
+  scaffold **landed**, with five scripts ported and parity-checked against the
+  Python originals: `refcount-contract` (⇐ `scripts/check/refcount_contract.py`)
+  and `kcs-index-links` (⇐ `scripts/check/kcs_index_links.py`) — byte-for-byte
+  identical stdout/stderr + exit codes; `version` (⇐ `scripts/print_version.py`),
+  whose `git describe` → setuptools-scm scheme is unit-pinned against real
+  `setuptools_scm` outputs; `tzdata-bundle` (⇐
+  `scripts/build/tzdata_bundle.py`), whose packed `TZBL` artifact is byte-for-byte
+  identical for both the verbatim and `--trim`-window paths (the `TZif` v1
+  trimmer included); and `audit-option-dialects` (⇐
+  `scripts/check/audit_option_dialects.py`), which probes every `OptionSpec`
+  dialect gate against the built tclsh 8.4/8.5/8.6/9.0 trees — the
+  `tmp/option_dialect_audit.json` artifact **and** the console log are
+  byte-for-byte identical to the Python (verified against the one tclsh tree
+  built in the dev env; a hand-rolled `json.dumps(indent=2)` emitter and a
+  `repr()`-faithful diagnostic formatter keep the bytes exact, and the probe
+  table / version order are transcribed 1:1). Remaining: port the other
+  build-artifact scripts (`build/{kcs_db,zipapps}.py` — SQLite / zipapp
+  builders) and the environment-coupled `check/wasm_command_parity.py`, then
+  flip the Makefile/CI invocations and retire the Python originals.
+  (`bigip_kind_differential.py` stays Python — it is a Python-vs-Rust
+  differential oracle, not a toolchain script.)
 - **open** PYTHON-RETIRE — delete `compiler/`, `analyser/`, `server/`, and the
   ported `tooling/` subtrees once their consumers are Rust. `ai/` (MCP server +
   Claude skills) stays Python by design.

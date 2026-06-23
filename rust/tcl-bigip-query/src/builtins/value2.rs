@@ -218,3 +218,56 @@ fn bi_with_partition(args: &[Value]) -> Result<Value, QueryError> {
     let base = s.rsplit('/').next().unwrap_or("");
     Ok(Value::Str(format!("/{p}/{base}")))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn s(text: &str) -> Value {
+        Value::Str(text.to_owned())
+    }
+
+    fn call_bool(f: fn(&[Value]) -> Result<Value, QueryError>, args: &[Value]) -> bool {
+        match f(args) {
+            Ok(Value::Bool(b)) => b,
+            other => panic!("expected Bool, got {other:?}"),
+        }
+    }
+
+    fn call_str(f: fn(&[Value]) -> Result<Value, QueryError>, args: &[Value]) -> String {
+        match f(args) {
+            Ok(Value::Str(t)) => t,
+            other => panic!("expected Str, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn all_any_follow_jq_empty_semantics() {
+        // jq parity (TEST-MIGRATE — value2.rs had no unit coverage):
+        // all([]) is true (vacuous), any([]) is false; null/false are falsy.
+        assert!(call_bool(bi_all, &[Value::List(vec![])]));
+        assert!(!call_bool(bi_any, &[Value::List(vec![])]));
+        assert!(call_bool(
+            bi_all,
+            &[Value::List(vec![Value::Bool(true), Value::Int(1)])]
+        ));
+        assert!(!call_bool(
+            bi_all,
+            &[Value::List(vec![Value::Bool(true), Value::Bool(false)])]
+        ));
+        assert!(call_bool(
+            bi_any,
+            &[Value::List(vec![Value::Bool(false), Value::Int(1)])]
+        ));
+        assert!(!call_bool(
+            bi_any,
+            &[Value::List(vec![Value::Null, Value::Bool(false)])]
+        ));
+    }
+
+    #[test]
+    fn basename_takes_last_path_segment() {
+        assert_eq!(call_str(bi_basename, &[s("/Common/web_pool")]), "web_pool");
+        assert_eq!(call_str(bi_basename, &[s("noslash")]), "noslash");
+    }
+}

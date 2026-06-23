@@ -72,6 +72,7 @@ members = [
     "rust/tcl-fuzz",
     "rust/tcl-irule-test",
     "rust/tcl-debugger",
+    "rust/xtask",
 ]
 exclude = [
     "editors/zed",

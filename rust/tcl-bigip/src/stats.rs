@@ -360,3 +360,27 @@ pub fn report_to_json(report: &StatsReport) -> String {
     out.push('}');
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_root_kind_matches_virtual_and_wideip() {
+        // Cleanup roots (stats.rs had no unit coverage): the LTM virtual and
+        // any GTM wide-IP kind; everything else, and None, is a non-root.
+        assert!(is_root_kind(Some("ltm_virtual")));
+        assert!(is_root_kind(Some("gtm_wideip")));
+        assert!(is_root_kind(Some("gtm_wideip_a")));
+        assert!(!is_root_kind(Some("ltm_pool")));
+        assert!(!is_root_kind(None));
+    }
+
+    #[test]
+    fn deletable_kinds_excludes_roots_and_never_delete() {
+        let kinds = deletable_kinds();
+        assert!(!kinds.is_empty());
+        assert!(!kinds.contains("ltm_virtual")); // a root
+        assert!(!kinds.contains("ltm_virtual_address")); // never-delete
+    }
+}

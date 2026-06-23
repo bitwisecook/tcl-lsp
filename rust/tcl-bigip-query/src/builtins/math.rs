@@ -986,3 +986,41 @@ fn bessel_y1(x: f64) -> f64 {
         * ((x - 3.0 * std::f64::consts::PI / 4.0).sin() * p1
             + z * (x - 3.0 * std::f64::consts::PI / 4.0).cos() * q1)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn round_of(n: f64) -> i64 {
+        match bi_round(&[Value::Float(n)]) {
+            Ok(Value::Int(i)) => i,
+            other => panic!("round returned {other:?}"),
+        }
+    }
+
+    fn fabs_of(n: f64) -> f64 {
+        match bi_fabs(&[Value::Float(n)]) {
+            Ok(Value::Float(f)) => f,
+            other => panic!("fabs returned {other:?}"),
+        }
+    }
+
+    #[test]
+    fn round_ties_away_from_zero() {
+        // Ported from `tests/test_f5_query.py`
+        // ::test_floor_ceil_round_match_jq_semantics (round half) — C/jq
+        // ties-away-from-zero, not banker's rounding (math.rs had no unit
+        // coverage).
+        assert_eq!(round_of(2.5), 3);
+        assert_eq!(round_of(-2.5), -3);
+        assert_eq!(round_of(0.5), 1);
+        assert_eq!(round_of(-3.7), -4);
+    }
+
+    #[test]
+    fn fabs_returns_float_magnitude() {
+        // Ported from `::test_abs_and_fabs` (fabs half — always a float).
+        assert_eq!(fabs_of(-5.0), 5.0);
+        assert_eq!(fabs_of(3.14), 3.14);
+    }
+}
