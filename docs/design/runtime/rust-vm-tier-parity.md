@@ -2,9 +2,9 @@
 
 _Snapshot 2026-06-23 — regenerate with `TCL_LIBRARY=tmp/tcl9.0.3/library python scripts/dev/rust_vm_tier_gap.py --json tmp/g.json`._
 
-Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/baselines/tcl9-tcltest/c-tclsh.ndjson`; `*` = captured live from tclsh9.0).
+Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/baselines/tcl9-tcltest/c-tclsh.ndjson`).
 
-`CRASH` = an uncaught error/timeout aborts the file (highest leverage — one fix unlocks it). `no-ref` = no C baseline captured. Columns: **C P/S/F** vs **VM P/S/F**.
+`CRASH` = an uncaught error/timeout aborts the file (highest leverage — one fix unlocks it). Columns: **C P/S/F** vs **VM P/S/F**.
 
 **Tally: 22 MATCH · 61 gap · 14 crash · 0 no-ref** of 97 stems.
 
@@ -33,8 +33,8 @@ Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/
 | error | 309/8/0 | 278/8/31 | gap |
 | eval | 12/0/0 | 11/0/1 | gap |
 | execute | 79/78/0 | 54/78/25 | gap |
-| expr | 2137/31/0 | 1613/32/523 | gap |
-| expr-old | 430/31/0 | 328/31/102 | gap |
+| expr | 2137/31/0 | 1621/32/515 | gap |
+| expr-old | 430/31/0 | 330/31/100 | gap |
 | for | 64/24/0 | 57/24/7 | gap |
 | for-old | 9/0/0 | 8/0/1 | gap |
 | foreach | 43/0/0 | 37/0/6 | gap |
@@ -62,7 +62,7 @@ Goal: the VM's (passed/skipped/failed) per stem EXACTLY matches C Tcl 9 (`tests/
 | lseq | 132/2/0 | 95/3/36 | gap |
 | lset | 0/89/0 | 0/89/0 | MATCH |
 | lsetComp | 19/0/0 | 19/0/0 | MATCH |
-| mathop | 385/0/0 | 171/0/214 | gap |
+| mathop | 385/0/0 | 248/0/137 | gap |
 | misc | 2/299/0 | 1/299/1 | gap |
 | namespace | 311/3/0 | 141/3/170 | gap |
 | namespace-old | 126/0/0 | 99/0/27 | gap |
