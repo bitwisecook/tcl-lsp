@@ -16,6 +16,9 @@ pub enum Category {
     Registry,
     Fetch,
     Venv,
+    Policy,
+    Sandbox,
+    Hook,
 }
 
 impl Category {
@@ -29,6 +32,9 @@ impl Category {
             Category::Registry => "registry",
             Category::Fetch => "fetch",
             Category::Venv => "venv",
+            Category::Policy => "policy",
+            Category::Sandbox => "sandbox",
+            Category::Hook => "hook",
         }
     }
 }

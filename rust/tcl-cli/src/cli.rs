@@ -567,6 +567,58 @@ pub enum PkgCommand {
         #[arg(long)]
         offline: bool,
     },
+    /// Inspect the effective sandbox / hooks / registry policy.
+    Policy {
+        #[command(subcommand)]
+        action: PolicyAction,
+    },
+    /// List the operator hooks bound to lifecycle stages.
+    Hooks {
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show recent sandboxed-execution audit records.
+    Audit {
+        /// Number of trailing records to show.
+        #[arg(long, default_value_t = 20)]
+        lines: usize,
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Trust a package's build script so it may run (when build scripts are
+    /// enabled by policy). Writes to the per-user policy layer.
+    Trust {
+        /// Package name.
+        package: String,
+        /// Remove the package from the trusted list instead.
+        #[arg(long)]
+        remove: bool,
+    },
+    /// Run the manifest's declared build script in a deprivileged sandbox.
+    /// Requires `[build] allow-build-scripts` and the package to be trusted.
+    Build {
+        #[command(flatten)]
+        common: PkgCommon,
+    },
+}
+
+/// Sub-actions for `tcl pkg policy`.
+#[derive(Debug, Subcommand)]
+pub enum PolicyAction {
+    /// Print the merged, effective policy and which keys are admin-locked.
+    Show {
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Validate policy files and report any problems (non-zero on warnings).
+    Verify {
+        /// Emit JSON output.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]

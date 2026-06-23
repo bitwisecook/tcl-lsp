@@ -28,11 +28,16 @@ fn cmd_scan(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let inp: Vec<char> = input.chars().collect();
     let fch: Vec<char> = fmt.chars().collect();
+    // Reject malformed format strings up front, as C's `ValidateFormat` does.
+    if let Err(msg) = tcl_cmd_core::scan::validate_format(&fch, vars.len()) {
+        return err(msg);
+    }
     let outcome = scan_match(&inp, &fch);
     if vars.is_empty() {
         // Inline form: the conversions as a list (a failed field is an empty
-        // string); an outright EOF-before-anything is the empty string.
-        if outcome.values.is_empty() {
+        // string); an outright EOF-before-anything is the empty string (the
+        // analogue of variable mode's -1, scan-3.4).
+        if outcome.values.is_empty() || (outcome.nconv == 0 && outcome.eof_before_conv) {
             return ok(Value::empty());
         }
         return ok(Value::list(

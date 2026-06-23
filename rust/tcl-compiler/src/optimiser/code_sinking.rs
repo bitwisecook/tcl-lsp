@@ -322,7 +322,9 @@ fn sinkable_assignment(stmt: &Statement) -> Option<(String, tcl_lexer::Span)> {
                 Some((name.clone(), *span))
             }
         }
-        Statement::AssignExpr { span, name, expr } => {
+        Statement::AssignExpr {
+            span, name, expr, ..
+        } => {
             if expr_has_command_subst(expr) {
                 None
             } else {

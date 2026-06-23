@@ -67,11 +67,11 @@ pub fn eval<O: ExprOps>(
             Some([v]) => ops.unary(UnaryOp::BitNot, v).map_err(Op),
             None => Err(MathopError::WrongArgs("integer")),
         },
+        // `!` shares `expr`'s unary-not path so a non-boolean/NaN operand is the
+        // operand-type error (`cannot use … as operand of "!"`), not the generic
+        // "expected boolean value".
         "!" => match into_n::<O, 1>(args) {
-            Some([v]) => {
-                let b = ops.to_bool(&v).map_err(Op)?;
-                Ok(ops.bool_value(!b))
-            }
+            Some([v]) => ops.unary(UnaryOp::Not, v).map_err(Op),
             None => Err(MathopError::WrongArgs("boolean")),
         },
         // Chained comparisons (vacuously true for <2 args).
@@ -81,6 +81,11 @@ pub fn eval<O: ExprOps>(
         "<=" => Ok(bool_chain(ops, &args, false, |o| o != Ordering::Greater)),
         ">=" => Ok(bool_chain(ops, &args, false, |o| o != Ordering::Less)),
         "eq" => Ok(bool_chain(ops, &args, true, |o| o == Ordering::Equal)),
+        // String-only chained ordering (the `eq`-style spellings of `<`/`>`/…).
+        "lt" => Ok(bool_chain(ops, &args, true, |o| o == Ordering::Less)),
+        "gt" => Ok(bool_chain(ops, &args, true, |o| o == Ordering::Greater)),
+        "le" => Ok(bool_chain(ops, &args, true, |o| o != Ordering::Greater)),
+        "ge" => Ok(bool_chain(ops, &args, true, |o| o != Ordering::Less)),
         // Strict-binary (in)equality.
         "!=" => ne_binary(ops, args, false),
         "ne" => ne_binary(ops, args, true),
@@ -91,16 +96,32 @@ pub fn eval<O: ExprOps>(
     }
 }
 
-/// Variadic fold from `identity` over `op` (`+`/`*`/`&`/`|`/`^`).
+/// Variadic fold over `op` (`+`/`*`/`&`/`|`/`^`).
+///
+/// No args → `identity`. Otherwise the *first* argument seeds the accumulator
+/// (matching C: `+ a b` is `a + b`, so `a` is the left operand — `+ x 0`
+/// reports x as the *left* operand, not the right). A lone argument is still
+/// validated by combining it with the identity on the right, so `+ x` errors on
+/// the left operand while `+ 5` stays 5.
 fn fold<O: ExprOps>(
     ops: &mut O,
     args: Vec<O::Value>,
     identity: &str,
     op: BinOp,
 ) -> Result<O::Value, MathopError<O::Error>> {
-    let mut acc = ops.literal(identity).map_err(MathopError::Op)?;
-    for a in args {
+    let mut it = args.into_iter();
+    let Some(first) = it.next() else {
+        return ops.literal(identity).map_err(MathopError::Op);
+    };
+    let mut acc = first;
+    let mut folded = false;
+    for a in it {
         acc = ops.arith(op, acc, a).map_err(MathopError::Op)?;
+        folded = true;
+    }
+    if !folded {
+        let id = ops.literal(identity).map_err(MathopError::Op)?;
+        acc = ops.arith(op, acc, id).map_err(MathopError::Op)?;
     }
     Ok(acc)
 }

@@ -1431,6 +1431,7 @@ mod tests {
             statement: Statement::AssignConst {
                 span: Span::new(0, 0),
                 name: name.into(),
+                name_braced: false,
                 value: value.into(),
             },
             uses: HashMap::new(),
@@ -1638,6 +1639,7 @@ mod tests {
             statement: Statement::AssignExpr {
                 span: Span::new(0, 0),
                 name: "x".into(),
+                name_braced: false,
                 expr,
             },
             uses,
@@ -1667,6 +1669,7 @@ mod tests {
             statement: Statement::Incr {
                 span: Span::new(0, 0),
                 name: name.into(),
+                name_braced: false,
                 amount: amount.map(String::from),
                 safe_on_uninit: false,
             },
@@ -1906,6 +1909,7 @@ mod tests {
             statement: Statement::AssignValue {
                 span: Span::new(0, 0),
                 name: name.into(),
+                name_braced: false,
                 value: value.into(),
                 value_needs_backsubst: false,
                 tokens: None,

@@ -21,6 +21,19 @@ use super::ordering::{
 use super::proc_defs::is_static_proc;
 use super::try_blocks::{TryFinallyInfo, detect_try_finally};
 
+/// The `errorInfo` body-frame label for an inlined block, from its enclosing
+/// command's surface text — `Some("eval")` for an `eval {…}` body, `None` for an
+/// `uplevel` passthrough block (which runs in the caller's frame and adds no body
+/// frame). The first whitespace-delimited word is the command, matched after
+/// stripping any leading `::` qualifier.
+fn block_frame_label(cmd_text: &str) -> Option<&'static str> {
+    let word = cmd_text.split_whitespace().next().unwrap_or("");
+    match word.strip_prefix("::").unwrap_or(word) {
+        "eval" => Some("eval"),
+        _ => None,
+    }
+}
+
 /// Transient state passed between the per-block handlers in `generate`.
 struct GenerateState {
     /// Pending proc definitions, sorted by source offset. A
@@ -550,6 +563,31 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         ctx.instructions.len(),
     );
 
+    // Inline-body error regions: each `eval {…}` body the CFG builder flattened
+    // becomes a region keyed by the enclosing command's source span, so an error
+    // unwinding through the (still inlined) body gets the `("eval" body line N)`
+    // + `invoked from within "eval {…}"` frames the uncompiled command adds. The
+    // label distinguishes an `eval` body (a frame) from an `uplevel` passthrough
+    // block (none); deriving it needs the source text, so a source-less context
+    // yields no regions.
+    let error_regions = cfg
+        .inline_eval_spans
+        .iter()
+        .filter_map(|&span| {
+            let cmd_text = ctx.source_text(span);
+            let label = block_frame_label(&cmd_text)?;
+            let cmd_line = ctx.source_line(span);
+            Some(tcl_bytecode::ErrorRegion {
+                start: span.start(),
+                end: span.end(),
+                label: label.to_string(),
+                cmd_text,
+                line_base: cmd_line.saturating_sub(1),
+                cmd_line,
+            })
+        })
+        .collect();
+
     FunctionAsm {
         name: cfg.name.clone(),
         literals: std::mem::take(&mut ctx.literals),
@@ -558,6 +596,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         labels,
         loop_targets,
         body_base_line: 0,
+        error_regions,
     }
 }
 
@@ -719,6 +758,7 @@ mod tests {
                 span: stmt_span,
                 name: "x".into(),
                 value: "42".into(),
+                name_braced: false,
             });
         cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Return {
             value: None,
@@ -762,6 +802,7 @@ mod tests {
                 span: sp(),
                 name: "x".into(),
                 value: "42".into(),
+                name_braced: false,
             });
         cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Return {
             value: None,
@@ -825,6 +866,7 @@ mod tests {
                 span: sp(),
                 name: "r".into(),
                 value: "1".into(),
+                name_braced: false,
             });
         cfg.blocks.get_mut("if_then_1").unwrap().terminator = Some(Terminator::Goto {
             target: "if_end_1".into(),
@@ -838,6 +880,7 @@ mod tests {
                 span: sp(),
                 name: "r".into(),
                 value: "2".into(),
+                name_braced: false,
             });
         cfg.blocks.get_mut("if_else_1").unwrap().terminator = Some(Terminator::Goto {
             target: "if_end_1".into(),

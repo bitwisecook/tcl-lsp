@@ -920,6 +920,43 @@ pub struct FunctionAsm {
     /// `N = instruction_line − body_base_line + 1`, so the line is relative to
     /// the proc, not the whole module. `0` for the top level / hand-built asm.
     pub body_base_line: u32,
+    /// Inline command-body regions (`eval {…}` / `while`/`for`/`foreach` bodies)
+    /// folded into this function's instruction stream. As an error unwinds past
+    /// a covering region the executor synthesises the body frame the *uncompiled*
+    /// command would add to `errorInfo` (`("eval" body line N)` + `invoked from
+    /// within "eval {…}"`), so an inlined body matches C's `CmdFrame` trace
+    /// without de-inlining. Empty when the function holds no inlined bodies.
+    pub error_regions: Vec<ErrorRegion>,
+}
+
+/// An inlined command body's instruction range and the `errorInfo` frame the
+/// enclosing command (`eval`/`while`/`for`/`foreach`) would add when its body
+/// errors — the compiled analogue of C's per-command `CmdFrame`. Populated by
+/// codegen when it folds a literal body inline (so the LSP keeps its inlined
+/// view), consumed by the executor as an error unwinds (see
+/// `FunctionAsm::error_regions`).
+#[derive(Debug, Clone)]
+pub struct ErrorRegion {
+    /// Start byte offset of the enclosing command's source span (inclusive). An
+    /// instruction is covered when its `source_span` lies within `[start, end)`,
+    /// so coverage is matched by source containment — robust to instruction
+    /// reordering and exact across interleaved (non-body) instructions.
+    pub start: u32,
+    /// End byte offset of the enclosing command's source span (exclusive).
+    pub end: u32,
+    /// The body-frame label — `eval`/`while`/`for`/`foreach` — quoted in the
+    /// `("LABEL" body line N)` frame.
+    pub label: String,
+    /// The enclosing command's surface text, for its `invoked from within "…"`
+    /// frame (truncated to 150 bytes by the logger, as in C).
+    pub cmd_text: String,
+    /// One less than the body's first source line: a covered instruction's
+    /// body-relative line is `instruction_line − line_base` (so the body frame
+    /// reports a line relative to the body, not the whole module).
+    pub line_base: u32,
+    /// The enclosing command's own source line — the line its `invoked from
+    /// within` frame contributes to any further-out (proc) frame.
+    pub cmd_line: u32,
 }
 
 /// Assembly for an entire module.

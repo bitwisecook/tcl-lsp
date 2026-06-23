@@ -10,7 +10,6 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde_json::{Map, Value, json};
 use tcl_pkg::cas::ContentAddressableStore;
@@ -21,7 +20,7 @@ use tcl_pkg::registry::RegistryClient;
 use tcl_pkg::resolver::{ExcludeSpec, PackageRef, ReplaceSpec, ResolveInput, resolve};
 use tcl_pkg::ui;
 
-use crate::cli::{PkgCommand, PkgCommon};
+use crate::cli::{PkgCommand, PkgCommon, PolicyAction};
 
 /// Dispatch a `tcl pkg` sub-action.
 pub fn run(action: &PkgCommand) -> anyhow::Result<u8> {
@@ -76,6 +75,11 @@ pub fn run(action: &PkgCommand) -> anyhow::Result<u8> {
             json,
             offline,
         } => run_search(query, *json, *offline),
+        PkgCommand::Policy { action } => run_policy(action),
+        PkgCommand::Hooks { json } => run_hooks(*json),
+        PkgCommand::Audit { lines, json } => run_audit(*lines, *json),
+        PkgCommand::Trust { package, remove } => run_trust(package, *remove),
+        PkgCommand::Build { common } => run_build(common),
     }
 }
 
@@ -185,6 +189,25 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
         }
     };
 
+    let project_dir = mpath
+        .parent()
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+    let loaded = tcl_pkg::policy::load(Some(&project_dir));
+    for w in &loaded.warnings {
+        eprintln!("{}", ui::warn(w, colour));
+    }
+    let install_ctx = tcl_pkg::hooks::HookContext::new(&project_dir)
+        .var("MANIFEST", mpath.to_string_lossy())
+        .var("PROJECT", project_dir.to_string_lossy());
+    if let Err(e) = tcl_pkg::hooks::run_stage(
+        tcl_pkg::hooks::Stage::PreInstall,
+        &loaded.config,
+        &install_ctx,
+    ) {
+        eprintln!("error: {e}");
+        return Ok(1);
+    }
+
     let direct: Vec<PackageRef> = manifest
         .requires
         .iter()
@@ -271,6 +294,15 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
                 Some(&mut registry),
             );
             if let Some(source) = source {
+                // Registry allow/deny + require-https policy gate the source
+                // before any fetch happens.
+                if !source.url.is_empty() && !loaded.config.source_allowed(&source.url) {
+                    eprintln!(
+                        "error: {name} {version}: source '{}' rejected by registry policy",
+                        source.url
+                    );
+                    return Ok(1);
+                }
                 match installer::fetch_and_store(&source, &name, &version, &cas, 60) {
                     Ok(result) => {
                         if let Err(e) = installer::materialise(
@@ -288,6 +320,23 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
                         entry.size = result.size;
                         entry.provides = result.provides;
                         entry.license = result.license;
+
+                        // Operator post-fetch hook (scanner / provenance / deny):
+                        // a non-zero exit aborts the install.
+                        let fetch_ctx = tcl_pkg::hooks::HookContext::new(&project_dir)
+                            .var("NAME", name.clone())
+                            .var("VERSION", version.clone())
+                            .var("SOURCE_URL", entry.source.url.clone())
+                            .var("INTEGRITY", entry.integrity.clone())
+                            .var("PKG_DIR", lib_dir.join(&name).to_string_lossy());
+                        if let Err(e) = tcl_pkg::hooks::run_stage(
+                            tcl_pkg::hooks::Stage::PostFetch,
+                            &loaded.config,
+                            &fetch_ctx,
+                        ) {
+                            eprintln!("error: {e}");
+                            return Ok(1);
+                        }
                     }
                     Err(e) => {
                         entry.source = source;
@@ -297,6 +346,31 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
             }
         }
         lf.packages.push(entry);
+    }
+
+    // Enforce integrity / post-install policy before the lockfile is written.
+    if loaded.config.verification.require_integrity && !offline {
+        let missing: Vec<&str> = lf
+            .packages
+            .iter()
+            .filter(|p| p.integrity.is_empty())
+            .map(|p| p.name.as_str())
+            .collect();
+        if !missing.is_empty() {
+            eprintln!(
+                "error: policy requires integrity hashes but these have none: {}",
+                missing.join(", ")
+            );
+            return Ok(1);
+        }
+    }
+    if let Err(e) = tcl_pkg::hooks::run_stage(
+        tcl_pkg::hooks::Stage::PostInstall,
+        &loaded.config,
+        &install_ctx,
+    ) {
+        eprintln!("error: {e}");
+        return Ok(1);
     }
 
     let lockpath = mpath
@@ -899,8 +973,21 @@ fn run_run(extra: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
         return Ok(1);
     };
 
-    let mut cmd = Command::new(&tclsh);
-    cmd.arg(&entry_path).args(extra);
+    // Operator hooks + audit + policy floor apply even to running the project's
+    // own entry point ("anything tcl pkg runs is sandboxed").
+    let loaded = tcl_pkg::policy::load(Some(parent));
+    let ctx = tcl_pkg::hooks::HookContext::new(parent)
+        .var("ENTRY", entry_path.to_string_lossy())
+        .var("MANIFEST", mpath.to_string_lossy());
+    if let Err(e) = tcl_pkg::hooks::run_stage(tcl_pkg::hooks::Stage::PreRun, &loaded.config, &ctx) {
+        eprintln!("error: {e}");
+        return Ok(1);
+    }
+
+    let mut profile = tcl_sandbox::Profile::new("pkg-run", &tclsh, parent)
+        .user_code()
+        .arg(entry_path.to_string_lossy())
+        .args(extra.iter().cloned());
     let lib_dir = parent.join("lib");
     if lib_dir.is_dir() {
         let existing = std::env::var("TCLLIBPATH").unwrap_or_default();
@@ -909,15 +996,23 @@ fn run_run(extra: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
         } else {
             format!("{} {existing}", lib_dir.display())
         };
-        cmd.env("TCLLIBPATH", value);
+        profile = profile.set_env("TCLLIBPATH", value);
     }
-    match cmd.status() {
-        Ok(s) => Ok(u8::try_from(s.code().unwrap_or(1)).unwrap_or(1)),
+
+    let code = match tcl_pkg::exec::execute(&profile, &loaded.config.sandbox_policy()) {
+        Ok(out) => u8::try_from(out.code.unwrap_or(1)).unwrap_or(1),
         Err(e) => {
             eprintln!("error: {e}");
-            Ok(1)
+            return Ok(1);
         }
+    };
+
+    if let Err(e) = tcl_pkg::hooks::run_stage(tcl_pkg::hooks::Stage::PostRun, &loaded.config, &ctx)
+    {
+        eprintln!("error: {e}");
+        return Ok(1);
     }
+    Ok(code)
 }
 
 fn run_freeze(common: &PkgCommon) -> anyhow::Result<u8> {
@@ -972,8 +1067,294 @@ fn run_search(query: &str, json: bool, offline: bool) -> anyhow::Result<u8> {
     Ok(0)
 }
 
-/// Build the canonical JSON object for a locked package (`LockedPackage.to_dict`).
-/// Keys are sorted by the canonical-JSON emitter.
+fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
+    let mpath = manifest_path(common);
+    let colour = ui::use_colour(Some(!common.json));
+    let manifest = match load_manifest(&mpath) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return Ok(1);
+        }
+    };
+    if manifest.build.script.is_empty() {
+        eprintln!("error: no 'build' directive in manifest");
+        return Ok(1);
+    }
+    let project_dir = mpath
+        .parent()
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+    let loaded = tcl_pkg::policy::load(Some(&project_dir));
+
+    // Packages are data by default: a build script runs only when the operator
+    // both enables build scripts and trusts this package.
+    if !loaded.config.build_script_allowed(&manifest.name) {
+        eprintln!(
+            "error: build script for '{}' is not permitted by policy",
+            manifest.name
+        );
+        eprintln!(
+            "  hint: set [build] allow-build-scripts = true and run 'tcl pkg trust {}'",
+            manifest.name
+        );
+        return Ok(1);
+    }
+
+    let script = project_dir.join(&manifest.build.script);
+    if !script.is_file() {
+        eprintln!("error: build script not found: {}", script.display());
+        return Ok(1);
+    }
+    let tclsh = if let Some(venv) = std::env::var_os("TCL_VENV") {
+        PathBuf::from(venv).join("bin").join("tclsh")
+    } else if let Some(p) = tcl_pkg::venv::find_tclsh() {
+        p
+    } else {
+        eprintln!("error: tclsh not found on PATH");
+        return Ok(1);
+    };
+
+    let ctx = tcl_pkg::hooks::HookContext::new(&project_dir)
+        .var("NAME", manifest.name.clone())
+        .var("BUILD_SCRIPT", script.to_string_lossy());
+    if let Err(e) = tcl_pkg::hooks::run_stage(tcl_pkg::hooks::Stage::PreBuild, &loaded.config, &ctx)
+    {
+        eprintln!("error: {e}");
+        return Ok(1);
+    }
+
+    // Deprivileged: network denied unless declared (and still policy-clamped),
+    // environment scrubbed of secrets, confined to the project directory, output
+    // streamed. A throwaway HOME keeps the script away from the user's dotfiles.
+    let build_home = project_dir.join(".tclpkg-build-home");
+    let _ = std::fs::create_dir_all(&build_home);
+    let mut profile = tcl_sandbox::Profile::new("pkg-build", &tclsh, &project_dir)
+        .arg(script.to_string_lossy())
+        .network(manifest.build.network)
+        .capture(false)
+        .set_env("HOME", build_home.to_string_lossy())
+        .set_env("TCLPKG_BUILD", "1");
+    for name in ["PATH", "TCL_LIBRARY", "TCLLIBPATH", "TMPDIR"] {
+        profile = profile.pass_env(name);
+    }
+    profile.fs_write = vec![project_dir.clone()];
+    profile.fs_read = vec![project_dir.clone()];
+
+    println!(
+        "{}",
+        ui::dim(
+            &format!(
+                "running build script {} (deprivileged)",
+                manifest.build.script
+            ),
+            colour
+        )
+    );
+    let code = match tcl_pkg::exec::execute(&profile, &loaded.config.sandbox_policy()) {
+        Ok(out) => {
+            if out.isolation == tcl_sandbox::IsolationLevel::Baseline {
+                eprintln!(
+                    "{}",
+                    ui::warn(
+                        "build ran with baseline isolation only (no OS-native filesystem/network confinement on this host)",
+                        colour
+                    )
+                );
+            }
+            u8::try_from(out.code.unwrap_or(1)).unwrap_or(1)
+        }
+        Err(e) => {
+            eprintln!("error: {e}");
+            return Ok(1);
+        }
+    };
+
+    if let Err(e) =
+        tcl_pkg::hooks::run_stage(tcl_pkg::hooks::Stage::PostBuild, &loaded.config, &ctx)
+    {
+        eprintln!("error: {e}");
+        return Ok(1);
+    }
+    if code == 0 {
+        println!("{}", ui::ok("build complete", colour));
+    }
+    Ok(code)
+}
+
+fn run_policy(action: &PolicyAction) -> anyhow::Result<u8> {
+    let project = find_project_root();
+    let loaded = tcl_pkg::policy::load(project.as_deref());
+    match action {
+        PolicyAction::Show { json } => policy_show(&loaded, *json),
+        PolicyAction::Verify { json } => policy_verify(&loaded, *json),
+    }
+}
+
+fn policy_show(loaded: &tcl_pkg::policy::LoadedPolicy, json: bool) -> anyhow::Result<u8> {
+    let cfg = &loaded.config;
+    if json {
+        let sources: Vec<Value> = loaded
+            .sources
+            .iter()
+            .map(|s| {
+                json!({
+                    "layer": s.layer,
+                    "path": s.path.to_string_lossy(),
+                    "loaded": s.loaded,
+                    "note": s.note,
+                })
+            })
+            .collect();
+        let config = serde_json::to_value(cfg).unwrap_or(Value::Null);
+        println!(
+            "{}",
+            ui::json_output(&json!({
+                "sources": sources,
+                "locked": loaded.locked,
+                "warnings": loaded.warnings,
+                "config": config,
+            }))
+        );
+        return Ok(0);
+    }
+    let colour = ui::use_colour(None);
+    println!("Policy layers (low → high precedence):");
+    for s in &loaded.sources {
+        let status = if s.loaded { "loaded" } else { "—" };
+        let note = s
+            .note
+            .as_deref()
+            .map_or(String::new(), |n| format!("  ({n})"));
+        println!("  {:<8} {} [{status}]{note}", s.layer, s.path.display());
+    }
+    println!("\nSandbox floor:");
+    println!("  fail-closed         {}", cfg.sandbox.fail_closed);
+    println!("  deny-network        {}", cfg.sandbox.deny_network);
+    println!(
+        "  require-network-deny {}",
+        cfg.sandbox.require_network_deny
+    );
+    if let Some(t) = cfg.sandbox.max_timeout_secs {
+        println!("  max-timeout-secs    {t}");
+    }
+    println!("\nRegistry:");
+    println!("  require-https {}", cfg.registry.require_https);
+    println!("  allow         {:?}", cfg.registry.allow);
+    println!("  deny          {:?}", cfg.registry.deny);
+    println!("\nVerification:");
+    println!(
+        "  require-integrity  {}",
+        cfg.verification.require_integrity
+    );
+    println!(
+        "  require-provenance {}",
+        cfg.verification.require_provenance
+    );
+    println!("  cooldown-days      {}", cfg.cooldown.min_release_age_days);
+    println!("\nBuild scripts:");
+    println!("  allow-build-scripts {}", cfg.build.allow_build_scripts);
+    println!("  trusted             {:?}", cfg.build.trusted);
+    println!("\nHooks: {} configured", cfg.hooks.len());
+    if loaded.locked.is_empty() {
+        println!("\nAdmin-locked keys: none");
+    } else {
+        println!("\nAdmin-locked keys:");
+        for k in &loaded.locked {
+            println!("  {k}");
+        }
+    }
+    if !loaded.warnings.is_empty() {
+        println!();
+        for w in &loaded.warnings {
+            println!("{}", ui::warn(w, colour));
+        }
+    }
+    Ok(0)
+}
+
+fn policy_verify(loaded: &tcl_pkg::policy::LoadedPolicy, json: bool) -> anyhow::Result<u8> {
+    let ok = loaded.warnings.is_empty();
+    if json {
+        println!(
+            "{}",
+            ui::json_output(&json!({"ok": ok, "warnings": loaded.warnings}))
+        );
+    } else {
+        let colour = ui::use_colour(None);
+        if ok {
+            println!("{}", ui::ok("policy OK", colour));
+        } else {
+            for w in &loaded.warnings {
+                println!("{}", ui::warn(w, colour));
+            }
+        }
+    }
+    Ok(u8::from(!ok))
+}
+
+fn run_hooks(json: bool) -> anyhow::Result<u8> {
+    let project = find_project_root();
+    let loaded = tcl_pkg::policy::load(project.as_deref());
+    let rows = tcl_pkg::hooks::describe(&loaded.config);
+    if json {
+        let arr: Vec<Value> = rows
+            .iter()
+            .map(|(stage, name, cmd)| json!({"stage": stage, "name": name, "command": cmd}))
+            .collect();
+        println!("{}", ui::json_output(&json!({"hooks": arr})));
+    } else if rows.is_empty() {
+        println!("No operator hooks configured.");
+    } else {
+        println!("{:<14} {:<16} COMMAND", "STAGE", "NAME");
+        for (stage, name, cmd) in &rows {
+            println!("{stage:<14} {name:<16} {cmd}");
+        }
+    }
+    Ok(0)
+}
+
+fn run_audit(lines: usize, json: bool) -> anyhow::Result<u8> {
+    let path = tcl_pkg::exec::audit_log_path();
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    let all: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+    let start = all.len().saturating_sub(lines);
+    let tail = &all[start..];
+    if json {
+        let arr: Vec<Value> = tail
+            .iter()
+            .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+            .collect();
+        println!("{}", ui::json_output(&Value::Array(arr)));
+    } else if tail.is_empty() {
+        println!("No audit records ({}).", path.display());
+    } else {
+        for l in tail {
+            println!("{l}");
+        }
+    }
+    Ok(0)
+}
+
+fn run_trust(package: &str, remove: bool) -> anyhow::Result<u8> {
+    let colour = ui::use_colour(None);
+    match tcl_pkg::policy::set_trusted(package, !remove) {
+        Ok(path) => {
+            let verb = if remove { "untrusted" } else { "trusted" };
+            println!(
+                "{}",
+                ui::ok(&format!("{verb} {package} (in {})", path.display()), colour)
+            );
+            Ok(0)
+        }
+        Err(e) => {
+            eprintln!("error: {e}");
+            Ok(1)
+        }
+    }
+}
+
+/// Build the canonical JSON object for a locked package (`LockedPackage.to_dict`
+/// in Python). Keys are sorted by the canonical-JSON emitter.
 fn locked_to_json(pkg: &LockedPackage) -> Value {
     let mut provides = pkg.provides.clone();
     provides.sort();

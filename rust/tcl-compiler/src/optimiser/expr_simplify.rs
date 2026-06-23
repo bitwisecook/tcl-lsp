@@ -84,7 +84,9 @@ fn walk_statement(
         Statement::ExprEval { span, expr } => {
             try_rewrite_expr(ctx, *span, expr);
         }
-        Statement::AssignExpr { span, name, expr } => {
+        Statement::AssignExpr {
+            span, name, expr, ..
+        } => {
             try_rewrite_assign_expr(ctx, *span, name, expr, numeric);
         }
         Statement::If {

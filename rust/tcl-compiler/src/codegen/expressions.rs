@@ -97,20 +97,70 @@ impl CodegenCtx<'_> {
     /// `{...}` delimiters and processes backslash escapes.  Returns
     /// `false` (string isn't necessarily numeric).
     fn emit_expr_string(&mut self, text: &str) -> bool {
-        let mut inner = text;
-        if inner.len() >= 2
-            && ((inner.starts_with('"') && inner.ends_with('"'))
-                || (inner.starts_with('{') && inner.ends_with('}')))
-        {
-            inner = &inner[1..inner.len() - 1];
+        // A brace-delimited operand `{…}` is a literal — no substitution.
+        if text.len() >= 2 && text.starts_with('{') && text.ends_with('}') {
+            self.push_lit(&text[1..text.len() - 1]);
+            return false;
         }
-        if inner.contains('\\') {
-            let processed = backslash_subst(inner);
+        // A quote-delimited operand `"…"` is a double-quoted word: its `$var` /
+        // `[cmd]` / backslash escapes are substituted, so `expr {"item $i"}` is
+        // `"item 0"`, not the literal `item $i` (append-5.1, the `$x eq "…$y"`
+        // idiom). Decompose it into literal / variable / command parts (the expr
+        // text is not pre-normalised to `${name}`, so go through the template
+        // parser, which handles bare `$var`) and concat them.
+        if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
+            let inner = &text[1..text.len() - 1];
+            // No `$`/`[`: a pure literal. Decode with the *full* backslash decoder
+            // (`\xNN`, `\NNN`, `\uNNNN`, …), which the template parser's simplified
+            // literal decoding does not cover (expr-8.13's `"\374"`).
+            if !inner.contains('$') && !inner.contains('[') {
+                self.push_lit(&backslash_subst(inner));
+                return false;
+            }
+            match super::helpers::parse_subst_template(inner) {
+                Some(parts) => self.emit_subst_parts(&parts),
+                // Unparseable template (e.g. a bare `$` with no name): literal.
+                None => self.push_lit(&backslash_subst(inner)),
+            }
+            return false;
+        }
+        // Bare text (no delimiters): a literal, backslash-decoded.
+        if text.contains('\\') {
+            let processed = backslash_subst(text);
             self.push_lit(&processed);
         } else {
-            self.push_lit(inner);
+            self.push_lit(text);
         }
         false
+    }
+
+    /// Emit the parts of a substituted double-quoted word, leaving one value on
+    /// the stack: each part pushes its value (literal / variable load / command
+    /// substitution), and >1 part is joined with `strConcat`. Mirrors the
+    /// command-argument interpolation path, reused for `"…"` expr operands.
+    fn emit_subst_parts(&mut self, parts: &[super::helpers::SubstPart]) {
+        use super::helpers::SubstPart;
+        if parts.is_empty() {
+            self.push_lit("");
+            return;
+        }
+        for part in parts {
+            match part {
+                SubstPart::Lit(t) => self.push_lit(t),
+                SubstPart::Var(name) => self.load_var(name),
+                SubstPart::Scalar(name) => {
+                    self.push_lit(name);
+                    self.emit(Op::LOAD_STK, vec![]);
+                }
+                SubstPart::Cmd(cmd_text) => self.emit_inline_cmd_subst(cmd_text),
+            }
+        }
+        if parts.len() > 1 {
+            self.emit(
+                Op::STR_CONCAT1,
+                vec![Operand::Imm(i32::try_from(parts.len()).unwrap_or(i32::MAX))],
+            );
+        }
     }
 
     /// Emit a `Binary` expression — short-circuits `&&` / `||`

@@ -82,6 +82,7 @@ mod tests {
             span,
             name: name.to_owned(),
             value: "1".to_owned(),
+            name_braced: false,
         };
         let ss = SsaStatement {
             statement: stmt,

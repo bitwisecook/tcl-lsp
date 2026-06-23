@@ -368,39 +368,60 @@ fn float_bytes(v: f64, size: usize, end: End) -> Vec<u8> {
 }
 
 /// Pack `n` binary digits of `s` into ceil(n/8) bytes. `high_first` (`B`) fills
-/// each byte MSB→LSB; `b` fills LSB→MSB.
-fn pack_bits(s: &[u8], n: usize, high_first: bool) -> Vec<u8> {
+/// each byte MSB→LSB; `b` fills LSB→MSB. The consumed digits must all be `0`/`1`
+/// (C errors `expected binary string but got "…" instead`); missing trailing
+/// digits (when `n` exceeds the string) are zero-padded, not an error.
+fn pack_bits(s: &[u8], n: usize, high_first: bool) -> Result<Vec<u8>, CmdError> {
     let mut out = vec![0u8; n.div_ceil(8)];
-    for k in 0..n {
-        if matches!(s.get(k), Some(b'1')) {
-            let byte = k / 8;
-            let pos = k % 8;
-            out[byte] |= if high_first { 0x80 >> pos } else { 1 << pos };
+    for k in 0..n.min(s.len()) {
+        match s[k] {
+            b'0' => {}
+            b'1' => {
+                out[k / 8] |= if high_first {
+                    0x80 >> (k % 8)
+                } else {
+                    1 << (k % 8)
+                }
+            }
+            _ => return Err(expected_string("binary", s)),
         }
     }
-    out
+    Ok(out)
 }
 
 /// Pack `n` hex digits of `s` into ceil(n/2) bytes. `high_first` (`H`) places
-/// the first digit in the high nibble; `h` in the low nibble.
-fn pack_hex(s: &[u8], n: usize, high_first: bool) -> Vec<u8> {
+/// the first digit in the high nibble; `h` in the low nibble. The consumed
+/// digits must all be hex (else C's `expected hexadecimal string but got "…"`).
+fn pack_hex(s: &[u8], n: usize, high_first: bool) -> Result<Vec<u8>, CmdError> {
     let mut out = vec![0u8; n.div_ceil(2)];
-    for k in 0..n {
-        let nib = s.get(k).map_or(0, |&c| hex_val(c));
-        let byte = k / 2;
+    for k in 0..n.min(s.len()) {
+        let Some(nib) = hex_nib(s[k]) else {
+            return Err(expected_string("hexadecimal", s));
+        };
         let high = (k % 2 == 0) == high_first;
-        out[byte] |= if high { nib << 4 } else { nib };
+        out[k / 2] |= if high { nib << 4 } else { nib };
     }
-    out
+    Ok(out)
 }
 
-fn hex_val(c: u8) -> u8 {
-    match c {
-        b'0'..=b'9' => c - b'0',
-        b'a'..=b'f' => c - b'a' + 10,
-        b'A'..=b'F' => c - b'A' + 10,
-        _ => 0,
+/// The error for a non-integer count-less integer field value: C reports a
+/// multi-element value as `a list`, a single bad token verbatim.
+fn int_value_error(arg: &[u8]) -> CmdError {
+    let text = String::from_utf8_lossy(arg);
+    if split_list(&text).is_ok_and(|e| e.len() != 1) {
+        CmdError::new("expected integer but got a list".to_string())
+    } else {
+        CmdError::new(format!("expected integer but got \"{text}\""))
     }
+}
+
+/// C's `expected <kind> string but got "<arg>" instead` for an invalid `b`/`B`/
+/// `h`/`H` `binary format` field value.
+fn expected_string(kind: &str, arg: &[u8]) -> CmdError {
+    CmdError::new(format!(
+        "expected {kind} string but got \"{}\" instead",
+        String::from_utf8_lossy(arg)
+    ))
 }
 
 /// Take the next argument (each `args` element is one argument's byte rep),
@@ -453,7 +474,7 @@ pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
                     Count::Num(n) => n,
                     Count::None => 1,
                 };
-                put(&mut out, &mut cur, &pack_bits(s, n, ty == b'B'));
+                put(&mut out, &mut cur, &pack_bits(s, n, ty == b'B')?);
             }
             b'h' | b'H' => {
                 let s = next_arg(args, &mut ai)?;
@@ -462,18 +483,25 @@ pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
                     Count::Num(n) => n,
                     Count::None => 1,
                 };
-                put(&mut out, &mut cur, &pack_hex(s, n, ty == b'H'));
+                put(&mut out, &mut cur, &pack_hex(s, n, ty == b'H')?);
             }
             b'c' | b's' | b'S' | b't' | b'i' | b'I' | b'n' | b'w' | b'W' | b'm' => {
                 let (size, end) = int_kind(ty);
                 let arg = next_arg(args, &mut ai)?;
-                let elems = split_field(arg)?;
-                let n = field_count(&count, elems.len())?;
-                for e in &elems[..n] {
-                    let v = parse_wide(e.as_bytes()).ok_or_else(|| {
-                        CmdError::new(format!("expected integer but got \"{e}\""))
-                    })?;
+                if matches!(count, Count::None) {
+                    // No count: the value is a *single* integer, not a list whose
+                    // first element is taken (C: `binary format c {1 2}` errors).
+                    let v = parse_wide(arg).ok_or_else(|| int_value_error(arg))?;
                     put(&mut out, &mut cur, &int_bytes(v, size, end));
+                } else {
+                    let elems = split_field(arg)?;
+                    let n = field_count(&count, elems.len())?;
+                    for e in &elems[..n] {
+                        let v = parse_wide(e.as_bytes()).ok_or_else(|| {
+                            CmdError::new(format!("expected integer but got \"{e}\""))
+                        })?;
+                        put(&mut out, &mut cur, &int_bytes(v, size, end));
+                    }
                 }
             }
             b'f' | b'r' | b'R' | b'd' | b'q' | b'Q' => {

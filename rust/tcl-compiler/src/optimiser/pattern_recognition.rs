@@ -226,7 +226,9 @@ fn emit_set_pack(
 
 fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, int_vars: &HashSet<String>) {
     match stmt {
-        Statement::AssignExpr { span, name, expr } => {
+        Statement::AssignExpr {
+            span, name, expr, ..
+        } => {
             if let Some(replacement) = try_incr_idiom(name, expr, int_vars) {
                 ctx.report(Optimisation::new(
                     "O114",

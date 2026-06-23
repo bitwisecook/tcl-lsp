@@ -175,6 +175,13 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
     let name = &cmd.args[0];
     let value = &cmd.args[1];
 
+    // The name word is a brace-string literal (`set {a($x)} v`) when its arg
+    // token is `Str` and it is a single token. Braces suppress substitution, so
+    // codegen must push an array-element key (`a($x)`) LITERALLY rather than
+    // substitute it. Thread this through every assignment shape `set` lowers to.
+    let name_braced = matches!(cmd.arg_kinds.first(), Some(ArgTokenKind::Str))
+        && cmd.single_token_word.get(1).copied().unwrap_or(false);
+
     // Check if value arg is a single token.
     if cmd.single_token_word.len() >= 3 && cmd.single_token_word[2] && cmd.arg_kinds.len() >= 2 {
         match cmd.arg_kinds[1] {
@@ -182,6 +189,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                 return Statement::AssignConst {
                     span: cmd.span,
                     name: name.clone(),
+                    name_braced,
                     value: value.clone(),
                 };
             }
@@ -209,6 +217,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                     return Statement::AssignConst {
                         span: cmd.span,
                         name: name.clone(),
+                        name_braced,
                         value: int_val,
                     };
                 }
@@ -216,6 +225,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                 return Statement::AssignValue {
                     span: cmd.span,
                     name: name.clone(),
+                    name_braced,
                     value: value.clone(),
                     value_needs_backsubst: needs_backsubst,
                     tokens: cmd.tokens.clone(),
@@ -234,6 +244,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                     return Statement::AssignExpr {
                         span: cmd.span,
                         name: name.clone(),
+                        name_braced,
                         expr,
                     };
                 }
@@ -245,6 +256,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
     Statement::AssignValue {
         span: cmd.span,
         name: name.clone(),
+        name_braced,
         value: value.clone(),
         value_needs_backsubst: false,
         tokens: cmd.tokens.clone(),
@@ -446,6 +458,11 @@ pub(crate) fn extract_single_expr_arg(
 
     let mut words = Vec::new();
     let mut single = Vec::new();
+    // Whether each word is built only from *literal* tokens (`Esc`/`Str`). A
+    // `Var`/`Cmd` token has its sigil/brackets stripped in `token_text`, so the
+    // reconstructed word would lose them (`$e` → `e`); such an arg also needs the
+    // second round of evaluation the runtime `expr` performs, so it must not fuse.
+    let mut literal = Vec::new();
     let mut prev_is_sep = true;
     for tok in &tokens {
         match tok.kind {
@@ -454,17 +471,23 @@ pub(crate) fn extract_single_expr_arg(
             }
             _ => {
                 let t = sm.token_text(*tok);
+                let is_lit = matches!(tok.kind, TokenType::Esc | TokenType::Str);
                 if prev_is_sep {
                     words.push(t.to_owned());
                     single.push(true);
+                    literal.push(is_lit);
                 } else if let Some(last) = words.last_mut() {
                     last.push_str(t);
                     if let Some(s) = single.last_mut() {
                         *s = false;
                     }
+                    if let Some(l) = literal.last_mut() {
+                        *l = *l && is_lit;
+                    }
                 } else {
                     words.push(t.to_owned());
                     single.push(true);
+                    literal.push(is_lit);
                 }
                 prev_is_sep = false;
             }
@@ -479,6 +502,11 @@ pub(crate) fn extract_single_expr_arg(
         return None;
     }
     if !single[1] {
+        return None;
+    }
+    // A braced `{$e}` (a `Str` token) keeps its `$` and is a real expression
+    // operand, so it fuses; a bare `$e`/`[f]` must defer to the runtime `expr`.
+    if !literal[1] {
         return None;
     }
     Some(words[1].clone())

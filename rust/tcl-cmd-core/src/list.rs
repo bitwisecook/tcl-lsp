@@ -41,21 +41,32 @@ pub fn lindex<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let specs: Vec<String> = if idxs.len() == 1 {
         let s = ops.as_str(&idxs[0]);
-        tcl_syntax::list::split_list(&s)
-            .map_err(|e| CmdError::new(e.message()))?
-            .iter()
-            .map(|p| p.as_ref().to_string())
-            .collect()
+        // A single index argument is an index *list* (`lindex $l {0 1}`). When it
+        // is not a well-formed list (`lindex $l \{`), C falls back to treating it
+        // as one index spec — which then fails as `bad index "{"`, not as a list
+        // parse error (lindex-10.4).
+        tcl_syntax::list::split_list(&s).map_or_else(
+            |_| vec![s.to_string()],
+            |parts| parts.iter().map(|p| p.as_ref().to_string()).collect(),
+        )
     } else {
         idxs.iter().map(|i| ops.as_str(i).to_string()).collect()
     };
     let mut cur = value.clone();
-    for spec in &specs {
+    for (k, spec) in specs.iter().enumerate() {
         let elems = ops.list_elements(&cur)?;
         let i = index::resolve(spec, elems.len())?;
-        match usize::try_from(i).ok().filter(|&i| i < elems.len()) {
-            Some(i) => cur = elems[i].clone(),
-            None => return Ok(ops.empty()),
+        if let Some(i) = usize::try_from(i).ok().filter(|&i| i < elems.len()) {
+            cur = elems[i].clone();
+        } else {
+            // Out of range yields the empty result, but a *malformed* later
+            // index is still an error — C parses every index before navigating,
+            // so `lindex {} end foo` reports `bad index "foo"` (lindex-17.0).
+            // The format check is length-independent.
+            for rest in &specs[k + 1..] {
+                index::resolve(rest, 0)?;
+            }
+            return Ok(ops.empty());
         }
     }
     Ok(cur)
@@ -100,7 +111,9 @@ pub fn lrepeat<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let n = ops.as_int(count)?;
     if n < 0 {
-        return Err(CmdError::new(format!("bad count \"{n}\": must be >= 0")));
+        return Err(CmdError::new(format!(
+            "bad count \"{n}\": must be integer >= 0"
+        )));
     }
     let n = usize::try_from(n).unwrap_or(0);
     let mut out = Vec::with_capacity(n.saturating_mul(values.len()));
@@ -173,12 +186,42 @@ pub fn concat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {
     let mut parts: Vec<String> = Vec::new();
     for v in args {
         let s = ops.as_str(v);
-        let t = s.trim_matches(TCL_WS);
+        let t = trim_concat_element(&s);
         if !t.is_empty() {
             parts.push(t.to_string());
         }
     }
     ops.new_string(parts.join(" "))
+}
+
+/// Trim leading/trailing whitespace from one `concat` element, matching C's
+/// `Tcl_ConcatObj` (`TclTrimLeft`/`TclTrimRight`). The right trim is
+/// backslash-aware: a trailing whitespace byte escaped by an odd run of
+/// backslashes (`\ `) is part of the element and kept, so `concat "a\ " b`
+/// yields `a\  b` rather than `a b` (lreplace.test ledit-1.25). A leading
+/// whitespace byte can never be escaped (the escaping `\` would precede it), so
+/// the left trim is plain. Shared with the VM's inline `concatStk` opcode.
+#[must_use]
+pub fn trim_concat_element(s: &str) -> &str {
+    let bytes = s.as_bytes();
+    let is_ws = |b: u8| TCL_WS.contains(&(b as char));
+    let mut start = 0;
+    while start < bytes.len() && is_ws(bytes[start]) {
+        start += 1;
+    }
+    let mut end = bytes.len();
+    while end > start && is_ws(bytes[end - 1]) {
+        let backslashes = bytes[start..end - 1]
+            .iter()
+            .rev()
+            .take_while(|&&b| b == b'\\')
+            .count();
+        if backslashes % 2 == 1 {
+            break; // escaped whitespace: part of the element.
+        }
+        end -= 1;
+    }
+    &s[start..end]
 }
 
 /// `join list ?joinString?` (default separator a single space).

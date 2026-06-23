@@ -143,9 +143,7 @@ def test_analyse_tcl_symbols_and_diagnostics() -> None:
 
 def test_analyse_tcl_irules_dialect() -> None:
     # Dialect-gated analysis should accept the iRules dialect without error.
-    result = t.analyse_tcl(
-        'when HTTP_REQUEST {\n  pool /Common/p1\n}\n', dialect="f5-irules"
-    )
+    result = t.analyse_tcl("when HTTP_REQUEST {\n  pool /Common/p1\n}\n", dialect="f5-irules")
     assert isinstance(result.diagnostics, list)
 
 
@@ -193,9 +191,7 @@ def test_parse_bigip_config_strict_ok_on_valid() -> None:
 
 def test_parse_bigip_config_strict_raises_on_garbage() -> None:
     with pytest.raises(t.BigipParseError) as excinfo:
-        t.parse_bigip_config(
-            "this is not bigip config", strict=True, uri="file:///x.conf"
-        )
+        t.parse_bigip_config("this is not bigip config", strict=True, uri="file:///x.conf")
     err = excinfo.value
     assert err.code == "BIGIP_PARSE"
     assert err.uri == "file:///x.conf"
@@ -217,16 +213,12 @@ def test_query_bigip_read() -> None:
 
 
 def test_query_bigip_json_output() -> None:
-    result = t.query_bigip(
-        [("conf1", SAMPLE_CONF)], ".ltm.pool[] | .name", output="json"
-    )
+    result = t.query_bigip([("conf1", SAMPLE_CONF)], ".ltm.pool[] | .name", output="json")
     assert isinstance(result.values[0].output, str)
 
 
 def test_query_bigip_mutation() -> None:
-    result = t.query_bigip(
-        [("conf1", SAMPLE_CONF)], '.ltm.pool["/Common/p1"].name = "/Common/p2"'
-    )
+    result = t.query_bigip([("conf1", SAMPLE_CONF)], '.ltm.pool["/Common/p1"].name = "/Common/p2"')
     assert result.has_mutation is True
     assert len(result.edits) == 1
     assert result.edits[0].uri == "conf1"

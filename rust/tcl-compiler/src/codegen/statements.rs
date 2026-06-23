@@ -107,9 +107,14 @@ impl CodegenCtx<'_> {
     /// keep the dispatcher under threshold.
     fn emit_assign_or_incr(&mut self, stmt: &Statement) -> bool {
         match stmt {
-            Statement::AssignConst { name, value, .. } => {
+            Statement::AssignConst {
+                name,
+                name_braced,
+                value,
+                ..
+            } => {
                 if needs_stk_var_ref(name, self.is_proc) {
-                    self.push_var_ref(name);
+                    self.push_var_ref(name, *name_braced);
                 }
                 // A constant value is verbatim: push it as-is so the VM does
                 // not run word substitution on any `[…]` / `$` it contains
@@ -121,6 +126,7 @@ impl CodegenCtx<'_> {
             }
             Statement::AssignValue {
                 name,
+                name_braced,
                 value,
                 value_needs_backsubst,
                 ..
@@ -142,7 +148,7 @@ impl CodegenCtx<'_> {
                     };
                 let inline = Self::assign_value_inlines_cmd_subst(&value);
                 if needs_stk_var_ref(name, self.is_proc) {
-                    self.push_var_ref(name);
+                    self.push_var_ref(name, *name_braced);
                 } else if inline && self.is_proc && !is_qualified(name) {
                     // Pre-intern the target so it gets a lower LVT slot than any
                     // variable introduced inside the substitution (catch result
@@ -158,9 +164,14 @@ impl CodegenCtx<'_> {
                 self.emit(Op::POP, vec![]);
                 true
             }
-            Statement::AssignExpr { name, expr, .. } => {
+            Statement::AssignExpr {
+                name,
+                name_braced,
+                expr,
+                ..
+            } => {
                 if needs_stk_var_ref(name, self.is_proc) {
-                    self.push_var_ref(name);
+                    self.push_var_ref(name, *name_braced);
                 }
                 let inner_end = self.fresh_label("cmd_end");
                 self.emit_comment(
@@ -472,13 +483,26 @@ impl CodegenCtx<'_> {
     }
 
     /// Push variable reference for store operations (name/key on stack).
-    pub fn push_var_ref(&mut self, name: &str) {
+    ///
+    /// When `name_braced` is `true` the target word was a brace-string
+    /// literal (`set {a($x)} v`); Tcl braces suppress substitution, so an
+    /// array-element key is pushed LITERALLY (`$x` stays `$x`) instead of
+    /// being substituted. A scalar target is unaffected.
+    pub fn push_var_ref(&mut self, name: &str, name_braced: bool) {
         if let Some((base, elem)) = split_array_ref(name) {
             if self.is_proc && !is_qualified(name) {
-                self.push_array_key(elem);
+                if name_braced {
+                    self.push_lit(elem);
+                } else {
+                    self.push_array_key(elem);
+                }
             } else {
                 self.push_lit(base);
-                self.push_array_key(elem);
+                if name_braced {
+                    self.push_lit(elem);
+                } else {
+                    self.push_array_key(elem);
+                }
             }
         } else {
             self.push_lit(name);
@@ -492,6 +516,19 @@ impl CodegenCtx<'_> {
     /// markers are backslash-escaped is decoded; otherwise it is interpolated.
     /// Shared by the plain ([`emit_call`](Self::emit_call)) and `{*}`-expanded
     /// ([`emit_expanded_call`](Self::emit_expanded_call)) word loops.
+    /// Emit the `i`-th argument of the command currently dispatching to a
+    /// codegen hook, honouring whether that word was braced (see
+    /// [`Self::cmd_arg_braced`]). Hooks that emit a word as a runtime value
+    /// (`concat`, `llength`, …) call this instead of
+    /// [`Self::emit_value_interpolated`] so a non-braced literal's backslash
+    /// escapes are collapsed exactly like the generic per-word path — a braced
+    /// word stays verbatim. Falls back to non-braced when no flags are recorded
+    /// (hand-built test contexts).
+    pub(crate) fn emit_word_arg(&mut self, i: usize, a: &str) {
+        let braced = self.cmd_arg_braced.get(i).copied().unwrap_or(false);
+        self.emit_word(a, braced);
+    }
+
     fn emit_word(&mut self, a: &str, braced: bool) {
         if braced {
             self.push_lit_verbatim(a);
@@ -561,23 +598,45 @@ impl CodegenCtx<'_> {
         tokens: Option<&crate::ir::CommandTokens>,
         used_generic_invoke: &mut bool,
     ) {
-        // break/continue inside loops: emit jump instead of invokeStk
+        // break/continue inside loops: emit jump instead of invokeStk. Only the
+        // bare forms take the fast path — `break foo` / `continue foo` carry
+        // arguments and must reach the builtin to raise `wrong # args`
+        // (for-2.1 / for-3.1).
         if cmd == "continue"
+            && args.is_empty()
             && let Some(cont_lbl) = self.continue_target.clone()
         {
             self.emit_comment(Op::JUMP4, vec![Operand::Label(cont_lbl)], "continue");
             return;
         }
         if cmd == "break"
+            && args.is_empty()
             && let Some(brk_lbl) = self.break_target.clone()
         {
             self.emit_comment(Op::JUMP4, vec![Operand::Label(brk_lbl)], "break");
             return;
         }
 
-        // Try a registered per-command codegen hook before the
+        // A braced single-token word (`{…}`, lexed as `TokenType::Str`) is a
+        // verbatim literal — e.g. a `proc` body — so it is pushed as-is and its
+        // backslashes are NOT collapsed; a non-braced word's escapes are. `argv[0]`
+        // is the command word, so arg `i` maps to `argv_kinds[i + 1]`. Computed
+        // once and stashed so a codegen hook can collapse its list args the same
+        // way the generic per-word path below does (concat-1.4, llength-2.3).
+        let braced_flags: Vec<bool> = (0..args.len())
+            .map(|i| {
+                tokens.is_some_and(|t| {
+                    t.argv_kinds.get(i + 1) == Some(&tcl_lexer::TokenType::Str)
+                        && t.single_token_word.get(i + 1).copied().unwrap_or(false)
+                })
+            })
+            .collect();
+
+        // C21: try a registered per-command codegen hook before the
         // generic invoke fallback.
+        self.cmd_arg_braced = braced_flags;
         if super::emitter::bytecoded::try_bytecoded(self, cmd, args, used_generic_invoke) {
+            self.cmd_arg_braced = Vec::new();
             return;
         }
 
@@ -586,16 +645,10 @@ impl CodegenCtx<'_> {
         // still lowers to a single `push`, so normal calls are unchanged.
         self.emit_cmd_word(cmd, false);
         for (i, a) in args.iter().enumerate() {
-            // A braced single-token word (`{…}`, lexed as `TokenType::Str`) is
-            // a verbatim literal — e.g. a `proc` body — so push it as-is and
-            // suppress runtime substitution. `argv[0]` is the command word, so
-            // arg `i` maps to `argv_kinds[i + 1]`.
-            let braced = tokens.is_some_and(|t| {
-                t.argv_kinds.get(i + 1) == Some(&tcl_lexer::TokenType::Str)
-                    && t.single_token_word.get(i + 1).copied().unwrap_or(false)
-            });
+            let braced = self.cmd_arg_braced.get(i).copied().unwrap_or(false);
             self.emit_word(a, braced);
         }
+        self.cmd_arg_braced = Vec::new();
         let arg_count = i32::try_from(1 + args.len())
             .expect("invoke argument count fits in i32 (bytecode limit)");
         let op = if arg_count < 256 {
@@ -633,6 +686,7 @@ mod tests {
             span: sp(),
             name: "x".into(),
             value: "42".into(),
+            name_braced: false,
         };
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
@@ -648,6 +702,7 @@ mod tests {
             span: sp(),
             name: "x".into(),
             value: "42".into(),
+            name_braced: false,
         };
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
@@ -664,6 +719,7 @@ mod tests {
         let stmt = Statement::Incr {
             span: sp(),
             name: "x".into(),
+            name_braced: false,
             amount: None,
             safe_on_uninit: false,
         };
@@ -740,6 +796,7 @@ mod tests {
             span: sp(),
             name: "x".into(),
             value: "1".into(),
+            name_braced: false,
         };
         ctx.emit_stmt_with_start_cmd(&stmt, None, None);
         assert!(!opcodes(&ctx).contains(&Op::START_CMD));
@@ -749,6 +806,7 @@ mod tests {
             span: sp(),
             name: "y".into(),
             value: "2".into(),
+            name_braced: false,
         };
         ctx.emit_stmt_with_start_cmd(&stmt2, None, None);
         assert!(opcodes(&ctx).contains(&Op::START_CMD));
@@ -819,6 +877,7 @@ mod tests {
         let stmt = Statement::AssignExpr {
             span: sp(),
             name: "x".into(),
+            name_braced: false,
             expr: ExprNode::Literal {
                 text: "42".into(),
                 start: 0,

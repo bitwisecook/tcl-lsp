@@ -126,6 +126,22 @@ fn upsert(ps: &mut Vec<(String, Value)>, key: &str, value: Value) {
     }
 }
 
+/// Follow the nested `keys` path into dict `cur`, returning the value at the
+/// leaf (`cur` itself when `keys` is empty). Errors if a key is absent or an
+/// intermediate value is not a dict (`dict get` / `dict with` path semantics).
+fn get_path(cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
+    let mut v = cur.clone();
+    for key in keys {
+        let ps = pairs(&v)?;
+        let ks = key.to_str();
+        match lookup(&ps, &ks) {
+            Some(found) => v = found.clone(),
+            None => return Err(err(format!("key \"{ks}\" not known in dictionary"))),
+        }
+    }
+    Ok(v)
+}
+
 #[allow(clippy::too_many_lines)]
 fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
     // Pure dict subcommands now live in the shared command core; the VM is a
@@ -319,12 +335,84 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             })
         }
         "for" => cmd_dict_for(vm, rest),
+        "map" => cmd_dict_map(vm, rest),
+        "update" => cmd_dict_update(vm, rest),
         "filter" => cmd_dict_filter(vm, rest),
+        "with" => cmd_dict_with(vm, rest),
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
     }
 }
 
 /// `dict for {keyVar valueVar} dictionary body`.
+/// `dict with dictVarName ?key ...? body` — map the keys of the dict (at the
+/// `key` path) to like-named local variables, run `body`, then reflect the
+/// variables back into the dictionary and store it: an originally-mapped key
+/// whose variable still exists is updated, one whose variable was unset is
+/// removed, and variables the body merely created are not added. The write-back
+/// happens even when the body raises (matching C), after which the body's
+/// completion (its result on success, else the error/break/continue/return) is
+/// returned.
+fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let Some((dictvar, tail)) = rest.split_first() else {
+        return err("wrong # args: should be \"dict with dictVarName ?key ...? script\"");
+    };
+    let Some((body, keys)) = tail.split_last() else {
+        return err("wrong # args: should be \"dict with dictVarName ?key ...? script\"");
+    };
+    let varname = dictvar.to_str().to_string();
+    let Some(root_dict) = vm.get_var(&varname) else {
+        return err(format!("can't read \"{varname}\": no such variable"));
+    };
+    let leaf = match get_path(&root_dict, keys) {
+        Ok(v) => v,
+        Err(c) => return c,
+    };
+    let leaf_pairs = match pairs(&leaf) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    for (k, v) in &leaf_pairs {
+        if let Err(e) = vm.set_var(k, v.clone()) {
+            return e;
+        }
+    }
+
+    let outcome = vm.eval_source(&body.to_str());
+
+    // Reflect the mapped variables back into the dictionary. Re-read the
+    // variable first (the body may have replaced it outright); if the body
+    // unset it, skip the write-back entirely (matching C).
+    if let Some(cur) = vm.get_var(&varname)
+        && let Ok(cur_leaf) = get_path(&cur, keys)
+        && let Ok(mut new_pairs) = pairs(&cur_leaf)
+    {
+        for (k, _) in &leaf_pairs {
+            match vm.get_var(k) {
+                Some(val) => upsert(&mut new_pairs, k, val),
+                None => new_pairs.retain(|(pk, _)| pk != k),
+            }
+        }
+        let new_leaf = from_pairs(&new_pairs);
+        let new_dict = if keys.is_empty() {
+            new_leaf
+        } else {
+            match set_path(&cur, keys, new_leaf) {
+                Ok(d) => d,
+                Err(c) => return c,
+            }
+        };
+        if let Err(e) = vm.set_var(&varname, new_dict) {
+            return e;
+        }
+    }
+
+    match outcome {
+        Ok(c) if c.code == Code::Ok => ok(c.result),
+        Ok(c) => c,
+        Err(e) => err(e.message),
+    }
+}
+
 fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let [vars, dict, body] = rest else {
         return err("wrong # args: should be \"dict for {keyVar valueVar} dictionary script\"");
@@ -358,6 +446,117 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         }
     }
     ok(Value::empty())
+}
+
+/// `dict map {keyVar valueVar} dictionary body` — like `dict for`, but collect
+/// each iteration's body result into a new dictionary keyed by the (possibly
+/// body-modified) `keyVar`. `continue` drops the pair, `break` stops, and an
+/// error/`return` propagates.
+fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let [vars, dict, body] = rest else {
+        return err(
+            "wrong # args: should be \"dict map {keyVarName valueVarName} dictionary script\"",
+        );
+    };
+    let vnames = match vars.as_list() {
+        Ok(v) => v,
+        Err(e) => return err(e.message),
+    };
+    let [kvar, vvar] = vnames.as_slice() else {
+        return err("must have exactly two variable names");
+    };
+    let ps = match pairs(dict) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    let (kname, vname) = (kvar.to_str(), vvar.to_str());
+    let body_src = body.to_str();
+    let mut out: Vec<(String, Value)> = Vec::new();
+    for (k, v) in ps {
+        if let Err(e) = vm.set_var(&kname, Value::string(k.clone())) {
+            return e;
+        }
+        if let Err(e) = vm.set_var(&vname, v) {
+            return e;
+        }
+        match vm.eval_source(&body_src) {
+            Ok(c) => match c.code {
+                Code::Ok => {
+                    let key = vm.get_var(&kname).map_or(k, |kv| kv.to_str().to_string());
+                    upsert(&mut out, &key, c.result);
+                }
+                Code::Continue => {}
+                Code::Break => break,
+                _ => return c,
+            },
+            Err(e) => return err(e.message),
+        }
+    }
+    ok(from_pairs(&out))
+}
+
+/// `dict update dictVar key varName ?key varName ...? body` — expose the named
+/// keys as local variables, run `body`, then reflect the variables back into the
+/// dictionary (an unset variable removes its key). The write-back re-reads the
+/// dict variable (the body may have changed it) and runs even when the body
+/// raises, after which the body's completion is returned.
+fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    const USAGE: &str =
+        "wrong # args: should be \"dict update dictVarName key varName ?key varName ...? script\"";
+    let [dictvar, pairs_and_body @ ..] = rest else {
+        return err(USAGE);
+    };
+    let Some((body, kv)) = pairs_and_body.split_last() else {
+        return err(USAGE);
+    };
+    if kv.is_empty() || !kv.len().is_multiple_of(2) {
+        return err(USAGE);
+    }
+    let dname = dictvar.to_str().to_string();
+    let cur = vm.get_var(&dname).unwrap_or_else(Value::empty);
+    let ps = match pairs(&cur) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    // Bind each key's value to its variable (a missing key leaves it unset).
+    let mut i = 0;
+    while i + 1 < kv.len() {
+        let key = kv[i].to_str();
+        let var = kv[i + 1].to_str();
+        match lookup(&ps, &key) {
+            Some(v) => {
+                if let Err(e) = vm.set_var(&var, v.clone()) {
+                    return e;
+                }
+            }
+            None => {
+                let _ = vm.unset_one(&var, false);
+            }
+        }
+        i += 2;
+    }
+    let comp = match vm.eval_source(&body.to_str()) {
+        Ok(c) => c,
+        Err(e) => return err(e.message),
+    };
+    // Write-back (always, even on error): re-read the dict, apply each variable.
+    let cur2 = vm.get_var(&dname).unwrap_or_else(Value::empty);
+    if let Ok(mut ps2) = pairs(&cur2) {
+        let mut i = 0;
+        while i + 1 < kv.len() {
+            let key = kv[i].to_str().to_string();
+            let var = kv[i + 1].to_str();
+            match vm.get_var(&var) {
+                Some(v) => upsert(&mut ps2, &key, v),
+                None => ps2.retain(|(k, _)| k != &key),
+            }
+            i += 2;
+        }
+        if let Err(e) = vm.set_var(&dname, from_pairs(&ps2)) {
+            return e;
+        }
+    }
+    comp
 }
 
 /// `dict filter dictionary script {keyVar valueVar} body` — the Family-B `script`

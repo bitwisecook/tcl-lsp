@@ -146,6 +146,15 @@ pub enum Statement {
         span: Span,
         /// Variable name.
         name: String,
+        /// Whether the *name* word was a brace-string literal
+        /// (`set {a($x)} v`). Braces suppress substitution, so an
+        /// array-element target's key (`a($x)`) must be pushed
+        /// LITERALLY (`$x` stays `$x`) rather than substituted.
+        /// Mirrors the `braced` precedent on [`Self::Return`].
+        /// Defaults to `false` for every construction site except
+        /// the `set` lowering hook (only it knows the source token
+        /// kind); honoured by codegen's `push_var_ref`.
+        name_braced: bool,
         /// Constant value text.
         value: String,
     },
@@ -156,6 +165,9 @@ pub enum Statement {
         span: Span,
         /// Variable name.
         name: String,
+        /// Whether the *name* word was a brace-string literal — see
+        /// [`Self::AssignConst::name_braced`].
+        name_braced: bool,
         /// Parsed expression AST.
         expr: ExprNode,
     },
@@ -167,6 +179,9 @@ pub enum Statement {
         span: Span,
         /// Variable name.
         name: String,
+        /// Whether the *name* word was a brace-string literal — see
+        /// [`Self::AssignConst::name_braced`].
+        name_braced: bool,
         /// Value text (may contain backslash substitutions).
         value: String,
         /// Whether the value contains backslash substitutions.
@@ -181,6 +196,9 @@ pub enum Statement {
         span: Span,
         /// Variable name.
         name: String,
+        /// Whether the *name* word was a brace-string literal — see
+        /// [`Self::AssignConst::name_braced`].
+        name_braced: bool,
         /// Increment amount (None = 1).
         amount: Option<String>,
         /// Whether it is safe if the variable is uninitialised.
@@ -728,6 +746,7 @@ mod tests {
         let stmts = vec![Statement::AssignConst {
             span: Span::new(0, 10),
             name: "x".into(),
+            name_braced: false,
             value: "1".into(),
         }];
         let script = Script::from_statements(stmts);
@@ -756,6 +775,7 @@ mod tests {
         let stmt = Statement::AssignConst {
             span: Span::new(0, 7),
             name: "x".into(),
+            name_braced: false,
             value: "42".into(),
         };
         if let Statement::AssignConst { name, value, .. } = &stmt {
@@ -835,6 +855,7 @@ mod tests {
             init: Script::from_statements(vec![Statement::AssignConst {
                 span: Span::new(5, 12),
                 name: "i".into(),
+                name_braced: false,
                 value: "0".into(),
             }]),
             init_span: Span::new(4, 13),
@@ -856,6 +877,7 @@ mod tests {
             next: Script::from_statements(vec![Statement::Incr {
                 span: Span::new(24, 30),
                 name: "i".into(),
+                name_braced: false,
                 amount: None,
                 safe_on_uninit: false,
             }]),
@@ -1068,6 +1090,7 @@ mod tests {
         let stmt = Statement::AssignConst {
             span: Span::new(0, 10),
             name: "x".into(),
+            name_braced: false,
             value: "1".into(),
         };
         let cloned = stmt.clone();
@@ -1155,6 +1178,7 @@ mod tests {
         let stmt = Statement::AssignConst {
             span: Span::new(0, 5),
             name: "x".into(),
+            name_braced: false,
             value: "1".into(),
         };
         assert_eq!(stmt.canonical_command_or_source(), "");

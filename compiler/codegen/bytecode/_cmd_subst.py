@@ -93,6 +93,26 @@ class _CmdSubstMixin:
         return chain
 
     @staticmethod
+    def _has_live_subst(text: str) -> bool:
+        """True if *text* carries an unescaped ``$`` or ``[`` substitution.
+
+        Backslash-escaped pairs (``\\$``, ``\\[``) are skipped, so a word
+        like ``\\$x`` (a literal dollar) reports False while ``b\\e($a)``
+        (a live ``$a`` index) reports True.
+        """
+        i = 0
+        n = len(text)
+        while i < n:
+            ch = text[i]
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == "$" or ch == "[":
+                return True
+            i += 1
+        return False
+
+    @staticmethod
     def _is_pure_cmd_subst(value: str) -> bool:
         """Return True if *value* is a single balanced ``[cmd ...]``."""
         if not value.startswith("[") or not value.endswith("]"):
@@ -397,6 +417,18 @@ class _CmdSubstMixin:
                         self._push_lit(arg)
             elif braced and ("$" in arg or "[" in arg):
                 self._push_lit("{" + arg + "}")
+            elif not braced and "\\" in arg and self._has_live_subst(arg):
+                # A backslash-escaped word that also carries a *live*
+                # (unescaped) ``$``/``[`` substitution — e.g. ``b\e($a)``,
+                # whose ``\e`` collapses to ``e`` and whose ``$a`` is a real
+                # array-index substitution.  Tcl applies backslash and
+                # variable/command substitution in a single pass, so delegate
+                # to _emit_value (via _parse_subst_template) which honours
+                # both — an escaped ``\$`` stays literal while a live ``$a``
+                # substitutes.  Without this, the ``\\`` branch below would
+                # collapse the escape then push the result raw, leaving the
+                # live index unsubstituted.
+                self._emit_value(arg, interpolate=True)
             elif not braced and "\\" in arg:
                 processed = _tcl_backslash_subst(arg)
                 if "$" in processed or ("[" in processed and "]" in processed):
