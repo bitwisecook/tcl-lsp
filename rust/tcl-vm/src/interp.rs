@@ -630,6 +630,12 @@ impl Vm {
         }
     }
 
+    /// Whether namespace `ns` (canonical, unrooted; `""` is the always-present
+    /// global namespace) currently exists.
+    pub(crate) fn namespace_exists(&self, ns: &str) -> bool {
+        ns.is_empty() || self.namespaces.contains(ns)
+    }
+
     /// Register an existing namespace (and its ancestors).
     pub(crate) fn declare_namespace(&mut self, ns: &str) {
         if ns.is_empty() {

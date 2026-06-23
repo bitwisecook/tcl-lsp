@@ -531,23 +531,40 @@ pub(crate) fn resolve_index(spec: &str, len: usize) -> Option<isize> {
     s.parse::<isize>().ok()
 }
 
+/// A formal parameter name must be a scalar: not an array element (`a(1)`) and
+/// not namespace-qualified (`a::b`). Scans left-to-right like C's `TclCreateProc`
+/// — the first `(` with a trailing `)` is an array element, the first `::` is a
+/// non-simple name.
+fn validate_param_name(name: &str) -> Result<(), String> {
+    let bytes = name.as_bytes();
+    let last_is_close = bytes.last() == Some(&b')');
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        if bytes[i] == b'(' {
+            if last_is_close {
+                return Err(format!("formal parameter \"{name}\" is an array element"));
+            }
+        } else if bytes[i] == b':' && bytes[i + 1] == b':' {
+            return Err(format!("formal parameter \"{name}\" is not a simple name"));
+        }
+        i += 1;
+    }
+    Ok(())
+}
+
 /// Parse a proc parameter spec (`"a b {c 1} args"`) into params + `has_args`.
 fn parse_params(spec: &str) -> Result<(Vec<Param>, bool), String> {
     let elems = split_list(spec).map_err(|e| e.message().to_string())?;
     let mut params = Vec::with_capacity(elems.len());
     for e in &elems {
         let parts = split_list(e.as_ref()).map_err(|err| err.message().to_string())?;
-        match parts.as_slice() {
-            [n] => params.push(Param {
-                name: n.to_string(),
-                default: None,
-            }),
-            [n, d] => params.push(Param {
-                name: n.to_string(),
-                default: Some(Value::string(d.as_ref())),
-            }),
+        let (name, default) = match parts.as_slice() {
+            [n] => (n.to_string(), None),
+            [n, d] => (n.to_string(), Some(Value::string(d.as_ref()))),
             _ => return Err(format!("too many fields in argument specifier \"{e}\"")),
-        }
+        };
+        validate_param_name(&name)?;
+        params.push(Param { name, default });
     }
     let has_args = params.last().is_some_and(|p| p.name == "args");
     Ok((params, has_args))
@@ -574,6 +591,14 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let namespace = reg_name
         .rsplit_once("::")
         .map_or_else(String::new, |(ns, _)| ns.to_string());
+    // A namespace-qualified proc name requires its namespace to already exist
+    // (C's `TclGetNamespaceForQualName` → `nsPtr == NULL`). An unqualified name
+    // lands in the current namespace, which always exists (proc-1.2).
+    if name_s.contains("::") && !vm.namespace_exists(&namespace) {
+        return err(format!(
+            "can't create procedure \"{name_s}\": unknown namespace"
+        ));
+    }
     let (params_vec, has_args) = match parse_params(&params.to_str()) {
         Ok(p) => p,
         Err(e) => return err(e),
