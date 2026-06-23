@@ -146,8 +146,8 @@ pub struct ProcCfgEntry {
 
 /// Shared mutable state threaded through all optimisation passes.
 ///
-/// The state mirrors the Python `PassContext` field-for-field so
-/// passes ported straight from `core/compiler/optimiser/` can
+/// The state mirrors `PassContext` field-for-field so
+/// passes ported straight can
 /// consult the same bookkeeping:
 ///
 /// - [`optimisations`](Self::optimisations) — accumulated rewrites.
@@ -176,8 +176,7 @@ pub struct ProcCfgEntry {
 pub struct PassContext<'a> {
     /// Full source text (UTF-8).
     pub source: &'a str,
-    /// Tcl dialect currently active. Matches the Python
-    /// `active_dialect()` thread-local — passed once when the
+    /// Tcl dialect currently active — passed once when the
     /// context is built so gated passes (e.g. O124) can check
     /// for `"f5-irules"` without threading it through every
     /// entry point.

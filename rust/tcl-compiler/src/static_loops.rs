@@ -2,11 +2,9 @@
 //!
 //! Supports a narrow, side-effect-free subset so callers can
 //! infer post-loop constants without changing semantics. Uses
-//! the C22 expression evaluator to fold conditions and bounded
+//! the expression evaluator to fold conditions and bounded
 //! iteration (capped by `DEFAULT_MAX_STATIC_LOOP_ITERS`) to
 //! catch pathological inputs.
-//!
-//! Ported from `core/compiler/static_loops.py` (C27b).
 
 use std::collections::HashMap;
 
@@ -20,7 +18,7 @@ use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr};
 pub const DEFAULT_MAX_STATIC_LOOP_ITERS: u64 = 4096;
 
 /// A value the static simulator tracks: integer, float, boolean,
-/// or string. Mirrors the Python `int | float | bool | str` union.
+/// or string.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StaticValue {
     /// Integer.
@@ -526,8 +524,6 @@ mod tests {
 
     #[test]
     fn summarise_resolves_if_else_branch_in_body() {
-        // Ported from `tests/test_static_loops.py`
-        // ::test_static_loop_handles_if_branching (TEST-MIGRATE).
         // for {set i 0} {$i < 3} {incr i} {
         //     if {$i == 1} {set x 10} else {set x 20}
         // }  →  i ends at 3; the last iteration (i = 2) takes the else.
@@ -553,7 +549,6 @@ mod tests {
 
     #[test]
     fn summarise_resolves_switch_dispatch_in_body() {
-        // Ported from `::test_static_loop_handles_switch_dispatch`.
         // for {set i 0; set mode a} {$i < 1} {incr i} { switch … } → v = 1.
         let init = script_of(vec![assign_const("i", "0"), assign_const("mode", "a")]);
         let cond = parse_expr("$i < 1", None);
@@ -566,7 +561,6 @@ mod tests {
 
     #[test]
     fn summarise_bails_on_unresolvable_switch_subject() {
-        // Ported from `::test_static_loop_switch_requires_resolvable_subject`.
         // `$mode` is never set, so the subject can't resolve → summary bails.
         let init = script_of(vec![assign_const("i", "0")]);
         let cond = parse_expr("$i < 1", None);

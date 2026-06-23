@@ -1,5 +1,5 @@
 //! Differential parity for `resolve_kind_in_configs` (the graph's name-
-//! resolution layer) against the Python `object_registry.resolve_kind_in_configs`.
+//! resolution layer) against `object_registry.resolve_kind_in_configs`.
 //!
 //! Resolves a broad set of `(kind, reference, preferred_module)` probes over a
 //! representative `bigip.conf` and asserts each resolves to the same source span

@@ -395,7 +395,7 @@ pub struct SchemaSummary {
 }
 
 /// Return a human-readable summary of the built-in registered schemas
-/// (sorted, matching Python's `sorted(...)` over the schema dict keys).
+/// (sorted, matching `sorted(...)` over the schema dict keys).
 #[must_use]
 pub fn schema_summary() -> SchemaSummary {
     schema_summary_with(&SchemaOverlay::default())
@@ -403,13 +403,13 @@ pub fn schema_summary() -> SchemaSummary {
 
 /// Like [`schema_summary`] but merging any *overlay* schemas: an overlay entry
 /// overrides a matching built-in key's field count and new keys are merged in
-/// and re-sorted, matching Python's `schema_summary()` over the post-overlay
+/// and re-sorted, matching `schema_summary()` over the post-overlay
 /// registries.
 #[must_use]
 pub fn schema_summary_with(overlay: &SchemaOverlay) -> SchemaSummary {
     use std::collections::BTreeMap;
 
-    // BTreeMap keeps the (sorted) merge ordering Python's `sorted(items())`
+    // BTreeMap keeps the (sorted) merge ordering `sorted(items())`
     // produces; overlay inserts override or extend the built-in keys.
     let mut legacy: BTreeMap<(u8, u8, usize), usize> = BTreeMap::from([
         ((LEGACY_TYPE_HIGH, 0, 42), 2),

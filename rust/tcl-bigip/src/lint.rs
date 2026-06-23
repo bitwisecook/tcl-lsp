@@ -288,7 +288,7 @@ fn rule_orphan_monitor(view: &ModelView<'_>, out: &mut Vec<Finding>) {
     }
 }
 
-/// Iterate the typed pool members of a pool (Python `pool.members`).
+/// Iterate the typed pool members of a pool.
 fn member_iter(
     pool: &crate::model::BigipPool,
 ) -> impl Iterator<Item = &crate::model::BigipPoolMember> {
@@ -301,7 +301,7 @@ fn member_iter(
     })
 }
 
-/// Whether a pool has any members (Python `bool(pool.members)`).
+/// Whether a pool has any members.
 fn pool_has_members(pool: &crate::model::BigipPool) -> bool {
     !pool.members.is_empty()
 }

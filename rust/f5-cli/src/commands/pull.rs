@@ -1,9 +1,9 @@
 //! `f5 pull` — fetch one object from a live device as an SCF stanza.
 //!
-//! Credential resolution + arg shaping is parity-tested offline; the live GET
-//! is implemented but untested here. With `--json` the raw iControl JSON is
-//! emitted (via the `json.dumps(indent=2)`-compatible serializer); otherwise
-//! the object is rendered to an SCF stanza and passed through `render_config`.
+//! Handles credential resolution and arg shaping; the live GET is implemented
+//! but exercised only against a live device. With `--json` the raw iControl
+//! JSON is emitted as 2-space-indented JSON; otherwise the object is rendered
+//! to an SCF stanza and passed through `render_config`.
 
 use super::emit::render_config;
 use super::remote::auth::{ResolveOptions, resolve_credentials};

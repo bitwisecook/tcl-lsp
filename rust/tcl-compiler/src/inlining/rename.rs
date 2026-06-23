@@ -1,6 +1,6 @@
 //! v3 — α-renaming for inlined IR bodies.
 //!
-//! Ported from `compiler/inlining/_rename.py`. When a callee's body is
+//! When a callee's body is
 //! spliced into a caller's IR, the callee's parameter and local names
 //! must be rewritten so they don't collide with the caller's locals.
 //! This module walks every [`Statement`] shape and produces a clone with
@@ -63,7 +63,7 @@ fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
     }
 }
 
-#[allow(clippy::too_many_lines)] // one arm per IR statement variant, mirrors `_rename.py`
+#[allow(clippy::too_many_lines)] // one arm per IR statement variant
 fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
     match stmt {
         Statement::AssignConst { span, name, value } => Statement::AssignConst {

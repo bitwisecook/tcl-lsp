@@ -400,7 +400,7 @@ fn diff_cfg2_json_matches_python() {
 // fixture exercises `eval $tainted` (`T100`), `file delete $tainted`
 // (`T102` + `W313`), and `regexp $tainted …` (`T103` + `T102`), in Python's
 // order. `tainted_variables` walks the per-unit lattices, ordered by SSA
-// definition site (matching Python's `analysis.taints` iteration) and
+// definition site (matching `analysis.taints` iteration) and
 // skipping version-0 entries — a `(global, 0)` slot is only ever tainted by
 // the conservative cross-proc global-write seeding, which Python's per-unit
 // analysis never surfaces (so `proc save {v} { set ::store $v }` no longer
@@ -554,7 +554,7 @@ fn help_catalogue_dialect_matches_python() {
 // Python — verifying the snapshot serialisation + field derivation.
 #[test]
 fn registry_dump_faithful_subset_matches_python() {
-    // Core commands verified byte-identical to the Python `registry-dump`
+    // Core commands verified byte-identical to `registry-dump`
     // entry (`dialects: null` in both, matching traits/forms/scalars/info).
     const NAMES: &[&str] = &[
         "append", "array", "break", "catch", "continue", "error", "eval", "expr", "for", "global",

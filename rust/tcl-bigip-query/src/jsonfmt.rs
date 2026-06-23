@@ -96,7 +96,7 @@ fn write_value(
             );
         }
         Value::Container(c) => {
-            // Python `_to_json` falls back to `str(value)` for a Container.
+            // Falls back to `str(value)` for a Container.
             write_string(out, &format!("container({})", c.kind));
         }
         Value::ObjectRef(o) => {
@@ -182,7 +182,7 @@ fn write_object<'a>(
     out.push('}');
 }
 
-/// Escape a string the way Python's `json.dumps(..., ensure_ascii=True)`
+/// Escape a string the way `json.dumps(..., ensure_ascii=True)`
 /// does: the JSON short escapes plus `\uXXXX` for every control character
 /// and every non-ASCII code point (surrogate pairs above the BMP).
 fn write_string(out: &mut String, s: &str) {
@@ -217,7 +217,7 @@ fn write_string(out: &mut String, s: &str) {
     out.push('"');
 }
 
-/// Render a float the way Python's `repr()` / `json.dumps` would: a
+/// Render a float the way `repr()` / `json.dumps` would: a
 /// shortest round-tripping decimal, always carrying a `.0` for integral
 /// values, with `NaN` / `Infinity` / `-Infinity` for the non-finite cases
 /// (the non-standard spelling `CPython`'s `json` emits).

@@ -136,8 +136,8 @@ fn bi_any(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(items.iter().any(truthy)))
 }
 
-/// Port of `builtins._flatten_one_level`: `_as_sequence` plus one level of
-/// list-flattening when *every* element is itself a list.
+/// Coerce to a sequence, then flatten one level of
+/// lists when *every* element is itself a list.
 fn flatten_one_level(value: &Value, name: &str) -> Result<Vec<Value>, QueryError> {
     let seq = as_sequence(value, name, 1)?;
     if !seq.is_empty() && seq.iter().all(|item| matches!(item, Value::List(_))) {

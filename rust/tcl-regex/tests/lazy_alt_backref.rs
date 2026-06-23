@@ -1,4 +1,4 @@
-//! Regression tests for the second round of Codex review on PR #688:
+//! Regression tests for lazy alternation and backreferences:
 //!
 //! 1. **Lazy quantifier must not discard longer alternatives** — a leading
 //!    non-greedy quantifier sets a *shortest* preference only for a lone branch;
@@ -121,7 +121,7 @@ fn min_zero_repeat_over_empty_does_not_enter_operand() {
     // A min-0 repeat (`?`/`*`) over a position where the operand only matches
     // empty takes ZERO iterations and never enters/captures its operand, so the
     // inner group is non-participating. A backref to it must therefore fail.
-    // (Found by Codex on PR #688; verified against tclsh 9.0.3.)
+    // (Verified against tclsh 9.0.3.)
     assert!(!m("((a*)?){2}\\2", "")); // group 2 never participates → \2 fails
     assert!(!m("((a*)?)\\2", "")); // single optional, same reason
     assert!(!m("((a*)*)\\2", "")); // min-0 star, same reason

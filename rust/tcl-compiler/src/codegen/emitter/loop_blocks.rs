@@ -2,7 +2,7 @@
 //!
 //! foreach opcode compilation, loop-end result handling, for-init /
 //! while startCommand wrapping. Each handler corresponds to one
-//! `if bname.startswith(...)` branch in Python's `generate()`.
+//! `if bname.startswith(...)` branch in `generate()`.
 
 #![allow(dead_code, clippy::implicit_hasher, clippy::doc_markdown)]
 

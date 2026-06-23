@@ -7,9 +7,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
-        // GAP-D1(d): the command is `regexp::quote` (`::`, not `_`) —
-        // the Rust port mis-spelled it `regexp_quote`. Mirrors
-        // `tcl/regexp__quote.py`.
+        // The command is `regexp::quote` (`::`, not `_`); the module
+        // name uses `_` because `::` is not a legal file-name character.
         name: "regexp::quote",
         dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         traits: Traits::PURE,

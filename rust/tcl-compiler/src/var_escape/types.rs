@@ -289,7 +289,7 @@ pub struct ProcEscapeSummary {
     /// (`Barrier` reasons are usually synthesised on demand by
     /// [`Self::reasons_for`]).
     pub tag_reasons: HashMap<String, Vec<EscapeReason>>,
-    /// **S3.4 — pure-leaf flag.** `true` when this proc is provably
+    /// **Pure-leaf flag.** `true` when this proc is provably
     /// pure-leaf: no escaping var (no `Frame` tag, no dynamic barrier),
     /// no eval / call fallback, no `upvar` source out, and — after the
     /// interprocedural fixpoint — every direct callee is itself pure-leaf

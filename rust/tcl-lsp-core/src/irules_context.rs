@@ -139,8 +139,7 @@ mod tests {
     #[test]
     fn when_open_line_counts_as_inside_body() {
         // The body Str token starts at the `{` on line 0, so a cursor on
-        // the `when … {` line is already "inside" — matches Python's
-        // `body_tok.start.line <= idx` containment check.
+        // the `when … {` line is already "inside".
         let src = "when HTTP_REQUEST {\n    set x 1\n}\n";
         assert_eq!(
             find_enclosing_when_event(src, 0, D),
@@ -168,9 +167,8 @@ mod tests {
 
     #[test]
     fn innermost_nested_event_wins() {
-        // `find_enclosing` descends only into `when` bodies (mirrors
-        // Python's `_scan_when_context`), so the inner `when` is nested
-        // directly inside the outer one.
+        // `find_enclosing` descends only into `when` bodies, so the inner
+        // `when` is nested directly inside the outer one.
         let src =
             "when HTTP_REQUEST {\n    when CLIENT_DATA {\n        set y 2\n    }\n    set x 1\n}\n";
         // Line 2 sits inside the nested CLIENT_DATA body.

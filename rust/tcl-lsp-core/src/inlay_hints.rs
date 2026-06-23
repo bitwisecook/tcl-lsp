@@ -92,8 +92,7 @@ pub struct InlayHint {
 /// format-string specifier labels ([`InlayHintKind::Type`]);
 /// `parameter_hints` gates the call-site parameter-name labels
 /// ([`InlayHintKind::Parameter`]).  Each family is requested
-/// independently so an editor can opt into one without the other,
-/// mirroring Python's `get_inlay_hints(type_hints=…, parameter_hints=…)`.
+/// independently so an editor can opt into one without the other.
 #[must_use]
 pub fn inlay_hints(
     source: &str,
@@ -157,8 +156,7 @@ pub fn inlay_hints(
     out
 }
 
-/// Short display name for a Tcl intrep type — mirrors Python's
-/// `_TYPE_SHORT` / `_short_type`.
+/// Short display name for a Tcl intrep type.
 fn short_type(t: TclType) -> &'static str {
     match t {
         TclType::String => "str",
@@ -177,8 +175,7 @@ fn short_type(t: TclType) -> &'static str {
 /// Render a [`TypeLattice`] as its inlay display string, or `None`
 /// when the lattice carries no concrete type (Unknown / Overdefined,
 /// or a Shimmered lattice missing an endpoint).  A `Known` type shows
-/// `int`; a `Shimmered` one shows `from → to` (mirrors
-/// `_collect_type_hints`).
+/// `int`; a `Shimmered` one shows `from → to`.
 fn type_display(tl: &TypeLattice) -> Option<String> {
     match tl.kind {
         TypeKind::Known => tl.tcl_type.map(|t| short_type(t).to_owned()),
@@ -211,7 +208,7 @@ fn collect_type_hints(
     let cu = CompilationUnit::build_for_with_config(source, registry, false, config);
 
     // Flatten the per-SSA-definition type lattices into a name → display
-    // map.  Like Python this is last-writer-wins across versions and
+    // map.  This is last-writer-wins across versions and
     // functions; distinct names (the common case) are order-independent.
     let mut type_map: HashMap<String, String> = HashMap::new();
     for fu in cu.functions() {
@@ -294,14 +291,13 @@ static CLOCK_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(||
         .expect("static clock regex")
 });
 
-/// `regsub` substitution backreference (`\0`-`\9`, `\&`) — Python
-/// `_REGSUB_BACKREF_RE`.  Capture group 1 is the back-reference char.
+/// `regsub` substitution backreference (`\0`-`\9`, `\&`).
+/// Capture group 1 is the back-reference char.
 static REGSUB_RE: std::sync::LazyLock<regex::Regex> =
     std::sync::LazyLock::new(|| regex::Regex::new(r"\\([0-9&])").expect("static regsub regex"));
 
-/// Short label for a `format`/`scan` conversion type — Python
-/// `_SPRINTF_SHORT`.  `%` (literal percent) yields `None` so no hint is
-/// emitted for `%%`.
+/// Short label for a `format`/`scan` conversion type.  `%` (literal
+/// percent) yields `None` so no hint is emitted for `%%`.
 fn sprintf_short(c: char) -> Option<&'static str> {
     Some(match c {
         's' => "str",
@@ -357,8 +353,7 @@ fn clock_short(c: char) -> Option<&'static str> {
     })
 }
 
-/// Short label for a `binary format`/`scan` specifier letter — Python
-/// `_BINARY_SHORT`.
+/// Short label for a `binary format`/`scan` specifier letter.
 fn binary_short(c: char) -> Option<&'static str> {
     Some(match c {
         'a' => "strN",
@@ -388,8 +383,7 @@ fn binary_short(c: char) -> Option<&'static str> {
     })
 }
 
-/// Short label for a `regsub` substitution backreference — Python
-/// `_REGSUB_SHORT`.
+/// Short label for a `regsub` substitution backreference.
 fn regsub_short(c: char) -> Option<&'static str> {
     Some(match c {
         '&' | '0' => "match",
@@ -416,7 +410,7 @@ enum FormatArg {
 }
 
 /// Resolve the argv index (and family) of the format/spec word a command
-/// carries, if any.  Mirrors the `_*_format_arg_index` helpers.
+/// carries, if any.
 fn format_arg(seg: &tcl_compiler::segmenter::SegmentedCommand) -> Option<FormatArg> {
     let texts = &seg.texts;
     let head = texts.first()?.as_str();
@@ -871,8 +865,7 @@ fn lookup_proc<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ProcD
 /// Walk a single segmented command, emit a hint per argument
 /// that falls inside `range`.  Stops at the proc's parameter
 /// count — extra arguments (e.g. an `args`-tail proc) don't
-/// produce hints, mirroring Python's parameter-by-parameter
-/// loop.
+/// produce hints.
 fn emit_hints_for_call(
     source: &str,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
@@ -1353,7 +1346,7 @@ mod tests {
     #[test]
     fn type_hint_for_integer_set() {
         // `set x 42` → a `: int` Type-kind hint immediately after `x`
-        // (character 5), mirroring Python's `test_integer_type_hint`.
+        // (character 5).
         let src = "set x 42\n";
         let analysis = analyse(src);
         let reg = registry();

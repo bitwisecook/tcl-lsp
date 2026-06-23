@@ -12,7 +12,7 @@ use crate::jsonfmt;
 use crate::renderers;
 use crate::value::Value;
 
-/// Flatten top-level `Stream`s into the value list — port of `output._flat`.
+/// Flatten top-level `Stream`s into the value list.
 pub(crate) fn flat(values: &[Value]) -> Vec<Value> {
     let mut out = Vec::new();
     for v in values {
@@ -192,8 +192,8 @@ fn flatten_scalar_lists(values: &[Value]) -> Option<Vec<Value>> {
     Some(out)
 }
 
-/// Like [`flatten_scalar_lists`] but never refuses — port of
-/// `output._flatten_scalars` (used by `--raw` / `--paths-only`).
+/// Like [`flatten_scalar_lists`] but never refuses (used by `--raw` /
+/// `--paths-only`).
 fn flatten_scalars(values: &[Value]) -> Vec<Value> {
     let mut out = Vec::new();
     for v in values {
@@ -206,7 +206,7 @@ fn flatten_scalars(values: &[Value]) -> Vec<Value> {
     out
 }
 
-/// Coerce a scalar to its display string — port of `output._scalar_str`.
+/// Coerce a scalar to its display string.
 fn scalar_str(v: &Value) -> String {
     match v {
         Value::Null | Value::Drop => "null".to_string(),
@@ -321,8 +321,7 @@ fn render_table(values: &[Value], lineart: bool) -> String {
     lines.join("\n") + "\n"
 }
 
-/// Coerce a single table cell value to its display string — port of
-/// `output._cell_str`.
+/// Coerce a single table cell value to its display string.
 pub(crate) fn cell_str(v: &Value) -> String {
     match v {
         Value::Null | Value::Drop => String::new(),

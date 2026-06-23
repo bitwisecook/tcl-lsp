@@ -5,8 +5,7 @@
 //!
 //! - **Variable receiver** (`$obj`) — when the analyser has inferred the
 //!   variable's class (the Rust analyser records this in
-//!   `AnalysisResult::instance_classes`, its equivalent of Python's
-//!   `TypeLattice.object_of` / `class_name`), jump to that `ClassDef`'s
+//!   `AnalysisResult::instance_classes`), jump to that `ClassDef`'s
 //!   name span.
 //! - **Method receiver** — when the cursor sits inside a class body on a
 //!   word that names one of that class's methods, jump to the enclosing

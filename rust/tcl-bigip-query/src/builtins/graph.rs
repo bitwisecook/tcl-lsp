@@ -25,15 +25,15 @@ use crate::value::Value;
 
 use super::{BuiltinSpec, as_str, type_name};
 
-/// Walk direction over the reference graph (mirrors `compute_grep`'s
-/// `direction` for the one-hop forward/reverse queries the builtins use).
+/// Walk direction over the reference graph, for the one-hop forward/reverse
+/// queries the builtins use.
 #[derive(Clone, Copy)]
 enum Direction {
     Forward,
     Reverse,
 }
 
-/// Sort key mirroring `compute_grep._sort_key`: `(kind or "", identifier)`.
+/// Sort key: `(kind or "", identifier)`.
 fn sort_key(node: &ObjectNode) -> (&str, &str) {
     (node.kind.unwrap_or(""), node.identifier.as_str())
 }
@@ -51,8 +51,7 @@ fn related_one_hop<'g>(
     pattern: &str,
     direction: Direction,
 ) -> Vec<&'g ObjectNode> {
-    // Flatten the per-uri node lists and index nodes by id (mirrors
-    // `compute_grep`'s `all_nodes`).
+    // Flatten the per-uri node lists and index nodes by id.
     let mut all_nodes: Vec<&ObjectNode> = Vec::new();
     for (_uri, nodes) in &graph.nodes_by_uri {
         for node in nodes {
@@ -62,9 +61,9 @@ fn related_one_hop<'g>(
     let node_by_id =
         |id: &str| -> Option<&ObjectNode> { all_nodes.iter().copied().find(|n| n.node_id == id) };
 
-    // Seeds: nodes whose identifier matches exactly. `compute_grep` sorts
-    // seed ids by `_sort_key`; the seed *order* does not affect the related
-    // set (related is re-sorted), but we mirror it for fidelity.
+    // Seeds: nodes whose identifier matches exactly, sorted by `_sort_key`.
+    // The seed *order* does not affect the related set (related is re-sorted),
+    // but it is sorted for determinism.
     let mut seeds: Vec<&ObjectNode> = all_nodes
         .iter()
         .copied()
@@ -115,8 +114,8 @@ fn related_one_hop<'g>(
     related
 }
 
-/// Resolve the [`Root`] that owns `config_uri`, mirroring Python's
-/// `graph._root_for`: the active root if its uri matches, else a named root.
+/// Resolve the [`Root`] that owns `config_uri`: the active root if its uri
+/// matches, else a named root.
 /// Used to validate that an object came from a config (and, in non-merge
 /// mode, to pick the source-scoped graph). Merge mode widens the graph to
 /// every loaded source via [`EvalContext::merged_graph`] instead.
@@ -159,8 +158,8 @@ fn object_relative_refs(
     };
     let root = root_for_uri(ctx, &obj.config_uri)?;
     // Merge mode joins every loaded source's graph so a reference in one
-    // file resolves into an object in another (port of `_grep_inputs`'s
-    // merge branch); otherwise stay scoped to the originating source.
+    // file resolves into an object in another; otherwise stay scoped to
+    // the originating source.
     let graph = if ctx.merge_mode {
         ctx.merged_graph()
     } else {
@@ -210,7 +209,7 @@ fn bi_references_to(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Quer
 
 /// `check_partition_visibility()` — every reference whose referrer partition
 /// can't see the target partition, as sorted `"<referrer> -> <target>"`
-/// strings. Mirrors the Python forward-grep-per-object audit; the referrer
+/// strings. Performs a forward-grep-per-object audit; the referrer
 /// set is exactly the typed graph nodes (generic objects carry namespaced
 /// keys that never appear as graph-node identifiers).
 fn bi_check_partition_visibility(
@@ -253,8 +252,8 @@ fn bi_check_partition_visibility(
 }
 
 /// Compute a rule's forward references (`max_depth=1`) classified into
-/// `(pools, persists, data_groups)` — port of `_engine._extract_rule_refs`.
-/// Each bucket is de-duplicated and sorted, matching Python's `set` + `sorted`.
+/// `(pools, persists, data_groups)`.
+/// Each bucket is de-duplicated and sorted, matching `set` + `sorted`.
 #[must_use]
 pub(crate) fn extract_rule_refs(
     full_path: &str,
@@ -284,9 +283,9 @@ pub(crate) fn extract_rule_refs(
     )
 }
 
-/// Distinct reverse-referrer full-paths of `target` over the root graph —
-/// mirrors the `rename` builtin's `compute_grep(direction="reverse",
-/// max_depth=1, use_exact=True)` call. The seed (`target` itself) is excluded.
+/// Distinct reverse-referrer full-paths of `target` over the root graph — a
+/// one-hop reverse, exact-match walk (the same the `rename` builtin uses). The
+/// seed (`target` itself) is excluded.
 #[must_use]
 pub(crate) fn reverse_referrers(target: &str, root: &Rc<Root>) -> Vec<String> {
     let graph = root.graph();

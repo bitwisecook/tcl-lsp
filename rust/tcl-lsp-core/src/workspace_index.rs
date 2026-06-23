@@ -67,9 +67,8 @@ pub struct WorkspaceClass {
 
 /// One command-invocation (call) site recorded in the index.
 ///
-/// Mirrors `AnalysisResult.command_invocations` but tagged with
-/// the defining document so cross-document references / rename
-/// / call-hierarchy can walk every call site of a symbol.
+/// Tagged with the defining document so cross-document references
+/// / rename / call-hierarchy can walk every call site of a symbol.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceInvocation {
     /// Document the call site is in.

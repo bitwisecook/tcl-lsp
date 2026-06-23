@@ -16,7 +16,7 @@ use crate::ucs::{
 };
 
 /// An error resolving a path input. Rendered as `error: {msg}` (exit 2) by the
-/// binary, mirroring the Python `(OSError, ValueError, FileNotFoundError)`
+/// binary, mirroring `(OSError, ValueError, FileNotFoundError)`
 /// handling.
 #[derive(Debug, thiserror::Error)]
 pub enum PathError {
@@ -38,7 +38,7 @@ impl From<UcsError> for PathError {
 }
 
 /// How to resolve a UCS decryption passphrase (the `add_passphrase_args` /
-/// `provider_from_args` shape from `_paths.py`).
+/// `provider_from_args` shape
 #[derive(Debug, Clone)]
 pub struct PassphraseOptions {
     /// An explicit passphrase (highest priority).

@@ -7,7 +7,7 @@
 //! is shared with `runtime/rust`; only the **engine** is provided here. The VM
 //! used to drive the approximate `regex` crate (no full ARE syntax — `\m`/`\M`/
 //! `[[:<:]]` word edges, POSIX longest-match submatches, etc.); it now uses the
-//! faithful [`tcl_regex`] port, so the VM matches `tclsh` 9.0 behaviour.
+//! faithful [`tcl_regex`] engine, so the VM matches `tclsh` 9.0 behaviour.
 
 use tcl_cmd_core::regex::{self as core_re, RegexEngine, RegexFlags, RegexpResult, RegsubResult};
 use tcl_runtime_api::Completion;

@@ -158,8 +158,8 @@ fn coerce_box(v: &Value) -> Result<Box, QueryError> {
                 .filter(|x| truthy(x))
                 .or_else(|| map.get("children").filter(|x| truthy(x)))
                 .or_else(|| map.get("items").filter(|x| truthy(x)));
-            // Python checks `isinstance(kids_raw, (list, tuple))` — a `Stream`
-            // (Python `Stream`, not a list) is rejected, matching `_coerce_box`.
+            // Only a list / tuple is accepted here — a `Stream` (not a list)
+            // is rejected.
             let children = match kids_raw {
                 None => Vec::new(),
                 Some(Value::List(items)) => {

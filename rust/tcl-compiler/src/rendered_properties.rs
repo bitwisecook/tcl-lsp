@@ -17,7 +17,6 @@
 //!   underapproximate. `STARTS_WITH_SLASH` only survives when
 //!   *all* incoming edges agree.
 //!
-//! Ported from `core/compiler/rendered_properties.py` (C27c).
 //! Provides the lattice types plus the full SSA-walk propagation
 //! pass (`propagate_rendered_props`) used by `FunctionUnit` to
 //! enrich taint colours (e.g. `STARTS_WITH_SLASH` →
@@ -150,8 +149,7 @@ impl Default for RenderedValueProps {
 /// Join two lattice values.
 ///
 /// `may` bits use union (overapproximate); `must` bits use
-/// intersection (underapproximate). Ported from the Python
-/// `rendered_join`.
+/// intersection (underapproximate).
 #[must_use]
 pub fn rendered_join(a: RenderedValueProps, b: RenderedValueProps) -> RenderedValueProps {
     RenderedValueProps {
@@ -274,12 +272,10 @@ fn evaluate_const(value: &str) -> RenderedValueProps {
 /// segments, and resolves must-property bits (`STARTS_WITH_SLASH`,
 /// `STARTS_WITH_DASH`) from the first non-interpolation character.
 ///
-/// This is a light-weight replacement for the Python pass's
-/// `TclLexer` walk: it treats `$…` and `[…]` spans as interpolation
-/// holes and analyses the surrounding literal text. The exact
-/// mapping differs from Python when an interpolation hole occurs
-/// before the first literal character (must-bits become unknown),
-/// matching the Python `leading_resolved` semantics.
+/// A light-weight scan: it treats `$…` and `[…]` spans as interpolation
+/// holes and analyses the surrounding literal text. When an interpolation
+/// hole occurs before the first literal character the must-bits become
+/// unknown (`leading_resolved` stays false).
 #[must_use]
 fn scan_value_text(text: &str) -> RenderedValueProps {
     let mut may = RenderedProperties::NONE;
@@ -339,7 +335,7 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
             // protocol line, display text — not a single path token.  A
             // command substitution `[cmd a b]` stays one CMD token (skipped
             // above via `skip_command_sub`), so its internal spaces do NOT
-            // set this.  Mirrors the Python pass's `TokenType.SEP` arm.
+            // set this.
             b' ' | b'\t' => {
                 may |= RenderedProperties::HAS_LITERAL_SPACE;
                 leading_resolved = true;
@@ -357,8 +353,7 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
     }
     // Double-escape: if rendering the literal text leaves a residual
     // backslash-escape sequence (e.g. `a\\b` → `a\b`, still `\b`), the
-    // value was double-escaped. Mirrors Python's per-ESC-token
-    // `_has_double_escape` on the rendered word.
+    // value was double-escaped.
     if saw_escape && has_double_escape(&tcl_lexer::backslash_subst(text)) {
         may |= RenderedProperties::HAS_DOUBLE_ESCAPE;
     }
@@ -366,12 +361,10 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
 }
 
 /// Detect double-escaping: after rendering, the text still contains a
-/// backslash followed by a recognised escape character. Port of Python's
-/// `rendered_properties._has_double_escape`.
+/// backslash followed by a recognised escape character.
 #[must_use]
 fn has_double_escape(rendered: &str) -> bool {
-    // Same recognised-escape set as the Python predicate (note the literal
-    // space and semicolon).
+    // Recognised-escape set (note the literal space and semicolon).
     const ESC_FOLLOW: &[u8] = b"abfnrtv\\{}[]$\"; xuU01234567";
     let bytes = rendered.as_bytes();
     if !bytes.contains(&b'\\') {
@@ -447,7 +440,6 @@ fn scan_escape(text: &str, start: usize, leading_resolved: bool) -> EscapeScan {
     // key fix over the old hand-rolled table: a numeric / hex / unicode /
     // octal escape (`\x2f`, `/`, `\057`) renders to `/` and therefore
     // sets `HAS_FORWARD_SLASH` (its absence caused W201 false-negatives).
-    // Mirrors Python's `_render_esc_text` → per-rendered-char scan.
     let advance = escape_byte_len(bytes, start);
     let rendered = tcl_lexer::backslash_subst(&text[start..start + advance]);
 
@@ -484,7 +476,7 @@ fn scan_escape(text: &str, start: usize, leading_resolved: bool) -> EscapeScan {
 }
 
 /// Source-byte length of one Tcl backslash escape beginning at
-/// `bytes[start]` (which must be `\`).  Mirrors the per-escape consumption
+/// `bytes[start]` (which must be `\`).  Matches the per-escape consumption
 /// rules of [`tcl_lexer::backslash_subst`] so the exact escape can be
 /// sliced out and rendered.
 fn escape_byte_len(bytes: &[u8], start: usize) -> usize {

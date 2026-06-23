@@ -12,8 +12,8 @@
 //! Synthetic instructions with no direct source (loop-result pushes,
 //! fallthrough jumps, padding NOPs) keep `range: null` / `sourceLine: 0`.
 //! The bytecode itself is the Rust codegen's (tracked against tclsh by
-//! the bytecode-compare gate), so this view is `_NO_PARITY` versus the
-//! Python serialiser and pinned by a Rust test.
+//! the bytecode-compare gate), and this view's serialisation is pinned by a
+//! Rust test.
 
 // Byte offsets and instruction indices are bounded by the source size, so
 // the usize/i32 conversions never truncate in practice — mirror the same
@@ -38,8 +38,8 @@ use crate::ExplorerResult;
 use crate::formatters::range_dict;
 
 /// Serialise the `asm` view: a structured bytecode disassembly per
-/// function. (`codegen_module` +
-/// `format_module_explorer`, then wiring per-entry `sourceRange` from the IR).
+/// function. Runs `codegen_module`, formats each function entry, then wires
+/// per-entry `sourceRange` from the IR.
 #[must_use]
 pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
@@ -77,8 +77,7 @@ pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
     Value::Array(entries)
 }
 
-/// The `::top` source range: from the first to the last top-level statement
-/// (mirrors `_serialise_asm`'s `top_range`).
+/// The `::top` source range: from the first to the last top-level statement.
 fn top_source_range(module: &Module, li: &LineIndex, source: &str) -> Value {
     let stmts = &module.top_level.statements;
     match (stmts.first(), stmts.last()) {
@@ -104,8 +103,7 @@ fn resolve_label(
     (offset_to_idx.get(&off).copied(), off)
 }
 
-/// Build one function's explorer entry (mirrors `format_function_explorer`
-/// composed with the `sourceRange` wiring of `_serialise_asm`).
+/// Build one function's explorer entry, including its `sourceRange` wiring.
 #[allow(clippy::too_many_lines, clippy::needless_pass_by_value)]
 fn function_explorer(
     asm: &FunctionAsm,
@@ -276,8 +274,7 @@ fn function_explorer(
 
 /// Rewrite each `jumpTarget`/`jumpTable` `targetIdx` from an
 /// asm-instruction index (`seq`) to a `result_instructions` index,
-/// preferring the label row at the target offset. Mirrors the Python
-/// `_retarget` pass.
+/// preferring the label row at the target offset.
 fn retarget(rows: &mut [Value]) {
     let mut label_row_by_name: HashMap<String, usize> = HashMap::new();
     let mut seq_to_result: HashMap<u64, usize> = HashMap::new();

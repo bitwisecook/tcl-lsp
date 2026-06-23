@@ -126,8 +126,7 @@ pub struct ProcTaintSummary {
 }
 
 impl ProcTaintSummary {
-    /// An untainted seed summary (every scenario clean). Mirrors the initial
-    /// `summaries` seeding in Python's solver.
+    /// An untainted seed summary (every scenario clean).
     ///
     /// Public so the LSP db's memoised `proc_summary_cascade` can reconstruct the
     /// *whole-module* seeded map the worklist passes to `infer_proc_summary` — a

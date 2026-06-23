@@ -94,7 +94,7 @@ fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
 /// version-aware renderers below are this const-folder's own.
 use tcl_syntax::format::{FmtFlags, Spec, parse_spec};
 
-/// A single parsed `%…` conversion — the render input. Mirrors
+/// A single parsed `%…` conversion — the render input. Matches
 /// [`tcl_syntax::format::Spec`]; kept local so the version-aware `render*`
 /// methods can hang off it (the orphan rule forbids `impl` on the shared type).
 struct Conversion {

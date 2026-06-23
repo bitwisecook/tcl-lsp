@@ -32,7 +32,7 @@ pub(crate) enum Local {
 pub(crate) struct CallFrame {
     /// Local variables by name.
     pub locals: HashMap<String, Local>,
-    /// The namespace this frame executes in (global-only for M2).
+    /// The namespace this frame executes in (currently global-only).
     pub ns: NsId,
     /// Absolute frame level (0 = global).
     pub level: usize,

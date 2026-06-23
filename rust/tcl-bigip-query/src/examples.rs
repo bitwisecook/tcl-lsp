@@ -11,7 +11,7 @@ struct Example {
     comment: &'static str,
 }
 
-/// The cookbook, in display order — verbatim from the Python `_EXAMPLES`.
+/// The cookbook, in display order — verbatim from `_EXAMPLES`.
 const EXAMPLES: &[Example] = &[
     Example {
         title: "List every virtual server's default pool",
@@ -135,7 +135,7 @@ const EXAMPLES: &[Example] = &[
     },
 ];
 
-/// Render the cookbook as a single string — port of `format_examples()`.
+/// Render the cookbook as a single string.
 #[must_use]
 pub fn format_examples() -> String {
     use std::fmt::Write as _;

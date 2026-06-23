@@ -21,7 +21,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `Expr` (conditions) or `Body` (scripts). The structural keyword
 /// words themselves (`then`/`elseif`/`else`) carry `ArgRole::Keyword`
 /// so the semantic-token layer highlights them as keywords rather
-/// than strings (mirrors Python's `_if_arg_roles`).
+/// than strings.
 fn if_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut roles = Vec::new();
     let mut i: usize = 0;

@@ -1,15 +1,13 @@
-//! Per-call escape handlers, CFG-flavoured (C33e3).
+//! Per-call escape handlers, CFG-flavoured.
 //!
 //! Each function takes the call's args, the per-statement
 //! `defs: &HashMap<String, Version>` (from the surrounding
 //! `SsaStatement`), and a `&mut CfgState`. The handlers tag every
 //! escape at the SSA version live at this statement.
 //!
-//! Mirrors `_handle_<command>` in
-//! `core/compiler/var_escape/_cfg_propagation.py`. The shape
-//! follows the intra-procedural [`super::super::handlers`]
-//! exactly — only the ``state.escape`` call site is different
-//! (`CfgState`'s `escape` takes a defs map).
+//! The shape follows the intra-procedural
+//! [`super::super::handlers`] exactly — only the ``state.escape``
+//! call site is different (`CfgState`'s `escape` takes a defs map).
 
 use std::collections::HashMap;
 
@@ -38,8 +36,7 @@ pub(crate) fn handle_upvar(args: &[String], state: &mut CfgState, defs: &HashMap
     if !is_level_literal && is_dynamic_upvar_level(head) {
         // Dynamic level — pessimistic. See the matching block in
         // [`super::super::handlers::handle_upvar`] for the
-        // unbounded-upvar rationale (mirrors upstream commit
-        // ``6c7a7c42``).
+        // unbounded-upvar rationale.
         state.record_barrier(Barrier::with_detail(
             BarrierKind::Upvar,
             format!("upvar {head}"),

@@ -1,5 +1,5 @@
 //! Canonical-JSON serialisation of an [`AplModel`], matching the schema
-//! the Python `dialects.f5.bigip.parser._rust_bridge.rebuild_apl`
+//! `dialects.f5.bigip.parser._rust_bridge.rebuild_apl`
 //! reconstructs the `AplModel` dataclasses from.
 
 use serde_json::{Map, Value, json};

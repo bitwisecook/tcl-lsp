@@ -1,10 +1,10 @@
 //! Tcl backslash escape processing.
 //!
-//! Ports `core/parsing/substitution.py::backslash_subst` as idiomatic Rust:
+//! Backslash-substitution processing:
 //! zero-copy on the fast path (no backslash in the input), a single
 //! forward scan of `char_indices` for the slow path, and a clean match
 //! table for escape dispatch. The function is callable directly from
-//! Rust and exposed to Python via the `tcl-lsp-rust` binding crate.
+//! Rust and exposed via the `tcl-lsp-rust` binding crate.
 
 use std::borrow::Cow;
 
@@ -25,10 +25,9 @@ use std::borrow::Cow;
 /// Returns [`Cow::Borrowed`] when `text` contains no backslash (no
 /// allocation) and [`Cow::Owned`] otherwise. Surrogate code points map
 /// to the Unicode replacement character U+FFFD, matching what any
-/// valid-UTF-8 sink would ultimately render. The Python reference
-/// implementation produces lone-surrogate `str` objects in those edge
-/// cases; Rust `String` cannot, so we pick the closest valid-UTF-8
-/// approximation.
+/// valid-UTF-8 sink would ultimately render. A lone surrogate cannot
+/// be represented in a Rust `String`, so U+FFFD is the closest
+/// valid-UTF-8 approximation for those edge cases.
 ///
 #[must_use]
 pub fn backslash_subst(text: &str) -> Cow<'_, str> {

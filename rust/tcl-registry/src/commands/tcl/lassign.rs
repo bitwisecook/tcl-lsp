@@ -16,7 +16,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// D4-F2: `lassign list ?varName ...?` accepts variable-name args from index 1
 /// onward to the end of the call.  Resolve `VarWrite` dynamically so calls with
 /// arbitrarily many vars don't false-fire W210 on the unmodelled tail.
-/// Mirrors `dialects/tcl/lassign.py::_lassign_arg_roles`.
 fn lassign_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     (1..args.len())
         .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite)))

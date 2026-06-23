@@ -1,7 +1,6 @@
 //! Formatting helpers for bytecode disassembly output.
 //!
 //! Matches the output format of Tcl's built-in disassembler.
-//! Ported from `core/compiler/codegen/format.py`.
 
 use std::collections::HashMap;
 use std::fmt::Write;

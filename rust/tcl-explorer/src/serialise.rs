@@ -68,9 +68,8 @@ fn range_or_null(span: Option<Span>, li: &LineIndex, source: &str) -> Value {
     span.map_or(Value::Null, |s| range_dict(s, li, source))
 }
 
-/// Serialise an IR script (a list of statement nodes). Mirrors
-/// `_serialise_script`; children are emitted only for If/For/Switch, as on
-/// the Python side.
+/// Serialise an IR script (a list of statement nodes). Children are emitted
+/// only for If/For/Switch.
 fn serialise_script(script: &Script, li: &LineIndex, source: &str) -> Value {
     let nodes: Vec<Value> = script
         .statements
@@ -263,13 +262,13 @@ fn terminator_dict(term: Option<&Terminator>, li: &LineIndex, source: &str) -> V
 }
 
 /// The successor block names of a terminator (terminator-only, no
-/// exception edges) — mirrors Python's `_block_successors`.
+/// exception edges).
 fn block_successors(term: Option<&Terminator>) -> Vec<&str> {
     term.map(Terminator::successors).unwrap_or_default()
 }
 
-/// Serialise the routed control-flow edges of `func`. Mirrors
-/// `_serialise_cfg_edges`; lanes come from the shared `cfg_layout`.
+/// Serialise the routed control-flow edges of `func`. Lanes come from the
+/// shared `cfg_layout`.
 fn serialise_cfg_edges(func: &Function, order: &[String]) -> Value {
     let edges: Vec<Value> = build_cfg_edges(func, order)
         .into_iter()
@@ -344,11 +343,9 @@ fn arity_str(arity: tcl_compiler::interprocedural::Arity) -> String {
 }
 
 /// Serialise the `renderedProperties` view: each SSA value's `may` / `must`
-/// rendered-property flag names, per function. Mirrors
-/// `_serialise_rendered_properties` — values with no flags are skipped, and
-/// functions with no entries are omitted. `iter_names()` yields the set
-/// named flags in declaration order (NONE excluded), matching Python's
-/// enum-member filter.
+/// rendered-property flag names, per function. Values with no flags are
+/// skipped, and functions with no entries are omitted. `iter_names()` yields
+/// the set named flags in declaration order (NONE excluded).
 #[must_use]
 pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
     let funcs: Vec<Value> = result
@@ -375,16 +372,16 @@ pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
     Value::Array(funcs)
 }
 
-/// Renderer severity for a shimmer/thunking code. Mirrors
-/// `annotations.shimmer_severity` (`_DANGER_SHIMMER_CODES = {"S102"}`).
+/// Renderer severity for a shimmer/thunking code. `S102` is the sole
+/// danger-level code (rendered as `error`); all others are `warning`.
 fn shimmer_severity(code: &str) -> &'static str {
     if code == "S102" { "error" } else { "warning" }
 }
 
 /// Serialise the `shimmer` view: intrep-shimmer (S100/S101) and
 /// loop-thunking (S102) warnings., combining
-/// both warning kinds into one list. The shimmer analysis matches Python,
-/// so this view is strictly gated by the differential harness.
+/// both warning kinds into one list. This view is strictly gated by the
+/// differential harness.
 #[must_use]
 pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
@@ -449,9 +446,9 @@ fn optimised_result(result: &ExplorerResult) -> Option<(crate::ExplorerResult, S
 
 /// Serialise the `gvn` view: redundant-computation hints (GVN/CSE + PRE +
 /// LICM). — `{code, message, expression, range,
-/// firstRange, severity: info}`. Composes the three ported `*_for_cu`
+/// firstRange, severity: info}`. Composes the three `*_for_cu`
 /// finders and de-duplicates on `(code, span, first_span)`. Optimiser-
-/// derived → `_NO_PARITY_KEYS`, pinned by a Rust unit test.
+/// derived, pinned by a Rust unit test.
 #[must_use]
 pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
@@ -500,9 +497,8 @@ fn taint_severity(code: &str) -> &'static str {
     }
 }
 
-/// Serialise the `taint` view: information-flow sink warnings. Mirrors
-/// `_serialise_taint`. Composes the taint passes via the ported
-/// `find_taint_warnings_for_cu`.
+/// Serialise the `taint` view: information-flow sink warnings. Composes the
+/// taint passes via `find_taint_warnings_for_cu`.
 #[must_use]
 pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
@@ -525,7 +521,7 @@ pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) ->
 
 /// Serialise the `optimisations` view: the optimiser rewrites found for
 /// the source. — `{code, message,
-/// range, replacement}` per rewrite. Runs the ported `optimise` pass over
+/// range, replacement}` per rewrite. Runs the `optimise` pass over
 /// the cached per-dialect registry.
 #[must_use]
 pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
@@ -548,9 +544,8 @@ pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: 
 /// `PassId::all()` order with the optimisations it produced (raw, before the
 /// overlap arbitration the `optimisations` view applies).
 ///
-/// **Rust-native** — there is no Python `serialise_result` counterpart, since
-/// the Python optimiser is not structured as this pass sequence. It surfaces
-/// the actual Rust pipeline: which pass found what, in execution order.
+/// **Rust-native** — surfaces the actual pipeline: which pass found what, in
+/// execution order.
 #[must_use]
 pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
@@ -635,8 +630,7 @@ pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
 }
 
 /// Per-SSA-value `{version, lattice?, type?}` detail used by the post-SSA
-/// CFG view's `uses`/`defs` maps. Mirrors the inline dict in
-/// `_serialise_cfg_post_ssa`.
+/// CFG view's `uses`/`defs` maps.
 fn ssa_value_detail(
     refs: &std::collections::HashMap<String, tcl_compiler::ssa::Version>,
     sccp: &tcl_compiler::sccp::SccpResult,
@@ -669,8 +663,8 @@ fn ssa_value_detail(
 /// function-level `analysis` block.
 ///
 /// `analysis.deadStores` is the per-function liveness-based set
-/// ([`tcl_compiler::dead_stores::liveness_dead_stores`]), byte-identical to
-/// Python's `analysis.dead_stores`. The lattice/type detail comes from the Rust
+/// ([`tcl_compiler::dead_stores::liveness_dead_stores`]). The lattice/type
+/// detail comes from the Rust
 /// analyses; `constantBranches`/`unreachableBlocks`/`inferredTypes` come from
 /// SCCP + the type lattice.
 #[must_use]
@@ -774,8 +768,7 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
 /// The function-level `analysis` block of the post-SSA CFG view.
 ///
 /// `deadStores` is the per-function liveness-based set
-/// ([`tcl_compiler::dead_stores::liveness_dead_stores`]), matching Python's
-/// `analysis.dead_stores`.
+/// ([`tcl_compiler::dead_stores::liveness_dead_stores`]).
 fn post_ssa_analysis(
     snap: &crate::FunctionSnapshot,
     registry: &tcl_registry::CommandRegistry,
@@ -818,8 +811,8 @@ fn post_ssa_analysis(
         }
     }
 
-    // Liveness-based dead stores for this function (Python's
-    // `analysis.dead_stores`), already in deterministic block/statement order.
+    // Liveness-based dead stores for this function, already in deterministic
+    // block/statement order.
     let dead_store_values: Vec<Value> =
         tcl_compiler::dead_stores::liveness_dead_stores(snap.unit, registry)
             .iter()
@@ -841,13 +834,12 @@ fn post_ssa_analysis(
     })
 }
 
-/// Serialise the `dataflow` view: the def-use data-flow graph. Mirrors
-/// `dataflow_graph_to_dict` over `extract_dataflow_graph`.
+/// Serialise the `dataflow` view: the def-use data-flow graph, built over
+/// `extract_dataflow_graph`.
 ///
-/// `_NO_PARITY`: `extract_dataflow_graph` sorts functions whereas Python
-/// emits top-level-first, and alias info comes from memory-SSA (not built
-/// here, so `aliases` are limited); the node/edge detail also follows the
-/// (divergent) Rust analyses.
+/// `extract_dataflow_graph` sorts functions, and alias info comes from
+/// memory-SSA (not built here, so `aliases` are limited); the node/edge
+/// detail follows the Rust analyses.
 #[must_use]
 pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
     let snaps = result.snapshots();
@@ -939,10 +931,9 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
     })
 }
 
-/// Serialise the `irulesFlow` view: iRules flow / performance warnings.
-/// Mirrors `_serialise_irules_flow` — `{code, message, range, severity}`,
-/// composing the five `irules_checks` finders. Empty for non-iRules
-/// dialects, so it strict-matches Python's empty list on the tcl corpus.
+/// Serialise the `irulesFlow` view: iRules flow / performance warnings —
+/// `{code, message, range, severity}`, composing the five `irules_checks`
+/// finders. Empty for non-iRules dialects (an empty list on the tcl corpus).
 #[must_use]
 pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
@@ -969,7 +960,7 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
 }
 
 /// Serialise the `loops` view: the natural-loop forest per function, with
-/// nesting depth. over the ported
+/// nesting depth, built over
 /// `build_loop_forest`. Depth = 1 + the number of *other* loop headers
 /// that dominate this loop's header.
 #[must_use]
@@ -1132,13 +1123,12 @@ pub fn serialise_types(result: &ExplorerResult) -> Value {
 /// Serialise the `segments` view: the `SegmentedCommand` list with each
 /// command's closer-inclusive range, source slice, words (in `word_piece`
 /// form with per-word shape flags), and forward-attached preceding comment.
-/// Mirrors `_serialise_segments`.
 ///
 /// `name` is the first word's text; `subcommand` is always `null` (the CST
 /// segment path does not resolve subcommands). `braced` is whether the
 /// word's first fragment is a braced `{…}` (`Str`) token; `quoted` whether
-/// its raw begins with `"` — both derived from the representative token, as
-/// the Python CST derives them from the first fragment.
+/// its raw begins with `"` — both derived from the representative token's
+/// first fragment.
 #[must_use]
 pub fn serialise_segments(source: &str, config: LexerConfig) -> Value {
     let bytes = source.as_bytes();
@@ -1206,8 +1196,8 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
         if seg.texts.first().map(String::as_str) != Some("when") || seg.argv.len() < 3 {
             continue;
         }
-        // The body (last word) must be a braced block (`Str`), matching the
-        // Python `body_tok.type is TokenType.STR` guard.
+        // The body (last word) must be a braced block (`Str`): the guard
+        // requires `body.kind == TokenType::Str`.
         let Some(body) = seg.argv.last() else {
             continue;
         };
@@ -1218,7 +1208,7 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
         let span = seg.argv[1].span;
         // `when EVENT priority N { body }` — base priority defaults to 500.
         // `when EVENT priority N { body }`; a missing/non-integer priority
-        // keeps the 500 default (matching Python).
+        // keeps the 500 default.
         let mut priority = 500;
         if seg.texts.len() >= 5
             && seg.texts[2] == "priority"
@@ -1270,7 +1260,7 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
 /// pre-scan (`tcl_lexer::structural_index`) — where commands begin, the
 /// bracket/brace balance, and the inert spans where `[`/`]`/`{`/`}` are
 /// *literal* (brace words, comments, `${…}`, escapes). This acceleration
-/// layer drives incremental reparse; **Python has no analogue**.
+/// layer drives incremental reparse.
 #[must_use]
 pub fn serialise_structural_index(source: &str, li: &LineIndex) -> Value {
     use tcl_lexer::{BraceIndex, BracketIndex, command_boundaries, script_is_complete};
@@ -1323,8 +1313,7 @@ pub fn serialise_structural_index(source: &str, li: &LineIndex) -> Value {
 /// Serialise the Rust-native `sourceMap` view: the `LineIndex` span model
 /// that powers O(1) offset ↔ line:col resolution (`tcl_lexer::SourceMap` /
 /// `LineIndex`). Surfaces the line-start table the analyses resolve every
-/// span through — the reference for debugging range/offset bugs. **Python
-/// has no analogue** (it recomputes positions ad hoc).
+/// span through — the reference for debugging range/offset bugs.
 #[must_use]
 pub fn serialise_source_map(source: &str, li: &LineIndex) -> Value {
     let byte_length = u32::try_from(source.len()).unwrap_or(u32::MAX);
@@ -1359,11 +1348,10 @@ pub fn serialise_source_map(source: &str, li: &LineIndex) -> Value {
 
 /// Serialise the `stats` summary.
 ///
-/// `_NO_PARITY`: `deadStores` counts the optimiser's **O109** dead stores
-/// (Rust has no standalone liveness pass) and the warning counts come from
-/// the Rust analyses (which diverge from Python). `dataflow*` counts are
-/// omitted — `dataflow` is unported, and Python only adds them when a
-/// dataflow graph is present.
+/// `deadStores` counts the optimiser's **O109** dead stores (there is no
+/// standalone liveness pass) and the warning counts come from the Rust
+/// analyses. `dataflow*` counts are omitted — `dataflow` is not implemented,
+/// and such counts only apply when a dataflow graph is present.
 fn serialise_stats(result: &ExplorerResult) -> Value {
     let registry = registry_for_dialect(&result.dialect);
     let dialect = Some(result.dialect.as_str());
@@ -1420,7 +1408,7 @@ struct Ann {
 }
 
 /// Collect compiler-barrier annotations from a script, recursing into
-/// If/For/Switch bodies only — mirroring Python's `_walk_barriers`.
+/// If/For/Switch bodies only.
 fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
     for stmt in &script.statements {
         match stmt {
@@ -1466,13 +1454,13 @@ fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
 }
 
 /// Serialise the `annotations` + `annotationsByLine` source-callout views.
-/// Mirrors `collect_annotations` (all sources, GUI default), then
-/// `_serialise_annotation` + `_group_annotations_by_line`.
+/// Collects all sources (GUI default), then emits per-annotation entries
+/// grouped by line.
 ///
-/// `_NO_PARITY`: aggregates the optimiser / shimmer / gvn / taint sources
-/// (which diverge from Python). Dead-store callouts come from the optimiser's
-/// **O109** findings (Rust has no standalone liveness pass); constant-branch
-/// + unreachable-block callouts come from `sccp`.
+/// Aggregates the optimiser / shimmer / gvn / taint sources. Dead-store
+/// callouts come from the optimiser's **O109** findings (there is no
+/// standalone liveness pass); constant-branch + unreachable-block callouts
+/// come from `sccp`.
 #[allow(clippy::too_many_lines)]
 fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) -> (Value, Value) {
     let registry = registry_for_dialect(&result.dialect);
@@ -1708,12 +1696,12 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "segments".to_owned(),
         serialise_segments(&result.source, lexer_config),
     );
-    // Rust-native: the lexer structural pre-scan (no Python counterpart).
+    // Rust-native: the lexer structural pre-scan.
     out.insert(
         "structuralIndex".to_owned(),
         serialise_structural_index(&result.source, &li),
     );
-    // Rust-native: the LineIndex span model (no Python counterpart).
+    // Rust-native: the LineIndex span model.
     out.insert(
         "sourceMap".to_owned(),
         serialise_source_map(&result.source, &li),
@@ -1729,7 +1717,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "optimisations".to_owned(),
         serialise_optimisations(result, &li, &result.source),
     );
-    // Rust-native: the optimiser pass pipeline (no Python counterpart).
+    // Rust-native: the optimiser pass pipeline.
     out.insert(
         "optimiserPasses".to_owned(),
         serialise_optimiser_passes(result, &li, &result.source),
@@ -1820,7 +1808,7 @@ mod tests {
     fn meta_lists_all_dialects_views_and_severities() {
         let meta = serialise_meta();
         assert_eq!(meta["dialects"].as_array().unwrap().len(), 14);
-        // 26 views: Python's 24 minus the dropped `greentree` tab (Rust has a
+        // 26 views: the base 24 minus the dropped `greentree` tab (Rust has a
         // single red-green CST) plus the Rust-native `structuralIndex`,
         // `sourceMap`, and `optimiserPasses` views.
         assert_eq!(meta["views"].as_array().unwrap().len(), 26);
@@ -1874,7 +1862,7 @@ mod tests {
         let opt = serialise_result(&result)["optimisedSource"].clone();
         // The constant fold changes the source, so it is a non-null string.
         // SCCP proves `x` is `3` and its only use is propagated, so the
-        // computed def couple-removes (matching Python) — the result is
+        // computed def couple-removes — the result is
         // `puts 3`, not `set x 3`.
         let s = opt.as_str().expect("optimised source string");
         assert!(s.contains("puts 3"), "{s:?}");
@@ -2028,8 +2016,7 @@ mod tests {
     #[test]
     fn event_order_orders_when_handlers_by_firing_order() {
         // Two HTTP_REQUEST handlers (one with explicit priority) plus
-        // RULE_INIT and HTTP_RESPONSE. Verified byte-for-byte against Python
-        // `_serialise_event_order` for this snippet.
+        // RULE_INIT and HTTP_RESPONSE. Verified byte-for-byte for this snippet.
         let src = "when RULE_INIT { set ::x 1 }\n\
                    when HTTP_REQUEST priority 100 { log local0. a }\n\
                    when HTTP_REQUEST { log local0. b }\n\

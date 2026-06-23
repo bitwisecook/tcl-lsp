@@ -57,8 +57,7 @@ impl InputSpec {
     }
 }
 
-/// The four built-in input formats, sorted by name (port of
-/// `list_input_formats` after the built-in registrations).
+/// The four built-in input formats, sorted by name.
 #[must_use]
 pub fn list_input_formats() -> Vec<InputFormatSpec> {
     // Sorted by name: csv, f5log, json, jsonl.
@@ -149,8 +148,7 @@ pub fn parse_json(source: &str, uri: &str) -> Result<Value, QueryError> {
 
 // JSON Lines (NDJSON)
 
-/// Parse newline-delimited JSON into a list of values (port of
-/// `_inputs.parse_jsonl`).
+/// Parse newline-delimited JSON into a list of values.
 ///
 /// Blank lines are ignored; each non-blank line must be a single JSON
 /// value. Errors quote the line number.
@@ -235,11 +233,11 @@ pub fn parse_csv(
     Ok(Value::List(out))
 }
 
-/// Parse CSV text into rows of cells, matching Python's `csv.reader`
+/// Parse CSV text into rows of cells, matching `csv.reader`
 /// defaults (RFC 4180: `"`-quoting, `""` escapes a quote, embedded
 /// commas / newlines inside quotes).
 ///
-/// Python's `csv.reader` over a `StringIO` splits records on `\r\n`,
+/// `csv.reader` over a `StringIO` splits records on `\r\n`,
 /// `\r`, or `\n` (outside quotes) and treats a quoted field's embedded
 /// newlines literally. A trailing newline does not produce an extra
 /// empty record.
@@ -329,8 +327,8 @@ struct F5LogEvent {
     raw: String,
 }
 
-/// Parse a BIG-IP log file into a list of event dicts (port of
-/// `_inputs.parse_f5log`). Blank lines are skipped.
+/// Parse a BIG-IP log file into a list of event dicts. Blank lines are
+/// skipped.
 #[must_use]
 pub fn parse_f5log(text: &str) -> Value {
     let mut events: Vec<Value> = Vec::new();
@@ -345,8 +343,7 @@ pub fn parse_f5log(text: &str) -> Value {
     Value::List(events)
 }
 
-/// Tokenise a single line into an [`F5LogEvent`] (port of
-/// `_inputs._parse_one_f5log`).
+/// Tokenise a single line into an [`F5LogEvent`].
 fn parse_one_f5log(line: &str) -> F5LogEvent {
     let raw = line.to_string();
     let body = strip_pri_prefix(line);
@@ -422,8 +419,7 @@ fn strip_pri_prefix(line: &str) -> &str {
     }
 }
 
-/// Drop a leading `audit `/`gtm `/`ltm `/… facility tag (port of
-/// `_strip_source_tag`).
+/// Drop a leading `audit `/`gtm `/`ltm `/… facility tag.
 fn strip_source_tag(text: &str) -> &str {
     let (head, rest) = take_token(text);
     if !head.is_empty() && SOURCE_TAGS.contains(&head.as_str()) {
@@ -569,8 +565,7 @@ fn take_severity(text: &str) -> (String, String) {
     }
 }
 
-/// Peel `daemon[pid]` or `daemon` off the head, conservatively (port of
-/// `_take_daemon_pid`).
+/// Peel `daemon[pid]` or `daemon` off the head, conservatively.
 fn take_daemon_pid(text: &str) -> (String, Option<i64>, String) {
     let stripped = text.trim_start();
     if stripped.is_empty() {

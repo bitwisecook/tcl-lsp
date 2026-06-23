@@ -63,8 +63,7 @@ pub fn run_tmsh(
 
     let target = OutputTarget::from_arg(output);
     match &target {
-        // The Python verb writes via `Path.write_text` / `sys.stdout.write`,
-        // i.e. verbatim with no trailing-newline coercion. `script.text`
+        // Write verbatim, with no trailing-newline coercion; `script.text`
         // already ends in `\n` when non-empty.
         OutputTarget::File(p) => std::fs::write(p, &script.text)
             .map_err(|e| anyhow::anyhow!("failed to write {}: {e}", p.display()))?,

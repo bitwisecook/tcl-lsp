@@ -146,7 +146,7 @@ fn walk_statement(
 /// 3. `InstCombine` identities (`$x + 0` → `$x`, `$x * 0` → `0`)
 ///    → O110
 ///
-/// Matches the Python `_expr_simplify` behaviour for
+/// Matches `_expr_simplify` behaviour for
 /// `IRAssignExpr` nodes. Skipped when the expression contains a
 /// command substitution (side-effect risk).
 fn try_rewrite_assign_expr(

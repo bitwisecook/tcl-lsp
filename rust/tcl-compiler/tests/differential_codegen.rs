@@ -1,4 +1,4 @@
-//! Differential codegen test harness (C20).
+//! Differential codegen test harness.
 //!
 //! Feeds a corpus of Tcl scripts through both the Python emitter
 //! (subprocess invocation of `core.compiler.codegen.codegen_module`
@@ -21,7 +21,7 @@
 //! The corpus under `tests/fixtures/codegen/matching/` is asserted
 //! to at least semantic-match. The corpus under
 //! `tests/fixtures/codegen/divergent/` is run purely as a progress
-//! tracker for C18/C19 — the test reports the current divergence
+//! tracker — the test reports the current divergence
 //! count but never fails. As each remaining gap closes, divergent
 //! fixtures are promoted to the matching corpus in the same commit
 //! that lands the fix.
@@ -375,7 +375,7 @@ fn matching_corpus_is_semantically_equivalent() {
     }
 }
 
-/// The divergent corpus tracks known codegen gaps (driven by C18/C19).
+/// The divergent corpus tracks known codegen gaps.
 /// This test never fails — it only reports the current divergence
 /// count so progress is visible in test output and CI logs. When a
 /// gap closes, its fixture graduates to `matching/` in the same

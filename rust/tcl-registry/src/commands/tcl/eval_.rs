@@ -37,8 +37,8 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
-        // GAP-D2: a `LIST_CANONICAL` value preserves element
-        // boundaries and suppresses T100. Mirrors `tcl/eval.py`.
+        // A `LIST_CANONICAL` value preserves element
+        // boundaries and suppresses T100.
         taint_sink_safe_colour: Some(TaintColour::LIST_CANONICAL),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

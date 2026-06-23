@@ -1,7 +1,7 @@
 //! Intrep shimmer analysis — detect places where a variable's
 //! Tcl-value intrep (list/dict/int/…) is converted at a use site.
 //!
-//! Ported from `core/compiler/shimmer.py` (C27d). Decomposed into
+//! Decomposed into
 //! independently-testable sub-modules:
 //!
 //! | Sub-module    | Responsibility                                  |

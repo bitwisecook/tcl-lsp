@@ -10,9 +10,8 @@
 //! * [`outgoing_calls`] — every call site inside the given
 //!   proc's / method's body, grouped by the callee.
 //!
-//! Proc edge enumeration mirrors Python's per-proc call-site
-//! computation by walking `analysis.command_invocations` and
-//! intersecting their byte spans with each proc's body span.
+//! Proc edge enumeration walks `analysis.command_invocations` and
+//! intersects their byte spans with each proc's body span.
 //!
 //! Class-method edges are computed differently: the analyser's
 //! `command_invocations` collection only records top-level
@@ -253,7 +252,7 @@ fn item_for_proc(
     };
     CallHierarchyItem {
         // Short display name (`helper`), not the qualified key (`::helper`) —
-        // matches the Python server and the editor's call-hierarchy UI.  The
+        // matches the editor's call-hierarchy UI.  The
         // incoming/outgoing lookups match this against both forms.
         name: proc_def.name.clone(),
         detail,
@@ -317,8 +316,7 @@ fn invocation_targets(
 }
 
 /// One incoming-call entry: the caller proc plus the spans at
-/// which it calls the target.  Mirrors
-/// `lsprotocol.types.CallHierarchyIncomingCall`.
+/// which it calls the target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IncomingCall {
     /// The proc that contains the call sites.
@@ -328,8 +326,7 @@ pub struct IncomingCall {
 }
 
 /// One outgoing-call entry: the called proc plus the spans
-/// from which it's called.  Mirrors
-/// `lsprotocol.types.CallHierarchyOutgoingCall`.
+/// from which it's called.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutgoingCall {
     /// The proc being called.

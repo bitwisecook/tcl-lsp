@@ -6,9 +6,9 @@
 //! reference, and diagnostic must report spans that are absolute byte
 //! offsets into the ORIGINAL source text.
 //!
-//! This suite asserts the C2/C3 contracts at the analyser level:
-//!   C2 — recovery is non-fatal (procs after the break are still found)
-//!   C3 — in-document positions (all spans match original source text)
+//! This suite asserts two contracts at the analyser level:
+//!   - recovery is non-fatal (procs after the break are still found)
+//!   - in-document positions (all spans match original source text)
 
 use std::collections::HashMap;
 use tcl_compiler::analyser::{Analyser, ProcDef};
@@ -22,7 +22,7 @@ fn find_proc<'a>(procs: &'a HashMap<String, ProcDef>, name: &str) -> &'a ProcDef
 
 #[test]
 fn proc_after_unterminated_bracket_has_correct_positions() {
-    // C2: recovery is non-fatal — a proc after the break must still
+    // recovery is non-fatal — a proc after the break must still
     // be a document symbol with correct source positions.
     //
     // "set x [bad"  → unterminated [, ghost ] inserted at offset 11

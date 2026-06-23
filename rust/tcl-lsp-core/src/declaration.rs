@@ -9,8 +9,8 @@
 //! declaration is found, it falls back to plain go-to-definition.
 //!
 //! The declared-name argument positions come from the analyser's
-//! `var_scoping` index helpers (the same ones the memory-SSA pass and
-//! the Python provider use), so all the level-word / `namespace upvar`
+//! `var_scoping` index helpers (the same ones the memory-SSA pass
+//! uses), so all the level-word / `namespace upvar`
 //! grammar forms are handled identically.  Visibility is the set of
 //! enclosing scope body spans (`definition::scope_body_spans_at`); an
 //! empty set means the whole file is visible (cursor at global scope).
@@ -24,8 +24,7 @@ use tcl_lexer::{LexerConfig, LineIndex, Span};
 use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
 
-/// Recursion depth guard for nested body walks (mirrors Python's
-/// `depth > 20` cap in `_collect_declaration_ranges`).
+/// Recursion depth guard for nested body walks (a `depth > 20` cap).
 const MAX_BODY_DEPTH: u32 = 20;
 
 use crate::definition::{LspRange, byte_offset_at, definition, scope_body_spans_at, span_to_range};
@@ -115,8 +114,7 @@ struct DeclScan<'a> {
 /// matching declaration token span (when visible) into `found`, and
 /// recursing into body-role arguments (`proc` / `if` / `foreach` /
 /// `while` / `catch` / `namespace eval` … bodies) so declarations nested
-/// in control-flow blocks are reached.  Mirrors the registry-driven
-/// `iter_body_arguments` recursion in `_collect_declaration_ranges`.
+/// in control-flow blocks are reached.
 fn collect_declarations_in_region(
     scan: &DeclScan<'_>,
     region: Span,

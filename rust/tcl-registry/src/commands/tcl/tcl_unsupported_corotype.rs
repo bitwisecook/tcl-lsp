@@ -2,12 +2,10 @@
 //!
 //! Tcl 9 ships `::tcl::unsupported::corotype CORONAME` as part of the
 //! `::tcl::unsupported::*` namespace — a documented-but-internal API
-//! exposed for tooling and the tcltest harness.  Mirror of the Python
-//! registry entry added in main commit `f8403101`
-//! (`core/commands/registry/tcl/tcl_unsupported_corotype.py`).
+//! exposed for tooling and the tcltest harness.
 //!
 //! Only the fully-qualified spelling is registered (matches the
-//! Python source and the WASM `ns_resolve_qualified` path).
+//! WASM `ns_resolve_qualified` path).
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

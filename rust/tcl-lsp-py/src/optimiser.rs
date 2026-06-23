@@ -43,7 +43,7 @@ fn lift_optimisation(o: optimiser::Optimisation) -> OptimisationRow {
 ///   group_or_none, hint_only)`
 ///
 /// `start_offset` / `end_offset` are absolute byte offsets into
-/// `source` (the offsets the Python `SourcePosition.offset`
+/// `source` (the offsets `SourcePosition.offset`
 /// field maps from). The Python caller converts those to
 /// `Range` values via its own line index.
 ///
@@ -79,7 +79,7 @@ pub fn optimiser_find_optimisations_raw(
 }
 
 /// Return the display priority for a given optimisation code.
-/// Mirrors the Python `_OPT_PRIORITY` table.
+/// Mirrors `_OPT_PRIORITY` table.
 #[pyfunction]
 #[pyo3(signature = (code, /))]
 pub fn optimiser_opt_priority(code: &str) -> u8 {

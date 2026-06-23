@@ -181,7 +181,7 @@ impl Addr {
             Addr::V6(a) => u128::from(*a),
         }
     }
-    /// `str(addr)` per Python's `ipaddress` (RFC 5952 compression for v6;
+    /// `str(addr)` per `ipaddress` (RFC 5952 compression for v6;
     /// Rust std uses the same compression rules).
     fn to_string_py(&self) -> String {
         match self {

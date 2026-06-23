@@ -36,9 +36,8 @@ use crate::hover::find_word_span_at_position;
 
 /// One link in the selection-range chain.
 ///
-/// Mirrors `lsprotocol.types.SelectionRange`: a range and an
-/// optional parent. The chain runs from innermost (word at
-/// cursor) outward (whole document).
+/// A range and an optional parent. The chain runs from
+/// innermost (word at cursor) outward (whole document).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectionRange {
     /// Range covered by this link.

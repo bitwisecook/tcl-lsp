@@ -13,9 +13,9 @@ pub const fn spec() -> CommandSpec {
             examples: "# Open a sideband connection with a connection timeout of 100 ms and an idle timeout of 30 seconds\n#   to a local virtual server name sideband_virtual_server\nset conn_id [connect -timeout 100 -idle 30 -status conn_status sideband_virtual_server]\n\n# Same as above, but use an external host IP:port instead of a virtual server name\nset conn_id [connect -timeout 100 -idle 30 -status conn_status 10.0.0.10:80]\n\n\nExample with more complete error handling:",
             return_value: "This command opens a sideband connection to the specified destination.",
         }),
-        // GAP-D2: sideband `connect` is a network sink (SSRF, T104);
-        // the address-bearing arg positions are not pinned. Mirrors
-        // `irules/connect.py` (`taint_network_sink_args=()`).
+        // Sideband `connect` is a network sink (SSRF, T104);
+        // the address-bearing arg positions are not pinned
+        // (`taint_network_sink_args=()`).
         taint_network_sink_args: Some(&[]),
         event_requires: Some(EventRequires {
             client_side: false,

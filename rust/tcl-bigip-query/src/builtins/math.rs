@@ -10,7 +10,7 @@
 //! Numeric result types mirror Python exactly (int vs float) because the
 //! output formatter renders `2.0` and `2` differently. For byte-identical
 //! results we mostly use Rust's `std::f64` methods (which bind to the same
-//! system libm Python's `math` calls), fall back to the pure-Rust `libm`
+//! system libm `math` calls), fall back to the pure-Rust `libm`
 //! crate for the few C functions `std` lacks (`expm1`, `log1p`, `ldexp`,
 //! `remainder`, `fmod`, `frexp`, `modf`), and implement two families exactly
 //! so they stay byte-identical: the Bessel functions (an Abramowitz & Stegun
@@ -38,7 +38,7 @@ use crate::errors::QueryError;
 use crate::jsonfmt;
 use crate::value::Value;
 
-// Python's `math` module mostly delegates to the platform C library (glibc
+// `math` module mostly delegates to the platform C library (glibc
 // on the reference host). Rust's `std::f64` transcendental methods bind to
 // the same system libm, so they reproduce Python's results bit-for-bit —
 // whereas the pure-Rust `libm` crate diverges by ~1 ULP on some functions
@@ -143,7 +143,7 @@ fn num_repr(v: &Value) -> String {
     }
 }
 
-/// `str(n)` of a number value (Python `f"{n}"`), used by the Bessel domain
+/// `str(n)` of a number value, used by the Bessel domain
 /// errors which interpolate `{val}` rather than `{val!r}`.
 fn num_str(v: &Value) -> String {
     // For ints and floats `str` and `repr` agree on the shapes we hit here.
@@ -362,8 +362,8 @@ fn bi_isnormal(args: &[Value]) -> Result<Value, QueryError> {
 
 // Trig / hyperbolic (thin wrappers — domain errors surface "math domain error")
 
-/// Port of Python's domain-checking `math` wrappers: when the result is NaN
-/// but the input was finite, Python raised `ValueError: math domain error`.
+/// Domain-checking wrapper for the `math` builtins: when the result is NaN
+/// but the input was finite, this is a `ValueError: math domain error`.
 fn domain_checked(input: f64, result: f64) -> Result<Value, QueryError> {
     if result.is_nan() && !input.is_nan() {
         return Err(QueryError::builtin("math domain error"));
@@ -501,7 +501,7 @@ fn bi_fmin(args: &[Value]) -> Result<Value, QueryError> {
     py_max_min(&args[0], &args[1], false)
 }
 
-/// Port of Python `max`/`min` over two numbers: returns the original value
+/// `max`/`min` over two numbers: returns the original value
 /// (preserving int vs float), with `min`/`max` keeping the first operand on
 /// ties (`x` is not replaced unless `y` is strictly better).
 fn py_max_min(a: &Value, b: &Value, want_max: bool) -> Result<Value, QueryError> {
@@ -559,7 +559,7 @@ fn bi_lgamma(args: &[Value]) -> Result<Value, QueryError> {
 
 fn bi_lgamma_r(args: &[Value]) -> Result<Value, QueryError> {
     // Returns [lgamma, sign]; sign is +1 when gamma(n) >= 0 (or on the
-    // gamma-domain-error fallback, mirroring the Python `try` block), else -1.
+    // gamma-domain-error fallback), else -1.
     let n = num_f64(&as_number(&args[0], "lgamma_r", 1)?);
     let lg = m_lgamma(n);
     // Python falls back to sign +1 when `gamma(n)` raises (the domain-error
@@ -572,8 +572,8 @@ fn bi_lgamma_r(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::List(vec![Value::Float(lg), Value::Int(sign)]))
 }
 
-// CPython Lanczos gamma / lgamma (port of `Modules/mathmodule.c`
-// `m_tgamma` / `m_lgamma` / `m_sinpi`). Python's `math.gamma` / `lgamma` do
+// CPython Lanczos gamma / lgamma (follows `Modules/mathmodule.c`
+// `m_tgamma` / `m_lgamma` / `m_sinpi`). `math.gamma` / `lgamma` do
 // NOT use the platform libm — they ship this Lanczos approximation — so we
 // reproduce it verbatim for byte-identical results. The `errno`/`EDOM`
 // signalling is handled by the callers (`gamma_is_domain_error`); these
@@ -764,8 +764,8 @@ fn m_lgamma(x: f64) -> f64 {
     r
 }
 
-// Bessel (Abramowitz & Stegun polynomial approximations, matching the Python
-// source so results stay byte-identical).
+// Bessel (Abramowitz & Stegun polynomial approximations, matching the
+// reference approximation so results stay byte-identical).
 
 fn bi_j0(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Float(bessel_j0(num_f64(&as_number(

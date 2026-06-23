@@ -79,8 +79,8 @@ fn split_value_op_var(cond: &str) -> Option<(String, String, String)> {
     for op in OPS {
         let needle = format!(" {op} ");
         // Use the *last* occurrence so a value containing the operator
-        // text doesn't mis-split (the Python regex anchors the var on
-        // the right with `$`).
+        // text doesn't mis-split (the var is anchored on the right with
+        // `$`).
         if let Some(pos) = cond.rfind(&needle) {
             let value = cond[..pos].trim().to_owned();
             let rhs = cond[pos + needle.len()..].trim();
@@ -93,7 +93,7 @@ fn split_value_op_var(cond: &str) -> Option<(String, String, String)> {
 }
 
 /// Parse a `$var` / `${var}` / `"$var"` / `"${var}"` word to its bare
-/// variable name (`[A-Za-z0-9_]+`), or `None`.  Mirrors the regex
+/// variable name (`[A-Za-z0-9_]+`), or `None`.  Matches the shape
 /// `\$\{?(\w+)\}?` (optionally wrapped in double quotes).
 fn parse_var_word(word: &str) -> Option<String> {
     let mut w = word.trim();
@@ -285,7 +285,6 @@ mod tests {
     fn rewrite_covers_entire_if_command() {
         let source = "if {$x eq \"a\"} {\n    puts 1\n} elseif {$x eq \"b\"} {\n    puts 2\n}";
         let applied = run(source, 0).expect("result").apply(source);
-        // Byte-for-byte parity with the Python oracle.
         assert_eq!(
             applied,
             "switch -exact -- $x {\n    a {\n        puts 1\n    }\n    b {\n        puts 2\n    }\n}"

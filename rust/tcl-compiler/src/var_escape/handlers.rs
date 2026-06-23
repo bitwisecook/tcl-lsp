@@ -1,9 +1,7 @@
-//! Per-call escape handlers (C33b4).
+//! Per-call escape handlers.
 //!
 //! Each function inspects a single `Statement::Call` shape and
-//! mutates the supplied `EscapeState`. Mirrors the
-//! `_handle_<command>` family from
-//! `core/compiler/var_escape/_propagation.py`.
+//! mutates the supplied `EscapeState`.
 
 use crate::ir::CommandTokens;
 use crate::var_escape::helpers::{is_dynamic_token, is_dynamic_upvar_level, is_name_first_command};
@@ -44,9 +42,7 @@ pub fn handle_upvar(args: &[String], state: &mut EscapeState) {
         // a callsite like ``upvar $level $vname var; set var 99``
         // leaves the caller's WASM-local mirror stale because the
         // alias write back into the runtime frame's slot never
-        // reaches the mirror. Mirrors the matching block in
-        // ``core/compiler/var_escape/_propagation.py`` as of
-        // upstream commit ``6c7a7c42``.
+        // reaches the mirror.
         state.record_barrier(Barrier::with_detail(
             BarrierKind::Upvar,
             format!("upvar {head}"),

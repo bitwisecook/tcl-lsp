@@ -1,7 +1,7 @@
 //! End-to-end golden differential test for the value / stream / path +
 //! encoding-category builtins.
 //!
-//! Mirrors the Python pipeline captured in `tests/fixtures/value2.json`
+//! The pipeline captured in `tests/fixtures/value2.json`
 //! (`scripts/codegen/gen_f5_query_value2_fixtures.py`): parse → evaluate
 //! against a JSON-backed root → `output::render`. For each `(query, input,
 //! mode)` the Rust output (or `error:` message) must match Python exactly.

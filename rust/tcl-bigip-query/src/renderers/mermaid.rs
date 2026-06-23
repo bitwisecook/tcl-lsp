@@ -5,12 +5,10 @@
 //! - when every value is an [`ObjectRef`](crate::value::ObjectRef), it would
 //!   build the BIG-IP object reference sub-graph reachable from those seeds
 //!   (the same Mermaid `f5 graph --format mermaid` produces). That mode needs
-//!   the originating source text for each seed's `config_uri`; the Python
-//!   implementation recovers it from the render-time `RENDER_SOURCES`
-//!   contextvar or the runner's active-root map. Neither is populated on the
-//!   CLI dispatch path (the renderer runs after the run completes), so the
-//!   object-graph attempt falls back to chain mode there — and so does this
-//!   port, which has no source map threaded into `output::render`.
+//!   the originating source text for each seed's `config_uri`, but no source
+//!   map is threaded into `output::render`: the renderer runs after the run
+//!   completes, so the CLI dispatch path has no sources by render time and the
+//!   object-graph attempt falls back to chain mode.
 //! - otherwise emits a generic `graph LR` flowchart: one node per value,
 //!   consecutive values connected with an arrow.
 //!
@@ -18,7 +16,7 @@
 //!
 //! - `direction` — `LR` (default), `TB`, `RL`, `BT`.
 //! - `reverse` — `true` to flip ObjectRef-mode edges (validated even though
-//!   ObjectRef-mode is unreachable from the CLI, matching Python).
+//!   ObjectRef-mode is unreachable from the CLI).
 //! - `max-depth` — integer BFS depth limit for ObjectRef-mode.
 
 use std::collections::BTreeMap;
@@ -49,10 +47,10 @@ pub fn render(values: &[Value], opts: &BTreeMap<String, String>) -> Result<Strin
     let all_object_refs =
         !values.is_empty() && values.iter().all(|v| matches!(v, Value::ObjectRef(_)));
     if all_object_refs {
-        // Validate the ObjectRef-mode options (Python parses them before
-        // attempting the graph), then fall back to chain mode: the engine has
-        // no source map to walk the reference graph from, exactly as the CLI
-        // dispatch path lacks `RENDER_SOURCES` / active-roots by render time.
+        // Validate the ObjectRef-mode options before attempting the graph,
+        // then fall back to chain mode: the engine has no source map to walk
+        // the reference graph from, since the CLI dispatch path has no sources
+        // by render time.
         let _reverse = parse_bool(opts.get("reverse"), "reverse")?;
         let _max_depth =
             parse_optional_int(opts.get("max-depth").or_else(|| opts.get("max_depth")))?;
@@ -101,8 +99,7 @@ fn node_label(v: &Value) -> String {
     text.replace('"', "'").replace('\n', " ")
 }
 
-/// Python `str(value)` for the title/label/name field — mirrors mermaid's
-/// `str(title)`.
+/// Python `str(value)` for the title/label/name field.
 fn py_str_value(v: &Value) -> String {
     match v {
         Value::Str(s) => s.clone(),
@@ -115,7 +112,7 @@ fn py_str_value(v: &Value) -> String {
     }
 }
 
-/// Parse a boolean option — port of mermaid `_parse_bool`.
+/// Parse a boolean option.
 fn parse_bool(v: Option<&String>, name: &str) -> Result<bool, QueryError> {
     let Some(s) = v else { return Ok(false) };
     match s.to_lowercase().as_str() {
@@ -127,7 +124,7 @@ fn parse_bool(v: Option<&String>, name: &str) -> Result<bool, QueryError> {
     }
 }
 
-/// Parse an optional integer option — port of mermaid `_parse_optional_int`.
+/// Parse an optional integer option.
 fn parse_optional_int(v: Option<&String>) -> Result<Option<i64>, QueryError> {
     match v {
         None => Ok(None),

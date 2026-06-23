@@ -411,13 +411,11 @@ pub fn namespace_parts_from_proc(qname: &str) -> Vec<String> {
         .collect()
 }
 
-// Summary building (C28x, partial)
+// Summary building (partial)
 
 /// Build conservative interprocedural summaries for every
 /// procedure in `ir_module`.
 ///
-/// Ported from a focused slice of
-/// `core/compiler/interprocedural.py::analyse_interprocedural_ir`.
 /// Populates the structural facts downstream passes
 /// (propagation, unused-procs) depend on:
 ///
@@ -557,7 +555,7 @@ fn build_method_summaries(
 
         // Effects: the method's own local effects unioned with the
         // (transitive) effects of every proc callee. Non-proc callees
-        // (method qnames) default to NONE — mirrors Python.
+        // (method qnames) default to NONE.
         let mut m_reads = facts.effect_reads;
         let mut m_writes = facts.effect_writes;
         for c in &facts.direct_calls {
@@ -1040,8 +1038,7 @@ fn scan_call_facts(
     // for iRules' ``call <proc>`` indirection: when the
     // command is literally ``call`` and the first arg is
     // a plain identifier, treat it as a direct invocation
-    // of that proc. Matches the Python
-    // ``_unused_procs._collect_callees`` handling.
+    // of that proc.
     let internal_target = if command == "call" && !args.is_empty() && is_plain_proc_name(&args[0]) {
         resolve_internal_call(&args[0], caller, known)
     } else {
@@ -1251,7 +1248,7 @@ fn scan_statement(
         Statement::Return { value, expr, .. } => {
             let kind = classify_return(value.as_deref(), expr.as_ref(), params);
             facts.returns.push(kind);
-            // Mirror Python's `IRReturn` path: scan `[cmd …]` substitutions in
+            // Mirror `IRReturn` path: scan `[cmd …]` substitutions in
             // the return value (`return [add $x $x]`) for call-graph edges.
             if let Some(value) = value
                 && value.contains('[')
@@ -2091,7 +2088,7 @@ mod tests {
         );
     }
 
-    // -- C28x summary-building tests ---------------------------------------
+    // -- summary-building tests --------------------------------------------
 
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
@@ -2318,7 +2315,7 @@ mod tests {
 
     #[test]
     fn barrier_detected_via_eval_call() {
-        // C35b: ``eval {literal}`` inside a proc relaxes to a
+        // ``eval {literal}`` inside a proc relaxes to a
         // Statement::Block (the literal body is statically known),
         // so it does NOT mark the proc as a barrier. Use a dynamic
         // body that genuinely cannot be resolved at lowering time.
@@ -2394,7 +2391,7 @@ mod tests {
         let ia = build("proc ::f {} { return 42 }");
         assert!(ia.procedures.get("::f").unwrap().can_fold_static_calls);
         // Impure (dynamic eval is a real barrier) + literal → cannot
-        // fold. C35b made ``eval {literal}`` a Block (non-barrier),
+        // fold. ``eval {literal}`` is a Block (non-barrier),
         // so use a dynamic body.
         let ia = build("proc ::f {} { eval $dyn ; return 42 }");
         assert!(!ia.procedures.get("::f").unwrap().can_fold_static_calls);

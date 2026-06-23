@@ -18,7 +18,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 ///
 /// The structural keyword words (`on`/`trap`/`finally`) carry
 /// `ArgRole::Keyword` so the semantic-token layer highlights them as
-/// keywords rather than strings (mirrors Python's `_try_arg_roles`).
+/// keywords rather than strings.
 fn try_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut roles = Vec::new();
     if !args.is_empty() {

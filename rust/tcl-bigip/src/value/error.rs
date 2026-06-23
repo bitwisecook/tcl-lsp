@@ -9,7 +9,7 @@ use std::fmt;
 /// Error raised by a value-type `parse` when the input is invalid.
 ///
 /// The wrapped string is the human-readable message, kept byte-identical
-/// to the Python `ValueError` text where practical.
+/// to `ValueError` text where practical.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValueError(pub String);
 

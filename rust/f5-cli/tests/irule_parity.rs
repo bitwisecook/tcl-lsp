@@ -2,10 +2,10 @@
 //!
 //! Runs the built `f5-query` binary against committed `.irule` / `.conf`
 //! fixtures and asserts stdout matches goldens captured from
-//! `python -m tooling.f5.main irule <sub> …` for the **ported** sub-subcommands
-//! (event-order, event-info, lint, context, trace, format, minify, extract).
-//! Self-contained: no Python at test time. Also asserts the **deferred** `pgo`
-//! sub exits 2 with the expected "not yet ported" message.
+//! `python -m tooling.f5.main irule <sub> …` for the implemented
+//! sub-subcommands (event-order, event-info, lint, context, trace, format,
+//! minify, extract). Self-contained: no Python at test time. Also asserts the
+//! unimplemented `pgo` sub exits 2 with the expected error message.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -36,7 +36,7 @@ fn run(args: &[&str]) -> (i32, String, String) {
     )
 }
 
-// Ported subs — byte-for-byte stdout parity with the Python CLI.
+// Implemented subs — byte-for-byte stdout parity with the Python CLI.
 
 #[test]
 fn event_order_text_matches_python() {
@@ -148,7 +148,7 @@ fn no_input_errors_exit_2() {
     );
 }
 
-// Deferred subs — clean exit-2 error naming the missing engine.
+// Unimplemented subs — clean exit-2 error naming the missing engine.
 
 fn assert_deferred(args: &[&str], expect_sub: &str) {
     let (code, _out, stderr) = run(args);
@@ -507,8 +507,8 @@ fn trace_no_matching_event_exits_1() {
     assert_eq!(out, golden("irule-trace-nomatch.text.golden"));
 }
 
-// `--help` must work for every sub (including the deferred ones), since they
-// parse their args before the handler runs.
+// `--help` must work for every sub (including the unimplemented ones), since
+// they parse their args before the handler runs.
 
 #[test]
 fn help_works_for_all_subs() {

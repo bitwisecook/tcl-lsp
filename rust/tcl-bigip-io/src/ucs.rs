@@ -32,10 +32,9 @@ const SCF_MEMBER_ORDER: &[&str] = &[
 /// Default environment variable consulted for a UCS decryption passphrase.
 pub const DEFAULT_PASSPHRASE_ENV: &str = "F5_UCS_PASSPHRASE";
 
-/// A UCS error, carrying the human-facing message. Mirrors the Python
-/// `UcsPassphraseError` / `UcsDecryptionError` / `ValueError` surface, all of
-/// which the CLI renders as `error: {msg}`; here a single type carries the
-/// matching text.
+/// A UCS error, carrying the human-facing message. A single type carries the
+/// text for every failure mode (bad passphrase, decryption failure, invalid
+/// input); the CLI renders it as `error: {msg}`.
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
 pub struct UcsError(pub String);
@@ -159,7 +158,7 @@ pub fn ucs_to_scf(ucs_bytes: &[u8], include_extras: bool) -> Result<String, UcsE
             if seen.contains(name) {
                 continue;
             }
-            // Case-sensitive `.conf` match, mirroring Python's `endswith(".conf")`.
+            // Case-sensitive `.conf` match, mirroring `endswith(".conf")`.
             #[allow(clippy::case_sensitive_file_extension_comparisons)]
             if !name.starts_with("config/") || !name.ends_with(".conf") {
                 continue;

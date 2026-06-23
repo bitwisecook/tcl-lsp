@@ -1,8 +1,8 @@
 //! Parity checks for the value model, `jsonfmt`, and `output` render modes.
 //!
-//! The expected strings are captured verbatim from the Python query DSL
-//! (`output.render` / `json.dumps`) — see the `gen`-comment beside each —
-//! and asserted against the Rust port. Self-contained: no Python at test
+//! The expected strings are captured verbatim from the query DSL's reference
+//! output (`output.render` / `json.dumps`) — see the `gen`-comment beside
+//! each — and asserted against this crate. Self-contained: no Python at test
 //! time.
 
 use indexmap::IndexMap;

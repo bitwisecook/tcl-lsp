@@ -15,7 +15,6 @@ use super::{
 use crate::code_actions::ActionKind;
 
 /// A generated data-group artefact (separate from the iRule edits).
-/// Ports Python's `DataGroupDefinition`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataGroupDefinition {
     /// Data-group name.
@@ -26,8 +25,7 @@ pub struct DataGroupDefinition {
     pub records: Vec<(String, String)>,
 }
 
-/// Render a [`DataGroupDefinition`] as a BIG-IP tmsh definition.  Ports
-/// Python's `DataGroupExtractionResult.data_group_tcl`.
+/// Render a [`DataGroupDefinition`] as a BIG-IP tmsh definition.
 #[must_use]
 pub fn data_group_tcl(dg: &DataGroupDefinition) -> String {
     let mut lines = vec![format!("ltm data-group internal {} {{", dg.name)];
@@ -61,8 +59,8 @@ fn is_ip_address(v: &str) -> bool {
     v.parse::<Ipv4Addr>().is_ok() || v.parse::<Ipv6Addr>().is_ok()
 }
 
-/// Parse a `addr/prefix` CIDR (host bits allowed — Python's
-/// `strict=False`), validating the address family and prefix width.
+/// Parse a `addr/prefix` CIDR (host bits allowed), validating the
+/// address family and prefix width.
 fn is_ip_network(v: &str) -> bool {
     let Some((addr, prefix)) = v.split_once('/') else {
         return false;
@@ -84,8 +82,7 @@ fn is_integer(value: &str) -> bool {
     !v.is_empty() && v.parse::<i64>().is_ok()
 }
 
-/// Infer the data-group value type from a list of keys/values.  Ports
-/// `_infer_value_type`.
+/// Infer the data-group value type from a list of keys/values.
 fn infer_value_type(values: &[String]) -> &'static str {
     if values.is_empty() {
         return "string";
@@ -109,9 +106,8 @@ fn strip_quotes(s: &str) -> &str {
     }
 }
 
-/// Derive a clean data-group name from a descriptive string.  Ports
-/// `_normalise_dg_name`: non-alphanumeric → `_`, collapse runs, trim,
-/// lower-case.
+/// Derive a clean data-group name from a descriptive string:
+/// non-alphanumeric → `_`, collapse runs, trim, lower-case.
 fn normalise_dg_name(name: &str) -> String {
     let mut out = String::with_capacity(name.len());
     let mut prev_underscore = false;
@@ -137,9 +133,9 @@ fn normalise_dg_name(name: &str) -> String {
 /// Recognised equality operators.
 const EQ_OPS: &[&str] = &["==", "!=", "eq", "ne"];
 
-/// Parse a simple equality test `(var, value, negated)`.  Ports
-/// `_parse_eq` (used by the datagroup transform; mirrors the shape of
-/// `if_to_switch::parse_eq_test` minus the operator capture).
+/// Parse a simple equality test `(var, value, negated)`.  Used by the
+/// datagroup transform; mirrors the shape of
+/// `if_to_switch::parse_eq_test` minus the operator capture.
 fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
     let mut cond = cond.trim();
     if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
@@ -197,8 +193,7 @@ fn parse_var_word(word: &str) -> Option<String> {
     }
 }
 
-/// Detect `$var eq "a" || $var eq "b" || …` chains.  Ports
-/// `_try_or_chain`.
+/// Detect `$var eq "a" || $var eq "b" || …` chains.
 fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
     let mut cond = condition.trim();
     if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
@@ -229,8 +224,7 @@ fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
     Some((target_var, values))
 }
 
-/// Extract a variable name from `$var` / `${var}` subject.  Ports
-/// `_extract_var_name`.
+/// Extract a variable name from `$var` / `${var}` subject.
 fn extract_var_name(subject: &str) -> Option<String> {
     let s = subject.trim();
     if let Some(inner) = s.strip_prefix("${").and_then(|x| x.strip_suffix('}')) {
@@ -257,8 +251,7 @@ enum SetOrReturn {
     Return(String),
 }
 
-/// Parse a single-command arm body via the tokeniser.  Ports
-/// `_parse_set_or_return`.
+/// Parse a single-command arm body via the tokeniser.
 fn parse_set_or_return(text: &str) -> Option<SetOrReturn> {
     let commands = segment_commands_with_offset(text, 0);
     if commands.len() != 1 || commands[0].texts.is_empty() {
@@ -278,8 +271,7 @@ fn parse_set_or_return(text: &str) -> Option<SetOrReturn> {
     None
 }
 
-/// Extract `(target_var, use_return, values)` from arm bodies.  Ports
-/// `_extract_set_or_return_values`.
+/// Extract `(target_var, use_return, values)` from arm bodies.
 fn extract_set_or_return_values(pairs: &[(String, String)]) -> Option<(String, bool, Vec<String>)> {
     let mut target_var: Option<String> = None;
     let mut use_return: Option<bool> = None;
@@ -322,8 +314,7 @@ fn extract_set_or_return_values(pairs: &[(String, String)]) -> Option<(String, b
     Some((target_var, use_return.unwrap_or(false), values))
 }
 
-/// Extract the value from a single arm body.  Ports
-/// `_extract_single_value`.
+/// Extract the value from a single arm body.
 fn extract_single_value(body: &str, use_return: bool, target_var: &str) -> Option<String> {
     let mut text = body.trim();
     if text.starts_with('{') && text.ends_with('}') && text.len() >= 2 {
@@ -338,8 +329,7 @@ fn extract_single_value(body: &str, use_return: bool, target_var: &str) -> Optio
 
 // ── if-chain extraction ───────────────────────────────────────────────
 
-/// Extract an if/elseif chain comparing one variable to literals.  Ports
-/// `extract_to_datagroup_from_if`.
+/// Extract an if/elseif chain comparing one variable to literals.
 #[must_use]
 pub fn extract_to_datagroup_from_if(
     source: &str,
@@ -422,8 +412,7 @@ struct IfChain {
 }
 
 /// Parse the if/elseif chain (OR-chain in a single condition, or an
-/// `elseif` ladder).  Mirrors the chain-parsing prologue of
-/// `extract_to_datagroup_from_if`.
+/// `elseif` ladder).
 fn parse_if_chain(texts: &[String]) -> Option<IfChain> {
     // OR-chain in a single condition.
     if texts.len() >= 3
@@ -822,7 +811,7 @@ mod tests {
         let source = "if {$host eq \"a.com\"} {\n    pool web_pool\n} elseif {$host eq \"b.com\"} {\n    pool web_pool\n}";
         let r = if_dg(source, "hosts").expect("result");
         let applied = r.apply(source);
-        // Byte-for-byte parity with the Python oracle (apply + tmsh).
+        // Verify the full applied output (apply + tmsh).
         assert_eq!(
             applied,
             "if { [class match $host equals hosts] } {\n    pool web_pool\n}"

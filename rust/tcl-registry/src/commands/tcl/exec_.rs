@@ -19,7 +19,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 connection_side: ConnectionSide::None,
             },
-            // Mirrors Python `exec_.py` (INTERP_STATE).
+            // INTERP_STATE.
             SideEffect {
                 target: SideEffectTarget::InterpState,
                 reads: false,
@@ -27,8 +27,7 @@ pub fn spec() -> CommandSpec {
                 connection_side: ConnectionSide::None,
             },
         ],
-        // Mirrors ``core/commands/registry/tcl/exec_.py``.  ``--``
-        // is the option terminator that drives W304's
+        // ``--`` is the option terminator that drives W304's
         // ``resolve_option_terminator`` lookup; the registry also
         // surfaces the two boolean switches for completion.
         options: &[
@@ -59,8 +58,8 @@ pub fn spec() -> CommandSpec {
             &["exec ?-option ...? arg ?arg ...?"],
             "Tcl exec(1)",
         )),
-        // GAP-D2: a `SHELL_ATOM`-coloured value is token-safe and
-        // suppresses T100. Mirrors `tcl/exec_.py`.
+        // A `SHELL_ATOM`-coloured value is token-safe and
+        // suppresses T100.
         taint_sink_safe_colour: Some(TaintColour::SHELL_ATOM),
         forms: FORMS,
         ..CommandSpec::DEFAULT

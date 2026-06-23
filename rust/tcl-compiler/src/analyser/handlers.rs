@@ -2166,9 +2166,9 @@ mod tests {
         // ``pool`` is an *unqualified* iRules-specific command; under the
         // ``f5-irules`` dialect a proc named ``pool`` shadows a built-in,
         // but under plain ``tcl`` it does not.  (A *namespace-qualified*
-        // iRules command like ``HTTP::respond`` is never flagged — see
-        // `_proc.py:129-137` — because a qualified match is a library/package
-        // command living in its own namespace, not a core-global shadow.)
+        // iRules command like ``HTTP::respond`` is never flagged, because a
+        // qualified match is a library/package command living in its own
+        // namespace, not a core-global shadow.)
         let mut a = Analyser::new();
         a.dialect = "f5-irules".to_string();
         a.handle_proc_command(

@@ -53,7 +53,7 @@ impl Aes {
 ///
 /// Mirrors `_cfb_decrypt`: the keystream is `E(feedback)` and the feedback for
 /// the next block is the *ciphertext* block just consumed. A short trailing
-/// block is `XORed` against the leading keystream bytes (Python's `zip` stops at
+/// block is `XORed` against the leading keystream bytes (`zip` stops at
 /// the shorter operand) and never re-used as feedback.
 pub(crate) fn cfb_decrypt(cipher: &Aes, iv: &[u8; BLOCK], data: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(data.len());

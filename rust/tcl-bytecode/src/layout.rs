@@ -1,7 +1,7 @@
 //! Instruction layout and jump-size optimisation.
 //!
 //! Assigns byte offsets to instructions and resolves symbolic labels
-//! to concrete offsets.  Ported from `core/compiler/codegen/layout.py`.
+//! to concrete offsets.
 
 use std::collections::HashMap;
 

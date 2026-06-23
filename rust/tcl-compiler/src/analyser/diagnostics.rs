@@ -89,8 +89,7 @@ fn collect_expr_command_texts(node: &ExprNode, out: &mut Vec<String>) {
     }
 }
 
-/// Built-in `expr` math functions — mirrors
-/// `compiler/parsing/expr_lexer.py::BUILTIN_MATH_FUNCTIONS`.  Used by the
+/// Built-in `expr` math functions.  Used by the
 /// W117 stub-shadow check.
 const BUILTIN_MATH_FUNCTIONS: &[&str] = &[
     "abs", "acos", "asin", "atan", "atan2", "bool", "ceil", "cos", "cosh", "double", "entier",
@@ -98,15 +97,13 @@ const BUILTIN_MATH_FUNCTIONS: &[&str] = &[
     "min", "pow", "rand", "round", "sin", "sinh", "sqrt", "srand", "tan", "tanh", "wide",
 ];
 
-/// Built-in `expr` operators — mirrors
-/// `compiler/parsing/expr_lexer.py::BUILTIN_EXPR_OPS`.
+/// Built-in `expr` operators.
 const BUILTIN_EXPR_OPS: &[&str] = &[
     "!", "!=", "%", "&", "&&", "*", "**", "+", "-", "/", "<", "<<", "<=", "==", ">", ">=", ">>",
     "^", "eq", "ge", "gt", "in", "le", "lt", "ne", "ni", "|", "||", "~",
 ];
 
-/// iRules-only `expr` operators — mirrors
-/// `compiler/parsing/expr_lexer.py::IRULES_EXPR_OPS`.
+/// iRules-only `expr` operators.
 const IRULES_EXPR_OPS: &[&str] = &[
     "and",
     "contains",
@@ -1156,8 +1153,8 @@ fn is_implicit_var(name: &str) -> bool {
     )
 }
 
-/// Names whose whole binding is removed by an `unset` call.  Conservative
-/// vs. `compiler/core_analyses.py`: only a **literal** bare name kills
+/// Names whose whole binding is removed by an `unset` call.  Conservative:
+/// only a **literal** bare name kills
 /// (a dynamic `unset $name` targets the variable *named by* `$name`, not
 /// `name` itself — yet the IR records `name` in the call's defs, so a
 /// `$`-stripping harvest would wrongly mark it killed).  Per-element
@@ -1515,8 +1512,7 @@ impl UndefSuppression {
 /// `set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during expr
 /// evaluation; the `set x [expr {E}]` form lowers to `AssignExpr`, so the
 /// condition-out-var extractor over its expr recovers those writes.
-/// Name-level, suppress-only — mirrors `command_sub_write_names` over
-/// expr-role args in `core_analyses.py::_read_before_set`.
+/// Name-level, suppress-only.
 fn collect_expr_cmd_sub_writes(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
@@ -1947,12 +1943,11 @@ fn is_ident_continue(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b':'
 }
 
-/// Credential-bearing option flags whose literal values trip W310
-/// (the generic `_DEFAULT_PASSWORD_OPTIONS` from `_security.py`).
+/// Credential-bearing option flags whose literal values trip W310.
 const DEFAULT_PASSWORD_OPTIONS: [&str; 5] = ["-password", "-pass", "-secret", "-token", "-apikey"];
 
 /// True when `value` is a literal (not a `$var` / `[cmd]` substitution)
-/// — the W310 `_is_literal_value` gate.
+/// — the W310 literal-value gate.
 fn is_literal_credential_value(value: &str, tok: &tcl_lexer::Token) -> bool {
     !matches!(
         tok.kind,
@@ -3564,8 +3559,7 @@ Consider capturing the result: catch {\u{2026}} result"
     /// Compare a positional-argument count against a single
     /// [`CommandSig`]'s arity bounds and queue an E002 / E003
     /// candidate.  Shared by the simple-command and per-subcommand
-    /// arity paths in [`Self::emit_arity_diagnostics`]; mirrors
-    /// `_check_simple_arity` in `core/compiler/compiler_checks.py`.
+    /// arity paths in [`Self::emit_arity_diagnostics`].
     ///
     /// `resolution_name` is the base command name used by the
     /// post-walk [`Self::flush_arity_diagnostics`] to honour a
@@ -4711,7 +4705,7 @@ I/O commands."
             return;
         }
         // Nested quantifier `…+)+` / `…*)*` or overlapping alternation
-        // `(a|a)+` — the `_REDOS_PATTERN` shape from `_security.py`.
+        // `(a|a)+`.
         for (pattern, tok) in patterns {
             if has_redos_shape(&pattern) {
                 self.result.diagnostics.push(super::types::Diagnostic {
@@ -5121,8 +5115,7 @@ Store secrets in environment variables or a vault, not in source code."
     /// human-readable message, and an optional "origin" diagnostic
     /// for the constant-propagated INFO path.  Split out of
     /// [`Self::emit_w304_missing_option_terminator`] to keep that
-    /// method's body within the clippy `too_many_lines` budget;
-    /// mirrors the severity tree at ``_style.py:565-627``.
+    /// method's body within the clippy `too_many_lines` budget.
     fn classify_w304(
         &self,
         tok: tcl_lexer::Token,
@@ -7600,8 +7593,8 @@ file; this call falls through to the 'unknown' handler."
         // shell+graft order record invocations in different orders, but both
         // pick the same anchor here (the per-item path's `command_invocations`
         // is only sorted by `canonicalize_result_order`, which runs after this
-        // emitter).  Mirrors the walk-strategy independence the tail already
-        // enforces for other order-sensitive collections.
+        // emitter).  This keeps the result walk-strategy-independent, as the
+        // tail already enforces for other order-sensitive collections.
         let mut best: HashMap<&str, &crate::signature_scan::types::SignatureCommandInvocation> =
             HashMap::new();
         for inv in &self.result.command_invocations {
@@ -8093,8 +8086,8 @@ file; this call falls through to the 'unknown' handler."
         // a class instance variable and the dispatch sits inside the class body
         // (including non-method helper `proc`s that `upvar` it). An instance var
         // holds a component / sub-object, so dispatching on it is designed usage
-        // — suppress W307. / `snit_var_ranges`
-        // (built from every `ClassDef`'s body span + declared `variables`).
+        // — suppress W307.  `snit_var_ranges` is built from every
+        // `ClassDef`'s body span + declared `variables`.
         let snit_var_ranges: Vec<(u32, u32, &Vec<String>)> = self
             .result
             .all_classes
@@ -8108,8 +8101,8 @@ file; this call falls through to the 'unknown' handler."
                 .any(|(s, e, vars)| *s <= off && off <= *e && vars.iter().any(|v| v == var))
         };
 
-        // **Proc-parameter / multi-dispatch object-dispatch suppression**
-        //.  A dispatch on a proc
+        // **Proc-parameter / multi-dispatch object-dispatch suppression.**
+        // A dispatch on a proc
         // *parameter* — `proc walk {tree} { $tree visit }` — is object
         // dispatch the user has documented as the proc's API contract, not a
         // static error.  A non-parameter local dispatched ≥2 times in the same
@@ -8332,7 +8325,7 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
             // Class instance-variable dispatch inside the class body (component
-            // / sub-object). exemption.
+            // / sub-object) — W307 exemption.
             if is_snit_member(&site.var_name, site.cmd_span.start()) {
                 continue;
             }
@@ -8353,10 +8346,7 @@ file; this call falls through to the 'unknown' handler."
         // unknown AND the call isn't an OO self-dispatch
         // (``my`` / ``self``).  When the return type is a
         // known class, validate the method against the
-        // hierarchy and emit W308 instead of W307.  This
-        // mirrors the cmd_command_sites branch of
-        // ``_emit_var_command_diagnostics`` in
-        // ``_diag_var_command.py:296-375``.
+        // hierarchy and emit W308 instead of W307.
         let cmd_sites = std::mem::take(&mut self.cmd_command_sites);
         for site in &cmd_sites {
             // No blanket `in_method` suppression: an in-method `[cmd] method`
@@ -8403,7 +8393,7 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
 
-            // **Codex P1 fix.** ``[Dog new]`` / ``[Dog create
+            // ``[Dog new]`` / ``[Dog create
             // name]`` produce an Object whose class is ``Dog``.
             // The registry lookup for the bare class name
             // returns Overdefined (the class isn't a built-in
@@ -8667,10 +8657,7 @@ file; this call falls through to the 'unknown' handler."
     /// Drop exact-duplicate diagnostics + line-based suppression
     /// pairs.
     ///
-    /// Mirrors `_dedupe_diagnostics` in
-    /// `_diagnostics.py` (lives in `_core.py:595-630` — the
-    /// orchestrator file imports it through the mixin
-    /// hierarchy).  Two passes:
+    /// Two passes:
     ///
     /// 1. Compute the set of source lines on which `E101`
     ///    (missing-open-brace) and `W124` (SSA-based IP check)
@@ -8732,8 +8719,8 @@ file; this call falls through to the 'unknown' handler."
         // `HashMap`s, whose per-instance iteration order is non-deterministic —
         // so emission order varied run-to-run and, critically, between
         // `analyse` and `analyse_commands` (the per-item incremental path).
-        // That non-determinism was the E5 differential gap (the multiset always
-        // matched; only the `Vec` order differed). Sorting by source position
+        // That non-determinism meant the multiset always
+        // matched; only the `Vec` order differed. Sorting by source position
         // here makes the output deterministic and path-independent — required
         // for `incremental == fresh`, and a saner source-ordered contract for
         // the LSP. Dedupe above guarantees `(code, start, end, message,
@@ -8752,10 +8739,8 @@ file; this call falls through to the 'unknown' handler."
     /// Filter out diagnostics whose codes are in
     /// [`Self::disabled_diagnostics`].
     ///
-    /// Mirrors the per-emitter `if "Wxxx" in
-    /// self._disabled_diagnostics:` early-returns in Python's
-    /// emitter files.  Centralising the filter on the orchestrator
-    /// side keeps the per-emitter code (in C41d2 / C41d3 / etc.)
+    /// Centralising the filter on the orchestrator
+    /// side keeps the per-emitter code
     /// from having to thread the check at every emit site —
     /// emitters can push freely and the orchestrator drops the
     /// silenced codes at the end.
@@ -8779,8 +8764,7 @@ file; this call falls through to the 'unknown' handler."
 
     /// IRULE4005 — racy ``static::`` cross-event flow.
     ///
-    /// Mirrors `_emit_racy_static_diagnostics` in
-    /// `core/analysis/_analyser/_diag_racy.py`.  Walks every
+    /// Walks every
     /// SSA statement in `fu` and emits IRULE4005 for any
     /// non-``unset`` def of a name in `racy_vars`.
     /// `racy_vars` comes from
@@ -8798,8 +8782,7 @@ file; this call falls through to the 'unknown' handler."
         let mut emitted_spans: HashSet<u32> = HashSet::new();
         for block in fu.ssa.blocks.values() {
             for stmt in &block.statements {
-                // Skip unset — not a real write.  Mirrors the
-                // Python guard.
+                // Skip unset — not a real write.
                 if let crate::ir::Statement::Call { command, .. } = &stmt.statement
                     && command == "unset"
                 {
@@ -8836,8 +8819,7 @@ file; this call falls through to the 'unknown' handler."
     /// option whose registry entry restricts it to a dialect that
     /// doesn't include the active one.
     ///
-    /// Mirrors `check_dialect_invalid_option` in
-    /// `core/analysis/checks/_domain.py`.  Examples:
+    /// Examples:
     /// `lsearch -stride` on Tcl 8.4 / 8.5 (option is 8.6+),
     /// `regsub -command` / `clock scan -validate` /
     /// `fconfigure -nodelay` on Tcl 8.x (options are 9.0+).
@@ -8953,9 +8935,6 @@ in the active dialect ({}).",
     /// comparison operator (`lt` / `le` / `gt` / `ge`, TIP 461) in a
     /// pre-9.0 dialect, or `in` / `ni` (TIP 201, Tcl 8.5+) in
     /// Tcl 8.4 / f5-irules.
-    ///
-    /// Mirrors `check_dialect_invalid_expr_operator` in
-    /// `core/analysis/checks/_domain.py`.
     pub(super) fn emit_w003_dialect_invalid_expr_operator(
         &mut self,
         expr_text: &str,
@@ -9006,9 +8985,6 @@ in the active dialect ({}).",
     }
 }
 
-/// Walk an expression AST and collect dialect-gated operator
-/// occurrences. in
-/// `core/analysis/checks/_domain.py`.
 /// Return `true` if `text` contains any of the dialect-gated
 /// expression operator keywords (`lt`, `le`, `gt`, `ge`, `in`, `ni`)
 /// as a whole word — i.e. surrounded by non-identifier bytes or
@@ -9083,7 +9059,6 @@ fn walk_dialect_invalid_ops(
 
 /// Expand a CONST / CONSTSET lattice value into the flat set of its
 /// string values, or `None` for any non-string-constant lattice state.
-/// Mirrors Python's `_lattice_to_set` as consumed by the W307 emitter.
 fn lattice_command_values(lv: &crate::analyses::LatticeValue) -> Option<Vec<String>> {
     use crate::analyses::{ConstValue, LatticeValue};
     match lv {
@@ -9120,8 +9095,7 @@ fn w307_precise_cmd_values(
     offset: u32,
     var_name: &str,
 ) -> Option<HashSet<String>> {
-    // Narrowest function range containing `offset` (mirrors the
-    // scoping `_constsets_for_offset` uses).
+    // Narrowest function range containing `offset`.
     let mut best: Option<(u32, &str)> = None;
     for (qname, start, end) in func_ranges {
         if *start <= offset && offset <= *end {
@@ -9361,7 +9335,6 @@ mod tests {
 
     #[test]
     fn is_benign_unicode_matches_reference() {
-        // Cross-checked against `_style.py::_is_benign_unicode`.
         for cp in [
             0x00E9, 0x00B0, 0x00B5, 0x2212, 0x4E2D, 0xFFFD, 0x2014, 0x2026,
         ] {
@@ -9455,7 +9428,7 @@ mod tests {
 
     #[test]
     fn w100_flags_unbraced_expr_with_substitution() {
-        // Matches the live Python analyser (ERROR when a `$`/`[` sub).
+        // ERROR when a `$`/`[` sub.
         assert_eq!(w100_sev("if $x {puts hi}\n"), vec!["Error"]);
         assert_eq!(w100_sev("while $cond {}\n"), vec!["Error"]);
         assert_eq!(w100_sev("expr $a + $b\n"), vec!["Error"]);
@@ -9492,7 +9465,6 @@ mod tests {
 
     #[test]
     fn w212_flags_name_position_substitution() {
-        // Matches the live Python analyser.
         assert_eq!(w212_count("set $x 1\n"), 1);
         assert_eq!(w212_count("incr $counter\n"), 1);
         assert_eq!(w212_count("info exists $v\n"), 1);
@@ -9530,7 +9502,6 @@ mod tests {
 
     #[test]
     fn w114_flags_nested_expr_in_expr_context() {
-        // Matches the live Python analyser.
         assert_eq!(w114_codes("expr {[expr {$x + 1}]}\n"), 1);
         assert_eq!(w114_codes("if {[expr {$x}]} {puts hi}\n"), 1);
     }
@@ -10290,7 +10261,7 @@ mod tests {
         }
     }
 
-    /// Slice 4 shift-correctness: a body that is **unedited but shifted** (lines
+    /// Shift-correctness: a body that is **unedited but shifted** (lines
     /// inserted above it) must NOT take a stale cache hit — the cached unit's
     /// spans are absolute, so its diagnostics must land at the new positions.
     /// The position-independent key + span rebase makes this a hit at the new
@@ -10388,9 +10359,9 @@ mod tests {
 
     #[test]
     fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
-        // ``set x 1`` set once and never read is a dead store: Python
-        // reports both W220 (this assignment is dead) and W211 (the variable
-        // is unused). A single assignment that *is* read fires neither.
+        // ``set x 1`` set once and never read is a dead store: both
+        // W220 (this assignment is dead) and W211 (the variable
+        // is unused) are reported. A single assignment that *is* read fires neither.
         let mut a = Analyser::new();
         a.emit_cfg_ssa_diagnostics("proc foo {} { set x 1 }");
         assert!(
@@ -10538,8 +10509,8 @@ mod tests {
 
     /// W220-IR-paths.  ``set x [foo]`` is a side-effecting
     /// store: dropping the assignment would also drop the call
-    /// to ``foo``.  Python's ``_dead_stores`` filters
-    /// ``IRAssignValue`` containing ``[`` (`core_analyses.py:1152`).
+    /// to ``foo``.  ``IRAssignValue`` values containing ``[``
+    /// are filtered out.
     #[test]
     fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
         let mut a = Analyser::new();
@@ -10559,9 +10530,8 @@ mod tests {
     /// W220-IR-paths.  ``set x [expr {[foo]}]`` lowers as
     /// ``IRAssignExpr`` with a command call inside — same
     /// side-effecting reasoning as command-substitution
-    /// values.  Python's ``_dead_stores`` filters
-    /// ``IRAssignExpr`` whose tree contains an
-    /// ``IRExprCommand`` (`core_analyses.py:1154`).
+    /// values.  ``IRAssignExpr`` whose tree contains an
+    /// ``IRExprCommand`` is filtered out.
     #[test]
     fn emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call() {
         let mut a = Analyser::new();
@@ -10579,8 +10549,8 @@ mod tests {
     }
 
     /// W220-IR-paths.  ``incr x`` is a side-effecting write
-    /// (it reads the current value first).  Python's
-    /// ``_dead_stores`` only matches ``IRAssignConst`` /
+    /// (it reads the current value first).  The dead-store
+    /// check only matches ``IRAssignConst`` /
     /// ``IRAssignValue`` / ``IRAssignExpr`` — ``IRIncr`` and
     /// ``IRCall.defs`` are skipped by exclusion.
     #[test]
@@ -10609,7 +10579,7 @@ mod tests {
     /// W220-IR-paths.  ``lassign $list a b`` defines ``a`` and
     /// ``b`` via ``IRCall.defs`` — a side-effecting write that
     /// can't be dropped without also dropping the call.
-    /// Python's ``_dead_stores`` only matches the three
+    /// The dead-store check only matches the three
     /// pure-assign IR shapes; ``IRCall`` is skipped by
     /// exclusion.
     #[test]
@@ -10802,7 +10772,7 @@ mod tests {
     #[test]
     fn w211_not_emitted_for_command_output_vars() {
         // `scan` / `binary scan` / `regexp -> capture` write their targets
-        // via the command, not a pure `set` — Python excludes IRCall defs
+        // via the command, not a pure `set`; IRCall defs are excluded
         // from W211, so unused command outputs do not fire it.
         for src in [
             "proc f {} { scan $in \"%d\" n }",
@@ -11672,10 +11642,8 @@ mod tests {
         );
     }
 
-    /// Object-`of` constructor typing — the FE-DIAG W307/W308 item.  Every
-    /// case is verified byte-for-byte against the Python analyser oracle
-    /// (`analyser._analyser.analyse` under `dialect_scope("tcl")`); the
-    /// expected codes below are exactly what Python emits.
+    /// Object-`of` constructor typing — the W307/W308 item.  Each
+    /// case asserts the exact set of expected diagnostic codes.
     fn w30x_codes(src: &str) -> Vec<String> {
         let mut a = Analyser::new();
         let r = a.analyse(src, "tcl");
@@ -11693,7 +11661,7 @@ mod tests {
     #[test]
     fn w308_transitive_alias_of_constructor_object() {
         // `set b $a` copies the OBJECT(Dog) type through the lattice, so the
-        // unknown method on `$b` is validated (W308), matching Python.
+        // unknown method on `$b` is validated (W308).
         let src = "oo::class create Dog { method bark {} {return woof} }\n\
                    set a [Dog new]\nset b $a\n$b fly";
         assert_eq!(w30x_codes(src), vec!["W308".to_string()]);
@@ -11732,7 +11700,7 @@ mod tests {
     #[test]
     fn w307_suppressed_for_object_returning_proc_factory() {
         // A proc returning `[Dog new]` is an object factory; a `$o method`
-        // dispatch on its result suppresses W307 (Python tracks no class for
+        // dispatch on its result suppresses W307 (no class is tracked for
         // factory-return vars, so there is never a W308 either).
         for method in ["bark", "fly"] {
             let src = format!(
@@ -11753,7 +11721,6 @@ mod tests {
         // command substitution.  The substitution dispatch must be recorded as
         // a var-command site too, so the multi-dispatch (≥2) suppression sees
         // both and stays silent (a single recorded dispatch would fire W307).
-        // Matches Python (which records every nested dispatch).
         let src = "set x [getCmd]\nputs [$x foo]\n$x foo\n";
         assert!(
             w30x_codes(src).is_empty(),
@@ -12258,7 +12225,7 @@ foo
         // foreign-dialect command whose braced argument is opaque *data*, not a
         // handler script.  The body must not be scanned: only W002 (disabled) +
         // W123 (unknown-in-dialect) on `when` itself — no W210 on the body's
-        // `$undefvar`, no W123 naming the body command.  Matches Python.
+        // `$undefvar`, no W123 naming the body command.
         let mut a = Analyser::new();
         let r = a.analyse("when HTTP_REQUEST {\n    boguscmd $undefvar\n}\n", "tcl");
         let codes: Vec<&str> = r.diagnostics.iter().map(|d| d.code.as_str()).collect();
@@ -12644,7 +12611,7 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
         // The ``package_requires`` gate suppresses W123 entirely
         // when any package require has been recorded.  The
         // analyser walk doesn't yet record ``package require``
-        // (deferred — handler not landed), so we exercise the
+        // (the handler is not implemented), so we exercise the
         // gate by pre-populating ``result.package_requires``
         // and re-running the post-pass directly.
         use crate::signature_scan::types::SignaturePackageRequire;
@@ -12710,8 +12677,7 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
     fn analyse_w307_suppressed_for_proc_param_dispatch() {
         // A dispatch on a *parameter* of the enclosing proc is object dispatch
         // the user documented as the proc's API contract — W307 must stay
-        // silent (mirrors `_diag_var_command.py`'s proc-parameter
-        // suppression).  `$self configure` is the canonical method-dispatch
+        // silent.  `$self configure` is the canonical method-dispatch
         // idiom on an opaque handle.
         let mut a = Analyser::new();
         let r = a.analyse("proc p {self} { $self configure -x 1 }", "tcl");
@@ -13030,8 +12996,7 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
 
     // -- security-injection checks (W300 / W301 / W309 / W312) --
     //
-    // Each fixture's diagnostic set is cross-checked against the live
-    // Python analyser (`core/analysis/checks/_security.py`).
+    // Each fixture asserts the expected security-diagnostic set.
 
     fn sec_codes(src: &str, code: &str) -> usize {
         let mut a = Analyser::new();

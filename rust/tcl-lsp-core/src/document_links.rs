@@ -117,7 +117,7 @@ pub fn document_links_with_home(
         }
         // `source` may take optional flags (`-encoding NAME`)
         // before the path argument; locate the first non-flag
-        // arg.  Python's resolver does the same.
+        // arg.
         let mut path_idx: Option<usize> = None;
         let mut i = 1;
         while i < seg.texts.len() {
@@ -188,8 +188,8 @@ pub fn document_links_with_home(
 /// sub-arguments contains a substitution that we can't resolve
 /// statically.
 ///
-/// Mirrors the literal-only branch of Python's `_resolve_path`
-/// logic that recognises `[file join …]` source-arg expressions.
+/// Handles the literal-only case that recognises `[file join …]`
+/// source-arg expressions.
 fn literal_file_join(arg: &str) -> Option<String> {
     let inner = arg.strip_prefix('[')?.strip_suffix(']')?;
     let inner = inner.trim();

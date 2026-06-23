@@ -2,8 +2,8 @@
 //!
 //! These are IR-shape tests — the execution-differential standard the
 //! repo applies to the inliner is gated on the WASM codegen consumer
-//! (RT-WASM, unported), so these verify the spliced IR's structure
-//! against the Python `tests/test_inline_pass.py` expectations meanwhile.
+//! (not yet implemented), so these verify the spliced IR's structure
+//! meanwhile.
 
 use super::*;
 use crate::compilation_unit::CompilationUnit;

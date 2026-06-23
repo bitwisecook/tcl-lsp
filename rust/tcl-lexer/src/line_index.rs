@@ -1,6 +1,6 @@
 //! Shared line-start index for offset → (line, character) lookups.
 //!
-//! Equivalent to `DocumentBuffer.line_starts` on the Python side. The
+//! A sorted array of line-start byte offsets. The
 //! index is computed once per document and reused across every lexer
 //! invocation, future sub-lexings (command substitutions, expressions),
 //! and any Rust consumer that needs to translate between byte offsets
@@ -8,7 +8,7 @@
 //! their [`Lexer`] via `Lexer::with_line_index(...)` rather than
 //! `Lexer::new(...)` so the source is scanned for newlines only once.
 //!
-//! Matches the Python contracts documented in
+//! Matches the contracts documented in
 //! `docs/kcs/kcs-core-lsp-shared-utility-contracts.md`: O(log n) offset
 //! lookup via binary search on a sorted start-offset array.
 //!
@@ -39,13 +39,11 @@ impl LineIndex {
     /// and a *lone* CR is **not** a line break — in Tcl a bare `\r` is
     /// horizontal whitespace (a `Sep`), not an end-of-line.
     ///
-    /// This matches every line index on the Python side
-    /// (`compiler/parsing/lexer.py::_build_line_starts` and
-    /// `shared/source_map.py`, both `\n`-only) and the red CST overlay's
-    /// own `build_line_starts`. Keeping the rule identical across the
+    /// This `\n`-only rule matches the red CST overlay's own
+    /// `build_line_starts`. Keeping the rule identical across the
     /// lexer and the CST is what makes their token positions agree for
     /// old-Mac (bare-CR) input — the position-equivalence invariant
-    /// restored upstream in #537 (SYNC-JUN08), where a CR-counting index
+    /// restored upstream in #537, where a CR-counting index
     /// reported a token after a lone CR one line below its own end (a
     /// backwards range).
     ///
@@ -144,8 +142,8 @@ impl LineIndex {
     /// Uses binary search in O(log n).
     ///
     /// `character` is the **byte** offset from the start of the line,
-    /// not a UTF-16 code unit count. This matches the Python lexer's
-    /// actual behaviour (`col = offset - line_start`), which is exact
+    /// not a UTF-16 code unit count. The column is computed as
+    /// `col = offset - line_start`, which is exact
     /// for ASCII input and drifts for supplementary-plane characters.
     /// Use [`Self::position_at_utf16`] for an LSP-compliant UTF-16
     /// column.
@@ -214,7 +212,7 @@ impl LineIndex {
         // or two bytes past EOF (e.g. a final unbraced word with no trailing
         // newline), and the server lifts every analyser span through here on a
         // worker thread — a panic there silently drops the whole document's
-        // diagnostics.  Mirrors the Python `_offset_to_position`'s
+        // diagnostics.'s
         // `min(offset, len(source))` guard.
         let prefix_end = (offset as usize).min(source.len());
         // Count UTF-16 code units in the line slice up to *offset*.

@@ -3,7 +3,7 @@
 //!
 //! Parity notes:
 //! - `base64` / `base64d` use the standard alphabet with padding, matching
-//!   Python's `base64.b64encode` / `b64decode(validate=True)`. The
+//!   `base64.b64encode` / `b64decode(validate=True)`. The
 //!   `base64d` failure text differs from `CPython`'s `binascii` wording (the
 //!   Rust `base64` crate has its own error strings), a documented
 //!   divergence kept out of the golden fixture.
@@ -49,7 +49,7 @@ fn bi_base64(args: &[Value]) -> Result<Value, QueryError> {
 
 fn bi_base64d(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "base64d", 1)?;
-    // Python's `validate=True` rejects any non-alphabet byte and demands
+    // `validate=True` rejects any non-alphabet byte and demands
     // correct padding — `STANDARD` (with no-trailing-bits checks) mirrors it.
     let bytes = STANDARD
         .decode(s.as_bytes())

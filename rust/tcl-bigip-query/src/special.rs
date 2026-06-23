@@ -411,7 +411,7 @@ fn walk(body: &Expr, value: Value, ctx: &mut EvalContext) -> Result<Value, Query
 
 /// Port of `evaluator._flatten_one` used inside `walk` — there it collapses
 /// a single-item stream to its item but does not error on multi (jq's walk
-/// keeps the last). `_flatten_one` in the Python `walk` is actually
+/// keeps the last). `_flatten_one` in `walk` is actually
 /// `_flatten_one` which raises on empty/multi; mirror that loosely by taking
 /// the first flattened value (walk bodies yield one value).
 fn flatten_one_value(value: Value) -> Value {

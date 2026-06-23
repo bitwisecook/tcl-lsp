@@ -39,8 +39,7 @@ const BIGIP_CONF_NAMES: &[&str] = &[
 
 /// Return `true` when `uri`'s basename is a canonical BIG-IP config
 /// name. Single source of truth for the basename → BIG-IP test the
-/// `did_open` dialect routing relies on, mirroring Python
-/// `is_bigip_conf_name`.
+/// `did_open` dialect routing relies on.
 #[must_use]
 pub fn is_bigip_conf_name(uri: &str) -> bool {
     let basename = uri.rsplit(['/', '\\']).next().unwrap_or(uri);
@@ -61,9 +60,9 @@ struct Block {
 /// Extract all top-level `keyword ... { ... }` blocks from `source`.
 ///
 /// Brace-balanced scan that respects quoted strings and backslash
-/// escapes, mirroring Python `_extract_blocks`. Only ASCII structural
-/// bytes (`{`, `}`, `"`, `\`, whitespace, `#`) are inspected, so every
-/// recorded offset lands on a UTF-8 char boundary.
+/// escapes. Only ASCII structural bytes (`{`, `}`, `"`, `\`,
+/// whitespace, `#`) are inspected, so every recorded offset lands on a
+/// UTF-8 char boundary.
 fn extract_blocks(source: &str) -> Vec<Block> {
     let bytes = source.as_bytes();
     let length = bytes.len();
@@ -169,8 +168,7 @@ fn tokenise_header(header: &str) -> Vec<String> {
     tokens
 }
 
-/// Parse a stanza header into `(module, object_type, identifier)`,
-/// mirroring Python `_parse_generic_header`.
+/// Parse a stanza header into `(module, object_type, identifier)`.
 ///
 /// When the registry knows multi-word object types for the module
 /// (`sys diags ihealth`, `ltm message-routing diameter route`), the

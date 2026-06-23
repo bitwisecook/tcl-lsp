@@ -14,15 +14,14 @@
 //!   operations so that downstream passes (GVN, DSE, copy
 //!   propagation) can reason about aliased state precisely.
 //!
-//! This module operates *after* scalar SSA construction (C3/C6) and
+//! This module operates *after* scalar SSA construction and
 //! inspects the IR for aliasing commands (`upvar`, `global`,
 //! `variable`, `namespace upvar`) + barriers (`eval`/`uplevel`).
 //!
-//! Ported from `core/compiler/memory_ssa.py` in three strips:
-//! - **C24b1** (this file) — location types and alias-set queries.
-//! - **C24b2** — memory-op types + `MemorySsaFunction` + detection
-//!   helpers.
-//! - **C24b3** — `compute_aliases` + `build_memory_ssa` driver.
+//! Organised in three layers:
+//! - location types and alias-set queries.
+//! - memory-op types + `MemorySsaFunction` + detection helpers.
+//! - `compute_aliases` + `build_memory_ssa` driver.
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -32,7 +31,7 @@ use crate::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
 
-// MemoryLocationKind / MemoryLocation (C24b1)
+// MemoryLocationKind / MemoryLocation
 
 /// Classification of a memory location.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -118,7 +117,7 @@ impl MemoryLocation {
     }
 }
 
-// AliasSet (C24b1)
+// AliasSet
 
 /// A group of memory locations that may alias each other.
 ///
@@ -164,7 +163,7 @@ impl AliasSet {
     }
 }
 
-// MemoryOpKind / MemoryOp (C24b2)
+// MemoryOpKind / MemoryOp
 
 /// Kind of memory operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -265,11 +264,11 @@ impl MemoryOp {
     }
 }
 
-// MemorySsaFunction (C24b2)
+// MemorySsaFunction
 
 /// Memory-SSA annotations for a single function.
 ///
-/// Produced by `build_memory_ssa` (C24b3). Carries:
+/// Produced by `build_memory_ssa`. Carries:
 /// - `alias_sets`: every detected alias set in the function.
 /// - `memory_ops`: one entry per def/use/phi/clobber, in emission
 ///   order.
@@ -326,7 +325,7 @@ impl MemorySsaFunction {
     }
 }
 
-// Detection helpers (C24b2)
+// Detection helpers
 
 /// Return `true` if `stmt` is the call form `cmd args…` or the
 /// equivalent barrier form. Used by the detection helpers below.
@@ -420,7 +419,7 @@ pub fn is_clobber(stmt: &Statement) -> bool {
     }
 }
 
-// compute_aliases + build_memory_ssa (C24b3)
+// compute_aliases + build_memory_ssa
 
 /// Union-find over [`MemoryLocation`] values with per-root reason
 /// aggregation. Used by [`compute_aliases`] to merge aliases
@@ -722,7 +721,7 @@ mod tests {
         assert_eq!(names.len(), 2);
     }
 
-    // -- C24b2: MemoryOp + MemorySsaFunction + detection --
+    // -- MemoryOp + MemorySsaFunction + detection --
 
     fn call(cmd: &str, args: &[&str]) -> Statement {
         Statement::Call {
@@ -856,7 +855,7 @@ mod tests {
         assert!(!is_clobber(&call("set", &["x", "1"])));
     }
 
-    // -- C24b3: compute_aliases + build_memory_ssa --
+    // -- compute_aliases + build_memory_ssa --
 
     use crate::ssa::{SsaBlock, SsaStatement};
 

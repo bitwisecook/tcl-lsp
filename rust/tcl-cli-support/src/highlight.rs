@@ -214,7 +214,7 @@ pub fn highlight_html(source: &str, dialect: &str) -> String {
     format!("<pre>\n{out}\n</pre>\n")
 }
 
-/// Escape text for HTML, matching Python's `html.escape(s, quote=True)`.
+/// Escape text for HTML, matching `html.escape(s, quote=True)`.
 fn html_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {

@@ -4,9 +4,9 @@
 //! by default, so `insecure` (the verb default) disables certificate
 //! verification via [`ureq::tls::TlsConfig::disable_verification`].
 //!
-//! This transport is implemented faithfully but is **not** exercised by the
-//! offline parity suite (it requires a live device); the golden tests cover the
-//! `--dry-run`, credential, and error surfaces only.
+//! This transport requires a live device, so it is **not** exercised by the
+//! offline tests; the golden tests cover the `--dry-run`, credential, and
+//! error surfaces only.
 
 use std::time::Duration;
 
@@ -37,8 +37,8 @@ fn build_agent(insecure: bool, timeout: f64) -> Agent {
     let tls = TlsConfig::builder().disable_verification(insecure).build();
     let mut builder = Config::builder()
         .tls_config(tls)
-        // Inspect non-2xx status manually (the Python verb raises on >= 400),
-        // so do not let ureq turn 4xx/5xx into transport errors.
+        // Inspect non-2xx status manually, so do not let ureq turn 4xx/5xx
+        // into transport errors.
         .http_status_as_error(false);
     if timeout > 0.0 {
         builder = builder.timeout_global(Some(Duration::from_secs_f64(timeout)));

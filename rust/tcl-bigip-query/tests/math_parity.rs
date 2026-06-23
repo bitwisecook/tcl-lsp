@@ -1,6 +1,6 @@
 //! End-to-end golden differential test for the math-category builtins.
 //!
-//! Mirrors the Python pipeline captured in `tests/fixtures/math.json`
+//! The pipeline captured in `tests/fixtures/math.json`
 //! (`scripts/codegen/gen_f5_query_math_fixtures.py`): parse → evaluate
 //! against a JSON-backed root → `output::render`. For each `(query, input,
 //! mode)` the Rust output (or `error:` message) must match Python exactly.

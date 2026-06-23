@@ -26,7 +26,7 @@ use super::{Optimisation, PassContext};
 /// Run the unused-procs pass.
 ///
 /// No-op unless [`PassContext::dialect`] is `Some("f5-irules")`
-/// or `Some("irules")` (the two names Python's `active_dialect()`
+/// or `Some("irules")` (the two names `active_dialect()`
 /// accepts interchangeably for iRules).
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     if !is_irules_dialect(ctx.dialect) {

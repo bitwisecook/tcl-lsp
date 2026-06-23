@@ -170,8 +170,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file join name ?name ...?",
         pure: true,
         return_type: Some(TclType::String),
-        // GAP-D2: `[file join]` yields a portable (but not
-        // canonicalised) path. Mirrors `tcl/file.py`.
+        // `[file join]` yields a portable (but not
+        // canonicalised) path.
         taint_transform: Some(TaintColour::PATH_JOINED),
         returns_path: true,
         ..SubCommand::DEFAULT
@@ -269,8 +269,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns a unique normalized path representation for the file-system object.",
         synopsis: "file normalize name",
         return_type: Some(TclType::String),
-        // GAP-D2: `[file normalize]` canonicalises the path
-        // (traversal-safe). Mirrors `tcl/file.py`.
+        // `[file normalize]` canonicalises the path
+        // (traversal-safe).
         taint_transform: Some(TaintColour::PATH_NORMALISED),
         returns_path: true,
         ..SubCommand::DEFAULT

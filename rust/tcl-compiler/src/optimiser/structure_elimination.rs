@@ -38,7 +38,7 @@ use super::helpers::tokens::extract_body_text;
 use super::{Optimisation, PassContext};
 
 /// Run the structure-elimination pass across every function in
-/// `cu`. Matches the Python `optimise_structure_elimination`
+/// `cu`. Matches `optimise_structure_elimination`
 /// entry point — walks the top-level IR script and each
 /// procedure body, evaluating each compound-statement condition
 /// against the per-function SCCP lattice.

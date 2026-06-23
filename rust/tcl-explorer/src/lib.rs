@@ -1,7 +1,7 @@
 //! Compiler-explorer pipeline over the Tcl compiler crates.
 //!
-//! This is the Rust home of `tooling/explorer/pipeline.py` — the single
-//! source-in / result-out entry point that the CLI (`tcl explore`), the
+//! This crate is the single source-in / result-out entry point that the
+//! CLI (`tcl explore`), the
 //! TUI, and the Rust → WASM web GUI all share. It is a *thin aggregator*:
 //! the heavy lifting (lexing, lowering, CFG/SSA, the analyses) lives in
 //! `tcl-compiler`; this crate only assembles those artefacts into the
@@ -31,11 +31,11 @@ use tcl_registry::registry_for_dialect;
 
 /// Per-function compilation artefacts surfaced by the explorer.
 ///
-/// Mirrors `FunctionSnapshot` in `pipeline.py`. The underlying
+/// The underlying
 /// [`FunctionUnit`] already carries the CFG, SSA, def-use, SCCP, type, and
 /// taint results, so the snapshot is just a named, ordered view onto the
 /// [`CompilationUnit`]'s function table (top-level first, then procedures
-/// in qualified-name order — matching `build_snapshots`).
+/// in qualified-name order).
 #[derive(Debug, Clone, Copy)]
 pub struct FunctionSnapshot<'a> {
     /// Qualified function name (`::top` for the top-level script).
@@ -68,7 +68,7 @@ pub struct ExplorerResult {
 
 impl ExplorerResult {
     /// Per-function snapshots: top-level first, then procedures in
-    /// qualified-name order (matching `build_snapshots`).
+    /// qualified-name order.
     #[must_use]
     pub fn snapshots(&self) -> Vec<FunctionSnapshot<'_>> {
         let mut out = vec![FunctionSnapshot {
@@ -86,8 +86,7 @@ impl ExplorerResult {
         out
     }
 
-    /// Total basic-block count across every function (matching
-    /// `compute_stats`' `blocks`).
+    /// Total basic-block count across every function.
     #[must_use]
     pub fn total_blocks(&self) -> usize {
         self.snapshots()
@@ -99,11 +98,9 @@ impl ExplorerResult {
 
 /// Run the full explorer pipeline on `source` for `dialect`.
 ///
-/// Builds the [`CompilationUnit`] (the analogue of Python's
-/// `ensure_compilation_unit`) including interprocedural analysis, exactly
-/// as `run_pipeline` does. The per-pass graceful-degradation Python needs
-/// (`try/except` around optional passes) collapses here because the Rust
-/// passes are infallible — they are run as part of building the unit.
+/// Builds the [`CompilationUnit`], including interprocedural analysis, as
+/// `run_pipeline` does. No per-pass graceful degradation is needed because
+/// the Rust passes are infallible — they are run as part of building the unit.
 #[must_use]
 pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     let registry = registry_for_dialect(dialect);

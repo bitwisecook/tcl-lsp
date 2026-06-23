@@ -15,16 +15,16 @@ use tcl_compiler::parsing::syntax::green::SyntaxKind;
 use tcl_compiler::parsing::syntax::red::{SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTree};
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 
-/// Maximum descent depth, matching Python's `depth < 24` guard.
+/// Maximum descent depth, matching `depth < 24` guard.
 const MAX_DEPTH: u32 = 24;
 
-/// Token-type name in Python's uppercase enum-member form
+/// Token-type name in uppercase enum-member form
 /// (`Str` → `"STR"`, `Cmd` → `"CMD"`, …).
 fn token_type_name(kind: TokenType) -> String {
     format!("{kind:?}").to_uppercase()
 }
 
-/// `SyntaxKind` name in Python's uppercase form (`Command` → `"COMMAND"`).
+/// `SyntaxKind` name in uppercase form (`Command` → `"COMMAND"`).
 fn kind_name(kind: SyntaxKind) -> String {
     format!("{kind:?}").to_uppercase()
 }

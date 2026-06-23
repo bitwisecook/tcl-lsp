@@ -18,17 +18,15 @@ pub enum LitValue {
     Null,
     /// A boolean literal.
     Bool(bool),
-    /// An integer literal (Python `int`).
+    /// An integer literal.
     Int(i64),
-    /// A floating-point literal (Python `float`).
+    /// A floating-point literal.
     Float(f64),
     /// A string literal, identifier name, or `$name` payload.
     Str(String),
 }
 
 /// A single path step: `.field` (`Field`) or `[...]` (`Subscript`).
-///
-/// `PathStep = Union[Field, Subscript]` in the Python AST.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PathStep {
     /// `.foo` or `."foo-bar"` — a single named step.

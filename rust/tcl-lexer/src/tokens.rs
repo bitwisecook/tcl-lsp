@@ -1,13 +1,13 @@
 //! Token, position, and kind types produced by the Tcl lexer.
 //!
-//! Ports `core/parsing/tokens.py` as idiomatic Rust:
+//! Idiomatic Rust token types:
 //!
 //! - [`TokenType`] is a `Copy` enum with `PascalCase` variants. The
 //!   `PyO3` binding crate exposes the variants under their original
-//!   `SCREAMING_CASE` Python names.
+//!   `SCREAMING_CASE` names.
 //! - [`SourcePosition`] is a 12-byte `Copy` struct of `u32` fields.
 //!   Line, character, and offset all fit comfortably in 32 bits for
-//!   any source we care about. Exposed to Python via the binding
+//!   any source we care about. Exposed via the binding
 //!   crate and returned by [`SourceMap`] lookups.
 //! - [`Token`] carries a [`Span`] — not an inline text slice and not
 //!   inline start/end positions. Text and positions are resolved on
@@ -16,7 +16,7 @@
 //!   trivially `Copy`.
 //!
 //! Field names follow Rust conventions (`kind`, not `type`); the
-//! binding crate renames `kind` to `type` for Python callers and
+//! binding crate renames `kind` to `type` and
 //! resolves `span` to `start` / `end` / `text` at the FFI boundary.
 //!
 //! [`Span`]: crate::Span
@@ -50,7 +50,7 @@ impl TokenType {
     ///
     /// Used by the `PyO3` wrapper to mimic `enum.Enum.name` and by
     /// debug-print code in CLI tools. The mapping is fixed by the
-    /// Python API surface and must not change without a coordinated
+    /// public API surface and must not change without a coordinated
     /// shim update.
     #[must_use]
     pub const fn name(self) -> &'static str {
@@ -135,8 +135,8 @@ pub struct Token {
     /// Number of leading bytes in `span` that are delimiters rather
     /// than content. Used by [`SourceMap::token_text`] to strip the
     /// opening `$` / `${` / `[` / `{` / `"` (etc.) from wrapper
-    /// tokens so the "human-readable" text matches Python's
-    /// `Token.text` without needing a separate content range.
+    /// tokens so the "human-readable" text is the inner content
+    /// without needing a separate content range.
     ///
     /// Always `0` for bare-word `Esc` / `Sep` / `Eol` / `Comment`
     /// tokens where the span is the content. For `Var`, `Cmd`,
@@ -202,20 +202,19 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
 
-    // The tests below port the Python-side coverage of `tokens.py`. The
-    // Python tests historically exercise these types implicitly through
-    // the lexer suite (tests/test_lexer.py, tests/test_token_positions.py,
-    // tests/test_incremental_update.py, tests/test_formatter.py); the
+    // The tests below exercise the token types and the
+    // variant-to-name contract. These types are otherwise exercised
+    // implicitly through the lexer suite; the
     // assertions here pin down the contract directly so a regression in
     // the Rust types is caught at `cargo test` time, before the
     // differential lexer harness runs.
 
     #[test]
     fn token_type_name_exact_mapping() {
-        // Rust variant → Python-visible name. This is the contract the
+        // Rust variant → binding-visible name. This is the contract the
         // PyO3 binding crate relies on when it exposes the enum with
         // `#[pyo3(name = "…")]` on each variant; if these ever
-        // disagree, Python callers see a mismatched symbol.
+        // disagree, callers see a mismatched symbol.
         assert_eq!(TokenType::Esc.name(), "ESC");
         assert_eq!(TokenType::Str.name(), "STR");
         assert_eq!(TokenType::Cmd.name(), "CMD");
@@ -258,7 +257,7 @@ mod tests {
         // Same variant compares equal; different variants do not.
         assert_eq!(TokenType::Esc, TokenType::Esc);
         assert_ne!(TokenType::Esc, TokenType::Str);
-        // Pattern-matching, the Rust analogue of Python `match tok.type`.
+        // Rust pattern-matching on the token type.
         let kind = TokenType::Var;
         let label = match kind {
             TokenType::Var => "var",
@@ -284,8 +283,7 @@ mod tests {
 
     #[test]
     fn source_position_construction_and_field_access() {
-        // Mirrors `SourcePosition(line=5, character=10, offset=100)` from
-        // tests/test_incremental_update.py::test_shift_position.
+        // A position at line 5, character 10, byte offset 100.
         let pos = SourcePosition::new(5, 10, 100);
         assert_eq!(pos.line, 5);
         assert_eq!(pos.character, 10);
@@ -337,7 +335,7 @@ mod tests {
 
     #[test]
     fn token_construction_carries_span() {
-        // Mirrors the shape every real call site uses: build a span
+        // Matches the shape every real call site uses: build a span
         // pointing at some byte range in the source, then resolve it
         // via a SourceMap for text or positions.
         use crate::{SourceMap, Span};

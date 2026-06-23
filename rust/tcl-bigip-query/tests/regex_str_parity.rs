@@ -1,7 +1,7 @@
 //! End-to-end golden differential test for the regex/string-category
 //! builtins.
 //!
-//! Mirrors the Python pipeline captured in `tests/fixtures/regex_str.json`
+//! The pipeline captured in `tests/fixtures/regex_str.json`
 //! (`scripts/codegen/gen_f5_query_regex_fixtures.py`): parse → evaluate
 //! against a JSON-backed root → `output::render`. For each `(query, input,
 //! mode)` the Rust output (or `error:` message) must match Python exactly.

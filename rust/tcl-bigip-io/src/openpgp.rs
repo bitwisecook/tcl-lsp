@@ -34,8 +34,8 @@ use crate::aes_cfb::{Aes, cfb_decrypt};
 const BLOCK: usize = 16;
 
 /// The message could not be parsed or uses an unsupported feature, or
-/// decryption failed (almost always a wrong passphrase). Mirrors the Python
-/// `OpenPGPError` / `OpenPGPDecryptError` pair; the message text matches.
+/// decryption failed (almost always a wrong passphrase). A single type
+/// carries the human-facing text for every failure mode.
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
 pub struct OpenPgpError(pub String);
@@ -107,7 +107,7 @@ fn read_old_length(data: &[u8], ctb: u8, off: usize) -> Result<(usize, usize), O
     }
 }
 
-/// Saturating slice, mirroring Python's lenient `data[off:off+len]`.
+/// Saturating slice (lenient out-of-range indexing).
 fn slice_sat(data: &[u8], off: usize, len: usize) -> &[u8] {
     let start = off.min(data.len());
     let end = off.saturating_add(len).min(data.len());
@@ -461,7 +461,7 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
 /// Decrypt a passphrase-encrypted `OpenPGP` message; return the plaintext.
 ///
 /// Returns [`OpenPgpError`] for a wrong passphrase, malformed input, or an
-/// unsupported feature — the message text mirrors the Python decryptor.
+/// unsupported feature.
 pub fn decrypt_symmetric(data: &[u8], passphrase: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
     let packets = parse_packets(&maybe_dearmor(data)?)?;
 

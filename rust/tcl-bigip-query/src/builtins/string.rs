@@ -37,7 +37,7 @@ fn bi_endswith(args: &[Value]) -> Result<Value, QueryError> {
 fn bi_contains(args: &[Value]) -> Result<Value, QueryError> {
     let value = &args[0];
     let needle = &args[1];
-    // `_eq` from the Python impl coerces both sides' PathRef to full_path.
+    // Equality coerces both sides' PathRef to full_path.
     let eq = |item: &Value, target: &Value| -> bool {
         let a = match item {
             Value::PathRef(p) => Value::Str(p.full_path.clone()),

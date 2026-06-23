@@ -1,7 +1,4 @@
-//! SSA-version-aware escape accumulator (C33e1).
-//!
-//! Mirrors `CfgEscapeResult` + `_CfgState` from
-//! `core/compiler/var_escape/_cfg_propagation.py`.
+//! SSA-version-aware escape accumulator.
 //!
 //! The intra-procedural state ([`super::super::state::EscapeState`])
 //! tracks per-name tags. The CFG variant tags every escape at the
@@ -21,7 +18,7 @@ enum LiteralBinding {
     Invalidated,
 }
 
-/// Result of the CFG+SSA flow-sensitive analysis (C33e).
+/// Result of the CFG+SSA flow-sensitive analysis.
 ///
 /// `ssa_tags` is the authoritative per-version result;
 /// `name_tags` collapses to per-name (a name is `Frame` if any of

@@ -4,7 +4,7 @@
 //! asserts stdout matches goldens captured from
 //! `python -m tooling.f5.main query --help-*`. Self-contained: no Python at
 //! test time. These help actions short-circuit before any expression / input
-//! is required, mirroring argparse's custom actions.
+//! is required.
 
 use std::path::PathBuf;
 use std::process::Command;

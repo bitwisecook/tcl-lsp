@@ -35,8 +35,7 @@ pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
 /// a binary source; the `replace` form rewrites them — a byte sink. The
 /// `replace` argument layout differs per protocol, so the index of the
 /// `<data>` operand is carried here instead of being hardcoded in the
-/// analyser. Mirrors the Python `BytePayloadSpec` dataclass
-/// (`compiler/registry/models.py`).
+/// analyser.
 ///
 /// - `replace_data_index` — 0-based index, *within the args after the command
 ///   name*, of the `<data>` operand in the `replace` form. `3` for the common
@@ -55,7 +54,7 @@ pub struct BytePayloadSpec {
 
 impl BytePayloadSpec {
     /// The common layout — `replace <offset> <length> <data>` (data at 3),
-    /// no `-message` flag. in Python.
+    /// no `-message` flag.
     pub const DEFAULT: Self = Self {
         replace_data_index: 3,
         message_flag_shift: false,
@@ -84,7 +83,7 @@ pub struct CommandSpec {
     /// Command name (e.g. `"for"`, `"dict"`, `"HTTP::header"`).
     pub name: &'static str,
 
-    /// Behavioural trait flags (replaces ~35 Python boolean fields).
+    /// Behavioural trait flags (replaces ~35 individual boolean fields).
     pub traits: Traits,
 
     /// Dialects this command is available in. `None` = all dialects.
@@ -447,8 +446,7 @@ impl CommandSpec {
     /// Declared option / switch names valid in `dialect`, in
     /// declaration order with duplicates removed.
     ///
-    /// Mirrors `CommandSpec.switch_names` in
-    /// `core/commands/registry/models.py`: walks the command's
+    /// Walks the command's
     /// declared options (both the flat [`Self::options`] list and
     /// every [`CommandForm`]'s options) and keeps
     /// only those whose [`OptionSpec::supports_dialect`] holds for
@@ -562,9 +560,7 @@ pub struct SubCommand {
     /// argument index *after* the subcommand word.  Drives
     /// value completion — e.g. `string is <class>` declares
     /// `(0, &[alnum, alpha, …])` so the character classes
-    /// complete at the first sub-arg.  Mirrors
-    /// `SubCommand.arg_values` in
-    /// `core/commands/registry/models.py`.
+    /// complete at the first sub-arg.
     pub arg_values: &'static [(u8, &'static [ArgValue])],
 
     /// Structured invocation-form descriptors for the subcommand.
@@ -726,8 +722,7 @@ impl SubCommand {
     /// Declared option-flag names for this subcommand, filtered by
     /// *dialect*.
     ///
-    /// Mirrors `_subcommand_switch_names` in
-    /// `core/commands/registry/runtime.py`: per-subcommand options
+    /// Per-subcommand options
     /// (e.g. `-symbolic` / `-hard` on `file link`) flow into the
     /// subcommand's [`crate::analyser`]-side `leading_options` so the
     /// arity check skips them before counting positionals.  An option's

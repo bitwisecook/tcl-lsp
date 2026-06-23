@@ -462,8 +462,8 @@ fn rename_proc(
         new_name.to_owned()
     };
     // Collision gate: renaming onto an existing proc of the same qualified
-    // name would shadow it — refuse (mirrors the Python server).  Compare
-    // names normalised to the leading-`::` form.
+    // name would shadow it — refuse.  Compare names normalised to the
+    // leading-`::` form.
     let target_q = format!("::{}", proc_def.qualified_name.trim_start_matches("::"));
     if analysis.all_procs.keys().any(|qn| {
         let q = format!("::{}", qn.trim_start_matches("::"));

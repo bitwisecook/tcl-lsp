@@ -1,7 +1,6 @@
 //! Type propagation over the SSA graph.
 //!
-//! Ported from `core/compiler/core_analyses.py::_type_propagation`
-//! (C26). Computes a `TypeLattice` for every SSA value by iterating
+//! Computes a `TypeLattice` for every SSA value by iterating
 //! to a fixed point over the CFG in SCCP-executable-block order.
 //!
 //! The pass is intentionally conservative: it only assigns a `Known`
@@ -37,8 +36,8 @@ use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::{TypeKind, TypeLattice, type_join};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
-// Float literal pattern matching Python's `_FLOAT_RE`: requires a decimal
-// point so that forms like `1e3` (no `.`) are NOT classified as floats.
+// Float literal pattern: requires a decimal point so that forms like `1e3`
+// (no `.`) are NOT classified as floats.
 fn looks_like_float(s: &str) -> bool {
     let s = s.trim();
     s.contains('.') && s.parse::<f64>().is_ok()
@@ -47,10 +46,10 @@ fn looks_like_float(s: &str) -> bool {
 const BOOL_LITERALS: &[&str] = &["true", "false", "yes", "no", "on", "off"];
 
 /// True when `s` is a Tcl integer literal: decimal, or a `0x`/`0X` hex or
-/// `0b`/`0B` binary form (each optionally signed).  Mirrors
-/// `core_analyses._literal_type`'s INT cases — hex/binary store an INT intrep
-/// (`set n 0x80; incr n` is one clean parse, not per-iteration shimmer), while
-/// `0o` octal stays STRING (Python's set-statement classifier excludes it).
+/// `0b`/`0B` binary form (each optionally signed).  Hex/binary store an INT
+/// intrep (`set n 0x80; incr n` is one clean parse, not per-iteration
+/// shimmer), while `0o` octal stays STRING (the set-statement classifier
+/// excludes it).
 #[must_use]
 fn is_tcl_int_literal(s: &str) -> bool {
     if s.parse::<i64>().is_ok() {
@@ -75,15 +74,14 @@ fn literal_type(text: &str) -> TypeLattice {
     if looks_like_float(s) {
         return TypeLattice::of(TclType::Double);
     }
-    // Case-insensitive boolean check, matching Python's behaviour.
+    // Case-insensitive boolean check.
     if BOOL_LITERALS.contains(&s.to_ascii_lowercase().as_str()) {
         return TypeLattice::of(TclType::Boolean);
     }
     TypeLattice::of(TclType::String)
 }
 
-/// Classify a literal's type in **expr context**, mirroring
-/// `expr_types._literal_type_from_text`.
+/// Classify a literal's type in **expr context**.
 ///
 /// The expr parser tokenises every integer spelling — decimal, hex
 /// (`0xff`), octal (`0o15`), and binary (`0b1010`) — as an integer
@@ -95,7 +93,7 @@ fn literal_type(text: &str) -> TypeLattice {
 fn expr_literal_type(text: &str) -> TypeLattice {
     let s = text.trim();
     let low = s.to_ascii_lowercase();
-    // Boolean first (matches Python's ordering).
+    // Boolean first.
     if BOOL_LITERALS.contains(&low.as_str()) {
         return TypeLattice::of(TclType::Boolean);
     }
@@ -124,8 +122,7 @@ fn function_namespace(qname: &str) -> String {
 
 /// Type a `TclOO` / snit constructor call (`Foo new` / `Foo create x` /
 /// `Foo %AUTO%` / `Widget .path`) as `OBJECT(class)` when its head resolves
-/// to a known class, else `OVERDEFINED`.  Mirrors the constructor arm of
-/// Python `_return_type_for_command`.  The relative head is resolved as-is,
+/// to a known class, else `OVERDEFINED`.  The relative head is resolved as-is,
 /// `::`-prefixed, and against the call-site `namespace` (so `[Foo new]` inside
 /// `namespace eval ns` types as `OBJECT(::ns::Foo)`).
 fn constructor_object_type(
@@ -157,7 +154,7 @@ fn constructor_object_type(
             }
         }
     }
-    // D4-F6: do not infer `object_of` from the `new` spelling alone.
+    // Do not infer `object_of` from the `new` spelling alone.
     TypeLattice::overdefined()
 }
 
@@ -178,9 +175,8 @@ pub(crate) fn return_type_for_command(
     let Some(spec) = registry.get(command) else {
         // Not a registered built-in — recognise a TclOO / snit constructor
         // (`Foo new` / `Foo create x` / `Foo %AUTO%` / `Widget .path`) whose
-        // head names a known class, typing it `OBJECT(::ns::Foo)`.  Mirrors
-        // Python `_return_type_for_command`'s constructor arm + the D4-F6
-        // guard (no `object_of` from the `new` spelling alone).
+        // head names a known class, typing it `OBJECT(::ns::Foo)` — but not
+        // `object_of` from the `new` spelling alone.
         return constructor_object_type(command, args, known_classes, namespace);
     };
 
@@ -315,7 +311,7 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
     }
 }
 
-/// Port of `expr_types.py::_arithmetic_result`: INT op INT → INT
+/// INT op INT → INT
 /// (boolean counts as int), DOUBLE anywhere → DOUBLE, otherwise
 /// NUMERIC.  Callers guarantee both operand types are `Known`.
 fn arithmetic_result(lt: &TypeLattice, rt: &TypeLattice) -> TypeLattice {
@@ -328,10 +324,9 @@ fn arithmetic_result(lt: &TypeLattice, rt: &TypeLattice) -> TypeLattice {
     }
 }
 
-/// Port of `core/compiler/expr_registry.py::EXPR_FUNC_REGISTRY` —
-/// resolve a Tcl `expr` math-function call to its result type.
+/// Resolve a Tcl `expr` math-function call to its result type.
 ///
-/// Mirrors `expr_types.py`'s `ExprCall` arm: `abs` is identity
+/// `abs` is identity
 /// (preserves its operand's type), `max` / `min` join their operand
 /// types, every other built-in returns its declared type, and an
 /// unknown function is conservatively `Numeric` (an `expr` function
@@ -373,7 +368,7 @@ fn expr_call_type(
         | "srand" => TypeLattice::of(TclType::Double),
         // Boolean-returning predicates.
         "bool" | "isnan" | "isinf" => TypeLattice::of(TclType::Boolean),
-        // Unknown function — conservative (matches Python's NUMERIC).
+        // Unknown function — conservative.
         _ => TypeLattice::of(TclType::Numeric),
     }
 }
@@ -387,7 +382,7 @@ fn expr_call_type(
 /// use-site / merge shimmer check fires on a nominally-`String`-typed
 /// alias.  Derived from the registry's `CREATES_SCOPE_ALIAS` trait
 /// (top-level commands) and the per-subcommand `creates_scope_alias` flag
-/// (`namespace upvar`), mirroring Python's `scope_alias_commands()`.
+/// (`namespace upvar`).
 fn is_scope_alias_call(registry: &CommandRegistry, command: &str, args: &[String]) -> bool {
     let Some(spec) = registry.get(command) else {
         return false;
@@ -616,8 +611,7 @@ pub fn propagate_types(
 
 /// Infer a function's overall return type by joining the result types
 /// of every executable exit — explicit `Return` terminators *and*
-/// fall-through exits (SYNC-MAY31-10 item 2, mirroring Python's
-/// `infer_return_type`).
+/// fall-through exits.
 ///
 /// `types` is the [`propagate_types`] result for the same function.
 /// SSA reaching-defs aren't tracked at terminators, so a `return $x`
@@ -682,7 +676,7 @@ pub(crate) fn infer_function_return_type(
     result.unwrap_or_else(TypeLattice::unknown)
 }
 
-/// Infer the type of a `return`'s textual value, mirroring the
+/// Infer the type of a `return`'s textual value, following the
 /// `Statement::AssignValue` arm of [`evaluate_type_def`] but keyed on
 /// the version-collapsed `var_types` map.
 fn infer_return_value_type(
@@ -968,7 +962,7 @@ mod tests {
         assert_eq!(infer_str("abs(2)").tcl_type, Some(TclType::Int));
         // max/min join operands: max(1, 2) stays Int.
         assert_eq!(infer_str("max(1, 2)").tcl_type, Some(TclType::Int));
-        // Unknown function → Numeric (conservative, matches Python).
+        // Unknown function → Numeric (conservative).
         assert_eq!(infer_str("nope($x)").tcl_type, Some(TclType::Numeric));
     }
 

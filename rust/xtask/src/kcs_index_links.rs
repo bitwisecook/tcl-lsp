@@ -112,8 +112,7 @@ fn check_local_markdown_links(root: &Path, docs: &Path, link_re: &Regex) -> Resu
     let mut problems = Vec::new();
     for file in &files {
         // docs/archive/ holds historical snapshots whose links are
-        // expected to rot; skip them (matches the Python `"archive" in
-        // parts` test over the absolute path).
+        // expected to rot; skip any path with an `archive` segment.
         if file.components().any(|c| c.as_os_str() == "archive") {
             continue;
         }

@@ -15,7 +15,7 @@ use tcl_registry::arg_role::ArgRole;
 use crate::resolve_object_ref_args;
 
 /// One iRules object reference resolved from a literal command argument
-/// (mirrors the Python `IrulesObjectReference`).
+/// (mirrors `IrulesObjectReference`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IrulesObjectReference {
     /// The referenced object name (a literal, or a `set`-propagated constant).

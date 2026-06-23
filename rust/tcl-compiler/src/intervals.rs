@@ -16,7 +16,7 @@
 //! degrades to `TOP` rather than risk returning a still-ascending (unsound,
 //! too-narrow) interval.
 //!
-//! Port of `compiler/intervals.py`.  Soundness (never claim a tighter range than
+//! Soundness (never claim a tighter range than
 //! reality) matters far more than precision, because the only consumers turn a
 //! *proven* fact (index in range) into a diagnostic decision.
 

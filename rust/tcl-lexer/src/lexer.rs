@@ -263,8 +263,7 @@ impl<'src> Lexer<'src> {
             pending_sep: None,
             warnings: Vec::new(),
             // Start in "last kind was EOL" so an empty source produces
-            // zero tokens rather than a lone ghost trailing EOL,
-            // matching `TclLexer.__init__` in Python.
+            // zero tokens rather than a lone ghost trailing EOL.
             last_kind: TokenType::Eol,
             done: false,
             config,
@@ -667,9 +666,8 @@ impl<'src> Lexer<'src> {
                 }
                 '$' if self.peek_byte(1) == Some(b'{') => {
                     // `${…}` inside an array index — scan to the
-                    // matching `}`. Python does this to avoid
-                    // mis-counting any `(` or `)` characters inside
-                    // the braced name.
+                    // matching `}` to avoid mis-counting any `(` or
+                    // `)` characters inside the braced name.
                     self.pos += 2; // skip '${'
                     while let Some(inner) = self.current_char() {
                         if inner == '}' {
@@ -1349,7 +1347,7 @@ mod tests {
 
     #[test]
     fn cr_is_separator_not_eol() {
-        // Python: `\r` is in `_SEP_CHARS`, not `_EOL_CHARS`.
+        // `\r` is a separator char, not an end-of-line char.
         let lexed = Lexed::run("foo\rbar");
         assert_eq!(
             lexed.kinds(),
@@ -1649,7 +1647,7 @@ mod tests {
             var_token_text("$foo1").0[0],
             (TokenType::Var, "foo1".into())
         );
-        // Python allows digits at the start of variable names —
+        // Digits are allowed at the start of variable names —
         // Tcl uses `$1`, `$2` etc. for regexp backrefs.
         assert_eq!(var_token_text("$1").0[0], (TokenType::Var, "1".into()));
     }
@@ -1769,8 +1767,7 @@ mod tests {
     #[test]
     fn var_braced_newline_in_name() {
         // A bare newline inside `${…}` is ordinary name content (it is not
-        // a delimiter and not a backslash). Name = `a\nb`. Mirrors the
-        // Python pin `test_tcl_corner_cases.py::test_brace_with_newline`.
+        // a delimiter and not a backslash). Name = `a\nb`.
         let (rows, _) = var_token_text("${a\nb}");
         assert_eq!(rows[0], (TokenType::Var, "a\nb".into()));
     }
@@ -1801,8 +1798,8 @@ mod tests {
     fn var_array_index_with_inner_braced_var() {
         // `${key}` inside the index scans to the matching `}` as a
         // unit — the `(` / `)` inside such a braced name would not
-        // count against the array-index depth. Python does this so
-        // a variable-named-with-parens doesn't fool the index
+        // count against the array-index depth, so a
+        // variable-named-with-parens doesn't fool the index
         // scanner.
         let (rows, _) = var_token_text("$arr(${key})");
         assert_eq!(rows[0], (TokenType::Var, "arr(${key})".into()));
@@ -1816,7 +1813,7 @@ mod tests {
 
     #[test]
     fn bare_dollar_is_an_str_token() {
-        // Python emits bare `$` as an STR token whose text is the
+        // A bare `$` is emitted as an STR token whose text is the
         // `$` character — not a VAR.
         let (rows, _) = var_token_text("$");
         assert_eq!(rows[0], (TokenType::Str, "$".into()));

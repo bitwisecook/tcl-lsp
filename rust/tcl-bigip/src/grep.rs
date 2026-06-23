@@ -308,7 +308,7 @@ fn to_grep_object(node: &ObjectNode, depth: usize, is_seed: bool) -> GrepObject 
     }
 }
 
-/// Split `text` into lines like Python's `str.splitlines()`: split on every
+/// Split `text` into lines like `str.splitlines()`: split on every
 /// Unicode line boundary and never emit a trailing empty string for a final
 /// terminator.
 fn splitlines(text: &str) -> Vec<&str> {

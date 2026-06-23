@@ -67,9 +67,8 @@ impl<'src> SourceMap<'src> {
 
     /// Set sub-lexing base offsets. These are added to every
     /// `SourcePosition` returned by [`Self::position_at`] and
-    /// [`Self::range_positions`], matching Python's
-    /// `base_offset` / `base_line` / `base_col` constructor
-    /// parameters on `TclLexer`.
+    /// [`Self::range_positions`] so positions resolved from a
+    /// sub-lexed fragment are reported relative to the parent source.
     #[must_use]
     pub fn with_base(mut self, base_offset: u32, base_line: u32, base_col: u32) -> Self {
         self.base_offset = base_offset;
@@ -96,9 +95,8 @@ impl<'src> SourceMap<'src> {
     /// byte range — including any syntactic delimiters (`$`, `${`,
     /// `{`, `"`, etc.) that the token's span covers. Pure-Rust
     /// callers that want to inspect raw source should use this.
-    /// Callers that want the "human-readable" content matching the
-    /// Python `Token.text` field should use [`Self::token_text`]
-    /// instead.
+    /// Callers that want the "human-readable" content of a token
+    /// should use [`Self::token_text`] instead.
     ///
     /// # Panics
     ///
@@ -110,7 +108,7 @@ impl<'src> SourceMap<'src> {
     }
 
     /// Return the "human-readable" text of a token — the same thing
-    /// the Python `Token.text` field contains.
+    /// `Token.text` field contains.
     ///
     /// For most kinds this is identical to `self.text(tok.span)`.
     /// For `VAR` tokens, the leading `$` (and the `{` of a `${…}`
@@ -118,12 +116,12 @@ impl<'src> SourceMap<'src> {
     /// alone. As more wrapper-style tokens arrive (`STR` braced
     /// strings in L6, quoted strings in L7), this helper grows
     /// additional stripping rules; it is the **one place** in the
-    /// codebase that encodes the Python-API convention of "position
-    /// range spans the full token, text field is the inner content".
+    /// codebase that encodes the convention of "position range spans
+    /// the full token, text field is the inner content".
     ///
     /// The `PyO3` binding uses this helper when constructing
-    /// `PyToken.text`; Rust consumers that want parity with the
-    /// Python API should use it too.
+    /// `PyToken.text`; Rust consumers that want the same
+    /// inner-content text should use it too.
     #[must_use]
     pub fn token_text(&self, tok: Token) -> &'src str {
         let raw = self.text(tok.span);
@@ -202,7 +200,7 @@ impl<'src> SourceMap<'src> {
 
     /// Resolve a span to `(start, end)` positions, where `start` is
     /// the position of the first byte and `end` is the position of
-    /// the **last** byte (inclusive), matching the Python lexer's
+    /// the **last** byte (inclusive), following the lexer's
     /// `Token.start` / `Token.end` convention. For an empty span,
     /// both positions point at `span.start()`.
     #[must_use]

@@ -921,7 +921,7 @@ fn addresses_for_label_prefix(index: &NameIndex, prefix: &str) -> (Vec<String>, 
 }
 
 /// Build a Wireshark `ip.addr in {…}` filter over sorted addresses. Sorting is
-/// lexicographic on the string form, matching Python's `sorted(set(...))`.
+/// lexicographic on the string form, matching `sorted(set(...))`.
 fn ip_set_filter(addrs_v4: &[String], addrs_v6: &[String]) -> String {
     let mut parts = Vec::new();
     if !addrs_v4.is_empty() {

@@ -4,8 +4,7 @@
 //! process model), so the registration exists for LSP recognition
 //! and the runtime drops it on the trapping-stub list.  Two name
 //! forms are registered for the namespace-relative and fully-
-//! qualified spellings.  Mirrors the Python
-//! `core/commands/registry/tcl/tcl_process.py` PR #433 spec.
+//! qualified spellings.
 
 use crate::prelude::*;
 

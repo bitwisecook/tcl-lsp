@@ -18,7 +18,7 @@ const EXPR_OPS: &[&str] = &[
 ///
 /// A whitespace-delimited operator has a single whitespace byte on
 /// each side (`\s OP \s`); this scans for ` OP ` with single ASCII
-/// spaces, which is what the oracle corpus uses.
+/// spaces.
 fn looks_like_expr(text: &str) -> bool {
     EXPR_OPS.iter().any(|op| text.contains(&format!(" {op} ")))
 }
@@ -66,7 +66,7 @@ pub fn extract_variable(
     // replacement reference uses the original selection coordinates.
     // `apply` runs bottom-to-top (descending start offset) so the
     // replacement edit (later offset) runs before the line-start
-    // insertion, exactly like the Python ordering.
+    // insertion.
     let line_start = u32::try_from(
         source[..start_off as usize]
             .rfind('\n')

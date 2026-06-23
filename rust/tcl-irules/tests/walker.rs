@@ -1,5 +1,5 @@
 //! Differential parity for the iRules walker (`extract_irules_object_references`)
-//! against the Python `irules_refs.extract_irules_object_references`, covering
+//! against `irules_refs.extract_irules_object_references`, covering
 //! literal refs, `set`-binding copy-propagation, widening, nested bodies, `if`
 //! conditions, and GTM pool fan-out. Self-contained — no Python at test time.
 

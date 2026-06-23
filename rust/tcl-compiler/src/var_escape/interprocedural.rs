@@ -1,4 +1,4 @@
-//! Interprocedural propagation of var-escape summaries (C33d).
+//! Interprocedural propagation of var-escape summaries.
 //!
 //! The intra-procedural pass ([`super::analyse_script`]) records
 //! each proc's own `upvar_source_names` — the literal caller-frame
@@ -14,8 +14,6 @@
 //! appear in the callee set are marked `Frame`.
 //!
 //! `unbounded_upvar_source` propagates the same way.
-//!
-//! Mirrors `core/compiler/var_escape/_interprocedural.py`.
 
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
@@ -76,9 +74,7 @@ fn name_candidates(command: &str, caller_qname: &str) -> Vec<String> {
 /// the namespace chain exactly as the interprocedural escape pass does.
 /// Returns `None` for builtins / unknown commands (absent from
 /// `summaries`). Exposed `pub(crate)` so the inliner (`crate::inlining`)
-/// resolves call sites with the same rules — mirrors Python's
-/// `var_escape._interprocedural._resolve_callee`, the shared resolver
-/// `decision.py` / `inline_pass.py` import.
+/// resolves call sites with the same rules.
 pub(crate) fn resolve_callee<S: BuildHasher>(
     command: &str,
     caller_qname: &str,

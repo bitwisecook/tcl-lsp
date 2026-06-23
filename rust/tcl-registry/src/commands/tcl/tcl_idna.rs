@@ -3,8 +3,7 @@
 //!
 //! Two name forms are registered because Tcl callers may use the
 //! namespace-relative spelling `tcl::idna` (inside `namespace eval
-//! ::tcl`) or the fully-qualified `::tcl::idna`.  Mirrors the Python
-//! `core/commands/registry/tcl/tcl_idna.py` PR #433 spec.
+//! ::tcl`) or the fully-qualified `::tcl::idna`.
 
 use crate::prelude::*;
 
