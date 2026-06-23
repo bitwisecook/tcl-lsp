@@ -919,7 +919,7 @@ fn remap_pcapng(
     unknown_policy: UnknownPolicy,
     overlay: &SchemaOverlay,
 ) -> Result<(Vec<u8>, PcapRemapResult), PcapError> {
-    let mut blocks = pcapng::read_blocks(input).map_err(PcapError::Value)?;
+    let mut blocks = pcapng::read_blocks(input).map_err(|e| PcapError::Value(e.to_string()))?;
     let mut result = PcapRemapResult::default();
     let mut interface_linktypes: Vec<u16> = Vec::new();
     let mut out: Vec<u8> = Vec::with_capacity(input.len());
@@ -933,7 +933,8 @@ fn remap_pcapng(
             result.packets_total += 1;
             let iface_idx = block.interface_id.unwrap_or(0) as usize;
             if iface_idx >= interface_linktypes.len() {
-                pcapng::write_block(&mut out, block).map_err(PcapError::Value)?;
+                pcapng::write_block(&mut out, block)
+                    .map_err(|e| PcapError::Value(e.to_string()))?;
                 continue;
             }
             let linktype = interface_linktypes[iface_idx];
@@ -950,7 +951,7 @@ fn remap_pcapng(
             block.packet_data = Some(packet);
         }
 
-        pcapng::write_block(&mut out, block).map_err(PcapError::Value)?;
+        pcapng::write_block(&mut out, block).map_err(|e| PcapError::Value(e.to_string()))?;
     }
 
     Ok((out, result))

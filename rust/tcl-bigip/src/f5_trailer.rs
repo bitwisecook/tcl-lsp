@@ -112,9 +112,10 @@ impl SchemaOverlay {
 /// caller threads it through [`parse_trailer_with`] / the remap engine.
 ///
 /// # Errors
-/// Returns a message when the TOML is malformed, a required key is missing, or
-/// an `ip_fields` `kind` is not one of `v4` / `v6` / `v6_or_v4mapped`.
-pub fn load_schema_overlay(text: &str) -> Result<SchemaOverlay, String> {
+/// Returns [`BigipError::Schema`] when the TOML is malformed, a required key is
+/// missing, or an `ip_fields` `kind` is not one of `v4` / `v6` /
+/// `v6_or_v4mapped`.
+pub fn load_schema_overlay(text: &str) -> Result<SchemaOverlay, crate::error::BigipError> {
     let doc = schema_toml::parse(text)?;
     let mut overlay = SchemaOverlay::default();
     for entry in &doc.legacy {
@@ -460,6 +461,7 @@ pub fn schema_summary_with(overlay: &SchemaOverlay) -> SchemaSummary {
 /// begins a line comment.
 mod schema_toml {
     use super::IpKind;
+    use crate::error::BigipError;
     use std::collections::HashMap;
 
     #[derive(Default)]
@@ -469,25 +471,26 @@ mod schema_toml {
     }
 
     impl Entry {
-        pub fn int(&self, key: &str) -> Result<i64, String> {
+        pub fn int(&self, key: &str) -> Result<i64, BigipError> {
             self.ints
                 .get(key)
                 .copied()
-                .ok_or_else(|| format!("schema: entry missing `{key}`"))
+                .ok_or_else(|| BigipError::schema(format!("schema: entry missing `{key}`")))
         }
 
         /// Fetch an integer key and convert it into a narrower type, erroring
         /// cleanly when the value is out of range.
-        pub fn int_into<T: TryFrom<i64>>(&self, key: &str) -> Result<T, String> {
+        pub fn int_into<T: TryFrom<i64>>(&self, key: &str) -> Result<T, BigipError> {
             T::try_from(self.int(key)?)
-                .map_err(|_| format!("schema: `{key}` value is out of range"))
+                .map_err(|_| BigipError::schema(format!("schema: `{key}` value is out of range")))
         }
 
-        pub fn ip_fields(&self) -> Result<Vec<(usize, IpKind)>, String> {
+        pub fn ip_fields(&self) -> Result<Vec<(usize, IpKind)>, BigipError> {
             let mut out = Vec::with_capacity(self.fields.len());
             for (offset, kind) in &self.fields {
-                let parsed = IpKind::parse(kind)
-                    .ok_or_else(|| format!("schema: unknown ip_fields kind '{kind}'"))?;
+                let parsed = IpKind::parse(kind).ok_or_else(|| {
+                    BigipError::schema(format!("schema: unknown ip_fields kind '{kind}'"))
+                })?;
                 out.push((*offset, parsed));
             }
             Ok(out)
@@ -534,12 +537,12 @@ mod schema_toml {
         out
     }
 
-    fn parse_ip_fields(val: &str) -> Result<Vec<(usize, String)>, String> {
+    fn parse_ip_fields(val: &str) -> Result<Vec<(usize, String)>, BigipError> {
         let inner = val
             .trim()
             .strip_prefix('[')
             .and_then(|s| s.strip_suffix(']'))
-            .ok_or_else(|| format!("schema: ip_fields must be an array: {val}"))?;
+            .ok_or_else(|| BigipError::schema(format!("schema: ip_fields must be an array: {val}")))?;
         let mut out = Vec::new();
         for chunk in inner.split('}') {
             let chunk = chunk.trim().trim_start_matches(',').trim();
@@ -554,30 +557,34 @@ mod schema_toml {
                 if kv.is_empty() {
                     continue;
                 }
-                let (k, v) = kv
-                    .split_once('=')
-                    .ok_or_else(|| format!("schema: bad ip_fields entry: {kv}"))?;
+                let (k, v) = kv.split_once('=').ok_or_else(|| {
+                    BigipError::schema(format!("schema: bad ip_fields entry: {kv}"))
+                })?;
                 match k.trim() {
                     "offset" => {
-                        offset = Some(
-                            v.trim()
-                                .parse()
-                                .map_err(|_| format!("schema: bad offset: {}", v.trim()))?,
-                        );
+                        offset = Some(v.trim().parse().map_err(|_| {
+                            BigipError::schema(format!("schema: bad offset: {}", v.trim()))
+                        })?);
                     }
                     "kind" => kind = Some(v.trim().trim_matches('"').to_owned()),
-                    other => return Err(format!("schema: unknown ip_fields key `{other}`")),
+                    other => {
+                        return Err(BigipError::schema(format!(
+                            "schema: unknown ip_fields key `{other}`"
+                        )));
+                    }
                 }
             }
             out.push((
-                offset.ok_or("schema: ip_fields entry missing `offset`")?,
-                kind.ok_or("schema: ip_fields entry missing `kind`")?,
+                offset.ok_or_else(|| {
+                    BigipError::schema("schema: ip_fields entry missing `offset`")
+                })?,
+                kind.ok_or_else(|| BigipError::schema("schema: ip_fields entry missing `kind`"))?,
             ));
         }
         Ok(out)
     }
 
-    pub fn parse(text: &str) -> Result<Doc, String> {
+    pub fn parse(text: &str) -> Result<Doc, BigipError> {
         let mut doc = Doc::default();
         // `0 = legacy`, `1 = dpt`, `-1 = none yet`.
         let mut section: i8 = -1;
@@ -606,19 +613,19 @@ mod schema_toml {
                 current = Some(Entry::default());
                 continue;
             }
-            let (key, val) = line
-                .split_once('=')
-                .ok_or_else(|| format!("schema: cannot parse line: {line}"))?;
+            let (key, val) = line.split_once('=').ok_or_else(|| {
+                BigipError::schema(format!("schema: cannot parse line: {line}"))
+            })?;
             let (key, val) = (key.trim(), val.trim());
-            let entry = current
-                .as_mut()
-                .ok_or_else(|| format!("schema: `{key}` outside a [[legacy]]/[[dpt]] table"))?;
+            let entry = current.as_mut().ok_or_else(|| {
+                BigipError::schema(format!("schema: `{key}` outside a [[legacy]]/[[dpt]] table"))
+            })?;
             if key == "ip_fields" {
                 entry.fields = parse_ip_fields(val)?;
             } else {
-                let n: i64 = val
-                    .parse()
-                    .map_err(|_| format!("schema: `{key}` is not an integer: {val}"))?;
+                let n: i64 = val.parse().map_err(|_| {
+                    BigipError::schema(format!("schema: `{key}` is not an integer: {val}"))
+                })?;
                 entry.ints.insert(key.to_owned(), n);
             }
         }

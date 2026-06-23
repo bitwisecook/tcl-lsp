@@ -10,6 +10,8 @@
 // bounded by file size and width-checked by construction.
 #![allow(clippy::cast_possible_truncation)]
 
+use crate::error::BigipError;
+
 /// Section Header Block.
 pub const BLOCK_TYPE_SHB: u32 = 0x0A0D_0D0A;
 /// Interface Description Block.
@@ -109,15 +111,15 @@ pub fn is_pcapng_magic(four_bytes: &[u8]) -> bool {
 }
 
 /// Determine the section endianness from the first SHB (peek, no consume).
-fn peek_endian(data: &[u8]) -> Result<Endian, String> {
+fn peek_endian(data: &[u8]) -> Result<Endian, BigipError> {
     if data.len() < 12 {
-        return Err("pcapng: file too short for SHB".to_owned());
+        return Err(BigipError::pcapng("pcapng: file too short for SHB"));
     }
     let block_type = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
     if block_type != BLOCK_TYPE_SHB {
-        return Err(format!(
+        return Err(BigipError::pcapng(format!(
             "pcapng: first block must be SHB (0x0a0d0d0a), got 0x{block_type:08x}"
-        ));
+        )));
     }
     let magic = [data[8], data[9], data[10], data[11]];
     if u32::from_le_bytes(magic) == SHB_BYTE_ORDER_MAGIC {
@@ -126,10 +128,10 @@ fn peek_endian(data: &[u8]) -> Result<Endian, String> {
     if u32::from_be_bytes(magic) == SHB_BYTE_ORDER_MAGIC {
         return Ok(Endian::Big);
     }
-    Err(format!(
+    Err(BigipError::pcapng(format!(
         "pcapng: SHB byte-order magic not recognised: {}",
         hex(&magic)
-    ))
+    )))
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -144,8 +146,8 @@ fn hex(bytes: &[u8]) -> String {
 /// Read every block from `data`.
 ///
 /// # Errors
-/// Returns an error string on a malformed / truncated block stream.
-pub fn read_blocks(data: &[u8]) -> Result<Vec<PcapngBlock>, String> {
+/// Returns [`BigipError::Pcapng`] on a malformed / truncated block stream.
+pub fn read_blocks(data: &[u8]) -> Result<Vec<PcapngBlock>, BigipError> {
     let mut endian = peek_endian(data)?;
     let mut out = Vec::new();
     let mut cursor = 0usize;
@@ -155,7 +157,7 @@ pub fn read_blocks(data: &[u8]) -> Result<Vec<PcapngBlock>, String> {
             return Ok(out);
         }
         if data.len() - cursor < 8 {
-            return Err("pcapng: truncated block header".to_owned());
+            return Err(BigipError::pcapng("pcapng: truncated block header"));
         }
         let block_type = endian.u32([
             data[cursor],
@@ -170,12 +172,12 @@ pub fn read_blocks(data: &[u8]) -> Result<Vec<PcapngBlock>, String> {
             data[cursor + 7],
         ]) as usize;
         if block_total_len < 12 || !block_total_len.is_multiple_of(4) {
-            return Err(format!(
+            return Err(BigipError::pcapng(format!(
                 "pcapng: invalid block_total_length {block_total_len} for type 0x{block_type:08x}"
-            ));
+            )));
         }
         if cursor + block_total_len > data.len() {
-            return Err("pcapng: truncated block body".to_owned());
+            return Err(BigipError::pcapng("pcapng: truncated block body"));
         }
         let body = data[cursor + 8..cursor + block_total_len - 4].to_vec();
         let trailing = endian.u32([
@@ -185,9 +187,9 @@ pub fn read_blocks(data: &[u8]) -> Result<Vec<PcapngBlock>, String> {
             data[cursor + block_total_len - 1],
         ]) as usize;
         if trailing != block_total_len {
-            return Err(format!(
+            return Err(BigipError::pcapng(format!(
                 "pcapng: trailing length 0x{trailing:x} != header 0x{block_total_len:x}"
-            ));
+            )));
         }
         cursor += block_total_len;
 
@@ -256,9 +258,9 @@ fn block(block_type: u32, body: Vec<u8>, endian: Endian) -> PcapngBlock {
 /// Serialise `block` to `out`.
 ///
 /// # Errors
-/// Returns an error string when an EPB's mutated packet is not
+/// Returns [`BigipError::Pcapng`] when an EPB's mutated packet is not
 /// length-preserving.
-pub fn write_block(out: &mut Vec<u8>, block: &PcapngBlock) -> Result<(), String> {
+pub fn write_block(out: &mut Vec<u8>, block: &PcapngBlock) -> Result<(), BigipError> {
     let endian = block.endian;
     let rebuilt_epb = if block.block_type == BLOCK_TYPE_EPB
         && let Some(packet) = block.packet_data.as_ref()
@@ -268,10 +270,10 @@ pub fn write_block(out: &mut Vec<u8>, block: &PcapngBlock) -> Result<(), String>
     {
         let cap_len = packet.len();
         if cap_len as u32 != captured {
-            return Err(format!(
+            return Err(BigipError::pcapng(format!(
                 "pcapng: EPB packet length changed ({cap_len} != {captured}); \
                  the rewriter must be length-preserving"
-            ));
+            )));
         }
         let mut b = Vec::new();
         b.extend_from_slice(&endian.u32_bytes(block.interface_id.unwrap_or(0)));

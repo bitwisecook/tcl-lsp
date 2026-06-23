@@ -34,6 +34,8 @@ use ipnet::{Ipv4Net, Ipv6Net};
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
+use crate::error::BigipError;
+
 // Defaults
 
 /// Default RFC1918 IPv4 target pool, walked in order.
@@ -562,25 +564,26 @@ impl RedactionMap {
     /// Parse a sidecar map-file TOML.
     ///
     /// # Errors
-    /// Returns an error string on an unknown schema or malformed structure.
-    pub fn from_toml(text: &str) -> Result<RedactionMap, String> {
+    /// Returns [`BigipError::Redact`] on an unknown schema or malformed
+    /// structure.
+    pub fn from_toml(text: &str) -> Result<RedactionMap, BigipError> {
         let parsed = toml_lite::parse(text)?;
         let schema = parsed.top.get("schema").map(String::as_str);
         if schema != Some("f5-redact-map/v1") {
-            return Err(format!(
+            return Err(BigipError::redact(format!(
                 "unknown map schema: {}",
                 schema.map_or_else(|| "None".to_owned(), |s| format!("'{s}'"))
-            ));
+            )));
         }
         let mut cidr_assignments = Vec::new();
         for item in &parsed.cidr {
             let source = item
                 .get("source")
-                .ok_or("missing source in [[cidr]]")?
+                .ok_or_else(|| BigipError::redact("missing source in [[cidr]]"))?
                 .clone();
             let target = item
                 .get("target")
-                .ok_or("missing target in [[cidr]]")?
+                .ok_or_else(|| BigipError::redact("missing target in [[cidr]]"))?
                 .clone();
             let shuffle_key = item.get("shuffle_key").cloned();
             cidr_assignments.push(CidrAssignment {
@@ -976,10 +979,10 @@ pub struct BuildMapOptions<'a> {
 /// Build (or extend) a [`RedactionMap`] covering every public IP in the text.
 ///
 /// # Errors
-/// Returns [`TargetCollisionError`] when a target CIDR cannot be allocated, or
-/// an error string on an unknown mode / malformed CIDR.
+/// Returns [`BigipError::Redact`] when a target CIDR cannot be allocated, or on
+/// an unknown mode / malformed CIDR.
 #[allow(clippy::too_many_lines)]
-pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, String> {
+pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, BigipError> {
     let BuildMapOptions {
         text,
         target_pool_v4,
@@ -994,7 +997,7 @@ pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, String> {
     } = opts;
 
     if mode != "direct" && mode != "shuffle" {
-        return Err(format!("unknown mode '{mode}'"));
+        return Err(BigipError::redact(format!("unknown mode '{mode}'")));
     }
 
     let (mut rm, pool_v4, pool_v6) = if let Some(ex) = existing {
@@ -1023,15 +1026,15 @@ pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, String> {
     // Replay prior assignments through the allocator.
     let mut cidr_for: HashMap<Net, Net> = HashMap::new();
     for a in &rm.cidr_assignments {
-        let src = parse_net(&a.source).ok_or("bad source CIDR")?;
-        let tgt = parse_net(&a.target).ok_or("bad target CIDR")?;
+        let src = parse_net(&a.source).ok_or_else(|| BigipError::redact("bad source CIDR"))?;
+        let tgt = parse_net(&a.target).ok_or_else(|| BigipError::redact("bad target CIDR"))?;
         cidr_for.insert(src, tgt);
         allocator.consume(tgt);
     }
 
     let explicit: Vec<Net> = explicit_source_cidrs
         .iter()
-        .map(|c| parse_net(c).ok_or_else(|| format!("bad source CIDR: {c}")))
+        .map(|c| parse_net(c).ok_or_else(|| BigipError::redact(format!("bad source CIDR: {c}"))))
         .collect::<Result<_, _>>()?;
 
     let source_cidr_for = |addr: Addr| -> Net {
@@ -1065,7 +1068,7 @@ pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, String> {
         allocator.forbid(source_cidr_for(addr));
     }
     for a in &rm.cidr_assignments {
-        allocator.forbid(parse_net(&a.source).ok_or("bad source CIDR")?);
+        allocator.forbid(parse_net(&a.source).ok_or_else(|| BigipError::redact("bad source CIDR"))?);
     }
     for net in &explicit {
         allocator.forbid(*net);
@@ -1076,7 +1079,7 @@ pub fn build_map(opts: BuildMapOptions) -> Result<RedactionMap, String> {
         if let std::collections::hash_map::Entry::Vacant(slot) = cidr_for.entry(source_net) {
             let target_net = allocator
                 .allocate(source_net.prefixlen(), addr.version())
-                .map_err(|e| e.0)?;
+                .map_err(|e| BigipError::redact(e.0))?;
             let shuffle_key = if mode == "shuffle" {
                 Some(hex_encode(&derive_key(&seed, &source_net.to_string_py())))
             } else {
@@ -1403,8 +1406,9 @@ pub struct RedactOptions {
 /// Redact secrets in `source`; optionally remap public IPs.
 ///
 /// # Errors
-/// Propagates [`build_map`] errors (target collision / bad CIDR / unknown mode).
-pub fn redact_secrets(source: &str, opts: RedactOptions) -> Result<RedactReport, String> {
+/// Propagates [`build_map`] errors as [`BigipError::Redact`] (target collision /
+/// bad CIDR / unknown mode).
+pub fn redact_secrets(source: &str, opts: RedactOptions) -> Result<RedactReport, BigipError> {
     let (out, secrets) = redact_property_values(source);
     let (out, pem) = redact_pem_blocks(&out);
     if opts.remap_ips {
@@ -1605,6 +1609,7 @@ mod mt19937 {
 /// string keys + string arrays, repeated `[[cidr]]` tables, and an `[ips]`
 /// table of quoted-key string values). Not a general TOML parser.
 mod toml_lite {
+    use crate::error::BigipError;
     use std::collections::BTreeMap;
 
     pub struct Parsed {
@@ -1622,7 +1627,7 @@ mod toml_lite {
         Ips,
     }
 
-    pub fn parse(text: &str) -> Result<Parsed, String> {
+    pub fn parse(text: &str) -> Result<Parsed, BigipError> {
         let mut top = BTreeMap::new();
         let mut target_pool_v4 = None;
         let mut target_pool_v6 = None;
@@ -1650,7 +1655,7 @@ mod toml_lite {
                 continue;
             }
             let Some((key_raw, val_raw)) = line.split_once('=') else {
-                return Err(format!("malformed line: {line}"));
+                return Err(BigipError::redact(format!("malformed line: {line}")));
             };
             let key = key_raw.trim();
             let val = val_raw.trim();
@@ -1669,7 +1674,8 @@ mod toml_lite {
                     table.insert(key.to_owned(), unquote(val).unwrap_or_default());
                 }
                 Section::Ips => {
-                    let k = unquote(key).ok_or("ips key not quoted")?;
+                    let k = unquote(key)
+                        .ok_or_else(|| BigipError::redact("ips key not quoted"))?;
                     let v = unquote(val).unwrap_or_default();
                     ips.push((k, v));
                 }
@@ -1695,19 +1701,22 @@ mod toml_lite {
         }
     }
 
-    fn parse_array(s: &str) -> Result<Vec<String>, String> {
+    fn parse_array(s: &str) -> Result<Vec<String>, BigipError> {
         let s = s.trim();
         let inner = s
             .strip_prefix('[')
             .and_then(|s| s.strip_suffix(']'))
-            .ok_or_else(|| format!("malformed array: {s}"))?;
+            .ok_or_else(|| BigipError::redact(format!("malformed array: {s}")))?;
         let mut out = Vec::new();
         for part in inner.split(',') {
             let p = part.trim();
             if p.is_empty() {
                 continue;
             }
-            out.push(unquote(p).ok_or_else(|| format!("array element not quoted: {p}"))?);
+            out.push(
+                unquote(p)
+                    .ok_or_else(|| BigipError::redact(format!("array element not quoted: {p}")))?,
+            );
         }
         Ok(out)
     }

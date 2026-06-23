@@ -12,6 +12,7 @@ use std::net::IpAddr;
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use regex::Regex;
 
+use crate::error::BigipError;
 use crate::graph::{ObjectEdge, ObjectGraph, ObjectNode};
 use crate::range::Range;
 
@@ -126,20 +127,22 @@ fn parse_ip_network(token: &str) -> Option<Net> {
 
 /// Parse one or more whitespace / comma-separated IPs or CIDRs. Returns `Err`
 /// when the pattern is empty or any token is not a valid IP / network.
-fn parse_cidr_pattern(pattern: &str) -> Result<Vec<Net>, String> {
+fn parse_cidr_pattern(pattern: &str) -> Result<Vec<Net>, BigipError> {
     let tokens: Vec<&str> = pattern
         .trim()
         .split(|c: char| c == ',' || c.is_whitespace())
         .filter(|t| !t.is_empty())
         .collect();
     if tokens.is_empty() {
-        return Err("CIDR pattern must contain at least one IP address or network".to_owned());
+        return Err(BigipError::grep(
+            "CIDR pattern must contain at least one IP address or network",
+        ));
     }
     let mut networks = Vec::with_capacity(tokens.len());
     for token in tokens {
         match parse_ip_network(token) {
             Some(net) => networks.push(net),
-            None => return Err(format!("invalid CIDR pattern {token:?}")),
+            None => return Err(BigipError::grep(format!("invalid CIDR pattern {token:?}"))),
         }
     }
     Ok(networks)
@@ -264,7 +267,7 @@ fn build_matcher(
     use_regex: bool,
     use_cidr: bool,
     use_exact: bool,
-) -> Result<Matcher, String> {
+) -> Result<Matcher, BigipError> {
     let selected: Vec<&str> = [
         ("regex", use_regex),
         ("cidr", use_cidr),
@@ -274,17 +277,17 @@ fn build_matcher(
     .filter_map(|(name, flag)| flag.then_some(name))
     .collect();
     if selected.len() > 1 {
-        return Err(format!(
+        return Err(BigipError::grep(format!(
             "match modes are mutually exclusive; got {selected:?}"
-        ));
+        )));
     }
     if use_cidr {
         return Ok(Matcher::Cidr(parse_cidr_pattern(pattern)?));
     }
     if use_regex {
-        return Regex::new(pattern)
-            .map(Matcher::Regex)
-            .map_err(|exc| format!("invalid regex pattern {pattern:?}: {exc}"));
+        return Regex::new(pattern).map(Matcher::Regex).map_err(|exc| {
+            BigipError::grep(format!("invalid regex pattern {pattern:?}: {exc}"))
+        });
     }
     if use_exact {
         return Ok(Matcher::Exact(pattern.to_owned()));
@@ -496,17 +499,20 @@ pub fn compute_grep(
     graph: &ObjectGraph,
     source_uris: &[String],
     args: &GrepArgs,
-) -> Result<GrepReport, String> {
+) -> Result<GrepReport, BigipError> {
     if !DIRECTIONS.contains(&args.direction) {
         let mut sorted = DIRECTIONS;
         sorted.sort_unstable();
-        return Err(format!(
+        return Err(BigipError::grep(format!(
             "direction must be one of {sorted:?}, got {:?}",
             args.direction
-        ));
+        )));
     }
     if args.max_nodes < 1 {
-        return Err(format!("max_nodes must be >= 1, got {}", args.max_nodes));
+        return Err(BigipError::grep(format!(
+            "max_nodes must be >= 1, got {}",
+            args.max_nodes
+        )));
     }
 
     let matcher = build_matcher(args.pattern, args.use_regex, args.use_cidr, args.use_exact)?;

@@ -6,6 +6,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 use indexmap::IndexMap;
 
 use super::model::{Flow, FlowKey};
+use crate::error::BigipError;
 use crate::f5_trailer::{
     DPT_HDR_LEN, DPT_HDR_MAGIC, DPT_PROVIDER_NOISE, DPT_TLV_HDR_LEN, TrailerFmt, parse_trailer,
 };
@@ -22,7 +23,7 @@ fn pcap_magic_big_endian(magic: u32) -> Option<bool> {
 }
 
 /// Yield `(linktype, packet_bytes)` for every packet in *data*.
-fn iter_pcap_packets(data: &[u8]) -> Result<Vec<(u16, Vec<u8>)>, String> {
+fn iter_pcap_packets(data: &[u8]) -> Result<Vec<(u16, Vec<u8>)>, BigipError> {
     if data.len() < 4 {
         return Ok(Vec::new());
     }
@@ -67,7 +68,7 @@ fn iter_libpcap(data: &[u8]) -> Vec<(u16, Vec<u8>)> {
     out
 }
 
-fn iter_pcapng(data: &[u8]) -> Result<Vec<(u16, Vec<u8>)>, String> {
+fn iter_pcapng(data: &[u8]) -> Result<Vec<(u16, Vec<u8>)>, BigipError> {
     let blocks = pcapng::read_blocks(data)?;
     let mut out: Vec<(u16, Vec<u8>)> = Vec::new();
     let mut interface_linktypes: Vec<u16> = Vec::new();
@@ -487,7 +488,7 @@ fn extract_rst_cause_from_trailer(trailer: &[u8]) -> Vec<String> {
 /// Returns an `IndexMap` keyed as `(src_ip, src_port, dst_ip, dst_port,
 /// proto)`, preserving first-seen insertion order.
 #[allow(clippy::too_many_lines)]
-pub fn extract_flows(data: &[u8]) -> Result<IndexMap<FlowKey, Flow>, String> {
+pub fn extract_flows(data: &[u8]) -> Result<IndexMap<FlowKey, Flow>, BigipError> {
     let mut flows: IndexMap<FlowKey, Flow> = IndexMap::new();
     for (linktype, packet) in iter_pcap_packets(data)? {
         let Some((ip_off, is_v6)) = find_ip_offset(&packet, linktype) else {

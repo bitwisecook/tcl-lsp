@@ -14,6 +14,7 @@ use tcl_lexer::LineIndex;
 use tcl_registry::BigipRegistry;
 use tcl_registry::bigip::default_registry;
 
+use crate::error::BigipError;
 use crate::model::ModelObject;
 use crate::parser::driver::{BigipConfig, Placed};
 use crate::parser::header::{ObjectTypeIndex, parse_generic_header};
@@ -975,18 +976,18 @@ fn node_label(node: &ObjectNode) -> String {
 /// BFS.
 ///
 /// # Errors
-/// Returns `Err` when `fmt` is not one of [`GRAPH_FORMATS`].
+/// Returns [`BigipError::Graph`] when `fmt` is not one of [`GRAPH_FORMATS`].
 pub fn export_graph(
     graph: &ObjectGraph,
     fmt: &str,
     seeds: &[String],
     reverse: bool,
     max_depth: Option<usize>,
-) -> Result<GraphExport, String> {
+) -> Result<GraphExport, BigipError> {
     if !GRAPH_FORMATS.contains(&fmt) {
-        return Err(format!(
+        return Err(BigipError::graph(format!(
             "unknown graph format {fmt:?} (expected one of {GRAPH_FORMATS:?})"
-        ));
+        )));
     }
 
     // Flatten nodes in source order (across uris), keyed by node_id.

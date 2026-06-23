@@ -195,7 +195,8 @@ fn enrich_capture_file(
     };
 
     let (out_bytes, mut result) =
-        enrich_pcapng_with_index(&pcapng_bytes, name_index, keylog_text, include_unobserved)?;
+        enrich_pcapng_with_index(&pcapng_bytes, name_index, keylog_text, include_unobserved)
+            .map_err(|e| e.to_string())?;
 
     // Stage in the output's parent and rename into place atomically so an
     // `in.pcapng -> in.pcapng` invocation never truncates the input first.

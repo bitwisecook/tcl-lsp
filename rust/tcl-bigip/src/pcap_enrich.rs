@@ -12,6 +12,7 @@
 use std::collections::BTreeMap;
 use std::net::IpAddr;
 
+use crate::error::BigipError;
 use crate::model::ModelObject;
 use crate::parser::BigipConfig;
 use crate::parser::helpers::{extract_blocks, parse_list_block, parse_properties};
@@ -930,24 +931,24 @@ fn build_packed_records(
 /// first IDB of the first section; every other block round-trips byte-for-byte.
 ///
 /// # Errors
-/// Returns an error string when the input is not PCAPNG or malformed.
+/// Returns [`BigipError::Enrich`] when the input is not PCAPNG, or
+/// [`BigipError::Pcapng`] when it is malformed.
 pub fn enrich_pcapng_with_index(
     input: &[u8],
     name_index: &NameIndex,
     keylog_text: Option<&[u8]>,
     include_unobserved: bool,
-) -> Result<(Vec<u8>, EnrichResult), String> {
+) -> Result<(Vec<u8>, EnrichResult), BigipError> {
     let keylog_blob: Option<&[u8]> = match keylog_text {
         Some(k) if !k.is_empty() => Some(k),
         _ => None,
     };
 
     if input.len() < 4 || !pcapng::is_pcapng_magic(&input[..4]) {
-        return Err(
+        return Err(BigipError::enrich(
             "enrich requires PCAPNG input (libpcap can't carry NRB/DSB blocks); \
-             install wireshark/editcap or convert manually first."
-                .to_owned(),
-        );
+             install wireshark/editcap or convert manually first.",
+        ));
     }
 
     let blocks = pcapng::read_blocks(input)?;
