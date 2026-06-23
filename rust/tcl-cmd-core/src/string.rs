@@ -324,6 +324,15 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
     let (nocase, pairs, text) = match args {
         [m, s] => (false, m, s),
         [opt, m, s] if is_nocase(&ops.as_str(opt)) => (true, m, s),
+        // Three arguments whose first is not `-nocase` is a bad option, not a
+        // wrong count (C's `StringMapCmd`): `string map {a b} abba oops`
+        // reports `bad option "a b"` (string-10.2).
+        [opt, _, _] => {
+            return Err(CmdError::new(format!(
+                "bad option \"{}\": must be -nocase",
+                ops.as_str(opt)
+            )));
+        }
         _ => return Err(CmdError::wrong_args("string map ?-nocase? charMap string")),
     };
     let items = ops.list_elements(pairs)?;
