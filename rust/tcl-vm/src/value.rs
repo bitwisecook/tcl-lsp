@@ -127,6 +127,38 @@ impl Value {
         }
     }
 
+    /// The value truncated to a 64-bit wide (`wide()`): an in-range integer
+    /// as-is, else a bignum literal reduced modulo 2^64 and bit-cast to `i64`
+    /// (two's-complement wrap — what C's `wide()` does, e.g.
+    /// `wide(0x8000000000000000)` is `-9223372036854775808`). The VM has no
+    /// arbitrary-precision rep, so this is the truncating window onto one.
+    pub fn as_wide(&self) -> Result<i64, TclError> {
+        if let Ok(n) = self.as_int() {
+            return Ok(n);
+        }
+        let s = self.to_str();
+        if let Some(Number::Big {
+            negative,
+            radix,
+            digits,
+        }) = number::parse_whole(s.trim())
+        {
+            let base = radix as u32;
+            let mut acc: u64 = 0;
+            for ch in digits.chars() {
+                let d = ch.to_digit(base).unwrap_or(0);
+                acc = acc.wrapping_mul(u64::from(base)).wrapping_add(u64::from(d));
+            }
+            let signed = acc.cast_signed();
+            return Ok(if negative {
+                signed.wrapping_neg()
+            } else {
+                signed
+            });
+        }
+        Err(TclError::new(format!("expected integer but got \"{s}\"")))
+    }
+
     /// The value as a double (`Tcl_GetDoubleFromObj`).
     pub fn as_double(&self) -> Result<f64, TclError> {
         match &*self.0.intrep.borrow() {

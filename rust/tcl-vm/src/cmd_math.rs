@@ -62,7 +62,7 @@ fn m_wide(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(c) => return c,
     };
-    if let Ok(n) = x.as_int() {
+    if let Ok(n) = x.as_wide() {
         return ok(Value::int(n));
     }
     match x.as_double() {

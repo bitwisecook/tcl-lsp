@@ -189,6 +189,26 @@ fn compiled_linsert_rejects_bad_index() {
     assert_eq!(result, "a b c X");
 }
 
+/// `wide()` truncates an out-of-range integer literal to a 64-bit wide via
+/// two's-complement wrap, matching C — `wide(0x8000000000000000)` is the most
+/// negative wide, `wide(0xFFFFFFFFFFFFFFFF)` is -1. This unblocks expr.test
+/// (which probes `wide(0x8000000000000000) < 0` at the top level) and brings
+/// obj.test to parity without a full bignum rep.
+#[test]
+fn wide_truncates_out_of_range_literals() {
+    let (ok, result, _) = run("expr {wide(0x8000000000000000)}");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "-9223372036854775808");
+
+    let (ok, result, _) = run("expr {wide(0xFFFFFFFFFFFFFFFF)}");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "-1");
+
+    let (ok, result, _) = run("expr {wide(0x8000000000000000) < 0}");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "1");
+}
+
 /// `namespace path` sets a per-namespace command resolution path consulted
 /// after the current namespace and before the global one, so e.g. the math
 /// operators resolve unqualified. Regression for mathop / cmdIL (which crashed
