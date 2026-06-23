@@ -490,7 +490,13 @@ impl CodegenCtx<'_> {
                 if is_bare || (!rest.is_empty() && split_array_ref(rest).is_some()) {
                     self.load_var(rest);
                 } else {
-                    self.push_lit(word);
+                    // A leading `$` followed by more text (`$i.x`, `$a$b`) is an
+                    // interpolated word, not a whole-variable reference: decompose
+                    // it into its `$var` / literal parts and concatenate, so the
+                    // variable is substituted. Pushing it raw left the inline
+                    // command-substitution path (e.g. `set m [concat a "$i.x"]`)
+                    // with the literal `$i.x`.
+                    self.emit_value(word, true);
                 }
             }
         } else if braced && (word.contains('$') || word.contains('[')) {
