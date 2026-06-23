@@ -50,6 +50,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::SourceMap;
 
 use super::state::Analyser;
@@ -1158,8 +1159,8 @@ fn is_implicit_var(name: &str) -> bool {
 /// `$`-stripping harvest would wrongly mark it killed).  Per-element
 /// `unset x(k)` drops one array element, not the binding, so it is
 /// skipped too.
-fn whole_unset_names(args: &[String]) -> HashSet<String> {
-    let mut out = HashSet::new();
+fn whole_unset_names(args: &[String]) -> FxHashSet<String> {
+    let mut out = FxHashSet::default();
     let mut i = 0;
     while i < args.len() && args[i].starts_with('-') {
         let is_dashdash = args[i] == "--";
@@ -1302,14 +1303,14 @@ fn skip_options(args: &[String], value_opts: &[&str]) -> usize {
 fn phi_can_undef(
     name: &str,
     version: crate::ssa::Version,
-    phi_def: &std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi>,
-    phi_block: &std::collections::HashMap<(String, crate::ssa::Version), String>,
-    killed: &HashSet<(String, crate::ssa::Version)>,
+    phi_def: &PhiDefMap,
+    phi_block: &PhiBlockMap,
+    killed: &FxHashSet<(String, crate::ssa::Version)>,
     considered: &HashSet<String>,
     executable_edges: &HashSet<(String, String)>,
     exists_guards: &[(String, String)],
     ssa: &crate::ssa::SsaFunction,
-    seen: &mut HashSet<(String, crate::ssa::Version)>,
+    seen: &mut FxHashSet<(String, crate::ssa::Version)>,
 ) -> bool {
     if version == 0 {
         return true;
@@ -1378,11 +1379,11 @@ fn phi_can_undef(
 }
 
 /// `(name, version) → Phi` index used by [`phi_can_undef`].
-type PhiDefMap = std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi>;
+type PhiDefMap = FxHashMap<(String, crate::ssa::Version), crate::ssa::Phi>;
 
 /// `(name, version) → defining block` index, so [`phi_can_undef`] can test
 /// each incoming `(pred, phi_block)` edge against the SCCP-executable edge set.
-type PhiBlockMap = std::collections::HashMap<(String, crate::ssa::Version), String>;
+type PhiBlockMap = FxHashMap<(String, crate::ssa::Version), String>;
 
 /// Build the `(name, version) → Phi` index, the `(name, version) → block`
 /// index, and the set of `unset`-killed versions for [`phi_can_undef`],
@@ -1393,13 +1394,12 @@ fn build_phi_undef_index(
 ) -> (
     PhiDefMap,
     PhiBlockMap,
-    HashSet<(String, crate::ssa::Version)>,
+    FxHashSet<(String, crate::ssa::Version)>,
 ) {
     use crate::ir::Statement;
-    let mut phi_def: std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi> =
-        std::collections::HashMap::new();
-    let mut phi_block: PhiBlockMap = std::collections::HashMap::new();
-    let mut killed: HashSet<(String, crate::ssa::Version)> = HashSet::new();
+    let mut phi_def: PhiDefMap = FxHashMap::default();
+    let mut phi_block: PhiBlockMap = FxHashMap::default();
+    let mut killed: FxHashSet<(String, crate::ssa::Version)> = FxHashSet::default();
     for bn in considered {
         let Some(sblock) = ssa.blocks.get(bn) else {
             continue;
@@ -1455,7 +1455,7 @@ struct UndefSuppression {
     /// expr evaluation).  The `[…]` is opaque to SSA def tracking, so a later
     /// `$tmp` read in the same expression looks read-before-set.  Name-level,
     /// suppress-only.
-    cmd_sub_writes: HashSet<String>,
+    cmd_sub_writes: FxHashSet<String>,
     /// Locals aliased to a *dynamic* upvar target (`upvar 1 $name local`).
     /// The alias may resolve to a non-existent caller variable, so the local
     /// is possibly-unset: read-before-set must *override* the scope-alias
@@ -1465,12 +1465,12 @@ struct UndefSuppression {
     /// `(name, version)` pairs killed by an `unset` — undef at their reads,
     /// so a direct read of one is read-before-set just like a version-0
     /// origin.
-    killed: HashSet<(String, crate::ssa::Version)>,
+    killed: FxHashSet<(String, crate::ssa::Version)>,
     /// Phi versions that can be undefined on some executable path
     /// (a one-branch `set y 1` merge, or a try-handler merge). A statement
     /// read of one is read-before-set; the def-use pass can't express this
     /// because the read targets the *phi* version, not a version-0 origin.
-    can_undef: HashSet<(String, crate::ssa::Version)>,
+    can_undef: FxHashSet<(String, crate::ssa::Version)>,
 }
 
 impl UndefSuppression {
@@ -1514,9 +1514,9 @@ impl UndefSuppression {
 fn collect_expr_cmd_sub_writes(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
-) -> HashSet<String> {
+) -> FxHashSet<String> {
     use crate::ir::Statement;
-    let mut out = HashSet::new();
+    let mut out = FxHashSet::default();
     for bn in considered {
         let Some(block) = fu.cfg.blocks.get(bn) else {
             continue;
@@ -1629,9 +1629,9 @@ fn build_undef_suppression(
     // a statement read of one is read-before-set. The per-use existence
     // guard + suppression set still apply in the emitter loop.
     let exists_guards = collect_existence_guards(fu);
-    let mut can_undef: HashSet<(String, crate::ssa::Version)> = HashSet::new();
+    let mut can_undef: FxHashSet<(String, crate::ssa::Version)> = FxHashSet::default();
     for key in phi_def.keys() {
-        let mut seen = HashSet::new();
+        let mut seen = FxHashSet::default();
         if phi_can_undef(
             &key.0,
             key.1,
@@ -1688,9 +1688,9 @@ fn build_undef_suppression(
 fn collect_qualified_variable_alias_tails(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
-) -> HashSet<String> {
+) -> FxHashSet<String> {
     use crate::ir::Statement;
-    let mut tails = HashSet::new();
+    let mut tails = FxHashSet::default();
     for bn in considered {
         let Some(block) = fu.cfg.blocks.get(bn) else {
             continue;
@@ -6539,7 +6539,7 @@ file; this call falls through to the 'unknown' handler."
                 if ver == 0 {
                     continue;
                 }
-                let mut seen = HashSet::new();
+                let mut seen = FxHashSet::default();
                 if !phi_can_undef(
                     &name,
                     ver,

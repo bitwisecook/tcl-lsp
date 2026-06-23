@@ -67,6 +67,8 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write as _;
 
+use rustc_hash::FxHashSet;
+
 use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind};
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -660,7 +662,7 @@ fn apply_edits(source: &str, mut edits: Vec<Edit>) -> String {
         return source.to_owned();
     }
     edits.sort_by_key(|edit| std::cmp::Reverse(edit.0));
-    let mut seen: HashSet<(usize, usize)> = HashSet::new();
+    let mut seen: FxHashSet<(usize, usize)> = FxHashSet::default();
     let mut result = source.to_owned();
     for (offset, length, new_text) in edits {
         if !seen.insert((offset, length)) {
@@ -715,12 +717,12 @@ fn find_barrier_scopes(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
     include_global: bool,
-) -> HashSet<String> {
-    let barrier_cmds: HashSet<&str> = registry
+) -> FxHashSet<String> {
+    let barrier_cmds: FxHashSet<&str> = registry
         .commands_with_trait(Traits::CREATES_DYNAMIC_BARRIER)
         .into_iter()
         .collect();
-    let mut out = HashSet::new();
+    let mut out = FxHashSet::default();
     for inv in &analysis.command_invocations {
         if barrier_cmds.contains(inv.name.as_str())
             && let Some(label) = scope_label_at_offset(
@@ -739,8 +741,8 @@ fn find_barrier_scopes(
 /// Next short name avoiding existing and claimed names.
 fn next_unused_name(
     r#gen: &mut NameGenerator,
-    existing: &HashSet<String>,
-    claimed: &HashSet<String>,
+    existing: &FxHashSet<String>,
+    claimed: &FxHashSet<String>,
 ) -> Option<String> {
     for _ in 0..1000 {
         let short = r#gen.next_name();
@@ -806,7 +808,7 @@ fn slice(source: &str, span: Span) -> &str {
 fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
     let qn_no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
     let mut out = Vec::new();
-    let mut seen: HashSet<(u32, u32)> = HashSet::new();
+    let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     for inv in &analysis.command_invocations {
         let matches = match &inv.resolved_qualified_name {
             Some(resolved) => resolved == qualified_name,
@@ -833,7 +835,7 @@ fn compact_names(
     let mut edits: Vec<Edit> = Vec::new();
 
     let barrier_scopes = find_barrier_scopes(&analysis, registry, isolated);
-    let builtin_names: HashSet<&str> = registry.command_names().collect();
+    let builtin_names: FxHashSet<&str> = registry.command_names().collect();
 
     process_scope(
         source,
@@ -848,7 +850,7 @@ fn compact_names(
 
     // Proc renaming.
     let mut proc_gen = NameGenerator::new();
-    let mut used_proc_names: HashSet<String> = HashSet::new();
+    let mut used_proc_names: FxHashSet<String> = FxHashSet::default();
     let mut proc_keys: Vec<&String> = analysis.all_procs.keys().collect();
     proc_keys.sort();
     for qname in proc_keys {
@@ -907,9 +909,9 @@ fn compact_array_members(
         }
         let mut r#gen = NameGenerator::new();
         let mut member_map: BTreeMap<String, String> = BTreeMap::new();
-        let existing: HashSet<String> = members.keys().cloned().collect();
+        let existing: FxHashSet<String> = members.keys().cloned().collect();
         for member in members.keys() {
-            let claimed: HashSet<String> = member_map.values().cloned().collect();
+            let claimed: FxHashSet<String> = member_map.values().cloned().collect();
             let Some(short) = next_unused_name(&mut r#gen, &existing, &claimed) else {
                 continue;
             };
@@ -1048,7 +1050,7 @@ fn process_scope(
     scope: &Scope,
     scope_label: &str,
     isolated: bool,
-    barrier_scopes: &HashSet<String>,
+    barrier_scopes: &FxHashSet<String>,
     symbol_map: &mut SymbolMap,
     edits: &mut Vec<Edit>,
 ) {
@@ -1062,12 +1064,12 @@ fn process_scope(
         } else {
             None
         };
-        let param_names: HashSet<&str> = proc_def
+        let param_names: FxHashSet<&str> = proc_def
             .map(|pd| pd.params.iter().map(|p| p.name.as_str()).collect())
             .unwrap_or_default();
 
         let mut var_gen = NameGenerator::new();
-        let existing: HashSet<String> = scope.variables.keys().cloned().collect();
+        let existing: FxHashSet<String> = scope.variables.keys().cloned().collect();
         let mut var_map: BTreeMap<String, String> = BTreeMap::new();
 
         let mut var_names: Vec<&String> = scope.variables.keys().collect();
@@ -1077,7 +1079,7 @@ fn process_scope(
             if var_name.len() <= 1 || var_name.contains("::") {
                 continue;
             }
-            let claimed: HashSet<String> = var_map.values().cloned().collect();
+            let claimed: FxHashSet<String> = var_map.values().cloned().collect();
             let Some(short) = next_unused_name(&mut var_gen, &existing, &claimed) else {
                 continue;
             };

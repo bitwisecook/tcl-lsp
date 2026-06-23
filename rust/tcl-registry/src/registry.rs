@@ -5,8 +5,9 @@
 //! queries.
 
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::sync::OnceLock;
+
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
@@ -105,7 +106,7 @@ const TAINT_SOURCE_INDEX: [(&str, crate::taint::TaintColour); TAINT_SOURCE_COUNT
 /// queried read-only. All command-specific knowledge lives in the
 /// specs — consumers never match on command name strings.
 pub struct CommandRegistry {
-    by_name: HashMap<String, Vec<CommandSpec>>,
+    by_name: FxHashMap<String, Vec<CommandSpec>>,
     loaded_dialects: DialectSet,
 }
 
@@ -115,10 +116,10 @@ pub struct CommandRegistry {
 /// Built from the same spec functions [`CommandRegistry::build_default`]
 /// and [`CommandRegistry::load_dialect`] draw from, so it stays in lock-step
 /// with the registry's command universe.
-fn all_dialect_command_names() -> &'static HashSet<&'static str> {
-    static NAMES: OnceLock<HashSet<&'static str>> = OnceLock::new();
+fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
+    static NAMES: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
     NAMES.get_or_init(|| {
-        let mut set: HashSet<&'static str> = HashSet::new();
+        let mut set: FxHashSet<&'static str> = FxHashSet::default();
         let mut add = |specs: Vec<CommandSpec>| {
             for spec in specs {
                 set.insert(spec.name);
@@ -146,7 +147,7 @@ impl CommandRegistry {
     #[must_use]
     pub fn build_default() -> Self {
         let mut registry = Self {
-            by_name: HashMap::new(),
+            by_name: FxHashMap::default(),
             loaded_dialects: DialectSet::empty(),
         };
         for spec in crate::commands::tcl::tcl_command_specs() {

@@ -16,7 +16,9 @@
 //!
 //! [`AnalysisResult`]: tcl_compiler::analyser::AnalysisResult
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
+
+use rustc_hash::FxHashSet;
 
 use tcl_compiler::analyser::{Analyser, Scope, ScopeKind};
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
@@ -87,7 +89,7 @@ pub fn folding_ranges(
     let analysis = analyser.analyse(source, dialect);
 
     let line_index = LineIndex::new(source);
-    let mut seen: HashSet<(u32, u32)> = HashSet::new();
+    let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     let mut ranges: Vec<FoldingRange> = Vec::new();
 
     collect_scope_folds(
@@ -139,7 +141,7 @@ fn adjust_body_end_line(source: &str, end_offset: usize, end_line: u32) -> u32 {
 }
 
 fn push_unique(
-    seen: &mut HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
     start_line: u32,
     end_line: u32,
@@ -237,7 +239,7 @@ fn emit_body_span_fold(
     span: tcl_lexer::Span,
     source: &str,
     line_index: &LineIndex,
-    seen: &mut HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
     if span.is_empty() {
@@ -258,7 +260,7 @@ fn collect_scope_folds(
     scope: &Scope,
     source: &str,
     line_index: &LineIndex,
-    seen: &mut HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
     for proc_def in scope.procs.values() {
@@ -280,7 +282,7 @@ fn collect_scope_folds(
 /// at least two.
 fn collect_comment_folds(
     source: &str,
-    seen: &mut HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
     let lines: Vec<&str> = source.split('\n').collect();
@@ -338,7 +340,7 @@ fn collect_comment_folds(
 fn collect_continuation_folds(
     source: &str,
     line_index: &LineIndex,
-    seen: &mut HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
     let Ok(tokens) = Lexer::new(source).tokenise_all() else {
@@ -393,7 +395,7 @@ struct FoldCtx<'a> {
     registry: &'a CommandRegistry,
     line_index: &'a LineIndex,
     original_source: &'a str,
-    seen: &'a mut HashSet<(u32, u32)>,
+    seen: &'a mut FxHashSet<(u32, u32)>,
     ranges: &'a mut Vec<FoldingRange>,
     /// Dialect lexer config so body re-segmentation honours `{*}` / `}{`.
     config: tcl_lexer::LexerConfig,
@@ -611,7 +613,7 @@ pub fn normalise_overlaps(ranges: Vec<FoldingRange>) -> Vec<FoldingRange> {
 
     // De-duplicate: trimming may have collapsed distinct inputs onto
     // the same (start, end, kind) triple.
-    let mut seen: HashSet<(u32, u32, FoldKind)> = HashSet::new();
+    let mut seen: FxHashSet<(u32, u32, FoldKind)> = FxHashSet::default();
     let mut result: Vec<FoldingRange> = Vec::with_capacity(working.len());
     for slot in working {
         let Some(r) = slot else { continue };
@@ -624,6 +626,8 @@ pub fn normalise_overlaps(ranges: Vec<FoldingRange>) -> Vec<FoldingRange> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
 
     /// Build a fresh registry for a test.

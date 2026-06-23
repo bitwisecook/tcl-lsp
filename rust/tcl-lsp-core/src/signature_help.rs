@@ -27,6 +27,7 @@
 //! `[…]` / `{…}`) aren't understood, and rich doc-comment
 //! rendering isn't done — the summary is surfaced verbatim.
 
+use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef};
 use tcl_registry::CommandRegistry;
 
@@ -307,7 +308,7 @@ fn direct_proc_lookup<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'
 fn resolve_alias_chain(analysis: &AnalysisResult, name: &str) -> Option<String> {
     const MAX_ALIAS_HOPS: usize = 8;
     let mut current = name.to_owned();
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = FxHashSet::default();
     for _ in 0..MAX_ALIAS_HOPS {
         if !seen.insert(current.clone()) {
             return None;

@@ -48,6 +48,7 @@
 //!   virtual-server names against a parsed `bigip.conf` — is
 //!   not implemented here.
 
+use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 
@@ -404,9 +405,9 @@ pub(crate) fn visible_variable_names(
 pub(crate) fn lexical_namespace_chain(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
-) -> std::collections::HashSet<String> {
+) -> FxHashSet<String> {
     use tcl_compiler::analyser::ScopeKind;
-    let mut chain = std::collections::HashSet::new();
+    let mut chain = FxHashSet::default();
     for sc in scope_chain_at(scope, byte_offset) {
         if matches!(sc.kind, ScopeKind::Namespace | ScopeKind::Global) {
             chain.insert(sc.name.clone());
@@ -451,10 +452,10 @@ fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> Strin
 /// cursor's lexical `chain` (proc locals excluded).
 pub(crate) fn cross_namespace_qualified_vars(
     global: &tcl_compiler::analyser::Scope,
-    chain: &std::collections::HashSet<String>,
+    chain: &FxHashSet<String>,
 ) -> Vec<String> {
     use tcl_compiler::analyser::{Scope, ScopeKind};
-    fn visit(scope: &Scope, chain: &std::collections::HashSet<String>, out: &mut Vec<String>) {
+    fn visit(scope: &Scope, chain: &FxHashSet<String>, out: &mut Vec<String>) {
         if matches!(scope.kind, ScopeKind::Namespace | ScopeKind::Global)
             && !chain.contains(&scope.name)
         {

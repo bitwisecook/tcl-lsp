@@ -20,7 +20,9 @@
 //!   `net self-allow`, …) fall back to their kind label so no outline
 //!   symbol ever carries an empty `name`.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
+
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use tcl_lexer::LineIndex;
 use tcl_registry::bigip::BigipRegistry;
@@ -178,7 +180,7 @@ fn tokenise_header(header: &str) -> Vec<String> {
 /// the object type". An empty identifier denotes a global singleton.
 fn parse_header(
     header: &str,
-    object_types_by_module: &HashMap<&str, HashSet<&str>>,
+    object_types_by_module: &FxHashMap<&str, FxHashSet<&str>>,
 ) -> Option<(String, String, String)> {
     let parts = tokenise_header(header);
     if parts.len() < 2 {
@@ -219,8 +221,8 @@ fn parse_header(
 /// index, so `parse_header` can do longest-prefix object-type matching.
 fn object_types_by_module(
     registry: &BigipRegistry,
-) -> HashMap<&'static str, HashSet<&'static str>> {
-    let mut map: HashMap<&'static str, HashSet<&'static str>> = HashMap::new();
+) -> FxHashMap<&'static str, FxHashSet<&'static str>> {
+    let mut map: FxHashMap<&'static str, FxHashSet<&'static str>> = FxHashMap::default();
     for spec in registry.specs() {
         for &(module, object_type) in spec.header_types {
             map.entry(module).or_default().insert(object_type);

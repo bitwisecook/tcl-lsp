@@ -50,6 +50,7 @@
 //!   command-substitution args and proc / method bodies but
 //!   not into string interpolation.
 
+use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
@@ -899,8 +900,7 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) ->
 }
 
 fn dedup_edits(edits: &mut Vec<TextEdit>) {
-    let mut seen: std::collections::HashSet<(u32, u32, u32, u32)> =
-        std::collections::HashSet::new();
+    let mut seen: FxHashSet<(u32, u32, u32, u32)> = FxHashSet::default();
     edits.retain(|e| {
         let key = (
             e.range.start_line,

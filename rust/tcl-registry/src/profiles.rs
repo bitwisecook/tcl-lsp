@@ -10,7 +10,7 @@
 // readability.
 #![allow(clippy::too_many_lines)]
 
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// Metadata for an F5 profile type.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,8 +59,8 @@ pub struct StackModification {
 
 /// Profile registry providing lookup over static profile tables.
 pub struct ProfileRegistry {
-    profiles: HashMap<&'static str, ProfileSpec>,
-    namespaces: HashMap<&'static str, ProtocolNamespaceSpec>,
+    profiles: FxHashMap<&'static str, ProfileSpec>,
+    namespaces: FxHashMap<&'static str, ProtocolNamespaceSpec>,
     modifications: Vec<StackModification>,
 }
 
@@ -68,11 +68,11 @@ impl ProfileRegistry {
     /// Build the profile registry from static data.
     #[must_use]
     pub fn build() -> Self {
-        let mut profiles = HashMap::new();
+        let mut profiles = FxHashMap::default();
         for spec in profile_specs() {
             profiles.insert(spec.name, spec);
         }
-        let mut namespaces = HashMap::new();
+        let mut namespaces = FxHashMap::default();
         for spec in protocol_namespace_specs() {
             namespaces.insert(spec.prefix, spec);
         }
@@ -141,8 +141,8 @@ impl ProfileRegistry {
     /// `profiles` plus all transitive [`ProfileSpec::requires`] parents,
     /// uppercased.
     #[must_use]
-    pub fn expand_profile_stack(&self, profiles: &[&str]) -> HashSet<String> {
-        let mut expanded: HashSet<String> = profiles.iter().map(|p| p.to_uppercase()).collect();
+    pub fn expand_profile_stack(&self, profiles: &[&str]) -> FxHashSet<String> {
+        let mut expanded: FxHashSet<String> = profiles.iter().map(|p| p.to_uppercase()).collect();
         let mut pending: Vec<String> = expanded.iter().cloned().collect();
         while let Some(cur) = pending.pop() {
             if let Some(spec) = self.get_profile(&cur) {
@@ -184,7 +184,7 @@ pub fn compute_file_profiles(
     events: &crate::events::EventRegistry,
     profiles: &ProfileRegistry,
 ) -> Vec<String> {
-    let mut seed: HashSet<String> = parse_profile_directive(source);
+    let mut seed: FxHashSet<String> = parse_profile_directive(source);
     for event in scan_file_events(source) {
         if let Some(props) = events.get_props(&event) {
             seed.extend(props.implied_profiles.iter().map(|p| p.to_uppercase()));
@@ -204,8 +204,8 @@ pub fn compute_file_profiles(
 /// the first non-comment, non-blank line.  Names are uppercased and split on
 /// commas/whitespace.
 #[must_use]
-pub fn parse_profile_directive(source: &str) -> HashSet<String> {
-    let mut out = HashSet::new();
+pub fn parse_profile_directive(source: &str) -> FxHashSet<String> {
+    let mut out = FxHashSet::default();
     for line in source.split('\n').take(20) {
         let stripped = line.trim();
         if stripped.is_empty() {
@@ -248,9 +248,9 @@ fn profile_directive_payload(stripped_line: &str) -> Option<&str> {
 /// lower-cased `when foo` does not match (the captured group is
 /// case-sensitive).
 #[must_use]
-pub fn scan_file_events(source: &str) -> HashSet<String> {
+pub fn scan_file_events(source: &str) -> FxHashSet<String> {
     let bytes = source.as_bytes();
-    let mut out = HashSet::new();
+    let mut out = FxHashSet::default();
     for (pos, _) in source.match_indices("when") {
         // `\b` before `when`: the preceding byte must be a non-word char.
         if pos > 0 && is_word_byte(bytes[pos - 1]) {

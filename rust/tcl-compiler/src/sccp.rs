@@ -9,6 +9,8 @@
 
 use std::collections::{HashMap, HashSet};
 
+use rustc_hash::FxHashSet;
+
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
@@ -373,8 +375,8 @@ fn seed_live_in_roots<S: std::hash::BuildHasher>(
     ssa: &SsaFunction,
     values: &mut HashMap<ValueKey, LatticeValue, S>,
 ) {
-    let mut defined_keys: HashSet<ValueKey> = HashSet::new();
-    let mut used_keys: HashSet<ValueKey> = HashSet::new();
+    let mut defined_keys: FxHashSet<ValueKey> = FxHashSet::default();
+    let mut used_keys: FxHashSet<ValueKey> = FxHashSet::default();
     for ssa_block in ssa.blocks.values() {
         for phi in &ssa_block.phis {
             defined_keys.insert((phi.name.clone(), phi.version));
@@ -615,8 +617,8 @@ pub fn existence_constant_branches(
         return out;
     }
     // Vars defined / unset anywhere in the function.
-    let mut defined: HashSet<String> = HashSet::new();
-    let mut unset: HashSet<&str> = HashSet::new();
+    let mut defined: FxHashSet<String> = FxHashSet::default();
+    let mut unset: FxHashSet<&str> = FxHashSet::default();
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
             match stmt {

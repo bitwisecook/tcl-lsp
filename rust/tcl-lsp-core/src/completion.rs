@@ -39,6 +39,7 @@
 //! top of this provider in `tcl-lsp-server::Backend::completion`;
 //! this module is the pure-CPU computation, no I/O, no async.
 
+use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
 use tcl_registry::CommandRegistry;
 
@@ -298,14 +299,14 @@ pub fn completions(
     // current document's procs (already present above) and
     // any same-named workspace proc don't double up.
     if let Some(index) = workspace {
-        let present: std::collections::HashSet<String> =
+        let present: FxHashSet<String> =
             items.iter().map(|i| i.label.clone()).collect();
         let mut ws: Vec<&crate::workspace_index::WorkspaceProc> =
             index.procs_matching(&partial, "");
         // Stable, name-sorted order so cross-doc results don't
         // jitter between requests.
         ws.sort_unstable_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
-        let mut seen_ws: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut seen_ws: FxHashSet<String> = FxHashSet::default();
         for proc in ws {
             if present.contains(&proc.name) || !seen_ws.insert(proc.name.clone()) {
                 continue;
@@ -618,7 +619,7 @@ fn variable_completions(
     // Cross-namespace candidates — variables in *other* namespaces, offered in
     // fully-qualified `::ns::var` form (vars in the cursor's own namespace
     // chain are already above as bare names).
-    let mut seen: std::collections::HashSet<String> =
+    let mut seen: FxHashSet<String> =
         items.iter().map(|i| i.label.clone()).collect();
     let chain = crate::definition::lexical_namespace_chain(scope, byte_offset);
     let mut qnames = crate::definition::cross_namespace_qualified_vars(scope, &chain);
@@ -888,8 +889,8 @@ fn usage_bucket(count: usize) -> u8 {
 /// analyser's per-document `command_invocations`.  Used as a
 /// best-effort, document-local proxy for workspace-wide usage
 /// counts.
-fn document_usage_counts(analysis: &AnalysisResult) -> std::collections::HashMap<String, usize> {
-    let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+fn document_usage_counts(analysis: &AnalysisResult) -> FxHashMap<String, usize> {
+    let mut counts: FxHashMap<String, usize> = FxHashMap::default();
     for inv in &analysis.command_invocations {
         *counts.entry(inv.name.clone()).or_insert(0) += 1;
         if let Some(q) = inv.resolved_qualified_name.as_deref()
@@ -912,7 +913,7 @@ fn builtin_sort_text(name: &str, usage: usize) -> String {
 fn builtin_completions(
     registry: &CommandRegistry,
     partial: &str,
-    usage: &std::collections::HashMap<String, usize>,
+    usage: &FxHashMap<String, usize>,
 ) -> Vec<CompletionItem> {
     let mut names: Vec<&str> = registry
         .command_names()
@@ -994,7 +995,7 @@ fn proc_sort_text(name: &str, usage: usize) -> String {
 fn proc_completions(
     analysis: &AnalysisResult,
     partial: &str,
-    usage: &std::collections::HashMap<String, usize>,
+    usage: &FxHashMap<String, usize>,
 ) -> Vec<CompletionItem> {
     let mut items = Vec::new();
     let mut names: Vec<(&str, &ProcDef)> = analysis

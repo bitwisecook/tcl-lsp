@@ -12,6 +12,7 @@ authors.workspace = true
 tcl-syntax = { path = "../tcl-syntax" }
 bitflags = "2"
 sha2 = "0.10"
+rustc-hash = { workspace = true }
 
 [lints]
 workspace = true

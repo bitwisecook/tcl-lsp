@@ -68,6 +68,7 @@
 use std::collections::{HashMap, HashSet};
 
 use bitflags::bitflags;
+use rustc_hash::FxHashSet;
 
 use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst};
 use tcl_registry::dialects::DialectSet;
@@ -832,7 +833,7 @@ fn reachable_writes_global(
     // Unknown / top-level caller: walk the CFG for direct Call
     // targets, resolve them, and union the transitive closures.
     let known: HashSet<String> = ia.procedures.keys().cloned().collect();
-    let mut visited: HashSet<String> = HashSet::new();
+    let mut visited: FxHashSet<String> = FxHashSet::default();
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
             if let Statement::Call { command, .. } = stmt
@@ -866,8 +867,8 @@ fn reachable_writes_global(
 /// map, and every phi's incoming edges so we catch globals reached
 /// from any predecessor — the entry block alone typically has no
 /// seeded versions for globals.
-fn collect_global_reads(ssa: &SsaFunction) -> HashSet<String> {
-    let mut out: HashSet<String> = HashSet::new();
+fn collect_global_reads(ssa: &SsaFunction) -> FxHashSet<String> {
+    let mut out: FxHashSet<String> = FxHashSet::default();
     let mut consider = |name: &str| {
         if name.starts_with("::") {
             out.insert(name.to_owned());
@@ -1252,7 +1253,7 @@ pub fn find_destructive_file_warnings(
             // nondeterministic variable for a multi-path sink like
             // `file rename $a $b` — making the warning's message (and the memo
             // vs whole-module builds) differ run-to-run.
-            let mut seen: HashSet<String> = HashSet::new();
+            let mut seen: FxHashSet<String> = FxHashSet::default();
             let mut ordered: Vec<String> = Vec::new();
             for a in args.iter().skip(path_start) {
                 for name in arg_var_names_ordered(a) {
@@ -1565,7 +1566,7 @@ fn emit_double_encode_warnings(
         return;
     };
     let label = double_encode_label(dup_colour);
-    let mut emitted: HashSet<String> = HashSet::new();
+    let mut emitted: FxHashSet<String> = FxHashSet::default();
     for (name, &ver) in uses {
         if is_seeded_global_v0(name, ver) || emitted.contains(name) {
             continue;
@@ -2080,7 +2081,7 @@ fn emit_sink_warnings(
     call: &SinkCall<'_>,
     warnings: &mut Vec<TaintWarning>,
 ) {
-    let mut emitted: HashSet<String> = HashSet::new();
+    let mut emitted: FxHashSet<String> = FxHashSet::default();
     for (name, &ver) in uses {
         if is_seeded_global_v0(name, ver) || emitted.contains(name) {
             continue;
@@ -2274,7 +2275,7 @@ fn emit_option_injection(
     // deterministic, source-ordered emission.
     let mut ordered: Vec<usize> = region.into_iter().collect();
     ordered.sort_unstable();
-    let mut emitted: HashSet<String> = HashSet::new();
+    let mut emitted: FxHashSet<String> = FxHashSet::default();
     for i in ordered {
         let Some(arg) = args.get(i) else { continue };
         let mut names: Vec<String> = arg_var_names(arg).into_iter().collect();

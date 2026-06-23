@@ -36,8 +36,7 @@
 //! * Method-call hints inside class bodies — needs the
 //!   analyser's method-resolution machinery — are not shown.
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::types::{TypeKind, TypeLattice};
@@ -210,7 +209,7 @@ fn collect_type_hints(
     // Flatten the per-SSA-definition type lattices into a name → display
     // map.  This is last-writer-wins across versions and
     // functions; distinct names (the common case) are order-independent.
-    let mut type_map: HashMap<String, String> = HashMap::new();
+    let mut type_map: FxHashMap<String, String> = FxHashMap::default();
     for fu in cu.functions() {
         for ((name, _ver), tl) in &fu.types {
             if let Some(display) = type_display(tl) {
@@ -237,7 +236,7 @@ fn collect_type_hints(
 /// definition falls within `range`.
 fn walk_scope_type_hints(
     scope: &Scope,
-    type_map: &HashMap<String, String>,
+    type_map: &FxHashMap<String, String>,
     range: LspRange,
     source: &str,
     line_index: &LineIndex,
