@@ -1055,3 +1055,18 @@ The tcltest oracle stays in place.
   plus bare-`$` rejection). Added `rust/tcl-vm/src/subst.rs::tests` (7 cases).
 
 The tcltest oracle stays in place.
+
+### tcltest `list.test` / `string.test` (VM index + quoting helpers) → `tcl-vm::exec`
+
+- **Ported (gap-fill).** The NRE trampoline (`exec.rs`) had no unit module at
+  all; added one for its four pure, VM-independent helpers (each exercised
+  end-to-end by the bytecode tcltest sweeps but never asserted in isolation):
+  `brace_safe` (balanced-brace test honouring `\{`/`\}` escapes and the
+  trailing-lone-backslash rule), `quote_for_script` (brace-wrap when safe, else
+  delegate to `tcl_syntax::list` element quoting), `imm_index` (bytecode
+  immediate index decode — literal vs `INDEX_END`-relative `end`/`end-k`), and
+  `char_find` (`string first`/`last` returning **character** indices, verified
+  against a multi-byte `é` haystack). Added `rust/tcl-vm/src/exec.rs::tests`
+  (4 cases).
+
+The tcltest oracle stays in place.
