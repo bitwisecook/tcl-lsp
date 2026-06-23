@@ -58,6 +58,7 @@
 //! iRules object-reference highlighting (the code-relevant half
 //! of the BIG-IP taxonomy) is handled.
 
+use rustc_hash::FxHashMap;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Token, TokenType};
 
@@ -474,8 +475,8 @@ fn push_regsub_subtokens(
 fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
-) -> std::collections::HashMap<u32, ArgOverride> {
-    let mut overrides = std::collections::HashMap::new();
+) -> FxHashMap<u32, ArgOverride> {
+    let mut overrides = FxHashMap::default();
     let head = &seg.texts[0];
 
     // `when EVENT` — the literal event-name argument.

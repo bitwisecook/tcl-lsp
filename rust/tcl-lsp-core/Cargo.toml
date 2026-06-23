@@ -14,6 +14,7 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-irules = { path = "../tcl-irules" }
 regex = "1"
+rustc-hash = { workspace = true }
 
 [lints]
 workspace = true

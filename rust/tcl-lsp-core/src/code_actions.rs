@@ -36,6 +36,7 @@
 //! * Cross-document refactors (move to file, split namespace)
 //!   are not supported.
 
+use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 
@@ -1327,7 +1328,7 @@ pub fn context_diagnostic_actions(source: &str, diags: &[ContextDiagnostic]) -> 
     }
     // De-duplicate (two IRULE1006 diags for the same buffer command yield the
     // same bootstrap action).  Key on the title + edit replacement texts.
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = FxHashSet::default();
     out.retain(|a| {
         let key = (
             a.title.clone(),

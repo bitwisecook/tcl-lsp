@@ -10,10 +10,9 @@
 
 use std::collections::HashMap;
 
+use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
 use tcl_registry::{CommandRegistry, Traits};
-
-use std::collections::HashSet;
 
 use crate::cfg::{CfgModule, Function as CfgFunction, Terminator};
 use crate::ir::Statement;
@@ -127,7 +126,7 @@ pub struct ExprOccurrence {
 /// or impure-call statements).
 #[derive(Debug, Default)]
 pub struct ScopedValueTable {
-    scopes: Vec<HashMap<ExprKey, ValueEntry>>,
+    scopes: Vec<FxHashMap<ExprKey, ValueEntry>>,
 }
 
 impl ScopedValueTable {
@@ -135,13 +134,13 @@ impl ScopedValueTable {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            scopes: vec![HashMap::new()],
+            scopes: vec![FxHashMap::default()],
         }
     }
 
     /// Push a new empty scope.
     pub fn push_scope(&mut self) {
-        self.scopes.push(HashMap::new());
+        self.scopes.push(FxHashMap::default());
     }
 
     /// Pop the innermost scope, keeping the root scope in place.
@@ -175,7 +174,7 @@ impl ScopedValueTable {
     /// Drop every tracked entry. Used on barrier / impure-call
     /// statements where no previously-tracked value can be trusted.
     pub fn kill_all(&mut self) {
-        self.scopes = vec![HashMap::new()];
+        self.scopes = vec![FxHashMap::default()];
     }
 
     /// Number of scopes currently on the stack. Primarily exposed
@@ -344,7 +343,7 @@ pub fn loop_invariant_message(expression_text: &str) -> String {
 pub struct PureProcs {
     /// Fully-qualified names of procs with no observable side
     /// effects.
-    pub names: std::collections::HashSet<String>,
+    pub names: FxHashSet<String>,
 }
 
 impl PureProcs {
@@ -399,8 +398,7 @@ pub fn find_pure_procs(
     cfg_module: &CfgModule,
     dialect: Option<&str>,
 ) -> PureProcs {
-    let mut pure: std::collections::HashSet<String> =
-        cfg_module.procedures.keys().cloned().collect();
+    let mut pure: FxHashSet<String> = cfg_module.procedures.keys().cloned().collect();
 
     let mut changed = true;
     while changed {
@@ -425,7 +423,7 @@ pub fn find_pure_procs(
 fn function_body_is_pure(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
-    pure: &std::collections::HashSet<String>,
+    pure: &FxHashSet<String>,
     dialect: Option<&str>,
 ) -> bool {
     for block in cfg.blocks.values() {
@@ -443,7 +441,7 @@ fn function_body_is_pure(
 fn statement_is_pure(
     registry: &CommandRegistry,
     stmt: &Statement,
-    pure: &std::collections::HashSet<String>,
+    pure: &FxHashSet<String>,
     dialect: Option<&str>,
 ) -> bool {
     match stmt {
@@ -493,7 +491,7 @@ fn statement_is_pure(
 
 fn is_pure_with_procs_core(
     registry: &CommandRegistry,
-    pure: &std::collections::HashSet<String>,
+    pure: &FxHashSet<String>,
     cmd: &str,
     args: &[String],
     dialect: Option<&str>,
@@ -1054,8 +1052,8 @@ fn dominates(ssa: &SsaFunction, ancestor: &str, node: &str) -> bool {
 }
 
 /// Enumerate block names reachable from `entry` via CFG edges.
-fn reachable_from(cfg: &CfgFunction, entry: &str) -> HashSet<String> {
-    let mut out = HashSet::new();
+fn reachable_from(cfg: &CfgFunction, entry: &str) -> FxHashSet<String> {
+    let mut out = FxHashSet::default();
     let mut stack = vec![entry.to_owned()];
     while let Some(name) = stack.pop() {
         if !out.insert(name.clone()) {
@@ -1089,10 +1087,10 @@ fn natural_loop_blocks(
     cfg: &CfgFunction,
     header: &str,
     latch: &str,
-    executable: &HashSet<String>,
-) -> HashSet<String> {
+    executable: &FxHashSet<String>,
+) -> FxHashSet<String> {
     let preds = cfg.predecessors();
-    let mut blocks: HashSet<String> = HashSet::new();
+    let mut blocks: FxHashSet<String> = FxHashSet::default();
     blocks.insert(header.to_owned());
     blocks.insert(latch.to_owned());
     let mut work = vec![latch.to_owned()];
@@ -1114,8 +1112,8 @@ fn natural_loop_blocks(
 
 /// All variable names defined inside `loop_blocks` (phi LHS +
 /// statement defs).
-fn loop_defined_variables(ssa: &SsaFunction, loop_blocks: &HashSet<String>) -> HashSet<String> {
-    let mut defs = HashSet::new();
+fn loop_defined_variables(ssa: &SsaFunction, loop_blocks: &FxHashSet<String>) -> FxHashSet<String> {
+    let mut defs = FxHashSet::default();
     for bn in loop_blocks {
         if let Some(block) = ssa.blocks.get(bn) {
             for phi in &block.phis {
@@ -1154,10 +1152,8 @@ pub fn find_loop_invariants(
     // detection: edge tail → succ where succ dominates tail. The
     // back-edge tails (latches) are tracked per header for the
     // latch-dominance gate below.
-    let mut header_to_blocks: std::collections::HashMap<String, HashSet<String>> =
-        std::collections::HashMap::new();
-    let mut header_to_latches: std::collections::HashMap<String, HashSet<String>> =
-        std::collections::HashMap::new();
+    let mut header_to_blocks: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut header_to_latches: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     for tail in &executable {
         let Some(block) = cfg.blocks.get(tail) else {
             continue;
@@ -1264,12 +1260,8 @@ pub fn collect_function_occurrence_events(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     dialect: Option<&str>,
-) -> (
-    std::collections::HashMap<String, Vec<OccurrenceEvent>>,
-    Vec<ExprOccurrence>,
-) {
-    let mut events_by_block: std::collections::HashMap<String, Vec<OccurrenceEvent>> =
-        std::collections::HashMap::new();
+) -> (FxHashMap<String, Vec<OccurrenceEvent>>, Vec<ExprOccurrence>) {
+    let mut events_by_block: FxHashMap<String, Vec<OccurrenceEvent>> = FxHashMap::default();
     let mut all_occurrences: Vec<ExprOccurrence> = Vec::new();
 
     for (bn, cfg_block) in &cfg.blocks {
@@ -1302,8 +1294,8 @@ pub fn collect_function_occurrence_events(
 /// returning the resulting set at block exit.
 fn transfer_occurrence_keys(
     events: &[OccurrenceEvent],
-    mut state: std::collections::HashSet<ExprKey>,
-) -> std::collections::HashSet<ExprKey> {
+    mut state: FxHashSet<ExprKey>,
+) -> FxHashSet<ExprKey> {
     for e in events {
         match e {
             OccurrenceEvent::Kill => state.clear(),
@@ -1322,7 +1314,7 @@ fn transfer_occurrence_keys(
 /// hoisting before the merge point would save the computation
 /// on the path where it hadn't yet been run).
 /// Maps tracked by the partial-redundancy dataflow fixpoint.
-type ExprKeySetMap = std::collections::HashMap<String, std::collections::HashSet<ExprKey>>;
+type ExprKeySetMap = FxHashMap<String, FxHashSet<ExprKey>>;
 
 /// Run the partial-redundancy may/must-availability dataflow
 /// fixpoint.  Returns `(may_in, may_out, must_in, must_out)` after
@@ -1331,23 +1323,23 @@ type ExprKeySetMap = std::collections::HashMap<String, std::collections::HashSet
 fn run_partial_redundancy_fixpoint(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    executable: &std::collections::HashSet<String>,
-    events_by_block: &std::collections::HashMap<String, Vec<OccurrenceEvent>>,
-    universe: &std::collections::HashSet<ExprKey>,
+    executable: &FxHashSet<String>,
+    events_by_block: &FxHashMap<String, Vec<OccurrenceEvent>>,
+    universe: &FxHashSet<ExprKey>,
     order: &[String],
 ) -> (ExprKeySetMap, ExprKeySetMap, ExprKeySetMap, ExprKeySetMap) {
     let preds = cfg.predecessors();
-    let mut may_in: ExprKeySetMap = std::collections::HashMap::new();
-    let mut may_out: ExprKeySetMap = std::collections::HashMap::new();
-    let mut must_in: ExprKeySetMap = std::collections::HashMap::new();
-    let mut must_out: ExprKeySetMap = std::collections::HashMap::new();
+    let mut may_in: ExprKeySetMap = FxHashMap::default();
+    let mut may_out: ExprKeySetMap = FxHashMap::default();
+    let mut must_in: ExprKeySetMap = FxHashMap::default();
+    let mut must_out: ExprKeySetMap = FxHashMap::default();
     for bn in executable {
-        may_in.insert(bn.clone(), std::collections::HashSet::new());
-        may_out.insert(bn.clone(), std::collections::HashSet::new());
+        may_in.insert(bn.clone(), FxHashSet::default());
+        may_out.insert(bn.clone(), FxHashSet::default());
         must_in.insert(
             bn.clone(),
             if bn == &ssa.entry {
-                std::collections::HashSet::new()
+                FxHashSet::default()
             } else {
                 universe.clone()
             },
@@ -1380,16 +1372,13 @@ fn run_partial_redundancy_fixpoint(
                 })
                 .unwrap_or_default();
             let (new_must_in, new_may_in) = if bn == &ssa.entry || pred_set.is_empty() {
-                (
-                    std::collections::HashSet::new(),
-                    std::collections::HashSet::new(),
-                )
+                (FxHashSet::default(), FxHashSet::default())
             } else {
                 let mut mi = must_out[&pred_set[0]].clone();
                 for p in &pred_set[1..] {
                     mi = mi.intersection(&must_out[p]).cloned().collect();
                 }
-                let mut my: std::collections::HashSet<ExprKey> = std::collections::HashSet::new();
+                let mut my: FxHashSet<ExprKey> = FxHashSet::default();
                 for p in &pred_set {
                     my.extend(may_out[p].iter().cloned());
                 }
@@ -1445,11 +1434,10 @@ pub fn find_partial_redundancies(
     if all_occurrences.is_empty() {
         return Vec::new();
     }
-    let universe: std::collections::HashSet<ExprKey> =
-        all_occurrences.iter().map(|o| o.key.clone()).collect();
+    let universe: FxHashSet<ExprKey> = all_occurrences.iter().map(|o| o.key.clone()).collect();
 
     let mut order: Vec<String> = cfg.reverse_postorder();
-    let seen: std::collections::HashSet<String> = order.iter().cloned().collect();
+    let seen: FxHashSet<String> = order.iter().cloned().collect();
     for name in &executable {
         if !seen.contains(name) {
             order.push(name.clone());
@@ -1462,13 +1450,11 @@ pub fn find_partial_redundancies(
     // Build first-occurrence map by source offset.
     let mut sorted = all_occurrences.clone();
     sorted.sort_by_key(|o| o.span.start());
-    let mut first_by_key: std::collections::HashMap<ExprKey, ExprOccurrence> =
-        std::collections::HashMap::new();
+    let mut first_by_key: FxHashMap<ExprKey, ExprOccurrence> = FxHashMap::default();
     for occ in sorted {
         first_by_key.entry(occ.key.clone()).or_insert(occ);
     }
-    let mut key_offsets: std::collections::HashMap<ExprKey, std::collections::HashSet<u32>> =
-        std::collections::HashMap::new();
+    let mut key_offsets: FxHashMap<ExprKey, FxHashSet<u32>> = FxHashMap::default();
     for occ in &all_occurrences {
         key_offsets
             .entry(occ.key.clone())
@@ -2727,7 +2713,6 @@ mod tests {
 
     #[test]
     fn transfer_occurrence_keys_kill_clears_state() {
-        use std::collections::HashSet;
         let key: ExprKey = vec!["call".into(), "llength".into(), "$x@1".into()];
         let occ = ExprOccurrence {
             key: key.clone(),
@@ -2738,7 +2723,7 @@ mod tests {
             variable_uses: Vec::new(),
         };
         let events = vec![OccurrenceEvent::Occur(occ), OccurrenceEvent::Kill];
-        let out = transfer_occurrence_keys(&events, HashSet::new());
+        let out = transfer_occurrence_keys(&events, FxHashSet::default());
         assert!(!out.contains(&key));
     }
 

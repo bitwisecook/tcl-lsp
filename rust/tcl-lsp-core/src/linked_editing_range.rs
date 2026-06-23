@@ -17,6 +17,7 @@
 
 use crate::definition::LspRange;
 use crate::hover::find_word_span_at_position;
+use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef};
 use tcl_lexer::{LineIndex, Span};
 
@@ -134,8 +135,7 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
 }
 
 fn dedup_ranges(ranges: &mut Vec<LspRange>) {
-    let mut seen: std::collections::HashSet<(u32, u32, u32, u32)> =
-        std::collections::HashSet::new();
+    let mut seen: FxHashSet<(u32, u32, u32, u32)> = FxHashSet::default();
     ranges.retain(|r| seen.insert((r.start_line, r.start_character, r.end_line, r.end_character)));
 }
 

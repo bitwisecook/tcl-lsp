@@ -12,7 +12,7 @@
 // structure.
 #![allow(clippy::too_many_lines)]
 
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::side_effects::ConnectionSide;
 
@@ -157,12 +157,12 @@ pub struct OrderEntry {
 
 /// Event registry providing lookup over the static event tables.
 pub struct EventRegistry {
-    props: HashMap<&'static str, EventProps>,
+    props: FxHashMap<&'static str, EventProps>,
     order: Vec<OrderEntry>,
     flow_chains: Vec<FlowChain>,
-    once_per_connection: HashSet<&'static str>,
-    per_request: HashSet<&'static str>,
-    descriptions: HashMap<&'static str, &'static str>,
+    once_per_connection: FxHashSet<&'static str>,
+    per_request: FxHashSet<&'static str>,
+    descriptions: FxHashMap<&'static str, &'static str>,
 }
 
 impl EventRegistry {
@@ -171,7 +171,7 @@ impl EventRegistry {
     /// Called once at startup — the data is compiled into the binary.
     #[must_use]
     pub fn build() -> Self {
-        let mut props = HashMap::new();
+        let mut props = FxHashMap::default();
         for (name, ep) in event_props_table() {
             props.insert(name, ep);
         }
@@ -2386,7 +2386,7 @@ fn master_order() -> Vec<OrderEntry> {
     ]
 }
 
-fn once_per_connection() -> HashSet<&'static str> {
+fn once_per_connection() -> FxHashSet<&'static str> {
     [
         "ACCESS_POLICY_AGENT_EVENT",
         "ACCESS_POLICY_COMPLETED",
@@ -2406,7 +2406,7 @@ fn once_per_connection() -> HashSet<&'static str> {
     .collect()
 }
 
-fn per_request() -> HashSet<&'static str> {
+fn per_request() -> FxHashSet<&'static str> {
     [
         "ACCESS_ACL_ALLOWED",
         "ACCESS_ACL_DENIED",

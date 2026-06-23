@@ -50,6 +50,7 @@
 //!   command-substitution args and proc / method bodies but
 //!   not into string interpolation.
 
+use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 
@@ -447,9 +448,8 @@ pub(crate) fn find_obj_method_call_sites(
     class_q: &str,
     method: &str,
 ) -> Vec<tcl_lexer::Span> {
-    use std::collections::HashSet;
     // Variables of the target class.
-    let var_set: HashSet<&str> = analysis
+    let var_set: FxHashSet<&str> = analysis
         .instance_classes
         .iter()
         .filter(|(_, c)| c.as_str() == class_q)
@@ -459,7 +459,7 @@ pub(crate) fn find_obj_method_call_sites(
         return Vec::new();
     }
     let mut out: Vec<tcl_lexer::Span> = Vec::new();
-    let mut seen: HashSet<(u32, u32)> = HashSet::new();
+    let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
 
     // Region 1: the whole document.
     scan_obj_method_region(
@@ -513,10 +513,10 @@ fn scan_obj_method_body(
     source: &str,
     dialect: &str,
     body_span: tcl_lexer::Span,
-    var_set: &std::collections::HashSet<&str>,
+    var_set: &FxHashSet<&str>,
     method: &str,
     out: &mut Vec<tcl_lexer::Span>,
-    seen: &mut std::collections::HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
 ) {
     if body_span.is_empty() {
         return;
@@ -548,10 +548,10 @@ fn scan_obj_method_region(
     dialect: &str,
     start: usize,
     end: usize,
-    var_set: &std::collections::HashSet<&str>,
+    var_set: &FxHashSet<&str>,
     method: &str,
     out: &mut Vec<tcl_lexer::Span>,
-    seen: &mut std::collections::HashSet<(u32, u32)>,
+    seen: &mut FxHashSet<(u32, u32)>,
 ) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::TokenType;
@@ -775,8 +775,7 @@ pub fn document_highlights(
 /// records both as a write and as a Read keeps the Write
 /// label.
 fn dedup_kinded(mut entries: Vec<(LspRange, HighlightKind)>) -> Vec<(LspRange, HighlightKind)> {
-    use std::collections::HashMap;
-    let mut by_key: HashMap<(u32, u32, u32, u32), HighlightKind> = HashMap::new();
+    let mut by_key: FxHashMap<(u32, u32, u32, u32), HighlightKind> = FxHashMap::default();
     for (range, kind) in &entries {
         let key = (
             range.start_line,
@@ -794,8 +793,7 @@ fn dedup_kinded(mut entries: Vec<(LspRange, HighlightKind)>) -> Vec<(LspRange, H
             })
             .or_insert(kind);
     }
-    let mut seen: std::collections::HashSet<(u32, u32, u32, u32)> =
-        std::collections::HashSet::new();
+    let mut seen: FxHashSet<(u32, u32, u32, u32)> = FxHashSet::default();
     entries.retain_mut(|(range, kind)| {
         let key = (
             range.start_line,
@@ -832,8 +830,7 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) ->
 }
 
 fn dedup_ranges(ranges: &mut Vec<LspRange>) {
-    let mut seen: std::collections::HashSet<(u32, u32, u32, u32)> =
-        std::collections::HashSet::new();
+    let mut seen: FxHashSet<(u32, u32, u32, u32)> = FxHashSet::default();
     ranges.retain(|r| {
         let key = (r.start_line, r.start_character, r.end_line, r.end_character);
         seen.insert(key)

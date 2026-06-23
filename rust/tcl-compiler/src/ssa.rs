@@ -27,6 +27,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use tcl_registry::CommandRegistry;
 
 use crate::cfg;
@@ -380,7 +381,8 @@ pub(crate) fn compute_idom_fast(func: &cfg::Function) -> HashMap<String, Option<
         return out;
     }
     // Map block name → reverse-postorder index (entry == 0).
-    let mut rpo_index: HashMap<&str, usize> = HashMap::with_capacity(rpo.len());
+    let mut rpo_index: FxHashMap<&str, usize> =
+        FxHashMap::with_capacity_and_hasher(rpo.len(), FxBuildHasher);
     for (i, n) in rpo.iter().enumerate() {
         rpo_index.insert(n.as_str(), i);
     }
@@ -575,7 +577,7 @@ pub(crate) fn compute_phi_vars(
         }
         let mut work: Vec<String> = sites.iter().cloned().collect();
         work.sort();
-        let mut has_phi: HashSet<String> = HashSet::new();
+        let mut has_phi: FxHashSet<String> = FxHashSet::default();
 
         while let Some(nb) = work.pop() {
             for fb in df.get(&nb).into_iter().flatten() {
@@ -603,20 +605,20 @@ fn nonlocal_names_and_defsites(
     func: &cfg::Function,
     reachable: &HashSet<String>,
     registry: &CommandRegistry,
-) -> (HashSet<String>, HashMap<String, HashSet<String>>) {
+) -> (FxHashSet<String>, FxHashMap<String, FxHashSet<String>>) {
     let mut scanner = VarReferenceScanner::new(VarScanOptions {
         include_var_read_roles: true,
         recurse_cmd_substitutions: true,
         include_reads_before_write: false,
     });
-    let mut nonlocal_names: HashSet<String> = HashSet::new();
-    let mut defsites: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut nonlocal_names: FxHashSet<String> = FxHashSet::default();
+    let mut defsites: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
 
     for bn in reachable {
         let Some(block) = func.blocks.get(bn) else {
             continue;
         };
-        let mut defined_here: HashSet<String> = HashSet::new();
+        let mut defined_here: FxHashSet<String> = FxHashSet::default();
         for stmt in &block.statements {
             for u in uses_of(stmt, &mut scanner, registry) {
                 if !defined_here.contains(&u) {
