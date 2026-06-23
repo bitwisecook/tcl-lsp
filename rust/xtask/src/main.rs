@@ -21,15 +21,19 @@
 //!   markdown links + KCS/design index coverage under `docs/`.
 //! - `version` — port of `scripts/print_version.py`: print the
 //!   setuptools-scm / hatch-vcs project version from `git describe`.
+//! - `tzdata-bundle` — port of `scripts/build/tzdata_bundle.py`: pack the
+//!   curated tzdata `TZBL` bundle for the WASM runtime.
 
 #![forbid(unsafe_code)]
 
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 
 mod kcs_index_links;
 mod refcount_contract;
+mod tzdata_bundle;
 mod util;
 mod version;
 
@@ -61,6 +65,24 @@ enum Command {
     ///
     /// Port of `scripts/print_version.py`.
     Version,
+
+    /// Pack the curated tzdata `TZBL` bundle for the WASM runtime.
+    ///
+    /// Port of `scripts/build/tzdata_bundle.py`.
+    TzdataBundle {
+        /// Host zoneinfo directory to read `TZif` files from.
+        #[arg(long, default_value = "/usr/share/zoneinfo")]
+        zoneinfo: PathBuf,
+        /// Path to write the packed bundle (e.g. `runtime/zig/data/tzdata.bin`).
+        #[arg(long)]
+        output: PathBuf,
+        /// Drop `TZif` transitions strictly before this Unix epoch second.
+        #[arg(long, value_name = "EPOCH")]
+        trim_from: Option<i64>,
+        /// Drop `TZif` transitions strictly after this Unix epoch second.
+        #[arg(long, value_name = "EPOCH")]
+        trim_to: Option<i64>,
+    },
 }
 
 fn main() -> anyhow::Result<ExitCode> {
@@ -68,5 +90,11 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::RefcountContract { strict } => refcount_contract::run(strict),
         Command::KcsIndexLinks => kcs_index_links::run(),
         Command::Version => Ok(version::run()),
+        Command::TzdataBundle {
+            zoneinfo,
+            output,
+            trim_from,
+            trim_to,
+        } => tzdata_bundle::run(&zoneinfo, &output, trim_from, trim_to),
     }
 }
