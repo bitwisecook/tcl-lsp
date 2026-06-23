@@ -267,7 +267,7 @@ fn walk_scope_type_hints(
     }
 }
 
-// -- format-string specifier hints ---------------------------------------
+// format-string specifier hints
 //
 // `Type`-kind hints that annotate the conversion specifiers inside the
 // format string
@@ -1071,7 +1071,7 @@ mod tests {
         assert_eq!(hints[0].position_line, 2);
     }
 
-    // -- built-in command synopsis hints --------
+    // built-in command synopsis hints
 
     fn registry() -> tcl_registry::CommandRegistry {
         tcl_registry::CommandRegistry::build_default()
@@ -1341,7 +1341,7 @@ mod tests {
         assert!(labels.contains(&"name:"), "{hints:?}");
     }
 
-    // -- inferred type hints (InlayHintKind::Type) ------------------------
+    // inferred type hints (InlayHintKind::Type)
 
     #[test]
     fn type_hint_for_integer_set() {
@@ -1451,7 +1451,7 @@ mod tests {
         assert!(hints.is_empty(), "{hints:?}");
     }
 
-    // -- format-string specifier hints (InlayHintKind::Type) --------------
+    // format-string specifier hints (InlayHintKind::Type)
 
     fn type_labels(src: &str) -> Vec<(u32, String)> {
         let analysis = analyse(src);

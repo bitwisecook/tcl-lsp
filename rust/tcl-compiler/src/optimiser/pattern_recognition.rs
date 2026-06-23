@@ -397,7 +397,7 @@ mod tests {
         ctx.optimisations
     }
 
-    // -- helpers ------------------------------------------------------------
+    // helpers
 
     #[test]
     fn var_matches_normalises_dollar_prefix() {
@@ -412,7 +412,7 @@ mod tests {
         assert_eq!(format_incr("x", -3), "incr x -3");
     }
 
-    // -- end-to-end tests ---------------------------------------------------
+    // end-to-end tests
 
     #[test]
     fn set_expr_plus_one_rewrites_to_incr() {

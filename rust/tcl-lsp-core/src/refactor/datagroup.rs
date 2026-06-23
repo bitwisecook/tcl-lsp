@@ -47,7 +47,7 @@ pub fn data_group_tcl(dg: &DataGroupDefinition) -> String {
     lines.join("\n")
 }
 
-// ── Value-type inference ──────────────────────────────────────────────
+// Value-type inference
 
 /// `true` when `value` looks like an IPv4/IPv6 address or CIDR range.
 fn is_ip_or_cidr(value: &str) -> bool {
@@ -128,7 +128,7 @@ fn normalise_dg_name(name: &str) -> String {
     }
 }
 
-// ── Equality-condition parsing ────────────────────────────────────────
+// Equality-condition parsing
 
 /// Recognised equality operators.
 const EQ_OPS: &[&str] = &["==", "!=", "eq", "ne"];
@@ -243,7 +243,7 @@ fn extract_var_name(subject: &str) -> Option<String> {
     None
 }
 
-// ── set/return body parsing ───────────────────────────────────────────
+// set/return body parsing
 
 /// Parsed single-command arm body.
 enum SetOrReturn {
@@ -327,7 +327,7 @@ fn extract_single_value(body: &str, use_return: bool, target_var: &str) -> Optio
     }
 }
 
-// ── if-chain extraction ───────────────────────────────────────────────
+// if-chain extraction
 
 /// Extract an if/elseif chain comparing one variable to literals.
 #[must_use]
@@ -551,7 +551,7 @@ fn build_result(
     }
 }
 
-// ── switch extraction ─────────────────────────────────────────────────
+// switch extraction
 
 /// Extract a switch statement with many literal arms to a data-group.
 #[must_use]

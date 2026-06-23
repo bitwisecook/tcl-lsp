@@ -317,7 +317,6 @@ pub fn describe_bad_value(s: &str) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Join — `Tcl_Merge` / `Tcl_ScanElement` + `Tcl_ConvertElement`.
 
 /// How a value must be quoted to appear as one Tcl list element. Mirrors the

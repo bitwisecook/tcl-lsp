@@ -156,7 +156,7 @@ pub(super) fn maybe_recurse_body(
     );
 }
 
-// -- Body-recursion handlers --------------------------------------
+// Body-recursion handlers
 // Handlers for commands that recurse into braced bodies.
 
 fn handle_if(

@@ -121,7 +121,7 @@ fn read_path_extracts_encrypted_ucs_file() {
     assert_eq!(source, read_text("sample.scf.golden"));
 }
 
-// --- Passphrase resolution order (explicit → env → prompt → error) ----------
+// Passphrase resolution order (explicit → env → prompt → error)
 
 // The `Result` is required to match the `PassphraseOptions::prompt` fn-pointer
 // type, so the always-`Ok` wrap is intentional.

@@ -71,7 +71,7 @@ fn conf() -> String {
     fixture("bigip.conf")
 }
 
-// --- binding flags ------------------------------------------------------
+// binding flags
 
 #[test]
 fn input_json_obj() {
@@ -244,7 +244,7 @@ fn input_generic_json() {
     );
 }
 
-// --- loader builtins (path-independent goldens) -------------------------
+// loader builtins (path-independent goldens)
 
 /// Assert a loader-builtin query (whose only path is inside the query
 /// string, absent from the output) matches a static golden.
@@ -303,7 +303,7 @@ fn load_f5log() {
     );
 }
 
-// --- error cases --------------------------------------------------------
+// error cases
 
 /// Run an erroring invocation and assert exit code + stderr substring.
 fn assert_error(args: &[&str], code: i32, stderr_contains: &str) {
@@ -383,7 +383,7 @@ fn err_load_missing_file() {
     );
 }
 
-// --- help-inputs --------------------------------------------------------
+// help-inputs
 
 #[test]
 fn help_inputs() {

@@ -346,7 +346,7 @@ fn netmask_to_prefix(mask: u32) -> Option<u8> {
     }
 }
 
-// ---- IPv4 classification (IANA range tables) ----------------------
+// IPv4 classification (IANA range tables)
 
 fn v4_in(ip: u32, net_addr: [u8; 4], prefix: u8) -> bool {
     let base = u32::from_be_bytes(net_addr);
@@ -409,7 +409,7 @@ fn v4_is_unspecified(ip: u32) -> bool {
     ip == 0
 }
 
-// ---- IPv6 classification (IANA range tables) ----------------------
+// IPv6 classification (IANA range tables)
 
 fn v6_in(ip: u128, net: &str) -> bool {
     let n: Ipv6Net = net.parse().unwrap();
@@ -511,7 +511,7 @@ fn v6_is_unspecified(ip: u128) -> bool {
     ip == 0
 }
 
-// ---- per-address predicate dispatch ---------------------------------------
+// per-address predicate dispatch
 
 fn addr_is_ipv4(a: IpAddr) -> bool {
     a.is_ipv4()
@@ -1447,7 +1447,7 @@ fn bi_with_route_domain(args: &[Value]) -> Result<Value, QueryError> {
     )))
 }
 
-// ---- predicates -----------------------------------------------------------
+// predicates
 
 fn addr_predicate(value: &Value, name: &str, f: fn(IpAddr) -> bool) -> Result<Value, QueryError> {
     let a = typed_address(value, name)?;
@@ -1501,7 +1501,7 @@ fn bi_is_wildcard_port(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(result))
 }
 
-// ---- network info ---------------------------------------------------------
+// network info
 
 fn bi_prefix_length(args: &[Value]) -> Result<Value, QueryError> {
     match typed_network(&args[0], "prefix_length", 1)? {
@@ -1592,7 +1592,7 @@ fn bi_host_count(args: &[Value]) -> Result<Value, QueryError> {
     }
 }
 
-// ---- CIDR algebra ---------------------------------------------------------
+// CIDR algebra
 
 fn as_sequence(v: &Value, name: &str, arg: usize) -> Result<Vec<Value>, QueryError> {
     crate::builtins::as_sequence(v, name, arg)
@@ -1821,7 +1821,7 @@ fn bi_overlaps(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(result))
 }
 
-// ---- destination edit -----------------------------------------------------
+// destination edit
 
 fn bi_with_port(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "with_port", 1)?;
@@ -1963,7 +1963,7 @@ fn fqdn_value_error(text: &str) -> String {
     format!("FQDN: looks like an IPv4 address ({})", py_str_repr(t))
 }
 
-// ---- path / folder --------------------------------------------------------
+// path / folder
 
 fn bi_folder(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "folder", 1)?;
@@ -2064,7 +2064,7 @@ fn bi_can_see(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(r.partition().can_see(t.partition())))
 }
 
-// ---- port sets ------------------------------------------------------------
+// port sets
 
 #[derive(Clone, Copy)]
 struct PortSeg {
@@ -2172,7 +2172,7 @@ fn bi_port_set_overlaps(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(result))
 }
 
-// ---- IP ranges ------------------------------------------------------------
+// IP ranges
 
 /// Parse an IP range into `(first, last)` as same-family `IpAddr`, or `None`.
 fn ip_range_try_parse(text: &str) -> Option<(IpAddr, IpAddr)> {

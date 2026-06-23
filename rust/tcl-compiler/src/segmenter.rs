@@ -1010,7 +1010,7 @@ mod tests {
     }
 
     // -- whole-command range covers the last
-    //    word's closing delimiter ----------------------------------
+    // word's closing delimiter
 
     #[test]
     fn command_span_includes_trailing_brace() {

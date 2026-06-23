@@ -141,7 +141,7 @@ fn dedup_preserve<T: Clone + PartialEq>(items: &mut Vec<T>) {
     *items = seen;
 }
 
-// ── Formatters ──────────────────────────────────────────────────────
+// Formatters
 
 fn format_hosts(entries: &[(String, String)]) -> String {
     let mut lines =
@@ -243,7 +243,7 @@ Drop this directory into your Wireshark profiles folder and select it from \
     )
 }
 
-// ── Source-text extractors ──────────────────────────────────────────
+// Source-text extractors
 
 fn property(props: &[(String, String)], key: &str) -> Option<String> {
     props.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
@@ -310,7 +310,7 @@ const BIGIP_CONTROL_SERVICES: &[(&str, i64, &str)] = &[
     ("f5-snmp-trap", 162, "udp"),
 ];
 
-// ── BigipConfig accessors ───────────────────────────────────────────
+// BigipConfig accessors
 
 fn typed_objects<'a>(
     cfg: &'a BigipConfig,
@@ -382,7 +382,7 @@ fn profile_types_for_virtual(
     out
 }
 
-// ── Index → file rows ───────────────────────────────────────────────
+// Index → file rows
 
 fn hosts_from_index(index: &NameIndex) -> Vec<(String, String)> {
     let mut pairs = Vec::new();
@@ -765,7 +765,7 @@ fn ethers_from_arp(source: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-// ── iRule / policy port regex ports ─────────────────────────────────
+// iRule / policy port regex ports
 
 /// `\b(?:node|connect)\s+\S+\s+(\d{1,5})\b | \bpool\s+\S+\s+member\s+\S+\s+(\d{1,5})\b`.
 fn irule_host_port(body: &str) -> Vec<i64> {
@@ -901,7 +901,7 @@ fn parse_trailing_digits(tok: &str) -> Option<i64> {
     s.parse::<i64>().ok()
 }
 
-// ── Color rules + proxy-side filters ────────────────────────────────
+// Color rules + proxy-side filters
 
 fn addresses_for_label_prefix(index: &NameIndex, prefix: &str) -> (Vec<String>, Vec<String>) {
     let needle = format!("{prefix}-");
@@ -1028,7 +1028,7 @@ fn build_preferences() -> Vec<String> {
     vec![format!("gui.column.format: {column_format}")]
 }
 
-// ── Builder ─────────────────────────────────────────────────────────
+// Builder
 
 /// Assemble a [`WiresharkProfile`] from one or more `(config, source)` pairs.
 #[must_use]

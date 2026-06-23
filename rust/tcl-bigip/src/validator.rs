@@ -59,7 +59,7 @@ pub struct ConfigDiagnostic {
     pub range: Range,
 }
 
-// ── iRule source-scanning regexes ────────────────────────────────────────
+// iRule source-scanning regexes
 //
 // The `regex` crate has no look-around, so the two negative look-ahead
 // guards (`pool (?!member)`, `persist (?!none)`) are handled by
@@ -158,7 +158,7 @@ fn object_range(range: Option<Range>) -> Range {
     range.unwrap_or_else(Range::zero)
 }
 
-// ── Per-iRule checks ─────────────────────────────────────────────────────
+// Per-iRule checks
 
 /// BIGIP6001: iRule references a data-group not found in config.
 fn check_irule_data_groups(
@@ -248,7 +248,7 @@ fn collect_referenced_data_groups(rule: &crate::model::BigipRule) -> HashSet<Str
         .collect()
 }
 
-// ── Virtual-server-level checks ──────────────────────────────────────────
+// Virtual-server-level checks
 
 /// BIGIP6003 + BIGIP6009: virtual references an undefined iRule / has a
 /// duplicate iRule attachment.
@@ -401,7 +401,7 @@ fn check_virtual_persistence(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnosti
     }
 }
 
-// ── Config-wide checks ───────────────────────────────────────────────────
+// Config-wide checks
 
 /// BIGIP6006: data-group defined but never referenced by any iRule.
 fn check_unused_data_groups(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
@@ -477,7 +477,7 @@ fn check_ip_data_group_records(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnos
     }
 }
 
-// ── Public API ───────────────────────────────────────────────────────────
+// Public API
 
 /// Run all BIG-IP cross-reference validations over a parsed config,
 /// returning ranged diagnostics in a stable, deterministic order (per-iRule

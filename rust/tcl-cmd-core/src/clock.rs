@@ -488,7 +488,7 @@ fn parse_with_format(input: &str, fmt: &str) -> Result<ScanFields, CmdError> {
     Ok(f)
 }
 
-// -- civil date ---------------------------------------------------------------
+// civil date
 
 /// A broken-down civil date/time (always relative to whatever zone the caller
 /// applied via the offset).
@@ -567,7 +567,7 @@ fn days_in_month(y: i64, m: u32) -> u32 {
     }
 }
 
-// -- strftime rendering -------------------------------------------------------
+// strftime rendering
 
 const MONTHS: [&str; 12] = [
     "January",

@@ -1012,7 +1012,7 @@ fn is_tailcall_command(command: &str) -> bool {
     command.trim_start_matches(':') == "tailcall"
 }
 
-// --- Definite-assignment ("flow facts") over un-lowered IR scripts ----------
+// Definite-assignment ("flow facts") over un-lowered IR scripts
 //
 // Shared by the CFG builder (to promote an opaque `switch` whose every arm
 // exits the *procedure* — FP-RBS-15 — and to wire its loop-jump edges) and
@@ -1313,7 +1313,7 @@ pub(crate) fn switch_escaping_jumps(stmt: &Statement) -> (bool, bool) {
     (can_break, can_continue)
 }
 
-// --- Guaranteed-iteration loops ----------------------------------------------
+// Guaranteed-iteration loops
 //
 // A loop whose body provably runs at least once does not skip its body, so a
 // variable the body assigns is defined when code after the loop reads it.  The
@@ -1721,7 +1721,7 @@ mod tests {
     }
 
     // --- escaping_loop_jumps: try propagation and
-    //     dead-code early-stop -------------------------------
+    // dead-code early-stop
     //
     // These exercise the helper directly: their end-to-end W210 effect is
     // masked by a separate, pre-existing `while 1` exit-reachability behaviour

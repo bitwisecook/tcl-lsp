@@ -1428,7 +1428,7 @@ impl Vm {
         Ok(())
     }
 
-    // -- frame-addressed storage (the `VarStore` `FrameId`-honouring path) ------
+    // frame-addressed storage (the `VarStore` `FrameId`-honouring path)
     //
     // These resolve `name` starting from an *explicit* frame (following links),
     // touching only storage: no current-eval-context namespace fallback and no

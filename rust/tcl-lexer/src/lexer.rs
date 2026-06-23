@@ -2623,7 +2623,7 @@ mod tests {
         assert_eq!(cfg.irules_brace_separator, default.irules_brace_separator);
     }
 
-    // -- ghost-token recovery ---------------------------------------
+    // ghost-token recovery
 
     #[test]
     fn ghost_bracket_terminates_unclosed_command() {

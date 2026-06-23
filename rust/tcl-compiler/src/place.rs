@@ -163,7 +163,7 @@ impl Place {
     }
 }
 
-// Constructors -------------------------------------------------------------
+// Constructors
 
 /// A scalar place.
 #[must_use]
@@ -259,7 +259,7 @@ pub fn unknown_top() -> Place {
     }
 }
 
-// Relations ----------------------------------------------------------------
+// Relations
 
 /// Could indices/keys *a* and *b* denote the same slot?  Over-approximates:
 /// `ANY` or `DYNAMIC` overlaps anything; two literals overlap iff equal text.
@@ -399,7 +399,7 @@ mod tests {
         scalar(name, LOCAL_NS, false)
     }
 
-    // -- core scalar / array overlap ----------------------------------
+    // core scalar / array overlap
 
     #[test]
     fn scalar_overlap_basics() {
@@ -456,7 +456,7 @@ mod tests {
         assert!(!overlap(&s, &ak));
     }
 
-    // -- 8E refinement: dynamic *index* ≠ dynamic *alias* -------------
+    // 8E refinement: dynamic *index* ≠ dynamic *alias*
 
     #[test]
     fn dynamic_alias_does_not_observe_differently_named_local() {
@@ -490,7 +490,7 @@ mod tests {
         assert!(overlap(&date_dyn, &unknown_top()));
     }
 
-    // -- upvar aliases -------------------------------------------------
+    // upvar aliases
 
     #[test]
     fn upvar_aliases_compare_by_owner() {
@@ -507,7 +507,7 @@ mod tests {
         assert!(overlap(&dyn_alias, &local_scalar("z")));
     }
 
-    // -- instance vars + dict paths -----------------------------------
+    // instance vars + dict paths
 
     #[test]
     fn instance_vars_compare_by_owner_and_name() {
@@ -577,7 +577,7 @@ mod tests {
         }
     }
 
-    // -- helpers -------------------------------------------------------
+    // helpers
 
     #[test]
     fn base_drops_index_and_keys() {

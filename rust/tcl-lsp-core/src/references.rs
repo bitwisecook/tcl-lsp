@@ -890,7 +890,7 @@ mod tests {
         assert!(refs.iter().any(|r| r.start_line == 0));
     }
 
-    // -- read/write distinction -----------
+    // read/write distinction
 
     #[test]
     fn document_highlights_var_records_write_at_definition() {
@@ -994,7 +994,7 @@ mod tests {
         assert!(document_highlights(src, "tcl", 0, 6, &analysis).is_empty());
     }
 
-    // -- resolved-qualified-name matching ---------
+    // resolved-qualified-name matching
 
     #[test]
     fn resolved_qualified_name_matches_call_site_from_namespace() {
@@ -1060,7 +1060,7 @@ mod tests {
         );
     }
 
-    // -- class-member references -----------------
+    // class-member references
 
     #[test]
     fn references_for_method_includes_decl_and_call_sites() {
@@ -1094,7 +1094,7 @@ mod tests {
         assert_eq!(texts, 3, "{h:?}");
     }
 
-    // -- external $obj method sites --------------
+    // external $obj method sites
 
     #[test]
     fn references_from_external_obj_method_site() {

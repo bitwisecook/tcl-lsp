@@ -34,7 +34,7 @@ pub fn tagged<T: Canon + ?Sized>(v: &T) -> Value {
     json!({"__t": v.canon_type(), "d": v.canon_fields()})
 }
 
-// Scalar / primitive helpers -------------------------------------------
+// Scalar / primitive helpers
 
 /// Canonical form of a [`Range`].
 #[must_use]
@@ -105,7 +105,7 @@ pub fn field_offsets(m: &std::collections::HashMap<String, (usize, usize)>) -> V
     json!({"m": obj})
 }
 
-// BigipList ------------------------------------------------------------
+// BigipList
 
 /// Canonical form of a [`BigipList`].
 #[must_use]
@@ -147,7 +147,7 @@ fn list_value(v: &ListItemValue) -> Value {
     }
 }
 
-// Structured value-layer types (ListItem values) ----------------------
+// Structured value-layer types (ListItem values)
 
 use crate::value::attachments::{PersistenceAttachment, ProfileAttachment};
 use crate::value::cert_key_chain::CertKeyChain;
@@ -251,7 +251,7 @@ impl Canon for MonitorExpression {
     }
 }
 
-// Top-level config -----------------------------------------------------
+// Top-level config
 
 impl Canon for BigipGenericObject {
     fn canon_type(&self) -> &'static str {

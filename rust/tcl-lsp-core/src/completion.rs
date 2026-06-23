@@ -1107,7 +1107,7 @@ mod tests {
         assert_eq!(items[0].label, "greet");
     }
 
-    // -- usage-bucket sort-text --------------------
+    // usage-bucket sort-text
 
     #[test]
     fn usage_bucket_buckets_per_python_thresholds() {
@@ -1167,7 +1167,7 @@ mod tests {
         assert!(labels.contains(&"beta"));
     }
 
-    // -- built-in command completion --------------
+    // built-in command completion
     //
     // Tests pin the contract that a non-`None` registry parameter
     // extends proc-name completion with every command the
@@ -1320,7 +1320,7 @@ mod tests {
         }
     }
 
-    // -- subcommand completion --------------------
+    // subcommand completion
     //
     // When the cursor sits at word-index 1 of a known command
     // whose spec declares non-empty `subcommands`, the
@@ -1411,7 +1411,7 @@ mod tests {
         );
     }
 
-    // -- switch completion ------------------------
+    // switch completion
     //
     // When the partial starts with `-` and the surrounding
     // command's spec declares matching options, the completion
@@ -1457,7 +1457,7 @@ mod tests {
         assert_eq!(labels, sorted);
     }
 
-    // -- iRules event-name completion -------------
+    // iRules event-name completion
     //
     // When the cursor sits at word-index 1 of an event-handler
     // command (the `when` iRules keyword carries
@@ -1534,7 +1534,7 @@ mod tests {
         );
     }
 
-    // -- iRules `call PROC_NAME` -----------------
+    // iRules `call PROC_NAME`
     //
     // When the cursor sits at word-index 1 of a command carrying
     // `Traits::INVOKES_USER_PROC` (today only the iRules `call`
@@ -1697,7 +1697,7 @@ mod tests {
         );
     }
 
-    // -- workspace-index: cross-document proc completion ------------
+    // workspace-index: cross-document proc completion
 
     #[test]
     fn workspace_procs_surface_in_completion() {

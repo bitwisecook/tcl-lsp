@@ -24,7 +24,7 @@
 
 use tcl_syntax::value::ValueOps;
 
-// -- the engine seam ----------------------------------------------------------
+// the engine seam
 
 /// The "did not participate" sentinel for a subexpression's offset (mirrors the
 /// engine's `(size_t)-1`).
@@ -84,7 +84,7 @@ pub trait RegexEngine {
     ) -> Option<Vec<RegMatch>>;
 }
 
-// -- shared error & result shapes --------------------------------------------
+// shared error & result shapes
 
 /// A `regexp`/`regsub` failure: the full, ready-to-report message bytes.
 pub struct RegexError(pub Vec<u8>);
@@ -113,7 +113,7 @@ pub struct RegsubResult {
     pub var: Option<Vec<u8>>,
 }
 
-// -- pure helpers -------------------------------------------------------------
+// pure helpers
 
 /// Decode UTF-8 `bytes` into codepoints plus a parallel byte-offset table. The
 /// returned `offsets` has length `codepoints.len() + 1`: `offsets[i]` is the
@@ -271,7 +271,7 @@ fn compile_error(detail: &[u8]) -> RegexError {
     RegexError(m)
 }
 
-// -- regexp -------------------------------------------------------------------
+// regexp
 
 const REGEXP_USAGE: &[u8] = b"regexp ?-option ...? exp string ?matchVar? ?subMatchVar ...?";
 const REGEXP_OPTS: &[u8] =
@@ -464,7 +464,7 @@ fn build_match_item<O: ValueOps>(
     }
 }
 
-// -- regsub -------------------------------------------------------------------
+// regsub
 
 const REGSUB_USAGE: &[u8] = b"regsub ?-option ...? exp string subSpec ?varName?";
 const REGSUB_OPTS: &[u8] =

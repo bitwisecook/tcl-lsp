@@ -948,7 +948,7 @@ mod tests {
         assert!(out.may.contains(RenderedProperties::FULLY_NORMALISED));
     }
 
-    // -- SSA walk tests ----------------------------------------------------
+    // SSA walk tests
 
     use crate::compilation_unit::CompilationUnit;
 

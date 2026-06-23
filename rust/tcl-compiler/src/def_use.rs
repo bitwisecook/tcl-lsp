@@ -169,7 +169,7 @@ impl DefUseResult {
 pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> DefUseResult {
     let mut chains: HashMap<SsaValueKey, DefUseChain> = HashMap::new();
 
-    // ── Pass 1: definitions ─────────────────────────────────────────
+    // Pass 1: definitions
     for (bn, block) in &ssa.blocks {
         // Phi definitions.
         for phi in &block.phis {
@@ -201,7 +201,7 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
         }
     }
 
-    // ── Pass 2: uses ────────────────────────────────────────────────
+    // Pass 2: uses
     for (bn, block) in &ssa.blocks {
         // Phi incoming edges are uses of the incoming versions.
         for phi in &block.phis {

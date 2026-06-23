@@ -1727,7 +1727,7 @@ mod tests {
         Span::new(start, end)
     }
 
-    // -- handle_set_command ------------------------------------------
+    // handle_set_command
 
     #[test]
     fn handle_set_defines_variable() {
@@ -1838,7 +1838,7 @@ mod tests {
         assert!(a.result.global_scope.variables.is_empty());
     }
 
-    // -- handle_var_declaration_command -----------------------------
+    // handle_var_declaration_command
 
     #[test]
     fn handle_global_defines_each_name() {
@@ -1908,7 +1908,7 @@ mod tests {
         assert!(a.result.global_scope.variables.is_empty());
     }
 
-    // -- handle_proc_command ----------------------------------------
+    // handle_proc_command
 
     #[test]
     fn handle_proc_records_proc_at_global() {
@@ -2063,7 +2063,7 @@ mod tests {
         assert!(a.result.all_procs.is_empty());
     }
 
-    // -- handle_proc_command W113 shadow check ----------------------
+    // handle_proc_command W113 shadow check
 
     #[test]
     fn handle_proc_emits_w113_for_builtin_shadow() {
@@ -2228,7 +2228,7 @@ mod tests {
         );
     }
 
-    // -- handle_proc_command body recursion -------------------------
+    // handle_proc_command body recursion
 
     #[test]
     fn handle_proc_creates_proc_scope_for_braced_body() {
@@ -2426,7 +2426,7 @@ mod tests {
         assert!(a.last_comment.is_empty());
     }
 
-    // -- handle_namespace_eval_command ------------------------------
+    // handle_namespace_eval_command
 
     #[test]
     fn handle_namespace_eval_creates_child_scope() {
@@ -2486,7 +2486,7 @@ mod tests {
         assert!(a.result.global_scope.children.is_empty());
     }
 
-    // -- handle_namespace_ensemble ----------------------------------
+    // handle_namespace_ensemble
 
     #[test]
     fn handle_namespace_ensemble_records_in_set() {
@@ -2527,7 +2527,7 @@ mod tests {
         assert!(a.ensemble_namespaces.is_empty());
     }
 
-    // -- handle_foreach_command -------------------------------------
+    // handle_foreach_command
 
     #[test]
     fn handle_foreach_defines_single_loop_var() {
@@ -2603,7 +2603,7 @@ mod tests {
         assert!(!handled);
     }
 
-    // -- handle_for_command -----------------------------------------
+    // handle_for_command
 
     #[test]
     fn handle_for_returns_true_for_canonical_shape() {
@@ -2634,7 +2634,7 @@ mod tests {
         assert!(!handled);
     }
 
-    // -- handle_switch_command --------------------------------------
+    // handle_switch_command
 
     #[test]
     fn handle_switch_returns_true_for_canonical_shape() {
@@ -2773,7 +2773,7 @@ mod tests {
         assert!(a.result.global_scope.variables.is_empty());
     }
 
-    // -- handle_catch_command ---------------------------------------
+    // handle_catch_command
 
     #[test]
     fn handle_catch_canonical_returns_true() {
@@ -2819,7 +2819,7 @@ mod tests {
         assert!(!handled);
     }
 
-    // -- handle_try_command -----------------------------------------
+    // handle_try_command
 
     #[test]
     fn handle_try_canonical_returns_true() {
@@ -2924,7 +2924,7 @@ mod tests {
         assert!(a.result.global_scope.variables.contains_key("q"));
     }
 
-    // -- resolve_proc_call ------------------------------------------
+    // resolve_proc_call
 
     #[test]
     fn resolve_proc_call_absolute_qualified_name() {
@@ -3030,7 +3030,7 @@ mod tests {
         assert!(a.resolve_proc_call("", &[]).is_none());
     }
 
-    // -- resolve_expansion_count ------------------------------------
+    // resolve_expansion_count
 
     #[test]
     fn resolve_expansion_count_braced_literal() {
@@ -3123,7 +3123,7 @@ mod tests {
         assert_eq!(a.resolve_expansion_count(tok, true, &[]), None);
     }
 
-    // -- handle_interp_alias ----------------------------------------
+    // handle_interp_alias
 
     #[test]
     fn handle_interp_alias_records_canonical_form() {
@@ -3171,7 +3171,7 @@ mod tests {
         assert!(a.command_aliases.is_empty());
     }
 
-    // -- handle_oo_objdefine ----------------------------------------
+    // handle_oo_objdefine
 
     #[test]
     fn handle_oo_objdefine_records_dollar_var() {
@@ -3201,7 +3201,7 @@ mod tests {
         assert!(a.objdefined_vars.is_empty());
     }
 
-    // -- resolve_alias ----------------------------------------------
+    // resolve_alias
 
     #[test]
     fn resolve_alias_passthrough_for_non_alias() {
@@ -3223,7 +3223,7 @@ mod tests {
         assert_eq!(args, vec!["stderr".to_string(), "hello".to_string()]);
     }
 
-    // -- handle_oo_class_command ------------------------------------
+    // handle_oo_class_command
 
     #[test]
     fn handle_oo_class_create_records_class() {
@@ -3284,7 +3284,7 @@ mod tests {
         assert!(a.result.all_classes.is_empty());
     }
 
-    // -- handle_oo_class_command body walking -----------------------
+    // handle_oo_class_command body walking
 
     #[test]
     fn analyse_oo_class_body_records_superclass_and_methods() {
@@ -3316,7 +3316,7 @@ mod tests {
         assert!(!cls.methods.contains_key("build"));
     }
 
-    // -- handle_oo_define_command body walking ----------------------
+    // handle_oo_define_command body walking
 
     #[test]
     fn analyse_oo_define_body_extends_existing_class() {
@@ -3345,7 +3345,7 @@ mod tests {
         assert!(cls.methods.contains_key("greet"));
     }
 
-    // -- handle_oo_define_command -----------------------------------
+    // handle_oo_define_command
 
     #[test]
     fn handle_oo_define_recognises_canonical_form() {
@@ -3366,7 +3366,7 @@ mod tests {
         assert!(!handled);
     }
 
-    // -- handle_incr_command ----------------------------------------
+    // handle_incr_command
 
     #[test]
     fn handle_incr_defines_var() {
@@ -3409,7 +3409,7 @@ mod tests {
         assert!(a.result.global_scope.variables.is_empty());
     }
 
-    // -- ClassDef extended fields + UnknownProcInfo -----------------
+    // ClassDef extended fields + UnknownProcInfo
 
     #[test]
     fn analyse_oo_class_records_metaclass_from_command_name() {
@@ -3504,7 +3504,7 @@ mod tests {
         assert!(info.has_exec);
     }
 
-    // -- stray-close-bracket recovery -------------------------------
+    // stray-close-bracket recovery
 
     #[test]
     fn analyse_top_level_repairs_stray_close_bracket() {
@@ -3521,7 +3521,7 @@ mod tests {
         assert!(r.global_scope.variables.contains_key("x"));
     }
 
-    // -- unknown_proc_info / package require ------------------------
+    // unknown_proc_info / package require
 
     #[test]
     fn analyse_records_package_require() {
@@ -3624,7 +3624,7 @@ mod tests {
         assert!(r.diagnostics.iter().any(|d| d.code == "W123"));
     }
 
-    // -- deep_param_traits plumbing ----------------------------------
+    // deep_param_traits plumbing
     //
     // These tests pin the contract that flipping
     // `Analyser::deep_param_traits` actually changes the
@@ -3695,7 +3695,7 @@ mod tests {
         );
     }
 
-    // -- stub-overlay end-to-end -------------------------------------
+    // stub-overlay end-to-end
     //
     // These tests pin the contract that the stub overlay built
     // from `# tcl-lsp: stub` directives during `analyse()`

@@ -37,7 +37,7 @@ pub struct EnrichResult {
     pub observed_ipv6: usize,
 }
 
-// ── Name index ──────────────────────────────────────────────────────
+// Name index
 
 /// Maps IP addresses (canonical `str`) to one or more annotation names, with a
 /// CIDR-fallback list for self-IP subnets.
@@ -238,7 +238,7 @@ impl NameIndex {
     }
 }
 
-// ── Naming helpers ──────────────────────────────────────────────────
+// Naming helpers
 
 /// Lowercase `text`, replacing runs of non-`[a-z0-9-]` with a single `-`,
 /// stripping leading/trailing `-`.
@@ -405,7 +405,7 @@ fn resolve_pool_member_address(member_name: &str, cfg: &BigipConfig) -> String {
     String::new()
 }
 
-// ── net self extraction ─────────────────────────────────────────────
+// net self extraction
 
 pub(crate) struct SelfIp {
     pub(crate) full_path: String,
@@ -502,7 +502,7 @@ pub(crate) fn extract_self_ips(source: &str) -> Vec<SelfIp> {
     found
 }
 
-// ── GTM extraction ──────────────────────────────────────────────────
+// GTM extraction
 
 struct GtmServer {
     addresses: Vec<String>,
@@ -690,7 +690,7 @@ fn wideip_addresses(
     out
 }
 
-// ── Index builders ──────────────────────────────────────────────────
+// Index builders
 
 /// Build a name index from a parsed [`BigipConfig`]. When `source` is `Some`,
 /// `net self` and GTM blocks are also scanned.
@@ -811,7 +811,7 @@ pub fn build_merged_name_index(configs_with_sources: &[(BigipConfig, String)]) -
     merged
 }
 
-// ── Pcapng walking — observed IPs ───────────────────────────────────
+// Pcapng walking — observed IPs
 
 fn scan_packet_ips(packet: &[u8], linktype: u16, v4: &mut Vec<String>, v6: &mut Vec<String>) {
     let Some((ip_off, is_v6)) = find_ip_offset(packet, linktype) else {
@@ -864,7 +864,7 @@ fn collect_observed_ips(blocks: &[pcapng::PcapngBlock]) -> (Vec<String>, Vec<Str
     (v4, v6)
 }
 
-// ── PCAPNG enrichment driver ────────────────────────────────────────
+// PCAPNG enrichment driver
 
 fn packed_v4(addr: &str) -> [u8; 4] {
     addr.parse::<std::net::Ipv4Addr>().unwrap().octets()

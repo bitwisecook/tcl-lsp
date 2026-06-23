@@ -2110,7 +2110,7 @@ mod tests {
         assert!(o127(src).is_empty(), "{:?}", o127(src));
     }
 
-    // -- internal helpers ---------------------------------------------------
+    // internal helpers
 
     #[test]
     fn simple_var_ref_parses_bare_and_braced() {
@@ -2130,7 +2130,7 @@ mod tests {
         assert!(!is_value_safe_bare_word("$dollar"));
     }
 
-    // -- end-to-end tests --------------------------------------------------
+    // end-to-end tests
 
     #[test]
     fn constant_int_propagates_into_call_arg() {

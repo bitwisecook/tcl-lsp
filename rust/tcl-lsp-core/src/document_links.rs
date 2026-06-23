@@ -445,7 +445,7 @@ mod tests {
         assert_eq!(links[0].target, "file:///test-home");
     }
 
-    // -- URI escaping -----------------------
+    // URI escaping
 
     #[test]
     fn percent_encode_path_passes_unreserved_through() {
@@ -530,7 +530,7 @@ mod tests {
         }
     }
 
-    // -- literal `[file join …]` --------------
+    // literal `[file join …]`
 
     #[test]
     fn file_join_joins_literal_segments() {

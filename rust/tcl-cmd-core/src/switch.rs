@@ -343,7 +343,7 @@ where
     writes
 }
 
-// -- option-name resolution + error catalogue --------------------------------
+// option-name resolution + error catalogue
 
 enum IdxErr {
     Bad,

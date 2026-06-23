@@ -27,7 +27,7 @@ fn literal_true_expr() -> ExprNode {
 }
 
 impl CfgBuilder {
-    // ── if ────────────────────────────────────────────────────────
+    // if
 
     /// Flatten `Statement::If` into cascaded branch blocks.
     pub(super) fn lower_if(&mut self, stmt: &Statement, block_name: &str) -> String {
@@ -96,7 +96,7 @@ impl CfgBuilder {
         end_block
     }
 
-    // ── for ───────────────────────────────────────────────────────
+    // for
 
     /// Flatten `Statement::For` into init → header → body → step → header loop.
     pub(super) fn lower_for(&mut self, stmt: &Statement, block_name: &str) -> Option<String> {
@@ -217,7 +217,7 @@ impl CfgBuilder {
         Some(end_block)
     }
 
-    // ── while ─────────────────────────────────────────────────────
+    // while
 
     /// Flatten `Statement::While` into header → body → header loop.
     pub(super) fn lower_while(&mut self, stmt: &Statement, block_name: &str) -> String {
@@ -274,7 +274,7 @@ impl CfgBuilder {
         end_block
     }
 
-    // ── foreach / lmap ────────────────────────────────────────────
+    // foreach / lmap
 
     /// Flatten `Statement::Foreach` into a header → body → header loop
     /// with a synthetic variable-definition node at the header.
@@ -395,7 +395,7 @@ impl CfgBuilder {
         end_block
     }
 
-    // ── switch ────────────────────────────────────────────────────
+    // switch
 
     /// Lower a `Statement::Switch`.
     ///
@@ -657,7 +657,7 @@ impl CfgBuilder {
         end_block
     }
 
-    // ── try ───────────────────────────────────────────────────────
+    // try
 
     /// Record the analysis-only exception edges into a `try` handler block:
     ///

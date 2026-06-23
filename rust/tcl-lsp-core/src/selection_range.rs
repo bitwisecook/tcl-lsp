@@ -300,7 +300,7 @@ mod tests {
         assert!(ranges.len() >= 2);
     }
 
-    // -- command-segment link ----------------
+    // command-segment link
 
     #[test]
     fn command_segment_inserted_between_word_and_line_with_semicolon() {
@@ -409,7 +409,7 @@ mod tests {
         assert_eq!(&line[start as usize..end as usize], "set x 1");
     }
 
-    // -- enclosing-body links ----------------
+    // enclosing-body links
 
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = tcl_compiler::analyser::Analyser::new();

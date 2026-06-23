@@ -126,7 +126,7 @@ fn assert_rename(base: &str, ok_codes: &[i32], extra: &[&str]) {
     );
 }
 
-// --- rename engine: identity-field writes + rename* builtins ------------
+// rename engine: identity-field writes + rename* builtins
 
 #[test]
 fn rename_identity_field_write_diff() {
@@ -215,7 +215,7 @@ fn rename_zero_occurrence_is_noop() {
     );
 }
 
-// --- diff preview (default) ---------------------------------------------
+// diff preview (default)
 
 #[test]
 fn destination_compound_transform_diff() {
@@ -276,7 +276,7 @@ fn virtual_rules_append_diff() {
     );
 }
 
-// --- --write (rewritten config) -----------------------------------------
+// --write (rewritten config)
 
 #[test]
 fn destination_compound_transform_write() {
@@ -291,7 +291,7 @@ fn destination_compound_transform_write() {
     );
 }
 
-// --- no-op / strict exit codes ------------------------------------------
+// no-op / strict exit codes
 
 #[test]
 fn noop_matches_object_but_same_text_exits_1() {
@@ -318,7 +318,7 @@ fn noop_strict_exits_2() {
     );
 }
 
-// --- cross-file edits ---------------------------------------------------
+// cross-file edits
 
 #[test]
 fn cross_file_edit_targets_named_source() {

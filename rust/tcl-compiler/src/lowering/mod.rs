@@ -3055,7 +3055,7 @@ mod tests {
         }
     }
 
-    // -- trace add execution module-fact population -----------
+    // trace add execution module-fact population
 
     #[test]
     fn trace_add_execution_literal_recorded() {
@@ -3098,7 +3098,7 @@ mod tests {
         );
     }
 
-    // -- barrier-gate ------------------------------------------
+    // barrier-gate
 
     #[test]
     fn body_has_dynamic_barrier_clean() {

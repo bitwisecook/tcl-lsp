@@ -321,7 +321,7 @@ fn is_word_char(c: Chr) -> bool {
 }
 
 impl Parser<'_> {
-    // -- low-level scanning helpers (the C ATEOS/HAVE/NEXTn macros) -----------
+    // low-level scanning helpers (the C ATEOS/HAVE/NEXTn macros)
 
     fn ateos(&self) -> bool {
         self.now >= self.input.len()
@@ -363,7 +363,7 @@ impl Parser<'_> {
         self.nextvalue = v;
     }
 
-    // -- lexer ---------------------------------------------------------------
+    // lexer
 
     fn lexstart(&mut self) {
         self.prefixes();
@@ -1104,7 +1104,7 @@ impl Parser<'_> {
         }
     }
 
-    // -- parser --------------------------------------------------------------
+    // parser
 
     fn see(&self, t: Tok) -> bool {
         self.nexttype == t

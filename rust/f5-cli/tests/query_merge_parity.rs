@@ -62,7 +62,7 @@ fn assert_merge(golden: &str, ok_codes: &[i32], args: &[&str]) {
     );
 }
 
-// --- unified enumeration ------------------------------------------------
+// unified enumeration
 
 #[test]
 fn merge_virtual_names() {
@@ -107,7 +107,7 @@ fn merge_json_envelope() {
     );
 }
 
-// --- cross-file references ----------------------------------------------
+// cross-file references
 
 #[test]
 fn merge_referenced_by_cross_file() {
@@ -140,7 +140,7 @@ fn merge_refs_cross_file() {
     );
 }
 
-// --- (kind, full-path) collision refusal --------------------------------
+// (kind, full-path) collision refusal
 
 #[test]
 fn merge_collision_refused() {

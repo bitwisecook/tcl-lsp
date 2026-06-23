@@ -141,19 +141,19 @@ pub(crate) fn has_expansion(cmd: &LoweringCommand<'_>) -> bool {
     cmd.expand_word.is_some_and(|ew| ew.iter().any(|&e| e))
 }
 
-// ── expr ──────────────────────────────────────────────────────────
+// expr
 //
 // Moved to `crate::lowering::hooks::control::try_lower_expr`. The
 // dispatcher above delegates the `"expr"` case to the per-hook
 // module.
 
-// ── return ────────────────────────────────────────────────────────
+// return
 //
 // Moved to `crate::lowering::hooks::control::try_lower_return`. The
 // dispatcher above delegates the `"return"` case to the per-hook
 // module.
 
-// ── set ───────────────────────────────────────────────────────────
+// set
 
 fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement {
     if has_expansion(cmd) || cmd.args.len() != 2 {
@@ -263,13 +263,13 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
     }
 }
 
-// ── incr ──────────────────────────────────────────────────────────
+// incr
 //
 // Moved to `crate::lowering::hooks::incr::try_lower_incr`. The
 // dispatcher above delegates the `"incr"` case to the per-hook
 // module.
 
-// ── append / lappend ──────────────────────────────────────────────
+// append / lappend
 
 fn lower_append_lappend(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     if cmd.args.is_empty() {
@@ -290,7 +290,7 @@ fn lower_append_lappend(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     })
 }
 
-// ── unset ─────────────────────────────────────────────────────────
+// unset
 
 fn lower_unset(cmd: &LoweringCommand<'_>) -> Statement {
     let mut i = 0;
@@ -323,7 +323,7 @@ fn lower_unset(cmd: &LoweringCommand<'_>) -> Statement {
     }
 }
 
-// ── global ────────────────────────────────────────────────────────
+// global
 
 fn lower_global(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     if cmd.args.is_empty() {
@@ -348,7 +348,7 @@ fn lower_global(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     })
 }
 
-// ── variable ──────────────────────────────────────────────────────
+// variable
 
 fn lower_variable(cmd: &LoweringCommand<'_>) -> Statement {
     let var_names: Vec<String> = cmd
@@ -371,7 +371,7 @@ fn lower_variable(cmd: &LoweringCommand<'_>) -> Statement {
     }
 }
 
-// ── upvar ─────────────────────────────────────────────────────────
+// upvar
 
 fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     if cmd.args.len() < 2 {
@@ -413,7 +413,7 @@ fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     })
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
+// Helpers
 
 /// Build a generic `Statement::Call` from a lowering command.
 ///

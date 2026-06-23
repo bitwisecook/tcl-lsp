@@ -507,7 +507,7 @@ mod tests {
         }
     }
 
-    // -- built-in command signatures ----------
+    // built-in command signatures
     //
     // These tests pin the contract that passing a registry
     // lets the cursor's command resolve to a built-in spec
@@ -618,7 +618,7 @@ mod tests {
         assert!(signature_help(src, 0, 5, &analysis, None).is_none());
     }
 
-    // -- multi-line / semicolon segments ------
+    // multi-line / semicolon segments
 
     #[test]
     fn signature_help_continues_across_open_brace() {
@@ -663,7 +663,7 @@ mod tests {
     // signature help for the inner command would need a recursive
     // lex of the bracket body.
 
-    // -- alias resolution ---------------------
+    // alias resolution
 
     #[test]
     fn alias_resolves_to_target_proc_signature() {

@@ -510,7 +510,7 @@ mod tests {
         PassContext::new(source, InterproceduralAnalysis::default())
     }
 
-    // -- Tests --------------------------------------------------------------
+    // Tests
 
     #[test]
     fn constant_true_condition_emits_o101_with_one() {

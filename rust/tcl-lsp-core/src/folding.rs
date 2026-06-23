@@ -669,7 +669,7 @@ mod tests {
         assert!(fold_lines(&ranges, FoldKind::Region).is_empty());
     }
 
-    // -- backslash line-continuation folding --------
+    // backslash line-continuation folding
 
     #[test]
     fn backslash_continuation_folds_first_to_last_line() {

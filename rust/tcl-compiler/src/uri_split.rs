@@ -1033,7 +1033,7 @@ mod tests {
         out
     }
 
-    // --- registry-derived URI families ----------------------------------
+    // registry-derived URI families
 
     #[test]
     fn uri_families_includes_http() {
@@ -1051,7 +1051,7 @@ mod tests {
         assert!(uri_families(&r).is_empty());
     }
 
-    // --- split detection ------------------------------------------------
+    // split detection
 
     #[test]
     fn split_uri_on_question_mark_fires() {
@@ -1187,7 +1187,7 @@ set parts [split $uri "?"]"#,
         assert!(ws.is_empty());
     }
 
-    // --- expression-operator detection ----------------------------------
+    // expression-operator detection
 
     #[test]
     fn starts_with_path_pattern_fires_inline() {
@@ -1257,7 +1257,7 @@ if { $p starts_with "/api" } { log local0. x }"#,
         assert!(ws.is_empty(), "got {ws:?}");
     }
 
-    // --- string match / string first ------------------------------------
+    // string match / string first
 
     #[test]
     fn string_match_path_pattern_fires() {
@@ -1330,7 +1330,7 @@ if { [string first "?" $uri] >= 0 } { log local0. x }"#,
         assert_eq!(ws.len(), 1, "got {ws:?}");
     }
 
-    // --- glob / regex classifier edge cases -----------------------------
+    // glob / regex classifier edge cases
 
     #[test]
     fn glob_question_mark_is_wildcard_not_query() {
@@ -1342,7 +1342,7 @@ set m [string match "/api/??" $uri]"#,
         assert!(ws[0].message.contains("HTTP::path"));
     }
 
-    // --- pattern classifier unit tests ----------------------------------
+    // pattern classifier unit tests
 
     #[test]
     fn classify_glob_pattern_recognises_path() {
@@ -1386,7 +1386,7 @@ set m [string match "/api/??" $uri]"#,
         assert!(!is_query_like("/foo"));
     }
 
-    // --- deduplication --------------------------------------------------
+    // deduplication
 
     #[test]
     fn duplicate_hits_in_compound_condition_are_deduped() {

@@ -739,7 +739,7 @@ mod tests {
         assert!(!looks_like_switch_case(&cmd, &empty_builtins()));
     }
 
-    // -- missing-open-brace recovery --------------------------
+    // missing-open-brace recovery
 
     #[test]
     fn recover_missing_open_brace_emits_e101_and_consumes_orphans() {
@@ -803,7 +803,7 @@ mod tests {
         assert_eq!(consumed, 0);
     }
 
-    // -- stolen-close-brace detection -------------------------
+    // stolen-close-brace detection
 
     #[test]
     fn detect_stolen_close_brace_emits_e103_for_inner_brace_pattern() {

@@ -208,7 +208,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(e) => return e,
     };
 
-    // -- run the body, then dispatch to the first matching handler --------
+    // run the body, then dispatch to the first matching handler
     let body_comp = eval_body(vm, body);
     // `exit` is not catchable (C Tcl's `Tcl_Exit`): propagate the unwind
     // without running handlers or the `finally` clause.
@@ -268,7 +268,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     }
 
-    // -- finally always runs; only its own exception overrides ------------
+    // finally always runs; only its own exception overrides
     if let Some(fin) = finally {
         // The options that would otherwise propagate, captured so a throwing
         // `finally` can chain them as its `-during`.
