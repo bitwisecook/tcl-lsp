@@ -277,7 +277,7 @@ fn add_tcl_import(m: &mut WasmModule, name: &str, params: &[ValType], results: &
 /// for a standalone module (own memory) or one whose host keeps low memory free.
 #[must_use]
 pub fn wasm_codegen_module(module: &Module, source: &str) -> WasmModule {
-    wasm_codegen_module_based(module, source, 0)
+    codegen(module, source, 0, false)
 }
 
 /// As [`wasm_codegen_module`], but relocate the constant pool to `data_base` so
@@ -287,6 +287,26 @@ pub fn wasm_codegen_module(module: &Module, source: &str) -> WasmModule {
 /// `tcl_obj_new_string` are based at `data_base`.
 #[must_use]
 pub fn wasm_codegen_module_based(module: &Module, source: &str, data_base: i64) -> WasmModule {
+    codegen(module, source, data_base, false)
+}
+
+/// As [`wasm_codegen_module_based`], but also emit a WASI-command entry point
+/// (`_start`) that bootstraps an interp and runs `::top`, for a **single
+/// self-contained binary**: merge the emitted module with the runtime (e.g.
+/// `wasm-merge runtime.wasm tcl out.wasm user`), then run the one module with
+/// `wasmtime merged.wasm` — no host orchestration. `_start` calls
+/// `tcl_runtime_create_interp` + `tcl_runtime_set_current_interp` (imported from
+/// `"tcl"`, resolved to the runtime's exports by the merge) then `::top`. The
+/// runtime's `.command_export` wrappers run its ctors on first entry, so no
+/// separate `_initialize` call is needed.
+#[must_use]
+pub fn wasm_codegen_module_standalone(module: &Module, source: &str, data_base: i64) -> WasmModule {
+    codegen(module, source, data_base, true)
+}
+
+/// Shared codegen for the linkable ([`wasm_codegen_module_based`]) and
+/// self-contained ([`wasm_codegen_module_standalone`]) forms.
+fn codegen(module: &Module, source: &str, data_base: i64, standalone: bool) -> WasmModule {
     let mut wasm = WasmModule::new();
     let imports = Imports {
         obj_new_string: add_tcl_import(
@@ -299,6 +319,23 @@ pub fn wasm_codegen_module_based(module: &Module, source: &str, data_base: i64) 
         obj_release: add_tcl_import(&mut wasm, "tcl_obj_release", &[ValType::I32], &[]),
         expr_bool: add_tcl_import(&mut wasm, "tcl_expr_bool", &[ValType::I32], &[ValType::I32]),
     };
+
+    // Standalone: the interp-bootstrap imports `_start` drives. Added after the
+    // ABI imports so the ABI indices in `Imports` are unchanged.
+    let bootstrap = standalone.then(|| {
+        let create = add_tcl_import(&mut wasm, "tcl_runtime_create_interp", &[], &[ValType::I32]);
+        let set_current = add_tcl_import(
+            &mut wasm,
+            "tcl_runtime_set_current_interp",
+            &[ValType::I32],
+            &[],
+        );
+        (create, set_current)
+    });
+
+    // `::top` is the first *defined* function, so its call index is the import
+    // count (imports occupy the low indices). Capture it before emitting bodies.
+    let top_idx = u32::try_from(wasm.imports.len()).expect("import count fits in u32");
 
     let mut emitter = WasmEmitter {
         imports,
@@ -332,5 +369,37 @@ pub fn wasm_codegen_module_based(module: &Module, source: &str, data_base: i64) 
     }
 
     wasm.data_segments = emitter.data;
+
+    if let Some((create, set_current)) = bootstrap {
+        wasm.functions
+            .push(start_function(create, set_current, top_idx));
+    }
+
     wasm
+}
+
+/// The `_start` WASI-command entry: `set_current_interp(create_interp()); ::top()`.
+/// `finish_function`'s usual trailing `end` is appended here by hand since this
+/// body is built directly rather than via the structured walk.
+fn start_function(create_interp: u32, set_current_interp: u32, top_idx: u32) -> WasmFunction {
+    let call =
+        |idx: u32| WasmInstruction::with_operands(WasmOp::Call, leb128_unsigned(u64::from(idx)));
+    WasmFunction {
+        name: "_start".to_string(),
+        params: Vec::new(),
+        results: Vec::new(),
+        locals: Vec::new(),
+        // create_interp() leaves the interp ptr on the stack; set_current_interp
+        // consumes it; ::top runs against the now-current interp.
+        body: vec![
+            call(create_interp),
+            call(set_current_interp),
+            call(top_idx),
+            WasmInstruction::new(WasmOp::End),
+        ],
+        local_names: Vec::new(),
+        exported: true,
+        source_range: None,
+        kind: "start".to_string(),
+    }
 }
