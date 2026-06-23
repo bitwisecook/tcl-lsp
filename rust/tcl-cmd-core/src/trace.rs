@@ -84,3 +84,51 @@ pub fn bad_type_error(got: &str) -> CmdError {
         "bad option \"{got}\": must be execution, command, or variable"
     ))
 }
+
+/// `ambiguous option "X": must be execution, command, or variable` — the
+/// trace-type option error when an abbreviation matches more than one type.
+#[must_use]
+pub fn ambiguous_type_error(got: &str) -> CmdError {
+    CmdError::new(format!(
+        "ambiguous option \"{got}\": must be execution, command, or variable"
+    ))
+}
+
+/// Resolve a trace-type word (`trace add|remove|info <type> …`) to its
+/// [`TraceKind`], applying Tcl's unambiguous-prefix rule: an exact match always
+/// wins, otherwise a unique prefix matches (`var` → `variable`). Mirrors C's
+/// `Tcl_GetIndexFromObj` over `traceTypeOptions` (`{variable, command,
+/// execution}`), which is why `trace add var x write cb` is accepted
+/// (set-2.4 / set-4.4).
+///
+/// # Errors
+/// Returns [`bad_type_error`] when the word matches no type and
+/// [`ambiguous_type_error`] when it is a prefix of more than one. An empty
+/// word is reported as `bad` (it is a prefix of every option, but C treats the
+/// empty index lookup as a miss here).
+pub fn resolve_type(got: &str) -> Result<TraceKind, CmdError> {
+    const NAMES: [(&str, TraceKind); 3] = [
+        ("variable", TraceKind::Variable),
+        ("command", TraceKind::Command),
+        ("execution", TraceKind::Execution),
+    ];
+    if got.is_empty() {
+        return Err(bad_type_error(got));
+    }
+    let mut found: Option<TraceKind> = None;
+    let mut count = 0u32;
+    for (name, kind) in NAMES {
+        if name == got {
+            return Ok(kind);
+        }
+        if name.starts_with(got) {
+            found = Some(kind);
+            count += 1;
+        }
+    }
+    match (count, found) {
+        (1, Some(k)) => Ok(k),
+        (0, _) => Err(bad_type_error(got)),
+        _ => Err(ambiguous_type_error(got)),
+    }
+}

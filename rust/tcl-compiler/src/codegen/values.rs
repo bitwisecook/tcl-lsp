@@ -195,6 +195,13 @@ impl CodegenCtx<'_> {
                     i32::try_from(parts.len()).expect("array-key part count fits in i32"),
                 )],
             );
+        } else if elem.contains('\\') {
+            // Pure literal key carrying backslash escapes (`be(\w\w)`,
+            // `be(a\ a)`): a non-braced array index is an ordinary Tcl word, so
+            // its escapes are decoded (`\w` → `w`, `\ ` → space) before the
+            // element lookup — matching C Tcl. (Braced keys like `set {a($x)} 1`
+            // never reach here; `push_var_ref` pushes those literally.)
+            self.push_lit(&tcl_lexer::backslash_subst(elem));
         } else {
             // Pure literal key (or a key the template parser left whole).
             self.push_lit(elem);

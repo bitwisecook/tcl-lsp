@@ -7,7 +7,7 @@
 //!
 //! [`ValueOps`]: tcl_syntax::value::ValueOps
 
-use tcl_syntax::format::{FmtFlags, Spec, parse_spec};
+use tcl_syntax::format::{FmtFlags, MAX_FIELD, Spec, parse_spec};
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
@@ -42,24 +42,44 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
             continue;
         }
         let mut j = i + 1;
-        let Some(spec) = parse_spec(bytes, &mut j) else {
-            // Unmodelled spec (e.g. `*` width) — emit the `%` literally.
+        let Some(mut spec) = parse_spec(bytes, &mut j) else {
+            // Unmodelled spec — emit the `%` literally.
             out.push('%');
             i += 1;
             continue;
         };
         if spec.verb != b'%' {
-            let Some(arg) = args.get(ai) else {
-                return Err(CmdError::new(
-                    "not enough arguments for all format specifiers",
-                ));
-            };
+            // `*` width / `.*` precision take their value from a preceding
+            // argument (format-1.1/1.6). A negative `*` width left-justifies.
+            if spec.width_star {
+                let w = ops.as_int(next_arg(args, &mut ai)?)?;
+                if w < 0 {
+                    spec.flags |= FmtFlags::MINUS;
+                }
+                let mag = usize::try_from(w.unsigned_abs()).unwrap_or(MAX_FIELD);
+                spec.width = Some(mag.min(MAX_FIELD));
+            }
+            if spec.precision_star {
+                let p = ops.as_int(next_arg(args, &mut ai)?)?;
+                // A negative `.*` precision is treated as omitted (C).
+                spec.precision = usize::try_from(p).ok().map(|p| p.min(MAX_FIELD));
+            }
+            let arg = next_arg(args, &mut ai)?;
             out.push_str(&render_spec(ops, &spec, arg)?);
-            ai += 1;
         }
         i = j;
     }
     Ok(out)
+}
+
+/// The next conversion argument (advancing `ai`), or the "not enough arguments"
+/// error. Shared by the `*`/`.*` width and the value consumption.
+fn next_arg<'a, V>(args: &'a [V], ai: &mut usize) -> Result<&'a V, CmdError> {
+    let arg = args
+        .get(*ai)
+        .ok_or_else(|| CmdError::new("not enough arguments for all format specifiers"))?;
+    *ai += 1;
+    Ok(arg)
 }
 
 fn utf8_len(b: u8) -> usize {
@@ -137,8 +157,10 @@ fn based_digits(n: i64, spec: &Spec) -> String {
         ),
         b'X' => (
             format!("{u:X}"),
+            // Tcl uses a lowercase `0x` prefix even for `%#X` (`0xC`, not `0XC`);
+            // only the digits follow the verb's case (format-1.2).
             if spec.flags.contains(FmtFlags::HASH) && u != 0 {
-                "0X"
+                "0x"
             } else {
                 ""
             },

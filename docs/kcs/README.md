@@ -57,6 +57,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)
   — tcltest's `numTests(Failed)` reads as an empty string in the
   compiled counter-bundle run.
+- [kcs-issue-vm-set-test-codegen.md](kcs-issue-vm-set-test-codegen.md)
+  — VM `set.test` core slice: nested array-set, brace-suppressed array
+  keys, array reads in word templates, and `while executing` errorInfo
+  frames (now matches C Tcl 9: 63 / 1 / 0).
 
 ## Q&A
 

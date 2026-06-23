@@ -151,6 +151,10 @@ class TclInterp:
         # Original (pre-substitution) command text of the most recent
         # INVOKE instruction, for accurate errorInfo display.
         self._error_cmd_text: str = ""
+        # Set by fire_traces when a write/read-trace callback error rejects
+        # the operation; consumed by invoke() to append the triggering
+        # command's "while executing" errorInfo frame (set-4.4).
+        self._trace_rejected_cmd: bool = False
 
         # Package registry: name -> {version, loaded, ifneeded}
         self.packages: dict[str, dict[str, str | bool | dict[str, str] | None]] = {}
@@ -346,7 +350,15 @@ class TclInterp:
         # Execute the top-level bytecode
         vm = BytecodeVM(self, debug_hook=self._debug_hook)
         try:
-            return vm.execute(module_asm.top_level)
+            return vm.execute(module_asm.top_level, source=source)
+        except TclError as e:
+            # A command compiled to inline bytecode (no generic invoke) that
+            # raised gets its "while executing" errorInfo frame here — the
+            # invoke / eval dispatch ops add their own frame, so this only
+            # fills the gap for bare compiled ops (set/incr/...).  Uses the
+            # failing instruction's source span for the exact command text.
+            self._append_while_executing(e, vm.pending_compiled_cmd_text())
+            raise
         except TclReturn as ret:
             if ret.level <= 0:
                 if ret.code == ReturnCode.ERROR:
@@ -520,6 +532,12 @@ class TclInterp:
 
     def invoke(self, cmd_name: str, args: list[str]) -> TclResult:
         """Dispatch a command by name, annotating errors with errorInfo."""
+        # Capture this command's source text before dispatch — a write-trace
+        # callback fired mid-command clobbers ``_error_cmd_text`` with the
+        # callback's own text, so the trace-rejection branch below uses the
+        # saved value to name the triggering command (set-4.4: ``$z x 1``).
+        self._trace_rejected_cmd = False
+        saved_cmd_text = self._error_cmd_text
         try:
             return self._invoke_inner(cmd_name, args)
         except RecursionError:
@@ -535,6 +553,13 @@ class TclInterp:
                 else:
                     cmd_text = _format_cmd_text(cmd_name, args)
                 e.error_info = [e.message, f'    while executing\n"{cmd_text}"']
+            elif self._trace_rejected_cmd:
+                # A write/read-trace callback error already populated errorInfo
+                # with its own traceback; append a frame for the command that
+                # triggered the trace so it ends ``... "set x 1"`` (set-2.4 /
+                # set-4.4).  Dedup guards against a doubled frame.
+                self._append_while_executing(e, saved_cmd_text or _format_cmd_text(cmd_name, args))
+            self._trace_rejected_cmd = False
             raise
 
     def _invoke_inner(self, cmd_name: str, args: list[str]) -> TclResult:
@@ -763,14 +788,21 @@ class TclInterp:
         saved_ns = self.current_namespace
         self.current_frame = frame
         self.current_namespace = proc_ns
+        vm: BytecodeVM | None = None
         try:
             if proc.compiled_asm is not None:
                 vm = BytecodeVM(self, debug_hook=self._debug_hook)
-                result = vm.execute(proc.compiled_asm)
+                result = vm.execute(proc.compiled_asm, source=proc.body)
             else:
                 result = self.eval(proc.body)
             return TclResult(value=result.value)
         except TclError as e:
+            # For a compiled body, add the "while executing" frame for the
+            # command whose inline bytecode raised (the eval() path above
+            # already does this for an interpreted body).  This precedes the
+            # procedure frame so errorInfo unwinds innermost-first.
+            if vm is not None:
+                self._append_while_executing(e, vm.pending_compiled_cmd_text())
             # Add "(procedure X line N) / invoked from within" frame
             self._annotate_proc_error(e, proc, args)
             raise
@@ -832,6 +864,26 @@ class TclInterp:
         finally:
             self.current_frame = saved_frame
             self.current_namespace = saved_ns
+
+    def _append_while_executing(self, e: TclError, cmd_text: str) -> None:
+        """Append a ``while executing "<cmd>"`` frame to *e*'s errorInfo.
+
+        Used as an error escapes a command's compiled bytecode.  When the
+        error has no errorInfo yet (innermost compiled op), seed it with the
+        message first.  Skips when the same frame is already on top, so it
+        does not duplicate a frame the invoke path already added for the same
+        command (e.g. a dynamic ``$z {"foo}`` call).
+        """
+        if not cmd_text:
+            return
+        if len(cmd_text) > 150:
+            cmd_text = cmd_text[:150] + "..."
+        frame = f'    while executing\n"{cmd_text}"'
+        if not e.error_info:
+            e.error_info = [e.message]
+        elif e.error_info[-1] == frame:
+            return
+        e.error_info.append(frame)
 
     def _annotate_proc_error(
         self,

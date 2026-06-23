@@ -17,7 +17,7 @@
 //! the unmodified word vector.
 
 use crate::ir::Statement;
-use crate::lowering_hooks::{LoweringCommand, has_expansion, make_call};
+use crate::lowering_hooks::{ArgTokenKind, LoweringCommand, has_expansion, make_call};
 
 /// Lower `incr` to [`Statement::Incr`] or fall back to
 /// [`Statement::Call`] when the call shape is not the
@@ -27,9 +27,14 @@ pub fn try_lower_incr(cmd: &LoweringCommand<'_>) -> Statement {
     if has_expansion(cmd) || cmd.args.is_empty() || cmd.args.len() > 2 {
         return make_call(cmd);
     }
+    // A brace-string name (`incr {a($x)} 3`) suppresses substitution of an
+    // array-element key — thread it through like `set` does.
+    let name_braced = matches!(cmd.arg_kinds.first(), Some(ArgTokenKind::Str))
+        && cmd.single_token_word.get(1).copied().unwrap_or(false);
     Statement::Incr {
         span: cmd.span,
         name: cmd.args[0].clone(),
+        name_braced,
         amount: cmd.args.get(1).cloned(),
         // The Python hook queries the registry's ``safe_on_uninit``
         // trait via ``REGISTRY.is_safe_on_uninit``. The Rust port

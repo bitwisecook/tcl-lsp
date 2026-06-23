@@ -259,7 +259,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
             ..RegexFlags::default()
         };
         Some(E::compile(&pattern, flags).map_err(|d| {
-            let mut m = b"couldn't compile regular expression pattern: ".to_vec();
+            let mut m = b"cannot compile regular expression pattern: ".to_vec();
             m.extend_from_slice(&d);
             LsearchError::msg(m)
         })?)

@@ -29,4 +29,5 @@ pub mod glob;
 pub mod list;
 pub mod naming;
 pub mod number;
+pub mod scan;
 pub mod value;

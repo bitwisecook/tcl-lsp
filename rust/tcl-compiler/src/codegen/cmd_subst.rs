@@ -200,6 +200,31 @@ fn parse_bareword_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (Str
     (text[start..i].to_owned(), i)
 }
 
+/// Advance past inter-word separators inside a single command: horizontal
+/// whitespace (` `/`\t`) and a `\<newline>` line continuation (backslash, then
+/// `\n` or `\r\n`/`\r`, then any leading horizontal whitespace of the next
+/// line). A continuation is a word separator in Tcl — without skipping it the
+/// tokenizer mis-split a multi-line command's words (e.g. `string range $x \`
+/// <newline> `$i $j`), dropping an argument and raising a spurious
+/// "wrong # args" (tcltest's `SubstArguments` → info / lrepeat / lseq, and
+/// every test file using the `{-body … -result …}` dict form).
+fn skip_word_seps(bytes: &[u8], n: usize, mut i: usize) -> usize {
+    loop {
+        if i < n && (bytes[i] == b' ' || bytes[i] == b'\t') {
+            i += 1;
+        } else if i + 1 < n && bytes[i] == b'\\' && (bytes[i + 1] == b'\n' || bytes[i + 1] == b'\r')
+        {
+            i += 2;
+            if i < n && bytes[i - 1] == b'\r' && bytes[i] == b'\n' {
+                i += 1; // `\r\n`
+            }
+        } else {
+            break;
+        }
+    }
+    i
+}
+
 /// Parse a command-substitution body into `(text, braced)` parts.
 /// `braced=true` means the text was a `{...}` literal — the caller
 /// should not interpolate it.  Strips the outer `[...]` if present.
@@ -217,9 +242,7 @@ pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
     let mut i = 0;
 
     while i < n {
-        while i < n && (bytes[i] == b' ' || bytes[i] == b'\t') {
-            i += 1;
-        }
+        i = skip_word_seps(bytes, n, i);
         if i >= n {
             break;
         }
@@ -276,9 +299,7 @@ pub fn parse_cmd_parts_expand(text: &str) -> Vec<(String, bool, bool)> {
     let mut i = 0;
 
     while i < n {
-        while i < n && (bytes[i] == b' ' || bytes[i] == b'\t') {
-            i += 1;
-        }
+        i = skip_word_seps(bytes, n, i);
         if i >= n {
             break;
         }
@@ -469,11 +490,27 @@ impl CodegenCtx<'_> {
                 if is_bare || (!rest.is_empty() && split_array_ref(rest).is_some()) {
                     self.load_var(rest);
                 } else {
-                    self.push_lit(word);
+                    // A leading `$` followed by more text (`$i.x`, `$a$b`) is an
+                    // interpolated word, not a whole-variable reference: decompose
+                    // it into its `$var` / literal parts and concatenate, so the
+                    // variable is substituted. Pushing it raw left the inline
+                    // command-substitution path (e.g. `set m [concat a "$i.x"]`)
+                    // with the literal `$i.x`.
+                    self.emit_value(word, true);
                 }
             }
         } else if braced && (word.contains('$') || word.contains('[')) {
             self.push_lit(&format!("{{{word}}}"));
+        } else if !braced && (word.contains('$') || word.contains('[')) {
+            // Interpolated word with an *embedded* (non-leading) substitution
+            // — e.g. an array-element reference `be(a:$a)` used as a command
+            // argument, or `x$item`. The leading-`$` whole-reference forms are
+            // handled above; here `emit_value` decomposes the word into its
+            // literal / `$var` / `[cmd]` parts and concatenates them, so the
+            // `$a` inside the key is substituted. Without this the word was
+            // pushed raw and a nested `[set be(a:$a)]` read the literal element
+            // `be(a:$a)` (set-1.26).
+            self.emit_value(word, true);
         } else if !braced && word.contains('\\') {
             let processed = tcl_lexer::backslash_subst(word);
             self.push_lit(&processed);

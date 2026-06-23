@@ -125,6 +125,17 @@ fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool, bool) {
     (i, mode, nocase, unknown)
 }
 
+/// Whether a loop body (or `for` next-clause) redefines `break`/`continue` via
+/// `proc break …` / `proc continue …`. Such a loop is compiled through the
+/// runtime builtin (a barrier) rather than the inline JUMP fast-path: the
+/// builtin dispatches break/continue as commands, honouring the redefinition,
+/// whereas the inline JUMP fires unconditionally and would loop forever
+/// (proc-7.3, Bug 729692). A conservative substring test — a false positive
+/// merely takes the correct (if slower) runtime path.
+fn redefines_loop_control(body: &str) -> bool {
+    body.contains("proc break") || body.contains("proc continue")
+}
+
 impl Lowerer<'_> {
     // ── if ────────────────────────────────────────────────────────
 
@@ -152,11 +163,23 @@ impl Lowerer<'_> {
         while i < args.len() {
             if args[i] == "elseif" {
                 i += 1;
+                // `elseif` must be followed by a condition; a dangling `elseif`
+                // (`if 1 {a} elseif`) is "no expression after elseif". Defer to the
+                // runtime `if`, which reports it faithfully (if-2.3).
+                if i >= args.len() {
+                    return Self::barrier(seg, "if missing elseif expression");
+                }
                 continue;
             }
             if args[i] == "else" {
                 if i + 1 >= args.len() {
                     return Self::barrier(seg, "malformed if else clause");
+                }
+                // Exactly one body may follow `else`; trailing words
+                // (`if 0 {a} else {b} junk`) are "extra words after else" — defer to
+                // the runtime `if` (if-3.5).
+                if i + 2 < args.len() {
+                    return Self::barrier(seg, "if extra words after else");
                 }
                 // Only a substitution-free literal body inlines (see the
                 // clause-body note below).
@@ -248,11 +271,21 @@ impl Lowerer<'_> {
         let arg_tokens = seg.arg_tokens();
         let arg_single = seg.arg_single_token();
 
-        if args.len() < 4 || arg_tokens.len() < 4 {
+        // `for` takes exactly four arguments; a wrong count barriers to the
+        // runtime builtin, which raises `wrong # args` (for-old-1.7). Lowering a
+        // ≥4 form would silently drop the extras and run arg[0] as the body.
+        if args.len() != 4 || arg_tokens.len() < 4 {
             return Self::barrier(seg, "malformed for");
         }
         if !(arg_single[0] && arg_single[1] && arg_single[2] && arg_single[3]) {
             return Self::barrier(seg, "for with dynamic arguments");
+        }
+        // A body/next that redefines break/continue must run through the runtime
+        // builtin, which dispatches them (so the redefinition is honoured) rather
+        // than firing the compiled JUMP fast-path unconditionally and looping
+        // forever (proc-7.3).
+        if redefines_loop_control(&args[2]) || redefines_loop_control(&args[3]) {
+            return Self::barrier(seg, "for redefines break/continue");
         }
 
         let init = self.lower_body_from_tok(&args[0], Some(&arg_tokens[0]), namespace);
@@ -282,11 +315,18 @@ impl Lowerer<'_> {
         let arg_tokens = seg.arg_tokens();
         let arg_single = seg.arg_single_token();
 
-        if args.len() < 2 || arg_tokens.len() < 2 {
+        // `while` takes exactly two arguments; a wrong count barriers to the
+        // runtime builtin, which raises `wrong # args` (while-old-4.3).
+        if args.len() != 2 || arg_tokens.len() < 2 {
             return Self::barrier(seg, "malformed while");
         }
         if !(arg_single[0] && arg_single[1]) {
             return Self::barrier(seg, "while with dynamic arguments");
+        }
+        // See `lower_for`: a body redefining break/continue must use the runtime
+        // builtin so the redefinition is dispatched (proc-7.3).
+        if redefines_loop_control(&args[1]) {
+            return Self::barrier(seg, "while redefines break/continue");
         }
 
         let body = self.lower_body_from_tok(&args[1], Some(&arg_tokens[1]), namespace);

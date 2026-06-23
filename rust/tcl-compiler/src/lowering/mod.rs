@@ -2052,6 +2052,50 @@ pub fn lower_to_ir_for_bytecode(source: &str, registry: &CommandRegistry) -> Mod
     )
 }
 
+/// Lexer warning messages that correspond to a hard `Tcl_ParseCommand`
+/// failure in C Tcl — i.e. a malformed word that C Tcl reports as a parse
+/// error rather than tokenising leniently.
+///
+/// The lexer detects these but only *raises* them under `strict_quoting`
+/// (off by default); in the VM compile path it records them as warnings and
+/// recovers. C Tcl, however, aborts compilation of the script and defers the
+/// error to a bytecode instruction that raises it at runtime — so a parse
+/// error inside a `catch {…}` body (re-compiled at runtime) is catchable. See
+/// [`first_fatal_parse_error`].
+const FATAL_PARSE_MESSAGES: &[&str] = &[
+    "extra characters after close-quote",
+    "extra characters after close-brace",
+    "missing close-brace",
+    "missing close-brace for variable name",
+    "missing \"",
+    "missing )",
+    "missing close-bracket",
+];
+
+/// Return the first hard parse-error message in `source`, in source order, or
+/// `None` if `source` parses cleanly.
+///
+/// A VM compile front-end (`CompileService::compile`) calls this so that a
+/// malformed script becomes a catchable runtime error carrying the **exact**
+/// C Tcl message (e.g. `extra characters after close-quote`), matching C Tcl's
+/// deferral of a compile-time parse error to a runtime instruction. The lexer
+/// otherwise recovers from these for the benefit of editor diagnostics, so the
+/// IR / bytecode never sees them.
+///
+/// Lexes with the default (Tcl-8.5+) dialect config — the same one
+/// [`lower_to_ir_for_bytecode`] uses. Only the messages in
+/// [`FATAL_PARSE_MESSAGES`] count; benign warnings are ignored.
+#[must_use]
+pub fn first_fatal_parse_error(source: &str) -> Option<String> {
+    let lexer = tcl_lexer::Lexer::new(source);
+    let (_tokens, warnings) = lexer.tokenise_all_with_warnings().ok()?;
+    warnings
+        .into_iter()
+        .filter(|w| FATAL_PARSE_MESSAGES.contains(&w.message.as_str()))
+        .min_by_key(|w| w.offset)
+        .map(|w| w.message)
+}
+
 /// Drive a configured [`Lowerer`] to a finished [`Module`] (the shared tail of
 /// the `lower_to_ir*` entry points).
 fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {

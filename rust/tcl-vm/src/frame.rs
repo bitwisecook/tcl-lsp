@@ -32,6 +32,9 @@ pub(crate) enum Local {
 pub(crate) struct CallFrame {
     /// Local variables by name.
     pub locals: HashMap<String, Local>,
+    /// Names (within this frame) declared `const` — immutable scalars (TIP 677).
+    /// Dropped with the frame, so a proc-local constant lasts one activation.
+    pub consts: std::collections::HashSet<String>,
     /// The namespace this frame executes in (global-only for M2).
     #[allow(dead_code)]
     pub ns: NsId,
@@ -62,6 +65,7 @@ impl CallFrame {
     pub fn new(level: usize, ns: NsId, proc_name: Option<String>, call_argv: Vec<Value>) -> Self {
         Self {
             locals: HashMap::new(),
+            consts: std::collections::HashSet::new(),
             ns,
             level,
             proc_name,

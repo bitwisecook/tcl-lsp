@@ -480,11 +480,11 @@
       "total": 70
     },
     "set": {
-      "bucket": "B-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 6,
-      "passed_min": 57,
+      "failed_max": 0,
+      "passed_min": 63,
       "skipped": 1,
       "total": 64
     },

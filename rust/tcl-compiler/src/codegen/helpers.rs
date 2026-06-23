@@ -606,7 +606,11 @@ fn parse_format_parts(inner: &str) -> Option<Vec<String>> {
                 if subst {
                     return None;
                 }
-                parts.push(buf);
+                // The word is a compile-time constant (no unescaped `$`/`[`); the
+                // backslash sequences it still carries (`\"`, `\\`, `\t`, escaped
+                // `\$`/`\[`, …) must be substituted to get the folded value —
+                // otherwise `[format "x\"y"]` would freeze the literal `x\"y`.
+                parts.push(tcl_lexer::backslash_subst(&buf).into_owned());
             }
             b'{' => {
                 // Braced string — always literal.

@@ -22,6 +22,12 @@ impl CompileService for CompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
 
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        // Mirror the real VM compile services (`tcl-vm-cli`, `run_test`): a
+        // hard parse error becomes a catchable runtime error with the exact
+        // C Tcl message.
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
+            return Err(CompileError(msg));
+        }
         let ir = lower_to_ir(src, &self.registry);
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
@@ -124,6 +130,529 @@ fn traces_fire_ok_error_and_unset() {
     );
     // An `unset`-trace error does not abort the access.
     assert!(Traces::fire(&mut vm, "z", "unset").is_ok());
+}
+
+/// `trace add|remove|info <type>` accept an unambiguous prefix of the type
+/// word — `var` resolves to `variable` — matching C's `Tcl_GetIndexFromObj`
+/// over `traceTypeOptions`. Regression for set-2.4 / set-4.4, which add a
+/// write trace via `trace add var x write …`.
+#[test]
+fn trace_type_accepts_unambiguous_abbreviation() {
+    let (ok, result, _) = run(concat!(
+        "set x 1\n",
+        "proc ro args {error \"variable is read-only\"}\n",
+        "trace add var x write ro\n",
+        "catch {set x 9} m\n",
+        "set m",
+    ));
+    assert!(ok, "script should complete (var → variable): {result}");
+    // The trace fired (so `var` was accepted) and rewrapped the callback error.
+    assert_eq!(result, "can't set \"x\": variable is read-only");
+}
+
+/// A write-trace rejection's `errorInfo` carries the full unwind down to the
+/// command that triggered the trace: the callback frames, the
+/// `(write trace on "x")` context frame, and finally the `set x 9` frame.
+/// Regression for set-2.4 (the `-match glob` result requires the trace's
+/// `errorInfo` to reach `"set x 9"`).
+#[test]
+fn write_trace_error_info_reaches_triggering_command() {
+    let (ok, result, _) = run(concat!(
+        "set x 1\n",
+        "proc ro args {error \"variable is read-only\"}\n",
+        "trace add variable x write ro\n",
+        "catch {set x 9}\n",
+        "string match {*variable is read-only*while executing*\"set x 9\"} $::errorInfo",
+    ));
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result, "1",
+        "errorInfo must unwind through the trace to the triggering `set x 9` frame",
+    );
+}
+
+/// The compiled `linsert`/`lreplace` opcode rejects a non-integer index with
+/// the same `bad index` error as the command, rather than silently treating it
+/// as 0. Regression for linsert-2.2 / linsert-2.3.
+#[test]
+fn compiled_linsert_rejects_bad_index() {
+    let (ok, result, _) = run("catch {linsert a b} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result,
+        "bad index \"b\": must be integer?[+-]integer? or end?[+-]integer?"
+    );
+
+    // A valid index still inserts (no false positive).
+    let (ok, result, _) = run("linsert {a b c} end X");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "a b c X");
+}
+
+/// A `nan` arithmetic operand is reported as a non-numeric floating-point
+/// *value*, not a string (mathop operator error tests).
+#[test]
+fn nan_operand_error_wording() {
+    let (ok, result, _) = run("catch {tcl::mathop::+ nan 0} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result,
+        "cannot use non-numeric floating-point value \"nan\" as left operand of \"+\""
+    );
+}
+
+/// Integer `expr` arithmetic promotes to i128 on i64 overflow instead of
+/// wrapping (the VM's bounded stand-in for Tcl bignums), covering the common
+/// large-value range that `expr`/`mathop` exercise.
+#[test]
+fn integer_arithmetic_promotes_on_overflow() {
+    for (e, want) in [
+        ("9223372036854775807 + 1", "9223372036854775808"),
+        ("2 ** 70", "1180591620717411303424"),
+        ("1000000000000000000000 + 5", "1000000000000000000005"),
+        ("100000000000 * 100000000000", "10000000000000000000000"),
+    ] {
+        let (ok, result, _) = run(&format!("expr {{{e}}}"));
+        assert!(ok, "`{e}` should evaluate: {result}");
+        assert_eq!(result, want, "expr {{{e}}}");
+    }
+}
+
+/// Unary minus of `9223372036854775808` (the magnitude 2^63, which overflows a
+/// positive wide) yields the most-negative wide — C narrows `-2^63`. This
+/// unblocks indexObj.test, whose `-result [expr {… ? -9223372036854775808 :
+/// …}]` clauses are evaluated while the file is sourced.
+#[test]
+fn unary_minus_of_two_to_the_63() {
+    let (ok, result, _) = run("expr {-9223372036854775808}");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "-9223372036854775808");
+
+    let (ok, result, _) = run("expr {-9223372036854775808 < 0}");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "1");
+}
+
+/// `wide()` truncates an out-of-range integer literal to a 64-bit wide via
+/// two's-complement wrap, matching C — `wide(0x8000000000000000)` is the most
+/// negative wide, `wide(0xFFFFFFFFFFFFFFFF)` is -1. This unblocks expr.test
+/// (which probes `wide(0x8000000000000000) < 0` at the top level) and brings
+/// obj.test to parity without a full bignum rep.
+#[test]
+fn wide_truncates_out_of_range_literals() {
+    let (ok, result, _) = run("expr {wide(0x8000000000000000)}");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "-9223372036854775808");
+
+    let (ok, result, _) = run("expr {wide(0xFFFFFFFFFFFFFFFF)}");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "-1");
+
+    let (ok, result, _) = run("expr {wide(0x8000000000000000) < 0}");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "1");
+}
+
+/// `namespace path` sets a per-namespace command resolution path consulted
+/// after the current namespace and before the global one, so e.g. the math
+/// operators resolve unqualified. Regression for mathop / cmdIL (which crashed
+/// on the unimplemented subcommand). `namespace path` with no list reads it back.
+#[test]
+fn namespace_path_resolves_commands() {
+    let (ok, result, _) = run(
+        "namespace eval foo {\n  namespace path ::tcl::mathop\n  set r [+ 2 3]\n  lappend r [namespace path]\n  set r\n}",
+    );
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "5 ::tcl::mathop");
+}
+
+/// A loop whose body redefines `break`/`continue` runs through the runtime
+/// builtin (which dispatches them) instead of the inline JUMP fast-path, so the
+/// redefinition is honoured rather than looping forever. Regression for
+/// proc-7.3 (Bug 729692) — this previously hung.
+#[test]
+fn loop_body_redefining_continue_is_honoured() {
+    let (ok, result, _) = run(concat!(
+        "set i 0\n",
+        "while {1} {\n",
+        "  if {[incr i] > 3} { proc continue {} {return -code break} }\n",
+        "  continue\n",
+        "}\n",
+        "set i",
+    ));
+    assert!(ok, "loop should terminate (no hang): {result}");
+    assert_eq!(result, "4");
+}
+
+/// `init_auto_load` installs the `unknown`/`auto_load` procs so an unresolved
+/// command is looked up on demand. With an empty `auto_path` (no library scan)
+/// a genuinely unknown command still raises the standard `invalid command name`
+/// error — confirming the proc is installed and the miss path matches C.
+/// (word.test, driven through the real library, is the positive integration
+/// test.)
+#[test]
+fn autoloader_installs_unknown_and_reports_miss() {
+    let buf = Rc::new(RefCell::new(Vec::new()));
+    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    vm.set_compiler(Box::new(CompilerSvc {
+        registry: CommandRegistry::build_default(),
+    }));
+    vm.init_auto_load();
+    // Decouple from any on-disk library so the test is environment-independent.
+    let _ = vm.eval_source("set ::auto_path {}");
+
+    let c = vm.eval_source("info commands unknown").expect("compiles");
+    assert_eq!(&*c.result.to_str(), "unknown", "unknown proc is installed");
+
+    let c = vm
+        .eval_source("catch {nonexistent_xyz_cmd} m; set m")
+        .expect("compiles");
+    assert_eq!(
+        &*c.result.to_str(),
+        "invalid command name \"nonexistent_xyz_cmd\"",
+    );
+}
+
+/// `string map` with three arguments whose first is not `-nocase` reports a
+/// bad-option error, not a wrong-arg-count error (string-10.2).
+#[test]
+fn string_map_three_args_bad_option() {
+    let (ok, result, _) = run("catch {string map {a b} abba oops} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "bad option \"a b\": must be -nocase");
+}
+
+/// An error unwinding out of a runtime `eval $script` adds the uncompiled
+/// eval's `("eval" body line N)` frame to `errorInfo`, followed by the
+/// enclosing invocation's `invoked from within "eval $s"` frame — matching C's
+/// uncompiled-eval unwind. (The compiler inlines `eval {literal}`, so this only
+/// fires for the dynamic form, which is the one that routes through `cmd_eval`.)
+#[test]
+fn dynamic_eval_error_info_carries_eval_body_frame() {
+    let (ok, result, _) = run(concat!(
+        "set s \"error foo\"\n",
+        "catch {eval $s}\n",
+        "string match {foo*while executing*\"error foo\"*(\"eval\" body line 1)*invoked from within*\"eval \\$s\"} $::errorInfo",
+    ));
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result, "1",
+        "dynamic eval errorInfo must carry the (\"eval\" body line 1) and invoked-from-within frames",
+    );
+}
+
+/// A bare builtin error sets `$errorCode` to the code C attaches: a
+/// "wrong # args" usage error → `TCL WRONGARGS` (`Tcl_WrongNumArgs`), and a
+/// malformed-list parse error → `TCL VALUE LIST …` (`tclUtil.c`). An
+/// unrecognised error stays `NONE`. Regression for join-2.1/2.3, split-2.1.
+#[test]
+fn builtin_errors_publish_their_error_code() {
+    // wrong # args → TCL WRONGARGS
+    let (ok, result, _) = run("catch join\nset ::errorCode");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "TCL WRONGARGS");
+
+    // unmatched open brace in list → TCL VALUE LIST BRACE (the quoted `\{`
+    // collapses to a bare `{`, so the list parse fails).
+    let (ok, result, _) = run("set s \"a b c \\{\"\ncatch {llength $s}\nset ::errorCode");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "TCL VALUE LIST BRACE");
+
+    // a user `error` with no -errorcode keeps NONE (not reclassified).
+    let (ok, result, _) = run("catch {error {wrong # args: should be \"x\"}}\nset ::errorCode");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "NONE");
+}
+
+/// `ledit listVar first last ?element ...?` is the in-place `lreplace` (Tcl 9):
+/// it edits the list held in the variable, stores the result back, and returns
+/// it. A missing array element reports the array-specific read error. Regression
+/// for lreplace.test's ledit battery.
+#[test]
+fn ledit_edits_in_place_and_reports_array_miss() {
+    let (ok, result, _) = run("set l {1 2 3 4 5}\nledit l 1 1 a b\nset l");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "1 a b 3 4 5");
+
+    let (ok, result, _) = run(concat!(
+        "unset -nocomplain arr\nset arr(y) y\n",
+        "catch {ledit arr(x) 0 0 x} m\nset m",
+    ));
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "can't read \"arr(x)\": no such element in array");
+}
+
+/// `concat` trims surrounding whitespace per element, but a trailing space
+/// escaped by an odd run of backslashes (`\ `) is part of the element and kept
+/// — C's `Tcl_ConcatObj` (lreplace.test ledit-1.25, concat-4.2).
+#[test]
+fn concat_keeps_backslash_escaped_trailing_space() {
+    // Braced `{a\ }` is the literal `a`, `\`, ` `; the trailing space is escaped
+    // by the backslash, so concat keeps it and adds its own join space.
+    let (ok, result, _) = run("concat {a\\ } b");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "a\\  b");
+
+    let (ok, result, _) = run("concat {  a b  } {  c  }");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "a b c"); // plain whitespace is trimmed
+}
+
+/// A codegen hook (`concat`, `llength`, …) collapses a non-braced literal
+/// argument's backslash escapes exactly like the generic per-word path — a
+/// braced word stays verbatim. Regression for concat-1.4 / llength-2.3, where
+/// the hook pushed the raw word and so saw `a\{` instead of `a{`.
+#[test]
+fn list_hooks_collapse_nonbraced_backslashes() {
+    // Non-braced `a\{` collapses to `a{`; the braced `{b \{c d}` stays literal.
+    let (ok, result, _) = run("concat a\\{ {b \\{c d} \\{d");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "a{ b \\{c d {d");
+
+    // llength of a quoted literal whose `\{` collapses to a bare `{` errors as
+    // an unmatched open brace, rather than counting it as an escaped element.
+    let (ok, result, _) = run("set rc [catch {llength \"a b c \\{\"} m]\nlist $rc $m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "1 {unmatched open brace in list}");
+}
+
+/// `while` / `for` with the wrong argument count raise `wrong # args` rather
+/// than lowering a truncated loop and running an argument as a command.
+/// Regression for while-old-4.3 / for-old-1.7.
+#[test]
+fn while_for_reject_wrong_arg_count() {
+    let (ok, result, _) = run("catch {while 1 2 3} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "wrong # args: should be \"while test command\"");
+
+    let (ok, result, _) = run("catch {for 1 2 3 4 5} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result,
+        "wrong # args: should be \"for start test next command\""
+    );
+}
+
+/// An inline-compiled command substitution interpolates a leading-`$` word that
+/// is more than a bare variable (`$i.x`, `$a$b`): the word is decomposed into
+/// its `$var`/literal parts, not pushed raw. Regression for for-2.5 — `set m
+/// [concat a "$i.x"]` had yielded the literal `$i.x`.
+#[test]
+fn inline_cmd_subst_interpolates_dollar_prefixed_word() {
+    let (ok, result, _) = run("set i 5\nset m [concat a \"$i.x\"]\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "a 5.x");
+
+    let (ok, result, _) = run("set a 1\nset b 2\nset m [concat [list $a$b]]\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "12");
+}
+
+/// `break` / `continue` with any argument raise `wrong # args` — even inside a
+/// loop, where the bare forms compile to a jump. The compiler only takes the
+/// jump fast path when there are no arguments, so `break foo` reaches the
+/// builtin. Regression for for-2.1 / for-3.1. The bare forms still control the
+/// loop.
+#[test]
+fn break_continue_reject_arguments() {
+    let (ok, result, _) =
+        run("set r {}\nforeach x {1 2 3} {catch {break foo} m; lappend r $m; break}\nset r");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "{wrong # args: should be \"break\"}");
+
+    let (ok, result, _) = run("catch {continue foo} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "wrong # args: should be \"continue\"");
+
+    // The bare forms still break/continue the loop.
+    let (ok, result, _) =
+        run("set r {}\nforeach x {1 2 3 4} {if {$x==3} break; lappend r $x}\nset r");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "1 2");
+}
+
+/// The runtime `lset` builtin (the fallback for the dynamic / wrong-arg paths
+/// the compiler does not inline) reports the usage error, replaces the whole
+/// value with no index, and descends a flat index path. Regression for
+/// lsetComp-1.1 (`lset` was only a codegen hook, so the fallback hit "invalid
+/// command name").
+#[test]
+fn lset_runtime_builtin() {
+    // Dispatched indirectly so it cannot be inlined → exercises the builtin.
+    let (ok, result, _) = run("set c lset\ncatch {$c} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result,
+        "wrong # args: should be \"lset listVar ?index? ?index ...? value\""
+    );
+
+    let (ok, result, _) = run("set l {{a b} {c d}}\nset c lset\n$c l 0 1 X\nset l");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "{a X} {c d}");
+}
+
+/// `lrepeat` rejects a negative count with C's exact message (lrepeat-1.4).
+#[test]
+fn lrepeat_negative_count_message() {
+    let (ok, result, _) = run("catch {lrepeat -3 1} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "bad count \"-3\": must be integer >= 0");
+}
+
+/// `lpop` removes and returns an element of the list in a variable (default the
+/// last), descending into nested sublists with several indices, and stores the
+/// trimmed list back. Out-of-range / non-integer indices error like C.
+#[test]
+fn lpop_removes_and_returns_element() {
+    let (ok, result, _) = run("set l {a b c d}\nset got [lpop l]\nlist $got $l");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "d {a b c}");
+
+    let (ok, result, _) = run("set l {{a b} {c d}}\nset got [lpop l 0 1]\nlist $got $l");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "b {a {c d}}");
+
+    let (ok, result, _) = run("set l {a b c}\ncatch {lpop l 99} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "index \"99\" out of range");
+}
+
+/// The compiled `LIST_RANGE_IMM` path resolves `end+N` indices like the
+/// uncompiled command: as the last index `end+N` clamps to the end (keeps
+/// everything), as the first index it is past the end (empty). Regression for
+/// lrange.test's lrange-5 "shared compiled" battery, where `end+N` encodes as
+/// `INDEX_END + N` (above the old `<= INDEX_END` detection) and was misread as a
+/// huge plain index.
+#[test]
+fn compiled_lrange_handles_end_plus_n() {
+    // `end+1` as the last index includes through the end.
+    let (ok, result, _) = run("join [lrange {a b c} 0 end+1] -");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "a-b-c");
+
+    // `end+1` as the first index is past the end → empty.
+    let (ok, result, _) = run("list [lrange {a b c} end+1 end]");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "{}");
+}
+
+/// A brace-string array-element target keeps its key LITERAL: `set {a($x)} 5`
+/// stores the element whose key is the literal string `$x` (Tcl braces suppress
+/// substitution), so reading it back with the same braced key returns the value
+/// — it does NOT substitute `$x`. Regression for set-1.25 (the unbraced
+/// `set a($x) 5` still substitutes, covered by the array tests).
+#[test]
+fn braced_array_key_is_literal() {
+    let (ok, result, _) = run(concat!(
+        "catch {unset a}\n",
+        "set {a($x)} 5\n",
+        "set {a($x)}",
+    ));
+    assert!(
+        ok,
+        "braced key must not substitute $x (would error `can't read x`): {result}"
+    );
+    assert_eq!(result, "5");
+}
+
+/// A non-braced array-element key carrying backslash escapes is an ordinary
+/// Tcl word: its escapes are decoded (`\w` → `w`, `\ ` → space) before the
+/// element lookup, matching C Tcl. Regression for set-1.26.
+#[test]
+fn unbraced_array_key_decodes_backslashes() {
+    let (ok, result, _) = run(concat!(
+        "catch {unset be}\n",
+        "set be(\\w\\w) 1\n",
+        "set be(a\\ a) 1\n",
+        "lsort [array names be]",
+    ));
+    assert!(ok, "should complete: {result}");
+    assert_eq!(result, "{a a} ww");
+}
+
+/// An array-element read nested inside a command substitution that is itself
+/// part of an array-key template substitutes its own key. Regression for
+/// set-1.26's `set be([set be(a:$a)][set b\e($a)]) 1`.
+#[test]
+fn nested_array_read_in_key_template_substitutes() {
+    let (ok, result, _) = run(concat!(
+        "set a x\n",
+        "set be(a:x) 5\n",
+        "set be(x) 1\n",
+        "set be([set be(a:$a)][set b\\e($a)]) 1\n",
+        "lsort [array names be]",
+    ));
+    assert!(ok, "nested key read must substitute $a: {result}");
+    assert_eq!(result, "51 a:x x");
+}
+
+/// A `\<newline>` line continuation inside an inline command substitution
+/// assigned with `set` is a word separator: the inner command keeps all its
+/// arguments. Regression for the inline-cmd-subst tokenizer dropping an arg
+/// across a continuation (spurious `wrong # args`), which crashed tcltest's
+/// `SubstArguments` and every test file using the `{-body … -result …}` dict
+/// form (info / lrepeat / lseq).
+#[test]
+fn multiline_cmd_subst_in_assignment_keeps_all_args() {
+    let (ok, result, _) = run("proc f {x} {set w [string range $x \\\n\t1 3]; return $w}\nf abcde");
+    assert!(ok, "multi-line cmd subst must keep all args: {result}");
+    assert_eq!(result, "bcd");
+}
+
+/// Ensemble subcommands resolve an unambiguous prefix, matching C's
+/// `Tcl_GetIndexFromObj`: `info command` → `commands`, `file ext` →
+/// `extension`, `file dir` → `dirname`. (cmdAH.test's constraint setup uses
+/// `info command`; the absence of prefix matching aborted the whole file.)
+#[test]
+fn info_and_file_subcommand_prefix_abbreviation() {
+    assert_eq!(run("info command set").1, "set");
+    assert_eq!(run("file ext a.tar.gz").1, ".gz");
+    assert_eq!(run("file dir /a/b/c").1, "/a/b");
+}
+
+/// `dict with` maps a dict's keys to local variables, runs the body, and
+/// reflects the variables back: a modified key is updated, an unset key is
+/// removed, and a variable the body merely created is not added. A nested
+/// key path updates the sub-dict in place.
+#[test]
+fn dict_with_maps_and_reflects() {
+    // Modified `a`, removed `b` (unset), new `c` not added back.
+    assert_eq!(
+        run("set d {a 1 b 2}\ndict with d {set a 9; unset b; set c 3}\nset d").1,
+        "a 9",
+    );
+    // Nested key path: the sub-dict at `x` is updated in place.
+    assert_eq!(
+        run("set d {x {a 1 b 2}}\ndict with d x {incr a 5}\nset d").1,
+        "x {a 6 b 2}",
+    );
+}
+
+/// A hard parse error inside a compiled body (`set "i"xxx` — non-whitespace
+/// after a close-quote) is deferred to a catchable runtime error carrying the
+/// exact C Tcl message. Regression for set-1.3 / set-3.3.
+#[test]
+fn extra_chars_after_close_quote_is_catchable() {
+    let (ok, result, _) = run(concat!(
+        "set i 10\n",
+        "catch {set \"i\"xxx} msg\n",
+        "set msg",
+    ));
+    assert!(ok, "the catch must contain the parse error: {result}");
+    assert_eq!(result, "extra characters after close-quote");
+}
+
+/// `subst` decodes one backslash escape at a time and handles the multi-byte
+/// forms: a `\` before a multi-byte UTF-8 character (previously a fixed
+/// two-byte slice split the char boundary and panicked), `\xHH` hex, and the
+/// `\<newline><whitespace>` line continuation. Regression for the subst.rs
+/// panic that aborted subst.test.
+#[test]
+fn subst_backslash_escapes_handle_multibyte_and_hex() {
+    assert_eq!(run("subst {\\é}").1, "é");
+    assert_eq!(run("subst {\\x41}").1, "A");
+    // `\` then newline then leading whitespace collapses to a single space.
+    assert_eq!(run("subst \"a\\\n   b\"").1, "a b");
 }
 
 /// `info level` runs through the shared Family-B core
@@ -608,6 +1137,7 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
         labels,
         loop_targets: std::collections::HashMap::new(),
         body_base_line: 0,
+        error_regions: Vec::new(),
     };
     let module = ModuleAsm {
         top_level: top,

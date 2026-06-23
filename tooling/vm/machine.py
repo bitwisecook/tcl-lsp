@@ -648,6 +648,27 @@ _EXPAND_SENTINEL = "\0__expand_sentinel__\0"
 # fully-qualified ensemble command names back to base + subcommand.
 _FQ_CMD_RE = re.compile(r"^::tcl::(\w+)::(\w+)$")
 
+# Compiled ops that terminate a *command* whose own bytecode (not a
+# generic invoke) failed — a variable mutation / read (set / incr /
+# append / lappend) or the compiled ``error`` (returnImm).  When one of
+# these is the instruction in flight as a TclError escapes ``execute``, it
+# IS the command that failed, so the eval()/_call_proc() escape handlers
+# append a "while executing <cmd>" frame for it.  A PUSH / POP /
+# arithmetic / jump in flight means the error came from a *nested*
+# command-substitution argument whose own command already logged its
+# frame — appending here would wrongly blame the half-built outer command
+# (incr-2.30: ``incr x [set]`` must not gain a ``while executing
+# "incr x [set]"`` frame).  Generic ``invoke``s are excluded: ``invoke()``
+# logs their frame directly (and proc dispatch logs the proc frame), so
+# re-logging here would double-count.  See
+# :meth:`BytecodeVM.pending_compiled_cmd_text`.
+_FRAME_WORTHY_OPS = frozenset(
+    op
+    for op in Op
+    if op.name.startswith(("STORE_", "LOAD_", "INCR_", "APPEND_", "LAPPEND_"))
+    or op.name == "RETURN_IMM"
+)
+
 
 class BytecodeVM:
     """Stack-based bytecode interpreter."""
@@ -660,9 +681,50 @@ class BytecodeVM:
     ) -> None:
         self.interp = interp
         self._debug_hook = debug_hook
+        # The instruction currently being executed and the source it was
+        # compiled from — read by eval()/_call_proc() to build an accurate
+        # "while executing" errorInfo frame for a command whose compiled
+        # bytecode (not a generic invoke) raised.
+        self._cur_instr: Instruction | None = None
+        self._source: str = ""
 
-    def execute(self, asm: FunctionAsm) -> TclResult:
+    def _cmd_text_for(self, instr: "Instruction | None") -> str:
+        """Original source text of *instr*'s command, sliced by its range.
+
+        Falls back to the codegen-reconstructed ``source_cmd_text`` when no
+        source / range is available.  The range is the authoritative command
+        span (its end is the last inner character), so the closing delimiter
+        is included.
+        """
+        if instr is not None and self._source and instr.source_range is not None:
+            r = instr.source_range
+            text = self._source[r.start.offset : r.end.offset + 1]
+            if text:
+                return text
+        return instr.source_cmd_text if instr is not None else ""
+
+    def pending_compiled_cmd_text(self) -> str:
+        """Command text of the command that failed when a TclError escaped
+        ``execute`` — for the eval()/_call_proc() "while executing" frame.
+
+        Returns ``""`` unless the in-flight instruction is *command-
+        terminal* (:data:`_FRAME_WORTHY_OPS`): a generic invoke, a compiled
+        set/incr/append/lappend, or a compiled ``error``.  A PUSH / POP /
+        arithmetic op in flight means the error came from a nested command-
+        substitution argument whose own command already logged its frame, so
+        appending here would wrongly blame the half-built outer command
+        (incr-2.30).  Appended frames are de-duplicated by
+        :meth:`TclInterp._append_while_executing`, so an invoke whose frame
+        ``invoke()`` already logged is not double-counted.
+        """
+        instr = self._cur_instr
+        if instr is None or instr.op not in _FRAME_WORTHY_OPS:
+            return ""
+        return self._cmd_text_for(instr)
+
+    def execute(self, asm: FunctionAsm, *, source: str = "") -> TclResult:
         """Execute a ``FunctionAsm`` and return the result."""
+        self._source = source
         stack: list[str] = []
         last_result: str = ""  # track last popped value for DONE
         pc = 0
@@ -686,6 +748,7 @@ class BytecodeVM:
 
         while pc < len(instrs):
             instr = instrs[pc]
+            self._cur_instr = instr
 
             # Debug hook: fire at source line boundaries
             if debug_hook is not None and instr.source_line != _prev_source_line:
@@ -994,7 +1057,14 @@ class BytecodeVM:
 
                 case Op.INVOKE_EXPANDED:
                     self.interp._error_line = instr.source_line
-                    self.interp._error_cmd_text = instr.source_cmd_text
+                    # Only override with the (statement-range) source slice when codegen
+                    # marked this invoke as a command head (source_cmd_text non-empty).  A
+                    # bare nested ``[set]`` cmd-subst has empty source_cmd_text and a
+                    # statement-wide range, so leave _error_cmd_text empty and let invoke()
+                    # name it from its own argv (``set``), not the outer ``$z [set]``.
+                    self.interp._error_cmd_text = (
+                        self._cmd_text_for(instr) if instr.source_cmd_text else ""
+                    )
                     # Pop all args since the EXPAND_START sentinel
                     args: list[str] = []
                     while stack and stack[-1] != _EXPAND_SENTINEL:
@@ -1031,7 +1101,14 @@ class BytecodeVM:
                 # Command dispatch
                 case Op.INVOKE_STK1 | Op.INVOKE_STK4:
                     self.interp._error_line = instr.source_line
-                    self.interp._error_cmd_text = instr.source_cmd_text
+                    # Only override with the (statement-range) source slice when codegen
+                    # marked this invoke as a command head (source_cmd_text non-empty).  A
+                    # bare nested ``[set]`` cmd-subst has empty source_cmd_text and a
+                    # statement-wide range, so leave _error_cmd_text empty and let invoke()
+                    # name it from its own argv (``set``), not the outer ``$z [set]``.
+                    self.interp._error_cmd_text = (
+                        self._cmd_text_for(instr) if instr.source_cmd_text else ""
+                    )
                     argc = instr.operands[0]
                     if isinstance(argc, str):
                         argc = int(argc)
