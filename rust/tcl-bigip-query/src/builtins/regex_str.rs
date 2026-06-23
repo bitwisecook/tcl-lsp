@@ -508,3 +508,55 @@ fn py_str_repr(s: &str) -> String {
         format!("'{escaped}'")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn s(text: &str) -> Value {
+        Value::Str(text.to_owned())
+    }
+
+    fn call_str(f: fn(&[Value]) -> Result<Value, QueryError>, args: &[Value]) -> String {
+        match f(args) {
+            Ok(Value::Str(text)) => text,
+            other => panic!("expected Str, got {other:?}"),
+        }
+    }
+
+    fn call_int(f: fn(&[Value]) -> Result<Value, QueryError>, args: &[Value]) -> i64 {
+        match f(args) {
+            Ok(Value::Int(n)) => n,
+            other => panic!("expected Int, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn sub_and_gsub_accept_flags() {
+        // Ported from `tests/test_f5_query.py::test_sub_and_gsub_accept_flags`
+        // (TEST-MIGRATE — regex_str.rs had no unit coverage). `sub` replaces
+        // the first match, `gsub` all; the `"i"` flag is case-insensitive.
+        assert_eq!(
+            call_str(bi_sub, &[s("ABC"), s("abc"), s("XYZ"), s("i")]),
+            "XYZ"
+        );
+        assert_eq!(
+            call_str(bi_gsub, &[s("aBcD"), s("[bd]"), s("X"), s("i")]),
+            "aXcX"
+        );
+    }
+
+    #[test]
+    fn ascii_maps_codepoint_to_char() {
+        // ::test_ascii_codepoint_to_char
+        assert_eq!(call_str(bi_ascii, &[Value::Int(65)]), "A");
+    }
+
+    #[test]
+    fn utf8bytelength_counts_bytes_not_codepoints() {
+        // ::test_utf8bytelength_counts_bytes_not_codepoints — `é` is two
+        // UTF-8 bytes, so "héllo" is 6 bytes over 5 codepoints.
+        assert_eq!(call_int(bi_utf8bytelength, &[s("hello")]), 5);
+        assert_eq!(call_int(bi_utf8bytelength, &[s("héllo")]), 6);
+    }
+}
