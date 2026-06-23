@@ -982,3 +982,15 @@ The pytest file stays in place as the oracle.
   destination form, and the non-address → `false` (not error) case.
 
 The pytest files stay in place as the oracle.
+
+### `tests/test_f5_query.py` (encoding builtins) → `tcl-bigip-query::builtins::encoding`
+
+- **Ported.** `test_base64_round_trip`, `test_uri_encodes_url_unsafe_characters`,
+  `test_html_and_sh_quote` → `rust/tcl-bigip-query/src/builtins/encoding.rs::tests`
+  (`base64`/`base64d` round-trip, `uri` percent-encoding, `html` markup
+  escaping, `sh` jq-`@sh` quoting incl. list elements + the `'\''` embedded-quote
+  dance). `encoding.rs` had zero unit coverage. The tests call the builtins
+  (`bi_base64`/`bi_uri`/`bi_html`/`bi_sh`) directly rather than through the
+  end-to-end query path the pytest uses.
+
+The pytest file stays in place as the oracle.
