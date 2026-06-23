@@ -297,7 +297,7 @@ fn format_text(
 }
 
 /// `json.dumps(report_to_dict(report), indent=2)`-compatible JSON (built by hand
-/// for key-order parity, like the graph export).
+/// for a deterministic key order, like the graph export).
 #[must_use]
 pub fn report_to_json(report: &StatsReport) -> String {
     use std::fmt::Write as _;

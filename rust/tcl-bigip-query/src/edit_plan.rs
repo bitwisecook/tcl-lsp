@@ -30,7 +30,7 @@ const IDENTITY_FIELDS: &[&str] = &["name", "full-path"];
 
 /// `(object_kind, field_name)` pairs that `+=` / `=` may materialise as a
 /// fresh `<field> { ... }` block — flat list slots whose elements stringify
-/// to bare tokens. Mirrors `edit_plan._MATERIALISABLE_KIND_FIELDS`.
+/// to bare tokens.
 const MATERIALISABLE_KIND_FIELDS: &[(&str, &str)] = &[
     ("ltm virtual", "rules"),
     ("ltm virtual", "profiles"),
@@ -54,7 +54,7 @@ pub struct EditOp {
     /// When `true` (the default), a zero-occurrence rename raises
     /// [`QueryError::Edit`]. The tolerant `rename()` builtin sets this `false`
     /// so the applier skips a no-match silently and the CLI surfaces it via
-    /// the post-apply diff + exit-code 1. Mirrors `EditOp.strict`.
+    /// the post-apply diff + exit-code 1.
     pub strict: bool,
 }
 

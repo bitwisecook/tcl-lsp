@@ -450,7 +450,7 @@ impl ExprNode {
 }
 
 /// Re-lex raw fallback text and collect top-level `$var` references
-/// into `out`. Mirrors `var_refs`'s `VAR`-token scan but without the
+/// into `out`.'s `VAR`-token scan but without the
 /// registry / command-substitution recursion — at the pure-AST level
 /// we stop at command boundaries (nested `[…]` vars belong to the SSA
 /// layer). A lex failure contributes no variables.

@@ -1046,7 +1046,7 @@ fn bi_tls_handshake(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Quer
     Ok(tls_handshake(&host, port, sni.as_deref(), ca.as_deref()))
 }
 
-/// One `url_<method>` builtin (port of `_register_url_method`).
+/// One `url_<method>` builtin.
 fn url_method(
     method: &'static str,
     args: &[Value],

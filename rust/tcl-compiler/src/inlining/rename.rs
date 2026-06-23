@@ -348,7 +348,7 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
 
 /// Rewrite `$name` / `${name}` substitutions in `text`. Array-element
 /// references (`$arr(idx)`) rename the array name only — the index
-/// expression is preserved verbatim. Mirrors `_rewrite_value_string`,
+/// expression is preserved verbatim.,
 /// including the backslash-protection rule: `\$x` is a literal `$`, not
 /// a substitution, so its name is never renamed.
 fn rewrite_value_string(text: &str, rename: &HashMap<String, String>) -> String {
@@ -442,7 +442,7 @@ fn split_array(name: &str) -> (&str, &str) {
 }
 
 /// Walk an [`ExprNode`] tree and return a clone with `rename` applied to
-/// every [`ExprNode::Var`] name. Mirrors `_rewrite_expr`.
+/// every [`ExprNode::Var`] name.
 fn rewrite_expr(node: &ExprNode, rename: &HashMap<String, String>) -> ExprNode {
     match node {
         ExprNode::Var {

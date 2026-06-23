@@ -1,17 +1,17 @@
 //! `json.dumps`-compatible pretty serialization for the remote verbs.
 //!
-//! Python's `json.dumps(obj, indent=2)` defaults to `ensure_ascii=True` — every
-//! non-ASCII scalar is escaped to `\uXXXX` (astral characters as UTF-16
+//! The output matches `json.dumps(obj, indent=2)` with `ensure_ascii=True`:
+//! every non-ASCII scalar is escaped to `\uXXXX` (astral characters as UTF-16
 //! surrogate pairs). `serde_json::to_string_pretty` does not do this. This
-//! module wraps `PrettyFormatter` to reproduce the ASCII-only output byte-for-
-//! byte (`preserve_order` keeps insertion order so keys match too).
+//! module wraps `PrettyFormatter` to produce the ASCII-only output
+//! (`preserve_order` keeps insertion order so keys match too).
 
 use serde::Serialize;
 use serde_json::Value;
 use serde_json::ser::{Formatter, PrettyFormatter, Serializer};
 use std::io::{self, Write};
 
-/// A `Formatter` that emits two-space-indented JSON identical to Python's
+/// A `Formatter` that emits two-space-indented JSON matching
 /// `json.dumps(obj, indent=2)`: the standard pretty layout plus `ensure_ascii`
 /// escaping of every non-ASCII character.
 struct AsciiPretty<'a> {
@@ -80,9 +80,9 @@ impl Formatter for AsciiPretty<'_> {
     }
 }
 
-/// Serialize `value` exactly like Python `json.dumps(value, indent=2)` (no
-/// trailing newline). The verbs append the `"\n"` themselves, mirroring
-/// `sys.stdout.write(json.dumps(...) + "\n")`.
+/// Serialize `value` as two-space-indented, ASCII-escaped JSON matching
+/// `json.dumps(value, indent=2)` (no trailing newline). The verbs append the
+/// `"\n"` themselves.
 #[must_use]
 pub fn dumps_indent2(value: &Value) -> String {
     let mut buf = Vec::new();

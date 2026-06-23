@@ -55,7 +55,7 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     ]
 }
 
-// Regex flag handling (port of `_jq_regex_flags`)
+// Regex flag handling
 
 /// Translate jq-style flag letters (`i` / `x` / `s` / `m`) to the leading
 /// inline flag group the `regex` crate understands, validating each letter

@@ -41,7 +41,7 @@ use crate::formatters::{
 use crate::views::{Severity, VIEW_META};
 
 /// Serialise the `meta` view: dialect list, view-tab table, and the
-/// severity vocabulary. Mirrors `_serialise_meta`.
+/// severity vocabulary.
 #[must_use]
 pub fn serialise_meta() -> Value {
     let dialects: Vec<Value> = available_dialects()
@@ -64,7 +64,6 @@ pub fn serialise_meta() -> Value {
 }
 
 /// `range_dict` for an optional span, emitting `null` when absent
-/// (mirrors `range_dict(r) if r else None`).
 fn range_or_null(span: Option<Span>, li: &LineIndex, source: &str) -> Value {
     span.map_or(Value::Null, |s| range_dict(s, li, source))
 }
@@ -210,7 +209,7 @@ fn serialise_wasm(module: &Module, source: &str) -> Value {
     Value::Array(entries)
 }
 
-/// Serialise the `ir` view. Mirrors `_serialise_ir`:
+/// Serialise the `ir` view.:
 /// `{ topLevel: [...], procedures: { qname: { params, range, body } } }`.
 #[must_use]
 pub fn serialise_ir(module: &Module, li: &LineIndex, source: &str) -> Value {
@@ -234,7 +233,7 @@ pub fn serialise_ir(module: &Module, li: &LineIndex, source: &str) -> Value {
     })
 }
 
-/// Serialise a block terminator. Mirrors `_terminator_dict`.
+/// Serialise a block terminator.
 fn terminator_dict(term: Option<&Terminator>, li: &LineIndex, source: &str) -> Value {
     match term {
         None => Value::Null,
@@ -288,7 +287,7 @@ fn serialise_cfg_edges(func: &Function, order: &[String]) -> Value {
     Value::Array(edges)
 }
 
-/// Serialise the pre-SSA CFG view. Mirrors `_serialise_cfg_pre_ssa`:
+/// Serialise the pre-SSA CFG view.:
 /// one entry per function, blocks in creation order, with routed edges.
 #[must_use]
 pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
@@ -334,7 +333,7 @@ pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &s
     Value::Array(funcs)
 }
 
-/// Format a declared arity. Mirrors `_serialise_interproc`'s arity string:
+/// Format a declared arity.'s arity string:
 /// `"{min}+"` when unlimited (`max == u32::MAX`), else `"{min}..{max}"`.
 fn arity_str(arity: tcl_compiler::interprocedural::Arity) -> String {
     if arity.max == u32::MAX {
@@ -383,7 +382,7 @@ fn shimmer_severity(code: &str) -> &'static str {
 }
 
 /// Serialise the `shimmer` view: intrep-shimmer (S100/S101) and
-/// loop-thunking (S102) warnings. Mirrors `_serialise_shimmer`, combining
+/// loop-thunking (S102) warnings., combining
 /// both warning kinds into one list. The shimmer analysis matches Python,
 /// so this view is strictly gated by the differential harness.
 #[must_use]
@@ -449,7 +448,7 @@ fn optimised_result(result: &ExplorerResult) -> Option<(crate::ExplorerResult, S
 }
 
 /// Serialise the `gvn` view: redundant-computation hints (GVN/CSE + PRE +
-/// LICM). Mirrors `_serialise_gvn` — `{code, message, expression, range,
+/// LICM). — `{code, message, expression, range,
 /// firstRange, severity: info}`. Composes the three ported `*_for_cu`
 /// finders and de-duplicates on `(code, span, first_span)`. Optimiser-
 /// derived → `_NO_PARITY_KEYS`, pinned by a Rust unit test.
@@ -491,7 +490,7 @@ pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
     Value::Array(out)
 }
 
-/// Renderer severity for a taint code. Mirrors `annotations.taint_severity`
+/// Renderer severity for a taint code.
 /// (`T1*` prefix or `T3001`-`T3004` → error, else warning).
 fn taint_severity(code: &str) -> &'static str {
     if code.starts_with("T1") || matches!(code, "T3001" | "T3002" | "T3003" | "T3004") {
@@ -525,7 +524,7 @@ pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) ->
 }
 
 /// Serialise the `optimisations` view: the optimiser rewrites found for
-/// the source. Mirrors `_serialise_optimisations` — `{code, message,
+/// the source. — `{code, message,
 /// range, replacement}` per rewrite. Runs the ported `optimise` pass over
 /// the cached per-dialect registry.
 #[must_use]
@@ -581,7 +580,7 @@ pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, sourc
 }
 
 /// Serialise the `intervals` view: the integer-interval domain per tracked
-/// SSA value, per function. Mirrors `_serialise_intervals` — only bounded
+/// SSA value, per function. — only bounded
 /// (non-top) ranges are emitted; `lo`/`hi` are `null` for ±infinity.
 #[must_use]
 pub fn serialise_intervals(result: &ExplorerResult) -> Value {
@@ -610,7 +609,7 @@ pub fn serialise_intervals(result: &ExplorerResult) -> Value {
 }
 
 /// Serialise the `taintTracking` view: every tainted SSA value's taint
-/// lattice per function. Mirrors `_serialise_taint_tracking` — only
+/// lattice per function. — only
 /// tainted entries, functions with none omitted.
 #[must_use]
 pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
@@ -667,7 +666,7 @@ fn ssa_value_detail(
 
 /// Serialise the post-SSA CFG view (`cfgPostSsa`): per-block phi nodes and
 /// per-statement SSA `uses`/`defs` with lattice + type detail, plus a
-/// function-level `analysis` block. Mirrors `_serialise_cfg_post_ssa`.
+/// function-level `analysis` block.
 ///
 /// `analysis.deadStores` is the per-function liveness-based set
 /// ([`tcl_compiler::dead_stores::liveness_dead_stores`]), byte-identical to
@@ -970,7 +969,7 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
 }
 
 /// Serialise the `loops` view: the natural-loop forest per function, with
-/// nesting depth. Mirrors `_serialise_loops` over the ported
+/// nesting depth. over the ported
 /// `build_loop_forest`. Depth = 1 + the number of *other* loop headers
 /// that dominate this loop's header.
 #[must_use]
@@ -1006,7 +1005,7 @@ pub fn serialise_loops(result: &ExplorerResult) -> Value {
 }
 
 /// Serialise the `bounds` view: interval-driven out-of-range findings per
-/// function. Mirrors `_serialise_bounds`.
+/// function.
 ///
 /// Both interval-driven passes share the same SCCP-executable-block filter:
 /// `find_interval_bounds` (W230/W231/W232 out-of-range index access) and
@@ -1052,7 +1051,7 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
 }
 
 /// Serialise the `interprocedural` view: per-procedure summaries followed
-/// by `TclOO` method summaries. Mirrors `_serialise_interproc`.
+/// by `TclOO` method summaries.
 #[must_use]
 pub fn serialise_interproc(interproc: &InterproceduralAnalysis) -> Value {
     let mut out: Vec<Value> = Vec::new();
@@ -1098,7 +1097,7 @@ pub fn serialise_interproc(interproc: &InterproceduralAnalysis) -> Value {
 }
 
 /// Serialise the `types` view: every tracked SSA value's lattice type per
-/// function, including `?`/`*` entries. Mirrors `_serialise_types`.
+/// function, including `?`/`*` entries.
 #[must_use]
 pub fn serialise_types(result: &ExplorerResult) -> Value {
     let funcs: Vec<Value> = result
@@ -1358,7 +1357,7 @@ pub fn serialise_source_map(source: &str, li: &LineIndex) -> Value {
     })
 }
 
-/// Serialise the `stats` summary. Mirrors `compute_stats`.
+/// Serialise the `stats` summary.
 ///
 /// `_NO_PARITY`: `deadStores` counts the optimiser's **O109** dead stores
 /// (Rust has no standalone liveness pass) and the warning counts come from

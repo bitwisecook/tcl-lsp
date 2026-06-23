@@ -127,8 +127,7 @@ pub struct PrepareRename {
 /// Validate that the cursor sits on a renameable symbol and
 /// return the symbol's range + placeholder text.  Editors
 /// call this before `rename` to determine whether to show the
-/// rename UI.  Mirrors `prepare_rename` in
-/// `lsp/features/rename.py`.
+/// rename UI.
 #[must_use]
 pub fn prepare_rename(
     source: &str,
@@ -177,7 +176,7 @@ pub fn prepare_rename(
             });
         }
     }
-    // Class?  Mirrors the proc walk but against `all_classes`.
+    // Class?  Same as the proc walk above but against `all_classes`.
     for (qname, class_def) in &analysis.all_classes {
         if class_def.name == word || qname == &word || qname == &format!("::{word}") {
             return Some(PrepareRename {

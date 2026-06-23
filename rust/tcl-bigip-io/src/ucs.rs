@@ -20,7 +20,7 @@ use tar::Archive;
 use crate::openpgp::decrypt_symmetric;
 
 /// Order matters: base must come first so partition declarations exist before
-/// objects that reference them (mirrors `_SCF_MEMBER_ORDER`).
+/// objects that reference them.
 const SCF_MEMBER_ORDER: &[&str] = &[
     "config/bigip_base.conf",
     "config/bigip.conf",
@@ -92,7 +92,7 @@ pub fn is_pgp_bytes(data: &[u8]) -> bool {
     matches!(tag, 1 | 3 | 9 | 18)
 }
 
-/// Strip leading `.`/`/` characters (mirrors Python `str.lstrip("./")`).
+/// Strip leading `.`/`/` characters.
 fn lstrip_dot_slash(name: &str) -> &str {
     name.trim_start_matches(['.', '/'])
 }

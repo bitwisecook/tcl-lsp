@@ -35,11 +35,9 @@ type PhiIndex<'a> = HashMap<ValueKey, &'a Phi>;
 /// Resolve the list length of `(name, version)`, following phis when the
 /// version itself was not seeded by a literal-list assignment.
 ///
-/// Rust's SSA inserts a loop-header phi for a list `l` that `lset` mutates
+/// The SSA inserts a loop-header phi for a list `l` that `lset` mutates
 /// (`l_h = phi(l_entry, l_body)`); the body's `lset` then reads `l_h`, which is
-/// not in the length map.  Python's pruned SSA never inserts that phi (its
-/// `lset` does not *read* `l`, so `l` is not live across the back-edge), leaving
-/// `l` at its literal-assignment version.  To match Python's *result*, resolve a
+/// not in the length map.  Resolve such a
 /// phi to the length its known incomings agree on, ignoring an unknown back-edge
 /// incoming (the `lset` result — `lset` preserves length under the
 /// assume-no-error model the diagnostic already encodes).  A genuine
@@ -108,8 +106,7 @@ struct Candidate {
 }
 
 /// The scalar variable name if `arg` is exactly `$name` / `${name}`.  Returns
-/// `None` for `end`, `end-1`, `$arr(i)`, `[expr …]`, composites.  Mirrors
-/// `_plain_var_name`.
+/// `None` for `end`, `end-1`, `$arr(i)`, `[expr …]`, composites.
 fn plain_var_name(arg: &str) -> Option<String> {
     let s = arg.trim();
     let mut s = s.strip_prefix('$')?;
@@ -128,7 +125,6 @@ fn plain_var_name(arg: &str) -> Option<String> {
 }
 
 /// Element count of a static Tcl list literal, or `None` if not literal.
-/// Mirrors `_literal_list_length`.
 fn literal_list_length(text: &str) -> Option<i64> {
     if text.contains('$') || text.contains('[') {
         return None;
@@ -137,8 +133,7 @@ fn literal_list_length(text: &str) -> Option<i64> {
 }
 
 /// If a value word is exactly `[list a b c]` with no substitution / expansion,
-/// its element count, else `None`.  Replaces Python's intent-driven `[list …]`
-/// detection in `_list_length_map`.
+/// its element count, else `None`.
 fn list_command_length(value: &str) -> Option<i64> {
     let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?;
     let cmds = segment_commands(inner);
@@ -157,7 +152,6 @@ fn list_command_length(value: &str) -> Option<i64> {
 }
 
 /// Length of list-valued SSA versions established from literal-list assignments.
-/// Mirrors `_list_length_map`.
 fn list_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
     let mut lengths = HashMap::new();
     for sb in ssa.blocks.values() {
@@ -178,7 +172,6 @@ fn list_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
 }
 
 /// Character length of string-valued SSA versions from literal assignments.
-/// Mirrors `_string_length_map`.
 fn string_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
     let mut lengths = HashMap::new();
     for sb in ssa.blocks.values() {
@@ -211,8 +204,7 @@ fn string_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
 }
 
 /// Versions of each name reaching statement index `upto` within a block.  Used
-/// for `lset`, whose target list is a *def* (not a use).  Mirrors
-/// `_reaching_versions`.
+/// for `lset`, whose target list is a *def* (not a use).
 fn reaching_versions(
     entry: &HashMap<String, Version>,
     stmts: &[crate::ssa::SsaStatement],
@@ -229,7 +221,6 @@ fn reaching_versions(
 
 /// Reason string if `index` is *wholly* out of range for `length`, else `None`.
 /// `lset` permits the append slot (`index == length`); `lindex` does not.
-/// Mirrors `_classify`.
 fn classify(index: Interval, length: i64, is_lset: bool) -> Option<&'static str> {
     // Provably negative: the whole interval is below 0.
     if let Some(hi) = index.hi
@@ -251,8 +242,7 @@ fn classify(index: Interval, length: i64, is_lset: bool) -> Option<&'static str>
 }
 
 /// If `text` is exactly `[lindex …]` / `[string index …]`, its candidate; else
-/// `None`.  `lset` is excluded (its first arg is a var *name*).  Mirrors
-/// `_parse_index_sub`.
+/// `None`.  `lset` is excluded (its first arg is a var *name*).
 fn parse_index_sub(text: &str) -> Option<Candidate> {
     let s = text.trim();
     let inner = s.strip_prefix('[')?.strip_suffix(']')?;
@@ -278,8 +268,7 @@ fn parse_index_sub(text: &str) -> Option<Candidate> {
 
 /// Index accesses embedded as `[…]` command substitutions inside an expression,
 /// restricted to *guaranteed-to-evaluate* positions (short-circuit operands and
-/// non-selected ternary arms are skipped).  Mirrors `_index_subs_in_expr` over
-/// `_walk_eager`.
+/// non-selected ternary arms are skipped).
 fn index_subs_in_expr(expr: &ExprNode) -> Vec<Candidate> {
     let mut out = Vec::new();
     walk_eager(expr, &mut |e| {
@@ -293,11 +282,11 @@ fn index_subs_in_expr(expr: &ExprNode) -> Vec<Candidate> {
 }
 
 /// Constant truthiness of a literal expression node (`Some(true/false)`), else
-/// `None`.  Mirrors `_const_bool` for the eager walk's guard resolution.
+/// `None`.
 fn const_bool(expr: &ExprNode) -> Option<bool> {
     use tcl_syntax::expr::ast::UnaryOp;
-    // Fold the boolean-relevant unaries over a constant operand, matching
-    // Python's `expr_ast._const_bool`: `+`/`-` preserve zero-ness (`-1` is
+    // Fold the boolean-relevant unaries over a constant operand:
+    // `+`/`-` preserve zero-ness (`-1` is
     // true, `-0` false), `!`/`not` invert it. `~` needs the integer value (a
     // bitwise-not guard is rare) so it stays conservative. Verified against
     // tclsh 8.4–9.0: `-1 && 1/0`, `!0 && 1/0` evaluate the RHS (a forced
@@ -328,7 +317,7 @@ fn const_bool(expr: &ExprNode) -> Option<bool> {
 
 /// Visit `expr` and every **guaranteed-to-evaluate** sub-expression.  The
 /// short-circuit operand of `&&`/`||`/`and`/`or` and the non-selected ternary
-/// arm run only when forced by a *constant* guard.  Mirrors `_walk_eager`.
+/// arm run only when forced by a *constant* guard.
 fn walk_eager(expr: &ExprNode, visit: &mut impl FnMut(&ExprNode)) {
     use tcl_syntax::expr::ast::BinOp;
     visit(expr);
@@ -371,7 +360,7 @@ fn walk_eager(expr: &ExprNode, visit: &mut impl FnMut(&ExprNode)) {
     }
 }
 
-/// All index accesses a statement performs.  Mirrors `_statement_candidates`.
+/// All index accesses a statement performs.
 fn statement_candidates(stmt: &Statement) -> Vec<Candidate> {
     let mut out = Vec::new();
     match stmt {
@@ -423,8 +412,7 @@ fn statement_candidates(stmt: &Statement) -> Vec<Candidate> {
     out
 }
 
-/// Cheap pre-scan: any index access with a plain `$var` index?  Mirrors
-/// `_has_candidate`.
+/// Cheap pre-scan: any index access with a plain `$var` index?
 fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
     for sb in ssa.blocks.values() {
         for s in &sb.statements {
@@ -460,8 +448,8 @@ fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
     false
 }
 
-/// Dynamic out-of-range findings for this function (empty if none).  Mirrors
-/// `find_interval_bounds`; `executable` restricts to SCCP-reachable blocks.
+/// Dynamic out-of-range findings for this function (empty if none).
+/// `executable` restricts to SCCP-reachable blocks.
 #[must_use]
 #[allow(clippy::too_many_lines, clippy::similar_names, clippy::implicit_hasher)]
 pub fn find_interval_bounds(
@@ -652,7 +640,7 @@ pub fn find_interval_bounds(
 
 /// A divide-by-zero finding: a `/` or `%` whose divisor is provably the
 /// single point `[0, 0]` on the always-evaluated spine of an executable
-/// expression. Mirrors `interval_bounds.DivZeroFinding`.
+/// expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DivZeroFinding {
     /// Source span of the enclosing statement / terminator.
@@ -671,7 +659,7 @@ fn statement_expr(stmt: &Statement) -> Option<&ExprNode> {
 }
 
 /// Does `expr` contain a `/` or `%` operator anywhere (eager or not)?
-/// Cheap pre-scan helper; mirrors the body of Python's `_divisors` test.
+/// Cheap pre-scan helper.
 fn expr_has_divisor(expr: &ExprNode) -> bool {
     use tcl_syntax::expr::ast::BinOp;
     let mut found = false;
@@ -688,9 +676,8 @@ fn expr_has_divisor(expr: &ExprNode) -> bool {
 /// Push a [`DivZeroFinding`] for each unconditionally-evaluated `/` / `%`
 /// whose divisor abstract-evaluates to exactly `[0, 0]`. Short-circuited
 /// `&&`/`||` operands and dead ternary arms are skipped by [`walk_eager`],
-/// so a guarded `1/$d` never yields a finding (mirrors Python's
-/// `_divisors` + `check`). Only owned `Copy`/`'static` data escapes the
-/// walk closure.
+/// so a guarded `1/$d` never yields a finding. Only owned `Copy`/`'static`
+/// data escapes the walk closure.
 fn collect_divzero(
     expr: &ExprNode,
     span: Span,
@@ -916,7 +903,7 @@ mod tests {
         // The legal append slot (`index == length`) for `lset` is silent.
         assert!(bounds("proc f {v} { set l {a b c}\n set j 3\n lset l $j $v }").is_empty());
         // A second `lset` reads a non-phi mutated version — length not
-        // recovered (matches Python's pruned SSA), so no false positive.
+        // recovered, so no false positive.
         assert!(
             bounds("proc f {v w} { set l {a b c}\n lset l 0 $v\n set j 99\n lset l $j $w }")
                 .is_empty()

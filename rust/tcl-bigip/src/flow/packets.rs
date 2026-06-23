@@ -192,8 +192,7 @@ const HTTP_METHODS: &[&[u8]] = &[
 const HTTP_RESPONSE_PREFIX: &[u8] = b"HTTP/";
 
 /// Decode CRLF-separated HTTP headers into a lowercase-keyed map, first-seen
-/// position preserved, last value winning on a duplicate name (Python dict
-/// `out[key] = value` semantics).
+/// position preserved, last value winning on a duplicate name.
 fn split_http_headers(raw: &[u8]) -> IndexMap<String, String> {
     let mut out: IndexMap<String, String> = IndexMap::new();
     for line in raw.split(|&b| b == b'\n') {
@@ -656,7 +655,7 @@ fn split_once<'a>(hay: &'a [u8], sep: &[u8]) -> Option<(&'a [u8], &'a [u8])> {
         .map(|i| (&hay[..i], &hay[i + sep.len()..]))
 }
 
-/// Split on ASCII space into at most `n` parts (Python `bytes.split(b" ", n-1)`).
+/// Split on ASCII space into at most `n` parts.
 fn splitn_space(hay: &[u8], n: usize) -> Vec<&[u8]> {
     let mut parts: Vec<&[u8]> = Vec::new();
     let mut start = 0usize;

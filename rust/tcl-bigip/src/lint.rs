@@ -152,8 +152,8 @@ impl<'a> ModelView<'a> {
     }
 }
 
-/// Resolve a possibly-short `name` to a full-path key in `table` (port of
-/// `BigipConfig.resolve_name`): exact, then partition-qualified against
+/// Resolve a possibly-short `name` to a full-path key in `table`: exact, then
+/// partition-qualified against
 /// `default_partition`, then `/Common/`, then a suffix match.
 pub(crate) fn resolve_name<T>(
     name: &str,
@@ -189,7 +189,7 @@ pub(crate) fn resolve_name<T>(
 // ── Config merge ─────────────────────────────────────────────────────
 
 /// Build a single merged [`BigipConfig`] that unions every input, later
-/// configs winning on key collision (port of `_merge_configs`). Only the
+/// configs winning on key collision. Only the
 /// fields the lint rules read — `objects` and `generic_objects` — are
 /// merged; `default_partition` follows the first input (Python builds a
 /// fresh `BigipConfig()` whose partition defaults to `Common`, but
@@ -445,8 +445,8 @@ fn rule_irule_unknown_event(
     }
 }
 
-/// Whether `cfg` carries surrounding-context objects (port of
-/// `_has_config_context`): any non-rule typed object, or any generic object
+/// Whether `cfg` carries surrounding-context objects: any non-rule typed
+/// object, or any generic object
 /// keyed by something other than `ltm::rule::*`.
 fn has_config_context(view: &ModelView<'_>) -> bool {
     if !view.pools.is_empty()
@@ -466,8 +466,7 @@ fn has_config_context(view: &ModelView<'_>) -> bool {
         .any(|(key, _)| !key.starts_with("ltm::rule::"))
 }
 
-/// Map an iRule reference's candidate kinds to a coarse bucket (port of
-/// `_classify_reference_kind`).
+/// Map an iRule reference's candidate kinds to a coarse bucket.
 fn classify_reference_kind(kinds: &[&str]) -> Option<&'static str> {
     if kinds.contains(&"ltm_pool") {
         return Some("pool");
@@ -499,8 +498,7 @@ fn classify_reference_kind(kinds: &[&str]) -> Option<&'static str> {
     None
 }
 
-/// Resolve a classified reference against `view` (port of
-/// `_resolve_reference`).
+/// Resolve a classified reference against `view`.
 fn resolve_reference(view: &ModelView<'_>, kind: &str, name: &str) -> Option<String> {
     let part = view.default_partition;
     match kind {
@@ -568,8 +566,8 @@ fn rule_irule_missing_object(
 // ── run_lint ─────────────────────────────────────────────────────────
 
 /// Run every registered rule against the union of `configs` and return the
-/// findings in registration order (port of `run_lint`). `sources` is unused
-/// by the built-in rules but kept for signature parity. `category` limits to
+/// findings in registration order. `sources` is unused
+/// by the built-in rules but kept for API compatibility. `category` limits to
 /// one rule category; `severity` filters the emitted findings.
 #[must_use]
 pub fn run_lint(

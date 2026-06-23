@@ -1,8 +1,7 @@
 //! The `rename` verb — rename a BIG-IP object full-path and update every
 //! reference.
 //!
-//! Port of `tooling/f5/verbs/rename.py` (`_run_rename`). Like the Python verb,
-//! this is a thin shell over the `f5 query` engine: it constructs a
+//! This is a thin shell over the `f5 query` engine: it constructs a
 //! `rename(OLD, NEW)` DSL expression and runs it through
 //! [`tcl_bigip_query::run_query`]. Routing both verbs through the same engine
 //! keeps the rename logic — the token-bounded
@@ -29,8 +28,7 @@ use tcl_cli_support::difflib;
 
 use crate::cli::FormatArgs;
 
-/// Wrap *value* as a DSL string literal, escaping `\` and `"` — port of
-/// `rename._dsl_string`.
+/// Wrap *value* as a DSL string literal, escaping `\` and `"`.
 fn dsl_string(value: &str) -> String {
     let escaped = value.replace('\\', "\\\\").replace('"', "\\\"");
     format!("\"{escaped}\"")
@@ -117,7 +115,7 @@ pub fn run_rename(
     }
 
     // `--format scf` returns the rewritten text verbatim; `tmsh` / `tmsh-delta`
-    // re-render. Like the Python verb, no pre-edit original is threaded.
+    // re-render. No pre-edit original is threaded.
     let rewritten = crate::commands::emit::render_config(
         &applied.new_source,
         &format.format,
@@ -150,8 +148,7 @@ pub fn run_rename(
     Ok(0)
 }
 
-/// Whether *path*'s extension is `.ucs` (case-insensitive) — mirrors
-/// `Path(path).suffix.lower() == ".ucs"`.
+/// Whether *path*'s extension is `.ucs` (case-insensitive).
 fn has_ucs_suffix(path: &str) -> bool {
     Path::new(path)
         .extension()

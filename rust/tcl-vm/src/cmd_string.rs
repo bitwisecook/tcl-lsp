@@ -172,7 +172,7 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `string replace string first last ?newstring?` — remove chars first..last
-/// (inclusive), optionally inserting newstring. Mirrors `StringRplcCmd`
+/// (inclusive), optionally inserting newstring.
 /// (tclCmdMZ.c): an empty/inverted range leaves the string unchanged, but an
 /// empty *original* string is replaceable (so `string replace {} -1 0 A` → A).
 fn string_replace(rest: &[Value]) -> Completion<Value> {

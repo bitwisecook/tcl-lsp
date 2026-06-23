@@ -38,7 +38,7 @@ use crate::ExplorerResult;
 use crate::formatters::range_dict;
 
 /// Serialise the `asm` view: a structured bytecode disassembly per
-/// function. Mirrors `_serialise_asm` (`codegen_module` +
+/// function. (`codegen_module` +
 /// `format_module_explorer`, then wiring per-entry `sourceRange` from the IR).
 #[must_use]
 pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {

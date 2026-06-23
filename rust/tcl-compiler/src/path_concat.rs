@@ -2,8 +2,7 @@
 //!
 //! Detects `set x "/path/$var"` style assignments where the rendered
 //! value carries both a literal path separator (`/` or `\`) and an
-//! interpolation hole (`$var` or `[cmd]`). Ported from
-//! `core/compiler/taint/_path_concat.py` (C29 follow-up).
+//! interpolation hole (`$var` or `[cmd]`).
 //!
 //! Detection consumes two already-computed per-function maps:
 //!
@@ -12,11 +11,8 @@
 //!   and `HAS_INTERPOLATION` (substitution evidence) on each SSA def.
 //! * `taints` — `PATH_NORMALISED` on the defined value suppresses the
 //!   warning (the value has already been through `file normalize` or
-//!   equivalent). *Latent today* — the Rust taint engine does not yet
-//!   set `PATH_NORMALISED` on `[file normalize]` results; this arm
-//!   will light up once that propagation lands. The equivalent Python
-//!   check also suppresses on `PATH_JOINED`, which has no Rust
-//!   counterpart yet and is tracked as a follow-up.
+//!   equivalent). This arm is currently inactive: the taint engine does
+//!   not yet set `PATH_NORMALISED` on `[file normalize]` results.
 //!
 //! A forward-scan within the same block also suppresses the warning
 //! when the very next assignment to the same variable is
@@ -71,7 +67,7 @@ fn is_file_normalize_of(value: &str, var_name: &str) -> bool {
 }
 
 /// Return `true` when `s` is a simple path segment (alphanumerics +
-/// `_`/`.`/`-`), matching Python `_SIMPLE_PATH_SEGMENT_RE`.
+/// `_`/`.`/`-`).
 fn is_simple_path_segment(s: &str) -> bool {
     !s.is_empty()
         && s.chars()
@@ -80,7 +76,7 @@ fn is_simple_path_segment(s: &str) -> bool {
 
 /// Return `true` when `s` is a pure `$name` / `${name}` reference with
 /// a conservative identifier body (first char alpha/`_`, then
-/// alphanumerics / `_` / `:`), matching Python `_SIMPLE_PATH_VAR_RE`.
+/// alphanumerics / `_` / `:`).
 fn is_simple_path_var(s: &str) -> bool {
     let inner = if let Some(rest) = s.strip_prefix("${") {
         match rest.strip_suffix('}') {
@@ -105,10 +101,10 @@ fn is_simple_path_var(s: &str) -> bool {
 /// Conservative `[file join …]` replacement text. Returns `None` when
 /// the RHS has characters the trivial split can't handle safely.
 ///
-/// Mirrors `_build_file_join_fix` in Python: strip one layer of
-/// surrounding quotes/braces, bail on `[`/`]`/`;`/whitespace, split on
-/// `/` and `\`, and emit the rewrite only when every non-empty segment
-/// is either a simple path token or a simple `$var` reference.
+/// Strips one layer of surrounding quotes/braces, bails on
+/// `[`/`]`/`;`/whitespace, splits on `/` and `\`, and emits the rewrite
+/// only when every non-empty segment is either a simple path token or a
+/// simple `$var` reference.
 #[must_use]
 pub fn build_file_join_fix(path_expr: &str) -> Option<String> {
     let mut text = path_expr.trim();
@@ -160,11 +156,9 @@ pub fn find_path_concat_warnings(
 ) -> Vec<PathConcatWarning> {
     let mut out: Vec<PathConcatWarning> = Vec::new();
     let path_sep_bits = RenderedProperties::HAS_FORWARD_SLASH | RenderedProperties::HAS_BACKSLASH;
-    // Only `PATH_NORMALISED` — Python also uses `PATH_JOINED`, but the
-    // Rust lattice has no counterpart yet. Neither colour is actually
-    // assigned by the current taint engine, so this arm is latent
-    // until `[file normalize]` / `[file join]` propagation lands; the
-    // forward-scan below is the only active suppression.
+    // Only `PATH_NORMALISED`. It is not currently assigned by the taint
+    // engine, so this arm is inactive; the forward-scan below is the only
+    // active suppression.
     let suppress_colours = TaintColour::PATH_NORMALISED;
 
     for bn in cfg_order(cfg) {
@@ -202,8 +196,7 @@ pub fn find_path_concat_warnings(
             // A URL scheme separator (`://`) marks a URL, not a filesystem
             // path — its separators are always `/` regardless of platform, so
             // `[file join]` (which emits native separators) would be wrong.
-            // Likewise HTML/XML markup (`<tag>`) is not a path.  Mirrors
-            // `_find_path_concat_warnings` in `compiler/taint/_path_concat.py`.
+            // Likewise HTML/XML markup (`<tag>`) is not a path.
             if trimmed.contains("://") || trimmed.contains('<') || trimmed.contains('>') {
                 continue;
             }
@@ -241,7 +234,7 @@ pub fn find_path_concat_warnings(
             // (`"CONNECT $host:$port HTTP/1.1"`), a usage message, an HTML
             // fragment — not a filesystem path being constructed.  Genuine
             // path concat (`set f "$dir/$name"`) carries no literal
-            // whitespace.  Mirrors `_path_concat.py:144-152`.
+            // whitespace.
             if !has_path_sep || !has_interp || has_literal_space || suppressed_by_colour {
                 continue;
             }
@@ -334,7 +327,7 @@ mod tests {
     }
 
     /// Mixed segments (`$name.log` — neither a pure var nor a pure
-    /// literal) force the conservative `None` branch, matching Python.
+    /// literal) force the conservative `None` branch.
     #[test]
     fn file_join_fix_rejects_mixed_segment() {
         assert!(build_file_join_fix("/var/log/$name.log").is_none());

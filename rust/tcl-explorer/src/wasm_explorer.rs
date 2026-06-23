@@ -31,7 +31,7 @@ const BLOCK_VOID: u8 = 0x40;
 
 /// Build the structured explorer entries for `module`: a synthetic `(module)`
 /// header carrying imports + data segments, followed by one entry per function
-/// with its resolved instruction stream. Mirrors `WasmModule.to_explorer_json`.
+/// with its resolved instruction stream.
 #[must_use]
 pub fn wasm_to_explorer_json(module: &WasmModule, li: &LineIndex, source: &str) -> Vec<Value> {
     let num_imports = module.imports.len();

@@ -41,7 +41,7 @@ impl LoopForest {
 }
 
 /// Whether `dominator` dominates `node` in the SSA dominator tree
-/// (reflexive). Walks the idom chain — identical to Python's fallback.
+/// (reflexive). Walks the idom chain.
 #[must_use]
 pub fn dominates(ssa: &SsaFunction, dominator: &str, node: &str) -> bool {
     let mut current = Some(node.to_owned());
@@ -55,7 +55,7 @@ pub fn dominates(ssa: &SsaFunction, dominator: &str, node: &str) -> bool {
 }
 
 /// Predecessor map restricted to `executable` blocks (terminator
-/// successors only). Mirrors `cfg_predecessors`.
+/// successors only).
 fn cfg_predecessors(
     cfg: &CfgFunction,
     executable: &HashSet<String>,
@@ -106,7 +106,7 @@ fn natural_loop_blocks(
 }
 
 /// Build the natural-loop forest for `cfg` / `ssa`, restricted to the
-/// `executable` blocks. Mirrors `build_loop_forest`.
+/// `executable` blocks.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn build_loop_forest(

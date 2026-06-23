@@ -607,7 +607,7 @@ impl CfgBuilder {
                     // and is routed to an orphan block by the loop-top check.
                 }
 
-                // Inline block (C34d): flatten the body's statements
+                // Inline block: flatten the body's statements
                 // into the current control-flow stream so SSA / codegen
                 // see them as plain inline statements.
                 Statement::Block { body, .. } => {
@@ -1005,7 +1005,7 @@ fn is_tailcall_command(command: &str) -> bool {
 // --- Definite-assignment ("flow facts") over un-lowered IR scripts ----------
 //
 // Shared by the CFG builder (to promote an opaque `switch` whose every arm
-// exits the *procedure* — FP-RBS-15 — and to wire its loop-jump edges — C3) and
+// exits the *procedure* — FP-RBS-15 — and to wire its loop-jump edges) and
 // by SSA (to recover the def set an opaque switch *definitely* establishes —
 // FP-RBS-14).  Both consumers agree on one model.
 //

@@ -119,7 +119,7 @@ pub struct QueryResult {
     pub has_mutation: bool,
 }
 
-/// Derive a default `$name` from a URI (port of `runner._filename_stem`).
+/// Derive a default `$name` from a URI.
 ///
 /// Strips any directory prefix and the trailing extension; `-` (stdin)
 /// becomes `stdin`.

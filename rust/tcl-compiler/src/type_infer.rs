@@ -267,7 +267,7 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
 
                 // ARITHMETIC / DIVISION → `_arithmetic_result` over the
                 // operand types, but only when both are `Known`;
-                // otherwise Numeric (mirrors `expr_types.py`).
+                // otherwise Numeric.
                 BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod | BinOp::Pow => {
                     let lt = infer_expr_type(left, var_types);
                     let rt = infer_expr_type(right, var_types);
@@ -283,7 +283,7 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
         ExprNode::Unary { op, operand, .. } => match op {
             // Arithmetic sign is identity (same intrep as the operand);
             // bitwise NOT always coerces to `Int` (`~$double` → Int);
-            // logical NOT yields `Boolean`.  Mirrors `expr_types`'
+            // logical NOT yields `Boolean`.'
             // `UnaryOpKind` BITWISE arm (GAP-B4: `~` was grouped with
             // the identity ops and leaked the operand's `Double`).
             UnaryOp::Neg | UnaryOp::Pos => infer_expr_type(operand, var_types),
@@ -573,7 +573,7 @@ pub fn propagate_types(
                 // mutated them arbitrarily); a scope-alias declaration
                 // (`global`/`variable`/`upvar`/`namespace upvar`) likewise
                 // widens its defs — the imported variable's intrep is
-                // external and unknown.  Mirrors `_type_propagation`'s
+                // external and unknown.'s
                 // barrier + `alias_cmds` arms.  Every def of one statement
                 // gets the same inferred type, so compute it once.
                 let inferred = match stmt {

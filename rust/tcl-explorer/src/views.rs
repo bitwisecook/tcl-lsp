@@ -45,7 +45,7 @@ pub const VIEW_META: &[ViewMeta] = &[
 /// Renderer-agnostic severity classification.
 ///
 /// The string value is what each renderer (CLI ANSI, GUI CSS class) keys
-/// off. Mirrors `annotations.Severity`; order matches Python's enum
+/// off.; order matches Python's enum
 /// declaration so `meta.severities` lists `[error, warning, info]`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {

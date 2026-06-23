@@ -107,7 +107,7 @@ pub struct SymbolMap {
 }
 
 impl SymbolMap {
-    /// Human-readable symbol map.  Mirrors `SymbolMap.format`.
+    /// Human-readable symbol map.
     #[must_use]
     pub fn format(&self) -> String {
         let mut lines: Vec<String> = Vec::new();
@@ -164,7 +164,7 @@ impl SymbolMap {
 
     /// Reverse lookup: compacted name → original.  Variables also
     /// get a `scope:short` → `scope:original` entry; the bare entry
-    /// keeps the first scope seen.  Mirrors `SymbolMap.reverse`.
+    /// keeps the first scope seen.
     #[must_use]
     pub fn reverse(&self) -> BTreeMap<String, String> {
         let mut rev: BTreeMap<String, String> = BTreeMap::new();
@@ -475,7 +475,7 @@ pub fn minify_tcl(source: &str, dialect: &str, registry: &CommandRegistry) -> St
 /// Aggressive minification: apply the compiler's optimiser
 /// rewrites, compact names, alias repeated commands / arguments /
 /// string substrings, then minify whitespace.  Returns a
-/// [`MinifyResult`].  Mirrors `minify_tcl(..., aggressive=True)`.
+/// [`MinifyResult`].
 ///
 /// The aliasing phases seed their generators with every compacted
 /// short name so a `$alias` can never collide with a (possibly
@@ -540,7 +540,7 @@ pub fn minify_tcl_aggressive(
 /// Minify with local-name compaction: rename proc-local variables,
 /// parameters, and proc names to short identifiers, then run the
 /// default minifier.  Returns the minified source plus a
-/// [`SymbolMap`].  Mirrors `minify_tcl(..., compact_names=True)`.
+/// [`SymbolMap`].
 ///
 /// `isolated` also compacts global-scope variables (safe for
 /// self-contained scripts like iRules event handlers).
@@ -610,7 +610,7 @@ fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry) -> Strin
 }
 
 /// Lazy generator of short identifier names: `a`, `b`, …, `z`,
-/// `aa`, `ab`, …  Mirrors `core/common/text_edits.py::name_generator`.
+/// `aa`, `ab`, ….
 struct NameGenerator {
     indices: Vec<usize>,
 }
@@ -655,7 +655,7 @@ type Edit = (usize, usize, String);
 
 /// Apply non-overlapping `(offset, length, new_text)` edits in
 /// reverse offset order, deduplicating identical `(offset, length)`
-/// pairs.  Mirrors `core/common/text_edits.py::apply_edits`.
+/// pairs.
 fn apply_edits(source: &str, mut edits: Vec<Edit>) -> String {
     if edits.is_empty() {
         return source.to_owned();
@@ -683,8 +683,8 @@ fn child_scope_label(parent_label: &str, child_name: &str) -> String {
     }
 }
 
-/// Deepest scope label whose body span contains `offset`.  Mirrors
-/// `_scope_label_at_line` (byte-offset based).
+/// Deepest scope label whose body span contains `offset`
+/// (byte-offset based).
 fn scope_label_at_offset(
     scope: &Scope,
     offset: u32,
@@ -711,7 +711,7 @@ fn scope_label_at_offset(
 }
 
 /// Scope labels containing a dynamic-barrier command — renaming
-/// inside them is unsafe.  Mirrors `_find_barrier_scopes`.
+/// inside them is unsafe.
 fn find_barrier_scopes(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
@@ -737,8 +737,7 @@ fn find_barrier_scopes(
     out
 }
 
-/// Next short name avoiding existing and claimed names.  Mirrors
-/// `_next_unused_name`.
+/// Next short name avoiding existing and claimed names.
 fn next_unused_name(
     r#gen: &mut NameGenerator,
     existing: &HashSet<String>,
@@ -754,7 +753,6 @@ fn next_unused_name(
 }
 
 /// Rename parameter names within the proc's parameter-list region.
-/// Mirrors `_rename_params_in_list`.
 fn rename_params_in_list(
     source: &str,
     proc_def: &ProcDef,
@@ -805,8 +803,7 @@ fn slice(source: &str, span: Span) -> &str {
     }
 }
 
-/// Call sites of the proc `name` / `qualified_name`.  Mirrors the
-/// inlined `find_proc_call_sites`.
+/// Call sites of the proc `name` / `qualified_name`.
 fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
     let qn_no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
     let mut out = Vec::new();
@@ -824,7 +821,7 @@ fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisRes
 }
 
 /// Compact proc-local (and, when `isolated`, global) variable,
-/// parameter, and proc names.  Mirrors `_compact_names`; returns
+/// parameter, and proc names; returns
 /// `(renamed_source, symbol_map)`.
 fn compact_names(
     source: &str,
@@ -897,8 +894,8 @@ fn compact_names(
 }
 
 /// Compact static array-member names (`arr(member)` → `arr(x)`).
-/// Mirrors `_compact_array_members`; renames are global across
-/// scopes and skip arrays whose members look user-input-derived.
+/// Renames are global across scopes and skip arrays whose members
+/// look user-input-derived.
 fn compact_array_members(
     source: &str,
     edits: &mut Vec<Edit>,
@@ -933,8 +930,8 @@ fn compact_array_members(
 }
 
 /// Recursively scan for `arr(member)` references, descending into
-/// braced and command-substitution tokens.  Mirrors
-/// `_scan_array_tokens`; returns `arr -> member -> [offsets]`.
+/// braced and command-substitution tokens.  Returns
+/// `arr -> member -> [offsets]`.
 fn collect_array_uses(top_source: &str) -> BTreeMap<String, BTreeMap<String, Vec<usize>>> {
     let mut uses: BTreeMap<String, BTreeMap<String, Vec<usize>>> = BTreeMap::new();
     let mut stack: Vec<(String, u32)> = vec![(top_source.to_owned(), 0)];
@@ -1006,9 +1003,8 @@ fn collect_array_uses(top_source: &str) -> BTreeMap<String, BTreeMap<String, Vec
     uses
 }
 
-/// Parse `arr(member)` token text into `(arr, member)`.  Mirrors
-/// `_ARRAY_MEMBER_RE`: `arr` is `[\w:]+`, `member` excludes `)`,
-/// `$`, `[`.
+/// Parse `arr(member)` token text into `(arr, member)`: `arr` is
+/// `[\w:]+`, `member` excludes `)`, `$`, `[`.
 fn parse_array_member(text: &str) -> Option<(&str, &str)> {
     let inner = text.strip_suffix(')')?;
     let lparen = inner.find('(')?;
@@ -1030,7 +1026,7 @@ fn parse_array_member(text: &str) -> Option<(&str, &str)> {
 }
 
 /// Whether an array-member name looks user-input-derived (and so
-/// must not be renamed).  Mirrors `_UNSAFE_MEMBER_PATTERN`.
+/// must not be renamed).
 fn is_unsafe_member(member: &str) -> bool {
     const PREFIXES: &[&str] = &[
         "uri", "url", "path", "header", "cookie", "query", "param", "filename", "request", "input",
@@ -1143,7 +1139,7 @@ fn process_scope(
 // Aggressive-tier aliasing (command / argument / string-literal)
 
 /// Control-flow keywords that must stay literal (body/expr index
-/// detection checks them by value).  Mirrors `_CONTROL_FLOW_KEYWORDS`.
+/// detection checks them by value).
 const CONTROL_FLOW_KEYWORDS: &[&str] = &["else", "elseif", "then", "on", "trap", "finally"];
 
 /// Every compacted short name across the symbol map, so aggressive
@@ -1224,7 +1220,6 @@ fn alias_by_uses(
 }
 
 /// Phase 2.5: alias repeated long command names (`HTTP::uri` → `$a`).
-/// Mirrors `_alias_repeated_commands`.
 fn alias_repeated_commands(
     source: &str,
     dialect: &str,
@@ -1250,7 +1245,6 @@ fn alias_repeated_commands(
 }
 
 /// Phase 2.6: alias repeated literal arguments (`-normalized` → `$a`).
-/// Mirrors `_alias_repeated_arguments` + `_scan_argument_tokens`.
 fn alias_repeated_arguments(
     source: &str,
     claimed: &mut HashSet<String>,
@@ -1331,15 +1325,13 @@ fn alias_repeated_arguments(
 }
 
 /// Build a suffix array for `text` (naive sort of byte suffixes).
-/// Mirrors `core/common/suffix_array.py::build_suffix_array`.
 fn build_suffix_array(text: &[u8]) -> Vec<usize> {
     let mut sa: Vec<usize> = (0..text.len()).collect();
     sa.sort_by(|&a, &b| text[a..].cmp(&text[b..]));
     sa
 }
 
-/// Kasai's LCP array from a suffix array.  Mirrors
-/// `build_lcp_array`.
+/// Kasai's LCP array from a suffix array.
 fn build_lcp_array(text: &[u8], sa: &[usize]) -> Vec<usize> {
     let n = text.len();
     if n == 0 {
@@ -1435,7 +1427,7 @@ fn string_alias_candidates(source: &str) -> BTreeMap<Vec<u8>, Vec<usize>> {
 }
 
 /// Phase 2.7: alias repeated substrings inside double-quoted
-/// strings.  Mirrors `_alias_string_literals` (+ `_collect_string_literals`).
+/// strings. (+ `_collect_string_literals`).
 fn alias_string_literals(
     source: &str,
     claimed: &mut HashSet<String>,
@@ -1530,7 +1522,7 @@ fn alias_string_literals(
 
 /// Collect `(abs_offset, text)` of `ESC` segments inside
 /// double-quoted strings, descending into braced / command-subst
-/// tokens.  Mirrors `_collect_string_literals`.
+/// tokens.
 fn collect_string_literals(top_source: &str) -> Vec<(usize, String)> {
     let mut segments: Vec<(usize, String)> = Vec::new();
     let mut stack: Vec<(String, u32)> = vec![(top_source.to_owned(), 0)];
@@ -1611,7 +1603,7 @@ fn braces_balanced(s: &[u8]) -> bool {
 }
 
 /// Whether braces in `s` are properly nested (depth never negative,
-/// ends at zero).  Mirrors `_braces_balanced`.
+/// ends at zero).
 fn braces_nested(s: &str) -> bool {
     let mut depth: i64 = 0;
     for c in s.bytes() {
@@ -1852,7 +1844,7 @@ fn const_to_string(cv: &ConstValue) -> Option<String> {
 }
 
 /// Whether any `$var` in `content` is tainted without a
-/// fixed-form mitigation colour.  Mirrors `_has_unsafe_tainted_inputs`.
+/// fixed-form mitigation colour.
 fn has_unsafe_tainted_inputs(
     content: &str,
     uses: &HashMap<String, Version>,
@@ -1886,7 +1878,7 @@ fn has_unsafe_tainted_inputs(
 
 /// Parse a `$var` / `${var}` reference at `pos`, returning
 /// `(end, name)`.  Rejects array (`$a(i)`) and namespaced
-/// (`$a::b`) forms.  Mirrors `_parse_var_ref`.
+/// (`$a::b`) forms.
 fn parse_var_ref(text: &str, pos: usize) -> (usize, Option<&str>) {
     let bytes = text.as_bytes();
     if pos >= bytes.len() || bytes[pos] != b'$' {
@@ -1924,7 +1916,7 @@ fn parse_var_ref(text: &str, pos: usize) -> (usize, Option<&str>) {
 }
 
 /// Find the closing `"` from `start`, skipping `\`-escapes and
-/// `[…]` command substitutions.  Mirrors `_find_close_quote`.
+/// `[…]` command substitutions.
 fn find_close_quote(source: &str, start: usize) -> Option<usize> {
     let bytes = source.as_bytes();
     let mut pos = start;
@@ -1953,7 +1945,7 @@ fn find_close_quote(source: &str, start: usize) -> Option<usize> {
 
 /// Build a replacement token for a folded static string: bare when
 /// no quoting is needed, braced when safe, else escaped double
-/// quotes.  Mirrors `_build_replacement`.
+/// quotes.
 fn build_replacement(folded: &str) -> String {
     let needs_quoting = folded.is_empty()
         || folded.contains([' ', '\t', '\n', '"', '{', '}', '[', ']', '$', '\\', ';']);
@@ -1983,7 +1975,7 @@ fn abbreviated_subcommand(command_name: &str, subcommand_name: &str, dialect: &s
 }
 
 /// Shortest unambiguous abbreviation for `sub` of ensemble
-/// `command`, or `None`.  Mirrors `_SUBCMD_ABBREVIATIONS` (only the
+/// `command`, or `None`. (only the
 /// entries strictly shorter than the full subcommand are kept).
 fn subcommand_abbreviation(command: &str, sub: &str) -> Option<&'static str> {
     let table: &[(&str, &str)] = match command {
@@ -2441,7 +2433,7 @@ fn skip_switch_options(args: &[&str]) -> usize {
 }
 
 /// Minify the content of a `switch` braced case list, recursively
-/// minifying each braced body.  Mirrors `_minify_switch_case_list`.
+/// minifying each braced body.
 fn minify_switch_case_list(source: &str, dialect: &str, registry: &CommandRegistry) -> String {
     let sm = SourceMap::new(source);
     let Ok(tokens) = Lexer::new(source).tokenise_all() else {
@@ -2530,7 +2522,7 @@ enum ExprTok {
 
 /// Remove unnecessary whitespace inside an `expr` body, keeping
 /// spaces only around word-operators and between adjacent word
-/// tokens.  Mirrors `_strip_expr_whitespace` (no AST shrinking).
+/// tokens. (no AST shrinking).
 fn strip_expr_whitespace(text: &str, dialect: &str, registry: &CommandRegistry) -> String {
     let toks = tokenise_expr(text, dialect, registry);
     let rendered: Vec<String> = toks
@@ -2569,7 +2561,7 @@ fn compress_expr(text: &str, dialect: &str, registry: &CommandRegistry) -> Strin
     }
 }
 
-/// AST-based expression shrinking.  Mirrors `_shrink_expr_ast`.
+/// AST-based expression shrinking.
 fn shrink_expr_ast(text: &str, dialect: &str, registry: &CommandRegistry) -> String {
     let node = parse_expr(text, Some(dialect));
     if matches!(node, ExprNode::Raw { .. }) {
@@ -2584,7 +2576,7 @@ fn shrink_expr_ast(text: &str, dialect: &str, registry: &CommandRegistry) -> Str
 }
 
 /// The logical complement of a comparison / membership operator,
-/// or `None` when it has none.  Mirrors `_COMPARISON_INVERSION`.
+/// or `None` when it has none.
 fn comparison_inversion(op: BinOp) -> Option<BinOp> {
     Some(match op {
         BinOp::Eq => BinOp::Ne,
@@ -2880,7 +2872,7 @@ fn is_word_op(tok: &str) -> bool {
 }
 
 /// Whether `tok` is a "word" (identifier / number / variable /
-/// string / command-substitution).  Mirrors `_is_word_token`.
+/// string / command-substitution).
 fn is_word_token(tok: &str) -> bool {
     let Some(c) = tok.chars().next() else {
         return false;

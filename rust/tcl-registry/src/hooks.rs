@@ -37,7 +37,7 @@ pub enum LoweringHookId {
     Upvar,
     /// `proc name params body` — defines a procedure.  Lowered to a
     /// nested IR script + `Statement::Call` at the proc declaration
-    /// site.  Mirrors `core/compiler/lowering.py::_lower_proc`.
+    /// site.
     Proc,
     /// `when EVENT ?priority N? body` — iRules event handler.
     /// Lowered the same shape as `proc` but indexed by event name.

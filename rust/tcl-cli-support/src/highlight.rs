@@ -13,7 +13,7 @@ use tcl_registry::registry_for_dialect;
 
 const ANSI_RESET: &str = "\x1b[0m";
 
-/// Highlight kind → ANSI SGR escape (mirrors `_ANSI_HIGHLIGHT_CODES`).
+/// Highlight kind → ANSI SGR escape.
 fn ansi_code(kind: HighlightKind) -> &'static str {
     match kind {
         HighlightKind::Command => "\x1b[1;34m",
@@ -26,7 +26,7 @@ fn ansi_code(kind: HighlightKind) -> &'static str {
     }
 }
 
-/// Highlight kind → inline CSS (mirrors `_HTML_HIGHLIGHT_STYLES`).
+/// Highlight kind → inline CSS.
 fn html_style(kind: HighlightKind) -> &'static str {
     match kind {
         HighlightKind::Command => "color:#2b6cb0;font-weight:600;",
@@ -53,7 +53,7 @@ enum HighlightKind {
 /// Byte-span key `(start, end)` used to tag command / subcommand heads.
 type SpanKey = (u32, u32);
 
-/// Classify a token (mirrors `_highlight_token_kind`).
+/// Classify a token.
 fn token_kind(
     ty: TokenType,
     span: SpanKey,
@@ -104,7 +104,7 @@ fn collect_command_spans(source: &str, dialect: &str) -> (HashSet<SpanKey>, Hash
     (command_spans, subcommand_spans)
 }
 
-/// A braced word that looks like a command body (mirrors `_is_body_token`).
+/// A braced word that looks like a command body.
 fn is_body_token(text: &str) -> bool {
     if !text.starts_with('{') {
         return false;
@@ -172,7 +172,7 @@ fn highlight_ansi_inner(source: &str, dialect: &str, depth: u32) -> String {
     out
 }
 
-/// HTML-highlight `source` (mirrors `_highlight_source_html`).
+/// HTML-highlight `source`.
 #[must_use]
 pub fn highlight_html(source: &str, dialect: &str) -> String {
     if source.is_empty() {

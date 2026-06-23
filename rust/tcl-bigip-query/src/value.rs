@@ -34,7 +34,7 @@ use crate::projection::Container;
 ///
 /// `range` covers just the value half of `key value` — assigning a new value
 /// rewrites this span and leaves the key, indentation, and surrounding
-/// stanza untouched. Port of `values.FieldSlot`.
+/// stanza untouched.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldSlot {
     pub source_uri: String,
@@ -43,7 +43,7 @@ pub struct FieldSlot {
     pub raw_text: String,
 }
 
-/// A string reference to another BIG-IP object (port of `values.PathRef`).
+/// A string reference to another BIG-IP object.
 ///
 /// String-like in every context that expects a scalar (the underlying
 /// full-path), but the evaluator follows `.field` access through to the
@@ -66,7 +66,7 @@ impl PathRef {
     }
 }
 
-/// A BIG-IP object exposed to the query DSL (port of `values.ObjectRef`).
+/// A BIG-IP object exposed to the query DSL.
 ///
 /// `kind` is the TMSH module + object type (`"ltm virtual"`). `fields` are
 /// the user-visible property names with their current values. `field_slots`
@@ -126,9 +126,9 @@ pub enum Value {
     /// A projected BIG-IP object.
     ObjectRef(Rc<ObjectRef>),
     /// A navigable namespace / kind container projected from a
-    /// `BigipConfig` (port of `projection.Container`).
+    /// `BigipConfig`.
     Container(Rc<Container>),
-    /// The `select` "drop this value" sentinel (port of `evaluator._DROP`).
+    /// The `select` "drop this value" sentinel.
     Drop,
 }
 

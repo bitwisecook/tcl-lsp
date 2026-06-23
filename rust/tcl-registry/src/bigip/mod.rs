@@ -15,7 +15,7 @@ use std::collections::HashMap;
 
 pub mod data;
 
-/// Canonical property value-kind vocabulary. Mirrors Python `ValueKind`.
+/// Canonical property value-kind vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ValueKind {
     /// `string`.
@@ -257,7 +257,7 @@ impl BigipRegistry {
     // `tcl-bigip`, which owns `BigipConfig`.
 
     /// Property specs declared for `name` on the `(module, object_type)`
-    /// container (mirrors `_property_specs_for_context`). Empty when the
+    /// container. Empty when the
     /// container is unknown or declares no such property.
     fn property_specs_for_context(
         &self,
@@ -276,7 +276,6 @@ impl BigipRegistry {
 
     /// Collect the referenced kinds from `property_specs`, restricted to those
     /// matching `section` and prioritising section-constrained properties
-    /// (mirrors `_kinds_from_properties`).
     fn kinds_from_properties(
         property_specs: &[&'static BigipPropertySpec],
         section: Option<&str>,
@@ -301,7 +300,7 @@ impl BigipRegistry {
     }
 
     /// Candidate object kinds a property `key` may reference on the given
-    /// container (mirrors `candidate_kinds_for_key`).
+    /// container.
     #[must_use]
     pub fn candidate_kinds_for_key(
         &self,
@@ -315,7 +314,6 @@ impl BigipRegistry {
     }
 
     /// Candidate object kinds the items of a list `section` may reference
-    /// (mirrors `candidate_kinds_for_section_item`).
     #[must_use]
     pub fn candidate_kinds_for_section_item(
         &self,
@@ -329,7 +327,7 @@ impl BigipRegistry {
     }
 
     /// The canonical kind for a `(module, object_type)` stanza header, or
-    /// `None` when unregistered (mirrors `kind_for_header`).
+    /// `None` when unregistered.
     #[must_use]
     pub fn kind_for_header(&self, module: &str, object_type: &str) -> Option<&'static str> {
         self.get_by_header(module, object_type)

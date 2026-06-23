@@ -601,7 +601,7 @@ mod tests {
         assert_eq!(obj.object_type, "data-group internal");
         assert_eq!(obj.identifier, "/Common/allowed_hosts");
         assert_eq!(obj.header, "ltm data-group internal /Common/allowed_hosts");
-        // Range captured from the live Python parser.
+        // Range captured from the reference parser.
         let r = obj.range.unwrap();
         assert_eq!(
             (r.start.line, r.start.character, r.start.offset),
@@ -614,7 +614,7 @@ mod tests {
     fn typed_object_inventory_matches_python_on_corpus() {
         let src = include_str!("../../../../samples/bigip/bigip.conf");
         let config = parse_bigip_conf(src, "Common");
-        // Per-table counts captured from the live Python parser.
+        // Per-table counts captured from the reference parser.
         let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
         for p in &config.objects {
             *counts.entry(p.table_name).or_default() += 1;

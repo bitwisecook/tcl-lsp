@@ -21,14 +21,14 @@ use crate::builtins::json_to_value;
 use crate::errors::QueryError;
 use crate::value::Value;
 
-/// Metadata for one registered input format (port of `InputFormatSpec`).
+/// Metadata for one registered input format.
 pub struct InputFormatSpec {
     pub name: &'static str,
     pub summary: &'static str,
     pub details: &'static str,
 }
 
-/// How to parse a side-input URI (port of `_inputs.InputSpec`).
+/// How to parse a side-input URI.
 ///
 /// `kind` names the format; `headers` carries the optional `csv_headers`
 /// option (the only per-format knob the CLI exposes today).
@@ -86,7 +86,7 @@ pub fn list_input_formats() -> Vec<InputFormatSpec> {
     ]
 }
 
-/// Return whether *name* is a registered input format (port of `lookup`).
+/// Return whether *name* is a registered input format.
 #[must_use]
 pub fn is_registered(name: &str) -> bool {
     matches!(name, "json" | "jsonl" | "csv" | "f5log")
@@ -134,7 +134,7 @@ pub fn parse_input(source: &str, uri: &str, spec: &InputSpec) -> Result<Value, Q
 
 // JSON
 
-/// Parse a single JSON value (port of `_builtin_inputs._parse_json`).
+/// Parse a single JSON value.
 ///
 /// # Errors
 ///
@@ -158,7 +158,7 @@ pub fn parse_json(source: &str, uri: &str) -> Result<Value, QueryError> {
 /// # Errors
 ///
 /// Returns a [`QueryError`] for a line that is not valid JSON; the
-/// message mirrors `{source}: line {n}: invalid JSON (...)`.
+/// message
 pub fn parse_jsonl(text: &str, source: &str) -> Result<Value, QueryError> {
     let mut out: Vec<Value> = Vec::new();
     for (line_no, raw) in text.lines().enumerate() {
@@ -181,7 +181,7 @@ pub fn parse_jsonl(text: &str, source: &str) -> Result<Value, QueryError> {
 
 // CSV
 
-/// Parse CSV text into a list of row-dicts (port of `_inputs.parse_csv`).
+/// Parse CSV text into a list of row-dicts.
 ///
 /// When *headers* is `None` the first row names the columns; otherwise
 /// every row is data and *headers* names each column. Empty /
@@ -314,7 +314,7 @@ const F5_SEVERITIES: &[&str] = &[
 
 const SOURCE_TAGS: &[&str] = &["audit", "gtm", "ltm", "security", "tmm", "user"];
 
-/// One parsed BIG-IP log line (port of `_inputs.F5LogEvent`).
+/// One parsed BIG-IP log line.
 #[derive(Debug, Clone, Default)]
 struct F5LogEvent {
     timestamp: String,
@@ -402,7 +402,7 @@ fn parse_one_f5log(line: &str) -> F5LogEvent {
     }
 }
 
-/// Strip a leading syslog `<NNN>` PRI prefix (port of `_PRI_PREFIX`).
+/// Strip a leading syslog `<NNN>` PRI prefix.
 fn strip_pri_prefix(line: &str) -> &str {
     let bytes = line.as_bytes();
     if bytes.first() != Some(&b'<') {
@@ -437,7 +437,7 @@ fn strip_source_tag(text: &str) -> &str {
     }
 }
 
-/// Peel a timestamp off the head (port of `_take_timestamp`).
+/// Peel a timestamp off the head.
 ///
 /// Returns `(timestamp_or_None, remainder, swap_host_level_flag)`.
 fn take_timestamp(text: &str) -> (Option<String>, &str, bool) {
@@ -558,7 +558,7 @@ fn take_token(text: &str) -> (String, String) {
     (trimmed[..end].to_string(), trimmed[end..].to_string())
 }
 
-/// Peel a severity word when present (port of `_take_severity`).
+/// Peel a severity word when present.
 fn take_severity(text: &str) -> (String, String) {
     let (head, rest) = take_token(text);
     let head_lower = head.to_lowercase();
@@ -609,7 +609,6 @@ fn take_daemon_pid(text: &str) -> (String, Option<i64>, String) {
 }
 
 /// Peel an F5 message code (`XXXXXXXX:N`) off the head when present
-/// (port of `_take_f5_code`).
 ///
 /// Returns `(code, module, level, rest)`.
 fn take_f5_code(text: &str) -> (String, String, Option<i64>, String) {
@@ -635,7 +634,7 @@ fn take_f5_code(text: &str) -> (String, String, Option<i64>, String) {
     (code, module, Some(level), rest)
 }
 
-/// `true` when every char is a hex digit (port of `_is_hex`).
+/// `true` when every char is a hex digit.
 fn is_hex(text: &str) -> bool {
     if text.is_empty() {
         return false;
@@ -643,7 +642,7 @@ fn is_hex(text: &str) -> bool {
     text.chars().all(|ch| ch.is_ascii_hexdigit())
 }
 
-/// Return the event as an object value (port of `_event_to_dict`).
+/// Return the event as an object value.
 fn event_to_value(event: &F5LogEvent) -> Value {
     let mut m: indexmap::IndexMap<String, Value> = indexmap::IndexMap::new();
     m.insert("timestamp".to_string(), Value::Str(event.timestamp.clone()));

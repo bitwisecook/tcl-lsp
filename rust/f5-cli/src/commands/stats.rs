@@ -1,5 +1,5 @@
 //! `f5 stats` (alias `summary`) — object counts, partition breakdown, iRule
-//! stats, and top-referenced objects. Mirrors `tooling/f5/verbs/stats.py`.
+//! stats, and top-referenced objects.
 
 use std::path::Path;
 

@@ -497,7 +497,7 @@ fn action_summary_value(action: &BigipPolicyAction) -> String {
     String::new()
 }
 
-/// `urlsplit(uri).path` with the Python fallback `or uri.split("?",1)[0]`.
+/// The URL path component, with a fallback to `uri.split("?",1)[0]` for a bare path.
 fn split_path(uri: &str) -> String {
     if uri.is_empty() {
         return String::new();
@@ -510,7 +510,7 @@ fn split_path(uri: &str) -> String {
     }
 }
 
-/// `urlsplit(uri).query` with the Python fallback for a bare `?query`.
+/// The URL query component, with a fallback for a bare `?query`.
 fn split_query(uri: &str) -> String {
     if uri.is_empty() {
         return String::new();
@@ -553,7 +553,7 @@ fn urlsplit(url: &str) -> (String, String) {
     (path.to_owned(), query.to_owned())
 }
 
-/// Render a string as Python `repr()` does (single-quoted, with the standard
+/// Render a string in Python `repr()` form (single-quoted, with the standard
 /// escapes), used in the unevaluable-condition notes.
 fn py_repr(s: &str) -> String {
     let use_double = s.contains('\'') && !s.contains('"');

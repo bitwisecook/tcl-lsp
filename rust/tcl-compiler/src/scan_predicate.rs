@@ -20,7 +20,7 @@ fn skip_leading_whitespace(s: &[char], mut i: usize) -> usize {
 }
 
 /// Conversion-leader class for a `scan` conversion character, or `None` for
-/// an unmodelled conversion.  Mirrors `_CONV_LEADERS`.
+/// an unmodelled conversion.
 fn conv_leader(conv: char) -> Option<&'static str> {
     Some(match conv {
         'd' | 'i' | 'u' => "decimal-int",

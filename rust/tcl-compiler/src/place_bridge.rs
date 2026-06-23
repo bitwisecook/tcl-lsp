@@ -9,7 +9,7 @@
 //! once by scanning the CFG for `global` / `variable` / `upvar` / `trace`
 //! declarations (reusing the [`crate::var_scoping`] grammar).
 //!
-//! Faithful port of `compiler/place_bridge.py` on `main`.  No consumer is wired
+//! Faithful on `main`.  No consumer is wired
 //! yet (that is stage 4) — this stage is output-equivalent.
 
 use tcl_registry::{ArgRole, CommandRegistry, Traits};

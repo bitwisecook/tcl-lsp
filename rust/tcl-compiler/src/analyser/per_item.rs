@@ -274,7 +274,7 @@ impl Analyser {
         // --- tail (cross-item passes; canonicalises order) ---
         self.run_diagnostic_emitters(source);
 
-        // Correctness backstop (mirrors `analyse_incremental`): a syntax error
+        // Correctness backstop: a syntax error
         // (`E…` diagnostic) means `analyse` engaged its error-*recovery* machinery
         // (ghost-token re-lexing, recovery segmentation, body-level partial
         // detection) that the per-item walk only partially reproduces — a

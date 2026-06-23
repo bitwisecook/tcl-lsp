@@ -33,7 +33,7 @@ impl OutputTarget {
     }
 }
 
-/// Write text to the target (mirrors `_write_text_output`).
+/// Write text to the target.
 ///
 /// For stdout, a trailing newline is appended when the text is non-empty and
 /// does not already end in one. For files, bytes are written verbatim.
@@ -54,7 +54,7 @@ pub fn write_text_output(target: &OutputTarget, text: &str) -> Result<(), CliErr
     }
 }
 
-/// Write raw bytes to the target (mirrors `_write_binary_output`).
+/// Write raw bytes to the target.
 ///
 /// For stdout the payload is written verbatim — no trailing newline, since the
 /// bytes are a binary artifact (e.g. a `.wasm` module). For files the bytes are
@@ -74,7 +74,6 @@ pub fn write_binary_output(target: &OutputTarget, payload: &[u8]) -> Result<(), 
 }
 
 /// Write Tcl source, optionally colourised, with Python-faithful tab handling
-/// (mirrors `_write_highlighted_output`).
 ///
 /// When writing to stdout with `tab_width > 0`, tabs are expanded to spaces
 /// just as `str.expandtabs` does — and, matching the Python order, this happens

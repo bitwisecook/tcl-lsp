@@ -46,7 +46,7 @@ impl CfgBuilder {
         let mut dispatch = block_name.to_owned();
 
         for clause in clauses {
-            // C18 case 5: when the branch condition contains a
+            // When the branch condition contains a
             // command substitution, append a synthetic `<cond>` IRCall
             // statement so the emitter can wrap the ExprCommand with
             // its own startCommand boundary.

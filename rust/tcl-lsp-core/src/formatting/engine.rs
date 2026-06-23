@@ -348,7 +348,7 @@ fn identify_expr_args(cmd: &ParsedCommand, registry: &CommandRegistry) -> Vec<us
 
 // Comment formatting
 
-/// Format a comment per config.  Mirrors `_format_comment`.
+/// Format a comment per config.
 fn format_comment(comment_text: &str, config: &FormatterConfig) -> String {
     if comment_text.is_empty() || comment_text == "#" {
         return "#".to_owned();
@@ -404,7 +404,7 @@ struct SwitchElem {
 }
 
 /// Format the braced body of a `switch` command (pattern/body
-/// pairs).  Mirrors `_format_switch_body`.
+/// pairs).
 fn format_switch_body(
     body_text: &str,
     config: &FormatterConfig,
@@ -502,7 +502,7 @@ fn format_switch_body(
 // Long-line expression wrapping
 
 /// Find top-level `&&` / `||` positions in an expression (not
-/// nested in `[] {} () ""`).  Mirrors `_find_expr_break_points`.
+/// nested in `[] {} () ""`).
 fn find_expr_break_points(text: &str) -> Vec<usize> {
     let bytes = text.as_bytes();
     let n = bytes.len();
@@ -576,7 +576,7 @@ fn wrap_braced_expr(text: &str, config: &FormatterConfig, indent_level: usize) -
 }
 
 /// Estimate the content length after `args[start]` on the first
-/// line.  Mirrors `_estimate_trailing_len`.
+/// line.
 fn estimate_trailing_len(args: &[CommandArg], start: usize) -> usize {
     let mut length = 0;
     for arg in &args[start..] {
@@ -592,7 +592,7 @@ fn estimate_trailing_len(args: &[CommandArg], start: usize) -> usize {
     length
 }
 
-/// Current column from accumulated parts.  Mirrors `_current_col`.
+/// Current column from accumulated parts.
 fn current_col(parts: &[String], indent_len: usize) -> usize {
     let text: String = parts.concat();
     match text.rfind('\n') {
@@ -604,7 +604,7 @@ fn current_col(parts: &[String], indent_len: usize) -> usize {
 // Backslash-continuation line splitting
 
 /// Find `(index, bracket_depth)` of spaces where `\`-continuation
-/// is safe.  Mirrors `_find_splittable_spaces`.
+/// is safe.
 fn find_splittable_spaces(text: &str, start: usize) -> Vec<(usize, i32)> {
     let bytes = text.as_bytes();
     let n = bytes.len();
@@ -641,7 +641,7 @@ fn find_splittable_spaces(text: &str, start: usize) -> Vec<(usize, i32)> {
 }
 
 /// Find spaces inside double-quoted strings where `\<newline>` is
-/// safe.  Mirrors `_find_quoted_string_spaces`.
+/// safe.
 fn find_quoted_string_spaces(text: &str, start: usize) -> Vec<usize> {
     let bytes = text.as_bytes();
     let n = bytes.len();
@@ -744,7 +744,7 @@ fn greedy_split(
 }
 
 /// Split a long line using `\` continuation, preferring shallow
-/// breaks.  Mirrors `_split_long_line`.
+/// breaks.
 fn split_long_line(line: &str, config: &FormatterConfig, cont_indent: &str) -> Option<String> {
     if line.len() <= config.max_line_length {
         return None;
@@ -802,7 +802,7 @@ fn split_long_line(line: &str, config: &FormatterConfig, cont_indent: &str) -> O
 }
 
 /// Try to split a long commented-out command using `\`
-/// continuation.  Mirrors `_split_commented_code`.
+/// continuation.
 fn split_commented_code(
     comment_text: &str,
     config: &FormatterConfig,
@@ -1065,7 +1065,7 @@ fn reconstruct_switch(
 // Main entry points
 
 /// Format a Tcl script body at the given indent level.  The core
-/// recursive function.  Mirrors `format_body`.
+/// recursive function.
 /// Format a script body at `indent_level`, applying every engine
 /// rule (comments, switch bodies, recursion, long-line wrapping, …).
 /// [`format_tcl`] calls this at level 0 for a whole document; range
@@ -1137,7 +1137,7 @@ pub(crate) fn format_body(
 }
 
 /// Format a Tcl source string.  Pure function: source in,
-/// formatted source out.  Mirrors `format_tcl`.
+/// formatted source out.
 #[must_use]
 pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegistry) -> String {
     let mut result = format_body(source, config, registry, 0);

@@ -18,8 +18,7 @@
 //! - [`try_eq_ne_string_compare_simplify_expr`] — `==`/`!=`
 //!   against an `ExprNode::String` literal → `eq`/`ne`.
 //!
-//! The four AST
-//! rewriters are wired into
+//! The four AST rewriters are wired into
 //! `branch_folding::propagate_into_branches`:
 //! `substitute_expr_constants` runs first to build a working
 //! text, then the AST rewriters are probed in priority order —

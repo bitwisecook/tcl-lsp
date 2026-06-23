@@ -162,7 +162,7 @@ fn source_resolves_to(raw: &str, dep_path: &str, roots: &[String], old_path: &st
 
 /// The new path literal preserving the existing style: an absolute
 /// literal becomes the new absolute path; a relative one is re-relative
-/// to the dependent's directory.  Mirrors `_compute_new_literal`.
+/// to the dependent's directory.
 fn compute_new_literal(old_literal: &str, dep_path: &str, new_abs_path: &str) -> String {
     if old_literal.starts_with('/') {
         return new_abs_path.to_string();

@@ -85,7 +85,7 @@ pub fn snippet_completions(ctx: &SnippetContext) -> Vec<CompletionItem> {
 }
 
 /// Build a snippet placeholder offering the in-scope variables as
-/// choices, or a plain default.  Mirrors `_var_choices`.
+/// choices, or a plain default.
 fn var_choices(ctx: &SnippetContext, tabstop: u32, default: &str) -> String {
     if ctx.scope_vars.is_empty() {
         return format!("${{{tabstop}:{default}}}");
@@ -103,7 +103,7 @@ fn var_choices(ctx: &SnippetContext, tabstop: u32, default: &str) -> String {
     format!("${{{tabstop}|{choices}|}}")
 }
 
-// -- Tcl-core generators (mirror `_gen_*`) --------------------------
+// -- Tcl-core generators --------------------------
 
 fn gen_proc(ctx: &SnippetContext) -> String {
     let i = ctx.indent_unit;
@@ -206,10 +206,9 @@ fn gen_dict_for(ctx: &SnippetContext) -> String {
     format!("dict for {{${{1:key}} ${{2:value}}}} {dict_ph} {{\n{i}$0\n}}")
 }
 
-// -- iRules event generators (mirror `_gen_*`, declining via `""`) ----
+// -- iRules event generators (declining via `""`) ----
 
-/// `true` when `event` is already declared in the file (Python's
-/// `event in ctx.file_events`).
+/// `true` when `event` is already declared in the file.
 fn has_event(ctx: &SnippetContext, event: &str) -> bool {
     ctx.file_events.iter().any(|e| e == event)
 }

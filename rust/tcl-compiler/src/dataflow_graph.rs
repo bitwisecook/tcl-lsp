@@ -8,12 +8,6 @@
 //! Nodes describe SSA value definitions; edges link each def to
 //! its use sites; aliases summarise the upvar/global/variable
 //! relationships detected by [`crate::memory_ssa`].
-//!
-//! Ported from `core/compiler/dataflow_graph.py` in two strips:
-//! - **C25c** (this file) — data types.
-//! - **C25d** — extraction functions that walk SSA + SCCP +
-//!   memory-SSA results and build [`FunctionDataFlowGraph`] /
-//!   [`DataFlowGraph`] records.
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -24,7 +18,7 @@ use crate::sccp::SccpResult;
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
-// Edge classification (C25c)
+// Edge classification
 
 /// Classification of a data-flow edge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -52,7 +46,7 @@ impl EdgeKind {
     }
 }
 
-// Nodes and edges (C25c)
+// Nodes and edges
 
 /// A single SSA value in the data-flow graph.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -159,7 +153,7 @@ impl DataFlowEdge {
     }
 }
 
-// Aliases and function/module graphs (C25c)
+// Aliases and function/module graphs
 
 /// Summary of an alias relationship produced by memory-SSA.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -231,7 +225,7 @@ impl DataFlowGraph {
     }
 }
 
-// Extractors (C25d)
+// Extractors
 
 /// Render a lattice entry for the node display column.
 fn format_lattice(values: &HashMap<ValueKey, LatticeValue>, key: &ValueKey) -> String {
@@ -394,7 +388,7 @@ pub fn extract_function_dataflow(
     }
 }
 
-// Module-level aggregator (C25e3)
+// Module-level aggregator
 
 /// Per-function inputs to the module-level aggregator.
 ///
@@ -481,7 +475,7 @@ mod tests {
         assert_eq!(e.to_statement_index, -1);
     }
 
-    // -- C25d: extract_function_dataflow --
+    // -- extract_function_dataflow --
 
     use crate::cfg::Function as CfgFunction;
     use crate::def_use::build_def_use_chains;

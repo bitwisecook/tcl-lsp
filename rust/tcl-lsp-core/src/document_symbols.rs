@@ -91,17 +91,13 @@ pub struct LineRange {
 
 /// One node in the document-symbol tree.
 ///
-/// Mirrors `lsprotocol.types.DocumentSymbol`: a labelled, ranged
-/// outline entry that may carry nested children.  The `PyO3` binding
-/// renders this as a dict the Python dispatcher materialises into
-/// the lsprotocol type.
+/// A labelled, ranged outline entry that may carry nested children.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocumentSymbol {
     /// Display name (proc / class / namespace / property name).
     pub name: String,
     /// Optional one-line detail (parameter list, metaclass, …).
-    /// `None` when the Python original wouldn't have set the
-    /// field.
+    /// `None` when there is no detail to show.
     pub detail: Option<String>,
     /// LSP symbol kind.
     pub kind: SymbolKind,
@@ -119,11 +115,6 @@ pub struct DocumentSymbol {
 /// Compute document symbols for a Tcl source document.
 ///
 /// Runs the Rust analyser internally and walks its scope tree.
-/// Mirrors `get_document_symbols` in
-/// `lsp/features/document_symbols.py` for the
-/// `analysis is not None` (and `embedded_rules is None`) path —
-/// which is the case the LSP server hits once analysis is
-/// available.
 #[must_use]
 pub fn document_symbols(source: &str, dialect: &str) -> Vec<DocumentSymbol> {
     if source.is_empty() {
@@ -175,8 +166,8 @@ fn pos_leq(a_line: u32, a_char: u32, b_line: u32, b_char: u32) -> bool {
 
 /// Merge two ranges into a single outer range covering both.
 ///
-/// Mirrors `_merge_symbol_range`: take the earlier start and the
-/// later end so the resulting range contains both inputs.
+/// Take the earlier start and the later end so the resulting range
+/// contains both inputs.
 fn merge_ranges(first: LineRange, second: LineRange) -> LineRange {
     let (start_line, start_character) = if pos_leq(
         first.start_line,
@@ -326,9 +317,8 @@ fn method_symbol(
 
 /// Recursively collect symbols from a scope and its children.
 ///
-/// Mirrors `_scope_symbols`: classes, then procs, then variables
-/// (global / namespace scopes only), then nested namespace
-/// scopes.
+/// Classes, then procs, then variables (global / namespace scopes
+/// only), then nested namespace scopes.
 fn scope_symbols(source: &str, scope: &Scope, line_index: &LineIndex) -> Vec<DocumentSymbol> {
     let mut symbols: Vec<DocumentSymbol> = Vec::new();
 
@@ -406,8 +396,8 @@ fn proc_symbol(
     line_index: &LineIndex,
 ) -> DocumentSymbol {
     // Find the proc's body scope to recurse into for nested
-    // definitions.  Mirrors the Python loop that matches by
-    // ``child.kind == "proc"`` and ``child.name == proc_def.name``.
+    // definitions, matching the child whose kind is a proc and whose
+    // name equals `proc_def.name`.
     let child_symbols: Vec<DocumentSymbol> = scope
         .children
         .iter()
@@ -470,7 +460,6 @@ mod tests {
 
     #[test]
     fn single_proc_emits_function_symbol() {
-        // Mirrors `test_single_proc` in tests/test_document_symbols.py.
         let source = "proc greet {name} {\n    puts \"Hello $name\"\n}\n";
         let symbols = document_symbols(source, "tcl8.6");
         assert_eq!(symbols.len(), 1);
@@ -481,7 +470,6 @@ mod tests {
 
     #[test]
     fn proc_with_default_param_renders_brace_form() {
-        // Mirrors `test_proc_with_defaults`.
         let source = "proc greet {name {greeting Hello}} {\n    puts \"$greeting $name\"\n}\n";
         let symbols = document_symbols(source, "tcl8.6");
         assert_eq!(symbols.len(), 1);
@@ -509,7 +497,6 @@ mod tests {
 
     #[test]
     fn multiple_procs_emit_one_symbol_each() {
-        // Mirrors `test_multiple_procs`.
         let source = "proc foo {} { return 1 }\nproc bar {} { return 2 }\n";
         let symbols = document_symbols(source, "tcl8.6");
         let mut got = names(&symbols);
@@ -519,7 +506,6 @@ mod tests {
 
     #[test]
     fn proc_with_no_params_renders_empty_parens() {
-        // Mirrors `test_proc_no_params`.
         let symbols = document_symbols("proc nop {} { return }\n", "tcl8.6");
         assert_eq!(symbols.len(), 1);
         assert_eq!(symbols[0].detail.as_deref(), Some("()"));
@@ -527,7 +513,6 @@ mod tests {
 
     #[test]
     fn proc_symbol_range_contains_selection_range() {
-        // Mirrors `test_proc_symbol_range_contains_selection`.
         let source = "proc greet {name} {\n    puts \"Hello $name\"\n}\n";
         let symbols = document_symbols(source, "tcl8.6");
         assert_eq!(symbols.len(), 1);
@@ -542,7 +527,6 @@ mod tests {
 
     #[test]
     fn namespace_eval_nests_inner_proc() {
-        // Mirrors `test_namespace_with_proc`.
         let source = concat!(
             "namespace eval myns {\n",
             "    proc helper {} {\n",
@@ -562,7 +546,6 @@ mod tests {
 
     #[test]
     fn nested_namespaces_recurse_two_levels() {
-        // Mirrors `test_nested_namespace`.
         let source = concat!(
             "namespace eval outer {\n",
             "    namespace eval inner {\n",
@@ -590,7 +573,6 @@ mod tests {
 
     #[test]
     fn global_set_emits_variable_symbol() {
-        // Mirrors `test_global_variable`.
         let symbols = document_symbols("set myvar 42\n", "tcl8.6");
         let vars: Vec<&DocumentSymbol> = symbols
             .iter()
@@ -602,8 +584,6 @@ mod tests {
 
     #[test]
     fn oo_class_emits_class_symbol_with_method_children() {
-        // Mirrors `test_class_symbol_emitted` and
-        // `test_methods_nested_under_class`.
         let source = concat!(
             "oo::class create Dog {\n",
             "    method bark {} { return \"woof\" }\n",
@@ -627,7 +607,6 @@ mod tests {
 
     #[test]
     fn oo_class_constructor_emits_constructor_symbol() {
-        // Mirrors `test_constructor_symbol`.
         let source = concat!(
             "oo::class create Dog {\n",
             "    constructor {name} { set n $name }\n",
@@ -651,7 +630,6 @@ mod tests {
 
     #[test]
     fn oo_configurable_property_emits_property_symbol() {
-        // Mirrors `test_property_symbol`.
         let source = concat!(
             "oo::configurable create Point {\n",
             "    property x y\n",
@@ -671,7 +649,6 @@ mod tests {
 
     #[test]
     fn oo_class_detail_lists_superclass() {
-        // Mirrors `test_class_detail_shows_superclass`.
         let source = concat!("oo::class create Dog {\n", "    superclass Animal\n", "}\n",);
         let symbols = document_symbols(source, "tcl8.6");
         let detail = symbols[0].detail.as_deref().unwrap_or("");
@@ -683,7 +660,6 @@ mod tests {
 
     #[test]
     fn oo_class_detail_lists_non_default_metaclass() {
-        // Mirrors `test_class_detail_shows_metaclass`.
         let source = concat!(
             "oo::abstract create Shape {\n",
             "    method area {} {}\n",
@@ -699,7 +675,6 @@ mod tests {
 
     #[test]
     fn oo_classmethod_detail_lists_classmethod_keyword() {
-        // Mirrors `test_classmethod_detail`.
         let source = concat!(
             "oo::class create Counter {\n",
             "    classmethod count {} { return 0 }\n",

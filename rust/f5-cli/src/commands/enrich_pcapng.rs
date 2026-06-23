@@ -1,17 +1,14 @@
 //! The `enrich-pcapng` (`enrich`) verb — inject NRB / DSB blocks into a PCAPNG.
 //!
-//! Port of `tooling/f5/verbs/enrich_pcapng.py` (`_run_enrich_pcapng`). Derives
-//! a hostname-style label for every BIG-IP IP via
+//! Derives a hostname-style label for every BIG-IP IP via
 //! [`tcl_bigip::pcap_enrich::build_merged_name_index`] and injects those
 //! mappings into the capture as a PCAPNG Name Resolution Block (plus an
 //! optional TLS keylog Decryption Secrets Block).
 //!
-//! Byte-parity scope: the `--dry-run` address→label dump, the no-input-file
-//! error path, and the direct PCAPNG → PCAPNG annotation (NRB/DSB injection)
-//! are byte-identical to the Python. libpcap input is auto-converted to PCAPNG
-//! by shelling out to `editcap` / `tshark` exactly as the Python does; the
-//! converted bytes depend on the external tool's version and are therefore not
-//! byte-parity (the refusal path when neither tool is present is reproduced).
+//! A PCAPNG input is annotated directly (NRB/DSB injection). A libpcap input is
+//! auto-converted to PCAPNG by shelling out to `editcap` / `tshark`; the
+//! converted bytes depend on the external tool's version. When neither tool is
+//! present, the conversion is refused.
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -24,7 +21,7 @@ use tcl_bigip::pcap_enrich::{
 use tcl_bigip::pcapng::is_pcapng_magic;
 
 /// Load each config path into a `(BigipConfig, source)` pair. `-` reads stdin
-/// (only once). Mirrors `enrich_pcapng._load_configs`.
+/// (only once).
 pub fn load_configs(paths: &[PathBuf]) -> Result<Vec<(BigipConfig, String)>, String> {
     let mut pairs = Vec::new();
     let mut saw_stdin = false;
@@ -48,7 +45,7 @@ pub fn load_configs(paths: &[PathBuf]) -> Result<Vec<(BigipConfig, String)>, Str
     Ok(pairs)
 }
 
-/// Read a file as UTF-8, replacing invalid sequences (Python `errors="replace"`).
+/// Read a file as UTF-8, replacing invalid sequences.
 fn read_text_lossy(path: &Path) -> std::io::Result<String> {
     let bytes = std::fs::read(path)?;
     Ok(String::from_utf8_lossy(&bytes).into_owned())
@@ -81,8 +78,8 @@ pub fn run_enrich_pcapng(
 
     let keylog_text: Option<Vec<u8>> = match keylog {
         Some(p) => match std::fs::read(p) {
-            // Python reads as text with errors="replace" then encodes utf-8;
-            // re-encode the lossy text to match its byte output exactly.
+            // Decode as text replacing invalid sequences, then re-encode as
+            // UTF-8 so the emitted bytes are well-formed.
             Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned().into_bytes()),
             Err(e) => {
                 eprintln!("error: cannot read keylog: {e}");
@@ -137,8 +134,8 @@ pub fn run_enrich_pcapng(
     Ok(0)
 }
 
-/// Print the address→label mapping (and summary) for `--dry-run`. Mirrors the
-/// Python sorted dump.
+/// Print the address→label mapping (and summary) for `--dry-run`, sorted by
+/// address.
 fn print_dry_run(name_index: &NameIndex) {
     let mut v4: Vec<&(String, Vec<String>)> = name_index.v4.iter().collect();
     v4.sort_by(|a, b| a.0.cmp(&b.0));
@@ -170,7 +167,7 @@ fn print_dry_run(name_index: &NameIndex) {
 }
 
 /// Enrich a capture file on disk; auto-converts libpcap → pcapng via
-/// `editcap` / `tshark`. Mirrors `enrich_capture_file`.
+/// `editcap` / `tshark`.
 fn enrich_capture_file(
     in_path: &Path,
     out_path: &Path,

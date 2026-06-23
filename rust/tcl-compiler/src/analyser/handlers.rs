@@ -2871,7 +2871,7 @@ mod tests {
     fn handle_try_walks_on_handler_body() {
         // ``try {} on error {result options} {set q 1}`` — the
         // handler body at offset i+3 walks; the varList at i+2
-        // is *not* defined as a local (matches Python).
+        // is *not* defined as a local.
         let mut a = Analyser::new();
         a.handle_try_command(
             "try",

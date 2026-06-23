@@ -8,7 +8,7 @@
 //!
 //! Both default to `ensure_ascii=True`, so non-ASCII code points are escaped
 //! as `\uXXXX` (with surrogate pairs above the BMP). The transformation from
-//! [`Value`] to JSON mirrors `output._to_json`: an `ObjectRef` becomes
+//! [`Value`] to JSON: an `ObjectRef` becomes
 //! `{"kind", "full-path", "fields"}`, a `PathRef` its full-path string, a
 //! `Stream` an array, and so on.
 
