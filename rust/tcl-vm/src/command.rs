@@ -444,30 +444,56 @@ fn cmd_auto_load(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `subst ?-nobackslashes? ?-nocommands? ?-novariables? string` — perform
 /// backslash / command / variable substitution on a string.
 fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let (mut backslashes, mut commands, mut variables) = (true, true, true);
-    let mut rest = args;
-    while let Some(first) = rest.first() {
-        match &*first.to_str() {
-            "-nobackslashes" => backslashes = false,
-            "-nocommands" => commands = false,
-            "-novariables" => variables = false,
-            s if s.starts_with('-') && s.len() > 1 => {
-                return err(format!(
-                    "bad switch \"{s}\": must be -nobackslashes, -nocommands, or -novariables"
-                ));
-            }
-            _ => break,
-        }
-        rest = &rest[1..];
-    }
-    let [string] = rest else {
+    // C (`TclNRSubstObjCmd`): the *last* argument is the string and every
+    // argument before it is an option, matched by unique abbreviation. So a
+    // non-option word anywhere but last is a `bad option` error (subst-1.2/7.1),
+    // and `-nov`/`-nob`/`-noc` are accepted as prefixes (subst-7.7).
+    let Some((string, opts)) = args.split_last() else {
         return err(
             "wrong # args: should be \"subst ?-nobackslashes? ?-nocommands? ?-novariables? string\"",
         );
     };
+    let (mut backslashes, mut commands, mut variables) = (true, true, true);
+    for opt in opts {
+        let s = opt.to_str();
+        match match_subst_option(&s) {
+            Ok(0) => backslashes = false,
+            Ok(1) => commands = false,
+            Ok(_) => variables = false,
+            Err(ambiguous) => {
+                let kind = if ambiguous { "ambiguous" } else { "bad" };
+                return err(format!(
+                    "{kind} option \"{s}\": must be -nobackslashes, -nocommands, or -novariables"
+                ));
+            }
+        }
+    }
     match crate::subst::subst_command(vm, &string.to_str(), backslashes, commands, variables) {
         Ok(s) => ok(Value::string(s)),
         Err(e) => err(e.message),
+    }
+}
+
+/// Match a `subst` option by unique abbreviation (Tcl's `Tcl_GetIndexFromObj`):
+/// `Ok(index)` into `[-nobackslashes, -nocommands, -novariables]`, or `Err(true)`
+/// when the prefix is ambiguous / `Err(false)` when it matches none.
+fn match_subst_option(s: &str) -> Result<usize, bool> {
+    const NAMES: [&str; 3] = ["-nobackslashes", "-nocommands", "-novariables"];
+    if let Some(i) = NAMES.iter().position(|n| *n == s) {
+        return Ok(i); // exact match
+    }
+    let mut found = None;
+    let mut count = 0u8;
+    for (i, n) in NAMES.iter().enumerate() {
+        if !s.is_empty() && n.starts_with(s) {
+            found = Some(i);
+            count += 1;
+        }
+    }
+    match (count, found) {
+        (1, Some(i)) => Ok(i),
+        (0, _) => Err(false),
+        _ => Err(true),
     }
 }
 

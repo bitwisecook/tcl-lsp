@@ -12,6 +12,8 @@
 //! array-element substitution are deferred to M2 (a `\X` only escapes the next
 //! char from being mis-read as a substitution trigger; it is not decoded).
 
+use tcl_runtime_api::Code;
+
 use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
@@ -173,6 +175,13 @@ fn backslash_escape_len(b: &[u8], i: usize) -> usize {
 }
 
 /// on `s` (each independently switchable). Returns the substituted string.
+///
+/// `subst` gives embedded command substitutions special control-flow handling,
+/// distinct from ordinary `[...]` substitution and verified against C
+/// (subst-8.x/10.x): a `break` stops substitution and yields the text
+/// accumulated so far; a `continue` drops just that bracket's value and resumes;
+/// a `return` (or any other non-error code) substitutes the result and resumes.
+/// An unclosed `[` is a `missing close-bracket` error (subst-5.5).
 #[allow(clippy::many_single_char_names)]
 pub fn subst_command(
     vm: &mut Vm,
@@ -199,30 +208,32 @@ pub fn subst_command(
                 i += len;
             }
             b'[' if commands => {
-                if let Some(end) = command_end(b, i) {
-                    let v = eval_subst(vm, &s[i + 1..end])?;
-                    out.push_str(&v.to_str());
-                    i = end + 1;
-                } else {
-                    out.push('[');
-                    i += 1;
+                // An unclosed `[` is a parse error reported before the bracket
+                // body would run (subst-5.5/5.6/5.7).
+                let end =
+                    command_end(b, i).ok_or_else(|| TclError::new("missing close-bracket"))?;
+                let c = vm.eval_source(&s[i + 1..end])?;
+                match c.code {
+                    // `return` / a custom code substitutes its result and resumes.
+                    Code::Ok | Code::Return | Code::Other(_) => out.push_str(&c.result.to_str()),
+                    Code::Continue => {} // drop this bracket's value, resume
+                    Code::Break => return Ok(out), // stop, yield what we have
+                    Code::Error => return Err(TclError::new(c.result.to_str().to_string())),
                 }
+                i = end + 1;
             }
-            b'$' if variables && i + 1 < n => {
-                if let Some((name, next)) = parse_var_ref(s, i) {
-                    if let Err(c) = vm.fire_var_traces(name, "read") {
-                        return Err(TclError::new(c.result.to_str().to_string()));
-                    }
-                    let v = vm.var_get(name).ok_or_else(|| {
-                        TclError::new(format!("can't read \"{name}\": no such variable"))
-                    })?;
-                    out.push_str(&v.to_str());
+            b'$' if variables && i + 1 < n => match subst_var(vm, s, i)? {
+                VarFlow::Append(text, next) => {
+                    out.push_str(&text);
                     i = next;
-                } else {
+                }
+                VarFlow::Skip(next) => i = next,
+                VarFlow::Break => return Ok(out),
+                VarFlow::Literal => {
                     out.push('$');
                     i += 1;
                 }
-            }
+            },
             _ => {
                 // Copy one UTF-8 char.
                 let ch = s[i..].chars().next().unwrap_or('\u{fffd}');
@@ -234,15 +245,148 @@ pub fn subst_command(
     Ok(out)
 }
 
+/// The outcome of substituting a top-level `$`-reference.
+enum VarFlow {
+    /// Append this text and resume at the byte offset.
+    Append(String, usize),
+    /// Drop the reference (a `continue` in its array index) and resume.
+    Skip(usize),
+    /// A `break` in the array index: stop substitution.
+    Break,
+    /// `$` not followed by a parseable name: emit it literally.
+    Literal,
+}
+
+/// Substitute one `$name` / `${name}` / `$name(index)` reference at `s[at]`.
+fn subst_var(vm: &mut Vm, s: &str, at: usize) -> Result<VarFlow, TclError> {
+    let Some(vr) = parse_var_ref_parts(s, at) else {
+        return Ok(VarFlow::Literal);
+    };
+    let Some(raw_index) = vr.index else {
+        let v = read_var(vm, vr.base)?;
+        return Ok(VarFlow::Append(v.to_str().to_string(), vr.next));
+    };
+    // `$name(index)` — the index is itself substituted (subst-4.3), and a
+    // control-flow code from a command in the index decides the reference's
+    // fate (subst-8.9).
+    match subst_index(vm, raw_index)? {
+        IndexFlow::Index(idx) => {
+            let full = format!("{}({idx})", vr.base);
+            let v = read_elem(vm, &full)?;
+            Ok(VarFlow::Append(v.to_str().to_string(), vr.next))
+        }
+        IndexFlow::Substitute(v) => Ok(VarFlow::Append(v, vr.next)),
+        IndexFlow::Skip => Ok(VarFlow::Skip(vr.next)),
+        IndexFlow::Break => Ok(VarFlow::Break),
+    }
+}
+
+/// The outcome of substituting an array index in `subst`.
+enum IndexFlow {
+    /// The fully-substituted index string.
+    Index(String),
+    /// A `return` (or other non-error code) in the index: replace the whole
+    /// reference with this value (subst-8.9).
+    Substitute(String),
+    /// A `continue` in the index: drop the reference.
+    Skip,
+    /// A `break` in the index: stop substitution.
+    Break,
+}
+
+/// Substitute an array index. Unlike the top level this is single-pass: the
+/// first control-flow code from an embedded command stops the index and decides
+/// the reference's fate.
+fn subst_index(vm: &mut Vm, idx: &str) -> Result<IndexFlow, TclError> {
+    let b = idx.as_bytes();
+    let n = b.len();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < n {
+        match b[i] {
+            b'\\' => {
+                let len = backslash_escape_len(b, i);
+                out.push_str(&tcl_syntax::backslash::decode(&idx[i..i + len]));
+                i += len;
+            }
+            b'[' => {
+                let end =
+                    command_end(b, i).ok_or_else(|| TclError::new("missing close-bracket"))?;
+                let c = vm.eval_source(&idx[i + 1..end])?;
+                match c.code {
+                    Code::Ok => {
+                        out.push_str(&c.result.to_str());
+                        i = end + 1;
+                    }
+                    Code::Return | Code::Other(_) => {
+                        return Ok(IndexFlow::Substitute(c.result.to_str().to_string()));
+                    }
+                    Code::Continue => return Ok(IndexFlow::Skip),
+                    Code::Break => return Ok(IndexFlow::Break),
+                    Code::Error => return Err(TclError::new(c.result.to_str().to_string())),
+                }
+            }
+            b'$' if i + 1 < n => {
+                if let Some(vr) = parse_var_ref_parts(idx, i) {
+                    let v = match vr.index {
+                        None => read_var(vm, vr.base)?,
+                        // A nested array index recurses; control flow from it
+                        // propagates to decide the outer reference's fate.
+                        Some(inner) => match subst_index(vm, inner)? {
+                            IndexFlow::Index(k) => read_elem(vm, &format!("{}({k})", vr.base))?,
+                            other => return Ok(other),
+                        },
+                    };
+                    out.push_str(&v.to_str());
+                    i = vr.next;
+                } else {
+                    out.push('$');
+                    i += 1;
+                }
+            }
+            _ => {
+                let ch = idx[i..].chars().next().unwrap_or('\u{fffd}');
+                out.push(ch);
+                i += ch.len_utf8();
+            }
+        }
+    }
+    Ok(IndexFlow::Index(out))
+}
+
+/// Read an array element `base(key)` (firing read traces) with the standard
+/// "no such variable" error. `var_get` resolves the `base(key)` form.
+fn read_elem(vm: &mut Vm, full: &str) -> Result<Value, TclError> {
+    if let Err(c) = vm.fire_var_traces(full, "read") {
+        return Err(TclError::new(c.result.to_str().to_string()));
+    }
+    vm.var_get(full)
+        .ok_or_else(|| TclError::new(format!("can't read \"{full}\": no such variable")))
+}
+
+/// A parsed `$`-reference split into its base name and optional raw array index.
+struct VarRef<'a> {
+    /// The `$name` / `${name}` base variable (or array) name.
+    base: &'a str,
+    /// The raw (unsubstituted) array index span, for `$name(index)`.
+    index: Option<&'a str>,
+    /// Byte offset just past the whole reference.
+    next: usize,
+}
+
 /// Parse a `$`-variable reference starting at `s[at]` (`$name`, `${name}`,
-/// `$name(idx)`), returning `(name, index_past_reference)`.
-fn parse_var_ref(s: &str, at: usize) -> Option<(&str, usize)> {
+/// `$name(idx)`).
+fn parse_var_ref_parts(s: &str, at: usize) -> Option<VarRef<'_>> {
     let b = s.as_bytes();
     let n = b.len();
     if b.get(at + 1) == Some(&b'{') {
         let rel = s[at + 2..].find('}')?;
         let close = at + 2 + rel;
-        return Some((&s[at + 2..close], close + 1));
+        return Some(VarRef {
+            base: &s[at + 2..close],
+            index: None,
+            next: close + 1,
+        });
     }
     let start = at + 1;
     let mut j = start;
@@ -264,9 +408,18 @@ fn parse_var_ref(s: &str, at: usize) -> Option<(&str, usize)> {
         && b[j] == b'('
         && let Some(rel) = s[j..].find(')')
     {
-        return Some((&s[start..=j + rel], j + rel + 1));
+        let close = j + rel;
+        return Some(VarRef {
+            base: &s[start..j],
+            index: Some(&s[j + 1..close]),
+            next: close + 1,
+        });
     }
-    Some((&s[start..j], j))
+    Some(VarRef {
+        base: &s[start..j],
+        index: None,
+        next: j,
+    })
 }
 
 /// Substitute a literal word, returning its value. Pure single `${…}` / `[…]`
