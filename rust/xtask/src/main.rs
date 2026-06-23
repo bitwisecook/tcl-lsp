@@ -19,6 +19,8 @@
 //!   contract doc.
 //! - `kcs-index-links` — port of `scripts/check/kcs_index_links.py`: validate
 //!   markdown links + KCS/design index coverage under `docs/`.
+//! - `version` — port of `scripts/print_version.py`: print the
+//!   setuptools-scm / hatch-vcs project version from `git describe`.
 
 #![forbid(unsafe_code)]
 
@@ -29,6 +31,7 @@ use clap::{Parser, Subcommand};
 mod kcs_index_links;
 mod refcount_contract;
 mod util;
+mod version;
 
 /// Native build/check tasks for the tcl-lsp workspace.
 #[derive(Parser)]
@@ -53,11 +56,17 @@ enum Command {
     ///
     /// Port of `scripts/check/kcs_index_links.py`.
     KcsIndexLinks,
+
+    /// Print the project version (`git describe` → setuptools-scm scheme).
+    ///
+    /// Port of `scripts/print_version.py`.
+    Version,
 }
 
 fn main() -> anyhow::Result<ExitCode> {
     match Cli::parse().command {
         Command::RefcountContract { strict } => refcount_contract::run(strict),
         Command::KcsIndexLinks => kcs_index_links::run(),
+        Command::Version => Ok(version::run()),
     }
 }
