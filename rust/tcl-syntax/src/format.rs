@@ -91,6 +91,20 @@ pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
     } else {
         None
     };
+    // C size modifiers: Tcl treats every integer as a wide, so these are parsed
+    // and discarded (`format %ld 5` → `5`). `l`/`ll`, or a single
+    // `h`/`j`/`z`/`q`/`t`/`L`. `hh` is *not* accepted — the second `h` is left to
+    // fail as the verb (`format %hhd` → `bad field specifier "h"`, matching C).
+    match fmt.get(*i) {
+        Some(b'l') => {
+            *i += 1;
+            if fmt.get(*i) == Some(&b'l') {
+                *i += 1;
+            }
+        }
+        Some(b'h' | b'j' | b'z' | b'q' | b't' | b'L') => *i += 1,
+        _ => {}
+    }
     let verb = *fmt.get(*i)?;
     *i += 1;
     Some(Spec {
