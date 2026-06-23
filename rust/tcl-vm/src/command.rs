@@ -305,8 +305,14 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         ));
     }
     let Some(cmd) = vm.take_command(&old_name) else {
+        // Renaming to the empty name is a delete; C words the miss accordingly.
+        let verb = if new_name.is_empty() {
+            "delete"
+        } else {
+            "rename"
+        };
         return err(format!(
-            "can't rename \"{old_name}\": command doesn't exist"
+            "can't {verb} \"{old_name}\": command doesn't exist"
         ));
     };
     if !new_name.is_empty() {

@@ -189,6 +189,35 @@ fn compiled_linsert_rejects_bad_index() {
     assert_eq!(result, "a b c X");
 }
 
+/// `init_auto_load` installs the `unknown`/`auto_load` procs so an unresolved
+/// command is looked up on demand. With an empty `auto_path` (no library scan)
+/// a genuinely unknown command still raises the standard `invalid command name`
+/// error — confirming the proc is installed and the miss path matches C.
+/// (word.test, driven through the real library, is the positive integration
+/// test.)
+#[test]
+fn autoloader_installs_unknown_and_reports_miss() {
+    let buf = Rc::new(RefCell::new(Vec::new()));
+    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    vm.set_compiler(Box::new(CompilerSvc {
+        registry: CommandRegistry::build_default(),
+    }));
+    vm.init_auto_load();
+    // Decouple from any on-disk library so the test is environment-independent.
+    let _ = vm.eval_source("set ::auto_path {}");
+
+    let c = vm.eval_source("info commands unknown").expect("compiles");
+    assert_eq!(&*c.result.to_str(), "unknown", "unknown proc is installed");
+
+    let c = vm
+        .eval_source("catch {nonexistent_xyz_cmd} m; set m")
+        .expect("compiles");
+    assert_eq!(
+        &*c.result.to_str(),
+        "invalid command name \"nonexistent_xyz_cmd\"",
+    );
+}
+
 /// `string map` with three arguments whose first is not `-nocase` reports a
 /// bad-option error, not a wrong-arg-count error (string-10.2).
 #[test]

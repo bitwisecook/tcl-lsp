@@ -149,6 +149,13 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
         "tclversion" => ok(Value::string("9.0")),
         "patchlevel" => ok(Value::string("9.0.0")),
+        // `info library` is the script library directory — the `tcl_library`
+        // global the bootstrap seeds from `$env(TCL_LIBRARY)`. The autoloader
+        // (`auto_path` defaults to `[info library]`) and library procs read it.
+        "library" => match vm.get_var("tcl_library") {
+            Some(v) if !v.to_str().is_empty() => ok(v),
+            _ => err("no library has been specified for Tcl"),
+        },
         "script" => ok(Value::string(vm.current_script())),
         "nameofexecutable" => ok(Value::empty()),
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
