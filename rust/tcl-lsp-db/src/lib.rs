@@ -354,8 +354,8 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
 /// different bodies; because the **post-lowering body is part of the key**, the
 /// two never cross-pollute — no explicit namespace is needed.
 #[must_use]
-pub fn memoised_compilation_unit<'db>(
-    db: &'db dyn TclDb,
+pub fn memoised_compilation_unit(
+    db: &dyn TclDb,
     source: &str,
     registry: &CommandRegistry,
     defer_top_level: bool,
@@ -625,35 +625,35 @@ fn summary_deps_key<'db>(
 
     let mut interproc_reachable: Vec<ProcTaintSummary> = Vec::new();
     let mut callee_summaries: Vec<ReturnTaintSummary> = Vec::new();
-    if let Some(ia) = interproc {
-        if let Some(root) = ia.procedures.get(qname) {
-            let mut calls = root.calls.clone();
-            calls.sort();
-            calls.dedup();
-            // Root: full interproc projection (with its transitive `calls`), plus
-            // its own return summary when recursive (qname appears in `calls`).
-            interproc_reachable.push(ProcTaintSummary {
-                qname: qname.to_owned(),
-                params: root.params.clone(),
-                calls: calls.clone(),
-                writes_global: root.writes_global,
-                return_passthrough_param: root.return_passthrough_param.clone(),
-            });
-            for callee in &calls {
-                if callee != qname {
-                    if let Some(s) = ia.procedures.get(callee) {
-                        interproc_reachable.push(ProcTaintSummary {
-                            qname: callee.clone(),
-                            params: s.params.clone(),
-                            calls: Vec::new(),
-                            writes_global: s.writes_global,
-                            return_passthrough_param: s.return_passthrough_param.clone(),
-                        });
-                    }
-                }
-                if let Some(ts) = summaries.get(callee) {
-                    callee_summaries.push(ts.clone());
-                }
+    if let Some(ia) = interproc
+        && let Some(root) = ia.procedures.get(qname)
+    {
+        let mut calls = root.calls.clone();
+        calls.sort();
+        calls.dedup();
+        // Root: full interproc projection (with its transitive `calls`), plus
+        // its own return summary when recursive (qname appears in `calls`).
+        interproc_reachable.push(ProcTaintSummary {
+            qname: qname.to_owned(),
+            params: root.params.clone(),
+            calls: calls.clone(),
+            writes_global: root.writes_global,
+            return_passthrough_param: root.return_passthrough_param.clone(),
+        });
+        for callee in &calls {
+            if callee != qname
+                && let Some(s) = ia.procedures.get(callee)
+            {
+                interproc_reachable.push(ProcTaintSummary {
+                    qname: callee.clone(),
+                    params: s.params.clone(),
+                    calls: Vec::new(),
+                    writes_global: s.writes_global,
+                    return_passthrough_param: s.return_passthrough_param.clone(),
+                });
+            }
+            if let Some(ts) = summaries.get(callee) {
+                callee_summaries.push(ts.clone());
             }
         }
     }
