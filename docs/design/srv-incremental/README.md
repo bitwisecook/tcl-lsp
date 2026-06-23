@@ -528,8 +528,9 @@ exist yet — the verification-status table follows the list.
    `reparse_window`'s windowed re-lex that has no consumer.) *When unblocked, the
    gate:* dirty-span re-lex byte-identical to a full re-lex over the edit-fuzz corpus.
 
-6. **Cross-file cascade** *(cross-file W123 + arity **SHIPPED**; classes are the
-   remaining extension).* Lift the project signature table into salsa
+6. **Cross-file cascade** *(cross-file resolution **SHIPPED** — W123 + arity across
+   procs/classes/aliases/ensembles; per-symbol precision + corpus fuzz remain).*
+   Lift the project signature table into salsa
    (`project_signatures` over per-file `file_decls`), make cross-file resolution
    tracked queries (reverse-dependency invalidation then falls out of salsa), and
    apply the E4/E8 input-setting discipline project-wide.
@@ -542,12 +543,14 @@ exist yet — the verification-status table follows the list.
      recomputes it zero times; a decl change, once).
    - `project_diagnostics(file, config, project)` — a **separate query off the
      paramount `file_analysis` path** (so a signature change elsewhere can't regress
-     this file's time-to-first-tokens) that, via `project_proc_arities` +
+     this file's time-to-first-tokens) that, via `project_command_arities` +
      `apply_cross_file_resolution`: (a) suppresses **W123 (unknown command)** for a
-     command defined as a `proc` anywhere in the workspace (mirrors the analyser's
-     own `proc_tail_names` suppression, extended across files); and (b) emits
-     **W124 (wrong # args)** when such a call's argument count fits *none* of that
-     proc's arities. Conservative: a `{*}`-expanded call (`argc` unknown) or a
+     command defined anywhere in the workspace as a **proc / class / alias /
+     ensemble** (mirrors the analyser's own `proc_tail_names` / `class_tail_names` /
+     `alias_names` / `ensemble_cmds` suppression, extended across files); and (b)
+     emits **W124 (wrong # args)** when a call resolving to a workspace **proc** has
+     an argument count fitting *none* of that proc's arities. Conservative: a
+     `{*}`-expanded call (`argc` unknown), a non-proc resolution (no arity), or a
      tail-name collision where any candidate accepts the count emits nothing.
      Per-call-site `argc` is recorded on `SignatureCommandInvocation`; arities come
      from `item_sigs` params (required params set the min; a trailing `args` is
@@ -566,10 +569,10 @@ exist yet — the verification-status table follows the list.
      green; no regression.
 
    *Remaining extensions (not blockers — the cross-file machinery + its fuzzer
-   now exist):* cross-file **class / ensemble** resolution (today the resolution
-   domain is procs only); a per-symbol `signature(qname)` query for
+   now exist):* a per-symbol `signature(qname)` query for
    finer-than-whole-project-set invalidation; and broadening the multi-file fuzzer
-   to a corpus-scale differential for the heuristic-edge risk.
+   to a corpus-scale differential (`source` / `package require` graph edits, many
+   files) for the heuristic-edge risk.
 
 7. **(Optional, late) rope-backed store + chunk-addressable salsa input** *(XL,
    gated).* The demoted SRV-ROPE work — full sub-task breakdown and measurements in
@@ -621,7 +624,8 @@ What is **measured** (a harness in this repo backs it) versus what is **hypothes
 | Task 6 step 1: `project_proc_names` (cross-file resolution domain) firewalls on the real graph | **measured + verified** | `project_proc_names_firewall` — body edit re-runs it 0×, decl change 1× (in `tcl-lsp-db`, on `file_decls`) |
 | **Task 6 cross-file W123 SHIPPED** — `project_diagnostics` suppresses unknown-command warnings for workspace-defined procs; live in the server (push + pull), `xcDiagnostics`-gated | **measured + verified** | multi-file `incremental == fresh` fuzzer (60 edits) + focused + end-to-end server test; ci-fast (805 e2e) green, off-by-default ⇒ no regression |
 | **Task 6 cross-file arity (W124) SHIPPED** — wrong-arg-count to a workspace proc; W123 suppressed when resolved | **measured + verified** | `project_diagnostics_emits_cross_file_arity` (3 args to a 2-param proc → W124 + W123 suppressed; correct count → neither); conservative on `{*}` / tail collisions |
-| Task 6 cross-file **classes / ensembles** + corpus-scale heuristic-edge correctness | **hypothesis** | resolution domain is procs only; needs a per-symbol signature query + a corpus-scale multi-file differential |
+| **Task 6 cross-file classes / aliases / ensembles SHIPPED** — resolution domain matches the analyser's local suppression kinds | **measured + verified** | `project_diagnostics_resolves_cross_file_class` (cross-file `Widget` class command → no W123, no W124) |
+| Task 6 per-symbol precision + corpus-scale heuristic-edge correctness | **hypothesis** | needs a per-symbol `signature(qname)` query + a corpus-scale multi-file differential |
 
 Differential-fuzzer coverage **today**:
 
