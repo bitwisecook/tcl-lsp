@@ -265,6 +265,24 @@ fn list_hooks_collapse_nonbraced_backslashes() {
     assert_eq!(result, "1 {unmatched open brace in list}");
 }
 
+/// `lpop` removes and returns an element of the list in a variable (default the
+/// last), descending into nested sublists with several indices, and stores the
+/// trimmed list back. Out-of-range / non-integer indices error like C.
+#[test]
+fn lpop_removes_and_returns_element() {
+    let (ok, result, _) = run("set l {a b c d}\nset got [lpop l]\nlist $got $l");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "d {a b c}");
+
+    let (ok, result, _) = run("set l {{a b} {c d}}\nset got [lpop l 0 1]\nlist $got $l");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "b {a {c d}}");
+
+    let (ok, result, _) = run("set l {a b c}\ncatch {lpop l 99} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "index \"99\" out of range");
+}
+
 /// The compiled `LIST_RANGE_IMM` path resolves `end+N` indices like the
 /// uncompiled command: as the last index `end+N` clamps to the end (keeps
 /// everything), as the first index it is past the end (empty). Regression for

@@ -28,6 +28,7 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("linsert", cmd_linsert);
     vm.register("lreplace", cmd_lreplace);
     vm.register("ledit", cmd_ledit);
+    vm.register("lpop", cmd_lpop);
     vm.register("lsearch", cmd_lsearch);
     vm.register("lsort", cmd_lsort);
     vm.register("concat", cmd_concat);
@@ -171,6 +172,73 @@ fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return e;
     }
     ok(result)
+}
+
+/// `lpop listVar ?index ...?` — remove and return an element of the list held
+/// in `listVar` (Tcl 9), defaulting to the last element. With several indices it
+/// descends into nested sublists and removes the deepest element. The trimmed
+/// list is stored back (firing write traces).
+fn cmd_lpop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some((name, indices)) = args.split_first() else {
+        return err("wrong # args: should be \"lpop listvar ?index?\"");
+    };
+    let n = name.to_str();
+    let Some(cur) = vm.var_get(&n) else {
+        return err(vm.read_miss_msg(&n));
+    };
+    let items = match as_list(&cur) {
+        Ok(i) => (*i).clone(),
+        Err(c) => return c,
+    };
+    // No index means the last element (`end`).
+    let default_end = [Value::string("end")];
+    let path: &[Value] = if indices.is_empty() {
+        &default_end
+    } else {
+        indices
+    };
+    let (removed, new_items) = match lpop_remove(&items, path) {
+        Ok(r) => r,
+        Err(c) => return c,
+    };
+    if let Err(e) = vm.var_set(&n, Value::list(new_items)) {
+        return e;
+    }
+    ok(removed)
+}
+
+/// Remove the element at the (possibly nested) `indices` path from `items`,
+/// returning `(removed_element, rebuilt_list)`. A non-integer index is a "bad
+/// index" error; an in-form but out-of-bounds index is "index … out of range"
+/// — matching C's `Tcl_LpopObjCmd`.
+fn lpop_remove(
+    items: &[Value],
+    indices: &[Value],
+) -> Result<(Value, Vec<Value>), Completion<Value>> {
+    let (first, rest) = indices.split_first().expect("lpop has at least one index");
+    let spec = first.to_str();
+    let Some(idx) = crate::command::resolve_index(&spec, items.len()) else {
+        return Err(err(format!(
+            "bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?"
+        )));
+    };
+    if idx < 0 || usize::try_from(idx).is_ok_and(|i| i >= items.len()) {
+        return Err(err(format!("index \"{spec}\" out of range")));
+    }
+    let i = usize::try_from(idx).expect("idx >= 0 checked above");
+    let mut new = items.to_vec();
+    if rest.is_empty() {
+        let removed = new.remove(i);
+        Ok((removed, new))
+    } else {
+        let sub = match items[i].as_list() {
+            Ok(s) => (*s).clone(),
+            Err(e) => return Err(err(e.message)),
+        };
+        let (removed, new_sub) = lpop_remove(&sub, rest)?;
+        new[i] = Value::list(new_sub);
+        Ok((removed, new))
+    }
 }
 
 /// `lsearch ?-option value ...? list pattern` — a thin adapter over the shared
