@@ -11,9 +11,7 @@ use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
 use super::values::{is_qualified, parse_braced_scalar_ref, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, INDEX_END, Op, Operand, bytecode_imm, parse_tcl_index, str_class_id};
 
-// ---------------------------------------------------------------------------
 // Free functions — pure parsing, no emission state needed
-// ---------------------------------------------------------------------------
 
 /// Unroll `[set y [set z 42]]` into `["y", "z", "42"]`.
 ///
@@ -321,9 +319,7 @@ pub fn parse_cmd_parts_expand(text: &str) -> Vec<(String, bool, bool)> {
     parts
 }
 
-// ---------------------------------------------------------------------------
 // CodegenCtx methods — emission helpers for command substitutions
-// ---------------------------------------------------------------------------
 
 impl CodegenCtx<'_> {
     /// Emit a single arg from a parsed command substitution.
@@ -1377,9 +1373,7 @@ impl CodegenCtx<'_> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

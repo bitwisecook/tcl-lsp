@@ -675,9 +675,7 @@ fn walk_scopes_helper(scope: &Scope, path: &[usize], out: &mut Vec<Vec<usize>>) 
     }
 }
 
-// ---------------------------------------------------------------------------
 // Substituted / expr `$var` read collection
-// ---------------------------------------------------------------------------
 
 /// Extract the base variable name from a `Var` token's source span:
 /// `$name` / `${name}` → `name`, and `$arr(idx)` → `arr` (the array

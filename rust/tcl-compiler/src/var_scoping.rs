@@ -15,9 +15,7 @@
 //!
 //! Ported from `core/analysis/var_scoping.py` (C24b4).
 
-// ---------------------------------------------------------------------------
 // global
-// ---------------------------------------------------------------------------
 
 /// Return indices of declared variables in `global var1 var2 ...`.
 ///
@@ -32,9 +30,7 @@ pub fn global_declaration_indices(args: &[String]) -> Vec<usize> {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // variable
-// ---------------------------------------------------------------------------
 
 /// Return indices of declared variables in
 /// `variable name ?value? name ?value? ...`.
@@ -56,9 +52,7 @@ pub fn variable_declaration_indices(args: &[String]) -> Vec<usize> {
     out
 }
 
-// ---------------------------------------------------------------------------
 // upvar / namespace upvar
-// ---------------------------------------------------------------------------
 
 /// Return indices of the *local-alias* tokens in an `upvar`
 /// command.

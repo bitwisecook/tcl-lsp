@@ -175,9 +175,7 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     ]
 }
 
-// ===========================================================================
 // Shared coercion helpers
-// ===========================================================================
 
 /// Port of `builtins._coerce_pathlike` — accepts string / path-ref / object.
 fn coerce_pathlike(v: &Value, name: &str, arg: usize) -> Result<String, QueryError> {
@@ -222,9 +220,7 @@ fn net_value_error(text: &str) -> String {
     )
 }
 
-// ===========================================================================
 // IP address parsing + classification (port of `ipaddress` + `_address.py`)
-// ===========================================================================
 
 /// Parse a bare host (v4 or v6) the way `ipaddress.ip_address` does.
 /// Python is strict: it rejects leading zeros in IPv4 octets, zone ids, etc.
@@ -592,10 +588,8 @@ fn addr_is_documentation(a: IpAddr) -> bool {
     }
 }
 
-// ===========================================================================
 // Typed value layer: IPAddress / FQDN, RouteDomain, Port, Partition,
 // Folder, ObjectPath, Destination, Network, IPRange, PortSet.
-// ===========================================================================
 
 const PART_VALID: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-.";
 
@@ -1224,9 +1218,7 @@ fn network_try_parse(text: &str) -> Option<Net> {
     parse_network(&t).ok()
 }
 
-// ===========================================================================
 // Builtins
-// ===========================================================================
 
 fn bi_ip(args: &[Value]) -> Result<Value, QueryError> {
     if args.len() == 1 {

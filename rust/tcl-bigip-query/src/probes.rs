@@ -47,9 +47,7 @@ pub(crate) fn require_probes(name: &str, enabled: bool) -> Result<(), QueryError
     }
 }
 
-// ===========================================================================
 // x509_parse — the deterministic, byte-parity surface
-// ===========================================================================
 
 /// Port of `_probes.x509_parse` (the `cryptography`-backed rich path).
 ///
@@ -376,9 +374,7 @@ fn spki_to_pem(spki_der: &[u8]) -> String {
     out
 }
 
-// ===========================================================================
 // x509_eq / x509_from_config — deterministic projections
-// ===========================================================================
 
 /// Port of `_probes.x509_eq`.
 pub(crate) fn x509_eq(left: &Value, right: &Value) -> bool {
@@ -585,9 +581,7 @@ fn parse_x509_date(text: &str) -> Option<String> {
     None
 }
 
-// ===========================================================================
 // cert_load — read a cert file from disk into the x509_parse shape
-// ===========================================================================
 
 /// Port of `builtins._builtin_cert_load` / `_probes` x509 loaders.
 ///
@@ -695,9 +689,7 @@ fn split_pem_blocks(text: &str) -> Vec<String> {
     blocks
 }
 
-// ===========================================================================
 // Live network probes (faithful-but-not-golden)
-// ===========================================================================
 
 /// Build a result dict `{ok, rtt_ms, error}`.
 fn ok_rtt_error(ok: bool, rtt_ms: Option<f64>, error: Option<String>) -> Value {
@@ -987,9 +979,7 @@ pub(crate) fn url_request(
 mod http;
 mod tls;
 
-// ===========================================================================
 // Registry wiring (port of the `@_register(... category="net")` decorators)
-// ===========================================================================
 
 use crate::builtins::{BuiltinSpec, as_int, as_str, ctx, plain};
 use crate::eval::EvalContext;

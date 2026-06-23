@@ -54,9 +54,7 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     ]
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Coerce an `as_number` result to `f64`.
 fn num_f64(v: &Value) -> f64 {
@@ -108,9 +106,7 @@ fn broken_down_naive(naive: &NaiveDateTime) -> Value {
     ])
 }
 
-// ---------------------------------------------------------------------------
 // Builtins
-// ---------------------------------------------------------------------------
 
 fn bi_now(_args: &[Value]) -> Result<Value, QueryError> {
     // Python `time.time()` — current Unix time as a float.
@@ -235,9 +231,7 @@ fn py_add(a: &Value, b: &Value, add: bool) -> Value {
     }
 }
 
-// ---------------------------------------------------------------------------
 // mktime: broken-down array → struct → Unix seconds (calendar.timegm)
-// ---------------------------------------------------------------------------
 
 /// Port of `_broken_down_to_struct` + `calendar.timegm`. Accepts the
 /// broken-down array `[year-1900, month, day, hour, minute, second, ...]`
@@ -299,9 +293,7 @@ fn timegm_range_err(name: &str) -> QueryError {
     QueryError::builtin(format!("{name}: broken-down time is out of range"))
 }
 
-// ---------------------------------------------------------------------------
 // ISO-8601 parsing (port of `datetime.fromisoformat` for the supported forms)
-// ---------------------------------------------------------------------------
 
 /// Parse an ISO-8601 timestamp the way `fromdate` does and return Unix
 /// seconds. The DSL normalises a trailing `Z` to `+00:00` and treats a
@@ -384,9 +376,7 @@ fn parse_naive_iso(body: &str) -> Option<NaiveDateTime> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // strptime (port of `time.strptime` for the supported specifiers)
-// ---------------------------------------------------------------------------
 
 /// Parse `value` with a strptime `fmt` into a `NaiveDateTime`. Tries a
 /// full date+time parse, then a date-only parse (filling midnight) the way
@@ -401,9 +391,7 @@ fn parse_strptime(value: &str, fmt: &str) -> Option<NaiveDateTime> {
     None
 }
 
-// ---------------------------------------------------------------------------
 // Python repr of a string (single-quoted, like `{x!r}`)
-// ---------------------------------------------------------------------------
 
 fn py_str_repr(s: &str) -> String {
     crate::lexer::py_repr_str(s)

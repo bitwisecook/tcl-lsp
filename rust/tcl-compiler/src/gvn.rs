@@ -31,9 +31,7 @@ use crate::ir::Statement;
 use crate::side_effects::{EffectRegion, classify_side_effects};
 use crate::ssa::{SsaFunction, SsaStatement};
 
-// ---------------------------------------------------------------------------
 // Expression-key alias (C26a)
-// ---------------------------------------------------------------------------
 
 /// Canonical identity for a computed expression.
 ///
@@ -44,9 +42,7 @@ use crate::ssa::{SsaFunction, SsaStatement};
 /// value under the current SSA.
 pub type ExprKey = Vec<String>;
 
-// ---------------------------------------------------------------------------
 // Redundant-computation diagnostic (C26a)
-// ---------------------------------------------------------------------------
 
 /// A computation that re-evaluates an already-available expression.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -88,9 +84,7 @@ impl RedundantComputation {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Value-table entries (C26a)
-// ---------------------------------------------------------------------------
 
 /// A single entry in a [`ScopedValueTable`] scope. Carries the
 /// block / statement coordinates and the rendered expression text
@@ -132,9 +126,7 @@ pub struct ExprOccurrence {
     pub variable_uses: Vec<String>,
 }
 
-// ---------------------------------------------------------------------------
 // Dominator-tree-scoped value table (C26a)
-// ---------------------------------------------------------------------------
 
 /// Stack of `ExprKey → ValueEntry` maps, one per scope.
 ///
@@ -212,9 +204,7 @@ impl ScopedValueTable {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Canonicalisation helpers (C26b)
-// ---------------------------------------------------------------------------
 
 /// Rewrite `$var` / `${var}` references in `text` to their
 /// SSA-versioned canonical form `$var@N`.
@@ -331,9 +321,7 @@ pub fn format_expression_text(command: &str, args: &[String]) -> String {
     out
 }
 
-// ---------------------------------------------------------------------------
 // Diagnostic messages (C26b)
-// ---------------------------------------------------------------------------
 
 /// Message shown when a pure expression is computed twice on the
 /// same control-flow path.
@@ -364,9 +352,7 @@ pub fn loop_invariant_message(expression_text: &str) -> String {
     )
 }
 
-// ---------------------------------------------------------------------------
 // Intra-module pure-proc analysis (C26e4)
-// ---------------------------------------------------------------------------
 
 /// Set of procedure names proven pure by the intra-module
 /// analysis. Consumed by [`is_pure_with_procs`] /
@@ -584,9 +570,7 @@ pub fn is_worth_reporting_with_procs(
     is_worth_reporting(registry, cmd)
 }
 
-// ---------------------------------------------------------------------------
 // Statement-level helpers (C26c)
-// ---------------------------------------------------------------------------
 
 /// Return `true` if the command invocation is pure for GVN
 /// purposes — i.e. has no observable side effects.
@@ -928,9 +912,7 @@ fn split_cmd_text(text: &str) -> Option<(String, Vec<String>)> {
     Some((cmd, words))
 }
 
-// ---------------------------------------------------------------------------
 // Find-redundancies driver (C26d)
-// ---------------------------------------------------------------------------
 
 /// Walk `cfg` / `ssa` in dominator-tree preorder and return a
 /// [`RedundantComputation`] diagnostic for every pure-expression
@@ -1070,9 +1052,7 @@ pub fn find_redundancies(
     results
 }
 
-// ---------------------------------------------------------------------------
 // Loop-invariant detection (C26e2)
-// ---------------------------------------------------------------------------
 
 /// True when `ancestor` dominates `node` in `ssa.idom`.
 fn dominates(ssa: &SsaFunction, ancestor: &str, node: &str) -> bool {
@@ -1278,9 +1258,7 @@ pub fn find_loop_invariants(
     results
 }
 
-// ---------------------------------------------------------------------------
 // Partial-redundancy detection (C26e3)
-// ---------------------------------------------------------------------------
 
 /// One event in a block's occurrence stream: either a pure
 /// occurrence that *adds* a key to availability, or `None` — a
@@ -1562,9 +1540,7 @@ pub fn find_partial_redundancies(
     results
 }
 
-// ---------------------------------------------------------------------------
 // Compilation-unit-level convenience wrappers (ARCH7)
-// ---------------------------------------------------------------------------
 
 /// Run [`find_redundancies`] across every function in the
 /// compilation unit, concatenating the per-function findings in

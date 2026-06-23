@@ -134,9 +134,7 @@ pub fn parse_input(source: &str, uri: &str, spec: &InputSpec) -> Result<Value, Q
     }
 }
 
-// ---------------------------------------------------------------------------
 // JSON
-// ---------------------------------------------------------------------------
 
 /// Parse a single JSON value (port of `_builtin_inputs._parse_json`).
 ///
@@ -151,9 +149,7 @@ pub fn parse_json(source: &str, uri: &str) -> Result<Value, QueryError> {
     Ok(json_to_value(&parsed))
 }
 
-// ---------------------------------------------------------------------------
 // JSON Lines (NDJSON)
-// ---------------------------------------------------------------------------
 
 /// Parse newline-delimited JSON into a list of values (port of
 /// `_inputs.parse_jsonl`).
@@ -185,9 +181,7 @@ pub fn parse_jsonl(text: &str, source: &str) -> Result<Value, QueryError> {
     Ok(Value::List(out))
 }
 
-// ---------------------------------------------------------------------------
 // CSV
-// ---------------------------------------------------------------------------
 
 /// Parse CSV text into a list of row-dicts (port of `_inputs.parse_csv`).
 ///
@@ -314,9 +308,7 @@ fn read_csv_records(text: &str) -> Vec<Vec<String>> {
     records
 }
 
-// ---------------------------------------------------------------------------
 // F5 BIG-IP logs
-// ---------------------------------------------------------------------------
 
 const F5_SEVERITIES: &[&str] = &[
     "emerg", "alert", "crit", "err", "warning", "notice", "info", "debug",

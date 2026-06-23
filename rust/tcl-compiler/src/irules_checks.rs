@@ -268,9 +268,7 @@ pub fn find_unnormalised_getter_warnings(
     out
 }
 
-// ---------------------------------------------------------------------------
 // IRULE5002 + IRULE5004 — unguarded drop / DNS::return
-// ---------------------------------------------------------------------------
 //
 // Mirrors `core/compiler/irules_flow.py::_check_unguarded_drops`
 // (lines 807-1050).  The Python implementation is path-sensitive
@@ -447,9 +445,7 @@ pub fn find_unguarded_drop_warnings(
     out
 }
 
-// ---------------------------------------------------------------------------
 // IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008 — collect/release/payload
-// ---------------------------------------------------------------------------
 //
 // Mirrors `irules_flow.py::_find_collect_flow_warnings` (lines 680-806).
 // Cross-event analysis: classifies every `*::collect` / `*::release` /
@@ -775,9 +771,7 @@ pub fn find_collect_flow_warnings(
     out
 }
 
-// ---------------------------------------------------------------------------
 // IRULE1201 / IRULE1202 — HTTP-after-respond / multi-respond
-// ---------------------------------------------------------------------------
 //
 // Path-sensitive port of `irules_flow.py::_analyse_when_body` (the C44
 // follow-up).  Walks the *structured* IR body of each `::when::HTTP*`
@@ -1144,9 +1138,7 @@ where
     })
 }
 
-// ---------------------------------------------------------------------------
 // IRULE4004 — `set var value` in per-request event hoistable to once-per-connection
-// ---------------------------------------------------------------------------
 //
 // Mirrors `irules_flow.py::_check_hoistable_sets` (lines 1075-1280).
 // Per-request events (HTTP_REQUEST, HTTP_REQUEST_DATA, etc.) run on
@@ -1233,9 +1225,7 @@ pub fn find_hoistable_set_warnings(
     out
 }
 
-// ---------------------------------------------------------------------------
 // IRULE4002 — generic `static::` variable name that will collide
-// ---------------------------------------------------------------------------
 //
 // Mirrors `irules_flow.py::_find_generic_static_names`. Walks every
 // `::when::` CFG body for statements that define a `static::` variable
@@ -1378,9 +1368,7 @@ fn check_generic_static(
     });
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

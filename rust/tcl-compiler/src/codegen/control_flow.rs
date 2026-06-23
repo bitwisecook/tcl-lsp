@@ -14,9 +14,7 @@ use super::cmd_subst::parse_cmd_parts;
 use super::values::is_qualified;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 
-// ---------------------------------------------------------------------------
 // Constant expression error detection
-// ---------------------------------------------------------------------------
 
 /// Detect compile-time expression errors (e.g. divide by zero).
 ///
@@ -38,9 +36,7 @@ pub fn detect_const_expr_error(node: &ExprNode) -> Option<(String, String)> {
     None
 }
 
-// ---------------------------------------------------------------------------
 // CodegenCtx methods
-// ---------------------------------------------------------------------------
 
 impl CodegenCtx<'_> {
     /// Emit inline `beginCatch4`/`endCatch` bytecodes for `catch`.
@@ -647,9 +643,7 @@ impl CodegenCtx<'_> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

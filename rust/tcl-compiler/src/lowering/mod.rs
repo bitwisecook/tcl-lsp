@@ -1740,9 +1740,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    // ---------------------------------------------------------------
     // TclOO method-body lowering (SF-2: method purity for O126)
-    // ---------------------------------------------------------------
 
     /// Populate `module.methods` from the fully-assembled IR.
     ///

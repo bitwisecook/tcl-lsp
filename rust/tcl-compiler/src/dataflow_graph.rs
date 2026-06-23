@@ -24,9 +24,7 @@ use crate::sccp::SccpResult;
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
-// ---------------------------------------------------------------------------
 // Edge classification (C25c)
-// ---------------------------------------------------------------------------
 
 /// Classification of a data-flow edge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -54,9 +52,7 @@ impl EdgeKind {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Nodes and edges (C25c)
-// ---------------------------------------------------------------------------
 
 /// A single SSA value in the data-flow graph.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -163,9 +159,7 @@ impl DataFlowEdge {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Aliases and function/module graphs (C25c)
-// ---------------------------------------------------------------------------
 
 /// Summary of an alias relationship produced by memory-SSA.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -237,9 +231,7 @@ impl DataFlowGraph {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Extractors (C25d)
-// ---------------------------------------------------------------------------
 
 /// Render a lattice entry for the node display column.
 fn format_lattice(values: &HashMap<ValueKey, LatticeValue>, key: &ValueKey) -> String {
@@ -402,9 +394,7 @@ pub fn extract_function_dataflow(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Module-level aggregator (C25e3)
-// ---------------------------------------------------------------------------
 
 /// Per-function inputs to the module-level aggregator.
 ///

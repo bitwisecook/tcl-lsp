@@ -250,13 +250,11 @@ impl BigipRegistry {
         names
     }
 
-    // ----------------------------------------------------------------------
     // Object-registry query layer — port of `object_registry.py`'s pure
     // functions (kind/candidate-kind lookups). These are the registry-backed
     // half of the BIG-IP reference graph; the config-dependent resolution
     // (`resolve_kind_in_configs`) and the graph builder itself live in
     // `tcl-bigip`, which owns `BigipConfig`.
-    // ----------------------------------------------------------------------
 
     /// Property specs declared for `name` on the `(module, object_type)`
     /// container (mirrors `_property_specs_for_context`). Empty when the
@@ -448,14 +446,19 @@ mod tests {
             .expect("`ltm pool` is registered");
         let spec = reg.get(pool_kind).expect("kind round-trips to a spec");
         assert!(
-            spec.header_types.iter().any(|&(m, o)| m == "ltm" && o == "pool"),
+            spec.header_types
+                .iter()
+                .any(|&(m, o)| m == "ltm" && o == "pool"),
             "the resolved kind's spec carries the ltm/pool header"
         );
         // An unregistered header resolves to nothing.
         assert!(reg.kind_for_header("ltm", "__not_a_real_type__").is_none());
         // The module disambiguates same-named object types across families.
         if let Some(gtm_pool) = reg.kind_for_header("gtm", "pool") {
-            assert_ne!(pool_kind, gtm_pool, "ltm pool and gtm pool are distinct kinds");
+            assert_ne!(
+                pool_kind, gtm_pool,
+                "ltm pool and gtm pool are distinct kinds"
+            );
         }
     }
 
@@ -473,7 +476,10 @@ mod tests {
         let monitors = reg.candidate_registry_kinds_for_display("ltm monitor");
         assert!(!monitors.is_empty(), "`ltm monitor` fans out to subtypes");
         for kind in &monitors {
-            assert!(reg.get(kind).is_some(), "fanned-out kind {kind} round-trips");
+            assert!(
+                reg.get(kind).is_some(),
+                "fanned-out kind {kind} round-trips"
+            );
         }
     }
 }

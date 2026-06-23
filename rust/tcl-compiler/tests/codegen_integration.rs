@@ -49,9 +49,7 @@ fn proc_with(name: &str, params: &[&str], statements: Vec<Statement>) -> CfgFunc
     cfg
 }
 
-// ---------------------------------------------------------------------------
 // Top-level scripts
-// ---------------------------------------------------------------------------
 
 #[test]
 fn empty_toplevel_has_done_or_return_imm() {
@@ -121,9 +119,7 @@ fn call_generates_invoke() {
     assert!(ops.contains(&Op::INVOKE_STK1));
 }
 
-// ---------------------------------------------------------------------------
 // Proc bodies
-// ---------------------------------------------------------------------------
 
 #[test]
 fn empty_proc_pushes_empty_and_dones() {
@@ -153,9 +149,7 @@ fn proc_return_param_loads_and_dones() {
     assert_eq!(asm.lvt.entries()[0], "x");
 }
 
-// ---------------------------------------------------------------------------
 // If / branching
-// ---------------------------------------------------------------------------
 
 #[test]
 fn if_else_diamond_emits_conditional_jump() {
@@ -744,9 +738,7 @@ fn while_in_proc_emits_start_cmd() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Modules
-// ---------------------------------------------------------------------------
 
 #[test]
 fn codegen_module_with_no_procs() {

@@ -480,7 +480,6 @@ fn scan_dollar_brace(bytes: &[u8], start: usize) -> (usize, bool) {
     (n, false) // unterminated
 }
 
-// ===========================================================================
 // Brace dimension (`{` / `}`) — the second script sublanguage the doc names
 // alongside brackets. Same methodology and decision procedure; the *rules*
 // differ: a `{` opens a brace word only at a word boundary (mid-word `{` is
@@ -488,7 +487,6 @@ fn scan_dollar_brace(bytes: &[u8], start: usize) -> (usize, bool) {
 // verbatim (`\}` does not close), and a `#` at command start begins a comment
 // whose braces are ignored. Quotes make braces literal; command-substitution
 // interiors count braces (`[set x {` is incomplete).
-// ===========================================================================
 
 /// A structural-state index for the script brace (`{` / `}`) dimension,
 /// captured in a single forward scan. See the module header; the decision
@@ -812,7 +810,6 @@ impl BraceBuilder<'_> {
     }
 }
 
-// ===========================================================================
 // Expr paren dimension (`(` / `)`) — the doc's third structural index. Parens
 // nest in expressions where they don't at script level, and the opaque tokens
 // `[…]` / `"…"` / `{…}` / `${…}` / `$arr(idx)` are whole tokens whose interior
@@ -820,7 +817,6 @@ impl BraceBuilder<'_> {
 // (`$arr(idx)` is one `Variable`; strings / command subs are whole tokens), so
 // the paren index is built **directly from the lexer's token stream** — the
 // most faithful possible "store the lexer's entry-state per token".
-// ===========================================================================
 
 /// The paren-balance verdict of an expression, matching C Tcl 9.0.3
 /// `expr`'s paren diagnostics.
@@ -953,7 +949,6 @@ impl ExprParenIndex {
     }
 }
 
-// ===========================================================================
 // Unified script completeness — a faithful `Tcl_CommandComplete` port built on
 // the recursive-script scanner. Answers "does this string form one or more
 // *complete* commands, or is more input needed?" exactly like `info complete`,
@@ -961,7 +956,6 @@ impl ExprParenIndex {
 // escapes, the terminal "extra characters after close" rule, and trailing
 // line-continuation. This is the primitive an incremental reparser needs to
 // decide whether an edited region closes cleanly.
-// ===========================================================================
 
 /// Outcome of scanning a script region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1222,7 +1216,6 @@ fn scan_var_brace(b: &[u8], brace: usize) -> (usize, bool) {
     (n, false)
 }
 
-// ===========================================================================
 // Incremental-reparse primitives. A cheap single byte-scan finds the top-level
 // command boundaries (the stable split points an incremental reparser snaps
 // edits to); `reparse_window` snaps a changed byte range outward to whole
@@ -1230,7 +1223,6 @@ fn scan_var_brace(b: &[u8], brace: usize) -> (usize, bool) {
 // `"…"`, `{…}`, `${…}`, comments, escapes) is skipped via the same recursive
 // scanner that backs `script_is_complete`, so the boundaries agree with the
 // segmenter without tokenising the whole document.
-// ===========================================================================
 
 /// The byte offsets that split `source` into top-level commands — each is
 /// the position immediately after a top-level command terminator (`\n` or
@@ -1810,9 +1802,7 @@ while {1} {
         }
     }
 
-    // ===================================================================
     // Brace dimension (`{` / `}`) — same methodology as brackets.
-    // ===================================================================
 
     /// Top-level brace corpus (no `[…]` command subs), where the brace
     /// scanner's word-based + extra-chars + comment logic is faithful to
@@ -2110,9 +2100,7 @@ while {1} {
         }
     }
 
-    // ===================================================================
     // Expr paren dimension (`(` / `)`).
-    // ===================================================================
 
     /// C Tcl 9.0.3 `expr` paren verdict for a batch of expressions.
     /// `Some('B')` balanced / OK, `'O'` unbalanced-open, `'C'`
@@ -2347,9 +2335,7 @@ while {1} {
         }
     }
 
-    // ===================================================================
     // Unified script completeness (`script_is_complete` vs `info complete`).
-    // ===================================================================
 
     #[test]
     fn script_is_complete_matches_reference_pins() {
@@ -2453,9 +2439,7 @@ while {1} {
         );
     }
 
-    // ===================================================================
     // Incremental-reparse primitives.
-    // ===================================================================
 
     #[test]
     fn command_boundaries_split_top_level_commands() {

@@ -235,9 +235,7 @@ impl EvalContext {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Top-level entry points
-// ---------------------------------------------------------------------------
 
 /// Evaluate a single statement against `ctx.root`; return the flattened
 /// list of values produced.
@@ -265,9 +263,7 @@ pub fn evaluate(
     Ok(out)
 }
 
-// ---------------------------------------------------------------------------
 // Core dispatch
-// ---------------------------------------------------------------------------
 
 /// Recursion-depth ceiling for the evaluator. `eval` spends a native stack
 /// frame (plus its per-node helper's frame) per nested AST form, so a
@@ -454,9 +450,7 @@ fn pipe_through(values: Value, rhs: &Expr, ctx: &mut EvalContext) -> Result<Valu
     }
 }
 
-// ---------------------------------------------------------------------------
 // Object literals
-// ---------------------------------------------------------------------------
 
 fn eval_object_literal(
     entries: &[(String, Expr)],
@@ -525,9 +519,7 @@ fn scalarise_dict_value(value: Value) -> Value {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Variables
-// ---------------------------------------------------------------------------
 
 fn eval_variable(name: &str, ctx: &mut EvalContext) -> Result<Value, QueryError> {
     if let Some(v) = ctx.bindings.get(name) {
@@ -594,9 +586,7 @@ fn eval_let_binding(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Paths
-// ---------------------------------------------------------------------------
 
 fn eval_path(
     steps: &[PathStep],
@@ -915,9 +905,7 @@ fn resolve_pathref(reference: &Rc<PathRef>, ctx: &mut EvalContext) -> Option<Rc<
     projection::resolve_pathref(reference, &ctx.root)
 }
 
-// ---------------------------------------------------------------------------
 // Calls
-// ---------------------------------------------------------------------------
 
 fn eval_call(
     name: &str,
@@ -1041,9 +1029,7 @@ fn broadcast_call_args(name: &str, args: &[Value]) -> Result<Option<Vec<Vec<Valu
     Ok(Some(plan))
 }
 
-// ---------------------------------------------------------------------------
 // Operators
-// ---------------------------------------------------------------------------
 
 fn eval_binop(
     op: &str,
@@ -1328,9 +1314,7 @@ fn eval_unop(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Flatten a value into a list, dropping the `select` sentinel and
 /// unwrapping a top-level `Stream` — port of `evaluator._flatten`.
@@ -1391,9 +1375,7 @@ pub fn pyr_pub(s: &str) -> String {
     pyr(s)
 }
 
-// ---------------------------------------------------------------------------
 // Assignments
-// ---------------------------------------------------------------------------
 //
 // Assignments collect into an edit plan and return the post-edit value. The
 // edit-plan application engine (rewriting SCF source) lands in a later

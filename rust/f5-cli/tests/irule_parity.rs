@@ -36,9 +36,7 @@ fn run(args: &[&str]) -> (i32, String, String) {
     )
 }
 
-// ---------------------------------------------------------------------------
 // Ported subs — byte-for-byte stdout parity with the Python CLI.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn event_order_text_matches_python() {
@@ -150,9 +148,7 @@ fn no_input_errors_exit_2() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Deferred subs — clean exit-2 error naming the missing engine.
-// ---------------------------------------------------------------------------
 
 fn assert_deferred(args: &[&str], expect_sub: &str) {
     let (code, _out, stderr) = run(args);
@@ -233,11 +229,9 @@ fn event_info_alias_routes_to_handler() {
     assert_eq!(out, golden("irule-eventinfo-http-request.text.golden"));
 }
 
-// ---------------------------------------------------------------------------
 // lint — byte-for-byte stdout parity with `python -m tooling.f5.main irule lint`
 // (reuses the `tcl-bigip::lint` engine + the `f5 validate` formatters; only the
 // four irule-category rules run). Severity-based exit codes: error→2, warn→1.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn lint_config_all_irule_rules_text() {
@@ -339,11 +333,9 @@ fn pgo_is_deferred() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // context — byte-for-byte stdout parity with `python -m tooling.f5.main irule
 // context` (the `tcl-bigip::irule_context` engine: reference walk + one-hop
 // transitive expansion + source slices; JSON / Tcl-flavoured text).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn context_full_config_all_sections_text() {
@@ -442,11 +434,9 @@ fn context_no_irules_found_exits_1() {
     assert_eq!(stderr, "error: no iRules found in input\n");
 }
 
-// ---------------------------------------------------------------------------
 // trace — byte-for-byte stdout parity with `python -m tooling.f5.main irule
 // trace EVENT` (purely static: `when EVENT {…}` block-match + balanced-brace
 // slice + command/object-reference extraction; no VM).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn trace_bigip_http_request_text() {
@@ -517,10 +507,8 @@ fn trace_no_matching_event_exits_1() {
     assert_eq!(out, golden("irule-trace-nomatch.text.golden"));
 }
 
-// ---------------------------------------------------------------------------
 // `--help` must work for every sub (including the deferred ones), since they
 // parse their args before the handler runs.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn help_works_for_all_subs() {

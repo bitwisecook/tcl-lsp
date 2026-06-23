@@ -69,9 +69,7 @@ pub struct BespokeCtx<'a> {
     pub block_start: usize,
 }
 
-// ---------------------------------------------------------------------------
 // Small helpers mirroring `_parsers.py` primitives not in `scalar`/`helpers`.
-// ---------------------------------------------------------------------------
 
 /// Convert a byte offset into a code-point (Python str) index, matching
 /// the Python parser's offset convention for non-ASCII sources.
@@ -422,9 +420,7 @@ const NTP_RESTRICT_FLAG_KEYS: &[&str] = &[
     "no-trust",
 ];
 
-// ---------------------------------------------------------------------------
 // pool
-// ---------------------------------------------------------------------------
 
 /// Parse a pool member's `{ ... }` body, returning props + absolute field
 /// spans. Mirrors `_parse_pool_member_body_with_spans`.
@@ -593,9 +589,7 @@ pub fn parse_pool(full_path: &str, body: &str, range: Range, ctx: BespokeCtx) ->
     obj
 }
 
-// ---------------------------------------------------------------------------
 // snatpool
-// ---------------------------------------------------------------------------
 
 /// Parse an `ltm snatpool` block. Mirrors `_parse_snatpool`.
 #[must_use]
@@ -615,9 +609,7 @@ pub fn parse_snatpool(full_path: &str, body: &str, range: Range) -> BigipSnatPoo
     obj
 }
 
-// ---------------------------------------------------------------------------
 // virtual
-// ---------------------------------------------------------------------------
 
 /// Re-glue a `(key, body)` pair into the per-item source the inner spec's
 /// parse consumes (`"<key> { <body> }"`). Mirrors `_keyed_item_text`.
@@ -799,9 +791,7 @@ fn list_from(block: Option<&String>) -> Vec<String> {
         .unwrap_or_default()
 }
 
-// ---------------------------------------------------------------------------
 // node / virtual-address
-// ---------------------------------------------------------------------------
 
 /// Parse an `ltm node` block. Mirrors `_parse_node`.
 #[must_use]
@@ -848,9 +838,7 @@ pub fn parse_virtual_address(full_path: &str, body: &str, range: Range) -> Bigip
     obj
 }
 
-// ---------------------------------------------------------------------------
 // monitor / profile / persistence
-// ---------------------------------------------------------------------------
 
 /// Parse an `ltm/gtm monitor` block. `monitor_type` is the sub-type after
 /// `monitor `. Mirrors `_parse_monitor`.
@@ -918,9 +906,7 @@ pub fn parse_persistence(
     obj
 }
 
-// ---------------------------------------------------------------------------
 // data-group
-// ---------------------------------------------------------------------------
 
 /// Parse an `ltm data-group internal|external` block. `kind` comes from the
 /// header. Mirrors `_parse_data_group`.
@@ -943,9 +929,7 @@ pub fn parse_data_group(
     obj
 }
 
-// ---------------------------------------------------------------------------
 // policy
-// ---------------------------------------------------------------------------
 
 /// Parse a single `conditions { N { ... } }` body. Mirrors
 /// `_parse_policy_condition`.
@@ -1122,9 +1106,7 @@ pub fn parse_policy(full_path: &str, body: &str, range: Range) -> BigipPolicy {
     obj
 }
 
-// ---------------------------------------------------------------------------
 // rule
-// ---------------------------------------------------------------------------
 
 /// Parse an `ltm rule` block. Mirrors `_parse_rule`.
 #[must_use]
@@ -1135,9 +1117,7 @@ pub fn parse_rule(full_path: &str, body: &str, range: Range) -> BigipRule {
     obj
 }
 
-// ---------------------------------------------------------------------------
 // gtm pool / wideip / topology
-// ---------------------------------------------------------------------------
 
 /// Parse a `gtm pool <record-type>` block. `record_type` is the sub-type
 /// after `pool `. Mirrors `_parse_gtm_pool`.
@@ -1226,9 +1206,7 @@ pub fn parse_gtm_topology(identifier: &str, body: &str, range: Range) -> BigipGt
     }
 }
 
-// ---------------------------------------------------------------------------
 // sys ntp / snmp
-// ---------------------------------------------------------------------------
 
 /// Parse a `sys ntp` block. Mirrors `_parse_sys_ntp`.
 #[must_use]
@@ -1366,9 +1344,7 @@ pub fn parse_sys_snmp(full_path: &str, body: &str, range: Range) -> BigipSysSnmp
     obj
 }
 
-// ---------------------------------------------------------------------------
 // net route / self
-// ---------------------------------------------------------------------------
 
 /// Parse a `net route` block. Mirrors `_parse_net_route`.
 #[must_use]
@@ -1425,9 +1401,7 @@ pub fn parse_net_self(full_path: &str, body: &str, range: Range) -> BigipNetSelf
     obj
 }
 
-// ---------------------------------------------------------------------------
 // security firewall rule-list
-// ---------------------------------------------------------------------------
 
 /// Parse a `security firewall rule-list` block. Mirrors
 /// `_parse_security_firewall_rule_list`.
@@ -1540,9 +1514,7 @@ pub fn parse_apm_policy_item(full_path: &str, body: &str, range: Range) -> Bigip
     obj
 }
 
-// ---------------------------------------------------------------------------
 // Per-kind structured-list parsers (cm / gtm / ltm / net / pem / security / sys)
-// ---------------------------------------------------------------------------
 
 /// `_parse_list_block` over a property's value when present, else empty.
 fn list_block_of(props: &HashMap<String, String>, key: &str) -> Vec<String> {
@@ -1853,9 +1825,7 @@ pub fn parse_auth_partition(full_path: &str, body: &str, range: Range) -> BigipA
     obj
 }
 
-// ---------------------------------------------------------------------------
 // Range helpers
-// ---------------------------------------------------------------------------
 
 /// Build an inclusive `Range` from token start/exclusive-end offsets.
 /// Mirrors `_range_from_token_offsets`.

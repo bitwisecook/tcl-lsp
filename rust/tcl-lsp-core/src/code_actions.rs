@@ -524,9 +524,7 @@ fn word_at_position(source: &str, line: u32, character: u32) -> String {
     chars[start..end].iter().collect()
 }
 
-// ---------------------------------------------------------------------------
 // W115 — convert a backslash-continued comment to per-line comments.
-// ---------------------------------------------------------------------------
 
 fn continuation_comment_actions(
     source: &str,
@@ -625,9 +623,7 @@ fn continuation_comment_actions(
     }]
 }
 
-// ---------------------------------------------------------------------------
 // IPv4 ↔ IPv6-mapped conversion.
-// ---------------------------------------------------------------------------
 
 /// `true` when `s` is a dotted-quad IPv4 literal (each octet 0-255).
 fn is_ipv4(s: &str) -> bool {
@@ -710,9 +706,7 @@ fn char_col_to_utf16_local(line_text: &str, char_col: usize) -> u32 {
         .sum()
 }
 
-// ---------------------------------------------------------------------------
 // Expression rewrites: De Morgan + invert comparison.
-// ---------------------------------------------------------------------------
 
 fn expr_rewrite_actions(source: &str, range: LspRange, _line_index: &LineIndex) -> Vec<CodeAction> {
     // Single-line, non-empty selection only.
@@ -873,9 +867,7 @@ fn find_top_level(expr: &str, needle: &str) -> Option<usize> {
     None
 }
 
-// ---------------------------------------------------------------------------
 // Generate docstring (source action).
-// ---------------------------------------------------------------------------
 
 fn docstring_actions(
     source: &str,
@@ -1192,9 +1184,7 @@ fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) 
     }]
 }
 
-// ---------------------------------------------------------------------------
 // iRules `# Profiles:` header source action.
-// ---------------------------------------------------------------------------
 
 /// Compute the sorted required virtual-server profiles from the file's events
 /// (`EventProps.implied_profiles`) and commands (`event_requires.profiles`).
@@ -1319,11 +1309,9 @@ pub fn profiles_action(
     })
 }
 
-// ---------------------------------------------------------------------------
 // iRules taint quick-fixes — driven by the *context* diagnostics the editor
 // sends (the analyser may not have re-emitted them), so they take a separate
 // entry point.
-// ---------------------------------------------------------------------------
 
 /// A diagnostic supplied in the code-action request context.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2084,7 +2072,9 @@ mod tests {
         };
         let actions = code_actions(src, cursor, Some(&analysis));
         assert!(
-            actions.iter().any(|a| a.title.to_lowercase().contains("switch")),
+            actions
+                .iter()
+                .any(|a| a.title.to_lowercase().contains("switch")),
             "{actions:?}",
         );
     }

@@ -70,9 +70,7 @@ fn run(args: &[&str], env_extra: &[(&str, &str)]) -> (String, String, i32) {
     )
 }
 
-// ---------------------------------------------------------------------------
 // push --dry-run: byte-identical REST request preview (stdout + stderr)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn push_dry_run_put_matches_python() {
@@ -159,9 +157,7 @@ fn push_dry_run_name_only_target() {
     let _ = std::fs::remove_file(&p);
 }
 
-// ---------------------------------------------------------------------------
 // credential resolution errors (no host / user / password) — all three verbs
-// ---------------------------------------------------------------------------
 
 #[test]
 fn missing_host_errors_for_all_verbs() {
@@ -217,9 +213,7 @@ fn env_host_user_precedence_dry_run_prints_before_creds() {
     assert_eq!(err, golden("push-dryrun-put.stderr.golden"));
 }
 
-// ---------------------------------------------------------------------------
 // payload errors: missing file + invalid-JSON position
-// ---------------------------------------------------------------------------
 
 #[test]
 fn missing_payload_file_errno_message() {
@@ -283,9 +277,7 @@ fn invalid_json_position_matches_python() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // SSH deferral + clap arg validation
-// ---------------------------------------------------------------------------
 
 #[test]
 fn ssh_transport_is_deferred() {

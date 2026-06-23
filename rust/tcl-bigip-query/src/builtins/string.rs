@@ -147,9 +147,15 @@ mod tests {
         assert!(call_bool(bi_endswith, &[s("web_pool"), s("_pool")]));
         assert!(call_bool(bi_contains, &[s("foobar"), s("oba")]));
         assert!(!call_bool(bi_contains, &[s("foobar"), s("xyz")]));
-        assert_eq!(call_strlist(bi_split, &[s("a,b,c"), s(",")]), ["a", "b", "c"]);
         assert_eq!(
-            call_str(bi_join, &[Value::List(vec![s("a"), s("b"), s("c")]), s("-")]),
+            call_strlist(bi_split, &[s("a,b,c"), s(",")]),
+            ["a", "b", "c"]
+        );
+        assert_eq!(
+            call_str(
+                bi_join,
+                &[Value::List(vec![s("a"), s("b"), s("c")]), s("-")]
+            ),
             "a-b-c"
         );
     }

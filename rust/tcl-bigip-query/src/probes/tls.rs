@@ -166,7 +166,10 @@ mod tests {
     #[test]
     fn classify_verify_kind_buckets_rustls_messages() {
         // Each rustls verification message maps to the Python `reason.kind` tag.
-        assert_eq!(classify_verify_kind("the certificate has expired"), "expired");
+        assert_eq!(
+            classify_verify_kind("the certificate has expired"),
+            "expired"
+        );
         assert_eq!(classify_verify_kind("CertNotValidYet"), "not_yet_valid");
         assert_eq!(
             classify_verify_kind("the certificate is not yet valid"),
@@ -181,7 +184,10 @@ mod tests {
             classify_verify_kind("presented certificate is not valid for name foo.example.com"),
             "hostname_mismatch"
         );
-        assert_eq!(classify_verify_kind("hostname check failed"), "hostname_mismatch");
+        assert_eq!(
+            classify_verify_kind("hostname check failed"),
+            "hostname_mismatch"
+        );
         assert_eq!(
             classify_verify_kind("decryption failed or bad record mac"),
             "other_verification"

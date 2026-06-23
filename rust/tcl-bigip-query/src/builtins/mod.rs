@@ -329,9 +329,7 @@ fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     r
 }
 
-// ---------------------------------------------------------------------------
 // Shared coercion / walking helpers (ported from builtins.py)
-// ---------------------------------------------------------------------------
 
 /// Port of `builtins._type_name`.
 #[must_use]
@@ -818,9 +816,7 @@ fn pathological_regex() -> &'static Regex {
     P.get_or_init(|| Regex::new(r"\([^)]*[+*]\)\s*[+*]").expect("valid guard regex"))
 }
 
-// ---------------------------------------------------------------------------
 // Plain builtins
-// ---------------------------------------------------------------------------
 
 #[allow(clippy::cast_possible_wrap)]
 fn bi_length(args: &[Value]) -> Result<Value, QueryError> {

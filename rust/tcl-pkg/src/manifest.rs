@@ -339,9 +339,7 @@ fn validate(ast: &ManifestAst, path: Option<&str>) -> Result<(), TclPkgError> {
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // Tcl script parsing (commands + words; no substitution)
-// ---------------------------------------------------------------------------
 
 /// Split a manifest script into commands, each a list of words, applying Tcl
 /// grouping rules (braces, quotes, backslash, `#` comments, `;`/newline command

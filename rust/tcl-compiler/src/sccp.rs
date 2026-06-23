@@ -27,9 +27,7 @@ use crate::ir::Statement;
 use crate::ssa::{SsaFunction, SsaStatement, ValueKey};
 use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, eval_tcl_expr_with_octal};
 
-// ---------------------------------------------------------------------------
 // Public aliases (C25a)
-// ---------------------------------------------------------------------------
 
 /// Predecessor map: block name → set of block names that branch
 /// into it. Thin wrapper around [`CfgFunction::predecessors`] kept
@@ -56,9 +54,7 @@ pub fn cfg_order(cfg: &CfgFunction) -> Vec<String> {
     order
 }
 
-// ---------------------------------------------------------------------------
 // Lattice join (C25a)
-// ---------------------------------------------------------------------------
 
 /// Canonical [`ConstValue`] ordering for deterministic set merges.
 ///
@@ -163,9 +159,7 @@ fn cv_eq(a: &ConstValue, b: &ConstValue) -> bool {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Driver (C25b)
-// ---------------------------------------------------------------------------
 
 /// A branch whose condition SCCP determined to be constant.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1063,9 +1057,7 @@ pub fn resolve_foreach_list_via_lattice(
     }
 }
 
-// ---------------------------------------------------------------------------
 // AssignValue folding (C25e4)
-// ---------------------------------------------------------------------------
 
 /// Fold the RHS of an `AssignValue` statement to a lattice value.
 ///

@@ -128,12 +128,10 @@ pub fn build_objects_for_source(uri: &str, source: &str, ctx: &GraphContext) -> 
     result
 }
 
-// ---------------------------------------------------------------------------
 // Name resolution — port of `object_registry.resolve_kind_in_configs` and the
 // `BigipConfig` resolvers it relies on (`resolve_name` /
 // `resolve_generic_object`). Resolves a `(kind, reference)` to the source span
 // of the named object, which the edge builder matches back to a node.
-// ---------------------------------------------------------------------------
 
 /// A node's range identity: `(start.line, start.character, end.line,
 /// end.character)`, mirroring the Python `_range_key`.
@@ -299,12 +297,10 @@ pub fn resolve_kind_in_configs(
     None
 }
 
-// ---------------------------------------------------------------------------
 // Forward reference edges — port of `_build_forward_edges` (legacy token-scan
 // path). The registry-first (pilot value-spec) dispatch is layered on top in a
 // later increment; this is the always-on fallback path that keeps the graph
 // complete.
-// ---------------------------------------------------------------------------
 
 use std::collections::{HashMap, HashSet};
 
@@ -633,14 +629,12 @@ pub fn build_bigip_object_graph(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Pilot value-spec reference dispatch — the registry-first edge path
 // (`references_via_spec` + the migrated `PILOT_PROPERTY_SPECS`). The graph only
 // consumes each `Reference`'s `(target_kind, target_path)`, so each spec is
 // reproduced as a slim extractor over the raw property value rather than the
 // full `ValueSpec` / `BigipList` materialisation. Specs are added incrementally;
 // an unmigrated property returns `None` and falls through to the legacy path.
-// ---------------------------------------------------------------------------
 
 /// Enumerate `(target_kind, target_path)` references for a migrated property,
 /// or `None` when the property isn't in the pilot table.
@@ -953,10 +947,8 @@ fn endpoint_refs(sub_body: &str, out: &mut Vec<(String, String)>) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Graph serialisation — port of `graph_export.py` (DOT / JSON / Mermaid) for
 // the `f5 graph` verb. Operates on a built [`ObjectGraph`].
-// ---------------------------------------------------------------------------
 
 /// A serialised graph plus its node/edge counts (mirrors `GraphExport`).
 pub struct GraphExport {

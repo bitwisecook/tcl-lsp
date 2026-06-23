@@ -63,9 +63,7 @@ use crate::ir::Module as IrModule;
 use crate::ssa::ValueKey;
 use tcl_registry::CommandRegistry;
 
-// ---------------------------------------------------------------------------
 // Optimisation diagnostic
-// ---------------------------------------------------------------------------
 
 /// A suggested source rewrite.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -128,9 +126,7 @@ pub fn opt_priority(code: &str) -> u8 {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Pass context
-// ---------------------------------------------------------------------------
 
 /// Qualified proc name → `(cfg_function_name, parameter names)`.
 ///
@@ -295,9 +291,7 @@ impl<'a> PassContext<'a> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Pass registry
-// ---------------------------------------------------------------------------
 
 /// Identifier for one optimisation pass. Pass bodies land as
 /// follow-up strips; this enum is the public surface callers use

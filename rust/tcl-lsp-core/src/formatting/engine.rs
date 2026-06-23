@@ -50,9 +50,7 @@ struct ParsedCommand {
     preceding_blank_lines: usize,
 }
 
-// ---------------------------------------------------------------------------
 // Token → raw source reconstruction
-// ---------------------------------------------------------------------------
 
 /// Collapse `\<newline>` continuations to a single space.  Inside
 /// `[]` and `"…"` this is semantics-preserving and keeps the
@@ -172,9 +170,7 @@ fn normalise_param_list(text: &str) -> String {
     format!("{{{}}}", elements.join(" "))
 }
 
-// ---------------------------------------------------------------------------
 // Command parsing
-// ---------------------------------------------------------------------------
 
 /// Count blank lines represented by an EOL token's text (each
 /// newline beyond the first is a blank line).
@@ -277,9 +273,7 @@ fn parse_commands(
     (commands, pending_comments)
 }
 
-// ---------------------------------------------------------------------------
 // Body / expr / param-list argument identification
-// ---------------------------------------------------------------------------
 
 /// Mark body / keyword / param-list arguments in place.  Mirrors
 /// `_identify_body_args`.
@@ -354,9 +348,7 @@ fn identify_expr_args(cmd: &ParsedCommand, registry: &CommandRegistry) -> Vec<us
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // Comment formatting
-// ---------------------------------------------------------------------------
 
 /// Format a comment per config.  Mirrors `_format_comment`.
 fn format_comment(comment_text: &str, config: &FormatterConfig) -> String {
@@ -379,9 +371,7 @@ fn format_comment(comment_text: &str, config: &FormatterConfig) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Blank-line computation
-// ---------------------------------------------------------------------------
 
 /// How many blank lines to insert before `commands[index]`.
 /// Mirrors `_compute_blank_lines`.
@@ -406,9 +396,7 @@ fn compute_blank_lines(
         .min(config.max_consecutive_blank_lines)
 }
 
-// ---------------------------------------------------------------------------
 // Switch body formatting
-// ---------------------------------------------------------------------------
 
 /// One element (pattern or body) of a `switch` body.
 struct SwitchElem {
@@ -513,9 +501,7 @@ fn format_switch_body(
     lines.join("\n")
 }
 
-// ---------------------------------------------------------------------------
 // Long-line expression wrapping
-// ---------------------------------------------------------------------------
 
 /// Find top-level `&&` / `||` positions in an expression (not
 /// nested in `[] {} () ""`).  Mirrors `_find_expr_break_points`.
@@ -617,9 +603,7 @@ fn current_col(parts: &[String], indent_len: usize) -> usize {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Backslash-continuation line splitting
-// ---------------------------------------------------------------------------
 
 /// Find `(index, bracket_depth)` of spaces where `\`-continuation
 /// is safe.  Mirrors `_find_splittable_spaces`.
@@ -849,9 +833,7 @@ fn split_commented_code(
     Some(split_lines.join("\n"))
 }
 
-// ---------------------------------------------------------------------------
 // Inline body detection
-// ---------------------------------------------------------------------------
 
 /// Whether a body is short enough to keep on one line.  Mirrors
 /// `_body_can_be_inline`.
@@ -878,9 +860,7 @@ fn body_can_be_inline(
     inline_len <= config.goal_line_length
 }
 
-// ---------------------------------------------------------------------------
 // Command reconstruction
-// ---------------------------------------------------------------------------
 
 /// Push a leading separator space before the next part, unless
 /// we're continuing a `}{` brace chain with
@@ -1084,9 +1064,7 @@ fn reconstruct_switch(
     format!("{indent}{}", parts.concat())
 }
 
-// ---------------------------------------------------------------------------
 // Main entry points
-// ---------------------------------------------------------------------------
 
 /// Format a Tcl script body at the given indent level.  The core
 /// recursive function.  Mirrors `format_body`.
