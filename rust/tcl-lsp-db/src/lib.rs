@@ -15,7 +15,7 @@
 //! rather than modelled as a salsa input — reading an immutable value inside a
 //! tracked query is sound and avoids requiring `CommandRegistry: PartialEq`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tcl_compiler::cfg_builder::build_cfg_function_with_upvars;
@@ -191,6 +191,47 @@ pub fn item_sigs(db: &dyn salsa::Database, file: SourceFile) -> Arc<Vec<ItemSig>
 #[salsa::tracked]
 pub fn file_decls(db: &dyn salsa::Database, file: SourceFile) -> Arc<FileDecls> {
     Arc::new(FileDecls::from_sigs(item_sigs(db, file).iter()))
+}
+
+/// The set of files in a workspace/project — the salsa-native replacement for the
+/// off-graph [`tcl_lsp_core::workspace_index::WorkspaceIndex`] file set
+/// (SRV-INCREMENTAL Task 6).  Lifting the project onto the salsa graph is what
+/// lets cross-file queries (below) get *precise reverse-dependency invalidation*
+/// for free: editing one file recomputes only the cross-file facts that actually
+/// read it.  Setting `files` (open/close) recomputes the project aggregates;
+/// editing a file's text does not touch this input.
+#[salsa::input]
+pub struct Project {
+    /// The project's files (workspace + open documents).
+    #[returns(ref)]
+    pub files: Vec<SourceFile>,
+}
+
+/// The project-wide set of declared `proc` qualified names — the cross-file
+/// command-resolution domain (e.g. W123 unresolved-command suppression against
+/// the workspace's procs).  The salsa-native replacement for `WorkspaceIndex`'s
+/// proc-name set (SRV-INCREMENTAL Task 6, step 1: *lift the project signature
+/// table into salsa*).
+///
+/// Depends **only** on each file's [`file_decls`] — the signature firewall — so a
+/// **body edit in any file leaves it unchanged** → it backdates → **zero
+/// cross-file work**; only a signature/decl change (a proc added / removed /
+/// renamed) recomputes it. This is the E4/E8 input discipline extended across
+/// files: a keystroke that does not alter a signature wakes nobody project-wide.
+/// Proven by `project_proc_names_firewall` (a body edit re-runs zero
+/// `project_proc_names`; a decl change re-runs exactly one).
+///
+/// *Not yet wired into diagnostics:* cross-file W123 / arity that consume this
+/// must land behind the multi-file `incremental == fresh` fuzzer (the
+/// heuristic-edge correctness gate that does not exist yet) — see the cross-file
+/// design section. This query is the firewall-correct foundation they build on.
+#[salsa::tracked]
+pub fn project_proc_names(db: &dyn salsa::Database, project: Project) -> Arc<BTreeSet<String>> {
+    let mut names: BTreeSet<String> = BTreeSet::new();
+    for &file in project.files(db) {
+        names.extend(file_decls(db, file).procs.iter().cloned());
+    }
+    Arc::new(names)
 }
 
 /// Interned identity of a single `proc` body's isolated analysis — the per-item
@@ -1441,6 +1482,68 @@ mod tests {
             1,
             "unrelated body edit -> exactly ONE summary inference recomputes"
         );
+    }
+
+    /// SRV-INCREMENTAL Task 6, step 1: the project proc-name set lifted into salsa
+    /// over `file_decls` must extend the signature firewall *across files* — a
+    /// body edit in any file recomputes **zero** `project_proc_names` (its
+    /// `file_decls` backdates), while a decl change (a new proc) recomputes it
+    /// exactly once.  This is the property that stops a keystroke in one file from
+    /// waking the whole workspace.
+    #[test]
+    fn project_proc_names_firewall() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let runs = |log: &Arc<Mutex<Vec<String>>>| {
+            std::mem::take(&mut *log.lock().unwrap())
+                .into_iter()
+                .filter(|s| s.contains("project_proc_names"))
+                .count()
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let a = SourceFile::new(&db, "proc a {} { set x 1 }\n".to_owned(), "tcl8.6".to_owned());
+        let b = SourceFile::new(&db, "proc b {} { set y 2 }\n".to_owned(), "tcl8.6".to_owned());
+        let project = Project::new(&db, vec![a, b]);
+
+        assert_eq!(
+            project_proc_names(&db, project).len(),
+            2,
+            "cold: union of both files' procs"
+        );
+        let _ = runs(&log);
+
+        // BODY edit to `a` — `file_decls(a)` is byte-identical, so it backdates and
+        // the project set does NOT recompute (the firewall, extended across files).
+        a.set_text(&mut db).to("proc a {} { set x 999 }\n".to_owned());
+        let _ = project_proc_names(&db, project);
+        assert_eq!(
+            runs(&log),
+            0,
+            "body edit in one file must not recompute project_proc_names"
+        );
+
+        // DECL change to `a` (add `proc c`) — `file_decls(a)` changes, so the
+        // project set recomputes exactly once and gains the new proc.
+        a.set_text(&mut db)
+            .to("proc a {} { set x 999 }\nproc c {} {}\n".to_owned());
+        let names = project_proc_names(&db, project);
+        assert_eq!(
+            runs(&log),
+            1,
+            "decl change must recompute project_proc_names exactly once"
+        );
+        assert_eq!(names.len(), 3, "the new proc joins the project set");
     }
 
     /// Regression (whole-file-shift determinism): a pure prepend that shifts every
