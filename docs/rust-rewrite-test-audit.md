@@ -952,3 +952,20 @@ The pytest file stays in place as the oracle.
   `/Common/fallback_pool`).
 
 The pytest file stays in place as the oracle.
+
+### `tests/test_f5_ucs_crypto.py` → `tcl-bigip-io`
+
+- **Ported.** `test_is_pgp_bytes_recognises_encrypted_and_rejects_plain` →
+  `rust/tcl-bigip-io/src/ucs.rs::tests::detects_pgp_and_ucs_byte_signatures`
+  (the magic-byte detectors `is_pgp_bytes` / `is_ucs_bytes` had no coverage —
+  only `aes_cfb` was tested). Asserts the binary SKESK packet (`0x8C`), the
+  ASCII-armored form, the gzip UCS magic (`0x1F 0x8B`), and the
+  plain-text / empty rejections.
+- **Deferred.** The crypto-vector decrypt cases (`test_pure_python_decrypts_*`,
+  `test_pure_python_matches_gpg`, the `monkeypatch`-driven gpg-vs-pure-python
+  dispatch, passphrase-provider laziness) exercise the Python decrypt path + its
+  `gpg` subprocess fallback and monkeypatch machinery; the Rust decrypt has its
+  own `aes_cfb` FIPS-197 known-answer tests, and the end-to-end vector ports need
+  the shared binary test vectors lifted into the crate first.
+
+The pytest file stays in place as the oracle.
