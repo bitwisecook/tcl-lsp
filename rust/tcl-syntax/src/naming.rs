@@ -206,7 +206,7 @@ pub fn is_bare_var_name(name: &str) -> bool {
 ///
 /// This is the discriminator that keeps the W216 (brace-then-paren) and W212
 /// (substitution-where-name-expected) checks from false-positiving on the
-/// indirect idiom.  Mirrors `is_braced_indirect_array_ref` in
+/// indirect idiom. in
 /// `shared/naming.py`.
 ///
 /// ```

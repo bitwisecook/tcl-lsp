@@ -74,7 +74,7 @@ pub struct SchemaOverlay {
 
 impl SchemaOverlay {
     /// Merge *other* into `self`; *other*'s entries override on key collision,
-    /// matching the Python registry where a later `--schema` file wins.
+    /// so a later `--schema` file wins.
     pub fn merge(&mut self, other: SchemaOverlay) {
         self.legacy.extend(other.legacy);
         self.dpt.extend(other.dpt);
@@ -106,9 +106,9 @@ impl SchemaOverlay {
 
 /// Parse a `--schema` TOML overlay.
 ///
-/// Accepts the `[[legacy]]` / `[[dpt]]` array-of-tables format documented on
-/// the Python function, each carrying integer keys and an `ip_fields` array of
-/// inline `{ offset = N, kind = "…" }` tables. Returns the parsed overlay; the
+/// Accepts the `[[legacy]]` / `[[dpt]]` array-of-tables format, each carrying
+/// integer keys and an `ip_fields` array of inline `{ offset = N, kind = "…" }`
+/// tables. Returns the parsed overlay; the
 /// caller threads it through [`parse_trailer_with`] / the remap engine.
 ///
 /// # Errors

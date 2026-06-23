@@ -116,7 +116,7 @@ pub fn lrepeat<O: ValueOps>(
 /// position *after* the last element (`len`, not `len-1`) — so `linsert {a b}
 /// end c` appends. Resolving against `len + 1` gives `end`/`end±N` that offset.
 /// A bad index spec errors faithfully; an out-of-range result clamps to
-/// `[0, len]`. Mirrors `Tcl_LinsertObjCmd`.
+/// `[0, len]`.
 pub fn linsert<O: ValueOps>(
     ops: &mut O,
     value: &O::Value,
@@ -138,7 +138,7 @@ pub fn linsert<O: ValueOps>(
 ///
 /// `first`/`last` are element indices (`end` = `len-1`), clamped to the list;
 /// `last < first` (or both past the end) makes this a pure insertion at `first`.
-/// A bad index spec errors faithfully. Mirrors `Tcl_LreplaceObjCmd`.
+/// A bad index spec errors faithfully.
 pub fn lreplace<O: ValueOps>(
     ops: &mut O,
     value: &O::Value,

@@ -1,6 +1,5 @@
 //! The `merge` verb — concatenate split per-partition SCFs back into one
-//! bigip.conf. Port of `_run_merge` (`tooling/f5/verbs/merge.py`) +
-//! `emit_merged` (`dialects/f5/bigip/emit.py`).
+//! bigip.conf.
 //!
 //! For the default `--format scf` this is pure file I/O (the SCF passes through
 //! `render_config` verbatim). `--format tmsh` / `tmsh-delta` re-render the
@@ -20,7 +19,7 @@ pub fn run_merge(
     output: Option<&Path>,
 ) -> anyhow::Result<u8> {
     // Collect input files: a directory contributes its sorted `*.conf`
-    // children; anything else is taken verbatim (mirrors the Python glob).
+    // children; anything else is taken verbatim.
     let mut files: Vec<PathBuf> = Vec::new();
     for raw in paths {
         if raw.is_dir() {
@@ -36,7 +35,7 @@ pub fn run_merge(
         }
     }
 
-    // Read each file via the UCS-aware resolver (mirrors `read_path`) so a
+    // Read each file via the UCS-aware resolver so a
     // `.ucs` member is transparently extracted to SCF before concatenation.
     let opts = crate::cli::PassphraseArgs::default().to_options();
     let mut chunks: Vec<String> = Vec::with_capacity(files.len());
@@ -64,9 +63,9 @@ pub fn run_merge(
     Ok(0)
 }
 
-/// Concatenate split sources back into a single SCF text (mirrors
-/// `emit_merged`): drop blank chunks, trim each to a single trailing newline,
-/// and join the chunks with a blank line.
+/// Concatenate split sources back into a single SCF text: drop blank chunks,
+/// trim each to a single trailing newline, and join the chunks with a blank
+/// line.
 fn emit_merged(chunks: &[String]) -> String {
     chunks
         .iter()

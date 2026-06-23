@@ -7,7 +7,7 @@
 //! wrong literal gets baked into the source, which surfaces as a
 //! false-positive "optimisation" (a behaviour change disguised as a fold).
 //!
-//! This harness mirrors `tcl-compiler`'s `fold_builtin_cmd_subst_raw`: it
+//! This harness's `fold_builtin_cmd_subst_raw`: it
 //! resolves a command through the registry and runs its fold via
 //! `run_const_fold` (with the `tcl9.0` dialect, so version-aware folds resolve
 //! against the 9.0 reference), runs the *same* command on a real `tclsh9.0`,

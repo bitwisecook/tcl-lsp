@@ -1,5 +1,5 @@
 //! `f5 grep` (alias `related`) — list every BIG-IP object related to a given
-//! object path or pattern. Mirrors `tooling/f5/verbs/grep.py`.
+//! object path or pattern.
 
 use std::path::Path;
 
@@ -40,8 +40,7 @@ pub fn run_grep(
         loaded.iter().map(|l| (l.uri.clone(), &l.config)).collect();
     let source_uris: Vec<String> = sources.iter().map(|(uri, _)| uri.clone()).collect();
 
-    // The graph builder loads the iRules dialect (matching the Python
-    // `configure_signatures(dialect="f5-irules")` wrap in `compute_grep`).
+    // The graph builder loads the iRules dialect.
     let ctx = GraphContext::new();
     let graph = build_bigip_object_graph(&sources, &configs, &ctx);
 
@@ -79,9 +78,8 @@ pub fn run_grep(
     Ok(u8::from(report.seeds.is_empty()))
 }
 
-/// Render every matched object as a one-line `tmsh create` command (port of
-/// `_matched_stanzas_as_tmsh`). Dedup is on `node_id`; order is seeds then
-/// related.
+/// Render every matched object as a one-line `tmsh create` command. Dedup is on
+/// `node_id`; order is seeds then related.
 fn matched_stanzas_as_tmsh(report: &GrepReport) -> String {
     use std::fmt::Write as _;
     let mut parts = String::new();

@@ -84,7 +84,7 @@ pub(super) fn natural_loop_blocks(
 
 /// SSA versions of each name defined by the empty literal (`set x {}` / `""`)
 /// over the whole function — the typeless-empty reset, excluded from the
-/// oscillation type sets.  Mirrors `_empty_literal_versions`.
+/// oscillation type sets.
 pub(super) fn empty_value_versions(ssa: &SsaFunction) -> HashMap<String, HashSet<Version>> {
     let mut out: HashMap<String, HashSet<Version>> = HashMap::new();
     for sb in ssa.blocks.values() {
@@ -248,7 +248,7 @@ pub(crate) fn find_thunking_warnings(
             // thunking requires the body to re-introduce the entry type (so
             // the phi re-shimmers each pass) or to produce ≥2 conflicting
             // types itself.  Classify the phi's incomings (entry vs body) and
-            // require oscillation.  Mirrors `_find_thunking`.
+            // require oscillation.
             let empty_vers = empty_by_name.get(&phi.name);
             let mut entry_types: HashSet<TclType> = HashSet::new();
             let mut body_types: HashSet<TclType> = HashSet::new();

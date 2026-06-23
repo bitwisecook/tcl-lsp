@@ -73,7 +73,7 @@ fn closer_position(end: SourcePosition, last_inner: Option<u8>) -> SourcePositio
 /// when the word is unterminated (the computed position is not the
 /// matching closer).  *tok* and *sm* must share a coordinate frame.
 ///
-/// Ports `shared/ranges.py::word_closer_offset` (#533 / `SYNC-JUN06`).
+/// Ports `shared/ranges.py::word_closer_offset`.
 #[must_use]
 pub fn word_closer_offset(sm: &SourceMap<'_>, tok: Token) -> Option<u32> {
     let bytes = sm.source().as_bytes();
@@ -108,7 +108,7 @@ pub fn word_closer_offset(sm: &SourceMap<'_>, tok: Token) -> Option<u32> {
 /// unchanged.  Unlike the segmenter's `command_span` widening this also
 /// covers quoted `"..."` words.
 ///
-/// Ports `shared/ranges.py::word_end_position` (#533 / `SYNC-JUN06`).
+/// Ports `shared/ranges.py::word_end_position`.
 #[must_use]
 pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
     let (_first, end) = sm.range_positions(tok.span);

@@ -8,7 +8,7 @@
 //! iRules / pools / profiles.
 //!
 //! Diagnostic codes (all internal — controlled by the BIG-IP dialect
-//! toggle, exactly as in Python):
+//! toggle):
 //!
 //! - **BIGIP6001** (WARNING): iRule references data-group not found in config
 //! - **BIGIP6002** (WARNING): iRule references pool not found in config
@@ -53,9 +53,9 @@ pub struct ConfigDiagnostic {
     /// Severity.
     pub severity: DiagSeverity,
     /// Source range. For per-iRule checks this is relative to the iRule
-    /// body (as in Python, which builds a fresh `DocumentBuffer` per rule);
-    /// for object-level checks it is the object's own range, or the zero
-    /// range when the model carries none.
+    /// body (each rule gets a fresh `DocumentBuffer`); for object-level checks
+    /// it is the object's own range, or the zero range when the model carries
+    /// none.
     pub range: Range,
 }
 
@@ -105,8 +105,7 @@ static HTTP_COMMANDS_RE: LazyLock<Regex> =
 static SSL_COMMANDS_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b(?:SSL|ssl)::\w+").expect("static regex"));
 
-/// Strip braces, quotes, and brackets from a captured name (port of
-/// `_clean_name`).
+/// Strip braces, quotes, and brackets from a captured name.
 fn clean_name(name: &str) -> &str {
     name.trim_matches(|c| matches!(c, '{' | '}' | '"' | '\'' | '[' | ']'))
 }
@@ -119,9 +118,8 @@ fn range_from_capture(source: &str, line_index: &LineIndex, start: usize, end: u
 }
 
 /// Collect `(capture_start, capture_end, data_group_name)` for every
-/// `class` data-group reference in `source` (port of
-/// `_iter_class_dg_references`). Dynamic names (`$var`, `[cmd]`) are
-/// skipped.
+/// `class` data-group reference in `source`. Dynamic names (`$var`, `[cmd]`)
+/// are skipped.
 fn iter_class_dg_references(source: &str) -> Vec<(usize, usize, String)> {
     let mut out: Vec<(usize, usize, String)> = Vec::new();
     for re in [&*CLASS_MATCH_RE, &*CLASS_LOOKUP_RE, &*CLASS_SINGLE_RE] {
@@ -137,8 +135,7 @@ fn iter_class_dg_references(source: &str) -> Vec<(usize, usize, String)> {
     out
 }
 
-/// Profile types attached to a virtual server (port of
-/// `profile_types_for_virtual`).
+/// Profile types attached to a virtual server.
 fn profile_types_for_virtual(
     view: &ModelView<'_>,
     vs: &crate::model::BigipVirtualServer,
@@ -240,8 +237,7 @@ fn check_irule_snatpools(
     }
 }
 
-/// All data-group names referenced in an iRule body (port of
-/// `_collect_referenced_data_groups`).
+/// All data-group names referenced in an iRule body.
 fn collect_referenced_data_groups(rule: &crate::model::BigipRule) -> HashSet<String> {
     if rule.source.is_empty() {
         return HashSet::new();

@@ -330,7 +330,7 @@ fn transform_colour(
 }
 
 /// Human-readable label for a double-encode colour, for the T106
-/// message.  Mirrors `_COLOUR_LABELS`.
+/// message.
 fn double_encode_label(colour: TaintColour) -> &'static str {
     if colour.contains(TaintColour::URL_ENCODED) {
         "URL-encoded"
@@ -437,7 +437,7 @@ pub(crate) fn word_taint(
         // Stamp the encoder/transform colour the command adds to a
         // tainted result (e.g. `uri::encode` → `URL_ENCODED`), so a
         // later pass through the same encoder is detectable as a
-        // double-encode (T106).  Mirrors `_derive_transform_colours`.
+        // double-encode (T106).
         if t.is_tainted()
             && let Some(colour) = transform_colour(ctx.registry, &cmd, &arg_refs)
         {
@@ -583,7 +583,7 @@ fn leading_literal_prefix_char(value: &str) -> Option<char> {
 }
 
 /// Return `true` when any rendered literal fragment of `value` contains a
-/// CR or LF. Ports Python `_literal_contains_crlf`: `Esc` fragments are
+/// CR or LF.: `Esc` fragments are
 /// `backslash_subst`-rendered (so `\n` resolves to a real newline) before
 /// the scan.
 fn literal_contains_crlf(value: &str) -> bool {
@@ -945,7 +945,7 @@ pub(crate) fn propagate_taints(
     // Precompute the set of known procedure names once so per-call
     // resolution in `interproc_call_taint` is O(1) rather than
     // O(procedures) per call site. The solve's summaries take
-    // precedence (their key set mirrors Python's `set(summaries)`).
+    // precedence (their key set).
     let known_procs: Option<HashSet<String>> = match (taint_summaries, interproc) {
         (Some(s), _) => Some(s.keys().cloned().collect()),
         (None, Some(ia)) => Some(ia.procedures.keys().cloned().collect()),
@@ -1371,7 +1371,7 @@ fn arg_var_names_ordered(arg: &str) -> Vec<String> {
 }
 
 /// True when the SSA def of `name`@`ver` is a `[file normalize …]`
-/// command substitution.  Mirrors `_is_normalised_def`.
+/// command substitution.
 fn is_normalised_def(name: &str, ver: u32, ssa: &SsaFunction) -> bool {
     for ssa_block in ssa.blocks.values() {
         for ssa_stmt in &ssa_block.statements {
@@ -1607,7 +1607,7 @@ fn emit_double_encode_warnings(
 }
 
 /// Return `true` when a tainted value `lat` is mitigated for the given
-/// iRules sink code. Mirrors `_should_suppress_sink_warning` in
+/// iRules sink code. in
 /// Python for the IRULE3001/3002/3003/3004 branches.
 ///
 /// For IRULE3002 in the name-position (arg-index 1 of
@@ -1781,7 +1781,7 @@ fn emit_statement_warnings(
         _ => return,
     };
 
-    // Emission order mirrors Python `_find_taint_sinks` per statement:
+    // Emission order per statement:
     // T103 (regexp pattern) → T106 (double-encode) → the sink loop in
     // `_classify_sink` order (T100/output/log, then T102, then T104/T105).
 
@@ -2209,7 +2209,7 @@ fn emit_sink_warnings(
 /// (mis)interpreted as a switch — a leading literal `-`, or a leading
 /// substitution (`$` / `[` / `{*}` expansion) whose runtime value is
 /// unknown. Any other leading literal char is a definite positional and
-/// ends option scanning. Port of Python `_arg_can_be_option`.
+/// ends option scanning.
 fn arg_can_be_option(arg: &str) -> bool {
     match arg.as_bytes().first() {
         None => false,

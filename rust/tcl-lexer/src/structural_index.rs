@@ -351,7 +351,7 @@ impl Builder<'_> {
     }
 
     /// Scan a `[…]` command-substitution interior starting at `start`
-    /// (just past the `[`). Mirrors `Lexer::scan_command_substitution`'s
+    /// (just past the `[`).'s
     /// **count-based** rules: `blevel` tracks `{` / `}` literally, a `]`
     /// closes only at `blevel == 0 && !in_quotes`, nested `[` / `]`
     /// recurse. Records nested structural bracket events and inert spans
@@ -427,7 +427,7 @@ impl Builder<'_> {
 /// Scan a verbatim brace word starting at the opening `{` at `start`.
 /// Counts nested `{` / `}` (a `\}` does not close — the pair is
 /// consumed). Returns the offset just past the matching `}`, or EOF if
-/// unterminated. Mirrors `Lexer::parse_brace`.
+/// unterminated.
 fn scan_brace_word(bytes: &[u8], start: usize) -> (usize, bool) {
     let n = bytes.len();
     let mut i = start + 1; // skip `{`
@@ -970,7 +970,7 @@ enum Completeness {
 }
 
 /// `true` when `source` is a complete Tcl script (every command is
-/// complete; no more input is needed) — a port of `Tcl_CommandComplete`
+/// complete; no more input is needed) — a
 /// / `info complete`, verified against C Tcl 9.0.3.
 #[must_use]
 pub fn script_is_complete(source: &str) -> bool {

@@ -16,7 +16,7 @@ use tcl_compiler::types::{TypeKind, TypeLattice};
 use tcl_lexer::{LineIndex, Span};
 use tcl_syntax::expr::ast::render_expr;
 
-/// Escape and truncate text for display. Mirrors `formatters.preview`.
+/// Escape and truncate text for display.
 ///
 /// Escapes `\`, newline, and tab, then truncates on the *escaped* string's
 /// character length: `escaped[:limit-3] + "..."` when longer than `limit`.
@@ -124,7 +124,7 @@ pub fn stmt_kind(stmt: &Statement) -> &'static str {
     }
 }
 
-/// CSS class for an IR statement kind. Mirrors `formatters.stmt_color_class`.
+/// CSS class for an IR statement kind.
 #[must_use]
 pub fn stmt_color_class(stmt: &Statement) -> &'static str {
     match stmt {
@@ -140,7 +140,7 @@ pub fn stmt_color_class(stmt: &Statement) -> &'static str {
     }
 }
 
-/// One-line summary of an IR statement. Mirrors `formatters.stmt_summary`.
+/// One-line summary of an IR statement.
 ///
 /// The single source of truth for both the text renderers and the JSON
 /// serialiser. Statement kinds without an explicit case fall through to

@@ -7080,9 +7080,7 @@ file; this call falls through to the 'unknown' handler."
     /// (the single source of truth, shared with the interval-bounds index
     /// checks): a `/` or `%` whose divisor's interval — guard-narrowed at the
     /// use site and seeded from the SCCP lattice — is exactly `[0, 0]`, on the
-    /// always-evaluated spine of an executable expression. Mirrors the
-    /// `find_divide_by_zero` arm of
-    /// `analyser/_analyser/_diag_interval_bounds.py`.
+    /// always-evaluated spine of an executable expression.
     ///
     /// (Verified against tclsh 8.4–9.0: integer `1/0` and `5%0` raise "divide
     /// by zero"; float division such as `1.0/0` yields `Inf` and does not
@@ -7131,8 +7129,7 @@ file; this call falls through to the 'unknown' handler."
     /// syntactic bounds checks (literal index + literal container only); the
     /// two never double-fire because the syntactic checks back off on any
     /// `$var` index.  Restricted to SCCP-reachable blocks so a dynamic index
-    /// in dead code does not warn.  Mirrors
-    /// `_diag_interval_bounds.py::_emit_interval_bounds_diagnostics`.
+    /// in dead code does not warn.
     fn emit_interval_bounds_diagnostics(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
         let executable: HashSet<String> = if fu.sccp.executable_blocks.is_empty() {
             fu.ssa.blocks.keys().cloned().collect()
@@ -7307,8 +7304,6 @@ file; this call falls through to the 'unknown' handler."
 
     /// W123 — unknown / unresolved command head.
     ///
-    /// Mirrors `_emit_unresolved_command_diagnostics` in
-    /// `core/analysis/_analyser/_diag_commands.py:39-186`.
     /// Walks every command invocation recorded during the
     /// analyser walk and emits W123 ("Unknown command 'X'")
     /// when no matching definition is in scope.
@@ -7330,8 +7325,7 @@ file; this call falls through to the 'unknown' handler."
     /// against double-emission when ``analyse`` is called twice
     /// or the chunked entry runs both passes.
     ///
-    /// **Deferred** (Python parity gaps documented in the
-    /// commit body): ``has_dynamic_providers`` early-return;
+    /// **Not yet implemented:** ``has_dynamic_providers`` early-return;
     /// the CONSTSET-driven interpolation suppression for
     /// ``$``-bearing command names.
     // Long-running analyser pass with many sequential phases over the CompilationUnit; splitting requires threading shared local state.
@@ -7358,7 +7352,7 @@ file; this call falls through to the 'unknown' handler."
             return;
         }
 
-        // **C41e3 follow-up.** When the document defines a
+        // When the document defines a
         // user-level ``unknown`` proc with a *dynamic* dispatch
         // shape — chains the original handler, case-folds,
         // uses pattern (glob / regexp) dispatch, calls
@@ -7382,14 +7376,14 @@ file; this call falls through to the 'unknown' handler."
             }
         }
 
-        // Mirror Python's `REGISTRY.command_names(dialect)`: only commands
+        // Only commands
         // *enabled in the active dialect* count as "known" for W123.  The
-        // Rust registry's `command_names()` returns every loaded spec —
+        // registry's `command_names()` returns every loaded spec —
         // including base tcl commands like `exec`/`glob` that `build_default`
         // loads but the active dialect (e.g. f5-irules) disables — so filter
         // by dialect support.  Without this, `exec`/`glob` under f5-irules
         // would draw W002 (disabled) but not the W123 (unknown-in-dialect)
-        // Python also emits.  Base commands valid everywhere (`set`/`if`,
+        // that should also fire.  Base commands valid everywhere (`set`/`if`,
         // `dialects: None`) still pass `get_for_dialect`, so they are not
         // spuriously flagged.
         let active_dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect)
@@ -7399,12 +7393,10 @@ file; this call falls through to the 'unknown' handler."
             .filter(|name| registry.get_for_dialect(name, active_dialect).is_some())
             .map(str::to_string)
             .collect();
-        // **C41 follow-up.** Inline ``# tcl-lsp: stub NAME ...``
+        // Inline ``# tcl-lsp: stub NAME ...``
         // declarations contribute to the candidate set and the
         // suppression set so users who declared a stub for a
-        // command don't get spurious W123s.  Mirrors the
-        // ``stub_names`` set in
-        // ``_diag_commands.py:_emit_unresolved_command_diagnostics``.
+        // command don't get spurious W123s.
         let stub_names: HashSet<String> = super::utils::scan_stub_command_names(&self.source);
         let proc_tail_names: HashSet<String> = self
             .result
@@ -7435,8 +7427,7 @@ file; this call falls through to the 'unknown' handler."
             .collect();
 
         // Build the candidate set for "did you mean…?"
-        // suggestions.  Mirrors Python's `candidates` set in
-        // `_diag_commands.py:87-106` — every name a real command
+        // suggestions — every name a real command
         // could resolve to (including unknown-proc dispatch
         // targets and inline-stub declarations).
         let mut candidates: Vec<String> = Vec::new();
@@ -7521,11 +7512,9 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
 
-            // **C41 follow-up.** "Did you mean…?" suggestion
-            // via Levenshtein.  Mirrors the
-            // ``suggest_similar(cmd_name, candidates,
-            // max_suggestions=1, max_distance=2)`` call in
-            // ``_diag_commands.py:166``.  ``candidate_strs`` was
+            // "Did you mean…?" suggestion
+            // via Levenshtein (max 1 suggestion, max distance 2).
+            // ``candidate_strs`` was
             // deduplicated above so every name in it is unique;
             // copying the slice per invocation is cheap (Vec of
             // ``&str`` references).
@@ -7556,8 +7545,7 @@ file; this call falls through to the 'unknown' handler."
     /// W120 — command used without a corresponding
     /// `package require`.
     ///
-    /// Mirrors `_check_missing_package_require` in
-    /// `lsp/features/diagnostics.py`.  For every command
+    /// For every command
     /// invocation whose registry spec carries a
     /// `required_package`, emit W120 (once per command name)
     /// unless that package is already imported (a
@@ -7689,7 +7677,7 @@ file; this call falls through to the 'unknown' handler."
     /// dispatch offset; the method is looked up in its `methods` /
     /// `class_methods`.  A literal return is `return <word>` on a single line
     /// with no command substitution (`[`) or variable interpolation (`$`) in
-    /// the returned word.  Mirrors `_diag_var_command.py:1343-1385`.
+    /// the returned word.
     fn oo_self_method_returns_literal(&self, site_offset: u32, method_name: &str) -> bool {
         for class_def in self.result.all_classes.values() {
             let body = class_def.body_span;
@@ -7702,7 +7690,7 @@ file; this call falls through to the 'unknown' handler."
                 .or_else(|| class_def.class_methods.get(method_name))
             else {
                 // Enclosing class found but no such method — stay conservative
-                // (treat as object-returning), matching Python's `break`.
+                // (treat as object-returning).
                 return false;
             };
             let start = md.body_span.start() as usize;
@@ -7773,14 +7761,12 @@ file; this call falls through to the 'unknown' handler."
     /// dispatch on them suppresses W307 (an object handle is a designed,
     /// non-literal command target, not a static error).
     ///
-    /// Mirrors the `object_returning_procs` / `factory_locals_by_proc` fixpoint
-    /// in Python `_diag_var_command.py`.  A factory local is a `set X [head …]`
+    /// A factory local is a `set X [head …]`
     /// where `head` is object-returning: a known `TclOO` class command, a
     /// namespaced factory (the documented tcllib `::ns::cmd` convention, minus
     /// known user procs and registry commands with a non-OBJECT return type),
     /// or another proc proven object-returning by the fixpoint.  This tracks
-    /// *no* class identity — it only suppresses W307 (it never enables W308),
-    /// matching Python (a factory-return var validates no method).
+    /// *no* class identity — it only suppresses W307 (it never enables W308).
     #[allow(clippy::too_many_lines)]
     // A single fixpoint algorithm (classify heads → collect factory locals →
     // seed → propagate → extend → materialise ranges) whose phases share local
@@ -7962,8 +7948,7 @@ file; this call falls through to the 'unknown' handler."
     /// W307 — non-literal command name (variable / command-sub
     /// used as command head) and W308 (unknown method on object).
     ///
-    /// Mirrors `_emit_var_command_diagnostics` in
-    /// `core/analysis/_analyser/_diag_var_command.py`.  Walks every recorded
+    /// Walks every recorded
     /// site in [`Self::var_command_sites`] / [`Self::cmd_command_sites`] and
     /// emits W307 unless the command head is statically resolvable to a finite
     /// set of known command names, an OBJECT of a known class (→ W308 method
@@ -7987,9 +7972,7 @@ file; this call falls through to the 'unknown' handler."
         // ``TclType::Object`` lattice entry that has a
         // ``class_name``, record the class qualified name so
         // W308 can validate the method against the class
-        // hierarchy.  Mirrors the ``all_typed_vars`` /
-        // ``all_types`` aggregation in
-        // ``_diag_var_command.py:49-67``.
+        // hierarchy.
         let mut all_object_types: HashMap<String, HashSet<String>> = HashMap::new();
         let collect_object_types =
             |types: &HashMap<crate::ssa::ValueKey, crate::types::TypeLattice>,
@@ -8016,7 +7999,7 @@ file; this call falls through to the 'unknown' handler."
         self.harvest_constructor_object_types(cu, &mut all_object_types);
 
         // Build the class hierarchy once for W308 method
-        // resolution (uses the C41e0 ``ClassHierarchy``).
+        // resolution (uses the ``ClassHierarchy``).
         let hierarchy = if self.result.all_classes.is_empty() {
             None
         } else {
@@ -8026,10 +8009,8 @@ file; this call falls through to the 'unknown' handler."
         };
 
         // Aggregate constant-string knowledge per variable name
-        // across every function in the CompilationUnit.  Python
-        // uses ``_lattice_to_set`` which expands CONST and
-        // CONSTSET into a flat set of values; we replicate that
-        // shape here.
+        // across every function in the CompilationUnit.  CONST and
+        // CONSTSET are expanded into a flat set of values.
         let mut all_constsets: HashMap<String, HashSet<String>> = HashMap::new();
         let collect_from = |sccp: &crate::sccp::SccpResult,
                             out: &mut HashMap<String, HashSet<String>>| {
@@ -8078,14 +8059,13 @@ file; this call falls through to the 'unknown' handler."
                 || self.result.all_classes.contains_key(&format!("::{v}"))
         };
 
-        // Per-SSA-version refinement (post-stage2 §A): map each
+        // Per-SSA-version refinement: map each
         // function to its source range + FunctionUnit so the W307
         // suppression can read the value at the dispatch's *exact* SSA
         // use-version instead of the merged set.  ``::top`` covers the
         // whole source; a proc's narrower range wins where it contains
-        // the offset.  Mirrors Python's ``_func_ranges`` /
-        // ``_all_fus_named`` (methods are ``in_method``-suppressed, so
-        // — like Python's loop — they are left out).
+        // the offset.  Methods are ``in_method``-suppressed, so
+        // they are left out.
         let mut func_ranges: Vec<(String, u32, u32)> = vec![("::top".to_string(), 0, u32::MAX)];
         let mut fu_by_qname: HashMap<String, &crate::compilation_unit::FunctionUnit> =
             HashMap::new();
@@ -8113,7 +8093,7 @@ file; this call falls through to the 'unknown' handler."
         // a class instance variable and the dispatch sits inside the class body
         // (including non-method helper `proc`s that `upvar` it). An instance var
         // holds a component / sub-object, so dispatching on it is designed usage
-        // — suppress W307. Mirrors Python's `is_snit_member` / `snit_var_ranges`
+        // — suppress W307. / `snit_var_ranges`
         // (built from every `ClassDef`'s body span + declared `variables`).
         let snit_var_ranges: Vec<(u32, u32, &Vec<String>)> = self
             .result
@@ -8129,7 +8109,7 @@ file; this call falls through to the 'unknown' handler."
         };
 
         // **Proc-parameter / multi-dispatch object-dispatch suppression**
-        // (mirrors `_diag_var_command.py:807-859`).  A dispatch on a proc
+        //.  A dispatch on a proc
         // *parameter* — `proc walk {tree} { $tree visit }` — is object
         // dispatch the user has documented as the proc's API contract, not a
         // static error.  A non-parameter local dispatched ≥2 times in the same
@@ -8285,10 +8265,9 @@ file; this call falls through to the 'unknown' handler."
             // **W307 path.**  Variable not a known Object.
             // ``in_method`` short-circuits W307 because OO
             // methods routinely use ``$obj method`` patterns.
-            // The Rust analyser doesn't track method context
-            // yet (lands in C41e — pending a Method scope kind),
-            // so this filter currently matches Python's
-            // ``in_method=False`` always-fall-through behaviour.
+            // The analyser doesn't track method context
+            // yet (pending a Method scope kind),
+            // so this filter currently always falls through.
             if site.in_method {
                 continue;
             }
@@ -8336,8 +8315,7 @@ file; this call falls through to the 'unknown' handler."
             // When the prefix is an SCCP const and *every* composed name
             // `<value>::tail` resolves to a known command/proc/class, the
             // dispatch is statically resolvable — suppress.  A composition
-            // that resolves to nothing (unknown proc) still fires.  Mirrors
-            // the composed-name arm of `_diag_var_command.py:1200-1248`.
+            // that resolves to nothing (unknown proc) still fires.
             if let Some((prefix, tail)) = parse_namespaced_ensemble(&self.source, site.cmd_span)
                 && let Some(values) = all_constsets.get(&prefix)
                 && !values.is_empty()
@@ -8349,12 +8327,12 @@ file; this call falls through to the 'unknown' handler."
             }
             // Object-factory provenance: `$var` holds a factory result in this
             // scope — a designed object handle, so the dispatch is not a static
-            // error.  Mirrors Python's `is_factory_object` W307 exemption.
+            // error. W307 exemption.
             if is_factory_local(&site.var_name, site.cmd_span.start()) {
                 continue;
             }
             // Class instance-variable dispatch inside the class body (component
-            // / sub-object). Mirrors Python's `is_snit_member` exemption.
+            // / sub-object). exemption.
             if is_snit_member(&site.var_name, site.cmd_span.start()) {
                 continue;
             }
@@ -8370,7 +8348,7 @@ file; this call falls through to the 'unknown' handler."
         // to round-trip independently of emission.
         self.var_command_sites = sites;
 
-        // **C41 follow-up.** ``[cmd] method`` sites — emit
+        // ``[cmd] method`` sites — emit
         // W307 only when the inner command's return type is
         // unknown AND the call isn't an OO self-dispatch
         // (``my`` / ``self``).  When the return type is a
@@ -8384,8 +8362,7 @@ file; this call falls through to the 'unknown' handler."
             // No blanket `in_method` suppression: an in-method `[cmd] method`
             // dispatch must earn its silence from a positive signal (a known
             // OBJECT return type, or `my`/`self` self-dispatch resolving to a
-            // method that returns an object).  Mirrors the F4 closure in
-            // `_diag_var_command.py` (PR #498/#499) that dropped the blanket.
+            // method that returns an object).
             //
             // Parse the command-substitution text into
             // ``head ?args...``.  ``cmd_text`` is what the
@@ -8410,7 +8387,6 @@ file; this call falls through to the 'unknown' handler."
             // the dispatched method resolves in the enclosing class and its
             // body is a simple `return <literal>`, the result is a plain
             // string, not an object — so the *outer* dispatch fires W307.
-            // Mirrors the D3-P4 closure in `_diag_var_command.py:1343-1385`.
             if matches!(head, "my" | "self") {
                 let returns_literal = arg_strs.first().is_some_and(|method| {
                     self.oo_self_method_returns_literal(site.cmd_span.start(), method)
@@ -8432,11 +8408,8 @@ file; this call falls through to the 'unknown' handler."
             // The registry lookup for the bare class name
             // returns Overdefined (the class isn't a built-in
             // command) so we recognise the constructor pattern
-            // explicitly here — mirrors the Python
-            // ``_return_type_for_command`` branch in
-            // ``core/compiler/core_analyses.py`` that maps
-            // ``known_class new/create`` to ``TclType.OBJECT``
-            // with the class name attached.
+            // explicitly here — ``known_class new/create`` maps to
+            // ``TclType.OBJECT`` with the class name attached.
             let class_qn = self.canonicalise_class_name(head);
             let head_is_known_class = self.result.all_classes.contains_key(&class_qn)
                 || self.result.all_classes.contains_key(head);
@@ -8500,8 +8473,7 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
 
-            // Type is unknown — emit W307 (matching Python's
-            // emit-then-suppress shape, but only the emit-half
+            // Type is unknown — emit W307 (only the emit-half
             // for the residual unknown-type case).
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "W307".to_string(),
@@ -8532,8 +8504,7 @@ file; this call falls through to the 'unknown' handler."
     /// consulting the class hierarchy + the class's local
     /// method tables.
     ///
-    /// Mirrors the W308 method-resolution gate in
-    /// ``_diag_var_command.py:341-361``.  A method is OK when
+    /// A method is OK when
     /// the class's MRO produces a concrete provider, or the
     /// class is external (no local `ClassDef`), or the method
     /// is one of the OO standard hooks (``new`` / ``create`` /
@@ -8580,8 +8551,6 @@ file; this call falls through to the 'unknown' handler."
     /// Suppress W123 diagnostics whose command-name contains a
     /// `$` interpolation that resolves cleanly via SCCP.
     ///
-    /// Mirrors `_resolve_interpolated_commands` in
-    /// `core/analysis/_analyser/_diag_commands.py:188-260`.
     /// Walks every emitted W123, extracts the command name
     /// from the message, and runs
     /// [`crate::text::fold_interpolation_set`] over the
@@ -8589,15 +8558,12 @@ file; this call falls through to the 'unknown' handler."
     /// a known command, proc, class, or class-tail name, the
     /// W123 is removed.
     ///
-    /// **Simplification vs. Python.**  Python builds a
-    /// per-function SCCP map and uses range-based lookup so
-    /// each W123 site sees only the variables in its enclosing
-    /// function's scope.  The Rust port uses the union of
+    /// **Simplification.**  This uses the union of
     /// every function's SCCP — slightly more permissive
     /// (over-suppresses if a same-named variable in a
     /// different function happens to resolve cleanly) but
-    /// safe in practice.  Range-based lookup can land later
-    /// when the parity gap surfaces.
+    /// safe in practice.  Range-based per-function lookup
+    /// could be added later.
     fn resolve_interpolated_w123_diagnostics(
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
@@ -8871,7 +8837,7 @@ file; this call falls through to the 'unknown' handler."
     /// doesn't include the active one.
     ///
     /// Mirrors `check_dialect_invalid_option` in
-    /// `core/analysis/checks/_domain.py` (PR #433).  Examples:
+    /// `core/analysis/checks/_domain.py`.  Examples:
     /// `lsearch -stride` on Tcl 8.4 / 8.5 (option is 8.6+),
     /// `regsub -command` / `clock scan -validate` /
     /// `fconfigure -nodelay` on Tcl 8.x (options are 9.0+).
@@ -8908,7 +8874,7 @@ file; this call falls through to the 'unknown' handler."
         };
 
         // Resolve subcommand-level options when the first arg names
-        // one (mirrors Python's `if first in spec.subcommands`).
+        // one.
         let sub_match = (!spec.subcommands.is_empty())
             .then(|| spec.subcommands.iter().find(|s| s.name == args[0].as_str()))
             .flatten();
@@ -8962,7 +8928,7 @@ file; this call falls through to the 'unknown' handler."
                 } else {
                     continue;
                 };
-                // Message mirrors Python's `check_dialect_invalid_option`
+                // Message
                 // exactly: `Option 'X' on 'cmd'[ sub] is not available in the
                 // active dialect (D).`
                 let sub_suffix = sub_match.map_or(String::new(), |s| format!(" {}", s.name));
@@ -8989,7 +8955,7 @@ in the active dialect ({}).",
     /// Tcl 8.4 / f5-irules.
     ///
     /// Mirrors `check_dialect_invalid_expr_operator` in
-    /// `core/analysis/checks/_domain.py` (PR #433).
+    /// `core/analysis/checks/_domain.py`.
     pub(super) fn emit_w003_dialect_invalid_expr_operator(
         &mut self,
         expr_text: &str,
@@ -9041,8 +9007,8 @@ in the active dialect ({}).",
 }
 
 /// Walk an expression AST and collect dialect-gated operator
-/// occurrences.  Mirrors `_find_dialect_invalid_ops` in
-/// `core/analysis/checks/_domain.py` (PR #433).
+/// occurrences. in
+/// `core/analysis/checks/_domain.py`.
 /// Return `true` if `text` contains any of the dialect-gated
 /// expression operator keywords (`lt`, `le`, `gt`, `ge`, `in`, `ni`)
 /// as a whole word — i.e. surrounded by non-identifier bytes or
@@ -9147,7 +9113,7 @@ fn lattice_command_values(lv: &crate::analyses::LatticeValue) -> Option<Vec<Stri
 /// concrete CONST / CONSTSET value — otherwise `None`, and the caller
 /// falls back to the merged-set logic. Never broadens a fire into a
 /// suppression unsoundly — the value is the exact one flowing into the
-/// dispatch. Mirrors Python's `_precise_cmd_values`.
+/// dispatch.
 fn w307_precise_cmd_values(
     func_ranges: &[(String, u32, u32)],
     fu_by_qname: &std::collections::HashMap<String, &crate::compilation_unit::FunctionUnit>,
@@ -9670,11 +9636,11 @@ mod tests {
         assert!(w004[0].message.contains("regsub"));
     }
 
-    // -- SYNC-MAY21-3 (#460 / #455): E002 / E003 arity ---------------
+    // -- E002 / E003 arity ---------------
 
     #[test]
     fn e003_not_emitted_for_leading_switches() {
-        // Regression for #455: declared option flags must be skipped
+        // Declared option flags must be skipped
         // before counting positional args.  `regsub` (max arity 4)
         // previously tripped a false E003 once any switch appeared.
         // These switches exist in every supported dialect.
@@ -9718,7 +9684,7 @@ mod tests {
             r9.diagnostics
         );
         // Under 8.6 `-command` is unknown → counted positional →
-        // 5 > max 4 → E003 (the #460 dialect-leak guard).
+        // 5 > max 4 → E003 (dialect-leak guard).
         let mut a2 = Analyser::new();
         let r8 = a2.analyse("regsub -command a b c d", "tcl8.6");
         assert!(
@@ -9752,7 +9718,7 @@ mod tests {
 
     #[test]
     fn e003_arity_is_dialect_aware_via_expand_syntax() {
-        // SYNC-MAY19-dialect-contextvar: end-to-end proof that the
+        // End-to-end proof that the
         // document dialect reaches the analyser's segmenter (and thus the
         // lexer's `expand_syntax` flag).  `{*}` is the expansion operator
         // on 8.5+ but a literal brace word on 8.4, so for
@@ -9923,7 +9889,7 @@ mod tests {
 
     #[test]
     fn e003_shadow_is_namespace_scoped() {
-        // PR #472 review (Codex): a namespaced proc named `close` must
+        // A namespaced proc named `close` must
         // NOT suppress arity checks on a *global* `close` call (which
         // resolves to the builtin, max 2), but must suppress a `close`
         // call inside its own namespace (which resolves to the proc).
@@ -9950,15 +9916,15 @@ mod tests {
         );
     }
 
-    // -- SYNC-MAY31-9 (#475): reachable, in-order shadow gating -------
+    // -- reachable, in-order shadow gating -------
 
     #[test]
     fn e003_top_level_call_before_shadowing_proc_fires() {
         // A top-level `close x y z` *before* `proc close` resolves to
         // the builtin at load time (the proc does not exist yet), so the
         // builtin arity check must fire even though a same-named proc is
-        // defined later in the file.  Regression target for #475's
-        // in-order gate (without it the post-walk flush silenced this).
+        // defined later in the file.  Exercises the in-order gate
+        // (without it the post-walk flush silenced this).
         let src = "close x y z\nproc close {a b c d} {}\n";
         let mut a = Analyser::new();
         let r = a.analyse(src, "tcl8.6");
@@ -10004,7 +9970,7 @@ mod tests {
         );
     }
 
-    // -- SYNC-MAY31-4 (#501): BODY role on iRules nesting scripts ------
+    // -- BODY role on iRules nesting scripts ------
 
     #[test]
     fn analyser_recurses_into_irules_nesting_script_bodies() {
@@ -10033,9 +9999,9 @@ mod tests {
 
     #[test]
     fn w004_fires_on_lsearch_stride_in_tcl85() {
-        // PR #441 review (Codex): the W004 coverage requires the
-        // option to exist in the registry.  `lsearch -stride` was
-        // populated as part of this review fix.
+        // The W004 coverage requires the
+        // option to exist in the registry.  `lsearch -stride` is
+        // populated there.
         let mut a = Analyser::new();
         let result = a.analyse("lsearch -stride 2 {a b c d} b", "tcl8.5");
         assert!(
@@ -10151,7 +10117,7 @@ mod tests {
 
     #[test]
     fn w003_fires_on_tab_separated_operator() {
-        // PR #441 review (Codex): the prefilter must tolerate any
+        // The prefilter must tolerate any
         // whitespace, not just literal spaces.  `if {$x\tlt\t$y}` is
         // valid Tcl 8.4 syntax that the expr parser handles — the
         // analyser must not skip it because we only checked for
@@ -10447,7 +10413,7 @@ mod tests {
         // A variable read only inside a command substitution the
         // version-precise SSA can't see — a branch condition, an `expr`
         // value, or a read-modify-write buried in a `[…]` — is not a dead
-        // store. Mirrors Python's `expr_sub_reads` gate.
+        // store. gate.
         // Uses the full `analyse` entry so the command registry (which the
         // hidden-read recovery consults) is populated.
         for src in [
@@ -10501,7 +10467,7 @@ mod tests {
 
     #[test]
     fn w220_array_element_overwrite_not_dead() {
-        // SYNC-MAY31-1b (place model): `set a(k) 1` is NOT a dead store even
+        // `set a(k) 1` is NOT a dead store even
         // though the later `set a(j) 2` bumps the name-level SSA version of the
         // base `a`.  The place model sees `a(k)` is read by `puts $a(k)` and
         // that `a(k)` ≠ `a(j)`, so the false W220 on the first write is
@@ -10553,9 +10519,7 @@ mod tests {
 
     /// W220-IR-paths.  Variables prefixed with ``::`` are
     /// externally consumed (other namespaces, the global frame
-    /// outside this file) — Python's ``_dead_stores`` skips
-    /// them in `core_analyses.py:1147-1148`, and the Rust port
-    /// must too.
+    /// outside this file) — the dead-store check skips them.
     #[test]
     fn emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var() {
         let mut a = Analyser::new();
@@ -10668,8 +10632,7 @@ mod tests {
     /// set by the Tcl package loader before the script body
     /// runs — even when the script reassigns it, the original
     /// store can't be considered dead (the loader-supplied
-    /// value is the relevant initial state).  Mirrors
-    /// `_diagnostics.py:147-149`.
+    /// value is the relevant initial state).
     #[test]
     fn emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed() {
         let mut a = Analyser::new();
@@ -10713,8 +10676,7 @@ mod tests {
     /// via ``::when::*`` procs (collected in
     /// ``ConnectionScope::cross_event_imports``) may be read
     /// in a different event from where they're set — the
-    /// local "no use" verdict is unsafe.  Mirrors
-    /// `_diagnostics.py:165-167`.
+    /// local "no use" verdict is unsafe.
     #[test]
     fn emit_cfg_ssa_diagnostics_w220_irules_cross_event_var_suppressed() {
         let mut a = Analyser::new();
@@ -10769,9 +10731,7 @@ mod tests {
 
     /// W220-IR-paths.  Dead stores in SCCP-unreachable blocks
     /// are reported as O107 by the optimiser; the analyser
-    /// must not double-report them as W220.  Mirrors Python's
-    /// ``_dead_stores`` `executable_blocks` filter
-    /// (`core_analyses.py:1112-1140`).
+    /// must not double-report them as W220.
     #[test]
     fn emit_cfg_ssa_diagnostics_w220_skips_unreachable_block() {
         let mut a = Analyser::new();
@@ -11129,7 +11089,7 @@ mod tests {
             "completing arm omitting y must still fire W210 on y",
         );
 
-        // TP control (Codex C1): a `break` arm is a LOOP_JUMP, not a proc-exit —
+        // TP control: a `break` arm is a LOOP_JUMP, not a proc-exit —
         // it escapes the loop *without* `y`, so `y` is NOT defined on every
         // reaching path. The arm must be kept (with its empty pre-break defs) in
         // the must-define intersection, so `y` is dropped and W210 fires.
@@ -11186,7 +11146,7 @@ mod tests {
             "one completing arm lets the switch fall through (W210 expected on y)",
         );
 
-        // TP control (Codex C3): an all-*break* switch is NOT a proc terminator —
+        // TP control: an all-*break* switch is NOT a proc terminator —
         // it jumps to the enclosing loop's exit, so a `while 1` whose only exit
         // is the break reaches the post-loop read with the var unset. The switch
         // must wire its break edge to the loop exit (not promote to a Return),
@@ -11287,7 +11247,7 @@ mod tests {
 
     #[test]
     fn fp_rbs_18_guaranteed_for_defines_body_vars() {
-        // FP-RBS-18 + Codex C2: a `for` whose condition is statically true on
+        // FP-RBS-18: a `for` whose condition is statically true on
         // entry (evaluated against the init clause's *constant* bindings)
         // provably iterates ≥1 time. Init is processed in order, and a
         // non-constant write invalidates a stale constant binding.
@@ -11310,7 +11270,7 @@ mod tests {
             "for with false entry condition runs zero times (W210 expected on y)",
         );
 
-        // TP control (Codex C2): a later non-constant write (`set i $n`) in the
+        // TP control: a later non-constant write (`set i $n`) in the
         // init must invalidate the stale `i = 0`, so the condition is unknown.
         assert!(
             w210_fires_for(
@@ -11320,7 +11280,7 @@ mod tests {
             "stale-constant for-init must not be claimed guaranteed (W210 on y)",
         );
 
-        // TP control (Codex C2): an `incr` in the init likewise invalidates the
+        // TP control: an `incr` in the init likewise invalidates the
         // constant binding (we don't fold incr in the init env).
         assert!(
             w210_fires_for(
@@ -11330,7 +11290,7 @@ mod tests {
             "incr in for-init invalidates the constant binding (W210 on y)",
         );
 
-        // TP control (Codex P1): an init call to a proc that writes the loop var
+        // TP control: an init call to a proc that writes the loop var
         // through `upvar` must invalidate the stale constant — the upvar pass
         // adds the caller-side def, so `init_written_names` (via
         // apply_upvar_invalidation) drops `i` and the loop is not claimed
@@ -11358,7 +11318,7 @@ mod tests {
 
     #[test]
     fn fp_rbs_15_continue_in_opaque_switch_stays_silent() {
-        // Codex C3 (companion to fp_rbs_15): a benign `continue` arm inside an
+        // Companion to fp_rbs_15: a benign `continue` arm inside an
         // opaque switch in a guaranteed foreach stays silent when the variable
         // is set before the switch on every iteration.
         assert!(
@@ -11373,7 +11333,7 @@ mod tests {
     #[test]
     fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
         // `lappend` / `append` auto-create their target, so a first use is
-        // not a read-before-set (matches Python excluding RMW targets).
+        // not a read-before-set (excluding RMW targets).
         for src in [
             "proc foo {} { lappend items a\nputs $items }",
             "proc foo {} { append buf x\nputs $buf }",
@@ -11445,7 +11405,7 @@ mod tests {
         // ``set a 1; unset a; puts $a`` — the `unset` kills `a`, so the
         // later `$a` read is read-before-set. W210 fires on the read line
         // (the killed real version is undef at its use, like a version-0
-        // origin). Mirrors Python `_read_before_set`.
+        // origin).
         let mut a = Analyser::new();
         a.emit_cfg_ssa_diagnostics("proc f {} {\n    set a 1\n    unset a\n    puts $a\n}");
         assert!(
@@ -11465,7 +11425,7 @@ mod tests {
         // by an abnormal completion at *any* point, so `y` is only *maybe*
         // defined — W210 must still fire on the handler's `$y` read. Sourcing
         // the on-error edge only from the explicit-throw block (after `set y 2`
-        // failed to run) would wrongly suppress it. Mirrors Python `_lower_try`.
+        // failed to run) would wrongly suppress it.
         let mut a = Analyser::new();
         a.emit_cfg_ssa_diagnostics(
             "proc f {c} {\n try {\n  if {$c} { error e }\n  set y 2\n } on error {} {\n  puts $y\n }\n}\n",
@@ -11484,7 +11444,7 @@ mod tests {
     fn try_handler_edge_suppressed_when_var_set_before_sole_throw() {
         // `set x 1; error boom` — the body has no normal fall-through and `x`
         // is set before the sole throw, so the handler sees `x` defined; no
-        // W210. Mirrors Python (and tclsh 9.0.3, which reads x == 1 here).
+        // W210. tclsh 9.0.3 reads x == 1 here.
         let mut a = Analyser::new();
         a.emit_cfg_ssa_diagnostics(
             "proc f {} {\n try {\n  set x 1\n  error boom\n } on error {} {\n  puts $x\n }\n}\n",
@@ -11511,7 +11471,7 @@ mod tests {
 
     #[test]
     fn emit_cfg_ssa_diagnostics_w210_fires_at_top_level() {
-        // **C41e3 follow-up.** Top-level RBS now fires when no
+        // Top-level RBS now fires when no
         // proc writes the variable.  ``puts $undef`` reads
         // ``undef`` without any preceding write.
         let mut a = Analyser::new();

@@ -322,12 +322,9 @@ fn l4_checksum(
 /// 20-byte IP header) is therefore reported as "no IP layer" and skipped rather
 /// than triggering an out-of-bounds slice panic.
 ///
-/// Parity note: on such a truncated record Python's `_find_ip_offset` returns
-/// the offset unguarded and `ipaddress.IPv4Address(b'')` then raises, surfacing
-/// as `error:` / exit 2 with a corrupt partial output file. We instead skip the
-/// malformed packet (passing it through unmodified) — a deliberate, safer
-/// divergence on malformed input; well-formed captures (the only shape the
-/// differential corpus and any real device produces) carry full headers and are
+/// On such a truncated record the malformed packet is skipped (passed through
+/// unmodified) rather than risking an out-of-bounds slice; well-formed captures
+/// (the only shape any real device produces) carry full headers and are
 /// unaffected.
 fn ip_header_fits(packet: &[u8], off: usize, is_v6: bool) -> bool {
     let need = if is_v6 { 40 } else { 20 };

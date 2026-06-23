@@ -436,7 +436,7 @@ fn format_arg(seg: &tcl_compiler::segmenter::SegmentedCommand) -> Option<FormatA
         "regsub" if texts.len() >= 4 => {
             // `regsub ?switches? exp string subSpec ?varName?` — skip option
             // switches to find the pattern, then the subspec sits two words
-            // past it.  Mirrors `_regsub_subspec_arg_index` /
+            // past it. /
             // `regexp_pattern_index` for the no-registry common case.
             let mut i = 1;
             while i < texts.len() && texts[i].starts_with('-') && texts[i] != "--" {

@@ -1,11 +1,9 @@
 //! The `enrich-wireshark` (`ws-profile`) verb — emit a Wireshark profile dir.
 //!
-//! Port of `tooling/f5/verbs/enrich_wireshark.py` (`_run_enrich_wireshark`).
 //! Builds a [`tcl_bigip::wireshark_profile::WiresharkProfile`] from one or more
 //! configs and writes the `hosts` / `subnets` / `vlans` / `dfilters` /
 //! `services` / `ethers` / `colorfilters` / `preferences` / `README.md` files
-//! into the output directory. The generated file contents are byte-identical
-//! to the Python verb.
+//! into the output directory.
 
 use std::path::{Path, PathBuf};
 

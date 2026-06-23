@@ -1,9 +1,8 @@
 //! The `encrypt-secrets` / `decrypt-secrets` verbs — master-key crypto for the
 //! credential-bearing values in a bigip.conf / SCF.
 //!
-//! Port of `tooling/f5/verbs/secrets.py` (`_run_encrypt` / `_run_decrypt`). Both
-//! verbs walk every secret-bearing property (`passphrase`, `password`, `secret`,
-//! `shared-secret`, `auth-password`, `privacy-password`) via
+//! Both verbs walk every secret-bearing property (`passphrase`, `password`,
+//! `secret`, `shared-secret`, `auth-password`, `privacy-password`) via
 //! [`tcl_bigip::secrets::rewrite_secrets`] and run its value through the F5 unit
 //! master key supplied by the user — the base64 key `f5mku -K` prints on the
 //! device. `encrypt-secrets` wraps clear-text values in the `$M$<salt>$<base64>`
@@ -108,7 +107,7 @@ pub fn run_secrets(
 
     // The cipher closure may surface an F5MkuError (e.g. a non-`$M$` value that
     // slipped the decrypt guard, or a wrong key on decrypt); capture the first
-    // one so the rewrite aborts with a clean error like the Python verb.
+    // one so the rewrite aborts with a clean error.
     let mut crypto_error: Option<String> = None;
     let report = {
         let key = &key;

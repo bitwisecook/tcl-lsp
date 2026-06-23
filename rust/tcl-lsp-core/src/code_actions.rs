@@ -97,9 +97,7 @@ pub struct CodeAction {
     /// Optional structured payload surfaced as the LSP code action's
     /// `data` field.  Currently carries the rendered tmsh `ltm
     /// data-group internal …` definition for the extract-to-datagroup
-    /// refactor (mirrors Python's
-    /// `_datagroup_to_code_action`'s `data={"data_group_definition": …}`);
-    /// the iRule text rewrite is the action's `edits`, and this field
+    /// refactor; the iRule text rewrite is the action's `edits`, and this field
     /// lets tooling (MCP, AI, clipboard) consume the data-group
     /// definition without injecting comment blocks into the source.
     pub data_group_definition: Option<String>,
@@ -259,8 +257,7 @@ pub fn code_actions(
 /// that populates `fixes`), so lifting *all* check fixes here is exactly the
 /// IRULE5002/5004 surfacing with no risk of double-offering an analyser fix.
 ///
-/// Mirrors the `find_irules_flow_warnings` merge in
-/// `server/features/code_actions.py`.  The caller passes the
+/// The caller passes the
 /// `run_all_checks` output (e.g. `CompilerDiagnostics::checks`); for a
 /// non-iRules dialect that list carries no fixes, so this returns empty.
 ///
@@ -372,12 +369,10 @@ fn ranges_overlap(a: LspRange, b: LspRange) -> bool {
 
 /// Fuzzy `package require` suggestions for the word at `range`'s start:
 /// when an unknown command's prefix (the part before `::`) fuzzy-matches
-/// a known package name, offer `Add 'package require <pkg>'`.  Mirrors
-/// `lsp/features/code_actions.py::_package_require_actions` +
-/// `rank_package_suggestions`.  The package catalogue is derived from the
-/// registry's `required_package` / `tcllib_package` fields (the Python
-/// workspace `package_resolver`'s installed-package set isn't modelled in
-/// the Rust core).
+/// a known package name, offer `Add 'package require <pkg>'`.  The package
+/// catalogue is derived from the registry's `required_package` /
+/// `tcllib_package` fields, so locally-installed-but-unregistered packages
+/// aren't suggested.
 #[must_use]
 pub fn package_require_actions(
     source: &str,
@@ -431,8 +426,7 @@ fn package_catalogue(registry: &tcl_registry::CommandRegistry) -> Vec<String> {
 }
 
 /// Rank package names against a symbol's prefix (exact / prefix /
-/// substring), best first, capped at `limit`.  Mirrors
-/// `lsp/features/package_suggestions.py::rank_package_suggestions`.
+/// substring), best first, capped at `limit`.
 fn rank_package_suggestions(symbol: &str, packages: &[String], limit: usize) -> Vec<String> {
     let prefix = symbol
         .trim()
@@ -469,7 +463,6 @@ fn rank_package_suggestions(symbol: &str, packages: &[String], limit: usize) -> 
 
 /// Line at which to insert a new `package require` — after a leading
 /// shebang and any contiguous top-of-file `package require` lines.
-/// Mirrors `_package_insert_line`.
 fn package_insert_line(source: &str) -> u32 {
     let lines: Vec<&str> = source.split('\n').collect();
     let mut line = 0usize;
@@ -923,8 +916,7 @@ fn extract_inline_actions(
 /// Surface the [`crate::refactor`] transforms (extract / inline variable,
 /// if↔switch, switch→dict, extract-to-datagroup) as `CodeAction`s.
 ///
-/// Mirrors `server/features/code_actions.py::_new_refactor_actions`: the
-/// cursor is `range`'s start; extract-variable additionally needs a
+/// The cursor is `range`'s start; extract-variable additionally needs a
 /// non-empty selection.  The data-group transform is iRules-only — it is
 /// gated by [`crate::refactor::extract_to_datagroup`]'s registry
 /// resolution (a non-iRules registry resolves no `class match` /
@@ -975,8 +967,7 @@ fn refactor_engine_actions(
 
 /// Lift a [`crate::refactor::Refactoring`] into a [`CodeAction`],
 /// converting its byte-offset edits to LSP coordinates and rendering the
-/// data-group definition (if any) into `data_group_definition`.  Mirrors
-/// `_refactoring_to_code_action` / `_datagroup_to_code_action`.
+/// data-group definition (if any) into `data_group_definition`.
 fn refactoring_to_action(
     r: &crate::refactor::Refactoring,
     source: &str,
@@ -1025,7 +1016,7 @@ fn referenced_vars(text: &str) -> Vec<String> {
 }
 
 /// `refactor.extract` — extract the selected lines into a new proc and replace
-/// the selection with a call.  Mirrors `_extract_proc_action`.
+/// the selection with a call.
 fn extract_proc_action(source: &str, range: LspRange) -> Vec<CodeAction> {
     // Need a non-empty selection.
     if range.start_line == range.end_line && range.start_character >= range.end_character {
@@ -1111,7 +1102,7 @@ fn extract_proc_action(source: &str, range: LspRange) -> Vec<CodeAction> {
 }
 
 /// `refactor.inline` — inline a single-command proc at the call cursor.
-/// Mirrors `_inline_proc_action`; declines branchy / control-flow bodies.
+/// Declines branchy / control-flow bodies.
 fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) -> Vec<CodeAction> {
     // Control-flow / scope keywords whose bodies can't be safely inlined.
     const UNSAFE: &[&str] = &[
@@ -1185,7 +1176,6 @@ fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) 
 
 /// Compute the sorted required virtual-server profiles from the file's events
 /// (`EventProps.implied_profiles`) and commands (`event_requires.profiles`).
-/// Mirrors `_compute_required_profiles`.
 fn compute_required_profiles(
     source: &str,
     analysis: &AnalysisResult,
@@ -1327,8 +1317,7 @@ const REGEX_QUOTE_PROC: &str =
     "proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }";
 
 /// Quick-fixes for context-supplied diagnostics (iRules taint encode-wrap +
-/// double-encode removal).  Mirrors the taint arm of
-/// `server/features/code_actions.py`.
+/// double-encode removal).
 #[must_use]
 pub fn context_diagnostic_actions(source: &str, diags: &[ContextDiagnostic]) -> Vec<CodeAction> {
     let mut out = Vec::new();
@@ -1397,8 +1386,7 @@ fn enclosing_when_line(source: &str, line: u32) -> u32 {
 }
 
 /// IRULE1005 / IRULE1006 "missing collect" quick-fixes: insert a
-/// `when <setup> priority 500 { <proto>::collect }` bootstrap block.  Mirrors
-/// `_irules_collect_bootstrap_actions`.
+/// `when <setup> priority 500 { <proto>::collect }` bootstrap block.
 fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
     if d.code != "IRULE1005" && d.code != "IRULE1006" {
         return Vec::new();

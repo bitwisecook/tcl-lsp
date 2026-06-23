@@ -132,7 +132,7 @@ fn find_bounded(
     let bytes = text.as_bytes();
     let mut out = Vec::new();
     let mut search_from = 0usize;
-    // Emulate Python's lookaround: the regex engine, when a lookbehind/ahead
+    // Emulate the lookaround: the regex engine, when a lookbehind/ahead
     // fails, tries to match starting one position later. So on a boundary
     // failure we must retry the regex from `m.start()+1`, not `m.end()`.
     while search_from <= bytes.len() {

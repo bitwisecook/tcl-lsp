@@ -5,9 +5,8 @@
 //! questions they answer ("is this line too long", "does this line
 //! have trailing whitespace", "what line endings does the file
 //! use", "is this a backslash-continued comment") are inherently
-//! textual and have no structural Tcl representation.  This mirrors
-//! the Python implementation, which operates directly on
-//! `source.split("\n")`.
+//! textual and have no structural Tcl representation.  They operate
+//! directly on the source split into lines.
 //!
 //! Checks:
 //!
@@ -45,18 +44,16 @@ use std::hash::BuildHasher;
 use crate::definition::{LspRange, utf16_len};
 
 /// Severity of a source-style diagnostic.  W111 / W115 are
-/// warnings; W112 / W118 are hints (matching Python's
-/// `Severity.WARNING` / `Severity.HINT`).
+/// warnings; W112 / W118 are hints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StyleSeverity {
-    /// LSP `Warning` (Python `Severity.WARNING`).
+    /// LSP `Warning`.
     Warning,
-    /// LSP `Hint` (Python `Severity.HINT`).
+    /// LSP `Hint`.
     Hint,
 }
 
-/// A quick-fix attached to a style diagnostic.  Mirrors the Python
-/// `CodeFix(range, new_text, description)`.
+/// A quick-fix attached to a style diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StyleFix {
     /// Document range the fix replaces.
@@ -84,16 +81,14 @@ pub struct StyleDiagnostic {
     pub fix: Option<StyleFix>,
 }
 
-/// Default maximum line length, matching Python's
-/// `line_length: int = 120`.
+/// Default maximum line length.
 pub const DEFAULT_LINE_LENGTH: usize = 120;
 
-/// Default expected line ending, matching Python's
-/// `line_ending: str = "\n"`.
+/// Default expected line ending.
 pub const DEFAULT_LINE_ENDING: &str = "\n";
 
-/// Python `_FILE_SUPPRESS_KEY` sentinel: a file-wide directive is
-/// recorded against line `-1` in `suppressed_lines`.
+/// Sentinel for a file-wide suppress directive: a file-wide directive
+/// is recorded against line `-1` in `suppressed_lines`.
 const FILE_SUPPRESS_KEY: i32 = -1;
 
 /// Return `true` when `code` is suppressed at `line` by an inline

@@ -235,7 +235,7 @@ fn node_matches_cidrs(node: &ObjectNode, seed_networks: &[Net]) -> bool {
     false
 }
 
-/// The compiled seed matcher (port of `_build_matcher`).
+/// The compiled seed matcher.
 enum Matcher {
     Substring(String),
     Regex(Regex),
@@ -254,8 +254,8 @@ impl Matcher {
     }
 }
 
-/// Build a seed matcher for the given mode (port of `_build_matcher`). The three
-/// flag modes are mutually exclusive.
+/// Build a seed matcher for the given mode. The three flag modes are mutually
+/// exclusive.
 ///
 /// # Errors
 /// Returns `Err` on conflicting modes, a bad regex, or an unparseable CIDR.
@@ -357,7 +357,7 @@ struct ReportMeta<'a> {
     source_uris: Vec<String>,
 }
 
-/// Render the text report (port of `_format_text_report`).
+/// Render the text report.
 fn format_text_report(
     meta: &ReportMeta,
     seeds: &[GrepObject],
@@ -480,8 +480,8 @@ impl Default for GrepArgs<'_> {
     }
 }
 
-/// Find every BIG-IP object related to seeds whose identifiers match the pattern
-/// (port of `compute_grep`). `graph` must come from
+/// Find every BIG-IP object related to seeds whose identifiers match the
+/// pattern. `graph` must come from
 /// [`crate::graph::build_bigip_object_graph`] (built with the iRules dialect
 /// active, which the caller arranges). `source_uris` are the input URIs used
 /// only for the report header.
@@ -682,7 +682,7 @@ pub fn compute_grep(
     })
 }
 
-/// Serialise one [`GrepObject`] (port of `report_to_dict._obj_to_dict`).
+/// Serialise one [`GrepObject`].
 fn obj_to_json(obj: &GrepObject, include_body: bool) -> String {
     use std::fmt::Write as _;
 
@@ -732,10 +732,9 @@ fn obj_to_json(obj: &GrepObject, include_body: bool) -> String {
     s
 }
 
-/// Render `report` as `json.dumps(report_to_dict(report), indent=2)` (port of
-/// `report_to_dict` + the CLI's `json.dumps(..., indent=2) + "\n"`). Built by
-/// hand for key-order parity (including the insertion-ordered `summary`), like
-/// the graph / stats exports.
+/// Render `report` as `json.dumps(report_to_dict(report), indent=2)`. Built by
+/// hand for a deterministic key order (including the insertion-ordered
+/// `summary`), like the graph / stats exports.
 #[must_use]
 pub fn report_to_json(report: &GrepReport, include_body: bool) -> String {
     use std::fmt::Write as _;

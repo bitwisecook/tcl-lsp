@@ -83,7 +83,7 @@ pub type Env = HashMap<String, EnvValue>;
 /// inputs like `2 ** 999_999_999`.
 ///
 /// Mirrors C Tcl's `INST_EXPON` limit (`exponent < 2^28`).  Set to
-/// `(1 << 28) - 1` by upstream commit ``342d4c7a`` (PR #331);
+/// `(1 << 28) - 1` by upstream commit ``342d4c7a``;
 /// previously a tighter `10_000` cap that diverged from C Tcl.
 const MAX_EXPONENT: i64 = (1 << 28) - 1;
 
@@ -906,7 +906,7 @@ mod tests {
 
     #[test]
     fn string_comparisons_fold_string_operands() {
-        // SYNC-JUN02b-5 (#519): `eq`/`ne`/`lt`/`gt`/`le`/`ge` compare
+        // SYNC-JUN02b-5: `eq`/`ne`/`lt`/`gt`/`le`/`ge` compare
         // operands AS strings, so string-only operands now fold
         // (previously `eval` parsed them numerically, returning None).
         assert_eq!(eval_str("\"x\" eq \"y\""), Some(TclValue::Int(0)));

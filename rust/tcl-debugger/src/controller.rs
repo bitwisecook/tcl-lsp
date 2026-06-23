@@ -72,7 +72,7 @@ impl DebugController {
     }
 
     /// Decide whether to pause at a source-line boundary, given the line and
-    /// the current frame `level`. Mirrors `controller.py::debug_hook`'s
+    /// the current frame `level`.'s
     /// stop decision.
     ///
     /// Returns `Some(reason)` to stop (and the reason to report), or `None` to

@@ -888,7 +888,7 @@ fn split_route_domain(text: &str) -> (String, Option<u64>) {
     (format!("{addr}{remainder}"), Some(rd))
 }
 
-/// True when a path segment looks like a host (port of `_looks_like_address`).
+/// True when a path segment looks like a host.
 fn looks_like_address(segment: &str) -> bool {
     if segment.contains(':') {
         return true;

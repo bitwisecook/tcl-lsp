@@ -123,10 +123,8 @@ pub fn build_objects_for_source(uri: &str, source: &str, ctx: &GraphContext) -> 
     result
 }
 
-// Name resolution — port of `object_registry.resolve_kind_in_configs` and the
-// `BigipConfig` resolvers it relies on (`resolve_name` /
-// `resolve_generic_object`). Resolves a `(kind, reference)` to the source span
-// of the named object, which the edge builder matches back to a node.
+// Name resolution: resolve a `(kind, reference)` to the source span of the
+// named object, which the edge builder matches back to a node.
 
 /// A node's range identity: `(start.line, start.character, end.line,
 /// end.character)`.
@@ -292,10 +290,9 @@ pub fn resolve_kind_in_configs(
     None
 }
 
-// Forward reference edges — port of `_build_forward_edges` (legacy token-scan
-// path). The registry-first (pilot value-spec) dispatch is layered on top in a
-// later increment; this is the always-on fallback path that keeps the graph
-// complete.
+// Forward reference edges (legacy token-scan path). The registry-first
+// (pilot value-spec) dispatch is layered on top; this is the always-on
+// fallback path that keeps the graph complete.
 
 use std::collections::{HashMap, HashSet};
 
@@ -734,8 +731,8 @@ fn pilot_references(
     None
 }
 
-/// Monitor paths referenced by a `monitor` expression (port of
-/// `MonitorExpression.try_parse` → `.monitors`): `default`/`none` → none;
+/// Monitor paths referenced by a `monitor` expression: `default`/`none` →
+/// none;
 /// `min N of { … }` → the braced tokens; otherwise an `and`-chain of paths.
 fn monitor_paths(text: &str) -> Vec<String> {
     let s = text.trim();
@@ -777,8 +774,8 @@ fn monitor_paths(text: &str) -> Vec<String> {
     monitors
 }
 
-/// The SNAT pool path of a `source-address-translation` body (port of
-/// `SnatMode.try_parse` + `references`), or `None` unless `type snat pool …`.
+/// The SNAT pool path of a `source-address-translation` body, or `None`
+/// unless `type snat pool …`.
 fn snat_pool_path(text: &str) -> Option<String> {
     let mut body = text.trim();
     body = body.strip_prefix('{').unwrap_or(body);
@@ -808,8 +805,8 @@ fn snat_pool_path(text: &str) -> Option<String> {
     (kind == "snat" && !pool.is_empty()).then(|| pool.to_owned())
 }
 
-/// SSL `(kind, path)` refs of one `cert-key-chain` entry body (port of
-/// `CertKeyChain.from_raw` + `references`): cert + key + chain, in order.
+/// SSL `(kind, path)` refs of one `cert-key-chain` entry body: cert + key +
+/// chain, in order.
 fn cert_key_chain_refs(body: &str) -> Vec<(String, String)> {
     let tokens: Vec<&str> = body.split_whitespace().collect();
     let (mut cert, mut key, mut chain) = ("", "", "");
@@ -837,8 +834,8 @@ fn cert_key_chain_refs(body: &str) -> Vec<(String, String)> {
     out
 }
 
-/// `(kind, path)` refs of one firewall rule body (port of `FirewallRule` +
-/// `FirewallEndpoint`): source then destination port-lists + address-lists,
+/// `(kind, path)` refs of one firewall rule body: source then destination
+/// port-lists + address-lists,
 /// then a nested `rule-list`.
 fn firewall_rule_refs(body: &str) -> Vec<(String, String)> {
     let raw: Vec<&str> = body.split_whitespace().collect();
@@ -940,8 +937,8 @@ fn endpoint_refs(sub_body: &str, out: &mut Vec<(String, String)>) {
     }
 }
 
-// Graph serialisation — port of `graph_export.py` (DOT / JSON / Mermaid) for
-// the `f5 graph` verb. Operates on a built [`ObjectGraph`].
+// Graph serialisation (DOT / JSON / Mermaid) for the `f5 graph` verb.
+// Operates on a built [`ObjectGraph`].
 
 /// A serialised graph plus its node/edge counts.
 pub struct GraphExport {

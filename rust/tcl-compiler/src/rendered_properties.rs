@@ -571,7 +571,7 @@ fn evaluate_value(
     // Pure command substitution → interpolated value. The source *word*
     // carries no literal slash/backslash/CRLF/space — only the fact that
     // it is interpolated (`HAS_INTERPOLATION`), refined with semantic
-    // registry hints. Mirrors Python's `_evaluate_rendered_props_for_value`
+    // registry hints.
     // (a minimal baseline, not the conservative lattice top — using `top`
     // here over-reported every may-flag for command-substitution values).
     if let Some((cmd, args)) = parse_command_substitution(stripped) {

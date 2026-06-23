@@ -1,13 +1,11 @@
 //! `clap` derive definitions for the `f5-query` CLI command tree.
 //!
-//! Mirrors `tooling/f5/main.py` + `tooling/f5/verbs/*` (including the `irule`
-//! verb group). Verb names map to kebab-cased variant names; Python aliases map
-//! to `visible_aliases`.
+//! Covers every verb (including the `irule` verb group). Verb names map to
+//! kebab-cased variant names; aliases map to `visible_aliases`.
 //!
-//! Flag coverage is pragmatic for scaffolding: shared surfaces (`--format`
-//! scf/tmsh/tmsh-delta, remote credentials, passphrase handling) are modelled
-//! as reusable `Args` structs; verb-specific flags are filled in as each verb
-//! is ported.
+//! Shared surfaces (`--format` scf/tmsh/tmsh-delta, remote credentials,
+//! passphrase handling) are modelled as reusable `Args` structs; verb-specific
+//! flags are defined per verb.
 
 use std::path::PathBuf;
 
@@ -72,8 +70,8 @@ impl PassphraseArgs {
 
 /// F5 unit master-key (`f5mku`) source flags shared by `encrypt-secrets` /
 /// `decrypt-secrets` (the `_add_key_args` group from `verbs/secrets.py`).
-// Help strings are clap-visible and must read like the Python argparse help;
-// the `f5mku -K` / `$F5MKU` tokens carry no Markdown, so silence the lint.
+// Help strings are clap-visible plain text; the `f5mku -K` / `$F5MKU` tokens
+// carry no Markdown, so silence the lint.
 #[allow(clippy::doc_markdown)]
 #[derive(Debug, Default, Args)]
 pub struct MasterKeyArgs {
@@ -222,8 +220,8 @@ pub enum Command {
     },
 
     /// Rename a BIG-IP object full-path and update every reference.
-    // The `old` / `new` help strings are clap-visible (they must read exactly
-    // as the Python verb's argparse help, so no Markdown backticks).
+    // The `old` / `new` help strings are clap-visible plain text (no Markdown
+    // backticks).
     #[allow(clippy::doc_markdown)]
     #[command(visible_alias = "mv")]
     Rename {
@@ -440,7 +438,8 @@ pub enum Command {
         #[arg(long = "help-examples")]
         help_examples: bool,
         /// Show the comprehensive manual (grammar + builtins + examples) and
-        /// exit. Deferred: the builtins prose catalogue is not yet ported.
+        /// exit. Not yet available: the builtins prose catalogue is not
+        /// implemented.
         #[arg(long = "help-manual")]
         help_manual: bool,
         /// List the registered renderer plugins and exit.
@@ -533,9 +532,8 @@ pub enum Command {
     },
 
     /// Pull SCF or UCS from a live BIG-IP device (REST or SSH).
-    // Help strings are clap-visible and must read exactly as the Python verb's
-    // argparse help (the env-var names carry underscores), so no Markdown
-    // backticks.
+    // Help strings are clap-visible plain text (the env-var names carry
+    // underscores), so no Markdown backticks.
     #[allow(clippy::doc_markdown)]
     #[command(visible_alias = "get")]
     Fetch {
@@ -614,8 +612,8 @@ pub enum Command {
     },
 
     /// Fetch a single object from a live BIG-IP.
-    // The `full_path` example carries a slash path; keep it backtick-free so the
-    // clap help reads as the Python argparse help does.
+    // The `full_path` example carries a slash path; keep it backtick-free so
+    // the clap help stays plain text.
     #[allow(clippy::doc_markdown)]
     Pull {
         /// Object kind to fetch.
@@ -845,8 +843,8 @@ pub enum IruleCommand {
         json: bool,
     },
     /// Look up iRules event metadata and valid commands.
-    // Help strings are clap-visible and must read exactly as the Python verb's
-    // argparse help (event names carry underscores), so no Markdown backticks.
+    // Help strings are clap-visible plain text (event names carry
+    // underscores), so no Markdown backticks.
     #[allow(clippy::doc_markdown)]
     #[command(visible_alias = "eventinfo")]
     EventInfo {

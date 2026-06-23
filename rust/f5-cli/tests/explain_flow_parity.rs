@@ -120,7 +120,7 @@ fn matched_virtual_with_irule_events_matches_golden() {
 
 #[test]
 fn json_output_matches_golden() {
-    // `--json` mirrors `report_to_dict` serialised like `json.dumps(indent=2)`:
+    // `--json` serialised like `json.dumps(indent=2)`:
     // the full per-flow dicts, the event/annotation/policy structures, and the
     // empty `simulated_*` fields. Covered for an iRule-event capture, a
     // policy-bearing capture, and an unmatched multi-flow capture.
@@ -166,7 +166,14 @@ fn tshark_available() -> bool {
 /// keeps the command byte-for-byte rather than "fixing" it locally).
 fn tshark_ek_ok() -> bool {
     Command::new("tshark")
-        .args(["-r", "explain-flow-matched.pcap", "-T", "ek", "-l", "--no-duplicate-keys"])
+        .args([
+            "-r",
+            "explain-flow-matched.pcap",
+            "-T",
+            "ek",
+            "-l",
+            "--no-duplicate-keys",
+        ])
         .current_dir(fixtures_dir())
         .output()
         .is_ok_and(|o| o.status.success())
@@ -191,7 +198,11 @@ fn tshark_enrichment_marks_used_tshark() {
     );
     let text = String::from_utf8(stdout).expect("utf8 report");
     assert_eq!(code, 0, "matched VS exits 0");
-    let want = if expect_yes { "tshark: yes" } else { "tshark: no" };
+    let want = if expect_yes {
+        "tshark: yes"
+    } else {
+        "tshark: no"
+    };
     assert!(
         text.contains(want),
         "text header must record `{want}` for this tshark: {text}"
@@ -262,10 +273,7 @@ fn simulate_runs_irule_and_selects_pool() {
     assert_eq!(code, 0, "matched capture exits 0: {text}");
     assert!(text.contains("iRule simulation:"), "{text}");
     assert!(text.contains("pool: pool_api"), "{text}");
-    assert!(
-        text.contains("decision: lb pool_select pool_api"),
-        "{text}"
-    );
+    assert!(text.contains("decision: lb pool_select pool_api"), "{text}");
     assert!(text.contains("routing host="), "captured iRule log: {text}");
 }
 

@@ -1,10 +1,9 @@
 //! The `pcap-remap` (`pcapmap`) verb — apply a redaction map to a PCAP.
 //!
-//! Port of `tooling/f5/verbs/pcap_remap.py` (`_run_pcap_remap`). Rewrites every
-//! IPv4 / IPv6 source and destination address in a PCAP / PCAPNG capture using
-//! the same TOML map produced by `f5 redact`, recomputing the IPv4 header and
-//! TCP / UDP / ICMP / ICMPv6 checksums, plus the peer-IP fields in the F5
-//! Ethernet trailer. See [`tcl_bigip::pcap_remap`].
+//! Rewrites every IPv4 / IPv6 source and destination address in a PCAP / PCAPNG
+//! capture using the same TOML map produced by `f5 redact`, recomputing the IPv4
+//! header and TCP / UDP / ICMP / ICMPv6 checksums, plus the peer-IP fields in the
+//! F5 Ethernet trailer. See [`tcl_bigip::pcap_remap`].
 //!
 //! Custom `--schema` overlays (extra F5-trailer layouts as TOML) are supported:
 //! each file is parsed by [`tcl_bigip::f5_trailer::load_schema_overlay`] and
@@ -20,7 +19,7 @@ use tcl_bigip::pcap_remap::{PcapError, UnknownPolicy, remap_pcap_with};
 use tcl_bigip::redact::RedactionMap;
 
 /// Load and merge every `--schema` overlay file (later files override earlier
-/// keys, matching the Python registry).
+/// keys).
 fn load_overlays(schema: &[std::path::PathBuf]) -> Result<SchemaOverlay, String> {
     let mut overlay = SchemaOverlay::default();
     for path in schema {
@@ -31,8 +30,8 @@ fn load_overlays(schema: &[std::path::PathBuf]) -> Result<SchemaOverlay, String>
     Ok(overlay)
 }
 
-/// `f5 pcap-remap`. Errors are reported to stderr and surfaced as exit code 2
-/// (matching the Python verb), so the handler returns the code directly.
+/// `f5 pcap-remap`. Errors are reported to stderr and surfaced as exit code 2,
+/// so the handler returns the code directly.
 pub fn run_pcap_remap(
     map_file: &Path,
     input: &Path,
@@ -97,8 +96,8 @@ pub fn run_pcap_remap(
         match remap_pcap_with(&input_bytes, &mut rm, reverse, policy, &overlay) {
             Ok(pair) => pair,
             Err(exc @ PcapError::UnknownTrailer { .. }) => {
-                // The output may have been partially written by Python; we never
-                // wrote it, but remove any stale file for parity.
+                // The output may have been partially written; we never wrote it,
+                // but remove any stale file.
                 let _ = std::fs::remove_file(output);
                 eprintln!(
                     "error: {exc}\n  -> rerun with --on-unknown=preserve|sweep, or supply a \

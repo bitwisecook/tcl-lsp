@@ -128,7 +128,7 @@ const PERSIST_NON_REFERENCE_KEYWORDS: &[&str] = &[
 ];
 
 /// Pool kinds for a rule module — GTM rules use the per-record-type GTM pool
-/// kinds (mirrors `pool_kinds_for_module`).
+/// kinds.
 fn pool_kinds_for_module(rule_module: Option<&str>) -> Vec<&'static str> {
     let t = tables();
     let src = if rule_module == Some("gtm") {
@@ -161,7 +161,7 @@ fn arg_index_for_position(position: &ObjectRefArg, args: &[&str]) -> Option<usiz
     None
 }
 
-/// `[(arg_index, kinds), …]` for `class <sub> …` (mirrors `_resolve_class_refs`).
+/// `[(arg_index, kinds), …]` for `class <sub> …`.
 fn resolve_class_refs(args: &[&str]) -> Vec<(usize, Vec<&'static str>)> {
     let dg: Vec<&str> = tables()
         .data_group_kinds
@@ -215,7 +215,7 @@ fn resolve_class_refs(args: &[&str]) -> Vec<(usize, Vec<&'static str>)> {
     }
 }
 
-/// `[(arg_index, kinds), …]` for `persist …` (mirrors `_resolve_persist_refs`).
+/// `[(arg_index, kinds), …]` for `persist …`.
 fn resolve_persist_refs(args: &[&str]) -> Vec<(usize, Vec<&'static str>)> {
     let pk: Vec<&str> = tables()
         .persistence_kinds
@@ -239,7 +239,7 @@ fn resolve_persist_refs(args: &[&str]) -> Vec<(usize, Vec<&'static str>)> {
 }
 
 /// Return the `(arg_index, kinds)` pairs naming BIG-IP objects in an iRule
-/// `command args…` invocation (mirrors `resolve_object_ref_args`).
+/// `command args…` invocation.
 ///
 /// `rule_module` (`"ltm"` / `"gtm"`) selects the pool-kind family.
 #[must_use]

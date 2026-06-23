@@ -25,7 +25,7 @@ use tcl_lexer::{LineIndex, Span};
 pub const WORD_PATTERN: &str = r"[A-Za-z_][A-Za-z0-9_]*";
 
 /// A bundle of linked-editing ranges and their validating word
-/// pattern.  Mirrors `lsprotocol.types.LinkedEditingRanges`.
+/// pattern.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinkedEditingRanges {
     /// The ranges that edit together.

@@ -143,7 +143,7 @@ pub fn is_list_space(c: u8) -> bool {
 }
 
 /// Locate the next list element in `s` at/after `start`. Returns `Ok(None)` when
-/// only trailing whitespace remains. Mirrors `FindElement` (`tclUtil.c:577`).
+/// only trailing whitespace remains. (`tclUtil.c:577`).
 pub fn find_element(s: &str, start: usize) -> Result<Option<Element>, ListError> {
     let bytes = s.as_bytes();
     let len = bytes.len();

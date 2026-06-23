@@ -4,7 +4,7 @@
 use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 
-/// Source file extensions the CLI accepts (mirrors `_SOURCE_SUFFIXES`).
+/// Source file extensions the CLI accepts.
 const SOURCE_SUFFIXES: &[&str] = &[
     "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl",
 ];

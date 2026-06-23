@@ -303,7 +303,7 @@ impl CommandRegistry {
     /// in registration order. Empty when the name is unknown.
     ///
     /// Used by the registry-snapshot builder's order-independent
-    /// `resolve_spec` (mirrors Python `REGISTRY.specs_by_name.get(name)`).
+    /// `resolve_spec`.
     #[must_use]
     pub fn specs(&self, name: &str) -> &[CommandSpec] {
         self.by_name.get(name).map_or(&[], Vec::as_slice)

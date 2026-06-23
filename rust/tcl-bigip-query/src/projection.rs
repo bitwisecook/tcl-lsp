@@ -41,7 +41,6 @@ use crate::value::{FieldSlot, ObjectRef, PathRef, Value};
 // Container
 
 /// A navigable namespace / kind container projected from a `BigipConfig`
-/// (port of `projection.Container`).
 ///
 /// `kind` carries either a module name (`"ltm"`), the synthetic
 /// `"<root>"`, or a full TMSH module+type (`"ltm virtual"`). Entries are

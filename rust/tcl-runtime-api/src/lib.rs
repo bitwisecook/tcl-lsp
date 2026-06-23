@@ -58,7 +58,7 @@ pub trait CompileService {
 // the VM advances through the milestones; the trait surface is the contract.
 
 /// Variable storage: scalars, arrays, and `upvar`/`global`/`variable` links,
-/// addressed by call frame. Mirrors `runtime/rust`'s `frame.rs` `Var`/`VarTable`.
+/// addressed by call frame.'s `frame.rs` `Var`/`VarTable`.
 pub trait VarStore {
     /// The runtime's value type.
     type Value;
@@ -122,7 +122,7 @@ pub trait Frames {
 }
 
 /// The command table and dispatch: builtins, procs, aliases, imports,
-/// ensembles, child interps. Mirrors `runtime/rust`'s `interp.rs` `Command`.
+/// ensembles, child interps.'s `interp.rs` `Command`.
 pub trait Commands {
     /// The runtime's value type.
     type Value;
@@ -139,7 +139,7 @@ pub trait Commands {
     fn dispatch_id(&mut self, cmd: CommandId, argv: &[Self::Value]) -> Completion<Self::Value>;
 }
 
-/// The namespace tree and name resolution. Mirrors `runtime/zig`'s `tcl_ns.zig`
+/// The namespace tree and name resolution.'s `tcl_ns.zig`
 /// / `runtime/rust`'s `namespace.rs`. (Contract surface; impls land in M2+.)
 pub trait Namespaces {
     /// Resolve `name` (qualified or unqualified) from context `cxt` to the
@@ -187,7 +187,7 @@ pub trait Namespaces {
     fn vars_in(&self, ns: NsId) -> Vec<String>;
 }
 
-/// Variable traces (read/write/unset). Mirrors `runtime/zig`'s
+/// Variable traces (read/write/unset).'s
 /// `tcl_var_trace.zig`. (Contract surface; impls land in M2+.)
 pub trait Traces {
     /// The runtime's value type.

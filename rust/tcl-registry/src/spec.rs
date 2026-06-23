@@ -55,7 +55,7 @@ pub struct BytePayloadSpec {
 
 impl BytePayloadSpec {
     /// The common layout — `replace <offset> <length> <data>` (data at 3),
-    /// no `-message` flag. Mirrors `BytePayloadSpec()` in Python.
+    /// no `-message` flag. in Python.
     pub const DEFAULT: Self = Self {
         replace_data_index: 3,
         message_flag_shift: false,

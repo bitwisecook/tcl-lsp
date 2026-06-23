@@ -32,7 +32,7 @@ pub struct IrulesObjectReference {
 
 /// Variable → constant-literal bindings carried through linear copy-propagation
 /// within a scope. `None` marks an overdefined (re-assigned from non-literal)
-/// binding so later lookups fail closed. Mirrors `_BindingScope`.
+/// binding so later lookups fail closed.
 #[derive(Clone, Default)]
 struct BindingScope {
     bindings: HashMap<String, Option<String>>,
@@ -70,7 +70,7 @@ pub fn object_ref_spans(source: &str, registry: &CommandRegistry) -> Vec<Span> {
 /// Extract every BIG-IP object reference from iRules `source`, resolving both
 /// literal arguments (`pool /Common/foo`) and constants propagated through
 /// `set` (`set p /Common/foo; pool $p`). Results are sorted by source position
-/// then name (mirrors `extract_irules_object_references`).
+/// then name.
 #[must_use]
 pub fn extract_irules_object_references(
     source: &str,
@@ -213,7 +213,7 @@ fn recurse_token(
 
 /// The trimmed literal `(name, span)` of argument `arg_index`, or `None` when it
 /// isn't a usable single-token literal (`$var` / `[cmd]` / multi-token /
-/// whitespace). Mirrors `_literal_arg_value` + `_normalise_literal_name`.
+/// whitespace). + `_normalise_literal_name`.
 fn literal_arg_value(
     full: &str,
     cmd: &SegmentedCommand,
@@ -303,7 +303,7 @@ fn resolve_arg_value(
 }
 
 /// Record a `set <var> <literal>` constant binding, or widen on a non-literal
-/// RHS (mirrors `_record_set_binding`).
+/// RHS.
 fn record_set_binding(full: &str, cmd: &SegmentedCommand, scope: &mut BindingScope) {
     if cmd.name() != "set" || cmd.args().len() < 2 {
         return;

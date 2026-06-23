@@ -33,7 +33,7 @@ use crate::errors::QueryError;
 use crate::projection;
 use crate::value::{self, ObjectRef, PathRef, Value};
 
-/// The per-file evaluation root (port of `values.Root`).
+/// The per-file evaluation root.
 ///
 /// For external-JSON roots `json_value` carries the parsed value and `.`
 /// uses native dict/list semantics. BIG-IP roots carry the parsed
@@ -140,7 +140,7 @@ pub fn root_container(root: &Rc<Root>) -> Value {
 /// means "not wired", and `ucs_cert` raises a clear error.
 pub type UcsCertReader = Rc<dyn Fn(&str, &str) -> Result<Value, QueryError>>;
 
-/// Evaluation context (port of `evaluator.EvalContext`).
+/// Evaluation context.
 pub struct EvalContext {
     pub root: Rc<Root>,
     pub named_roots: HashMap<String, Rc<Root>>,
@@ -155,7 +155,7 @@ pub struct EvalContext {
     /// first and falls back to `named_roots`.
     pub bindings: HashMap<String, Value>,
     /// Edit ops queued by assignment statements; applied by the runner after
-    /// each statement evaluates (port of `evaluator.EvalContext.edits`).
+    /// each statement evaluates.
     pub edits: crate::edit_plan::EditPlan,
     /// Whether live network probes are enabled (port of the `PROBES_ENABLED`
     /// contextvar — the `--enable-probes` flag). When `false`, every network
@@ -165,7 +165,7 @@ pub struct EvalContext {
     /// `tls_handshake`) for chain verification — port of `TLS_CA_BUNDLE`.
     /// `None` falls back to the system trust store.
     pub ca_bundle: Option<String>,
-    /// Reader hook for `ucs_cert` (port of `UCS_CERT_READER`). `None` means
+    /// Reader hook for `ucs_cert`. `None` means
     /// no reader is wired (e.g. when driven outside the f5 CLI).
     pub ucs_cert_reader: Option<UcsCertReader>,
     /// Lazily built merged reference graph spanning every [`merge_roots`]
@@ -1405,7 +1405,7 @@ fn eval_assignment(
     }
 }
 
-/// A single resolved writable LHS (port of `evaluator._AssignTarget`).
+/// A single resolved writable LHS.
 struct AssignTarget {
     obj: Rc<ObjectRef>,
     field_name: String,

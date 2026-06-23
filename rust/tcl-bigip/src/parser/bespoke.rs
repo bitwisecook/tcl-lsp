@@ -840,7 +840,7 @@ pub fn parse_monitor(
     let mut obj = parse_bigip_monitor(full_path, body, range);
     let props = props_map(body);
     obj.monitor_type = monitor_type.to_owned();
-    // Python `_unquote`s these quoted text fields.
+    // These quoted text fields are unquoted.
     let uq = |k: &str| unquote(props.get(k).map_or("", String::as_str)).to_owned();
     obj.send = uq("send");
     obj.recv = uq("recv");
@@ -2048,7 +2048,7 @@ mod tests {
         assert_eq!(v.source_address_translation, "snat");
         assert_eq!(v.snatpool, "/Common/my_snatpool");
 
-        // pool_range captured from the live Python parser.
+        // pool_range captured from the reference parser.
         let pr = v.pool_range.unwrap();
         assert_eq!(
             (pr.start.line, pr.start.character, pr.start.offset),

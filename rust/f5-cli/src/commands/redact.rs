@@ -1,15 +1,14 @@
 //! The `redact` (`sanitize`) verb — strip secrets and remap public IPs.
 //!
-//! Port of `tooling/f5/verbs/redact.py` (`_run_redact`). Strips secret-bearing
-//! property values + PEM blocks via [`tcl_bigip::redact::redact_secrets`] and
-//! consistently remaps public IPs into a configurable target-CIDR pool,
-//! writing a sidecar map file so `f5 unredact` can reverse it.
+//! Strips secret-bearing property values + PEM blocks via
+//! [`tcl_bigip::redact::redact_secrets`] and consistently remaps public IPs into
+//! a configurable target-CIDR pool, writing a sidecar map file so `f5 unredact`
+//! can reverse it.
 //!
-//! `--format scf` (default) emits the rewritten text verbatim, reaching
-//! byte-for-byte parity with the Python CLI. `tmsh` / `tmsh-delta` re-render the
-//! rewritten config via the BIG-IP tmsh emit engine
-//! (`tcl_bigip::tmsh_emit`); like the Python verb, no pre-edit original is
-//! threaded, so `tmsh-delta` treats every object as freshly created.
+//! `--format scf` (default) emits the rewritten text verbatim. `tmsh` /
+//! `tmsh-delta` re-render the rewritten config via the BIG-IP tmsh emit engine
+//! (`tcl_bigip::tmsh_emit`); no pre-edit original is threaded, so `tmsh-delta`
+//! treats every object as freshly created.
 
 use std::path::{Path, PathBuf};
 
@@ -20,8 +19,7 @@ use tcl_bigip_io::read_path;
 
 use crate::cli::FormatArgs;
 
-/// Partition CIDRs into v4 and v6 pools (defaults if none supplied) — mirrors
-/// `redact._split_pools`.
+/// Partition CIDRs into v4 and v6 pools (defaults if none supplied).
 fn split_pools(cidrs: &[String]) -> (Vec<String>, Vec<String>) {
     let mut v4: Vec<String> = Vec::new();
     let mut v6: Vec<String> = Vec::new();
@@ -51,7 +49,7 @@ fn split_pools(cidrs: &[String]) -> (Vec<String>, Vec<String>) {
     (v4, v6)
 }
 
-/// Resolve the sidecar map path — mirrors `redact._resolve_map_path`.
+/// Resolve the sidecar map path.
 fn resolve_map_path(explicit: Option<&Path>, output: Option<&Path>) -> Option<PathBuf> {
     if let Some(e) = explicit {
         return Some(e.to_owned());
@@ -128,8 +126,8 @@ pub fn run_redact(
         }
     };
 
-    // `--format scf` => verbatim; `tmsh` / `tmsh-delta` re-render. Like the
-    // Python verb, no pre-edit original is threaded (delta treats all as new).
+    // `--format scf` => verbatim; `tmsh` / `tmsh-delta` re-render. No pre-edit
+    // original is threaded (delta treats all as new).
     let rendered = crate::commands::emit::render_config(
         &report.new_source,
         &format.format,

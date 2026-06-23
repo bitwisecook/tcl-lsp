@@ -18,7 +18,7 @@
 //! inline position pairs), matching the span-first architecture
 //! established in the lexer and IR crates. The [`ExprNode`] in a
 //! [`Terminator::Branch`] condition is the same type produced by the
-//! expression parser (C1).
+//! expression parser.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 

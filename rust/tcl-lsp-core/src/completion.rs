@@ -123,8 +123,7 @@ pub struct CompletionEdit {
 }
 
 /// `true` when `$name` lexes as a single bare variable token (so it
-/// needs no `${…}` braces).  Mirrors `shared/naming.py::is_bare_var_name`
-/// / the lexer's `_parse_var` rule: one or more `::`-separated segments
+/// needs no `${…}` braces): one or more `::`-separated segments
 /// of alnum / `_`, with an optional leading `::`.
 fn is_bare_var_name(name: &str) -> bool {
     if name.is_empty() {
@@ -273,8 +272,7 @@ pub fn completions(
             let mut values = spec.arg_values_at(arg_idx);
             // `when`'s keyword tail carries an enumerable value
             // slot only after the `timing` keyword (the `priority`
-            // keyword takes a numeric argument).  Mirror
-            // completion.py::_when_argument_values — even-index
+            // keyword takes a numeric argument).  Even-index
             // value slots are gated on the preceding literal being
             // `timing`.
             if spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER)
@@ -483,7 +481,7 @@ fn variable_completions(
         trigger == '{' || dollar.is_some_and(|d| d + 1 < line_len && chars[d + 1] == '{');
 
     // Scan forward to the end of the existing reference so the edit replaces
-    // the whole token (mirrors completion.py: brace form tracks `{}` depth and
+    // the whole token (brace form tracks `{}` depth and
     // `\X` pairs; bare form takes alnum / `_` / `::`).
     let mut end = cursor_col;
     if has_open_brace {
@@ -529,7 +527,7 @@ fn variable_completions(
     let byte_offset = crate::definition::byte_offset_at(source, line, character);
 
     // Array-element completion: `$arr(` / `$arr(prefix` — offer the recorded
-    // indices of `arr` as `$arr(index)`.  Mirrors completion.py's `(` branch.
+    // indices of `arr` as `$arr(index)`.
     if let Some(paren) = partial.find('(') {
         let arr_name = partial[..paren].trim_start_matches('{');
         let elem_prefix = &partial[paren + 1..];
@@ -619,7 +617,7 @@ fn variable_completions(
 
     // Cross-namespace candidates — variables in *other* namespaces, offered in
     // fully-qualified `::ns::var` form (vars in the cursor's own namespace
-    // chain are already above as bare names).  Mirrors completion.py.
+    // chain are already above as bare names).
     let mut seen: std::collections::HashSet<String> =
         items.iter().map(|i| i.label.clone()).collect();
     let chain = crate::definition::lexical_namespace_chain(scope, byte_offset);
@@ -872,12 +870,9 @@ fn arg_value_completions(values: &[tcl_registry::ArgValue], partial: &str) -> Ve
 /// Math operators that the registry registers as commands
 /// (Tcl 9's `tcl::mathop` exposes them as commands) but that
 /// don't make sense as completion items at a command position.
-/// Mirrors the same filter applied in
-/// `lsp/features/completion.py::426-428`.
 const SKIP_BUILTIN_NAMES: &[&str] = &["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "!="];
 
 /// Map a usage count to its sort bucket (lower is better).
-/// Mirrors `_usage_bucket` in `lsp/features/completion.py`.
 fn usage_bucket(count: usize) -> u8 {
     match count {
         c if c >= 50 => 0,
@@ -948,9 +943,8 @@ fn builtin_completions(
 }
 
 /// Completion-detail provenance string for a built-in command:
-/// `tcllib (PKG)` / `stdlib (PKG)` / `Tk` / `built-in`.  Mirrors
-/// `lsp/features/completion.py::_command_detail` (tcllib takes
-/// precedence over a plain `required_package`).
+/// `tcllib (PKG)` / `stdlib (PKG)` / `Tk` / `built-in`.  Tcllib takes
+/// precedence over a plain `required_package`.
 fn command_detail(spec: &tcl_registry::CommandSpec) -> String {
     if let Some(pkg) = spec.tcllib_package {
         format!("tcllib ({pkg})")
@@ -1117,8 +1111,7 @@ mod tests {
 
     #[test]
     fn usage_bucket_buckets_per_python_thresholds() {
-        // Exhaustive bucket table parity with
-        // `lsp/features/completion.py::_usage_bucket`.
+        // Exhaustive bucket-table check across every threshold.
         assert_eq!(usage_bucket(0), 5);
         assert_eq!(usage_bucket(1), 4);
         assert_eq!(usage_bucket(2), 4);
@@ -1311,9 +1304,8 @@ mod tests {
     fn builtin_completion_skipped_inside_variable_trigger() {
         // Variable trigger (`$par`) must take precedence and
         // suppress built-in command completions even when a
-        // registry is supplied.  Mirrors the
-        // `variable_completions` short-circuit at the top of
-        // `completions`.
+        // registry is supplied, via the `variable_completions`
+        // short-circuit at the top of `completions`.
         let src = "set apple 1\nset $par\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();

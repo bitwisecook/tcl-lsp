@@ -100,8 +100,7 @@ pub fn definition(
     // 1. Variable reference — walk the scope chain inward
     //    from the global scope toward the innermost scope
     //    whose body span contains the cursor's byte offset,
-    //    then walk back outward looking for the var.  Mirrors
-    //    Python's `find_scope_at_line` + scope-chain ascent.
+    //    then walk back outward looking for the var.
     if let Some(var_name) = find_var_at_position(source, line, character) {
         let cursor_offset = byte_offset_at(source, line, character);
         if let Some(var_def) =
@@ -401,7 +400,7 @@ pub(crate) fn visible_variable_names(
 
 /// Names of every namespace / global scope in the cursor's lexical chain.
 /// Used by completion to skip cross-namespace candidates already offered as
-/// bare names.  Mirrors `_lexical_namespace_chain`.
+/// bare names.
 pub(crate) fn lexical_namespace_chain(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
@@ -435,7 +434,7 @@ pub(crate) fn innermost_namespace_at(
 }
 
 /// Fully-qualified `::ns::var` form for a var stored in a namespace / global
-/// scope.  Mirrors `_qualified_var_name`.
+/// scope.
 fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> String {
     use tcl_compiler::analyser::ScopeKind;
     if var.starts_with("::") {
@@ -449,8 +448,7 @@ fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> Strin
 
 /// Walk the scope tree and return the fully-qualified names of every
 /// namespace / global variable whose enclosing namespace is not in the
-/// cursor's lexical `chain` (proc locals excluded).  Mirrors
-/// `_collect_cross_namespace_vars`.
+/// cursor's lexical `chain` (proc locals excluded).
 pub(crate) fn cross_namespace_qualified_vars(
     global: &tcl_compiler::analyser::Scope,
     chain: &std::collections::HashSet<String>,
@@ -503,8 +501,7 @@ fn scope_chain_at(
 /// Return the `body_span`s of the scope chain containing
 /// `byte_offset`, innermost first.  The global scope has no
 /// `body_span`, so an empty result means "the whole file is
-/// visible" — mirrors Python `declaration.py::_collect_scope_ranges`,
-/// whose empty list signals a file-wide walk.
+/// visible" — an empty list signals a file-wide walk.
 pub(crate) fn scope_body_spans_at(
     root: &tcl_compiler::analyser::Scope,
     byte_offset: u32,

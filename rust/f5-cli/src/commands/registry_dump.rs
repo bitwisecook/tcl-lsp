@@ -1,21 +1,18 @@
 //! The `registry-dump` verb — canonical JSON snapshots of the F5 registries.
 //!
-//! Port of `tooling/f5/verbs/registry.py`. Serialises the F5 registry / graph
-//! snapshots from [`tcl_registry::snapshot`] as `json.dumps(indent=2,
-//! sort_keys=True)`-parity JSON.
+//! Serialises the F5 registry / graph snapshots from [`tcl_registry::snapshot`]
+//! as `json.dumps(indent=2, sort_keys=True)` JSON.
 //!
 //! ## Section coverage
 //!
-//! - `profiles` — fully ported, byte-identical to Python.
-//! - `objects` — fully ported, byte-identical to Python.
-//! - `events` — fully ported, byte-identical to Python (the per-event
-//!   valid-command list is content-addressed via `validCommandsDigest`,
-//!   exactly as Python does).
-//! - `commands` — **deferred**. It embeds the full per-command traits/scalars
-//!   dicts (mirroring the Python `CommandSpec` dataclass field layout) and the
-//!   hover prose catalogue (`summary`), which have no clean, byte-identical
-//!   Rust equivalent. It (and `all`, which contains it) reports a clear
-//!   not-yet-ported error.
+//! - `profiles` — emits the profile graph snapshot.
+//! - `objects` — emits the object graph snapshot.
+//! - `events` — emits the event graph snapshot (the per-event valid-command
+//!   list is content-addressed via `validCommandsDigest`).
+//! - `commands` — not implemented. It would embed the full per-command
+//!   traits/scalars dicts and the hover prose catalogue (`summary`), which have
+//!   no clean Rust equivalent. It (and `all`, which contains it) exits with a
+//!   not-implemented error.
 
 use std::path::Path;
 
@@ -40,7 +37,7 @@ pub fn run_registry_dump(section: &str, output: Option<&Path>) -> anyhow::Result
     };
 
     // `json.dumps(payload, indent=2, sort_keys=True)` with a single trailing
-    // newline (Python's `print` for stdout, `fh.write(text + "\n")` for files).
+    // newline appended (to stdout, or to the file).
     let mut text = json.dumps_indent2();
     text.push('\n');
 

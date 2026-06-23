@@ -74,7 +74,7 @@ impl PyTokenType {
         CoreTokenType::from(*self).name()
     }
 
-    /// Numeric discriminant. Mirrors `enum.Enum.value`.
+    /// Numeric discriminant.
     #[getter]
     fn value(&self) -> u32 {
         *self as u32

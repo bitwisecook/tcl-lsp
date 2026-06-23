@@ -116,8 +116,8 @@ fn str_or_null(s: &str) -> Json {
 
 // ── The bundle ───────────────────────────────────────────────────────
 
-/// A resolved iRule plus every BIG-IP object it references (port of the
-/// `IruleContextBundle` dataclass). Each per-kind list keeps the
+/// A resolved iRule plus every BIG-IP object it references. Each per-kind
+/// list keeps the
 /// reference-walk insertion order; `unresolved` keeps first-seen kind order;
 /// `source_slices` keeps insertion order.
 pub struct IruleContextBundle {
@@ -173,10 +173,10 @@ impl<T> OrderedMap<T> {
     }
 }
 
-// ── Reference-kind classification (port of `_classify_kind`) ─────────
+// ── Reference-kind classification ───────────────────────────────────
 
-/// Map an object reference's kinds to a coarse bucket, or `None` to skip
-/// (port of `_classify_kind`). Shared with the `f5 irule trace` verb.
+/// Map an object reference's kinds to a coarse bucket, or `None` to skip.
+/// Shared with the `f5 irule trace` verb.
 #[must_use]
 pub fn classify_kind(kinds: &[&str]) -> Option<&'static str> {
     if kinds.contains(&"ltm_pool") {
@@ -259,8 +259,8 @@ impl<'a> ConfigView<'a> {
     }
 }
 
-/// Resolve a possibly-short `name` to an index into `entries` (port of
-/// `BigipConfig.resolve_name`): exact, then `default_partition`-qualified,
+/// Resolve a possibly-short `name` to an index into `entries`: exact, then
+/// `default_partition`-qualified,
 /// then `/Common/`, then a suffix match against any partition.
 fn resolve_in<T>(name: &str, entries: &[(&str, &T)], default_partition: &str) -> Option<usize> {
     if let Some(i) = entries.iter().position(|e| e.0 == name) {
@@ -291,11 +291,10 @@ fn resolve_in<T>(name: &str, entries: &[(&str, &T)], default_partition: &str) ->
     entries.iter().position(|e| e.0.ends_with(&suffix))
 }
 
-// ── Source slicing (port of `_slice_for` / `_origin_for_object`) ─────
+// ── Source slicing ──────────────────────────────────────────────────
 
-/// Return the source text that contains an object (port of
-/// `_origin_for_object`): `sources[config_origin]` when present, else the sole
-/// source when there is exactly one, else `None`.
+/// Return the source text that contains an object: `sources[config_origin]`
+/// when present, else the sole source when there is exactly one, else `None`.
 #[must_use]
 pub fn origin_source<'a>(
     sources: &'a [(String, String)],
@@ -313,9 +312,9 @@ pub fn origin_source<'a>(
 }
 
 /// Resolve an object reference of `kind` named `name` against `config`,
-/// returning the resolved full-path (port of `dialects/f5/bigip/lint`'s
-/// `_resolve_reference`). Shares the `resolve_name`-over-model resolver with
-/// [`build_irule_context`]; consumed by the `f5 irule trace` verb.
+/// returning the resolved full-path. Shares the `resolve_name`-over-model
+/// resolver with [`build_irule_context`]; consumed by the `f5 irule trace`
+/// verb.
 #[must_use]
 pub fn resolve_reference(config: &BigipConfig, kind: &str, name: &str) -> Option<String> {
     let view = ConfigView::build(config);
@@ -339,8 +338,8 @@ pub fn resolve_reference(config: &BigipConfig, kind: &str, name: &str) -> Option
     }
 }
 
-/// Slice the original config text for an object's `range` (port of
-/// `_slice_for`): the line-span `[start.line, end.line]`, right-stripped with
+/// Slice the original config text for an object's `range`: the line-span
+/// `[start.line, end.line]`, right-stripped with
 /// a single trailing newline. Returns `None` when out of bounds.
 fn slice_for(range: Option<&Range>, source: Option<&str>) -> Option<String> {
     let source = source?;
@@ -370,8 +369,7 @@ fn slice_for(range: Option<&Range>, source: Option<&str>) -> Option<String> {
 
 // ── build_irule_context ──────────────────────────────────────────────
 
-/// Walk `rule` and return every BIG-IP object it references (port of
-/// `build_irule_context`).
+/// Walk `rule` and return every BIG-IP object it references.
 ///
 /// `merged` is the config (or merged union of configs) references resolve
 /// against. `transitive` expands one level deeper (pool members → nodes, pool
@@ -571,7 +569,7 @@ fn member_iter(pool: &BigipPool) -> impl Iterator<Item = &crate::model::BigipPoo
     })
 }
 
-// ── JSON rendering (port of `context_bundle_to_dict`) ────────────────
+// ── JSON rendering ──────────────────────────────────────────────────
 
 fn summarise_pool(pool: &BigipPool) -> Json {
     let members: Vec<Json> = member_iter(pool)
@@ -782,7 +780,7 @@ pub fn bundles_to_json(bundles: &[IruleContextBundle]) -> String {
     .dumps_indent2()
 }
 
-// ── Text rendering (port of `context_bundle_to_text`) ────────────────
+// ── Text rendering ──────────────────────────────────────────────────
 
 fn render_pool_text(pool: &BigipPool) -> String {
     let mut lines = vec![format!("ltm pool {} {{", pool.full_path)];
@@ -883,8 +881,7 @@ fn render_node_text(n: &BigipNode) -> String {
     format!("ltm node {} {{ address {addr} }}\n", n.full_path)
 }
 
-/// Prefer a real source slice; fall back to the synthetic stanza (port of
-/// `_render_object_text`).
+/// Prefer a real source slice; fall back to the synthetic stanza.
 fn render_object_text(bundle: &IruleContextBundle, full_path: &str, fallback: String) -> String {
     bundle
         .source_slices
@@ -893,8 +890,7 @@ fn render_object_text(bundle: &IruleContextBundle, full_path: &str, fallback: St
         .map_or(fallback, |(_, slice)| slice.clone())
 }
 
-/// Render `bundle` as a single Tcl-flavoured text block (port of
-/// `context_bundle_to_text`).
+/// Render `bundle` as a single Tcl-flavoured text block.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn context_bundle_to_text(bundle: &IruleContextBundle) -> String {

@@ -47,7 +47,7 @@ impl std::fmt::Display for DebugError {
 
 impl std::error::Error for DebugError {}
 
-/// Common interface for all debug backends. Mirrors `DebugBackend` (base.py).
+/// Common interface for all debug backends. (base.py).
 pub trait DebugBackend {
     /// Load a script for debugging (from `source` if given, else `path`) and
     /// stop at the first statement.

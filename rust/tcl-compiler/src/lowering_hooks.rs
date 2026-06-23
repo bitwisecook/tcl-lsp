@@ -378,7 +378,7 @@ fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     // `$name` / `[cmd]` target may resolve to a non-existent caller variable,
     // in which case the alias is a no-op and reading `$local` errors — so the
     // local is possibly-unset and must not be recorded as a def (read-before-set
-    // fires on an unconditional read).  Mirrors `upvar_local_declaration_indices`
+    // fires on an unconditional read).
     // and Python's dynamic-target read-before-set firing.
     let rest = &cmd.args[start..];
     let mut my_vars: Vec<String> = Vec::new();

@@ -144,7 +144,7 @@ pub struct FlowChain {
     pub profiles: &'static [&'static str],
     /// Ordered steps.
     pub steps: Vec<FlowStep>,
-    /// Any caveats or implementation notes (mirrors Python `FlowChain.notes`).
+    /// Any caveats or implementation notes.
     pub notes: &'static str,
 }
 
@@ -363,7 +363,7 @@ impl EventRegistry {
     }
 
     /// Position of `event` in the master firing order, or `None` when the
-    /// event isn't in it (mirrors Python `NAMESPACE_REGISTRY.event_index`).
+    /// event isn't in it.
     #[must_use]
     pub fn event_index(&self, event: &str) -> Option<usize> {
         self.master_order_index(event)

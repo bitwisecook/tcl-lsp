@@ -495,7 +495,7 @@ mod tests {
         });
         assert_eq!(ek_field(&layers, "ip", "ip_src"), "10.0.0.1");
         assert_eq!(ek_field(&layers, "ip", "ip_dst"), "10.0.0.2");
-        // Numbers stringify bare, like Python str(int).
+        // Numbers stringify bare.
         assert_eq!(ek_field(&layers, "tcp", "tcp_srcport"), "4433");
         assert_eq!(ek_field(&layers, "udp", "udp_srcport"), "");
         assert_eq!(ek_field(&layers, "ip", "missing"), "");

@@ -206,7 +206,7 @@ fn intersect(a: Interval, b: Interval) -> Interval {
 }
 
 /// The integer value of an `ExprNode::Literal` (incl. bool keyword), else
-/// `None`.  Mirrors `_literal_int`.
+/// `None`.
 #[must_use]
 fn literal_int(node: &ExprNode) -> Option<i64> {
     let ExprNode::Literal { text, .. } = node else {
@@ -221,9 +221,8 @@ fn literal_int(node: &ExprNode) -> Option<i64> {
     parse_radix_int(t)
 }
 
-/// Parse a literal int the way Python's `int(t, 0) if t[:2] in {0x,0o,0b} else
-/// int(t)` does: a `0x`/`0o`/`0b` prefix selects the radix (positive only,
-/// matching the `t[:2]` prefix test), otherwise plain decimal (signed).
+/// Parse a literal int: a `0x`/`0o`/`0b` prefix selects the radix (positive
+/// only, keyed on the two-character prefix), otherwise plain decimal (signed).
 #[must_use]
 fn parse_radix_int(t: &str) -> Option<i64> {
     let prefix = t.get(..2).map(str::to_ascii_lowercase);
@@ -235,15 +234,14 @@ fn parse_radix_int(t: &str) -> Option<i64> {
     }
 }
 
-/// Parse a literal IR value word as an int, if it is exactly one.  Mirrors
-/// `_const_int_from_value` (plain `int(s)`, no radix prefixes).
+/// Parse a literal IR value word as an int, if it is exactly one (plain
+/// decimal, no radix prefixes).
 #[must_use]
 fn const_int_from_value(text: &str) -> Option<i64> {
     text.trim().parse::<i64>().ok()
 }
 
-/// Abstract-evaluate `expr` over the current interval environment.  Mirrors
-/// `_eval_expr`.
+/// Abstract-evaluate `expr` over the current interval environment.
 #[must_use]
 pub(crate) fn eval_expr(expr: &ExprNode, env: &HashMap<String, Interval>) -> Interval {
     match expr {
@@ -285,7 +283,7 @@ pub(crate) fn eval_expr(expr: &ExprNode, env: &HashMap<String, Interval>) -> Int
 
 /// The interval a value satisfies given `value <op> k` is true (or false, when
 /// `negate`).  Returns the half-line constraint, or `None` if `op` is not an
-/// order/equality comparison.  Mirrors `_guard_interval`.
+/// order/equality comparison.
 #[must_use]
 fn guard_interval(op: BinOp, k: i64, negate: bool) -> Option<Interval> {
     let op = if negate {
@@ -326,8 +324,7 @@ fn guard_interval(op: BinOp, k: i64, negate: bool) -> Option<Interval> {
 
 /// If `cond` is `$name <cmp> <int-const>` (or the const on the left), return the
 /// interval `name` satisfies when `cond` is true (`negate` for the false edge).
-/// Only a top-level comparison against a literal int is handled.  Mirrors
-/// `_guard_constraint`.
+/// Only a top-level comparison against a literal int is handled.
 #[must_use]
 fn guard_constraint(cond: &ExprNode, name: &str, negate: bool) -> Option<Interval> {
     let ExprNode::Binary { op, left, right } = cond else {
@@ -357,9 +354,9 @@ fn guard_constraint(cond: &ExprNode, name: &str, negate: bool) -> Option<Interva
     None
 }
 
-/// `(name, version) → [branch-block names]` index for guard narrowing.  Mirrors
-/// `build_guard_index`: for each `Branch` block, the names in its condition
-/// against the block's exit version of each.
+/// `(name, version) → [branch-block names]` index for guard narrowing: for
+/// each `Branch` block, the names in its condition resolved against the
+/// block's exit version of each.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn build_guard_index(cfg: &CfgFunction, ssa: &SsaFunction) -> HashMap<ValueKey, Vec<String>> {
@@ -401,7 +398,7 @@ fn dominates(ssa: &SsaFunction, ancestor: &str, node: &str) -> bool {
 }
 
 /// Narrow `base[(name, version)]` by the constant-bound guards that hold on
-/// every path reaching `block`.  Mirrors `refine_interval`.
+/// every path reaching `block`.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn refine_interval(
@@ -468,7 +465,7 @@ fn seed_const(key: &ValueKey, values: &HashMap<ValueKey, LatticeValue>) -> Optio
     }
 }
 
-/// Interval produced by `stmt` for its def `name`.  Mirrors `_transfer`.
+/// Interval produced by `stmt` for its def `name`.
 #[must_use]
 fn transfer(
     stmt: &crate::ir::Statement,
@@ -517,7 +514,7 @@ fn loop_headers(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<String> {
 
 /// Forward interval analysis over the SSA form.  `values` is the SCCP lattice;
 /// a constant integer seeds `[c, c]`.  Everything else starts `BOTTOM` and is
-/// refined to fixpoint with loop-header widening.  Mirrors `compute_intervals`.
+/// refined to fixpoint with loop-header widening.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn compute_intervals(

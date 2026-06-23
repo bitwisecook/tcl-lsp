@@ -105,7 +105,7 @@ fn yn(v: &Value) -> &'static str {
     }
 }
 
-/// An interval endpoint: `null` is ±infinity. Mirrors `_fmt_bound`.
+/// An interval endpoint: `null` is ±infinity.
 fn fmt_bound(v: &Value, positive: bool) -> String {
     if v.is_null() {
         if positive { "+inf" } else { "-inf" }.to_owned()
@@ -114,7 +114,7 @@ fn fmt_bound(v: &Value, positive: bool) -> String {
     }
 }
 
-/// A range dict → `line:col  (start…end)`. Mirrors `_rng`.
+/// A range dict → `line:col  (start…end)`.
 fn rng(r: &Value) -> String {
     if !r.is_object() {
         return "?".to_owned();
@@ -126,7 +126,7 @@ fn rng(r: &Value) -> String {
     format!("{line}:{col}  ({so}…{eo})")
 }
 
-/// Proc summary flags. Mirrors `_flags`.
+/// Proc summary flags.
 fn flags(p: &Value) -> String {
     let mut f = Vec::new();
     if p["hasBarrier"].as_bool().unwrap_or(false) {
@@ -145,7 +145,7 @@ fn flags(p: &Value) -> String {
     }
 }
 
-/// `{name#ver=lattice:type, …}` for a uses/defs map. Mirrors `_fmt_usedef`.
+/// `{name#ver=lattice:type, …}` for a uses/defs map.
 fn fmt_usedef(m: &Value) -> String {
     let Some(obj) = m.as_object() else {
         return "{}".to_owned();

@@ -42,7 +42,7 @@ pub fn render(values: &[Value], mode: &str) -> Result<String, QueryError> {
 /// The built-in output modes (`auto` / `scf` / `raw` / `paths` / `json` /
 /// `table` / `table-lineart`) ignore *opts*. Any other *mode* falls through
 /// to the renderer registry (`mermaid` / `gantt` / `ascii-blocks`), which
-/// consumes the `--render-opt KEY=VALUE` map. Port of `output.render`'s
+/// consumes the `--render-opt KEY=VALUE` map.'s
 /// dispatch, including the registry fall-through and the
 /// `unknown output mode: …` error for an unregistered name.
 ///
@@ -170,7 +170,7 @@ fn is_scalar(v: &Value) -> bool {
 }
 
 /// If every value is a scalar or a list of scalars, return the flat list;
-/// otherwise `None`. Port of `output._flatten_scalar_lists`.
+/// otherwise `None`.
 fn flatten_scalar_lists(values: &[Value]) -> Option<Vec<Value>> {
     let mut out = Vec::new();
     for v in values {

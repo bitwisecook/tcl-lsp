@@ -317,8 +317,6 @@ impl<'src> Lexer<'src> {
 
     /// Collect every token, including `SEP` and `EOL`, into a `Vec`.
     ///
-    /// Matches `TclLexer.tokenise_all` on the Python side.
-    ///
     /// # Errors
     ///
     /// Returns [`LexError::SyntaxError`] when strict-quoting mode
@@ -331,13 +329,11 @@ impl<'src> Lexer<'src> {
     /// Collect every token alongside the non-fatal warnings
     /// accumulated during lexing.
     ///
-    /// Mirrors `tokenise_all` but also surfaces the
-    /// `(offset, message)` warnings the Python side stores on
-    /// `TclLexer.warnings`. Needed by the `PyO3` fast-path so the
-    /// Python caller can merge them into its own `warnings`
-    /// list — without this, editors lose recoverable-syntax
-    /// diagnostics (extra chars after close-brace / close-quote,
-    /// unterminated strings) whenever the Rust wheel is loaded.
+    /// Like `tokenise_all` but also surfaces the `(offset, message)`
+    /// warnings, so callers can merge them into their own diagnostics.
+    /// Without these, editors lose recoverable-syntax diagnostics
+    /// (extra chars after close-brace / close-quote, unterminated
+    /// strings).
     ///
     /// # Errors
     ///
@@ -559,7 +555,7 @@ impl<'src> Lexer<'src> {
         // var `a\}b` and `${a{b}c}` reads var `a{b}c`. The Tcl(n) man
         // page's "no further substitution or modification" claim refers
         // only to `$` / `[` substitution; backslashes and inner braces
-        // ARE recognised as syntax. Mirrors `compiler/parsing/lexer.py`'s
+        // ARE recognised as syntax.'s
         // `_parse_var` braced branch.
         if self.current_byte() == Some(b'{') {
             self.pos += 1; // skip '{'
@@ -1714,10 +1710,8 @@ mod tests {
 
     #[test]
     fn var_braced_unterminated_tokenises_best_effort() {
-        // Missing `}` — Python emits a non-fatal warning and
-        // tokenises the remaining input as the variable name. L4
-        // matches the tokenisation but does not emit the warning
-        // (L9 adds warning collection).
+        // Missing `}` tokenises the remaining input as the variable
+        // name; the non-fatal warning is not yet emitted.
         let (rows, _) = var_token_text("${unterminated");
         assert_eq!(rows[0], (TokenType::Var, "unterminated".into()));
     }

@@ -815,9 +815,9 @@ impl Analyser {
             // span from the first fragment's start to the *last* fragment's
             // end.  Descending that merged span would re-lex the trailing
             // literal as a script and record a bogus head (`[foo]bar` →
-            // `foo]bar`).  Descend each `[…]` fragment instead, mirroring
-            // main's walk over the unmerged token stream; a single-fragment
-            // `[…]` word yields just itself.
+            // `foo]bar`).  Descend each `[…]` fragment instead, walking the
+            // unmerged token stream; a single-fragment `[…]` word yields
+            // just itself.
             for frag in self.cmd_fragments(arg_tok, config) {
                 collect_substitution_heads(&sm, self.registry.as_ref(), frag, config, &mut heads);
             }
@@ -1379,8 +1379,7 @@ fn record_command_invocations(
         // command substitution inside the expression is an invocation
         // too (`if {[acl_ok]} …` → `acl_ok`).  `descend_command`
         // deliberately excludes `Expr` args (they are not scripts), so
-        // handle them here — mirroring main's
-        // `_recurse_expression_subcommands`.
+        // handle them here.
         for index in registry.arg_indices_for_role(name, &args, ArgRole::Expr) {
             if let Some(&tok) = arg_tokens.get(index) {
                 collect_expr_substitutions(sm, Some(registry), tok, config, out);
@@ -1390,8 +1389,7 @@ fn record_command_invocations(
 }
 
 /// Find the ``[…]`` command substitutions inside an expression argument
-/// (`if` / `while` / `expr` conditions) and descend each — mirroring
-/// main's `_recurse_expression_subcommands`.
+/// (`if` / `while` / `expr` conditions) and descend each.
 ///
 /// An expression's own operands (`$x`, `+`, literals) are not commands,
 /// so the braced expr is re-lexed as a script (which still tokenises a

@@ -14,7 +14,7 @@
 //! name, `upvar` to a dynamic target) resolves to `UNKNOWN` / `dynamic` so the
 //! [`overlap`](crate::place::overlap) relation stays sound (over-approximating).
 //!
-//! Faithful port of `compiler/var_resolve.py` on `main`.
+//! Faithful on `main`.
 
 use std::collections::{HashMap, HashSet};
 
