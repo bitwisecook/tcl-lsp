@@ -23,8 +23,8 @@ fn cmd_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"trace option ?arg ...?\"");
     };
     match &*sub.to_str() {
-        "add" => trace_add(vm, rest),
-        "remove" => trace_remove(vm, rest),
+        "add" => trace_add_remove(vm, "add", rest, true),
+        "remove" => trace_add_remove(vm, "remove", rest, false),
         "info" => trace_info(vm, rest),
         // Legacy 8.x forms map onto the variable engine.
         "variable" => legacy_variable(vm, rest, true),
@@ -36,98 +36,92 @@ fn cmd_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-/// Parse + validate a variable-trace ops word (`{read write}`) into op names, via
-/// the shared core (this also gained the missing op validation — the VM used to
-/// accept `trace add variable v bogus cmd`).
-fn parse_ops(spec: &str) -> Result<Vec<String>, Completion<Value>> {
-    core_trace::parse_ops(spec.as_bytes(), core_trace::TraceKind::Variable)
-        .map(|ops| ops.iter().map(|o| (*o).to_string()).collect())
-        .map_err(|e| err(e.into_message()))
-}
-
-fn trace_add(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let Some((kind, args)) = rest.split_first() else {
-        return err("wrong # args: should be \"trace add type ?arg ...?\"");
+/// `trace add|remove TYPE name opList command` (the `sub` word is echoed in the
+/// wrong-`#`-args message, as C's `Tcl_WrongNumArgs(interp, 3, objv, …)` does).
+/// All three trace types take exactly `name opList command`; the type word is
+/// resolved first (a bad type out-ranks wrong-`#`-args), then the arg count, then
+/// the op list — matching `TraceVariableObjCmd`/`Command`/`Execution`'s order.
+fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Completion<Value> {
+    let Some((kindw, args)) = rest.split_first() else {
+        return err(format!(
+            "wrong # args: should be \"trace {sub} type ?arg ...?\""
+        ));
     };
     // Tcl resolves the type word with `Tcl_GetIndexFromObj`, so an
     // unambiguous prefix (`var` → `variable`) is accepted (set-2.4 / set-4.4).
-    let kind = match core_trace::resolve_type(&kind.to_str()) {
+    let typeword = kindw.to_str();
+    let kind = match core_trace::resolve_type(&typeword) {
         Ok(k) => k,
         Err(e) => return err(e.into_message()),
     };
+    let [name, ops, command] = args else {
+        return err(format!(
+            "wrong # args: should be \"trace {sub} {typeword} name opList command\""
+        ));
+    };
+    // Validate the op list against the type's table (`bad operation …`).
+    let ops: Vec<String> = match core_trace::parse_ops(ops.to_str().as_bytes(), kind) {
+        Ok(o) => o.iter().map(|s| (*s).to_string()).collect(),
+        Err(e) => return err(e.into_message()),
+    };
     match kind {
-        core_trace::TraceKind::Variable => match args {
-            [name, ops, command] => {
-                let ops = match parse_ops(&ops.to_str()) {
-                    Ok(o) => o,
-                    Err(c) => return c,
-                };
+        core_trace::TraceKind::Variable => {
+            if add {
                 vm.add_var_trace(&name.to_str(), ops, command.to_str().to_string());
-                ok(Value::empty())
-            }
-            _ => err("wrong # args: should be \"trace add variable name ops command\""),
-        },
-        // Command / execution traces: accepted, not yet fired.
-        core_trace::TraceKind::Command | core_trace::TraceKind::Execution => ok(Value::empty()),
-    }
-}
-
-fn trace_remove(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let Some((kind, args)) = rest.split_first() else {
-        return err("wrong # args: should be \"trace remove type ?arg ...?\"");
-    };
-    let kind = match core_trace::resolve_type(&kind.to_str()) {
-        Ok(k) => k,
-        Err(e) => return err(e.into_message()),
-    };
-    match kind {
-        core_trace::TraceKind::Variable => match args {
-            [name, ops, command] => {
-                let ops = match parse_ops(&ops.to_str()) {
-                    Ok(o) => o,
-                    Err(c) => return c,
-                };
+            } else {
                 vm.remove_var_trace(&name.to_str(), &ops, &command.to_str());
-                ok(Value::empty())
             }
-            _ => err("wrong # args: should be \"trace remove variable name ops command\""),
-        },
+            ok(Value::empty())
+        }
+        // Command / execution traces: validated, accepted, not yet fired.
         core_trace::TraceKind::Command | core_trace::TraceKind::Execution => ok(Value::empty()),
     }
 }
 
 fn trace_info(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let Some((kind, args)) = rest.split_first() else {
+    let Some((kindw, args)) = rest.split_first() else {
         return err("wrong # args: should be \"trace info type name\"");
     };
-    let kind = match core_trace::resolve_type(&kind.to_str()) {
+    let typeword = kindw.to_str();
+    let kind = match core_trace::resolve_type(&typeword) {
         Ok(k) => k,
         Err(e) => return err(e.into_message()),
     };
+    let [name] = args else {
+        return err(format!(
+            "wrong # args: should be \"trace info {typeword} name\""
+        ));
+    };
     match kind {
-        core_trace::TraceKind::Variable => trace_info_variable(vm, args),
+        core_trace::TraceKind::Variable => ok(var_trace_entries(vm, &name.to_str())),
         core_trace::TraceKind::Command | core_trace::TraceKind::Execution => {
             ok(Value::list(Vec::new()))
         }
     }
 }
 
-/// `trace info variable name` → list of `{ops command}` pairs (newest first).
+/// The `{ops command}` pairs registered on variable `name` (newest first), as the
+/// `trace info variable` result list.
+fn var_trace_entries(vm: &Vm, name: &str) -> Value {
+    Value::list(
+        vm.var_trace_info(name)
+            .into_iter()
+            .map(|(ops, cmd)| {
+                Value::list(vec![
+                    Value::list(ops.into_iter().map(Value::string).collect()),
+                    Value::string(cmd),
+                ])
+            })
+            .collect(),
+    )
+}
+
+/// Legacy `trace vinfo name` → the variable's `{ops command}` pairs.
 fn trace_info_variable(vm: &Vm, args: &[Value]) -> Completion<Value> {
     let [name] = args else {
         return err("wrong # args: should be \"trace info variable name\"");
     };
-    let entries: Vec<Value> = vm
-        .var_trace_info(&name.to_str())
-        .into_iter()
-        .map(|(ops, cmd)| {
-            Value::list(vec![
-                Value::list(ops.into_iter().map(Value::string).collect()),
-                Value::string(cmd),
-            ])
-        })
-        .collect();
-    ok(Value::list(entries))
+    ok(var_trace_entries(vm, &name.to_str()))
 }
 
 /// Legacy `trace variable name ops command` / `trace vdelete name ops command`.
