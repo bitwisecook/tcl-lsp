@@ -11800,6 +11800,23 @@ tricky parsing helpers):
   produced binary artifact is **byte-for-byte identical** to the Python output
   for both the verbatim path (137 KB) and a trimmed window (verified via `cmp`),
   and the `wrote N,NNN bytes` stderr matches (thousands grouping included).
+- `audit-option-dialects` (⇐ `scripts/check/audit_option_dialects.py`, landed
+  2026-06-23) — probes every `OptionSpec` dialect gate (102 `(command,
+  subcommand?, option)` probes, transcribed 1:1 in declaration order) against
+  the built tclsh 8.4/8.5/8.6/9.0 trees and writes the per-version availability
+  to `tmp/option_dialect_audit.json`. Each probe is run under a 5 s wall-clock
+  deadline (reader-threaded `std::process` runner, `LD_LIBRARY_PATH` pinned to
+  the tclsh build dir, `catch`-wrapped so runtime errors still count as
+  "option recognised"); a missing tclsh short-circuits to `"tclsh not found"`
+  exactly like the Python `exists()` check. Both the JSON artifact **and** the
+  console log are **byte-for-byte identical** to the Python — a hand-rolled
+  `json.dumps(indent=2)` emitter (no `serde_json`, so no key-order/`indent`
+  drift) plus a `repr()`-faithful diagnostic formatter (quote selection,
+  `\xNN` control escapes) and a Python-list-repr summary line. Verified by
+  diffing both streams against the Python original on the one tclsh tree built
+  in the dev env (8.4/8.5/8.6 source-only → uniform `tclsh not found`, which is
+  itself parity-correct). Pure helpers (`classify`, `py_repr`, `py_list_repr`,
+  `render_json`, `label`, probe-table integrity) carry unit tests.
 
 The Python scripts stay in place (rollout rule: fallback for one cycle). The
 scaffold is the landing point for the rest of the `build/` / `check/` /
