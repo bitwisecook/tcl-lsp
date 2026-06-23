@@ -229,7 +229,8 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
 /// Scan one field for the parsed `conv`, advancing `ii`. Returns the typed
 /// value, or `None` if nothing valid was read.
 fn scan_one(input: &[char], ii: &mut usize, conv: &ScanConversion) -> Option<Scanned> {
-    let width = conv.width.unwrap_or(usize::MAX);
+    // A width of 0 means "no limit" (`%0s` reads the whole word, scan-4.21/4.25).
+    let width = conv.width.filter(|&w| w != 0).unwrap_or(usize::MAX);
     match conv.verb {
         'c' => {
             // One character → its code point. (No width, no whitespace skip.)
