@@ -44,15 +44,32 @@ use core::ptr;
 use crate::interp::{drop_fresh, obj_bytes, Interp};
 use crate::obj::{self, new_string_bytes, TclObj};
 
+// The interp emitted modules evaluate against (see the module docs). Null until
+// the host calls [`tcl_runtime_set_current_interp`].
+//
+// Native: a `thread_local!` keeps the parallel test suite's interps isolated.
+// WASM: the bare wasip1 cdylib has no `_initialize`/TLS bootstrap, so a
+// `thread_local!` reads an uninitialised `__tls_base` and never observes
+// `set_current_interp`. WASM is single-threaded in our target, so a plain
+// `AtomicPtr` global *is* the per-module current interp — and needs no TLS init.
+#[cfg(not(target_arch = "wasm32"))]
 thread_local! {
-    /// The interp emitted modules evaluate against (see the module docs). Null
-    /// until the host calls [`tcl_runtime_set_current_interp`].
     static CURRENT_INTERP: Cell<*mut Interp> = const { Cell::new(ptr::null_mut()) };
 }
+#[cfg(target_arch = "wasm32")]
+static CURRENT_INTERP: core::sync::atomic::AtomicPtr<Interp> =
+    core::sync::atomic::AtomicPtr::new(ptr::null_mut());
 
 /// Borrow the current interp pointer (null when unset).
 fn current_interp() -> *mut Interp {
-    CURRENT_INTERP.with(Cell::get)
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        CURRENT_INTERP.with(Cell::get)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        CURRENT_INTERP.load(core::sync::atomic::Ordering::Relaxed)
+    }
 }
 
 /// Set the interp the codegen ABI evaluates against. The runtime bootstrap (or a
@@ -60,7 +77,14 @@ fn current_interp() -> *mut Interp {
 /// null to clear it (e.g. before the interp is deleted).
 #[no_mangle]
 pub extern "C" fn tcl_runtime_set_current_interp(interp: *mut Interp) {
-    CURRENT_INTERP.with(|c| c.set(interp));
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        CURRENT_INTERP.with(|c| c.set(interp));
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        CURRENT_INTERP.store(interp, core::sync::atomic::Ordering::Relaxed);
+    }
 }
 
 /// `tcl_obj_new_string(ptr, len) -> obj` — box `len` bytes of (shared linear)
@@ -128,7 +152,10 @@ pub unsafe extern "C" fn tcl_obj_release(obj: *mut TclObj) {
 
 /// `tcl_expr_bool(expr) -> i32` — evaluate `expr` as a Tcl boolean (`1`/`0`).
 /// **Adopts (frees)** the `rc 0` `expr`. On an expression error — or in a build
-/// without the numeric tower (wasm32 today, no `expr` evaluator) — yields `0`.
+/// without the numeric tower (no `expr` evaluator) — yields `0`. The wasm
+/// runtime now links libtommath (`build.rs`), so `have_tommath` is set and this
+/// uses the real evaluator there too — AOT-emitted `if`/`while` conditions
+/// evaluate correctly.
 ///
 /// # Safety
 /// `expr` must be a live `rc 0` object from [`tcl_obj_new_string`]; the current
@@ -158,8 +185,10 @@ unsafe fn expr_bool_impl(interp: *mut Interp, expr: *mut TclObj) -> i32 {
 }
 
 /// Without the numeric tower there is no `expr` evaluator (the `expr` module is
-/// `have_tommath`-gated), so conditions evaluate false until tommath-on-wasm32
-/// lands. The export still exists so emitted modules link.
+/// `have_tommath`-gated), so conditions evaluate false. This branch now only
+/// applies to a build that deliberately omits the tower (e.g. a wasm build where
+/// `zig`/libtommath was unavailable and `build.rs` degraded the backend off).
+/// The export still exists so emitted modules link.
 ///
 /// # Safety
 /// Trivially safe (dereferences nothing).
