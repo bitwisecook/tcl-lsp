@@ -77,3 +77,29 @@ impl From<HostError> for CmdError {
         Self::new(e.reason())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn canonical_tcl_error_message_formats() {
+        // The canonical Tcl error texts (`Tcl_WrongNumArgs` /
+        // bad-option) — cmd-core error.rs had no unit coverage (TEST-MIGRATE).
+        assert_eq!(CmdError::new("boom").message(), "boom");
+        assert_eq!(
+            CmdError::wrong_args("string length string").message(),
+            r#"wrong # args: should be "string length string""#
+        );
+        assert_eq!(
+            CmdError::bad_choice("option", "foo", "a, b, or c").message(),
+            r#"bad option "foo": must be a, b, or c"#
+        );
+        // `Display` mirrors the message, and `into_message` consumes it.
+        assert_eq!(
+            format!("{}", CmdError::wrong_args("x")),
+            r#"wrong # args: should be "x""#
+        );
+        assert_eq!(CmdError::new("z").into_message(), "z");
+    }
+}
