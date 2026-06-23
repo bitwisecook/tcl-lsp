@@ -41,6 +41,7 @@ const DIRECTIVES: &[&str] = &[
     "exclude",
     "provides",
     "entry",
+    "build",
 ];
 
 /// A single `require` / `dev-require` entry.
@@ -83,7 +84,22 @@ pub struct ManifestAst {
     pub excludes: Vec<Exclusion>,
     pub provides: Vec<String>,
     pub entry: String,
+    /// Optional build script (a Tcl file run, deprivileged, by `tcl pkg build`).
+    /// Data only: declaring it never causes execution. It runs solely when an
+    /// operator both enables build scripts and trusts the package.
+    pub build: BuildDecl,
     pub path: String,
+}
+
+/// A declarative build-script declaration. The script path plus the (minimal)
+/// capabilities it asks for; the sandbox grants only the intersection with
+/// policy.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BuildDecl {
+    /// Path to the build script, relative to the manifest. Empty when absent.
+    pub script: String,
+    /// Whether the build script requests network access.
+    pub network: bool,
 }
 
 impl Default for ManifestAst {
@@ -102,6 +118,7 @@ impl Default for ManifestAst {
             excludes: Vec::new(),
             provides: Vec::new(),
             entry: String::new(),
+            build: BuildDecl::default(),
             path: String::new(),
         }
     }
@@ -267,6 +284,20 @@ fn dispatch(ast: &mut ManifestAst, name: &str, args: &[String]) -> Result<(), St
         "entry" => {
             require_arity("entry", args, 1, 1)?;
             ast.entry.clone_from(&args[0]);
+        }
+        "build" => {
+            // `build <script> ?-network?` — declaration only; never executed here.
+            require_arity("build", args, 1, 2)?;
+            if !ast.build.script.is_empty() {
+                return Err("build directive already set".to_string());
+            }
+            ast.build.script.clone_from(&args[0]);
+            for opt in &args[1..] {
+                match opt.as_str() {
+                    "-network" => ast.build.network = true,
+                    other => return Err(format!("build: unknown option '{other}'")),
+                }
+            }
         }
         _ => unreachable!("dispatch only called for whitelisted directives"),
     }
