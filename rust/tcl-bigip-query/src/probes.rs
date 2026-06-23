@@ -254,7 +254,7 @@ fn key_alg_and_size(spki: &SubjectPublicKeyInfo<'_>) -> (Option<String>, Option<
         Ok(PublicKey::RSA(rsa)) => Some(rsa.key_size() as u32),
         Ok(PublicKey::EC(ec)) => Some(ec_curve_bits(spki).unwrap_or_else(|| ec.key_size() as u32)),
         Ok(PublicKey::DSA(_)) => dsa_key_size(spki),
-        // Ed25519 / Ed448 carry no `key_size` attribute in cryptography → None.
+        // Ed25519 / Ed448 have no key-size → None.
         _ => None,
     };
     (key_alg, key_size)
@@ -275,9 +275,8 @@ fn pubkey_class_name(oid: &str) -> Option<String> {
     Some(name.to_owned())
 }
 
-/// EC key size from the named-curve OID, matching `curve.key_size` in
-/// `cryptography` (the field size in bits — 521 for P-521, not the 528 a
-/// byte-rounded measure gives).
+/// EC key size from the named-curve OID — the field size in bits
+/// (521 for P-521, not the 528 a byte-rounded measure gives).
 fn ec_curve_bits(spki: &SubjectPublicKeyInfo<'_>) -> Option<u32> {
     let oid = spki.algorithm.parameters.as_ref()?.as_oid().ok()?;
     Some(match oid.to_id_string().as_str() {
@@ -318,7 +317,7 @@ fn be_int_bit_length(bytes: &[u8]) -> u32 {
     }
 }
 
-/// Map a signature-algorithm OID to `cryptography`'s `oid._name`.
+/// Map a signature-algorithm OID to its short name.
 fn sig_alg_name(oid: &str) -> String {
     let name = match oid {
         "1.2.840.113549.1.1.4" => "md5WithRSAEncryption",
@@ -338,14 +337,14 @@ fn sig_alg_name(oid: &str) -> String {
         "2.16.840.1.101.3.4.3.2" => "dsa-with-sha256",
         "1.3.101.112" => "ed25519",
         "1.3.101.113" => "ed448",
-        // `cryptography` returns "Unknown OID" for unrecognised OIDs.
+        // Unrecognised OIDs map to "Unknown OID".
         _ => return "Unknown OID".to_owned(),
     };
     name.to_owned()
 }
 
-/// Map the DER version byte (0-indexed) to `cryptography`'s
-/// `CertificateVersion.name` (`v1` / `v3`).
+/// Map the DER version byte (0-indexed) to the certificate version name
+/// (`v1` / `v3`).
 fn version_name(raw: u32) -> String {
     match raw {
         0 => "v1",
@@ -357,7 +356,7 @@ fn version_name(raw: u32) -> String {
 }
 
 /// Wrap a `SubjectPublicKeyInfo` DER blob as a `-----BEGIN PUBLIC KEY-----`
-/// PEM, matching `public_key.public_bytes(PEM, SubjectPublicKeyInfo)`.
+/// PEM (the SubjectPublicKeyInfo DER base64-wrapped in PEM armor).
 fn spki_to_pem(spki_der: &[u8]) -> String {
     let b64 = base64::engine::general_purpose::STANDARD.encode(spki_der);
     let mut out = String::from("-----BEGIN PUBLIC KEY-----\n");
@@ -371,7 +370,7 @@ fn spki_to_pem(spki_der: &[u8]) -> String {
 
 // x509_eq / x509_from_config — deterministic projections
 
-/// Port of `_probes.x509_eq`.
+/// Structural equality of two parsed x509 dicts.
 pub(crate) fn x509_eq(left: &Value, right: &Value) -> bool {
     let (Value::Object(l), Value::Object(r)) = (as_dict(left), as_dict(right)) else {
         return crate::value::py_eq(left, right);
@@ -401,8 +400,8 @@ fn dict_str(map: &IndexMap<String, Value>, key: &str) -> String {
     }
 }
 
-/// Map BIG-IP `key-type` tokens to the same `key_alg` strings `cryptography`
-/// produces.
+/// Map BIG-IP `key-type` tokens to the `key_alg` strings the x509 parse
+/// uses.
 fn key_type_to_key_alg(key_type: &str) -> Option<&'static str> {
     Some(match key_type {
         "rsa-public" | "rsa-private" => "RSAPublicKey",
@@ -414,9 +413,8 @@ fn key_type_to_key_alg(key_type: &str) -> Option<&'static str> {
     })
 }
 
-/// Port of `_probes.x509_from_config` — project a BIG-IP config-object cert
-/// into the `x509_parse` shape. `cert` is an `ObjectRef` (or dict) carrying
-/// the BIG-IP cert metadata fields.
+/// Project a BIG-IP config-object cert into the `x509_parse` shape. `cert`
+/// is an `ObjectRef` (or dict) carrying the BIG-IP cert metadata fields.
 pub(crate) fn x509_from_config(cert: &Value) -> Result<Value, QueryError> {
     if matches!(cert, Value::Null) {
         return Err(QueryError::builtin("x509_from_config: cannot project None"));
@@ -506,7 +504,7 @@ pub(crate) fn x509_from_config(cert: &Value) -> Result<Value, QueryError> {
     Ok(Value::Object(m))
 }
 
-/// Port of `x509_from_config._get` — accept attribute / dict-key / `ObjectRef`
+/// Read a config field — accept attribute / dict-key / `ObjectRef`
 /// field form, with both `_`-and-`-` spellings, stripping surrounding quotes.
 fn field_get(cert: &Value, name: &str) -> String {
     let tmsh_name = name.replace('_', "-");
@@ -545,7 +543,7 @@ fn scalar_str(v: &Value) -> String {
     }
 }
 
-/// Port of `_parse_x509_date` — TMSH `expiration-string` → ISO-8601 UTC.
+/// Parse a TMSH `expiration-string` → ISO-8601 UTC.
 fn parse_x509_date(text: &str) -> Option<String> {
     use chrono::{NaiveDateTime, TimeZone as _, Utc};
     if text.is_empty() {
@@ -578,13 +576,12 @@ fn parse_x509_date(text: &str) -> Option<String> {
 
 // cert_load — read a cert file from disk into the x509_parse shape
 
-/// Port of `builtins._builtin_cert_load` / `_probes` x509 loaders.
+/// Read a cert file from disk into the x509 parse shape.
 ///
 /// PEM (one or many `CERTIFICATE` blocks) and single DER certs are parsed
 /// byte-identically to `x509_parse`. A single cert returns the dict; multiple
 /// return a list in file order. PKCS#12 (`.pfx` / `.p12`) is unsupported and
-/// returns a clear `BuiltinError` (it needs the `cryptography` PKCS#12
-/// decoder).
+/// returns a clear `BuiltinError` (PKCS#12 decoding is not supported).
 pub(crate) fn cert_load(path: &str, _password: Option<&str>) -> Result<Value, QueryError> {
     let expanded = expanduser(path);
     let raw = match std::fs::read(&expanded) {
@@ -626,7 +623,7 @@ pub(crate) fn cert_load(path: &str, _password: Option<&str>) -> Result<Value, Qu
             Value::List(parsed)
         });
     }
-    // PKCS#12 detection by extension — unsupported (needs the cryptography decoder).
+    // PKCS#12 detection by extension — PKCS#12 decoding is not supported.
     let suffix = expanded
         .rsplit_once('.')
         .map_or(String::new(), |(_, s)| s.to_lowercase());
@@ -660,8 +657,8 @@ fn expanduser(path: &str) -> String {
     path.to_owned()
 }
 
-/// Port of `builtins._split_pem_blocks` — one PEM string per `CERTIFICATE`
-/// block, in file order (key / other block types skipped).
+/// Split into one PEM string per `CERTIFICATE` block, in file order
+/// (key / other block types skipped).
 fn split_pem_blocks(text: &str) -> Vec<String> {
     let mut blocks: Vec<String> = Vec::new();
     let mut in_cert = false;
@@ -699,7 +696,7 @@ fn ok_rtt_error(ok: bool, rtt_ms: Option<f64>, error: Option<String>) -> Value {
     Value::Object(m)
 }
 
-/// Port of `_probes.dns` — forward DNS via the system resolver. Returns the
+/// Forward DNS via the system resolver. Returns the
 /// sorted, unique list of resolved addresses (empty on failure).
 pub(crate) fn dns(name: &str) -> Vec<Value> {
     // Mirrors `getaddrinfo(name, None, type=SOCK_STREAM)`. `(host, 0)` with
@@ -713,9 +710,9 @@ pub(crate) fn dns(name: &str) -> Vec<Value> {
     addrs.into_iter().map(Value::Str).collect()
 }
 
-/// Port of `_probes.rev_dns` — reverse DNS (`gethostbyaddr`-style). Returns the
+/// Reverse DNS (`gethostbyaddr`-style). Returns the
 /// canonical name (empty on failure). `getnameinfo` yields one name, so the
-/// alias list the canonical path collects is not reproduced (best-effort parity).
+/// alias list a fuller resolver collects is not reproduced (best-effort parity).
 pub(crate) fn rev_dns(ip: &str) -> Vec<Value> {
     let Ok(addr) = ip.parse::<std::net::IpAddr>() else {
         return Vec::new();
@@ -726,7 +723,7 @@ pub(crate) fn rev_dns(ip: &str) -> Vec<Value> {
     }
 }
 
-/// Port of `_probes.ping` — ICMP echo via the system `ping` command.
+/// ICMP echo via the system `ping` command.
 pub(crate) fn ping(ip: &str) -> Value {
     let timeout_s = 2u64;
     let output = std::process::Command::new("ping")
@@ -764,7 +761,7 @@ fn parse_ping_rtt(stdout: &str) -> Option<f64> {
     None
 }
 
-/// Port of `_probes.portping` — TCP connect / UDP send timing.
+/// TCP connect / UDP send timing.
 pub(crate) fn portping(ip: &str, port: i64, protocol: &str) -> Result<Value, QueryError> {
     let proto = protocol.to_lowercase();
     if proto != "tcp" && proto != "udp" {
@@ -812,7 +809,7 @@ pub(crate) fn portping(ip: &str, port: i64, protocol: &str) -> Result<Value, Que
     }
 }
 
-/// Port of `_probes.traceroute` — subprocess `traceroute` invocation.
+/// Subprocess `traceroute` invocation.
 pub(crate) fn traceroute(ip: &str) -> Value {
     let max_hops = 30u32;
     let timeout_s = 2u32;
@@ -881,7 +878,7 @@ pub(crate) fn traceroute(ip: &str) -> Value {
     Value::List(hops)
 }
 
-/// Port of `_probes.socket_get` — TCP connect, optional send, read a banner.
+/// TCP connect, optional send, read a banner.
 pub(crate) fn socket_get(host: &str, port: i64, send: &str) -> Result<Value, QueryError> {
     let recv_max = 4096usize;
     let timeout = Duration::from_secs(5);
@@ -981,7 +978,7 @@ use crate::builtins::{BuiltinSpec, as_int, as_str, ctx, plain};
 use crate::eval::EvalContext;
 
 /// Optional positional-string arg with a default, matching the
-/// `protocol="tcp"` / `send=""` / `sni=None` keyword defaults.
+/// `protocol`=`tcp` / `send`=empty / `sni`=none parameter defaults.
 fn opt_str<'a>(
     args: &'a [Value],
     idx: usize,
@@ -994,7 +991,7 @@ fn opt_str<'a>(
     }
 }
 
-// `dns` / `rev_dns` are NOT gated (they have no `_require_probes`
+// `dns` / `rev_dns` are NOT gated (they have no probe-gate
 // call) — a forward / reverse name lookup is treated as benign. They stay
 // `Plain` to match: a bare `dns("host")` resolves without `--enable-probes`.
 fn bi_dns(args: &[Value]) -> Result<Value, QueryError> {

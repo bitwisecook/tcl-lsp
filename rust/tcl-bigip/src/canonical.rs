@@ -1,6 +1,6 @@
-//! Canonical JSON serialisation matching the `_rust_bridge` schema, so
-//! `rebuild(config_to_canonical(rust_parse(src)))` reconstructs the exact
-//! canonical structs the `f5` layer consumes.
+//! Canonical JSON serialisation matching the reference schema, so a round-trip
+//! through `config_to_canonical` reconstructs the exact canonical structs the
+//! consumer layer expects.
 //!
 //! Tags: `{"r":[6]}` Range, `{"S":[2]}` SourceSpan, `{"e":NAME}` enum,
 //! `{"s":STR}` scalar value, `{"t":[…]}` tuple, `{"m":{…}}` dict,
@@ -73,13 +73,13 @@ pub fn opt_scalar<T: std::fmt::Display>(v: Option<&T>) -> Value {
     v.map_or(Value::Null, |x| scalar(x))
 }
 
-/// Canonical form of a `Vec<String>` (a `tuple[str, ...]`).
+/// Canonical form of a `Vec<String>` (a tuple of strings).
 #[must_use]
 pub fn vec_str(v: &[String]) -> Value {
     json!({"t": v.iter().map(|s| Value::String(s.clone())).collect::<Vec<_>>()})
 }
 
-/// Canonical form of a `tuple[T, ...]` of nested dataclasses.
+/// Canonical form of a tuple of nested structured values.
 #[must_use]
 pub fn vec_tagged<T: Canon>(v: &[T]) -> Value {
     json!({"t": v.iter().map(tagged).collect::<Vec<_>>()})

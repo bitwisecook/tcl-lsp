@@ -17,11 +17,11 @@
 //!   / …) is implemented against the exact IANA special-purpose-address range
 //!   tables, because std's equivalents are unstable on
 //!   stable Rust and would not build under `unsafe_code = "forbid"`.
-//! - `collapse_cidrs` reproduces `ipaddress.collapse_addresses`; range
-//!   summarisation reproduces `ipaddress.summarize_address_range`.
-//! - Error message text (including the interpolated `ipaddress` `ValueError`
-//!   strings, e.g. `'x' does not appear to be an IPv4 or IPv6 address`) is
-//!   reproduced verbatim.
+//! - `collapse_cidrs` collapses adjacent / overlapping CIDRs; range
+//!   summarisation turns an address range into a minimal CIDR list.
+//! - Error message text (including the interpolated address / network
+//!   `ValueError` strings, e.g. `'x' does not appear to be an IPv4 or IPv6
+//!   address`) is reproduced verbatim.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
@@ -189,7 +189,7 @@ fn coerce_pathlike(v: &Value, name: &str, arg: usize) -> Result<String, QueryErr
     }
 }
 
-/// Repr-style rendering of a string (single-quoted, like `{x!r}`). The inputs
+/// Repr-style rendering of a string (single-quoted). The inputs
 /// we interpolate are address tokens — plain ASCII without quotes — so a simple
 /// single-quote wrap matches the repr quoting for the cases we hit.
 fn py_str_repr(s: &str) -> String {
@@ -203,7 +203,7 @@ fn py_str_repr(s: &str) -> String {
     }
 }
 
-/// The `ipaddress.ip_address` `ValueError` text.
+/// The address-parse `ValueError` text.
 fn addr_value_error(text: &str) -> String {
     format!(
         "{} does not appear to be an IPv4 or IPv6 address",
@@ -211,7 +211,7 @@ fn addr_value_error(text: &str) -> String {
     )
 }
 
-/// The `ipaddress.ip_network` `ValueError` text.
+/// The network-parse `ValueError` text.
 fn net_value_error(text: &str) -> String {
     format!(
         "{} does not appear to be an IPv4 or IPv6 network",
@@ -221,15 +221,15 @@ fn net_value_error(text: &str) -> String {
 
 // IP address parsing + classification
 
-/// Parse a bare host (v4 or v6) the way `ipaddress.ip_address` does.
+/// Parse a bare host (v4 or v6).
 /// Parsing is strict: it rejects leading zeros in IPv4 octets, zone ids, etc.
 /// `std`'s parser matches on the shapes we care about.
 fn parse_ip_address(text: &str) -> Option<IpAddr> {
-    // `ipaddress.ip_address` does not strip whitespace; callers strip first.
+    // Address parsing does not strip whitespace; callers strip first.
     text.parse::<IpAddr>().ok()
 }
 
-/// A parsed network, mirroring `ipaddress.ip_network(text, strict=False)`.
+/// A parsed network, from a non-strict network parse (host bits allowed).
 #[derive(Clone, Copy)]
 enum Net {
     V4(Ipv4Net),
@@ -293,8 +293,8 @@ impl Net {
     }
 }
 
-/// Parse a CIDR network with `strict=False`, accepting integer-prefix and
-/// (IPv4) dotted-quad-netmask spellings the way `ipaddress.ip_network` does.
+/// Parse a CIDR network non-strictly, accepting integer-prefix and
+/// (IPv4) dotted-quad-netmask spellings.
 fn parse_network(text: &str) -> Result<Net, String> {
     // `ipnet` already accepts `addr/prefixlen` and masks host bits via
     // `.trunc()`. It does NOT accept dotted-quad netmasks, so handle those.
@@ -1524,8 +1524,8 @@ fn bi_broadcast_address(args: &[Value]) -> Result<Value, QueryError> {
     }
 }
 
-/// `ipaddress.IPv*Network.hosts()` first / last, then the `first_host` /
-/// `last_host` fallback to the network address when `hosts()` is empty.
+/// First / last usable host of the network, then the `first_host` /
+/// `last_host` fallback to the network address when the host range is empty.
 ///
 /// `hosts()` excludes the network + broadcast addresses for IPv4 prefixes
 /// shorter than /31, and the network address for IPv6 prefixes shorter than
@@ -1651,7 +1651,7 @@ fn collapse_v6(nets: &[Ipv6Net]) -> Vec<Ipv6Net> {
 }
 
 /// Collapse a set of `[first, last]` ranges into the minimal sorted list of
-/// CIDR `(network_int, prefix)` pairs — reproduces `collapse_addresses`.
+/// CIDR `(network_int, prefix)` pairs.
 fn collapse_ranges(ranges: &[(u128, u128)], max_prefix: u8) -> Vec<(u128, u8)> {
     if ranges.is_empty() {
         return Vec::new();
@@ -1680,7 +1680,7 @@ fn collapse_ranges(ranges: &[(u128, u128)], max_prefix: u8) -> Vec<(u128, u8)> {
     out
 }
 
-/// Reproduce `ipaddress.summarize_address_range(first, last)` as
+/// Summarise the address range `[first, last]` as
 /// `(network_int, prefix)` pairs, appended to `out`.
 fn summarize_range(first: u128, last: u128, max_prefix: u8, out: &mut Vec<(u128, u8)>) {
     let mut first = first;
@@ -1746,7 +1746,7 @@ fn bi_supernet_of(args: &[Value]) -> Result<Value, QueryError> {
     let highest = nets.iter().map(|n| n.broadcast_int()).max().unwrap();
     let mut prefix = nets.iter().map(|n| n.prefix_len()).min().unwrap();
     loop {
-        // candidate = ip_network((lowest, prefix), strict=False)
+        // candidate = the network for (lowest, prefix), host bits masked off
         let (cand_net, cand_bcast) = network_at(lowest, prefix, max_prefix);
         if cand_net <= lowest && cand_bcast >= highest {
             let addr = format_ip_int(cand_net, is_v4);
@@ -1765,7 +1765,7 @@ fn bi_supernet_of(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 /// `(network_addr, broadcast_addr)` ints for the network containing `addr`
-/// with the given `prefix` (strict=False masking).
+/// with the given `prefix` (host bits masked off).
 fn network_at(addr: u128, prefix: u8, max_prefix: u8) -> (u128, u128) {
     let host_bits = u32::from(max_prefix - prefix);
     let mask = if host_bits >= 128 {
@@ -1933,7 +1933,7 @@ fn bi_with_host(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Str(dest.render()))
 }
 
-/// FQDN parse `ValueError` text (best-effort; matches `_address.FQDN.parse`).
+/// FQDN parse `ValueError` text (best-effort).
 fn fqdn_value_error(text: &str) -> String {
     let t = text.trim();
     if t.is_empty() {

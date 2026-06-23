@@ -1,9 +1,8 @@
 //! Golden differential test for the deterministic probe surface.
 //!
-//! Two byte-parity guarantees are asserted against `tests/fixtures/probes.json`
-//! (captured with `cryptography>=48`):
+//! Two byte-parity guarantees are asserted against `tests/fixtures/probes.json`:
 //!
-//! 1. `x509_parse(<pem>)` — the rich `cryptography`-shaped dict (subject /
+//! 1. `x509_parse(<pem>)` — the rich x509 dict (subject /
 //!    issuer / serial / validity / SANs / fingerprint / key-alg / key-size /
 //!    sig-alg / version / public-key PEM) must match the golden exactly.
 //! 2. The `--enable-probes` gating error for every gated network builtin

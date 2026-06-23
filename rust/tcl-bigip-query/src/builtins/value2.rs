@@ -8,14 +8,14 @@
 //!   of `contains`; both delegate to the already-registered implementations
 //!   via [`crate::builtins::lookup`] with the arguments swapped, so their
 //!   coercion / error wording matches the originals exactly.
-//! - `all` / `any` flatten one level (`_flatten_one_level`) before applying
-//!   `_truthy`, recovering the "did the predicate hold?" semantics for
+//! - `all` / `any` flatten one level before applying the truthiness test,
+//!   recovering the "did the predicate hold?" semantics for
 //!   `any(stream | map(predicate))`.
 //! - `halt` / `halt_error` raise `BuiltinError`; `halt_error` reads an
 //!   optional integer exit-code argument (default 5) and produces the
 //!   `halt_error: query halted (exit_code=N)` text.
 //! - `json_parse` parses a JSON string into the value model (objects
-//!   preserve key order, integers stay `Int`); its `JSONDecodeError` line /
+//!   preserve key order, integers stay `Int`); the JSON parse-error line /
 //!   column wording is custom (divergent), so error cases stay out of the
 //!   golden fixture.
 //! - `partition` / `basename` / `with_partition` are TMSH path-string
@@ -113,7 +113,7 @@ fn bi_path(args: &[Value]) -> Result<Value, QueryError> {
 fn bi_json_parse(args: &[Value]) -> Result<Value, QueryError> {
     let text = as_str(&args[0], "json_parse", 1)?;
     let parsed: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
-        // Our JSONDecodeError wording is custom (divergent); keep error cases
+        // The JSON parse-error wording is custom (divergent); keep error cases
         // out of the fixture. We surface the parse failure with line/column to
         // stay shape-compatible.
         QueryError::builtin(format!(
@@ -195,8 +195,8 @@ fn bi_partition(args: &[Value]) -> Result<Value, QueryError> {
     if !s.starts_with('/') {
         return Ok(Value::Str(String::new()));
     }
-    // `s.split("/", 2)` => ["", first, rest?]; index 1 is the first
-    // segment after the leading slash.
+    // Split on `/` into at most 3 parts => ["", first, rest?]; index 1 is the
+    // first segment after the leading slash.
     let part = s.split('/').nth(1).unwrap_or("");
     Ok(Value::Str(part.to_string()))
 }
