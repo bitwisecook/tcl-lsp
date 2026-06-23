@@ -260,7 +260,16 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     let (params_vec, has_args) = match parse_params(&parts[0].to_str()) {
         Ok(p) => p,
-        Err(e) => return err(e),
+        Err(e) => {
+            // A malformed parameter list errors "while parsing the lambda": add
+            // the `(parsing lambda expression "<lambda>")` context frame so the
+            // enclosing `apply` INVOKE logs "invoked from within" (apply-2.*).
+            vm.seed_error_info_frame(
+                &e,
+                &format!("\n    (parsing lambda expression \"{}\")", lambda.to_str()),
+            );
+            return err(e);
+        }
     };
     let body = parts[1].clone();
     let Some(body_asm) = vm.compile_dynamic_body(&body.to_str()) else {

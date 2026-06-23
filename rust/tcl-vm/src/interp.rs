@@ -1709,6 +1709,17 @@ impl Vm {
         self.error_logged = false;
     }
 
+    /// Seed `errorInfo` for an error that *originates* in a command (not from a
+    /// sub-command) with a context frame (C's `Tcl_AppendObjToErrorInfo`): start
+    /// it from `msg` if unset, append `frame` verbatim, and clear `error_logged`
+    /// so the enclosing command then logs its `invoked from within` frame.
+    /// Used by `apply` for the `(parsing lambda expression "…")` frame.
+    pub(crate) fn seed_error_info_frame(&mut self, msg: &str, frame: &str) {
+        let info = self.error_info.get_or_insert_with(|| msg.to_string());
+        info.push_str(frame);
+        self.error_logged = false;
+    }
+
     /// The current call frame's proc name (unqualified), or `None` at the global
     /// frame / a non-proc activation.
     pub(crate) fn current_proc_name(&self) -> Option<String> {
