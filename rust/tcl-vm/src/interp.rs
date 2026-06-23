@@ -308,7 +308,7 @@ impl Vm {
         self.write_scalar_raw("argv0", Value::string("tcltest"));
         self.write_scalar_raw("argc", Value::int(0));
         self.write_scalar_raw("tcl_version", Value::string("9.0"));
-        self.write_scalar_raw("tcl_patchLevel", Value::string("9.0.0"));
+        self.write_scalar_raw("tcl_patchLevel", Value::string("9.0.3"));
         self.write_scalar_raw("tcl_interactive", Value::int(0));
         // `tcl_library` is the directory holding the script library; C Tcl's
         // init derives it from `$env(TCL_LIBRARY)` (set when the caller points
@@ -496,6 +496,24 @@ impl Vm {
     /// namespace: an absolute `::a::b` name resolves exactly; an unqualified /
     /// relatively-qualified name is tried in the current namespace, then the
     /// global namespace (where builtins live).
+    /// The registered `tcl::mathfunc::*` function names, for `info functions`.
+    pub(crate) fn math_function_names(&self) -> Vec<String> {
+        self.commands
+            .keys()
+            .filter_map(|k| k.strip_prefix("tcl::mathfunc::").map(str::to_owned))
+            .collect()
+    }
+
+    /// The `info cmdtype` kind of `name` (`native`/`proc`/`alias`), or `None`
+    /// when there is no such command.
+    pub(crate) fn command_kind(&self, name: &str) -> Option<&'static str> {
+        self.lookup_command(name).map(|c| match c {
+            Command::Builtin(_) => "native",
+            Command::Proc(_) => "proc",
+            Command::Alias(_) => "alias",
+        })
+    }
+
     pub(crate) fn lookup_command(&self, name: &str) -> Option<Command> {
         if let Some(abs) = name.strip_prefix("::") {
             return self.commands.get(abs).cloned();
