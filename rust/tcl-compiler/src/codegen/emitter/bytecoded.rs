@@ -78,12 +78,12 @@ pub fn dispatch_codegen_hook(
 
 // ── list ──────────────────────────────────────────────────────────
 
-/// `llength $list` → `emit_value list; LIST_LENGTH; POP`.
+/// `llength $list` → `emit_word list; LIST_LENGTH; POP`.
 fn llength(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if args.len() != 1 {
         return false;
     }
-    ctx.emit_value_interpolated(&args[0]);
+    ctx.emit_word_arg(0, &args[0]);
     ctx.emit(Op::LIST_LENGTH, vec![]);
     ctx.emit(Op::POP, vec![]);
     true
@@ -658,8 +658,8 @@ fn concat_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         ctx.emit(Op::POP, vec![]);
         return true;
     }
-    for a in args {
-        ctx.emit_value_interpolated(a);
+    for (i, a) in args.iter().enumerate() {
+        ctx.emit_word_arg(i, a);
     }
     ctx.emit(Op::CONCAT_STK, vec![Operand::Imm(bytecode_imm(args.len()))]);
     ctx.emit(Op::POP, vec![]);

@@ -213,6 +213,58 @@ fn builtin_errors_publish_their_error_code() {
     assert_eq!(result, "NONE");
 }
 
+/// `ledit listVar first last ?element ...?` is the in-place `lreplace` (Tcl 9):
+/// it edits the list held in the variable, stores the result back, and returns
+/// it. A missing array element reports the array-specific read error. Regression
+/// for lreplace.test's ledit battery.
+#[test]
+fn ledit_edits_in_place_and_reports_array_miss() {
+    let (ok, result, _) = run("set l {1 2 3 4 5}\nledit l 1 1 a b\nset l");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "1 a b 3 4 5");
+
+    let (ok, result, _) = run(concat!(
+        "unset -nocomplain arr\nset arr(y) y\n",
+        "catch {ledit arr(x) 0 0 x} m\nset m",
+    ));
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "can't read \"arr(x)\": no such element in array");
+}
+
+/// `concat` trims surrounding whitespace per element, but a trailing space
+/// escaped by an odd run of backslashes (`\ `) is part of the element and kept
+/// — C's `Tcl_ConcatObj` (lreplace.test ledit-1.25, concat-4.2).
+#[test]
+fn concat_keeps_backslash_escaped_trailing_space() {
+    // Braced `{a\ }` is the literal `a`, `\`, ` `; the trailing space is escaped
+    // by the backslash, so concat keeps it and adds its own join space.
+    let (ok, result, _) = run("concat {a\\ } b");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "a\\  b");
+
+    let (ok, result, _) = run("concat {  a b  } {  c  }");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "a b c"); // plain whitespace is trimmed
+}
+
+/// A codegen hook (`concat`, `llength`, …) collapses a non-braced literal
+/// argument's backslash escapes exactly like the generic per-word path — a
+/// braced word stays verbatim. Regression for concat-1.4 / llength-2.3, where
+/// the hook pushed the raw word and so saw `a\{` instead of `a{`.
+#[test]
+fn list_hooks_collapse_nonbraced_backslashes() {
+    // Non-braced `a\{` collapses to `a{`; the braced `{b \{c d}` stays literal.
+    let (ok, result, _) = run("concat a\\{ {b \\{c d} \\{d");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "a{ b \\{c d {d");
+
+    // llength of a quoted literal whose `\{` collapses to a bare `{` errors as
+    // an unmatched open brace, rather than counting it as an escaped element.
+    let (ok, result, _) = run("set rc [catch {llength \"a b c \\{\"} m]\nlist $rc $m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "1 {unmatched open brace in list}");
+}
+
 /// A brace-string array-element target keeps its key LITERAL: `set {a($x)} 5`
 /// stores the element whose key is the literal string `$x` (Tcl braces suppress
 /// substitution), so reading it back with the same braced key returns the value

@@ -27,6 +27,7 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("lrepeat", cmd_lrepeat);
     vm.register("linsert", cmd_linsert);
     vm.register("lreplace", cmd_lreplace);
+    vm.register("ledit", cmd_ledit);
     vm.register("lsearch", cmd_lsearch);
     vm.register("lsort", cmd_lsort);
     vm.register("concat", cmd_concat);
@@ -148,6 +149,28 @@ fn cmd_lreplace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"lreplace list first last ?element ...?\"");
     };
     adapt(list_core::lreplace(vm, list, from, to, rest))
+}
+
+/// `ledit listVar first last ?element ...?` — the in-place `lreplace` (Tcl 9):
+/// replace the `first..last` range of the list held in `listVar` with the given
+/// elements, store the result back into the variable, and return it. The write
+/// goes through `var_set`, so it fires the variable's write traces.
+fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [name, from, to, rest @ ..] = args else {
+        return err("wrong # args: should be \"ledit listVar first last ?element ...?\"");
+    };
+    let n = name.to_str();
+    let Some(cur) = vm.var_get(&n) else {
+        return err(vm.read_miss_msg(&n));
+    };
+    let result = match list_core::lreplace(vm, &cur, from, to, rest) {
+        Ok(v) => v,
+        Err(e) => return err(e.into_message()),
+    };
+    if let Err(e) = vm.var_set(&n, result.clone()) {
+        return e;
+    }
+    ok(result)
 }
 
 /// `lsearch ?-option value ...? list pattern` — a thin adapter over the shared

@@ -114,6 +114,12 @@ pub struct CodegenCtx<'r> {
     /// each command's surface text for `errorInfo` (`while executing "…"`).
     /// Empty when the caller did not supply it (hand-built test contexts).
     source: std::rc::Rc<str>,
+    /// Per-argument "is a braced (`{…}`) word" flags for the command currently
+    /// dispatching to a codegen hook (`try_bytecoded`). Set by [`Self::emit_call`]
+    /// from the command's tokens and consulted by [`Self::emit_word_arg`] so a
+    /// hook collapses a non-braced literal's backslashes exactly like the generic
+    /// per-word path. Empty for hand-built test contexts (treated as non-braced).
+    cmd_arg_braced: Vec<bool>,
 }
 
 impl<'r> CodegenCtx<'r> {
@@ -150,6 +156,7 @@ impl<'r> CodegenCtx<'r> {
             current_span: None,
             registry,
             source: "".into(),
+            cmd_arg_braced: Vec::new(),
         }
     }
 

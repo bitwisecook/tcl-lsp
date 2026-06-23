@@ -173,12 +173,42 @@ pub fn concat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {
     let mut parts: Vec<String> = Vec::new();
     for v in args {
         let s = ops.as_str(v);
-        let t = s.trim_matches(TCL_WS);
+        let t = trim_concat_element(&s);
         if !t.is_empty() {
             parts.push(t.to_string());
         }
     }
     ops.new_string(parts.join(" "))
+}
+
+/// Trim leading/trailing whitespace from one `concat` element, matching C's
+/// `Tcl_ConcatObj` (`TclTrimLeft`/`TclTrimRight`). The right trim is
+/// backslash-aware: a trailing whitespace byte escaped by an odd run of
+/// backslashes (`\ `) is part of the element and kept, so `concat "a\ " b`
+/// yields `a\  b` rather than `a b` (lreplace.test ledit-1.25). A leading
+/// whitespace byte can never be escaped (the escaping `\` would precede it), so
+/// the left trim is plain. Shared with the VM's inline `concatStk` opcode.
+#[must_use]
+pub fn trim_concat_element(s: &str) -> &str {
+    let bytes = s.as_bytes();
+    let is_ws = |b: u8| TCL_WS.contains(&(b as char));
+    let mut start = 0;
+    while start < bytes.len() && is_ws(bytes[start]) {
+        start += 1;
+    }
+    let mut end = bytes.len();
+    while end > start && is_ws(bytes[end - 1]) {
+        let backslashes = bytes[start..end - 1]
+            .iter()
+            .rev()
+            .take_while(|&&b| b == b'\\')
+            .count();
+        if backslashes % 2 == 1 {
+            break; // escaped whitespace: part of the element.
+        }
+        end -= 1;
+    }
+    &s[start..end]
 }
 
 /// `join list ?joinString?` (default separator a single space).

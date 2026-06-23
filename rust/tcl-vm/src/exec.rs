@@ -1090,11 +1090,16 @@ impl Vm {
                 let n = usize::try_from(imm0(instr)).unwrap_or(0);
                 let take = f.stack.len().saturating_sub(n);
                 let vals: Vec<Value> = f.stack.split_off(take);
+                // Backslash-aware trim per element (C `Tcl_ConcatObj`), shared
+                // with the `concat` builtin so `concat "a\ " b` keeps the
+                // escaped trailing space.
                 let joined = vals
                     .iter()
                     .map(Value::to_str)
-                    .filter(|s| !s.trim().is_empty())
-                    .map(|s| s.trim().to_string())
+                    .filter_map(|s| {
+                        let t = tcl_cmd_core::list::trim_concat_element(&s);
+                        (!t.is_empty()).then(|| t.to_string())
+                    })
                     .collect::<Vec<_>>()
                     .join(" ");
                 f.stack.push(Value::string(joined));
