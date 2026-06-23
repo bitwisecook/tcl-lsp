@@ -1,10 +1,10 @@
 # AOT-script spike — run an AOT-compiled Tcl script against the real Rust runtime
 
-> **Spike, not the final design.** Proves the AOT-script path end to end at the
-> structural level and pins the remaining runtime bug. The durable target is a
-> single self-contained `.wasm` (runtime statically linked in); this spike uses
-> dynamic linking (host wires the emitted module's imports to the runtime's
-> exports) as the cheaper iteration loop.
+> **Spike, not the final design.** Proves the AOT-script path end to end. Two
+> link models are demonstrated: a **dynamic-link** Python host (`host.py` — the
+> cheap iteration loop) and a **single self-contained `.wasm`**
+> (`build_standalone.sh` — the durable target: the runtime fused into one core
+> module via `wasm-merge`, runnable with bare `wasmtime merged.wasm`).
 
 ## What it does
 
@@ -64,8 +64,38 @@ Four fixes got it there:
    visible under `wasmtime`/any WASI host (the `wasm32-unknown-unknown`
    `BrowserHost` still discards — a browser console import lands later).
 
+## Single self-contained binary (`build_standalone.sh`)
+
+The durable target — one core `.wasm` with the runtime inside, no host
+orchestration:
+
+```
+./build_standalone.sh demo.tcl merged.wasm   # build runtime + emit + wasm-merge
+wasmtime merged.wasm                          # runs ::top via an emitted _start
+```
+
+How it works:
+1. `emit_wasm --standalone` emits `::top` + procs **plus** a WASI `_start` that
+   calls `tcl_runtime_create_interp` / `set_current_interp` (imported from
+   `"tcl"`) then `::top`.
+2. `wasm-merge runtime.wasm tcl user.wasm user -all` fuses the two modules into
+   one: the emitted module's `"tcl"` imports (codegen ABI + memory + bootstrap)
+   resolve to the runtime's exports, and the two linear memories collapse into
+   the runtime's single memory.
+3. The result is a plain core module (one memory, only WASI imports) — `wasmtime
+   merged.wasm` runs it, and a browser can instantiate it with a WASI shim.
+
+The runtime is built with `wasm-ld --global-base=0x20_0000` (`build.rs`) so its
+data starts above the `RESERVED_DATA_BASE` (`0x10_0000`) window the emitted
+constant pool relocates into — the two never overlap in the fused memory.
+
+Verified end to end (`demo.tcl`, `broad.tcl`): `expr`/bignums, `if`/`while`/`for`,
+recursive procs (`fib 10 = 55`), `string`/`list`/`dict`, and `puts` all run
+correctly from a single `wasmtime merged.wasm` invocation.
+
 ## Next step
 
-Broaden the script set / framing checks, then move from this dynamic-link host
-to the single self-contained binary (static link via `wasm-ld`, see
-`../static-link/`).
+Lift more leaf commands out of the `tcl_eval` fallback into true inline AOT
+(variable slots, arithmetic, per-command hooks); shrink the merged binary
+(tree-shake unused runtime with `wasm-opt`); add `errorInfo`/framing assertions
+to the standalone path.
