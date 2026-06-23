@@ -131,7 +131,14 @@ impl Conversion {
             width,
             precision,
             verb,
+            width_star,
+            precision_star,
         } = parse_spec(fmt, i)?;
+        // Arg-driven `*` width / `.*` precision stay unmodelled in this
+        // (value-free) diagnostic renderer.
+        if width_star || precision_star {
+            return None;
+        }
         Some(Self {
             flags,
             width,
