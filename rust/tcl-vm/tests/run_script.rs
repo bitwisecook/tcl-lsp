@@ -189,6 +189,19 @@ fn compiled_linsert_rejects_bad_index() {
     assert_eq!(result, "a b c X");
 }
 
+/// `namespace path` sets a per-namespace command resolution path consulted
+/// after the current namespace and before the global one, so e.g. the math
+/// operators resolve unqualified. Regression for mathop / cmdIL (which crashed
+/// on the unimplemented subcommand). `namespace path` with no list reads it back.
+#[test]
+fn namespace_path_resolves_commands() {
+    let (ok, result, _) = run(
+        "namespace eval foo {\n  namespace path ::tcl::mathop\n  set r [+ 2 3]\n  lappend r [namespace path]\n  set r\n}",
+    );
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "5 ::tcl::mathop");
+}
+
 /// A loop whose body redefines `break`/`continue` runs through the runtime
 /// builtin (which dispatches them) instead of the inline JUMP fast-path, so the
 /// redefinition is honoured rather than looping forever. Regression for
