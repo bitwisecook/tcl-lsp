@@ -356,7 +356,7 @@ fn version_name(raw: u32) -> String {
 }
 
 /// Wrap a `SubjectPublicKeyInfo` DER blob as a `-----BEGIN PUBLIC KEY-----`
-/// PEM (the SubjectPublicKeyInfo DER base64-wrapped in PEM armor).
+/// PEM (the `SubjectPublicKeyInfo` DER base64-wrapped in PEM armor).
 fn spki_to_pem(spki_der: &[u8]) -> String {
     let b64 = base64::engine::general_purpose::STANDARD.encode(spki_der);
     let mut out = String::from("-----BEGIN PUBLIC KEY-----\n");

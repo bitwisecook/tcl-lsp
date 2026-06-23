@@ -13,7 +13,7 @@
 //! - [`utils`] — pure helpers.
 //!
 //! Per-concern modules cover commands (`commands.rs`), procs
-//! (`proc.rs`), diagnostics (`diagnostics/`), TclOO and recovery
+//! (`proc.rs`), diagnostics (`diagnostics/`), `TclOO` and recovery
 //! (`oo.rs` + `recovery.rs`), and the public entry plus the `PyO3`
 //! binding.
 //!
