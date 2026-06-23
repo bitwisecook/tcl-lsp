@@ -378,7 +378,7 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
 /// `file_analysis` stays project-independent (so a signature change in another
 /// file cannot regress this file's time-to-first-tokens), and this
 /// debounced/non-paramount query layers cross-file resolution on top.  It depends
-/// only on `file_analysis(file, config)` + the firewalled [`project_proc_arities`],
+/// only on `file_analysis(file, config)` + the firewalled [`project_command_arities`],
 /// so a **body** edit in any file recomputes nothing here; only a proc-decl /
 /// signature change (or this file's own edit) does — precise cross-file
 /// reverse-dependency invalidation, for free, from salsa.
@@ -1807,6 +1807,78 @@ mod tests {
         assert_eq!(names.len(), 3, "the new proc joins the project set");
     }
 
+    /// SRV-INCREMENTAL Task 6 (cross-file arity firewall): `project_command_arities`
+    /// depends only on each file's `item_sigs`, so a body edit anywhere must
+    /// recompute **zero** — while a *signature* edit (changing a proc's parameter
+    /// list) must recompute it exactly once and flow the new arity through.  This is
+    /// the firewall that keeps the workspace arity table from waking on a keystroke
+    /// inside a proc body.
+    #[test]
+    fn project_command_arities_firewall() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let runs = |log: &Arc<Mutex<Vec<String>>>| {
+            std::mem::take(&mut *log.lock().unwrap())
+                .into_iter()
+                .filter(|s| s.contains("project_command_arities"))
+                .count()
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let a = SourceFile::new(
+            &db,
+            "proc helper {x y} { set z 1 }\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let b = SourceFile::new(&db, "proc other {} {}\n".to_owned(), "tcl8.6".to_owned());
+        let project = Project::new(&db, vec![a, b]);
+
+        // Cold: `helper` is a 2-param proc → arity (2, 2).
+        assert_eq!(
+            project_command_arities(&db, project).get("helper").cloned(),
+            Some(vec![(2, 2)]),
+            "cold: helper has arity (2, 2)"
+        );
+        let _ = runs(&log);
+
+        // BODY edit to `helper` — `item_sigs(a)` is byte-identical (signatures
+        // unchanged), so the arity table backdates and does NOT recompute.
+        a.set_text(&mut db)
+            .to("proc helper {x y} { set z 99999 }\n".to_owned());
+        let _ = project_command_arities(&db, project);
+        assert_eq!(
+            runs(&log),
+            0,
+            "body edit must not recompute project_command_arities"
+        );
+
+        // SIGNATURE edit — drop a parameter — `item_sigs(a)` changes, so the table
+        // recomputes exactly once and the new arity (1, 1) flows through.
+        a.set_text(&mut db)
+            .to("proc helper {x} { set z 99999 }\n".to_owned());
+        let arities = project_command_arities(&db, project);
+        assert_eq!(
+            runs(&log),
+            1,
+            "signature edit must recompute project_command_arities exactly once"
+        );
+        assert_eq!(
+            arities.get("helper").cloned(),
+            Some(vec![(1, 1)]),
+            "the new parameter list flows through to arity (1, 1)"
+        );
+    }
+
     /// Project diagnostics for a diagnostic-vec comparison: `(code, start, end,
     /// message)` per diagnostic, in order (the analyser emits deterministically).
     #[cfg(test)]
@@ -1903,6 +1975,76 @@ mod tests {
         }
     }
 
+    /// SRV-INCREMENTAL Task 6 (cross-file differential, both files edited): the
+    /// stronger sibling of the B-only fuzzer above — drive a 2-file project through
+    /// independent edits to **both** the calling file (`a`) and the defining file
+    /// (`b`), asserting `a`'s cross-file diagnostics always match a fresh
+    /// whole-project rebuild.  Editing the caller changes the call sites (and their
+    /// arg counts) while editing the callee changes the resolution/arity domain;
+    /// catches any stale cross-file edge that a single-file fuzzer would miss.
+    #[test]
+    #[allow(clippy::cast_possible_truncation)] // index modulo a tiny array
+    fn project_diagnostics_incremental_matches_fresh_both_files_edited() {
+        use salsa::Setter as _;
+        // Caller variants: vary which commands are called and with how many args
+        // (so the cross-file arity W124 path is exercised, not just W123).
+        let a_variants = [
+            "alpha 1\nbeta 2\n",
+            "alpha 1 2 3\nbeta\n",       // wrong arg counts → W124 once resolved
+            "alpha\nset x 1\ngamma 9\n", // gamma may be unresolved → W123
+            "beta 1 2\nalpha 7\n",
+            "",
+        ];
+        // Defining variants: vary which procs exist and their arities.
+        let b_variants = [
+            "",
+            "proc alpha {x} {}\n",
+            "proc alpha {x} {}\nproc beta {y z} {}\n",
+            "proc alpha {a b c} {}\nproc beta {} {}\nproc gamma {q} {}\n",
+            "proc alpha {args} {}\nproc beta {x {y 1}} {}\n",
+        ];
+        let mk = |a_text: &str, b_text: &str| -> Vec<(String, u32, u32, String)> {
+            let db = TclDatabase::default();
+            let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+            let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned());
+            let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned());
+            let project = Project::new(&db, vec![a, b]);
+            diag_keys(&project_diagnostics(&db, a, cfg, project))
+        };
+
+        let mut db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let a = SourceFile::new(&db, a_variants[0].to_owned(), "tcl8.6".to_owned());
+        let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned());
+        let project = Project::new(&db, vec![a, b]);
+
+        let mut rng = 0x0f0f_1234_dead_beef_u64;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        for _ in 0..80 {
+            // Edit one file (sometimes both) per round.
+            let pick = next() % 3;
+            let a_text = a_variants[(next() % a_variants.len() as u64) as usize];
+            let b_text = b_variants[(next() % b_variants.len() as u64) as usize];
+            if pick != 1 {
+                a.set_text(&mut db).to(a_text.to_owned());
+            }
+            if pick != 0 {
+                b.set_text(&mut db).to(b_text.to_owned());
+            }
+            // Read back the *current* committed texts for the fresh comparison.
+            let cur_a = a.text(&db).clone();
+            let cur_b = b.text(&db).clone();
+            let inc = diag_keys(&project_diagnostics(&db, a, cfg, project));
+            let fresh = mk(&cur_a, &cur_b);
+            assert_eq!(inc, fresh, "incremental != fresh: a={cur_a:?} b={cur_b:?}");
+        }
+    }
+
     /// SRV-INCREMENTAL Task 6 (cross-file arity): a call to a workspace-defined
     /// proc with the wrong argument count emits W124 (and the W123 it would have
     /// drawn is suppressed); a correct count emits neither.
@@ -1961,6 +2103,72 @@ mod tests {
         assert!(
             !d.iter().any(|x| x.code == "W124"),
             "a class command has no proc arity → no W124"
+        );
+    }
+
+    /// SRV-INCREMENTAL Task 6 (cross-file arity edge cases): exercise the
+    /// `proc_arity` `(min, max)` computation across required-only, optional
+    /// defaults, a trailing `args` (unbounded), and the no-parameter proc — the
+    /// subtle part where an off-by-one would mis-fire W124.
+    #[test]
+    fn cross_file_arity_edge_cases() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let b = SourceFile::new(
+            &db,
+            "proc two {a b} {}\nproc opt {a {b 1}} {}\nproc variadic {a args} {}\nproc none {} {}\n"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        // Does calling `src` (in a fresh file A over project {A, B}) draw W124?
+        let w124 = |src: &str| -> bool {
+            let a = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+            let proj = Project::new(&db, vec![a, b]);
+            project_diagnostics(&db, a, cfg, proj)
+                .iter()
+                .any(|d| d.code == "W124")
+        };
+        // two {a b} → arity (2, 2).
+        assert!(w124("two 1\n"), "1 arg to a 2-param proc → too few");
+        assert!(!w124("two 1 2\n"), "2 args → ok");
+        assert!(w124("two 1 2 3\n"), "3 args → too many");
+        // opt {a {b 1}} → arity (1, 2).
+        assert!(w124("opt\n"), "0 args to (1,2) → too few");
+        assert!(!w124("opt 1\n"), "1 arg to (1,2) → ok");
+        assert!(!w124("opt 1 2\n"), "2 args to (1,2) → ok");
+        assert!(w124("opt 1 2 3\n"), "3 args to (1,2) → too many");
+        // variadic {a args} → arity (1, unbounded).
+        assert!(w124("variadic\n"), "0 args to (1,∞) → too few");
+        assert!(!w124("variadic 1\n"), "1 arg → ok");
+        assert!(!w124("variadic 1 2 3 4 5\n"), "many args → ok (trailing args)");
+        // none {} → arity (0, 0).
+        assert!(!w124("none\n"), "0 args to a no-param proc → ok");
+        assert!(w124("none 1\n"), "1 arg to a 0-param proc → too many");
+    }
+
+    /// SRV-INCREMENTAL Task 6 (conservative arity): a `{*}`-expanded call has an
+    /// unknown runtime arg count (`argc == None`), so it must never draw W124 even
+    /// though its literal word count looks wrong — while still resolving (no W123).
+    #[test]
+    fn cross_file_arity_skips_expanded_call() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let b = SourceFile::new(&db, "proc two {a b} {}\n".to_owned(), "tcl8.6".to_owned());
+        // `two {*}$lst` — one literal word, `{*}`-expanded → runtime arity unknown.
+        let a = SourceFile::new(
+            &db,
+            "set lst {1 2 3}\ntwo {*}$lst\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let proj = Project::new(&db, vec![a, b]);
+        let d = project_diagnostics(&db, a, cfg, proj);
+        assert!(
+            !d.iter().any(|x| x.code == "W124"),
+            "a {{*}}-expanded call must not draw W124 (argc unknown)"
+        );
+        assert!(
+            !d.iter().any(|x| x.code == "W123" && x.message.contains("two")),
+            "the call still resolves cross-file (no W123)"
         );
     }
 
