@@ -55,8 +55,7 @@ impl FunctionSnapshot<'_> {
 /// Complete result of running the explorer pipeline.
 ///
 /// Owns the [`CompilationUnit`]; the serialiser and renderers borrow from
-/// it. Mirrors `CompilerExplorerResult` in `pipeline.py`, fleshed out
-/// view-by-view in later phases (EXP-1..N).
+/// it.
 #[derive(Debug)]
 pub struct ExplorerResult {
     /// The source that was compiled.

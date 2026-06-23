@@ -1,5 +1,4 @@
-//! Typed BIG-IP data-group record value. Rust port of
-//! `_data_group_record.py`.
+//! Typed BIG-IP data-group record value.
 
 use std::fmt;
 

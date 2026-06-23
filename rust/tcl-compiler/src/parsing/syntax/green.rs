@@ -1,7 +1,5 @@
 //! Position-independent *green* layer of the Tcl concrete syntax tree.
 //!
-//! Ports `compiler/parsing/syntax/green.py` (#533 / `SYNC-JUN06`).
-//!
 //! This is the canonical, lossless syntax representation the whole
 //! pipeline is meant to ride on — the segmenter, AOT lowering, the
 //! formatter, the minifier, and the per-command tooling.  The design is
@@ -12,7 +10,7 @@
 //!   structurally identical regions (e.g. two empty `{}` words) are
 //!   structurally equal, and a green subtree is reusable verbatim across
 //!   edits.
-//! - **Red** ([`super::super::syntax`], strip 3) overlays a green tree
+//! - **Red** ([`super::super::syntax`]) overlays a green tree
 //!   with an anchoring and resolves absolute positions lazily,
 //!   reproducing exactly the `Token` offsets/lines/columns the lexer
 //!   emits.
@@ -25,12 +23,12 @@
 //! in document order reproduces the source byte-for-byte — the
 //! losslessness the formatter and minifier require.
 //!
-//! **Byte offsets vs Python codepoints.**  The Rust lexer works in byte
+//! **Byte offsets.**  The Rust lexer works in byte
 //! offsets throughout (see [`tcl_lexer::Span`]), so widths here are byte
-//! lengths (`str::len`), where Python's `green.py` uses codepoint
-//! `len()`.  For ASCII these coincide; for multibyte text the byte
+//! lengths (`str::len`).  For ASCII these coincide with codepoint counts;
+//! for multibyte text the byte
 //! widths stay consistent with the byte offsets the red layer resolves
-//! against, matching the rest of the Rust rewrite.
+//! against.
 //!
 //! See `docs/design/compiler/syntax-tree.md`.
 
@@ -128,7 +126,7 @@ fn node_full_width(
 ///
 /// [`GreenToken::end_rel`] is `Token.end.offset - Token.start.offset` —
 /// the position-independent shape that lets the red layer reconstruct
-/// the lexer's `end` (which, by the #527 convention, sits on the last
+/// the lexer's `end` (which, by convention, sits on the last
 /// *inner* character for a non-empty `{…}` but *on the closer* for an
 /// empty `{}`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -146,11 +144,8 @@ pub struct GreenToken {
     /// human-readable `text` (1 for `{` / `[` / `$` / `"`, 2 for `${`,
     /// 0 for a bare word).  Position-independent, like [`Self::end_rel`].
     ///
-    /// **Rust-specific** (no field in Python's `green.py`): the Rust
-    /// [`tcl_lexer::Token`] is span + `content_offset`, where Python's
-    /// `Token` is `text` + `start` + `end`.  Green stores whatever the
-    /// platform's `Token` needs to be reconstructed losslessly — `text`
-    /// (as Python) **and** `content_offset` — so the red layer's
+    /// The [`tcl_lexer::Token`] is span + `content_offset`, so green
+    /// stores `content_offset` (alongside `text`) so the red layer's
     /// [`super::super::syntax::red::SyntaxToken::to_token`] can rebuild
     /// the exact lexer `Token` (span via `end_rel`, `content_offset`
     /// verbatim).
@@ -289,7 +284,6 @@ impl GreenElement {
 
     /// Return a copy with `extra` appended to the element's trailing
     /// trivia (a token's `trailing`, or a node's dangling `trailing`).
-    /// Mirrors Python's `replace(child, trailing=child.trailing + …)`.
     #[must_use]
     pub fn with_trailing(self, extra: impl IntoIterator<Item = GreenTrivia>) -> Self {
         match self {
@@ -526,7 +520,7 @@ mod tests {
     #[test]
     fn empty_braced_token_keeps_both_text_fields() {
         // `{}` — raw `{}` (width 2), inner text empty, end_rel 1 (the
-        // closer, per the #527 convention).
+        // closer, per convention).
         let tok = GreenToken::new(
             TokenType::Str,
             "",

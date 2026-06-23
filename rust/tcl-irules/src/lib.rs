@@ -1,14 +1,13 @@
-//! Faithful Rust port of the F5 iRules BIG-IP object-reference extractor
-//! (`dialects/f5/bigip/irules_object_refs.py` + `irules_refs.py`).
+//! F5 iRules BIG-IP object-reference extractor.
 //!
 //! Two layers:
 //!
 //! - [`resolve_object_ref_args`] — the declarative command→`(arg_index, kinds)`
 //!   table (`_BASE_SPECS` + `_POOL_REF_TEMPLATES` + the `class`/`persist` custom
 //!   resolvers). The hand-written specs are embedded from `data/`; the 1 MB
-//!   generated dependency graph backs *completion/coverage* in Python, not edge
-//!   resolution, so it is intentionally not ported here.
-//! - the walker (`extract_irules_object_references`, a later increment) that
+//!   generated dependency graph backs *completion/coverage* elsewhere, not edge
+//!   resolution, so it is intentionally not included here.
+//! - the walker (`extract_irules_object_references`) that
 //!   segments an iRule body, asks the table for each command's reference args,
 //!   and resolves them — including names that flow through `set <var> <literal>`.
 //!
@@ -94,7 +93,7 @@ fn tables() -> &'static Tables {
 }
 
 /// Delimiters stripped from a positional token before the falsey-keyword check
-/// (mirrors the Python `strip("{}\"'[](),")`).
+/// (strips the leading/trailing characters `{}"'[](),`).
 const STRIP: &[char] = &['{', '}', '"', '\'', '[', ']', '(', ')', ','];
 
 /// `class match`/`search` comparison operators.

@@ -1,7 +1,7 @@
 //! Diagnostic verbs: `diag` / `lint` (identical) and `validate`.
 //!
-//! Ports of the handlers in `tooling/tcl/verbs/diag.py`, driving the analyser
-//! in `tcl-compiler`. Unlike the transform verbs, these analyse each input
+//! Drive the analyser in `tcl-compiler`. Unlike the transform verbs, these
+//! analyse each input
 //! document separately (matching the Python per-file loop).
 
 use std::collections::HashSet;

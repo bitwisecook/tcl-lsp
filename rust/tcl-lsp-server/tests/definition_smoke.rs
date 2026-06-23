@@ -1,7 +1,7 @@
 //! End-to-end LSP smoke test for the `tcl-lsp-server` go-to
 //! definition family — `definition`, `declaration`,
 //! `typeDefinition`, and `implementation` all share the same
-//! core provider in the minimal port, so one in-memory smoke
+//! core provider, so one in-memory smoke
 //! drives them in turn.
 
 use std::time::Duration;

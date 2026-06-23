@@ -2,14 +2,11 @@
 //!
 //! Commands with compiled bytecode forms (beyond what
 //! `cmd_subst::emit_inline_cmd_subst` already handles) are routed
-//! through this dispatcher. ARCH2 made hook selection
-//! registry-driven; ARCH5 finished the threading by reading the
-//! active [`tcl_registry::CommandRegistry`] from `ctx.registry` so dialect-loaded
-//! specs (iRules, Tk, EDA) drive codegen-hook resolution. The
-//! compiler still owns the per-variant emitter; the registry
-//! decides which variant applies.
-//!
-//! Ported from `core/compiler/codegen/_bytecoded.py` (C21).
+//! through this dispatcher. Hook selection is registry-driven: it
+//! reads the active [`tcl_registry::CommandRegistry`] from
+//! `ctx.registry` so dialect-loaded specs (iRules, Tk, EDA) drive
+//! codegen-hook resolution. The compiler still owns the per-variant
+//! emitter; the registry decides which variant applies.
 
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::hooks::CodegenHookId;
@@ -840,7 +837,7 @@ mod tests {
         assert!(!try_bytecoded(&mut ctx, "array", &args, &mut used));
     }
 
-    // -- C21 follow-ups: lrange / linsert / lset --
+    // -- lrange / linsert / lset --
 
     #[test]
     fn lrange_constant_indices() {
@@ -920,7 +917,7 @@ mod tests {
         assert!(!try_bytecoded(&mut ctx, "lset", &args, &mut used));
     }
 
-    // -- C21e4: dict subcommands --
+    // -- dict subcommands --
 
     #[test]
     fn dict_set_proc_uses_dict_set_opcode() {
@@ -1626,7 +1623,7 @@ mod tests {
         assert_eq!(resolved.spec.name, "HTTP::header");
     }
 
-    /// ARCH5 — `try_bytecoded` reads its registry from `ctx.registry`,
+    /// `try_bytecoded` reads its registry from `ctx.registry`,
     /// not from a private static. Loading the iRules dialect into the
     /// registry passed into the context must therefore make
     /// dialect-only specs visible to codegen-hook resolution. Today

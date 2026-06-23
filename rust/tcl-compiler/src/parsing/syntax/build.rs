@@ -1,7 +1,5 @@
 //! Build a green CST from the lexer token stream.
 //!
-//! Ports `compiler/parsing/syntax/build.py` (#533 / `SYNC-JUN06`).
-//!
 //! This re-shapes the existing lexer output into the canonical tree
 //! rather than introducing a second parser: it tokenises the region
 //! through the dialect-configured [`Lexer`] and groups the stream into
@@ -11,18 +9,16 @@
 //! The grouping mirrors the segmenter's `segment_commands_local`
 //! exactly — same word-merging, same `{*}` handling, same continuation
 //! handling, and the same `word_boundary` range rule (stale-boundary
-//! quirk included) — so that segments derived from the tree (strip 5)
+//! quirk included) — so that segments derived from the tree
 //! are byte-identical to the token-loop segmenter.
 //!
 //! Raw fragment text is recovered by *start-to-start tiling*: the lexer
 //! advances its cursor monotonically, so
 //! `source[tok[i].start .. tok[i+1].start]` is exactly the bytes
 //! fragment *i* occupies — delimiters included — which sidesteps the
-//! inner-end / empty-delimiter (#527) convention entirely.
+//! inner-end / empty-delimiter convention entirely.
 //!
-//! **Local-offset space.**  Where Python's `build_document` tokenises at
-//! an absolute `(base_offset, base_line, base_col)` and subtracts the
-//! base back out, the green tree is position-independent, so this port
+//! **Local-offset space.**  The green tree is position-independent, so it
 //! lexes in *local* space (base 0, exactly as `segment_commands_local`)
 //! and leaves the anchoring to the red [`super::red::SyntaxTree`].
 
@@ -54,8 +50,8 @@ pub fn build_document(source: &str, config: LexerConfig) -> (GreenNode, Vec<LexW
 }
 
 /// As [`build_document`], but injects zero-width ghost closing
-/// delimiters (offset → byte) into the lexer for error recovery
-/// (GAP-A1).  An empty map is identical to [`build_document`].
+/// delimiters (offset → byte) into the lexer for error recovery.
+/// An empty map is identical to [`build_document`].
 #[must_use]
 pub fn build_document_with_ghosts(
     source: &str,
@@ -77,8 +73,7 @@ pub fn build_document_with_ghosts(
     (document, warnings)
 }
 
-/// In-flight state for the start-to-start tiling, mirroring the
-/// `nonlocal`s of Python's `build_document`.
+/// In-flight state for the start-to-start tiling.
 struct Builder<'a> {
     source: &'a str,
     sm: &'a SourceMap<'a>,
@@ -129,7 +124,7 @@ impl<'a> Builder<'a> {
         &self.source[lo..hi]
     }
 
-    /// Region offset of a token's inner end (Python `tok.end.offset`).
+    /// Region offset of a token's inner end.
     fn end_region(&self, tok: Token) -> u32 {
         self.sm.range_positions(tok.span).1.offset
     }
@@ -255,8 +250,7 @@ impl<'a> Builder<'a> {
             // is a real fragment of that word — so an `Esc` is NOT folded here
             // and falls through to the fragment path below. Folding it would
             // drop a token the lexer reports and lose the (possibly only)
-            // fragment of the quoted word. Mirrors
-            // `compiler/parsing/syntax/build.py`.
+            // fragment of the quoted word.
             TokenType::Sep => {
                 if !is_sep_or_eol(self.prev_type) {
                     self.word_boundary = Some(region);
@@ -554,7 +548,7 @@ mod tests {
     #[test]
     fn range_end_rel_does_not_overshoot_trailing_empty_brace() {
         // `set x {}` — the final empty `{}`; the command range ends on its
-        // own `}` (offset 7), the #527 non-overshoot the word_boundary rule
+        // own `}` (offset 7), the non-overshoot the word_boundary rule
         // makes structural.
         let src = "set x {}";
         let doc = build(src);

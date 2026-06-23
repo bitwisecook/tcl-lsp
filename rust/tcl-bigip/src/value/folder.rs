@@ -1,5 +1,5 @@
 //! `Folder` + `ObjectPath` value types — F5 admin folders and full
-//! object paths. Rust port of `_folder.py`.
+//! object paths.
 
 use super::error::ValueError;
 use super::partition::{Partition, is_partition_valid_char};

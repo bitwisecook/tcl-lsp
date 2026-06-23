@@ -1,5 +1,4 @@
-//! `IPRange` value type — arbitrary first..last IP ranges. Rust port of
-//! `_ip_range.py`.
+//! `IPRange` value type — arbitrary first..last IP ranges.
 
 use super::address::IPAddress;
 use super::error::ValueError;
@@ -122,7 +121,7 @@ impl IPRange {
     }
 
     /// Decompose the range into the minimum CIDR set that exactly covers
-    /// it. Mirrors `ipaddress.summarize_address_range`.
+    /// it.
     #[must_use]
     pub fn to_cidrs(&self) -> Vec<Cidr> {
         summarize(addr_int(self.first), addr_int(self.last), self.is_ipv4())
@@ -221,7 +220,6 @@ fn net_bounds(addr: u128, prefix: u8, is_v4: bool) -> (u128, u128) {
 }
 
 /// Count the number of right-hand zero bits of `number`, capped at `bits`.
-/// Mirrors `CPython` `_count_righthand_zero_bits`.
 fn count_righthand_zero_bits(number: u128, bits: u32) -> u32 {
     if number == 0 {
         bits

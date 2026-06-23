@@ -1,6 +1,6 @@
 //! Command-alias detection and resolution.
 //!
-//! Ports `core/common/alias.py`. Used by the lowerer to detect
+//! Used by the lowerer to detect
 //! `interp alias {} name {} target ?args?` definitions and resolve
 //! command names through the alias table.
 

@@ -1,7 +1,5 @@
 //! Minimal PCAPNG reader/writer for `f5 pcap-remap`.
 //!
-//! Faithful Rust port of the read/write half of `dialects/f5/bigip/pcapng.py`.
-//!
 //! PCAPNG is a chain of variably-sized blocks, each with
 //! `[block_type:4][block_total_length:4][body...][block_total_length:4]`.
 //! For our purposes we recognise SHB (sets section endianness), IDB (gives the
@@ -305,11 +303,9 @@ pub fn write_block(out: &mut Vec<u8>, block: &PcapngBlock) -> Result<(), String>
 /// The order of the slices is preserved. A terminating `nrb_record_end`
 /// (type 0, length 0) record is always emitted, per the PCAPNG spec.
 ///
-/// Faithful port of `dialects/f5/bigip/pcapng.build_nrb_block`.
-///
 /// # Panics
 /// Panics if a v4 address is not 4 bytes or a v6 address is not 16 bytes
-/// (mirrors the Python `ValueError`; callers always pass packed addresses).
+/// (callers always pass packed addresses).
 #[must_use]
 pub fn build_nrb_block(
     endian: Endian,
@@ -355,8 +351,6 @@ pub fn build_nrb_block(
 }
 
 /// Build a Decryption Secrets Block (DSB) carrying `secrets_data`.
-///
-/// Faithful port of `dialects/f5/bigip/pcapng.build_dsb_block`.
 #[must_use]
 pub fn build_dsb_block(endian: Endian, secrets_type: u32, secrets_data: &[u8]) -> PcapngBlock {
     let mut body: Vec<u8> = Vec::new();

@@ -1,26 +1,23 @@
 //! Canonical JSON snapshots of the F5 registries and graphs.
 //!
-//! Rust port of the snapshot builders in Python `tooling/registry_snapshot.py`.
-//! These produce deterministic, byte-for-byte snapshots of the registry data,
-//! serialised with `json.dumps`-parity (`indent=2`, `sort_keys=True`).
+//! These produce deterministic JSON snapshots of the registry data,
+//! serialised with two-space indentation and sorted keys.
 //!
-//! Ported snapshots:
+//! Snapshots:
 //!
 //! - [`profile_graph_snapshot`] — the protocol profile graph and the
-//!   protocol-namespace map (`profile_graph_snapshot` in Python).
+//!   protocol-namespace map.
 //! - [`object_graph_snapshot`] — the BIG-IP object graph: object kinds,
-//!   the header→kind map, and property reference edges (`object_graph_snapshot`).
+//!   the header→kind map, and property reference edges.
 //! - [`event_graph_snapshot`] — the iRules event graph: per-event protocol
 //!   props (with the `transport` string/list/null remapping), firing order,
-//!   flow chains, and the content-addressed valid-command digests
-//!   (`event_graph_snapshot`).
+//!   flow chains, and the content-addressed valid-command digests.
 //!
-//! The `commands` snapshot is **not** ported here: it embeds the full
-//! per-command traits/scalars dicts (mirroring the Python `CommandSpec`
-//! dataclass field layout) and the hover prose catalogue (`summary`), which
-//! reflect Python-internal derivation machinery without a clean, byte-identical
-//! Rust equivalent. The `f5 registry-dump` verb reports that section (and the
-//! `all` aggregate containing it) as deferred.
+//! The `commands` snapshot is **not** produced here: it embeds the full
+//! per-command traits/scalars dicts and the hover prose catalogue
+//! (`summary`), which have no clean, stable serialisation in this module.
+//! The `f5 registry-dump` verb reports that section (and the `all`
+//! aggregate containing it) as unavailable.
 
 use std::collections::BTreeMap;
 
@@ -175,8 +172,6 @@ fn push_u_escape(out: &mut String, code: u32) {
 }
 
 /// Snapshot of the protocol profile graph and protocol-namespace map.
-///
-/// Mirrors Python `profile_graph_snapshot()`.
 #[must_use]
 pub fn profile_graph_snapshot() -> Json {
     let reg = ProfileRegistry::build();
@@ -243,8 +238,6 @@ pub fn profile_graph_snapshot() -> Json {
 }
 
 /// Snapshot of the BIG-IP object graph: object kinds and reference edges.
-///
-/// Mirrors Python `object_graph_snapshot()`.
 #[must_use]
 pub fn object_graph_snapshot() -> Json {
     let reg = default_registry();
@@ -382,7 +375,7 @@ fn sorted(items: &[&str]) -> Vec<String> {
     v
 }
 
-/// Stable content digest of a string list (port of `digest_list`): sort the
+/// Stable content digest of a string list: sort the
 /// items, join with newlines, and SHA-256 — `"sha256:" + hexdigest`. The two
 /// heaviest registry facts (the per-event valid-command cross-product) are
 /// content-addressed this way so the snapshot stays small.

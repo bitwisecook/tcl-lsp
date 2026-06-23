@@ -1,10 +1,9 @@
 //! `f5 pull` — fetch one object from a live device as an SCF stanza.
 //!
-//! Rust port of `tooling/f5/verbs/pull.py`. Credential resolution + arg shaping
-//! is parity-tested offline; the live GET is implemented faithfully but
-//! untested here. With `--json` the raw iControl JSON is emitted (via the
-//! `json.dumps(indent=2)`-compatible serializer); otherwise the object is
-//! rendered to an SCF stanza and passed through `render_config`.
+//! Credential resolution + arg shaping is parity-tested offline; the live GET
+//! is implemented but untested here. With `--json` the raw iControl JSON is
+//! emitted (via the `json.dumps(indent=2)`-compatible serializer); otherwise
+//! the object is rendered to an SCF stanza and passed through `render_config`.
 
 use super::emit::render_config;
 use super::remote::auth::{ResolveOptions, resolve_credentials};

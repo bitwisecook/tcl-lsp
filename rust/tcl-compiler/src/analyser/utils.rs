@@ -1,10 +1,9 @@
-//! Pure analyser helpers — Rust port of
-//! ``core/analysis/_analyser/_utils.py``.
+//! Pure analyser helpers.
 //!
 //! Pure free functions used by handlers and diagnostic emitters
 //! across the analyser. `parse_param_list` is re-exported from
-//! `signature_scan::params` (already ported in C40a2) so the
-//! analyser can keep its imports flat.
+//! `signature_scan::params` so the analyser can keep its imports
+//! flat.
 
 use std::collections::HashSet;
 
@@ -16,26 +15,22 @@ use crate::ir::Statement;
 pub use crate::signature_scan::params::parse_param_list;
 
 /// Cap on how many leading lines the file-suppression scanner
-/// inspects. Mirrors `_FILE_DIRECTIVE_SCAN_LINES` in
-/// `_utils.py`. Pathological all-comment files stop scanning
-/// past this.
+/// inspects. Pathological all-comment files stop scanning past
+/// this.
 const FILE_DIRECTIVE_SCAN_LINES: usize = 100;
 
 /// Extract file-wide diagnostic suppression from top-of-file
 /// directives.
 ///
-/// Mirrors `parse_file_suppression` in
-/// `core/analysis/_analyser/_utils.py:113-137`. Scans leading
-/// comment / blank lines for `# tcl-lsp: disable=CODE1,CODE2`
-/// (or `=*` for "all codes"); stops at the first line that is
-/// neither blank nor a `#` comment. Multiple directives
-/// accumulate into the returned set.
+/// Scans leading comment / blank lines for
+/// `# tcl-lsp: disable=CODE1,CODE2` (or `=*` for "all codes");
+/// stops at the first line that is neither blank nor a `#`
+/// comment. Multiple directives accumulate into the returned set.
 ///
 /// Codes are split on commas and any whitespace. Empty tokens
-/// after splitting are discarded; case-sensitivity matches the
-/// Python source (the keyword `tcl-lsp:disable=` matches
-/// case-insensitively but the codes themselves don't get
-/// lowercased).
+/// after splitting are discarded. The keyword `tcl-lsp:disable=`
+/// matches case-insensitively, but the codes themselves are not
+/// lowercased.
 #[must_use]
 pub fn parse_file_suppression(source: &str) -> HashSet<String> {
     let mut codes: HashSet<String> = HashSet::new();
@@ -66,14 +61,6 @@ pub fn parse_file_suppression(source: &str) -> HashSet<String> {
 /// Scan *source* for ``# noqa`` comment lines and record next-line
 /// suppressions.
 ///
-/// Mirrors the `parse_noqa_line_suppressions` helper added to
-/// `core/analysis/_analyser/_utils.py` upstream by commit
-/// ``b66f8f9d`` (issue #306) plus its `_core.py` wiring at commit
-/// ``ceb190fc``.  The `rust` branch's Python tree predates both
-/// commits, so the pre-fix Python lacks both the helper and the
-/// merge block — the references here are to the upstream commits,
-/// not the checked-in Python file.
-///
 /// For each ``# noqa`` / ``# noqa: CODE,…`` comment on line *N*
 /// (0-based), records the suppression codes against line *N+1*.
 /// This covers two cases the command-attached
@@ -93,8 +80,7 @@ pub fn parse_file_suppression(source: &str) -> HashSet<String> {
 /// (`parse_file_suppression`) passes.
 ///
 /// Bare ``# noqa`` (no ``: CODE`` list) is recorded with the `"*"`
-/// sentinel that the suppression filter treats as "every code"
-/// (matches the ``_NOQA_ALL`` constant in Python).
+/// sentinel that the suppression filter treats as "every code".
 #[must_use]
 pub fn parse_noqa_line_suppressions(
     source: &str,
@@ -137,20 +123,14 @@ pub fn parse_noqa_line_suppressions(
 /// ``# tcl-lsp: stubs-end`` markers, returning the set of
 /// declared command names.
 ///
-/// Mirrors the name-extraction subset of
-/// `core/analysis/stub_comments.py::scan_source_for_stubs`.
-/// The Python helper additionally parses arg-roles and flags
-/// (``-loop``, ``-barrier``, etc.) into a full
-/// ``StubCommandDef`` record; the Rust analyser doesn't yet
-/// carry that field on ``AnalysisResult`` so we extract just
-/// the names.  Adding the names to the W123 candidate set is
-/// the load-bearing use case — the role/flag data only
-/// matters for downstream diagnostic emitters that the Rust
-/// port hasn't yet wired.
+/// Only the command names are extracted (not arg-roles or
+/// flags). Adding the names to the W123 candidate set is the
+/// load-bearing use case — the role/flag data only matters for
+/// downstream diagnostic emitters.
 ///
-/// Stubs declared *outside* the begin/end markers are ignored
-/// (matches Python).  ``expr-func`` / ``expr-op`` lines are
-/// skipped — they declare expression functions, not commands.
+/// Stubs declared *outside* the begin/end markers are ignored.
+/// ``expr-func`` / ``expr-op`` lines are skipped — they declare
+/// expression functions, not commands.
 #[must_use]
 pub fn scan_stub_command_names(source: &str) -> HashSet<String> {
     let mut names: HashSet<String> = HashSet::new();
@@ -247,13 +227,11 @@ fn parse_stub_name(body: &str) -> Option<&str> {
 /// declarations bounded by the ``stubs-begin`` / ``stubs-end``
 /// markers, returning ``(commands, expr_defs)``.
 ///
-/// Mirrors `core/analysis/stub_comments.py::scan_source_for_stubs`,
-/// including ``_parse_args`` and ``_parse_flags`` parity for the
-/// command form and arity extraction for the expression form.
-/// Command stubs *require* the ``{ARGS}`` brace block (Python's
-/// `_STUB_RE` rejects bare ``stub NAME``).  Stubs whose ``:role``
-/// annotation is unrecognised are silently dropped to match
-/// Python's ``_parse_args`` returning ``None``.
+/// Parses args and flags for the command form and extracts arity
+/// for the expression form. Command stubs *require* the
+/// ``{ARGS}`` brace block; bare ``stub NAME`` is rejected. Stubs
+/// whose ``:role`` annotation is unrecognised are silently
+/// dropped.
 #[must_use]
 pub fn scan_source_for_stubs(
     source: &str,
@@ -325,8 +303,7 @@ fn strip_tcl_lsp_prefix(body: &str) -> &str {
 }
 
 /// Valid argument-role annotations recognised after the ``:``
-/// separator in a stub argument token.  Mirrors
-/// ``_VALID_ROLES`` in ``core/analysis/stub_comments.py``.
+/// separator in a stub argument token.
 const VALID_STUB_ROLES: &[&str] = &[
     "body", "expr", "var", "var_read", "name", "pattern", "channel", "value",
 ];
@@ -335,8 +312,7 @@ const VALID_STUB_ROLES: &[&str] = &[
 /// the ``stub`` keyword).  Returns a fully-populated
 /// `StubCommandDef` (name, args, flags, range) on match, or
 /// ``None`` when the brace block is missing or an argument's
-/// ``:role`` annotation is unrecognised.  Mirrors Python's
-/// ``_STUB_RE`` + ``_parse_args`` + ``_parse_flags``.
+/// ``:role`` annotation is unrecognised.
 fn parse_command_stub(line: &str, range: tcl_lexer::Span) -> Option<super::types::StubCommandDef> {
     let s = line.trim_start();
     let stub_kw = "stub";
@@ -361,9 +337,9 @@ fn parse_command_stub(line: &str, range: tcl_lexer::Span) -> Option<super::types
         return None;
     }
     let after_name = after[name_end..].trim_start();
-    // Python's ``_STUB_RE`` matches ``stub NAME {ARGS}`` with a
-    // closing ``}``.  We mirror that — find the matching close,
-    // capture the args body, then parse the trailing flag run.
+    // ``stub NAME {ARGS}`` must have a closing ``}`` — find the
+    // matching close, capture the args body, then parse the
+    // trailing flag run.
     let after_open = after_name.strip_prefix('{')?;
     let close_rel = after_open.find('}')?;
     let args_body = &after_open[..close_rel];
@@ -380,9 +356,8 @@ fn parse_command_stub(line: &str, range: tcl_lexer::Span) -> Option<super::types
 
 /// Parse the inside of ``stub NAME { … }``.  Returns the
 /// argument list, or `None` if any token uses an unrecognised
-/// ``:role`` annotation or has an empty name (matches Python's
-/// ``_parse_args`` returning ``None`` to drop the whole stub).
-/// Empty input yields an empty list.
+/// ``:role`` annotation or has an empty name (which drops the
+/// whole stub).  Empty input yields an empty list.
 fn parse_stub_args(args_str: &str) -> Option<Vec<super::types::StubArgDef>> {
     let trimmed = args_str.trim();
     if trimmed.is_empty() {
@@ -419,8 +394,7 @@ fn parse_stub_args(args_str: &str) -> Option<Vec<super::types::StubArgDef>> {
 }
 
 /// Parse the trailing ``?-flag…?`` run after the ``{ARGS}`` block.
-/// Unrecognised tokens are ignored (matches Python's
-/// ``_parse_flags`` filtering on ``_VALID_FLAGS``).
+/// Unrecognised tokens are ignored.
 fn parse_stub_flags(flags_str: &str) -> super::types::StubFlags {
     let mut flags = super::types::StubFlags::empty();
     for token in flags_str.split_whitespace() {
@@ -440,8 +414,7 @@ fn parse_stub_flags(flags_str: &str) -> super::types::StubFlags {
 /// Parse a ``stub expr-func NAME ?ARITY?`` / ``stub expr-op NAME
 /// ?ARITY?`` line.  Returns ``(kind, name, arity)`` on match.
 /// ``arity`` defaults to 1 for functions and 2 for operators when
-/// the trailing arity word is absent.  Mirrors Python's
-/// ``_EXPR_STUB_RE`` + ``parse_expr_stub_line``.
+/// the trailing arity word is absent.
 fn parse_expr_stub(line: &str) -> Option<(&'static str, &str, u32)> {
     let s = line.trim_start();
     let stub_kw = "stub";
@@ -489,15 +462,13 @@ fn parse_expr_stub(line: &str) -> Option<(&'static str, &str, u32)> {
     Some((kind, name, arity))
 }
 
-/// Decoration-character set for the body-docstring scanner.
-/// Mirrors ``_DECORATION_CHARS = frozenset(".-=*~#")`` in
-/// ``core/formatting/docstring.py``.
+/// Decoration-character set for the body-docstring scanner
+/// (``.-=*~#``).
 const DECORATION_CHARS: &[char] = &['.', '-', '=', '*', '~', '#'];
 
 /// Extract a leading comment block from a proc body — the
 /// fallback that fires when there's no preceding-comment harvest
-/// from the segmenter.  Mirrors
-/// ``core/formatting/docstring.py::extract_body_docstring``.
+/// from the segmenter.
 ///
 /// Lines containing only decoration characters
 /// (``.-=*~#``) are skipped; remaining ``#``-prefixed lines have
@@ -533,25 +504,19 @@ pub fn extract_body_docstring(body: &str) -> String {
 
 /// Per-line ``# noqa: CODE`` suppression scanner.
 ///
-/// Mirrors the inline-noqa half of
-/// `core/analysis/_analyser/_utils.py::parse_per_line_suppression`.
-/// Walks every line; for each ``# noqa`` (with or without
-/// ``: CODE`` list), records the codes against the 0-based
-/// line range (read from the ``preceding_comment`` field of the
-/// segmented command).  Mirrors
-/// ``core/analysis/_analyser/_core.py`` lines 285-303 — the
-/// segmented-command dispatch loop calls this on each command
-/// to attach the noqa codes to the *following* command's line
-/// range.
+/// For each ``# noqa`` (with or without a ``: CODE`` list),
+/// records the codes against the 0-based line range read from the
+/// ``preceding_comment`` field of the segmented command. The
+/// segmented-command dispatch loop calls this on each command to
+/// attach the noqa codes to the *following* command's line range.
 ///
-/// The Python helper uses ``str.lower().find("noqa")`` which is
-/// substring-matching against the comment body alone; a comment
-/// is only ever the source of a noqa directive, so there's no
-/// risk of false-positiving on a ``#`` inside a Tcl string —
-/// the segmenter's ``preceding_comment`` field carries comment
-/// text only.  Bare ``# noqa`` (no ``: CODE`` list) suppresses
-/// every code (`"*"` sentinel); ``# noqa: A, B`` suppresses
-/// the named codes.
+/// Matching is substring-based (``find("noqa")``) against the
+/// comment body alone; a comment is only ever the source of a
+/// noqa directive, so there's no risk of false-positiving on a
+/// ``#`` inside a Tcl string — the segmenter's
+/// ``preceding_comment`` field carries comment text only.  Bare
+/// ``# noqa`` (no ``: CODE`` list) suppresses every code (`"*"`
+/// sentinel); ``# noqa: A, B`` suppresses the named codes.
 pub fn apply_preceding_noqa<S, T>(
     cmd: &crate::segmenter::SegmentedCommand,
     line_offsets: &[usize],
@@ -584,12 +549,11 @@ pub fn apply_preceding_noqa<S, T>(
     } else {
         std::iter::once("*".to_string()).collect()
     };
-    // Attribute to every line spanned by the command (matches
-    // Python's ``range(cmd.range.start.line, cmd.range.end.line +
-    // 1)``).  ``SegmentedCommand.span`` is byte offsets; convert
-    // each via the precomputed ``line_offsets`` index in
-    // ``O(log N)`` instead of a linear scan per call (the helper
-    // runs once per segmented command).
+    // Attribute to every line spanned by the command.
+    // ``SegmentedCommand.span`` is byte offsets; convert each via
+    // the precomputed ``line_offsets`` index in ``O(log N)``
+    // instead of a linear scan per call (the helper runs once per
+    // segmented command).
     let span_start = cmd.span.start() as usize;
     let span_end = cmd.span.end() as usize;
     let start_line = super::state::line_at_offset(line_offsets, span_start);
@@ -627,17 +591,15 @@ fn parse_disable_directive(line: &str) -> Option<&str> {
 
 /// Format a literal value for inclusion in a diagnostic message.
 ///
-/// Mirrors `_format_literal_for_message` in
-/// `core/analysis/_analyser/_utils.py:156-161`. Replaces newlines
-/// with `\n` (literal two characters), and truncates strings
-/// longer than 40 characters to `…[37 chars]…`.
+/// Replaces newlines with `\n` (literal two characters), and
+/// truncates strings longer than 40 characters to `…[37 chars]…`.
 #[must_use]
 pub fn format_literal_for_message(value: &str) -> String {
     let display = value.replace('\n', "\\n");
     if display.chars().count() > 40 {
-        // Match Python's slice behaviour at character (not byte)
-        // boundaries — Tcl source is usually ASCII but multibyte
-        // diagnostic messages are valid.
+        // Slice at character (not byte) boundaries — Tcl source is
+        // usually ASCII but multibyte diagnostic messages are
+        // valid.
         let truncated: String = display.chars().take(37).collect();
         format!("{truncated}...")
     } else {
@@ -648,9 +610,7 @@ pub fn format_literal_for_message(value: &str) -> String {
 /// Return `(variable, static_value)` for assignments worth the
 /// W214 paste-error heuristic check.
 ///
-/// Mirrors `_possible_paste_fingerprint` in
-/// `core/analysis/_analyser/_utils.py:140-153`. Only
-/// [`Statement::AssignConst`] and [`Statement::AssignValue`]
+/// Only [`Statement::AssignConst`] and [`Statement::AssignValue`]
 /// shapes qualify; `AssignValue` rejects values containing
 /// `$` / `[` / `]` (interpolation / command substitution
 /// disqualify the fingerprint).
@@ -676,15 +636,11 @@ pub fn possible_paste_fingerprint(stmt: &Statement) -> Option<(String, String)> 
 
 /// Return argv tokens widened to each Tcl word's full token span.
 ///
-/// Mirrors `_argv_with_word_spans` in
-/// `core/analysis/_analyser/_utils.py:164-166`, which delegates
-/// to `core.parsing.argv.widen_argv_tokens_to_word_spans`. Rust's
-/// segmenter already returns argv tokens with word-wide spans
-/// (per Seg1 — see `rust/tcl-compiler/src/segmenter.rs:227-238`),
-/// so this is the identity function. The helper is kept as a
-/// transparent passthrough so handlers calling Python's
-/// `_argv_with_word_spans` translate 1:1 without losing the
-/// indirection layer the Python source carries.
+/// The segmenter already returns argv tokens with word-wide spans
+/// (see `rust/tcl-compiler/src/segmenter.rs`), so this is the
+/// identity function. The helper is kept as a transparent
+/// passthrough so the indirection layer at the call sites stays
+/// intact.
 #[must_use]
 pub fn argv_with_word_spans(argv: Vec<Token>, _all_tokens: &[Token]) -> Vec<Token> {
     argv
@@ -694,10 +650,8 @@ pub fn argv_with_word_spans(argv: Vec<Token>, _all_tokens: &[Token]) -> Vec<Toke
 /// level of an event handler, computed fresh from the supplied
 /// `registry`.
 ///
-/// Mirrors `_irules_top_level_only` in
-/// `core/analysis/_analyser/_utils.py:34-38`. Reads the
-/// `IRULES_TOP_LEVEL_ONLY` trait from `registry` and returns the
-/// matching command names.
+/// Reads the `IRULES_TOP_LEVEL_ONLY` trait from `registry` and
+/// returns the matching command names.
 ///
 /// **Not cached.** A previous version cached the first-call
 /// result in a static `OnceLock`, which silently returned stale
@@ -791,8 +745,7 @@ mod tests {
     fn parse_noqa_line_suppressions_orphaned_at_brace_tail() {
         // A ``# noqa`` at the tail of a brace body has no following
         // command in that scope; it suppresses the line that follows
-        // physically (often a ``} elseif {…}`` header).  Issue #306
-        // case 1.
+        // physically (often a ``} elseif {…}`` header).
         let src = "if {1} {\n    set x 1\n    # noqa\n} elseif {2} {\n    set y 2\n}\n";
         let map = parse_noqa_line_suppressions(src);
         // ``# noqa`` is on line 2 (0-based) — suppression keyed on
@@ -805,7 +758,7 @@ mod tests {
     fn parse_noqa_line_suppressions_before_comment_line() {
         // ``# noqa`` immediately before another comment line that
         // generates a diagnostic (e.g. W115 on a backslash-continued
-        // comment).  Issue #306 case 2.
+        // comment).
         let src = "# noqa: W115\n# trailing \\\nset x 1\n";
         let map = parse_noqa_line_suppressions(src);
         // ``# noqa`` is line 0 → suppresses line 1 (the W115-bearing
@@ -953,10 +906,10 @@ mod tests {
 
     #[test]
     fn irules_top_level_only_matches_python_registry() {
-        // Python's `REGISTRY.irules_top_level_only_commands()` reports
-        // exactly `{"proc"}` — the only command tagged with the
-        // `IRULES_TOP_LEVEL_ONLY` trait. Pin the Rust port to the
-        // same set so a registry-spec drift surfaces here.
+        // `proc` is the only command tagged with the
+        // `IRULES_TOP_LEVEL_ONLY` trait, so the result is exactly
+        // `{"proc"}`. Pinning the set surfaces registry-spec drift
+        // here.
         let reg = CommandRegistry::build_default();
         let cmds = irules_top_level_only(&reg);
         assert!(
@@ -1040,13 +993,7 @@ proc foo {} {}
         assert!(names.is_empty());
     }
 
-    // -- ``parse_command_stub`` + ``parse_expr_stub`` parity tests
-    //
-    // Mirror ``tests/test_stub_comments.py``'s ``TestParseStubLine``
-    // and ``TestParseExprStubLine`` against the Rust port so the
-    // ``stub_commands`` / ``stub_expr_defs`` supplement guards can
-    // retire (the materialiser now consumes the new ``args`` /
-    // flag bools / ``arity`` fields).
+    // -- ``parse_command_stub`` + ``parse_expr_stub`` tests
 
     fn cmd_stub(line: &str) -> Option<super::super::types::StubCommandDef> {
         let body = line.trim_start_matches('#').trim_start();
@@ -1142,7 +1089,7 @@ proc foo {} {}
     #[test]
     fn parse_command_stub_unclosed_optional_marker() {
         // A ``?arg`` without closing ``?`` is treated as a
-        // regular argument name (matches Python).
+        // regular argument name.
         let stub = cmd_stub("# tcl-lsp: stub cmd {?arg}").unwrap();
         assert!(!stub.args[0].optional);
         assert_eq!(stub.args[0].name, "?arg");
@@ -1150,7 +1097,7 @@ proc foo {} {}
 
     #[test]
     fn parse_command_stub_missing_brace_block_rejected() {
-        // Python's ``_STUB_RE`` requires the ``{ARGS}`` block.
+        // The ``{ARGS}`` block is required.
         assert!(cmd_stub("# tcl-lsp: stub bare_name").is_none());
     }
 
@@ -1236,8 +1183,7 @@ proc foo {} {}
 
     #[test]
     fn scan_source_for_stubs_drops_invalid_role() {
-        // Matches Python's ``_parse_args`` returning ``None`` —
-        // the whole stub is dropped when any token uses an
+        // The whole stub is dropped when any token uses an
         // unrecognised role.
         let src = "\
 # tcl-lsp: stubs-begin

@@ -1,12 +1,10 @@
-//! Typed BIG-IP source-address-translation mode value. Rust port of
-//! `_snat_mode.py`.
+//! Typed BIG-IP source-address-translation mode value.
 
 use std::fmt;
 
 /// The variant of a [`SnatMode`].
 ///
-/// Mirrors the Python `SnatModeKind` literal; [`SnatModeKind::as_str`]
-/// returns the exact Python string literal.
+/// [`SnatModeKind::as_str`] returns the exact Python string literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SnatModeKind {
     /// SNAT disabled (`type none`).

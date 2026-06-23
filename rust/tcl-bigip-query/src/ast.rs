@@ -1,17 +1,17 @@
 //! AST node types for the query DSL.
 //!
-//! Faithful port of `dialects/f5/query/ast.py`. The tree is deliberately
-//! simple: one variant per syntactic form, and every node carries the byte
-//! offset where it began so error messages can underline the right span.
+//! The tree is deliberately simple: one variant per syntactic form, and every
+//! node carries the byte offset where it began so error messages can underline
+//! the right span.
 //!
-//! The evaluator (to come) walks this tree top-down, producing either a
-//! plain value or a stream. Path nodes also produce a *location trail* used
-//! by the edit planner when the user assigns to them.
+//! The evaluator walks this tree top-down, producing either a plain value or
+//! a stream. Path nodes also produce a *location trail* used by the edit
+//! planner when the user assigns to them.
 
 /// A literal / token value: the parsed payload of a `STRING` / `NUMBER` /
 /// `true` / `false` / `null` token, or the textual name carried by `IDENT`
-/// and `$IDENT`. Mirrors Python's heterogeneous `token.value` field, where
-/// the absence of a value is spelled `None`.
+/// and `$IDENT`. This is a heterogeneous `token.value` field, where the
+/// absence of a value is spelled `None`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LitValue {
     /// `None` / `null`.

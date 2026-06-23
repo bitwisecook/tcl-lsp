@@ -1,6 +1,4 @@
-//! Graph-backed reference builtins — faithful port of the `category="graph"`
-//! builtins in `dialects/f5/query/builtins.py` and the `dialects/f5/query/graph.py`
-//! helpers they delegate to.
+//! Graph-backed reference builtins (`category="graph"`).
 //!
 //! `refs(obj)` returns the objects an object references (forward edges);
 //! `referenced_by(obj)` returns the objects that reference it (reverse edges);

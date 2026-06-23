@@ -1,5 +1,4 @@
-//! Cross-reference validator for BIG-IP configurations — a faithful port
-//! of `dialects/f5/bigip/validator.py`.
+//! Cross-reference validator for BIG-IP configurations.
 //!
 //! Where the sibling [`crate::lint`] engine emits coarse [`crate::lint::Finding`]s
 //! keyed only by object path, this validator produces ranged
@@ -34,8 +33,7 @@ use crate::model::ProfileType;
 use crate::parser::driver::BigipConfig;
 use crate::range::Range;
 
-/// Severity of a config diagnostic — mirrors the subset of Python
-/// `shared.diagnostic.Severity` this validator emits.
+/// Severity of a config diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagSeverity {
     /// A likely-incorrect reference or value.
@@ -45,7 +43,7 @@ pub enum DiagSeverity {
 }
 
 /// One ranged BIG-IP config diagnostic — the validator analogue of an LSP
-/// `Diagnostic` (mirrors the Python `Diagnostic` this file builds).
+/// `Diagnostic`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConfigDiagnostic {
     /// Diagnostic code (e.g. `"BIGIP6001"`).
@@ -61,7 +59,7 @@ pub struct ConfigDiagnostic {
     pub range: Range,
 }
 
-// ── iRule source-scanning regexes (mirrors validator.py) ─────────────────
+// ── iRule source-scanning regexes ────────────────────────────────────────
 //
 // The `regex` crate has no look-around, so the two Python negative
 // look-aheads (`pool (?!member)`, `persist (?!none)`) are handled by
@@ -113,9 +111,8 @@ fn clean_name(name: &str) -> &str {
     name.trim_matches(|c| matches!(c, '{' | '}' | '"' | '\'' | '[' | ']'))
 }
 
-/// Build a [`Range`] from a capture group's byte offsets, mirroring
-/// `_range_from_match(source_map, m, 1)` (`range_from_offsets(start,
-/// max(start, end - 1))`).
+/// Build a [`Range`] from a capture group's byte offsets (inclusive end =
+/// `max(start, end - 1)`).
 fn range_from_capture(source: &str, line_index: &LineIndex, start: usize, end: usize) -> Range {
     let end_inclusive = if end > start { end - 1 } else { start };
     Range::from_offsets(source, line_index, start, end_inclusive)
@@ -613,7 +610,8 @@ mod tests {
     #[test]
     fn bigip6007_skips_variable_snatpool_reference() {
         // A `$var` / `[cmd]` operand is dynamic — the checker must not flag it.
-        let src = "ltm rule /Common/r {\n  when CLIENT_ACCEPTED {\n    snatpool $dynamic_sp\n  }\n}\n";
+        let src =
+            "ltm rule /Common/r {\n  when CLIENT_ACCEPTED {\n    snatpool $dynamic_sp\n  }\n}\n";
         assert!(!has(src, "BIGIP6007"));
     }
 

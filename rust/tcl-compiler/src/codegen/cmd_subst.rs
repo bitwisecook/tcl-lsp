@@ -3,7 +3,6 @@
 //! Extends [`CodegenCtx`] with methods for parsing `[cmd arg ...]`
 //! substitutions and emitting specialised bytecode sequences for
 //! common Tcl commands (expr, incr, string, list, dict, etc.).
-//! Ported from `core/compiler/codegen/_cmd_subst.py`.
 
 #![allow(clippy::if_not_else, clippy::similar_names, clippy::doc_markdown)]
 
@@ -17,7 +16,7 @@ use super::{CodegenCtx, INDEX_END, Op, Operand, bytecode_imm, parse_tcl_index, s
 /// operand: a non-negative index, or an `end` / `end-N` index
 /// (`<= INDEX_END`). An `end+N` index encodes as `INDEX_END + N`
 /// (> `INDEX_END`) — neither — so it must fall back to the non-immediate
-/// opcode rather than be emitted as a garbage immediate (OPT-C2). This is
+/// opcode rather than be emitted as a garbage immediate. This is
 /// the same guard `lindex` already applies.
 const fn imm_index_ok(idx: i32) -> bool {
     idx >= 0 || idx <= INDEX_END
@@ -496,8 +495,7 @@ impl CodegenCtx<'_> {
     /// `{*}$name` tokens separated by whitespace, closed by `]`.
     ///
     /// Returns `true` if the pattern matched and the bytecode was
-    /// emitted. Ported from `core/compiler/codegen/_values.py::
-    /// _try_list_expand_concat` (C19).
+    /// emitted.
     pub fn try_list_expand_concat(&mut self, value: &str) -> bool {
         let Some(inner) = value
             .strip_prefix("[list")
@@ -535,9 +533,7 @@ impl CodegenCtx<'_> {
     /// command instructions become dead code that the bytecode layout
     /// still lays out.
     ///
-    /// Returns `true` if the pattern matched and was emitted. Ported
-    /// from `core/compiler/codegen/_values.py::
-    /// _try_inline_list_with_break_continue` (C19).
+    /// Returns `true` if the pattern matched and was emitted.
     pub fn try_inline_list_with_break_continue(&mut self, value: &str) -> bool {
         if !(value.starts_with("[list ") && value.ends_with(']')) {
             return false;
@@ -615,19 +611,19 @@ impl CodegenCtx<'_> {
             self.push_lit_no_dedup(&folded);
             return;
         }
-        // Inline [list {*}$a {*}$b] → load a, load b, listConcat (C19).
+        // Inline [list {*}$a {*}$b] → load a, load b, listConcat.
         // tclsh 9.0 compiles two-list expansion as a specialised
         // listConcat opcode rather than a generic `list` invoke.
         if self.try_list_expand_concat(value) {
             return;
         }
-        // Inline [list arg ... [break] ...] or [list arg ... [continue] ...]
-        // (C19). tclsh 9.0 compiles break/continue inside `list` command
+        // Inline [list arg ... [break] ...] or [list arg ... [continue] ...].
+        // tclsh 9.0 compiles break/continue inside `list` command
         // substitutions as inline jumps with stack cleanup.
         if self.try_inline_list_with_break_continue(value) {
             return;
         }
-        // Constant-fold [format "..." arg ...] with literal args (C19).
+        // Constant-fold [format "..." arg ...] with literal args.
         // Relies on the existing `helpers::try_format_fold` for %s/%d/%%.
         if let Some(folded) = super::helpers::try_format_fold(value) {
             self.push_lit_no_dedup(&folded);
@@ -886,7 +882,7 @@ impl CodegenCtx<'_> {
                 self.emit(Op::INCR_STK_IMM, vec![Operand::Imm(1)]);
             } else {
                 let amt_str = &args[1].0;
-                // OPT-C1: `INCR_STK_IMM` carries a 1-byte signed operand, so it
+                // `INCR_STK_IMM` carries a 1-byte signed operand, so it
                 // must be range-checked exactly like the proc-local
                 // `INCR_SCALAR1_IMM` branch above. Without the check,
                 // `[incr ::g 200]` overflowed the operand, and an amount
@@ -1105,7 +1101,7 @@ impl CodegenCtx<'_> {
         if first_lit == "0"
             && let Ok(last_int) = last_lit.parse::<i32>()
             && last_int >= 0
-            // OPT-C2: `last_int + 1` is the start index; guard the i32::MAX
+            // `last_int + 1` is the start index; guard the i32::MAX
             // overflow (which would wrap to a negative garbage index) with a
             // checked add and fall back to `strreplace` when it doesn't fit.
             && let Some(start) = last_int.checked_add(1)
@@ -1624,7 +1620,7 @@ mod tests {
         }
     }
 
-    // -- C19 specialised value-emission paths --
+    // -- specialised value-emission paths --
 
     #[test]
     fn try_list_expand_concat_matches_two_vars() {
@@ -1730,7 +1726,7 @@ mod tests {
 
     #[test]
     fn inline_lrange_end_plus_n_falls_back_to_non_imm() {
-        // OPT-C2: `end+1` encodes as INDEX_END+1, a garbage immediate, so the
+        // `end+1` encodes as INDEX_END+1, a garbage immediate, so the
         // emitter must not use LIST_RANGE_IMM — it falls back to the generic
         // path.
         let registry = CommandRegistry::build_default();

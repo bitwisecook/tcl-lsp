@@ -5,9 +5,8 @@
 //! suggestions) against a [`CompilationUnit`] and returns a
 //! single flat list of diagnostics ready for the LSP.
 //!
-//! Ported from `core/compiler/compiler_checks.py` (C31). Lands the
-//! [`Diagnostic`] supertype and the [`run_all_checks`] entry point
-//! that calls every analysis pass — SCCP, GVN, shimmer (S100–S102),
+//! Hosts the [`Diagnostic`] supertype and the [`run_all_checks`] entry
+//! point that calls every analysis pass — SCCP, GVN, shimmer (S100–S102),
 //! and taint (T100–T101) — and collects results into a flat list.
 
 use tcl_lexer::Span;
@@ -121,8 +120,7 @@ impl Diagnostic {
             code: w.code.clone(),
             category: "shimmer".into(),
             // S100 (single shimmer outside a loop) is informational; S101
-            // (per-iteration loop shimmer) is a warning.  Mirrors Python's
-            // `_SHIMMER_SEVERITY` map in `server/features/diagnostics.py`.
+            // (per-iteration loop shimmer) is a warning.
             severity: if w.code == "S100" {
                 Severity::Info
             } else {
@@ -152,9 +150,7 @@ impl Diagnostic {
             code: w.code.clone(),
             category: "taint".into(),
             // The taint family is a Warning by default (not an Error); T106
-            // and IRULE3103 are informational. Mirrors Python's
-            // `_TAINT_SEVERITY` map in `server/features/diagnostics.py` the
-            // way `from_shimmer` mirrors `_SHIMMER_SEVERITY`.
+            // and IRULE3103 are informational.
             severity: match w.code.as_str() {
                 "T106" | "IRULE3103" => Severity::Info,
                 _ => Severity::Warning,
@@ -172,8 +168,7 @@ impl Diagnostic {
             category: "irules".into(),
             // IRULE1007/1008 (collect-without-release / release-without-
             // collect) are hard connection-state errors; IRULE4004 is
-            // informational. Everything else is a Warning. Mirrors Python's
-            // `_IRULES_FLOW_SEVERITY` map.
+            // informational. Everything else is a Warning.
             severity: match w.code.as_str() {
                 "IRULE1007" | "IRULE1008" => Severity::Error,
                 "IRULE4004" => Severity::Info,
@@ -202,8 +197,7 @@ impl Diagnostic {
             span: w.span,
             code: w.code.clone(),
             category: "taint".into(),
-            // W201 (path concatenation) is a Hint in Python, not a Warning.
-            // Mirrors Python's per-code severity table.
+            // W201 (path concatenation) is a Hint, not a Warning.
             severity: match w.code.as_str() {
                 "W201" => Severity::Hint,
                 _ => Severity::Warning,
@@ -226,7 +220,7 @@ fn shift(fu: &FunctionUnit, mut d: Diagnostic) -> Diagnostic {
     d
 }
 
-/// Run every landed check against a compilation unit and return a
+/// Run every check against a compilation unit and return a
 /// flat list of diagnostics.
 ///
 /// Order of the returned diagnostics is stable but not guaranteed
@@ -351,7 +345,7 @@ pub fn push_taint_and_module_checks(
     // parameter entry taints; its `top_taints` / `proc_taints` supersede the bare
     // per-function `fu.taints` for the warning families so a tainted argument
     // flowing into a callee parameter and then a sink is reported (cross-proc
-    // entry-taint). Mirrors Python `find_taint_warnings`.
+    // entry-taint).
     for fu in cu.analysable_functions() {
         let taints = solved.taints_for(&fu.name, &fu.taints);
         for w in find_taint_warnings(

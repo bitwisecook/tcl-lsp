@@ -1,7 +1,7 @@
-//! Value / stream / path-category builtins (port of those sections of
-//! `builtins.py`): `defined` / `in` / `kind` / `path` / `json_parse`
-//! (value); `all` / `any` / `halt` / `halt_error` / `inside` / `limit` /
-//! `nth` (stream); `basename` / `partition` / `with_partition` (path).
+//! Value / stream / path-category builtins: `defined` / `in` / `kind` /
+//! `path` / `json_parse` (value); `all` / `any` / `halt` / `halt_error` /
+//! `inside` / `limit` / `nth` (stream); `basename` / `partition` /
+//! `with_partition` (path).
 //!
 //! Parity notes:
 //! - `in(key)` is the inverse of `has` and `inside(container)` the inverse
@@ -243,8 +243,8 @@ mod tests {
 
     #[test]
     fn all_any_follow_jq_empty_semantics() {
-        // jq parity (TEST-MIGRATE — value2.rs had no unit coverage):
-        // all([]) is true (vacuous), any([]) is false; null/false are falsy.
+        // jq parity: all([]) is true (vacuous), any([]) is false; null/false
+        // are falsy.
         assert!(call_bool(bi_all, &[Value::List(vec![])]));
         assert!(!call_bool(bi_any, &[Value::List(vec![])]));
         assert!(call_bool(

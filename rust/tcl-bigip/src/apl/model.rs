@@ -1,9 +1,8 @@
 //! Structured model for F5 iApp APL (Application Presentation Language).
-//! Rust port of `dialects/f5/bigip/apl_model.py`.
 
 use crate::range::Range;
 
-/// A single form field declared in APL. Mirrors Python `AplField`.
+/// A single form field declared in APL.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AplField {
     /// Leaf name, e.g. `"addr"`.
@@ -18,7 +17,7 @@ pub struct AplField {
     pub range: Range,
 }
 
-/// A named `section` block. Mirrors Python `AplSection`.
+/// A named `section` block.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AplSection {
     /// Section name.
@@ -31,7 +30,7 @@ pub struct AplSection {
     pub range: Option<Range>,
 }
 
-/// A named `table` block with column fields. Mirrors Python `AplTable`.
+/// A named `table` block with column fields.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AplTable {
     /// Table name.
@@ -44,7 +43,7 @@ pub struct AplTable {
     pub range: Option<Range>,
 }
 
-/// An `#include` directive. Mirrors Python `AplInclude`.
+/// An `#include` directive.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AplInclude {
     /// The path string from the directive.
@@ -55,7 +54,7 @@ pub struct AplInclude {
     pub resolved: bool,
 }
 
-/// Complete parsed APL presentation model. Mirrors Python `AplModel`.
+/// Complete parsed APL presentation model.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AplModel {
     /// `section` blocks, in source order.
@@ -72,8 +71,7 @@ pub struct AplModel {
 
 impl AplModel {
     /// The set of Tcl global variable names this presentation exports —
-    /// APL `section.field` becomes `::section__field`. Mirrors
-    /// `tcl_variable_names`.
+    /// APL `section.field` becomes `::section__field`.
     #[must_use]
     pub fn tcl_variable_names(&self) -> Vec<String> {
         let mut out: Vec<String> = self
@@ -89,7 +87,7 @@ impl AplModel {
 
 /// Convert a Tcl iApp variable name to its APL qualified name
 /// (`::basic__addr` -> `basic.addr`); `None` when it isn't the iApp
-/// convention. Mirrors `tcl_var_to_apl_name`.
+/// convention.
 #[must_use]
 pub fn tcl_var_to_apl_name(tcl_var: &str) -> Option<String> {
     let name = tcl_var.trim_start_matches(':');
@@ -100,7 +98,7 @@ pub fn tcl_var_to_apl_name(tcl_var: &str) -> Option<String> {
 }
 
 /// Convert an APL qualified name to the Tcl global variable name
-/// (`basic.addr` -> `::basic__addr`). Mirrors `apl_name_to_tcl_var`.
+/// (`basic.addr` -> `::basic__addr`).
 #[must_use]
 pub fn apl_name_to_tcl_var(apl_name: &str) -> String {
     format!("::{}", apl_name.replace('.', "__"))

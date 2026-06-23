@@ -1,12 +1,10 @@
-//! Shared minimal / generic objects for the long-tail kinds. Mirrors
-//! `dialects/f5/bigip/model/_minimal.py`.
+//! Shared minimal / generic objects for the long-tail kinds.
 
 use crate::range::Range;
 
 /// Shared shape for every "minimal" projection — the long-tail kinds
 /// that carry only the identity tuple plus a description and TMSH kind
-/// label. Mirrors Python `BigipMinimalObject` (and all its per-module
-/// aliases, which resolve to the same class).
+/// label.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BigipMinimalObject {
     /// Leaf name.
@@ -22,7 +20,6 @@ pub struct BigipMinimalObject {
 }
 
 /// A generic BIG-IP stanza retained when no specialised model exists.
-/// Mirrors Python `BigipGenericObject`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BigipGenericObject {
     /// tmsh module word (e.g. `"net"`, `"auth"`, `"sys"`).

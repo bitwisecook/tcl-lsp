@@ -1,9 +1,8 @@
 //! Tokeniser for the query DSL.
 //!
-//! Faithful port of `dialects/f5/query/lexer.py`. The grammar is small
-//! enough that a hand-rolled scanner is shorter than the regex it would
-//! replace. Tokens carry their offset so parse errors can underline the
-//! offending character.
+//! The grammar is small enough that a hand-rolled scanner is shorter than the
+//! regex it would replace. Tokens carry their offset so parse errors can
+//! underline the offending character.
 //!
 //! Offsets are *code-point* indices (the source is scanned as a
 //! `Vec<char>`), matching Python's `source[i]` indexing exactly so a

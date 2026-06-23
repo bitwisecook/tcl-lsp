@@ -1,5 +1,4 @@
-//! `Partition` value type — F5 administrative partitions. Rust port of
-//! `_partition.py`.
+//! `Partition` value type — F5 administrative partitions.
 
 use super::error::ValueError;
 use super::port::py_repr;

@@ -1,5 +1,4 @@
-//! iControl REST transport for the `f5` remote verbs — Rust port of
-//! `tooling/f5/f5_remote/rest.py`.
+//! iControl REST transport for the `f5` remote verbs.
 //!
 //! Built on `ureq` 3.x + `rustls`. The BIG-IP management interface self-signs
 //! by default, so `insecure` (the verb default) disables certificate

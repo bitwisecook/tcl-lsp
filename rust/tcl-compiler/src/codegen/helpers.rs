@@ -1,7 +1,7 @@
 //! Pure utility functions for compile-time folding.
 //!
 //! These are standalone helpers with no emitter state — used by every
-//! other codegen submodule.  Ported from `core/compiler/codegen/_helpers.py`.
+//! other codegen submodule.
 
 /// Tcl 9.0 default trim characters — pushed when `string trim` is
 /// called without an explicit chars argument.  Includes ASCII

@@ -1,18 +1,16 @@
-//! Builtin function library for the query DSL — faithful port of
-//! `dialects/f5/query/builtins.py`.
+//! Builtin function library for the query DSL.
 //!
 //! This module owns the registry (`BuiltinSpec` + the dispatch metadata the
 //! evaluator reads), the shared argument-coercion / value-walking helpers,
 //! and the **plain** builtins. The special-form builtins (`select`, `map`,
 //! the `paths` / `getpath` family, …) are dispatched by [`crate::special`].
 //!
-//! The builtin set is ported in batches; each batch lands with golden
-//! differential coverage. Plain builtins raise [`QueryError::Builtin`] for
-//! argument-type mistakes so the CLI can map them to `error:` uniformly.
+//! Plain builtins raise [`QueryError::Builtin`] for argument-type mistakes so
+//! the CLI can map them to `error:` uniformly.
 
 // The DSL models Python's unbounded `int`; index / length / numeric
 // conversions between `usize`, `i64`, and `f64` are intentional and
-// pervasive in this faithful port.
+// pervasive.
 #![allow(
     clippy::cast_possible_wrap,
     clippy::cast_sign_loss,
@@ -59,11 +57,11 @@ pub enum Builtin {
     Special,
 }
 
-/// The registry entry for one builtin (port of `builtins.BuiltinSpec`, minus
-/// the doc-only `summary` / `signatures` / `examples` / `details` fields).
+/// The registry entry for one builtin, minus the doc-only `summary` /
+/// `signatures` / `examples` / `details` fields.
 ///
-/// The flag set mirrors Python's `BuiltinSpec` dispatch flags one-for-one, so
-/// the several bools are intrinsic rather than a state-machine smell.
+/// Each flag is an intrinsic dispatch property rather than a state-machine
+/// smell, so the several bools are expected here.
 #[allow(clippy::struct_excessive_bools)]
 pub struct BuiltinSpec {
     pub name: &'static str,
@@ -329,7 +327,7 @@ fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     r
 }
 
-// Shared coercion / walking helpers (ported from builtins.py)
+// Shared coercion / walking helpers
 
 /// Port of `builtins._type_name`.
 #[must_use]

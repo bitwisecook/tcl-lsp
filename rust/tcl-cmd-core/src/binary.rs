@@ -878,7 +878,7 @@ mod tests {
 
     #[test]
     fn scan_huge_field_count_does_not_overflow() {
-        // FN-C3: a field count from the format string is saturated to `usize::MAX`
+        // A field count from the format string is saturated to `usize::MAX`
         // by `parse_count`, so `n * size` used to overflow usize and wrap *under*
         // the bounds check (sneaking past it, then trying to allocate `usize::MAX`).
         // It must instead stop scanning, exactly like the normal out-of-data path.

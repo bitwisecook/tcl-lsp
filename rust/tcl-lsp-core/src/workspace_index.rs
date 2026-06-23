@@ -28,11 +28,9 @@
 //! workspace folders on `initialized`, so unopened `.tcl` / `.tm`
 //! files are covered too.
 //!
-//! What is *deferred*:
-//!
-//! * Variable / namespace indexing — only procs, classes, and
-//!   command invocations are indexed today (the cross-document
-//!   features that need them).
+//! Only procs, classes, and command invocations are indexed
+//! today (the cross-document features that need them); variables
+//! and namespaces are not.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::Span;
@@ -86,7 +84,7 @@ pub struct WorkspaceInvocation {
     pub range: Span,
 }
 
-/// One `source FILE` reference recorded in the index (GAP-A9).
+/// One `source FILE` reference recorded in the index.
 ///
 /// Tracks where a document loads another file so a file rename can
 /// rewrite the dependent's `source` literal.

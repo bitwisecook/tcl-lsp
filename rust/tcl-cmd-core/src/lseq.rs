@@ -38,7 +38,7 @@
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     clippy::cast_possible_wrap,
-    // The float comparisons here are exact-value ports of C predicates
+    // The float comparisons here are exact-value predicates matching C
     // (`floor(d) != d` to detect a non-integer count; `step == 0.0`), not
     // approximate equalities.
     clippy::float_cmp

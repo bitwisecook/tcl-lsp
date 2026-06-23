@@ -1,5 +1,5 @@
 //! Extract variable — replace a selected expression with a named
-//! variable.  Ports `tooling/refactoring/_extract_variable.py`.
+//! variable.
 
 use tcl_lexer::LineIndex;
 
@@ -8,8 +8,7 @@ use crate::code_actions::ActionKind;
 
 /// Whitespace-delimited binary operators that mark an arithmetic /
 /// logical expression which must be wrapped in `[expr { … }]` so the
-/// resulting `set` stays a valid two-argument call.  Mirrors Python's
-/// `_EXPR_OP_RE`.
+/// resulting `set` stays a valid two-argument call.
 const EXPR_OPS: &[&str] = &[
     "**", "==", "!=", "<=", ">=", "&&", "||", "eq", "ne", "in", "ni", "+", "-", "*", "/", "%", "<",
     ">",
@@ -17,16 +16,16 @@ const EXPR_OPS: &[&str] = &[
 
 /// `true` when `text` contains a whitespace-delimited binary operator.
 ///
-/// The Python regex requires a single whitespace byte on each side of
-/// the operator (`\s OP \s`); this matches that by scanning for ` OP `
-/// with single ASCII spaces, which is what the oracle corpus uses.
+/// A whitespace-delimited operator has a single whitespace byte on
+/// each side (`\s OP \s`); this scans for ` OP ` with single ASCII
+/// spaces, which is what the oracle corpus uses.
 fn looks_like_expr(text: &str) -> bool {
     EXPR_OPS.iter().any(|op| text.contains(&format!(" {op} ")))
 }
 
 /// Extract the selection `[start_off, end_off)` into a `set` assignment.
 ///
-/// Ports `extract_variable`.  Returns `None` when the selection is empty
+/// Returns `None` when the selection is empty
 /// or only whitespace.  `start_line` / `start_off` / `end_off` are byte
 /// offsets into `source`; `line_index` resolves them to lines for the
 /// indentation lookup.

@@ -180,10 +180,9 @@ pub fn taint_source_colour(
     Some(augment_source_colours(base | TaintColour::TAINTED))
 }
 
-/// Add the conservative derived properties a source colour implies —
-/// the port of Python `_augment_source_colours`. A path-prefixed value
-/// also proves `NON_DASH_PREFIXED`; an IP / port / FQDN value proves
-/// `NON_DASH_PREFIXED`, `CRLF_FREE`, and `SHELL_ATOM`.
+/// Add the conservative derived properties a source colour implies.
+/// A path-prefixed value also proves `NON_DASH_PREFIXED`; an IP / port /
+/// FQDN value proves `NON_DASH_PREFIXED`, `CRLF_FREE`, and `SHELL_ATOM`.
 #[must_use]
 pub fn augment_source_colours(colour: TaintColour) -> TaintColour {
     let mut out = colour;
@@ -521,7 +520,7 @@ mod tests {
         assert!(SubCommand::DEFAULT.traits.is_empty());
     }
 
-    /// GAP-D2: the new taint/security fields default to clear, so a
+    /// The taint/security fields default to clear, so a
     /// spec that doesn't opt in is never misclassified.
     #[test]
     fn default_spec_has_no_taint_metadata() {
@@ -559,7 +558,7 @@ mod tests {
         assert!(info.output_sink.is_none());
     }
 
-    /// GAP-D2 data: `exec` suppresses T100 on a `SHELL_ATOM` value,
+    /// `exec` suppresses T100 on a `SHELL_ATOM` value,
     /// `eval`/`uplevel` on `LIST_CANONICAL`.
     #[test]
     fn sink_safe_colours_are_populated() {
@@ -578,7 +577,7 @@ mod tests {
         );
     }
 
-    /// GAP-D2 data: `puts` is a T101 output sink; `socket` /
+    /// `puts` is a T101 output sink; `socket` /
     /// `http::geturl` are network sinks; `interp` carries the T105
     /// interp-eval subcommands.
     #[test]
@@ -602,7 +601,7 @@ mod tests {
         assert_eq!(interp.interp_eval_subcommands, &["eval", "invokehidden"]);
     }
 
-    /// GAP-D2 data: the sanitising transforms (`URI::encode`,
+    /// The sanitising transforms (`URI::encode`,
     /// `file join`/`file normalize`) resolve through the accessors,
     /// command- and subcommand-level.
     #[test]
@@ -627,7 +626,7 @@ mod tests {
         );
     }
 
-    /// GAP-D2 data: `HTTP::cookie insert` is an IRULE3002 sink but
+    /// `HTTP::cookie insert` is an IRULE3002 sink but
     /// `HTTP::cookie domain` is not (subcommand-qualified).
     #[test]
     fn cookie_output_sink_is_subcommand_qualified() {
@@ -642,7 +641,7 @@ mod tests {
         assert_eq!(domain.output_sink, None);
     }
 
-    /// GAP-D2 data: the registry-driven setter-constraint table is
+    /// The registry-driven setter-constraint table is
     /// populated for `HTTP::uri` / `HTTP::path`.
     #[test]
     fn setter_constraints_are_populated() {

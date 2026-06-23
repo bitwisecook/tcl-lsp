@@ -1,10 +1,8 @@
 //! `PyO3` wrappers for `tcl_compiler::expr_parser`.
 //!
 //! The full `ExprNode` type bridge (constructing Python-native
-//! `ExprLiteral`, `ExprBinary`, etc.) is deferred until the lowering
-//! phase moves to Rust — at that point the entire tokens→IR pipeline
-//! runs natively and the bridge becomes unnecessary. For now, we
-//! expose `parse_expr_render` and `parse_expr_vars` for differential
+//! `ExprLiteral`, `ExprBinary`, etc.) is not implemented. This module
+//! exposes `parse_expr_render` and `parse_expr_vars` for differential
 //! testing and `parse_expr_tag` for structural comparison.
 
 use pyo3::prelude::*;

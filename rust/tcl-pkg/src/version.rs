@@ -1,6 +1,6 @@
 //! Semantic version type with Tcl-friendly parsing.
 //!
-//! Faithful port of `tooling/tclpkg/version.py`. Version ordering agrees with
+//! Version ordering agrees with
 //! semver 2.0 and with C Tcl's `package require` ordering: missing patch digits
 //! default to zero, a leading `v` is tolerated, and Tcl-style `a1`/`b2`/`rc1`
 //! prereleases collate alongside semver's `-alpha.1` form (`8.6.3a1` sorts

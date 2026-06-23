@@ -1,20 +1,17 @@
-//! File-loading builtins (port of the `*_load` value builtins in
-//! `builtins.py`): `json_load` / `jsonl_load` / `csv_load` / `f5log_load`
-//! / `cert_load`.
+//! File-loading builtins: `json_load` / `jsonl_load` / `csv_load` /
+//! `f5log_load` / `cert_load`.
 //!
 //! Each reads a file path argument and returns the parsed value, reusing
 //! the parsers in [`crate::inputs`] so a query can mix CLI-loaded
 //! side-inputs and in-query loads from the same code path.
 //!
-//! Parity notes:
+//! Notes:
 //! - All five honour `~` tilde expansion and report `file not found:` /
 //!   `cannot read` / format-specific parse errors with the exact Python
 //!   wording.
-//! - `cert_load` is **deferred**: the Python impl parses PEM blocks and
-//!   hands each to `x509_parse`, which depends on the unported probes /
-//!   x509 layer. The pure PEM-block splitting is reproduced, but the
-//!   per-block parse needs x509, so `cert_load` raises a clear deferral
-//!   error rather than returning a half-shaped dict.
+//! - `cert_load` is **unsupported**: it reads the file and validates its
+//!   shape, then raises a clear error for the X.509 parse rather than
+//!   returning a half-shaped dict.
 
 use crate::builtins::{BuiltinSpec, as_str, plain, type_name};
 use crate::errors::QueryError;
@@ -138,18 +135,17 @@ fn bi_f5log_load(args: &[Value]) -> Result<Value, QueryError> {
     Ok(parse_f5log(&text))
 }
 
-/// `cert_load` — deferred. Reproduces the pure file-read + PEM-block
-/// splitting, then defers the per-block x509 parse (which depends on the
-/// unported probes / x509 layer) with a clear error.
+/// `cert_load` — unsupported. Reads the file and validates the argument
+/// shapes, then raises a clear error for the X.509 parse.
 fn bi_cert_load(args: &[Value]) -> Result<Value, QueryError> {
     let p = as_str(&args[0], "cert_load", 1)?;
     let expanded = expanduser(&p);
     if args.len() > 1 {
         // Validate the password arg shape so a type error matches Python's
-        // `_as_str` before we hit the deferral.
+        // `_as_str` before we hit the unsupported-parse error.
         let _ = as_str(&args[1], "cert_load", 2)?;
     }
-    // Mirror Python's read order: missing / unreadable file errors first.
+    // Read order matches Python: missing / unreadable file errors first.
     match std::fs::read(&expanded) {
         Ok(_) => {}
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {

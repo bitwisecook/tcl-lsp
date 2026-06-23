@@ -1,5 +1,4 @@
-//! Special-form builtins — port of `evaluator._eval_special_form` and the
-//! helpers it drives.
+//! Special-form builtins.
 //!
 //! Special forms receive their arguments unevaluated (as AST) plus the
 //! evaluator context, so they can re-bind `.` per input value (`select`,

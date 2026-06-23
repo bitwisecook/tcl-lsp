@@ -1,10 +1,9 @@
 //! Taint analysis — data-flow from tainted sources to dangerous
 //! sinks, tracked through a multi-colour lattice.
 //!
-//! Ported from `core/compiler/taint/` (C29). This module provides:
+//! This module provides:
 //!
-//! 1. **`TaintColour`** / **`TaintLattice`** — the colour lattice
-//!    (unchanged from the prior stub strip).
+//! 1. **`TaintColour`** / **`TaintLattice`** — the colour lattice.
 //! 2. **`propagate_taints`** — intra-procedural worklist that seeds
 //!    taint from known source commands (`gets`, `read`, `exec`,
 //!    `chan`, `encoding convertfrom`) and propagates through SSA phi
@@ -508,8 +507,7 @@ pub(crate) fn word_taint(
 }
 
 /// Re-derive the structural / option-prefix colours of an interpolated
-/// (concatenated) word from its literal fragments — the port of Python
-/// `_evaluate_interpolated_word_taint`'s tail.
+/// (concatenated) word from its literal fragments.
 ///
 /// Interpolation invalidates every structural guarantee unless the
 /// literal text re-establishes it: the canonical-list / normalised-path /
@@ -635,7 +633,7 @@ fn interproc_call_taint(
 
     // Colour-aware return-summary path: when the interprocedural taint
     // solve has computed per-proc summaries, apply the full transfer.
-    // Mirrors Python's `_make_call_return_provider` — a resolved callee
+    // A resolved callee
     // always yields a result (untainted when the arity rejects the call),
     // so the bare argument join below is bypassed for internal calls.
     if let Some(summaries) = ctx.taint_summaries {
@@ -966,7 +964,7 @@ pub(crate) fn propagate_taints(
 
     // Seed entry taints for tainted parameters (interprocedural solve).
     // Only tainted params seed a slot; clean params leave the version-0
-    // slot absent (implicitly clean). Mirrors Python's `param_taints`.
+    // slot absent (implicitly clean).
     if let Some(pt) = param_taints {
         for (name, t) in pt {
             if t.is_tainted() {
@@ -2857,7 +2855,7 @@ mod tests {
         );
         let sccp = simple_sccp(&["entry"]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
-        // The transform colour must have landed on y.
+        // The transform colour must have propagated to y.
         assert!(
             taints
                 .get(&("y".to_string(), 1))

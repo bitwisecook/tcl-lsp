@@ -1,7 +1,6 @@
 //! Rich per-instruction explorer view for the WASM codegen output.
 //!
-//! Port of `compiler/codegen/wasm/_ir.py::WasmModule.to_explorer_json` (and its
-//! `_function_to_explorer_json` helper), built over the Rust
+//! Built over the
 //! [`WasmModule`](tcl_compiler::codegen::wasm::WasmModule) the eval-fallback
 //! emitter produces. It resolves, per instruction:
 //!

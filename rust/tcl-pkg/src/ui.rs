@@ -1,6 +1,6 @@
 //! CLI output helpers — colour, `--json` mode, status symbols.
 //!
-//! Faithful port of `tooling/tclpkg/ui.py`. Centralises the conventions shared
+//! Centralises the conventions shared
 //! by all `tcl pkg` / `tcl venv` subcommands: ANSI colour codes, the
 //! check/cross/warning symbols, and the canonical JSON output mode.
 

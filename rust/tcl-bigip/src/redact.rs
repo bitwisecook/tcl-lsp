@@ -1,27 +1,25 @@
 //! Stable, reversible IP-address redaction map plus secret stripping.
 //!
-//! Faithful Rust port of `dialects/f5/bigip/redact_map.py` (the IP-remap
-//! engine: [`RedactionMap`], [`CidrAssignment`], [`Allocator`],
+//! The IP-remap engine ([`RedactionMap`], [`CidrAssignment`], [`Allocator`],
 //! [`collect_addresses`], [`build_map`], [`map_address`] / [`unmap_address`],
-//! [`apply_map`]) and the `redact_secrets` half of
-//! `dialects/f5/bigip/rewrite.py` ([`redact_secrets`], [`RedactReport`]).
+//! [`apply_map`]) plus secret stripping ([`redact_secrets`], [`RedactReport`]).
 //!
-//! The map-file text format and the address->address mapping are reproduced
-//! exactly so a redact -> unredact round-trip is byte-identical to the Python
-//! CLI.
+//! The map-file text format and the address->address mapping make a
+//! redact -> unredact round-trip exactly reversible (byte-identical).
 //!
 //! # Shuffle / `--shuffle`
 //!
 //! The default (direct) mode preserves host bits. The `shuffle` mode permutes
 //! host bits within each source CIDR via a Fisher-Yates shuffle seeded from
 //! CPython's `random.Random(seed_int)`. CPython's MT19937 PRNG and its
-//! `_randbelow_with_getrandbits` / `shuffle` are reproduced here exactly (see
-//! [`mt19937`]) so `--shuffle` output is byte-identical too.
+//! `_randbelow_with_getrandbits` / `shuffle` are implemented here exactly (see
+//! [`mt19937`]) so `--shuffle` output is byte-identical.
 
 // IP / network maths is inherently full of width-exact casts between
-// u8/u32/u128 (octets, prefix lengths, address ints) and the MT19937 port
-// mirrors CPython's 32-bit word arithmetic. The casts are deliberate and
-// width-checked by construction, so the cast lints are noise here.
+// u8/u32/u128 (octets, prefix lengths, address ints) and the MT19937
+// implementation uses CPython's 32-bit word arithmetic. The casts are
+// deliberate and width-checked by construction, so the cast lints are noise
+// here.
 #![allow(
     clippy::cast_lossless,
     clippy::cast_possible_truncation,
@@ -43,7 +41,7 @@ pub const DEFAULT_TARGET_CIDRS_V4: [&str; 3] = ["10.0.0.0/8", "172.16.0.0/12", "
 /// Default IPv6 target pool.
 pub const DEFAULT_TARGET_CIDRS_V6: [&str; 1] = ["fd00::/8"];
 
-// ── Regexes (ported byte-for-byte from redact_map.py) ───────────────
+// ── Regexes ─────────────────────────────────────────────────────────
 
 const RGXG_V4: &str = concat!(
     r"(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])",
@@ -66,7 +64,7 @@ const RGXG_V6: &str = concat!(
 ///
 /// The `regex` crate has no lookaround, so we capture the literal in group 1
 /// and manually verify the preceding/following byte is not `[\w.]` (for v4) or
-/// `[A-Za-z0-9:]` (for v6), mirroring `(?<![\w.])…(?![\w.])`.
+/// `[A-Za-z0-9:]` (for v6), emulating `(?<![\w.])…(?![\w.])`.
 fn ipv4_re() -> &'static Regex {
     static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
     RE.get_or_init(|| Regex::new(RGXG_V4).expect("valid v4 regex"))
@@ -117,7 +115,7 @@ struct LitMatch {
 }
 
 /// Find every IPv4 literal honouring the lookaround boundary guards, scanning
-/// left-to-right and never overlapping (mirrors `re.finditer`).
+/// left-to-right and never overlapping.
 fn find_v4(text: &str) -> Vec<LitMatch> {
     find_bounded(text, ipv4_re(), v4_boundary_ok)
 }
@@ -157,7 +155,7 @@ fn find_bounded(
 
 // ── Address helpers ─────────────────────────────────────────────────
 
-/// An IP address, mirroring the discriminated handling in `ipaddress`.
+/// An IP address (v4 or v6).
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Addr {
     V4(Ipv4Addr),
@@ -205,7 +203,7 @@ fn parse_v6(token: &str) -> Option<Ipv6Addr> {
     token.parse::<Ipv6Addr>().ok()
 }
 
-// ── is_private / is_skip predicates (faithful to ipaddress) ─────────
+// ── is_private / is_skip predicates ─────────────────────────────────
 
 const V4_PRIVATE_NETS: [&str; 14] = [
     "0.0.0.0/8",
@@ -367,7 +365,7 @@ fn enclosing_cidr(addr: Addr, prefix: u32) -> Net {
     }
 }
 
-/// A network, mirroring `IPv4Network | IPv6Network`.
+/// A network (IPv4 or IPv6).
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Net {
     V4(Ipv4Net),
@@ -561,7 +559,7 @@ impl RedactionMap {
         out
     }
 
-    /// Parse a sidecar map-file TOML (mirrors `RedactionMap.from_toml`).
+    /// Parse a sidecar map-file TOML.
     ///
     /// # Errors
     /// Returns an error string on an unknown schema or malformed structure.
@@ -834,8 +832,8 @@ fn derive_key(seed: &str, source_cidr: &str) -> Vec<u8> {
 
 const SHUFFLE_MAX_WIDTH: u32 = 20;
 
-/// Return `(forward, inverse)` permutations for `host_width` bits, matching
-/// `_build_permutation` (CPython `random.Random(seed_int).shuffle`).
+/// Return `(forward, inverse)` permutations for `host_width` bits, using
+/// CPython's `random.Random(seed_int).shuffle`.
 fn build_permutation(host_width: u32, key: &[u8]) -> (Vec<u32>, Vec<u32>) {
     let size = 1usize << host_width;
     let digest = {
@@ -891,8 +889,7 @@ fn normalise_token(token: &str) -> Option<Addr> {
     }
 }
 
-/// Find every IPv4 / IPv6 literal in `text` in first-appearance order
-/// (mirrors `collect_addresses`).
+/// Find every IPv4 / IPv6 literal in `text` in first-appearance order.
 fn collect_addresses(text: &str, remap_private: bool) -> (Vec<Ipv4Addr>, Vec<Ipv6Addr>) {
     let mut seen_v4: Vec<Ipv4Addr> = Vec::new();
     let mut seen_v4_set: std::collections::HashSet<Ipv4Addr> = std::collections::HashSet::new();
@@ -1243,8 +1240,7 @@ pub fn unmap_address(rm: &mut RedactionMap, fake: &str) -> String {
 /// Substitute every IPv4 / IPv6 literal in `text` via `rm`. Returns
 /// `(text, count)` where `count` is the number of literals that changed.
 ///
-/// Mirrors `apply_map`: the v4 regex is applied first, then the v6 regex over
-/// the result.
+/// The v4 regex is applied first, then the v6 regex over the result.
 #[must_use]
 pub fn apply_map(rm: &mut RedactionMap, text: &str, reverse: bool) -> (String, usize) {
     let mut count = 0usize;
@@ -1273,8 +1269,8 @@ pub fn apply_map(rm: &mut RedactionMap, text: &str, reverse: bool) -> (String, u
     (after_v6, count)
 }
 
-/// Apply a replacement closure over every bounded literal match (mirrors
-/// `re.sub`: non-overlapping, left-to-right).
+/// Apply a replacement closure over every bounded literal match
+/// (non-overlapping, left-to-right).
 fn substitute(
     text: &str,
     finder: fn(&str) -> Vec<LitMatch>,
@@ -1404,8 +1400,7 @@ pub struct RedactOptions {
     pub remap_private: bool,
 }
 
-/// Redact secrets in `source`; optionally remap public IPs (mirrors
-/// `redact_secrets`).
+/// Redact secrets in `source`; optionally remap public IPs.
 ///
 /// # Errors
 /// Propagates [`build_map`] errors (target collision / bad CIDR / unknown mode).
@@ -1458,9 +1453,9 @@ pub fn redact_secrets(source: &str, opts: RedactOptions) -> Result<RedactReport,
     }
 }
 
-// ── CPython random.Random (MT19937) port ────────────────────────────
+// ── CPython random.Random (MT19937) ─────────────────────────────────
 
-/// A from-scratch port of CPython's `random.Random` sufficient for
+/// A from-scratch implementation of CPython's `random.Random` sufficient for
 /// `shuffle` byte-parity: `init_by_array` integer seeding, `getrandbits`,
 /// `_randbelow_with_getrandbits`, and the reverse Fisher-Yates `shuffle`.
 mod mt19937 {

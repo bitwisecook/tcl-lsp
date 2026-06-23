@@ -1,5 +1,4 @@
-//! Adversarial hardening tests for the query DSL (code-review findings
-//! F5-C1 / F5-C2 / F5-C3 / F5-H2).
+//! Adversarial hardening tests for the query DSL.
 //!
 //! The query string is untrusted user input, so every one of these inputs
 //! must surface as a clean `Err`/marker rather than a stack overflow (which
@@ -36,8 +35,8 @@ fn with_big_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> 
         .expect("worker thread did not panic / overflow")
 }
 
-/// F5-C1 (parser): a deeply-nested parenthesised query must be rejected with
-/// a parse error, not overflow the parser's recursive descent.
+/// A deeply-nested parenthesised query must be rejected with a parse error,
+/// not overflow the parser's recursive descent.
 #[test]
 fn deeply_nested_parens_return_parse_error() {
     with_big_stack(|| {
@@ -50,8 +49,8 @@ fn deeply_nested_parens_return_parse_error() {
     });
 }
 
-/// F5-C1 (parser): a long run of `not` prefixes self-recurses; it too must
-/// hit the depth budget rather than the stack.
+/// A long run of `not` prefixes self-recurses; it too must hit the depth
+/// budget rather than the stack.
 #[test]
 fn deeply_nested_not_prefixes_return_parse_error() {
     with_big_stack(|| {
@@ -60,7 +59,7 @@ fn deeply_nested_not_prefixes_return_parse_error() {
     });
 }
 
-/// F5-C1 (parser): a long run of unary minus prefixes likewise.
+/// A long run of unary minus prefixes likewise.
 #[test]
 fn deeply_nested_unary_minus_returns_parse_error() {
     with_big_stack(|| {
@@ -69,19 +68,18 @@ fn deeply_nested_unary_minus_returns_parse_error() {
     });
 }
 
-/// F5-C1 (parser): a query within the depth budget still parses — the guard
-/// rejects only the abusive case, not realistic nesting. 20 levels of
-/// grouping is already far deeper than any real query yet well under the cap.
+/// A query within the depth budget still parses — the guard rejects only the
+/// abusive case, not realistic nesting. 20 levels of grouping is already far
+/// deeper than any real query yet well under the cap.
 #[test]
 fn moderately_nested_query_still_parses() {
     let src = format!("{}1{}", "(".repeat(20), ")".repeat(20));
     assert!(parse_query(&src).is_ok());
 }
 
-/// F5-C1 (evaluator): a hand-built AST nested far deeper than any parseable
-/// query must evaluate to an `Eval` error rather than overflow the native
-/// stack. Unary minus adds one `eval` frame per layer without consuming the
-/// arithmetic fast paths.
+/// A hand-built AST nested far deeper than any parseable query must evaluate
+/// to an `Eval` error rather than overflow the native stack. Unary minus adds
+/// one `eval` frame per layer without consuming the arithmetic fast paths.
 #[test]
 fn deeply_nested_ast_returns_eval_error() {
     with_big_stack(|| {
@@ -116,8 +114,8 @@ fn eval_err(query: &str) -> Option<QueryError> {
     evaluate(&program, &mut ctx).err()
 }
 
-/// F5-C2: integer addition overflow returns a clean evaluator error, never a
-/// debug panic or a silent release-mode wrap.
+/// Integer addition overflow returns a clean evaluator error, never a debug
+/// panic or a silent release-mode wrap.
 #[test]
 fn integer_add_overflow_returns_eval_error() {
     let err = eval_err("9223372036854775807 + 1").expect("overflow must error");
@@ -125,15 +123,15 @@ fn integer_add_overflow_returns_eval_error() {
     assert!(err.to_string().contains("overflow"), "got {err}");
 }
 
-/// F5-C2: integer multiplication overflow returns a clean evaluator error.
+/// Integer multiplication overflow returns a clean evaluator error.
 #[test]
 fn integer_mul_overflow_returns_eval_error() {
     let err = eval_err("9223372036854775807 * 2").expect("overflow must error");
     assert!(matches!(err, QueryError::Eval(_)));
 }
 
-/// F5-C2: integer subtraction overflow (`i64::MIN - 1`, spelt without a
-/// literal `i64::MIN`) returns a clean evaluator error.
+/// Integer subtraction overflow (`i64::MIN - 1`, spelt without a literal
+/// `i64::MIN`) returns a clean evaluator error.
 #[test]
 fn integer_sub_overflow_returns_eval_error() {
     // -9223372036854775807 - 2 underflows past i64::MIN.
@@ -141,7 +139,7 @@ fn integer_sub_overflow_returns_eval_error() {
     assert!(matches!(err, QueryError::Eval(_)));
 }
 
-/// F5-C2: arithmetic that stays in range is unaffected by the checked ops.
+/// Arithmetic that stays in range is unaffected by the checked ops.
 #[test]
 fn in_range_integer_arithmetic_still_works() {
     let program = parse_query("2 + 3 * 4").expect("parses");
@@ -156,8 +154,8 @@ fn in_range_integer_arithmetic_still_works() {
     }
 }
 
-/// F5-C3: an integer literal too large for `i64` must lex to an error rather
-/// than panic in the tokeniser's `i64` parse.
+/// An integer literal too large for `i64` must lex to an error rather than
+/// panic in the tokeniser's `i64` parse.
 #[test]
 fn oversized_integer_literal_returns_lex_error() {
     let err = tokenise("99999999999999999999").expect_err("must not panic");
@@ -166,14 +164,14 @@ fn oversized_integer_literal_returns_lex_error() {
     assert!(parse_query("99999999999999999999").is_err());
 }
 
-/// F5-C3: an in-range integer literal still lexes fine.
+/// An in-range integer literal still lexes fine.
 #[test]
 fn max_i64_literal_lexes() {
     assert!(tokenise("9223372036854775807").is_ok());
 }
 
-/// F5-H2: rendering a pathologically deep value must terminate with a
-/// truncation marker instead of overflowing the serialiser's recursion.
+/// Rendering a pathologically deep value must terminate with a truncation
+/// marker instead of overflowing the serialiser's recursion.
 #[test]
 fn deeply_nested_value_serialises_without_overflow() {
     with_big_stack(|| {
@@ -197,8 +195,8 @@ fn deeply_nested_value_serialises_without_overflow() {
     });
 }
 
-/// F5-H2: a shallow value still round-trips unchanged — the depth guard does
-/// not perturb ordinary output.
+/// A shallow value still round-trips unchanged — the depth guard does not
+/// perturb ordinary output.
 #[test]
 fn shallow_value_serialises_normally() {
     let value = Value::List(vec![Value::Int(1), Value::Int(2)]);

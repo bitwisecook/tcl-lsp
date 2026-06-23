@@ -1,5 +1,4 @@
-//! Credential resolution for the `f5` remote verbs — Rust port of
-//! `tooling/f5/f5_remote/auth.py`.
+//! Credential resolution for the `f5` remote verbs.
 //!
 //! Resolution order (highest priority first):
 //!
@@ -24,8 +23,8 @@ pub struct Credentials {
     pub user: String,
     pub password: String,
     pub port: u16,
-    // Resolved for parity with the Python `Credentials`; consumed only by the
-    // SSH transport, which is deferred in the Rust port.
+    // Consumed only by the SSH transport, which is not implemented, so it is
+    // otherwise unused.
     #[allow(dead_code)]
     pub ssh_port: u16,
 }

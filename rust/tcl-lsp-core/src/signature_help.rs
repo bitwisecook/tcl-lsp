@@ -1,5 +1,4 @@
-//! Signature-help provider — Rust port of
-//! `lsp/features/signature_help.py`.
+//! Signature-help provider.
 //!
 //! Surfaces a single [`SignatureInformation`] for the command
 //! whose name appears as the first word of the active command
@@ -21,30 +20,17 @@
 //!    render its first `hover.synopsis` entry as the signature.
 //!    Parameters are whitespace-separated synopsis tokens after
 //!    the command word; `hover.summary` becomes the
-//!    documentation.  This is part of the
-//!    `S-signature-help-rich` follow-up.
+//!    documentation.
 //!
-//! What is *still deferred* (planned as further
-//! `S-signature-help-rich` sub-strips):
-//!
-//! * Multi-line command segments (the port only walks the
-//!   cursor's physical line — Python uses
-//!   `find_command_context_details_at_position`, which
-//!   understands continuation lines, embedded `[…]` / `{…}`
-//!   etc.).
-//! * Command-alias resolution
-//!   (`lookup_alias_for_word(...)`).
-//! * Subcommand-scoped signatures (Python's `SubcommandSig`
-//!   path — pulls the right shape based on `args[0]`).
-//! * `_signature_documentation` rich doc-comment rendering
-//!   (the current port surfaces the summary verbatim).
+//! Limitations: only the cursor's physical line is walked, so
+//! multi-line command segments (continuation lines, embedded
+//! `[…]` / `{…}`) aren't understood, and rich doc-comment
+//! rendering isn't done — the summary is surfaced verbatim.
 
 use tcl_compiler::analyser::{AnalysisResult, ProcDef};
 use tcl_registry::CommandRegistry;
 
 /// One element in a signature's parameter list.
-///
-/// Mirrors `lsprotocol.types.ParameterInformation`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParameterInformation {
     /// Parameter label as shown in the signature
@@ -53,8 +39,6 @@ pub struct ParameterInformation {
 }
 
 /// One signature in a signature-help response.
-///
-/// Mirrors `lsprotocol.types.SignatureInformation`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignatureInformation {
     /// Full label of the signature (e.g. `proc ::greet name`).
@@ -89,11 +73,11 @@ pub struct SignatureHelp {
 /// was recorded.
 ///
 /// `registry`, when `Some`, lets the lookup fall through to
-/// the built-in command set (`S-signature-help-rich`): user
+/// the built-in command set: user
 /// procs win, but if the cursor's command isn't a user proc,
 /// the spec's first `hover.synopsis` entry renders as the
 /// signature.  When `registry` is `None` the surface degrades
-/// cleanly to the minimal port's user-proc-only behaviour.
+/// cleanly to the user-proc-only behaviour.
 #[must_use]
 pub fn signature_help(
     source: &str,
@@ -108,7 +92,7 @@ pub fn signature_help(
     }
     let registry = registry?;
     let spec = registry.get(&command)?;
-    // `S-signature-help-rich` subcommand-scoped signatures:
+    // Subcommand-scoped signatures:
     // when the spec has subcommands and the first argument
     // matches one, prefer the subcommand's signature over the
     // command-level one.  Adjusts `active_param` to be
@@ -141,7 +125,7 @@ pub fn signature_help(
 /// command boundary (start of source, `\n`, `;`, or
 /// `{ … }`-body opener) up to the cursor.
 ///
-/// Mirrors Python's `find_command_context_details_at_position`:
+/// Segmentation rules:
 ///
 /// * Continuation lines (`\<newline>` and unclosed `{…}` /
 ///   `[…]` bodies) are part of the same segment.
@@ -170,7 +154,7 @@ fn command_context_with_args(
         // to this line's content end, before its newline). Adding the column
         // to `line_start` directly is a byte+UTF-16 mismatch that selects the
         // wrong active parameter on any line with non-ASCII text before the
-        // cursor (F3) — the same encoding hazard the rest of the crate fixed.
+        // cursor — the same encoding hazard the rest of the crate fixed.
         line_index.offset_at_utf16(line, character, source)
     };
 
@@ -302,11 +286,10 @@ fn lookup_proc<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ProcD
     if let Some(proc_def) = direct_proc_lookup(analysis, name) {
         return Some(proc_def);
     }
-    // `S-signature-help-rich`: alias resolution.  When the
+    // Alias resolution.  When the
     // cursor's command isn't a user proc, check whether it
     // matches an `interp alias {} ALIAS {} TARGET` record and
-    // follow the chain to the target proc.  Mirrors Python's
-    // `lookup_alias_for_word`.
+    // follow the chain to the target proc.
     let resolved_target = resolve_alias_chain(analysis, name)?;
     direct_proc_lookup(analysis, &resolved_target)
 }
@@ -408,7 +391,7 @@ fn builtin_signature_help(
 }
 
 fn proc_signature_help(proc_def: &ProcDef, active_param: u32) -> SignatureHelp {
-    // Mirrors Python `_proc_signature_help`: optional (defaulted) params show
+    // Optional (defaulted) params show
     // as `?name?` in the parameter list and `?name default?` in the signature
     // label, which itself is `<short-name> <params>` (no `proc` prefix, short
     // — not qualified — name).
@@ -528,7 +511,7 @@ mod tests {
         }
     }
 
-    // -- S-signature-help-rich: built-in command signatures ----------
+    // -- built-in command signatures ----------
     //
     // These tests pin the contract that passing a registry
     // lets the cursor's command resolve to a built-in spec
@@ -639,7 +622,7 @@ mod tests {
         assert!(signature_help(src, 0, 5, &analysis, None).is_none());
     }
 
-    // -- S-signature-help-rich: multi-line / semicolon segments ------
+    // -- multi-line / semicolon segments ------
 
     #[test]
     fn signature_help_continues_across_open_brace() {
@@ -679,15 +662,12 @@ mod tests {
         );
     }
 
-    // `[greet …]` substitution-bracket recursion remains a
-    // further sub-strip — the lexer surfaces `[greet ]` as a
-    // single Cmd token, so signature help for the inner command
-    // needs a recursive lex of the bracket body (the Python
-    // provider does this via the segmenter's
-    // `command_substitutions` walk).  Tracked under
-    // `S-signature-help-rich` continued follow-ups.
+    // `[greet …]` substitution-bracket recursion is not handled —
+    // the lexer surfaces `[greet ]` as a single Cmd token, so
+    // signature help for the inner command would need a recursive
+    // lex of the bracket body.
 
-    // -- S-signature-help-rich: alias resolution ---------------------
+    // -- alias resolution ---------------------
 
     #[test]
     fn alias_resolves_to_target_proc_signature() {

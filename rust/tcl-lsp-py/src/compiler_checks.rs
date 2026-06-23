@@ -1,23 +1,11 @@
-//! `PyO3` bindings for the compiler-checks aggregator (C32-shim).
+//! `PyO3` bindings for the compiler-checks aggregator.
 //!
-//! Exposes `run_all_checks(source, dialect)` to Python. The binding
-//! is available for the Python layer to call, but the Python
-//! `core.compiler.compiler_checks` entry point is **not yet** wired
-//! to delegate here in this PR — no `TCL_LSP_RUST_CHECKS` env-var
-//! gate consumes this binding today. That follow-up is blocked on
-//! landing Rust-side shimmer / taint bodies (C27d / C29) so the
-//! delegated path doesn't silently drop those diagnostic classes.
-//! When the consumer lands it will follow the same try-import +
-//! env-gate pattern as L11's lexer flip.
+//! Exposes `run_all_checks(source, dialect)` to Python.
 //!
 //! Diagnostics are returned as tuples rather than a full `pyclass`
 //! so the Python side can construct its own `Diagnostic` dataclass
 //! (with `Range` / `SourcePosition` values built from a line index)
 //! without this crate needing to know about the Python-side types.
-//!
-//! Note that the Rust implementations of shimmer and taint are
-//! still stubs (C31 deferred work); those diagnostic classes will
-//! silently return empty lists until the full ports land.
 
 use pyo3::prelude::*;
 
@@ -30,7 +18,7 @@ use tcl_compiler::compiler_checks::run_all_checks;
 /// each row in its own `Diagnostic` dataclass.
 type DiagnosticRow = (String, String, String, String, u32, u32, Option<String>);
 
-/// Run every landed compiler check against `source` and return a
+/// Run every compiler check against `source` and return a
 /// flat list of diagnostic tuples:
 ///
 /// `(code, category, severity, message, start_offset, end_offset,

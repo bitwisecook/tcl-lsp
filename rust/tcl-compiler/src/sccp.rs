@@ -4,17 +4,6 @@
 //! refine per-SSA-value [`LatticeValue`] facts until a fixed point,
 //! using CFG reachability so unreachable branches never drag their
 //! targets down to `Overdefined`.
-//!
-//! This is the first strip of C25:
-//! - **C25a** (this file) — predecessor / CFG-order wrappers and the
-//!   [`join`] helper for lattice updates.
-//! - **C25b** — the `sccp` fixed-point driver that consumes these
-//!   helpers plus [`SsaFunction`] phi nodes and branch terminators.
-//! - **C25c** and **C25d** add the dataflow-graph extraction that
-//!   renders SCCP facts for consumers.
-//!
-//! Ported from `core/compiler/core_analyses.py::_sccp` and the
-//! surrounding lattice-join helpers.
 
 #![allow(clippy::implicit_hasher)]
 
@@ -27,7 +16,7 @@ use crate::ir::Statement;
 use crate::ssa::{SsaFunction, SsaStatement, ValueKey};
 use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, eval_tcl_expr_with_octal};
 
-// Public aliases (C25a)
+// Public aliases
 
 /// Predecessor map: block name → set of block names that branch
 /// into it. Thin wrapper around [`CfgFunction::predecessors`] kept
@@ -40,8 +29,7 @@ pub fn compute_predecessors(cfg: &CfgFunction) -> HashMap<String, HashSet<String
 
 /// CFG traversal order used by SCCP — reverse post-order from the
 /// entry block. Blocks that the RPO walk cannot reach from `entry`
-/// are appended at the end so the driver can still observe them
-/// (matching the Python `_cfg_order` behaviour).
+/// are appended at the end so the driver can still observe them.
 #[must_use]
 pub fn cfg_order(cfg: &CfgFunction) -> Vec<String> {
     let mut order = cfg.reverse_postorder();
@@ -54,7 +42,7 @@ pub fn cfg_order(cfg: &CfgFunction) -> Vec<String> {
     order
 }
 
-// Lattice join (C25a)
+// Lattice join
 
 /// Canonical [`ConstValue`] ordering for deterministic set merges.
 ///
@@ -81,7 +69,7 @@ fn to_set(lv: &LatticeValue) -> Option<Vec<ConstValue>> {
 
 /// Join two lattice values, widening to `Overdefined` when either
 /// side is `Overdefined` or when the union exceeds
-/// [`MAX_CONSTSET_SIZE`]. Matches `core_analyses.py::_join`:
+/// [`MAX_CONSTSET_SIZE`]. Behaviour:
 ///
 /// - `Unknown` is absorbed (takes the non-unknown side).
 /// - `Overdefined` is absorbing (either side forces the result).
@@ -159,7 +147,7 @@ fn cv_eq(a: &ConstValue, b: &ConstValue) -> bool {
     }
 }
 
-// Driver (C25b)
+// Driver
 
 /// A branch whose condition SCCP determined to be constant.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -203,16 +191,16 @@ pub struct SccpResult {
 /// lets interprocedural analysis seed the caller-provided argument
 /// lattice entries.
 ///
-/// This is a focused port of `core_analyses.py::_sccp`:
+/// Behaviour:
 ///
 /// - Phi handling uses the incoming versions for each *executable*
 ///   predecessor, joining them onto the phi's SSA value.
 /// - Statement handling uses [`evaluate_def`] below, which folds
 ///   [`Statement::AssignConst`] and [`Statement::AssignExpr`] via
-///   the C22 evaluator. Other statement kinds and
+///   the expression evaluator. Other statement kinds and
 ///   [`Statement::Barrier`] widen their defs to `Overdefined`.
 /// - Branch decisions are resolved via [`evaluate_branch`] below,
-///   which consults the lattice environment and then the C22
+///   which consults the lattice environment and then the expression
 ///   evaluator.
 ///
 /// `octal` controls how a bare leading-zero string literal (`"08"`,
@@ -245,9 +233,9 @@ pub fn sccp(
     // through one would be unsound across any opaque call (`set ::g 5; mut;
     // expr {$::g + 1}` must NOT fold to 6 — `mut` may have rewritten `::g`).
     // Force every such definition to OVERDEFINED so SCCP never propagates a
-    // constant through it; the read is still tracked for liveness. Mirrors
-    // Python's `_is_externally_mutable`, consulting the whole-function
-    // (flow-insensitive) view of the `var_observability` alias/trace lattice.
+    // constant through it; the read is still tracked for liveness. The check
+    // consults the whole-function (flow-insensitive) view of the
+    // `var_observability` alias/trace lattice.
     let escaping = crate::var_observability::analyse_var_observability(cfg).escaping_var_names();
     let is_externally_mutable = |name: &str| name.starts_with("::") || escaping.contains(name);
 
@@ -262,8 +250,7 @@ pub fn sccp(
     // that forces both arms for any executable branch still stuck on an UNKNOWN
     // condition (defensive: a value defined only in unreachable code could
     // otherwise leave a successor spuriously unreachable). `finalizing` is
-    // monotone, so the outer loop runs at most twice. Mirrors Python's
-    // two-phase SCCP driver in `core_analyses.py`.
+    // monotone, so the outer loop runs at most twice.
     let mut finalizing = false;
     loop {
         let mut changed = true;
@@ -317,9 +304,9 @@ pub fn sccp(
                         // Barriers widen all currently-tracked values — EXCEPT
                         // version-0 (parameter) seeds, which hold the caller's
                         // literal and are immutable across the barrier (a barrier
-                        // that mutates the var produces a fresh version).  Mirrors
-                        // Python's SCCP barrier v0-preserve refinement so a callee
-                        // `dict with $param` still sees the interproc literal.
+                        // that mutates the var produces a fresh version), so a
+                        // callee `dict with $param` still sees the interproc
+                        // literal.
                         let keys: Vec<ValueKey> = values.keys().cloned().collect();
                         for k in keys {
                             if k.1 == 0 {
@@ -380,7 +367,7 @@ pub fn sccp(
 /// upvar target, or an undefined-variable read) holds a runtime-unknown value,
 /// so it is `Overdefined`, not the `Unknown` join-identity (which would
 /// silently vanish from any phi it feeds — folding `join(const, $runtime)` to
-/// the constant). Mirrors Python's `analyse_function` live-in-root seeding.
+/// the constant).
 fn seed_live_in_roots<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -434,8 +421,7 @@ fn seed_live_in_roots<S: std::hash::BuildHasher>(
 ///
 /// Operands read at version 0 (proc parameters, globals, and other
 /// live-in roots) are excluded: [`seed_live_in_roots`] already seeds them
-/// `Overdefined`, so they are never "not yet computed". Mirrors Python's
-/// `_condition_use_versions` + the optimistic arm of `branch_targets`.
+/// `Overdefined`, so they are never "not yet computed".
 fn branch_deferrable(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
@@ -602,7 +588,7 @@ fn collect_constant_branches(
     constant_branches
 }
 
-/// SYNC-MAY31-3: fold `[info exists X]` / `[array exists X]`
+/// Fold `[info exists X]` / `[array exists X]`
 /// if-conditions into [`ConstantBranch`] entries for the two
 /// false-positive-free cases — a parameter always exists (`true`); a
 /// never-defined non-parameter never exists (`false`).  `![info exists
@@ -710,7 +696,7 @@ pub fn existence_constant_branches(
 /// defs.
 ///
 /// Focused subset: constant-assignment, expression-assignment via
-/// the C22 evaluator, and a conservative `Overdefined` fallback
+/// the expression evaluator, and a conservative `Overdefined` fallback
 /// for everything else.
 #[must_use]
 pub fn evaluate_def(
@@ -727,7 +713,7 @@ pub fn evaluate_def(
             }
         }
         Statement::AssignValue { value, .. } => {
-            // C25e4: fold when the RHS is either a plain literal
+            // Fold when the RHS is either a plain literal
             // (no command substitution), a simple `$var` that
             // resolves to a lattice Const, or a `[cmd args...]`
             // that try_fold_cmd_subst recognises.
@@ -742,7 +728,7 @@ pub fn evaluate_def(
             && defs.len() == 1
             && args.len() == 1 =>
         {
-            // C25e2: `foreach v LIST` / `lmap v LIST` folds the
+            // `foreach v LIST` / `lmap v LIST` folds the
             // iteration variable to the CONSTSET of elements when
             // LIST is a literal or resolves to a Const(String)
             // through the lattice. Multi-variable and multi-list
@@ -764,7 +750,7 @@ pub fn evaluate_def(
             }
         }
         Statement::Incr { name, amount, .. } => {
-            // C25e1: track `incr NAME ?AMOUNT?` through the lattice
+            // Track `incr NAME ?AMOUNT?` through the lattice
             // when the current value of NAME is a single Const(Int)
             // and AMOUNT is either absent (defaults to 1), a decimal
             // integer literal, or a simple `$var` reference that
@@ -849,8 +835,7 @@ fn resolve_simple_var_ref(
 /// values (`for {set i 0} {$i < 10} {incr i} {}` leaves `i == 10`), so a
 /// following `if {$i == 10}` folds. The summary is conservative: it bails to
 /// `None` on non-constant bounds, side effects, or runaway iteration, falling
-/// back to the lattice fold. Mirrors Python's `_barrier_aware_env_for_block`
-/// loop arm feeding `_evaluate_branch_decision`.
+/// back to the lattice fold.
 fn branch_decision(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -995,7 +980,7 @@ pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {
 /// Extract iteration-variable elements from a foreach list arg
 /// that is a literal (no `$` / `[` substitution).
 ///
-/// Ported from `core_analyses.py::_extract_foreach_elements`:
+/// Behaviour:
 /// - Strip whitespace, one level of `{…}` or `"…"` wrapping.
 /// - Split on ASCII whitespace.
 /// - Returns `None` for anything that starts with `$` or `[` so
@@ -1057,7 +1042,7 @@ pub fn resolve_foreach_list_via_lattice(
     }
 }
 
-// AssignValue folding (C25e4)
+// AssignValue folding
 
 /// Fold the RHS of an `AssignValue` statement to a lattice value.
 ///
@@ -1099,7 +1084,7 @@ fn fold_assign_value(
 /// - `[llength {a b c}]` / `[llength "a b c"]` → integer element count.
 /// - `[string length "text"]` → integer character count.
 /// - `[expr {EXPR}]` — parses the inner expression and folds it
-///   under the current lattice (bridges to C22's evaluator).
+///   under the current lattice (bridges to the expression evaluator).
 ///
 /// Returns `None` for anything else so callers widen to
 /// Overdefined.
@@ -1107,7 +1092,7 @@ fn fold_assign_value(
 /// word (optionally brace/quote wrapped), or a pure `$var` / `${var}` whose
 /// SCCP lattice value is a constant. Returns `None` for anything that isn't a
 /// compile-time constant (array refs, command substitutions, unknown vars),
-/// so the caller skips folding — matching Python's lattice-resolved fold.
+/// so the caller skips folding.
 fn resolve_const_string(
     arg: &str,
     uses: &HashMap<String, crate::ssa::Version>,
@@ -1209,7 +1194,7 @@ fn try_fold_cmd_subst(
         // Numeric values survive textual substitution as valid expr tokens,
         // so for the non-braced form restrict the env to numeric constants:
         // a string-valued var is then left unbound and the fold bails,
-        // matching Tcl (and Python, which never folds it).
+        // matching Tcl.
         let braced = arg.starts_with('{');
         let expr_text = strip_one_level(arg);
         let expr = crate::expr_parser::parse_expr(expr_text, None);
@@ -1256,8 +1241,7 @@ fn strip_one_level(text: &str) -> &str {
     text
 }
 
-/// Parse a literal text as a [`ConstValue`]. Matches Python's
-/// `_parse_literal_value`: prefers integer, then string fallback.
+/// Parse a literal text as a [`ConstValue`]: prefers integer, then string fallback.
 ///
 /// Only collapses to [`ConstValue::Int`] when the canonical integer text
 /// round-trips (`str(int(s)) == s`).  A leading-zero literal such as `"08"` or
@@ -1268,7 +1252,7 @@ fn strip_one_level(text: &str) -> &str {
 #[must_use]
 pub fn parse_literal_value(text: &str) -> ConstValue {
     let stripped = text.trim();
-    // Decimal integer grammar `[+-]?[0-9]+` (matches Python's `DECIMAL_INT_RE`).
+    // Decimal integer grammar `[+-]?[0-9]+`.
     let digits = stripped.strip_prefix(['+', '-']).unwrap_or(stripped);
     let is_decimal_int = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
     if is_decimal_int
@@ -1433,7 +1417,7 @@ mod tests {
         assert!(join_pos > e_pos);
     }
 
-    // -- C25b: driver --
+    // -- driver --
 
     use crate::expr_ast::BinOp;
     use crate::ir::Statement;
@@ -1672,7 +1656,7 @@ mod tests {
         );
     }
 
-    // -- C25e1: evaluate_def for Incr --
+    // -- evaluate_def for Incr --
 
     fn incr_stmt(name: &str, amount: Option<&str>, old_ver: u32, new_ver: u32) -> SsaStatement {
         let mut uses = HashMap::new();
@@ -1802,7 +1786,7 @@ mod tests {
         assert_eq!(resolve_simple_var_ref("plain", &uses, &values), None);
     }
 
-    // -- C25e2: foreach constset extraction --
+    // -- foreach constset extraction --
 
     fn foreach_stmt(var: &str, list: &str, new_ver: u32) -> SsaStatement {
         let mut defs = HashMap::new();
@@ -1913,7 +1897,7 @@ mod tests {
         assert_eq!(result, LatticeValue::Overdefined);
     }
 
-    // -- C25e4: AssignValue + command-substitution folding --
+    // -- AssignValue + command-substitution folding --
 
     fn assign_value_stmt(name: &str, value: &str, ver: u32) -> SsaStatement {
         let mut defs = HashMap::new();

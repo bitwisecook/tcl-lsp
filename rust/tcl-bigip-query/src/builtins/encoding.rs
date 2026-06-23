@@ -1,6 +1,5 @@
-//! Encoding-category builtins (port of the `encoding` section of
-//! `builtins.py`): `base64` / `base64d` / `html` / `uri` / `tojson` /
-//! `fromjson` / `sh`.
+//! Encoding-category builtins: `base64` / `base64d` / `html` / `uri` /
+//! `tojson` / `fromjson` / `sh`.
 //!
 //! Parity notes:
 //! - `base64` / `base64d` use the standard alphabet with padding, matching
@@ -186,8 +185,6 @@ mod tests {
 
     #[test]
     fn base64_round_trip() {
-        // Ported from `tests/test_f5_query.py::test_base64_round_trip`
-        // (TEST-MIGRATE — encoding.rs had no unit coverage).
         assert_eq!(call(bi_base64, &[s("hello")]), "aGVsbG8=");
         assert_eq!(call(bi_base64d, &[s("aGVsbG8=")]), "hello");
     }

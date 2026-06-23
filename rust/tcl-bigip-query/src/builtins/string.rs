@@ -1,8 +1,8 @@
-//! String-category builtins (port of the `string` section of `builtins.py`).
+//! String-category builtins.
 //!
-//! This first batch covers the non-regex string builtins; the regex family
-//! (`match` / `sub` / `gsub` / `test` / `scan` / `capture` / `splits`) lands
-//! in a later batch atop `safe_regex_compile`.
+//! This module covers the non-regex string builtins; the regex family
+//! (`match` / `sub` / `gsub` / `test` / `scan` / `capture` / `splits`) lives
+//! in [`crate::builtins::regex_str`] atop `safe_regex_compile`.
 
 use crate::builtins::{BuiltinSpec, as_sequence, as_str, plain, type_name};
 use crate::errors::QueryError;
@@ -131,8 +131,6 @@ mod tests {
 
     #[test]
     fn ascii_case_conversions() {
-        // Ported from `tests/test_f5_query.py::test_ascii_upcase_downcase_aliases`
-        // (TEST-MIGRATE — string.rs had no unit coverage).
         assert_eq!(call_str(bi_upper, &[s("abc")]), "ABC");
         assert_eq!(call_str(bi_lower, &[s("ABC")]), "abc");
     }

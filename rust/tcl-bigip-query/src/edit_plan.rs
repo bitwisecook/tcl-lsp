@@ -1,7 +1,7 @@
 //! Edit plan: collect, route, and apply query-driven source edits.
 //!
-//! Faithful port of `dialects/f5/query/edit_plan.py`. Every assignment
-//! produced by the evaluator turns into an [`EditOp`]; [`apply`] groups them
+//! Every assignment produced by the evaluator turns into an [`EditOp`];
+//! [`apply`] groups them
 //! by source URI, routes identity-field writes (`.name = ...`,
 //! `.name |= with_partition(...)`) through
 //! [`rename_object`](crate::rewrite::rename_object), runs cascading
@@ -421,8 +421,8 @@ fn stringify(value: &Value) -> String {
     }
 }
 
-/// `str(value)` for a scalar — mirrors Python `str()` on the assignment
-/// value types a rename target produces (string / int / float / bool / None).
+/// `str(value)` for a scalar — `str()` on the assignment value types a
+/// rename target produces (string / int / float / bool / None).
 fn describe_str(value: &Value) -> String {
     match value {
         Value::Str(s) => s.clone(),

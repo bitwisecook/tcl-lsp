@@ -1,6 +1,6 @@
 //! Package source fetchers — tarball, git, and local path.
 //!
-//! Faithful port of `tooling/tclpkg/fetchers.py`. Each fetcher downloads or
+//! Each fetcher downloads or
 //! copies a package source into a target directory; the caller then hands the
 //! directory to [`cas::store`](crate::cas::ContentAddressableStore::store) for
 //! integrity hashing. Archive extraction is hardened against zip-slip,

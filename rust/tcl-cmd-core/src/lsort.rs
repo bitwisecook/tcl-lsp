@@ -1,7 +1,7 @@
 //! `lsort` — list sort, shared over [`ValueOps`](tcl_syntax::value::ValueOps)
 //! and a `-command` comparator callback.
 //!
-//! A faithful port of C's `Tcl_LsortObjCmd` (`tclCmdIL.c`): the option set
+//! Implements the behaviour of C's `Tcl_LsortObjCmd` (`tclCmdIL.c`): the option set
 //! (`-ascii`/`-dictionary`/`-integer`/`-real`/`-nocase`, `-increasing`/
 //! `-decreasing`, `-unique`, `-indices`, `-index` *path*, `-stride`, `-command`),
 //! the up-front numeric-key validation, mode-aware `-unique`, and the stride /

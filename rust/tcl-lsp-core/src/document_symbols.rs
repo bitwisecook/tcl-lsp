@@ -1,21 +1,16 @@
-//! Document-symbol provider — Rust port of
-//! `lsp/features/document_symbols.py`.
+//! Document-symbol provider.
 //!
 //! Walks the analyser's scope tree and emits a tree of
 //! `(name, kind, range, selection_range, detail, children)` records
 //! for the editor outline view (Cmd+Shift+O / breadcrumbs).
 //!
-//! The Python original also has two non-analyser paths — a
-//! ``_symbols_from_chunks`` fast-path (basic event/proc symbols
-//! extracted while a full analysis is still running) and a
-//! ``_conf_wrapped_symbols`` path for conf-wrapped iRules.  Both
-//! stay in Python for now: the chunks path is a transient outline
-//! while the subprocess analyser warms up (replaced wholesale once
-//! the LSP-server port lands), and the conf-wrapped path threads
-//! through ``embedded_rules`` records that aren't yet on the Rust
-//! analyser-result shape.  The Rust function ports the
-//! analysis-driven path, which is the case the dispatcher hits
-//! once analysis is available.
+//! This provider handles only the analysis-driven path — the case
+//! the dispatcher hits once analysis is available.  Two non-analyser
+//! paths are not implemented here: a chunks fast-path (basic
+//! event/proc symbols extracted while a full analysis is still
+//! running, a transient outline while the analyser warms up) and a
+//! conf-wrapped iRules path threading through ``embedded_rules``
+//! records that aren't yet on the analyser-result shape.
 //!
 //! Range conversion: spans are half-open ``[start, end)`` on the
 //! Rust side, and the emitted LSP `Range` is also half-open.
@@ -502,7 +497,7 @@ mod tests {
         // following line is a genuine command-break that must still recover.
         // The `"` toggles the command-substitution `in_quotes` counter, so
         // the E201 recovery ghost `]` only closes the bracket because a
-        // recovery ghost is an unconditional closer (lexer GAP-A1).
+        // recovery ghost is an unconditional closer.
         let source = "set x [foo abc\"\nproc recovered_after_midword {} {}\n";
         let symbols = document_symbols(source, "tcl8.6");
         assert!(

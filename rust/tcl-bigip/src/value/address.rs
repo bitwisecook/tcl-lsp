@@ -1,5 +1,5 @@
 //! `IPAddress` / `FQDN` value types — the host half of a destination, plus
-//! the `Address` sum type. Rust port of `_address.py`.
+//! the `Address` sum type.
 
 use super::error::ValueError;
 use super::ip_class;
@@ -236,9 +236,9 @@ impl fmt::Display for FQDN {
     }
 }
 
-/// Python `str.isalnum()` matches Unicode alphanumerics. F5 FQDN labels
-/// are ASCII in practice; the original used `c.isalnum()`. We mirror the
-/// permissive Unicode-alphanumeric behaviour for parity.
+/// F5 FQDN labels are ASCII in practice, but this permits the same
+/// permissive Unicode-alphanumeric set as Python `str.isalnum()` so
+/// label classification matches Python exactly.
 fn is_label_alnum(c: char) -> bool {
     c.is_alphanumeric() || c.is_numeric()
 }
@@ -250,7 +250,7 @@ fn is_ascii_digits(s: &str) -> bool {
 }
 
 /// The host part of a pool member or other address-bearing field: either
-/// an [`IPAddress`] or an [`FQDN`]. Mirrors the Python `Address` union.
+/// an [`IPAddress`] or an [`FQDN`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Address {
     /// An IP address host.

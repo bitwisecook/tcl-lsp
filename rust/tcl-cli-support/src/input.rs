@@ -1,6 +1,5 @@
-//! Input-document resolution — the Rust port of `_read_input_documents`,
-//! `_combine_sources`, and the supporting discovery helpers in
-//! `tooling/cli/_utils.py`.
+//! Input-document resolution — reading input documents, combining sources, and
+//! the supporting discovery helpers.
 
 use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
@@ -137,9 +136,9 @@ fn canonical(path: &Path) -> PathBuf {
 /// (deduplicated, UTF-8 with lossy replacement). If nothing resolves and stdin
 /// is not a TTY, stdin is read as `<stdin>`; otherwise an error is returned.
 ///
-/// Package-name inputs (a bare token that is not an existing path) are not yet
-/// supported in the Rust port — they require the `tclpkg` resolver (Phase 6) —
-/// and produce a clear error rather than being silently dropped.
+/// Package-name inputs (a bare token that is not an existing path) are not
+/// supported — they require the `tclpkg` resolver — and produce a clear error
+/// rather than being silently dropped.
 pub fn read_input_documents(
     inputs: &[PathBuf],
     inline_sources: &[String],

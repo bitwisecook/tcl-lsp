@@ -1,4 +1,4 @@
-//! Misc builtins that didn't fit the earlier category batches:
+//! Misc builtins outside the other categories:
 //! `env`, `source_file`, and the `http_*` HTTP-response accessors.
 //!
 //! The `http_*` family operates on an HTTP-response **dict** (the shape

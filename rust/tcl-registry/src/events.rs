@@ -28,8 +28,7 @@ use crate::side_effects::ConnectionSide;
 // orthogonal classification facts. A bitflags consolidation is
 // possible but the type is part of the registry's public surface
 // and the static-data tables encode 247 events as `EventProps {
-// client_side: true, ... }` literals — deferred to a registry-
-// API audit chunk.
+// client_side: true, ... }` literals.
 #[allow(clippy::struct_excessive_bools)]
 pub struct EventProps {
     /// Fires on client side.

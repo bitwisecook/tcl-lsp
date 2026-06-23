@@ -1,7 +1,7 @@
-//! Unicode confusables -> ASCII table (GAP-A3 / W108).
+//! Unicode confusables -> ASCII table (W108).
 //!
-//! Generated from core/analysis/checks/_confusables.py
-//! (source: Unicode Public/security/8.0.0/confusables.txt).
+//! Derived from the Unicode confusables data
+//! (Public/security/8.0.0/confusables.txt).
 //! Sorted by codepoint for binary search via `confusable_to_ascii`.
 //! Only single-codepoint confusables are included (W108 scans
 //! char-by-char); multi-codepoint sequences are not table-keyed.
@@ -811,8 +811,7 @@ pub(crate) fn confusable_to_ascii(ch: char) -> Option<&'static str> {
 }
 
 /// Known copy-paste artifacts (smart quotes, NBSP, dashes, …) ->
-/// their ASCII replacement, sorted by `char`.  Mirrors
-/// `_AUTO_FIX_MAP`.
+/// their ASCII replacement, sorted by `char`.
 pub(crate) static AUTO_FIX_MAP: &[(char, &str)] = &[
     ('\u{60}', "'"),
     ('\u{a0}', " "),

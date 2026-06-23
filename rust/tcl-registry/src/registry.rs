@@ -17,8 +17,7 @@ use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
 
 /// Resolved metadata for an iRules event — the result of
-/// [`CommandRegistry::event_info`]. Field-for-field port of the Python
-/// `compiler.registry.info.EventInfo` dataclass.
+/// [`CommandRegistry::event_info`].
 #[derive(Debug, Clone)]
 pub struct EventInfo {
     /// The upper-cased event name as queried.
@@ -250,8 +249,7 @@ impl CommandRegistry {
     /// Whether `name` exists as a command in *any* dialect, independent of
     /// which dialects this registry instance loaded.
     ///
-    /// Mirrors Python's `CommandRegistry.get_any` over the global
-    /// `specs_by_name` (every dialect's specs are registered at import).
+    /// Looks up the global by-name index across every dialect's specs.
     /// Like [`Self::taint_source`], this is deliberately dialect-agnostic:
     /// an iRules command such as `when` is "known" even when analysing a
     /// `tcl8.6` document whose registry never loaded the iRules specs — the
@@ -437,17 +435,16 @@ impl CommandRegistry {
         names
     }
 
-    /// Resolve full metadata for an iRules `event` — a faithful port of
-    /// `compiler.registry.info.lookup_event_info` (the engine behind
-    /// `f5 irule event-info`).
+    /// Resolve full metadata for an iRules `event` — the engine behind
+    /// `f5 irule event-info`.
     ///
     /// The event name is upper-cased and trimmed. `known` /
     /// `valid_commands` come from this registry (the cross-product is the
     /// same as [`Self::valid_irules_commands_for_event`]); the side /
     /// transport / implied-profiles / description / multiplicity come from
-    /// `events`. `deprecated` mirrors Python's `when`-argument-value detail
-    /// path, which carries no "deprecated" markers, so it is always
-    /// `false` (independent of [`crate::events::EventProps::deprecated`]).
+    /// `events`. `deprecated` is always `false` — the `when`-argument-value
+    /// detail path carries no "deprecated" markers (independent of
+    /// [`crate::events::EventProps::deprecated`]).
     #[must_use]
     pub fn event_info(
         &self,
@@ -517,9 +514,8 @@ impl CommandRegistry {
 
     /// Whether `name` is unsafe in sandboxed dialects — it allows
     /// context escalation (`uplevel`, `history`).  Drives the IRULE2003
-    /// "unsafe iRules command" check.  Mirrors Python
-    /// `CommandRegistry.is_unsafe` (`_any_spec_has(name, "unsafe")`):
-    /// checks every spec registered under the name.
+    /// "unsafe iRules command" check.  Checks every spec registered
+    /// under the name.
     #[must_use]
     pub fn is_unsafe(&self, name: &str) -> bool {
         self.by_name
@@ -529,9 +525,7 @@ impl CommandRegistry {
 
     /// Whether `name` is valid only at the top level of an iRule script
     /// (`when`, `proc`, `priority`, `timing`).  Drives the IRULE5006 /
-    /// IRULE5007 placement checks.  Mirrors Python
-    /// `CommandRegistry.irules_top_level_only_commands`
-    /// ([`Traits::IRULES_TOP_LEVEL_ONLY`]).
+    /// IRULE5007 placement checks ([`Traits::IRULES_TOP_LEVEL_ONLY`]).
     #[must_use]
     pub fn is_irules_top_level_only(&self, name: &str) -> bool {
         self.by_name.get(name).is_some_and(|specs| {
@@ -542,9 +536,8 @@ impl CommandRegistry {
     }
 
     /// Whether `name` should appear as a notable action node in a flow
-    /// diagram ([`Traits::DIAGRAM_ACTION`]). Mirrors Python
-    /// `CommandRegistry.is_diagram_action` (`_any_spec_has(name,
-    /// "diagram_action")`): accepts both the bare (`HTTP::respond`) and the
+    /// diagram ([`Traits::DIAGRAM_ACTION`]). Accepts both the bare
+    /// (`HTTP::respond`) and the
     /// canonical (`::HTTP::respond`) spelling — the leading `::` stamped on
     /// `IRCall.canonical_command` by lowering is stripped to recover the
     /// bare registration form — and reflects the dialects loaded into this
@@ -566,9 +559,7 @@ impl CommandRegistry {
     /// Whether `name` is explicitly marked **never** translatable to F5
     /// Distributed Cloud (XC) — any registered spec whose
     /// [`CommandSpec::xc_translatable`](crate::CommandSpec) is
-    /// `Some(false)`. Mirrors Python
-    /// `CommandRegistry.is_xc_never_translatable`; consumed by the
-    /// `f5-xc` iRule→XC translator.
+    /// `Some(false)`. Consumed by the `f5-xc` iRule→XC translator.
     #[must_use]
     pub fn is_xc_never_translatable(&self, name: &str) -> bool {
         self.by_name
@@ -579,8 +570,7 @@ impl CommandRegistry {
     /// Whether `name` is explicitly marked translatable to XC despite an
     /// otherwise-untranslatable namespace prefix — any registered spec
     /// whose [`CommandSpec::xc_translatable`](crate::CommandSpec) is
-    /// `Some(true)`. Mirrors Python
-    /// `CommandRegistry.is_xc_translatable_override`.
+    /// `Some(true)`.
     #[must_use]
     pub fn is_xc_translatable_override(&self, name: &str) -> bool {
         self.by_name
@@ -605,9 +595,8 @@ impl CommandRegistry {
     /// Whether `name` is an iRules side-switch — `clientside`,
     /// `serverside`, or `peer` — i.e. a command that evaluates its
     /// nesting-script body under a different connection-side context
-    /// than the surrounding event.  Mirrors Python's
-    /// `CommandRegistry.is_side_switch` ([`Traits::IS_SIDE_SWITCH`]),
-    /// consulted by the iRules collect/release/payload flow check when
+    /// than the surrounding event ([`Traits::IS_SIDE_SWITCH`]).
+    /// Consulted by the iRules collect/release/payload flow check when
     /// it descends into a side-switch body.  Like
     /// [`Self::is_byte_compiled`], checks every spec registered under
     /// the name.
@@ -739,7 +728,6 @@ impl CommandRegistry {
 
     /// Resolve the option-terminator profile for a command invocation.
     ///
-    /// Mirrors Python's `core/commands/registry/command_registry.py::resolve_option_terminator`.
     /// Matches the invocation's first argument against subcommands
     /// that declare an [`OptionSpec`](crate::hover::OptionSpec) with
     /// `name == "--"`, then falls back to form-level `--` declarations.
@@ -760,13 +748,10 @@ impl CommandRegistry {
     ///
     /// `warn_without_terminator` lifts the
     /// [`Traits::WARN_WITHOUT_TERMINATOR`] flag from the matched
-    /// command spec and surfaces it on `ResolvedTerminator` for
-    /// parity with the Python registry, but the current Rust W304
-    /// emitter does not consume it (mirroring Python's
-    /// `_style.py`, which also stores but never reads it).  Kept
-    /// on the resolver for future emit logic and so the registry
-    /// API doesn't need to change when consumers start gating on
-    /// it.
+    /// command spec and surfaces it on `ResolvedTerminator`, but the
+    /// current W304 emitter does not consume it.  Kept on the resolver
+    /// for future emit logic and so the registry API doesn't need to
+    /// change when consumers start gating on it.
     #[must_use]
     pub fn resolve_option_terminator(
         &self,
@@ -795,10 +780,9 @@ impl CommandRegistry {
             });
         }
 
-        // Form-level fallback — Python iterates `spec.forms`; the
-        // Rust port stores option specs at the `CommandSpec.options`
-        // level (single set per spec) so we consult that directly
-        // when no subcommand match was found.
+        // Form-level fallback — option specs live at the
+        // `CommandSpec.options` level (a single set per spec), so we
+        // consult that directly when no subcommand match was found.
         if spec.options.iter().any(|o| o.name == "--") {
             return Some(ResolvedTerminator {
                 scan_start: 0,
@@ -1104,7 +1088,6 @@ mod tests {
 
     #[test]
     fn tcl9_commands_from_pr_433_are_registered() {
-        // SYNC-MAY19-tcl9-commands: mirrors PR #433 (0f9288d2).
         let reg = CommandRegistry::build_default();
         for name in [
             "foreachLine",
@@ -1126,9 +1109,8 @@ mod tests {
 
     #[test]
     fn coroinject_coroprobe_registered() {
-        // Python PR #433 also fixed the missing import that made
-        // these two commands invisible to the LSP.  Rust always
-        // registered them — verify they remain registered.
+        // Verify these two commands remain registered and visible to
+        // the LSP.
         let reg = CommandRegistry::build_default();
         assert!(reg.get("coroinject").is_some());
         assert!(reg.get("coroprobe").is_some());
@@ -1146,11 +1128,9 @@ mod tests {
                 "{name} should be Tcl 9.0-only",
             );
         }
-        // Unlike the four above, the Python registry marks `const`
-        // `dialects = None` (universal) rather than Tcl-9.0-gated, so it
-        // is valid inside iRules events. The dialect-reconcile
-        // (`scripts/registry-audit/reconcile_irules_dialects.py`) mirrors
-        // that so `commands_for_event` matches Python.
+        // Unlike the four above, `const` is `dialects = None`
+        // (universal) rather than Tcl-9.0-gated, so it is valid inside
+        // iRules events and `commands_for_event` accepts it.
         assert_eq!(
             reg.get("const").expect("registered").dialects,
             None,
@@ -1160,9 +1140,7 @@ mod tests {
 
     #[test]
     fn timerate_registered_with_body_and_int_hint() {
-        // SYNC-JUN02c (main #522): `timerate` ported from
-        // dialects/tcl/timerate.py — measures the rate of execution
-        // of a script.
+        // `timerate` measures the rate of execution of a script.
         use crate::arg_role::ArgRole;
         use crate::side_effects::SideEffectTarget;
         use crate::types::TclType;
@@ -1469,7 +1447,7 @@ mod tests {
         assert_eq!(set_vars, vec![0]);
     }
 
-    /// SYNC4: `trace add variable name ops body` declares arg 1
+    /// `trace add variable name ops body` declares arg 1
     /// (the variable name) as `VarWrite` via the registry.
     #[test]
     fn arg_indices_for_role_trace_add_variable_var_write() {
@@ -1484,7 +1462,7 @@ mod tests {
         assert!(writes.contains(&2), "VarWrite writes={writes:?}");
     }
 
-    /// SYNC4: `trace add execution` does NOT declare `VarWrite`
+    /// `trace add execution` does NOT declare `VarWrite`
     /// (the second arg is a command name, not a variable).
     #[test]
     fn arg_indices_for_role_trace_add_execution_no_var_write() {
@@ -1497,9 +1475,8 @@ mod tests {
         assert!(writes.is_empty(), "VarWrite writes={writes:?}");
     }
 
-    /// SYNC4: `trace remove variable` mirrors `trace add variable`
-    /// for registry parity (alias spellings flow through the same
-    /// `VarWrite` query).
+    /// `trace remove variable` behaves like `trace add variable`:
+    /// both alias spellings flow through the same `VarWrite` query.
     #[test]
     fn arg_indices_for_role_trace_remove_variable_var_write() {
         let reg = CommandRegistry::build_default();
@@ -1511,7 +1488,7 @@ mod tests {
         assert!(writes.contains(&2), "VarWrite writes={writes:?}");
     }
 
-    /// SYNC5: `global` / `variable` / `upvar` carry
+    /// `global` / `variable` / `upvar` carry
     /// `CREATES_DYNAMIC_BARRIER` so SSA's barrier-def walk knows the
     /// per-arg list belongs to `var_scoping`, not the role-driven
     /// `VarWrite` query.
@@ -1537,14 +1514,11 @@ mod tests {
         );
     }
 
-    /// SYNC1 acceptance: `dict with` / `dict update` arg 0 (the dict
-    /// variable) plays both `VarRead` and `VarWrite` roles. Mirrors
-    /// Python's `frozenset({VAR_READ, VAR_WRITE})` post-`8c95c2ee`.
-    /// The Rust port emits this via duplicate `(idx, role)` rows in
-    /// the resolver; the type widening to an explicit `ArgRoleSet`
-    /// is deferred (the multi-role observable behaviour is already
-    /// what consumers query).
-    /// SYNC2: every spec defaults to `BodyKind::Plain` unless it
+    /// `dict with` / `dict update` arg 0 (the dict variable) plays
+    /// both `VarRead` and `VarWrite` roles. This is emitted via
+    /// duplicate `(idx, role)` rows in the resolver (the multi-role
+    /// observable behaviour is what consumers query).
+    /// Every spec defaults to `BodyKind::Plain` unless it
     /// opts into `Structural`.
     #[test]
     fn body_kind_default_plain() {
@@ -1556,7 +1530,7 @@ mod tests {
         assert_eq!(reg.get("foreach").unwrap().body_kind, BodyKind::Plain);
     }
 
-    /// SYNC2: `proc` / `oo::class` / `oo::define` / `oo::objdefine`
+    /// `proc` / `oo::class` / `oo::define` / `oo::objdefine`
     /// stamp `Structural` so SSA skips their body args from the
     /// enclosing block's data flow.
     #[test]
@@ -1590,7 +1564,7 @@ mod tests {
         );
     }
 
-    /// SYNC2: iRules `when` event handler bodies are structural.
+    /// iRules `when` event handler bodies are structural.
     #[test]
     fn body_kind_irules_when_structural() {
         use crate::body_kind::BodyKind;
@@ -1599,7 +1573,7 @@ mod tests {
         assert_eq!(reg.get("when").unwrap().body_kind, BodyKind::Structural);
     }
 
-    /// SYNC3: `body_arg_implicit_args` defaults to 0 and is set on
+    /// `body_arg_implicit_args` defaults to 0 and is set on
     /// `fileutil::updateInPlace` (which appends file contents to
     /// the body's first command at runtime).
     #[test]

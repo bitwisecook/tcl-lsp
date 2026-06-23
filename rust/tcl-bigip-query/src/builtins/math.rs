@@ -1,4 +1,4 @@
-//! Math-category builtins (port of the `math` section of `builtins.py`).
+//! Math-category builtins.
 //!
 //! Covers the trig / hyperbolic wrappers, the advanced C-math family
 //! (`sqrt`, `pow`, `log*`, `exp*`, gamma, …), the IEEE helpers
@@ -12,11 +12,10 @@
 //! results we mostly use Rust's `std::f64` methods (which bind to the same
 //! system libm Python's `math` calls), fall back to the pure-Rust `libm`
 //! crate for the few C functions `std` lacks (`expm1`, `log1p`, `ldexp`,
-//! `remainder`, `fmod`, `frexp`, `modf`), and port two families verbatim
-//! from the source so they stay exact: the Bessel functions (the DSL's own
-//! Abramowitz & Stegun polynomial approximation) and gamma / lgamma
-//! (`CPython`'s Lanczos approximation — Python's gamma / lgamma do not use the
-//! platform libm).
+//! `remainder`, `fmod`, `frexp`, `modf`), and implement two families exactly
+//! so they stay byte-identical: the Bessel functions (an Abramowitz & Stegun
+//! polynomial approximation) and gamma / lgamma (`CPython`'s Lanczos
+//! approximation — Python's gamma / lgamma do not use the platform libm).
 
 // This module reproduces Python/C `math` numerics bit-for-bit, which means
 // transcribing the source's exact float literals and float-equality checks:
@@ -47,10 +46,10 @@ use crate::value::Value;
 // crate only for the C functions `std` lacks where its result already agrees
 // with glibc bit-for-bit on the relevant domain: `expm1`, `log1p`, `ldexp`,
 // `remainder`, `fmod`, plus the exact bit-manipulation `frexp` / `modf`. The
-// `gamma`/`lgamma` family is NOT libm-backed: Python ships its own Lanczos
-// approximation, ported verbatim below. (`unsafe_code = "forbid"` rules out
-// binding the system libm via `extern "C"`, which is why these choices
-// matter for byte parity.)
+// `gamma`/`lgamma` family is NOT libm-backed: it uses the same Lanczos
+// approximation Python ships, reproduced below so results match bit-for-bit.
+// (`unsafe_code = "forbid"` rules out binding the system libm via
+// `extern "C"`, which is why these choices matter for byte parity.)
 
 pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     vec![
@@ -765,8 +764,8 @@ fn m_lgamma(x: f64) -> f64 {
     r
 }
 
-// Bessel (Abramowitz & Stegun polynomial approximations — ported verbatim
-// from the Python source so results stay byte-identical).
+// Bessel (Abramowitz & Stegun polynomial approximations, matching the Python
+// source so results stay byte-identical).
 
 fn bi_j0(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Float(bessel_j0(num_f64(&as_number(
@@ -989,10 +988,7 @@ mod tests {
 
     #[test]
     fn round_ties_away_from_zero() {
-        // Ported from `tests/test_f5_query.py`
-        // ::test_floor_ceil_round_match_jq_semantics (round half) — C/jq
-        // ties-away-from-zero, not banker's rounding (math.rs had no unit
-        // coverage).
+        // Round half is C/jq ties-away-from-zero, not banker's rounding.
         assert_eq!(round_of(2.5), 3);
         assert_eq!(round_of(-2.5), -3);
         assert_eq!(round_of(0.5), 1);
@@ -1001,7 +997,7 @@ mod tests {
 
     #[test]
     fn fabs_returns_float_magnitude() {
-        // Ported from `::test_abs_and_fabs` (fabs half — always a float).
+        // `fabs` always returns a float.
         assert_eq!(fabs_of(-5.0), 5.0);
         assert_eq!(fabs_of(3.14), 3.14);
     }

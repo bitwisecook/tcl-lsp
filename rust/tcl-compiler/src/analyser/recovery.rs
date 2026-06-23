@@ -1,5 +1,4 @@
-//! Parser-error recovery heuristics — Rust port of
-//! `core/analysis/_analyser/_recovery.py`.
+//! Parser-error recovery heuristics.
 //!
 //! These helpers are invoked by the body-walk dispatcher
 //! (``commands.rs::analyse_body``) immediately after segmentation
@@ -9,7 +8,7 @@
 //! the intended arg structure even when the source has a stray
 //! ``]`` or a missing ``{``.
 //!
-//! **C41e4** lands the first two helpers:
+//! The first two helpers:
 //!
 //! - [`Analyser::recover_stray_close_bracket`] — merges tokens
 //!   around a stray ``]`` into a virtual ``CMD`` token so a
@@ -17,9 +16,9 @@
 //!   like ``switch ACCESS::policy [agent_id] {…}`` would have.
 //! - [`looks_like_switch_case`] — peeks at a follow-on command
 //!   to see if it looks like a ``pattern { body }`` pair (used
-//!   by C41e5's ``_recover_missing_open_brace``).
+//!   by `recover_missing_open_brace`).
 //!
-//! **C41e5** adds the gnarlier helpers:
+//! The gnarlier helpers:
 //!
 //! - [`Analyser::recover_missing_open_brace`] — when a
 //!   ``switch`` is followed by orphaned ``pattern body``
@@ -33,19 +32,15 @@
 //!   emits E103 instead of the generic E200.
 //!
 //! Both E101 and E103 emit a [`super::types::CodeFix`]
-//! payload pointing at the exact insertion offset (mirrors
-//! Python's ``CodeFix`` shape — same range, same insertion
-//! text, same description).
+//! payload pointing at the exact insertion offset — range,
+//! insertion text, and description.
 //!
 //! ## Quoted-context filtering
 //!
-//! The Python port uses
-//! ``core.parsing.token_positions.classify_quoted_contexts``
-//! to skip ``]`` characters that live inside a double-quoted
-//! string (e.g. ``foo "bar]"``).  The Rust port relies on the
+//! ``]`` characters that live inside a double-quoted string
+//! (e.g. ``foo "bar]"``) must be skipped.  This relies on the
 //! lexer's ``Token::in_quote`` flag plus a leading-quote check
-//! on adjacent ``Esc`` tokens — same signal sources, simpler
-//! plumbing because the segmenter already preserves
+//! on adjacent ``Esc`` tokens; the segmenter already preserves
 //! ``in_quote`` per-token.
 
 #![allow(clippy::doc_markdown, clippy::implicit_hasher)]
@@ -59,10 +54,8 @@ impl Analyser {
     /// Repair a command whose source contains a stray ``]`` (a
     /// missing ``[``).
     ///
-    /// Mirrors `_recover_stray_close_bracket` in
-    /// `core/analysis/_analyser/_recovery.py:30-156`.  Walks
-    /// `cmd.all_tokens` looking for an `Esc` token that ends in
-    /// ``]`` (and isn't inside a double-quoted string), then
+    /// Walks `cmd.all_tokens` looking for an `Esc` token that ends
+    /// in ``]`` (and isn't inside a double-quoted string), then
     /// scans backward for a known command name — that's the
     /// position the missing ``[`` should have been at.
     /// Subsequent argv / texts / single_token_word entries are
@@ -193,9 +186,7 @@ impl Analyser {
     /// the ``{`` before the body, splicing orphaned
     /// ``pattern body`` segments into the switch's argv.
     ///
-    /// Mirrors `_recover_missing_open_brace` in
-    /// `core/analysis/_analyser/_recovery.py:179-324`.  Two
-    /// shapes Python recognises:
+    /// Two shapes are recognised:
     ///
     /// - **Case A** — no whitespace after the switch's string
     ///   argument, so the EOL terminates the switch and **all**
@@ -207,7 +198,7 @@ impl Analyser {
     /// In either case the orphaned commands are appended to
     /// ``cmd.argv`` / ``cmd.texts`` / ``cmd.all_tokens`` /
     /// ``cmd.single_token_word`` and an E101 diagnostic is
-    /// emitted (no ``CodeFix`` payload yet — see module docs).
+    /// emitted.
     /// Returns the number of consumed orphaned commands so the
     /// caller can advance its iterator past them.
     pub(super) fn recover_missing_open_brace(
@@ -220,7 +211,7 @@ impl Analyser {
             return 0;
         }
 
-        // Parse switch options (mirrors Python's option scan).
+        // Parse switch options.
         let args = if cmd.texts.len() > 1 {
             &cmd.texts[1..]
         } else {
@@ -308,14 +299,12 @@ impl Analyser {
             tcl_lexer::Span::new(cmd.span.end(), cmd.span.end())
         };
         if !self.disabled_diagnostics.contains("E101") {
-            // Insertion point: Rust spans are exclusive-end, so
+            // Insertion point: spans are exclusive-end, so
             // ``diag_span.end()`` is already the first byte
             // after the string-arg token — use it directly as
-            // the zero-width insertion span.  (Python's
-            // arithmetic adds ``+1`` because its
-            // ``SourcePosition`` columns are inclusive; mirroring
-            // that arithmetic in Rust shifts the insertion one
-            // byte past the intended location.)
+            // the zero-width insertion span.  Adding ``+1`` here
+            // would shift the insertion one byte past the
+            // intended location.
             let insert_span = tcl_lexer::Span::new(diag_span.end(), diag_span.end());
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "E101".to_string(),
@@ -336,18 +325,15 @@ impl Analyser {
     /// Detect when an inner ``{`` consumed the enclosing scope's
     /// ``}`` and emit E103 instead of the generic E200.
     ///
-    /// Mirrors `_detect_stolen_close_brace` in
-    /// `core/analysis/_analyser/_recovery.py:326-449`.  Walks
-    /// the body STR token's text with a stack-based brace scan
-    /// (skipping backslash-escaped pairs) and looks for the
+    /// Walks the body STR token's text with a stack-based brace
+    /// scan (skipping backslash-escaped pairs) and looks for the
     /// pattern where every ``{`` is matched by a ``}`` *and*
     /// the final ``}`` is the last significant content in the
     /// body.  When found, that ``}`` is the brace that "got
     /// stolen" — the missing one belongs after the inner block.
     ///
     /// Returns ``true`` when E103 was emitted; the caller skips
-    /// E200 in that case.  ``CodeFix`` payload deferred — see
-    /// module docs.
+    /// E200 in that case.
     pub(super) fn detect_stolen_close_brace(&mut self, cmd: &SegmentedCommand) -> bool {
         // Find the unclosed body STR token — last STR in argv.
         let mut body_tok: Option<Token> = None;
@@ -362,8 +348,8 @@ impl Analyser {
         };
 
         // Re-slice the body content.  ``content_offset`` skips
-        // the opening ``{`` so ``text`` mirrors Python's
-        // ``body_tok.text``.
+        // the opening ``{`` so ``text`` is the body's inner
+        // content.
         let start = body_tok.span.start() as usize + body_tok.content_offset as usize;
         let end = body_tok.span.end() as usize;
         if start >= end || end > self.source.len() {
@@ -415,8 +401,6 @@ impl Analyser {
 
         // Compute the indentation of the inner ``{`` line so the
         // CodeFix inserts a same-indent ``}`` on the next line.
-        // Mirrors the Python ``indent`` extraction in
-        // ``_recovery.py:388-396``.
         let line_start = text[..open_offset].rfind('\n').map_or(0, |i| i + 1);
         let mut indent = String::new();
         for c in text[line_start..].chars() {
@@ -427,7 +411,7 @@ impl Analyser {
             }
         }
         // Insertion point: start of the line containing the
-        // stolen ``}``.  Mirrors Python's ``insert_off``.
+        // stolen ``}``.
         let stolen_line_start = text[..close_offset]
             .rfind('\n')
             .map_or(close_offset, |i| i + 1);
@@ -454,11 +438,9 @@ impl Analyser {
     /// Emit the generic E200 ("missing close-…") diagnostic for a
     /// partial command.
     ///
-    /// Mirrors the E200 emission in
-    /// `core/analysis/_analyser/_core.py:476-493`.  Inspects the
-    /// last unclosed token in the command to pick the right
-    /// suffix (`brace` / `bracket` / `"`).  Always emits when
-    /// E200 isn't disabled — callers gate this on
+    /// Inspects the last unclosed token in the command to pick
+    /// the right suffix (`brace` / `bracket` / `"`).  Always emits
+    /// when E200 isn't disabled — callers gate this on
     /// `detect_stolen_close_brace` having returned ``false``.
     pub(super) fn emit_partial_command_diagnostic(&mut self, cmd: &SegmentedCommand) {
         if self.disabled_diagnostics.contains("E200") {
@@ -467,8 +449,7 @@ impl Analyser {
         // Prefer the delimiter the recovery segmenter recorded (from the
         // suspicious EOF-reaching token); fall back to the last
         // Str/Cmd/Esc token only when a partial wasn't produced by the
-        // recovery path (so `partial_delimiter` is unset). Mirrors
-        // Python's `_DELIMITER_MSG[cmd.partial_delimiter]`.
+        // recovery path (so `partial_delimiter` is unset).
         let suffix = if let Some(delim) = cmd.partial_delimiter {
             delim.missing_message()
         } else {
@@ -499,7 +480,7 @@ impl Analyser {
     /// `Token` stores a span only — text is materialised on
     /// demand. The leading delimiter (``$`` / ``${`` / ``[`` /
     /// ``{`` / ``"``) is stripped via ``content_offset`` so the
-    /// returned slice mirrors Python's ``Token.text``.
+    /// returned slice is the token's inner text.
     fn token_text(&self, tok: Token) -> &str {
         let start = tok.span.start() as usize + tok.content_offset as usize;
         let end = tok.span.end() as usize;
@@ -533,13 +514,11 @@ impl Analyser {
 ///
 /// Returns ``Some((token_index, char_index_within_token))`` when
 /// a stray bracket is found.  The bracket must be the *last*
-/// character of its token text (``foo]``, not ``foo]bar``) to
-/// match the Python contract — partial mid-token brackets are
-/// usually not the recovery shape we're after.
+/// character of its token text (``foo]``, not ``foo]bar``) —
+/// partial mid-token brackets are usually not the recovery shape
+/// we're after.
 fn find_stray_close_bracket(tokens: &[Token], source: &str) -> Option<(usize, usize)> {
-    // Track quoted context across the token stream.  Mirrors
-    // `classify_quoted_contexts` in
-    // `core/parsing/token_positions.py:14-56`.
+    // Track quoted context across the token stream.
     let mut prev_in_quote = false;
     for (ti, &tok) in tokens.iter().enumerate() {
         if matches!(tok.kind, TokenType::Sep | TokenType::Eol) {
@@ -566,12 +545,10 @@ fn find_stray_close_bracket(tokens: &[Token], source: &str) -> Option<(usize, us
         if let Some(idx) = text.rfind(']')
             && idx == text.len() - 1
         {
-            // Char index within the token (relative to
-            // span start, not content start) — the Python
-            // code computes ``idx == len(tok.text) - 1``
-            // and then offsets from ``tok.start.offset``;
-            // mirror that arithmetic by adding the content
-            // offset back.
+            // Char index within the token (relative to span
+            // start, not content start): ``idx`` is the offset
+            // within the inner text, so add the content offset
+            // back to get the offset from the span start.
             let char_idx = idx + tok.content_offset as usize;
             return Some((ti, char_idx));
         }
@@ -611,9 +588,7 @@ fn lookup_max_arity(cmd_name: &str) -> Option<usize> {
 /// Return ``true`` when *cmd* looks like a bare ``pattern { body }``
 /// or ``pattern -`` switch case.
 ///
-/// Mirrors `_looks_like_switch_case` in
-/// `core/analysis/_analyser/_recovery.py:160-177`.  Used by
-/// **C41e5**'s `recover_missing_open_brace` to decide whether
+/// Used by `recover_missing_open_brace` to decide whether
 /// the next top-level command in a body should be merged into
 /// a preceding `switch` whose ``{`` was forgotten.
 ///
@@ -764,7 +739,7 @@ mod tests {
         assert!(!looks_like_switch_case(&cmd, &empty_builtins()));
     }
 
-    // -- C41e5: missing-open-brace recovery --------------------------
+    // -- missing-open-brace recovery --------------------------
 
     #[test]
     fn recover_missing_open_brace_emits_e101_and_consumes_orphans() {
@@ -828,7 +803,7 @@ mod tests {
         assert_eq!(consumed, 0);
     }
 
-    // -- C41e5: stolen-close-brace detection -------------------------
+    // -- stolen-close-brace detection -------------------------
 
     #[test]
     fn detect_stolen_close_brace_emits_e103_for_inner_brace_pattern() {

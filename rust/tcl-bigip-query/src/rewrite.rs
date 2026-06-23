@@ -1,6 +1,6 @@
-//! Token-bounded source rewriter — faithful port of the **rename** half of
-//! `dialects/f5/bigip/rewrite.py` (`rename_object` + its helpers
-//! `_build_name_pattern` / `_other_kind_header_spans`, and [`RenameReport`]).
+//! Token-bounded source rewriter — the **rename** half of the BIG-IP source
+//! rewriter (`rename_object` + its helpers `_build_name_pattern` /
+//! `_other_kind_header_spans`, and [`RenameReport`]).
 //!
 //! `rename_object` rewrites every token-bounded occurrence of an object's
 //! full-path — the stanza header, every property-value reference, and iRule
@@ -16,8 +16,8 @@
 //! the Python engine. The other-kind header scan keeps the `regex` crate (its
 //! pattern has no look-around).
 //!
-//! The `redact_secrets` / `RedactReport` half of the Python module is a
-//! different verb and is intentionally **not** ported here.
+//! Secret redaction (`redact_secrets` / `RedactReport`) is a different verb
+//! and is intentionally **not** part of this module.
 
 use regex::Regex;
 

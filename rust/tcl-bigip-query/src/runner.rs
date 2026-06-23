@@ -1,6 +1,6 @@
-//! Query runner — port of `dialects/f5/query/runner.py` (`run_query`,
-//! `QueryOptions`, `QueryResult`), covering both the per-file (non-merge)
-//! path and `--merge` (every loaded config as one logical namespace).
+//! Query runner (`run_query`, `QueryOptions`, `QueryResult`), covering both
+//! the per-file (non-merge) path and `--merge` (every loaded config as one
+//! logical namespace).
 //!
 //! This is the pure, I/O-free orchestration layer the `f5 query` verb calls:
 //! given a list of `(uri, source_text)` BIG-IP configs plus a query
@@ -418,10 +418,9 @@ fn collision_field_index(table_name: &str) -> u32 {
         "gtm_monitors" => 440,
         "gtm_topologies" => 445,
         "generic_objects" => 529,
-        // Any future typed table the Rust model grows lands after the
-        // modelled tables but before generic_objects; an unknown name is a
-        // bug, but ordering it just before generic_objects is the least
-        // surprising fallback.
+        // An unmodelled table name sorts after the modelled tables but before
+        // generic_objects; an unknown name is a bug, but ordering it just
+        // before generic_objects is the least surprising fallback.
         _ => 528,
     }
 }

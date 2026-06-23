@@ -513,7 +513,7 @@ mod tests {
 
     #[test]
     fn select_empty_patterns_is_no_match_not_underflow() {
-        // FN-L: an empty `patterns` list must not underflow `npairs - 1` (the
+        // An empty `patterns` list must not underflow `npairs - 1` (the
         // final-pattern `default` test) and panic — it simply matches nothing.
         let mut ops = StrOps;
         let opts = exact_opts();

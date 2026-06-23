@@ -1,8 +1,5 @@
 //! O104 / O130 — write-only build-chain folding.
 //!
-//! Ported (sound subset) from `optimise_string_build_chains` in
-//! `core/compiler/optimiser/_pattern_recognition.py`.
-//!
 //! Collapses a run of consecutive static writes to one variable into a
 //! single `set`:
 //!
@@ -300,7 +297,6 @@ fn try_fold_chain_at(
             // only matches single-token `Esc`/`Str` value words with no
             // substitution), so the chain continues past it — the
             // interleaved statement stays in place and is not folded.
-            // Mirrors Python's "skip a non-reading statement" chain rule.
             Some(other) if write_var(&other) != var => {
                 j += 1;
             }
@@ -359,9 +355,8 @@ fn try_fold_chain_at(
 
 /// Render `elements` as the single `set` value-word that recreates the
 /// list — join into a canonical Tcl list, then quote that as one element.
-/// Mirrors `_render_list_word` (`tcl_list_quote(tcl_list_join(...))`); the
-/// joined string never begins with a bare `#` (the join already quotes a
-/// leading `#`), so `list_element`'s first-element rule is equivalent here.
+/// The joined string never begins with a bare `#` (the join already quotes
+/// a leading `#`), so `list_element`'s first-element rule is equivalent here.
 fn render_list_word(elements: &[String]) -> String {
     tcl_syntax::list::list_element(&tcl_syntax::list::join_list(elements))
 }
@@ -477,7 +472,7 @@ mod tests {
     #[test]
     fn single_write_does_not_fold() {
         let opts = run_pass("set s \"\"\nappend s foo");
-        // set + one append = 2 writes → folds. (Mirrors Python's >= 2 gate.)
+        // set + one append = 2 writes → folds (the chain needs >= 2 writes).
         assert!(opts.iter().any(|o| o.code == "O104"));
         // But a lone set is not a chain.
         let opts = run_pass("set s foo");

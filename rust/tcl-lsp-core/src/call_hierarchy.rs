@@ -1,5 +1,4 @@
-//! Call-hierarchy provider — Rust port of
-//! `lsp/features/call_hierarchy.py`.
+//! Call-hierarchy provider.
 //!
 //! Three entry points:
 //!
@@ -773,7 +772,7 @@ mod tests {
         );
     }
 
-    // -- S-call-hierarchy-rich: incoming + outgoing calls -----------
+    // -- incoming + outgoing calls -----------
 
     #[test]
     fn incoming_calls_from_other_procs() {
@@ -898,7 +897,7 @@ mod tests {
         assert_eq!(sibling.from_ranges.len(), 2, "{unresolved:?}");
     }
 
-    // -- S-call-hierarchy-rich: class methods -----------------------
+    // -- class methods -----------------------
 
     #[test]
     fn prepare_resolves_method_at_cursor() {

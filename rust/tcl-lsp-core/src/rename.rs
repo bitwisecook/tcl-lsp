@@ -1,24 +1,22 @@
-//! Rename provider — Rust port of `lsp/features/rename.py`.
+//! Rename provider.
 //!
 //! Computes a workspace edit that renames the symbol at the
-//! cursor across the current document.  Ports:
+//! cursor across the current document.  Handles:
 //!
 //! * `$var` references → rewrite the `VarDef.definition_span`
 //!   and every `VarDef.references` span to the new name.
 //! * proc references → rewrite `ProcDef.name_span` and every
 //!   matching command-invocation head to the new name.
 //!
-//! With **`S-rename-rich` safety gating** (this commit): the
-//! caller may pass a [`tcl_registry::CommandRegistry`].  When
-//! provided, the new name is validated against:
+//! With **safety gating**: the caller may pass a
+//! [`tcl_registry::CommandRegistry`].  When provided, the new
+//! name is validated against:
 //!
 //! * `is_safe_symbol_name(name)` — must match
-//!   `^[A-Za-z_][A-Za-z0-9_]*$` (Python's `_SAFE_SYMBOL_RE`).
-//!   Applies to every rename target.
+//!   `^[A-Za-z_][A-Za-z0-9_]*$`.  Applies to every rename
+//!   target.
 //! * `is_builtin_command_name(name, registry)` — proc renames
-//!   refuse to overwrite a built-in command name.  Mirrors
-//!   Python's `_is_builtin_command_name` check (lines 36-37
-//!   and the proc-rename gate at line 301).
+//!   refuse to overwrite a built-in command name.
 //!
 //! When the new name fails either check, [`rename`] returns an
 //! empty `Vec<TextEdit>` so the editor refuses the rename
@@ -32,7 +30,7 @@
 //! `is_safe_symbol_name` / `is_builtin_command_name` gates
 //! apply.
 //!
-//! Method / classmethod / property renames also land: when
+//! Method / classmethod / property renames: when
 //! the cursor sits on a member name inside the class body
 //! (either at the declaration or at a call site), the
 //! provider rewrites the declaration's name span plus every
@@ -43,11 +41,10 @@
 //! call site.  See [`crate::references::find_obj_method_call_sites`]
 //! for the external-site scan's coverage.
 //!
-//! What is *still deferred* (planned as further
-//! `S-rename-rich` sub-strips):
+//! Limitations:
 //!
-//! * Cross-document rename — the workspace-index integration
-//!   that lands alongside `S-workspace-symbols`.
+//! * Cross-document rename is not supported (no workspace-index
+//!   integration).
 //! * `$obj method` sites embedded in quoted / word tokens
 //!   (`"prefix[$d bark]"`) — the external scan descends into
 //!   command-substitution args and proc / method bodies but
@@ -71,8 +68,7 @@ pub struct TextEdit {
 }
 
 /// `true` when `name` matches the safe-symbol shape
-/// `^[A-Za-z_][A-Za-z0-9_]*$`.  Mirrors Python's
-/// `_SAFE_SYMBOL_RE` / `_is_safe_symbol_name`.
+/// `^[A-Za-z_][A-Za-z0-9_]*$`.
 ///
 /// Used by [`rename`] to reject new names that contain
 /// whitespace, punctuation, leading digits, or other characters
@@ -90,7 +86,7 @@ pub fn is_safe_symbol_name(name: &str) -> bool {
 }
 
 /// `true` when `name` is registered as a built-in command in
-/// `registry`.  Mirrors Python's `_is_builtin_command_name`.
+/// `registry`.
 ///
 /// Used by [`rename`] to refuse proc renames that would
 /// overwrite a built-in command name (the editor would then
@@ -110,7 +106,7 @@ pub fn is_builtin_command_name(name: &str, registry: &CommandRegistry) -> bool {
 /// (server) is responsible for wrapping the output in a
 /// `WorkspaceEdit { changes: { uri: edits } }`.
 ///
-/// `registry`, when `Some`, enables `S-rename-rich` safety
+/// `registry`, when `Some`, enables safety
 /// gating:
 ///
 /// * Every rename target rejects new names that don't match
@@ -420,7 +416,7 @@ fn rename_var(
         new_text: def_new_text,
     });
     for r in &var_def.references {
-        // `S-rename-rich` brace-ref escaping — see
+        // Brace-ref escaping — see
         // [`build_var_ref_replacement`].
         let replacement = build_var_ref_replacement(source, *r, new_name);
         edits.push(TextEdit {
@@ -648,7 +644,7 @@ fn rename_method(
 /// [`tcl_compiler::segmenter::segment_commands_with_offset`]
 /// so the resulting token spans use absolute source offsets.
 // `too_many_arguments`: the OO-method-rename body scan threads its working
-// state by value; the added `dialect` (SYNC-MAY19-dialect-contextvar) tips
+// state by value; the added `dialect` tips
 // it to 8.  A context struct is a separate cleanup.
 #[allow(clippy::too_many_arguments)]
 fn scan_body_for_method_calls(
@@ -960,7 +956,7 @@ mod tests {
         assert!(texts.contains(&"$y"), "{texts:?}");
     }
 
-    // -- S-rename-rich: brace-ref escaping ---------------------------
+    // -- brace-ref escaping ---------------------------
 
     #[test]
     fn rename_var_preserves_braced_reference_form() {
@@ -1039,8 +1035,8 @@ mod tests {
         // Namespace-qualified refs preserve the prefix so e.g.
         // `$ns::z` → `$ns::c` even if the analyser doesn't yet
         // surface namespace-scoped variable lookups (the helper
-        // is the building block; the lookup side lands in a
-        // follow-up sub-strip).
+        // is the building block; the lookup side isn't wired
+        // yet).
         let src = "  $x  ${y}  $ns::z  ${ns::w}  ";
         let span_x = tcl_lexer::Span::new(2, 4);
         let span_braced_y = tcl_lexer::Span::new(6, 10);
@@ -1095,7 +1091,7 @@ mod tests {
         );
     }
 
-    // -- S-rename-rich: safety gating --------------------------------
+    // -- safety gating --------------------------------
 
     #[test]
     fn is_safe_symbol_name_accepts_canonical_identifiers() {
@@ -1184,7 +1180,7 @@ mod tests {
         );
     }
 
-    // -- S-rename-rich: namespace-aware proc renames ----------------
+    // -- namespace-aware proc renames ----------------
 
     #[test]
     fn namespace_prefix_of_qualified_names() {
@@ -1261,7 +1257,7 @@ mod tests {
         );
     }
 
-    // -- S-rename-rich: class rename --------------------------------
+    // -- class rename --------------------------------
 
     #[test]
     fn rename_class_at_decl_rewrites_decl_and_calls() {
@@ -1334,7 +1330,7 @@ mod tests {
         assert_eq!(p.range.start_character, 17);
     }
 
-    // -- S-rename-rich: method rename --------------------------------
+    // -- method rename --------------------------------
 
     #[test]
     fn rename_method_at_decl_rewrites_decl_and_calls() {
@@ -1392,7 +1388,7 @@ mod tests {
         assert_eq!(p.placeholder, "greet");
     }
 
-    // -- S-rename-rich: external $obj method rename -----------------
+    // -- external $obj method rename -----------------
 
     #[test]
     fn rename_method_from_decl_rewrites_external_obj_sites() {

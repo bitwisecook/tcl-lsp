@@ -1,4 +1,4 @@
-//! Interval-driven dynamic bounds checking (Phase 3).
+//! Interval-driven dynamic bounds checking.
 //!
 //! The syntactic bounds checks (`analyser::bounds_checks`) only fire when *both*
 //! the container and the index are literals.  This module covers the **dynamic**
@@ -661,8 +661,7 @@ pub struct DivZeroFinding {
     pub op: &'static str,
 }
 
-/// The expression a flat IR statement evaluates, if any. Mirrors Python's
-/// `_expr_of` (`IRAssignExpr` / `IRExprEval` / `IRReturn`).
+/// The expression a flat IR statement evaluates, if any.
 fn statement_expr(stmt: &Statement) -> Option<&ExprNode> {
     match stmt {
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => Some(expr),
@@ -715,7 +714,6 @@ fn collect_divzero(
 }
 
 /// Cheap pre-scan: does any reachable expression contain a `/` or `%`?
-/// Mirrors Python's `_has_division`.
 fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
     for sb in ssa.blocks.values() {
         for s in &sb.statements {
@@ -740,11 +738,10 @@ fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
 /// Divisions / modulo whose divisor is provably `[0, 0]` (a runtime error).
 ///
 /// Sound: the divisor's interval (guard-narrowed at the use site) must be
-/// exactly `[0, 0]`, and the block must be SCCP-executable. Mirrors Python's
-/// `interval_bounds.find_divide_by_zero`; shares the same interval
-/// machinery (`compute_intervals` / `refine_interval` / `eval_expr`) as
-/// [`find_interval_bounds`]. Findings are returned in source-span order for
-/// deterministic output.
+/// exactly `[0, 0]`, and the block must be SCCP-executable. Shares the same
+/// interval machinery (`compute_intervals` / `refine_interval` / `eval_expr`)
+/// as [`find_interval_bounds`]. Findings are returned in source-span order
+/// for deterministic output.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn find_divide_by_zero(

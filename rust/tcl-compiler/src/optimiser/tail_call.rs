@@ -1,6 +1,6 @@
-//! Tail-call detection pass (C30h).
+//! Tail-call detection pass.
 //!
-//! Ported from `core/compiler/optimiser/_tail_call.py`. Emits:
+//! Emits:
 //!
 //! - **O121** — "Use `tailcall` for self-recursion". Two
 //!   variants:
@@ -28,8 +28,8 @@ use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Dialects whose base Tcl version supports `tailcall` (Tcl 8.6+,
-/// TIP 327).  Mirrors Python's `dialects_since("tcl8.6")` — every
-/// dialect whose `DIALECT_BASE_VERSION` entry is `tcl8.6` or later.
+/// TIP 327): every dialect whose `DIALECT_BASE_VERSION` entry is
+/// `tcl8.6` or later.
 /// `f5-irules` (tcl8.4-based), `f5-iapps` / `f5-tmsh` /
 /// `xilinx-eda-tcl` / `intel-quartus-eda-tcl` / `mentor-eda-tcl`
 /// (tcl8.5-based) are deliberately excluded.
@@ -65,8 +65,7 @@ const LASSIGN_DIALECTS: &[&str] = &[
 
 /// Whether `tailcall` is available in `dialect`.  `None` (no dialect
 /// info on the context — only set by the public-API entry points
-/// that don't carry one) defaults to **enabled** to preserve
-/// pre-#433 behaviour for callers that haven't been updated.
+/// that don't carry one) defaults to **enabled**.
 fn tailcall_supported(dialect: Option<&str>) -> bool {
     dialect.is_none_or(|d| TAILCALL_DIALECTS.contains(&d))
 }
@@ -373,8 +372,8 @@ fn count_bracket_self_calls(text: &str, self_names: &HashSet<String>) -> usize {
 }
 
 /// Whether `value` (a `return` argument) is an accumulator-eligible
-/// non-tail self-recursion. Mirrors Python's `_is_accumulator_pattern`
-/// plus the `first_word == "expr"` wrapper gate:
+/// non-tail self-recursion, gated on the argument being an `[expr {…}]`
+/// wrapper:
 ///
 /// 1. the argument is an `[expr {…}]` command substitution (not a plain
 ///    `[self …]` tail call, which O121 already handles);
@@ -730,7 +729,7 @@ mod tests {
 
     #[test]
     fn o122_multi_param_rewrite_uses_list_not_braces() {
-        // OPT-M1 regression: the multi-param reassignment must be
+        // The multi-param reassignment must be
         // `lassign [list …] a b`, never the braced `lassign {…} a b`
         // form (which breaks `[expr {…}]` args with a hard tclsh error).
         let src = "proc ::f {a b} {\n    if {$a <= 0} { return $b }\n    f [expr {$a - 1}] [expr {$b + $a}]\n}";

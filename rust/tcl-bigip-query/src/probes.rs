@@ -1,5 +1,4 @@
-//! Live network-probe layer — faithful port of
-//! `dialects/f5/query/_probes.py`.
+//! Live network-probe layer.
 //!
 //! Two surfaces, with different parity guarantees:
 //!
@@ -12,12 +11,11 @@
 //! - **Faithful-but-not-golden**: the live network probes (`dns`, `rev_dns`,
 //!   `ping`, `portping`, `traceroute`, `socket_get`, `tls_handshake`, the
 //!   `url_*` HTTP family). These do real I/O with a structure / output shape
-//!   faithful to the Python impl, but are not asserted byte-for-byte against
+//!   matching the Python impl, but are not asserted byte-for-byte against
 //!   live results (the test env has no reliable network).
 //!
 //! Every network probe is gated by `ctx.probes_enabled` (the `--enable-probes`
-//! flag — port of the `PROBES_ENABLED` contextvar). The pure x509 helpers are
-//! NOT gated, matching Python.
+//! flag). The pure x509 helpers are NOT gated, matching Python.
 
 use std::io::{Read as _, Write as _};
 use std::net::{TcpStream, ToSocketAddrs, UdpSocket};
@@ -143,7 +141,7 @@ fn iso_utc(timestamp: i64) -> String {
 }
 
 /// Serial as uppercase hex with no leading zeros — `format(serial, "x").upper()`
-/// in Python (`12345678`, `3E8`).
+/// (e.g. `12345678`, `3E8`).
 fn serial_hex(cert: &X509Certificate<'_>) -> String {
     // `tbs_certificate.serial` is a `BigUint`. `{:X}` gives uppercase hex with
     // no leading zeros — matching Python's `format(n, "x").upper()`. Zero
@@ -587,8 +585,9 @@ fn parse_x509_date(text: &str) -> Option<String> {
 ///
 /// PEM (one or many `CERTIFICATE` blocks) and single DER certs are parsed
 /// byte-identically to `x509_parse`. A single cert returns the dict; multiple
-/// return a list in file order. PKCS#12 (`.pfx` / `.p12`) is deferred with a
-/// clear `BuiltinError` (it needs the `cryptography` PKCS#12 decoder).
+/// return a list in file order. PKCS#12 (`.pfx` / `.p12`) is unsupported and
+/// returns a clear `BuiltinError` (it needs the `cryptography` PKCS#12
+/// decoder).
 pub(crate) fn cert_load(path: &str, _password: Option<&str>) -> Result<Value, QueryError> {
     let expanded = expanduser(path);
     let raw = match std::fs::read(&expanded) {
@@ -630,7 +629,7 @@ pub(crate) fn cert_load(path: &str, _password: Option<&str>) -> Result<Value, Qu
             Value::List(parsed)
         });
     }
-    // PKCS#12 detection by extension — deferred (needs the cryptography decoder).
+    // PKCS#12 detection by extension — unsupported (needs the cryptography decoder).
     let suffix = expanded
         .rsplit_once('.')
         .map_or(String::new(), |(_, s)| s.to_lowercase());

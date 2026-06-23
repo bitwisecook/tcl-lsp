@@ -1,6 +1,5 @@
-//! Output writers — the Rust port of `_write_text_output`,
-//! `_write_highlighted_output`, and the colour/tab resolution helpers in
-//! `tooling/cli/_utils.py`.
+//! Output writers — text/highlighted output and the colour/tab resolution
+//! helpers.
 
 use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};

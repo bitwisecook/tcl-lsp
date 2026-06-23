@@ -166,8 +166,7 @@ pub struct Function {
     /// predecessors so a handler sees the body's versions) and SCCP (as
     /// extra reachability edges so handler bodies aren't false-unreachable
     /// → O107).  `(from_block, handler_block)` pairs; empty in codegen
-    /// builds so the default bytecode is unchanged.  Mirrors Python's
-    /// `CFGFunction.exception_edges`.
+    /// builds so the default bytecode is unchanged.
     pub exception_edges: Vec<(String, String)>,
 }
 

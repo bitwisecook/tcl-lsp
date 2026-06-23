@@ -2,7 +2,7 @@
 //!
 //! Extends [`CodegenCtx`] with [`CodegenCtx::emit_expr`] which walks an
 //! [`ExprNode`] tree and produces the corresponding bytecode
-//! instructions.  Ported from `core/compiler/codegen/_expressions.py`.
+//! instructions.
 
 use tcl_lexer::backslash_subst;
 
@@ -260,11 +260,10 @@ impl CodegenCtx<'_> {
 
             ExprNode::Command { text, .. } => {
                 // Command substitution requires the main emitter pipeline.
-                // Emit as exprStk fallback — the full emitter will replace
-                // this with inline compilation in a later chunk.
+                // Emit as exprStk fallback.
                 self.push_lit(text);
                 self.emit(Op::EXPR_STK, vec![]);
-                // C18 case 5: place the deferred `<cond>` startCommand
+                // Place the deferred `<cond>` startCommand
                 // end label after the command-substitution instructions
                 // so the startCommand covers the ExprCommand body.
                 if let Some(label) = self.pending_cond_end_label.take() {

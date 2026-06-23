@@ -1,7 +1,6 @@
 //! Parameter-list parser for Tcl proc declarations.
 //!
-//! Port of `parse_param_list` in
-//! `core/analysis/_analyser/_utils.py`. Splits a parameter-list
+//! Splits a parameter-list
 //! string (the literal `args` argument to `proc`) into [`ParamDef`]
 //! records, recognising the bare-word and `{name default}` forms.
 

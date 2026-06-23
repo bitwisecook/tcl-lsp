@@ -1,6 +1,4 @@
-//! F5 BIG-IP `*.conf` handling — Rust port of the Python BIG-IP
-//! config path (`server/workspace/scanner.py`,
-//! `dialects/f5/bigip/parser/`, `server/features/_bigip_symbols.py`).
+//! F5 BIG-IP `*.conf` handling.
 //!
 //! A BIG-IP config is **not** Tcl source: it is a tree of
 //! `module object-type identifier { ... }` stanzas (with embedded Tcl
@@ -8,19 +6,19 @@
 //! canonical BIG-IP basename on `did_open`, routes the document to
 //! this module for the outline, and suppresses the general Tcl
 //! analyser so its diagnostics (W123 / E002 / W210, the encrypted
-//! `$M$…$` marker mis-read as a `$var`) never leak (issues #534 / #571).
+//! `$M$…$` marker mis-read as a `$var`) never leak.
 //!
 //! Two pieces live here:
 //!
-//! * [`is_bigip_conf_name`] — the basename → BIG-IP test, mirroring
-//!   Python `is_bigip_conf_name` (`bigip.conf`, `bigip_base.conf`, …).
+//! * [`is_bigip_conf_name`] — the basename → BIG-IP test
+//!   (`bigip.conf`, `bigip_base.conf`, …).
 //! * [`document_symbols`] — a `module → kind → object` outline built
 //!   directly from the stanza headers, using the
 //!   [`BigipRegistry`](tcl_registry::bigip::BigipRegistry) object-type
 //!   index for longest-prefix `(module, object-type)` resolution.
 //!   Nameless global singletons (`auth password-policy`,
 //!   `net self-allow`, …) fall back to their kind label so no outline
-//!   symbol ever carries an empty `name` (#534).
+//!   symbol ever carries an empty `name`.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -30,7 +28,7 @@ use tcl_registry::bigip::BigipRegistry;
 use crate::document_symbols::{DocumentSymbol, LineRange, SymbolKind};
 
 /// Canonical BIG-IP configuration file names, matched by basename
-/// (not extension). Mirrors Python `_BIGIP_CONF_NAMES`.
+/// (not extension).
 const BIGIP_CONF_NAMES: &[&str] = &[
     "bigip.conf",
     "bigip_base.conf",
@@ -140,7 +138,7 @@ fn extract_blocks(source: &str) -> Vec<Block> {
 }
 
 /// Split `header` on whitespace, honouring `"..."` quoted spans and
-/// backslash escapes. Mirrors Python `_tokenise_header` — BIG-IP allows
+/// backslash escapes. BIG-IP allows
 /// quoted names with embedded spaces (`security bot-defense signature
 /// "/Common/Microsoft Access"`).
 fn tokenise_header(header: &str) -> Vec<String> {
@@ -239,10 +237,10 @@ type Entry = (String, LineRange, usize);
 
 /// Build a `module → kind → object` outline for a BIG-IP config.
 ///
-/// Mirrors Python `get_bigip_document_symbols`: a three-level tree
+/// A three-level tree
 /// where the leaf is each object's full path, falling back to the kind
 /// label for nameless global singletons so no symbol carries an empty
-/// `name` (#534). A non-BIG-IP / empty document yields an empty list.
+/// `name`. A non-BIG-IP / empty document yields an empty list.
 #[must_use]
 pub fn document_symbols(source: &str) -> Vec<DocumentSymbol> {
     if source.is_empty() {
@@ -262,7 +260,7 @@ pub fn document_symbols(source: &str) -> Vec<DocumentSymbol> {
         };
         // A nameless global singleton (empty identifier) would make an
         // empty `DocumentSymbol.name`, which VS Code rejects for the
-        // whole outline — fall back to the kind label (#534).
+        // whole outline — fall back to the kind label.
         let name = if identifier.is_empty() {
             object_type.clone()
         } else {

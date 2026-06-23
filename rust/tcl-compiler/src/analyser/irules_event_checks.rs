@@ -1,15 +1,13 @@
-//! Analyser-level iRules event-context checks — Rust port of
-//! `analyser/irules_checks.py`.
+//! Analyser-level iRules event-context checks.
 //!
 //! These checks run per command from
 //! [`super::commands::Analyser::emit_dispatch_site_diagnostics`] and
 //! are all gated on the `f5-irules` dialect.  Several of them also
 //! consult the enclosing `when EVENT` block via
 //! [`super::state::Analyser::current_event`] — set during the body
-//! walk of a `when` command, exactly as Python threads
-//! `_current_event` in `analyser/compiler_checks.py`.
+//! walk of a `when` command.
 //!
-//! Diagnostic codes ported here:
+//! Diagnostic codes:
 //!
 //! - **IRULE1002** (WARNING): unknown iRules event name.
 //! - **IRULE1003** (WARNING): deprecated iRules event.
@@ -54,7 +52,6 @@ fn profile_registry() -> &'static ProfileRegistry {
 /// `profile_info_description` — an informational hint string when a command's
 /// `required` profiles are not confirmed present on the file, or `None` when
 /// there is no requirement or the file's profile stack already covers it.
-/// Mirrors Python `profile_info_description`.
 fn profile_info_description(
     required: &[&str],
     file_profiles: &[&str],
@@ -71,9 +68,8 @@ fn profile_info_description(
     ))
 }
 
-/// `missing_requirements_description` — a `; `-joined human-readable list of
-/// the protocol-stack requirements an `event` fails to satisfy for a command.
-/// Mirrors Python `missing_requirements_description`.
+/// A `; `-joined human-readable list of the protocol-stack requirements
+/// an `event` fails to satisfy for a command.
 fn missing_requirements_description(
     props: &EventProps,
     requires: &EventRequires,
@@ -122,8 +118,8 @@ fn is_deprecated_event(event: &str) -> bool {
         .is_some_and(|p| p.deprecated)
 }
 
-/// Mirror of `compiler.registry.runtime.variable_writing_commands()` —
-/// command name to the argument index that names the written variable.
+/// Maps a command name to the argument index that names the written
+/// variable.
 fn var_write_index(cmd_name: &str) -> Option<usize> {
     match cmd_name {
         "append" | "const" | "global" | "incr" | "lappend" | "ledit" | "lpop" | "lset" | "set"
@@ -472,12 +468,11 @@ impl Analyser {
     }
 
     /// **IRULE3102.** `HTTP::path` / `HTTP::uri` / `HTTP::query` getter
-    /// used without `-normalized`.  Analyser-level per-command check
-    /// mirroring `analyser/checks/_domain.py::check_irules_unnormalized_http_getter`
-    /// — fires in `tcl diag` and the LSP exactly as Python's `analyse`
-    /// does (the flow-path getter scan in `irules_checks.rs` is the
-    /// separate PyO3-bridge surface).  Reuses the shared getter-form
-    /// predicate so the trigger stays single-sourced.
+    /// used without `-normalized`.  Analyser-level per-command check that
+    /// fires in `tcl diag` and the LSP (the flow-path getter scan in
+    /// `irules_checks.rs` is the separate PyO3-bridge surface).  Reuses
+    /// the shared getter-form predicate so the trigger stays
+    /// single-sourced.
     fn emit_irule3102_unnormalised_getter(
         &mut self,
         cmd_name: &str,
@@ -760,9 +755,8 @@ impl Analyser {
     }
 }
 
-/// `_scan_when_blocks` — return `{event_name: [body_text, ...]}` for all
-/// `when` blocks via balanced-brace scanning.  Ports the regex + manual
-/// scanner in `analyser/irules_checks.py`.
+/// Return `{event_name: [body_text, ...]}` for all `when` blocks via
+/// balanced-brace scanning.
 fn scan_when_blocks(source: &str) -> Vec<(String, Vec<String>)> {
     let bytes = source.as_bytes();
     let mut result: Vec<(String, Vec<String>)> = Vec::new();
@@ -877,10 +871,9 @@ fn var_referenced_in(var_name: &str, body: &str) -> bool {
     false
 }
 
-/// Port of `_LOOP_NE_ZERO_RE.search` — find the first `$var != 0` /
-/// `$var ne 0` / `0 != $var` / `0 ne $var` comparison and return the bare
-/// variable name.  Mirrors the leftmost-match, alternation-A-then-B order
-/// of the Python regex.
+/// Find the first `$var != 0` / `$var ne 0` / `0 != $var` / `0 ne $var`
+/// comparison and return the bare variable name.  Uses leftmost-match,
+/// alternation-A-then-B order.
 fn find_loop_ne_zero(condition: &str) -> Option<String> {
     let b = condition.as_bytes();
     for i in 0..b.len() {
@@ -959,8 +952,8 @@ fn match_ne_op(b: &[u8], p: usize) -> Option<usize> {
     is_ne.then_some(p + 2)
 }
 
-/// Port of `_INCR_DECREMENT_RE.finditer` — does *body* contain
-/// `incr <var> -<digits>` (word-bounded) for the given variable?
+/// Does *body* contain `incr <var> -<digits>` (word-bounded) for the
+/// given variable?
 fn body_decrements(body: &str, var_name: &str) -> bool {
     let b = body.as_bytes();
     let mut search = 0usize;

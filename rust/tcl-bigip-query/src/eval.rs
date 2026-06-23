@@ -1,17 +1,16 @@
-//! Walk the query AST against a root value — faithful port of
-//! `dialects/f5/query/evaluator.py`.
+//! Walk the query AST against a root value.
 //!
 //! The evaluator is a set of recursive functions that translate each AST
 //! node into a [`Value`]. Streams flatten lazily: an expression producing a
 //! `Stream` continues to flow through pipes one value at a time.
 //!
-//! This increment implements the full jq-flavoured core over the plain
-//! value model + `Stream` / `ObjectRef` / `PathRef`, plus the
+//! It implements the full jq-flavoured core over the plain value model +
+//! `Stream` / `ObjectRef` / `PathRef`, plus the
 //! [`Container`](crate::projection::Container) navigation branches
-//! (projection over a real `BigipConfig`). The assignment → edit-plan path
-//! is wired in a later increment.
+//! (projection over a real `BigipConfig`), and the assignment → edit-plan
+//! path.
 
-// Index / length casts between `usize` and `i64` mirror Python's unbounded
+// Index / length casts between `usize` and `i64` model Python's unbounded
 // integer indexing and are intentional throughout the evaluator. The
 // arithmetic operators take operands by value to consume them on the
 // list/string branches.
@@ -52,9 +51,8 @@ pub struct Root {
     pub object_cache: RefCell<HashMap<(String, String), Rc<ObjectRef>>>,
     /// Lazily built BIG-IP reference graph, memoised on first use by the
     /// graph builtins (`refs` / `referenced_by` / …) and the rule `.refs`
-    /// projection. Mirrors Python's per-call `compute_grep`, but caches the
-    /// expensive `build_bigip_object_graph` step so repeated per-object
-    /// queries don't rebuild the whole graph each time.
+    /// projection, caching the expensive `build_bigip_object_graph` step so
+    /// repeated per-object queries don't rebuild the whole graph each time.
     pub object_graph: RefCell<Option<Rc<tcl_bigip::graph::ObjectGraph>>>,
 }
 
@@ -108,8 +106,7 @@ impl Root {
     /// Return this root's BIG-IP reference graph, building it on first use
     /// and memoising it for subsequent graph-builtin / projection calls.
     ///
-    /// Mirrors Python's `compute_grep`, which rebuilds the graph each call;
-    /// we cache the (expensive) `build_bigip_object_graph` result so a query
+    /// The (expensive) `build_bigip_object_graph` result is cached so a query
     /// touching `refs` / `referenced_by` / `.refs` per object stays cheap.
     #[must_use]
     pub fn graph(&self) -> Rc<tcl_bigip::graph::ObjectGraph> {
@@ -185,11 +182,11 @@ impl EvalContext {
     /// Return the merged reference graph spanning every [`merge_roots`] entry,
     /// building it on first use and memoising it on [`merge_graph`].
     ///
-    /// Mirrors Python's merge-mode `_grep_inputs`, which feeds every active
-    /// root's `(uri, source)` + `(uri, config)` into `compute_grep` so a
-    /// reference in one file resolves into an object in another. Built once
-    /// per statement (the runner constructs a fresh context per root, but the
-    /// merge graph is identical across them, so each rebuilds at most once).
+    /// Feeds every active root's `(uri, source)` + `(uri, config)` into the
+    /// graph builder so a reference in one file resolves into an object in
+    /// another. Built once per statement (the runner constructs a fresh
+    /// context per root, but the merge graph is identical across them, so each
+    /// rebuilds at most once).
     ///
     /// [`merge_roots`]: EvalContext::merge_roots
     /// [`merge_graph`]: EvalContext::merge_graph
@@ -884,7 +881,7 @@ fn require_index(index: &Value) -> Result<i64, QueryError> {
 }
 
 /// Resolve a possibly-negative index against a length; `None` if out of
-/// range. Mirrors Python's `-len <= i < len` check.
+/// range. The index check is `-len <= i < len`.
 fn resolve_index(i: i64, len: usize) -> Option<usize> {
     let len_i = len as i64;
     if i >= -len_i && i < len_i {
@@ -1377,11 +1374,9 @@ pub fn pyr_pub(s: &str) -> String {
 
 // Assignments
 //
-// Assignments collect into an edit plan and return the post-edit value. The
-// edit-plan application engine (rewriting SCF source) lands in a later
-// increment; this resolves the LHS targets faithfully so the error paths
-// (which are all an external-JSON query can hit, since JSON has no
-// `ObjectRef`s) match Python exactly.
+// Assignments collect into an edit plan and return the post-edit value. This
+// resolves the LHS targets so the error paths (which are all an external-JSON
+// query can hit, since JSON has no `ObjectRef`s) match Python exactly.
 
 fn eval_assignment(
     target: &Expr,

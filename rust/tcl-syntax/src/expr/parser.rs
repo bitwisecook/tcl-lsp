@@ -406,24 +406,19 @@ pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
     }
 }
 
-// -- SYNC10: LRU-cached parse_expr -------------------------------
+// -- LRU-cached parse_expr ---------------------------------------
 //
-// Mirrors Python `5056effe` (parse_expr LRU cache, 4096 entries
-// keyed on `(source, dialect)`).  Python saw 17.10s → 5.04s
-// (3.4x) on a 10k-iter `for` loop after the cache landed.  The
-// Rust analyser callers are once-per-source, so the existing
-// `parse_expr` stays uncached; this sibling is for the future
-// VM port (`VM*`) which re-evaluates loop conditions on every
-// iteration.
+// The analyser callers are once-per-source, so the existing
+// `parse_expr` stays uncached; this sibling is for the VM, which
+// re-evaluates loop conditions on every iteration.
 //
-// Key shape: `(source, dialect)` — same as Python.  The cache is
-// process-global (a `OnceLock<Mutex<…>>`) and capped at 4096
-// entries with simple LRU eviction (move-to-back on hit, evict
-// front on capacity overflow).  Entries return `Arc<ExprNode>`
-// so multiple callers can share the parsed tree without cloning
-// the AST.
+// Key shape: `(source, dialect)`.  The cache is process-global (a
+// `OnceLock<Mutex<…>>`) and capped at 4096 entries with simple LRU
+// eviction (move-to-back on hit, evict front on capacity overflow).
+// Entries return `Arc<ExprNode>` so multiple callers can share the
+// parsed tree without cloning the AST.
 
-/// Cache capacity — matches Python `5056effe`.  4096 entries was
+/// Cache capacity.  4096 entries was
 /// empirically large enough to hold every distinct expression a
 /// 10k-iter loop encounters (typically <10 distinct expressions
 /// per proc); larger workloads stress the LRU eviction path.
@@ -501,9 +496,6 @@ fn expr_cache() -> &'static Mutex<ExprCache> {
 /// Use this from VM-loop hot paths (re-evaluating `expr {$i < N}`
 /// on every iteration); use the un-cached [`parse_expr`] from
 /// once-per-invocation analyser sites.
-///
-/// Mirrors Python `core/parsing/expr_parser.py::parse_expr`'s
-/// `@lru_cache(maxsize=4096)` decoration after `5056effe`.
 #[must_use]
 pub fn parse_expr_cached(source: &str, dialect: Option<&str>) -> Arc<ExprNode> {
     let key: ExprCacheKey = (source.to_owned(), dialect.map(str::to_owned));
@@ -553,7 +545,7 @@ mod tests {
         parse_expr(s, Some("f5-irules"))
     }
 
-    // Adversarial nesting — must not overflow the stack (FN-H2)
+    // Adversarial nesting — must not overflow the stack
 
     #[test]
     fn deeply_nested_parens_does_not_overflow() {
@@ -1115,7 +1107,7 @@ mod tests {
         assert_eq!(rendered, "-$x");
     }
 
-    // -- SYNC10: parse_expr_cached -----------------------------------
+    // -- parse_expr_cached -------------------------------------------
     //
     // The global cache is shared across the whole test binary, so
     // tests that assert on cache state (length / eviction) run

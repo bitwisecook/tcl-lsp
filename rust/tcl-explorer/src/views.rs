@@ -1,8 +1,6 @@
 //! Explorer view metadata: the tab table and severity vocabulary.
 //!
-//! Faithful port of `_VIEW_META` and `annotations.Severity` from the
-//! Python explorer (`tooling/cli/serialise.py`,
-//! `tooling/explorer/annotations.py`). The front-ends key off the `id`
+//! The front-ends key off the `id`
 //! strings, so this table is part of the de-facto explorer contract.
 
 /// One explorer view tab: `(id, label, group)`.

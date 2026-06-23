@@ -5,20 +5,17 @@
     clippy::match_same_arms
 )]
 
-//! TclOO class / method body parsing + unknown-proc detection —
-//! Rust port of `core/analysis/_analyser/_oo.py`.
+//! TclOO class / method body parsing + unknown-proc detection.
 //!
 //! Walks the body of an ``oo::class create Name { ... }`` or
 //! ``oo::define Name { ... }`` block and populates the
-//! [`super::types::ClassDef`] fields that **C41e0** seeded.
-//! **C41e3** completes the field set (``constructors``,
-//! ``destructor``, ``variables``, ``properties``, ``filters``,
-//! ``exports``, ``unexports``) and adds
+//! [`super::types::ClassDef`] fields: the full field set
+//! (``constructors``, ``destructor``, ``variables``,
+//! ``properties``, ``filters``, ``exports``, ``unexports``) plus
 //! [`Analyser::extract_unknown_proc_info`] — the W123 gating
 //! analysis for user-defined ``unknown`` procs.
 //!
-//! Subcommand coverage (mirrors Python's
-//! ``_parse_oo_definition_body``):
+//! Subcommand coverage:
 //!
 //! - ``superclass <names>`` — assigns ``ClassDef::superclasses``.
 //! - ``mixin ?-append? <names>`` — assigns ``ClassDef::mixins``
@@ -39,10 +36,8 @@
 //!   matching ``HashSet`` field.
 //! - ``property NAME ?-get BODY? ?-set BODY? ?-kind K?`` —
 //!   extracts a [`super::types::PropertyDef`] per name.
-//! - ``initialise`` / ``initialize`` — recognised; the body
-//!   recursion is deferred (Python walks it for variable
-//!   tracking but the Rust dispatcher isn't yet threaded with
-//!   the active scope).
+//! - ``initialise`` / ``initialize`` — recognised; the body is
+//!   walked in the enclosing scope for variable tracking.
 
 use tcl_lexer::{Span, Token, TokenType};
 
@@ -57,10 +52,9 @@ use crate::signature_scan::types::ParamDef;
 /// ``unknown`` proc, indicate the handler chains to the original
 /// Tcl ``unknown`` rather than dispatching itself.
 ///
-/// Mirrors the ``_CHAIN_TARGETS`` constant in
-/// ``core/analysis/_analyser/_oo.py:459-466``.  Names match
-/// exactly — when any IR call inside the body resolves to one of
-/// these, ``UnknownProcInfo::chains_original`` flips to ``true``.
+/// Names match exactly — when any IR call inside the body
+/// resolves to one of these, ``UnknownProcInfo::chains_original``
+/// flips to ``true``.
 const CHAIN_TARGETS: &[&str] = &[
     "_original_unknown",
     "_orig_unknown",
@@ -69,8 +63,7 @@ const CHAIN_TARGETS: &[&str] = &[
     "original_unknown",
 ];
 
-/// snit (tcllib) type/widget definers, both bare and `::`-qualified.  Mirrors
-/// `_SNIT_DEFINERS` in `analyser/_analyser/_oo.py`.
+/// snit (tcllib) type/widget definers, both bare and `::`-qualified.
 const SNIT_DEFINERS: &[&str] = &[
     "snit::type",
     "snit::widget",
@@ -91,12 +84,11 @@ impl Analyser {
     /// Walk the body of a ``oo::class create`` / ``oo::define``
     /// block, populating `class_def` from each subcommand.
     ///
-    /// Mirrors `_parse_oo_definition_body` in
-    /// `core/analysis/_analyser/_oo.py:146-237`.  The body is
-    /// re-segmented via [`crate::segmenter::segment_commands_with_offset`]
-    /// (no recovery — recovery is top-level only, mirroring
-    /// Python).  Dynamic bodies (non-`Str` tokens) skip the
-    /// walk because they can't be statically re-segmented.
+    /// The body is re-segmented via
+    /// [`crate::segmenter::segment_commands_with_offset`] (no
+    /// recovery — recovery is top-level only).  Dynamic bodies
+    /// (non-`Str` tokens) skip the walk because they can't be
+    /// statically re-segmented.
     pub(super) fn parse_oo_definition_body(
         &mut self,
         body_text: &str,
@@ -118,13 +110,13 @@ impl Analyser {
         // superclasses, …) and collect each method body to walk afterwards.
         // The walk is deferred so every class-level `variable` declaration is
         // visible as a pre-bound local in *every* method body, regardless of
-        // source order — mirroring Python's two-phase `_parse_oo_definition_body`.
+        // source order.
         let mut method_bodies: Vec<CollectedMethodBody> = Vec::new();
         // `property -get`/`-set` accessor bodies — walked in a method scope
-        // seeded with the class variables (Python `_extract_property_defs`).
+        // seeded with the class variables.
         let mut accessor_bodies: Vec<CollectedMethodBody> = Vec::new();
         // `initialise`/`initialize { body }` — a class-level script walked in
-        // the *enclosing* scope (not a method scope), mirroring Python.
+        // the *enclosing* scope (not a method scope).
         let mut init_bodies: Vec<(String, Token)> = Vec::new();
         for cmd in &cmds {
             if cmd.is_partial || cmd.argv.is_empty() {
@@ -167,8 +159,7 @@ impl Analyser {
     /// false-fire W210 read-before-set / W214 unused), then re-walks the body
     /// through [`Self::analyse_body`] so its `$obj method` / `[cmd] method`
     /// dispatch sites are recorded (with `in_method = true`) for the W307 /
-    /// W308 post-pass.  Mirrors `_extract_method_def`'s `method_scope`
-    /// construction + `_analyse_body` call in `analyser/_analyser/_oo.py`.
+    /// W308 post-pass.
     fn walk_method_body(
         &mut self,
         class_variables: &[String],
@@ -238,8 +229,7 @@ impl Analyser {
     /// a real [`ClassDef`] with method scopes — object dispatch inside method
     /// bodies (`$self foo`, `$component bar`) is then recognised as in-method
     /// dispatch (no false W307) and snit's implicit instance variables don't
-    /// surface as read-before-set / unused.  Mirrors `_handle_snit_type_command`
-    /// in `analyser/_analyser/_oo.py:503`.
+    /// surface as read-before-set / unused.
     pub(super) fn handle_snit_type_command(
         &mut self,
         cmd_name: &str,
@@ -284,7 +274,7 @@ impl Analyser {
 
     /// Parse a snit type/widget body into methods + variable declarations, in
     /// two passes (so a method can reference any instance/type variable
-    /// regardless of declaration order).  Mirrors `_parse_snit_definition_body`.
+    /// regardless of declaration order).
     fn parse_snit_definition_body(
         &mut self,
         body: &str,
@@ -345,7 +335,7 @@ impl Analyser {
         // method-scope seeding and the W307 dispatch-source suppression both
         // read `ClassDef::variables`.  Only the four implicit scalars
         // (`self`/`selfns`/`type`/`options`) and the type-implicit `type` are
-        // filtered; a widget's injected `win`/`hull` are kept (Python parity).
+        // filtered; a widget's injected `win`/`hull` are kept.
         class_def.variables = instance_vars
             .iter()
             .filter(|v| !SNIT_INSTANCE_IMPLICIT.contains(&v.as_str()))
@@ -494,11 +484,10 @@ impl Analyser {
 
     /// Analyse one snit method / constructor / etc. body in a method scope
     /// seeded with `seed_vars` (snit's implicit names + declared instance or
-    /// type variables) and the method's formal parameters.  Mirrors
-    /// `_extract_snit_method`.  `no_arglist` is for declarations whose body
-    /// immediately follows the keyword (`destructor` / `typeconstructor` /
-    /// `oncget`); `synthetic_name` names the synthetic constructor/handler
-    /// forms.
+    /// type variables) and the method's formal parameters.  `no_arglist` is
+    /// for declarations whose body immediately follows the keyword
+    /// (`destructor` / `typeconstructor` / `oncget`); `synthetic_name` names
+    /// the synthetic constructor/handler forms.
     #[allow(clippy::too_many_arguments)]
     fn extract_snit_method(
         &mut self,
@@ -585,10 +574,8 @@ impl Analyser {
 
     /// Detect dispatch shape of a user-defined ``unknown`` proc.
     ///
-    /// Mirrors `_extract_unknown_proc_info` in
-    /// `core/analysis/_analyser/_oo.py:469-558`.  Lowers the
-    /// proc body to IR, then walks the resulting top-level
-    /// [`Statement`]s looking for:
+    /// Lowers the proc body to IR, then walks the resulting
+    /// top-level [`Statement`]s looking for:
     ///
     /// - `IRSwitch` whose subject is `$<first_param>` (or
     ///   `${first_param}`) — exact arms become explicit
@@ -621,12 +608,11 @@ impl Analyser {
             .first()
             .map_or_else(|| "cmd".to_string(), |p| p.name.clone());
 
-        // Lower to IR.  On panic mirror Python's "be
-        // conservative — assume fully dynamic" fallback by
-        // returning an ``UnknownProcInfo`` with every dynamic
-        // flag set so the W123 emitter suppresses unresolved-
-        // command warnings file-wide (the safe direction when
-        // we couldn't analyse the handler body).
+        // Lower to IR.  On panic, be conservative — assume fully
+        // dynamic — by returning an ``UnknownProcInfo`` with
+        // every dynamic flag set so the W123 emitter suppresses
+        // unresolved-command warnings file-wide (the safe
+        // direction when we couldn't analyse the handler body).
         let module: Module = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             crate::lowering::lower_to_ir(body, &tcl_registry::CommandRegistry::build_default())
         })) {
@@ -655,11 +641,9 @@ impl Analyser {
     /// Walk an inline ``oo::define Class subcmd ...`` form,
     /// dispatching the same per-subcommand logic.
     ///
-    /// Mirrors `_parse_oo_define_inline` in `_oo.py:239-289`.
-    /// The Rust port reuses [`apply_oo_subcommand`] — the
-    /// inline form differs from the body form only in how
-    /// arguments are framed; the per-subcommand handling is
-    /// identical.
+    /// Reuses [`apply_oo_subcommand`] — the inline form differs
+    /// from the body form only in how arguments are framed; the
+    /// per-subcommand handling is identical.
     pub(super) fn parse_oo_define_inline(
         &mut self,
         args: &[String],
@@ -681,9 +665,7 @@ impl Analyser {
 /// Recurses through control-flow bodies (`if` clauses, `for` /
 /// `while` / `foreach` bodies, `try` / `catch` bodies) so a
 /// ``switch`` arm or ``exec`` call buried inside a guard or
-/// loop is still detected.  Mirrors the behaviour of Python's
-/// ``iter_ir_statements`` helper which walks the recursive
-/// statement tree.
+/// loop is still detected.
 fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProcInfo) {
     match stmt {
         Statement::Switch {
@@ -693,7 +675,7 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
             ..
         } => {
             // Subject reference: ``$first`` or ``${first}``
-            // (Python checks both forms).
+            // (both forms are checked).
             let dollar = format!("${first_param}");
             let braced = format!("${{{first_param}}}");
             let subject_refs_first = subject.contains(&dollar) || subject.contains(&braced);
@@ -815,8 +797,7 @@ struct CollectedMethodBody {
 /// Recognise a method-defining subcommand in a class body and return its body
 /// to walk.  Covers the direct forms (`method` / `classmethod` / `constructor`
 /// / `destructor`); the `forward` form has no body, and dynamic (non-braced)
-/// bodies are filtered downstream by [`Analyser::walk_method_body`].  Mirrors
-/// the body-bearing arms of `_extract_method_def`.
+/// bodies are filtered downstream by [`Analyser::walk_method_body`].
 fn collect_method_body(texts: &[String], argv: &[Token]) -> Option<CollectedMethodBody> {
     match texts.first().map(String::as_str)? {
         "method" | "classmethod" if texts.len() >= 4 => Some(CollectedMethodBody {
@@ -907,8 +888,7 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
             }
         }
         "mixin" => {
-            // Skip ``-append`` and similar flags — mirrors
-            // Python's ``[a for a in sub_args if not a.startswith("-")]``.
+            // Skip ``-append`` and similar flags.
             class_def.mixins = sub_args
                 .iter()
                 .filter(|a| !a.starts_with('-'))
@@ -980,13 +960,11 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
         "forward" => apply_oo_forward(sub_args, sub_tokens, class_def),
         "private" => apply_oo_private(sub_args, sub_tokens, class_def),
         // ``initialise`` / ``initialize`` are class-level
-        // initialisation scripts; the body is recorded by the
-        // Python analyser via ``_analyse_body`` (it walks the
-        // body for variable tracking).  The Rust port doesn't
-        // yet thread the active scope / scope-path into
-        // ``apply_oo_subcommand``, so the body recursion is
-        // deferred — the subcommand is recognised here so the
-        // _ arm doesn't silently drop it.
+        // initialisation scripts; their bodies are collected and
+        // walked separately in
+        // [`Analyser::parse_oo_definition_body`].  The subcommand
+        // is recognised here so the `_` arm doesn't silently drop
+        // it.
         "initialise" | "initialize" => {}
         _ => {}
     }
@@ -994,7 +972,6 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
 
 /// Extract property definitions from a ``property`` subcommand.
 ///
-/// Mirrors `_extract_property_defs` in `_oo.py:390-453`.
 /// Walks the args, splitting names from option values
 /// (``-get BODY``, ``-set BODY``, ``-kind readable|writable|readwrite``).
 /// Each property gets a [`PropertyDef`] entry in
@@ -1002,20 +979,16 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
 ///
 /// All property options take a value (``-get``, ``-set``,
 /// ``-kind``); there are no flag-only options.  When ``-kind``
-/// is omitted the property defaults to ``"readwrite"``, matching
-/// Python's dataclass default.
+/// is omitted the property defaults to ``"readwrite"``.
 ///
-/// Body recursion into accessor (`-get` / `-set`) bodies is
-/// deferred — the Python equivalent walks each body for
-/// variable tracking, but the Rust [`apply_oo_subcommand`] dispatcher
-/// isn't yet threaded with the active scope.  The class-level
-/// PropertyDef entries are still emitted, so consumers see the
-/// property records.
+/// This records only the class-level PropertyDef entries; the
+/// accessor (`-get` / `-set`) bodies are collected and walked
+/// separately by [`collect_property_accessor_bodies`].
 fn extract_property_defs(args: &[String], arg_tokens: &[Token], class_def: &mut ClassDef) {
     let zero = Span::new(0, 0);
 
     // Collect property names + their per-arg index, then the
-    // trailing options.  Mirrors Python's two-pass shape.
+    // trailing options, in a two-pass shape.
     let mut names: Vec<(String, usize)> = Vec::new();
     let mut kind = "readwrite".to_string();
     let mut has_getter = false;
@@ -1060,9 +1033,8 @@ fn extract_property_defs(args: &[String], arg_tokens: &[Token], class_def: &mut 
 }
 
 /// Collect the `-get` / `-set` accessor bodies of a `property` subcommand as
-/// walkable method bodies (named `<get>` / `<set>`).  Mirrors the accessor-body
-/// recursion in Python `_extract_property_defs`; only braced (`Str`) bodies are
-/// walkable.
+/// walkable method bodies (named `<get>` / `<set>`).  Only braced (`Str`)
+/// bodies are walkable.
 fn collect_property_accessor_bodies(
     texts: &[String],
     argv: &[Token],
@@ -1095,8 +1067,7 @@ fn collect_property_accessor_bodies(
 
 /// Extract a [`MethodDef`] from method-style args.
 ///
-/// Mirrors `_extract_method_def` in `_oo.py:290-349`.  Three
-/// shapes:
+/// Three shapes:
 ///
 /// - **method / classmethod**: `args = [name, params, body]`.
 /// - **constructor**: `args = [params, body]`; `synthetic_name`
@@ -1547,8 +1518,8 @@ mod tests {
         assert!(info.dispatch_targets.contains("foo"));
     }
 
-    // snit (tcllib) type / widget support.  Verified against the Python
-    // `_handle_snit_type_command` oracle and real `tclsh8.6` + tcllib.
+    // snit (tcllib) type / widget support.  Verified against real
+    // `tclsh8.6` + tcllib.
 
     #[test]
     fn snit_type_recorded_as_class_with_members() {
@@ -1680,8 +1651,7 @@ mod tests {
 
     #[test]
     fn oo_class_create_with_namespace_is_recognised() {
-        // The `createWithNamespace` class-command variant introduces a class
-        // (matching Python's widened subcommand gate).
+        // The `createWithNamespace` class-command variant introduces a class.
         let mut a = Analyser::new();
         let r = a.analyse("oo::class createWithNamespace MyCls ::ns { }", "tcl8.6");
         assert!(

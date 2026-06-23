@@ -2,7 +2,6 @@
 //!
 //! Extends [`CodegenCtx`] with methods for emitting `beginCatch4`/`endCatch`
 //! bytecodes for `catch` and `try` commands.
-//! Ported from `core/compiler/codegen/_control_flow.py`.
 
 #![allow(clippy::similar_names, clippy::doc_markdown)]
 

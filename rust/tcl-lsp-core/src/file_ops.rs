@@ -1,7 +1,7 @@
 //! File-operation helpers: rewrite `source FILE` references when a
-//! sourced file is renamed (GAP-A9).
+//! sourced file is renamed.
 //!
-//! Port of `lsp/features/workspace_file_ops.py`'s pure core.  When a
+//! When a
 //! `.tcl` file is renamed, every dependent file that `source`s it
 //! (via a *literal* path) gets its path literal rewritten so the
 //! workspace still loads.  `compute_rename_edits` is pure and

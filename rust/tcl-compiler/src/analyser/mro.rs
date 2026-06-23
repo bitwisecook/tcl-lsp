@@ -4,8 +4,7 @@
     clippy::doc_lazy_continuation
 )]
 
-//! TclOO method resolution order — Rust port of
-//! `core/analysis/mro.py`.
+//! TclOO method resolution order.
 //!
 //! Implements the same MRO algorithm as Tcl 8.6 / 9.0's
 //! ``tclOOCall.c``:
@@ -124,11 +123,9 @@ fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool) {
 
 /// Detect a pure superclass cycle starting at `start`.
 ///
-/// Mirrors Python's ``_has_super_cycle`` inside
-/// ``tcloo_linearise``.  TclOO's DFS silently skips visited
-/// nodes (needed for mixin cycles), but pure superclass cycles
-/// should be reported as errors so downstream consumers can
-/// surface the problem.
+/// TclOO's DFS silently skips visited nodes (needed for mixin
+/// cycles), but pure superclass cycles should be reported as errors
+/// so downstream consumers can surface the problem.
 fn has_super_cycle(start: &str, supers_map: &HashMap<String, Vec<String>>) -> bool {
     fn recurse(
         cls: &str,

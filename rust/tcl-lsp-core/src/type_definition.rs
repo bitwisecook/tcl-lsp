@@ -1,8 +1,7 @@
 //! `textDocument/typeDefinition` — jump to the class that *types* the
 //! symbol at the cursor.
 //!
-//! Port of `lsp/features/type_definition.py::get_type_definition`
-//! (GAP-B3, strip 2).  Two receiver shapes:
+//! Two receiver shapes:
 //!
 //! - **Variable receiver** (`$obj`) — when the analyser has inferred the
 //!   variable's class (the Rust analyser records this in

@@ -1,8 +1,4 @@
 //! Namespace and qualified-name helpers for the optimiser.
-//!
-//! Ported from `core/compiler/optimiser/_helpers.py` —
-//! `_namespace_parts`, `_namespace_from_qualified`, and
-//! `_resolve_summary_proc_name`.
 
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::naming::normalise_qualified_name;

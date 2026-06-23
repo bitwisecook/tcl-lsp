@@ -1,7 +1,7 @@
 //! Install orchestration — source resolution, fetch, CAS store, materialise.
 //!
-//! Faithful port of `tooling/tclpkg/installer.py`. `tcl pkg install` resolves
-//! the dependency graph, then for each resolved package this module turns a
+//! `tcl pkg install` resolves the dependency graph, then for each resolved
+//! package this module turns a
 //! `name@version` into a concrete source, fetches it ([`crate::fetchers`]),
 //! ingests it into the content-addressable store ([`crate::cas`]), and
 //! materialises it into the project `lib/`. The lockfile records the exact

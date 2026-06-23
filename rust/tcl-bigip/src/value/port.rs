@@ -1,4 +1,4 @@
-//! `Port` + `PortRange` value types. Rust port of `_port.py`.
+//! `Port` + `PortRange` value types.
 
 use super::error::ValueError;
 use std::fmt;
@@ -23,7 +23,7 @@ pub struct Port {
 }
 
 impl Port {
-    /// Construct a port directly (mirrors `Port(port=..., spelling=...)`).
+    /// Construct a port directly from its number and spelling.
     #[must_use]
     pub fn new(port: u16, spelling: impl Into<String>) -> Self {
         Self {

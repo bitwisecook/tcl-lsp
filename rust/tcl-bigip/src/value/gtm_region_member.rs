@@ -1,5 +1,4 @@
-//! Typed BIG-IP GTM region-member row value. Rust port of
-//! `_gtm_region_member.py`.
+//! Typed BIG-IP GTM region-member row value.
 
 use std::fmt;
 

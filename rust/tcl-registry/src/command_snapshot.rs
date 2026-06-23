@@ -1,17 +1,12 @@
 //! Canonical JSON snapshot of the command registry per dialect.
 //!
-//! Rust port of `command_registry_snapshot` / `command_registry_snapshots`
-//! / `command_entry` in Python `tooling/registry_snapshot.py`, driving the
-//! `tcl registry-dump` verb. The output matches Python's
-//! `json.dumps(indent=2, sort_keys=True)` byte-for-byte on the faithful
-//! subset (the Tcl dialects); see `docs/rust-cli-port.md` for the
-//! documented data-divergence pins.
+//! Drives the `tcl registry-dump` verb. The output is deterministic
+//! JSON serialised with two-space indentation and sorted keys.
 //!
 //! **iRules note:** the per-command `info.validEvents*` fields embed the
 //! event-validity cross-product, which only applies to the `f5-irules`
 //! dialect (every Tcl command resolves to an empty valid-event set). The
-//! Tcl path therefore emits the constant empty-list count/digest; the
-//! f5-irules cross-product is a separate engine-gap workstream.
+//! Tcl path therefore emits the constant empty-list count/digest.
 
 use std::collections::BTreeMap;
 
@@ -405,8 +400,8 @@ fn command_names(registry: &CommandRegistry, dialect: DialectSet) -> Vec<String>
 }
 
 /// The full snapshot entry for a single `name` in `dialect`, or `None`
-/// when the command is unavailable. Used by the faithful-subset golden
-/// test to compare individual command entries.
+/// when the command is unavailable. Used by the golden test to compare
+/// individual command entries.
 #[must_use]
 pub fn command_entry_json(registry: &CommandRegistry, dialect: &str, name: &str) -> Option<Json> {
     let dset = DialectSet::parse(dialect).unwrap_or(DialectSet::TCL86);

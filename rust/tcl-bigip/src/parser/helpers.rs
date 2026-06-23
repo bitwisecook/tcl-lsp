@@ -1,24 +1,22 @@
-//! Low-level block / property / header extraction helpers — a faithful
-//! port of `dialects/f5/bigip/parser/_helpers.py`.
+//! Low-level block / property / header extraction helpers.
 //!
 //! Only ASCII structural bytes (`{`, `}`, `"`, `\`, whitespace, `#`) are
 //! inspected, so every recorded offset lands on a UTF-8 char boundary.
 
-/// A parsed top-level config stanza. Mirrors Python `_Block`.
+/// A parsed top-level config stanza.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Block {
     /// Header text, e.g. `"ltm virtual /Common/my_vs"`.
     pub header: String,
     /// Body text between the outermost `{ }` (braces excluded).
     pub body: String,
-    /// Byte offset of the opening `{` (matches Python `start_offset`).
+    /// Byte offset of the opening `{`.
     pub start_offset: usize,
-    /// Byte offset one past the closing `}` (matches Python `end_offset`).
+    /// Byte offset one past the closing `}`.
     pub end_offset: usize,
 }
 
-/// A top-level key/value property parsed from a block body. Mirrors
-/// Python `_Property`.
+/// A top-level key/value property parsed from a block body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Property {
     /// Property key.
@@ -32,8 +30,7 @@ pub struct Property {
 }
 
 /// Extract all top-level `keyword ... { ... }` blocks from `source`.
-/// Handles nested braces and respects quoted strings. Mirrors
-/// `_extract_blocks`.
+/// Handles nested braces and respects quoted strings.
 #[must_use]
 pub fn extract_blocks(source: &str) -> Vec<Block> {
     let bytes = source.as_bytes();
@@ -108,13 +105,12 @@ pub fn extract_blocks(source: &str) -> Vec<Block> {
 }
 
 /// Parse top-level `key value` properties from a block body, capturing
-/// each value's span relative to the body. Mirrors
-/// `_parse_properties_with_spans`.
+/// each value's span relative to the body.
 #[must_use]
 pub fn parse_properties_with_spans(body: &str) -> Vec<(String, Property)> {
     let bytes = body.as_bytes();
     let length = bytes.len();
-    // Preserve insertion order and last-wins semantics like a Python dict.
+    // Preserve insertion order with last-wins semantics on duplicate keys.
     let mut props: Vec<(String, Property)> = Vec::new();
     let mut pos = 0;
 
@@ -206,8 +202,8 @@ pub fn parse_properties_with_spans(body: &str) -> Vec<(String, Property)> {
     props
 }
 
-/// Insert a property with Python-dict last-wins-on-key semantics while
-/// preserving first-seen order.
+/// Insert a property with last-wins-on-key semantics while preserving
+/// first-seen order.
 fn insert_prop(props: &mut Vec<(String, Property)>, prop: Property) {
     if let Some(slot) = props.iter_mut().find(|(k, _)| *k == prop.key) {
         slot.1 = prop;
@@ -217,7 +213,7 @@ fn insert_prop(props: &mut Vec<(String, Property)>, prop: Property) {
 }
 
 /// Parse simple `key value` properties from a block body, dropping
-/// spans. Mirrors `_parse_properties`.
+/// spans.
 #[must_use]
 pub fn parse_properties(body: &str) -> Vec<(String, String)> {
     parse_properties_with_spans(body)
@@ -227,7 +223,6 @@ pub fn parse_properties(body: &str) -> Vec<(String, String)> {
 }
 
 /// Strip a single layer of surrounding double quotes, when present.
-/// Mirrors `_unquote`.
 #[must_use]
 pub fn unquote(value: &str) -> &str {
     let bytes = value.as_bytes();
@@ -239,7 +234,7 @@ pub fn unquote(value: &str) -> &str {
 }
 
 /// Extract top-level item names from a braced block, skipping nested
-/// sub-blocks. Mirrors `_parse_list_block`.
+/// sub-blocks.
 #[must_use]
 pub fn parse_list_block(braced: &str) -> Vec<String> {
     let mut inner = braced.trim();
@@ -299,8 +294,7 @@ pub fn parse_list_block(braced: &str) -> Vec<String> {
     items
 }
 
-/// Extract `(name, body)` pairs from a keyed-block list. Mirrors
-/// `_parse_keyed_block_entries`.
+/// Extract `(name, body)` pairs from a keyed-block list.
 #[must_use]
 pub fn parse_keyed_block_entries(braced: &str) -> Vec<(String, String)> {
     let mut inner = braced.trim();
@@ -383,8 +377,6 @@ pub type KeyedBlockEntryOffsets = (String, String, usize, usize, usize, usize, u
 /// `key { body }` span; `key_start`/`key_end` bracket just the key;
 /// `body_start`/`body_end` bracket the body bytes inside the inner
 /// `{ ... }` (without the braces). All offsets are relative to `braced`.
-///
-/// Mirrors `_parse_keyed_block_entries_with_offsets`.
 #[must_use]
 pub fn parse_keyed_block_entries_with_offsets(braced: &str) -> Vec<KeyedBlockEntryOffsets> {
     let bytes = braced.as_bytes();
@@ -470,7 +462,7 @@ pub fn parse_keyed_block_entries_with_offsets(braced: &str) -> Vec<KeyedBlockEnt
 }
 
 /// Split `header` on whitespace, honouring `"..."` quoted spans and
-/// backslash escapes. Mirrors `_tokenise_header`.
+/// backslash escapes.
 #[must_use]
 pub fn tokenise_header(header: &str) -> Vec<String> {
     let mut tokens = Vec::new();

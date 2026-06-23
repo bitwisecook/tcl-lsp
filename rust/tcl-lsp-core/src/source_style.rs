@@ -1,5 +1,4 @@
-//! Source-level style diagnostics — Rust port of the line/text
-//! style checks in `lsp/features/diagnostics.py`.
+//! Source-level style diagnostics — the line/text style checks.
 //!
 //! These five style codes are *source-text* checks: they read the
 //! raw document, not the lexer / segmenter / CST, because the
@@ -10,38 +9,35 @@
 //! the Python implementation, which operates directly on
 //! `source.split("\n")`.
 //!
-//! Ported checks:
+//! Checks:
 //!
-//! * **W111** — line length (`_check_line_length`).
-//! * **W112** — trailing whitespace (`_check_trailing_whitespace`),
-//!   with a remove-whitespace quick-fix.
+//! * **W111** — line length.
+//! * **W112** — trailing whitespace, with a remove-whitespace
+//!   quick-fix.
 //! * **W115** — backslash-newline in a comment swallows the next
-//!   line (`_check_comment_continuation`), with a
-//!   convert-to-per-line-comments quick-fix.
-//! * **W118** — inconsistent line endings (`_check_line_endings`),
-//!   a single file-level diagnostic.
+//!   line, with a convert-to-per-line-comments quick-fix.
+//! * **W118** — inconsistent line endings, a single file-level
+//!   diagnostic.
 //!
-//! GAP-C1 strip 2 wires the orchestrator ([`style_diagnostics`])
-//! into the native server's `publish_analyser_diagnostics` so these
-//! source-style codes reach the editor alongside the analyser /
-//! compiler-check / optimiser sets.
+//! The orchestrator ([`style_diagnostics`]) wires into the native
+//! server's `publish_analyser_diagnostics` so these source-style
+//! codes reach the editor alongside the analyser / compiler-check /
+//! optimiser sets.
 //!
-//! **Range convention.**  The emitted ranges mirror Python's
-//! source-style emission exactly — the `end` position points at the
-//! *last affected character* (Python uses `character = length - 1`),
-//! not one-past-the-end.  This differs from the exclusive-`end`
+//! **Range convention.**  The `end` position points at the *last
+//! affected character* (`character = length - 1`), not
+//! one-past-the-end.  This differs from the exclusive-`end`
 //! convention the structural `tcl-lsp-core` providers use, but it
-//! preserves the live Python analyser's inclusive diagnostic anchors.
+//! preserves inclusive diagnostic anchors.
 //! Character columns are UTF-16 code units, matching the LSP convention.
 //!
-//! **Deferred (follow-ups, documented in GAP-C1 strip 2):** the
-//! W112 / W115 quick-fixes are *ported* (carried on
-//! [`StyleDiagnostic::fix`]) but not yet surfaced as code actions —
+//! The W112 / W115 quick-fixes are carried on
+//! [`StyleDiagnostic::fix`] but not yet surfaced as code actions —
 //! the code-action wiring is a separate concern, same posture as
-//! the optimiser O-code fixes (GAP-C3).  Per-check feature-config
-//! toggles beyond the file-level `# noqa` / `# tcl-lsp: disable`
-//! suppression are also a follow-up; today the checks run with the
-//! Python defaults (line length 120, expected line ending `\n`).
+//! the optimiser O-code fixes.  Per-check feature-config toggles
+//! beyond the file-level `# noqa` / `# tcl-lsp: disable` suppression
+//! are not yet wired; today the checks run with the defaults (line
+//! length 120, expected line ending `\n`).
 
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
@@ -122,9 +118,8 @@ fn is_suppressed<H: BuildHasher, I: BuildHasher>(
 
 /// W111: flag lines exceeding `max_length` characters.
 ///
-/// Ports `_check_line_length`.  The length is the line's codepoint
-/// count *after* stripping a trailing `\r` so CRLF endings don't
-/// inflate the count.
+/// The length is the line's codepoint count *after* stripping a
+/// trailing `\r` so CRLF endings don't inflate the count.
 #[must_use]
 pub fn check_line_length(source: &str, max_length: usize) -> Vec<StyleDiagnostic> {
     let mut out = Vec::new();
@@ -153,8 +148,8 @@ pub fn check_line_length(source: &str, max_length: usize) -> Vec<StyleDiagnostic
 
 /// W112: flag trailing whitespace, with a remove-whitespace fix.
 ///
-/// Ports `_check_trailing_whitespace`.  A trailing `\r` is stripped
-/// first so CRLF endings aren't themselves flagged.
+/// A trailing `\r` is stripped first so CRLF endings aren't
+/// themselves flagged.
 #[must_use]
 pub fn check_trailing_whitespace(source: &str) -> Vec<StyleDiagnostic> {
     let mut out = Vec::new();
@@ -199,8 +194,7 @@ fn eol_label(ending: &str) -> String {
 
 /// W118: flag files whose line endings differ from `expected`.
 ///
-/// Ports `_check_line_endings`.  Emits at most one file-level
-/// diagnostic anchored at `(0, 0)`.
+/// Emits at most one file-level diagnostic anchored at `(0, 0)`.
 #[must_use]
 pub fn check_line_endings(source: &str, expected: &str) -> Vec<StyleDiagnostic> {
     let crlf = source.matches("\r\n").count();
@@ -268,7 +262,7 @@ pub fn check_line_endings(source: &str, expected: &str) -> Vec<StyleDiagnostic> 
 
 /// W115: flag backslash-newline continuation inside comments.
 ///
-/// Ports `_check_comment_continuation`.  In Tcl, a `\` immediately
+/// In Tcl, a `\` immediately
 /// before a newline inside a comment silently swallows the next
 /// line into the comment, which can hide live code.  The quick-fix
 /// converts the continued comment into separate per-line `#`

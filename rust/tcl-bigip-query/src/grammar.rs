@@ -1,12 +1,10 @@
 //! Plain-text grammar reference rendered by `f5 query --help-dsl`.
 //!
-//! Byte-for-byte port of `dialects/f5/query/grammar.py` `format_grammar()`.
 //! The canonical reference lives in `docs/references/f5_query/dsl.md`; this
 //! module holds the condensed terminal-friendly version so the grammar is
 //! readable without leaving the shell.
 
-/// The condensed informal-EBNF grammar reference, verbatim from the Python
-/// `_GRAMMAR` constant.
+/// The condensed informal-EBNF grammar reference.
 const GRAMMAR: &str = r#"F5 QUERY DSL — GRAMMAR
 
 A query is a pipeline of stages joined by ``|``.  Each stage transforms

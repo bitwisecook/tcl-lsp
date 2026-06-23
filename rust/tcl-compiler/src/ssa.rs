@@ -134,21 +134,18 @@ impl SsaFunction {
 /// tens-of-thousands-of-block nested-if dispatch tree — would cost seconds of
 /// SSA + SCCP / type / taint / liveness dataflow for near-zero useful
 /// findings, and an unbounded analysis also lets interprocedural summaries
-/// grow over-optimistic on adversarial input. Mirrors Python's
-/// `_COMPLEXITY_GUARD_BLOCKS`.
+/// grow over-optimistic on adversarial input.
 pub const COMPLEXITY_GUARD_BLOCKS: usize = 20_000;
 
 /// Body-size (bytes) ceiling for the deep-analysis complexity guard. A flat
 /// generated command list is block-light — so [`COMPLEXITY_GUARD_BLOCKS`]
 /// never fires — yet byte-huge, and the O(blocks·vars) SSA walk plus
-/// SCCP / taint / liveness still costs seconds. Mirrors Python's
-/// `DEEP_ANALYSIS_BODY_BYTES` (256 KiB).
+/// SCCP / taint / liveness still costs seconds. The ceiling is 256 KiB.
 pub const DEEP_ANALYSIS_BODY_BYTES: usize = 262_144;
 
 /// True when `func` is large enough that deep analysis (SSA / dataflow) is
 /// skipped. This is the block-count half of the guard; the body-byte half is
-/// applied by the compilation-unit builder, which has the body span. Mirrors
-/// Python's `is_complexity_guarded`.
+/// applied by the compilation-unit builder, which has the body span.
 #[must_use]
 pub fn is_complexity_guarded(func: &cfg::Function) -> bool {
     func.blocks.len() > COMPLEXITY_GUARD_BLOCKS
@@ -160,11 +157,10 @@ pub fn is_complexity_guarded(func: &cfg::Function) -> bool {
 ///
 /// Handles assignments (`set`, `incr`), call defs, `trace add variable`
 /// (via registry roles when `registry` is supplied), and `dict for`/
-/// `dict map` barriers. This is the Rust equivalent of the Python
-/// `_defs()` function in `ssa.py`.
+/// `dict map` barriers.
 ///
 /// Pass `Some(&CommandRegistry)` when available so barrier defs route
-/// through the registry's `ArgRole::VarWrite` query (SYNC4); pass
+/// through the registry's `ArgRole::VarWrite` query; pass
 /// `None` for the legacy string-match path used by the unit-test
 /// helpers.
 #[must_use]
@@ -177,7 +173,7 @@ pub fn defs_of(stmt: &Statement) -> Vec<String> {
 /// (`set $p …`, `set ${tok} …`, `set a$b(k) …`).  Such a target is opaque
 /// (no static def) and *reads* the substituted name-bearing variable(s).
 ///
-/// Mirrors Python `compiler/var_resolve.py::resolve_place`: a leading `$`
+/// A leading `$`
 /// marks a substituted write-target name, and a substitution in the array
 /// *base* (`a$b(k)`) is dynamic too.  A bare array element (`arr($i)`) keeps
 /// its static base `arr` (only the index is dynamic), so it is **not** a
@@ -194,13 +190,13 @@ pub fn is_dynamic_write_target(name: &str) -> bool {
     base.is_empty() || base.contains('$') || base.contains('[')
 }
 
-/// SYNC4: registry-aware `defs_of`.
+/// Registry-aware `defs_of`.
 ///
-/// Mirrors Python's post-`01326b40` shape — barrier defs route through
+/// Barrier defs route through
 /// `ArgRole::VarWrite` instead of a hardcoded string-match.  The
 /// registry-aware path also covers `::trace` and any future trace
 /// alias spellings without code edits, plus skips
-/// `creates_dynamic_barrier` specs (SYNC5: `global` / `variable` /
+/// `creates_dynamic_barrier` specs (`global` / `variable` /
 /// `upvar` are handled by `var_scoping`, not by SSA's per-arg
 /// `VarWrite` walk).
 #[must_use]
@@ -215,10 +211,8 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             // A write-target whose *name* is value-substituted (`set $p …`,
             // `set ${tok}(k) …`) denotes the variable named by the
             // substitution's value — a place that cannot be pinned down, so it
-            // is **not** a static def of the name-bearing variable.  Mirrors
-            // Python `compiler/var_resolve.py::resolve_place` returning
-            // `unknown(name_reads=…)` for these targets.  `uses_of` records the
-            // name read separately.
+            // is **not** a static def of the name-bearing variable.  `uses_of`
+            // records the name read separately.
             if is_dynamic_write_target(name) {
                 return Vec::new();
             }
@@ -232,14 +226,12 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             if (command.ends_with("::for") || command.ends_with("::map")) && !args.is_empty() {
                 return args[0].split_whitespace().map(String::from).collect();
             }
-            // SYNC4 + SYNC5: registry-driven VarWrite walk.  Skips
+            // Registry-driven VarWrite walk.  Skips
             // *scope-alias* commands (`global`, `variable`, `upvar`)
             // whose variable bindings are tracked separately by the
             // `var_scoping` pass; without the skip we'd produce partial
             // defs for the vararg forms (`global x y z` would mark only
-            // `x`).  Mirrors Python's `command not in
-            // scope_alias_commands()` gate (`ssa.py:102`) — the
-            // discriminator is `CREATES_SCOPE_ALIAS`, *not*
+            // `x`).  The discriminator is `CREATES_SCOPE_ALIAS`, *not*
             // `CREATES_DYNAMIC_BARRIER`: `trace` is a dynamic barrier
             // but not a scope alias, so `trace add variable x` must
             // still surface its `VarWrite` def.
@@ -260,8 +252,7 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
                 }
             }
             // Legacy string-match fallback for callers without a
-            // registry (test helpers).  Mirrors the pre-SYNC4 shape
-            // so existing fixtures keep their expected defs.
+            // registry (test helpers).
             if command == "trace" && args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
                 return vec![normalise_var_name(&args[2]).to_owned()];
             }
@@ -572,8 +563,7 @@ pub(crate) fn compute_phi_vars(
     // Semi-pruned SSA (Briggs et al. 1998): place phis only for *non-local*
     // (upward-exposed-use) names. A phi for a purely-local name has no reader,
     // so dropping it removes only dead phis (~40% of minimal-SSA phis) without
-    // changing any use/value/liveness/diagnostic result — and it is what the
-    // Python builder does, so the SSA versioning matches. Mirrors `_phi_vars`.
+    // changing any use/value/liveness/diagnostic result.
     let mut phi: HashMap<String, HashSet<String>> = HashMap::new();
     for name in func.blocks.keys() {
         phi.insert(name.clone(), HashSet::new());
@@ -609,7 +599,6 @@ pub(crate) fn compute_phi_vars(
 /// so a phi at a merge is meaningful. A name only ever read after its in-block
 /// definition (or never read) needs no phi. `defsites` is unfiltered (all
 /// defined names); the caller restricts phi placement to the non-local names.
-/// Mirrors Python's `_nonlocal_names_and_defsites`.
 fn nonlocal_names_and_defsites(
     func: &cfg::Function,
     reachable: &HashSet<String>,
@@ -672,7 +661,6 @@ fn nonlocal_names_and_defsites(
 // Variable-use extraction
 //
 // These functions determine which variables an IR statement reads.
-// They are the Rust port of Python's `_uses()` function in `ssa.py`.
 
 /// Return `true` when argument at `arg_index` is a braced literal
 /// (single-token STR word).
@@ -723,18 +711,17 @@ pub(crate) fn structural_body_indices(
     // misses under plain Tcl) — is an unknown would-be user command here. Tcl
     // never substitutes inside its braced arguments, so every braced arg is
     // opaque *data*, not analysable script/expr; scanning it would read its
-    // `$vars` and emit spurious findings (W210). Skip them. Mirrors Python's
-    // `command_is_disabled_in_active_dialect` body-recursion gate. A command
+    // `$vars` and emit spurious findings (W210). Skip them. A command
     // unknown in *every* dialect (`get` miss *and* not known-in-any) — a real
     // user proc / TclOO body / recovery artefact — is NOT skipped: its braced
-    // body still recurses, matching Python.
+    // body still recurses.
     if registry.get(command).is_none() && registry.known_in_any_dialect(command) {
         return (0..args.len())
             .filter(|&idx| is_braced_arg(tokens, idx))
             .collect();
     }
 
-    // SYNC2: the registry-declared `body_kind` on each spec /
+    // The registry-declared `body_kind` on each spec /
     // subcommand tells us whether body args run in the caller's
     // frame (`Plain`) or in a separate definition / dispatch context
     // (`Structural`).  Only `Structural` body args belong in this
@@ -790,8 +777,7 @@ pub(crate) fn structural_body_indices(
 
 /// Extract variable names used (read) by an IR statement.
 ///
-/// This is the Rust port of Python's `_uses()` in `ssa.py`. It uses
-/// a [`VarReferenceScanner`] to find variable references in word texts
+/// Uses a [`VarReferenceScanner`] to find variable references in word texts
 /// and expression trees.
 ///
 /// Returns sorted variable names, excluding variables that are defined
@@ -812,8 +798,7 @@ pub fn uses_of(
 
         // An assignment to a *dynamic* target name (`set $p …`) reads the
         // name-bearing variable(s) — the genuine read the dead-store / unused
-        // checks need (`defs_of` already withholds the static def).  Mirrors
-        // Python `resolve_place`'s `name_reads`.
+        // checks need (`defs_of` already withholds the static def).
         Statement::AssignConst { name, .. } => {
             if is_dynamic_write_target(name) {
                 vars_found.extend(scanner.scan_word(name, registry));
@@ -915,20 +900,15 @@ pub fn uses_of(
             // dict with/update: the dict variable name is a plain string,
             // not a $-substitution, so scan_word misses it.
             //
-            // SYNC6: arg 0 carries both VarRead and VarWrite roles
-            // (mirrors Python's `frozenset({VAR_READ, VAR_WRITE})` post
-            // `8c95c2ee`).  When SYNC4 routes barrier defs through the
-            // registry, the same name will land in `defs` from the
-            // VarWrite query.  The closing filter at line ~553
+            // arg 0 carries both VarRead and VarWrite roles.  When
+            // barrier defs route through the registry, the same name
+            // appears in `defs` from the VarWrite query.  The closing
+            // filter at line ~553
             // (`!defs.contains(v) || reads_own_def.contains(v)`) would
             // then drop the dict var unless we mark it as reads-own-def
             // here.  Without this, a proc whose only reference to a
             // parameter is `dict with $param {}` would produce a
-            // false unused-parameter diagnostic.  Preemptive fix: the
-            // line is a no-op today (SYNC4 hasn't routed dict with
-            // through the registry yet) but matches Python parity and
-            // sequences cleanly with the SYNC4 follow-up.  See
-            // ssa.py::_uses for the Python-side comment.
+            // false unused-parameter diagnostic.
             if command == "dict" && args.len() >= 2 && (args[0] == "with" || args[0] == "update") {
                 let dict_var = normalise_var_name(&args[1]);
                 if !dict_var.is_empty() {
@@ -942,7 +922,7 @@ pub fn uses_of(
         // A non-lowered (glob/regexp/fall-through) `switch` is kept opaque as a
         // single `Statement::Switch` in the block. Recover the subject + arm /
         // default body reads so a variable read only as the subject or only
-        // inside an arm body isn't reported unused. Mirrors Python `_switch_reads`.
+        // inside an arm body isn't reported unused.
         Statement::Switch {
             subject,
             arms,
@@ -971,7 +951,7 @@ pub fn uses_of(
     }
 
     // Exclude variables defined by this statement, unless they're
-    // read-before-write.  SYNC4: route through the registry so
+    // read-before-write.  Route through the registry so
     // `trace add variable` defs come from the registry's VarWrite
     // role rather than a string match.
     let defs: HashSet<String> = defs_of_with_registry(stmt, Some(registry))
@@ -985,8 +965,7 @@ pub fn uses_of(
 
 /// Reads of a non-lowered (`-glob`/`-regexp`, or `-exact` with a fall-through
 /// arm) `switch` kept opaque in a CFG block: the subject word, every arm
-/// pattern, and the *free* reads of each arm/default body. Mirrors Python's
-/// `_switch_reads`.
+/// pattern, and the *free* reads of each arm/default body.
 fn switch_reads(
     subject: &str,
     arms: &[crate::ir::SwitchArm],
@@ -1011,7 +990,6 @@ fn switch_reads(
 /// own defs (so arm-local temporaries — `set tmp 1; puts $tmp` — aren't seen as
 /// outer reads). The def set is completed with the `for`-init/next and
 /// if/while/for condition command-sub defs that `defs_from_ir_script` omits.
-/// Mirrors Python's `_free_reads_in_ir_script`.
 fn free_reads_in_script(
     script: &crate::ir::Script,
     scanner: &mut VarReferenceScanner,
@@ -1027,8 +1005,7 @@ fn free_reads_in_script(
         .collect()
 }
 
-/// Recursively collect variable reads from an un-lowered IR script. Mirrors
-/// Python's `_reads_in_ir_script`.
+/// Recursively collect variable reads from an un-lowered IR script.
 fn reads_in_script(
     script: &crate::ir::Script,
     scanner: &mut VarReferenceScanner,
@@ -1044,7 +1021,7 @@ fn reads_in_script(
 /// Variable reads of a single statement, recursing into nested bodies. Leaf
 /// reads come from [`uses_of`] (which resolves a nested `Statement::Switch` via
 /// [`switch_reads`]); structured statements are walked here because they are
-/// not lowered inside an opaque switch arm. Mirrors Python's `_reads_in_ir_stmt`.
+/// not lowered inside an opaque switch arm.
 fn reads_in_stmt(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
@@ -1113,8 +1090,7 @@ fn reads_in_stmt(
 
 /// `for`-init/next clause defs and if/while/for condition command-sub defs
 /// (`[regexp … -> v]`) that [`crate::ir_helpers::defs_from_ir_script`] does not
-/// recurse — recovered for the collapsed-body read subtraction only. Mirrors
-/// Python's `_collapsed_extra_defs`.
+/// recurse — recovered for the collapsed-body read subtraction only.
 fn collapsed_extra_defs(
     script: &crate::ir::Script,
     registry: &CommandRegistry,
@@ -1191,8 +1167,7 @@ fn collapsed_extra_defs(
 
 /// Build SSA with dominator-based phi placement and renaming.
 ///
-/// This is the Rust port of Python's `build_ssa()` in `ssa.py`.
-/// It computes dominators, places phi nodes, then walks the dominator
+/// Computes dominators, places phi nodes, then walks the dominator
 /// tree to assign SSA version numbers to every variable definition
 /// and use.
 /// Frame for the iterative rename walk (avoids deep recursion).
@@ -1228,8 +1203,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
     // Complexity guard: skip the O(blocks·vars) phi placement + rename walk
     // for a pathologically large (usually generated) body. Returns a trivial
     // SSA; the compilation-unit builder likewise produces a trivial analysis
-    // and flags the function so per-proc diagnostic passes skip it. Mirrors
-    // Python's `build_ssa` block-count short-circuit.
+    // and flags the function so per-proc diagnostic passes skip it.
     if is_complexity_guarded(func) {
         return SsaFunction::trivial(func.name.clone(), func.entry.clone());
     }
@@ -1614,8 +1588,7 @@ mod tests {
     #[test]
     fn defs_of_dynamic_target_name_has_no_static_def() {
         // `set $p 1` / `set ${p} 1` write the variable *named by* `$p`, not
-        // `p` itself — an opaque place, so there is no static def.  Matches
-        // Python `resolve_place`'s `unknown(name_reads=…)`.
+        // `p` itself — an opaque place, so there is no static def.
         for name in ["$p", "${p}", "a$b", "[gen]"] {
             let stmt = Statement::AssignValue {
                 span: Span::new(0, 10),
@@ -1733,7 +1706,7 @@ mod tests {
         assert_eq!(defs_of(&stmt), vec!["k", "v"]);
     }
 
-    /// SYNC4: `trace add variable` defs route through the registry's
+    /// `trace add variable` defs route through the registry's
     /// `ArgRole::VarWrite` query rather than a string match.
     #[test]
     fn defs_of_barrier_trace_via_registry() {
@@ -1749,7 +1722,7 @@ mod tests {
         assert_eq!(defs_of_with_registry(&stmt, Some(&reg)), vec!["x"]);
     }
 
-    /// SYNC4: `trace add execution` does NOT define a variable — the
+    /// `trace add execution` does NOT define a variable — the
     /// command name being traced is not a `VarWrite` target.
     #[test]
     fn defs_of_barrier_trace_add_execution_no_def() {
@@ -1765,7 +1738,7 @@ mod tests {
         assert!(defs_of_with_registry(&stmt, Some(&reg)).is_empty());
     }
 
-    /// SYNC5: `global x y z` produces NO defs from the registry path
+    /// `global x y z` produces NO defs from the registry path
     /// (`var_scoping` handles the per-arg list).  Without the
     /// `CREATES_DYNAMIC_BARRIER` skip, the role-driven walk would
     /// only mark `x` (partial defs) and miss `y` / `z`.
@@ -1783,7 +1756,7 @@ mod tests {
         assert!(defs_of_with_registry(&stmt, Some(&reg)).is_empty());
     }
 
-    /// SYNC5 sibling: `variable a b c` — same vararg-list shape as
+    /// `variable a b c` — same vararg-list shape as
     /// `global`, same skip.
     #[test]
     fn defs_of_barrier_variable_vararg_no_partial_defs() {

@@ -11,14 +11,10 @@
 //! overlay alongside the global [`crate::CommandRegistry`]
 //! when scanning a proc body for parameter traits.
 //!
-//! Mirrors the design called out in the
-//! `SYNC-MAY19-stub-overlay-a` chunk-log row — the Python side
-//! threads stub state through a `_stub_signatures_var`
-//! `ContextVar` wrapped by a `stub_signature_scope()` context
-//! manager.  Rust doesn't need the `ContextVar` dance because
-//! the analyser is single-threaded and already owns the
-//! per-document state; instead an `Option<StubOverlay>` lives
-//! on the analyser and is rebuilt per `analyse()` call.
+//! The analyser is single-threaded and already owns the
+//! per-document state, so stub state needs no thread-local
+//! plumbing: an `Option<StubOverlay>` lives on the analyser and
+//! is rebuilt per `analyse()` call.
 //!
 //! ## Why keep it separate from `CommandRegistry`
 //!
@@ -203,9 +199,7 @@ impl StubOverlay {
     /// Downstream consumers (compilation-unit cache,
     /// interprocedural-summary cache) include this in their
     /// cache key so stub edits invalidate the cached entries
-    /// that depended on the previous stub set.  Mirrors the
-    /// `compute_stub_fingerprint()` helper called out in the
-    /// `SYNC-MAY19-stub-overlay` chunk-log row.
+    /// that depended on the previous stub set.
     #[must_use]
     pub fn fingerprint(&self) -> u64 {
         let mut hasher = DefaultHasher::new();

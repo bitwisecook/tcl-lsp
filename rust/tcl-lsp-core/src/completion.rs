@@ -1,5 +1,4 @@
-//! Completion provider — Rust port of
-//! `lsp/features/completion.py`.
+//! Completion provider.
 //!
 //! Wires the LSP completion surface for the three Tcl
 //! completion contexts the analyser surfaces today:
@@ -13,43 +12,32 @@
 //! * **Built-in command completion** — at the same cursor
 //!   contexts as proc-name completion, also suggest every
 //!   command registered in the caller-provided
-//!   [`tcl_registry::CommandRegistry`].  This is part of the
-//!   `S-completion-rich` follow-up; the caller (server)
+//!   [`tcl_registry::CommandRegistry`].  The caller (server)
 //!   threads its already-built per-dialect registry through.
 //!   When no registry is provided, the completion surface
-//!   degrades cleanly to the minimal port's proc-only set.
+//!   degrades cleanly to the proc-only set.
 //!
-//! Subcommand-scoped argument-value completion has landed:
-//! when a subcommand declares `arg_values` for a positional
-//! slot (e.g. `string is <class>`), the matching character
-//! classes complete at that argument with `EnumValue` kind.
+//! Subcommand-scoped argument-value completion: when a
+//! subcommand declares `arg_values` for a positional slot
+//! (e.g. `string is <class>`), the matching character classes
+//! complete at that argument with `EnumValue` kind.
 //!
-//! Workspace-wide proc enumeration has landed: when the caller
-//! threads a [`crate::workspace_index::WorkspaceIndex`], procs
-//! defined in *other* analysed documents surface in the
-//! command/proc-completion fallback (deduped by label against
-//! the local set, sorted after local procs / built-ins via a
-//! `C0_…` sort key, detail tagged `(workspace)`).
+//! Workspace-wide proc enumeration: when the caller threads a
+//! [`crate::workspace_index::WorkspaceIndex`], procs defined in
+//! *other* analysed documents surface in the command/proc-completion
+//! fallback (deduped by label against the local set, sorted after
+//! local procs / built-ins via a `C0_…` sort key, detail tagged
+//! `(workspace)`).
 //!
-//! What is *still deferred* (planned as further
-//! `S-completion-rich` follow-ups):
+//! Trait-driven dialect arg rules: any command carrying
+//! `Traits::IS_EVENT_HANDLER` triggers event-name completion
+//! at word-index 1 (iRules `when EVENT`), and any command
+//! carrying `Traits::INVOKES_USER_PROC` surfaces user-defined
+//! proc names at word-index 1 (iRules `call PROC_NAME`).
 //!
-//! * Command-level (non-subcommand) argument-value completion
-//!   for the remaining registry-driven cases.
-//! * Dialect-specific arg rules beyond the trait-driven
-//!   patterns now landed: any command carrying
-//!   `Traits::IS_EVENT_HANDLER` triggers event-name completion
-//!   at word-index 1 (iRules `when EVENT`), and any command
-//!   carrying `Traits::INVOKES_USER_PROC` surfaces user-defined
-//!   proc names at word-index 1 (iRules `call PROC_NAME`).
-//! * Workspace-wide proc / RULE_INIT-var enumeration, usage-bucket
-//!   sort-text computation, and the `_proc_signature_str` rendering
-//!   for proc-completion details.
-//!
-//! Cache + `spawn_blocking` + cached-analysis read-out (analogous
-//! to `S-hover-sync11`) ride on top of this provider in
-//! `tcl-lsp-server::Backend::completion`; this module is the
-//! pure-CPU computation, no I/O, no async.
+//! Cache + `spawn_blocking` + cached-analysis read-out ride on
+//! top of this provider in `tcl-lsp-server::Backend::completion`;
+//! this module is the pure-CPU computation, no I/O, no async.
 
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
 use tcl_registry::CommandRegistry;
@@ -57,7 +45,7 @@ use tcl_registry::CommandRegistry;
 use crate::definition::utf16_col_to_char_col;
 
 /// LSP completion-item kind for our surface.  Keep narrow —
-/// extend when richer completion lands.
+/// extend as richer completion is added.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CompletionKind {
     /// Tcl variable.
@@ -68,13 +56,13 @@ pub enum CompletionKind {
     /// Enumerable argument value (e.g. a `string is <class>`
     /// character class).
     EnumValue,
-    /// A context-aware code snippet (GAP-A9).
+    /// A context-aware code snippet.
     Snippet,
 }
 
 /// A single completion suggestion.
 ///
-/// Mirrors the subset of `lsprotocol.types.CompletionItem` we
+/// The subset of the LSP `CompletionItem` fields we
 /// emit today: label, insert-text, kind, and an optional
 /// detail line.  The detail is what the editor shows in the
 /// right-hand column of the completion list (typically a
@@ -95,13 +83,13 @@ pub struct CompletionItem {
     pub detail: Option<String>,
     /// Optional sort key.  When `Some`, the editor uses this
     /// string instead of the label for ordering completion
-    /// results.  `S-completion-rich`'s usage-bucket scheme:
+    /// results.  The usage-bucket scheme:
     /// `A<tier><usage>_<name>` for user procs, `B<usage>_<name>`
     /// for built-in commands.  Lower buckets sort first.
     pub sort_text: Option<String>,
     /// When `true`, `insert_text` is a VS Code snippet (tabstops
     /// `${1:…}` / `$0`) and the server emits
-    /// `InsertTextFormat.Snippet` (GAP-A9).  Plain items leave it
+    /// `InsertTextFormat.Snippet`.  Plain items leave it
     /// `false`.
     pub is_snippet: bool,
     /// Optional `filterText` — what the editor matches the typed
@@ -340,7 +328,7 @@ pub fn completions(
         }
     }
 
-    // GAP-A9: context-aware snippet templates (`tcl-proc`, `tcl-if`,
+    // Context-aware snippet templates (`tcl-proc`, `tcl-if`,
     // …).  Only the command-position fallback reaches here (the
     // variable / switch / subcommand contexts returned earlier), so
     // snippets never pollute `$var` or `-option` completion.  Their
@@ -450,7 +438,7 @@ fn word_partial_at_position(source: &str, line: u32, character: u32) -> String {
 }
 
 /// Like [`word_partial_at_position`] but also treats `-` as a word
-/// character, so a `tcl-…` snippet prefix is captured whole (GAP-A9).
+/// character, so a `tcl-…` snippet prefix is captured whole.
 fn snippet_partial_at_position(source: &str, line: u32, character: u32) -> String {
     let Some(line_text) = source.split('\n').nth(line as usize) else {
         return String::new();
@@ -467,10 +455,10 @@ fn snippet_partial_at_position(source: &str, line: u32, character: u32) -> Strin
 
 /// `true` when offering `$<name>` / `${<name>}` would round-trip back to
 /// the runtime variable — i.e. the raw scope key carries no `}` / `\` /
-/// newline that the brace parser couldn't reproduce.  Conservative port of
-/// `completion.py::_var_is_substitutable` (the full backslash analysis isn't
-/// needed: a name with a `\` or `}` is dropped from the suggestion set, which
-/// is what the `omits_unsubstitutable_brace_names` case requires).
+/// newline that the brace parser couldn't reproduce.  The full
+/// backslash analysis isn't needed: a name with a `\` or `}` is dropped
+/// from the suggestion set, which is what the
+/// `omits_unsubstitutable_brace_names` case requires.
 fn var_is_substitutable(name: &str) -> bool {
     !name.contains('}') && !name.contains('\\') && !name.contains('\n')
 }
@@ -680,10 +668,7 @@ fn variable_completions(
 ///
 /// **Single-line context only.**  Continuation lines, embedded
 /// `[…]` / `{…}` token nesting, and `;` command separators are
-/// deferred to the same multi-line-aware machinery
-/// `S-signature-help-rich` will eventually land — see
-/// `core/parsing/find_command_context_*` for the Python
-/// reference.  The single-line approach covers the common
+/// not handled here.  The single-line approach covers the common
 /// editor cases (cursor on the same logical line as the
 /// command head) and shares its shape with the single-line
 /// helper in [`crate::signature_help`].
@@ -906,8 +891,8 @@ fn usage_bucket(count: usize) -> u8 {
 
 /// Build a `HashMap<command_name, usage_count>` from the
 /// analyser's per-document `command_invocations`.  Used as a
-/// best-effort proxy for the Python provider's
-/// workspace-wide usage counts until a workspace index lands.
+/// best-effort, document-local proxy for workspace-wide usage
+/// counts.
 fn document_usage_counts(analysis: &AnalysisResult) -> std::collections::HashMap<String, usize> {
     let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for inv in &analysis.command_invocations {
@@ -981,7 +966,7 @@ fn command_detail(spec: &tcl_registry::CommandSpec) -> String {
 }
 
 /// Render a parameter-list summary for a proc completion's
-/// `detail` field.  Mirrors Python's `_proc_signature_str`.
+/// `detail` field.
 /// Returns `"(no args)"` for paramless procs, otherwise a
 /// space-separated list with `{name default}` for optional
 /// params.
@@ -1006,9 +991,8 @@ fn proc_signature_str(proc_def: &ProcDef) -> String {
 
 fn proc_sort_text(name: &str, usage: usize) -> String {
     // `A<tier><usage>_<name>` — `tier = 0` reserved for
-    // single-document user procs (the current minimal port);
-    // `tier = 1` opens up once workspace-index lands and
-    // we differentiate same-file procs from workspace ones.
+    // single-document user procs; `tier = 1` differentiates
+    // same-file procs from workspace ones.
     let rank = usage_bucket(usage);
     format!("A0{rank:02}_{name}")
 }
@@ -1129,7 +1113,7 @@ mod tests {
         assert_eq!(items[0].label, "greet");
     }
 
-    // -- S-completion-rich: usage-bucket sort-text --------------------
+    // -- usage-bucket sort-text --------------------
 
     #[test]
     fn usage_bucket_buckets_per_python_thresholds() {
@@ -1190,7 +1174,7 @@ mod tests {
         assert!(labels.contains(&"beta"));
     }
 
-    // -- S-completion-rich: built-in command completion --------------
+    // -- built-in command completion --------------
     //
     // Tests pin the contract that a non-`None` registry parameter
     // extends proc-name completion with every command the
@@ -1344,7 +1328,7 @@ mod tests {
         }
     }
 
-    // -- S-completion-rich: subcommand completion --------------------
+    // -- subcommand completion --------------------
     //
     // When the cursor sits at word-index 1 of a known command
     // whose spec declares non-empty `subcommands`, the
@@ -1435,7 +1419,7 @@ mod tests {
         );
     }
 
-    // -- S-completion-rich: switch completion ------------------------
+    // -- switch completion ------------------------
     //
     // When the partial starts with `-` and the surrounding
     // command's spec declares matching options, the completion
@@ -1481,7 +1465,7 @@ mod tests {
         assert_eq!(labels, sorted);
     }
 
-    // -- S-completion-rich: iRules event-name completion -------------
+    // -- iRules event-name completion -------------
     //
     // When the cursor sits at word-index 1 of an event-handler
     // command (the `when` iRules keyword carries
@@ -1558,7 +1542,7 @@ mod tests {
         );
     }
 
-    // -- S-completion-rich: iRules `call PROC_NAME` -----------------
+    // -- iRules `call PROC_NAME` -----------------
     //
     // When the cursor sits at word-index 1 of a command carrying
     // `Traits::INVOKES_USER_PROC` (today only the iRules `call`
@@ -1646,7 +1630,7 @@ mod tests {
         );
     }
 
-    // -- S-completion-rich: subcommand argument-value completion ----
+    // -- subcommand argument-value completion ----
 
     #[test]
     fn string_is_completes_character_classes() {

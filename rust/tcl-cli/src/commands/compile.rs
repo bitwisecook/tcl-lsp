@@ -1,8 +1,7 @@
 //! Low-level compilation verbs: `dis` (bytecode disassembly) and `compwasm`
 //! (WebAssembly emit).
 //!
-//! Port of `tooling/tcl/verbs/compile.py` (`_run_dis` / `_run_compwasm`). Both
-//! resolve their inputs the same way the rest of the CLI does, then drive the
+//! Both verbs resolve their inputs the same way the rest of the CLI does, then drive the
 //! compiler pipeline directly:
 //!
 //! - `dis` lowers to the bytecode IR, builds the codegen CFG (the

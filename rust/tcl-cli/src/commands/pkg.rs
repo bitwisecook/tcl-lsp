@@ -1,7 +1,7 @@
 //! `tcl pkg` verb group — Tcl package management.
 //!
-//! Port of `tooling/tcl/verbs/pkg.py`. Thin wrappers over the `tcl_pkg`
-//! modules: parse args, drive the library, format output. Handler-level errors
+//! Thin wrappers over the `tcl_pkg` modules: parse args, drive the library,
+//! format output. Handler-level errors
 //! print `error: <msg>` to stderr and return exit code 1, matching the Python
 //! verb's `except Exception` paths.
 
@@ -173,7 +173,7 @@ fn run_init(
     Ok(0)
 }
 
-#[allow(clippy::too_many_lines)] // direct port of the Python `_run_install`
+#[allow(clippy::too_many_lines)] // the full install flow in one function
 fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
     let colour = ui::use_colour(Some(!common.json));

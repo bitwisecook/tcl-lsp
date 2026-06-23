@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn star_backtracking_is_not_exponential() {
-        // FN-H1 regression: the old recursive `*` handling was O(2^n), so
+        // Regression test: the old recursive `*` handling was O(2^n), so
         // `a*a*…a*b` (16 stars) against a run of 'a's with no trailing 'b' took
         // ~14s for 32 'a's — a DoS reachable from `string match`/`switch -glob`/
         // `array names` on attacker-controlled buffers. The iterative single-

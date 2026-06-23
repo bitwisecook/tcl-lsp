@@ -1,15 +1,14 @@
 //! Miscellaneous verbs: `find-legacy`.
 //!
-//! Port of `_run_find_legacy` in `tooling/tcl/verbs/misc.py`. Runs the analyser
-//! over the combined input source, keeps the diagnostics whose codes have a
+//! Runs the analyser over the combined input source, keeps the diagnostics
+//! whose codes have a
 //! known mechanical modernisation (`_CONVERTIBLE_CODES`), and reports them with
 //! the matching conversion hint (`_CONVERSION_MAP`).
 //!
 //! This verb only *reports*; it never rewrites source. The diagnostic firing
 //! conditions, spans, and messages match the Python analyser byte-for-byte —
 //! only the emission *order* may differ (Rust sorts diagnostics by source
-//! position; Python emits in pass order). That ordering divergence is the
-//! accepted, documented one — see `docs/rust-cli-port.md`.
+//! position; Python emits in pass order).
 
 use serde::Serialize;
 use tcl_cli_support::{OutputTarget, combine_sources, ensure_ascii, read_input_documents};

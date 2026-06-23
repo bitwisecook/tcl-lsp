@@ -1,7 +1,6 @@
 #![allow(clippy::implicit_hasher, clippy::doc_markdown)]
 
-//! Class Hierarchy Analysis (CHA) for TclOO — Rust port of
-//! `core/analysis/class_hierarchy.py`.
+//! Class Hierarchy Analysis (CHA) for TclOO.
 //!
 //! Builds a complete class hierarchy from the analyser's class
 //! index, computes the MRO (two-pass DFS with late-placement
@@ -19,9 +18,7 @@ use super::types::ClassDef;
 
 /// Immutable snapshot of the complete class hierarchy.
 ///
-/// Mirrors `ClassHierarchy` in
-/// `core/analysis/class_hierarchy.py`.  Built once via
-/// [`build_class_hierarchy`] and queried via
+/// Built once via [`build_class_hierarchy`] and queried via
 /// [`Self::is_subtype`] / [`Self::method_target`] /
 /// [`Self::all_implementations`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -79,9 +76,8 @@ impl ClassHierarchy {
 
 /// Build a [`ClassHierarchy`] from a dict of class definitions.
 ///
-/// Mirrors `build_class_hierarchy` in
-/// `core/analysis/class_hierarchy.py`.  Computes TclOO MRO,
-/// subclass maps, and method-provider resolution for all
+/// Computes TclOO MRO, subclass maps, and method-provider
+/// resolution for all
 /// classes in the index.
 ///
 /// Names without leading `::` are normalised (when a `::name`
@@ -168,8 +164,7 @@ fn build_method_providers(
 
 /// Build the [`ClassHierarchy`] from a flat class-def index.  Runs
 /// MRO linearisation, computes direct + transitive subclass sets, and
-/// resolves method-provider chains.  Mirrors Python's
-/// `class_hierarchy.build_class_hierarchy`.
+/// resolves method-provider chains.
 #[must_use]
 pub fn build_class_hierarchy(classes: HashMap<String, ClassDef>) -> ClassHierarchy {
     let (supers_map, mixins_map) = build_supers_mixins_maps(&classes);

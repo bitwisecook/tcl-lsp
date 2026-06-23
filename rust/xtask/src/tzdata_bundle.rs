@@ -1,5 +1,4 @@
-//! Bundled tzdata blob builder — Rust port of
-//! `scripts/build/tzdata_bundle.py`.
+//! Bundled tzdata blob builder.
 //!
 //! Packs a curated set of IANA zones from a host `zoneinfo` directory into
 //! the `TZBL` bundle the WASM runtime falls back on when it can't preopen
@@ -284,7 +283,7 @@ fn build_bundle(
 
 /// Drop transitions outside `[trim_from, trim_to]` from a `TZif` blob,
 /// re-emitting a `v1`-only blob (leap tables stripped). Malformed input is
-/// returned unchanged. Faithful port of the Python `_trim_tzif`.
+/// returned unchanged.
 fn trim_tzif(blob: &[u8], trim_from: Option<i64>, trim_to: Option<i64>) -> Vec<u8> {
     if trim_from.is_none() && trim_to.is_none() {
         return blob.to_vec();

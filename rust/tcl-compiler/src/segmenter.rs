@@ -3,14 +3,11 @@
 //! Splits a flat token stream into per-command structures at EOL
 //! boundaries. Both the analyser and lowerer consume these structures
 //! instead of running their own token-iteration loops.
-//!
-//! Ports `core/parsing/command_segmenter.py`.
 
 use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
 
-/// Which delimiter a partial command left unclosed. Mirrors Python's
-/// `command_segmenter.py::UnclosedDelimiter` and its token-type mapping
-/// (`Str` → `Brace`, `Cmd` → `Bracket`, `Esc` → `Quote`).
+/// Which delimiter a partial command left unclosed. The token-type
+/// mapping is `Str` → `Brace`, `Cmd` → `Bracket`, `Esc` → `Quote`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnclosedDelimiter {
     /// Unclosed `{`.
@@ -63,13 +60,13 @@ pub struct SegmentedCommand {
     /// Which delimiter was left unclosed, when `is_partial`. Set by the
     /// recovery segmenter from the suspicious EOF-reaching token; drives
     /// the precise E200 message and gates stolen-close-brace detection to
-    /// brace partials only (mirrors Python's `partial_delimiter`).
+    /// brace partials only.
     pub partial_delimiter: Option<UnclosedDelimiter>,
     /// `{*}` expansion markers per word, if any word uses expansion.
     pub expand_word: Option<Vec<bool>>,
     /// Concatenated text of comment line(s) immediately preceding
-    /// the command (without the leading ``#`` and trim-leading-
-    /// whitespace per Python's `command_segmenter.py`); ``None``
+    /// the command (without the leading ``#`` and with leading
+    /// whitespace trimmed); ``None``
     /// when no comment precedes.  Used by `_handle_proc` /
     /// `_handle_oo_class_command` for `ProcDef.doc` / `ClassDef.doc`.
     pub preceding_comment: Option<String>,
@@ -146,8 +143,7 @@ fn shift_span(span: Span, by: u32) -> Span {
 /// Bare-vs-braced is decided by `content_offset`: the Rust lexer
 /// emits `content_offset = 1` for bare `$name` / `$arr(idx)` (skips
 /// the `$`) and `content_offset = 2` for braced `${name}` (skips
-/// `${`).  See `core/parsing/command_segmenter.py::_word_piece` for
-/// the Python reference (PR #391).
+/// `${`).
 #[must_use]
 pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
     let text = sm.token_text(tok);
@@ -175,8 +171,7 @@ pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
 /// Compute the whole-command span, widening the final word to cover its
 /// closing delimiter.
 ///
-/// Mirrors `core/parsing/command_segmenter.py::_command_range`, which extends
-/// the end via `range_from_word_token`. The lexer follows an "inner-end"
+/// The lexer follows an "inner-end"
 /// span convention: a braced (`{…}`) or bracketed (`[…]`) word token's
 /// `span.end()` is the *exclusive* offset of the closing `}` / `]`, so the
 /// closer itself sits one byte past the end. A command whose final word is
@@ -184,8 +179,8 @@ pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
 /// whole-command range. Widen the end by one byte when the last token is a
 /// `Str` / `Cmd` whose closer actually sits at `span.end()`.
 ///
-/// The closer character is derived from the token *type* (Python's
-/// `range_from_word_token`); whether the closer is *already covered* by the
+/// The closer character is derived from the token *type*; whether the
+/// closer is *already covered* by the
 /// span is derived from the token *text*, not a source byte — see
 /// [`widen_word_end`].
 pub(crate) fn command_span(tokens: &[Token], sm: &SourceMap<'_>) -> Span {
@@ -200,12 +195,12 @@ pub(crate) fn command_span(tokens: &[Token], sm: &SourceMap<'_>) -> Span {
 /// Exclusive end offset of `tok` including its closing delimiter, for the
 /// braced / bracketed word forms. See [`command_span`].
 ///
-/// Mirrors `shared/ranges.py::range_from_word_token`: the lexer follows the
+/// The lexer follows the
 /// inner-end convention, so a non-empty `{…}` / `[…]` word's span ends one
 /// byte *before* its closer and the command range must widen by one to cover
 /// it.  An empty `{}` / `[]` is the exception — the lexer extends its span to
 /// cover the closer, so the closer is *already inside* the span and widening
-/// would overshoot into whatever follows (issue #527: a trailing empty `{}`
+/// would overshoot into whatever follows (a trailing empty `{}`
 /// swallowing the enclosing body's `}`).  The discriminator is the token
 /// *text* (empty ⟺ the closer is already covered), not a source byte: a byte
 /// check at `span.end()` is fooled by an enclosing closer immediately after
@@ -235,7 +230,7 @@ fn widen_word_end(tok: Token, sm: &SourceMap<'_>) -> u32 {
 ///
 /// The core segmentation loop. Use
 /// [`segment_commands_with_recovery`] when a known-commands set is
-/// available and the caller wants Python-parity error recovery
+/// available and the caller wants error recovery
 /// (scanning past unclosed `{` / `[` / `"` for the next known
 /// command name).
 #[must_use]
@@ -349,10 +344,9 @@ fn common_prefix_len(a: &str, b: &str) -> usize {
     i
 }
 
-/// Segment with Python-parity error recovery.
+/// Segment with error recovery.
 ///
-/// Mirrors `segment_commands(source, recovery=True)` in
-/// `core/parsing/command_segmenter.py`. After the raw
+/// After the raw
 /// segmentation, the last command is inspected for a token that
 /// looks like an unclosed delimiter (a `Str` / `Cmd` / `Esc` token
 /// reaching EOF; for `Str` and `Esc` also requiring a line span of
@@ -398,9 +392,8 @@ where
     let Some(suspicious_tok) = find_suspicious_token(source, &last_cmd.all_tokens) else {
         return commands;
     };
-    // Strip the opening delimiter (`{` / `[` / `"`) so the inner
-    // text + offset arithmetic matches the Python reference, whose
-    // `Token.text` excludes the delimiter.
+    // Strip the opening delimiter (`{` / `[` / `"`) via `content_offset`
+    // so the inner text + offset arithmetic excludes it.
     let content_start =
         suspicious_tok.span.start() as usize + suspicious_tok.content_offset as usize;
     let content_end = suspicious_tok.span.end() as usize;
@@ -425,8 +418,7 @@ where
 
 /// Minimum line span for a `Str` / `Esc` token to be treated as a
 /// run-away unclosed delimiter rather than a legitimate multi-line
-/// literal. Tuned (in the Python implementation) to avoid false
-/// positives; mirrored here verbatim.
+/// literal. Tuned to avoid false positives.
 const RECOVERY_LINE_THRESHOLD: usize = 3;
 
 /// Return the first token in `tokens` that looks like an unclosed
@@ -481,8 +473,7 @@ fn find_suspicious_token(source: &str, tokens: &[Token]) -> Option<Token> {
 ///
 /// `token_text` is the content of the suspicious token with its
 /// opening delimiter stripped (`{` / `[` / `"`); `content_start`
-/// is the source offset of `token_text`'s first byte. Both follow
-/// the Python `_find_recovery_offset` contract.
+/// is the source offset of `token_text`'s first byte.
 fn find_recovery_offset<S>(
     token_text: &str,
     content_start: usize,
@@ -515,7 +506,7 @@ where
     None
 }
 
-/// Segment `source` with ghost-token error recovery (GAP-A1 strip 3b).
+/// Segment `source` with ghost-token error recovery.
 ///
 /// Does a first plain parse, runs the E201 unterminated-`[` heuristics
 /// over it to derive zero-width ghost `]` insertions (the
@@ -525,11 +516,10 @@ where
 /// `[foo bar]` + `puts done` stream.  Returns the (possibly re-lexed)
 /// commands **and** the E201 diagnostics for each applied ghost; an
 /// empty diagnostic list means no recovery was applied and the commands
-/// are exactly [`segment_commands_local`] (the strip-3c caller then
+/// are exactly [`segment_commands_local`] (the caller then
 /// keeps its own scan-to-next stream).
 ///
-/// Mirrors `recovery.py::segment_with_recovery` (the
-/// `(clean_commands, diagnostics)` shape).  The E204-E206 lexer-warning
+/// The E204-E206 lexer-warning
 /// codes are emitted separately by the analyser.
 #[must_use]
 pub fn segment_with_recovery(
@@ -613,7 +603,7 @@ fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCom
     // The segmenter now derives its `SegmentedCommand`s from the canonical
     // red-green CST (`parsing::syntax`) rather than its own token loop —
     // the 150-line `SegmenterState` accumulator and `flush_eol_or_eof` are
-    // gone (CST-PORT strip 5, SYNC-JUN06).  `build_document` reshapes the
+    // gone.  `build_document` reshapes the
     // dialect-configured lexer stream into a green tree (no second parser),
     // and `segments_from_document` derives the public `SegmentedCommand`
     // shape from it.  Verified byte-identical, field for field, against a
@@ -794,7 +784,7 @@ mod tests {
 
     #[test]
     fn recovery_splits_swallowed_following_command() {
-        // GAP-A1 strip 3b: an unterminated `[` whose next line is a
+        // An unterminated `[` whose next line is a
         // known command re-lexes into a clean two-command stream and
         // yields an E201 diagnostic.
         let reg = tcl_registry::CommandRegistry::build_default();
@@ -823,7 +813,7 @@ mod tests {
 
     #[test]
     fn config_variant_threads_dialect_expand_syntax() {
-        // SYNC-MAY19-dialect-contextvar: the `_and_config` variants let
+        // The `_and_config` variants let
         // the analyser segment under a document's dialect.  `{*}$x` is the
         // expansion operator on 8.5+ (the default) but a literal brace
         // word on 8.4 / iRules, so the dialect flag must reach the lexer.
@@ -853,7 +843,7 @@ mod tests {
 
     #[test]
     fn config_variant_threads_irules_brace_separator() {
-        // SYNC-MAY19-dialect-contextvar: the other dialect flag carried by
+        // The other dialect flag carried by
         // `LexerConfig::for_dialect` — iRules injects a zero-width SEP at a
         // `}{` brace boundary, so `cmd {a}{b}` is three words under
         // `f5-irules` but a two-word command (`{a}{b}` is one composite
@@ -984,8 +974,7 @@ mod tests {
 
     #[test]
     fn multi_token_word_argv_spans_full_word() {
-        // Mirrors the Python segmenter's argv-widening behaviour:
-        // for a multi-token word the representative argv token's
+        // For a multi-token word the representative argv token's
         // span must cover the whole reconstructed word, not just
         // the first sub-token.
         let src = "source $script_dir/init.tcl";
@@ -1020,7 +1009,7 @@ mod tests {
         assert_eq!(cmds.len(), 2);
     }
 
-    // -- SYNC-MAY21-1 (#470): whole-command range covers the last
+    // -- whole-command range covers the last
     //    word's closing delimiter ----------------------------------
 
     #[test]
@@ -1070,7 +1059,7 @@ mod tests {
 
     #[test]
     fn widen_word_end_does_not_overshoot_empty_brace_before_enclosing_closer() {
-        // The #527 / SYNC-JUN06 case made reachable directly: an empty
+        // The empty-`{}` case made reachable directly: an empty
         // `{}` as the final word of a command, with an enclosing `}`
         // immediately after it in the *same* buffer. `command_span` must
         // stop at the empty brace's own closer, never the enclosing one.
@@ -1113,8 +1102,7 @@ mod tests {
 mod recovery_tests {
     //! Tests for [`segment_commands_with_recovery`].
     //!
-    //! Mirrors the Python `command_segmenter` behaviour ported in
-    //! Seg2: when an unclosed `{` / `[` / `"` causes the lexer to
+    //! When an unclosed `{` / `[` / `"` causes the lexer to
     //! consume the rest of the file as one giant token, the
     //! segmenter scans the inner text for a line whose first word
     //! is a known command, marks the broken command `is_partial`,
@@ -1131,9 +1119,9 @@ mod recovery_tests {
 
     #[test]
     fn unclosed_brace_recovers_at_known_command() {
-        // The Python segmenter recovers from an unclosed brace by
-        // scanning forward for the next line whose first word is in
-        // the known-commands set. Without recovery the Rust
+        // Recovery from an unclosed brace scans forward for the next
+        // line whose first word is in
+        // the known-commands set. Without recovery the
         // segmenter would yield a single command — `proc early` —
         // whose body STR token swallows everything to EOF.
         let src = "proc early {} {\n    # missing close brace\n\nproc late {} {}\n";

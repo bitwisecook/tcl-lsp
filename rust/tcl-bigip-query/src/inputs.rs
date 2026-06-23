@@ -1,7 +1,6 @@
 //! Structured-input parsers + the input-format registry for side-inputs.
 //!
-//! Faithful port of `dialects/f5/query/_inputs.py`, `inputs.py`, and the
-//! built-in registrations in `_builtin_inputs.py`. Side-inputs
+//! Side-inputs
 //! (`--input-json` / `--input-jsonl` / `--input-csv` / `--input-f5log`,
 //! plus user-defined formats) bind a file's parsed content to a DSL
 //! `$NAME` variable; this module owns the per-format parsers and the
@@ -15,9 +14,8 @@
 //!   `headers` is supplied).
 //! - `f5log` — a list of structured BIG-IP log-event dicts.
 //!
-//! The `f5log` tokeniser is a direct, deterministic port of the Python
-//! line-parsing logic (no regex tower beyond stripping the optional
-//! syslog `<NNN>` PRI prefix).
+//! The `f5log` tokeniser is deterministic line-parsing logic (no regex tower
+//! beyond stripping the optional syslog `<NNN>` PRI prefix).
 
 use crate::builtins::json_to_value;
 use crate::errors::QueryError;
@@ -527,8 +525,8 @@ fn py_split_whitespace(text: &str, maxsplit: usize) -> Vec<String> {
             break;
         }
         if parts.len() == maxsplit {
-            // Remainder is the final part (with no trailing strip — Python
-            // keeps trailing content but strips the leading split-whitespace).
+            // Remainder is the final part (with no trailing strip — trailing
+            // content is kept, but the leading split-whitespace is stripped).
             parts.push(chars[i..].iter().collect());
             return parts;
         }
@@ -541,10 +539,10 @@ fn py_split_whitespace(text: &str, maxsplit: usize) -> Vec<String> {
     parts
 }
 
-/// Return `(first whitespace-delimited token, rest)` (port of `_take_token`).
+/// Return `(first whitespace-delimited token, rest)`.
 ///
-/// Mirrors Python: `lstrip()` first, then split at the next whitespace;
-/// `rest` keeps the whitespace that followed the token.
+/// `lstrip()` first, then split at the next whitespace; `rest` keeps the
+/// whitespace that followed the token.
 fn take_token(text: &str) -> (String, String) {
     let trimmed = text.trim_start();
     if trimmed.is_empty() {

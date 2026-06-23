@@ -1,5 +1,4 @@
 //! Convert a constant-mapping `switch` to a `dict` lookup.
-//! Ports `tooling/refactoring/_switch_to_dict.py`.
 
 use tcl_compiler::segmenter::segment_commands_with_offset;
 use tcl_lexer::LineIndex;

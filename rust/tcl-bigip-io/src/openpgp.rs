@@ -1,7 +1,6 @@
 //! Minimal, dependency-free `OpenPGP` *symmetric* (passphrase) decryptor.
 //!
-//! A faithful Rust port of `tooling/f5/f5_remote/_openpgp.py` — the pure-Python
-//! fallback used to decrypt an encrypted BIG-IP UCS archive without shelling
+//! The pure-Rust fallback used to decrypt an encrypted BIG-IP UCS archive without shelling
 //! out to `gpg`. BIG-IP encrypts UCS files with `GnuPG` using a passphrase and a
 //! 128-bit AES symmetric cipher (F5 KB K5437), producing an ordinary `OpenPGP`
 //! message:

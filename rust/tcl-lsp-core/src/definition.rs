@@ -1,31 +1,27 @@
 //! Definition / declaration / type-definition / implementation
-//! provider — minimal Rust port of `lsp/features/definition.py`,
-//! `declaration.py`, `type_definition.py`, and `implementation.py`.
+//! provider.
 //!
 //! The four LSP methods all answer the same fundamental question
 //! ("where is the symbol at this position defined?") with slightly
-//! different priorities for proc / class / variable matches; in
-//! practice the Python providers are almost identical for our
-//! minimal port, so they share the same core function and the
-//! server lifts each method onto it.
+//! different priorities for proc / class / variable matches.  The
+//! four share the same core function and the server lifts each
+//! method onto it.
 //!
-//! What lands here:
+//! Resolved here:
 //!
 //! * `$var` references resolve to the `definition_span` of the
 //!   matching `VarDef` in the global scope.  Scope-chain
-//!   descent is deferred until the cached-analysis surface lands
-//!   under `S-diagnostics` (the analyser's body-span line index
-//!   isn't currently threaded into the search path).
+//!   descent is not done — the analyser's body-span line index
+//!   isn't currently threaded into the search path.
 //! * Bare-word references resolve to a user-defined `proc` or
 //!   `TclOO` class via `name_span`.
 //!
-//! Also lands: command-alias resolution — when the cursor's
-//! word matches an `interp alias {} ALIAS {} TARGET` recorded
-//! in `analysis.command_aliases`, the provider jumps to the
-//! target proc's definition (when the target is a user
-//! proc).
+//! Command-alias resolution: when the cursor's word matches an
+//! `interp alias {} ALIAS {} TARGET` recorded in
+//! `analysis.command_aliases`, the provider jumps to the target
+//! proc's definition (when the target is a user proc).
 //!
-//! Class-member lookup also lands: when the cursor sits on a
+//! Class-member lookup: when the cursor sits on a
 //! word inside a class body span, the provider walks that
 //! class's `methods` / `class_methods` / `properties` /
 //! `constructors` / `destructor` looking for a name match
@@ -33,25 +29,24 @@
 //! method` calls inside the body and bare references to the
 //! class's own members.
 //!
-//! `$obj method` dispatch also lands: when the cursor sits on
+//! `$obj method` dispatch: when the cursor sits on
 //! the method-name token of a `$obj method` / `[$obj method]`
 //! call and `$obj`'s class is known (recorded in
 //! `analysis.instance_classes` from a `set obj [Cls new]` /
 //! `Cls create obj` site), the provider jumps to the method
 //! declaration on that class.
 //!
-//! What is *still deferred* (planned as further
-//! `S-definition-rich` sub-strips):
+//! Limitations:
 //!
 //! * Flow-sensitive / scope-aware instance-class tracking —
 //!   `analysis.instance_classes` is a best-effort global
 //!   var-name → class map (last assignment wins).  Re-binding
 //!   the same name to a different class, or two locals of the
 //!   same name in different procs, isn't disambiguated.
-//! * `BigIP` definition (`get_bigip_definition`) — entirely
-//!   separate provider keyed off iRules dialect that resolves
-//!   pool / data-group / iRule / virtual-server names against
-//!   a parsed `bigip.conf`.
+//! * `BigIP` definition — a separate provider keyed off iRules
+//!   dialect that resolves pool / data-group / iRule /
+//!   virtual-server names against a parsed `bigip.conf` — is
+//!   not implemented here.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -158,7 +153,6 @@ pub fn definition(
     // Alias resolution — when the cursor's word matches an
     // `interp alias {} ALIAS {} TARGET` recorded in
     // `analysis.command_aliases`, jump to the TARGET proc.
-    // Mirrors Python's `lookup_alias_for_word`.
     if let Some(alias) = lookup_alias(analysis, &word) {
         for (qname, proc_def) in &analysis.all_procs {
             if proc_def.name == alias.target
@@ -331,9 +325,8 @@ pub(crate) fn byte_offset_at(source: &str, line: u32, character: u32) -> u32 {
 /// scope whose body span contains the offset takes precedence
 /// over any enclosing scope.
 ///
-/// Mirrors Python's `find_scope_at_line` (descend into the
-/// innermost matching child) followed by a scope-chain walk
-/// outward for the var lookup.
+/// Descend into the innermost matching child, then walk the
+/// scope chain outward for the var lookup.
 pub(crate) fn lookup_var_in_scope_chain<'a>(
     scope: &'a tcl_compiler::analyser::Scope,
     byte_offset: u32,
@@ -492,8 +485,7 @@ fn scope_chain_at(
     loop {
         let next = cursor.children.iter().find(|c| {
             // `Span` is half-open `[start, end)` — the byte at
-            // `s.end()` lives outside the scope (PR #454 Copilot
-            // review).
+            // `s.end()` lives outside the scope.
             c.body_span
                 .is_some_and(|s| s.start() <= byte_offset && byte_offset < s.end())
         });
@@ -589,7 +581,7 @@ mod tests {
         }
     }
 
-    // -- S-definition-rich: alias resolution ------------------------
+    // -- alias resolution ------------------------
 
     #[test]
     fn jump_to_alias_target_proc() {
@@ -633,7 +625,7 @@ mod tests {
         }
     }
 
-    // -- S-definition-rich: scope-chain $var descent ---------------
+    // -- scope-chain $var descent ---------------
 
     #[test]
     fn proc_local_var_jumps_to_proc_scope_definition() {
@@ -692,7 +684,7 @@ mod tests {
         assert_eq!(range.end_character, 4);
     }
 
-    // -- S-definition-rich: class-member lookup ---------------------
+    // -- class-member lookup ---------------------
 
     #[test]
     fn definition_jumps_to_method_inside_class_body() {
@@ -752,7 +744,7 @@ mod tests {
         assert!(locs.is_empty(), "{locs:?}");
     }
 
-    // -- S-definition-rich: $obj method dispatch --------------------
+    // -- $obj method dispatch --------------------
 
     #[test]
     fn definition_resolves_obj_method_call() {

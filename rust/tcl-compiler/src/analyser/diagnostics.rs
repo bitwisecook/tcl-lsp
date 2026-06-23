@@ -1,21 +1,20 @@
-//! Diagnostic-emission orchestrator — Rust port of
-//! `core/analysis/_analyser/_diagnostics.py`.
+//! Diagnostic-emission orchestrator.
 //!
-//! Three top-level methods, mirroring the Python file 1:1:
+//! Three top-level methods:
 //!
-//! - [`Analyser::emit_variable_usage_diagnostics`] — kept as a
-//!   no-op hook for future scope-tree consumers (Python's W211
-//!   moved to the SSA-based pass; same here).
+//! - [`Analyser::emit_variable_usage_diagnostics`] — a
+//!   no-op hook for scope-tree consumers (W211 is emitted by the
+//!   SSA-based pass instead).
 //! - [`Analyser::emit_cfg_ssa_diagnostics`] — main entry; builds
 //!   a [`crate::compilation_unit::CompilationUnit`] on demand, walks the top-level
 //!   function and every procedure, dispatches per-function
 //!   diagnostics, and runs the cross-function post-passes
 //!   (var-as-command, interpolated-command resolution).
 //! - [`Analyser::emit_cfg_ssa_diagnostics_for_function`] —
-//!   per-function dispatcher; calls each landed emitter in
+//!   per-function dispatcher; calls each emitter in
 //!   declaration order.
 //!
-//! Two utility passes round out the Python file:
+//! Two utility passes round things out:
 //!
 //! - [`Analyser::dedupe_diagnostics`] — drop exact duplicates
 //!   plus the line-based pairs (E002 swallowed by E101 on the
@@ -23,59 +22,31 @@
 //! - [`Analyser::apply_disabled_diagnostics`] — filter out
 //!   codes the caller asked to silence.
 //!
-//! **Strip-by-strip status.**
+//! The per-function dispatcher wires up the following emitters:
 //!
-//! - **C41d1** — orchestrator scaffold + dedupe + disabled-
-//!   codes filter.  ✅ landed.
-//! - **C41d2** — `_diag_var_lifecycle.py`.  ✅ landed:
-//!   W220 (dead store), W211 (unused variable), W214
-//!   (unused parameter), W210 (read-before-set), W213
-//!   (unset on possibly-undef), and H300 (paste error).
-//!   W210 / W213 are gated on procs only — top-level RBS
-//!   needs the ``globals_written_by_procs`` filter Python
-//!   uses, deferred until interproc analysis is wired in.
-//! - **C41d3** — `_diag_var_command.py`.  ✅ landed:
-//!   ``var_command_sites`` / ``cmd_command_sites`` recorded
-//!   during the walk dispatch; **W307** (non-literal command
-//!   name) and **W308** (unknown method on object) both emit
-//!   via the cross-function post-pass.  W308 uses the C41e0
+//! - Variable lifecycle: W220 (dead store), W211 (unused
+//!   variable), W214 (unused parameter), W210 (read-before-set),
+//!   W213 (unset on possibly-undef), and H300 (paste error).
+//!   W210 / W213 are gated on procs only.
+//! - Var-as-command: **W307** (non-literal command name) and
+//!   **W308** (unknown method on object) both emit via the
+//!   cross-function post-pass. W308 uses
 //!   ``ClassHierarchy::method_target`` for MRO-aware method
-//!   resolution, with all the Python suppression paths
-//!   wired (inherited ``unknown`` handler, external
-//!   superclass, ``oo::objdefine`` per-instance methods).
-//!   The ``[cmd] method`` return-type suppression for W307
-//!   on ``cmd_command_sites`` remains deferred — it needs
-//!   IR-level type-lattice plumbing extended into the
-//!   analyser, which is a separate strip.
-//! - **C41d4** — `_diag_commands.py`.  ✅ partial: W123
-//!   (unknown command) is wired via the cross-function post-
-//!   pass.  ``command_invocations`` are now recorded for every
-//!   command head during the walk dispatch.  Deferred:
-//!   ``_resolve_interpolated_commands`` (CONSTSET-driven W123
-//!   suppression for ``$``-bearing names),
-//!   ``_globals_written_by_procs`` (used by the C41d2 W210
-//!   top-level RBS filter), ``suggest_similar`` "did you
-//!   mean…?" suggestions, and the
-//!   ``unknown_proc_info`` / ``has_dynamic_providers``
-//!   early-returns.
-//! - **C41d5** — `_diag_branches.py` + `_diag_channel.py`.
-//!   ✅ landed: I230 / I231 (constant branch / switch-arm) and
-//!   W126 (channel argument validation) all wired through the
-//!   per-function dispatcher.  Severity-Info Python diagnostics
-//!   map to ``Severity::Hint`` here (no Info variant on the
-//!   Rust side).
-//! - **C41d6** — `_diag_ip.py`.  ✅ landed: W124 (invalid IP
-//!   address literal) — IPv4 octet validation (over-255 →
-//!   Error, leading-zero → Warning) and IPv6 parsing via
-//!   ``std::net::Ipv6Addr``.  Anchors at the SSA def site;
-//!   seen-offsets dedup avoids duplicates across SSA versions.
-//! - **C41d7** — `_diag_racy.py`.  ⏸ deferred: IRULE4005
-//!   (racy ``static::`` cross-event flow) needs the
-//!   connection-scope / cross-event analysis that the Rust
-//!   pipeline doesn't yet have (Python's
-//!   ``cu.connection_scope.racy_static_defs``).  Once
-//!   ``ConnectionScope`` lands on the Rust side, the emitter
-//!   wires up in a single call to ``emit_racy_static_diagnostics``.
+//!   resolution, with all the suppression paths wired (inherited
+//!   ``unknown`` handler, external superclass, ``oo::objdefine``
+//!   per-instance methods).
+//! - Unknown commands: **W123** is wired via the cross-function
+//!   post-pass; ``command_invocations`` are recorded for every
+//!   command head during the walk dispatch.
+//! - Branches and channels: I230 / I231 (constant branch /
+//!   switch-arm) and W126 (channel argument validation) all wired
+//!   through the per-function dispatcher. Info-severity diagnostics
+//!   map to ``Severity::Hint`` (there is no Info variant here).
+//! - IP literals: W124 (invalid IP address literal) — IPv4 octet
+//!   validation (over-255 → Error, leading-zero → Warning) and
+//!   IPv6 parsing via ``std::net::Ipv6Addr``. Anchors at the SSA
+//!   def site; seen-offsets dedup avoids duplicates across SSA
+//!   versions.
 
 use std::collections::{HashMap, HashSet};
 
@@ -87,7 +58,7 @@ use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 
 /// Collect the bracketed text of every `[…]` command-substitution node in
 /// an `expr` AST (recursing operands but stopping at the substitution
-/// boundary, like Python's `command_texts_in_expr_node`). Used to recover
+/// boundary). Used to recover
 /// variable reads hidden inside `if`/`while` conditions and `expr` values.
 fn collect_expr_command_texts(node: &ExprNode, out: &mut Vec<String>) {
     match node {
@@ -169,10 +140,9 @@ fn source_slice(source: &str, span: tcl_lexer::Span) -> Option<String> {
 /// Only the **braced** form composes a command path.  A bare `$prefix::tail`
 /// is lexed by Tcl as a *single* variable named `prefix::tail` (the runtime
 /// reads that variable — it is not `$prefix` followed by a literal `::tail`),
-/// so it must NOT be treated as ensemble dispatch.  Mirrors
-/// `_diag_var_command.py`'s `is_namespaced_ensemble`, whose check only fires
-/// after a `${…}` closing brace (the bare VAR token already swallows the
-/// `::tail`, so the character after it is never `::`).
+/// so it must NOT be treated as ensemble dispatch.  This only matters after
+/// a `${…}` closing brace — the bare VAR token already swallows the `::tail`,
+/// so the character after it is never `::`.
 fn parse_namespaced_ensemble(source: &str, span: tcl_lexer::Span) -> Option<(String, String)> {
     let start = span.start() as usize;
     let end = (span.end() as usize).min(source.len());
@@ -197,7 +167,7 @@ fn parse_namespaced_ensemble(source: &str, span: tcl_lexer::Span) -> Option<(Str
 /// can check the *actual* value of `$arr(-command)` against the known-command
 /// set.  Without this, the dash-prefixed / callback-suffixed array-key
 /// heuristic fires even when SCCP-equivalent literal evidence proves the value
-/// is (or isn't) a command.  Mirrors `_diag_var_command.py:421-452`.
+/// is (or isn't) a command.
 fn harvest_array_set_constants(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,
@@ -235,8 +205,7 @@ fn harvest_array_set_constants(
 /// literal dict (via SCCP CONST at param entry — usually from call-site
 /// constant propagation), the body sees each dict key as a local variable
 /// bound to its value.  Register those bindings so a `$cmd hi` dispatch inside
-/// the body checks `cmd`'s value against the known-command set.  Mirrors
-/// `_diag_var_command.py:380-420`.
+/// the body checks `cmd`'s value against the known-command set.
 fn harvest_dict_with_constants(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,
@@ -280,11 +249,10 @@ fn harvest_dict_with_constants(
     }
 }
 
-/// True when `tok` is a `${name}` (brace-form) VAR token.  Mirrors
-/// `_is_brace_form` in `_diag_brace_then_paren.py`: bare `$name` spans
+/// True when `tok` is a `${name}` (brace-form) VAR token.  Bare `$name` spans
 /// `name.len() + 1` (one `$`); brace `${name}` spans more (`${` + name).
-/// The Rust [`tcl_lexer::Span`] end is exclusive, so the span length is
-/// `end - start`, equal to Python's inclusive `end.offset - start.offset + 1`.
+/// The [`tcl_lexer::Span`] end is exclusive, so the span length is
+/// `end - start`.
 fn is_brace_form_var(sm: &SourceMap<'_>, tok: tcl_lexer::Token) -> bool {
     if tok.kind != tcl_lexer::TokenType::Var {
         return false;
@@ -295,7 +263,7 @@ fn is_brace_form_var(sm: &SourceMap<'_>, tok: tcl_lexer::Token) -> bool {
 
 /// Return `true` if `inner` contains a `$` or `[` the user likely expects to
 /// substitute — the trigger for the `${arr($foo)}` Pattern-(2) variant of
-/// W216.  Skips backslash escapes.  Mirrors `_index_has_substitution`.
+/// W216.  Skips backslash escapes.
 fn index_has_substitution(inner: &str) -> bool {
     let bytes = inner.as_bytes();
     let mut i = 0;
@@ -316,8 +284,7 @@ fn index_has_substitution(inner: &str) -> bool {
 /// Render the safe replacement for a W216 array-element reference.  Bare
 /// `$name(idx)` is the only `$`-form that substitutes `$` inside the index,
 /// so prefer it when `name` allows it; otherwise `[set "name(idx)"]` (the
-/// command parser substitutes `$`-vars in `set`'s argument).  Mirrors
-/// `_build_replacement`.
+/// command parser substitutes `$`-vars in `set`'s argument).
 fn build_w216_replacement(name: &str, inner: &str) -> String {
     if tcl_syntax::naming::is_bare_var_name(name) {
         format!("${name}({inner})")
@@ -328,8 +295,7 @@ fn build_w216_replacement(name: &str, inner: &str) -> String {
 
 /// Indices into *args* (0-based, word index `i + 1`) that `cmd_name` reads as
 /// a **variable name** — where the braced indirect-array idiom
-/// `${name}(idx)` is correct rather than a typo.  Mirrors
-/// `_varname_word_indices` in `_diag_brace_then_paren.py`.
+/// `${name}(idx)` is correct rather than a typo.
 fn w216_varname_word_indices(cmd_name: &str, args: &[String]) -> Vec<usize> {
     match cmd_name {
         "set" | "incr" | "append" | "lappend" | "vwait" => {
@@ -369,7 +335,7 @@ fn w216_varname_word_indices(cmd_name: &str, args: &[String]) -> Vec<usize> {
 
 /// Find the offset of the `)` matching the `(` at `paren_start`.  Skips
 /// balanced `{...}`, double-quoted strings, and backslash escapes.  Returns
-/// `None` on malformed input.  Mirrors `_find_matching_close_paren`.
+/// `None` on malformed input.
 fn find_matching_close_paren(source: &[u8], paren_start: usize) -> Option<usize> {
     let n = source.len();
     let mut depth = 1i32;
@@ -425,14 +391,12 @@ fn find_matching_close_paren(source: &[u8], paren_start: usize) -> Option<usize>
 }
 
 /// True when `ch` is a standard ASCII character W108 leaves alone: tab
-/// / LF / CR, or printable ASCII `0x20`-`0x7e`.  Mirrors
-/// `_NON_ASCII_RE = [^\x09\x0a\x0d\x20-\x7e]` (negated).
+/// / LF / CR, or printable ASCII `0x20`-`0x7e`.
 fn is_standard_ascii(ch: char) -> bool {
     matches!(ch, '\t' | '\n' | '\r' | ' '..='~')
 }
 
-/// W108 "common" mode benign-Unicode test — mirrors
-/// `core/analysis/checks/_style.py::_is_benign_unicode`. A character is
+/// W108 "common" mode benign-Unicode test. A character is
 /// *intentional* (not flagged) when its Unicode general category is a
 /// Letter, Number, Mark, Symbol, or Punctuation (any script). Control,
 /// format, separator, surrogate, private-use, and unassigned characters
@@ -473,20 +437,18 @@ fn is_benign_unicode(ch: char) -> bool {
 }
 
 /// Integer format specifiers for `binary format` / `binary scan` that
-/// accept the Tcl 8.5+ `u` / `s` modifier.  Mirrors
-/// `_BINARY_INT_SPECIFIERS`.
+/// accept the Tcl 8.5+ `u` / `s` modifier.
 const BINARY_INT_SPECIFIERS: &[u8] = b"csSiInTwWmrR";
 
 /// Sentinel scope key for the W307 dispatcher-suppression maps covering
-/// statements outside any proc body (mirrors Python's `_TOP_SCOPE`).
+/// statements outside any proc body.
 const W307_TOP_SCOPE: &str = "::top";
 
 /// The variable named by a single `$var` / `${var}` substitution, or `None`.
 ///
-/// Mirrors the `_extract` closure in Python `_last_return_var`: the text must
-/// be exactly one bare or braced variable reference whose name is made of
-/// word / namespace characters.  Anything else (literals, command subs,
-/// composite words) yields `None`.
+/// The text must be exactly one bare or braced variable reference whose name
+/// is made of word / namespace characters.  Anything else (literals, command
+/// subs, composite words) yields `None`.
 fn extract_dollar_var(value: &str) -> Option<String> {
     let v = value.trim();
     let rest = v.strip_prefix('$')?;
@@ -496,7 +458,7 @@ fn extract_dollar_var(value: &str) -> Option<String> {
                 .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
     };
     if let Some(inner) = rest.strip_prefix('{').and_then(|r| r.strip_suffix('}')) {
-        // Braced `${name}` — reject nested braces (Python's `count("{") == 1`).
+        // Braced `${name}` — reject nested braces.
         if !inner.contains('{') && is_name(inner) {
             return Some(inner.to_string());
         }
@@ -509,9 +471,9 @@ fn extract_dollar_var(value: &str) -> Option<String> {
 ///
 /// Walks every block's statements and terminator (returns can lower to either
 /// an `IRReturn` statement or a `Return` terminator) and keeps the last whose
-/// value is a single `$var`.  Mirrors Python's `_last_return_var`, used by the
-/// object-returning-proc inference: a proc returning `$X` where `X` was
-/// assigned from a factory is itself an object factory.
+/// value is a single `$var`.  Used by the object-returning-proc inference:
+/// a proc returning `$X` where `X` was assigned from a factory is itself an
+/// object factory.
 fn last_return_var_of(cfg: &crate::cfg::Function) -> Option<String> {
     use crate::cfg::Terminator;
     use crate::ir::Statement;
@@ -534,8 +496,7 @@ fn last_return_var_of(cfg: &crate::cfg::Function) -> Option<String> {
 }
 
 /// Every return value (statement + terminator) a proc body can produce, as raw
-/// text.  Mirrors the G4 "collect ALL returns" loop in Python's
-/// object-returning-proc seed.
+/// text.  Seeds the object-returning-proc inference.
 fn return_values_of(cfg: &crate::cfg::Function) -> Vec<String> {
     use crate::cfg::Terminator;
     use crate::ir::Statement;
@@ -554,11 +515,10 @@ fn return_values_of(cfg: &crate::cfg::Function) -> Vec<String> {
 }
 
 /// Mask-octet values that can appear in a contiguous subnet mask.
-/// Mirrors `_VALID_MASK_OCTETS`.
 const VALID_MASK_OCTETS: &[u32] = &[0, 128, 192, 224, 240, 248, 252, 254, 255];
 
 /// True when the four octets form a valid contiguous subnet mask
-/// (all-1s then all-0s).  Mirrors `_is_valid_subnet_mask`.
+/// (all-1s then all-0s).
 fn is_valid_subnet_mask(a: u32, b: u32, c: u32, d: u32) -> bool {
     let val = (a << 24) | (b << 16) | (c << 8) | d;
     if val == 0 {
@@ -569,7 +529,6 @@ fn is_valid_subnet_mask(a: u32, b: u32, c: u32, d: u32) -> bool {
 }
 
 /// Heuristic: the dotted-quad plausibly *intends* to be a mask.
-/// Mirrors `_looks_like_subnet_mask`.
 fn looks_like_subnet_mask(a: u32, b: u32, c: u32, d: u32) -> bool {
     if a == 255 && !(b == 255 && c == 255 && d == 255) {
         return true;
@@ -577,8 +536,7 @@ fn looks_like_subnet_mask(a: u32, b: u32, c: u32, d: u32) -> bool {
     a >= 128 && [a, b, c, d].iter().all(|o| VALID_MASK_OCTETS.contains(o))
 }
 
-/// Suggest the nearest valid contiguous mask, or `None`.  Mirrors
-/// `_nearest_valid_mask`.
+/// Suggest the nearest valid contiguous mask, or `None`.
 fn nearest_valid_mask(a: u32, b: u32, c: u32, d: u32) -> Option<String> {
     let val = (a << 24) | (b << 16) | (c << 8) | d;
     let mut leading = 0u32;
@@ -772,15 +730,13 @@ fn has_redos_shape(pattern: &str) -> bool {
 
 /// Destructive builtins whose bare `catch {<cmd> ...}` form is the
 /// documented "fire-and-forget" idiom — failure when the target is
-/// already gone is expected and intentionally ignored.  Mirrors
-/// `analyser/compiler_checks.py::_FIRE_AND_FORGET_BARE`.
+/// already gone is expected and intentionally ignored.
 fn fire_and_forget_bare(bare: &str) -> bool {
     matches!(bare, "close" | "unset" | "rename")
 }
 
 /// Ensemble commands where only certain destructive subcommands are
-/// fire-and-forget (`chan close` is, `chan configure` is not).  Mirrors
-/// `_FIRE_AND_FORGET_SUBCOMMANDS`.
+/// fire-and-forget (`chan close` is, `chan configure` is not).
 fn fire_and_forget_subcommand(bare: &str, sub: &str) -> bool {
     match bare {
         "after" => sub == "cancel",
@@ -797,8 +753,7 @@ fn fire_and_forget_subcommand(bare: &str, sub: &str) -> bool {
 /// destructive builtin (`close $h`, `unset var`, `rename foo ""`) or a
 /// documented destructive ensemble subcommand (`after cancel`, `chan
 /// close`, `array unset`, …).  Conservative: only single-statement
-/// bodies match, and ensemble heads are subcommand-checked.  Mirrors
-/// `analyser/compiler_checks.py::_catch_body_is_fire_and_forget`.
+/// bodies match, and ensemble heads are subcommand-checked.
 fn catch_body_is_fire_and_forget(body: &str) -> bool {
     let segs: Vec<_> = crate::segmenter::segment_commands(body)
         .into_iter()
@@ -828,13 +783,12 @@ fn catch_body_is_fire_and_forget(body: &str) -> bool {
 }
 
 /// True when `tok` is a brace-quoted word (`{…}`, a `Str` token).
-/// Mirrors `_first_token_is_braced`.
 fn is_braced_word(tok: &tcl_lexer::Token) -> bool {
     tok.kind == tcl_lexer::TokenType::Str
 }
 
 /// True when `text` carries a substitution (`$` / `[`) or `tok` is a
-/// `Var` / `Cmd` token.  Mirrors `_has_substitution`.
+/// `Var` / `Cmd` token.
 fn has_substitution(text: &str, tok: &tcl_lexer::Token) -> bool {
     text.contains('$')
         || text.contains('[')
@@ -846,8 +800,7 @@ fn has_substitution(text: &str, tok: &tcl_lexer::Token) -> bool {
 
 /// First positional (pattern) argument index of `regexp` / `regsub`,
 /// after skipping option switches (`-start` consumes a value, `--`
-/// terminates).  Mirrors `regexp_pattern_index` (and the regexp arg-role
-/// resolver's option skip).  `args` excludes the command name.
+/// terminates).  `args` excludes the command name.
 fn regexp_pattern_index(args: &[String]) -> Option<usize> {
     let mut i = 0;
     while i < args.len() {
@@ -873,7 +826,7 @@ fn regexp_pattern_index(args: &[String]) -> Option<usize> {
 /// introduces a variable name (`[A-Za-z0-9_]`, `{`, or `:`).  A `\[` /
 /// `\$` is a literal regex character, and a `$` before a quote / end /
 /// punctuation (the `(.*)$` end-anchor) is a literal dollar — neither
-/// counts.  Mirrors `_raw_has_live_substitution`.
+/// counts.
 fn raw_has_live_substitution(raw: &str) -> bool {
     let b = raw.as_bytes();
     let n = b.len();
@@ -900,7 +853,7 @@ fn raw_has_live_substitution(raw: &str) -> bool {
 }
 
 /// True when `text` is a simple numeric or boolean literal that needs
-/// no bracing.  Mirrors `_is_safe_literal`.
+/// no bracing.
 fn is_safe_literal(text: &str) -> bool {
     let t = text.trim();
     if t.parse::<f64>().is_ok() {
@@ -913,8 +866,7 @@ fn is_safe_literal(text: &str) -> bool {
 }
 
 /// True when an expr string is substitution-free numeric / boolean /
-/// operator text (safe to leave unbraced).  Mirrors
-/// `_is_safe_literal_expr`.
+/// operator text (safe to leave unbraced).
 fn is_safe_literal_expr(text: &str, dialect: &str) -> bool {
     use tcl_lexer::ExprTokenType as T;
     if is_safe_literal(text) {
@@ -1047,8 +999,7 @@ fn first_nested_expr(slice: &str) -> Option<(usize, usize)> {
     None
 }
 
-/// Mirrors `_find_case_mismatch` in
-/// `core/analysis/_analyser/_diag_var_lifecycle.py:135-148`.
+/// Find a defined variable that differs from `variable` only in case.
 /// Returns the lexicographically smallest other-cased variant —
 /// deterministic across runs.
 fn find_case_mismatch<'a>(variable: &str, defined_vars: &'a HashSet<String>) -> Option<&'a str> {
@@ -1062,7 +1013,7 @@ fn find_case_mismatch<'a>(variable: &str, defined_vars: &'a HashSet<String>) -> 
     matches.into_iter().next()
 }
 
-/// SYNC-MAY31-3: variables this statement queries *only for
+/// Variables this statement queries *only for
 /// existence* (`info exists X` / `array exists X`, whether a bare call
 /// or a `[...]` command substitution inside an assignment / argument).
 /// Such a reference is not a value read, so it must not raise W210.
@@ -1093,7 +1044,7 @@ fn existence_query_vars(stmt: &crate::ir::Statement) -> Vec<String> {
     out
 }
 
-/// SYNC-MAY31-3: collect `(var, guard_block)` pairs for every
+/// Collect `(var, guard_block)` pairs for every
 /// `[info exists X]` / `[array exists X]` branch condition in `fu`.
 /// A read of `var` in any block dominated by `guard_block` is guarded
 /// (X provably exists).  A positive query guards the true target; a
@@ -1117,7 +1068,7 @@ fn collect_existence_guards(fu: &crate::compilation_unit::FunctionUnit) -> Vec<(
     guards
 }
 
-/// SYNC-MAY31-3: true when a read of `var` at `use_block` is exempt
+/// True when a read of `var` at `use_block` is exempt
 /// from W210 because it is the existence-query word itself, or because
 /// it sits in a region guarded by an enclosing `[info exists var]`.
 fn existence_exempt(
@@ -1170,7 +1121,7 @@ fn use_site_safe_initialises(stmt: Option<&crate::ir::Statement>, var: &str) -> 
 }
 
 /// The namespace of a fully-qualified name: everything up to the last `::`,
-/// or `::` for a top-level name.  Mirrors `qname.rsplit("::", 1)[0] or "::"`.
+/// or `::` for a top-level name.
 fn namespace_of(qualified_name: &str) -> String {
     match qualified_name.rsplit_once("::") {
         Some((ns, _)) if !ns.is_empty() => ns.to_string(),
@@ -1179,8 +1130,7 @@ fn namespace_of(qualified_name: &str) -> String {
 }
 
 /// Implicit / interpreter-provided variables that are always defined and
-/// must never raise a read-before-set.  Mirrors `_IMPLICIT_VARS` in
-/// `compiler/core_analyses.py`.
+/// must never raise a read-before-set.
 fn is_implicit_var(name: &str) -> bool {
     matches!(
         name,
@@ -1238,11 +1188,11 @@ fn whole_unset_names(args: &[String]) -> HashSet<String> {
 }
 
 /// Tcl ARE metacharacters: a pattern free of these reduces to a literal
-/// substring search.  Mirrors `_TCL_REGEX_METACHARS`.
+/// substring search.
 const TCL_REGEX_METACHARS: &str = r"\^$.|?*+()[]{}";
 
 /// `regexp` switches that don't change match-vs-no-match for a pure-literal
-/// pattern.  Mirrors `_REGEXP_LITERAL_SAFE_SWITCHES`.
+/// pattern.
 fn is_regexp_literal_safe_switch(opt: &str) -> bool {
     matches!(
         opt,
@@ -1255,7 +1205,7 @@ fn is_regexp_literal_safe_switch(opt: &str) -> bool {
 /// True iff `regexp PATTERN INPUT` provably returns 0.  Sound only when
 /// `pat` is a pure-literal pattern (no ARE metacharacters), reducing the
 /// match to substring search.  Unknown / unsafe switches bail (return
-/// `false` = cannot prove no-match).  Mirrors `_regexp_literal_no_match`.
+/// `false` = cannot prove no-match).
 fn regexp_literal_no_match(pat: &str, inp: &str, options: &[String]) -> bool {
     if pat.chars().any(|c| TCL_REGEX_METACHARS.contains(c)) {
         return false;
@@ -1297,8 +1247,7 @@ fn regexp_literal_no_match(pat: &str, inp: &str, options: &[String]) -> bool {
 /// `Some(true)` when a `regexp` / `scan` call (`is_regexp` selects the arg
 /// order) with literal pattern + input provably can't match; `Some(false)`
 /// when it might match; `None` when the args can't be statically resolved
-/// (dynamic substitution, too few args).  Mirrors the per-call arm of the
-/// `provably_unset` setup in `_read_before_set`.
+/// (dynamic substitution, too few args).
 fn regexp_scan_no_match(is_regexp: bool, args: &[String]) -> Option<bool> {
     let value_opts: &[&str] = if is_regexp { &["-start"] } else { &[] };
     let pos = skip_options(args, value_opts);
@@ -1322,7 +1271,7 @@ fn regexp_scan_no_match(is_regexp: bool, args: &[String]) -> Option<bool> {
 }
 
 /// Index of the first non-option argument in `args`, skipping `-option`
-/// flags and the values of options in `value_opts`.  Mirrors `skip_options`.
+/// flags and the values of options in `value_opts`.
 fn skip_options(args: &[String], value_opts: &[&str]) -> usize {
     let mut i = 0;
     while i < args.len() {
@@ -1349,7 +1298,7 @@ fn skip_options(args: &[String], value_opts: &[&str]) -> usize {
 /// on a subset of paths — the others read an unset variable.  Returns
 /// true when `(name, version)` can be undefined on some reachable path.
 ///
-/// Mirrors `_phi_can_undef` in `compiler/core_analyses.py`.  Version 0 is
+/// Version 0 is
 /// the undef origin; an `unset`-killed version is undef; a non-phi
 /// (concrete) definition is never undef; a phi is undef if any of its
 /// reachable, non-existence-guarded incomings is undef.  Cycles
@@ -1396,9 +1345,8 @@ fn phi_can_undef(
         // a non-executable edge (SCCP proved the edge dead — e.g. the
         // `cond → exit` edge of `while 1`, which a `break` makes the loop's
         // only real exit) can never actually be read, so its version-0 origin
-        // must not count as a possible undef.  Mirrors the FP-RBS-16 edge
-        // filter (`_read_before_set` in `compiler/core_analyses.py`); only
-        // applied when SCCP edge info is available (a non-empty set).
+        // must not count as a possible undef.  This filter is only applied
+        // when SCCP edge info is available (a non-empty set).
         if let Some(blk) = this_block
             && !executable_edges.is_empty()
             && !executable_edges.contains(&(pred.clone(), blk.to_owned()))
@@ -1443,8 +1391,7 @@ type PhiBlockMap = std::collections::HashMap<(String, crate::ssa::Version), Stri
 
 /// Build the `(name, version) → Phi` index, the `(name, version) → block`
 /// index, and the set of `unset`-killed versions for [`phi_can_undef`],
-/// restricted to `considered` (executable) blocks.  Mirrors the `phi_def` /
-/// `killed_versions` setup in `compiler/core_analyses.py::_read_before_set`.
+/// restricted to `considered` (executable) blocks.
 fn build_phi_undef_index(
     ssa: &crate::ssa::SsaFunction,
     considered: &HashSet<String>,
@@ -1493,8 +1440,7 @@ fn build_phi_undef_index(
 
 /// Name-level suppression context for the `return`-value phi-from-undef W210
 /// pass, harvested from `dict with` / `dict update` and qualified `variable`
-/// declarations.  Mirrors the corresponding `skip` / key-set construction in
-/// `compiler/core_analyses.py::_read_before_set`.
+/// declarations.
 #[derive(Default)]
 struct UndefSuppression {
     /// A `dict with` / `dict update` is present (enables the key-aware gate).
@@ -1513,8 +1459,7 @@ struct UndefSuppression {
     /// argument (`set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during
     /// expr evaluation).  The `[…]` is opaque to SSA def tracking, so a later
     /// `$tmp` read in the same expression looks read-before-set.  Name-level,
-    /// suppress-only — mirrors Python's `command_sub_write_names` contribution
-    /// to the `skip` set in `core_analyses.py::_read_before_set`.
+    /// suppress-only.
     cmd_sub_writes: HashSet<String>,
     /// Locals aliased to a *dynamic* upvar target (`upvar 1 $name local`).
     /// The alias may resolve to a non-existent caller variable, so the local
@@ -1594,8 +1539,7 @@ fn collect_expr_cmd_sub_writes(
 /// `dict with` / `dict update` key-aware suppression: record the dict-var
 /// names and, when the dict value is a same-block literal (or an
 /// interprocedurally-propagated SCCP const), its keys.  A value that resolves
-/// to neither marks the dict shape unknown.  Mirrors the dict-with arm of
-/// `_read_before_set`.
+/// to neither marks the dict shape unknown.
 fn harvest_dict_with_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
@@ -1746,8 +1690,7 @@ fn build_undef_suppression(
 
 /// Local-alias tail names declared by a *qualified* `variable`
 /// (`variable ns::tail` / `variable ${name}::tail`): the bare tail read
-/// resolves to the namespace var, not an unset local.  Mirrors
-/// `compiler/core_analyses.py::_qualified_variable_alias_tails`.
+/// resolves to the namespace var, not an unset local.
 fn collect_qualified_variable_alias_tails(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
@@ -1791,8 +1734,7 @@ fn collect_qualified_variable_alias_tails(
 
 /// Collect every variable name defined anywhere in `cfg`.
 ///
-/// Mirrors `_collect_defined_vars` in
-/// `_diag_var_lifecycle.py:123-133`.  Walks every block and pulls
+/// Walks every block and pulls
 /// the `defs` field off each [`crate::ir::Statement`] that has
 /// one (assignments, ``incr``, ``Call`` statements with explicit
 /// defs).  Used for the "did you mean…?" case-mismatch
@@ -1827,9 +1769,6 @@ fn collect_defined_vars(cfg: &crate::cfg::Function) -> HashSet<String> {
 /// Compute the set of global variable names that any procedure
 /// in `cu` writes.
 ///
-/// Mirrors `_globals_written_by_procs` in
-/// `core/analysis/_analyser/_diag_commands.py:264-296`.
-///
 /// A global write happens when a proc either:
 ///
 /// 1. assigns to a fully-qualified name (``::var``), or
@@ -1841,14 +1780,13 @@ fn collect_defined_vars(cfg: &crate::cfg::Function) -> HashSet<String> {
 /// top-level to suppress W210 for globals a helper proc may
 /// populate before the top-level read.
 ///
-/// **Simplification vs. Python.** The Rust port doesn't yet
-/// have ``CommandRegistry::is_destroys_variable`` so commands
-/// like ``unset`` aren't filtered out of the "writes" set.
+/// There is no ``CommandRegistry::is_destroys_variable`` yet, so
+/// commands like ``unset`` aren't filtered out of the "writes" set.
 /// That makes the suppression slightly more permissive (more
 /// vars marked "written-by-procs" → more W210 suppressions).
 /// Safe-on-correctness — the alternative is false positives
 /// on real RBS sites.  When the registry gains
-/// ``destroys_variable``, add the filter here for parity.
+/// ``destroys_variable``, add the filter here.
 fn globals_written_by_procs(cu: &crate::compilation_unit::CompilationUnit) -> HashSet<String> {
     use crate::ir::Statement;
     let mut result: HashSet<String> = HashSet::new();
@@ -1905,8 +1843,7 @@ const OO_BASE: [&str; 2] = ["oo::object", "oo::class"];
 ///
 /// Used by [`Analyser::resolve_interpolated_w123_diagnostics`]
 /// to recover the command name from a "Unknown command 'NAME'"
-/// W123 message.  Mirrors the Python equivalent in
-/// `_diag_commands.py:233-237`.
+/// W123 message.
 fn extract_quoted_word(message: &str) -> Option<String> {
     let start = message.find('\'')?;
     let rest = &message[start + 1..];
@@ -1931,8 +1868,6 @@ fn extract_quoted_word(message: &str) -> Option<String> {
 /// runs in the *namespace* frame, not the caller's — does **not** falsely
 /// recover a read of the caller's parameter.  Other bodies (`eval`, `if`,
 /// loops) run in the caller frame, so their `$param` reads still count.
-/// Mirrors `_block_local_reads`'s `caller_scope` early-return in
-/// `core_analyses.py`.
 fn body_references_param(body: &str, param: &str) -> bool {
     if param.is_empty() {
         return false;
@@ -2027,8 +1962,7 @@ fn is_literal_credential_value(value: &str, tok: &tcl_lexer::Token) -> bool {
 }
 
 /// Return `true` when an `uplevel` first argument is a level
-/// specifier (`1`, `#0`, …) rather than the script itself.  Mirrors
-/// Python's `args[0].lstrip("#").isdigit() or args[0] == "#0"`: strip
+/// specifier (`1`, `#0`, …) rather than the script itself: strip
 /// any leading `#` then require a non-empty all-digit remainder.
 fn uplevel_has_level(arg0: &str) -> bool {
     let stripped = arg0.trim_start_matches('#');
@@ -2038,8 +1972,7 @@ fn uplevel_has_level(arg0: &str) -> bool {
 /// Parse `subst`'s flags, returning `(template_idx, nocommands,
 /// novariables)` — the index of the first non-option argument (the
 /// template) and which substitution-suppressing flags were seen.
-/// Mirrors `core/analysis/checks/_helpers.py::_parse_subst_flags`
-/// (`-nobackslashes` is accepted but irrelevant to the W102 message).
+/// (`-nobackslashes` is accepted but irrelevant to the W102 message.)
 fn parse_subst_flags(args: &[String]) -> (Option<usize>, bool, bool) {
     let mut nocommands = false;
     let mut novariables = false;
@@ -2061,8 +1994,7 @@ fn parse_subst_flags(args: &[String]) -> (Option<usize>, bool, bool) {
 
 /// Return `(pattern_text, token)` pairs for every regex pattern
 /// argument in a `regexp` / `regsub` / `switch -regexp` command.
-/// Mirrors `core/analysis/checks/_helpers.py::
-/// _find_regex_patterns_in_command`: `regexp` / `regsub` contribute
+/// `regexp` / `regsub` contribute
 /// their first positional (option-skipping) argument; `switch -regexp`
 /// contributes every non-`default` pattern arm — inline pairs (form 1)
 /// or a single braced case list (form 2, re-segmented via
@@ -2147,8 +2079,7 @@ fn find_regex_patterns_in_command(
 /// Walk `node` and collect every `==`/`!=` operator whose at least
 /// one operand is a string literal ([`ExprNode::String`]).
 ///
-/// Mirrors `_find_string_eq_ne` in
-/// `core/analysis/checks/_style.py:685-713`.  Comparisons between
+/// Comparisons between
 /// two variables (`$x == $y`) are intentionally *not* collected —
 /// the variables may hold integer values, making `==` correct.
 fn find_string_eq_ne_ops(node: &ExprNode) -> Vec<BinOp> {
@@ -2189,8 +2120,7 @@ fn walk_string_eq_ne(node: &ExprNode, found: &mut Vec<BinOp>) {
 }
 
 /// Count the total number of `==`/`!=` operators in the expression
-/// tree.  Mirrors `_count_eq_ne_ops` in
-/// `core/analysis/checks/_style.py:716-731`.
+/// tree.
 fn count_eq_ne_ops(node: &ExprNode) -> usize {
     match node {
         ExprNode::Binary { op, left, right } => {
@@ -2216,10 +2146,9 @@ fn count_eq_ne_ops(node: &ExprNode) -> usize {
 }
 
 /// Rewrite `==`/`!=` operators to ` eq `/` ne ` for use in a code
-/// fix's replacement text.  Mirrors `_rewrite_string_compare_ops`
-/// in `core/analysis/checks/_helpers.py:82-88`.
+/// fix's replacement text.
 ///
-/// Implements the Python regex semantics manually:
+/// The rewrite rules are:
 /// * `(?<![=!])==(?!=)`  → ` eq `
 /// * `!=`                → ` ne `
 /// * `[ \t]{2,}`         → ` `  (collapse runs of 2+ ws)
@@ -2249,8 +2178,7 @@ fn rewrite_string_compare_ops(text: &str) -> String {
         i += 1;
     }
     // Collapse runs of 2+ space/tab into a single space.  Single
-    // whitespace characters are preserved (matches Python's
-    // ``re.sub(r"[ \t]{2,}", " ", ...)``).
+    // whitespace characters are preserved.
     let chars: Vec<char> = step1.chars().collect();
     let mut out = String::with_capacity(step1.len());
     let mut i = 0;
@@ -2272,8 +2200,7 @@ fn rewrite_string_compare_ops(text: &str) -> String {
 }
 
 /// Scan `args` for the first positional argument that lacks a
-/// preceding `--` terminator.  Mirrors
-/// `core/analysis/checks/_helpers.py::_first_positional_without_terminator`.
+/// preceding `--` terminator.
 ///
 /// Skips option words (text starts with `-`); skips an additional
 /// argument when the option's [`OptionSpec`](tcl_registry::prelude::OptionSpec)
@@ -2311,8 +2238,7 @@ fn first_positional_without_terminator(
 }
 
 /// Locate the most-recent literal `set var value` assignment whose
-/// command-head precedes `before_offset`.  Mirrors
-/// `core/analysis/checks/_helpers.py::_last_literal_set_value_for_var`.
+/// command-head precedes `before_offset`.
 ///
 /// Returns `Some((value_text, value_span, var_text))` when the
 /// nearest preceding `set` is a fully-literal three-arg form.
@@ -2343,7 +2269,7 @@ fn last_literal_set_value_for_var(
         // left unclosed by the truncation at `before_offset`: its span
         // then reaches the last truncated byte (`end + 1 >= head`).  A
         // *complete* proc before the use ends well before that and does
-        // not shadow.  Mirrors `_last_literal_set_value_for_var`.
+        // not shadow.
         let use_inside_proc = cmd.span.end() as usize + 1 >= head;
         if use_inside_proc
             && cmd.texts.first().map(String::as_str) == Some("proc")
@@ -2390,20 +2316,16 @@ fn last_literal_set_value_for_var(
 impl Analyser {
     /// Scope-tree-driven variable diagnostic emitter.
     ///
-    /// Mirrors `_emit_variable_usage_diagnostics` in
-    /// `_diagnostics.py:111-116`.  Python keeps this method as
-    /// an empty hook because W211 (unused-variable) moved to the
-    /// SSA-based pass in `_emit_cfg_ssa_diagnostics_for_function`.
-    /// The Rust port preserves the hook so future scope-tree-
-    /// driven emitters (none currently planned) have a target.
+    /// An empty hook: W211 (unused-variable) is emitted by the
+    /// SSA-based pass in `emit_cfg_ssa_diagnostics_for_function`.
+    /// The hook is preserved so future scope-tree-driven emitters
+    /// (none currently planned) have a target.
     pub fn emit_variable_usage_diagnostics(&mut self) {
         // Intentionally empty — see module docstring.
     }
 
     /// **W105.** Emit "unbraced code block" warnings for body
-    /// arguments that aren't braced.  Mirrors
-    /// ``check_unbraced_body`` in
-    /// ``core/analysis/checks/_style.py:238-302``.
+    /// arguments that aren't braced.
     ///
     /// Severity is ERROR when the unbraced body contains
     /// substitutions (``$var`` / ``[cmd]``) — those risk double
@@ -2418,8 +2340,7 @@ impl Analyser {
         is_single_token: bool,
     ) {
         // Already braced — `Str` token kind means the source
-        // started with ``{``.  Mirrors ``_first_token_is_braced``
-        // in Python.
+        // started with ``{``.
         if matches!(body_tok.kind, tcl_lexer::TokenType::Str) {
             return;
         }
@@ -2427,10 +2348,8 @@ impl Analyser {
         // (the recommended *safe* form), `uplevel [buildScript]` — is
         // produced dynamically and parsed once by the consumer: there is
         // no double-substitution risk and it cannot be braced
-        // (`eval {[list …]}` changes the meaning).  Mirrors
-        // `check_unbraced_body`'s `tok.type is TokenType.CMD` skip.  (A
-        // `Var` body such as `while {$cond} $body` is *not* exempt — only
-        // a `Cmd` word is.)
+        // (`eval {[list …]}` changes the meaning).  (A `Var` body such as
+        // `while {$cond} $body` is *not* exempt — only a `Cmd` word is.)
         if matches!(body_tok.kind, tcl_lexer::TokenType::Cmd) {
             return;
         }
@@ -2444,14 +2363,12 @@ impl Analyser {
         // flag.  A *single-token* word whose token is a `Var` is exactly this
         // case; a composite word (`${t}--Coro`) or quoted interpolated body
         // (`"do $script"`) has more than one fragment and is not exempt.
-        // Mirrors `_word_is_single_var` in `analyser/checks/_style.py`.
         if is_single_token && matches!(body_tok.kind, tcl_lexer::TokenType::Var) {
             return;
         }
         let trimmed = body_text.trim();
-        // Mirror Python's ``_has_substitution``: textual ``$`` /
-        // ``[`` count as substitutions, and so do ``Var`` / ``Cmd``
-        // tokens — even when the entire body is a direct
+        // Textual ``$`` / ``[`` count as substitutions, and so do
+        // ``Var`` / ``Cmd`` tokens — even when the entire body is a direct
         // substitution (``while {$cond} $body``).  Those still
         // emit W105 at ERROR severity because an unbraced
         // substituted body double-evaluates at runtime.
@@ -2498,14 +2415,13 @@ Use braces: {{ \u{2026} }}"
         });
     }
 
-    /// W100 (GAP-A8): an expression argument (`expr` / `if` / `while`
+    /// W100: an expression argument (`expr` / `if` / `while`
     /// / `for` conditions) that is not braced suffers double
     /// substitution and defeats byte-compilation.  Skips a braced
     /// (`{…}`) argument and a substitution-free numeric/boolean literal;
     /// otherwise emits W100 (ERROR when the text carries a `$`/`[`
-    /// substitution, else WARNING) with a brace-wrapping fix.  Mirrors
-    /// `check_unbraced_expr`.  `args` / `arg_tokens` exclude the command
-    /// name.
+    /// substitution, else WARNING) with a brace-wrapping fix.
+    /// `args` / `arg_tokens` exclude the command name.
     pub(super) fn emit_w100_unbraced_expr(
         &mut self,
         cmd_name: &str,
@@ -2642,11 +2558,10 @@ Use braces: {{ \u{2026} }}"
         });
     }
 
-    /// W311 (GAP-A8): a channel configured with `-encoding binary` *and*
+    /// W311: a channel configured with `-encoding binary` *and*
     /// a non-binary `-translation` is contradictory (binary implies no
     /// translation) and can corrupt data / enable encoding-differential
-    /// attacks.  Handles `fconfigure` and `chan configure`.  Mirrors
-    /// `check_encoding_mismatch`.
+    /// attacks.  Handles `fconfigure` and `chan configure`.
     pub(super) fn emit_w311_encoding_mismatch(
         &mut self,
         cmd_name: &str,
@@ -2695,10 +2610,9 @@ Use braces: {{ \u{2026} }}"
         }
     }
 
-    /// W200 (GAP-A8): a `u` / `s` modifier on a `binary format` / `binary
+    /// W200: a `u` / `s` modifier on a `binary format` / `binary
     /// scan` integer specifier requires Tcl 8.5+; under 8.4-based
-    /// dialects (incl. F5 iRules / iApps) it is unavailable.  Mirrors
-    /// `check_binary_format_modifiers`.
+    /// dialects (incl. F5 iRules / iApps) it is unavailable.
     pub(super) fn emit_w200_binary_format_modifiers(
         &mut self,
         cmd_name: &str,
@@ -2757,9 +2671,9 @@ Use braces: {{ \u{2026} }}"
         }
     }
 
-    /// W121 (GAP-A8): a dotted-quad literal that looks like a subnet mask
+    /// W121: a dotted-quad literal that looks like a subnet mask
     /// but has non-contiguous bits (`255.255.255.1`, `255.0.255.0`) is
-    /// almost certainly a mistake.  Mirrors `check_invalid_subnet_mask`.
+    /// almost certainly a mistake.
     pub(super) fn emit_w121_invalid_subnet_mask(
         &mut self,
         args: &[String],
@@ -2809,24 +2723,22 @@ Use braces: {{ \u{2026} }}"
         }
     }
 
-    /// W108 (GAP-A3): a non-ASCII character in an argument token —
+    /// W108: a non-ASCII character in an argument token —
     /// either a Unicode confusable (visually resembling ASCII) or a
     /// known copy-paste artifact (smart quote, NBSP, em-dash, …).
-    /// `args` / `arg_tokens` exclude the command name (matching Python,
-    /// which does not scan the command word).  Mirrors `check_non_ascii`
-    /// in the default **confusables** mode (→ **strict** for F5
-    /// iRules / iApps); the `common` mode — which needs Unicode general-
-    /// category data Rust std lacks — is a follow-up.  One diagnostic
-    /// per offending character, with an ASCII-replacement fix when one
-    /// is known.
+    /// `args` / `arg_tokens` exclude the command name (the command word
+    /// is not scanned).  Operates in the default **confusables** mode
+    /// (→ **strict** for F5 iRules / iApps); the `common` mode — which
+    /// needs Unicode general-category data Rust std lacks — is not yet
+    /// implemented.  One diagnostic per offending character, with an
+    /// ASCII-replacement fix when one is known.
     pub(super) fn emit_w108_non_ascii(&mut self, arg_tokens: &[tcl_lexer::Token]) {
         use super::confusables_table::{auto_fix_for, confusable_to_ascii};
         use super::state::NonAsciiMode;
 
         // Resolve the effective mode: an explicit `tclLsp.style.nonAscii`
         // setting, or the per-dialect default (strict for ASCII-only F5
-        // dialects, confusables otherwise).  Mirrors Python's
-        // `_non_ascii_mode` + the iRules override in `check_non_ascii`.
+        // dialects, confusables otherwise).
         let mode = match self.non_ascii_mode {
             NonAsciiMode::Default => {
                 if matches!(self.dialect.as_str(), "f5-irules" | "f5-iapps") {
@@ -2901,10 +2813,10 @@ Use braces: {{ \u{2026} }}"
         }
     }
 
-    /// W104 (GAP-A8): `append` used with a space-padded value looks
+    /// W104: `append` used with a space-padded value looks
     /// like list construction — fragile if the data contains special
     /// characters.  Fires once (HINT) on the first value argument that
-    /// starts or ends with a space.  Mirrors `check_string_list_confusion`.
+    /// starts or ends with a space.
     pub(super) fn emit_w104_append_list(
         &mut self,
         cmd_name: &str,
@@ -2932,12 +2844,11 @@ Use braces: {{ \u{2026} }}"
         }
     }
 
-    /// W106 (GAP-A8): an unbraced `switch` body undergoes an extra round
+    /// W106: an unbraced `switch` body undergoes an extra round
     /// of substitution (especially dangerous under `-regexp`).  Handles
     /// the single trailing-body form and the alternating pattern/body
     /// form; skips braced bodies and the `-` fall-through.  ERROR when a
     /// substitution is present or `-regexp` is set, else WARNING.
-    /// Mirrors `check_unbraced_switch_body`.
     pub(super) fn emit_w106_unbraced_switch_body(
         &mut self,
         cmd_name: &str,
@@ -3038,11 +2949,11 @@ Use braces: {{ \u{2026} }}"
         });
     }
 
-    /// W212 (GAP-A8): a command argument that must be a variable
+    /// W212: a command argument that must be a variable
     /// *name* (`set $x 1`, `incr $x`, `info exists $x`, `upvar 1 a $b`)
     /// instead uses a `$`-substitution.  `args` / `arg_tokens` exclude
     /// the command name.  Fires when the resolved name-position argument
-    /// is a `Var` token.  Mirrors `check_name_vs_value`.
+    /// is a `Var` token.
     pub(super) fn emit_w212_name_vs_value(
         &mut self,
         cmd_name: &str,
@@ -3061,8 +2972,8 @@ Use braces: {{ \u{2026} }}"
             // name), not a `set $token` dynamic-name foot-gun.  Both the
             // W212 `did you mean token(status)` and the W216
             // `did you mean $token(status)` suggestions are wrong there, so
-            // neither fires.  Mirrors `check_name_vs_value`'s
-            // `is_braced_indirect_array_ref` carve-out.
+            // neither fires.  This is the `is_braced_indirect_array_ref`
+            // carve-out.
             if tcl_syntax::naming::is_braced_indirect_array_ref(text) {
                 continue;
             }
@@ -3104,8 +3015,6 @@ Use braces: {{ \u{2026} }}"
     /// `unset` / `info exists` / `vwait`) Pattern (1) is the legitimate
     /// indirect-array-element idiom (`token` holds the array name) and must
     /// not fire — see [`tcl_syntax::naming::is_braced_indirect_array_ref`].
-    /// Mirrors `_emit_w216_for_command` in
-    /// `analyser/_analyser/_diag_brace_then_paren.py`.
     pub(super) fn emit_w216_brace_then_paren(&mut self, cmd: &crate::segmenter::SegmentedCommand) {
         if cmd.texts.is_empty() {
             return;
@@ -3209,13 +3118,12 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
         }
     }
 
-    /// W114 (GAP-A8): a nested `[expr …]` inside an argument that is
+    /// W114: a nested `[expr …]` inside an argument that is
     /// *already* an expression context (`expr` / `if` / `while` / `for`
     /// conditions) is redundant.  `diag_span` is the source span of the
     /// expression argument; we scan its source slice for the first
-    /// `[`-`expr`-whitespace sequence (the `_NESTED_EXPR_RE` pattern)
-    /// and anchor the warning at the nested `[expr … ]`.  One warning
-    /// per argument, mirroring Python's `re.search` (first match only).
+    /// `[`-`expr`-whitespace sequence and anchor the warning at the
+    /// nested `[expr … ]`.  One warning per argument (first match only).
     pub(super) fn emit_w114_redundant_nested_expr(
         &mut self,
         _text: &str,
@@ -3247,8 +3155,7 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
     /// string comparison" hints on the EXPR-role argument of
     /// commands like `if`, `while`, `for`, `expr`.
     ///
-    /// Mirrors ``check_string_compare_in_expr`` in
-    /// ``core/analysis/checks/_style.py:740-834``.  Fires when at
+    /// Fires when at
     /// least one operand of a `==` / `!=` comparison is a string
     /// literal (`ExprString`, e.g. `"foo"`, `"1"`, `"true"`);
     /// comparisons between variables (`$x == $y`) are left alone.
@@ -3265,8 +3172,7 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
             return;
         }
         let parsed = crate::parse_expr(expr_text.trim(), Some(self.dialect.as_str()));
-        // ``ExprNode::Raw`` means the expression was unparseable —
-        // mirror Python's ``isinstance(parsed, ExprRaw): continue``.
+        // ``ExprNode::Raw`` means the expression was unparseable.
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
@@ -3314,16 +3220,12 @@ numeric/string coercion."
     /// `catch BODY` invocation omits the optional `RESULTVAR`
     /// argument, silently swallowing any error the body raises.
     ///
-    /// Mirrors the `IRCatch` arm of ``_check_statement`` in
-    /// ``core/compiler/compiler_checks.py:491-504``.  Python only
-    /// emits W302 for `IRCatch` (not `IRBarrier`) — the lowerer
+    /// W302 is emitted for `IRCatch` (not `IRBarrier`) — the lowerer
     /// falls back to `IRBarrier` when the body argument is multi-token
-    /// (e.g. ``catch $body``), so this Rust emit gates on
-    /// ``arg_single[0]`` to mirror that suppression.  The diagnostic
-    /// anchors at just the ``catch`` command token — the narrowest
-    /// span that identifies the issue — matching the #464 narrowing
-    /// (`compiler_checks.py` now uses ``range_from_token(argv[0])``
-    /// rather than the whole-statement ``stmt.range``).
+    /// (e.g. ``catch $body``), so this emit gates on ``arg_single[0]``
+    /// to suppress that case.  The diagnostic anchors at just the
+    /// ``catch`` command token — the narrowest span that identifies
+    /// the issue.
     pub(super) fn emit_w302_catch_no_result_var(
         &mut self,
         args: &[String],
@@ -3332,15 +3234,14 @@ numeric/string coercion."
         arg_single: &[bool],
     ) {
         // Only fires when a result variable is absent.  Empty args
-        // is "malformed catch" in Python's lowerer (IRBarrier path,
+        // is a malformed catch (IRBarrier path,
         // no W302).  ≥2 args means a result variable is present.
         if args.len() != 1 {
             return;
         }
-        // Mirror Python's "catch with dynamic body" IRBarrier
-        // suppression: a multi-token body word can't be statically
-        // resolved to a script, so the lowerer drops it before
-        // ``_check_statement`` ever sees it.
+        // Suppress on a catch with a dynamic body: a multi-token body
+        // word can't be statically resolved to a script, so the lowerer
+        // drops it before the statement check ever sees it.
         if arg_single.first().copied() != Some(true) {
             return;
         }
@@ -3373,8 +3274,7 @@ Consider capturing the result: catch {\u{2026}} result"
     /// whose registry signature is a [`SubcommandSig`](super::dispatch::SubcommandSig)
     /// when the first argument doesn't resolve to a known subcommand.
     ///
-    /// Mirrors the `SubcommandSig` branch of `_check_arity` in
-    /// ``core/compiler/compiler_checks.py:580-643``.  Skips:
+    /// Skips:
     ///
     /// - commands the registry doesn't know (no signature),
     /// - simple-command signatures (no subcommand dispatch),
@@ -3382,28 +3282,25 @@ Consider capturing the result: catch {\u{2026}} result"
     ///   dialect packs),
     /// - first-arg values containing ``$`` / ``[`` (dynamic
     ///   substitution — runtime-resolved),
-    /// - empty arg lists (handled by the E001 emitter, deferred).
+    /// - empty arg lists (handled by the E001 emitter).
     ///
     /// When emission is warranted, includes a "did you mean…?"
     /// suffix using [`crate::text::suggest_similar`] over the
     /// known subcommand set (max 1 suggestion within edit
     /// distance 3).
     ///
-    /// **Known minor parity gap:** Python additionally skips when
-    /// the subcommand position is ``{*}``-expanded
-    /// (``arg_expand[0]``).  The Rust ``process_command`` does not
-    /// currently thread the expansion flag through; the literal-
-    /// text ``$`` / ``[`` gate covers the dynamic-substitution
-    /// case, and ``{*}LITERAL`` for an unknown subcommand is rare
-    /// enough in practice that the divergence is acceptable until
-    /// expand-flag plumbing lands as its own chunk.
+    /// One case is not handled: a subcommand position that is
+    /// ``{*}``-expanded (``arg_expand[0]``). ``process_command`` does
+    /// not currently thread the expansion flag through; the literal-
+    /// text ``$`` / ``[`` gate covers the dynamic-substitution case,
+    /// and ``{*}LITERAL`` for an unknown subcommand is rare enough in
+    /// practice that the gap is acceptable.
     /// **W002** — the command is disabled in the active dialect profile: it
     /// exists in the registry but not for the active dialect (e.g. `dict` under
     /// `tcl8.4`, added in 8.5).  Only a *literal* command head is checked — a
     /// `$obj` / `[cmd]` head is W307's concern — and an earlier unconditional
     /// user-proc definition that shadows the built-in suppresses it (Tcl
-    /// resolves the proc at the call site).  Mirrors `check_disabled_command`
-    /// in `analyser/checks/_domain.py`.
+    /// resolves the proc at the call site).
     pub(super) fn emit_w002_disabled_command(&mut self, cmd_name: &str, cmd_tok: tcl_lexer::Token) {
         use tcl_registry::prelude::DialectSet;
         // A dynamic command head (`$obj method`, `[lookup] arg`) is resolved at
@@ -3427,8 +3324,7 @@ Consider capturing the result: catch {\u{2026}} result"
         // fires.  Existence must be checked *dialect-agnostically*: the
         // analyser registry only loads the active dialect, so `get(bare)`
         // misses an iRules command like `when`/`log`/`session` under
-        // tcl8.6 — Python sees it via the global `get_any`, so use the
-        // dialect-independent `known_in_any_dialect` to match.
+        // tcl8.6, so use the dialect-independent `known_in_any_dialect`.
         if registry.get_for_dialect(bare, dialect).is_some() || !registry.known_in_any_dialect(bare)
         {
             return;
@@ -3475,7 +3371,7 @@ Consider capturing the result: catch {\u{2026}} result"
             return;
         };
         let Some(first_arg) = args.first() else {
-            // Empty arg list — Python's E001 path; not in scope here.
+            // Empty arg list — E001 path; not in scope here.
             return;
         };
         // Dynamic-value subcommand position — can't resolve statically.
@@ -3485,7 +3381,7 @@ Consider capturing the result: catch {\u{2026}} result"
         // Tk geometry/widget ensemble commands (`grid` / `pack` / `wm` / …)
         // are recognised for the unknown-subcommand check regardless of the
         // active Tcl dialect — a `.tcl` script may `package require Tk` at
-        // runtime, and Python fires W001 on `grid bogus` under every dialect.
+        // runtime, and W001 fires on `grid bogus` under every dialect.
         let dialect =
             DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL) | DialectSet::TK;
         let Some(CommandSignature::WithSubcommands(sig)) =
@@ -3499,7 +3395,7 @@ Consider capturing the result: catch {\u{2026}} result"
         // Tk geometry managers accept `manager pathName ?args?` as a shortcut
         // for `manager configure pathName ?args?` (grid.n / pack.n / place.n).
         // A window path starts with `.`, which is not a valid subcommand-name
-        // first character, so this is unambiguous.  Mirrors `compiler_checks.py`.
+        // first character, so this is unambiguous.
         if matches!(cmd_name, "grid" | "pack" | "place") && first_arg.starts_with('.') {
             return;
         }
@@ -3537,9 +3433,8 @@ Consider capturing the result: catch {\u{2026}} result"
         }
         // Anchor at the command-head + subcommand-name range so
         // the squiggle covers ``cmd subname`` rather than the
-        // entire invocation.  Mirrors Python's ``cmd_token_range``
-        // which combines the command token with the subcommand
-        // arg token.
+        // entire invocation: combine the command token with the
+        // subcommand arg token.
         let span = match arg_tokens.first() {
             Some(sub_tok) => tcl_lexer::Span::new(cmd_tok.span.start(), sub_tok.span.end()),
             None => cmd_tok.span,
@@ -3554,8 +3449,7 @@ Consider capturing the result: catch {\u{2026}} result"
     }
 
     /// **E002 / E003.** Argument-count check for simple (non-
-    /// subcommand) commands.  Mirrors `_check_simple_arity` in
-    /// `core/compiler/compiler_checks.py`: skip leading declared
+    /// subcommand) commands: skip leading declared
     /// option flags, then compare the positional-argument count
     /// against the registry signature's arity bounds.
     ///
@@ -3563,24 +3457,20 @@ Consider capturing the result: catch {\u{2026}} result"
     /// [`CommandSig::leading_options`](super::dispatch::CommandSig::leading_options)
     /// set, so switches introduced in a later Tcl release (e.g.
     /// `regsub -command`, 9.0+) are only skipped under a dialect that
-    /// declares them.  This is the SYNC-MAY21-3 fix: it prevents both
-    /// the #455 false positive (declared switches counted as
-    /// positional → spurious E003) and the #460 dialect leak (9.0-only
-    /// switches skipped under 8.x).
+    /// declares them.  This prevents both a false positive (declared
+    /// switches counted as positional → spurious E003) and a dialect
+    /// leak (9.0-only switches skipped under 8.x).
     ///
     /// `arg_expand[i]` marks an argument preceded by the Tcl 8.5+
     /// `{*}` expansion prefix.  A `{*}`-expanded word contributes an
     /// unknown number of runtime arguments, so option skipping stops
     /// at the first such word and the positional upper bound becomes
     /// unbounded — only the count of *non-expanded* positional words
-    /// can still trip E003, exactly as Python does.
+    /// can still trip E003.
     ///
-    /// **Parity gaps (documented, intentional):**
-    /// - Like Python's name-only `leading_options` skip, the *value*
-    ///   of a value-taking leading option is **not** skipped (Python's
-    ///   value-aware `skip_options` is used only for arg-role
-    ///   resolution, not arity).  See the validation note in
-    ///   `docs/rust-rewrite.md` (SYNC-MAY21-3).
+    /// **Intentional gaps:**
+    /// - The `leading_options` skip is name-only, so the *value*
+    ///   of a value-taking leading option is **not** skipped.
     /// - Statically-resolvable literal `{*}` expansions (`{*}{a b c}`)
     ///   are not refined to their element count; the conservative form
     ///   here can miss a genuine over-arity but never invents a false
@@ -3588,7 +3478,7 @@ Consider capturing the result: catch {\u{2026}} result"
     ///
     /// Subcommand-dispatch commands are handled by
     /// [`Self::emit_w001_unknown_subcommand`] and skipped here;
-    /// per-subcommand arity is a later follow-up.
+    /// per-subcommand arity is not checked.
     pub(super) fn emit_arity_diagnostics(
         &mut self,
         cmd_name: &str,
@@ -3616,20 +3506,16 @@ Consider capturing the result: catch {\u{2026}} result"
                 );
             }
             Some(CommandSignature::WithSubcommands(sig)) => {
-                // Per-subcommand arity, mirroring the Python
-                // `_check_arity` → `_check_simple_arity` path on
-                // `args[1:]` (compiler_checks.py:783-797).  The W001
+                // Per-subcommand arity on `args[1:]`.  The W001
                 // unknown-subcommand path is handled separately by
                 // [`Self::emit_w001_unknown_subcommand`].
                 let Some(sub_name) = args.first() else {
                     // **E001.** A subcommand-dispatch command invoked with no
                     // subcommand at all (`string` / `dict` / `info` on its
-                    // own).  Mirrors the empty-`args` arm of `_check_arity`
-                    // (`compiler_checks.py:740-750`).  Queued as a
+                    // own).  Queued as a
                     // `pending_arity` candidate so an earlier shadowing user
                     // proc / class / alias / ensemble / stub suppresses it,
-                    // exactly like the E002 / E003 paths and Python's
-                    // `_resolves_to_user_command` gate on `_check_arity`.
+                    // exactly like the E002 / E003 paths.
                     let ns = self.command_resolution_namespace(scope_path);
                     let enforce_order = !self.scope_path_in_proc_body(scope_path);
                     self.pending_arity.push((
@@ -3765,7 +3651,7 @@ Consider capturing the result: catch {\u{2026}} result"
         // shadowing proc only silences the builtin arity check when its
         // definition lexically precedes the call.  Calls inside a proc
         // body resolve after the whole script has loaded, so order is
-        // not enforced there.  Mirrors Python #475's `enforce_order`.
+        // not enforced there.
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
 
         // Collect as a *candidate*; the post-walk
@@ -3773,7 +3659,7 @@ Consider capturing the result: catch {\u{2026}} result"
         // resolves to a user proc / class / alias / ensemble / stub.
         // A class / alias / ensemble / stub match suppresses regardless
         // of definition order; a *proc* match additionally honours
-        // `enforce_order` (in-order/reachability gate, #475).
+        // `enforce_order` (in-order/reachability gate).
         if !positional_any_expand && (args.len() - positional_start) < min {
             let got = args.len() - positional_start;
             self.pending_arity.push((
@@ -3826,7 +3712,7 @@ Consider capturing the result: catch {\u{2026}} result"
     /// namespace.
     ///
     /// Suppression by a shadowing **proc** also honours definition
-    /// reachability (#475 / SYNC-MAY31-9): a top-level call (one whose
+    /// reachability: a top-level call (one whose
     /// `enforce_order` flag is set — module body, `namespace eval`
     /// body, or a conditional) is silenced only when the proc's
     /// definition lexically precedes it, since top-level commands run
@@ -3835,9 +3721,9 @@ Consider capturing the result: catch {\u{2026}} result"
     /// after load and are not order-gated.  Classes / aliases /
     /// ensembles / stubs always exist at run time and are never
     /// order-gated.  (Excluding *conditionally* defined procs would
-    /// need the CFG dominator model and is deferred.)
+    /// need the CFG dominator model, which is not modelled here.)
     ///
-    /// Emit the per-item path's deferred W002 (disabled-in-dialect command)
+    /// Emit the per-item path's pending W002 (disabled-in-dialect command)
     /// diagnostics, re-applying the user-proc-shadowing suppression against the
     /// merged `all_procs` (a cross-item fact unavailable to an isolated body).
     /// No-op on the whole-file `analyse` path (W002 is emitted inline there, so
@@ -3879,8 +3765,8 @@ Consider capturing the result: catch {\u{2026}} result"
         // precedes the call; proc-body calls are not order-gated.
         // Conditional / nested definitions are still treated as
         // shadowing here — distinguishing unconditionally-reachable
-        // definitions needs the CFG dominator model and is deferred
-        // per the SYNC-MAY31-9 doc note (#475).
+        // definitions needs the CFG dominator model, which is not
+        // modelled here.
         let proc_offsets: std::collections::HashMap<&str, u32> = self
             .result
             .all_procs
@@ -3941,12 +3827,8 @@ Consider capturing the result: catch {\u{2026}} result"
     /// shape doesn't match `if COND BODY ?elseif COND BODY ...?
     /// ?else BODY?`.
     ///
-    /// Mirrors the `IRBarrier` arm of `_check_statement` in
-    /// ``core/compiler/compiler_checks.py:506-525``, which fires
-    /// when Python's `_lower_if`
-    /// (``core/compiler/lowering.py:645-753``) returns an
-    /// `IRBarrier` with `command == "if"` because the syntactic
-    /// shape is invalid.  The reasons it produces:
+    /// Fires when an `if` invocation's syntactic shape is invalid.
+    /// The cases:
     ///
     /// - `"malformed if"` — empty arg list, or no clauses after
     ///   the full walk.
@@ -3958,17 +3840,14 @@ Consider capturing the result: catch {\u{2026}} result"
     ///   (with or without an intervening `then` keyword).
     ///
     /// Detected analyser-side at the `if`-command dispatch site
-    /// rather than by walking lowered IR — matches the established
-    /// W302 / W001 dispatch-site pattern.  Also closes a latent
-    /// parity gap in `lowering/structured.rs::lower_if`, which
-    /// currently doesn't produce an "extra words after else"
-    /// barrier at all (see `lowering.py:686-693` vs
-    /// `structured.rs:147-162`).
+    /// rather than by walking lowered IR, matching the established
+    /// W302 / W001 dispatch-site pattern.  This also covers a case
+    /// `lowering/structured.rs::lower_if` doesn't: it currently
+    /// doesn't produce an "extra words after else" barrier at all.
     ///
-    /// Severity: `Error`.  No code fixes (Python doesn't emit
-    /// any).  Span anchors at the command-head token through the
-    /// last argument-token end, mirroring Python's `cmd.range`
-    /// (full command source range).
+    /// Severity: `Error`.  No code fixes.  Span anchors at the
+    /// command-head token through the last argument-token end (the
+    /// full command source range).
     pub(super) fn emit_e004_malformed_if(
         &mut self,
         args: &[String],
@@ -4021,13 +3900,10 @@ Consider capturing the result: catch {\u{2026}} result"
                     push_extra_words(self);
                     return;
                 }
-                // ``else BODY`` — well-formed terminator.  Note:
-                // Python's ``_lower_if`` does *not* append to
-                // ``clauses`` here (else-only sets ``else_body``);
-                // the post-walk ``if not clauses`` check still
-                // fires on ``if else BODY`` to produce a
-                // ``"malformed if"`` barrier.  We mirror that by
-                // leaving ``clause_count`` unchanged in this arm.
+                // ``else BODY`` — well-formed terminator.  An else-only
+                // clause does not count as a clause, so ``if else BODY``
+                // produces a ``"malformed if"`` barrier; leave
+                // ``clause_count`` unchanged in this arm.
                 break;
             }
 
@@ -4048,8 +3924,7 @@ Consider capturing the result: catch {\u{2026}} result"
         if clause_count == 0 {
             // E.g. ``if elseif`` / ``if else`` after the elseif-skip
             // / else-skip branches consume their keywords without
-            // producing a clause.  Mirrors the post-walk
-            // ``if not clauses`` check in ``_lower_if``.
+            // producing a clause.
             push_malformed(self);
         }
     }
@@ -4058,8 +3933,7 @@ Consider capturing the result: catch {\u{2026}} result"
     /// for option-bearing commands whose first positional argument
     /// could be misinterpreted as an option.
     ///
-    /// Mirrors `core/analysis/checks/_style.py::check_missing_option_terminator`
-    /// (`_style.py:516-679`).  Resolves the command's option-
+    /// Resolves the command's option-
     /// terminator profile via
     /// [`tcl_registry::CommandRegistry::resolve_option_terminator`],
     /// scans for the first positional argument that lacks a
@@ -4085,10 +3959,9 @@ Consider capturing the result: catch {\u{2026}} result"
     /// **Note on `warn_without_terminator`:** the registry's
     /// `Traits::WARN_WITHOUT_TERMINATOR` flag (set on `regexp` only
     /// today) is plumbed onto [`tcl_registry::ResolvedTerminator`]
-    /// for API parity with Python, but Python's analyser-side
-    /// `_style.py` doesn't actually consume it.  The OFF gate
+    /// but is not consumed.  The OFF gate
     /// fires uniformly for non-dynamic, non-`-`-prefixed values
-    /// regardless of the trait — see `_style.py:558-563`.
+    /// regardless of the trait.
     pub(super) fn emit_w304_missing_option_terminator(
         &mut self,
         cmd_name: &str,
@@ -4106,12 +3979,11 @@ Consider capturing the result: catch {\u{2026}} result"
         }
 
         // Resolve the option-terminator profile *dialect-agnostically*:
-        // Python's `check_missing_option_terminator` calls
-        // `REGISTRY.resolve_option_terminator(cmd_name, args)` with no
-        // dialect, so W304 still fires on a command that the active dialect
-        // disables (e.g. `exec` / `glob` under f5-irules, which also draw
-        // W002 / W123).  Passing the dialect here would over-filter via
-        // `get_for_dialect` and silently drop those W304s.
+        // resolving with no dialect means W304 still fires on a command
+        // that the active dialect disables (e.g. `exec` / `glob` under
+        // f5-irules, which also draw W002 / W123).  Passing the dialect
+        // here would over-filter via `get_for_dialect` and silently drop
+        // those W304s.
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
         let Some(profile) =
             registry.resolve_option_terminator(cmd_name, &arg_strs, DialectSet::empty())
@@ -4125,7 +3997,7 @@ Consider capturing the result: catch {\u{2026}} result"
         // preceding word as an option.  Detect the two-arg braced form
         // (the last arg is a brace-enclosed `Str` token) and exempt it
         // entirely.  The SPLIT form (`switch $x -nocase {body} …`, 3+
-        // args) is still flagged.  Mirrors `_style.py` G12.
+        // args) is still flagged.
         if cmd_name == "switch"
             && arg_tokens.len() == 2
             && arg_tokens.last().map(|t| t.kind) == Some(tcl_lexer::TokenType::Str)
@@ -4213,7 +4085,7 @@ Consider capturing the result: catch {\u{2026}} result"
         }
     }
 
-    /// Emit the per-item path's deferred W304 diagnostics, classifying each
+    /// Emit the per-item path's pending W304 diagnostics, classifying each
     /// `$var` against the **full-file** most-recent-literal-`set` resolution
     /// (impossible inside an isolated body, whose `self.source` is only the
     /// body).  All inputs are absolute by the time the tail runs (the graft
@@ -4241,7 +4113,6 @@ Consider capturing the result: catch {\u{2026}} result"
     /// when an `eval` invocation's argument list could be a
     /// substitution-driven injection vector.
     ///
-    /// Mirrors `core/analysis/checks/_security.py:19-73::check_eval_string_concat`.
     /// Suppressed when:
     ///
     /// - every argument's representative token is `Str` (braced,
@@ -4255,7 +4126,7 @@ Consider capturing the result: catch {\u{2026}} result"
     /// representative token is `Var` / `Cmd` (substitution at the
     /// word level), or any argument is a multi-token word
     /// (substitution within the word — the single-token-word flag
-    /// is `false`).  This is a sound approximation of Python's
+    /// is `false`).  This is a sound approximation of the
     /// `all_tokens[1:]`-walk: `process_command` doesn't currently
     /// thread the full token stream, but multi-token-word implies
     /// inner substitution and the per-arg representative kind
@@ -4298,13 +4169,11 @@ Consider capturing the result: catch {\u{2026}} result"
         // substitution: the segmenter sets ``single_token_word=false``
         // for any adjacent-token concatenation, including pure-
         // literal shapes like ``eval foo{bar}`` (Esc+Str joined,
-        // no inner Var/Cmd).  Mirroring Python's
+        // no inner Var/Cmd).  An
         // ``all_tokens[1:]`` walk would require threading the full
         // token stream through ``process_command``; instead we do a
         // brace/backslash-aware source-byte scan over the word's
-        // span, which is sound for the common cases and matches
-        // Python's behaviour for every fixture in
-        // ``tests/test_checks.py::TestEvalStringConcat``.  Known
+        // span, which is sound for the common cases.  Known
         // approximation gap: ``"foo{$x}bar"`` (substitution inside
         // a brace pair within a quoted string — Tcl treats braces
         // as literal inside ``"…"``) is not detected.  Real W101
@@ -4330,7 +4199,6 @@ Consider capturing the result: catch {\u{2026}} result"
         // properly-quoted list so each substituted word is passed as exactly
         // one argument and never re-parsed.  Skip when the string spans
         // lines or carries backslash escapes (list re-quoting could differ).
-        // Mirrors `checks/_security.py::check_eval_string_concat`.
         let fixes = self.eval_list_fix(first);
         self.result.diagnostics.push(super::types::Diagnostic {
             code: "W101".to_string(),
@@ -4415,7 +4283,6 @@ word as one argument; no re-parsing)"
     /// Conservative: rejects multi-command scripts (containing `;`
     /// or newline) because `[list a b; set x $user]` returns the
     /// last command's result, which isn't necessarily a safe list.
-    /// Mirrors `_security.py::_is_list_command_token`.
     fn is_canonical_list_substitution(&self, tok: tcl_lexer::Token) -> bool {
         if !matches!(tok.kind, tcl_lexer::TokenType::Cmd) {
             return false;
@@ -4459,7 +4326,7 @@ word as one argument; no re-parsing)"
     /// representative token is `Var` / `Cmd` (single-token substitution
     /// at the word level) or — for a multi-token word — its source span
     /// contains an unescaped `$` / `[` outside any `{...}` block.  This
-    /// is the same approximation of Python's `all_tokens[1:]` walk that
+    /// is the same approximation of the `all_tokens[1:]` walk that
     /// [`Self::emit_w101_eval_string_concat`] uses (the analyser doesn't
     /// thread the full token stream through `process_command`); the
     /// representative-kind + brace-aware span scan covers every shape in
@@ -4496,9 +4363,8 @@ word as one argument; no re-parsing)"
 
     /// **W300.** Emit "source with a variable path" when `source`'s
     /// file argument is a `$var` substitution — the path (and therefore
-    /// the code executed) is dynamic.  Mirrors
-    /// `core/analysis/checks/_security.py:388-429::check_source_variable`
-    /// (skips a leading `-encoding ENC` option pair).
+    /// the code executed) is dynamic.  Skips a leading `-encoding ENC`
+    /// option pair.
     pub(super) fn emit_w300_source_variable(
         &mut self,
         cmd_name: &str,
@@ -4532,9 +4398,8 @@ Ensure the path is not influenced by untrusted input."
     /// substitution" when an `eval` / `uplevel` argument is a `[subst …]`
     /// command substitution: `subst` expands `$var` / `[cmd]` once, then
     /// the outer command re-parses the result as Tcl — a classic
-    /// double-decode injection.  Mirrors
-    /// `_security.py:144-189::check_eval_subst_double_decode` (one
-    /// diagnostic per command).  Approximation: only the per-word
+    /// double-decode injection.  One diagnostic is emitted per command.
+    /// Approximation: only the per-word
     /// representative `Cmd` tokens are scanned, so a `[subst …]` buried
     /// inside a larger quoted word isn't detected (same limitation as
     /// W101 / W309 in the absence of the full token stream).
@@ -4571,10 +4436,8 @@ This is a code-injection risk. Use [format] or [string map] for safe templating.
     /// **W301.** Emit "uplevel with string-built script" when an
     /// `uplevel` script argument risks injection: either multiple script
     /// arguments (concatenated like `eval`) or a single unbraced script
-    /// word carrying substitution.  Mirrors
-    /// `_security.py:233-307::check_uplevel_injection` (skips a leading
-    /// `?level?` argument; the `[list …]` idiom is the recognised safe
-    /// form).
+    /// word carrying substitution.  Skips a leading `?level?` argument;
+    /// the `[list …]` idiom is the recognised safe form.
     pub(super) fn emit_w301_uplevel_injection(
         &mut self,
         cmd_name: &str,
@@ -4638,8 +4501,7 @@ double substitution. Use braces: uplevel 1 {...}"
     /// **W312.** Emit "interp eval / invokehidden injection" when an
     /// `interp eval` / `interp invokehidden` script argument risks
     /// injection — the same shape as W301 but for the child-interpreter
-    /// dispatch.  Mirrors
-    /// `_security.py:579-663::check_interp_eval_injection`.
+    /// dispatch.
     pub(super) fn emit_w312_interp_eval_injection(
         &mut self,
         cmd_name: &str,
@@ -4715,8 +4577,7 @@ cause code injection. Use braces: interp {sub} $child {{...}}"
     /// **W102.** Emit "subst on variable input" when `subst`'s template
     /// argument is a bare `$var` substitution — `subst` performs `$` /
     /// `[]` substitution on its argument, so a variable template enables
-    /// code injection.  Mirrors
-    /// `_security.py:79-138::check_subst_injection`: the message lists
+    /// code injection.  The message lists
     /// exactly the substitution kinds still active (`-nocommands` /
     /// `-novariables` narrow it) and is suppressed entirely when both
     /// flags are present (only backslash substitution remains).
@@ -4777,8 +4638,7 @@ scope, or use [format] / [string map] for safe templating.",
 
     /// **W103.** Emit "open with a pipeline" when `open`'s first
     /// argument requests a command pipeline (`open "|cmd"`) or is a
-    /// variable that might.  Mirrors
-    /// `_security.py:313-382::check_open_pipeline`: a `|`-prefixed
+    /// variable that might.  A `|`-prefixed
     /// argument carrying substitution is a WARNING (command injection),
     /// a literal `|`-pipeline is a HINT, and a bare `$var` argument is a
     /// WARNING (it may resolve to a `|`-pipeline).
@@ -4834,11 +4694,9 @@ I/O commands."
     /// **W303.** Emit "regexp vulnerable to catastrophic backtracking
     /// (`ReDoS`)" when a *literal* regex pattern in `regexp` / `regsub` /
     /// `switch -regexp` contains a nested quantifier (`(a+)+`) or an
-    /// overlapping alternation (`(a|a)+`).  Mirrors
-    /// `_security.py:451-475::check_redos` driven by
-    /// `_find_regex_patterns_in_command`; variable / command-substituted
+    /// overlapping alternation (`(a|a)+`).  Variable / command-substituted
     /// patterns are left alone (the literal text never matches the
-    /// detector), matching Python's literal-only behaviour.
+    /// detector).
     pub(super) fn emit_w303_redos(
         &mut self,
         cmd_name: &str,
@@ -4876,8 +4734,7 @@ matching time on crafted input."
     /// the canonical parameterised-pattern idiom and is exempt (there is
     /// no braced equivalent); a quoted `"$var"` / `"[cmd]"` or an unbraced
     /// `[cmd]` is the foot-gun.  `\[` / `\$` in a quoted pattern are
-    /// literal regex characters, not substitutions.  Mirrors the
-    /// `regexp` / `regsub` arm of `_domain.py::check_literal_expected`.
+    /// literal regex characters, not substitutions.
     pub(super) fn emit_w306_literal_expected(
         &mut self,
         cmd_name: &str,
@@ -4934,8 +4791,7 @@ matching time on crafted input."
     }
 
     /// **W127.** A literal at a closed-value argument index is not in the
-    /// command's allowed set.  Mirrors
-    /// `analyser/compiler_checks.py::_check_closed_value_args`.  Only fires
+    /// command's allowed set.  Only fires
     /// for indices the spec marks `closed_value_args` (the `arg_values`
     /// are exhaustive, not hints).  Dynamic values (`$var` / `[cmd]`) and
     /// declared option flags are skipped.
@@ -5002,9 +4858,7 @@ matching time on crafted input."
     }
 
     /// **W116 / W117.** Stub command / expression definition shadows a
-    /// built-in.  Post-walk check mirroring
-    /// `_AnalyserCoreMixin._check_stub_shadows`
-    /// (`analyser/_analyser/_core.py`).  W116 fires when a `# tcl-lsp:
+    /// built-in.  Post-walk check.  W116 fires when a `# tcl-lsp:
     /// stub` command name (with leading `::` stripped) collides with a
     /// registered command; W117 when a stub expr function/operator name
     /// collides with a built-in `expr` function or operator.
@@ -5016,8 +4870,7 @@ matching time on crafted input."
         }
 
         // W116 — stub command shadows a built-in command.  Build the
-        // dialect command-name set locally (mirrors Python's
-        // `set(REGISTRY.command_names(dialect))`).
+        // dialect command-name set locally.
         if !self.result.stub_commands.is_empty() {
             use tcl_registry::CommandRegistry;
             use tcl_registry::prelude::DialectSet;
@@ -5079,8 +4932,7 @@ matching time on crafted input."
 
     /// **IRULE2002.** Warn when a deprecated iRules command is used —
     /// the command's spec carries a `deprecated_replacement`.  Only fires
-    /// under the `f5-irules` dialect.  Mirrors
-    /// `core/analysis/checks/_domain.py::check_deprecated_irules_command`.
+    /// under the `f5-irules` dialect.
     pub(super) fn emit_irule2002_deprecated_command(
         &mut self,
         cmd_name: &str,
@@ -5108,10 +4960,9 @@ matching time on crafted input."
 
     /// **IRULE2001.** Warn that `matchclass` is deprecated — use
     /// `class match` instead.  Only fires under the `f5-irules` dialect.
-    /// Python fires this *alongside* IRULE2002 at the same span (the
+    /// This fires *alongside* IRULE2002 at the same span (the
     /// command head): `matchclass` carries both a `deprecated_replacement`
-    /// (→ IRULE2002) and the dedicated `check_matchclass` rule (→
-    /// IRULE2001).  Mirrors `irules_checks.py::check_matchclass`.
+    /// (→ IRULE2002) and a dedicated rule (→ IRULE2001).
     pub(super) fn emit_irule2001_matchclass(
         &mut self,
         cmd_name: &str,
@@ -5136,10 +4987,8 @@ matching time on crafted input."
         // substituted `args` values would drop them).  The lexer reports
         // representative spans for `[cmd …]` / `${name}` / `"…"` words without
         // their closing delimiter, so each slice — and the whole-command fix
-        // range — is widened through trailing closers (mirroring Python's
-        // `_raw_arg_text` / `word_end_position`); otherwise `[HTTP::uri]` would
-        // round-trip as `[HTTP::uri`.  Mirrors the IRULE2001 `CodeFix` in
-        // `analyser/irules_checks.py::check_matchclass`.
+        // range — is widened through trailing closers; otherwise
+        // `[HTTP::uri]` would round-trip as `[HTTP::uri`.
         let word_end = |t: &tcl_lexer::Token| {
             crate::optimiser::helpers::spans::full_rewrite_span(&self.source, t.span).end()
         };
@@ -5178,9 +5027,7 @@ Use 'class match <item> <operator> <class>' instead."
     }
 
     /// **W310.** Emit "hardcoded credential" for a literal secret value.
-    /// Mirrors both strategies of
-    /// `_security.py:507-573::check_hardcoded_credentials` (one diagnostic
-    /// per command):
+    /// Two strategies, one diagnostic per command:
     ///
     /// * **Strategy 1** — a credential-bearing option flag (the defaults
     ///   `-password` / `-pass` / `-secret` / `-token` / `-apikey`,
@@ -5376,7 +5223,7 @@ before this value so it is treated as data, not an option."
         (tcl_lexer::Span::new(span_start, span_end), span_end)
     }
 
-    /// **W128 (SYNC-JUN02b-4, #519).** Flag a call to a command that was
+    /// **W128.** Flag a call to a command that was
     /// renamed or deleted earlier in the same file — it falls through to
     /// the `unknown` handler.
     ///
@@ -5455,17 +5302,10 @@ file; this call falls through to the 'unknown' handler."
 
     /// CFG/SSA-backed diagnostic orchestrator.
     ///
-    /// Mirrors `_emit_cfg_ssa_diagnostics` in
-    /// `_diagnostics.py:118-181`.  Builds a
+    /// Builds a
     /// [`crate::compilation_unit::CompilationUnit`] for `source`,
     /// then walks the top-level + every procedure, dispatching
     /// per-function emitters.
-    ///
-    /// **C41d2 lands** the full ``_diag_var_lifecycle.py``
-    /// emitter set (W220, W211, W214, W210, W213, H300).
-    /// **C41d3 lands** the var-as-command post-pass (W307); W308
-    /// awaits the class-hierarchy port.  W242 (interpolated-
-    /// command resolution) lands in **C41d4**.
     pub fn emit_cfg_ssa_diagnostics(&mut self, source: &str) {
         use tcl_registry::CommandRegistry;
         use tcl_registry::prelude::DialectSet;
@@ -5477,12 +5317,11 @@ file; this call falls through to the 'unknown' handler."
         // Seed each proc's SCCP with caller-side parameter constants so a
         // branch on a param every caller passes the same literal folds (the
         // `if {$x}` body is provably taken under uniform `q 1` callers, so a
-        // var set only there is not read-before-set). Mirrors the Python
-        // analyser's interprocedurally-seeded compilation unit.
+        // var set only there is not read-before-set).
         // Incremental seam: when the per-item path has supplied a unit whose
         // per-function lattices were memoised, consume it instead of
         // rebuilding the whole-file unit.  Equal by construction to the
-        // freshly-built unit (gated by the differential fuzzer + corpus).
+        // freshly-built unit.
         if let Some(cu) = self.cu_override.take() {
             self.emit_cfg_ssa_diagnostics_with_cu(&cu, &registry);
             return;
@@ -5521,21 +5360,19 @@ file; this call falls through to the 'unknown' handler."
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        // **W128 (SYNC-JUN02b-4).** Flag calls to commands renamed or
+        // **W128.** Flag calls to commands renamed or
         // deleted earlier in the file via the flow-sensitive
         // command-binding lattice.  Independent of the CFG/SSA dead-store
         // machinery below, so run it up front against the same `cu`.
         self.emit_w128_renamed_command(cu, registry);
 
-        // **C41e3 follow-up.** Compute the set of globals any
+        // Compute the set of globals any
         // proc in this module writes to.  Top-level RBS (W210)
         // is suppressed for these variables — a helper proc may
         // populate them before the top-level read fires.
-        // Mirrors `_globals_written_by_procs` in
-        // `_diag_commands.py:264-296`.
         let globals_written = globals_written_by_procs(cu);
 
-        // **W220 call-by-name suppression (SYNC-JUN02d-2).** Build the
+        // **W220 call-by-name suppression.** Build the
         // interprocedural proc-index once so a caller-local passed *by
         // name* to a proc that consumes it via `upvar` (`set tag "";
         // asnPeekTag data tag type dummy`) is not flagged as a dead
@@ -5550,11 +5387,10 @@ file; this call falls through to the 'unknown' handler."
             crate::interprocedural::build_proc_index_from_summaries(&ia)
         };
 
-        // **C41-default-on-followups-postpass W220-IR-paths.**
         // pkgIndex.tcl files have ``$dir`` set by the package
         // loader before the script body runs — suppress dead-
         // store / unused-variable diagnostics for it at the
-        // top-level.  Mirrors `_diagnostics.py:147-149`.
+        // top-level.
         let mut top_level_cross_event_vars: HashSet<String> = if self
             .file_path
             .as_deref()
@@ -5582,13 +5418,11 @@ file; this call falls through to the 'unknown' handler."
         );
         self.emit_channel_diagnostics(&cu.top_level, registry);
         for (qname, fu) in &cu.procedures {
-            // **C41-default-on-followups-postpass W220-IR-paths.**
             // For ``::when::*`` procs, threaded
             // ``cross_event_defs | cross_event_imports`` from the
             // ConnectionScope so dead-store / unused-variable
             // diagnostics suppress vars that may be read in a
-            // different iRule event.  Mirrors
-            // `_diagnostics.py:165-167`.
+            // different iRule event.
             let mut cross_event_vars: HashSet<String> =
                 if let Some(scope) = cu.connection_scope.as_ref() {
                     if qname.starts_with("::when::") {
@@ -5604,7 +5438,7 @@ file; this call falls through to the 'unknown' handler."
                 } else {
                     HashSet::new()
                 };
-            // SYNC-JUN02d-2: suppress dead-store on caller-locals this
+            // Suppress dead-store on caller-locals this
             // proc passes by name to an upvar callee.
             cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
                 &fu.cfg,
@@ -5617,12 +5451,10 @@ file; this call falls through to the 'unknown' handler."
                 &cross_event_vars,
             );
             self.emit_channel_diagnostics(fu, registry);
-            // **C41d7.** IRULE4005 — racy ``static::``
+            // IRULE4005 — racy ``static::``
             // cross-event flow.  Only fires for non-RULE_INIT
             // ``when`` procs when ``ConnectionScope::racy_static_defs``
-            // is non-empty.  Mirrors Python's
-            // ``_emit_racy_static_diagnostics`` call site in
-            // ``_diagnostics.py:171-175``.
+            // is non-empty.
             if let Some(scope) = cu.connection_scope.as_ref()
                 && qname.starts_with("::when::")
                 && !scope.racy_static_defs.is_empty()
@@ -5635,30 +5467,21 @@ file; this call falls through to the 'unknown' handler."
         }
 
         // Cross-function post-pass: resolve $var-as-command sites
-        // collected during the walk.  Mirrors
-        // ``_emit_var_command_diagnostics`` in
-        // ``_diag_var_command.py``.
+        // collected during the walk.
         self.emit_var_command_diagnostics(cu, registry);
 
-        // **C41 follow-up.** Suppress W123 for command-name
+        // Suppress W123 for command-name
         // heads with partial interpolations like ``foo$suffix``
         // when ``$suffix`` resolves cleanly to a finite set of
-        // known commands via SCCP.  Mirrors
-        // ``_resolve_interpolated_commands`` in
-        // ``_diag_commands.py:188-260``.
+        // known commands via SCCP.
         self.resolve_interpolated_w123_diagnostics(cu);
     }
 
     /// Per-function diagnostic dispatcher.
     ///
-    /// Mirrors `_emit_cfg_ssa_diagnostics_for_function` in
-    /// `_diagnostics.py:183-209`.  Called once for the top-level
+    /// Called once for the top-level
     /// script and once per procedure.  Each per-emitter call is
     /// gated on its own predicate inside the helper.
-    ///
-    /// **C41d2 wires** all six ``_diag_var_lifecycle.py``
-    /// emitters.  Each future C41d strip adds another emitter
-    /// call here.
     pub fn emit_cfg_ssa_diagnostics_for_function(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
@@ -5680,9 +5503,7 @@ file; this call falls through to the 'unknown' handler."
     /// should be treated as already-defined for the W210
     /// (read-before-set) emitter.  Used at the top-level to
     /// suppress RBS for variables that any proc in the module
-    /// writes — matches the
-    /// ``extra_known_defined_vars=self._globals_written_by_procs(cu)``
-    /// argument in `_diagnostics.py:154`.
+    /// writes.
     pub fn emit_cfg_ssa_diagnostics_for_function_with_extra(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
@@ -5708,10 +5529,6 @@ file; this call falls through to the 'unknown' handler."
     /// | cross_event_imports`) and for `pkgIndex.tcl` `$dir`,
     /// which the package loader assigns before the script body
     /// runs.
-    ///
-    /// Mirrors the `cross_event_vars=` arg threaded through
-    /// `_emit_cfg_ssa_diagnostics_for_function` in
-    /// `_diagnostics.py:159, 171`.
     pub fn emit_cfg_ssa_diagnostics_for_function_full(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
@@ -5728,10 +5545,9 @@ file; this call falls through to the 'unknown' handler."
                 function_unit.base_offset,
             );
         // A var read in another iRule event, or consumed *by name* via a
-        // call-by-name upvar callee (SYNC-JUN02d-2), is "used" — suppress
+        // call-by-name upvar callee, is "used" — suppress
         // the unused-variable (W211) hint too, not just the dead store
-        // (W220).  Mirrors Python threading `cross_event_vars` through
-        // both `_dead_stores` and `_unused_variables`.
+        // (W220).
         textually_referenced.extend(cross_event_vars.iter().cloned());
         // A read-modify-write command's target buried in a substitution
         // (`lappend r [incr i $j]` reads `i`) keeps a feeding `set i 0` alive —
@@ -5776,7 +5592,7 @@ file; this call falls through to the 'unknown' handler."
         );
         // Phi-from-undef on `return $v` reads (the def-use builder records
         // statement + branch-condition uses but NOT `Terminator::Return`
-        // values).  Mirrors the `CFGReturn` arm of `_read_before_set`.
+        // values).
         self.emit_return_phi_undef_w210(
             function_unit,
             &rbs_params,
@@ -5801,7 +5617,7 @@ file; this call falls through to the 'unknown' handler."
 
     /// Statements whose dead-store **W220** hint should be **suppressed**
     /// because their array-element / dict-path def place is observed by some
-    /// read in the function (Phase 8 place-model precision, SYNC-MAY31-1b).
+    /// read in the function.
     ///
     /// Name-level SSA folds `a(k)` / `a(j)` / `$a` to the base name `a`, so a
     /// later `set a(j) 2` looks like it overwrites `set a(k) 1` before any read
@@ -5826,8 +5642,7 @@ file; this call falls through to the 'unknown' handler."
     /// set can't see — `[…]` command substitutions in command arguments,
     /// `expr` values, and `if`/`while`/`for` branch conditions. A write to
     /// such a name is not a dead store even when its SSA version looks
-    /// unused. Mirrors Python's `_extra_local_reads` (`expr_sub_reads`) used
-    /// by `_dead_stores`.
+    /// unused.
     fn substitution_hidden_reads(
         &self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -5882,11 +5697,7 @@ file; this call falls through to the 'unknown' handler."
 
     /// W220 — dead-store hint.
     ///
-    /// Mirrors `_emit_dead_store_diagnostics` in
-    /// `_diag_var_lifecycle.py:29-72`, plus the
-    /// IR-statement-type / SCCP path-sensitivity filters baked
-    /// into Python's underlying `_dead_stores` analysis
-    /// (`core_analyses.py:1105-1156`).  A *dead store* is an
+    /// A *dead store* is an
     /// assignment whose value is overwritten before being read —
     /// some other SSA version of the same variable is live, so
     /// this version's value never reaches a user.
@@ -5898,7 +5709,7 @@ file; this call falls through to the 'unknown' handler."
     /// case-insensitive twin among `defined_vars`, the message
     /// includes a "did you mean…?" suggestion.
     ///
-    /// Filters applied (each one mirrors a Python suppression):
+    /// Filters applied:
     ///
     /// 1. **SCCP-unreachable blocks** — definitions in blocks
     ///    SCCP proved unreachable are reported as O107 by the
@@ -5911,7 +5722,6 @@ file; this call falls through to the 'unknown' handler."
     ///    iRules `::when::*` cross-event defs/imports, a write
     ///    in one event may be read in another at runtime.
     /// 4. **Globals (`::`-prefixed)** — externally consumed.
-    ///    Python skips them in `_dead_stores`.
     /// 5. **Side-effecting stores** — only `AssignConst`,
     ///    `AssignValue` without `[`, and `AssignExpr` without a
     ///    command call are considered.  `Call.defs`, `Incr`, and
@@ -5930,7 +5740,7 @@ file; this call falls through to the 'unknown' handler."
         use crate::ir_helpers::expr_has_command;
         use std::fmt::Write as _;
         let hidden_reads = self.substitution_hidden_reads(fu);
-        // Phase 8 place-model precision: array-element / dict-path writes the
+        // Array-element / dict-path writes the
         // name-level SSA mis-folds but that a read actually observes.
         let place_suppressed = self.place_suppressed_dead_stores(fu);
         for chain in fu.def_use.chains.values() {
@@ -5941,12 +5751,11 @@ file; this call falls through to the 'unknown' handler."
             // A name read inside a command substitution / expr / branch
             // condition the version-precise `used` set can't see keeps every
             // write of it alive (`set i 0` before `[incr i $j]`). Suppress at
-            // name level, mirroring Python's `expr_sub_reads` gate.
+            // name level.
             if hidden_reads.contains(var) {
                 continue;
             }
-            // Globals (``::``-prefixed) are externally consumed
-            // — Python `_dead_stores` skips them.
+            // Globals (``::``-prefixed) are externally consumed.
             if var.starts_with("::") {
                 continue;
             }
@@ -5969,12 +5778,11 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
             // A dead assignment is W220 whether or not the variable is also
-            // unused overall: Python reports both the assignment-level dead
-            // store (W220) and, when the variable is never read at all, the
-            // variable-level unused hint (W211) — they are distinct
-            // diagnostics with distinct fixes (drop this assignment vs. drop
-            // the variable). Mirrors `core_analyses.py::_dead_stores`, which
-            // fires on any dead store regardless of other live versions.
+            // unused overall: the assignment-level dead store (W220) and,
+            // when the variable is never read at all, the variable-level
+            // unused hint (W211) are distinct diagnostics with distinct
+            // fixes (drop this assignment vs. drop the variable).  Fires
+            // on any dead store regardless of other live versions.
             let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
                 continue;
             };
@@ -5984,8 +5792,7 @@ file; this call falls through to the 'unknown' handler."
             let Some(stmt) = block.statements.get(idx) else {
                 continue;
             };
-            // IR-statement type filter — mirror Python's
-            // `_dead_stores` shape (`core_analyses.py:1149-1155`).
+            // IR-statement type filter.
             // Only pure assignments are reportable; side-effecting
             // writes (``Call``, ``Incr``, command-substitution
             // values, expressions invoking commands) are skipped
@@ -6006,7 +5813,7 @@ file; this call falls through to the 'unknown' handler."
                 _ => continue,
             }
             // Suppress when this element write is observed by a read the
-            // name-level SSA can't see (place-model overlap, stage 4).
+            // name-level SSA can't see (place-model overlap).
             if place_suppressed.contains(&(
                 chain.definition.block.clone(),
                 chain.definition.statement_index,
@@ -6017,8 +5824,8 @@ file; this call falls through to the 'unknown' handler."
             if cmd_span.is_empty() {
                 continue;
             }
-            // Anchor at the variable name (Python narrows the command range
-            // to the assignment target), not the command-start column.
+            // Anchor at the variable name (the assignment target), not the
+            // command-start column.
             let span = self.narrow_to_assigned_name(cmd_span).unwrap_or(cmd_span);
             let mut message = format!("Assignment to '{var}' is never read");
             if let Some(similar) = find_case_mismatch(var, defined_vars) {
@@ -6037,11 +5844,9 @@ file; this call falls through to the 'unknown' handler."
     /// Narrow a whole-command span to its assignment-target token (the
     /// second word, `argv[1]`), returning that token's absolute span — or
     /// `None` when it can't be located, so callers fall back to the command
-    /// span.  Mirrors Python's `narrow_to_variable(kind="assigned_name")`:
-    /// W211 / W220 anchor at the variable-name column, not the command
-    /// start.  Re-lexes the command's own source slice (token-based, like
-    /// Python's `segment_commands`) and takes the first non-separator word
-    /// after the command name.
+    /// span.  W211 / W220 anchor at the variable-name column, not the command
+    /// start.  Re-lexes the command's own source slice (token-based) and
+    /// takes the first non-separator word after the command name.
     fn narrow_to_assigned_name(&self, stmt_span: tcl_lexer::Span) -> Option<tcl_lexer::Span> {
         let base = stmt_span.start();
         let slice = source_slice(&self.source, stmt_span)?;
@@ -6072,8 +5877,8 @@ file; this call falls through to the 'unknown' handler."
     /// returning that token's absolute span — or `None` when no matching
     /// top-level `Var` token is found (e.g. the read is nested inside a
     /// quoted/compound word, where the caller falls back to the command
-    /// span).  Mirrors Python's `narrow_to_variable(kind="read_var")`: W210
-    /// anchors at the variable read, not the command-start column.
+    /// span).  W210 anchors at the variable read, not the command-start
+    /// column.
     fn narrow_to_read_var(&self, stmt_span: tcl_lexer::Span, var: &str) -> Option<tcl_lexer::Span> {
         // De-sigil + drop any array-index suffix so `$a(k)` / `${a}` / `$a`
         // all compare equal to the chain's scalar/element base name.
@@ -6101,8 +5906,7 @@ file; this call falls through to the 'unknown' handler."
 
     /// W211 — unused-variable hint.
     ///
-    /// Mirrors `_emit_unused_variable_diagnostics` in
-    /// `_diag_var_lifecycle.py:226-258`.  Fires when an
+    /// Fires when an
     /// assignment's variable has no live uses **and** no other
     /// SSA version is live (so the variable is entirely unused
     /// — distinct from W220's overwritten-before-read case).
@@ -6133,8 +5937,8 @@ file; this call falls through to the 'unknown' handler."
         // W211 is a per-variable verdict ("the variable is set but never
         // used"), not per-assignment: a variable set several times and never
         // read fires once, at its earliest definition. Collect the earliest
-        // reportable span per variable, then emit. Mirrors Python emitting a
-        // single W211 per unused variable.
+        // reportable span per variable, then emit a single W211 per unused
+        // variable.
         let mut earliest: std::collections::HashMap<String, tcl_lexer::Span> =
             std::collections::HashMap::new();
         for chain in fu.def_use.chains.values() {
@@ -6170,8 +5974,8 @@ file; this call falls through to the 'unknown' handler."
             // Only pure assignments are reportable as "set but never used".
             // A variable written by a command (`scan` / `binary scan` /
             // `regexp -> capture`, etc.) or a barrier is a command output the
-            // user may legitimately ignore — Python's `_unused_variables`
-            // skips `IRCall` / `IRBarrier` defs (`core_analyses.py`).
+            // user may legitimately ignore; `IRCall` / `IRBarrier` defs are
+            // skipped.
             if matches!(
                 stmt,
                 crate::ir::Statement::Call { .. } | crate::ir::Statement::Barrier { .. }
@@ -6183,8 +5987,8 @@ file; this call falls through to the 'unknown' handler."
             if cmd_span.is_empty() {
                 continue;
             }
-            // Anchor at the variable name (Python narrows the command range
-            // to the assignment target), not the command-start column.
+            // Anchor at the variable name (the assignment target), not the
+            // command-start column.
             let span = self.narrow_to_assigned_name(cmd_span).unwrap_or(cmd_span);
             earliest
                 .entry(var.clone())
@@ -6215,8 +6019,7 @@ file; this call falls through to the 'unknown' handler."
     /// H300 — possible paste error (duplicate dead-store with
     /// identical literal).
     ///
-    /// Mirrors `_emit_possible_paste_error_diagnostics` in
-    /// `_diag_var_lifecycle.py:74-121`.  When two consecutive
+    /// When two consecutive
     /// statements in the same block are both dead stores AND
     /// share the same paste-fingerprint
     /// (same variable name + same trimmed literal value), emit
@@ -6302,20 +6105,11 @@ file; this call falls through to the 'unknown' handler."
 
     /// W214 — unused-parameter hint.
     ///
-    /// Mirrors `_emit_unused_param_diagnostics` in
-    /// `_diag_var_lifecycle.py:260-274`.  For every parameter
+    /// For every parameter
     /// declared in `ir_proc.params`, check whether any def-use
     /// chain for the parameter (any SSA version) has live uses.
     /// When all chains are dead, the parameter is unused —
     /// emit a Hint at the proc's span.
-    ///
-    /// Diverges slightly from Python's ``analysis.unused_params``:
-    /// Python pre-computes the unused-params list during
-    /// ``analyse_ir_module``; the Rust port inlines the same
-    /// def-use scan here because the Rust ``FunctionAnalysis``
-    /// builder hasn't been ported yet.  The check is equivalent —
-    /// a parameter is unused iff no SSA version of its name has
-    /// live uses.
     fn emit_unused_param_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -6325,8 +6119,6 @@ file; this call falls through to the 'unknown' handler."
         // placeholders — stubs declaring an API whose implementation
         // lives elsewhere.  Every parameter is necessarily "unused"
         // since there is no body to use it, so flagging is pure noise.
-        // Mirrors the `not body.statements` early return in
-        // `_diag_var_lifecycle.py::_emit_unused_param_diagnostics`.
         if ir_proc.body.statements.is_empty() {
             return;
         }
@@ -6358,13 +6150,10 @@ file; this call falls through to the 'unknown' handler."
             // references inside ``[expr {...}]`` command
             // substitutions or arbitrary nested ``[cmd ...]``
             // bodies that don't lower into a structured IR.
-            // Mirror the Python ``infer_param_traits`` shallow
-            // pass's ``$param`` text scan: if the body source
-            // contains a ``$param`` / ``${param}`` reference
-            // anywhere, treat the parameter as used and skip
-            // W214.  Saves the W214 over-emit on ``proc f {x}
-            // { return [expr {$x + 1}] }``-style bodies until
-            // the full ``infer_param_traits`` port lands.
+            // If the body source contains a ``$param`` /
+            // ``${param}`` reference anywhere, treat the parameter
+            // as used and skip W214.  Saves the W214 over-emit on
+            // ``proc f {x} { return [expr {$x + 1}] }``-style bodies.
             if let Some(body_source) = ir_proc.body_source.as_deref()
                 && body_references_param(body_source, param)
             {
@@ -6378,9 +6167,8 @@ file; this call falls through to the 'unknown' handler."
         // Dispatch-protocol suppression: when ≥3 peer procs in this
         // namespace share this proc's leading-param signature AND an
         // arity-compatible variable-command dispatcher exists, the leading
-        // params are an external contract, not genuinely unused.  Mirrors
-        // `_dispatch_protocol_signatures` + its W214 filter.  Computed only
-        // when there is something to report.
+        // params are an external contract, not genuinely unused.  Computed
+        // only when there is something to report.
         let ns = namespace_of(&ir_proc.qualified_name);
         let leading: Vec<String> = ir_proc
             .params
@@ -6418,8 +6206,7 @@ file; this call falls through to the 'unknown' handler."
     /// Identify `(namespace, leading-param-list)` pairs that look like a
     /// **dispatch protocol** — ≥3 peer procs in the same namespace sharing a
     /// leading-param signature dictated by an arity-compatible
-    /// variable-command dispatcher.  Mirrors `_dispatch_protocol_signatures`
-    /// in `_diag_var_lifecycle.py`.
+    /// variable-command dispatcher.
     fn dispatch_protocol_signatures(&self) -> HashSet<(String, Vec<String>)> {
         use std::collections::HashMap;
         // Group user procs by (namespace, leading-param-tuple stopping at `args`).
@@ -6471,17 +6258,15 @@ file; this call falls through to the 'unknown' handler."
 
     /// W210 + W213 — read-before-set / unset on possibly-undefined.
     ///
-    /// Mirrors `_emit_read_before_set_diagnostics` in
-    /// `_diag_var_lifecycle.py:159-224`.  Walks every
+    /// Walks every
     /// version-0 chain (`DefKind::Parameter`) in `fu.def_use`
     /// — those are the synthetic defs the def-use builder
     /// emits when a variable is used without a preceding def.
     ///
     /// Distinguishes real proc parameters from synthetic RBS
     /// reads via `ir_proc.params`.  Only emits inside procedures
-    /// (i.e. when `ir_proc` is `Some`) — top-level RBS would
-    /// need the `globals_written_by_procs` filter Python uses
-    /// (deferred to a later strip).
+    /// (i.e. when `ir_proc` is `Some`) — top-level RBS needs the
+    /// `globals_written_by_procs` filter.
     ///
     /// Per use site:
     ///
@@ -6512,27 +6297,25 @@ file; this call falls through to the 'unknown' handler."
         use crate::ir::Statement;
         use std::fmt::Write as _;
 
-        // **C41e3 follow-up.** Top-level RBS now uses the
-        // ``extra_known_defined`` set (computed from
-        // ``globals_written_by_procs``) to suppress W210 on
-        // globals that helper procs write.  Inside procs the
-        // set is empty, matching Python's per-call argument.
+        // Top-level RBS uses the ``extra_known_defined`` set
+        // (computed from ``globals_written_by_procs``) to suppress
+        // W210 on globals that helper procs write.  Inside procs the
+        // set is empty.
         let params_owned: HashSet<&str> = match ir_proc {
             Some(p) => p.params.iter().map(String::as_str).collect(),
             None => HashSet::new(),
         };
         let params = &params_owned;
 
-        // SYNC-MAY31-3: collect `[info exists X]` / `[array exists X]`
+        // Collect `[info exists X]` / `[array exists X]`
         // guards: `(var, guard_block)` where reads of `var` in any
         // block dominated by `guard_block` are guarded (X is known to
         // exist there).  Positive guards the true arm; `![info exists
         // X]` guards the false arm.
         let exists_guards = collect_existence_guards(fu);
 
-        // W210 fires **once per variable**, at the earliest read-before-set
-        // — Python iterates `analysis.read_before_set`, which carries one
-        // entry per variable, not one per read. The def-use walk below
+        // W210 fires **once per variable**, at the earliest read-before-set.
+        // The def-use walk below
         // visits *every* version-0 use, so record the earliest passing span
         // per variable here and emit after the walk (W213, a distinct code,
         // stays inline).
@@ -6607,10 +6390,7 @@ file; this call falls through to the 'unknown' handler."
                 // A read-modify-write command (`lappend` / `append`) that
                 // auto-creates its target is not a read-before-set: it both
                 // reads and defines the variable, creating it from an empty
-                // default when absent. Mirrors Python excluding RMW targets
-                // (incr/append/lappend) from the W210 read set
-                // (`compiler/ssa.py:165` — they are reads only in the separate
-                // suppress-only recovery mode). `unset` also carries
+                // default when absent. `unset` also carries
                 // `reads_own_defs` but is destructive, not auto-creating — its
                 // missing-variable case is exactly the W213 handled just below,
                 // so it must not be skipped here.
@@ -6625,7 +6405,7 @@ file; this call falls through to the 'unknown' handler."
                 {
                     continue;
                 }
-                // SYNC-MAY31-3: skip the existence-query word itself and
+                // Skip the existence-query word itself and
                 // reads narrowed by an enclosing `[info exists X]` guard.
                 if existence_exempt(stmt_opt, var, &exists_guards, &fu.ssa, &use_site.block) {
                     continue;
@@ -6654,9 +6434,8 @@ file; this call falls through to the 'unknown' handler."
                 if use_site_safe_initialises(stmt_opt, var) {
                     continue;
                 }
-                // Anchor at the `$var` read token (Python narrows to
-                // `read_var`); fall back to the command span when the read
-                // is nested inside a quoted/compound word.
+                // Anchor at the `$var` read token; fall back to the command
+                // span when the read is nested inside a quoted/compound word.
                 let read_span = self.narrow_to_read_var(span, var).unwrap_or(span);
                 w210_min
                     .entry(var.clone())
@@ -6821,8 +6600,7 @@ file; this call falls through to the 'unknown' handler."
     /// match leaves its output variables unset, so a later read of one is a
     /// real read-before-set.  Handles both the top-level call form and the
     /// call embedded in an `if` / `while` condition (firing only on the
-    /// no-match branch).  Mirrors the `provably_unset` post-pass in
-    /// `compiler/core_analyses.py::_read_before_set`.
+    /// no-match branch).
     fn emit_provably_unset_w210(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -7004,14 +6782,13 @@ file; this call falls through to the 'unknown' handler."
 
     /// I230 / I231 — constant branch / switch-arm condition.
     ///
-    /// Mirrors `_emit_constant_branch_diagnostics` in
-    /// `core/analysis/_analyser/_diag_branches.py`.  For every
+    /// For every
     /// branch SCCP folded to a constant, when the *not-taken*
     /// target is also unreachable (i.e. SCCP confirmed only one
     /// path is feasible), emit an Info-level diagnostic so the
     /// LSP can highlight the dead arm.
     ///
-    /// Code selection follows the Python rules:
+    /// Code selection:
     /// - Block name starts with ``switch_`` → I231 (switch-arm).
     /// - Block name starts with ``if_`` → I230 (constant if).
     /// - Otherwise → I230 with the generic
@@ -7022,8 +6799,8 @@ file; this call falls through to the 'unknown' handler."
     /// the closest non-actionable level.
     fn emit_constant_branch_diagnostics(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
         for branch in &fu.sccp.constant_branches {
-            // The Python check is "not_taken_target in
-            // unreachable_blocks".  Rust SCCP exposes
+            // A branch is dead when the not-taken target is
+            // unreachable.  SCCP exposes
             // ``executable_blocks`` (the complement); a block
             // is unreachable iff it's in ``cfg.blocks`` but
             // NOT in ``executable_blocks``.
@@ -7052,10 +6829,9 @@ file; this call falls through to the 'unknown' handler."
             let is_loop = names.iter().any(|n| {
                 n.starts_with("while_") || n.starts_with("for_") || n.starts_with("foreach_")
             });
-            // Python suppresses the idiomatic infinite loop `while 1 { … }`:
+            // Suppress the idiomatic infinite loop `while 1 { … }`:
             // a constant-TRUE loop condition is intentional, not a bug (a
-            // constant-FALSE loop still flags its unreachable body). Mirrors
-            // `_diag_branches.py`'s `is_loop` guard.
+            // constant-FALSE loop still flags its unreachable body).
             if is_loop && branch.value {
                 continue;
             }
@@ -7103,8 +6879,8 @@ file; this call falls through to the 'unknown' handler."
                 code: code.to_string(),
                 span,
                 message,
-                // I230/I231 are observational (LSP `Information`), matching
-                // Python; they previously collapsed to `Hint`.
+                // I230/I231 are observational (LSP `Information`);
+                // they previously collapsed to `Hint`.
                 severity: Severity::Info,
                 fixes: Vec::new(),
             });
@@ -7113,7 +6889,7 @@ file; this call falls through to the 'unknown' handler."
 
     /// I230 — fold `[info exists X]` / `[array exists X]` conditions.
     ///
-    /// SYNC-MAY31-3.  SCCP can't fold these (the predicate lowers to an
+    /// SCCP can't fold these (the predicate lowers to an
     /// opaque `ExprNode::Command`, and SCCP has no parameter/existence
     /// facts), so the fold is computed by
     /// [`crate::sccp::existence_constant_branches`] using
@@ -7152,7 +6928,7 @@ file; this call falls through to the 'unknown' handler."
                 code: "I230".to_string(),
                 span,
                 message,
-                // I230 is observational (LSP `Information`), Python parity.
+                // I230 is observational (LSP `Information`).
                 severity: Severity::Info,
                 fixes: Vec::new(),
             });
@@ -7161,8 +6937,7 @@ file; this call falls through to the 'unknown' handler."
 
     /// W126 — channel-argument validation.
     ///
-    /// Mirrors `_emit_channel_diagnostics` in
-    /// `core/analysis/_analyser/_diag_channel.py`.  Walks every
+    /// Walks every
     /// SSA-annotated `Call` statement for commands that declare
     /// `ArgRole::Channel` arguments; for each channel-position
     /// argument, checks the SSA type lattice to determine whether
@@ -7282,8 +7057,7 @@ file; this call falls through to the 'unknown' handler."
 
     /// W124 — invalid IP address literal.
     ///
-    /// Mirrors `_emit_invalid_ip_diagnostics` in
-    /// `core/analysis/_analyser/_diag_ip.py`.  Walks every
+    /// Walks every
     /// SSA-tracked constant string in the function's SCCP
     /// values; regex-searches for IPv4 dotted-quad and IPv6
     /// candidates and validates each.
@@ -11777,7 +11551,7 @@ mod tests {
         );
     }
 
-    // ── SYNC-MAY31-3: info exists / array exists ──────────────────
+    // ── info exists / array exists ──────────────────
 
     fn codes_for(src: &str) -> Vec<String> {
         let mut a = Analyser::new();
@@ -11797,7 +11571,7 @@ mod tests {
 
     #[test]
     fn info_exists_guard_narrows_read_in_then_arm() {
-        // SYNC-MAY31-3(narrowing): reads inside `if {[info exists X]}`
+        // Reads inside `if {[info exists X]}`
         // are guarded — X provably exists there, so no W210.
         let codes = codes_for("proc f {} { if {[info exists u]} { puts $u } }");
         assert!(
@@ -11819,7 +11593,7 @@ mod tests {
 
     #[test]
     fn info_exists_negated_guard_narrows_false_arm() {
-        // SYNC-MAY31-3(narrowing): the false arm of `![info exists X]`
+        // The false arm of `![info exists X]`
         // is guarded.
         let codes = codes_for("proc f {} { if {![info exists u]} { puts no } else { puts $u } }");
         assert!(
@@ -11830,7 +11604,7 @@ mod tests {
 
     #[test]
     fn info_exists_query_word_not_read_before_set() {
-        // SYNC-MAY31-3(W210 suppression): the existence-query word is
+        // The existence-query word is
         // not a read-before-set — bare call and command-sub forms.
         assert!(!codes_for("proc f {} { info exists u }").contains(&"W210".to_string()));
         assert!(!codes_for("proc f {} { array exists u }").contains(&"W210".to_string()));
@@ -11843,7 +11617,7 @@ mod tests {
 
     #[test]
     fn info_exists_folds_false_for_never_defined_local() {
-        // SYNC-MAY31-3(fold): a never-defined non-parameter never
+        // A never-defined non-parameter never
         // exists → predicate folds false → I230.
         let codes = codes_for("proc f {a} { if {[info exists b]} { puts hi } }");
         assert!(
@@ -12096,8 +11870,7 @@ mod tests {
     fn irule2001_three_arg_matchclass_fix_preserves_operator_and_class() {
         // The 3-arg form `matchclass <item> <operator> <class>` is a 1:1 rename
         // to `class match <item> <operator> <class>` — it must NOT be forced to
-        // `equals` (which dropped the real class).  Mirrors Python
-        // `test_matchclass_three_arg_fix_preserves_operator_and_class`.
+        // `equals` (which dropped the real class).
         let mut a = Analyser::new();
         let r = a.analyse(
             "matchclass [HTTP::uri] starts_with $::admin_paths\n",
@@ -12118,8 +11891,7 @@ mod tests {
     #[test]
     fn irule2001_ambiguous_arity_matchclass_warns_without_fix() {
         // A 1-arg (or any non-2/3-arg) `matchclass` is ambiguous: still warn,
-        // but offer no quick-fix rather than corrupt the command.  Mirrors
-        // Python `test_matchclass_one_arg_warns_without_fix`.
+        // but offer no quick-fix rather than corrupt the command.
         let mut a = Analyser::new();
         let r = a.analyse("matchclass [HTTP::uri]\n", "f5-irules");
         let d = r
@@ -13034,7 +12806,7 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
 
     #[test]
     fn analyse_w307_suppressed_per_ssa_version_after_reassignment() {
-        // Per-SSA-version refinement (SYNC-JUN02-1 strip 5): `cmd` is
+        // Per-SSA-version refinement: `cmd` is
         // reassigned from a non-command to a known command before the
         // dispatch.  The merged const-set {notacommand, puts} would
         // wrongly keep W307 alive; reading the value at the dispatch's
@@ -13296,7 +13068,7 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
         );
     }
 
-    // -- GAP-A2 security-injection checks (W300 / W301 / W309 / W312) --
+    // -- security-injection checks (W300 / W301 / W309 / W312) --
     //
     // Each fixture's diagnostic set is cross-checked against the live
     // Python analyser (`core/analysis/checks/_security.py`).

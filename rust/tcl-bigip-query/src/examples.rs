@@ -1,7 +1,6 @@
 //! Worked examples rendered by `f5 query --help-examples`.
 //!
-//! Byte-for-byte port of `dialects/f5/query/examples.py`: the `_EXAMPLES`
-//! cookbook tuple plus `format_examples()`. Each entry is a
+//! The `_EXAMPLES` cookbook tuple plus `format_examples()`. Each entry is a
 //! `(title, query, comment)` triple; the formatter lays them out as a
 //! numbered list with the invocation and a one-line gloss.
 

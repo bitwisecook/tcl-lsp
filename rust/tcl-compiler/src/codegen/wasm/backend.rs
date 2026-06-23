@@ -8,9 +8,8 @@
 //! *structurally valid* module (validated with `wasmtime compile`) against the
 //! `"tcl"` import ABI the WASM runtime provides (values are i32 `*mut TclObj`
 //! pointers into shared linear memory). It does not yet *run* — the Rust
-//! runtime's wasm32 export surface is still the T1.1 stub
-//! (`runtime/rust/capi.rs`); the inline AOT tiers (variable slots, arithmetic,
-//! per-command hooks) and the runtime build-out are later stages.
+//! runtime's wasm32 export surface is still a stub
+//! (`runtime/rust/capi.rs`).
 
 use super::encoding::{leb128_signed, leb128_unsigned};
 use super::ir::{ValType, WasmData, WasmFunction, WasmInstruction, WasmModule, WasmOp};

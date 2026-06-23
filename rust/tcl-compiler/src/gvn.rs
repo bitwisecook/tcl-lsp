@@ -5,17 +5,6 @@
 //! up in a dominator-tree-scoped hash table. A match means the same
 //! expression was computed at a dominating definition; the new
 //! occurrence can be replaced with the earlier result.
-//!
-//! Ported from `core/compiler/gvn.py` in four strips:
-//! - **C26a** (this file) — value-table types and the scoped
-//!   lookup table.
-//! - **C26b** — canonicalisation helpers and diagnostic message
-//!   builders.
-//! - **C26c** — statement-level helpers: purity classifier, cmd-
-//!   tokens extractor, per-statement pure-expression occurrence
-//!   collector.
-//! - **C26d** — `find_redundancies` driver that walks the
-//!   dominator tree and reports full/partial redundancies.
 
 #![allow(clippy::implicit_hasher, clippy::format_push_string)]
 
@@ -31,18 +20,18 @@ use crate::ir::Statement;
 use crate::side_effects::{EffectRegion, classify_side_effects};
 use crate::ssa::{SsaFunction, SsaStatement};
 
-// Expression-key alias (C26a)
+// Expression-key alias
 
 /// Canonical identity for a computed expression.
 ///
 /// A call to `cmd arg1 arg2 …` becomes `["call", "cmd", arg1, arg2, …]`
 /// after variable references have been rewritten to their SSA-
-/// versioned form (see `canonicalise_word` in C26b). Two occurrences
+/// versioned form (see `canonicalise_word`). Two occurrences
 /// that produce the same `ExprKey` are known to compute the same
 /// value under the current SSA.
 pub type ExprKey = Vec<String>;
 
-// Redundant-computation diagnostic (C26a)
+// Redundant-computation diagnostic
 
 /// A computation that re-evaluates an already-available expression.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -55,7 +44,7 @@ pub struct RedundantComputation {
     pub expression_text: String,
     /// Diagnostic code: `"O105"` for full **and** partial redundancy
     /// (GVN/CSE + GVN-PRE), `"O106"` for loop-invariant code motion.
-    /// Matches the canonical KCS codes and Python `gvn.py` (full /
+    /// Matches the canonical KCS codes (full /
     /// partial both default to O105; loop-invariant sets O106).
     /// `O107` is *unreachable dead code* and is owned by the
     /// elimination pass, never emitted here.
@@ -84,7 +73,7 @@ impl RedundantComputation {
     }
 }
 
-// Value-table entries (C26a)
+// Value-table entries
 
 /// A single entry in a [`ScopedValueTable`] scope. Carries the
 /// block / statement coordinates and the rendered expression text
@@ -107,8 +96,8 @@ pub struct ValueEntry {
 
 /// One pure-expression occurrence observed in a statement stream.
 ///
-/// Produced by the per-statement collector in C26c and consumed by
-/// the fixed-point walk in C26d.
+/// Produced by the per-statement collector and consumed by
+/// the fixed-point walk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExprOccurrence {
     /// Canonical key.
@@ -126,7 +115,7 @@ pub struct ExprOccurrence {
     pub variable_uses: Vec<String>,
 }
 
-// Dominator-tree-scoped value table (C26a)
+// Dominator-tree-scoped value table
 
 /// Stack of `ExprKey → ValueEntry` maps, one per scope.
 ///
@@ -174,7 +163,7 @@ impl ScopedValueTable {
     }
 
     /// Insert an entry in the innermost scope. An existing entry
-    /// at the same key is replaced (matching Python behaviour).
+    /// at the same key is replaced.
     pub fn insert(&mut self, entry: ValueEntry) {
         let key = entry.key.clone();
         self.scopes
@@ -204,7 +193,7 @@ impl ScopedValueTable {
     }
 }
 
-// Canonicalisation helpers (C26b)
+// Canonicalisation helpers
 
 /// Rewrite `$var` / `${var}` references in `text` to their
 /// SSA-versioned canonical form `$var@N`.
@@ -221,11 +210,6 @@ impl ScopedValueTable {
 ///   grammar (`[A-Za-z0-9_:]+`).
 ///
 /// Names that are not present in `uses` are left unchanged.
-///
-/// Ported from `gvn.py::_canonicalise_word` — the Rust version
-/// corrects the `${x}` re-matching quirk of the Python `.replace`
-/// chain while preserving the observable result on inputs that do
-/// not already contain `@` sigils.
 #[must_use]
 pub fn canonicalise_word(text: &str, uses: &HashMap<String, u32>) -> String {
     if uses.is_empty() {
@@ -293,8 +277,6 @@ pub fn canonicalise_word(text: &str, uses: &HashMap<String, u32>) -> String {
 
 /// Build the canonical [`ExprKey`] for a pure-command invocation:
 /// `["call", command, canonicalised_arg1, canonicalised_arg2, …]`.
-///
-/// Ported from `gvn.py::_build_call_key`.
 #[must_use]
 pub fn build_call_key(command: &str, args: &[String], uses: &HashMap<String, u32>) -> ExprKey {
     let mut parts: ExprKey = Vec::with_capacity(2 + args.len());
@@ -307,7 +289,7 @@ pub fn build_call_key(command: &str, args: &[String], uses: &HashMap<String, u32
 }
 
 /// Render a command invocation as human-readable text for
-/// diagnostic messages. Matches `gvn.py::_format_expression_text`.
+/// diagnostic messages.
 #[must_use]
 pub fn format_expression_text(command: &str, args: &[String]) -> String {
     if args.is_empty() {
@@ -321,7 +303,7 @@ pub fn format_expression_text(command: &str, args: &[String]) -> String {
     out
 }
 
-// Diagnostic messages (C26b)
+// Diagnostic messages
 
 /// Message shown when a pure expression is computed twice on the
 /// same control-flow path.
@@ -352,7 +334,7 @@ pub fn loop_invariant_message(expression_text: &str) -> String {
     )
 }
 
-// Intra-module pure-proc analysis (C26e4)
+// Intra-module pure-proc analysis
 
 /// Set of procedure names proven pure by the intra-module
 /// analysis. Consumed by [`is_pure_with_procs`] /
@@ -570,12 +552,12 @@ pub fn is_worth_reporting_with_procs(
     is_worth_reporting(registry, cmd)
 }
 
-// Statement-level helpers (C26c)
+// Statement-level helpers
 
 /// Return `true` if the command invocation is pure for GVN
 /// purposes — i.e. has no observable side effects.
 ///
-/// Bridges to [`classify_side_effects`] from C23d. An optional
+/// Bridges to [`classify_side_effects`]. An optional
 /// dialect (`Some("irules")` / `Some("tcl")`) threads through to
 /// the classifier.
 #[must_use]
@@ -588,11 +570,11 @@ pub fn is_pure_command(
     if !classify_side_effects(registry, command, args, dialect, None).pure {
         return false;
     }
-    // O106 (SYNC-MAY31-1e): an outer pure command whose args read from
+    // O106: an outer pure command whose args read from
     // an impure command substitution is NOT loop-invariant — its value
     // depends on the inner side effect's per-call return (e.g.
     // `expr [incr counter]`). Recurse into every nested `[…]` and
-    // require each to be pure too. Mirrors `gvn.py::_is_pure_command`.
+    // require each to be pure too.
     arg_substitutions_pure(args, |c, a| is_pure_command(registry, c, a, dialect))
 }
 
@@ -610,16 +592,15 @@ fn arg_substitutions_pure(args: &[String], check: impl Fn(&str, &[String]) -> bo
     })
 }
 
-/// SYNC8: trace-aware purity gate.
+/// Trace-aware purity gate.
 ///
 /// Same purity classification as [`is_pure_command`] but additionally
 /// returns `false` for any command targeted by an active execution
 /// trace (`trace add execution NAME enter|leave HANDLER`) AND for
-/// every command when [`crate::ir::Module::has_dynamic_trace`] is set.  Mirrors
-/// `core/compiler/gvn.py:151-158`.
+/// every command when [`crate::ir::Module::has_dynamic_trace`] is set.
 ///
 /// Calls to a command with an active execution trace are never pure
-/// because the trace body composes side-effects in (issue `#251`).
+/// because the trace body composes side-effects in.
 /// GVN, partial-redundancy, and loop-invariant passes thread the
 /// module's trace facts through this gate so optimisations don't
 /// silently delete a second invocation that the trace re-armed.
@@ -643,7 +624,7 @@ pub fn is_pure_command_with_traces(
 
 /// Return `true` if a redundant use of `command` is worth
 /// flagging. Built-ins marked `CSE_CANDIDATE` qualify; user-proc
-/// redundancy (interprocedural) is deferred.
+/// redundancy (interprocedural) is not flagged.
 #[must_use]
 pub fn is_worth_reporting(registry: &CommandRegistry, command: &str) -> bool {
     if let Some(spec) = registry.get(command) {
@@ -683,7 +664,7 @@ pub fn statement_writes_state(
 ///
 /// - The top-level `Statement::Call` itself, when the command is
 ///   pure and marked `CSE_CANDIDATE`.
-/// - **C26e1**: embedded `[cmd args…]` command substitutions
+/// - Embedded `[cmd args…]` command substitutions
 ///   inside `Statement::Call` argument text and
 ///   `Statement::AssignValue` value text. Each nested
 ///   substitution is parsed via
@@ -758,8 +739,7 @@ pub fn statement_occurrences(
 /// scanned normally because Tcl performs command substitution
 /// through quotes.
 ///
-/// Ported behaviour-equivalent with `gvn.py::_find_cmd_tokens_in_text`
-/// plus `_parse_cmd_token`: we emit one pair per `[…]` region,
+/// Emits one pair per `[…]` region,
 /// with nested regions emitted in depth-first order (outer first,
 /// then each nested inner).
 #[must_use]
@@ -912,7 +892,7 @@ fn split_cmd_text(text: &str) -> Option<(String, Vec<String>)> {
     Some((cmd, words))
 }
 
-// Find-redundancies driver (C26d)
+// Find-redundancies driver
 
 /// Walk `cfg` / `ssa` in dominator-tree preorder and return a
 /// [`RedundantComputation`] diagnostic for every pure-expression
@@ -925,7 +905,7 @@ fn split_cmd_text(text: &str) -> Option<(String, Vec<String>)> {
 /// processes its statements, visits dominator-tree children, and
 /// pops the scope on exit.
 ///
-/// Focused subset of `gvn.py::_gvn_walk_function`:
+/// Behaviour:
 ///
 /// - Treats every CFG block as executable (no SCCP unreachability
 ///   filter). Callers that want SCCP pruning can pre-filter the
@@ -934,7 +914,7 @@ fn split_cmd_text(text: &str) -> Option<(String, Vec<String>)> {
 ///   the same path) with the `"O105"` code and the
 ///   [`full_redundancy_message`] text.
 /// - Partial-redundancy (`O106`) and loop-invariant (`O107`)
-///   detection are deferred to follow-up strips — they each need
+///   detection are not handled here — they each need
 ///   substantially more walker state.
 ///
 /// Returns the diagnostics in the order the walker encounters
@@ -958,7 +938,7 @@ enum WalkStep<'a> {
 /// processes its statements, visits dominator-tree children, and
 /// pops the scope on exit.
 ///
-/// Focused subset of `gvn.py::_gvn_walk_function`:
+/// Behaviour:
 ///
 /// - Treats every CFG block as executable (no SCCP unreachability
 ///   filter). Callers that want SCCP pruning can pre-filter the
@@ -967,7 +947,7 @@ enum WalkStep<'a> {
 ///   the same path) with the `"O105"` code and the
 ///   [`full_redundancy_message`] text.
 /// - Partial-redundancy (`O106`) and loop-invariant (`O107`)
-///   detection are deferred to follow-up strips — they each need
+///   detection are not handled here — they each need
 ///   substantially more walker state.
 ///
 /// Returns the diagnostics in the order the walker encounters
@@ -1052,7 +1032,7 @@ pub fn find_redundancies(
     results
 }
 
-// Loop-invariant detection (C26e2)
+// Loop-invariant detection
 
 /// True when `ancestor` dominates `node` in `ssa.idom`.
 fn dominates(ssa: &SsaFunction, ancestor: &str, node: &str) -> bool {
@@ -1158,8 +1138,7 @@ fn loop_defined_variables(ssa: &SsaFunction, loop_blocks: &HashSet<String>) -> H
 /// references are all defined *outside* the loop (so the
 /// computation produces the same value on every iteration).
 ///
-/// Matches the Python LICM-style hint at
-/// `gvn.py::_find_loop_invariants`, with a simplified occurrence
+/// Uses a simplified occurrence
 /// walk that reuses [`statement_occurrences`].
 #[must_use]
 pub fn find_loop_invariants(
@@ -1258,7 +1237,7 @@ pub fn find_loop_invariants(
     results
 }
 
-// Partial-redundancy detection (C26e3)
+// Partial-redundancy detection
 
 /// One event in a block's occurrence stream: either a pure
 /// occurrence that *adds* a key to availability, or `None` — a
@@ -1342,9 +1321,6 @@ fn transfer_occurrence_keys(
 /// path has already computed it) but not *must-available* (so
 /// hoisting before the merge point would save the computation
 /// on the path where it hadn't yet been run).
-///
-/// Matches the Python `gvn.py::_find_partial_redundancies`
-/// pipeline on a per-function basis.
 /// Maps tracked by the partial-redundancy dataflow fixpoint.
 type ExprKeySetMap = std::collections::HashMap<String, std::collections::HashSet<ExprKey>>;
 
@@ -1452,8 +1428,7 @@ fn run_partial_redundancy_fixpoint(
 /// times where one occurrence dominates another along some path
 /// but not on every path.  Uses the may/must-availability
 /// bidirectional dataflow from
-/// [`run_partial_redundancy_fixpoint`].  Mirrors Python's
-/// `gvn.find_partial_redundancies` (see `core/compiler/gvn.py`).
+/// [`run_partial_redundancy_fixpoint`].
 #[must_use]
 pub fn find_partial_redundancies(
     registry: &CommandRegistry,
@@ -1689,7 +1664,7 @@ mod tests {
         assert_eq!(r.first_span.end(), 5);
     }
 
-    // -- C26b: canonicalisation + messages --
+    // -- canonicalisation + messages --
 
     #[test]
     fn canonicalise_empty_uses_returns_input() {
@@ -1762,7 +1737,7 @@ mod tests {
         assert!(loop_invariant_message("expr {$x + 1}").contains("loop-invariant"));
     }
 
-    // -- C26c: statement-level helpers --
+    // -- statement-level helpers --
 
     fn call_stmt(cmd: &str, args: &[&str]) -> Statement {
         Statement::Call {
@@ -1800,7 +1775,7 @@ mod tests {
 
     #[test]
     fn is_pure_command_recurses_into_impure_substitution() {
-        // O106 (SYNC-MAY31-1e): `expr` is pure, but an arg that embeds
+        // O106: `expr` is pure, but an arg that embeds
         // an impure `[incr c]` substitution makes the whole invocation
         // impure — its value depends on the per-call side effect, so it
         // must not be hoisted as loop-invariant.
@@ -1821,7 +1796,7 @@ mod tests {
         );
     }
 
-    /// SYNC8: a pure command (`expr`) gates to non-pure once its
+    /// A pure command (`expr`) gates to non-pure once its
     /// canonical name appears in `traced_commands`.
     #[test]
     fn is_pure_command_with_traces_traced_command_not_pure() {
@@ -1840,7 +1815,7 @@ mod tests {
         ));
     }
 
-    /// SYNC8: `has_dynamic_trace=true` widens the gate to *every*
+    /// `has_dynamic_trace=true` widens the gate to *every*
     /// command (even ones the registry marks PURE).
     #[test]
     fn is_pure_command_with_traces_dynamic_trace_inhibits_all() {
@@ -1858,7 +1833,7 @@ mod tests {
         ));
     }
 
-    /// SYNC8: regression — untraced pure commands stay pure.
+    /// Regression — untraced pure commands stay pure.
     #[test]
     fn is_pure_command_with_traces_untraced_command_still_pure() {
         let registry = CommandRegistry::build_default();
@@ -1873,7 +1848,7 @@ mod tests {
         ));
     }
 
-    /// SYNC8: `::ns::foo` and `ns::foo` look up identically in the
+    /// `::ns::foo` and `ns::foo` look up identically in the
     /// trace set (mirrors `populate_trace_facts`'s `::`-strip).
     #[test]
     fn is_pure_command_with_traces_qualified_name_canonicalised() {
@@ -1969,7 +1944,7 @@ mod tests {
         assert!(!is_worth_reporting(&registry, "__nonexistent"));
     }
 
-    // -- C26d: find_redundancies driver --
+    // -- find_redundancies driver --
 
     use crate::cfg::{Block, Function, Terminator};
     use crate::ssa::{SsaBlock, SsaStatement};
@@ -2192,7 +2167,7 @@ mod tests {
         assert_eq!(results.len(), 1);
     }
 
-    // -- C26e1: embedded command-substitution scanning --
+    // -- embedded command-substitution scanning --
 
     #[test]
     fn scan_bracketed_commands_simple() {
@@ -2296,7 +2271,7 @@ mod tests {
         assert!(results.is_empty());
     }
 
-    // -- C26e2: loop-invariant detection --
+    // -- loop-invariant detection --
 
     #[test]
     fn find_loop_invariants_detects_hoistable_llength() {
@@ -2360,7 +2335,7 @@ mod tests {
         let results = find_loop_invariants(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
         // Canonical: loop-invariant code motion is O106 (not O107,
-        // which is unreachable dead code) — GAP-B2.
+        // which is unreachable dead code).
         assert_eq!(results[0].code, "O106");
         assert!(results[0].expression_text.contains("llength"));
     }
@@ -2568,7 +2543,7 @@ mod tests {
         assert!(find_loop_invariants(&registry, &cfg, &ssa, None).is_empty());
     }
 
-    // -- C26e3: partial-redundancy detection --
+    // -- partial-redundancy detection --
 
     // Long match dispatcher over IR opcodes.
     #[allow(clippy::too_many_lines)]
@@ -2705,7 +2680,7 @@ mod tests {
         assert_eq!(results.len(), 1);
         // Canonical: partial redundancy (GVN-PRE) shares O105 with
         // full redundancy — the loop-invariant code O106 was wrong
-        // here (GAP-B2).
+        // here.
         assert_eq!(results[0].code, "O105");
         assert_eq!(results[0].span.start(), 200);
         assert_eq!(results[0].first_span.start(), 100);
@@ -2764,7 +2739,7 @@ mod tests {
         assert!(!out.contains(&key));
     }
 
-    // -- C26e4: intra-module pure-proc analysis --
+    // -- intra-module pure-proc analysis --
 
     fn module_with_procs(procs: Vec<(&str, Vec<Statement>)>) -> CfgModule {
         let mut cfg_module = CfgModule {

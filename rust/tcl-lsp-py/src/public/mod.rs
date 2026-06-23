@@ -1,13 +1,13 @@
-//! The designed public `PyO3` API surface (track **API-PYO3**).
+//! The designed public `PyO3` API surface.
 //!
-//! This module is the *product* the rewrite plan calls the terminal
+//! This module is the terminal
 //! public API: a small, semver-stable set of narrow facades —
 //! `source/bytes/options in, structured result out` — over the layered
 //! Rust crates, paired with a typed error hierarchy. It is deliberately
 //! **not** a re-export of the whole crate graph, and **not** a
 //! transcription of whatever the in-tree Python layer happened to call
 //! (those are the legacy soft-dependency shims in the sibling binding
-//! modules, retained only until PYTHON-RETIRE).
+//! modules).
 //!
 //! The surface:
 //!

@@ -1,8 +1,6 @@
-//! Model enums shared across BIG-IP kinds. Mirrors
-//! `dialects/f5/bigip/model/_enums.py`.
+//! Model enums shared across BIG-IP kinds.
 
 /// Whether a data-group is stored inline or in an external file.
-/// Mirrors Python `DataGroupType`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DataGroupType {
     /// Inline (`internal`) data-group.
@@ -23,8 +21,7 @@ impl DataGroupType {
     }
 }
 
-/// Broad classification of BIG-IP profile types. Mirrors Python
-/// `ProfileType`.
+/// Broad classification of BIG-IP profile types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ProfileType {
     /// `http`.

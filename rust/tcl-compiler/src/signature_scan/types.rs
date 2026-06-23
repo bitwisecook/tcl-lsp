@@ -1,14 +1,5 @@
 //! Public record types emitted by the signature scanner.
 //!
-//! Mirrors the subset of `core.analysis.semantic_model` populated by
-//! `signature_scan.py`: [`SignatureProc`], [`SignatureClass`],
-//! [`SignaturePackageRequire`], [`SignatureSource`],
-//! [`SignatureCommandAlias`], [`SignatureNamespaceImport`],
-//! [`SignatureAutoPathEntry`], [`SignatureCommandInvocation`], plus
-//! the [`SignatureScanResult`] aggregator returned by
-//! [`super::extract_signatures`] and the [`ParamDef`] used inside
-//! [`SignatureProc::params`].
-//!
 //! Spans are [`tcl_lexer::Span`]; the `PyO3` binding in
 //! `rust/tcl-lsp-rust/src/signature_scan.rs` flattens them to
 //! `(start, end)` `u32` tuples for the materialiser on the Python
@@ -20,7 +11,7 @@ use tcl_lexer::Span;
 
 /// A single Tcl proc parameter declaration.
 ///
-/// Mirrors `core.analysis.semantic_model.ParamDef`. The `default_value`
+/// The `default_value`
 /// is the literal text following the parameter name inside a braced
 /// `{name default}` form — whitespace before it is stripped, whitespace
 /// inside the default text is preserved.
@@ -36,8 +27,7 @@ pub struct ParamDef {
 
 /// A `proc` definition recorded by the signature scanner.
 ///
-/// Mirrors `core.analysis.semantic_model.ProcDef` for the subset
-/// `signature_scan.py` populates: name, qualified name, parameter
+/// Records a focused subset: name, qualified name, parameter
 /// list, name-token range, body-token range. Diagnostics, scope-tree
 /// references, and other heavy analyser fields are intentionally
 /// absent.
@@ -185,11 +175,10 @@ pub struct SignatureCommandInvocation {
     /// Scope-resolved qualified name, if the analyser was able
     /// to compute one.  `None` from background-file scans
     /// (which skip the scope walk); `Some("::ns::name")` from
-    /// the full analyser.  Mirrors Python's
-    /// `CommandInvocation.resolved_qualified_name`.
+    /// the full analyser.
     pub resolved_qualified_name: Option<String>,
     /// Number of **argument** words at the call site (the words after the command
-    /// head).  Used by cross-file arity checking (SRV-INCREMENTAL Task 6): a call
+    /// head).  Used by cross-file arity checking: a call
     /// to a workspace-defined proc whose `argc` fits none of that proc's
     /// arities is a wrong-argument-count error.  `{*}`-expanded args make the true
     /// count unknown, recorded as `None` so arity checking conservatively skips.
@@ -198,11 +187,9 @@ pub struct SignatureCommandInvocation {
 
 /// The full result returned by `extract_signatures`.
 ///
-/// Mirrors the subset of `core.analysis.semantic_model.AnalysisResult`
-/// that `signature_scan.py` populates. Procs / classes / aliases
+/// Procs / classes / aliases
 /// use `BTreeMap` keyed by qualified name so iteration is
-/// deterministic — important for differential parity testing against
-/// the Python implementation.
+/// deterministic.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SignatureScanResult {
     /// Every proc definition discovered, keyed by qualified name.

@@ -1,9 +1,8 @@
 //! Runtime value model for the query DSL.
 //!
-//! Faithful port of `dialects/f5/query/values.py` plus the scalar
-//! semantics the evaluator and builtins share (`_truthy`, `_eq`,
-//! `_sort_key`, scalar coercion) and a Python-`json.dumps`-faithful
-//! serialiser.
+//! Covers the runtime values plus the scalar semantics the evaluator and
+//! builtins share (`_truthy`, `_eq`, `_sort_key`, scalar coercion) and a
+//! Python-`json.dumps`-faithful serialiser.
 //!
 //! Most values flow as the plain JSON-shaped variants — `Null` / `Bool` /
 //! `Int` / `Float` / `Str` / `List` / `Object` — which keeps the evaluator
@@ -21,8 +20,8 @@
 //! - [`Drop`](Value::Drop) — the sentinel `select` returns to mean "drop
 //!   the current value"; `flatten` removes it from streams.
 //!
-//! `ObjectRef` / `PathRef` are populated by the projection layer (a later
-//! increment); the plain variants alone drive the entire jq-flavoured core.
+//! `ObjectRef` / `PathRef` are populated by the projection layer; the plain
+//! variants alone drive the entire jq-flavoured core.
 
 use std::cmp::Ordering;
 use std::rc::Rc;
@@ -351,7 +350,7 @@ fn sorted_object_pairs(v: &Value) -> Vec<(String, Value)> {
 }
 
 /// Resolve a possibly-negative index against a length; `None` if out of
-/// range. Mirrors Python's `-len <= i < len` slice-index check.
+/// range. The slice index check is `-len <= i < len`.
 #[must_use]
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub fn resolve_index_pub(i: i64, len: usize) -> Option<usize> {

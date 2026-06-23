@@ -1,7 +1,7 @@
 //! `lsearch` — list search, shared over [`ValueOps`](tcl_syntax::value::ValueOps)
 //! and the [`RegexEngine`](crate::regex::RegexEngine) provider.
 //!
-//! A faithful port of C's `Tcl_LsearchObjCmd` (`tclCmdIL.c`): every option
+//! Implements the behaviour of C's `Tcl_LsearchObjCmd` (`tclCmdIL.c`): every option
 //! (`-exact`/`-glob`/`-regexp`/`-sorted`/`-bisect`, `-all`/`-inline`/`-not`,
 //! `-ascii`/`-dictionary`/`-integer`/`-real`/`-nocase`, `-increasing`/
 //! `-decreasing`, `-start`, `-stride`, `-index`, `-subindices`), the sorted

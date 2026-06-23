@@ -1,6 +1,6 @@
-//! Elimination optimiser pass (C30d).
+//! Elimination optimiser pass.
 //!
-//! Ported from `core/compiler/optimiser/_elimination.py`. Emits:
+//! Emits:
 //!
 //! - **O107** — unreachable dead code (blocks SCCP proved
 //!   unreachable).
@@ -46,10 +46,9 @@ use super::{Optimisation, PassContext};
 /// by interprocedural analysis; a cmd-sub of such a proc is treated as
 /// side-effect-free even though [`classify_side_effects`] is
 /// conservative for user commands. `pure_methods` + `enclosing_class`
-/// (SF-2) recognise a pure `my <method>` self-dispatch. Conservative:
+/// recognise a pure `my <method>` self-dispatch. Conservative:
 /// anything we can't classify (unknown proc, dynamic dispatch,
 /// unparseable / no registry) is treated as having a side effect.
-/// Mirrors Python's `_word_has_observable_side_effect`.
 fn word_has_observable_side_effect(
     text: &str,
     registry: Option<&CommandRegistry>,
@@ -112,7 +111,7 @@ fn word_has_observable_side_effect(
 }
 
 /// Return `true` iff `class_qname::method_name` (or a common qualifier
-/// spelling) is in `pure_methods`. Mirrors Python's `_method_pure`.
+/// spelling) is in `pure_methods`.
 fn method_pure(class_qname: &str, method_name: &str, pure_methods: &HashSet<String>) -> bool {
     if method_name.is_empty() {
         return false;
@@ -129,8 +128,7 @@ fn method_pure(class_qname: &str, method_name: &str, pure_methods: &HashSet<Stri
 
 /// Expr-tree analogue of [`word_has_observable_side_effect`] — `true`
 /// if any embedded command substitution in the expression has an
-/// observable side effect. Mirrors Python's
-/// `_expr_has_observable_side_effect`.
+/// observable side effect.
 fn expr_has_observable_side_effect(
     node: &ExprNode,
     registry: Option<&CommandRegistry>,
@@ -211,8 +209,7 @@ fn expr_has_observable_side_effect(
 /// always safe; value / expr forms require every embedded command
 /// substitution to be provably side-effect-free; `incr v` is safe
 /// unless its optional amount word has a side effect. Any other
-/// statement form is conservatively unsafe. Mirrors Python's
-/// `_assignment_safe_to_delete`.
+/// statement form is conservatively unsafe.
 pub(crate) fn assignment_safe_to_delete(
     stmt: &Statement,
     registry: Option<&CommandRegistry>,
@@ -257,8 +254,7 @@ pub(crate) fn assignment_safe_to_delete(
 /// Collect the qualified names of procs / methods that interprocedural
 /// analysis has proven pure — threaded into the O109 / O126 RHS-purity
 /// gates so `set unused [pureProc]` / `set unused [my pureMethod]` can
-/// fold. Mirrors the `interproc_pure` / `interproc_pure_methods` sets
-/// built at the top of Python's `optimise_elimination_passes`.
+/// fold.
 fn pure_call_targets(ctx: &PassContext<'_>) -> (HashSet<String>, HashSet<String>) {
     let interproc_pure: HashSet<String> = ctx
         .interproc
@@ -281,11 +277,11 @@ fn pure_call_targets(ctx: &PassContext<'_>) -> (HashSet<String>, HashSet<String>
 /// across every function in `cu`.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let is_top_level = |fu: &FunctionUnit| fu.name == "::top";
-    // D2-O126/O109 closure: the user-proc / TclOO-method purity sets
+    // O109/O126 closure: the user-proc / TclOO-method purity sets
     // that gate RHS-side-effect-safe deletion (owned so the `&mut ctx`
     // calls below don't alias `ctx.interproc`).
     let (interproc_pure, pure_methods) = pure_call_targets(ctx);
-    // SYNC-JUN02d-2: the call-by-name proc-index (caller-locals passed by
+    // The call-by-name proc-index (caller-locals passed by
     // name to an upvar callee must not be deleted as dead/unused — O109 /
     // O126).  Built once; borrows `ctx.interproc` before the `&mut ctx`
     // emit calls below.
@@ -324,14 +320,13 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         emit_adce(ctx, fu, &baseline, &interproc_pure, &pure_methods, None);
     }
 
-    // SF-2 (#506): optimise TclOO method bodies as functions too,
+    // Optimise TclOO method bodies as functions too,
     // passing the owning class qname so the O126 `my <method>` purity
     // gate can resolve same-class pure methods. Instance variables
     // escape the method frame (they are object state), so they are fed
     // through the same escaping channel iRules cross-event state uses —
     // the dead-store / unused-assignment passes must not delete a
-    // state-mutating `set ivar ...` inside the method body. Mirrors the
-    // method-iteration loop in `optimiser/_manager.py`.
+    // state-mutating `set ivar ...` inside the method body.
     let saved_cross = std::mem::take(&mut ctx.cross_event_vars);
     for (mqname, fu) in &cu.methods {
         let ir_method = cu.ir_module.methods.get(mqname);
@@ -449,7 +444,7 @@ fn emit_dead_stores_and_unused(
     let registry = ctx.registry;
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     let scope_aliases = scan_scope_aliases(&fu.cfg);
-    // SYNC-JUN02d-2: caller-locals this function passes by name to an
+    // Caller-locals this function passes by name to an
     // upvar callee — not dead/unused even when the name-level SSA sees
     // no read (the callee reads/writes it through the alias).
     let call_by_name = crate::interprocedural::collect_call_by_name_reads(&fu.cfg, proc_index);
@@ -466,7 +461,7 @@ fn emit_dead_stores_and_unused(
         textually_referenced.extend(collect_rmw_hidden_reads(fu, registry));
     }
 
-    // Phase 8 place model (SYNC-MAY31-1b): array-element writes the name-level
+    // The place model: array-element writes the name-level
     // SSA mis-folds (`set a(k) 1` "overwritten" by `set a(j) 2`) but that a read
     // observes.  Shared with the analyser's W220.  Empty unless a registry is
     // bound (set by the `optimise*` entry points) and the function writes array
@@ -496,7 +491,7 @@ fn emit_dead_stores_and_unused(
         let Some(stmt) = block.statements.get(idx) else {
             continue;
         };
-        // D2-O109/O126 closure: gate deletion on RHS purity. The def is
+        // O109/O126 closure: gate deletion on RHS purity. The def is
         // dead at the SSA level, but its RHS may have observable side
         // effects (`set unused [puts X]` prints, `set unused [my
         // impureMethod]` mutates object state). Only delete when every
@@ -524,7 +519,7 @@ fn emit_dead_stores_and_unused(
         if scope_aliases.contains(var) {
             continue;
         }
-        // Skip `::`-qualified globals (OPT-M3): a direct write to a
+        // Skip `::`-qualified globals: a direct write to a
         // fully-qualified global (`set ::counter 42`) inside a proc is
         // visible to every other scope, so it is never a dead/unused
         // store. The SCCP side and the manager's
@@ -537,7 +532,7 @@ fn emit_dead_stores_and_unused(
         if ctx.cross_event_vars.contains(var) {
             continue;
         }
-        // SYNC-JUN02d-2: skip a caller-local passed by name to an upvar
+        // Skip a caller-local passed by name to an upvar
         // callee — the callee consumes it through the alias (O109 / O126).
         if call_by_name.contains(var) {
             continue;
@@ -719,10 +714,9 @@ fn run_adce_fixpoint(
             // O108 purity gate: a transitively-dead assignment can only be
             // removed when its RHS has no observable side effect — an
             // embedded `[cmd …]` that mutates state or escapes must keep the
-            // statement live. Mirrors Python's `_is_adce_removable_statement`
-            // (the execution-intent PURE/NO_ESCAPE check), reusing the same
-            // gate O109/DSE applies rather than treating every assignment as
-            // pure.
+            // statement live. This reuses the same gate O109/DSE applies
+            // (an execution-intent PURE/NO_ESCAPE check) rather than treating
+            // every assignment as pure.
             if !assignment_safe_to_delete(
                 stmt,
                 registry,
@@ -851,7 +845,6 @@ fn scan_dollar_refs(slice: &str, out: &mut HashSet<String>) {
 }
 
 /// Scan a slice for `[set NAME]` (1-arg read form) references.
-/// Mirrors upstream commit `342d4c7a` (PR #331).
 #[allow(clippy::many_single_char_names)]
 fn scan_set_read_refs(slice: &str, out: &mut HashSet<String>) {
     let bs = slice.as_bytes();
@@ -955,9 +948,7 @@ pub(crate) fn collect_textual_var_references(
 /// unconditional read of it is a read-before-set (W210).  Kept separate from
 /// [`scan_scope_aliases`] (which still records the local for W211/W220, since
 /// a *write* through the alias is observable) — only the W210 read-before-set
-/// pass consults this set to *override* the scope-alias suppression.  Mirrors
-/// Python's dynamic-target handling in `_collect_upvar_targets` /
-/// `_read_before_set`.
+/// pass consults this set to *override* the scope-alias suppression.
 pub(crate) fn scan_dynamic_upvar_locals(cfg: &CfgFunction) -> HashSet<String> {
     let mut out: HashSet<String> = HashSet::new();
     for block in cfg.blocks.values() {
@@ -995,8 +986,8 @@ pub(crate) fn scan_dynamic_upvar_locals(cfg: &CfgFunction) -> HashSet<String> {
 /// `VarRead`-role argument of a substituted command.  Name-level only and
 /// **suppress-only**: it keeps a feeding `set i 0` from being reported as a
 /// dead store / unused variable.  Deliberately computed *outside* SSA `uses`
-/// so read-before-set versioning is unperturbed.  Mirrors Python's
-/// `expr_substitution_read_names` (deep RMW scan minus the shallow scan).
+/// so read-before-set versioning is unperturbed.  Computed as the deep RMW
+/// scan minus the shallow scan.
 pub(crate) fn collect_rmw_hidden_reads(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
@@ -1197,7 +1188,7 @@ mod tests {
 
     #[test]
     fn o109_o126_suppressed_for_call_by_name_var() {
-        // SYNC-JUN02d-2: a caller-local passed by name to an upvar callee
+        // A caller-local passed by name to an upvar callee
         // must not be deleted as a dead store / unused result.
         // `optimise_raw` builds the interproc summaries the proc-index
         // needs (the bare `run_pass` path has empty interproc).
@@ -1236,7 +1227,7 @@ mod tests {
 
     #[test]
     fn qualified_global_write_is_not_a_dead_store() {
-        // OPT-M3: `set ::counter 42` inside a proc is a global write
+        // `set ::counter 42` inside a proc is a global write
         // visible to other scopes; eliminating it (O109/O126) leaves
         // `::counter` undefined. It must be kept even though the proc
         // never reads it.
@@ -1256,7 +1247,7 @@ mod tests {
 
     #[test]
     fn o109_array_element_overwrite_not_dead() {
-        // SYNC-MAY31-1b place model: `set a(k) 1` is NOT a dead store — the
+        // The place model: `set a(k) 1` is NOT a dead store — the
         // later `set a(j) 2` bumps the name-level SSA version of base `a`, but
         // `puts $a(k)` reads a(k) and a(k) ≠ a(j).  Goes through `optimise`,
         // which binds the registry the place bridge needs (`run_pass` leaves it
@@ -1360,7 +1351,7 @@ mod tests {
     fn collect_textual_var_references_detects_set_one_arg_read() {
         // ``[set varname]`` (1-arg form) is a variable read; without
         // it, DCE saw 0 reads on ``varname`` and incorrectly deleted
-        // the write.  Mirrors upstream commit ``342d4c7a`` (PR #331).
+        // the write.
         let opts = run_pass("proc ::f {} { set x 1; set y [set x]; return $y }");
         // ``x`` is read via ``[set x]`` so neither O109 nor O126
         // should fire on the ``set x 1`` line.
@@ -1388,7 +1379,7 @@ mod tests {
         );
     }
 
-    // -- D2-O126/O109 RHS-purity gate (SYNC-JUN02-1 strip 4a) -------------
+    // -- O126/O109 RHS-purity gate ----------------------------------------
 
     #[test]
     fn o126_preserved_for_impure_command_sub_rhs() {
@@ -1430,7 +1421,7 @@ mod tests {
         );
     }
 
-    // -- SF-2 method-body O126 (SYNC-JUN02-1 strip 4b) --------------------
+    // -- method-body O126 -------------------------------------------------
 
     #[test]
     fn sf2_o126_folds_pure_my_dispatch_in_method_body() {

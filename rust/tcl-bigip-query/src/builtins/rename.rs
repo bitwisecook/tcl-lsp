@@ -1,5 +1,4 @@
-//! Rename builtins — faithful port of the `category="rename"` builtins in
-//! `dialects/f5/query/builtins.py`: `rename`, `rename_partition`,
+//! Rename builtins (`category="rename"`): `rename`, `rename_partition`,
 //! `rename_folder`, `rename_prefix`.
 //!
 //! `rename` queues a tolerant whole-source [`EditOp`](crate::edit_plan::EditOp)
@@ -28,8 +27,8 @@ fn re_escape(s: &str) -> String {
 }
 
 /// Count the token-bounded matches a [`PrefixRewrite`] will land on — the
-/// builtin's return value (`len(pattern.findall(source))` in Python). Mirrors
-/// the `apply` engine's boundary filtering so the count is consistent.
+/// builtin's return value (`len(pattern.findall(source))`). Reproduces the
+/// `apply` engine's boundary filtering so the count is consistent.
 fn count_matches(pattern: &Regex, before: Before, after: After, source: &str) -> usize {
     let bytes = source.as_bytes();
     let mut count = 0usize;

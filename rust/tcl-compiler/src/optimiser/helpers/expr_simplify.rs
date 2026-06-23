@@ -1,10 +1,7 @@
-//! Expression-simplification helpers (C30e + C30e4–C30e7).
+//! Expression-simplification helpers.
 //!
-//! Ported from `core/compiler/optimiser/_expr_simplify.py`.  The
-//! Python module is a 1100-line toolkit of AST-level expression
-//! rewriters consumed by the propagation, branch-folding, and
-//! pattern-recognition passes.  Every helper used by those
-//! consumers is now landed:
+//! A toolkit of AST-level expression rewriters consumed by the
+//! propagation, branch-folding, and pattern-recognition passes:
 //!
 //! - [`try_fold_expr`] — constant-fold an expression text via
 //!   [`eval_tcl_expr`].
@@ -21,11 +18,7 @@
 //! - [`try_eq_ne_string_compare_simplify_expr`] — `==`/`!=`
 //!   against an `ExprNode::String` literal → `eq`/`ne`.
 //!
-//! Sub-strip history: C30e1 `try_fold_expr` · C30e2
-//! `try_unwrap_expr_in_expr` · C30e3 `substitute_expr_constants`
-//! · C30e4 `instcombine_expr` · C30e5 `try_strength_reduce_expr`
-//! · C30e6 `try_strlen_simplify_expr` · C30e7
-//! `try_eq_ne_string_compare_simplify_expr`.  The four AST
+//! The four AST
 //! rewriters are wired into
 //! `branch_folding::propagate_into_branches`:
 //! `substitute_expr_constants` runs first to build a working
@@ -79,8 +72,7 @@ pub fn numeric_var_names(fu: &FunctionUnit) -> HashSet<String> {
         .collect()
 }
 
-/// Whether a type-lattice element is a known numeric Tcl type. Mirrors
-/// Python's `_NUMERIC_TCL_TYPES` membership.
+/// Whether a type-lattice element is a known numeric Tcl type.
 fn lattice_is_numeric(t: &TypeLattice) -> bool {
     t.kind == TypeKind::Known
         && matches!(
@@ -91,9 +83,8 @@ fn lattice_is_numeric(t: &TypeLattice) -> bool {
 
 /// Whether `node` is provably numeric for `expr` arithmetic — so dropping it
 /// from an identity rewrite cannot hide Tcl's numeric-coercion error.
-/// Mirrors `_is_provably_numeric_expr_node`. With no type context (`None`)
-/// every node is assumed numeric, preserving the legacy behaviour for
-/// callers without a lattice.
+/// With no type context (`None`) every node is assumed numeric, preserving
+/// the legacy behaviour for callers without a lattice.
 fn node_provably_numeric(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
     let Some(names) = numeric else {
         return true;
@@ -311,9 +302,9 @@ fn is_numeric_literal(text: &str) -> bool {
     text.trim().parse::<i64>().is_ok() || text.trim().parse::<f64>().is_ok()
 }
 
-// Landed: instcombine / strength-reduce / strlen / streq
+// instcombine / strength-reduce / strlen / streq
 
-/// C30e4: InstCombine-style fixpoint simplification of an
+/// InstCombine-style fixpoint simplification of an
 /// expression text.
 ///
 /// Parses `expr`, runs the AST simplifier until fixpoint, then
@@ -322,7 +313,7 @@ fn is_numeric_literal(text: &str) -> bool {
 /// from `expr.trim()`. Unparseable inputs and expressions
 /// containing command substitutions are returned unchanged.
 ///
-/// The fixpoint composes all landed simplifiers —
+/// The fixpoint composes all the simplifiers —
 /// strength-reduction folds, strlen canonicalisation, eq/ne
 /// promotion, and DeMorgan-shaped reductions — into a single
 /// pass. Callers that need only a specific transform should use
@@ -348,19 +339,16 @@ pub fn instcombine_expr_typed(
     }
     let simplified = simplify_to_fixpoint(&parsed, bool_context, numeric);
     let rendered = render_expr(&simplified);
-    // SYNC-MAY31-1e (#498): suppress O110 noise. When the canonical
-    // re-render differs from the input only in whitespace (e.g.
-    // `$x<0` → `$x < 0`), it is a spacing preference, not a real
-    // finding — report no change. Structural rewrites (paren removal,
-    // identity folds, operand reordering, …) all alter non-whitespace
-    // characters and still register as changed. Mirrors Python's
-    // `_strip_ws` guard in `compiler/optimiser/_propagation.py`.
+    // Suppress O110 noise. When the canonical re-render differs from the
+    // input only in whitespace (e.g. `$x<0` → `$x < 0`), it is a spacing
+    // preference, not a real finding — report no change. Structural
+    // rewrites (paren removal, identity folds, operand reordering, …) all
+    // alter non-whitespace characters and still register as changed.
     let changed = strip_ws(&rendered) != strip_ws(trimmed);
     (rendered, changed)
 }
 
-/// Return `expr` with all whitespace removed. Port of Python's
-/// `_strip_ws` ([`_propagation._strip_ws`]) — the whitespace-insensitive
+/// Return `expr` with all whitespace removed — the whitespace-insensitive
 /// comparison key for the O110 noise guard.
 fn strip_ws(expr: &str) -> String {
     expr.chars().filter(|c| !c.is_whitespace()).collect()
@@ -375,8 +363,7 @@ fn simplify_node_once(node: &ExprNode, bool_context: bool, numeric: NumericCtx<'
     // context propagates only where the operand's *value* is consumed as a
     // truth value: the operands of `&&`/`||`/`!` and a ternary condition.
     // Comparison/arithmetic operands consume the operand's full value, so
-    // they reset the context to `false`. Mirrors the per-position
-    // `bool_context` threading in Python's `_simplify_expr_node`.
+    // they reset the context to `false`.
     let lowered = match node {
         ExprNode::Binary { op, left, right } => {
             let child_bool = matches!(op, BinOp::And | BinOp::Or | BinOp::WordAnd | BinOp::WordOr);
@@ -421,8 +408,7 @@ fn simplify_node_once(node: &ExprNode, bool_context: bool, numeric: NumericCtx<'
 /// **O110 constant reassociation.** Combine the integer-literal constants
 /// across a left-associative `+`/`-` (resp. `*`) chain while keeping every
 /// non-constant term: `$a + 1 + 2` → `$a + 3`, `$a + 3 - 1` → `$a + 2`,
-/// `$a * 2 * 3` → `$a * 6`. Mirrors `_collect_add_terms` / `_collect_mul_terms`
-/// + `_build_*_expr` in `compiler/optimiser/_expr_simplify.py`.
+/// `$a * 2 * 3` → `$a * 6`.
 ///
 /// Fires only when one operand is itself an additive (resp. multiplicative)
 /// chain — a pure operand reorder (`1 + $a` → `$a + 1`) is suppressed as
@@ -592,7 +578,7 @@ fn simplify_to_fixpoint(node: &ExprNode, bool_context: bool, numeric: NumericCtx
     cur
 }
 
-/// C30e5: Strength-reduce a single expression text.
+/// Strength-reduce a single expression text.
 ///
 /// Parses `expr`, applies the strength-reduction rewrites, and
 /// re-renders. Returns `(text, changed)` — where `changed`
@@ -622,7 +608,7 @@ pub fn try_strength_reduce_expr_typed(expr: &str, numeric: NumericCtx<'_>) -> (S
     (rendered, changed)
 }
 
-/// C30e6: Simplify `[string length $s] == 0` → `$s eq ""` and
+/// Simplify `[string length $s] == 0` → `$s eq ""` and
 /// related strlen shapes.
 ///
 /// The Rust lowering's `ExprNode` does not model `[string length …]`
@@ -687,7 +673,7 @@ pub fn try_strlen_simplify_expr(expr: &str) -> (String, bool) {
     (new_text, true)
 }
 
-/// C30e7: Promote numeric `==` / `!=` against a quoted-string
+/// Promote numeric `==` / `!=` against a quoted-string
 /// literal to `eq` / `ne`. Safer: a numeric compare shimmers the
 /// LHS to a number at runtime; the string form avoids that.
 ///
@@ -762,8 +748,7 @@ fn reduce_unary(
     // `!!x` → `x` / `not not x` → `x` — only sound when `x` already yields a
     // `0`/`1` boolean or the result is consumed in a boolean context;
     // otherwise the double-negation is the very normalisation that turns a
-    // non-`0`/`1` value into `0`/`1` (`expr {!!2}` is `1`). Mirrors Python's
-    // gated `!!x` collapse.
+    // non-`0`/`1` value into `0`/`1` (`expr {!!2}` is `1`).
     if matches!(op, UnaryOp::Not | UnaryOp::WordNot)
         && let ExprNode::Unary {
             op: inner_op,
@@ -1056,8 +1041,7 @@ fn reduce_bitwise(
 /// operand value (`expr {2 && 1}` is `1`, not `2`), so the operand can be
 /// returned bare only when its result is already a `0`/`1` boolean or is
 /// consumed in a boolean context (where truthiness suffices). Otherwise it
-/// is wrapped as `!!x` to preserve the `0`/`1` normalisation. Mirrors the
-/// `&&`/`||` identity arms of Python's `_simplify_expr_node`.
+/// is wrapped as `!!x` to preserve the `0`/`1` normalisation.
 fn reduce_logical(
     op: BinOp,
     left: &ExprNode,
@@ -1100,7 +1084,6 @@ fn reduce_logical(
 /// Return `node` bare when it already yields a `0`/`1` boolean (or its
 /// truthiness is all the surrounding `bool_context` needs); otherwise wrap
 /// it as `!!node` so the logical operator's normalised result is preserved.
-/// Mirrors Python's `_boolify` / `_is_boolean_expr` gate.
 fn normalise_bool(node: &ExprNode, bool_context: bool) -> ExprNode {
     if bool_context || is_boolean_expr(node) {
         node.clone()
@@ -1123,7 +1106,7 @@ fn boolify(node: &ExprNode) -> ExprNode {
 
 /// Whether `node` is known to produce a boolean (`0`/`1`) result — a
 /// comparison / logical operator, a logical negation, or a boolean
-/// literal. Mirrors Python's `_is_boolean_expr` / `_BOOLEAN_OPS`.
+/// literal.
 fn is_boolean_expr(node: &ExprNode) -> bool {
     use crate::expr_ast::UnaryOp;
     match node {
@@ -1205,16 +1188,15 @@ fn streq_promote_node(node: &ExprNode) -> Option<ExprNode> {
 /// [`node_provably_numeric`], used to gate the eq/ne string-compare
 /// promotion (O120). Only a string literal whose stripped text is neither
 /// numeric nor a boolean word qualifies; everything else (variables, command
-/// substitutions, arithmetic) is conservatively rejected. Mirrors
-/// `_is_provably_non_numeric_expr_node` minus the SCCP-CONST variable case.
+/// substitutions, arithmetic) is conservatively rejected.
 fn node_provably_non_numeric(node: &ExprNode) -> bool {
     matches!(node, ExprNode::String { text, .. } if !is_numeric_or_boolean_string(text))
 }
 
 /// Whether the (delimiter-stripped) text parses as a number **or** is one of
 /// Tcl's boolean words (`true`/`false`/`yes`/`no`/`on`/`off`,
-/// case-insensitive). Mirrors Python's `_is_numeric_string_value`, which `==`
-/// promotion treats as "could still be a number" and so refuses to promote.
+/// case-insensitive). The `==` promotion treats such a value as "could still
+/// be a number" and so refuses to promote.
 /// Kept separate from [`is_numeric_string`] (used by the arithmetic-identity
 /// gate, where a boolean word is *not* a valid arithmetic operand).
 fn is_numeric_or_boolean_string(text: &str) -> bool {
@@ -1461,13 +1443,13 @@ mod tests {
             assert!(changed, "None ctx must still simplify {e:?}");
         }
         // With a type context that does NOT prove `$x` numeric → keep the
-        // operand (dropping it would hide a coercion error). Mirrors Python.
+        // operand (dropping it would hide a coercion error).
         let empty: HashSet<String> = HashSet::new();
         for e in ["$x * 0", "$x + 0", "$x * 1", "$x % 1", "$x << 0"] {
             let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
             assert!(!changed, "non-numeric `$x` must keep {e:?}, got {out:?}");
         }
-        // With `$x` proven numeric → the identity fires again, matching Python.
+        // With `$x` proven numeric → the identity fires again.
         let mut numeric = HashSet::new();
         numeric.insert("x".to_owned());
         let (out, changed) = instcombine_expr_typed("$x * 0", false, Some(&numeric));
@@ -1642,7 +1624,7 @@ mod tests {
 
     #[test]
     fn instcombine_whitespace_only_rerender_is_not_a_change() {
-        // SYNC-MAY31-1e (#498): a re-render differing from the input
+        // A re-render differing from the input
         // only in whitespace (`$x<0` → `$x < 0`) is canonical-spacing
         // noise, not an O110 finding. The guard strips all whitespace
         // before comparing, so the spacing-only re-render reports no

@@ -1,4 +1,4 @@
-//! Typed BIG-IP cert-key-chain entry. Rust port of `_cert_key_chain.py`.
+//! Typed BIG-IP cert-key-chain entry.
 
 use std::fmt;
 
@@ -54,7 +54,7 @@ impl CertKeyChain {
     }
 
     /// Yield `(kind, full-path)` pairs for every sub-reference, in a
-    /// stable order. Mirrors `references()`.
+    /// stable order.
     #[must_use]
     pub fn references(&self) -> Vec<(String, String)> {
         let mut out = Vec::new();

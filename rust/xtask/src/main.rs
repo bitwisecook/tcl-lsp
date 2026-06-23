@@ -1,31 +1,25 @@
-//! `cargo xtask` — the native task runner that replaces the Python
-//! `scripts/` toolchain (rewrite track **API-PYO3**, the `scripts`→`xtask`
-//! migration).
+//! `cargo xtask` — the native task runner for the workspace's build and check
+//! tasks.
 //!
-//! The end goal of the rewrite is **zero** Python executed by any in-repo
-//! entry point, build and release scripts included. This crate is where
-//! those scripts land as Rust subcommands, ported one at a time and kept
-//! byte-compatible with the Python they replace so the Makefile / CI can
-//! switch over incrementally (the Python script stays as the fallback for
-//! one release cycle, per the rollout rule, then retires).
+//! Each subcommand is kept byte-compatible with the Python `scripts/` tool it
+//! replaces so the Makefile / CI can switch over incrementally; the Python
+//! script stays as the fallback for one release cycle, then retires.
 //!
 //! Run a task with `cargo xtask <command>` (the workspace `.cargo/config.toml`
 //! aliases `xtask` to `run --package xtask --`).
 //!
-//! Ported so far:
+//! Subcommands:
 //!
-//! - `refcount-contract` — port of `scripts/check/refcount_contract.py`: lint
-//!   that every `pub export fn` in `runtime/zig/` has a row in the refcount
-//!   contract doc.
-//! - `kcs-index-links` — port of `scripts/check/kcs_index_links.py`: validate
-//!   markdown links + KCS/design index coverage under `docs/`.
-//! - `version` — port of `scripts/print_version.py`: print the
-//!   setuptools-scm / hatch-vcs project version from `git describe`.
-//! - `tzdata-bundle` — port of `scripts/build/tzdata_bundle.py`: pack the
-//!   curated tzdata `TZBL` bundle for the WASM runtime.
-//! - `audit-option-dialects` — port of
-//!   `scripts/check/audit_option_dialects.py`: probe `OptionSpec` dialect
-//!   gates against real tclsh 8.4/8.5/8.6/9.0.
+//! - `refcount-contract` — lint that every `pub export fn` in `runtime/zig/`
+//!   has a row in the refcount contract doc.
+//! - `kcs-index-links` — validate markdown links + KCS/design index coverage
+//!   under `docs/`.
+//! - `version` — print the setuptools-scm / hatch-vcs project version from
+//!   `git describe`.
+//! - `tzdata-bundle` — pack the curated tzdata `TZBL` bundle for the WASM
+//!   runtime.
+//! - `audit-option-dialects` — probe `OptionSpec` dialect gates against real
+//!   tclsh 8.4/8.5/8.6/9.0.
 
 #![forbid(unsafe_code)]
 
@@ -52,8 +46,6 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Lint that every `runtime/zig/` export has a refcount-contract row.
-    ///
-    /// Port of `scripts/check/refcount_contract.py`.
     RefcountContract {
         /// Exit non-zero on any missing/extra row (default: warning only).
         #[arg(long)]
@@ -61,18 +53,12 @@ enum Command {
     },
 
     /// Validate markdown links + KCS/design index coverage under `docs/`.
-    ///
-    /// Port of `scripts/check/kcs_index_links.py`.
     KcsIndexLinks,
 
     /// Print the project version (`git describe` → setuptools-scm scheme).
-    ///
-    /// Port of `scripts/print_version.py`.
     Version,
 
     /// Pack the curated tzdata `TZBL` bundle for the WASM runtime.
-    ///
-    /// Port of `scripts/build/tzdata_bundle.py`.
     TzdataBundle {
         /// Host zoneinfo directory to read `TZif` files from.
         #[arg(long, default_value = "/usr/share/zoneinfo")]
@@ -89,8 +75,6 @@ enum Command {
     },
 
     /// Probe `OptionSpec` dialect gates against real tclsh 8.4/8.5/8.6/9.0.
-    ///
-    /// Port of `scripts/check/audit_option_dialects.py`.
     AuditOptionDialects,
 }
 

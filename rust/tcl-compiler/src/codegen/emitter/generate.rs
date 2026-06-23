@@ -36,13 +36,13 @@ struct GenerateState {
     /// For-init startCommand end labels: `for_end_N` → deferred label.
     for_init_end_labels: HashMap<String, String>,
     /// Foreach startCommand end labels: `foreach_end_N` → deferred
-    /// label placed at the `foreach_end` block's trailing pop (C18).
+    /// label placed at the `foreach_end` block's trailing pop.
     foreach_end_labels: HashMap<String, String>,
     /// For-body startCommand end labels: `if_end_N` → deferred label
-    /// placed at the join block's trailing pop (C18).
+    /// placed at the join block's trailing pop.
     for_body_end_labels: HashMap<String, String>,
     /// Pending startCommand end labels for if/switch join pops — each
-    /// label is placed *before* the join pop once it is emitted (C18).
+    /// label is placed *before* the join pop once it is emitted.
     pending_join_labels: HashMap<String, String>,
 }
 
@@ -75,13 +75,6 @@ impl GenerateState {
 /// opcodes, for-init / while `startCommand` wrapping with deferred
 /// end labels at the loop-end pop, try/finally CFG patterns,
 /// bottom-tested loop layout (via `ordering::reorder_bottom_tested`).
-///
-/// Still deferred to follow-up chunks (see C18–C21 in `rust-rewrite.md`):
-/// foreach/for-body/complex-foreach startCommand placement nuances
-/// for tclsh byte-for-byte matching, value-emission extras
-/// (`try_list_expand_concat`, inline list with `break`/`continue`,
-/// `try_format_fold`), differential test harness, and registry-backed
-/// codegen hooks.
 // Sequential codegen pipeline; phases share emitter state.
 #[allow(clippy::too_many_lines)]
 pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedure]) -> FunctionAsm {
@@ -214,7 +207,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         }
 
         // Place deferred for-init / while-loop / foreach startCommand
-        // end labels at the loop-end block's pop (C17 + C18).
+        // end labels at the loop-end block's pop.
         if let Some(lbl) = state.for_init_end_labels.remove(bname) {
             place_label_before_trailing_pop(ctx, &lbl);
         }
@@ -236,7 +229,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             ctx.emit(Op::NOP, vec![]);
         }
 
-        // For-body startCommand (C18 case 2): a `for_body_*` block
+        // For-body startCommand: a `for_body_*` block
         // whose terminator is a Branch (the first statement is an
         // `if`) gets a startCommand that spans from here to the
         // `if_end_*` join pop. The end label is deferred into
@@ -261,7 +254,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             }
         }
 
-        // Complex-foreach if-condition startCommand (C18 case 3):
+        // Complex-foreach if-condition startCommand:
         // body blocks inside a complex foreach whose terminator is a
         // Branch (the first element is an `if`) also get a per-body
         // startCommand, with the end label deferred to the `if_end_*`
@@ -289,7 +282,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             }
         }
 
-        // Defer for-body end label to the join block's pop (C18).
+        // Defer for-body end label to the join block's pop.
         if let Some(lbl) = state.for_body_end_labels.remove(bname) {
             state.pending_join_labels.insert(bname.clone(), lbl);
         }
@@ -297,7 +290,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         // Pop incoming arm value at join blocks with work. Place any
         // pending startCommand end label *before* the pop so the
         // startCommand covers only the arm body, not the result
-        // cleanup (C18).
+        // cleanup.
         if starts_with_any(bname, VALUE_JOIN_PREFIXES) && block_has_work(blk, ctx.is_proc) {
             if let Some(lbl) = state.pending_join_labels.remove(bname) {
                 ctx.place_label(&lbl);
@@ -309,7 +302,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         // the normal Branch terminator (the opcode replaces it). When
         // this foreach is not the first command in its script, wrap it
         // with a startCommand whose end label is deferred to the
-        // foreach_end block's trailing pop (C18).
+        // foreach_end block's trailing pop.
         if let Some(fi) = foreach_info.get(bname) {
             if ctx.cmd_index > 0 {
                 let fe_lbl = ctx.fresh_label("cmd_end");
@@ -379,7 +372,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
                     continue;
                 }
             }
-            // C18 case 5: synthetic `<cond>` placeholders get a
+            // Synthetic `<cond>` placeholders get a
             // startCommand whose end label is deferred until the
             // ExprCommand in the branch condition has been emitted.
             // The label is placed by `emit_expr` in expressions.rs.
@@ -462,7 +455,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             continue;
         }
         if let Some(term) = &blk.terminator {
-            // C18 case 4: constant-folded `if {1}` startCommand in
+            // Constant-folded `if {1}` startCommand in
             // non-proc scripts. tclsh preserves a command boundary for
             // the `if` even when the condition is dead — the
             // startCommand's end label is placed before the join pop.

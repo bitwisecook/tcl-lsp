@@ -3,12 +3,12 @@
 //! Each test runs the built `tcl` binary on a committed fixture and asserts its
 //! stdout matches a golden file captured from the Python CLI
 //! (`python -m tooling.tcl.main <verb> ...`). This locks byte-for-byte parity
-//! for the verbs whose engines are fully ported; regenerate the `.golden`
+//! for the verbs asserted below; regenerate the `.golden`
 //! files from the Python CLI if intended behaviour changes.
 //!
 //! Verbs gated here: `format`, `minify`, `minify --compact`. (Verbs whose
-//! Rust engine is still reaching parity — e.g. `diag`/`validate` via the
-//! analyser — are intentionally not asserted byte-for-byte yet.)
+//! Rust engine does not yet match byte-for-byte — e.g. `diag`/`validate` via
+//! the analyser — are intentionally not asserted here.)
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -126,10 +126,10 @@ fn highlight_html_matches_python() {
     );
 }
 
-// `symbols` is wired onto the analyser scope tree. The analyser is not yet a
-// full 1:1 port (e.g. explicit `::`-qualified proc names report the simple
+// `symbols` is wired onto the analyser scope tree. The analyser still diverges
+// in places (e.g. explicit `::`-qualified proc names report the simple
 // name, and some implicitly-created variables aren't recorded), so these
-// goldens use a fixture that exercises the faithful subset — namespaces,
+// goldens use a fixture that exercises the matching subset — namespaces,
 // nested procs, namespace variables, params, and iRules `when` events — and
 // lock the wiring + JSON/text serialisation shape byte-for-byte.
 #[test]
@@ -174,13 +174,13 @@ fn symbolgraph_json_matches_python() {
 // `callgraph` is wired onto the interprocedural engine (`tcl-compiler`
 // `InterproceduralAnalysis`, via the `ProcSummary::direct_calls` accessor) for
 // nodes + proc→proc edges, and onto the analyser's command invocations for
-// call-site resolution + top-level edges. The interproc-engine closure that
-// flips proc→proc edges to parity has landed: the call scanner now detects
+// call-site resolution + top-level edges. The interproc-engine handling of
+// proc→proc edges matches Python: the call scanner detects
 // calls nested in `[cmd …]` substitutions (`return [add …]` / `set x [f …]`),
 // a resolved internal call no longer applies the callee's command-effect
 // locally (so `pure` matches Python), and a global-variable write is recorded
 // via `writes_global` rather than the effect-region string. The
-// side-effects-classification closure has also landed: `classify_side_effects`
+// side-effects classification also matches: `classify_side_effects`
 // now consults a command's structured `side_effects`, so a proc that calls an
 // untracked-effect command (`puts`) is impure yet region-free — matching
 // Python — instead of falling back to `UNKNOWN_STATE`. This fixture exercises
@@ -203,12 +203,10 @@ fn callgraph_json_matches_python() {
 }
 
 // `diff` compares two sources at the AST / IR / CFG layers. The **AST layer**
-// is a byte-parity port: it segments each side (`tcl-compiler` segmenter),
+// is byte-parity: it segments each side (`tcl-compiler` segmenter),
 // resolves subcommands + ranges into the canonical `_serialise_command_ast`
 // JSON, and emits a `difflib.unified_diff`-faithful diff
-// (`tcl_cli_support::difflib`). The IR/CFG layers depend on the IR/SSA
-// serialiser (`tooling/cli/serialise.py`) and are not ported yet (requesting
-// them is a clear error), so these goldens lock the AST layer. The tests run
+// (`tcl_cli_support::difflib`). These goldens lock the AST layer. The tests run
 // the binary from the fixtures dir with bare filenames so the `ast:<name>`
 // headers + `leftInput` stay stable; the JSON's absolute `leftDocuments` path
 // is normalised to a `__FIXTURES__` placeholder (as the golden was captured).
@@ -247,9 +245,9 @@ fn diff_ast_json_matches_python() {
     assert_eq!(normalised, expected);
 }
 
-// `diff --show ir` — the **IR layer** is a byte-parity port of the `ir` half of
+// `diff --show ir` — the **IR layer** is byte-parity with the `ir` half of
 // `tooling/cli/serialise.py` (`_serialise_ir` / `_serialise_script` + the
-// `stmt_*` / `preview` helpers) via the new `tcl-cli` `serialise` module: the
+// `stmt_*` / `preview` helpers) via the `tcl-cli` `serialise` module: the
 // `tcl-compiler` `CompilationUnit` IR is rendered with the same statement kinds,
 // summaries, colour classes, control-flow children, and span-derived ranges
 // (incl. `widen_for_highlight` brace widening). The CFG layer still needs the
@@ -408,8 +406,7 @@ fn diff_cfg2_json_matches_python() {
 // analysis never surfaces (so `proc save {v} { set ::store $v }` no longer
 // reports `::store`). The `proc_effects` half is at parity (closed interproc
 // engine), incl. an impure `puts`-calling proc (region-free) and a
-// global-writing proc. **Remaining taint gap** (documented in
-// docs/rust-cli-port.md): no inter-procedural taint *solve*
+// global-writing proc. **Remaining taint gap**: no inter-procedural taint *solve*
 // (`_solve_interprocedural_taints`), so a tainted argument flowing into a
 // proc parameter and then into a sink inside that proc is not yet warned
 // (cross-proc entry-taint). The fixture exercises a global-writing proc but
@@ -429,11 +426,11 @@ fn dataflow_json_matches_python() {
     );
 }
 
-// `diagram` ports `tooling/diagram/extract.py` (`extract_diagram_data`) over
-// the lowered IR — now byte-parity since lowering/IR reached parity. The only
+// `diagram` extracts flow data (`extract_diagram_data`) over
+// the lowered IR, byte-parity with Python. The only
 // registry dependency is the `DIAGRAM_ACTION` trait
 // (`CommandRegistry::is_diagram_action`). The fixture is an f5-irules script
-// exercising the faithful subset: multiple `when` events (canonical firing
+// exercising the matching subset: multiple `when` events (canonical firing
 // order + priority + multiplicity), `switch` with a fall-through arm, an
 // `if`/`else` with conditions and notable (`[` command-substitution) assigns,
 // `foreach`, `catch`, `try`/`on error`/`finally`, action commands (`pool`,
@@ -463,9 +460,9 @@ fn diagram_json_matches_python() {
 }
 
 // `help` (`docs`) searches the bundled KCS help database — an FTS5 index built
-// at compile time by `build.rs` (a port of `scripts/build/kcs_db.py`) from the
+// at compile time by `build.rs` from the
 // committed `docs/kcs/features/*.md`, then embedded via `include_bytes!`. The
-// query layer (`search_help` / `list_features`) ports `shared/help/kcs_db.py`
+// query layer (`search_help` / `list_features`) runs
 // over `rusqlite`'s bundled SQLite (FTS5). The rendered text + catalogue match
 // Python byte-for-byte (locked by `help_search_text_matches_python` /
 // `help_catalogue_dialect_matches_python`).
@@ -546,16 +543,15 @@ fn help_catalogue_dialect_matches_python() {
 }
 
 // `registry-dump` is wired onto the Rust command-registry snapshot
-// (`tcl_registry::command_snapshot`, a faithful port of Python
+// (`tcl_registry::command_snapshot`, matching Python's
 // `command_registry_snapshot`). Whole-dialect byte-parity is gated by
 // command-registry *data* parity: the Rust and Python registries differ on
 // the `dialects` field representation (Rust uses explicit dialect sets where
 // Python uses `None`, and Rust carries no `f5-bigip`/`f5-tmsh` dialect bits)
 // plus scattered trait / hover-synopsis / arity / subcommand-modelling data
-// divergences (see docs/rust-cli-port.md). So this golden locks the faithful
+// divergences. So this golden locks the matching
 // subset — the core commands whose registry data is already byte-identical to
-// Python — verifying the snapshot serialisation + field derivation while the
-// data gap converges as a separate workstream.
+// Python — verifying the snapshot serialisation + field derivation.
 #[test]
 fn registry_dump_faithful_subset_matches_python() {
     // Core commands verified byte-identical to the Python `registry-dump`
@@ -593,7 +589,7 @@ fn explore_json_emits_the_contract_keys() {
     let value: serde_json::Value =
         serde_json::from_slice(&out).expect("explore --json must emit valid JSON");
     let obj = value.as_object().expect("top-level object");
-    // A representative spread of ported views is present.
+    // A representative spread of views is present.
     for key in [
         "meta",
         "ir",
@@ -641,14 +637,14 @@ fn explore_text_renders_box_drawing_trees() {
 // modernisation hint. The firing condition, span, message, and severity match
 // the Python analyser byte-for-byte; the only accepted divergence is the
 // emission *order* of the underlying diagnostics (Rust sorts by source
-// position, Python emits in pass order — see docs/rust-cli-port.md). The
+// position, Python emits in pass order). The
 // fixtures below are deliberately single-pattern-per-line, so source order and
 // Python's pass order coincide and the goldens match Python exactly (verified
 // at capture time); they are captured from the Rust binary per the
 // ordering-divergence guardrail. `.irule` fixtures run under `f5-irules` — the
 // realistic dialect; analysing an iRule under `tcl8.6` is a degenerate
 // wrong-dialect run (the `when` body is an opaque string there, so Rust's
-// dialect-aware body recursion (#640) intentionally skips it).
+// dialect-aware body recursion intentionally skips it).
 #[test]
 fn find_legacy_tcl_text_matches_python() {
     let input = fixtures_dir().join("find-legacy.tcl");
@@ -726,8 +722,8 @@ fn find_legacy_empty_json_matches_python() {
 // `if {[matchclass …]} {` whose `if` body is unterminated, where Python's
 // segmentation does not descend); the reduced output still reproduces CODE
 // (the verb's invariant), so the divergence is in *how far* ddmin reduces, not
-// correctness — see the `minimize_reduced_output_still_fires` property test and
-// docs/rust-cli-port.md. The fixtures stay on well-formed-reducing tcl to keep
+// correctness — see the `minimize_reduced_output_still_fires` property test.
+// The fixtures stay on well-formed-reducing tcl to keep
 // the goldens Python-faithful.
 #[test]
 fn minimize_w100_text_matches_python() {
@@ -766,8 +762,7 @@ fn minimize_w211_text_matches_python() {
 }
 
 // When CODE fires on no input, the verb prints `CODE does not fire on any
-// input.` to stderr and exits 1 (ports the Python `print(..., file=sys.stderr)`
-// + `return 1`).
+// input.` to stderr and exits 1.
 #[test]
 fn minimize_missing_code_errors() {
     let input = fixtures_dir().join("minimize.tcl");

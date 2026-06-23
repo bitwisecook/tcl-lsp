@@ -1,8 +1,7 @@
 //! `textDocument/declaration` — jump to a variable's `global` /
 //! `variable` / `upvar` *declaration* site.
 //!
-//! Port of `lsp/features/declaration.py::get_declaration` (GAP-B3,
-//! strip 3).  Go-to-declaration differs from go-to-definition: for a
+//! Go-to-declaration differs from go-to-definition: for a
 //! `$var` reference it looks for the scoping statement that *declares*
 //! the name in a visible scope (`global x`, `variable x ?val?`,
 //! `upvar ?lvl? other x`, `namespace upvar ns other x`), respecting

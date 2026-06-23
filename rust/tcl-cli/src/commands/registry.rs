@@ -1,7 +1,6 @@
 //! `registry-dump` verb: serialise the command registry as canonical JSON.
 //!
-//! Port of `_run_registry_dump` in `tooling/tcl/verbs/registry.py`, driving
-//! the snapshot builders in `tcl_registry::command_snapshot`. The output is
+//! Drives the snapshot builders in `tcl_registry::command_snapshot`. The output is
 //! `json.dumps(indent=2, sort_keys=True)`-faithful.
 
 use std::path::Path;

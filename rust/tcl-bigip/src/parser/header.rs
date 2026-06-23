@@ -1,5 +1,4 @@
-//! Stanza-header parsing — `(module, object_type, identifier)` resolution
-//! mirroring `_parse_generic_header` / `_known_object_types`.
+//! Stanza-header parsing — `(module, object_type, identifier)` resolution.
 //!
 //! Multi-word object types (`sys diags ihealth`, `ltm message-routing
 //! diameter route`) are resolved by longest-prefix match against the
@@ -13,7 +12,7 @@ use tcl_registry::bigip::BigipRegistry;
 use super::helpers::tokenise_header;
 
 /// Per-module set of registered object-type strings, for longest-prefix
-/// header resolution. Mirrors the cached `_known_object_types`.
+/// header resolution.
 #[derive(Debug, Clone)]
 pub struct ObjectTypeIndex {
     by_module: HashMap<&'static str, HashSet<&'static str>>,
@@ -38,8 +37,7 @@ impl ObjectTypeIndex {
 }
 
 /// Parse a stanza header into `(module, object_type, identifier)`.
-/// Mirrors `_parse_generic_header`. Returns `None` for headers with
-/// fewer than two tokens.
+/// Returns `None` for headers with fewer than two tokens.
 #[must_use]
 pub fn parse_generic_header(
     header: &str,

@@ -1,5 +1,5 @@
 //! F5 iApp APL (Application Presentation Language) — structural parser
-//! and object model. Rust port of `dialects/f5/bigip/apl_model.py`.
+//! and object model.
 
 pub mod canonical;
 pub mod iapp_diagnostics;

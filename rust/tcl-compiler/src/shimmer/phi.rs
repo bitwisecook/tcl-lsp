@@ -42,8 +42,8 @@ pub(crate) fn find_phi_shimmers(
     let def_map = def_range_map(ssa);
     let empty_by_name = empty_value_versions(ssa);
     let destructure = destructure_foreach_blocks(cfg);
-    // Python's phi pass uses the *function-wide* loop-body type map (unlike the
-    // per-loop S102 thunking pass); reproduce that with the whole loop-block set.
+    // The phi pass uses the *function-wide* loop-body type map (unlike the
+    // per-loop S102 thunking pass), built from the whole loop-block set.
     let loop_body_types =
         per_loop_body_types("", &loop_blocks, &destructure, ssa, types, &empty_by_name);
     let mut out = Vec::new();
@@ -72,7 +72,7 @@ pub(crate) fn find_phi_shimmers(
                 continue;
             };
 
-            // Refine the SHIMMERED-phi verdict (mirrors `_find_phi_shimmers`).
+            // Refine the SHIMMERED-phi verdict.
             // A loop-header phi is SHIMMERED on any entry-vs-body type change,
             // but the empty-accumulator promotion (`set r {}`; `lappend r …`)
             // and a branch merge whose only shimmer comes from an empty literal
@@ -134,8 +134,6 @@ pub(crate) fn find_phi_shimmers(
 
             // A merge inside a loop body re-shimmers every iteration (S101);
             // an out-of-loop branch merge is a one-time conversion (S100).
-            // Mirrors Python `_find_phi_shimmers`' `code = "S101" if in_loop
-            // else "S100"` (was hardcoded to S101).
             let code = if in_loop { "S101" } else { "S100" };
             out.push(ShimmerWarning {
                 span,

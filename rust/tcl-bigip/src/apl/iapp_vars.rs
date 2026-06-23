@@ -1,5 +1,4 @@
-//! Extract iApp presentation-variable references from implementation Tcl —
-//! Rust port of `dialects/f5/bigip/iapp_vars.py`.
+//! Extract iApp presentation-variable references from implementation Tcl.
 //!
 //! In iApp templates a presentation field declared as `section.field` in
 //! APL becomes `$::section__field` in the implementation Tcl. This module
@@ -26,7 +25,6 @@ static IAPP_VAR_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// A reference to an iApp presentation variable in implementation Tcl.
-/// Mirrors the frozen Python `IappVarRef` dataclass.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IappVarRef {
     /// The Tcl global name, e.g. `"::basic__addr"`.
@@ -39,7 +37,7 @@ pub struct IappVarRef {
 
 /// Extract iApp presentation-variable references (`::section__field`)
 /// from Tcl `source`. Plain `$::var` references without an `__` separator
-/// are not iApp variables and are dropped, mirroring `extract_iapp_var_refs`.
+/// are not iApp variables and are dropped.
 #[must_use]
 pub fn extract_iapp_var_refs(source: &str) -> Vec<IappVarRef> {
     let line_index = LineIndex::new(source);

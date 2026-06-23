@@ -1,11 +1,11 @@
 //! The combined `f5 query --help-manual` surface.
 //!
-//! The Python verb concatenates the grammar reference, the builtins catalogue,
-//! and the cookbook. The Rust port composes the same three sections from the
-//! already-ported [`crate::grammar`], [`crate::builtins`], and
-//! [`crate::examples`] formatters. The builtins section is the metadata-driven
-//! catalogue (see [`crate::builtins::format_catalogue`]) rather than the Python
-//! per-function prose.
+//! Concatenates the grammar reference, the builtins catalogue, and the
+//! cookbook, composing the three sections from the [`crate::grammar`],
+//! [`crate::builtins`], and [`crate::examples`] formatters. The builtins
+//! section is the metadata-driven catalogue (see
+//! [`crate::builtins::format_catalogue`]) rather than the Python per-function
+//! prose.
 
 /// Render the comprehensive manual: grammar + builtins + cookbook.
 #[must_use]

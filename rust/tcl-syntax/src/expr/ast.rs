@@ -366,8 +366,7 @@ impl ExprNode {
     /// Collect the raw text of every command substitution in this expr AST
     /// (each an `[cmd …]` form, brackets included).  Used to recover the side
     /// effects / reads of command substitutions evaluated inside an
-    /// expression — they run in the current scope.  Mirrors Python's
-    /// `command_texts_in_expr_node`.
+    /// expression — they run in the current scope.
     #[must_use]
     pub fn command_texts(&self) -> Vec<String> {
         let mut out = Vec::new();
@@ -579,7 +578,7 @@ pub fn expr_text(node: &ExprNode) -> String {
 
 /// Recognise an `[info exists X]` / `[array exists X]` existence-query
 /// condition, returning `(variable, negated)` where `negated` is true
-/// for `![info exists X]`.  Used by SYNC-MAY31-3 to inject guarded-region
+/// for `![info exists X]`.  Used to inject guarded-region
 /// read narrowing (`cfg_lower::lower_if`), suppress the existence-query
 /// word's W210 read, and fold the predicate to a constant (analyser I230).
 ///

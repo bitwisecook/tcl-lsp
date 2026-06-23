@@ -1,7 +1,5 @@
 //! Lazy descent into braced bodies and command substitutions.
 //!
-//! Ports `compiler/parsing/syntax/descend.py` (#533 / `SYNC-JUN06`).
-//!
 //! At its own level a `{…}` body or `[…]` command substitution is a
 //! single `Str` / `Cmd` token whose `raw` owns the full span —
 //! delimiters included.  *Descending* re-lexes its inner text as a child
@@ -20,9 +18,9 @@
 //! **Dialect / offsets.**  Like [`super::build::build_document`], the
 //! child green tree is built in local-offset space and the red
 //! [`SyntaxTree`] supplies the absolute anchoring; the dialect
-//! [`LexerConfig`] carries over (the `_and_config` plumbing).  Python's
-//! `insidequote` parameter is not threaded — `descend_command` never
-//! passes it, and no production caller descends a quoted region.
+//! [`LexerConfig`] carries over (the `_and_config` plumbing).  No
+//! `insidequote` handling is threaded — `descend_command` never
+//! passes such a flag, and no production caller descends a quoted region.
 
 use tcl_lexer::{LexerConfig, SourceMap, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
@@ -36,8 +34,7 @@ use super::red::{SyntaxNode, SyntaxTree, build_line_starts};
 /// The closer sits one byte past the `token_text` bytes of inner content
 /// after the opener.  Deriving it from the *length* (not the token's end
 /// offset) is what classifies an empty `{}` / `[]` correctly — the lexer
-/// reports `end` *on* the closer there, which `end + 1` would overshoot
-/// (#527).
+/// reports `end` *on* the closer there, which `end + 1` would overshoot.
 fn terminated(sm: &SourceMap<'_>, token: Token) -> bool {
     let closer = match token.kind {
         TokenType::Str => b'}',

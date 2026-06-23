@@ -29,8 +29,7 @@
 //! This is the one place the error vocabulary is owned. The pure
 //! crates return `Result<_, E>` with their own error enums; the
 //! translation to a Python exception happens here, at the binding
-//! boundary, exactly as the rewrite plan prescribes ("translated at
-//! the facade boundary").
+//! boundary.
 
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;

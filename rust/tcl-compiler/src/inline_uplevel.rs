@@ -1,22 +1,9 @@
-//! Whole-callee uplevel-passthrough inlining (C34).
+//! Whole-callee uplevel-passthrough inlining.
 //!
 //! Detects procs whose entire body is a single
 //! [`Statement::UpFrame`] with `frame_shift == 1` (the canonical
 //! "shift to caller's frame, evaluate body, restore frame" idiom)
 //! and rewrites every callsite to splice the body inline.
-//!
-//! Mirrors `core/compiler/inline_uplevel.py` from main commit
-//! `25a4340e`.
-//!
-//! This file lands in strips:
-//!
-//! * **C34b** — [`detect_static_passthrough`]: zero-param,
-//!   single-`UpFrame` body, no nested frame-reaching commands.
-//! * **C34c** — `detect_param_body_passthrough` (deferred): single-param
-//!   `proc dispatcher {body} { uplevel 1 $body }` shape.
-//! * **C34d** — per-callsite rewriter (separate strip — needs the
-//!   `Statement::Block` IR variant).
-//! * **C34e** — corpus + optimiser-pipeline integration.
 
 use std::collections::HashMap;
 
@@ -62,8 +49,7 @@ pub fn detect_passthrough_candidates(module: &Module) -> HashMap<String, Passthr
     out
 }
 
-/// Convenience: only the static (zero-param) shape, used by tests
-/// and any caller that hasn't ported C34c yet.
+/// Convenience: only the static (zero-param) shape, used by tests.
 #[must_use]
 pub fn detect_static_passthrough(module: &Module) -> HashMap<String, Script> {
     detect_passthrough_candidates(module)
@@ -91,8 +77,6 @@ fn classify_passthrough(proc: &Procedure) -> Option<PassthroughShape> {
 /// passthrough — body is exactly one [`Statement::UpFrame`] with
 /// `frame_shift == 1` and contains no nested frame-reaching
 /// commands.
-///
-/// Mirrors `core/compiler/inline_uplevel.py::_static_passthrough_body`.
 fn static_passthrough_body(proc: &Procedure) -> Option<Script> {
     if !proc.params.is_empty() {
         return None;
@@ -116,14 +100,14 @@ fn static_passthrough_body(proc: &Procedure) -> Option<Script> {
 
 /// Return the param name if *proc* matches
 /// `proc NAME {P} { uplevel ?1? $P }` — the single-body-param
-/// passthrough shape (C34c). Recognises both the bare `uplevel
+/// passthrough shape. Recognises both the bare `uplevel
 /// $body` (implicit level 1) form lowered as a `Statement::Call` /
 /// `Statement::Barrier` for the outer dispatcher (since the body
 /// token is `$var`, the lowering can't relax it to
 /// [`Statement::UpFrame`]).
 ///
 /// The actual frame-reach check still runs on the *callsite's*
-/// inlined body inside C34d's rewriter — at detector time we only
+/// inlined body inside the rewriter — at detector time we only
 /// confirm the dispatcher's surface shape.
 fn param_body_passthrough_param(proc: &Procedure) -> Option<String> {
     if proc.params.len() != 1 {
@@ -173,7 +157,6 @@ fn param_body_passthrough_param(proc: &Procedure) -> Option<String> {
 /// True if *script* contains an `uplevel` / `upvar` / frame-
 /// inspecting command that would reach outside the inlined scope.
 ///
-/// Mirrors `core/compiler/inline_uplevel.py::_body_has_frame_reach`.
 /// After inlining the body runs in the caller's frame; if the body
 /// itself does `uplevel 1 {...}`, that now references the caller's
 /// *caller* — a frame the original author may not have anticipated.
@@ -237,8 +220,6 @@ fn statement_has_frame_reach(stmt: &Statement) -> bool {
 ///
 /// Safe to call multiple times — already-inlined callsites no
 /// longer match the pattern.
-///
-/// Mirrors `core/compiler/inline_uplevel.py::inline_uplevel_passthrough`.
 pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistry) {
     let candidates = detect_passthrough_candidates(module);
     if candidates.is_empty() {
@@ -301,7 +282,7 @@ fn rewrite_statement_in_place(
     registry: &CommandRegistry,
 ) {
     // First recurse into nested scripts so the inner-most rewrites
-    // happen before the outer one — mirrors Python.
+    // happen before the outer one.
     walk_nested_scripts(
         stmt,
         |body, ns| {
@@ -369,7 +350,6 @@ fn try_inline_callsite(
             //   * no `{*}`-expansion on any word,
             //   * the materialised body lowers cleanly and
             //     contains no nested frame-reaching commands.
-            // Mirrors Python's `_rewrite_stmt`'s ParamBody arm.
             if args.len() != 1 {
                 return None;
             }
@@ -674,7 +654,7 @@ mod tests {
 
     #[test]
     fn rewriter_inlines_param_body_brace_literal() {
-        // C34d-paramBody: ``proc dispatcher {body} { uplevel 1 $body }``
+        // ``proc dispatcher {body} { uplevel 1 $body }``
         // followed by ``dispatcher {set counter 0}`` rewrites the
         // callsite to a Block containing the parsed literal body.
         let mut m = lower_to_ir(

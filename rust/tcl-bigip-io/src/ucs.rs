@@ -1,15 +1,14 @@
 //! UCS (BIG-IP backup archive) handling, including encrypted archives.
 //!
-//! Faithful port of the pure-Python parts of `tooling/f5/f5_remote/ucs.py`. A
-//! UCS file is a gzip-compressed tar of a snapshot of `/config`; this module is
+//! A UCS file is a gzip-compressed tar of a snapshot of `/config`; this module is
 //! the inverse of `tmsh load sys ucs` — it reassembles a single SCF text by
 //! concatenating the relevant `bigip*.conf` members in a deterministic order.
 //!
 //! BIG-IP can also encrypt a UCS with a passphrase (`tmsh save sys ucs <name>
 //! passphrase <pass>`). Per F5 KB K5437 the archive is then a `GnuPG` *symmetric*
-//! `OpenPGP` message whose plaintext is the ordinary gzip tar. Unlike the Python
-//! (which prefers shelling out to `gpg`), this port decrypts entirely in pure
-//! Rust via [`crate::openpgp`] — and, like the Python, the decrypted UCS lives
+//! `OpenPGP` message whose plaintext is the ordinary gzip tar. Rather than
+//! shelling out to `gpg`, this module decrypts entirely in pure
+//! Rust via [`crate::openpgp`] — and the decrypted UCS lives
 //! only in memory: decrypt → gunzip → untar all happen on in-memory cursors, so
 //! the cleartext (a UCS routinely holds SSL private keys) never touches disk.
 
@@ -277,11 +276,6 @@ mod tests {
 
     #[test]
     fn detects_pgp_and_ucs_byte_signatures() {
-        // Ported from `tests/test_f5_ucs_crypto.py`
-        // ::test_is_pgp_bytes_recognises_encrypted_and_rejects_plain
-        // (TEST-MIGRATE — the magic-byte detectors had no coverage; only
-        // `aes_cfb` was tested in this crate).
-
         // Binary SKESK packet — old-format header, tag 3 → first byte 0x8C.
         assert!(is_pgp_bytes(&[0x8C, 0x0D, 0x04]));
         // ASCII-armored OpenPGP message.

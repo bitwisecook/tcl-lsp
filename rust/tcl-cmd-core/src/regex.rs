@@ -655,7 +655,7 @@ mod tests {
 
     #[test]
     fn resolve_start_end_offset_saturates_without_overflow() {
-        // FN-C3: a giant `end±N` must not overflow the isize add/sub. An `N` near
+        // A giant `end±N` must not overflow the isize add/sub. An `N` near
         // `isize::MAX` still parses, so `(len-1) ± N` is where the wrap would
         // happen — `saturating_*` pins it instead: `end+N` to "past the end" (the
         // match loop then finds nothing), `end-N` back to the start.
@@ -668,7 +668,7 @@ mod tests {
 
     #[test]
     fn slice_match_guards_out_of_range_engine_offsets() {
-        // FN-L: the byte-offset slice must never index-panic on a (foreign)
+        // The byte-offset slice must never index-panic on a (foreign)
         // engine offset past the char→byte table or with `eo < so`.
         let bytes = b"hello";
         let byteoff = [0usize, 1, 2, 3, 4, 5]; // 5 chars + final len

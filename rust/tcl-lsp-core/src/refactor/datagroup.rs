@@ -1,8 +1,6 @@
 //! Extract to data-group — convert inline if/switch membership /
 //! mapping patterns to iRules `class match` / `class lookup` against a
-//! generated data-group.  Ports the static-extraction half of
-//! `tooling/refactoring/_extract_datagroup.py` (`extract_to_datagroup`,
-//! `extract_to_datagroup_from_if`, `extract_to_datagroup_from_switch`).
+//! generated data-group.
 
 use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -54,8 +52,6 @@ pub fn data_group_tcl(dg: &DataGroupDefinition) -> String {
 // ── Value-type inference ──────────────────────────────────────────────
 
 /// `true` when `value` looks like an IPv4/IPv6 address or CIDR range.
-/// Ports `_is_ip_or_cidr` (Python uses `ipaddress.ip_network` /
-/// `ip_address`).
 fn is_ip_or_cidr(value: &str) -> bool {
     let v = strip_quotes(value);
     is_ip_address(v) || is_ip_network(v)
@@ -569,7 +565,6 @@ fn build_result(
 // ── switch extraction ─────────────────────────────────────────────────
 
 /// Extract a switch statement with many literal arms to a data-group.
-/// Ports `extract_to_datagroup_from_switch`.
 #[must_use]
 pub fn extract_to_datagroup_from_switch(
     source: &str,
@@ -683,7 +678,7 @@ fn switch_mapping_extraction(
 }
 
 /// Try all static extraction patterns at the cursor — if/elseif first,
-/// then switch.  Ports `extract_to_datagroup`.
+/// then switch.
 #[must_use]
 pub fn extract_to_datagroup(
     source: &str,

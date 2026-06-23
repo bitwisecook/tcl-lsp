@@ -1,5 +1,4 @@
-//! Core formatting engine — Rust port of
-//! `core/formatting/engine.py`.
+//! Core formatting engine.
 //!
 //! Parses Tcl source into commands, identifies body / expr /
 //! param-list arguments via the registry, recursively formats
@@ -94,7 +93,6 @@ fn utf8_len(b: u8) -> usize {
 }
 
 /// Rebuild source text from a single token, re-adding delimiters.
-/// Mirrors Python's `_reconstruct_raw`.
 fn reconstruct_raw(sm: &SourceMap, tok: Token) -> String {
     match tok.kind {
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
@@ -179,7 +177,7 @@ fn count_newlines(text: &str) -> usize {
 }
 
 /// Parse Tcl source into structured commands plus any trailing
-/// comments.  Mirrors Python's `parse_commands`.
+/// comments.
 fn parse_commands(
     source: &str,
     sm: &SourceMap,

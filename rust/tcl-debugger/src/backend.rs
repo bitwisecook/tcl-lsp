@@ -1,7 +1,6 @@
 //! The debug-engine contract + the native record-and-replay VM backend.
 //!
-//! Port of `tooling/debugger/backends/base.py` (the contract) and the VM
-//! backend. The [`VmBackend`] runs the script once on `tcl-vm` with a recording
+//! The [`VmBackend`] runs the script once on `tcl-vm` with a recording
 //! debug hook installed (the [`tcl_vm::Vm::set_debug_hook`] seam), capturing a
 //! [`tcl_vm::DebugSnapshot`] at every command boundary, then serves
 //! stepping / inspection by navigating that trace with a
@@ -258,9 +257,7 @@ impl DebugBackend for VmBackend {
     }
 
     fn stack_trace(&self) -> Result<Vec<StackFrame>, DebugError> {
-        self.current()
-            .map(frames_of)
-            .ok_or(DebugError::Finished)
+        self.current().map(frames_of).ok_or(DebugError::Finished)
     }
 
     fn variables(&self, frame_id: u32) -> Result<Vec<Variable>, DebugError> {
@@ -349,7 +346,10 @@ mod tests {
         assert_eq!(b.last_stop().unwrap().line, 2);
         // After `set x 1` ran, x is visible.
         let vars = b.variables(0).expect("vars");
-        assert!(vars.iter().any(|v| v.name == "x" && v.value == "1"), "{vars:?}");
+        assert!(
+            vars.iter().any(|v| v.name == "x" && v.value == "1"),
+            "{vars:?}"
+        );
         assert_eq!(b.evaluate("$x").unwrap(), "1");
     }
 

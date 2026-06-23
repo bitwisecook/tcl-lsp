@@ -1,6 +1,6 @@
-//! Flow-sensitive command-binding lattice (SYNC-JUN02b-4, #519).
+//! Flow-sensitive command-binding lattice.
 //!
-//! Port of `compiler/command_binding.py`.  Tracks what each command
+//! Tracks what each command
 //! *name* resolves to at every program point — its original builtin, a
 //! user proc, an `interp alias`, or an opaque (renamed / deleted /
 //! never-defined) target — modelling `rename`, proc (re)definition, and
@@ -256,8 +256,8 @@ fn merge_preds(pred_exits: &[&State], registry: &CommandRegistry) -> State {
 ///
 /// `block_entry` holds the lattice state at each block's entry;
 /// point-wise queries replay the gen of the statements before the
-/// queried index.  Borrows the `cfg` and `registry` so the query API
-/// matches the Python `CommandBinding`'s.
+/// queried index.  Borrows the `cfg` and `registry` for the
+/// point-wise query API.
 pub struct CommandBinding<'a> {
     block_entry: HashMap<String, State>,
     ordered_blocks: Vec<String>,
@@ -428,8 +428,7 @@ pub fn analyse_command_binding<'a>(
 /// core builtin some body may rebind is treated as untrusted
 /// *everywhere*.  Top-level rebindings stay precise via the
 /// flow-sensitive [`CommandBinding`] lattice; this whole-module union is
-/// the conservative fold gate.  Port of Python's
-/// `command_binding.ModuleCommandMutations` + `command_trust`.
+/// the conservative fold gate.
 ///
 /// `Default` trusts everything (no names, not dynamic) — the
 /// "no mutations observed" baseline.
@@ -480,8 +479,7 @@ fn collect_tampered_builtins(
 /// nested structured bodies, in source order) to `state`, collecting
 /// after *each* mutation — so a builtin renamed away and later restored
 /// (`rename string ms; …; rename ms string`) is still recorded as
-/// tampered within that window.  Mirrors Python's `_iter_calls` +
-/// per-statement `_collect`.
+/// tampered within that window.
 fn walk_body_calls(
     script: &crate::ir::Script,
     state: &mut State,

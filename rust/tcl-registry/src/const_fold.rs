@@ -1,9 +1,7 @@
-//! Compile-time constant-folding callbacks for Tcl list / dict commands
-//! (SYNC-JUN02d-1, #525).
+//! Compile-time constant-folding callbacks for Tcl list / dict commands.
 //!
-//! Port of the list/dict half of `dialects/tcl/const_fold.py`.  Each
-//! callback takes the resolved literal argument strings and returns the
-//! result string, or `None` when the operation cannot be folded soundly.
+//! Each callback takes the resolved literal argument strings and returns
+//! the result string, or `None` when the operation cannot be folded soundly.
 //! Wired onto the `const_fold` field of the matching `CommandSpec` /
 //! `SubCommand`; consumed by the optimiser's O129 path, which renders the
 //! result as a single word.

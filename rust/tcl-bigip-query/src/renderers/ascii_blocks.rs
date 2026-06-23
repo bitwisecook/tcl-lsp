@@ -1,7 +1,5 @@
 //! `ascii-blocks` renderer — Unicode line-art block diagrams.
 //!
-//! Faithful port of `dialects/f5/query/renderers/ascii_blocks.py`.
-//!
 //! Walks a nested `{title, rows}` (or `{label, children}`) tree and lays it
 //! out as a stack of boxes with `┌─┬─┐` borders.
 //!

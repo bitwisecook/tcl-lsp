@@ -1,6 +1,5 @@
 //! Overlap-aware optimisation selection (manager final filter).
 //!
-//! Ported from `core/compiler/optimiser/_helpers.py::_select_non_overlapping_optimisations`.
 //! Different passes may propose rewrites that overlap in source;
 //! this helper picks a conflict-free subset deterministically:
 //!

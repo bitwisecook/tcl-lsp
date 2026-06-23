@@ -1,12 +1,11 @@
-//! Loop-termination index-bounds checks (W230-W242) — GAP-A4.
+//! Loop-termination index-bounds checks (W230-W242).
 //!
-//! Port of `core/analysis/checks/_bounds.py`.  Lands the
-//! **loop-termination** family (W240 / W241 / W242 over `while` / `for`,
-//! including the `for`-step provably-infinite heuristic) and the
-//! **index-bounds** family (W230 over `lindex` / `lrange` / `lreplace`,
-//! W231 over `lset`, W232 over `string index` / `range` / `replace`).
-//! W242 (unprovable termination) is emitted here like Python's
-//! `analyse`; its default-off opt-in is a consuming-layer concern.
+//! Covers the **loop-termination** family (W240 / W241 / W242 over
+//! `while` / `for`, including the `for`-step provably-infinite heuristic)
+//! and the **index-bounds** family (W230 over `lindex` / `lrange` /
+//! `lreplace`, W231 over `lset`, W232 over `string index` / `range` /
+//! `replace`).  W242 (unprovable termination) is always emitted here; its
+//! default-off opt-in is a consuming-layer concern.
 //!
 //! The analysis is intentionally shallow — it inspects the literal text
 //! of the condition and body.  A dynamic condition (anything not a
@@ -32,8 +31,7 @@ const EXIT_COMMANDS: &[&str] = &["break", "return", "error", "exit"];
 /// W240 (constant-false condition → dead body) / W241 (constant-true
 /// condition with no `break`/`return`/`error`/`exit` → provably
 /// infinite) for `while` / `for`.  `args` / `arg_tokens` exclude the
-/// command name.  Mirrors the constant-condition arm of
-/// `check_loop_termination`.
+/// command name.
 pub(crate) fn loop_termination_diagnostics(
     cmd_name: &str,
     args: &[String],
@@ -95,9 +93,9 @@ pub(crate) fn loop_termination_diagnostics(
 
     // W242 (default-off): a counter variable appears in the condition but
     // neither the step nor the body provably modifies it.  Reported on
-    // the condition token, mirroring W240/W241.  Like Python's
-    // `core.analysis.analyse`, the analyser always emits W242; the
-    // default-off opt-in is applied by the consuming LSP/config layer.
+    // the condition token, like W240/W241.  The analyser always emits
+    // W242; the default-off opt-in is applied by the consuming LSP/config
+    // layer.
     if let Some(var) = extract_counter_name(cond_text)
         && !loop_modifies_var(&var, step_text, body_text)
     {
@@ -116,7 +114,7 @@ pub(crate) fn loop_termination_diagnostics(
 }
 
 /// Return the scalar name of the first variable referenced by a
-/// condition expression, or `None`.  Mirrors `_extract_counter_name`.
+/// condition expression, or `None`.
 ///
 /// The condition is tokenised with the expression lexer (CST level) and
 /// the first `Variable` token is taken; its leading scalar name is then
@@ -129,7 +127,7 @@ fn extract_counter_name(cond: &str) -> Option<String> {
 
 /// The leading scalar name of a `Variable` token's text — the `name`
 /// portion of `$name`, `${name}`, `$name(idx)`, `$ns::name` (taking the
-/// first word run, mirroring the original `\$\{?(\w+)\}?` capture).
+/// first word run, matching the `\$\{?(\w+)\}?` capture shape).
 fn var_scalar_name(text: &str) -> Option<String> {
     let bytes = text.as_bytes();
     if bytes.first() != Some(&b'$') {
@@ -152,7 +150,6 @@ fn is_word_byte(b: u8) -> bool {
 }
 
 /// True when the step expression or the body provably updates `var`.
-/// Mirrors `_loop_modifies_var`.
 fn loop_modifies_var(var: &str, step: &str, body: &str) -> bool {
     if !step.is_empty() {
         if let Some((step_var, _)) = parse_step_incr(step)
@@ -169,7 +166,6 @@ fn loop_modifies_var(var: &str, step: &str, body: &str) -> bool {
 
 /// Prove that a `for {set v INT} {$v OP INT} {incr v INT} body` loop
 /// never terminates (no write to `v` elsewhere); returns the reason.
-/// Mirrors `_for_is_provably_infinite`.
 fn for_is_provably_infinite(init: &str, cond: &str, step: &str, body: &str) -> Option<String> {
     let (var_c, op, bound) = parse_simple_for_cond(cond)?;
     let (var_i, start) = parse_init_var_value(init)?;
@@ -221,8 +217,7 @@ fn for_is_provably_infinite(init: &str, cond: &str, step: &str, body: &str) -> O
     None
 }
 
-/// Evaluate a simple comparison at a concrete value.  Mirrors
-/// `_cond_true_at`.
+/// Evaluate a simple comparison at a concrete value.
 fn cond_true_at(op: &str, value: i64, bound: i64) -> bool {
     match op {
         "<" => value < bound,
@@ -236,8 +231,7 @@ fn cond_true_at(op: &str, value: i64, bound: i64) -> bool {
 }
 
 /// `(var, op, bound)` when `cond` is exactly `$v OP literal` or
-/// `literal OP $v` (no compound `&&` / `||` / `?` / `!`).  Mirrors
-/// `_parse_simple_for_cond`.
+/// `literal OP $v` (no compound `&&` / `||` / `?` / `!`).
 ///
 /// The condition is tokenised with the expression lexer.  Exactly one
 /// comparison operator must split it into a single-variable side and a
@@ -283,8 +277,8 @@ fn parse_simple_for_cond(cond: &str) -> Option<(String, String, i64)> {
 
 /// A single `Variable` token slice → its scalar name, but only for a
 /// plain `$name` / `${name}` token.  Array (`$a(i)`) and namespace-
-/// qualified (`$ns::v`) forms are rejected, matching the `fullmatch` of
-/// Python's `\$\{?(\w+)\}?` on the comparison's variable side.
+/// qualified (`$ns::v`) forms are rejected, accepting only a full match
+/// of `\$\{?(\w+)\}?` on the comparison's variable side.
 fn tokens_as_scalar_var(tokens: &[&ExprToken]) -> Option<String> {
     match tokens {
         [v] if v.kind == ExprTokenType::Variable => strict_scalar_name(&v.text),
@@ -320,7 +314,7 @@ fn strict_scalar_name(text: &str) -> Option<String> {
 
 /// A signed-integer token slice — a `Number`, optionally preceded by a
 /// unary `-` operator (the expression lexer tokenises `-5` as two
-/// tokens).  A leading `+` is *not* accepted, matching Python's `-?\d+`
+/// tokens).  A leading `+` is *not* accepted, matching the `-?\d+`
 /// bound pattern.  Returns the value when the slice is exactly that shape.
 fn tokens_as_int(tokens: &[&ExprToken]) -> Option<i64> {
     match tokens {
@@ -357,9 +351,9 @@ fn flip_comparison(op: &str) -> &str {
     }
 }
 
-/// `(var, value)` from an init clause `set v INT`.  Mirrors
-/// `_parse_init_var_value`.  Parsed via the segmenter: a lone `set`
-/// command with a scalar-name word and a signed-integer literal.
+/// `(var, value)` from an init clause `set v INT`.  Parsed via the
+/// segmenter: a lone `set` command with a scalar-name word and a
+/// signed-integer literal.
 fn parse_init_var_value(init: &str) -> Option<(String, i64)> {
     let cmd = sole_command(init)?;
     if cmd.name() != "set" {
@@ -374,9 +368,8 @@ fn parse_init_var_value(init: &str) -> Option<(String, i64)> {
     Some((var, value))
 }
 
-/// `(var, delta)` from a step clause `incr v ?INT?`.  Mirrors
-/// `_parse_step_incr`.  Parsed via the segmenter; a missing delta
-/// defaults to `1`.
+/// `(var, delta)` from a step clause `incr v ?INT?`.  Parsed via the
+/// segmenter; a missing delta defaults to `1`.
 fn parse_step_incr(step: &str) -> Option<(String, i64)> {
     let cmd = sole_command(step)?;
     if cmd.name() != "incr" {
@@ -417,17 +410,14 @@ fn parse_signed_decimal(word: &str) -> Option<i64> {
 }
 
 /// Does `body` write `var` via `set` / `incr` / `lset` / `append` /
-/// `lappend`?  Mirrors `_body_writes_var`, but resolves commands with
-/// the segmenter (recursing into braced/quoted word bodies) rather than
-/// a flat-text scan, so writes inside string arguments don't count and
-/// nested-body writes still do.
+/// `lappend`?  Resolves commands with the segmenter (recursing into
+/// braced/quoted word bodies) rather than a flat-text scan, so writes
+/// inside string arguments don't count and nested-body writes still do.
 ///
-/// This is a deliberate *semantic* upgrade over Python's
-/// `\bset\s+var\b` flat regex, not a bug-for-bug port: it counts a write
-/// only in command position (Python's regex also matched `set var(i)`
-/// array writes and matches inside strings), which can shift W241/W242
-/// counts versus the Python source of truth.  The new behaviour is the
-/// more correct one (full-fidelity parsing rather than text matching).
+/// A write counts only in command position (a `\bset\s+var\b` flat regex
+/// would also match `set var(i)` array writes and matches inside
+/// strings), which keeps W241/W242 counts accurate — full-fidelity
+/// parsing rather than text matching.
 fn body_writes_var(body: &str, var: &str) -> bool {
     any_command_recursive(body, &mut |cmd| {
         WRITE_COMMANDS.contains(&cmd.name()) && cmd.args().first().map(String::as_str) == Some(var)
@@ -436,8 +426,7 @@ fn body_writes_var(body: &str, var: &str) -> bool {
 
 /// Walk every command in `script`, recursing into braced / quoted word
 /// arguments (which may be nested scripts), and return `true` as soon as
-/// `pred` matches.  The shallow-but-structural replacement for the
-/// flat-text body scans.
+/// `pred` matches.  A shallow-but-structural body scan.
 fn any_command_recursive(script: &str, pred: &mut impl FnMut(&SegmentedCommand) -> bool) -> bool {
     for cmd in segment_commands(script) {
         if pred(&cmd) {
@@ -459,8 +448,8 @@ fn any_command_recursive(script: &str, pred: &mut impl FnMut(&SegmentedCommand) 
 /// W230: a constant list literal with a constant out-of-range index
 /// (`lindex`) or a provably-empty slice (`lrange` / `lreplace`)
 /// silently returns empty / clamps.  `args` / `arg_tokens` exclude the
-/// command name.  Mirrors `check_list_index_out_of_range` (W231 `lset`
-/// needs const-var tracking and is a follow-up).
+/// command name.  (W231 `lset` needs const-var tracking and is handled
+/// separately.)
 #[allow(clippy::similar_names)] // first_text/first_tok/first_val read clearly
 pub(crate) fn list_index_diagnostics(
     cmd_name: &str,
@@ -568,8 +557,7 @@ fn lindex_diagnostics(args: &[String], arg_tokens: &[Token], length: i64) -> Vec
 /// Unlike `lindex` (which silently returns empty), `lset` raises a
 /// runtime error; a plain negative literal always errors, and — when the
 /// list length is recoverable from a recent literal `set` — an index past
-/// the append slot (`> length`) or below zero errors too.  Mirrors
-/// `check_lset_index_out_of_range`.
+/// the append slot (`> length`) or below zero errors too.
 pub(crate) fn lset_index_diagnostics(
     cmd_name: &str,
     args: &[String],
@@ -642,16 +630,14 @@ pub(crate) fn lset_index_diagnostics(
 
 /// Recover the literal length of `var_name` from the most recent
 /// `set var {flat-literal}` before `before_offset`, when that assignment
-/// shares the `lset`'s (flat) scope.  Mirrors
-/// `_infer_list_length_from_recent_set` + `_scope_is_flat`: a cheap
-/// line-anchored scan for `set <var> {literal}` (the regex `_LIST_SET_RE`
+/// shares the `lset`'s (flat) scope.  A cheap line-anchored scan for
+/// `set <var> {literal}` (the pattern
 /// `(?:^|\n)\s*set\s+(\w+)\s+(\{[^{}]*\})\s*(?=\n|$|;)`), accepted only
 /// when the text *between* the `set` and the `lset` stays at brace depth
 /// zero and crosses no `proc` / `namespace eval` / `apply` / `try`
 /// boundary.  Unlike top-level segmentation this also recovers a `set`
 /// nested in the *same* `proc` body as the `lset` (both inside one brace
-/// scope, with nothing scope-introducing between them) — the case Python
-/// handles and the previous top-level-only port missed.
+/// scope, with nothing scope-introducing between them).
 fn infer_list_length_from_recent_set(
     source: &str,
     var_name: &str,
@@ -665,8 +651,8 @@ fn infer_list_length_from_recent_set(
     let mut best: Option<i64> = None;
     let mut i = 0usize;
     while i < before {
-        // `_LIST_SET_RE` anchors each candidate at a line start
-        // (`(?:^|\n)`): offset 0, or immediately after a newline.
+        // Anchor each candidate at a line start (`(?:^|\n)`): offset 0,
+        // or immediately after a newline.
         if i != 0 && bytes[i - 1] != b'\n' {
             i += 1;
             continue;
@@ -764,7 +750,7 @@ fn match_set_literal(bytes: &[u8], start: usize, end: usize) -> Option<SetLitera
 
 /// True when *between* stays at brace depth zero and introduces no
 /// `proc` / `namespace eval` / `apply` / `try` scope — i.e. a trailing
-/// `lset` shares the originating `set`'s scope.  Mirrors `_scope_is_flat`.
+/// `lset` shares the originating `set`'s scope.
 fn scope_is_flat(between: &str) -> bool {
     if has_scope_marker(between) {
         return false;
@@ -794,7 +780,7 @@ fn scope_is_flat(between: &str) -> bool {
 }
 
 /// Whether *s* contains a `proc` / `apply` / `try` / `namespace eval`
-/// keyword at a word boundary.  Mirrors `_SCOPE_MARKERS_RE`
+/// keyword at a word boundary
 /// (`\b(?:proc|namespace\s+eval|apply|try)\b`).
 fn has_scope_marker(text: &str) -> bool {
     let bytes = text.as_bytes();
@@ -836,8 +822,7 @@ fn has_scope_marker(text: &str) -> bool {
 
 /// True when a `(first, last)` index pair resolves to a provably-empty
 /// slice over `length`: both below, both above, clamped first > clamped
-/// last, or an empty container.  Mirrors the shared clamp logic in
-/// `check_list_index_out_of_range` / `check_string_index_out_of_range`.
+/// last, or an empty container.
 fn pair_slice_empty(first: i64, last: i64, length: i64) -> bool {
     if length == 0 {
         return true;
@@ -851,8 +836,7 @@ fn pair_slice_empty(first: i64, last: i64, length: i64) -> bool {
 
 /// W232: a constant `string index` / `range` / `replace` / `insert`
 /// into a literal string with a constant out-of-range (or negative)
-/// index returns empty / is a no-op.  Mirrors
-/// `check_string_index_out_of_range`.
+/// index returns empty / is a no-op.
 pub(crate) fn string_index_diagnostics(
     cmd_name: &str,
     args: &[String],
@@ -1011,7 +995,6 @@ fn string_pair_index(
 }
 
 /// Human-readable description of a resolved out-of-range string index.
-/// Mirrors `_describe_index_string`.
 fn describe_index_string(resolved: i64, length: i64) -> String {
     if resolved < 0 {
         format!("resolves to {resolved} (before start of string)")
@@ -1023,8 +1006,7 @@ fn describe_index_string(resolved: i64, length: i64) -> String {
     }
 }
 
-/// Token is a literal word (braced string or plain word).  Mirrors
-/// `_is_braced_or_esc`.
+/// Token is a literal word (braced string or plain word).
 fn is_braced_or_esc(tok: &Token) -> bool {
     matches!(
         tok.kind,
@@ -1032,8 +1014,7 @@ fn is_braced_or_esc(tok: &Token) -> bool {
     )
 }
 
-/// Word contains a variable / command substitution.  Mirrors
-/// `_has_subst`.
+/// Word contains a variable / command substitution.
 fn has_subst(text: &str, tok: &Token) -> bool {
     matches!(
         tok.kind,
@@ -1043,14 +1024,14 @@ fn has_subst(text: &str, tok: &Token) -> bool {
 }
 
 /// `s` is a constant index expression we can evaluate (`end`, an
-/// integer, or `end±N`).  Mirrors `_is_literal_index`.
+/// integer, or `end±N`).
 fn is_literal_index(s: &str) -> bool {
     let s = s.trim();
     s == "end" || parse_strict_int(s).is_some() || end_offset(s).is_some()
 }
 
 /// Resolve a constant index to an absolute offset given `length`, or
-/// `None` when `s` is not a literal index.  Mirrors `_resolve_index`.
+/// `None` when `s` is not a literal index.
 fn resolve_index(s: &str, length: i64) -> Option<i64> {
     let s = s.trim();
     if s == "end" {
@@ -1062,7 +1043,7 @@ fn resolve_index(s: &str, length: i64) -> Option<i64> {
     parse_strict_int(s)
 }
 
-/// Parse a strict `-?\d+` integer (no `+` sign, matching `_INT_RE`).
+/// Parse a strict `-?\d+` integer (no `+` sign).
 fn parse_strict_int(s: &str) -> Option<i64> {
     let body = s.strip_prefix('-').unwrap_or(s);
     if body.is_empty() || !body.bytes().all(|b| b.is_ascii_digit()) {
@@ -1072,8 +1053,7 @@ fn parse_strict_int(s: &str) -> Option<i64> {
 }
 
 /// Parse an `end-N` / `end+N` offset, returning `(sign, n)` where sign
-/// is -1 / +1.  Mirrors `_END_MINUS_RE` / `_END_PLUS_RE` (whitespace
-/// around the operator allowed).
+/// is -1 / +1 (whitespace around the operator allowed).
 fn end_offset(s: &str) -> Option<(i64, i64)> {
     let rest = s.strip_prefix("end")?.trim_start();
     let (sign, digits) = if let Some(d) = rest.strip_prefix('-') {
@@ -1091,7 +1071,6 @@ fn end_offset(s: &str) -> Option<(i64, i64)> {
 }
 
 /// Human-readable description of a resolved out-of-range index.
-/// Mirrors `_describe_index`.
 fn describe_index(resolved: i64, length: i64) -> String {
     if resolved < 0 {
         format!("resolves to {resolved} (before start of list)")
@@ -1107,7 +1086,6 @@ const TRUE_LITERALS: &[&str] = &["1", "true", "yes", "on", "!0"];
 const FALSE_LITERALS: &[&str] = &["0", "false", "no", "off", "!1"];
 
 /// Strip a single enclosing `{ … }` and surrounding whitespace.
-/// Mirrors `_strip_braces`.
 fn strip_braces(s: &str) -> &str {
     let t = s.trim();
     if t.starts_with('{') && t.ends_with('}') && t.len() >= 2 {
@@ -1118,8 +1096,7 @@ fn strip_braces(s: &str) -> &str {
 }
 
 /// `Some(true)` / `Some(false)` when `cond` is a constant-true /
-/// constant-false expression; `None` when dynamic.  Mirrors
-/// `_condition_constant`.
+/// constant-false expression; `None` when dynamic.
 fn condition_constant(cond: &str) -> Option<bool> {
     let c = strip_braces(cond).to_ascii_lowercase();
     if TRUE_LITERALS.contains(&c.as_str()) {
@@ -1132,7 +1109,7 @@ fn condition_constant(cond: &str) -> Option<bool> {
 }
 
 /// True when `body` contains a `break` / `return` / `error` / `exit`
-/// command (shallow, structural scan).  Mirrors `_body_may_exit`.
+/// command (shallow, structural scan).
 ///
 /// Resolved via the segmenter (recursing into nested bodies) so only a
 /// command in *command position* counts — a `break` appearing as a bare
@@ -1230,8 +1207,8 @@ mod tests {
         assert_eq!(super::parse_simple_for_cond("!$done"), None);
         assert_eq!(super::parse_simple_for_cond("$i ? 1 : 0"), None);
         assert_eq!(super::parse_simple_for_cond("$i < 10.5"), None);
-        // Fidelity with Python's `-?\d+` bound and `\$\{?(\w+)\}?` var:
-        // a leading `+`, an array index, or a namespace qualifier reject.
+        // The `-?\d+` bound and `\$\{?(\w+)\}?` var shapes mean a leading
+        // `+`, an array index, or a namespace qualifier reject.
         assert_eq!(super::parse_simple_for_cond("$i < +5"), None);
         assert_eq!(super::parse_simple_for_cond("$arr(i) < 5"), None);
         assert_eq!(super::parse_simple_for_cond("$ns::v < 5"), None);
@@ -1358,8 +1335,6 @@ mod tests {
     }
 
     // -- W231 (lset out of range) & W242 (unprovable termination) -----
-    //
-    // Cross-checked against the live Python analyser.
 
     fn code_msgs(src: &str, code: &str) -> Vec<String> {
         let mut a = Analyser::new();
