@@ -55,7 +55,7 @@ use tcl_lsp_core::workspace_symbols::{
 use tcl_lsp_db::TclDb as _;
 use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use tower_lsp_server::jsonrpc;
 use tower_lsp_server::ls_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
@@ -247,7 +247,7 @@ struct DiagInputs {
     optimiser_enabled: bool,
     opt_disabled: HashSet<String>,
     documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
-    workspace_index: Arc<Mutex<core_workspace_index::WorkspaceIndex>>,
+    workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
     /// The salsa db handle.  Each run clones a *fresh, short-lived* snapshot and
     /// drops it immediately, so an idle worker never holds a clone across the
     /// debounce sleep (which would block the next edit's `set_text` — salsa's
@@ -565,7 +565,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
                     // the newer state.
                     return true;
                 }
-                let mut index = workspace_index.lock().await;
+                let mut index = workspace_index.write().await;
                 index.remove_document(uri.as_str());
                 index.add_document(uri.as_str(), &analysis);
             }
@@ -682,7 +682,7 @@ pub struct Backend {
     /// incrementally as documents open / change / close.  Lets
     /// completion enumerate procs from sibling files.
     /// `Arc` so the detached diagnostics task can update it off the event loop.
-    workspace_index: Arc<Mutex<core_workspace_index::WorkspaceIndex>>,
+    workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
     /// Per-feature provider toggles (`tclLsp.features.*`).  Absent
     /// keys default to enabled, so a config that names only some
     /// features leaves the rest on.  Consulted by each provider
@@ -917,7 +917,7 @@ impl Backend {
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
-            workspace_index: Arc::new(Mutex::new(core_workspace_index::WorkspaceIndex::new())),
+            workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
@@ -1070,7 +1070,7 @@ impl Backend {
                 let text = doc.text.clone();
                 self.db_set_source(&uri, text, new_dialect.clone()).await;
                 self.workspace_index
-                    .lock()
+                    .write()
                     .await
                     .remove_document(uri.as_str());
             }
@@ -1434,7 +1434,7 @@ impl Backend {
         // retired) so a file opening mid-reconcile keeps its open-buffer entry.
         let docs = self.documents.lock().await;
         let open: HashSet<String> = docs.keys().map(|u| u.as_str().to_owned()).collect();
-        let mut index = self.workspace_index.lock().await;
+        let mut index = self.workspace_index.write().await;
         let to_remove: Vec<String> = index
             .document_uris()
             .into_iter()
@@ -1503,7 +1503,7 @@ impl Backend {
             // project so a stale definition can't keep resolving cross-file.
             None => self.db_remove_source(uri).await,
         }
-        let mut index = self.workspace_index.lock().await;
+        let mut index = self.workspace_index.write().await;
         index.remove_document(uri.as_str());
         if let Some((_, _, analysis)) = &scanned {
             index.add_document(uri.as_str(), analysis);
@@ -1603,7 +1603,7 @@ impl Backend {
         };
         // Collect (uri, name_span) targets from the index.
         let targets: Vec<(String, tcl_lexer::Span)> = {
-            let index = self.workspace_index.lock().await;
+            let index = self.workspace_index.read().await;
             index
                 .proc_definitions(&word, uri.as_str())
                 .into_iter()
@@ -1697,7 +1697,7 @@ impl Backend {
         if !position_is_command_head(source, pos, analysis) {
             return None;
         }
-        let index = self.workspace_index.lock().await;
+        let index = self.workspace_index.read().await;
         if let Some(p) = index.proc_definitions(&word, uri.as_str()).first() {
             return Some((p.name.clone(), p.qualified_name.clone()));
         }
@@ -1727,7 +1727,7 @@ impl Backend {
             return Vec::new();
         };
         let targets: Vec<(String, tcl_lexer::Span)> = {
-            let index = self.workspace_index.lock().await;
+            let index = self.workspace_index.read().await;
             let mut t: Vec<(String, tcl_lexer::Span)> = index
                 .invocations_of(&simple, &qualified, uri.as_str())
                 .into_iter()
@@ -1768,7 +1768,7 @@ impl Backend {
             return;
         };
         let intents = {
-            let index = self.workspace_index.lock().await;
+            let index = self.workspace_index.read().await;
             core_rename::cross_document_symbol_edits(
                 &simple,
                 &qualified,
@@ -1839,7 +1839,7 @@ impl Backend {
                 })
                 .collect()
         };
-        let indexed = self.workspace_index.lock().await.document_uris();
+        let indexed = self.workspace_index.read().await.document_uris();
         for uri_str in indexed {
             let Ok(uri) = Uri::from_str(&uri_str) else {
                 continue;
@@ -1900,7 +1900,7 @@ impl Backend {
             // Resolve the callee head against the index, preferring
             // the analyser's resolved qualified name when present.
             let Some((target_uri, qualified, name_span, detail)) = ({
-                let index = self.workspace_index.lock().await;
+                let index = self.workspace_index.read().await;
                 let mut found = None;
                 for key in [
                     call.resolved_qualified_name.as_deref(),
@@ -3231,7 +3231,7 @@ impl Backend {
             .map(|(uri, text, dialect, _)| (uri.clone(), text.clone(), dialect.clone()))
             .collect();
         self.db_set_sources_batch(&db_entries).await;
-        let mut index = self.workspace_index.lock().await;
+        let mut index = self.workspace_index.write().await;
         for (uri, _, _, analysis) in analysed {
             if open.contains(uri.as_str()) {
                 continue;
@@ -3323,7 +3323,7 @@ impl LanguageServer for Backend {
             self.db_set_source(&uri, text.clone(), dialect_for_diags.clone())
                 .await;
             self.workspace_index
-                .lock()
+                .write()
                 .await
                 .remove_document(uri.as_str());
             drop(docs);
@@ -3372,7 +3372,7 @@ impl LanguageServer for Backend {
             // documents, so this nesting introduces no lock-order cycle.)
             self.db_set_source(&uri, text, dialect.clone()).await;
             self.workspace_index
-                .lock()
+                .write()
                 .await
                 .remove_document(uri.as_str());
             drop(docs);
@@ -3444,7 +3444,7 @@ impl LanguageServer for Backend {
             let mut docs = self.documents.lock().await;
             docs.remove(uri);
             self.workspace_index
-                .lock()
+                .write()
                 .await
                 .remove_document(uri.as_str());
             drop(docs);
@@ -3529,7 +3529,7 @@ impl LanguageServer for Backend {
             }
             if change.typ == FileChangeType::DELETED {
                 self.workspace_index
-                    .lock()
+                    .write()
                     .await
                     .remove_document(change.uri.as_str());
                 // Drop it from the salsa `Project` too, so a deleted file's procs
@@ -3706,20 +3706,22 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        // Snapshot the cross-document index so the worker can
-        // enumerate procs from sibling files.  Cloning is the
-        // price of moving it into `spawn_blocking`; the index
-        // holds only definition metadata, not document text.
-        let workspace = self.workspace_index.lock().await.clone();
+        // Share the cross-document index with the worker so it can
+        // enumerate procs from sibling files.  Move a refcounted
+        // handle in and take the read lock inside the blocking
+        // closure: the heavy walk holds a shared read lock, letting
+        // other readers proceed concurrently while only writers wait.
+        let workspace_index = Arc::clone(&self.workspace_index);
         // Pure-CPU work; spawn_blocking off the LSP event loop.
         let items = tokio::task::spawn_blocking(move || {
+            let workspace = workspace_index.blocking_read();
             core_completion::completions(
                 &doc.text,
                 pos.line,
                 pos.character,
                 &analysis,
                 Some(&registry),
-                Some(&workspace),
+                Some(&*workspace),
                 &doc.dialect,
             )
         })
@@ -4765,16 +4767,20 @@ impl LanguageServer for Backend {
         // above each definition.  The provider walks
         // `analysis.command_invocations` per proc, plus the
         // workspace index for cross-document call sites, so the
-        // count reflects workspace-wide usage.
-        let workspace = self.workspace_index.lock().await.clone();
+        // count reflects workspace-wide usage.  Share the index with
+        // the worker via a refcounted handle and take the read lock
+        // inside the blocking closure, so the count walk holds a
+        // shared read lock instead of a private copy.
+        let workspace_index = Arc::clone(&self.workspace_index);
         let uri_str = uri.to_string();
         let worker_uri = uri_str.clone();
         let lenses = tokio::task::spawn_blocking(move || {
+            let workspace = workspace_index.blocking_read();
             core_code_lens::code_lenses(
                 &doc.text,
                 &doc.dialect,
                 Some(&analysis),
-                Some(&workspace),
+                Some(&*workspace),
                 &worker_uri,
             )
         })
@@ -4837,14 +4843,19 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let workspace = self.workspace_index.lock().await.clone();
+        // Share the workspace index with the worker via a refcounted
+        // handle and take the read lock inside the blocking closure,
+        // so the recomputed count walk holds a shared read lock
+        // rather than a private copy.
+        let workspace_index = Arc::clone(&self.workspace_index);
         let uri_str = uri.to_string();
         let lenses = tokio::task::spawn_blocking(move || {
+            let workspace = workspace_index.blocking_read();
             core_code_lens::code_lenses(
                 &doc.text,
                 &doc.dialect,
                 Some(&analysis),
-                Some(&workspace),
+                Some(&*workspace),
                 &uri_str,
             )
         })
@@ -5320,7 +5331,7 @@ impl LanguageServer for Backend {
             .map(|u| u.as_str().to_owned())
             .collect();
         let raw_edits: Vec<core_file_ops::RenameEdit> = {
-            let index = self.workspace_index.lock().await;
+            let index = self.workspace_index.read().await;
             params
                 .files
                 .iter()
@@ -5373,7 +5384,7 @@ impl LanguageServer for Backend {
         for f in &params.files {
             if let Ok(old_url) = Uri::from_str(&f.old_uri) {
                 self.workspace_index
-                    .lock()
+                    .write()
                     .await
                     .remove_document(old_url.as_str());
             }
@@ -7894,7 +7905,7 @@ mod tests {
             folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
-            workspace_index: Arc::new(Mutex::new(core_workspace_index::WorkspaceIndex::new())),
+            workspace_index: Arc::new(RwLock::new(core_workspace_index::WorkspaceIndex::new())),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
@@ -8053,14 +8064,14 @@ mod tests {
             let analysis = a.analyse("proc gone {} {}\n", "tcl8.6").clone();
             backend
                 .workspace_index
-                .lock()
+                .write()
                 .await
                 .add_document(uri.as_str(), &analysis);
         }
         assert!(
             backend
                 .workspace_index
-                .lock()
+                .read()
                 .await
                 .document_uris()
                 .iter()
@@ -8080,7 +8091,7 @@ mod tests {
         assert!(
             !backend
                 .workspace_index
-                .lock()
+                .read()
                 .await
                 .document_uris()
                 .iter()
@@ -8137,7 +8148,7 @@ mod tests {
         {
             let mut a = Analyser::new();
             let analysis = a.analyse("proc p {} {}\n", "tcl8.6").clone();
-            let mut index = backend.workspace_index.lock().await;
+            let mut index = backend.workspace_index.write().await;
             index.add_document(gone.as_str(), &analysis);
             index.add_document(kept.as_str(), &analysis);
         }
@@ -8158,7 +8169,7 @@ mod tests {
             })
             .await;
 
-        let uris = backend.workspace_index.lock().await.document_uris();
+        let uris = backend.workspace_index.read().await.document_uris();
         assert!(
             !uris.iter().any(|u| u == gone.as_str()),
             "files under the removed folder must be dropped",
@@ -8421,7 +8432,7 @@ mod tests {
             backend.documents.lock().await.insert(uri.clone(), doc);
             backend
                 .workspace_index
-                .lock()
+                .write()
                 .await
                 .add_document(uri.as_str(), &current_analysis);
         }
@@ -8446,7 +8457,7 @@ mod tests {
         assert!(analysis.all_procs.contains_key("::current"));
         assert!(!analysis.all_procs.contains_key("::stale"));
 
-        let index = backend.workspace_index.lock().await;
+        let index = backend.workspace_index.read().await;
         assert!(
             !index.proc_definitions("current", "other").is_empty(),
             "current document should remain indexed",
@@ -8473,7 +8484,7 @@ mod tests {
 
         backend.scan_workspace_folders().await;
 
-        let index = backend.workspace_index.lock().await;
+        let index = backend.workspace_index.read().await;
         let defs = index.proc_definitions("greet", "greet");
         assert!(
             !defs.is_empty(),
@@ -8514,14 +8525,14 @@ mod tests {
             let analysis = analyser.analyse("proc fresh {} {}\n", "tcl8.6").clone();
             backend
                 .workspace_index
-                .lock()
+                .write()
                 .await
                 .add_document(uri.as_str(), &analysis);
         }
 
         backend.scan_workspace_folders().await;
 
-        let index = backend.workspace_index.lock().await;
+        let index = backend.workspace_index.read().await;
         assert!(
             !index.proc_definitions("fresh", "fresh").is_empty(),
             "live buffer's proc must survive the scan",
@@ -8548,7 +8559,7 @@ mod tests {
         let fresh_analysis = analyser.analyse("proc fresh {} {}\n", "tcl8.6").clone();
         backend
             .workspace_index
-            .lock()
+            .write()
             .await
             .add_document(uri.as_str(), &fresh_analysis);
 
@@ -8563,7 +8574,7 @@ mod tests {
 
         backend.merge_workspace_scan_results(&scan_results).await;
 
-        let index = backend.workspace_index.lock().await;
+        let index = backend.workspace_index.read().await;
         assert!(
             !index.proc_definitions("fresh", "other").is_empty(),
             "open-buffer analysis must survive stale workspace scan results",
@@ -8589,7 +8600,7 @@ mod tests {
             let analysis = analyser.analyse("proc fresh {} {}\n", "tcl8.6").clone();
             backend
                 .workspace_index
-                .lock()
+                .write()
                 .await
                 .add_document(uri.as_str(), &analysis);
         }
@@ -8597,7 +8608,7 @@ mod tests {
         // What did_close does: refresh from disk instead of removing.
         backend.reindex_index_from_disk(&uri).await;
 
-        let index = backend.workspace_index.lock().await;
+        let index = backend.workspace_index.read().await;
         assert!(
             !index.proc_definitions("helper", "other").is_empty(),
             "on-disk proc must remain indexed after the buffer closes",
@@ -8628,14 +8639,14 @@ mod tests {
             let analysis = analyser.analyse("proc fresh {} {}\n", "tcl8.6").clone();
             backend
                 .workspace_index
-                .lock()
+                .write()
                 .await
                 .add_document(uri.as_str(), &analysis);
         }
 
         backend.reindex_index_from_disk(&uri).await;
 
-        let index = backend.workspace_index.lock().await;
+        let index = backend.workspace_index.read().await;
         assert!(
             !index.proc_definitions("fresh", "other").is_empty(),
             "open-buffer definitions must remain indexed",
@@ -8658,14 +8669,14 @@ mod tests {
             let analysis = analyser.analyse("proc ghost {} {}\n", "tcl8.6").clone();
             backend
                 .workspace_index
-                .lock()
+                .write()
                 .await
                 .add_document(uri.as_str(), &analysis);
         }
 
         backend.reindex_index_from_disk(&uri).await;
 
-        let index = backend.workspace_index.lock().await;
+        let index = backend.workspace_index.read().await;
         assert!(
             index.proc_definitions("ghost", "other").is_empty(),
             "an entry whose file no longer exists must be dropped",
@@ -9160,7 +9171,7 @@ mod tests {
             let lib_analysis = a.analyse(lib_src, "tcl8.6").clone();
             backend
                 .workspace_index
-                .lock()
+                .write()
                 .await
                 .add_document(lib_uri.as_str(), &lib_analysis);
         }
@@ -9280,7 +9291,7 @@ mod tests {
         let analysis = a.analyse(src, "tcl8.6").clone();
         backend
             .workspace_index
-            .lock()
+            .write()
             .await
             .add_document(uri.as_str(), &analysis);
     }
@@ -9443,7 +9454,7 @@ mod tests {
         let backend = test_backend();
         let old = Uri::from_str("file:///gone.tcl").unwrap();
         register(&backend, &old, "proc helper {} {}\n").await;
-        assert_eq!(backend.workspace_index.lock().await.procs().len(), 1);
+        assert_eq!(backend.workspace_index.read().await.procs().len(), 1);
         let params = RenameFilesParams {
             files: vec![tower_lsp_server::ls_types::FileRename {
                 old_uri: old.to_string(),
@@ -9454,7 +9465,7 @@ mod tests {
         };
         backend.did_rename_files(params).await;
         // The old document's proc is gone from the index.
-        let index = backend.workspace_index.lock().await;
+        let index = backend.workspace_index.read().await;
         assert!(index.procs().iter().all(|p| p.uri != old.as_str()));
     }
 
