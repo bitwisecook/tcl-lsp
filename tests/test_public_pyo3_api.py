@@ -113,6 +113,16 @@ def test_compile_tcl_skip_interprocedural() -> None:
     assert unit.has_interprocedural is False
 
 
+def test_compile_tcl_irules_dialect_loads_when_handler() -> None:
+    # The iRules dialect must build a *dialect-aware* registry so the `when`
+    # event handler lowers to a `::when::*` procedure. Regression: the facade
+    # previously used the plain default registry, which never loaded the iRules
+    # specs (no `::when::*`) and also reported Tcl 8.x octal numeric semantics
+    # for the tcl9.0 default (CommandRegistry.leading_zero_is_octal).
+    unit = t.compile_tcl("when HTTP_REQUEST {\n  set x 1\n}\n", dialect="f5-irules")
+    assert any(name.startswith("::when::") for name in unit.proc_names), unit.proc_names
+
+
 # --------------------------------------------------------------------------
 # analyse_tcl
 # --------------------------------------------------------------------------
