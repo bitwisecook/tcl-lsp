@@ -40,6 +40,231 @@ pub struct ScanOutcome {
     pub eof_before_conv: bool,
 }
 
+/// Validate a scan `fmt` the way C's `ValidateFormat` (`tclScan.c`) does, before
+/// any matching: `num_vars` is the count of `varName` arguments (`0` for the
+/// inline form). On success returns the number of variables the format requires;
+/// on failure the diagnostic message (the runtime turns it into an error).
+///
+/// This catches the malformed-format cases (scan-3.x / scan-8.x): mixing `%` and
+/// `%n$`, an out-of-range / duplicated `%n$` index, a width on `%c`, an
+/// unterminated `%[`, a bad conversion character, and a variable/specifier count
+/// mismatch.
+#[allow(clippy::missing_panics_doc, clippy::too_many_lines)]
+pub fn validate_format(fmt: &[char], num_vars: usize) -> Result<usize, String> {
+    let flen = fmt.len();
+    // The code point at `i`, or `'\0'` past the end (C's `*format`).
+    let peek = |i: usize| if i < flen { fmt[i] } else { '\0' };
+    // Parse a decimal run starting at `start`, returning `(value, end_index)`.
+    let decimal = |start: usize| {
+        let mut j = start;
+        let mut val: u64 = 0;
+        while j < flen && fmt[j].is_ascii_digit() {
+            val = val
+                .saturating_mul(10)
+                .saturating_add(u64::from(fmt[j].to_digit(10).unwrap()));
+            j += 1;
+        }
+        (val, j)
+    };
+
+    let mut nassign: Vec<u32> = vec![0; num_vars];
+    let mut got_xpg = false;
+    let mut got_sequential = false;
+    let mut obj_index: usize = 0;
+    let mut xpg_size: usize = 0;
+
+    let mixed = || "cannot mix \"%\" and \"%n$\" conversion specifiers".to_string();
+    // `got_xpg` distinguishes the XPG index error from the plain count mismatch.
+    let bad_index = |xpg: bool| {
+        if xpg {
+            "\"%n$\" argument index out of range".to_string()
+        } else {
+            "different numbers of variable names and field specifiers".to_string()
+        }
+    };
+    let unmatched = || "unmatched [ in format string".to_string();
+    let bad_size = |c: char| format!("field size modifier may not be specified in %{c} conversion");
+
+    let mut i = 0usize;
+    while i < flen {
+        if fmt[i] != '%' {
+            i += 1;
+            continue;
+        }
+        i += 1;
+        let mut ch = peek(i);
+        i += 1; // C advances even when it reads the terminating NUL
+        if ch == '%' {
+            continue;
+        }
+
+        let mut suppress = false;
+        let mut has_width = false;
+
+        if ch == '*' {
+            suppress = true;
+            ch = peek(i);
+            i += 1;
+        } else if ch.is_ascii_digit() {
+            // Possible XPG `%n$`. The run starts at the digit just read (`i - 1`).
+            let (val, end) = decimal(i - 1);
+            if peek(end) == '$' {
+                i = end + 1; // past the `$`
+                ch = peek(i);
+                i += 1;
+                got_xpg = true;
+                if got_sequential {
+                    return Err(mixed());
+                }
+                if val == 0 || val >= u64::from(u32::MAX) {
+                    return Err(bad_index(true));
+                }
+                obj_index = usize::try_from(val - 1).unwrap_or(usize::MAX);
+                if num_vars != 0 && obj_index >= num_vars {
+                    return Err(bad_index(true));
+                }
+                if num_vars == 0 {
+                    xpg_size = xpg_size.max(usize::try_from(val).unwrap_or(usize::MAX));
+                }
+            } else {
+                // Not XPG: this digit run is a width, reparsed below. `ch` stays
+                // the first digit and `i` stays just past it.
+                got_sequential = true;
+                if got_xpg {
+                    return Err(mixed());
+                }
+            }
+        } else {
+            got_sequential = true;
+            if got_xpg {
+                return Err(mixed());
+            }
+        }
+
+        // Width.
+        if ch.is_ascii_digit() {
+            let (_, end) = decimal(i - 1);
+            has_width = true;
+            i = end;
+            ch = peek(i);
+            i += 1;
+        }
+
+        // Size modifier (parsed and discarded, like the matching engine).
+        let mut longer_or_big = false;
+        match ch {
+            'z' | 't' | 'L' | 'j' | 'q' => {
+                longer_or_big = true;
+                ch = peek(i);
+                i += 1;
+            }
+            'l' => {
+                longer_or_big = true;
+                if peek(i) == 'l' {
+                    i += 1;
+                }
+                ch = peek(i);
+                i += 1;
+            }
+            'h' => {
+                ch = peek(i);
+                i += 1;
+            }
+            _ => {}
+        }
+
+        if !suppress && num_vars != 0 && obj_index >= num_vars {
+            return Err(bad_index(got_xpg));
+        }
+
+        // Field type.
+        match ch {
+            'c' => {
+                if has_width {
+                    return Err("field width may not be specified in %c conversion".to_string());
+                }
+                if longer_or_big {
+                    return Err(bad_size('c'));
+                }
+            }
+            'n' | 's' => {
+                if longer_or_big {
+                    return Err(bad_size(ch));
+                }
+            }
+            'd' | 'e' | 'E' | 'f' | 'g' | 'G' | 'i' | 'o' | 'x' | 'X' | 'b' | 'u' => {}
+            '[' => {
+                if longer_or_big {
+                    return Err(bad_size('['));
+                }
+                // The set must terminate with `]`; a leading `]` (after an
+                // optional `^`) is a literal member, not the terminator.
+                if peek(i) == '\0' {
+                    return Err(unmatched());
+                }
+                ch = peek(i);
+                i += 1;
+                if ch == '^' {
+                    if peek(i) == '\0' {
+                        return Err(unmatched());
+                    }
+                    ch = peek(i);
+                    i += 1;
+                }
+                if ch == ']' {
+                    if peek(i) == '\0' {
+                        return Err(unmatched());
+                    }
+                    ch = peek(i);
+                    i += 1;
+                }
+                while ch != ']' {
+                    if peek(i) == '\0' {
+                        return Err(unmatched());
+                    }
+                    ch = peek(i);
+                    i += 1;
+                }
+            }
+            other => {
+                let shown = if other == '\0' {
+                    String::new()
+                } else {
+                    other.to_string()
+                };
+                return Err(format!("bad scan conversion character \"{shown}\""));
+            }
+        }
+
+        if !suppress {
+            if obj_index >= nassign.len() {
+                nassign.resize(obj_index + 1, 0);
+            }
+            nassign[obj_index] += 1;
+            obj_index += 1;
+        }
+    }
+
+    let total = if num_vars != 0 {
+        num_vars
+    } else if xpg_size != 0 {
+        xpg_size
+    } else {
+        obj_index
+    };
+    for k in 0..total {
+        let cnt = nassign.get(k).copied().unwrap_or(0);
+        if cnt > 1 {
+            return Err(
+                "variable is assigned by multiple \"%n$\" conversion specifiers".to_string(),
+            );
+        } else if xpg_size == 0 && cnt == 0 {
+            return Err("variable is not assigned by any conversion specifiers".to_string());
+        }
+    }
+    Ok(total)
+}
+
 /// Match `fmt` against `input` (both code-point slices), producing the scanned
 /// values. Pure: no value model, no interp.
 #[must_use]
