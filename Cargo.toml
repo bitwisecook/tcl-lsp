@@ -67,11 +67,13 @@ members = [
     "rust/tcl-cli-support",
     "rust/tcl-cli",
     "rust/tcl-pkg",
+    "rust/tcl-sandbox",
     "rust/f5-cli",
     "rust/f5-xc",
     "rust/tcl-fuzz",
     "rust/tcl-irule-test",
     "rust/tcl-debugger",
+    "rust/xtask",
 ]
 exclude = [
     "editors/zed",

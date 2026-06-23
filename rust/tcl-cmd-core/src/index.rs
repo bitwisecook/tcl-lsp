@@ -139,3 +139,50 @@ pub fn bad_index(spec: &str) -> CmdError {
         "bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?"
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_integer_and_end_forms() {
+        // Mirrors Tcl's `TclGetIntForIndex` grammar (end / signed integer /
+        // base[+-]integer) — cmd-core `index.rs` had no unit coverage
+        // (TEST-MIGRATE).
+        assert_eq!(resolve("5", 10).unwrap(), 5);
+        assert_eq!(resolve("0", 10).unwrap(), 0);
+        assert_eq!(resolve("-1", 10).unwrap(), -1);
+        assert_eq!(resolve("end", 10).unwrap(), 9);
+        assert_eq!(resolve("end-2", 10).unwrap(), 7);
+        assert_eq!(resolve("end+1", 10).unwrap(), 10);
+        // `end--1` parses as `end - (-1)`.
+        assert_eq!(resolve("end--1", 10).unwrap(), 10);
+        assert_eq!(resolve("1+1", 10).unwrap(), 2);
+        assert_eq!(resolve("0-1", 10).unwrap(), -1);
+        // `end` of an empty container is -1.
+        assert_eq!(resolve("end", 0).unwrap(), -1);
+    }
+
+    #[test]
+    fn resolve_rejects_garbage_and_resolve_opt_returns_none() {
+        assert!(resolve("bad", 10).is_err());
+        assert!(resolve("", 10).is_err());
+        assert!(resolve("1.5", 10).is_err());
+        assert_eq!(resolve_opt("bad", 10), None);
+        assert_eq!(resolve_opt("end-1", 10), Some(8));
+    }
+
+    #[test]
+    fn encodable_classifies_specs() {
+        // `TclIndexEncode` scale (used by `lsearch`/`lsort -index` parse-time
+        // validation): Some(true) = encodable, Some(false) = out of range,
+        // None = syntactically bad.
+        assert_eq!(encodable("5"), Some(true)); // absolute, non-negative
+        assert_eq!(encodable("0"), Some(true));
+        assert_eq!(encodable("-1"), Some(false)); // absolute negative → out of range
+        assert_eq!(encodable("end"), Some(true)); // offset 0 ≤ 0
+        assert_eq!(encodable("end-2"), Some(true)); // offset -2 ≤ 0
+        assert_eq!(encodable("end+1"), Some(false)); // offset +1 > 0 → out of range
+        assert_eq!(encodable("bad"), None); // syntactically bad
+    }
+}

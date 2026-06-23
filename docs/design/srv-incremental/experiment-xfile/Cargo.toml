@@ -1,0 +1,33 @@
+# Task 6 prerequisite spike — cross-file signature fixpoint on the salsa graph.
+#
+# The SRV-INCREMENTAL doc lists three UNRESOLVED risks that must be settled before
+# the cross-file cascade (Task 6) can be designed for real:
+#   1. Cycles — cross-file dependency graphs are routinely cyclic (mutual `source`,
+#      mutually-recursive cross-file calls); an unhandled salsa cycle panics.
+#   2. Reverse-dependency precision — a signature change must recompute *exactly*
+#      the dependents that resolve to it, and nothing else.
+#   3. Scaling / early-cutoff — a body-only edit must not wake dependents.
+#
+# This spike models a project as salsa `SrcFile` inputs (each carrying a `sig` and
+# a body-only field, plus cross-file import edges) and a `resolved(file)` monotone
+# fixpoint query (the shape the cross-file taint/arity propagation takes), with
+# salsa 0.27 fixpoint cycle recovery (`cycle_fn`/`cycle_initial`).  It then
+# measures convergence on an induced A<->B cycle, reverse-dep recompute breadth,
+# and body-edit early-cutoff — the data Task 6's design turns on.
+#
+# Run:  cargo run --release --manifest-path docs/design/srv-incremental/experiment-xfile/Cargo.toml
+#
+# Deliberately NOT a workspace member (own [workspace], builds on demand).
+[package]
+name = "xfile-cycle-spike"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+salsa = "0.27"
+
+[profile.release]
+opt-level = 3

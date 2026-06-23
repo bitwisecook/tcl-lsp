@@ -270,3 +270,31 @@ pub fn read_ucs_member(
         ))),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_pgp_and_ucs_byte_signatures() {
+        // Ported from `tests/test_f5_ucs_crypto.py`
+        // ::test_is_pgp_bytes_recognises_encrypted_and_rejects_plain
+        // (TEST-MIGRATE — the magic-byte detectors had no coverage; only
+        // `aes_cfb` was tested in this crate).
+
+        // Binary SKESK packet — old-format header, tag 3 → first byte 0x8C.
+        assert!(is_pgp_bytes(&[0x8C, 0x0D, 0x04]));
+        // ASCII-armored OpenPGP message.
+        assert!(is_pgp_bytes(b"-----BEGIN PGP MESSAGE-----\n\nfoo\n"));
+
+        // A plain (unencrypted) UCS is a gzip stream: UCS magic, not PGP.
+        let gzip = [0x1F, 0x8B, 0x08, 0x00];
+        assert!(is_ucs_bytes(&gzip));
+        assert!(!is_pgp_bytes(&gzip));
+
+        // Plain config text and empty input are neither.
+        assert!(!is_pgp_bytes(b"ltm pool /Common/p { }"));
+        assert!(!is_pgp_bytes(b""));
+        assert!(!is_ucs_bytes(b""));
+    }
+}

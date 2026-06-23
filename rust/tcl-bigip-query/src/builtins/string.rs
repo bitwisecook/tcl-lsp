@@ -93,3 +93,64 @@ fn bi_upper(args: &[Value]) -> Result<Value, QueryError> {
 fn bi_lower(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Str(as_str(&args[0], "downcase", 1)?.to_lowercase()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn s(text: &str) -> Value {
+        Value::Str(text.to_owned())
+    }
+
+    fn call_str(f: fn(&[Value]) -> Result<Value, QueryError>, args: &[Value]) -> String {
+        match f(args) {
+            Ok(Value::Str(t)) => t,
+            other => panic!("expected Str, got {other:?}"),
+        }
+    }
+
+    fn call_bool(f: fn(&[Value]) -> Result<Value, QueryError>, args: &[Value]) -> bool {
+        match f(args) {
+            Ok(Value::Bool(b)) => b,
+            other => panic!("expected Bool, got {other:?}"),
+        }
+    }
+
+    fn call_strlist(f: fn(&[Value]) -> Result<Value, QueryError>, args: &[Value]) -> Vec<String> {
+        match f(args) {
+            Ok(Value::List(items)) => items
+                .iter()
+                .map(|v| match v {
+                    Value::Str(t) => t.clone(),
+                    other => panic!("expected Str element, got {other:?}"),
+                })
+                .collect(),
+            other => panic!("expected List, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ascii_case_conversions() {
+        // Ported from `tests/test_f5_query.py::test_ascii_upcase_downcase_aliases`
+        // (TEST-MIGRATE — string.rs had no unit coverage).
+        assert_eq!(call_str(bi_upper, &[s("abc")]), "ABC");
+        assert_eq!(call_str(bi_lower, &[s("ABC")]), "abc");
+    }
+
+    #[test]
+    fn predicates_split_and_join() {
+        // startswith / endswith / contains / split / join — exercised by the
+        // f5-query battery via `select(.name | startswith(…))`-style
+        // expressions; covered here directly.
+        assert!(call_bool(bi_startswith, &[s("vs_prod"), s("vs_")]));
+        assert!(!call_bool(bi_startswith, &[s("api_vs"), s("vs_")]));
+        assert!(call_bool(bi_endswith, &[s("web_pool"), s("_pool")]));
+        assert!(call_bool(bi_contains, &[s("foobar"), s("oba")]));
+        assert!(!call_bool(bi_contains, &[s("foobar"), s("xyz")]));
+        assert_eq!(call_strlist(bi_split, &[s("a,b,c"), s(",")]), ["a", "b", "c"]);
+        assert_eq!(
+            call_str(bi_join, &[Value::List(vec![s("a"), s("b"), s("c")]), s("-")]),
+            "a-b-c"
+        );
+    }
+}

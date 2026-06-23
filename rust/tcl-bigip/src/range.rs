@@ -89,3 +89,41 @@ fn position_at(source: &str, line_index: &LineIndex, offset: usize) -> Position 
         offset: u32::try_from(codepoint_offset).unwrap_or(u32::MAX),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_offsets_resolves_positions_and_clamps() {
+        // Mirrors Python's `DocumentBuffer.range_from_offsets` (range.rs had
+        // no unit coverage). "abc\ndef": a0 b1 c2 \n3 d4 e5 f6.
+        let source = "abc\ndef";
+        let li = LineIndex::new(source);
+
+        let first = Range::from_offsets(source, &li, 0, 2);
+        assert_eq!((first.start.line, first.start.character), (0, 0));
+        assert_eq!((first.end.line, first.end.character), (0, 2));
+
+        let second = Range::from_offsets(source, &li, 4, 6);
+        assert_eq!((second.start.line, second.start.character), (1, 0));
+        assert_eq!((second.end.line, second.end.character), (1, 2));
+
+        // Out-of-bounds offsets clamp to the last byte.
+        let clamped = Range::from_offsets(source, &li, 100, 200);
+        assert_eq!(clamped.start.offset, 6);
+        assert_eq!(clamped.end.offset, 6);
+
+        // An inverted range (end < start) collapses to the start.
+        let inverted = Range::from_offsets(source, &li, 5, 1);
+        assert_eq!(inverted.start.offset, inverted.end.offset);
+
+        // Empty source → the zero range.
+        let empty_li = LineIndex::new("");
+        let zero = Range::from_offsets("", &empty_li, 5, 9);
+        assert_eq!(
+            (zero.start.line, zero.start.character, zero.start.offset),
+            (0, 0, 0)
+        );
+    }
+}

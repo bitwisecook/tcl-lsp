@@ -524,6 +524,13 @@ pub struct AnalysisResult {
     /// last assignment wins, matching the global-by-var-name
     /// shape the W308 emitter already uses.
     pub instance_classes: HashMap<String, String>,
+    /// Call sites of unresolved (unknown) commands — `(span, bare name)`, the
+    /// same set the W123 diagnostic is emitted for, but recorded **regardless of
+    /// whether W123 is disabled** (only the *diagnostic* honours the toggle).
+    /// Cross-file resolution keys its arity check off this, so disabling W123 does
+    /// not also silence the cross-file arity error.  Empty when the W123 emitter's
+    /// knowability gates fire (e.g. a dynamic `package require` / `unknown` proc).
+    pub unresolved_command_sites: Vec<(Span, String)>,
 }
 
 /// `package provide NAME ?VERSION?` record.

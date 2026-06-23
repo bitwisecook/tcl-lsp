@@ -82,6 +82,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 ## How-Tos
 
+- [kcs-howto-lock-down-tcl-pkg.md](kcs-howto-lock-down-tcl-pkg.md) — deploy a
+  locked-down `tcl pkg` policy for an organisation: a sandbox floor developers
+  cannot loosen, registry allow-lists, operator scanning hooks, and gating
+  package build scripts.
 - [kcs-howto-build-multiplatform-vsix.md](kcs-howto-build-multiplatform-vsix.md)
   — build the universal VS Code `.vsix` that bundles a native server per
   platform, and add a new platform.

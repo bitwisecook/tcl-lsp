@@ -71,6 +71,9 @@ rules for the KCS/documentation split live in
 
 - [tclpkg-architecture.md](tclpkg-architecture.md) — architecture overview,
   contracts, file-path anchors, test anchors.
+- [tclpkg-security.md](tclpkg-security.md) — sandboxing (the `tcl-sandbox`
+  crate), operator hooks, and the layered, admin-lockable policy for the Rust
+  package manager, with the supply-chain threat model that drives it.
 - [contracts/tclpkg-manifest.md](contracts/tclpkg-manifest.md) — manifest
   directives, safe-mode whitelist, validation rules.
 - [contracts/tclpkg-lockfile.md](contracts/tclpkg-lockfile.md) — canonical
@@ -175,6 +178,50 @@ chunk-by-chunk dispatch story lives in
 - [rust/review-findings.md](rust/review-findings.md) — workspace review
   findings on correctness, performance, and memory, including the
   ``unsafe``-forbidden discipline and where it costs.
+- [rust/workspace-deep-review-2026-06-22.md](rust/workspace-deep-review-2026-06-22.md)
+  — full subsystem deep review (every crate: architecture, layout,
+  algorithms, code quality), with the recursion, regex, and optimiser-
+  miscompile themes and five CLI-reproduced defects.
+- [rust/lsp-server-deep-review-2026-06-22.md](rust/lsp-server-deep-review-2026-06-22.md)
+  — companion deep review of the native LSP server stack
+  (``tcl-lsp-server`` / ``-core`` / ``-db`` / ``-py``), 18 findings.
+- [rust/python-rust-parity-audit-2026-06-22.md](rust/python-rust-parity-audit-2026-06-22.md)
+  — Python→Rust parity audit (registry, diagnostics, optimisations,
+  passes/features): one missing command (``ledit``), four Rust-only
+  optimiser miscompiles, an unwired inliner, and the deleted parity-check
+  tooling.
+- [rust/production-readiness-2026-06-23.md](rust/production-readiness-2026-06-23.md)
+  — production-readiness assessment for **retiring Python**: the robustness
+  blockers (a malformed file crashes the server; a fold-bomb OOMs it), the
+  precision regression against [`../compiler/FP.md`](compiler/FP.md), the
+  safety-net collapse, the still-Python distribution, and the ordered
+  path-to-production.
+- [rust/architecture-and-quality-2026-06-23.md](rust/architecture-and-quality-2026-06-23.md)
+  — whole-workspace architecture & code-quality review (companion to the
+  production-readiness doc): cross-layer sharing/DRY, the unified
+  editor↔lexer↔CST↔runtime buffer, registry leverage & lowering hookup,
+  algorithms/data-structures (SipHash-everywhere, String-keyed SSA, confirmed
+  O(n²)/O(n³) hotspots), clippy/MSRV/dependency currency, documentation
+  accuracy, FP-catalog test-net coverage, and configuration layering — with a
+  consolidated production-readiness roadmap.
+- [rust/coherence-and-coverage-2026-06-23.md](rust/coherence-and-coverage-2026-06-23.md)
+  — closing review pass: a coverage map proving every goal aspect is documented
+  across the six reviews, plus the remaining axes — **type-system coherence**
+  (bimodal: the value/registry half is the template, the editor half fractures
+  along the UTF-16 seam — raw offsets, 3 `Severity` enums, 2 `Diagnostic`
+  structs, stringly-typed IR), **naming coherence + glossary currency**, the
+  **explorer trio (CLI/TUI/GUI)** (the model of one-core reuse), and the
+  **"information" subsystem** (Info→Hint severity collapse; `info`-command
+  `VM ⊂ WASM` parity gap). Reconciled against the just-landed `origin/rust`
+  API-PYO3 / xtask / TEST-MIGRATE work.
+- [rust/srv-incremental-review-2026-06-23.md](rust/srv-incremental-review-2026-06-23.md)
+  — deep review of the SRV-INCREMENTAL work (#692): per-edit incremental salsa
+  pipeline (incremental `LineIndex`, per-function check memo, interprocedural
+  taint summary memo) + opt-in cross-file W123/arity diagnostics. Verdict: lands
+  clean (no correctness regression; off-by-default airtight; corpus differentials
+  + 38 gates green), with three actionable findings — a `project_command_arities`
+  firewall perf-leak, an open→open push-staleness gap, and god-code growth — plus
+  the doc's own missing random-edit checks fuzzer.
 - [rust/compiler-pipeline-parity.md](rust/compiler-pipeline-parity.md) —
   deep parity audit of the Rust rewrite's lexer, CST, IR/lowering, CFG/SSA,
   analyses, optimiser, and bytecode codegen against the Python source of

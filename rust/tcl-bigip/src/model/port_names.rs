@@ -4549,3 +4549,28 @@ pub fn name_to_port(name: &str) -> Option<i64> {
         .ok()
         .map(|i| NAME_TO_PORT[i].1)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn name_to_port_looks_up_well_known_services() {
+        // mcpd SCF service-name → port table (port_names.rs had no unit
+        // coverage); unknown names return None.
+        assert_eq!(name_to_port("http"), Some(80));
+        assert_eq!(name_to_port("https"), Some(443));
+        assert_eq!(name_to_port("ssh"), Some(22));
+        assert_eq!(name_to_port("ftp"), Some(21));
+        assert_eq!(name_to_port("smtp"), Some(25));
+        assert_eq!(name_to_port("domain"), Some(53));
+        assert_eq!(name_to_port("not-a-real-service-xyz"), None);
+    }
+
+    #[test]
+    fn name_to_port_table_is_sorted_for_binary_search() {
+        // `name_to_port` binary-searches `NAME_TO_PORT`, so the keys must be
+        // sorted ascending.
+        assert!(NAME_TO_PORT.windows(2).all(|w| w[0].0 < w[1].0));
+    }
+}
