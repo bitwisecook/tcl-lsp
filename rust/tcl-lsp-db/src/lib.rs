@@ -234,6 +234,59 @@ pub fn project_proc_names(db: &dyn salsa::Database, project: Project) -> Arc<BTr
     Arc::new(names)
 }
 
+/// Extract the unknown-command name from a W123 message
+/// (`"Unknown command 'NAME'"`, optionally `+ "; did you mean 'X'?"`) — the first
+/// single-quoted token, which is the bare name the analyser failed to resolve.
+fn w123_command(message: &str) -> Option<&str> {
+    let start = message.find('\'')? + 1;
+    let rest = &message[start..];
+    let end = rest.find('\'')?;
+    Some(&rest[..end])
+}
+
+/// Analyser diagnostics for `file` with cross-file-resolvable W123 (unknown
+/// command) warnings suppressed against the project's proc names
+/// (SRV-INCREMENTAL Task 6 — cross-file unresolved-command resolution).
+///
+/// Deliberately a **separate query off the paramount [`file_analysis`] path**:
+/// `file_analysis` stays project-independent (so a signature change in another
+/// file cannot regress this file's time-to-first-tokens), and this
+/// debounced/non-paramount query layers the cross-file suppression on top.  It
+/// depends only on `file_analysis(file, config)` + the firewalled
+/// [`project_proc_names`], so a **body** edit in any file recomputes nothing
+/// here; only a proc-decl change (or this file's own edit) does — precise
+/// cross-file reverse-dependency invalidation, for free, from salsa.
+///
+/// Mirrors the analyser's own `proc_tail_names` suppression in
+/// `emit_unresolved_command_diagnostics` — a bare `foo` resolves if some project
+/// proc has tail `foo` — extended across files.  Suppression only; the analyser's
+/// single-file "did you mean" suggestion is left as-is.
+#[salsa::tracked]
+pub fn project_diagnostics(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+    project: Project,
+) -> Arc<Vec<tcl_compiler::analyser::types::Diagnostic>> {
+    let analysis = file_analysis(db, file, config);
+    let proc_names = project_proc_names(db, project);
+    let project_tails: HashSet<String> = proc_names
+        .iter()
+        .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_owned()))
+        .filter(|t| !t.is_empty())
+        .collect();
+    let filtered: Vec<tcl_compiler::analyser::types::Diagnostic> = analysis
+        .diagnostics
+        .iter()
+        .filter(|d| {
+            !(d.code == "W123"
+                && w123_command(&d.message).is_some_and(|name| project_tails.contains(name)))
+        })
+        .cloned()
+        .collect();
+    Arc::new(filtered)
+}
+
 /// Interned identity of a single `proc` body's isolated analysis — the per-item
 /// firewall's memoisation key.  **Offset-invariant**: it holds only what the
 /// offset-0 analysis consumes (body text + enclosing namespace / name / params +
@@ -1638,6 +1691,102 @@ mod tests {
             "decl change must recompute project_proc_names exactly once"
         );
         assert_eq!(names.len(), 3, "the new proc joins the project set");
+    }
+
+    /// Project diagnostics for a diagnostic-vec comparison: `(code, start, end,
+    /// message)` per diagnostic, in order (the analyser emits deterministically).
+    #[cfg(test)]
+    fn diag_keys(
+        diags: &[tcl_compiler::analyser::types::Diagnostic],
+    ) -> Vec<(String, u32, u32, String)> {
+        diags
+            .iter()
+            .map(|d| (d.code.clone(), d.span.start(), d.span.end(), d.message.clone()))
+            .collect()
+    }
+
+    /// SRV-INCREMENTAL Task 6 (cross-file W123): a command unresolved locally but
+    /// defined as a `proc` in another project file must have its W123 suppressed
+    /// when (and only when) that file is in the `Project`.
+    #[test]
+    fn project_diagnostics_suppresses_cross_file_w123() {
+        let db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let a = SourceFile::new(&db, "helper foo bar\n".to_owned(), "tcl8.6".to_owned());
+        let b = SourceFile::new(
+            &db,
+            "proc helper {x y} { return $x }\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let has_helper_w123 = |diags: &[tcl_compiler::analyser::types::Diagnostic]| {
+            diags
+                .iter()
+                .any(|d| d.code == "W123" && d.message.contains("helper"))
+        };
+        // A alone: `helper` is unresolved → W123 present.
+        let proj_a = Project::new(&db, vec![a]);
+        assert!(
+            has_helper_w123(&project_diagnostics(&db, a, cfg, proj_a)),
+            "helper must be unresolved (W123) when B is not in the project"
+        );
+        // A + B (B defines `proc helper`): cross-file resolved → W123 suppressed.
+        let proj_ab = Project::new(&db, vec![a, b]);
+        assert!(
+            !has_helper_w123(&project_diagnostics(&db, a, cfg, proj_ab)),
+            "helper must resolve cross-file (no W123) when B defines proc helper"
+        );
+    }
+
+    /// SRV-INCREMENTAL Task 6 gate: the multi-file `incremental == fresh`
+    /// differential.  Drive a 2-file project through edits to the *defining* file
+    /// (`b`) — adding/removing the procs the calling file (`a`) invokes — and
+    /// assert the calling file's cross-file diagnostics always match a fresh
+    /// whole-project rebuild.  Catches any untracked read / non-deterministic
+    /// fold in `project_diagnostics` or its cross-file dependency edges.
+    #[test]
+    #[allow(clippy::cast_possible_truncation)] // index modulo a tiny array
+    fn project_diagnostics_incremental_matches_fresh_under_edits() {
+        use salsa::Setter as _;
+        // `a` calls four commands; `set` is a builtin, the rest resolve only if
+        // `b` defines them.
+        let a_text = "alpha 1\nbeta 2\ngamma 3\nset x 4\ndelta 5\n";
+        let b_variants = [
+            "",
+            "proc alpha {x} {}\n",
+            "proc alpha {x} {}\nproc beta {y} {}\n",
+            "proc beta {y} {}\nproc gamma {z} {}\n",
+            "namespace eval ns { proc delta {q} {} }\n",
+            "proc alpha {x} {}\nproc beta {y} {}\nproc gamma {z} {}\nproc delta {q} {}\n",
+        ];
+        let mk = |b_text: &str| -> Vec<(String, u32, u32, String)> {
+            let db = TclDatabase::default();
+            let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+            let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned());
+            let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned());
+            let project = Project::new(&db, vec![a, b]);
+            diag_keys(&project_diagnostics(&db, a, cfg, project))
+        };
+
+        let mut db = TclDatabase::default();
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned());
+        let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned());
+        let project = Project::new(&db, vec![a, b]);
+
+        let mut rng = 0x1234_5678_9abc_def0_u64;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        for _ in 0..60 {
+            let b_text = b_variants[(next() % b_variants.len() as u64) as usize];
+            b.set_text(&mut db).to(b_text.to_owned());
+            let inc = diag_keys(&project_diagnostics(&db, a, cfg, project));
+            let fresh = mk(b_text);
+            assert_eq!(inc, fresh, "incremental != fresh after b = {b_text:?}");
+        }
     }
 
     /// Regression (whole-file-shift determinism): a pure prepend that shifts every
