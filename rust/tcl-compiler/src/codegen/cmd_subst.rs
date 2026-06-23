@@ -13,6 +13,16 @@ use super::{CodegenCtx, INDEX_END, Op, Operand, bytecode_imm, parse_tcl_index, s
 
 // Free functions — pure parsing, no emission state needed
 
+/// Whether a [`parse_tcl_index`] result is encodable as a `*_IMM` index
+/// operand: a non-negative index, or an `end` / `end-N` index
+/// (`<= INDEX_END`). An `end+N` index encodes as `INDEX_END + N`
+/// (> `INDEX_END`) — neither — so it must fall back to the non-immediate
+/// opcode rather than be emitted as a garbage immediate (OPT-C2). This is
+/// the same guard `lindex` already applies.
+const fn imm_index_ok(idx: i32) -> bool {
+    idx >= 0 || idx <= INDEX_END
+}
+
 /// Unroll `[set y [set z 42]]` into `["y", "z", "42"]`.
 ///
 /// Returns the variable names followed by the innermost value,
@@ -1032,7 +1042,10 @@ impl CodegenCtx<'_> {
                 self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
                 let start_idx = parse_tcl_index(&sargs[1].0);
                 let end_idx = parse_tcl_index(&sargs[2].0);
-                if let (Some(s), Some(e)) = (start_idx, end_idx) {
+                if let (Some(s), Some(e)) = (start_idx, end_idx)
+                    && imm_index_ok(s)
+                    && imm_index_ok(e)
+                {
                     self.emit(Op::STR_RANGE_IMM, vec![Operand::Imm(s), Operand::Imm(e)]);
                 } else {
                     self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
@@ -1092,13 +1105,17 @@ impl CodegenCtx<'_> {
         if first_lit == "0"
             && let Ok(last_int) = last_lit.parse::<i32>()
             && last_int >= 0
+            // OPT-C2: `last_int + 1` is the start index; guard the i32::MAX
+            // overflow (which would wrap to a negative garbage index) with a
+            // checked add and fall back to `strreplace` when it doesn't fit.
+            && let Some(start) = last_int.checked_add(1)
         {
             self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
             self.emit_cmd_subst_arg(&sargs[3].0, sargs[3].1);
             self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
             self.emit(
                 Op::STR_RANGE_IMM,
-                vec![Operand::Imm(last_int + 1), Operand::Imm(INDEX_END)],
+                vec![Operand::Imm(start), Operand::Imm(INDEX_END)],
             );
             self.emit(Op::STR_CONCAT1, vec![Operand::Imm(2)]);
             return;
@@ -1252,7 +1269,10 @@ impl CodegenCtx<'_> {
         // on the stack.
         let start_idx = parse_tcl_index(&args[1].0);
         let end_idx = parse_tcl_index(&args[2].0);
-        if let (Some(s), Some(e)) = (start_idx, end_idx) {
+        if let (Some(s), Some(e)) = (start_idx, end_idx)
+            && imm_index_ok(s)
+            && imm_index_ok(e)
+        {
             self.used_inline_cmd_subst = true;
             self.emit_cmd_subst_arg(&args[0].0, args[0].1);
             self.emit(Op::LIST_RANGE_IMM, vec![Operand::Imm(s), Operand::Imm(e)]);
@@ -1706,5 +1726,33 @@ mod tests {
         assert_eq!(load_count, 3, "expected 3 var loads, got {ops:?}");
         let invoke_count = ops.iter().filter(|o| **o == Op::INVOKE_STK1).count();
         assert_eq!(invoke_count, 1, "expected one invokeStk1, got {ops:?}");
+    }
+
+    #[test]
+    fn inline_lrange_end_plus_n_falls_back_to_non_imm() {
+        // OPT-C2: `end+1` encodes as INDEX_END+1, a garbage immediate, so the
+        // emitter must not use LIST_RANGE_IMM — it falls back to the generic
+        // path.
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["lst"], &registry);
+        ctx.emit_inline_cmd_subst("[lrange ${lst} 0 end+1]");
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(
+            !ops.contains(&Op::LIST_RANGE_IMM),
+            "end+1 must not emit LIST_RANGE_IMM, got {ops:?}",
+        );
+    }
+
+    #[test]
+    fn inline_lrange_end_uses_imm() {
+        // A plain `end` index is valid and still takes the fast immediate path.
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["lst"], &registry);
+        ctx.emit_inline_cmd_subst("[lrange ${lst} 0 end]");
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(
+            ops.contains(&Op::LIST_RANGE_IMM),
+            "end should use LIST_RANGE_IMM, got {ops:?}",
+        );
     }
 }
