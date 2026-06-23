@@ -937,3 +937,18 @@ The pytest file stays in place as the oracle.
   `v == 1`) and the unresolvable-subject bail (`None`).
 
 The pytest file stays in place as the oracle.
+
+### `tests/test_bigip_irules_refs.py` → `tcl-irules`
+
+- **Ported.** Both cases → `rust/tcl-irules/src/walker.rs::tests`
+  (`extracts_pool_snatpool_and_datagroup_refs`,
+  `extracts_refs_nested_in_body_and_command_substitution`). These are the
+  **first tests for the `tcl-irules` crate** (the BIG-IP object-ref
+  extractor `extract_irules_object_references` had zero coverage). They
+  drive an iRules-aware registry (`build_default().load_irules()`) and
+  assert the `(command, name)` ref tuples (`class`/`/Common/host_dg`,
+  `snatpool`/`/Common/sp1`, `pool`/`/Common/web_pool`) and the
+  nested-body / command-substitution names (`/Common/app_pool`,
+  `/Common/fallback_pool`).
+
+The pytest file stays in place as the oracle.
