@@ -171,4 +171,18 @@ mod tests {
         assert_eq!(resolve_opt("bad", 10), None);
         assert_eq!(resolve_opt("end-1", 10), Some(8));
     }
+
+    #[test]
+    fn encodable_classifies_specs() {
+        // `TclIndexEncode` scale (used by `lsearch`/`lsort -index` parse-time
+        // validation): Some(true) = encodable, Some(false) = out of range,
+        // None = syntactically bad.
+        assert_eq!(encodable("5"), Some(true)); // absolute, non-negative
+        assert_eq!(encodable("0"), Some(true));
+        assert_eq!(encodable("-1"), Some(false)); // absolute negative → out of range
+        assert_eq!(encodable("end"), Some(true)); // offset 0 ≤ 0
+        assert_eq!(encodable("end-2"), Some(true)); // offset -2 ≤ 0
+        assert_eq!(encodable("end+1"), Some(false)); // offset +1 > 0 → out of range
+        assert_eq!(encodable("bad"), None); // syntactically bad
+    }
 }
