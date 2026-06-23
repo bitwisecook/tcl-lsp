@@ -1,12 +1,11 @@
 //! Inter-procedural taint summary solver.
 //!
-//! Faithful port of Python `compiler.taint._interprocedural`
-//! (`_solve_interprocedural_taints` and the per-proc return-taint
-//! summary + parameter entry-taint worklist it drives).
+//! Drives a per-proc return-taint summary plus a parameter entry-taint
+//! worklist.
 //!
 //! The intra-procedural pass ([`crate::taint::propagate_taints`]) already
-//! models a single return-passthrough parameter; this module adds the two
-//! pieces Python has that Rust lacked:
+//! models a single return-passthrough parameter; this module adds two
+//! more pieces:
 //!
 //! 1. **Colour-aware return summaries** — [`ProcTaintSummary`] records, per
 //!    procedure, the taint a call returns as a function of which parameters
@@ -36,7 +35,7 @@ use crate::value_shapes::parse_command_substitution;
 
 // Basis lattices
 
-/// Ordered taint-colour bases, mirroring Python `_BASIS_ORDER`. The
+/// Ordered taint-colour bases. The
 /// per-parameter return scenarios are computed by seeding the parameter with
 /// each basis lattice in turn.
 const BASIS_ORDER: [&str; 15] = [
@@ -57,8 +56,7 @@ const BASIS_ORDER: [&str; 15] = [
     "fqdn",
 ];
 
-/// The taint lattice each basis name seeds a parameter with. Mirrors Python
-/// `_BASIS_LATTICES`.
+/// The taint lattice each basis name seeds a parameter with.
 fn basis_lattice(basis: &str) -> TaintLattice {
     let t = TaintColour::TAINTED;
     let colour = match basis {
@@ -107,11 +105,9 @@ fn basis_names_for_taint(taint: TaintLattice) -> Vec<&'static str> {
 
 /// Context-insensitive return-taint transfer summary for one procedure.
 ///
-/// Mirrors Python `ProcTaintSummary`.
-///
 /// `Hash` lets the LSP db intern a procedure's direct-callee summaries into the
-/// `SummaryDepsKey` of its memoised `proc_summary_cascade` query (SRV-INCREMENTAL
-/// 2b) — a body edit that leaves a callee's summary unchanged keeps the key, and
+/// `SummaryDepsKey` of its memoised `proc_summary_cascade` query — a body edit
+/// that leaves a callee's summary unchanged keeps the key, and
 /// the caller's inference is a cache hit.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ProcTaintSummary {
@@ -166,7 +162,7 @@ impl ProcTaintSummary {
 }
 
 /// Declared arity from a parameter list: a trailing `args` parameter makes
-/// the procedure variadic. Mirrors Python `_arity_from_params`.
+/// the procedure variadic.
 fn arity_from_params(params: &[String]) -> Arity {
     let n = u16::try_from(params.len()).unwrap_or(u16::MAX);
     if params.last().is_some_and(|p| p == "args") {
@@ -178,7 +174,7 @@ fn arity_from_params(params: &[String]) -> Arity {
 
 /// Apply a procedure's return-taint summary to a tuple of argument taints.
 ///
-/// Mirrors Python `_apply_proc_return_summary`: bind each parameter (handling
+/// Bind each parameter (handling
 /// a trailing variadic `args`), then for every tainted bound argument join the
 /// return scenario for each of its colour bases onto the base return taint.
 #[must_use]
@@ -232,8 +228,7 @@ pub fn apply_proc_return_summary(
 // Return-taint collection
 
 /// Build a `name -> version` use map for `text` from a block's exit versions,
-/// scanning the word for `$var` references. Mirrors Python
-/// `_word_uses_from_versions`.
+/// scanning the word for `$var` references.
 fn word_uses_from_versions(text: &str, versions: &HashMap<String, u32>) -> HashMap<String, u32> {
     let mut uses: HashMap<String, u32> = HashMap::new();
     let source_map = SourceMap::new(text);
@@ -254,8 +249,7 @@ fn word_uses_from_versions(text: &str, versions: &HashMap<String, u32>) -> HashM
     uses
 }
 
-/// Join the taint of every executable block's return value. Mirrors Python
-/// `_collect_return_taint`.
+/// Join the taint of every executable block's return value.
 fn collect_return_taint(
     fu: &FunctionUnit,
     taints: &HashMap<ValueKey, TaintLattice>,
@@ -340,7 +334,6 @@ pub type InferProcSummaryFn<'a> = dyn FnMut(
     + 'a;
 
 /// Infer a procedure's return-taint summary under the current summaries.
-/// Mirrors Python `_infer_proc_summary`.
 ///
 /// Exposed (with [`InferProcSummaryFn`]) so the LSP db can both (a) re-run the
 /// real inference inside its memoised `proc_summary_cascade` query and (b) keep
@@ -385,7 +378,6 @@ pub fn infer_proc_summary(
 // Call-flow resolution (entry-taint worklist)
 
 /// Resolve the (callee, arg-taints) flows a function makes to known procs.
-/// Mirrors Python `_resolve_call_flows_for_function`.
 fn resolve_call_flows(
     fu: &FunctionUnit,
     taints: &HashMap<ValueKey, TaintLattice>,
@@ -449,13 +441,12 @@ fn resolve_call_flows(
 
 // Solver
 
-/// Result of the interprocedural taint solve. Mirrors Python
-/// `_InterprocTaintResult` (summaries are dropped — the warning consumers
-/// only read `top_taints` / `proc_taints`).
+/// Result of the interprocedural taint solve. Summaries are dropped — the
+/// warning consumers only read `top_taints` / `proc_taints`.
 ///
 /// `PartialEq` lets the LSP db return this from the memoised `proc_taint_solve`
-/// salsa query (early-cutoff via salsa's update-fallback: a re-solve that lands
-/// the same taints backdates, waking no downstream check).
+/// salsa query (early-cutoff via salsa's update-fallback: a re-solve that
+/// produces the same taints backdates, waking no downstream check).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InterprocTaintResult {
     /// Taints for the top-level script.
@@ -467,8 +458,6 @@ pub struct InterprocTaintResult {
 impl InterprocTaintResult {
     /// The solved taints for `name`, falling back to `fallback` (the bare
     /// per-function taints) when the function was not part of the solve.
-    /// Mirrors Python's `solved.proc_taints.get(qname, fu.analysis.taints)`
-    /// (and `top_taints` for the top level).
     #[must_use]
     pub fn taints_for<'a>(
         &'a self,
@@ -483,8 +472,7 @@ impl InterprocTaintResult {
 }
 
 /// Update a callee's accumulated entry taints with an incoming argument tuple.
-/// Returns `true` when any parameter's entry taint grew. Mirrors Python's
-/// nested `update_entry`.
+/// Returns `true` when any parameter's entry taint grew.
 fn update_entry(
     summaries: &HashMap<String, ProcTaintSummary>,
     entry_taints: &mut HashMap<String, HashMap<String, TaintLattice>>,
@@ -648,8 +636,7 @@ pub fn converge_summaries_with(
     summaries
 }
 
-/// Solve interprocedural taints for a compilation unit. Mirrors Python
-/// `_solve_interprocedural_taints`.
+/// Solve interprocedural taints for a compilation unit.
 ///
 /// The unit's `interproc` summary (when present) is threaded through so the
 /// Rust-specific conservative global-write seeding and the dialect handling

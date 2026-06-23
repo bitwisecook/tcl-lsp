@@ -1,5 +1,5 @@
 //! `Destination` value type — F5 `[folder/]address[%route-domain][:port]`
-//! triples. Rust port of `_destination.py`.
+//! triples.
 //!
 //! The parser is hand-written, not regex-driven: it splits the input on
 //! the structural anchors (`/`, `[`, `]`, `%`, the last `.` or `:` for the

@@ -3,8 +3,7 @@
 //! Drives the `tcl-explorer` pipeline + serialiser (the same contract the
 //! GUI / TUI / editor panels consume). `--json` emits the full
 //! machine-readable JSON; the default is a compact per-view summary. The
-//! rich ANSI / box-drawing renderer (`_render.py`) is a later increment;
-//! the JSON path already exposes every ported view.
+//! JSON path exposes every view.
 
 use serde_json::Value;
 

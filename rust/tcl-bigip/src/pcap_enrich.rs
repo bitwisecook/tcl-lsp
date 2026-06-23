@@ -1,13 +1,12 @@
 //! Config → capture-label engine for `f5 enrich-pcapng`.
 //!
-//! Faithful Rust port of `dialects/f5/bigip/pcap_enrich.py`:
 //! [`build_merged_name_index`] derives hostname-style labels for every IP an
 //! object touches (virtual-server destinations, pool / SNAT members, nodes,
 //! self-IPs and their subnets, GTM wide-IPs), and [`enrich_pcapng`] injects
 //! those mappings into a PCAPNG as a Name Resolution Block (plus an optional
 //! TLS keylog Decryption Secrets Block), round-tripping every other block
-//! byte-for-byte. The deterministic `NameIndex` and direct-write PCAPNG paths
-//! are byte-identical to the Python; libpcap → pcapng conversion shells out to
+//! byte-for-byte. The `NameIndex` and direct-write PCAPNG paths are
+//! deterministic; libpcap → pcapng conversion shells out to
 //! `editcap` / `tshark` and is handled by the verb layer.
 
 use std::collections::BTreeMap;
@@ -41,7 +40,7 @@ pub struct EnrichResult {
 // ── Name index ──────────────────────────────────────────────────────
 
 /// Maps IP addresses (canonical `str`) to one or more annotation names, with a
-/// CIDR-fallback list for self-IP subnets. Mirrors Python `NameIndex`.
+/// CIDR-fallback list for self-IP subnets.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NameIndex {
     /// Exact IPv4 → labels, insertion-ordered.
@@ -54,15 +53,15 @@ pub struct NameIndex {
     pub v6_subnets: Vec<(IpNetwork, String)>,
 }
 
-/// A canonicalised IP network (address + prefix length). Mirrors the subset of
-/// `ipaddress.ip_network(..., strict=False)` the engine relies on.
+/// A canonicalised IP network (address + prefix length), with host bits
+/// cleared (non-strict).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IpNetwork {
     /// Network address (host bits zeroed).
     network_addr: IpAddr,
     /// Prefix length in bits.
     prefix: u8,
-    /// Canonical `network/prefix` text (Python `str(network)`).
+    /// Canonical `network/prefix` text.
     text: String,
 }
 
@@ -141,14 +140,14 @@ impl IpNetwork {
     }
 }
 
-/// Canonicalise an address the way Python `str(ipaddress.ip_address(x))` does.
+/// Canonicalise an address to its standard compressed text form.
 fn canonical_ip(address: &str) -> Option<(IpAddr, String)> {
     let ip: IpAddr = address.parse().ok()?;
     Some((ip, ip.to_string()))
 }
 
 impl NameIndex {
-    /// Add an exact-IP label (deduped per address). Mirrors `NameIndex.add`.
+    /// Add an exact-IP label (deduped per address).
     pub fn add(&mut self, address: &str, name: &str) {
         if address.is_empty() || name.is_empty() {
             return;
@@ -186,7 +185,7 @@ impl NameIndex {
         }
     }
 
-    /// Merge `other` into `self`. Mirrors `NameIndex.update`.
+    /// Merge `other` into `self`.
     fn update(&mut self, other: NameIndex) {
         for (addr, names) in &other.v4 {
             for name in names {
@@ -206,8 +205,7 @@ impl NameIndex {
         }
     }
 
-    /// Every label that applies to `address` (exact + subnet). Mirrors
-    /// `NameIndex.lookup`.
+    /// Every label that applies to `address` (exact + subnet).
     #[must_use]
     pub fn lookup(&self, address: &str) -> Vec<String> {
         let Some((ip, canon)) = canonical_ip(address) else {
@@ -243,7 +241,7 @@ impl NameIndex {
 // ── Naming helpers ──────────────────────────────────────────────────
 
 /// Lowercase `text`, replacing runs of non-`[a-z0-9-]` with a single `-`,
-/// stripping leading/trailing `-`. Mirrors `_slug`.
+/// stripping leading/trailing `-`.
 #[must_use]
 pub fn slug(text: &str) -> String {
     let mut out = String::new();
@@ -262,8 +260,7 @@ pub fn slug(text: &str) -> String {
     out.trim_matches('-').to_owned()
 }
 
-/// Build a `purpose-objname` label, lowercased with `-` separators. Mirrors
-/// `_label`.
+/// Build a `purpose-objname` label, lowercased with `-` separators.
 #[must_use]
 pub fn label(purpose: &str, parts: &[&str]) -> String {
     let mut pieces = vec![purpose.to_owned()];
@@ -277,7 +274,6 @@ pub fn label(purpose: &str, parts: &[&str]) -> String {
 }
 
 /// Extract the address portion of a `[/Common/]ADDR[:port]` destination.
-/// Mirrors `_split_destination`.
 #[must_use]
 pub fn split_destination(dest: &str) -> String {
     if dest.is_empty() {
@@ -301,8 +297,7 @@ pub fn split_destination(dest: &str) -> String {
     }
 }
 
-/// Resolve a port token (decimal or BIG-IP service name). Mirrors
-/// `port_names.resolve_port`.
+/// Resolve a port token (decimal or BIG-IP service name).
 #[must_use]
 pub fn resolve_port(value: &str) -> Option<i64> {
     if value.is_empty() {
@@ -315,7 +310,7 @@ pub fn resolve_port(value: &str) -> Option<i64> {
     crate::model::port_names::name_to_port(&value.to_lowercase())
 }
 
-// ── BigipConfig accessors (mirror the Python BigipConfig dict API) ──
+// ── BigipConfig accessors ──
 
 fn typed_objects<'a>(
     cfg: &'a BigipConfig,
@@ -387,7 +382,6 @@ fn resolve_node_address(cfg: &BigipConfig, candidate: &str) -> Option<String> {
 }
 
 /// Resolve a pool member's IP from its name, falling back to the node table.
-/// Mirrors `_resolve_pool_member_address`.
 fn resolve_pool_member_address(member_name: &str, cfg: &BigipConfig) -> String {
     let addr = split_destination(member_name);
     if !addr.is_empty() {
@@ -420,7 +414,6 @@ pub(crate) struct SelfIp {
 }
 
 /// Parse `{ name1 { body1 } name2 { body2 } ... }` into `[(name, body), …]`.
-/// Mirrors `_parse_named_subblocks`.
 pub(crate) fn parse_named_subblocks(braced: &str) -> Vec<(String, String)> {
     let mut inner = braced.trim();
     inner = inner.strip_prefix('{').unwrap_or(inner);
@@ -470,8 +463,7 @@ fn property(props: &[(String, String)], key: &str) -> Option<String> {
     props.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
 }
 
-/// Pull every `net self` block's address (and CIDR, if present). Mirrors
-/// `_extract_self_ips`.
+/// Pull every `net self` block's address (and CIDR, if present).
 pub(crate) fn extract_self_ips(source: &str) -> Vec<SelfIp> {
     let mut found = Vec::new();
     for block in extract_blocks(source) {
@@ -568,8 +560,7 @@ fn extract_gtm_servers(source: &str) -> BTreeMap<String, GtmServer> {
     servers
 }
 
-/// `pool_full_path -> [(server_full_path, vs_name), …]`. Mirrors
-/// `_extract_gtm_pools`.
+/// `pool_full_path -> [(server_full_path, vs_name), …]`.
 fn extract_gtm_pools(source: &str) -> Vec<(String, Vec<(String, String)>)> {
     let mut pools: Vec<(String, Vec<(String, String)>)> = Vec::new();
     for block in extract_blocks(source) {
@@ -604,7 +595,7 @@ fn extract_gtm_pools(source: &str) -> Vec<(String, Vec<(String, String)>)> {
     pools
 }
 
-/// `wideip_full_path -> [pool_full_path, …]`. Mirrors `_extract_gtm_wideips`.
+/// `wideip_full_path -> [pool_full_path, …]`.
 fn extract_gtm_wideips(source: &str) -> Vec<(String, Vec<String>)> {
     let mut wideips = Vec::new();
     for block in extract_blocks(source) {
@@ -656,7 +647,7 @@ fn resolve_gtm_server<'a>(name: &str, servers: &'a BTreeMap<String, GtmServer>) 
 }
 
 /// For each wide-IP, the set of IPs its pool chain resolves to (insertion
-/// order preserved per wide-IP). Mirrors `_wideip_addresses`.
+/// order preserved per wide-IP).
 fn wideip_addresses(
     wideips: &[(String, Vec<String>)],
     gtm_pools: &[(String, Vec<(String, String)>)],
@@ -702,7 +693,7 @@ fn wideip_addresses(
 // ── Index builders ──────────────────────────────────────────────────
 
 /// Build a name index from a parsed [`BigipConfig`]. When `source` is `Some`,
-/// `net self` and GTM blocks are also scanned. Mirrors `build_name_index`.
+/// `net self` and GTM blocks are also scanned.
 #[must_use]
 pub fn build_name_index(cfg: &BigipConfig, source: Option<&str>) -> NameIndex {
     let mut index = NameIndex::default();
@@ -803,7 +794,6 @@ pub fn build_name_index(cfg: &BigipConfig, source: Option<&str>) -> NameIndex {
 }
 
 /// Build a merged [`NameIndex`] from multiple `(config, source)` pairs.
-/// Mirrors `build_merged_name_index`.
 #[must_use]
 pub fn build_merged_name_index(configs_with_sources: &[(BigipConfig, String)]) -> NameIndex {
     if configs_with_sources.is_empty() {
@@ -888,7 +878,7 @@ type PackedRecords = (Vec<([u8; 4], Vec<String>)>, Vec<([u8; 16], Vec<String>)>)
 
 /// Resolve labels for every observed IP (or every inventory IP when both
 /// `observed` sets are `None`). Records are sorted by packed-address bytes for
-/// determinism. Mirrors `_build_packed_records`.
+/// determinism.
 fn build_packed_records(
     index: &NameIndex,
     observed_v4: Option<&[String]>,
@@ -936,7 +926,7 @@ fn build_packed_records(
 
 /// Insert NRB (and optional DSB) blocks derived from `name_index` into `input`.
 ///
-/// Faithful port of `enrich_pcapng`. The NRB/DSB are inserted right after the
+/// The NRB/DSB are inserted right after the
 /// first IDB of the first section; every other block round-trips byte-for-byte.
 ///
 /// # Errors

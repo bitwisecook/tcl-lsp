@@ -1,7 +1,7 @@
 //! Pluggable output renderers for the query DSL.
 //!
-//! Faithful port of `dialects/f5/query/renderers/__init__.py` plus the three
-//! built-in renderer modules (`mermaid`, `gantt`, `ascii-blocks`).
+//! Covers the renderer registry plus the three built-in renderer modules
+//! (`mermaid`, `gantt`, `ascii-blocks`).
 //!
 //! Renderers turn the flattened evaluator value list into a human-readable
 //! string. They sit alongside the built-in output modes in

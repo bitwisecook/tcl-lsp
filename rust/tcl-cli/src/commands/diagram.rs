@@ -1,10 +1,10 @@
 //! `diagram` verb: extract structured control-flow data from the IR.
 //!
-//! Port of `tooling/diagram/extract.py` (`extract_diagram_data`) + the
-//! `tooling/tcl/verbs/graphs.py` `_run_diagram` handler. Walks the lowered IR
+//! Extracts diagram data (`extract_diagram_data`) for the `_run_diagram`
+//! handler. Walks the lowered IR
 //! (`CompilationUnit::build_for`) and builds the `{events, procedures}` flow
-//! tree the VS Code `/diagram` command forwards to the LLM. Now that lowering /
-//! IR is at parity, the only registry dependency is the `DIAGRAM_ACTION` trait
+//! tree the VS Code `/diagram` command forwards to the LLM. The only registry
+//! dependency is the `DIAGRAM_ACTION` trait
 //! (`CommandRegistry::is_diagram_action`).
 
 use std::collections::{HashMap, HashSet};
@@ -26,8 +26,8 @@ const MAX_DEPTH: usize = 8;
 const MAX_EVENTS: usize = 12;
 const MAX_ARG_LEN: usize = 60;
 
-/// Truncate to `limit` characters with a trailing `...` (port of `_truncate`;
-/// `CPython` slices by code point, so this counts/takes `char`s).
+/// Truncate to `limit` characters with a trailing `...`
+/// (`CPython` slices by code point, so this counts/takes `char`s).
 fn truncate(text: &str, limit: usize) -> String {
     if text.chars().count() <= limit {
         return text.to_owned();
@@ -66,7 +66,7 @@ fn replace_ws_bounded(text: &str, token: &str, repl: &str) -> String {
 }
 
 /// Replace a prefix logical `!` (at start or after whitespace, not `!=`) with
-/// `not ` — port of `re.sub(r"(^|\s)!(?!=)", r"\1not ", text)`. The captured
+/// `not ` — equivalent to `re.sub(r"(^|\s)!(?!=)", r"\1not ", text)`. The captured
 /// preceding whitespace is preserved (re-emitted), so this is equivalent to an
 /// in-place token rewrite keyed on the original surrounding characters.
 fn replace_prefix_not(text: &str) -> String {
@@ -90,8 +90,8 @@ fn replace_prefix_not(text: &str) -> String {
     out
 }
 
-/// Replace symbolic logical operators with words for Mermaid compatibility
-/// (port of `_diagram_safe_operators`): `&&` → `and`, `||` → `or` (both
+/// Replace symbolic logical operators with words for Mermaid compatibility:
+/// `&&` → `and`, `||` → `or` (both
 /// whitespace-bounded), prefix `!` → `not `.
 fn diagram_safe_operators(text: &str) -> String {
     let text = replace_ws_bounded(text, "&&", "and");
@@ -134,8 +134,7 @@ fn action_node(display: &str, args: &[String]) -> Value {
 }
 
 /// Convert one IR statement to a flow-node dict, or `None` to skip it.
-/// Faithful port of `_walk_statement` — one arm per IR statement kind, so the
-/// length tracks the Python `match` it mirrors.
+/// One arm per IR statement kind, so the length tracks the statement set.
 #[allow(clippy::too_many_lines)]
 fn walk_statement(
     stmt: &Statement,
@@ -361,7 +360,7 @@ fn walk_script(
         .collect()
 }
 
-/// Extract structured flow data from a source (port of `extract_diagram_data`).
+/// Extract structured flow data from a source.
 fn extract_diagram_data(source: &str, dialect: &str) -> Value {
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(source, registry, false);

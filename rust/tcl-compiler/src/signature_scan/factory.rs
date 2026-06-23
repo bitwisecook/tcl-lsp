@@ -26,8 +26,7 @@ use crate::segmenter::segment_commands;
 /// `proc $p1 $p2 $p3` command using exactly the wrapper's three
 /// parameters in some order.
 ///
-/// Mirrors `_is_factory_body` in
-/// `core/analysis/signature_scan.py`. Both `$name` and `${name}`
+/// Both `$name` and `${name}`
 /// substitution forms are accepted (the segmenter reconstructs
 /// substitutions as `${name}`, but bare `$name` still matches the
 /// equality check). Wrappers with fewer than three parameters
@@ -61,8 +60,7 @@ pub(super) fn is_factory_body(body_text: &str, params: &[String]) -> bool {
 /// Resolve `cand.head` to a factory's qualified name (the **key**
 /// in `factories`), following Tcl's command-resolution order.
 ///
-/// Mirrors `_lookup_factory` in
-/// `core/analysis/signature_scan.py`. Absolute heads (those
+/// Absolute heads (those
 /// starting with `::`) match verbatim. Relative heads try the
 /// call-site qualified name first, then the global namespace —
 /// they never fall through to "any factory with this bare name",
@@ -95,8 +93,7 @@ pub(super) fn lookup_factory<'a>(
 /// Emit synthetic [`SignatureProc`] records for each factory-wrapper
 /// call site.
 ///
-/// Mirrors `_resolve_factory_defs` in
-/// `core/analysis/signature_scan.py`. Builds a factory map from
+/// Builds a factory map from
 /// `ctx.proc_bodies` filtered through [`is_factory_body`]; for
 /// each candidate calls [`lookup_factory`], computes the emitted
 /// qualified name (honouring an explicit `::` prefix on the

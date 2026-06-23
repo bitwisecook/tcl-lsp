@@ -1,8 +1,8 @@
-//! `tcl-pkg` — native Rust port of the `tclpkg` package manager.
+//! `tcl-pkg` — the `tclpkg` package manager.
 //!
-//! Faithful port of `tooling/tclpkg/` (manifest loader, MVS resolver, lockfile
-//! I/O, content-addressable store, source fetchers, registry client, virtual
-//! environments, and Dockerfile generation). The `tcl pkg` / `tcl venv` /
+//! Manifest loader, MVS resolver, lockfile I/O, content-addressable store,
+//! source fetchers, registry client, virtual
+//! environments, and Dockerfile generation. The `tcl pkg` / `tcl venv` /
 //! `tcl docker` CLI verb groups in `tcl-cli` drive these modules; behaviour and
 //! on-disk formats match the Python implementation byte-for-byte.
 

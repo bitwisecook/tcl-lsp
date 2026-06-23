@@ -1,7 +1,7 @@
 //! Build the embedded KCS help database from the committed
 //! `docs/kcs/features/kcs-feature-*.md` sources.
 //!
-//! Faithful port of `scripts/build/kcs_db.py` (the `kcs_features` FTS5 table +
+//! Builds the `kcs_features` FTS5 table +
 //! `feature_tags` table; screenshots are omitted — the `tcl help` verb's
 //! `search_help` / `list_features` never touch them). The result is written to
 //! `$OUT_DIR/kcs_help.db` and embedded by `commands::help` via `include_bytes!`,
@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use regex::RegexBuilder;
 use rusqlite::Connection;
 
-/// Editors driven by the LSP server (port of `LSP_EDITOR_TAGS`).
+/// Editors driven by the LSP server.
 const LSP_EDITOR_TAGS: [&str; 7] = [
     "vs-code",
     "zed",
@@ -58,7 +58,7 @@ fn main() {
     build_database(&paths, &out_db);
 }
 
-/// Normalise one raw `Applies to` token (port of `_normalise_tag`):
+/// Normalise one raw `Applies to` token:
 /// `"-".join(raw.strip().lower().split())`.
 fn normalise_tag(raw: &str) -> String {
     raw.to_lowercase()
@@ -67,8 +67,8 @@ fn normalise_tag(raw: &str) -> String {
         .join("-")
 }
 
-/// Parse a `## Applies to` line into the normalised tag set (port of
-/// `parse_applies_to`), expanding the `all editors` shorthand.
+/// Parse a `## Applies to` line into the normalised tag set, expanding the
+/// `all editors` shorthand.
 fn parse_applies_to(text: &str) -> BTreeSet<String> {
     let mut parts: BTreeSet<String> = text
         .split(',')
@@ -83,7 +83,7 @@ fn parse_applies_to(text: &str) -> BTreeSet<String> {
     parts
 }
 
-/// Map a tag set to its grouping category (port of `applies_to_category`).
+/// Map a tag set to its grouping category.
 fn applies_to_category(tags: &BTreeSet<String>) -> &'static str {
     let lsp_editor_count = LSP_EDITOR_TAGS
         .iter()
@@ -128,7 +128,7 @@ impl Feature {
     }
 }
 
-/// Parse one KCS feature markdown file (port of `_parse_kcs_feature`). Returns
+/// Parse one KCS feature markdown file. Returns
 /// `None` when the title line is missing.
 fn parse_feature(path: &Path) -> Option<Feature> {
     let content = std::fs::read_to_string(path).ok()?;
@@ -163,7 +163,7 @@ fn parse_feature(path: &Path) -> Option<Feature> {
     })
 }
 
-/// Build the `SQLite` database (port of `build_database`, minus screenshots).
+/// Build the `SQLite` database (minus screenshots).
 fn build_database(paths: &[PathBuf], out_db: &Path) {
     let _ = std::fs::remove_file(out_db);
     let conn = Connection::open(out_db).expect("open kcs_help.db");

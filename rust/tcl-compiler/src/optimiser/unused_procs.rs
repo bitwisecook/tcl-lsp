@@ -1,6 +1,4 @@
-//! Unused-proc commenting pass (O124) for iRules (C30b).
-//!
-//! Ported from `core/compiler/optimiser/_unused_procs.py`.
+//! Unused-proc commenting pass (O124) for iRules.
 //!
 //! When an iRule defines procs that are never called from any
 //! event handler (transitively), this pass suggests commenting
@@ -250,14 +248,12 @@ mod tests {
         use tcl_registry::CommandRegistry;
         use tcl_registry::prelude::DialectSet;
         let mut registry = CommandRegistry::build_default();
-        // C43 sub-strip 4 fallout: `when` (and any other dialect-
-        // gated structured command) is registry-resolved now, so
-        // the test registry must carry the dialect's command set
-        // before lowering iRule code.  Mirrors the production
-        // path in `tcl-lsp-server` / `tcl-lsp-py::registry`,
-        // which always pair `build_default()` with the active
-        // dialect.  Both `"irules"` and `"f5-irules"` resolve to
-        // `DialectSet::IRULES` here (the optimiser passes
+        // `when` (and any other dialect-gated structured command)
+        // is registry-resolved, so the test registry must carry the
+        // dialect's command set before lowering iRule code. This
+        // matches how production pairs `build_default()` with the
+        // active dialect.  Both `"irules"` and `"f5-irules"` resolve
+        // to `DialectSet::IRULES` here (the optimiser passes
         // recognise both aliases via `is_irules_dialect`, so the
         // registry has to as well).
         let parsed = dialect.and_then(|d| {

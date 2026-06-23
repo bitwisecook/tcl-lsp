@@ -1,26 +1,23 @@
 //! Session driver — bootstrap the TMM-sim orchestrator on the VM and fire
 //! events.
 //!
-//! Mirrors `tooling/irule_test/bridge.py::IruleTestSession`. The simulation is
-//! the Tcl under `tooling/irule_test/tcl/` (orchestrator + TMM shim + command
-//! mocks); a session sources it on a [`tcl-vm`] interpreter, applies a
-//! [`crate::topology`] setup (or hand-built `::orch::` calls), fires events,
-//! and reads back the pool/node decisions, logs, and assertions.
+//! The simulation is the Tcl under `tooling/irule_test/tcl/` (orchestrator +
+//! TMM shim + command mocks); a session sources it on a [`tcl-vm`] interpreter,
+//! applies a [`crate::topology`] setup (or hand-built `::orch::` calls), fires
+//! events, and reads back the pool/node decisions, logs, and assertions.
 //!
 //! # Status: gated on the VM iRule surface
 //!
 //! Running events end-to-end needs the VM to provide the iRule command surface
 //! the orchestrator relies on — `HTTP::*`, `pool`/`node`, `LB::*`, the `when`
 //! event dispatch, `class match`, etc. Those are not yet implemented in
-//! `tcl-vm` (tracked under **RT-VM**), so this module defines the **session
-//! contract and the setup-script assembly** that the driver will use, without
-//! yet wiring a live VM. The pieces that do not need the VM — topology
-//! generation and the orchestrator-bootstrap script assembly — are usable now
-//! and unit-tested.
+//! `tcl-vm`, so this module defines the **session contract and the setup-script
+//! assembly** that the driver uses, without yet wiring a live VM. The pieces
+//! that do not need the VM — topology generation and the orchestrator-bootstrap
+//! script assembly — are usable now and unit-tested.
 //!
-//! When the VM surface lands, [`SessionPlan::into_bootstrap`] is the exact
-//! script a `tcl-vm` driver runs to stand a session up; only the
-//! `run_*`/`assert_*` round-trip needs adding.
+//! [`SessionPlan::into_bootstrap`] is the exact script a `tcl-vm` driver runs
+//! to stand a session up; only the `run_*`/`assert_*` round-trip needs adding.
 
 use crate::topology::{Topology, TopologyError};
 
@@ -79,7 +76,11 @@ impl SessionPlan {
         let _ = writeln!(s, "source [file join {{{lib_dir}}} scf_loader.tcl]");
         s.push_str("::orch::init\n");
         if !self.profiles.0.is_empty() {
-            let _ = writeln!(s, "::orch::configure -profiles {{{}}}", self.profiles.to_tcl());
+            let _ = writeln!(
+                s,
+                "::orch::configure -profiles {{{}}}",
+                self.profiles.to_tcl()
+            );
         }
         s.push_str(&self.setup);
         s

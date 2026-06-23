@@ -40,7 +40,7 @@ pub enum EdgeKind {
 }
 
 impl EdgeKind {
-    /// Stable short text form, matching Python's Enum value strings.
+    /// Stable short text form.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -249,9 +249,9 @@ fn format_lattice(values: &HashMap<ValueKey, LatticeValue>, key: &ValueKey) -> S
     }
 }
 
-/// Render the type-lattice kind for a node's `typeInfo`. Mirrors Python's
-/// `_format_type` (`dataflow_graph.py`): the lattice *kind* name, or the
-/// empty string when no type was inferred for this SSA value.
+/// Render the type-lattice kind for a node's `typeInfo`: the lattice
+/// *kind* name, or the empty string when no type was inferred for this
+/// SSA value.
 fn format_type(types: Option<&HashMap<ValueKey, TypeLattice>>, key: &ValueKey) -> String {
     match types.and_then(|t| t.get(key)) {
         None => String::new(),
@@ -275,7 +275,7 @@ fn format_const(c: &ConstValue) -> String {
 }
 
 /// Map a [`DefKind`] onto the lowercase text form used in the
-/// node's `def_kind` field, matching Python's `.name.lower()`.
+/// node's `def_kind` field.
 fn def_kind_name(k: DefKind) -> &'static str {
     match k {
         DefKind::Statement => "statement",
@@ -422,10 +422,8 @@ pub struct FunctionInputs<'a> {
 /// analysis outputs.
 ///
 /// Function graphs are appended in the order of `inputs` and then sorted
-/// `::top` first, then the remaining functions alphabetically — matching
-/// the Python serialiser (`compiler/dataflow_graph.py`, which emits the
-/// top-level unit before `sorted(cu.procedures)`) so the output is stable
-/// across runs and byte-comparable.
+/// `::top` first, then the remaining functions alphabetically, so the
+/// output is stable across runs and byte-comparable.
 #[must_use]
 pub fn extract_dataflow_graph(inputs: &[FunctionInputs<'_>]) -> DataFlowGraph {
     let mut functions: Vec<FunctionDataFlowGraph> = inputs
@@ -572,8 +570,8 @@ mod tests {
         let du = build_def_use_chains(&ssa, None);
 
         // A `Known` type lattice for x@1 must render as the uppercase
-        // kind name "KNOWN" (matching Python's `tl.kind.name`); a value
-        // absent from the map renders as the empty string.
+        // kind name "KNOWN"; a value absent from the map renders as the
+        // empty string.
         let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
         types.insert(("x".into(), 1), TypeLattice::of(crate::types::TclType::Int));
 

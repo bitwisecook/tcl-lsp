@@ -16,11 +16,11 @@ use tcl_lexer::{SourcePosition as CoreSourcePosition, TokenType as CoreTokenType
 
 /// `enum.Enum`-style token kind exposed to Python as
 /// `tcl_lsp_py.TokenType` (also reachable via the legacy
-/// `tcl_lsp_rust.TokenType` alias for the transition window).
+/// `tcl_lsp_rust.TokenType` alias).
 ///
 /// Variants carry explicit discriminants matching the order of the
 /// original Python `auto()` declarations (1-indexed) so `TokenType.X.value`
-/// stays stable across the Rust port and any external scripts that
+/// stays stable for any external scripts that
 /// happened to read it.
 #[pyclass(
     name = "TokenType",
@@ -123,7 +123,7 @@ impl From<PyTokenType> for CoreTokenType {
 
 /// A position in source text. Exposed to Python as
 /// `tcl_lsp_py.SourcePosition` (also reachable via the legacy
-/// `tcl_lsp_rust.SourcePosition` alias for the transition window).
+/// `tcl_lsp_rust.SourcePosition` alias).
 #[pyclass(
     name = "SourcePosition",
     eq,
@@ -188,7 +188,7 @@ impl PySourcePosition {
 
 /// A token: kind, text, source range, quoting context. Exposed to Python
 /// as `tcl_lsp_py.Token` (also reachable via the legacy
-/// `tcl_lsp_rust.Token` alias for the transition window).
+/// `tcl_lsp_rust.Token` alias).
 ///
 /// Owns its text as `String`. The original Python dataclass was frozen
 /// (`@dataclass(frozen=True, slots=True)`) and Rust enforces the same
@@ -304,8 +304,8 @@ impl PyToken {
 
 /// Register the token types with a `#[pymodule]`.
 ///
-/// Called from `lib.rs` so the registration list stays in one place per
-/// chunk: as more domain types arrive, they all get one
+/// Called from `lib.rs` so the registration list stays in one place:
+/// as more domain types arrive, they all get one
 /// `register_with(m)` call.
 pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyTokenType>()?;

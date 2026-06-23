@@ -1,5 +1,5 @@
-//! Aggregate statistics for one or more BIG-IP configs — Rust port of
-//! `dialects/f5/bigip/stats.py` (powers `f5 stats` / `summary`).
+//! Aggregate statistics for one or more BIG-IP configs (powers `f5 stats` /
+//! `summary`).
 //!
 //! Counts come off the parsed [`BigipConfig`] tables and the reference graph
 //! ([`crate::graph`]); nothing here re-parses the source.
@@ -12,7 +12,7 @@ use tcl_registry::bigip::default_registry;
 use crate::graph::{ObjectGraph, ObjectNode};
 use crate::parser::driver::BigipConfig;
 
-/// Aggregate stats over a set of configs (mirrors the Python `StatsReport`).
+/// Aggregate stats over a set of configs.
 /// Count maps keep insertion order so the JSON matches `json.dumps`.
 pub struct StatsReport {
     /// `(category, count)` — pool/virtual/node/… in fixed category order.
@@ -33,15 +33,14 @@ pub struct StatsReport {
     pub text_report: String,
 }
 
-/// Whether `kind` is a keep-graph root (mirrors `_is_root_kind`): `ltm_virtual`
-/// or any GTM wide-IP.
+/// Whether `kind` is a keep-graph root: `ltm_virtual` or any GTM wide-IP.
 #[must_use]
 pub fn is_root_kind(kind: Option<&str>) -> bool {
     matches!(kind, Some("ltm_virtual")) || kind.is_some_and(|k| k.starts_with("gtm_wideip"))
 }
 
-/// Every `ltm`/`gtm` kind eligible for cleanup (mirrors `_deletable_kinds`):
-/// module-scoped, minus the never-delete kinds and the roots.
+/// Every `ltm`/`gtm` kind eligible for cleanup: module-scoped, minus the
+/// never-delete kinds and the roots.
 #[must_use]
 pub fn deletable_kinds() -> std::collections::HashSet<&'static str> {
     const NEVER_DELETE: [&str; 2] = ["ltm_virtual", "ltm_virtual_address"];
@@ -115,8 +114,7 @@ impl OrderedCounter {
     }
 }
 
-/// Compute the statistics report over `graph` + `configs` (mirrors
-/// `compute_stats`).
+/// Compute the statistics report over `graph` + `configs`.
 #[must_use]
 pub fn compute_stats(
     graph: &ObjectGraph,

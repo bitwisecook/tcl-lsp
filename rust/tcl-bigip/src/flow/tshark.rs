@@ -1,7 +1,7 @@
 //! tshark / EK enrichment: decode TLS/HTTP fields tshark can see that the
 //! raw-bytes walker can't.
 //!
-//! Faithful port of `dialects/f5/bigip/flow/tshark.py`. Two entry points:
+//! Two entry points:
 //!
 //! * [`enrich_with_tshark`] overlays decoded L7 fields onto flows the built-in
 //!   walker already produced (the `--tshark` / `--keylog` path).
@@ -30,7 +30,7 @@ pub fn tshark_available() -> bool {
     which_tshark().is_some()
 }
 
-/// Locate the `tshark` binary on `PATH`, mirroring `shutil.which`.
+/// Locate the `tshark` binary on `PATH`.
 fn which_tshark() -> Option<std::path::PathBuf> {
     let path = std::env::var_os("PATH")?;
     for dir in std::env::split_paths(&path) {
@@ -146,7 +146,7 @@ fn ek_field(layers: &Value, layer: &str, key: &str) -> String {
 }
 
 /// Insert `(key, value)` into a first-seen-ordered header list only when `key`
-/// is absent — mirrors Python's `dict.setdefault`.
+/// is absent.
 fn header_setdefault(headers: &mut Vec<(String, String)>, key: &str, value: &str) {
     if !headers.iter().any(|(k, _)| k == key) {
         headers.push((key.to_owned(), value.to_owned()));
@@ -157,7 +157,9 @@ fn header_setdefault(headers: &mut Vec<(String, String)>, key: &str, value: &str
 /// does (so e.g. compressed IPv6 forms match the walker's keys). Returns
 /// `None` for anything that doesn't parse as an IP.
 fn canonical_ip(raw: &str) -> Option<String> {
-    raw.parse::<std::net::IpAddr>().ok().map(|ip| ip.to_string())
+    raw.parse::<std::net::IpAddr>()
+        .ok()
+        .map(|ip| ip.to_string())
 }
 
 /// Resolve the L3/L4 5-tuple key for one EK packet, or `None` when it is not a
@@ -216,7 +218,7 @@ fn flag_set(v: &str) -> bool {
 }
 
 /// Overlay decoded fields from one EK `layers` object onto `flows`.
-#[allow(clippy::too_many_lines)] // One field-by-field overlay; splitting would obscure the 1:1 port.
+#[allow(clippy::too_many_lines)] // One field-by-field overlay; splitting would obscure it.
 fn apply_packet_to_flows(layers: &Value, flows: &mut IndexMap<FlowKey, Flow>) {
     let Some(key) = packet_key(layers) else {
         return;
@@ -320,7 +322,11 @@ fn apply_packet_to_flows(layers: &Value, flows: &mut IndexMap<FlowKey, Flow>) {
     }
     let content_type = ek_field(layers, "http", "http_content_type");
     if !content_type.is_empty() && flow.http_request_content_type.is_empty() {
-        header_setdefault(&mut flow.http_request_headers, "content-type", &content_type);
+        header_setdefault(
+            &mut flow.http_request_headers,
+            "content-type",
+            &content_type,
+        );
         flow.http_request_content_type = content_type;
     }
     let content_length = ek_field(layers, "http", "http_content_length");
@@ -567,9 +573,6 @@ mod tests {
         );
         let packets = parse_tshark_ek(stdout);
         assert_eq!(packets.len(), 1);
-        assert_eq!(
-            ek_field(&packets[0]["layers"], "frame", "frame_len"),
-            "66"
-        );
+        assert_eq!(ek_field(&packets[0]["layers"], "frame", "frame_len"), "66");
     }
 }

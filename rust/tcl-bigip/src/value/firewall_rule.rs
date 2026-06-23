@@ -1,5 +1,4 @@
-//! Typed BIG-IP firewall + NAT rule values. Rust port of
-//! `_firewall_rule.py`.
+//! Typed BIG-IP firewall + NAT rule values.
 
 /// One side (source or destination) of a firewall rule.
 ///
@@ -175,7 +174,7 @@ pub type NatRule = FirewallRule;
 
 /// Tokenise `body` into top-level tokens + an ordered `(name, sub-body)`
 /// list of `source` / `destination` sub-block contents, handling brace
-/// nesting. Mirrors `_split_sub_blocks`.
+/// nesting.
 fn split_sub_blocks(body: &str) -> (Vec<String>, Vec<(String, String)>) {
     let mut sub_bodies: Vec<(String, String)> = Vec::new();
     let mut tokens: Vec<String> = Vec::new();

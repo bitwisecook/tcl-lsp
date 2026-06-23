@@ -1,4 +1,4 @@
-//! iRule context engine — a faithful port of `ai/shared/irule_context.py`.
+//! iRule context engine.
 //!
 //! For one `ltm rule`, [`build_irule_context`] walks the rule body and resolves
 //! every BIG-IP object it references (pools, data groups, persistence, SNAT
@@ -27,8 +27,8 @@ use crate::range::Range;
 
 // ── Minimal insertion-ordered JSON (with `null`) ─────────────────────
 //
-// Mirrors `json.dumps(value, indent=2, ensure_ascii=True)` without
-// `sort_keys` (object keys keep insertion order). A sibling of
+// Matches the format of `json.dumps(value, indent=2, ensure_ascii=True)`
+// without `sort_keys` (object keys keep insertion order). A sibling of
 // `convert::Json`, extended with a `Null` variant for the `None` fields the
 // context dict carries.
 
@@ -105,8 +105,7 @@ fn indent(out: &mut String, level: usize) {
     }
 }
 
-/// Render an optional non-empty string as a JSON string, else `null`
-/// (Python `value or None`).
+/// Render an optional non-empty string as a JSON string, else `null`.
 fn str_or_null(s: &str) -> Json {
     if s.is_empty() {
         Json::Null
@@ -146,8 +145,8 @@ pub struct IruleContextBundle {
     pub source_slices: Vec<(String, String)>,
 }
 
-/// An order-preserving, insert-if-absent map (Python dict + `setdefault`):
-/// the first insertion fixes the position, later inserts of the same key are
+/// An order-preserving, insert-if-absent map: the first insertion fixes the
+/// position, later inserts of the same key are
 /// no-ops (object values are deterministic per full-path key, so this matches
 /// both `d[key] = obj` and `d.setdefault(key, obj)`).
 struct OrderedMap<T> {
@@ -561,7 +560,7 @@ pub fn build_irule_context(
     }
 }
 
-/// Iterate a pool's typed members (mirrors `crate::lint`'s `member_iter`).
+/// Iterate a pool's typed members.
 fn member_iter(pool: &BigipPool) -> impl Iterator<Item = &crate::model::BigipPoolMember> {
     pool.members.items.iter().filter_map(|item| {
         if let crate::value::ListItemValue::PoolMember(m) = &item.value {
@@ -681,7 +680,7 @@ fn rule_dict(r: &BigipRule) -> Json {
     ])
 }
 
-/// Sorted-unique copy of `names` (Python `sorted(set(names))`).
+/// Sorted-unique copy of `names`.
 fn sorted_unique(names: &[String]) -> Vec<String> {
     let mut v: Vec<String> = names
         .iter()

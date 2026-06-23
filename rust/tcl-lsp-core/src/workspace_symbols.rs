@@ -1,14 +1,11 @@
-//! Workspace-symbols provider — minimal Rust port of
-//! `lsp/features/workspace_symbols.py`.
+//! Workspace-symbols provider.
 //!
 //! Lists every proc, class, method, `classmethod`, and
 //! constructor recorded in the analyser's
 //! `AnalysisResult` for the **current document**, filtered by
-//! a query string.  The Python implementation walks every
-//! document in the workspace index; the workspace-index port
-//! is a separate chunk under `S-workspace-init`, so this
-//! provider operates on a single document until that lands
-//! (deferred to `S-workspace-symbols-rich`).
+//! a query string.  This provider operates on a single
+//! document; it does not yet walk every document in the
+//! workspace index.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -165,7 +162,7 @@ mod tests {
         assert_eq!(syms[0].name, "alpha");
     }
 
-    // -- S-workspace-symbols-rich: class methods ---------------------
+    // -- class methods ---------------------
 
     #[test]
     fn class_methods_surface_as_workspace_symbols() {

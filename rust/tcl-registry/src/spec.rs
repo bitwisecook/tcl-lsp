@@ -156,9 +156,8 @@ pub struct CommandSpec {
 
     /// WASM-runtime codegen hook ID — picks the per-command
     /// emitter on the WASM target. Currently always `None`
-    /// (no WASM-specific emitters landed yet); the field exists so
-    /// the per-command coverage audit can track WASM hook stamping
-    /// without a follow-up registry refactor.
+    /// (no WASM-specific emitters yet); the field exists so
+    /// the per-command coverage audit can track WASM hook stamping.
     pub wasm_codegen_hook: Option<WasmCodegenHookId>,
 
     /// Structured side-effect declarations.
@@ -175,24 +174,18 @@ pub struct CommandSpec {
 
     /// Command is unsafe in sandboxed dialects — it allows context
     /// escalation (e.g. `uplevel`, `history`).  Drives the IRULE2003
-    /// "unsafe iRules command" check.  Mirrors the Python
-    /// `CommandSpec.unsafe` flag read by `CommandRegistry.is_unsafe`.
+    /// "unsafe iRules command" check, read by `CommandRegistry::is_unsafe`.
     pub unsafe_command: bool,
 
     /// 0-based argument indices whose [`Self::arg_values`] are an
     /// **exhaustive** legal set (not mere completion hints).  A literal
     /// at one of these indices that is not among `arg_values` is invalid
-    /// (W127).  Mirrors the union of `FormSpec.closed_value_args` in the
-    /// Python registry, flattened to the command level alongside
-    /// `arg_values`.
+    /// (W127).  Flattened to the command level alongside `arg_values`.
     pub closed_value_args: &'static [u8],
 
     /// Layer-based iRules event requirements (transport / profiles /
     /// `also_in` / side / init-only / flow / capability) used by the
     /// IRULE1001 event-validity check. `None` = no requirement.
-    /// Mirrors Python `CommandSpec.event_requires`; the
-    /// [`crate::events::EventRequires`] type already existed in
-    /// `events.rs` but was not attached to commands (GAP-3a).
     pub event_requires: Option<crate::events::EventRequires>,
 
     /// Options declared on the command (for completion and arity adjustment).
@@ -202,10 +195,9 @@ pub struct CommandSpec {
     /// argument index *after* the command name.  Drives command-level
     /// value completion — e.g. iRules `when EVENT timing enable|disable`
     /// declares `(2, &[enable, disable])`, and `HTTP::respond <status>
-    /// content|noserver|version` declares `(1, &[…])`.  Mirrors the
-    /// form-level `arg_values` dict in the Python registry
-    /// (`FormSpec.arg_values`), flattened to the command level since the
-    /// completion consumer keys purely on positional index.
+    /// content|noserver|version` declares `(1, &[…])`.  Flattened from
+    /// per-form values to the command level since the completion
+    /// consumer keys purely on positional index.
     pub arg_values: &'static [(u8, &'static [ArgValue])],
 
     /// Whether `ArgRole::Body` arguments of this command run in the
@@ -214,9 +206,7 @@ pub struct CommandSpec {
     ///
     /// `Structural` opts every body arg out of the enclosing block's
     /// data flow (SSA, def-use scans, dead-store detection).  Default
-    /// `Plain` keeps existing specs unchanged.  Mirrors Python's
-    /// `body_kind` field on the command spec (introduced in
-    /// `88970edc` / `91daf5c2`, closes `#250`).
+    /// `Plain` keeps existing specs unchanged.
     pub body_kind: BodyKind,
 
     /// Number of runtime-supplied positional args the body's first
@@ -226,48 +216,38 @@ pub struct CommandSpec {
     /// `fileutil::updateInPlace path cmd` appends file contents to
     /// `cmd` at runtime).
     ///
-    /// Default `0` keeps every existing spec correct.  Mirrors Python's
-    /// `body_arg_implicit_args` (introduced in `e30b6ae9`, closes
-    /// `#308`).
+    /// Default `0` keeps every existing spec correct.
     pub body_arg_implicit_args: u8,
 
-    // --- GAP-D2: granular taint / security metadata ---------------------
+    // --- Granular taint / security metadata -----------------------------
     //
-    // Ports the per-command taint fields from the Python `CommandSpec`
-    // (`core/commands/registry/models.py`) and the `TAINT_HINTS` /
-    // `_sinks.py` substrate. The consumer chat
-    // (`tcl_compiler::taint`) reads these to drive the
+    // The consumer (`tcl_compiler::taint`) reads these to drive the
     // W102/W103/W300/W301/W303/W309/W310/W312 + T106 + W313 emitters.
     //
     /// Output-sink diagnostic code emitted when tainted data reaches
     /// this command's output position (e.g. `"T101"` for `puts`,
     /// `"IRULE3001"` for `HTTP::respond`). `None` = not an output sink.
-    /// Mirrors Python `taint_output_sink`.
     pub taint_output_sink: Option<&'static str>,
 
     /// When non-empty, restricts [`Self::taint_output_sink`] to apply
     /// only when the first argument (subcommand) is in this set
     /// (e.g. `HTTP::header insert|replace`). Empty = applies to every
-    /// invocation. Mirrors Python `taint_output_sink_subcommands`
-    /// (`None` ⇒ empty slice here).
+    /// invocation.
     pub taint_output_sink_subcommands: &'static [&'static str],
 
     /// Log-injection sink diagnostic code (e.g. `"IRULE3003"` for the
-    /// iRules `log` command). `None` = not a log sink. Mirrors Python
-    /// `taint_log_sink`.
+    /// iRules `log` command). `None` = not a log sink.
     pub taint_log_sink: Option<&'static str>,
 
     /// Argument indices (0-based after the command name) that take a
     /// network address — SSRF sinks (`socket`, `HTTP::host`, …).
     /// `None` = not a network sink; `Some(&[])` = network sink whose
-    /// dangerous-arg positions are unspecified. Mirrors Python
-    /// `taint_network_sink_args`.
+    /// dangerous-arg positions are unspecified.
     pub taint_network_sink_args: Option<&'static [u8]>,
 
     /// Subcommands that evaluate code in another interpreter
     /// (`interp eval`, `interp invokehidden`) — cross-interpreter
-    /// code-execution sinks (T105). Empty = none. Mirrors Python
-    /// `taint_interp_eval_subcommands`.
+    /// code-execution sinks (T105). Empty = none.
     pub taint_interp_eval_subcommands: &'static [&'static str],
 
     /// Colour bits this command's *return value* carries when it acts as
@@ -276,97 +256,82 @@ pub struct CommandSpec {
     /// (`HTTP::path`/`HTTP::uri`), `… | IP_ADDRESS` (`IP::client_addr`),
     /// `… | PORT` (`TCP::*_port`), `… | FQDN` (`SSL::sni`) carry the
     /// option-injection-safe mitigations too. `None` = not a source.
-    /// Mirrors the per-command `TaintHint.source` map in
-    /// `dialects/f5/irules/*.py`; the registry collects every spec's
-    /// `taint_source` into a dialect-agnostic index
-    /// ([`crate::CommandRegistry::taint_source`]) at build time, matching
-    /// Python's import-time global `TAINT_HINTS`.
+    /// The registry collects every spec's `taint_source` into a
+    /// dialect-agnostic index ([`crate::CommandRegistry::taint_source`])
+    /// at build time.
     pub taint_source: Option<TaintColour>,
 
     /// Colour bits this command *adds* to a tainted value it returns —
     /// a sanitising transform (`uri::encode` ⇒ `URL_ENCODED`,
-    /// `file join` ⇒ `PATH_JOINED`). `None` = no transform. Mirrors
-    /// Python `taint_transform`.
+    /// `file join` ⇒ `PATH_JOINED`). `None` = no transform.
     pub taint_transform: Option<TaintColour>,
 
     /// Colour whose presence on the *input* means this command would
     /// double-encode the value (T106). `None` = no double-encode
-    /// detection. Mirrors Python `taint_double_encode_colour`.
+    /// detection.
     pub taint_double_encode_colour: Option<TaintColour>,
 
     /// Colour that suppresses the dangerous-sink warning (T100) for
     /// this sink — e.g. `SHELL_ATOM` for `exec`, `LIST_CANONICAL` for
-    /// `eval`/`uplevel`. `None` = no suppression colour. Mirrors Python
-    /// `taint_sink_safe_colour`.
+    /// `eval`/`uplevel`. `None` = no suppression colour.
     pub taint_sink_safe_colour: Option<TaintColour>,
 
     /// Option flags whose value carries a secret (e.g. `-password`,
     /// `-headers`) — drives credential-exposure checks. Empty = none.
-    /// Mirrors Python `credential_options`.
     pub credential_options: &'static [&'static str],
 
     /// HTTP header names whose values are secrets (e.g.
-    /// `authorization`, `cookie`). Empty = none. Mirrors Python
-    /// `sensitive_headers`.
+    /// `authorization`, `cookie`). Empty = none.
     pub sensitive_headers: &'static [&'static str],
 
     /// Setter-form argument constraints (IRULE3101). Empty = none.
     /// The registry-driven replacement for the hardcoded
-    /// `SETTER_CONSTRAINTS` table in `tcl_compiler::taint`. Mirrors the
-    /// Python `TaintHint.setter_constraints`.
+    /// `SETTER_CONSTRAINTS` table in `tcl_compiler::taint`.
     pub setter_constraints: &'static [SetterConstraint],
 
-    // --- GAP-D1: structured spec fields ---------------------------------
+    // --- Structured spec fields -----------------------------------------
     //
     /// Kind of pattern language this command's pattern argument uses
     /// (`regexp`/`regsub` ⇒ `Regex`), for semantic-token sub-tokens and
-    /// pattern validation. `None` = not a pattern command. Mirrors
-    /// Python `pattern_type`.
+    /// pattern validation. `None` = not a pattern command.
     pub pattern_type: Option<PatternType>,
 
     /// Kind of format string this command's format argument uses
     /// (`format`/`scan` ⇒ `Sprintf`, …), for inlay-hint parsing and
     /// semantic-token sub-tokens. `None` = not a format command.
-    /// Mirrors Python `format_string_type`.
     pub format_string_type: Option<FormatType>,
 
     /// Tcllib package that provides this command, for per-document
     /// activation via `package require`. `None` = core/built-in.
-    /// Mirrors Python `tcllib_package`.
     pub tcllib_package: Option<&'static str>,
 
     /// Whether W120 (missing-import) fires when this package-gated
     /// command is used without a `package require`. Default `true`; set
-    /// `false` for Tk commands (`wish` auto-loads Tk). Mirrors Python
-    /// `warn_missing_import`.
+    /// `false` for Tk commands (`wish` auto-loads Tk).
     pub warn_missing_import: bool,
 
     /// Whether this command's source namespace exports it via
     /// `namespace export <bare>`, making the bare name eligible after
-    /// `namespace import`. Mirrors Python `is_namespace_exported`.
+    /// `namespace import`.
     pub is_namespace_exported: bool,
 
     /// XC (cross-compile) translatability override: `None` = default
     /// rules, `Some(false)` = never translatable, `Some(true)` =
-    /// translatable despite a namespace prefix. Mirrors Python
-    /// `xc_translatable`.
+    /// translatable despite a namespace prefix.
     pub xc_translatable: Option<bool>,
 
     /// XC operation this command maps to, when it is translatable.
-    /// `None` = no explicit mapping. Mirrors Python `xc_operation`.
+    /// `None` = no explicit mapping.
     pub xc_operation: Option<&'static str>,
 
-    /// Replacement command name for a deprecated command, surfaced by
-    /// the deprecation code action. `None` = not deprecated. Mirrors
-    /// Python `deprecated_replacement` (the resolved name).
+    /// Replacement command name (resolved) for a deprecated command,
+    /// surfaced by the deprecation code action. `None` = not deprecated.
     pub deprecated_replacement: Option<&'static str>,
 
     /// `<proto>::payload` byte-array layout — `Some` when this command's
     /// getter returns raw bytes (a binary source) and its `replace` form is a
     /// byte sink, for the S110 byte-array-corruption check. `None` = not a
-    /// byte-array payload command. Mirrors Python
-    /// `CommandSpec.byte_array_payload` (a `bool | BytePayloadSpec`, where
-    /// `True` maps to the default layout).
+    /// byte-array payload command.
     pub byte_array_payload: Option<BytePayloadSpec>,
 }
 
@@ -526,7 +491,7 @@ impl CommandSpec {
 // `creates_scope_alias` are subcommand-shaped behavioural facts.
 // They could fold into the existing [`Traits`] bitflags field
 // above, but doing so is a registry-API change that touches
-// every command-spec literal; deferred to its own chunk.
+// every command-spec literal.
 #[allow(clippy::struct_excessive_bools)]
 pub struct SubCommand {
     /// Subcommand name (e.g. `"create"`, `"for"`, `"length"`).
@@ -633,71 +598,61 @@ pub struct SubCommand {
     /// [`CommandSpec::body_arg_implicit_args`].
     pub body_arg_implicit_args: u8,
 
-    // --- GAP-D2: granular taint / security metadata ---------------------
+    // --- Granular taint / security metadata -----------------------------
     //
     /// Colour bits this subcommand adds to a tainted value it returns
     /// (`file join` ⇒ `PATH_JOINED`, `file normalize` ⇒
-    /// `PATH_NORMALISED`). `None` = no transform. Mirrors Python
-    /// `SubCommand.taint_transform`.
+    /// `PATH_NORMALISED`). `None` = no transform.
     pub taint_transform: Option<TaintColour>,
 
     /// Colour whose presence on the input means this subcommand would
-    /// double-encode the value (T106). `None` = none. Mirrors Python
-    /// `SubCommand.taint_double_encode_colour`.
+    /// double-encode the value (T106). `None` = none.
     pub taint_double_encode_colour: Option<TaintColour>,
 
     /// Output-sink diagnostic code for a subcommand-shaped XSS /
     /// header-injection sink (e.g. `"IRULE3002"`). `None` = not a
-    /// sink. Mirrors Python `SubCommand.taint_output_sink`.
+    /// sink.
     pub taint_output_sink: Option<&'static str>,
 
     /// Argument index (0-based after the subcommand word) carrying a
     /// credential value, for credential-exposure checks. `None` =
-    /// none. Mirrors Python `SubCommand.credential_arg`.
+    /// none.
     pub credential_arg: Option<u8>,
 
     /// HTTP header names whose values are secrets, for a
-    /// subcommand-shaped header sink. Empty = none. Mirrors Python
-    /// `SubCommand.sensitive_headers`.
+    /// subcommand-shaped header sink. Empty = none.
     pub sensitive_headers: &'static [&'static str],
 
-    // --- GAP-D1: structured spec fields (subcommand overrides) ----------
+    // --- Structured spec fields (subcommand overrides) ------------------
     //
     /// Pattern-language override for this subcommand (`string match`
     /// ⇒ `Glob`), taking priority over the parent command's
-    /// [`CommandSpec::pattern_type`]. Mirrors Python
-    /// `SubCommand.pattern_type`.
+    /// [`CommandSpec::pattern_type`].
     pub pattern_type: Option<PatternType>,
 
     /// Format-string override for this subcommand (`clock format`
     /// ⇒ `Clock`, `binary scan` ⇒ `Binary`), taking priority over the
-    /// parent command's [`CommandSpec::format_string_type`]. Mirrors
-    /// Python `SubCommand.format_string_type`.
+    /// parent command's [`CommandSpec::format_string_type`].
     pub format_string_type: Option<FormatType>,
 
     /// XC operation this subcommand maps to. `None` = no explicit
-    /// mapping. Mirrors Python `SubCommand.xc_operation`.
+    /// mapping.
     pub xc_operation: Option<&'static str>,
 
-    // --- content-parity fields (Python `SubCommand` carries data here) ---
     /// Structured side-effect declarations for this subcommand.
-    /// Mirrors Python `SubCommand.side_effect_hints`.
     pub side_effects: &'static [SideEffect],
 
-    /// Irreversible operation (`file delete`, …). Mirrors Python
-    /// `SubCommand.destructive`.
+    /// Irreversible operation (`file delete`, …).
     pub destructive: bool,
 
-    /// Returns a filesystem path. Mirrors Python
-    /// `SubCommand.returns_path`.
+    /// Returns a filesystem path.
     pub returns_path: bool,
 
-    /// Performs unescaping / decoding. Mirrors Python
-    /// `SubCommand.is_unescape_command`.
+    /// Performs unescaping / decoding.
     pub is_unescape: bool,
 
     /// CFG-lowered command name for ensemble subcommands rewritten by
-    /// the lowering pass. Mirrors Python `SubCommand.cfg_rewrite_name`.
+    /// the lowering pass.
     pub cfg_rewrite_name: Option<&'static str>,
 }
 

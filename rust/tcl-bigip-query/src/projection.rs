@@ -1,5 +1,4 @@
-//! Lazy projection over a parsed `BigipConfig` — port of
-//! `dialects/f5/query/projection/{_engine,_classes,_data}.py`.
+//! Lazy projection over a parsed `BigipConfig`.
 //!
 //! Turns a [`Root`] backed by a [`BigipConfig`] into a navigable tree of
 //! [`Container`]s. The synthetic `<root>` container holds one child per
@@ -9,7 +8,7 @@
 //! materialise when navigated into, and the resulting refs are memoised on
 //! `Root.object_cache` keyed by `(kind, full_path)`.
 //!
-//! This increment covers the **core LTM kinds** the cookbook + common
+//! The projection covers the **core LTM kinds** the cookbook + common
 //! queries use: `ltm virtual`, `ltm virtual-address`, `ltm pool`
 //! (+ members), `ltm node`, `ltm monitor`, `ltm rule`, `ltm data-group`,
 //! `ltm persistence`, `ltm snatpool`, `ltm profile`, and `ltm policy`
@@ -18,8 +17,8 @@
 //! edit-plan engine can rewrite a single property in place; pool members
 //! get their slots from `BigipPoolMember.field_offsets`. `stanza_slot` is
 //! populated from each object's range so `--scf` / auto output matches
-//! Python. The synthesised `ltm rule .refs` sub-object is deferred (see
-//! `rule_refs_value`).
+//! Python. The synthesised `ltm rule .refs` sub-object is built by
+//! `rule_refs_value`.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -173,8 +172,8 @@ const MODULE_NAMES: &[&str] = &[
     "analytics",
 ];
 
-/// `(label, tmsh_kind)` for the LTM kinds this increment projects. The
-/// order mirrors the tail of `_MODULE_KINDS["ltm"]`. Labels not listed
+/// `(label, tmsh_kind)` for the LTM kinds the projection covers. The
+/// order matches the tail of `_MODULE_KINDS["ltm"]`. Labels not listed
 /// here (the long-tail LTM kinds the Rust model doesn't carry) are simply
 /// absent — navigating into them yields an empty container, matching the
 /// "no entry" surface Python gives for a config that has no such objects.
@@ -403,7 +402,7 @@ fn iter_top_level_scalar_slots(body: &str) -> Vec<(String, usize, usize, String)
     out
 }
 
-/// Split *body* into lines keeping the trailing `\n` — mirrors Python's
+/// Split *body* into lines keeping the trailing `\n` — equivalent to
 /// `str.splitlines(keepends=True)` for the `\n`-only line endings SCF uses.
 fn split_keep_ends(body: &str) -> Vec<&str> {
     let mut out = Vec::new();

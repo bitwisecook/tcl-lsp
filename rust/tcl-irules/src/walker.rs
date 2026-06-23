@@ -1,5 +1,4 @@
-//! The iRules object-reference walker — port of `irules_refs.py`
-//! (`extract_irules_object_references` + `_walk_irules_commands`).
+//! The iRules object-reference walker.
 //!
 //! Segments an iRule body, asks [`resolve_object_ref_args`] which argument
 //! positions name BIG-IP objects for each command, and resolves those positions
@@ -338,9 +337,6 @@ mod tests {
 
     #[test]
     fn extracts_pool_snatpool_and_datagroup_refs() {
-        // Ported from `tests/test_bigip_irules_refs.py`
-        // ::test_extract_irules_refs_for_pool_snatpool_and_datagroup
-        // (TEST-MIGRATE — first tests for the `tcl-irules` crate).
         let source = "\n\
             when HTTP_REQUEST {\n\
             \x20   if {[class match -- [HTTP::host] equals /Common/host_dg]} {\n\
@@ -359,8 +355,6 @@ mod tests {
 
     #[test]
     fn extracts_refs_nested_in_body_and_command_substitution() {
-        // Ported from
-        // ::test_extract_irules_refs_nested_in_body_and_command_substitution.
         let source = "\n\
             when HTTP_REQUEST {\n\
             \x20   set count [active_members /Common/app_pool]\n\

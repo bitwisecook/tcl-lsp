@@ -290,8 +290,7 @@ pub fn normalise_qualified_name(name: &str) -> String {
 ///
 /// Strips `$` / `${…}` substitution sigils first, then separates the
 /// optional `(element)` array-index suffix from the base name.  Returns
-/// `(base, None)` for scalar references.  Mirrors Python's
-/// `shared/naming.py::split_array_name`, including the brace-form rule that
+/// `(base, None)` for scalar references.  Follows the brace-form rule that
 /// `${arr}(foo)` is the scalar `arr` followed by literal `(foo)`, whereas
 /// `${arr(foo)}` *is* the array element `arr(foo)`.
 ///

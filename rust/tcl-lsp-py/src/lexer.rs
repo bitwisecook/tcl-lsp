@@ -12,13 +12,10 @@
 //! span to owned `text` / `start` / `end` fields so Python callers
 //! see the same dataclass shape they always have.
 //!
-//! L3 exposes a single function, `lexer_tokenise(source)`, used by
+//! Exposes a single function, `lexer_tokenise(source)`, used by
 //! the differential test harness in
 //! `tests/test_rust_lexer_differential.py` to compare Rust and
-//! Python token streams on known-simple inputs. A richer `PyO3`
-//! interface (iterator object, sub-lexing, borrowing the same
-//! [`SourceMap`] across multiple lex invocations) arrives when the
-//! first real consumer shows up.
+//! Python token streams on known-simple inputs.
 //!
 //! [`Span`]: tcl_lexer::Span
 //! [`SourceMap`]: tcl_lexer::SourceMap

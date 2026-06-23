@@ -1,5 +1,4 @@
-//! Code-actions provider — Rust port of
-//! `lsp/features/code_actions.py`.
+//! Code-actions provider.
 //!
 //! Surfaces every `CodeFix` the analyser attached to a
 //! `Diagnostic` whose span overlaps the requested range.  Each
@@ -7,7 +6,7 @@
 //! as the title and a single-edit `WorkspaceEdit` carrying
 //! the fix's `(span, new_text)`.
 //!
-//! What landed:
+//! Provided actions:
 //!
 //! * Catch-result-variable actions — when the analyser emits
 //!   W302 (`catch` without result variable), the provider
@@ -27,17 +26,15 @@
 //!   (the registry's `required_package` / `tcllib_package`
 //!   catalogue) against the `::`-prefix and offer
 //!   `Add 'package require <pkg>'` (skipping already-required
-//!   packages).  Mirrors `_package_require_actions` +
-//!   `rank_package_suggestions`.
+//!   packages).
 //!
-//! What is *deferred*:
+//! Limitations:
 //!
-//! * The Python workspace `package_resolver`'s *installed*-package
-//!   set — [`package_require_actions`] derives its catalogue from
-//!   the registry instead, so locally-installed-but-unregistered
+//! * [`package_require_actions`] derives its catalogue from
+//!   the registry, so locally-installed-but-unregistered
 //!   packages aren't suggested.
 //! * Cross-document refactors (move to file, split namespace)
-//!   — lands alongside the workspace-index integration.
+//!   are not supported.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -161,7 +158,7 @@ pub fn code_actions(
         if !ranges_overlap(diag_range, range) {
             continue;
         }
-        // `S-code-actions-rich`: surface synthetic
+        // Surface synthetic
         // catch-result-variable actions for W302 diagnostics
         // even when the analyser didn't attach a `CodeFix`.
         // Two actions: append ` result` (capture the result)
@@ -192,7 +189,7 @@ pub fn code_actions(
                 });
             }
         }
-        // `S-code-actions-rich`: synthetic W213 quick-fix.
+        // Synthetic W213 quick-fix.
         // W213 fires on `unset $var` when the variable may not
         // exist; the canonical Tcl idiom is `unset -nocomplain
         // $var`, so offer that as a one-click fix.  The diag
@@ -1746,7 +1743,7 @@ mod tests {
         assert!(titles.contains(&"A") && titles.contains(&"B"));
     }
 
-    // -- S-code-actions-rich: W213 unset -nocomplain action ----------
+    // -- W213 unset -nocomplain action ----------
 
     #[test]
     fn w213_emits_unset_nocomplain_action() {
@@ -1803,7 +1800,7 @@ mod tests {
         );
     }
 
-    // -- S-code-actions-rich: catch-result-variable actions ----------
+    // -- catch-result-variable actions ----------
 
     #[test]
     fn w302_emits_catch_result_variable_actions() {
@@ -1846,7 +1843,7 @@ mod tests {
         }
     }
 
-    // -- S-code-actions-rich: W120 package-require fix --------------
+    // -- W120 package-require fix --------------
 
     #[test]
     fn w120_surfaces_add_package_require_action() {

@@ -108,12 +108,10 @@ pub(crate) struct CfgBuilder {
     /// caller-side `defs` on calls to procs that use `upvar`.  Empty
     /// when the builder is constructed without an upvar context
     /// (e.g. for one-off CFGs that don't have a Module to scan).
-    /// Mirrors Python `_CFGBuilder._upvar_procs`.
     upvar_procs: HashMap<String, UpvarInfo>,
     /// Map from command name to parameter list, used by the upvar
     /// wiring to resolve param-based upvar sources (`upvar 1 $param
-    /// local`) against the actual call-site argument.  Mirrors Python
-    /// `_CFGBuilder._proc_params`.
+    /// local`) against the actual call-site argument.
     proc_params: HashMap<String, Vec<String>>,
     /// Stack of `(break_target, continue_target)` block names for the
     /// enclosing loops, so `break` / `continue` in a body lower to a CFG
@@ -123,25 +121,23 @@ pub(crate) struct CfgBuilder {
     /// `try` body→handler exception edges (analysis builds only).
     exception_edges: Vec<(String, String)>,
     /// When `true`, record [`Self::exception_edges`] in `lower_try`.  Off for
-    /// codegen builds so the default bytecode is unchanged (mirrors Python's
-    /// `_faithful_exceptions`).
+    /// codegen builds so the default bytecode is unchanged.
     faithful_exceptions: bool,
     /// When `Some`, every block that raises an explicit `error` / `throw`
     /// is recorded here. `lower_try` installs a fresh list around its body
     /// so the on-error edge is sourced from each throw point (at its
     /// throw-time SSA versions) rather than the pre-`try` block — a
-    /// body-set var is defined at a later throw. Mirrors Python's
-    /// `_throw_blocks`.
+    /// body-set var is defined at a later throw.
     throw_blocks: Option<Vec<String>>,
     /// The block where the most recent `lower_script` call's straight-line
     /// control finally terminated, when that script had no normal
     /// fall-through (e.g. a trailing `return` / `error`). `None` when the
     /// script fell through. `lower_try` reads this to source an on-error
     /// edge from a body that terminated without an explicit `error`/`throw`
-    /// (a bare `return`). Mirrors Python's `_last_terminal_block`.
+    /// (a bare `return`).
     last_terminal_block: Option<String>,
     /// Current `lower_script` recursion depth, bounded by
-    /// [`MAX_LOWER_DEPTH`] (MID-H1).
+    /// [`MAX_LOWER_DEPTH`].
     depth: usize,
 }
 
@@ -206,9 +202,7 @@ impl CfgBuilder {
     /// `AssignValue`'s value text for `[command_substitution]`
     /// tokens whose head is a known upvar proc; merges those defs
     /// into the host Call when possible, or emits a synthetic
-    /// `<upvar-invalidate>` Call before a non-Call host (mirrors
-    /// Python `_apply_upvar_invalidation` lines 602-611 in
-    /// `core/compiler/cfg.py`).
+    /// `<upvar-invalidate>` Call before a non-Call host.
     fn apply_upvar_invalidation(&self, mut stmt: Statement) -> Vec<Statement> {
         if self.upvar_procs.is_empty() {
             return vec![stmt];
@@ -294,9 +288,7 @@ impl CfgBuilder {
 
     /// Scan *text* for `[command_substitution]` tokens and
     /// accumulate caller-side defs from any embedded calls to
-    /// known upvar procs.  Mirrors Python
-    /// `_CFGBuilder._upvar_defs_from_text` in
-    /// `core/compiler/cfg.py`.
+    /// known upvar procs.
     fn upvar_defs_from_text(&self, text: &str) -> Vec<String> {
         use tcl_lexer::{Lexer, SourceMap, TokenType};
 
@@ -481,7 +473,7 @@ impl CfgBuilder {
     /// Returns `Some(tail_block)` — the block where subsequent code
     /// should go — or `None` if control doesn't fall through (e.g.
     /// the script ends with a `return`).
-    /// Depth-guarded entry to the recursive lowering (MID-H1). Every
+    /// Depth-guarded entry to the recursive lowering. Every
     /// nested body re-enters here, so bounding this one point caps the
     /// whole `lower_*` recursion. At the cap we stop descending and report
     /// "no fall-through" — `build_function` already handles a `None` tail,
@@ -634,8 +626,7 @@ impl CfgBuilder {
                 // the `try` handler→`try_end` join is cut — otherwise a
                 // `return -options` handler false-flows to `try_end` and adds a
                 // spurious phi (e.g. `auto_mkindex`). Codegen builds leave it as
-                // a plain barrier (bytecode unchanged). Mirrors Python
-                // `_lower_script` (`compiler/cfg.py` ~L1016).
+                // a plain barrier (bytecode unchanged).
                 Statement::Barrier { reason, span, .. }
                     if self.faithful_exceptions
                         && matches!(
@@ -666,18 +657,16 @@ impl CfgBuilder {
             }
         }
 
-        // Always return the block control finally rests in — mirroring
-        // Python's `_lower_script` (`return current`), which returns the block
-        // even when it is terminated by a straight-line `return`/`error`.
+        // Always return the block control finally rests in, even when it is
+        // terminated by a straight-line `return`/`error`.
         // `build_function` then appends a synthetic (unreachable) `exit` block
-        // via `ensure_goto` (a no-op on the already-terminated block), matching
-        // the Python CFG's trailing exit.  Termination is tracked separately in
-        // `last_terminal_block` (Python's `_last_terminal_block`) so `lower_try`
+        // via `ensure_goto` (a no-op on the already-terminated block).
+        // Termination is tracked separately in
+        // `last_terminal_block` so `lower_try`
         // can source an on-error edge from a body that ended without an explicit
         // `error`/`throw`.  Nested control-flow lowerings still signal "no
         // continuation" by returning `None` (propagated through this loop's
-        // `?` / explicit-`None` arms), exactly as Python returns `None` after a
-        // nested `_lower_if`/`_lower_for` yields `None`.
+        // `?` / explicit-`None` arms).
         let terminated = main_terminated || self.block_mut(&current).terminator.is_some();
         self.last_terminal_block = if terminated {
             Some(current.clone())
@@ -779,8 +768,7 @@ impl CfgBuilder {
         // the script for ``tcl_eval``.  Without this,
         // ``catch {$undef} msg`` would lower to ``catch $undef
         // msg`` and the var-read trap would fire before catch
-        // could intercept it.  Mirrors upstream commit
-        // ``31f5357f`` (PR #341).
+        // could intercept it.
         self.block_mut(current).statements.push(Statement::Call {
             span: *span,
             command: "catch".into(),
@@ -854,8 +842,6 @@ impl CfgBuilder {
 /// [`UpvarInfo`].  Both the fully qualified name (`::ns::foo`) and
 /// the short name (`foo`) are registered so call sites using either
 /// spelling resolve to the same info.
-///
-/// Mirrors Python `_detect_upvar_procs` in `core/compiler/cfg.py`.
 #[must_use]
 pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
     let mut result: HashMap<String, UpvarInfo> = HashMap::new();
@@ -877,8 +863,6 @@ pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
 /// Return the upvar-procs map and the parameter-list map used by
 /// the CFG builder's upvar-invalidation pass.  Both the qualified
 /// and short forms are registered for every proc.
-///
-/// Mirrors Python `prepare_cfg_context` in `core/compiler/cfg.py`.
 #[must_use]
 pub fn prepare_cfg_context(
     module: &Module,
@@ -927,9 +911,7 @@ pub fn build_cfg(module: &Module, defer_top_level: bool) -> CfgModule {
 /// opaque-switch loop-jump edges, and the guaranteed-iteration loop rotation
 /// are gated on `faithful_exceptions`, so they appear only in the analysis CFG
 /// ([`build_cfg`]) and never in the CFG codegen lowers — keeping the emitted
-/// bytecode / CFG shape identical to the unannotated source (mirrors Python,
-/// where `build_cfg` defaults to `faithful_exceptions=False` for codegen and
-/// analysis opts in).
+/// bytecode / CFG shape identical to the unannotated source.
 #[must_use]
 pub fn build_cfg_codegen(module: &Module, defer_top_level: bool) -> CfgModule {
     build_cfg_inner(module, defer_top_level, false)
@@ -973,11 +955,10 @@ pub fn build_cfg_function(name: &str, script: &Script, inline_loops: bool) -> Fu
 
 /// Build a CFG for a single script body with an explicit upvar
 /// context (from [`prepare_cfg_context`]). Used for `TclOO` method
-/// bodies (SF-2), which are lowered to their own [`Function`]s
+/// bodies, which are lowered to their own [`Function`]s
 /// outside [`build_cfg`] (methods are deliberately excluded from
 /// [`CfgModule::procedures`] — codegen never emits them) but still
-/// need the same call-site def invalidation as procs. Mirrors
-/// Python's `build_cfg_function(..., upvar_procs=, proc_params=)`.
+/// need the same call-site def invalidation as procs.
 ///
 /// The maps come straight from [`prepare_cfg_context`] (default
 /// hasher), so the signature isn't generalised over `BuildHasher`.
@@ -1037,7 +1018,7 @@ fn is_tailcall_command(command: &str) -> bool {
 // but a LoopJump arm still reaches the code after the enclosing loop *without*
 // the other arms' definitions — so it must NOT be treated as vacuous when
 // recovering the switch's defs, and an all-LoopJump switch is NOT a procedure
-// terminator.  Mirrors the Python `_flow_facts_*` family (`compiler/cfg.py`).
+// terminator.
 
 /// How a statement/script leaves: fall through, jump to an enclosing loop, or
 /// exit the procedure.
@@ -1202,7 +1183,7 @@ fn intersect_completing(bodies: &[&Script]) -> (BTreeSet<String>, Completion) {
 /// later code).  A `break`/`continue` arm is *kept* (with the defs it makes
 /// before jumping), because it still reaches the code after the enclosing loop —
 /// so an arm that breaks without assigning `y` correctly drops `y` rather than
-/// letting it be claimed defined (FP-RBS-14 + Codex C1).
+/// letting it be claimed defined.
 pub(crate) fn switch_must_defines(stmt: &Statement) -> BTreeSet<String> {
     flow_facts_stmt(stmt).0
 }
@@ -1219,8 +1200,7 @@ pub(crate) fn switch_must_defines(stmt: &Statement) -> BTreeSet<String> {
 /// capture their own jumps.  Scanning stops at the first statement that cannot
 /// complete normally (`return`/`error`/`exit`/`tailcall`, or `break`/`continue`
 /// itself): a jump after it is dead code that never executes, so it must not
-/// create a spurious loop-exit edge.  Mirrors Python `_escaping_loop_jumps`
-/// (plus the Codex P1/P2 soundness follow-ups).
+/// create a spurious loop-exit edge.
 pub(crate) fn escaping_loop_jumps(script: &Script) -> (bool, bool) {
     let mut can_break = false;
     let mut can_continue = false;
@@ -1290,7 +1270,7 @@ pub(crate) fn escaping_loop_jumps(script: &Script) -> (bool, bool) {
         // A statement that cannot complete normally makes everything after it
         // dead code (a later `break`/`continue` never runs), so stop scanning —
         // otherwise a dead `break` after `error`/`return` would forge a
-        // loop-exit edge and fire W210 on unreachable post-loop code (Codex P2).
+        // loop-exit edge and fire W210 on unreachable post-loop code.
         if flow_facts_stmt(stmt).1 != Completion::Normal {
             break;
         }
@@ -1333,8 +1313,7 @@ pub(crate) fn switch_escaping_jumps(stmt: &Statement) -> (bool, bool) {
 // entry-guard edge whose condition is statically true; SCCP marks that edge dead
 // and the FP-RBS-16 dead-edge phi filter then ignores the version-0 operand it
 // carried — with no synthetic def, so SCCP values are untouched.  `break` /
-// `continue` stay real CFG edges, so partial-def exits remain sound.  Mirrors
-// the Python `_foreach_runs_at_least_once` / `_for_runs_at_least_once` helpers.
+// `continue` stay real CFG edges, so partial-def exits remain sound.
 
 /// True when `text` is a static, non-empty Tcl list literal.
 ///
@@ -1374,7 +1353,7 @@ impl CfgBuilder {
     /// adds these to a call's `defs`, but they are absent from the raw IR the
     /// init clause carries.  Without this, `for {set i 0; setter} {$i < 3} …`
     /// where `setter` runs `upvar 1 i i; set i 5` would keep the stale
-    /// `i = 0` binding and be wrongly judged guaranteed (Codex P1).
+    /// `i = 0` binding and be wrongly judged guaranteed.
     fn init_written_names(&self, stmt: &Statement) -> Option<Vec<String>> {
         let mut names: Vec<String> = match stmt {
             Statement::AssignValue { name, .. }
@@ -1415,8 +1394,8 @@ impl CfgBuilder {
     /// *other* write *invalidates* that variable's binding — so
     /// `for {set i 0; set i $n} …` and `for {set i 0; incr i 5} …` leave `i`
     /// unknown rather than stale-constant `0`, and an `upvar`-writing call in
-    /// the init invalidates the var it writes through the caller frame (Codex
-    /// C2 + P1).  Conservative: a condition referencing an unbound variable (or
+    /// the init invalidates the var it writes through the caller frame.
+    /// Conservative: a condition referencing an unbound variable (or
     /// a command-substitution condition) evaluates to `None` → not guaranteed.
     pub(crate) fn for_runs_at_least_once(&self, stmt: &Statement) -> bool {
         use crate::tcl_expr_eval::{TclValue, eval_tcl_expr};
@@ -1476,8 +1455,7 @@ fn is_catchable_throw(command: &str) -> bool {
 /// Lex *text* into Tcl words, accumulating contiguous tokens between
 /// `Sep` / `Eol` separators into single-string words.  `Var` tokens
 /// are re-prefixed with `$` so the caller can normalise them via
-/// [`crate::naming::normalise_var_name`] in the same way Python's
-/// `_upvar_defs_from_text` does.
+/// [`crate::naming::normalise_var_name`].
 ///
 /// Returns an empty list when the text fails to lex.
 fn words_from_text(text: &str) -> Vec<String> {
@@ -1504,8 +1482,7 @@ fn words_from_text(text: &str) -> Vec<String> {
             _ => {
                 let t = sm.token_text(*tok);
                 // Re-prepend `$` for `Var` tokens (the lexer strips
-                // it on read).  Python `_upvar_defs_from_text` does
-                // the same so the param-target resolver sees the
+                // it on read) so the param-target resolver sees the
                 // original `$arg` shape and `normalise_var_name`
                 // strips it cleanly.
                 let sigil = if matches!(tok.kind, TokenType::Var) {
@@ -1664,8 +1641,7 @@ mod tests {
         // — the first binds two vars, the second binds one.  The
         // synthesised header `Statement::Call` must record the
         // group sizes via ``foreach_groups`` so codegen can
-        // reconstruct the original pairing (mirrors upstream
-        // commit ``342d4c7a`` / PR #331).
+        // reconstruct the original pairing.
         let body = Script::from_statements(vec![Statement::AssignConst {
             span: Span::new(0, 0),
             name: "x".into(),
@@ -1715,7 +1691,7 @@ mod tests {
         assert_eq!(v, vec!["a", "b", "c"]);
     }
 
-    // SYNC-JUN-CFG-uplevel-literal-set wiring tests.
+    // Uplevel-literal-set wiring tests.
     //
     // Each test drives the full pipeline:
     // `lower_to_ir` → `build_cfg` (which calls `prepare_cfg_context`).
@@ -1727,8 +1703,8 @@ mod tests {
         crate::lowering::lower_to_ir(src, &CommandRegistry::build_default())
     }
 
-    // --- escaping_loop_jumps: try propagation (Codex P1@1093) and
-    //     dead-code early-stop (Codex P2@1098) -------------------------------
+    // --- escaping_loop_jumps: try propagation and
+    //     dead-code early-stop -------------------------------
     //
     // These exercise the helper directly: their end-to-end W210 effect is
     // masked by a separate, pre-existing `while 1` exit-reachability behaviour
@@ -1972,7 +1948,7 @@ mod tests {
         );
     }
 
-    // SYNC-JUN-CFG-uplevel-literal-set-embedded — embedded-substitution
+    // Embedded-substitution
     // form: `[upvar_proc arg]` inside `AssignValue.value` or `Call.args`.
 
     /// Walk every block looking for a Call whose `defs` contain

@@ -9,14 +9,11 @@
 //! * **IRULE5004** — `DNS::return` without a subsequent `return`
 //!   (iRule processing continues after `DNS::return`).
 //!
-//! C44-irules-flow status (audited at port time): IRULE3102, IRULE5002,
-//! IRULE5004 land here.  IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008
-//! (collect/release/payload pairing across `when` events), IRULE1201 /
-//! IRULE1202 (HTTP-after-respond and multi-respond), IRULE4004
-//! (per-request set hoistable to once-per-connection) require richer
-//! cross-event analysis built on `connection_scope.rs` —  ported as
-//! their own follow-up sub-strips per the chunk-log row's
-//! "each diagnostic is its own sub-strip" sequencing.
+//! The cross-event diagnostics — IRULE1005 / IRULE1006 / IRULE1007 /
+//! IRULE1008 (collect/release/payload pairing across `when` events),
+//! IRULE1201 / IRULE1202 (HTTP-after-respond and multi-respond), and
+//! IRULE4004 (per-request set hoistable to once-per-connection) — build
+//! on the richer cross-event analysis in `connection_scope.rs`.
 
 use std::collections::HashSet;
 use std::sync::OnceLock;
@@ -46,9 +43,9 @@ fn irules_registry() -> &'static CommandRegistry {
 }
 
 /// Commands that commit an HTTP response — derived from the registry's
-/// `ResponseCommit` side-effect (Python `_commits_response_commands`), so the
-/// bare iRules `redirect` is included alongside `HTTP::respond` /
-/// `HTTP::redirect` without a hardcoded list.
+/// `ResponseCommit` side-effect, so the bare iRules `redirect` is
+/// included alongside `HTTP::respond` / `HTTP::redirect` without a
+/// hardcoded list.
 fn commits_response_commands() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();
     SET.get_or_init(|| {
@@ -66,9 +63,9 @@ fn commits_response_commands() -> &'static HashSet<String> {
     })
 }
 
-/// Registered `HTTP::` namespace commands (Python `_http_namespace_commands`).
+/// Registered `HTTP::` namespace commands.
 /// Only *registered* commands count, so an unregistered `HTTP::log` does not
-/// trip IRULE1201 (matches the Python set of 32 commands).
+/// trip IRULE1201 (the set of 32 registered commands).
 fn http_namespace_commands() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();
     SET.get_or_init(|| {
@@ -100,8 +97,7 @@ fn supports_normalized_flag(registry: &CommandRegistry, cmd: &str) -> bool {
 /// insertion point (e.g. the end of a `drop`), a replacement covers the text it
 /// rewrites.  This is the lower-level twin of the analyser's `CodeFix`, which
 /// re-exports this type (see `analyser::types`); it lives here because the
-/// iRules-flow / compiler-checks layer is below the analyser.  Mirrors Python
-/// `shared/diagnostic.py::CodeFix`.
+/// iRules-flow / compiler-checks layer is below the analyser.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CodeFix {
     /// Source span the `new_text` replaces (zero-width for an insertion).
@@ -130,10 +126,10 @@ pub struct IrulesCheckWarning {
 }
 
 /// Return `true` when `args` suggests a *getter* invocation — no args,
-/// or every arg starts with `-` (all flags, no positional value). The
-/// Python canonical form resolves a `FormKind::GETTER` via the command
-/// registry; the Rust registry has no form-kind model yet, so this is
-/// a conservative approximation. `HTTP::path /foo` (setter) is excluded
+/// or every arg starts with `-` (all flags, no positional value).
+/// Resolving a getter form properly would need a form-kind model on the
+/// command registry, which it does not have yet, so this is a
+/// conservative approximation. `HTTP::path /foo` (setter) is excluded
 /// because `/foo` is a non-flag first arg.
 fn is_getter_form(args: &[String]) -> bool {
     args.iter().all(|a| a.starts_with('-'))
@@ -270,15 +266,9 @@ pub fn find_unnormalised_getter_warnings(
 
 // IRULE5002 + IRULE5004 — unguarded drop / DNS::return
 //
-// Mirrors `core/compiler/irules_flow.py::_check_unguarded_drops`
-// (lines 807-1050).  The Python implementation is path-sensitive
-// (walks each branch of every `if` / `switch` / `try` separately
-// and emits at branch joins where the drop survived).  This Rust
-// minimum-viable port linear-scans each `::when::*` proc body in
-// CFG order and emits when no terminator follows the drop in the
-// same block run.  Catches the most common shape (top-level
-// `drop` / `reject` without a guard); branch-sensitive coverage
-// is the C44 follow-up sub-strip.
+// Path-sensitive: each `::when::*` proc body is walked with each branch
+// of every `if` / `switch` / `try` tracked separately, emitting at
+// branch joins where the drop survived unguarded.
 
 fn is_drop_command(cmd: &str) -> bool {
     matches!(cmd, "drop" | "reject" | "discard")
@@ -288,8 +278,7 @@ fn is_dns_return(cmd: &str, _args: &[String]) -> bool {
     // Any `DNS::return` (with or without options) requires a
     // following `return`; option-bearing forms (`DNS::return -...`)
     // are valid Tcl and equally affected by the missing-`return`
-    // hazard.  Mirrors Python `irules_flow.py` parity (no
-    // option-prefix gate) — addresses Codex review on PR #389.
+    // hazard (no option-prefix gate).
     cmd == "DNS::return"
 }
 
@@ -300,8 +289,8 @@ fn is_event_disable_all(cmd: &str, args: &[String]) -> bool {
 }
 
 /// One drop / DNS-return flow fact along a path.  Dedup keys on the
-/// `(dropped, dns_returned)` pair only (Python `_DropState` dedup), so the
-/// first unguarded occurrence on any surviving path wins.
+/// `(dropped, dns_returned)` pair only, so the first unguarded occurrence
+/// on any surviving path wins.
 #[derive(Clone, Default)]
 struct DropFlowState {
     dropped: bool,
@@ -311,8 +300,7 @@ struct DropFlowState {
     dns_at: Option<Span>,
 }
 
-/// Deduplicate drop states by `(dropped, dns_returned)`, keeping the first
-/// (Python `_dedupe`).
+/// Deduplicate drop states by `(dropped, dns_returned)`, keeping the first.
 fn dedupe_drop_states(states: Vec<DropFlowState>) -> Vec<DropFlowState> {
     let mut seen: HashSet<(bool, bool)> = HashSet::new();
     let mut out = Vec::new();
@@ -326,8 +314,7 @@ fn dedupe_drop_states(states: Vec<DropFlowState>) -> Vec<DropFlowState> {
 
 /// Leaf transfer for the drop-flow walk: `drop`/`reject`/`discard` set the
 /// dropped fact, `DNS::return` sets the DNS fact, and `event disable all`
-/// clears the dropped fact (it guards the drop).  Mirrors the leaf handling
-/// in Python `_analyse_drop_without_disable._walk`.
+/// clears the dropped fact (it guards the drop).
 fn drop_flow_leaf(st: &DropFlowState, stmt: &Statement) -> DropFlowState {
     let Statement::Call {
         command,
@@ -369,7 +356,7 @@ fn drop_flow_leaf(st: &DropFlowState, stmt: &Statement) -> DropFlowState {
 /// Path-sensitive IRULE5002 / IRULE5004 — an unguarded `drop`/`reject`/
 /// `discard` (no following `event disable all` / `return`) or a `DNS::return`
 /// without a following `return`, on at least one path through a `::when::*`
-/// body.  Port of Python `irules_flow._analyse_drop_without_disable`.
+/// body.
 #[must_use]
 pub fn find_unguarded_drop_warnings(
     cu: &CompilationUnit,
@@ -382,7 +369,7 @@ pub fn find_unguarded_drop_warnings(
     let leaf = |st: &DropFlowState, stmt: &Statement, _out: &mut Vec<IrulesCheckWarning>| {
         drop_flow_leaf(st, stmt)
     };
-    // Honour the FE-DATAFLOW complexity guard (#652) but walk the structured
+    // Honour the complexity guard but walk the structured
     // IR body of each analysable `::when::*` event handler.
     for fu in cu.analysable_functions() {
         if !fu.name.starts_with("::when::") {
@@ -413,8 +400,7 @@ pub fn find_unguarded_drop_warnings(
                     ),
                     replacement: None,
                     // Insert `event disable all` + `return` right after the drop
-                    // (a zero-width edit at the drop command's end).  Mirrors the
-                    // IRULE5002 `CodeFix` in Python `irules_flow.py`.
+                    // (a zero-width edit at the drop command's end).
                     fixes: vec![CodeFix {
                         span: Span::new(span.end(), span.end()),
                         new_text: "\n    event disable all\n    return".to_owned(),
@@ -431,8 +417,7 @@ pub fn find_unguarded_drop_warnings(
                     message: "'DNS::return' must be followed by 'return' to stop iRule processing."
                         .to_owned(),
                     replacement: None,
-                    // Insert `return` right after `DNS::return`.  Mirrors the
-                    // IRULE5004 `CodeFix` in Python `irules_flow.py`.
+                    // Insert `return` right after `DNS::return`.
                     fixes: vec![CodeFix {
                         span: Span::new(span.end(), span.end()),
                         new_text: "\n    return".to_owned(),
@@ -447,7 +432,6 @@ pub fn find_unguarded_drop_warnings(
 
 // IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008 — collect/release/payload
 //
-// Mirrors `irules_flow.py::_find_collect_flow_warnings` (lines 680-806).
 // Cross-event analysis: classifies every `*::collect` / `*::release` /
 // `*::payload` call across every `::when::*` proc body, then emits:
 //
@@ -459,11 +443,10 @@ pub fn find_unguarded_drop_warnings(
 //   * IRULE1008 — `*::release` without matching `*::collect` on the
 //     same connection side.
 //
-// Side awareness mirrors Python's `_default_collect_side`: events
-// starting with SERVER prefer the server side; CLIENT prefer client;
-// `_RESPONSE` events default to server, `_REQUEST` to client; the
-// registry's `EventProps.client_side` / `server_side` flags override
-// when set exclusively.
+// Side awareness: events starting with SERVER prefer the server side;
+// CLIENT prefer client; `_RESPONSE` events default to server, `_REQUEST`
+// to client; the registry's `EventProps.client_side` / `server_side`
+// flags override when set exclusively.
 
 fn default_collect_side(event_name: &str) -> &'static str {
     let upper = event_name.to_ascii_uppercase();
@@ -546,8 +529,7 @@ fn scan_when_body_for_collect_flow(
 /// client-side event issues a server-side collect, and vice-versa).
 /// These commands carry an `ArgRole::Body` arg so they lower to a
 /// `Statement::Barrier` (or a `Statement::Call` with the body in
-/// `args[0]`); both shapes keep the body text in `args[0]`.  Mirrors
-/// `_scan_ir_body_with_side` in `compiler/irules_flow.py` (#501).
+/// `args[0]`); both shapes keep the body text in `args[0]`.
 fn classify_stmt_for_collect_flow(
     stmt: &Statement,
     side: &str,
@@ -626,7 +608,7 @@ fn scan_side_switch_body(
     registry: &CommandRegistry,
 ) {
     // iRules side-switch flow — lower under the iRules dialect so `{*}` is
-    // literal and `}{` splits words (SYNC-MAY19-dialect-contextvar, strip 3).
+    // literal and `}{` splits words.
     let module = lower_to_ir_with_config(
         body_text,
         registry,
@@ -646,8 +628,7 @@ fn scan_side_switch_body(
     }
 }
 
-/// Collect/release/payload pairing across all `when` events.  Mirrors
-/// `irules_flow.py::_find_collect_flow_warnings`.
+/// Collect/release/payload pairing across all `when` events.
 #[must_use]
 pub fn find_collect_flow_warnings(
     cu: &CompilationUnit,
@@ -773,9 +754,9 @@ pub fn find_collect_flow_warnings(
 
 // IRULE1201 / IRULE1202 — HTTP-after-respond / multi-respond
 //
-// Path-sensitive port of `irules_flow.py::_analyse_when_body` (the C44
-// follow-up).  Walks the *structured* IR body of each `::when::HTTP*`
-// procedure, tracking a set of per-path response states so that:
+// Path-sensitive analysis of the *structured* IR body of each
+// `::when::HTTP*` procedure, tracking a set of per-path response states
+// so that:
 //
 //   * IRULE1202 — a second `HTTP::respond` / `HTTP::redirect` / `redirect`
 //     on a path that already responded; only the first response takes effect.
@@ -806,8 +787,8 @@ pub fn find_http_flow_warnings(
     if !is_irules_dialect(dialect) {
         return out;
     }
-    // Iterate the *analysable* functions (honouring the FE-DATAFLOW
-    // complexity guard, #652) but walk their structured IR body.
+    // Iterate the *analysable* functions (honouring the complexity
+    // guard) but walk their structured IR body.
     for fu in cu.analysable_functions() {
         let Some(event) = fu.name.strip_prefix("::when::") else {
             continue;
@@ -841,7 +822,7 @@ pub fn find_http_flow_warnings(
     out
 }
 
-/// Deduplicate flow states by `(responded, respond_at)` (Python `_dedupe`).
+/// Deduplicate flow states by `(responded, respond_at)`.
 fn dedupe_flow_states(states: Vec<HttpFlowState>) -> Vec<HttpFlowState> {
     let mut seen: HashSet<(bool, i64)> = HashSet::new();
     let mut out = Vec::new();
@@ -855,8 +836,8 @@ fn dedupe_flow_states(states: Vec<HttpFlowState>) -> Vec<HttpFlowState> {
 }
 
 /// The command word + span a statement applies to the response flow, or `None`.
-/// Mirrors Python `_stmt_command`: direct `Call`/`Barrier` heads, plus a
-/// whole-value `[cmd …]` command substitution assigned by `set`.
+/// Direct `Call`/`Barrier` heads, plus a whole-value `[cmd …]` command
+/// substitution assigned by `set`.
 fn http_flow_stmt_command(stmt: &Statement) -> Option<(&str, Span)> {
     match stmt {
         Statement::Call { command, span, .. } | Statement::Barrier { command, span, .. } => {
@@ -915,8 +896,7 @@ fn apply_http_flow_command(
 /// branch and merge (`dedupe`) at join points; `return` terminates the current
 /// paths.  Leaf statements are transferred by `leaf` (which may emit warnings
 /// into `out`).  Shared by the IRULE1201/1202 and IRULE5002/5004 analyses —
-/// they differ only in their state type, `leaf`, and `dedupe`.  Mirrors Python
-/// `irules_flow._analyse_script` / `_walk`.
+/// they differ only in their state type, `leaf`, and `dedupe`.
 ///
 /// `return_sink` is the nearest enclosing `catch` body's collection point.
 /// Tcl `catch` swallows `TCL_RETURN`, so a `return` inside a catch body does
@@ -1069,9 +1049,7 @@ where
             for st in states {
                 // `catch` swallows TCL_RETURN: both the body's normal exits and
                 // any at-return states continue past the catch.  Fall back to
-                // the incoming state if the body yields nothing.  Mirrors
-                // Python `IRCatch`: `next_states.extend(body_out + catch_returns
-                // or [st])`.
+                // the incoming state if the body yields nothing.
                 let mut catch_returns = Vec::new();
                 let mut body_out =
                     walk_flow(body, one(st), out, leaf, dedupe, Some(&mut catch_returns));
@@ -1140,19 +1118,17 @@ where
 
 // IRULE4004 — `set var value` in per-request event hoistable to once-per-connection
 //
-// Mirrors `irules_flow.py::_check_hoistable_sets` (lines 1075-1280).
 // Per-request events (HTTP_REQUEST, HTTP_REQUEST_DATA, etc.) run on
 // every request; once-per-connection events (CLIENT_ACCEPTED,
 // CLIENTSSL_HANDSHAKE) run once.  An `AssignConst` whose value
 // doesn't depend on per-request data could be hoisted to the
 // once-per-connection event, saving work per request.
 //
-// Minimum-viable port: flag every `set var value` in a per-request
-// event whose value is a literal (no `$` substitutions, no
-// `[cmd]` substitutions) and whose variable name is also literal.
-// The Python implementation additionally checks that the variable
-// isn't reassigned later in the same body (otherwise hoisting
-// changes semantics) — that branch-aware check is the follow-up.
+// Flags every `set var value` in a per-request event whose value is a
+// literal (no `$` substitutions, no `[cmd]` substitutions) and whose
+// variable name is also literal.  It does not check that the variable
+// isn't reassigned later in the same body (which would change the
+// hoisting semantics).
 
 fn is_per_request_event(event: &str) -> bool {
     // Strip priority index suffix.
@@ -1227,16 +1203,13 @@ pub fn find_hoistable_set_warnings(
 
 // IRULE4002 — generic `static::` variable name that will collide
 //
-// Mirrors `irules_flow.py::_find_generic_static_names`. Walks every
-// `::when::` CFG body for statements that define a `static::` variable
-// and flags bare names matching a fixed set of generic patterns
-// (`DEFAULT_GENERIC_VARIABLE_PATTERNS`). Deduplicated across events —
-// the first occurrence's span wins. Custom user patterns are not
-// plumbed here (the analyser uses the default set, same as Python's
-// default-config path).
+// Walks every `::when::` CFG body for statements that define a
+// `static::` variable and flags bare names matching a fixed set of
+// generic patterns. Deduplicated across events — the first occurrence's
+// span wins. Custom user patterns are not plumbed here (the analyser
+// uses the default set).
 
-/// Lowercased bare names considered generic. Every default pattern in
-/// `compiler/irules_static_names.py::DEFAULT_GENERIC_VARIABLE_PATTERNS`
+/// Lowercased bare names considered generic. Every generic-name pattern
 /// is fully `^…$`-anchored over a finite alternation, so the regex
 /// `search` over the lowercased bare name is equivalent to exact
 /// membership in this set.
@@ -1631,7 +1604,7 @@ mod tests {
     fn irule5002_carries_insertion_fix() {
         // The quick-fix inserts `event disable all` + `return` *after* the drop
         // (a zero-width edit anchored at the drop command's end), independent of
-        // the diagnostic span.  Text matches the Python IRULE5002 `CodeFix`.
+        // the diagnostic span.
         let ws = drop_warnings("when CLIENT_ACCEPTED { drop }");
         let w = ws
             .iter()
@@ -1674,7 +1647,6 @@ mod tests {
     fn irule5002_drop_and_return_inside_catch_still_warns() {
         // `catch` swallows the `return`, so it does NOT stop iRule processing —
         // the unguarded `drop` still leaks past the catch and must be flagged.
-        // Mirrors Python `test_drop_and_return_inside_catch_still_warns`.
         let ws = drop_warnings("when CLIENT_ACCEPTED {\n    catch { drop; return }\n}");
         let hits: Vec<_> = ws.iter().filter(|w| w.code == "IRULE5002").collect();
         assert_eq!(hits.len(), 1, "expected one IRULE5002, got {ws:?}");
@@ -1688,8 +1660,7 @@ mod tests {
     #[test]
     fn irule5002_catch_body_without_return_still_warns_drop() {
         // A catch whose body does not return continues normally and the
-        // unguarded drop still leaks out.  Mirrors Python
-        // `test_catch_body_without_return_still_warns_drop`.
+        // unguarded drop still leaks out.
         let ws = drop_warnings("when CLIENT_ACCEPTED {\n    catch { drop }\n}");
         assert_eq!(
             ws.iter().filter(|w| w.code == "IRULE5002").count(),
@@ -1700,8 +1671,7 @@ mod tests {
 
     #[test]
     fn irule5002_catch_without_drop_no_warning() {
-        // A benign catch body must not spuriously warn.  Mirrors Python
-        // `test_catch_without_drop_no_warning`.
+        // A benign catch body must not spuriously warn.
         let ws = drop_warnings("when CLIENT_ACCEPTED {\n    catch { set x 1; return }\n}");
         assert!(
             !ws.iter().any(|w| w.code == "IRULE5002"),
@@ -1712,8 +1682,7 @@ mod tests {
     #[test]
     fn irule5004_dns_return_and_return_inside_catch_still_warns() {
         // `catch` swallows the `return` so it does not stop processing — the
-        // unguarded `DNS::return` still leaks out.  Mirrors Python
-        // `test_dns_return_and_return_inside_catch_still_warns`.
+        // unguarded `DNS::return` still leaks out.
         let ws = drop_warnings("when DNS_REQUEST {\n    catch { DNS::return; return }\n}");
         let hits: Vec<_> = ws.iter().filter(|w| w.code == "IRULE5004").collect();
         assert_eq!(hits.len(), 1, "expected one IRULE5004, got {ws:?}");
@@ -1801,7 +1770,7 @@ mod tests {
         );
     }
 
-    // -- SYNC-MAY31-4 (#501): side-switch body descent + peer flip -----
+    // -- side-switch body descent + peer flip -----
 
     #[test]
     fn collect_inside_clientside_body_is_seen() {
@@ -1849,7 +1818,7 @@ mod tests {
 
     #[test]
     fn side_switch_specs_have_body_role_and_arity() {
-        // Registry-level guard for the #501 spec edits.
+        // Registry-level guard for the spec edits.
         let r = registry();
         for cmd in ["clientside", "serverside", "peer"] {
             assert!(r.is_side_switch(cmd), "{cmd} must be a side-switch");
@@ -1927,8 +1896,7 @@ mod tests {
         // `catch` swallows the `return`, so control continues past the catch
         // with the response already committed — the post-catch HTTP::header
         // insert must still be flagged, and the at-catch-return `responded`
-        // state must propagate out.  Mirrors Python
-        // `test_respond_then_return_inside_catch_warns`.
+        // state must propagate out.
         let ws = http_warnings(
             "when HTTP_REQUEST {\n\
             \x20   catch { HTTP::respond 200 content ok; return }\n\
@@ -1947,8 +1915,7 @@ mod tests {
     #[test]
     fn irule1201_catch_body_without_return_still_continues() {
         // A catch whose body does not return continues normally, carrying the
-        // responded state to flag the post-catch command.  Mirrors Python
-        // `test_catch_body_without_return_still_continues`.
+        // responded state to flag the post-catch command.
         let ws = http_warnings(
             "when HTTP_REQUEST {\n\
             \x20   catch { HTTP::respond 200 content ok }\n\
@@ -1965,7 +1932,7 @@ mod tests {
     #[test]
     fn irule1201_catch_without_respond_no_warning() {
         // A benign catch body must not spuriously flag post-catch HTTP
-        // commands.  Mirrors Python `test_catch_without_respond_no_warning`.
+        // commands.
         let ws = http_warnings(
             "when HTTP_REQUEST {\n\
             \x20   catch { set x 1; return }\n\

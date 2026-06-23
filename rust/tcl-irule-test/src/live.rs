@@ -172,7 +172,9 @@ impl LiveSession {
             return Err(SessionError::Eval(format!("script called exit {code}")));
         }
         match result {
-            Ok(c) if c.code == Code::Error => Err(SessionError::Eval(c.result.to_str().to_string())),
+            Ok(c) if c.code == Code::Error => {
+                Err(SessionError::Eval(c.result.to_str().to_string()))
+            }
             Ok(c) => Ok(c.result.to_str().to_string()),
             Err(e) => Err(SessionError::Compile(e.message)),
         }

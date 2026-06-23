@@ -63,8 +63,7 @@ pub struct OptionSpec {
     /// Set this to restrict an option added in a specific Tcl
     /// version (e.g. `lsearch -stride` is Tcl 8.6+, `clock scan
     /// -validate` is Tcl 9.0+) so the option doesn't surface in
-    /// older dialects.  Mirrors `OptionSpec.dialects` in
-    /// `core/commands/registry/models.py` (PR #433).
+    /// older dialects.
     pub dialects: Option<DialectSet>,
 }
 

@@ -1,5 +1,5 @@
 //! Packet/byte decoding: pcap iteration, L3/L4 parsing, HTTP/TLS peek, F5
-//! trailer. Faithful port of `dialects/f5/bigip/flow/packets.py`.
+//! trailer.
 
 use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -40,9 +40,9 @@ fn iter_libpcap(data: &[u8]) -> Vec<(u16, Vec<u8>)> {
     }
     let magic = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
     let Some(big_endian) = pcap_magic_big_endian(magic) else {
-        // Python raises ValueError on an unrecognised magic; the CLI surfaces
-        // it as `error: pcap: unrecognised magic ...`. We mirror that at the
-        // call site, but here a bad magic simply yields no packets.
+        // The CLI surfaces an unrecognised magic at the call site as
+        // `error: pcap: unrecognised magic ...`; here a bad magic simply
+        // yields no packets.
         return out;
     };
     let rd_u32 = |b: &[u8], off: usize| -> u32 {
@@ -648,7 +648,7 @@ fn imap_to_vec(m: &IndexMap<String, String>) -> Vec<(String, String)> {
     m.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
 }
 
-// Byte-string helpers mirroring Python's bytes operations.
+// Byte-string helpers.
 
 fn split_once<'a>(hay: &'a [u8], sep: &[u8]) -> Option<(&'a [u8], &'a [u8])> {
     hay.windows(sep.len())

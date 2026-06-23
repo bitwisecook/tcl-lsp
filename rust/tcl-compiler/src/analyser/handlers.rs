@@ -1,25 +1,16 @@
-//! Per-command handlers (variable-write subset) — Rust port of
-//! the variable-mutation handlers in
-//! ``core/analysis/_analyser/_handlers.py``.
+//! Per-command handlers for the variable-mutation commands.
 //!
-//! C41b1 lands the variable-write trio:
+//! The variable-write trio:
 //!
 //! - [`Analyser::handle_set_command`] — `set var ?value?`
 //! - [`Analyser::handle_var_declaration_command`] —
 //!   `variable name ?value? ...?` and `global name...`
 //! - [`Analyser::handle_incr_command`] — `incr var ?amount?`
 //!
-//! Subsequent C41b strips fill in the rest of `_handlers.py`:
-//!
-//! - **C41b2** — `_handle_proc_command` (proc-body walker).
-//! - **C41b3** — `_handle_namespace_eval_command` and
-//!   `_handle_namespace_ensemble`.
-//! - **C41b4** — `_handle_foreach_command`,
-//!   `_handle_for_command`, `_handle_switch_command`.
-//! - **C41b5** — `_handle_catch_command`,
-//!   `_handle_try_command`.
-//! - **C41b6** — `_handle_interp_alias`,
-//!   `_handle_oo_objdefine`, `_resolve_alias`.
+//! Plus the remaining structural command handlers: proc-body
+//! walking, `namespace eval`/`namespace ensemble`, `foreach`/`for`/
+//! `switch`, `catch`/`try`, `interp alias`, `oo::objdefine`, and
+//! alias resolution.
 
 use tcl_lexer::{Span, Token, TokenType};
 
@@ -35,8 +26,7 @@ use super::utils::parse_param_list;
 /// user-replaceable — redefining one is the supported overlay idiom, not
 /// shadowing a C built-in.  Genuine C commands that are not byte-compiled
 /// but still dangerous to redefine (`clock`, `after`, `socket`, `glob`) are
-/// deliberately excluded — they keep firing W113.  Mirrors
-/// `_OVERRIDABLE_LIBRARY_PROCS` in `analyser/_analyser/_proc.py`.
+/// deliberately excluded — they keep firing W113.
 /// Memoised set of the redefinable Tcl library procs (`unknown`,
 /// `auto_*`, `pkg_*`, `tclLog`, `tcl_findLibrary`, the word-boundary
 /// helpers, …), sourced from the registry's
@@ -57,11 +47,8 @@ fn overridable_library_procs() -> &'static std::collections::HashSet<String> {
 /// Build a fully-qualified Tcl proc / class name from a namespace
 /// prefix and a possibly-relative name.
 ///
-/// Mirrors `qualify` in `signature_scan/handlers.rs:33-41` (which
-/// itself ports `_qualify` from
-/// `core/analysis/signature_scan.py`). `ns_prefix` is the
-/// namespace **without** a leading `::` — the convention used
-/// throughout the analyser walker.
+/// `ns_prefix` is the namespace **without** a leading `::` — the
+/// convention used throughout the analyser walker.
 pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
     if name.starts_with("::") {
         name.to_string()
@@ -75,12 +62,8 @@ pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
 /// Split a form-2 ``switch`` braced body into its flat list of
 /// pattern/body elements.
 ///
-/// Mirrors `_parse_switch_body` in
-/// `core/analysis/_analyser/_proc.py:259-331`. Python re-lexes
-/// the inner body with `TclLexer` and groups consecutive
-/// non-separator tokens into "elements"; the Rust port leans on
-/// the existing segmenter — every word across every command in
-/// the body is one element, which produces the same flat
+/// Uses the segmenter to split the body: every word across every
+/// command in the body is one element, producing a flat
 /// alternating pattern/body sequence.
 ///
 /// Returns `(text, token)` pairs in source order.  The token's
@@ -110,10 +93,6 @@ pub(super) fn parse_switch_body_elements(body_text: &str, body_tok: Token) -> Ve
 impl Analyser {
     /// Handle the `set` command: `set var ?value?`.
     ///
-    /// Mirrors `_handle_set_command` in
-    /// `core/analysis/_analyser/_handlers.py:51-70` and the inner
-    /// `_handle_set` in `_proc.py:177-191`.
-    ///
     /// - **Two-arg form** (`set var value`) — defines the variable
     ///   in the scope at `scope_path` and tracks the value as a
     ///   constant string when the value is a single-token literal
@@ -124,10 +103,8 @@ impl Analyser {
     ///
     /// `single_token_word` parallels `args` and `arg_tokens` —
     /// `true` when the corresponding word is a single atomic
-    /// token. It's the Rust replacement for Python's
-    /// `value_token.text == args[1]` check, which boils down to
-    /// "is this word's text the same as a single token's raw
-    /// text?".
+    /// token, i.e. when the word's text is the same as a single
+    /// token's raw text.
     pub fn handle_set_command(
         &mut self,
         cmd_name: &str,
@@ -140,7 +117,7 @@ impl Analyser {
             return;
         }
 
-        // _handle_set: arg-count branch from ``_proc.py:177-191``.
+        // Arg-count branch: two-arg form defines, one-arg form reads.
         let Some(name_tok) = arg_tokens.first() else {
             return;
         };
@@ -166,9 +143,6 @@ impl Analyser {
     }
 
     /// Handle `variable` / `global` declarations.
-    ///
-    /// Mirrors `_handle_var_declaration_command` in
-    /// `core/analysis/_analyser/_handlers.py:72-95`.
     ///
     /// - `global` takes a flat list of names; each gets a var
     ///   binding with `warn_if_unused = false` (declared, not
@@ -213,15 +187,11 @@ impl Analyser {
 
     /// Handle the `proc` command: `proc NAME PARAMS BODY`.
     ///
-    /// Mirrors `_handle_proc_command` in
-    /// `core/analysis/_analyser/_handlers.py:39-49` plus the body
-    /// walk in `_AnalyserProcMixin._handle_proc`
-    /// (`_proc.py:46-176`). Returns `true` when the command was
-    /// handled (callers use the bool to decide whether further
-    /// processing is needed), `false` when the input doesn't
-    /// match the expected shape.
+    /// Returns `true` when the command was handled (callers use the
+    /// bool to decide whether further processing is needed), `false`
+    /// when the input doesn't match the expected shape.
     ///
-    /// **C41b2 baseline + C41c1.** Records the [`ProcDef`] in
+    /// Records the [`ProcDef`] in
     /// both `scope.procs` (keyed by simple name) and
     /// `result.all_procs` (keyed by qualified name).  When the
     /// body is a braced literal, opens a fresh
@@ -231,8 +201,7 @@ impl Analyser {
     /// every body command is dispatched through
     /// [`Analyser::process_command`] with the new scope path.
     /// Body recursion does **not** invoke segmenter recovery —
-    /// that fires only at the top level (mirrors Python's
-    /// `_analyse_body` vs. `_analyse_body_inner` split).
+    /// that fires only at the top level.
     /// Dynamic bodies (`$body`, `[gen]`) skip the walk because
     /// they cannot be statically re-segmented; the proc record
     /// is still emitted so downstream consumers see the
@@ -248,10 +217,7 @@ impl Analyser {
     /// (e.g. `when`) fire on body args.  When [`Self::registry`]
     /// is `None` (outside an active `analyse` run, e.g. a unit-
     /// test harness) we skip the inference rather than pay the
-    /// cost of a fresh `build_default` on every proc.  Mirrors
-    /// `infer_param_traits` (shallow) and
-    /// `infer_param_traits_deep` (deep) in
-    /// `core/analysis/proc_arg_traits.py`.
+    /// cost of a fresh `build_default` on every proc.
     fn infer_proc_param_traits(
         &self,
         params: &[crate::signature_scan::types::ParamDef],
@@ -285,10 +251,10 @@ impl Analyser {
         }
     }
 
-    /// W113 (proc shadows built-in), parameter-trait inference,
-    /// and the user-defined ``unknown`` proc detection from
-    /// `_proc.py` are deferred to **C41d** / future strips —
-    /// this strip is structural only.
+    /// Handle a `proc name params body` definition: record the procedure
+    /// (name, parameter list, body, and harvested doc-comment) in the
+    /// analysis result and run per-parameter trait inference. Returns `true`
+    /// when the command was a `proc` definition this handler consumed.
     #[allow(clippy::too_many_lines)]
     pub fn handle_proc_command(
         &mut self,
@@ -314,7 +280,7 @@ impl Analyser {
         let body_span = body_tok.span;
 
         // **W113** — proc name shadows a built-in command.
-        // Mirrors ``_proc.py:70-89``.  The check runs against
+        // The check runs against
         // both the unqualified ``proc_name`` and the fully-
         // qualified form, with the leading ``::`` trimmed (the
         // registry indexes by bare command name).  The inner
@@ -339,8 +305,7 @@ impl Analyser {
         // living in its own namespace — its own definition or a deliberate
         // override, not shadowing a built-in.  And the overridable Tcl
         // *library* procedures (`unknown`, `history`, `auto_*`, …) are
-        // script-defined, documented user-replaceable overlays.  Mirrors
-        // `_proc.py:129-143`.
+        // script-defined, documented user-replaceable overlays.
         let shadow_name = shadow_name.filter(|name| {
             !name.contains("::") && !overridable_library_procs().contains(name.as_str())
         });
@@ -369,14 +334,12 @@ impl Analyser {
             doc = super::utils::extract_body_docstring(&args[2]);
         }
 
-        // **C41e3.** When a user defines ``proc unknown ...`` (or
+        // When a user defines ``proc unknown ...`` (or
         // ``::tcl::unknown``), inspect the body to determine which
         // commands the handler can resolve.  The result gates
         // W123 (unresolved command) — if the user provided their
         // own ``unknown`` we can't statically prove a command is
-        // truly unresolved.  Mirrors Python's
-        // ``_extract_unknown_proc_info`` call site in
-        // ``_proc.py:97-104``.
+        // truly unresolved.
         if matches!(simple.as_str(), "unknown") || qualified == "::tcl::unknown" {
             let info = self.extract_unknown_proc_info(&args[2], &params);
             self.result.unknown_proc_info = Some(info);
@@ -395,10 +358,9 @@ impl Analyser {
             param_traits,
         };
 
-        // Register globally and in the current scope. Mirrors
-        // ``_proc.py:111-112`` — ``scope.procs`` is keyed by the
-        // *simple* (unqualified) proc name (so per-scope lookup
-        // and shadowing rules work locally), while
+        // Register globally and in the current scope. ``scope.procs``
+        // is keyed by the *simple* (unqualified) proc name (so
+        // per-scope lookup and shadowing rules work locally), while
         // ``result.all_procs`` is keyed by the fully-qualified
         // name. The full qualified name is still on
         // ``ProcDef.qualified_name`` for callers that need it.
@@ -411,14 +373,11 @@ impl Analyser {
             scope.procs.insert(simple_key, proc);
         }
 
-        // **C41c1.** Walk the body in a fresh proc scope when the
-        // body is a braced literal. ``raw_name`` is used as the
-        // proc-scope name to mirror Python's
-        // ``Scope(kind="proc", name=proc_name, ...)``
-        // (``_proc.py:115``); ``define_var`` keys
-        // ``result.all_variables`` on ``"<scope_name>::<var>"``,
-        // so matching the Python scope name is what keeps that
-        // map in parity.
+        // Walk the body in a fresh proc scope when the body is a
+        // braced literal. ``raw_name`` is used as the proc-scope
+        // name because ``define_var`` keys ``result.all_variables``
+        // on ``"<scope_name>::<var>"``, so the scope name must be
+        // the proc name to key that map consistently.
         if body_tok.kind == TokenType::Str {
             let proc_scope_idx = {
                 let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
@@ -432,21 +391,18 @@ impl Analyser {
             let mut child_path = path.clone();
             child_path.push(proc_scope_idx);
 
-            // Parameters become locals in the proc scope. Python
-            // anchors each param's definition range to the proc
-            // *name* token (`_proc.py:120-124`) — there's no
-            // per-parameter span available without re-tokenising
-            // the param-list literal. Mirror the same coarse
-            // anchor here; per-param spans can land in a follow-up.
+            // Parameters become locals in the proc scope. Each
+            // param's definition range is anchored to the proc
+            // *name* token — there's no per-parameter span
+            // available without re-tokenising the param-list
+            // literal.
             for p in &params {
                 self.define_var(&p.name, name_tok, &child_path, false, None);
             }
 
             // Save / restore last_comment around the body walk so
             // a doc-comment inside the proc body doesn't bleed to
-            // whatever follows the proc at the outer scope. Mirrors
-            // ``saved_comment = self._last_comment`` in
-            // ``_proc.py:128-131``.
+            // whatever follows the proc at the outer scope.
             let saved_comment = std::mem::take(&mut self.last_comment);
 
             // Body recursion via the shared helper.  Re-segments
@@ -479,17 +435,11 @@ impl Analyser {
     /// Handle `namespace eval`: opens a new namespace scope and
     /// schedules its body for analysis.
     ///
-    /// Mirrors `_handle_namespace_eval_command` in
-    /// `core/analysis/_analyser/_handlers.py:97-118`. Returns
-    /// `true` when the command was handled.
+    /// Returns `true` when the command was handled.
     ///
-    /// **C41f1 hook.** Python recurses into the body via
-    /// `_analyse_body`, which lives in `_core.py` (the orchestrator
-    /// layer). The Rust port creates the child scope and stores
-    /// the body span; the deeper body recursion is wired in
-    /// **C41f1** when the analyser orchestration lands. For now
-    /// the namespace scope is added so downstream handlers can
-    /// see qualified names resolve through it.
+    /// Creates the child namespace scope so downstream handlers see
+    /// qualified names resolve through it, then recurses into the
+    /// body.
     pub fn handle_namespace_eval_command(
         &mut self,
         cmd_name: &str,
@@ -519,11 +469,9 @@ impl Analyser {
         let mut child_path = path;
         child_path.push(child_scope_idx);
 
-        // **C41e3 follow-up.** Body recursion lets procs and
-        // classes declared inside ``namespace eval`` register
-        // with the correct namespace prefix.  Mirrors Python's
-        // ``_handle_namespace_eval_command`` which calls
-        // ``_analyse_body`` on the body text + token.
+        // Body recursion lets procs and classes declared inside
+        // ``namespace eval`` register with the correct namespace
+        // prefix.
         if let (Some(text), Some(tok)) = (body_text, body_tok) {
             self.analyse_body(&text, tok, &child_path);
         }
@@ -540,8 +488,7 @@ impl Analyser {
     /// Returns `true` only for the `#0` (global-frame) form; every other
     /// `uplevel` form (numeric level, level-relative, or no explicit
     /// level) falls through to the generic body recursion, which keeps
-    /// the enclosing proc scope.  Mirrors the Python analyser's
-    /// `uplevel #0` frame handling.
+    /// the enclosing proc scope.
     pub fn handle_uplevel_command(
         &mut self,
         cmd_name: &str,
@@ -584,9 +531,6 @@ impl Analyser {
 
     /// Handle `namespace ensemble create` — record the namespace as
     /// an ensemble so its tail names become valid commands.
-    ///
-    /// Mirrors `_handle_namespace_ensemble` in
-    /// `core/analysis/_analyser/_handlers.py:254-268`.
     pub fn handle_namespace_ensemble(
         &mut self,
         cmd_name: &str,
@@ -606,19 +550,16 @@ impl Analyser {
     }
 
     /// Define a list of variables from a varList token (e.g. the
-    /// loop-variable list of `foreach`). Mirrors
-    /// `_define_vars_from_list` in
-    /// `core/analysis/_analyser/_scope.py:90-124`.
+    /// loop-variable list of `foreach`).
     ///
     /// Each name gets its **own** definition span, located inside the
     /// varList token's content (the token's `content_offset` skips a
-    /// leading `{`/`"`). This matches Python's `position_from_relative`
-    /// walk and — crucially — gives same-token bindings like
-    /// `foreach {b a}` / `dict for {k v}` distinct, declaration-ordered
-    /// spans, so downstream offset-sorted consumers (the `symbols` /
-    /// `symbolgraph` CLI verbs) stay deterministic and source-ordered.
-    /// A name not found in the content text (escapes, line
-    /// continuations) falls back to the whole-token span, as in Python.
+    /// leading `{`/`"`). This — crucially — gives same-token bindings
+    /// like `foreach {b a}` / `dict for {k v}` distinct,
+    /// declaration-ordered spans, so downstream offset-sorted consumers
+    /// (the `symbols` / `symbolgraph` CLI verbs) stay deterministic and
+    /// source-ordered. A name not found in the content text (escapes,
+    /// line continuations) falls back to the whole-token span.
     fn define_vars_from_list(&mut self, var_list_text: &str, tok: Token, scope_path: &[usize]) {
         let content_start = tok.span.start() + u32::from(tok.content_offset);
         let mut search_start = 0usize;
@@ -638,10 +579,9 @@ impl Analyser {
     /// Handle `foreach var list body` (and the `foreach_in_collection`
     /// dialect variant).
     ///
-    /// Mirrors `_handle_foreach_command` in
-    /// `core/analysis/_analyser/_handlers.py:120-142`. Defines the
-    /// loop-variable list in the active scope; the body recursion
-    /// is deferred to **C41f1**.
+    /// Defines the loop-variable list in the active scope, then
+    /// recurses into the body so vars defined inside the loop land
+    /// in the enclosing scope.
     pub fn handle_foreach_command(
         &mut self,
         cmd_name: &str,
@@ -658,10 +598,8 @@ impl Analyser {
         if let Some(tok) = arg_tokens.first() {
             self.define_vars_from_list(&args[0], *tok, scope_path);
         }
-        // Body recursion mirrors ``_handle_foreach_command`` in
-        // ``core/analysis/_analyser/_handlers.py``.  The body is
-        // always the last argument; recurse so vars defined inside
-        // the loop land in the enclosing scope.
+        // The body is always the last argument; recurse so vars
+        // defined inside the loop land in the enclosing scope.
         if let (Some(body_text), Some(body_tok)) = (args.last(), arg_tokens.last().copied()) {
             self.analyse_body(body_text, body_tok, scope_path);
         }
@@ -670,11 +608,9 @@ impl Analyser {
 
     /// Handle `for init test next body`.
     ///
-    /// Mirrors `_handle_for_command` in
-    /// `core/analysis/_analyser/_handlers.py:144-162`. Recurses
-    /// into init / next / body so locals defined inside any of
-    /// the three statement positions land in the enclosing
-    /// scope's variable set.
+    /// Recurses into init / next / body so locals defined inside any
+    /// of the three statement positions land in the enclosing scope's
+    /// variable set.
     pub fn handle_for_command(
         &mut self,
         cmd_name: &str,
@@ -702,11 +638,8 @@ impl Analyser {
 
     /// Handle `switch ?options? string ?pattern body? ...`.
     ///
-    /// Mirrors `_handle_switch_command` in
-    /// `core/analysis/_analyser/_handlers.py:164-177` plus the
-    /// `_handle_switch` arm walker in `_proc.py:192-258`. Arity
-    /// checking lives in `compiler_checks::arity_checks` via the
-    /// IR; this handler walks each arm body so locals defined
+    /// Arity checking lives in `compiler_checks::arity_checks` via
+    /// the IR; this handler walks each arm body so locals defined
     /// inside an arm land in the enclosing scope.
     ///
     /// Switch has two forms:
@@ -722,8 +655,7 @@ impl Analyser {
     /// (the next arm's body fires) and are skipped — recursing
     /// into the literal ``-`` would produce a useless command.
     ///
-    /// `-regexp` pattern recording mirrors Python's
-    /// ``_proc.py::_handle_switch`` lines 233-252 — each non-`default`
+    /// `-regexp` pattern recording: each non-`default`
     /// pattern arm is recorded as a `RegexPattern` with
     /// ``command = "switch"`` when its token is a literal
     /// (`Esc` / `Str`) or a `Var` token whose name resolves via
@@ -815,12 +747,9 @@ impl Analyser {
 
     /// Handle `catch SCRIPT ?RESULTVAR? ?OPTIONSVAR?`.
     ///
-    /// Mirrors `_handle_catch_command` in
-    /// `core/analysis/_analyser/_handlers.py:179-198`. Defines
-    /// the optional `RESULTVAR` and `OPTIONSVAR` bindings (they
-    /// receive values when the body throws / completes) and
+    /// Defines the optional `RESULTVAR` and `OPTIONSVAR` bindings
+    /// (they receive values when the body throws / completes) and
     /// bumps `conditional_depth` for the duration of the body.
-    /// Body recursion deferred to **C41f1**.
     pub fn handle_catch_command(
         &mut self,
         cmd_name: &str,
@@ -842,22 +771,16 @@ impl Analyser {
 
     /// Handle `try BODY ?on/trap CODE VARLIST BODY?... ?finally BODY?`.
     ///
-    /// Mirrors `_handle_try_command` in
-    /// `core/analysis/_analyser/_handlers.py:200-213` plus the
-    /// `_handle_try` arm walker in `_proc.py:333-359`. Walks the
-    /// main try body and every handler / finally clause; arity
-    /// checking lives in `compiler_checks::arity_checks` already.
+    /// Walks the main try body and every handler / finally clause;
+    /// arity checking lives in `compiler_checks::arity_checks`
+    /// already.
     ///
     /// Clause shapes:
     ///
     /// - ``finally BODY`` (2 words) — recurse into ``BODY``.
     /// - ``on CODE VARLIST BODY`` / ``trap PATTERN VARLIST BODY``
-    ///   (4 words) — recurse into ``BODY``.  The handler's
-    ///   ``VARLIST`` (e.g. ``{result options}``) is **not**
-    ///   defined as a binding here; mirrors Python's
-    ///   ``_handle_try`` which doesn't define them either
-    ///   (``_proc.py:333-359``).  A future strip can add the
-    ///   varList define if Python is updated to match.
+    ///   (4 words) — define the handler's ``VARLIST`` (e.g.
+    ///   ``{result options}``), then recurse into ``BODY``.
     pub fn handle_try_command(
         &mut self,
         cmd_name: &str,
@@ -903,7 +826,7 @@ impl Analyser {
     ///
     /// `upvar ?level? otherVar myVar ?otherVar myVar ...?` — an optional
     /// leading level makes the arg count odd; each pair after it binds the
-    /// local alias `myVar`.  Mirrors `_handle_upvar_command`.
+    /// local alias `myVar`.
     pub fn handle_upvar_command(
         &mut self,
         cmd_name: &str,
@@ -925,7 +848,7 @@ impl Analyser {
     /// Register the local aliases introduced by `namespace upvar`.
     ///
     /// `namespace upvar nsname otherVar myVar ?otherVar myVar ...?` — `myVar`
-    /// lives at indices 3, 5, 7, …  Mirrors `_handle_namespace_upvar_command`.
+    /// lives at indices 3, 5, 7, …
     pub fn handle_namespace_upvar_command(
         &mut self,
         cmd_name: &str,
@@ -944,7 +867,7 @@ impl Analyser {
     }
 
     /// Register loop / alias variables introduced by `dict for` / `dict
-    /// update` / `dict with`.  Mirrors `_handle_dict_var_command`.
+    /// update` / `dict with`.
     pub fn handle_dict_var_command(
         &mut self,
         cmd_name: &str,
@@ -996,11 +919,10 @@ impl Analyser {
     /// Handle `interp alias {} ALIAS {} TARGET ?ARG ...?` —
     /// records the alias for later argument-role resolution.
     ///
-    /// Mirrors `_handle_interp_alias` in
-    /// `core/analysis/_analyser/_handlers.py:225-236`. Delegates
-    /// the actual detection logic to `crate::alias::detect_interp_alias`
-    /// (which already handles the canonical `interp alias {}`
-    /// shape and the `args[5..]` prepended-args slice).
+    /// Delegates the actual detection logic to
+    /// `crate::alias::detect_interp_alias` (which already handles
+    /// the canonical `interp alias {}` shape and the `args[5..]`
+    /// prepended-args slice).
     pub fn handle_interp_alias(&mut self, cmd_name: &str, args: &[String]) {
         let Some((qualified, target_cmd, prepended)) = detect_interp_alias(cmd_name, args) else {
             return;
@@ -1020,9 +942,6 @@ impl Analyser {
     /// Handle `oo::objdefine $obj …` — record the object variable
     /// so later W308 (unknown method on object) checks can suppress
     /// false positives from per-instance method extensions.
-    ///
-    /// Mirrors `_handle_oo_objdefine` in
-    /// `core/analysis/_analyser/_handlers.py:238-252`.
     pub fn handle_oo_objdefine(&mut self, cmd_name: &str, args: &[String]) {
         if cmd_name != "oo::objdefine" || args.is_empty() {
             return;
@@ -1041,31 +960,24 @@ impl Analyser {
     /// W123 (unresolved-command) suppression and dynamic-
     /// provider detection.
     ///
-    /// Mirrors the package-recording fragment of
-    /// ``_AnalyserCommandsMixin._process_command`` in
-    /// ``core/analysis/_analyser/_commands.py:277-321``.  Two
-    /// shapes Python recognises:
+    /// Two shapes are recognised:
     ///
     /// - ``package require ?-exact? NAME ?VERSION?`` — appends a
     ///   ``SignaturePackageRequire`` record to
     ///   ``result.package_requires`` and flips
     ///   ``has_dynamic_providers`` when the name argument is a
     ///   ``$``-substitution / ``[…]``-substitution token.
-    /// - ``package provide NAME ?VERSION?`` — Python records this
-    ///   on ``result.package_provides``; the Rust
-    ///   ``AnalysisResult`` doesn't carry that field yet (deferred
-    ///   carry-over) so we only consume the shape silently.
+    /// - ``package provide NAME ?VERSION?`` — consumed silently;
+    ///   there's no field to record it on yet.
     ///
-    /// The conditional flag is ``self.conditional_depth > 0``,
-    /// matching Python's `_conditional_depth`.
+    /// The conditional flag is ``self.conditional_depth > 0``.
     ///
     /// `cmd_tok` is the command-head token (the ``package``
     /// word).  The recorded
     /// [`SignaturePackageRequire::range`](crate::signature_scan::types::SignaturePackageRequire::range)
-    /// uses its span so the range matches Python's
-    /// ``range_from_token(argv[0])`` — code-action /
-    /// quick-fix UX points at the ``package`` keyword rather
-    /// than at the ``require`` subcommand word.
+    /// uses its span so code-action / quick-fix UX points at the
+    /// ``package`` keyword rather than at the ``require``
+    /// subcommand word.
     pub fn handle_package_command(
         &mut self,
         cmd_name: &str,
@@ -1142,11 +1054,9 @@ impl Analyser {
 
     /// Resolve a command alias to `(target_cmd, effective_args)`.
     ///
-    /// Mirrors `_resolve_alias` in
-    /// `core/analysis/_analyser/_handlers.py:270-287`. Returns
-    /// `(cmd_name, args)` unchanged if no alias matches; otherwise
-    /// returns the target command and the prepended-args + original
-    /// args list. Delegates to `crate::alias::resolve_alias` for the
+    /// Returns `(cmd_name, args)` unchanged if no alias matches;
+    /// otherwise returns the target command and the prepended-args +
+    /// original args list. Delegates to `crate::alias::resolve_alias` for the
     /// namespace-aware lookup.
     #[must_use]
     pub fn resolve_alias(
@@ -1156,8 +1066,8 @@ impl Analyser {
         scope_path: &[usize],
     ) -> (String, Vec<String>) {
         let ns = self.namespace_from_scope_path(scope_path);
-        // The Rust `alias::resolve_alias` accepts `CommandAliasMap`
-        // (alias map keyed by qualified alias name) — same shape as
+        // `alias::resolve_alias` accepts `CommandAliasMap` (alias map
+        // keyed by qualified alias name) — the same shape as
         // `self.command_aliases` already uses.
         if let Some((target_cmd, prepended)) = resolve_alias(cmd_name, &self.command_aliases, &ns) {
             let mut effective: Vec<String> = prepended;
@@ -1170,12 +1080,10 @@ impl Analyser {
 
     /// Handle `oo::class create NAME ?BODY?` — record the class.
     ///
-    /// **C41b8 stub.** The full port (method extraction, mixin
-    /// handling, body recursion) lands in **C41e1**. For now this
-    /// strip records a minimal [`super::types::ClassDef`] in
-    /// ``result.all_classes`` so consumers see the class in the
-    /// workspace index. Returns `true` when the command shape
-    /// matched.
+    /// Records a [`super::types::ClassDef`] in ``result.all_classes``
+    /// (walking the body when present to populate method / mixin /
+    /// superclass info) so consumers see the class in the workspace
+    /// index. Returns `true` when the command shape matched.
     pub fn handle_oo_class_command(
         &mut self,
         cmd_name: &str,
@@ -1183,10 +1091,8 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        // Mirrors ``_OO_METACLASSES`` in
-        // ``core/analysis/_analyser/_proc.py``.  Every metaclass
-        // name behaves the same shape — ``cmd_name create Name
-        // ?body?`` — so the cmd-name guard widens to the full set
+        // Every metaclass name behaves the same shape — ``cmd_name
+        // create Name ?body?`` — so the cmd-name guard widens to the full set
         // and the recorded ``metaclass`` field still distinguishes
         // them downstream (hover / outline / class-hierarchy).
         // A fully-qualified head (`::oo::class`) names the same global command
@@ -1203,8 +1109,7 @@ impl Analyser {
             return false;
         }
         // `create Name ?body?`, `new ?body?`, and `createWithNamespace Name ns
-        // ?body?` all introduce a class; mirrors the subcommand gate in
-        // `_handle_oo_class_command` (`_oo.py:87`).
+        // ?body?` all introduce a class.
         if !matches!(args[0].as_str(), "create" | "new" | "createWithNamespace") {
             return false;
         }
@@ -1226,14 +1131,14 @@ impl Analyser {
             doc,
             ..Default::default()
         };
-        // **C41e1.** Walk the class body when present —
-        // populates ``superclasses`` / ``mixins`` / ``methods`` /
+        // Walk the class body when present — populates
+        // ``superclasses`` / ``mixins`` / ``methods`` /
         // ``class_methods`` from the OO-define subcommands.
         if let (Some(body_text), Some(body_tok)) = (args.get(2), body_tok_opt) {
             self.parse_oo_definition_body(body_text, body_tok, &mut class, &qualified, scope_path);
         }
-        // Register globally and in the current scope. Mirrors the
-        // proc registration path: ``result.all_classes`` is keyed
+        // Register globally and in the current scope, the same as
+        // the proc registration path: ``result.all_classes`` is keyed
         // by the fully-qualified name; the per-scope
         // ``scope.classes`` map is keyed by the bare (unqualified)
         // name so per-scope lookups and shadowing rules work.
@@ -1249,7 +1154,7 @@ impl Analyser {
     /// Handle `oo::define CLASS ?BODY?` — record an extension to
     /// an existing class.
     ///
-    /// **C41e2.** Looks up the class by qualified name in
+    /// Looks up the class by qualified name in
     /// ``result.all_classes``; when found, walks the body or
     /// inline-form arguments via the OO walkers in
     /// [`super::oo`] to extend ``superclasses`` / ``mixins`` /
@@ -1313,8 +1218,8 @@ impl Analyser {
         // Look up or create the partial ClassDef in
         // ``result.all_classes``. The ``name`` field carries the
         // bare tail even when the source declared the class
-        // qualified (``oo::define ::ns::Other``); mirrors the
-        // ``simple`` extraction in ``handle_oo_class_command``.
+        // qualified (``oo::define ::ns::Other``), the same
+        // ``simple`` extraction as ``handle_oo_class_command``.
         let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
         let mut class_def = self
             .result
@@ -1368,9 +1273,6 @@ impl Analyser {
     }
 
     /// Record `source ?-encoding ENC? FILE` invocations.
-    ///
-    /// Mirrors the ``cmd_name == "source"`` branch in
-    /// `core/analysis/_analyser/_commands.py::_record_command_invocation`.
     pub fn handle_source_command(&mut self, cmd_name: &str, args: &[String], arg_tokens: &[Token]) {
         if cmd_name != "source" || args.is_empty() {
             return;
@@ -1398,9 +1300,6 @@ impl Analyser {
     }
 
     /// Record `namespace import ?-force? PATTERN ...` declarations.
-    ///
-    /// Mirrors the namespace-import branch in
-    /// `core/analysis/_analyser/_commands.py::_record_command_invocation`.
     pub fn handle_namespace_import_command(
         &mut self,
         cmd_name: &str,
@@ -1416,8 +1315,8 @@ impl Analyser {
         }
         // Any ``namespace import`` flips ``has_dynamic_providers``
         // because the imported namespace can register commands at
-        // runtime — matches Python's behaviour (suppresses W123
-        // unknown-command on the imported names).
+        // runtime, which suppresses W123 unknown-command on the
+        // imported names.
         self.result.has_dynamic_providers = true;
         // Skip the subcommand word + an optional ``-force`` flag.
         let mut idx = 1;
@@ -1428,9 +1327,7 @@ impl Analyser {
         while idx < args.len() && idx < arg_tokens.len() {
             let pat_raw = args[idx].clone();
             // Skip patterns containing ``$`` / ``[`` substitutions —
-            // we can't statically qualify a runtime-computed
-            // name.  Mirrors the Python guard in
-            // ``_commands.py::_record_command_invocation``.
+            // we can't statically qualify a runtime-computed name.
             if pat_raw.contains('$') || pat_raw.contains('[') {
                 idx += 1;
                 continue;
@@ -1440,7 +1337,6 @@ impl Analyser {
             // ``foo``) qualify against the *current* namespace
             // — inside ``namespace eval my { namespace import
             // bar::* }`` this becomes ``::my::bar::*``.
-            // Mirrors Python's ``_qualify_relative_pattern``.
             let pat = if pat_raw.starts_with("::") {
                 pat_raw
             } else if importing_ns == "::" {
@@ -1468,10 +1364,7 @@ impl Analyser {
     /// Statically detecting the wrapper bodies is out of scope, but
     /// the call shape is unambiguous — its qualified name ends in
     /// ``::import`` and its single argument is a static namespace
-    /// identifier.  Mirrors the ``elif cmd_name.endswith("::import")``
-    /// branch in
-    /// ``core/analysis/_analyser/_commands.py::_record_command_invocation``
-    /// (and `_maybe_handle_import_wrapper` in `signature_scan.py`).
+    /// identifier.
     pub fn handle_tcllib_import_wrapper(
         &mut self,
         cmd_name: &str,
@@ -1525,9 +1418,6 @@ impl Analyser {
 
     /// Record `lappend auto_path PATH...` and `set auto_path PATH`
     /// mutations.
-    ///
-    /// Mirrors `_record_auto_path_entries` in
-    /// `core/analysis/_analyser/_commands.py`.
     pub fn handle_auto_path_command(
         &mut self,
         cmd_name: &str,
@@ -1572,16 +1462,14 @@ impl Analyser {
         // makes command resolution unreliable — packages
         // discovered at runtime can register commands the
         // static analyser can't see, so W123 unknown-command
-        // diagnostics suppress on the document.  Mirrors
-        // Python's behaviour in ``_commands.py``.
+        // diagnostics suppress on the document.
         if recorded {
             self.result.has_dynamic_providers = true;
         }
     }
 
     /// Record `regexp` / `regsub` pattern arguments for syntax
-    /// highlighting.  Mirrors the regex-capture path in
-    /// `core/analysis/_analyser/_commands.py:511-541`.
+    /// highlighting.
     ///
     /// Literal patterns (`Esc` / `Str` tokens) are recorded
     /// verbatim; `Var` tokens are resolved via the
@@ -1602,7 +1490,7 @@ impl Analyser {
         // Skip leading ``-`` flags (``-nocase``, ``-line``, ``-all``,
         // ``-indices``, …) until we hit the pattern arg.
         // ``-start INDEX`` consumes a value word; the others are
-        // boolean.  Mirrors Tcl's ``regexp(n)`` / ``regsub(n)`` flag
+        // boolean.  Matches Tcl's ``regexp(n)`` / ``regsub(n)`` flag
         // surface.
         let mut idx = 0;
         while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
@@ -1626,8 +1514,6 @@ impl Analyser {
     /// `switch -regexp`.  Var tokens are resolved against
     /// `const_strings`; `Cmd` substitutions are skipped (no
     /// static resolution); literals are recorded verbatim.
-    /// Mirrors the per-token branch shared by `_commands.py` and
-    /// `_proc.py`'s switch handlers in Python.
     fn record_regex_pattern_token(
         &mut self,
         text: &str,
@@ -1638,9 +1524,8 @@ impl Analyser {
         match tok.kind {
             TokenType::Cmd => {
                 // Runtime-computed patterns can't be statically
-                // resolved — skip.  Matches Python's behaviour
-                // where ``pat_tok.type is TokenType.VAR`` is the
-                // only substitution branch exercised.
+                // resolved — skip.  Only ``Var`` tokens are
+                // resolved as a substitution branch.
             }
             TokenType::Var => {
                 let sm = tcl_lexer::SourceMap::new(&self.source);
@@ -1657,9 +1542,7 @@ impl Analyser {
                     });
                     // Also record the defining ``set`` value's
                     // range so the semantic-token provider can
-                    // highlight the literal.  Mirrors
-                    // ``_record_defining_set_as_regex`` in
-                    // ``core/analysis/_analyser/_scope.py:58-79``.
+                    // highlight the literal.
                     self.result.regex_patterns.push(super::types::RegexPattern {
                         range: def_span,
                         pattern,
@@ -1680,10 +1563,8 @@ impl Analyser {
 
     /// Handle the `incr` command: `incr var ?amount?`.
     ///
-    /// Mirrors `_handle_incr_command` in
-    /// `core/analysis/_analyser/_handlers.py:215-223`. `incr` is
-    /// safe-on-uninit (it initialises the variable to 0 if not
-    /// yet set), so the var binding is created with
+    /// `incr` is safe-on-uninit (it initialises the variable to 0 if
+    /// not yet set), so the var binding is created with
     /// `warn_if_unused = true` — the diagnostic emitter will
     /// still flag a `set`-only-no-read variable, but won't flag
     /// an `incr`-only-no-read one.
@@ -1705,8 +1586,7 @@ impl Analyser {
     /// Resolve a command name to the `ProcDef` that implements
     /// it, walking the scope chain from `scope_path` outwards.
     ///
-    /// Mirrors `_resolve_proc_call` in
-    /// `core/analysis/_analyser/_proc.py:361-392`.  Build-up:
+    /// Candidate name build-up:
     ///
     /// - Absolute name (`::foo`) → look up directly.
     /// - Qualified relative (`a::b`) → prepend `::` and look up.
@@ -1748,9 +1628,8 @@ impl Analyser {
         } else {
             // Walk the scope chain — every namespace scope on the
             // chain contributes a candidate ``<ns_name>::<cmd>``.
-            // ``ancestor_paths`` walks longest-first (current scope
-            // before its ancestors), matching Python's ``while``
-            // upward loop.
+            // The walk is longest-first (current scope before its
+            // ancestors).
             let mut cursor: &super::types::Scope = &self.result.global_scope;
             let mut walked: Vec<&super::types::Scope> = vec![cursor];
             for &idx in scope_path {
@@ -1778,12 +1657,10 @@ impl Analyser {
 
     /// Static element count for a `{*}`-expanded word.
     ///
-    /// Mirrors `_resolve_expansion_count` in
-    /// `core/analysis/_analyser/_proc.py:394-444`.  Used by the
-    /// proc-call arity checker (which lives in
-    /// `compiler_checks::arity_checks` on the Rust side) to
-    /// decide whether a ``{*}``-expanded argument contributes a
-    /// statically-known number of runtime arguments.
+    /// Used by the proc-call arity checker (which lives in
+    /// `compiler_checks::arity_checks`) to decide whether a
+    /// ``{*}``-expanded argument contributes a statically-known
+    /// number of runtime arguments.
     ///
     /// - **Braced literal** (`Str` token, ``{a b c}``) — split
     ///   the token's inner text as a list and return its length.
@@ -1911,9 +1788,7 @@ mod tests {
     #[test]
     fn handle_set_no_value_records_read_not_definition() {
         // ``set x`` (one-arg form) is a *read*, not a definition —
-        // Tcl returns the current value of ``x``. Mirrors
-        // ``_handle_set`` in ``_proc.py:177-191``: the 1-arg
-        // branch calls ``_record_var_read``, not ``_define_var``.
+        // Tcl returns the current value of ``x``.
         let mut a = Analyser::new();
         // Pre-define x so the read records a reference.
         a.define_var("x", esc_tok(span(0, 1)), &[], false, None);
@@ -1936,8 +1811,7 @@ mod tests {
 
     #[test]
     fn handle_set_no_value_undefined_var_is_silent() {
-        // ``set x`` on an undefined variable is still a read
-        // (matching Python's ``_record_var_read`` path); the
+        // ``set x`` on an undefined variable is still a read; the
         // record_var_read helper silently no-ops when the name
         // isn't in scope, so no spurious binding lands.
         let mut a = Analyser::new();
@@ -2083,9 +1957,7 @@ mod tests {
 
     #[test]
     fn handle_proc_keys_scope_procs_by_simple_name() {
-        // Mirrors the Python contract in
-        // ``core/analysis/_analyser/_proc.py:111`` —
-        // ``scope.procs[simple_name] = proc_def`` so per-scope
+        // ``scope.procs`` is keyed by the simple name so per-scope
         // lookups and shadowing rules work locally. The
         // qualified name lives on ``ProcDef.qualified_name`` and
         // is the key for ``result.all_procs``.
@@ -2191,7 +2063,7 @@ mod tests {
         assert!(a.result.all_procs.is_empty());
     }
 
-    // -- handle_proc_command W113 shadow check (C41c4) --------------
+    // -- handle_proc_command W113 shadow check ----------------------
 
     #[test]
     fn handle_proc_emits_w113_for_builtin_shadow() {
@@ -2337,7 +2209,7 @@ mod tests {
     fn handle_proc_w113_silent_on_namespace_qualified_shadow() {
         // FP: a namespace-qualified match (`HTTP::respond` under f5-irules)
         // is a library/package command in its own namespace, not a
-        // core-global shadow — never W113.  Mirrors `_proc.py:136-137`.
+        // core-global shadow — never W113.
         let mut a = Analyser::new();
         a.dialect = "f5-irules".to_string();
         a.handle_proc_command(
@@ -2356,7 +2228,7 @@ mod tests {
         );
     }
 
-    // -- handle_proc_command body recursion (C41c1) -----------------
+    // -- handle_proc_command body recursion -------------------------
 
     #[test]
     fn handle_proc_creates_proc_scope_for_braced_body() {
@@ -2516,8 +2388,7 @@ mod tests {
     fn handle_proc_body_walk_increments_body_depth_temporarily() {
         // ``body_depth`` is bumped for the duration of the body
         // walk and restored on exit — top-level-only command
-        // checks (C41d) rely on the depth being zero outside any
-        // body.
+        // checks rely on the depth being zero outside any body.
         let mut a = Analyser::new();
         assert_eq!(a.body_depth, 0);
         a.handle_proc_command(
@@ -3054,7 +2925,7 @@ mod tests {
         assert!(a.result.global_scope.variables.contains_key("q"));
     }
 
-    // -- resolve_proc_call (C41c3) ----------------------------------
+    // -- resolve_proc_call ------------------------------------------
 
     #[test]
     fn resolve_proc_call_absolute_qualified_name() {
@@ -3160,7 +3031,7 @@ mod tests {
         assert!(a.resolve_proc_call("", &[]).is_none());
     }
 
-    // -- resolve_expansion_count (C41c3) ----------------------------
+    // -- resolve_expansion_count ------------------------------------
 
     #[test]
     fn resolve_expansion_count_braced_literal() {
@@ -3353,7 +3224,7 @@ mod tests {
         assert_eq!(args, vec!["stderr".to_string(), "hello".to_string()]);
     }
 
-    // -- handle_oo_class_command (C41b8 stub) -----------------------
+    // -- handle_oo_class_command ------------------------------------
 
     #[test]
     fn handle_oo_class_create_records_class() {
@@ -3414,7 +3285,7 @@ mod tests {
         assert!(a.result.all_classes.is_empty());
     }
 
-    // -- handle_oo_class_command body walking (C41e1) ---------------
+    // -- handle_oo_class_command body walking -----------------------
 
     #[test]
     fn analyse_oo_class_body_records_superclass_and_methods() {
@@ -3446,7 +3317,7 @@ mod tests {
         assert!(!cls.methods.contains_key("build"));
     }
 
-    // -- handle_oo_define_command body walking (C41e2) --------------
+    // -- handle_oo_define_command body walking ----------------------
 
     #[test]
     fn analyse_oo_define_body_extends_existing_class() {
@@ -3475,7 +3346,7 @@ mod tests {
         assert!(cls.methods.contains_key("greet"));
     }
 
-    // -- handle_oo_define_command (C41b8 stub) ----------------------
+    // -- handle_oo_define_command -----------------------------------
 
     #[test]
     fn handle_oo_define_recognises_canonical_form() {
@@ -3539,7 +3410,7 @@ mod tests {
         assert!(a.result.global_scope.variables.is_empty());
     }
 
-    // -- C41e3: ClassDef extended fields + UnknownProcInfo ---------
+    // -- ClassDef extended fields + UnknownProcInfo -----------------
 
     #[test]
     fn analyse_oo_class_records_metaclass_from_command_name() {
@@ -3597,8 +3468,7 @@ mod tests {
         // End-to-end: a ``proc unknown {cmd args} {...}`` with
         // an exact-match switch should populate
         // ``result.unknown_proc_info`` with the arm labels as
-        // dispatch targets.  This is what gates W123 in C41d4
-        // once the unknown_proc_info early-return lands.
+        // dispatch targets.  This is what gates W123.
         let mut a = crate::analyser::Analyser::new();
         let r = a.analyse(
             "proc unknown {cmd args} { switch -exact $cmd { foo { return 1 } bar { return 2 } } }",
@@ -3635,7 +3505,7 @@ mod tests {
         assert!(info.has_exec);
     }
 
-    // -- C41e4: stray-close-bracket recovery ------------------------
+    // -- stray-close-bracket recovery -------------------------------
 
     #[test]
     fn analyse_top_level_repairs_stray_close_bracket() {
@@ -3652,7 +3522,7 @@ mod tests {
         assert!(r.global_scope.variables.contains_key("x"));
     }
 
-    // -- C41e5 + e3 follow-ups: unknown_proc_info / package require -
+    // -- unknown_proc_info / package require ------------------------
 
     #[test]
     fn analyse_records_package_require() {
@@ -3713,8 +3583,7 @@ mod tests {
         // ``proc unknown`` with ONLY explicit dispatch targets
         // (no exec / auto_load / chain / pattern / case-fold)
         // is *not* dynamic — W123 should still fire for
-        // commands not in the explicit target set.  Mirrors
-        // Python's behaviour from ``_diag_commands.py:64-71``.
+        // commands not in the explicit target set.
         let mut a = crate::analyser::Analyser::new();
         let r = a.analyse(
             "proc unknown {cmd args} { switch -exact $cmd { foo { return 1 } } }\nbogus_command arg",
@@ -3763,8 +3632,7 @@ mod tests {
     // `ProcDef.param_traits` surface: the shallow pass alone
     // misses traits hidden inside braced bodies, the deep pass
     // catches them, and the union of both is what the analyser
-    // exposes.  Sub-strip (c) of `SYNC-MAY19-stub-overlay` —
-    // future `S*` call-graph / symbol-graph / dataflow-graph /
+    // exposes.  The call-graph / symbol-graph / dataflow-graph /
     // semantic-graph builders flip this on.
 
     #[test]
@@ -3832,8 +3700,7 @@ mod tests {
     //
     // These tests pin the contract that the stub overlay built
     // from `# tcl-lsp: stub` directives during `analyse()`
-    // propagates into the per-proc `param_traits` map.  Sub-strip
-    // (a) of `SYNC-MAY19-stub-overlay`.
+    // propagates into the per-proc `param_traits` map.
 
     #[test]
     fn analyse_with_stub_overlay_propagates_role_to_param_traits() {

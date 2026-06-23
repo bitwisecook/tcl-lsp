@@ -1,10 +1,10 @@
-//! `PyO3` bindings for the optimiser passes (C32).
+//! `PyO3` bindings for the optimiser passes.
 //!
 //! Exposes `optimiser_find_optimisations(source, dialect)` to
 //! Python. The Python `core.compiler.optimiser._manager`
 //! `find_optimisations` entry point delegates here when the
 //! Rust wheel is importable, falling back to the Python pass
-//! pipeline otherwise (same pattern as L11's lexer flip).
+//! pipeline otherwise.
 //!
 //! Optimisation records are returned as tuples rather than a
 //! full `pyclass` so the Python side can construct its own
@@ -35,7 +35,7 @@ fn lift_optimisation(o: optimiser::Optimisation) -> OptimisationRow {
     )
 }
 
-/// Run every landed optimisation pass against `source` and
+/// Run every optimisation pass against `source` and
 /// return the overlap-free list of suggestions as a tuple per
 /// diagnostic:
 ///
@@ -59,7 +59,7 @@ pub fn optimiser_find_optimisations(source: &str, dialect: Option<&str>) -> Vec<
         .collect()
 }
 
-/// Run every landed optimisation pass against `source` and
+/// Run every optimisation pass against `source` and
 /// return the **unfiltered** list (no overlap resolution). Same
 /// tuple shape as [`optimiser_find_optimisations`]. Exposed for
 /// tests + tooling that want to inspect the raw per-pass output.

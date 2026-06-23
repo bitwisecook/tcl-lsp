@@ -1,10 +1,9 @@
 //! Render evaluator output for the `f5 query` verb.
 //!
-//! Faithful port of `dialects/f5/query/output.py`. Five flavours, picked by
-//! CLI flag: `auto` (default), `scf`, `raw`, `paths`, `json`, plus the
-//! `table` / `table-lineart` grids. Unknown modes fall through to the
-//! renderer registry (a later increment); until then an unknown mode is a
-//! [`QueryError::Renderer`].
+//! Five flavours, picked by CLI flag: `auto` (default), `scf`, `raw`,
+//! `paths`, `json`, plus the `table` / `table-lineart` grids. Unknown modes
+//! fall through to the renderer registry; a mode that names neither a
+//! built-in mode nor a registered renderer is a [`QueryError::Renderer`].
 
 use std::collections::BTreeMap;
 

@@ -1,6 +1,4 @@
-//! Shared file-input helpers for f5 verbs — the Rust port of
-//! `tooling/f5/verbs/_paths.py` (`read_path` / `load_paths`) plus the
-//! passphrase-resolution glue from `ucs.py`.
+//! Shared file-input helpers for f5 verbs.
 //!
 //! `.ucs` archives — plain *or* encrypted (`OpenPGP`), and gzipped / `OpenPGP`
 //! streams from stdin — are transparently extracted to SCF, so every verb that
@@ -189,8 +187,8 @@ pub struct LoadedConfig {
     pub config: BigipConfig,
 }
 
-/// Resolve a list of path inputs into ordered [`LoadedConfig`]s (port of
-/// `load_paths`). Each path is read via [`read_path`] and parsed with the
+/// Resolve a list of path inputs into ordered [`LoadedConfig`]s. Each path is
+/// read via [`read_path`] and parsed with the
 /// `Common` default partition.
 pub fn load_paths(
     paths: &[String],

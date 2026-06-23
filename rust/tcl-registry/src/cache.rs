@@ -1,9 +1,9 @@
 //! Per-dialect [`CommandRegistry`] cache.
 //!
-//! A direct port of `tcl-lsp-py`'s `default_registry_for_dialect`: each
-//! canonical dialect gets one lazily-built, cached `&'static` registry so the
-//! per-call build cost is paid once. Unparseable dialect strings collapse to
-//! the plain-Tcl entry so a stream of typos cannot leak one registry per typo.
+//! Each canonical dialect gets one lazily-built, cached `&'static`
+//! registry so the per-call build cost is paid once. Unparseable
+//! dialect strings collapse to the plain-Tcl entry so a stream of typos
+//! cannot leak one registry per typo.
 //!
 //! Lives in `tcl-registry` (not a consumer crate) so every downstream
 //! tool — the CLI, the compiler explorer, future MCP/AI surfaces — shares

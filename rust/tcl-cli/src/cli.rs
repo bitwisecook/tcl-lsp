@@ -3,11 +3,10 @@
 //! Mirrors `tooling/tcl/main.py` + `tooling/tcl/verbs/*`. Verb names map to the
 //! kebab-cased enum-variant names; Python aliases map to `visible_aliases`.
 //!
-//! Flag coverage is intentionally pragmatic for the scaffolding phase: the
-//! common input/output/dialect surface every verb shares is modelled precisely
-//! (it is the bulk of the parity contract), while verb-specific flags are added
-//! as each verb's behaviour is ported. New flags slot into the existing structs
-//! without reshaping the tree.
+//! The common input/output/dialect surface every verb shares is modelled
+//! precisely (it is the bulk of the parity contract), with verb-specific flags
+//! added alongside. New flags slot into the existing structs without reshaping
+//! the tree.
 
 use std::path::PathBuf;
 

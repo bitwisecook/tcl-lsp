@@ -1,5 +1,4 @@
-//! Linked editing range provider — Rust port of
-//! `lsp/features/linked_editing_range.py`.
+//! Linked editing range provider.
 //!
 //! When the cursor sits on a proc name (either at the
 //! declaration site or at a self-call inside the proc's own
@@ -65,7 +64,7 @@ pub fn linked_editing_ranges(
             .as_deref()
             .is_some_and(|q| q == proc.qualified_name);
         if !matches_self_call(inv.name.as_str(), proc) && !resolved_matches {
-            // Resolved-qualified-name follow-up: a relative
+            // Resolved-qualified-name case: a relative
             // call inside `namespace eval ::ns { ... }` to its
             // own proc surfaces with `name = "greet"` and
             // `resolved_qualified_name = Some("::ns::greet")`.
@@ -119,7 +118,7 @@ fn matches_self_call(name: &str, proc: &ProcDef) -> bool {
 fn span_contains(span: Span, offset: u32) -> bool {
     // `Span` is half-open `[start, end)` so `offset == span.end()`
     // sits one byte past the span — strictly before the end is the
-    // correct containment check (PR #454 Copilot review).
+    // correct containment check.
     span.start() <= offset && offset < span.end()
 }
 

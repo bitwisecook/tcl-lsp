@@ -71,8 +71,8 @@ enum Cmd {
     /// WASM-runnability arm: compile each generated program to the
     /// eval-fallback WASM module and run it under `wasmtime`, flagging codegen
     /// panics/errors and modules that fail to instantiate or trap. (The value
-    /// differential against `tclsh` is gated on the interpreter-backed host —
-    /// RT-WASM; this exercises the WASM codegen for crashes/traps.)
+    /// differential against `tclsh` is gated on the interpreter-backed host;
+    /// this exercises the WASM codegen for crashes/traps.)
     WasmCheck {
         /// Number of scripts to generate and check.
         #[arg(long, default_value_t = 200)]

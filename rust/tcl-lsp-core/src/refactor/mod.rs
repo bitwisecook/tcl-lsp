@@ -1,5 +1,4 @@
-//! Mechanical refactoring transforms — Rust port of the
-//! `tooling/refactoring/` engine.
+//! Mechanical refactoring transforms.
 //!
 //! Each transform accepts source text plus a cursor (or selection)
 //! and returns a [`Refactoring`] describing a titled set of text
@@ -7,19 +6,18 @@
 //! [`code_actions`](crate::code_actions) provider lifts each
 //! [`Refactoring`] into a `CodeAction`.
 //!
-//! Ported transforms:
+//! Transforms:
 //!
 //! * [`extract_variable`] — replace a selected expression with a named
-//!   `set` assignment (`tooling/refactoring/_extract_variable.py`).
-//! * [`inline_variable`] — inline a single-use `set` variable
-//!   (`tooling/refactoring/_inline_variable.py`).
+//!   `set` assignment.
+//! * [`inline_variable`] — inline a single-use `set` variable.
 //! * [`if_to_switch`] — convert an `if`/`elseif` equality chain to a
-//!   `switch` (`tooling/refactoring/_if_to_switch.py`).
+//!   `switch`.
 //! * [`switch_to_dict`] — convert a constant-mapping `switch` to a
-//!   `dict` lookup (`tooling/refactoring/_switch_to_dict.py`).
+//!   `dict` lookup.
 //! * [`extract_to_datagroup`] — convert inline if/switch membership /
 //!   mapping patterns to iRules `class match` / `class lookup` against
-//!   a generated data-group (`tooling/refactoring/_extract_datagroup.py`).
+//!   a generated data-group.
 //!
 //! ## Coordinate convention
 //!
@@ -28,9 +26,7 @@
 //! `inline_proc` transforms in [`crate::code_actions`].  Internally a
 //! transform works in **byte offsets** (so it can slice `&str` directly)
 //! and converts to UTF-16 [`LspRange`] only when building the final
-//! edits, via the document's [`LineIndex`].  The Python reference works
-//! in codepoint columns; the two agree on the ASCII corpus the oracle
-//! tests cover.
+//! edits, via the document's [`LineIndex`].
 
 mod datagroup;
 mod extract_variable;
@@ -90,7 +86,6 @@ impl RefactorEdit {
 /// The outcome of a refactoring transform — a titled set of edits plus
 /// the LSP code-action kind.
 ///
-/// Mirrors Python's `RefactoringResult` / `DataGroupExtractionResult`;
 /// `data_group` carries the rendered tmsh definition for the
 /// extract-to-datagroup transform and is `None` for every other
 /// transform.
@@ -109,8 +104,7 @@ pub struct Refactoring {
 
 impl Refactoring {
     /// Apply the edits to `source` bottom-to-top, returning the
-    /// rewritten text.  Mirrors Python's `RefactoringResult.apply`
-    /// (`_apply_edits`): edits are sorted by descending start offset so
+    /// rewritten text.  Edits are sorted by descending start offset so
     /// an earlier edit never shifts a later one's coordinates.
     #[must_use]
     pub fn apply(&self, source: &str) -> String {
@@ -128,7 +122,7 @@ impl Refactoring {
 
 /// Exclusive end byte offset for `tok`, including its closing delimiter.
 ///
-/// Ports `_spans.py::token_end_offset`.  Lexer token spans follow the
+/// Lexer token spans follow the
 /// inner-end convention — a non-empty `{…}` / `[…]` / `"…"` word's
 /// `span.end()` is the exclusive offset of the closer, so the closer
 /// sits one byte past the end and a whole-word span must widen by one.
@@ -155,7 +149,7 @@ pub fn token_end_offset(source: &str, tok: Token) -> u32 {
     };
     // Detect the degenerate empty word (`{}` / `[]` / `""`), whose span
     // the lexer already extended over its closer — widening again would
-    // overshoot (issue #527: `a {}}`).  Mirror `SourceMap::token_text`'s
+    // overshoot (`a {}}`).  Mirror `SourceMap::token_text`'s
     // emptiness rule: strip the opener via `content_offset`, then treat a
     // remainder of `""`, `"}"`, or `"]"` as the empty case.
     let raw = source.get(start..end as usize).unwrap_or("");
@@ -176,9 +170,7 @@ fn byte_len(source: &str) -> u32 {
 
 /// `(start, end)` byte offsets covering the full command text.
 ///
-/// Ports `_spans.py::command_span_offsets`.  Python trusts `cmd.range`,
-/// which covers the final word's closing delimiter for braces, brackets,
-/// *and* quoted words.  The Rust segmenter's `span` already widens for a
+/// The segmenter's `span` already widens for a
 /// trailing brace / bracket but deliberately **not** for a trailing
 /// quote (the segmenter keeps the inner-end for `"…"` words), so widen
 /// the end here to the final argv word's [`token_end_offset`] — this
@@ -195,7 +187,7 @@ pub fn command_span_offsets(source: &str, cmd: &SegmentedCommand) -> (u32, u32) 
 
 /// Recursively find the innermost command at byte offset `cursor`.
 ///
-/// Ports `_spans.py::find_command_at`.  Walks into registry-resolved
+/// Walks into registry-resolved
 /// `ArgRole::Body` arguments (proc / when / if / while / foreach
 /// bodies, …) so transforms apply inside nested bodies; the innermost
 /// match wins.  When `predicate` is `Some(name)`, only a command whose

@@ -1,11 +1,9 @@
 //! Optimisation profiles — named tiers controlling which optimisation
 //! passes surface as diagnostics.
 //!
-//! Ports `shared/optimisation_profiles.py` + the `@opt(opt_category=…)`
-//! metadata from the Python optimiser passes. Each optimisation code
-//! belongs to one *category*; a profile enables a set of categories, and
-//! [`profile_to_disabled`] returns the codes a profile turns off (the
-//! complement of its enabled categories).
+//! Each optimisation code belongs to one *category*; a profile enables a
+//! set of categories, and [`profile_to_disabled`] returns the codes a
+//! profile turns off (the complement of its enabled categories).
 //!
 //! The default editor profile is [`DEFAULT_EDITOR_PROFILE`]
 //! (`Readability`) — idiomatic rewrites only; constant folding, DCE,
@@ -125,8 +123,7 @@ impl OptimisationProfile {
 }
 
 /// The set of optimisation codes a `profile` turns *off* — the complement
-/// of its enabled categories. Mirrors Python
-/// `profile_to_disabled(profile)`.
+/// of its enabled categories.
 #[must_use]
 pub fn profile_to_disabled(profile: OptimisationProfile) -> HashSet<&'static str> {
     OPT_CATEGORIES

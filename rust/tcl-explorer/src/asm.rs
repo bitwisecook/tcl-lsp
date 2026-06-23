@@ -1,7 +1,6 @@
 //! Structured Tcl bytecode disassembly for the explorer `asm` view.
 //!
-//! Port of `compiler/codegen/bytecode/format.py::format_function_explorer`
-//! / `format_module_explorer`. Each function entry carries the instruction
+//! Each function entry carries the instruction
 //! stream with resolved jump targets, label anchors, jump tables, and the
 //! flat-text `text` snippet (reused from `codegen::format::format_function_asm`).
 //!

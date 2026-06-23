@@ -4,7 +4,7 @@
 //! Exposes `build_compilation_unit(source, dialect=None)` returning
 //! a `CompilationUnitHandle` pyclass. The handle is opaque — Python
 //! treats it as a capsule and passes it back to other bindings
-//! (shipped in follow-ups) that want to share a CU across calls
+//! that want to share a CU across calls
 //! without re-lowering the source.
 //!
 //! Today a single Rust [`CompilationUnit`] covers: IR lowering,
@@ -21,8 +21,8 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 /// Opaque handle wrapping an `Arc<CompilationUnit>`.
 ///
 /// The wrapper is immutable from Python; all state lives on the
-/// Rust side. `Arc` lets the handle be cheap-cloneable so future
-/// follow-up bindings can take it by value without sacrificing
+/// Rust side. `Arc` lets the handle be cheap-cloneable so
+/// bindings can take it by value without sacrificing
 /// amortised reuse.
 #[pyclass(
     module = "tcl_lsp_py",
@@ -81,7 +81,7 @@ impl CompilationUnitHandle {
 /// `CompilationUnit::with_interprocedural` is always called.
 ///
 /// Returns a [`CompilationUnitHandle`] that Python can pass to
-/// other bindings (CU-aware wrappers shipped in follow-ups).
+/// other bindings.
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
 pub fn build_compilation_unit(source: &str, dialect: Option<&str>) -> CompilationUnitHandle {

@@ -1,6 +1,5 @@
-//! Net / IP / CIDR-category builtins (port of the `net` section of
-//! `builtins.py`, plus the typed value layer in
-//! `dialects/f5/bigip/types/`).
+//! Net / IP / CIDR-category builtins, plus the typed address / port /
+//! folder value layer they build on.
 //!
 //! These are the **pure** string/address transforms: destination /
 //! address / network / route-domain / partition / folder parsing, the IP
@@ -935,8 +934,8 @@ fn split_folder_prefix(text: &str) -> (Option<Folder>, String) {
 
 impl Destination {
     /// Port of `Destination.parse` (returns `None` instead of raising). The
-    /// length comes from faithfully transcribing the hand-written Python
-    /// parser's bracket / IPv6 / IPv4-FQDN branches.
+    /// length comes from handling the bracket / IPv6 / IPv4-FQDN branches
+    /// individually.
     #[allow(clippy::too_many_lines)]
     fn try_parse(text: &str) -> Option<Destination> {
         let text = text.trim();
@@ -2294,10 +2293,8 @@ mod tests {
 
     #[test]
     fn in_cidr_matches_v4_ranges() {
-        // Mirrors the `in_cidr` semantics the f5-query pytest battery
-        // (`tests/test_f5_query*.py`) exercises end-to-end via
-        // `select(in_cidr(.destination, "10.10.0.0/24"))` — net.rs had no
-        // unit coverage for the IP/CIDR core (TEST-MIGRATE).
+        // `in_cidr(addr, cidr)` tests IPv4 membership, as used by
+        // `select(in_cidr(.destination, "10.10.0.0/24"))`.
         assert!(in_cidr("10.10.0.5", "10.10.0.0/24"));
         assert!(in_cidr("10.10.255.1", "10.10.0.0/16"));
         assert!(!in_cidr("192.168.0.1", "10.10.0.0/16"));

@@ -1,27 +1,24 @@
-//! Document-links provider — Rust port of
-//! `lsp/features/document_links.py`.
+//! Document-links provider.
 //!
 //! Detects `source <path>` invocations in the document and
 //! surfaces each path argument as a clickable link.  When a
 //! `workspace_root` is provided, relative paths resolve
 //! against it; absolute paths surface as-is.
 //!
-//! What is *deferred*:
+//! Limitations:
 //!
 //! * `package require <pkg>` resolution — needs a package
-//!   index (Tcl's `auto_path` / pkgIndex.tcl scan).  Lands
-//!   alongside the workspace-init chunk that builds that
-//!   index.
+//!   index (Tcl's `auto_path` / pkgIndex.tcl scan) — is not
+//!   done.
 //! * Variable-interpolated paths (`source [file join $dir
-//!   init.tcl]`) — requires resolving the variable's value,
-//!   which the workspace-index follow-up will surface from
-//!   `RULE_INIT` / global `set` calls.
+//!   init.tcl]`) — require resolving the variable's value —
+//!   are not done.
 //! * Workspace-folder enumeration that lets a `source` link
-//!   resolve across multiple roots; the single
+//!   resolve across multiple roots is not done; the single
 //!   `workspace_root` parameter is sufficient for the
 //!   common single-root case.
 //!
-//! What landed:
+//! Also handled:
 //!
 //! * Tilde expansion (`~/path/to/file`) — via the
 //!   `home` argument plumbed in by the server from the env.
@@ -276,7 +273,7 @@ fn resolve_path(path: &str, workspace_root: Option<&str>, home: Option<&str>) ->
 /// Normalises Windows backslash separators to forward slashes
 /// and ensures the URI's path component starts with `/` so
 /// drive-letter paths (`C:/foo`) become `file:///C:/foo`
-/// rather than `file://C:/foo` (PR #454 Copilot review).
+/// rather than `file://C:/foo`.
 /// The path bytes are percent-encoded per RFC 3986 so special
 /// characters (spaces, `#`, `%`, non-ASCII) survive parsing
 /// through `Url::parse`.
@@ -307,7 +304,7 @@ fn file_uri_for_path(path: &str) -> String {
 ///
 /// Everything else is encoded.  Mirrors the conservative
 /// percent-encoding the `url` crate's `Url::from_file_path`
-/// performs (PR #454 Codex review P2).
+/// performs.
 fn percent_encode_path(path: &str) -> String {
     let mut out = String::with_capacity(path.len());
     for &b in path.as_bytes() {
@@ -448,7 +445,7 @@ mod tests {
         assert_eq!(links[0].target, "file:///test-home");
     }
 
-    // -- PR #454 Codex review P2: URI escaping -----------------------
+    // -- URI escaping -----------------------
 
     #[test]
     fn percent_encode_path_passes_unreserved_through() {
@@ -499,7 +496,7 @@ mod tests {
         // `C:/Users/me/file.tcl` → `file:///C:/Users/me/file.tcl`
         // — `file_uri_for_path` must insert the third slash
         // so the host component is empty and the path starts
-        // at the drive letter (PR #454 Copilot review).
+        // at the drive letter.
         assert_eq!(
             file_uri_for_path("C:/Users/me/file.tcl"),
             "file:///C:/Users/me/file.tcl",
@@ -533,7 +530,7 @@ mod tests {
         }
     }
 
-    // -- S-document-links-rich: literal `[file join …]` --------------
+    // -- literal `[file join …]` --------------
 
     #[test]
     fn file_join_joins_literal_segments() {

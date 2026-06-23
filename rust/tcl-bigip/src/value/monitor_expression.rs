@@ -1,12 +1,11 @@
-//! Typed BIG-IP monitor-expression value. Rust port of
-//! `_monitor_expression.py`.
+//! Typed BIG-IP monitor-expression value.
 
 use std::fmt;
 
 /// The grammatical shape of a parsed `monitor` expression.
 ///
-/// Mirrors the Python `MonitorMode` literal. [`MonitorMode::as_str`]
-/// returns the exact Python string literal for each variant.
+/// [`MonitorMode::as_str`] returns the exact Python string literal for
+/// each variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MonitorMode {
     /// `monitor default` — use the parent object's default selection.

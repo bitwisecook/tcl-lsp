@@ -1,8 +1,7 @@
 //! Locate and rewrite the master-key-encrypted secret values in a config.
 //!
-//! Faithful Rust port of the `rewrite_secrets` half of
-//! `dialects/f5/bigip/rewrite.py` ([`rewrite_secrets`], [`ENCRYPTED_SECRET_KEYS`],
-//! [`SecretRewriteReport`]). This is a text-level rewrite — comments,
+//! Exposes [`rewrite_secrets`], [`ENCRYPTED_SECRET_KEYS`], and
+//! [`SecretRewriteReport`]. This is a text-level rewrite — comments,
 //! whitespace, and ordering survive — and it stays free of any crypto
 //! dependency: the caller (`f5 encrypt-secrets` / `f5 decrypt-secrets`) supplies
 //! the actual cipher as a `transform` closure.

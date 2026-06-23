@@ -1,5 +1,4 @@
-//! Typed BIG-IP policy condition / action values. Rust port of
-//! `_policy.py`.
+//! Typed BIG-IP policy condition / action values.
 
 use std::fmt;
 

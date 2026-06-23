@@ -22,7 +22,7 @@ use super::types::{
 
 /// Fully qualify `name` within `ns_prefix` following Tcl scoping.
 ///
-/// Mirrors `_qualify` in `core/analysis/signature_scan.py`. Absolute
+/// Absolute
 /// names (those starting with `::`) ignore the prefix entirely so a
 /// `proc ::foo::bar` declared inside `namespace eval baz` still
 /// indexes as `::foo::bar`.
@@ -43,7 +43,6 @@ pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
 /// Insert a class record under `result.classes`, computing the
 /// qualified name + simple-name split.
 ///
-/// Mirrors `_emit_class` in `core/analysis/signature_scan.py`.
 /// Shared by `handle_oo_class` and `handle_itcl_class` so both
 /// `oo::class create NAME ?BODY?` and `itcl::class NAME BODY`
 /// produce identically-shaped records.
@@ -69,15 +68,13 @@ pub(super) fn emit_class(
 
 /// Handler for `proc NAME PARAMS BODY`.
 ///
-/// Mirrors `_handle_proc` in `core/analysis/signature_scan.py`.
 /// Records a `SignatureProc` in `ctx.result.procs` and a
 /// `ProcBodyInfo` in `ctx.proc_bodies` so the second-pass factory
 /// resolver can identify factory-wrapper procs by their
 /// `proc $a $b $c` body shape.
 ///
-/// Body recursion (`scan_factory_candidates`) is **not** wired in
-/// this strip — it lands in `C40c7`, after the walker module
-/// exists. The proc is recorded; the body walk is deferred.
+/// Body recursion (`scan_factory_candidates`) is **not** wired in:
+/// the proc is recorded, but its body is not walked.
 pub(super) fn handle_proc(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
     if texts.len() < 4 {
         return;
@@ -121,12 +118,10 @@ pub(super) fn handle_proc(texts: &[String], argv: &[Token], ns_prefix: &str, ctx
 /// Handler for the `namespace` command — dispatches on the
 /// subcommand (`eval` vs `import`).
 ///
-/// Mirrors `_handle_namespace` in
-/// `core/analysis/signature_scan.py`. The `eval` arm computes the
+/// The `eval` arm computes the
 /// inner namespace prefix (absolute names rebase via leading `::`,
 /// otherwise nest under the current prefix); body recursion into
-/// the eval body is a stub here and lands in C40c2 once the walker
-/// exists.
+/// the eval body is a stub here.
 pub(super) fn handle_namespace(
     texts: &[String],
     argv: &[Token],
@@ -165,8 +160,7 @@ pub(super) fn handle_namespace(
 
 /// Handler for `namespace import ?-force? PATTERN ?PATTERN…?`.
 ///
-/// Mirrors `_handle_namespace_import` in
-/// `core/analysis/signature_scan.py`. Records every static pattern;
+/// Records every static pattern;
 /// patterns that still carry a `$` / `[` substitution or that lack
 /// any `::` namespace segment are skipped (we cannot statically
 /// resolve them to a source namespace). Patterns without a leading
@@ -213,8 +207,7 @@ pub(super) fn handle_namespace_import(
 
 /// Handler for `package require ?-exact? NAME ?VERSION?`.
 ///
-/// Mirrors `_handle_package` in
-/// `core/analysis/signature_scan.py`. Records a
+/// Records a
 /// `SignaturePackageRequire`; the optional `-exact` flag is parsed
 /// and skipped (we do not currently distinguish exact from
 /// minimum-version requires); the optional `VERSION` is captured
@@ -248,7 +241,6 @@ pub(super) fn handle_package(
 
 /// Handler for `source ?-encoding ENC? PATH`.
 ///
-/// Mirrors `_handle_source` in `core/analysis/signature_scan.py`.
 /// Walks past every leading `-FLAG` (consuming a follow-up word for
 /// `-encoding`); the remaining word is recorded as the path. The
 /// `is_literal` flag is set when the segmenter-reconstructed word
@@ -276,7 +268,6 @@ pub(super) fn handle_source(texts: &[String], argv: &[Token], result: &mut Signa
 
 /// Handler for `interp alias SLAVE-PATH NAME TARGET-PATH TARGET ?ARG…?`.
 ///
-/// Mirrors `_handle_interp` in `core/analysis/signature_scan.py`.
 /// Records only **local-interpreter** aliases (slave path and
 /// target path both empty `{}`); cross-interpreter aliases install
 /// commands inside child interpreters and are not visible to
@@ -304,7 +295,6 @@ pub(super) fn handle_interp(texts: &[String], result: &mut SignatureScanResult) 
 
 /// Handler for `oo::class create NAME ?BODY?`.
 ///
-/// Mirrors `_handle_oo_class` in `core/analysis/signature_scan.py`.
 /// When `BODY` is absent the body span falls back to the name token.
 pub(super) fn handle_oo_class(
     texts: &[String],
@@ -321,8 +311,7 @@ pub(super) fn handle_oo_class(
 
 /// Record a potential factory-wrapper call for post-scan resolution.
 ///
-/// Mirrors `_maybe_record_factory_candidate` in
-/// `core/analysis/signature_scan.py`. A tcllib-style factory call
+/// A tcllib-style factory call
 /// has the shape `HEAD NAME ARGS BODY` (four tokens total, last
 /// braced). HEADs in `ctx.skip_heads` (the registry's
 /// `NOT_PROC_FACTORY` heads plus the non-command residual) are
@@ -365,8 +354,7 @@ pub(super) fn maybe_record_factory_candidate(
 /// Recognise the tcllib `<NS>::import <ALIAS>` wrapper idiom and
 /// emit a conjectural `namespace import` record.
 ///
-/// Mirrors `_maybe_handle_import_wrapper` in
-/// `core/analysis/signature_scan.py`. Statically detecting all
+/// Statically detecting all
 /// such wrappers from their bodies is out of scope, but the *call*
 /// is unambiguous: head ends with `::import`, single argument, no
 /// substitution markers in the alias. The conjectured import is
@@ -415,8 +403,7 @@ pub(super) fn maybe_handle_import_wrapper(
 
 /// Handler for `lappend auto_path …` / `set auto_path …`.
 ///
-/// Mirrors `_handle_auto_path` in
-/// `core/analysis/signature_scan.py`. Both forms are accepted; every
+/// Both forms are accepted; every
 /// word after `auto_path` is recorded as a `SignatureAutoPathEntry`.
 /// Path-resolution to absolute filesystem paths happens later in
 /// the analyser pipeline.
@@ -438,8 +425,7 @@ pub(super) fn handle_auto_path(texts: &[String], argv: &[Token], result: &mut Si
 
 /// Handler for `itcl::class NAME BODY` (or `::itcl::class NAME BODY`).
 ///
-/// Mirrors `_handle_itcl_class` in
-/// `core/analysis/signature_scan.py`. Always requires a body
+/// Always requires a body
 /// argument — itcl's class statement is not optional like
 /// `oo::class create`.
 pub(super) fn handle_itcl_class(

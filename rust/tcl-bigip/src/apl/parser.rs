@@ -1,6 +1,4 @@
-//! Structural APL parser — `parse_apl` -> [`AplModel`]. Rust port of the
-//! `parse_apl` / `_parse_fields_in_block` path in
-//! `dialects/f5/bigip/apl_model.py`.
+//! Structural APL parser — `parse_apl` -> [`AplModel`].
 
 use std::sync::OnceLock;
 
@@ -74,8 +72,7 @@ fn byte_to_cp(source: &str, byte: usize) -> usize {
         .map_or(0, |s| s.chars().count())
 }
 
-/// Convert a byte offset to `(line, character)` in code points. Mirrors
-/// Python `offset_to_line_char`.
+/// Convert a byte offset to `(line, character)` in code points.
 fn offset_to_line_char(source: &str, byte: usize) -> (u32, u32) {
     let prefix = source.get(..byte.min(source.len())).unwrap_or(source);
     let line = u32::try_from(prefix.matches('\n').count()).unwrap_or(u32::MAX);
@@ -86,8 +83,7 @@ fn offset_to_line_char(source: &str, byte: usize) -> (u32, u32) {
 }
 
 /// Return the byte offset past the closing `}` matching the `{` at
-/// `start`, skipping braces inside quoted strings. Mirrors
-/// `find_brace_end`.
+/// `start`, skipping braces inside quoted strings.
 fn find_brace_end(source: &str, start: usize) -> usize {
     let bytes = source.as_bytes();
     let len = bytes.len();
@@ -136,8 +132,7 @@ fn name_range(source: &str, abs_byte: usize, name: &str) -> Range {
     }
 }
 
-/// Extract field declarations from a brace-delimited block. Mirrors
-/// `_parse_fields_in_block`.
+/// Extract field declarations from a brace-delimited block.
 fn parse_fields_in_block(
     block_source: &str,
     prefix: &str,
@@ -194,7 +189,7 @@ fn insert_field<'a>(all: &mut Vec<(String, AplField)>, fields: impl Iterator<Ite
     }
 }
 
-/// Parse APL source into a structured [`AplModel`]. Mirrors `parse_apl`.
+/// Parse APL source into a structured [`AplModel`].
 #[must_use]
 pub fn parse_apl(source: &str) -> AplModel {
     let mut model = AplModel::default();

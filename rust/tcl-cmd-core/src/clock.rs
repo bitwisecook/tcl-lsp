@@ -765,7 +765,7 @@ mod tests {
 
     #[test]
     fn add_units_overflow_is_a_clean_error() {
-        // FN-C2: `clock add 0 9223372036854775807 weeks` (and the calendar units)
+        // `clock add 0 9223372036854775807 weeks` (and the calendar units)
         // must report the clean overflow error tclsh raises, not panic/wrap.
         let off = |_: i64| 0;
         let msg = "integer value too large to represent";

@@ -1,10 +1,9 @@
 //! Display/serialisation helpers shared by the explorer views.
 //!
-//! Faithful port of the relevant pieces of `tooling/cli/formatters.py`:
 //! `preview`, `range_dict`, and the IR statement `stmt_kind` /
 //! `stmt_summary` / `stmt_color_class` projections. These are the single
-//! source of truth for both the JSON serialiser and (later) the text/TUI
-//! renderers, exactly as on the Python side.
+//! source of truth for both the JSON serialiser and the text/TUI
+//! renderers.
 
 use serde_json::{Value, json};
 
@@ -70,7 +69,7 @@ fn widened_inclusive_end(span: Span, source: &str) -> u32 {
         return default;
     };
     // Empty opener+closer (`{}`): inclusive end is `end - 1`, which sits on
-    // the closer and `end - 1 == start + 1`. Never widen (issue #527).
+    // the closer and `end - 1 == start + 1`. Never widen.
     let inclusive = e - 1;
     let is_empty = end == start + 2 && inclusive < bytes.len() && bytes[inclusive] == closer;
     if !is_empty && e < bytes.len() && bytes[e] == closer {

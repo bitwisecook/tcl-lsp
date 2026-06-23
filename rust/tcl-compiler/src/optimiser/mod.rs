@@ -1,12 +1,9 @@
 //! Optimiser passes — source-rewrite suggestions produced by
 //! analysing the compiled IR / CFG / SSA.
 //!
-//! Ported from `core/compiler/optimiser/` (C30 + follow-up sub-strips
-//! C30a … C30j and the per-pass `*-final` / `*-remainder` strips
-//! tracked in `docs/rust-rewrite.md`).  This module owns the shared
-//! optimiser types (`Optimisation`, `PassContext`, opt priorities,
-//! `PassId`, `run_passes`) plus per-pass submodules.  Every pass body
-//! is now landed:
+//! This module owns the shared optimiser types (`Optimisation`,
+//! `PassContext`, opt priorities, `PassId`, `run_passes`) plus per-pass
+//! submodules:
 //!
 //! - [`branch_folding`] — constant branch folding (O101) +
 //!   `propagate_into_branches` cascade (`substitute` →
@@ -130,11 +127,10 @@ pub fn opt_priority(code: &str) -> u8 {
 
 /// Qualified proc name → `(cfg_function_name, parameter names)`.
 ///
-/// Mirrors the Python `proc_cfgs` mapping — the optimiser reaches
-/// for this when it needs to fold a call across procedure
-/// boundaries (`_propagation` → `_substitute_expr_proc_calls`).
-/// The value is the pair `(qualified_cfg_key, params)`; callers
-/// look the CFG up in a [`CompilationUnit`] by name.
+/// The optimiser reaches for this when it needs to fold a call
+/// across procedure boundaries. The value is the pair
+/// `(qualified_cfg_key, params)`; callers look the CFG up in a
+/// [`CompilationUnit`] by name.
 pub type ProcCfgs = HashMap<String, ProcCfgEntry>;
 
 /// Value of a [`ProcCfgs`] entry — the qualified CFG key plus the
@@ -219,7 +215,7 @@ pub struct PassContext<'a> {
     /// bridge (O109 array-element precision).  `None` in the bare
     /// [`PassContext::new`] test path → place suppression is simply skipped.
     pub registry: Option<&'a CommandRegistry>,
-    /// Whole-module command-rebinding summary (SYNC-JUN02b-4): the
+    /// Whole-module command-rebinding summary — the
     /// builtin-fold trust gate.  Set by the `optimise*` entry points; the
     /// bare [`PassContext::new`] test path leaves it at its `Default`
     /// (trust everything), so existing tests are unaffected.  The O129
@@ -293,10 +289,9 @@ impl<'a> PassContext<'a> {
 
 // Pass registry
 
-/// Identifier for one optimisation pass. Pass bodies land as
-/// follow-up strips; this enum is the public surface callers use
-/// to select a subset of passes or sequence them in a custom
-/// order.
+/// Identifier for one optimisation pass. This enum is the public
+/// surface callers use to select a subset of passes or sequence
+/// them in a custom order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PassId {
     /// Fold constant branches — dead-branch elimination.
@@ -372,7 +367,7 @@ impl PassId {
 /// Run a sequence of optimisation passes over `ctx`, accumulating
 /// diagnostics in `ctx.optimisations`.
 ///
-/// Dispatches each requested [`PassId`] to its landed pass body.
+/// Dispatches each requested [`PassId`] to its pass body.
 ///
 /// Pass coverage:
 ///

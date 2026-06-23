@@ -1,13 +1,9 @@
 //! Interprocedural analysis — per-procedure summaries and
 //! call-target resolution.
 //!
-//! Ported from `core/compiler/interprocedural.py` (C28). This
-//! strip lands the summary types (`ProcSummary`, `MethodSummary`,
-//! `InterproceduralAnalysis`) plus the call-target resolver. The
-//! full summary-building pipeline (effect tracking, constant-
-//! return inference, parameter-trait analysis) is a follow-up
-//! that plugs into the C23 side-effect classifier and the C25
-//! SCCP evaluator.
+//! Provides the summary types (`ProcSummary`, `MethodSummary`,
+//! `InterproceduralAnalysis`) plus the call-target resolver, which
+//! plug into the side-effect classifier and the SCCP evaluator.
 
 #![allow(clippy::struct_excessive_bools, clippy::implicit_hasher)]
 
@@ -58,12 +54,10 @@ pub enum ProcArgTrait {
     /// Parameter is forwarded to another procedure.
     ForwardedToCallee,
     /// Parameter names a variable the proc reads via `upvar` (a
-    /// read-only caller-frame alias, or a name source). SYNC-JUN02d-2
-    /// (call-by-name).
+    /// read-only caller-frame alias, or a name source) — call-by-name.
     VarRead,
     /// Parameter names a variable the proc writes via `upvar` +
-    /// `set` / `incr` / `append` (a caller-frame write-back).
-    /// SYNC-JUN02d-2 (call-by-name).
+    /// `set` / `incr` / `append` (a caller-frame write-back) — call-by-name.
     VarWrite,
     /// Parameter is never read.
     Unused,
@@ -221,11 +215,9 @@ pub struct InterproceduralAnalysis {
 /// name (`bump`), the qualified name (`::demo::bump`), and the
 /// leading-colon-stripped name (`demo::bump`) so a bare call resolves to a
 /// proc declared in any namespace.  Input to [`collect_call_by_name_reads`].
-/// SYNC-JUN02d-2.
 pub type ProcIndex = HashMap<String, (Vec<String>, HashMap<String, HashSet<ProcArgTrait>>)>;
 
-/// Build a [`ProcIndex`] from interprocedural summaries.  Mirrors
-/// Python's `build_proc_index_from_summaries`.  SYNC-JUN02d-2.
+/// Build a [`ProcIndex`] from interprocedural summaries.
 #[must_use]
 pub fn build_proc_index_from_summaries(ia: &InterproceduralAnalysis) -> ProcIndex {
     let mut index = ProcIndex::new();
@@ -300,8 +292,7 @@ fn scan_value_cmd_subst(text: &str, index: &ProcIndex, out: &mut HashSet<String>
 
 /// Caller-local variable names passed *by name* to a user proc that
 /// consumes them via `upvar` (call-by-name) — these must NOT be flagged
-/// dead / unused (W211 / W220 / O109 / O126).  Mirrors Python's
-/// `collect_call_by_name_reads`.  SYNC-JUN02d-2.
+/// dead / unused (W211 / W220 / O109 / O126).
 ///
 /// Scans direct `Call` / `Barrier` statements plus a `[cmd …]`
 /// substitution that is the whole value of an `AssignValue` /
@@ -445,14 +436,6 @@ pub fn namespace_parts_from_proc(qname: &str) -> Vec<String> {
 ///   purity.
 /// - `effect_reads` / `effect_writes` — union over the direct
 ///   side-effects and the transitive closure's.
-///
-/// **Deferred to a follow-up C28 sub-strip**:
-/// `returns_constant`, `constant_return`,
-/// `return_depends_on_params`, `return_passthrough_param`,
-/// `can_fold_static_calls`, `param_traits`. These leave their
-/// defaults (the `ProcSummary::unknown` shape) and will be
-/// populated when a return-value + parameter-trait analyser
-/// lands.
 #[must_use]
 pub fn build_interprocedural_analysis(
     ir_module: &crate::ir::Module,
@@ -475,7 +458,7 @@ pub fn build_interprocedural_analysis(
         &effect_writes,
     );
 
-    // SF-2: summarise TclOO method bodies into `MethodSummary` entries
+    // Summarise TclOO method bodies into `MethodSummary` entries
     // (consumed by the O126 `my <method>` purity gate).
     let methods = build_method_summaries(
         ir_module,
@@ -493,8 +476,8 @@ pub fn build_interprocedural_analysis(
     }
 }
 
-/// Summarise `TclOO` method bodies into [`MethodSummary`] entries
-/// (SF-2). The purity rule is intentionally conservative — a method is
+/// Summarise `TclOO` method bodies into [`MethodSummary`] entries.
+/// The purity rule is intentionally conservative — a method is
 /// pure iff its own body has no observable side effect (no barrier, no
 /// unknown call, no global write, no instance-var write, no local
 /// effect write) **and** every *proc* it calls is pure. A `my
@@ -503,7 +486,7 @@ pub fn build_interprocedural_analysis(
 /// method impure — we never mark a method pure on the strength of an
 /// unproven peer method (sound: false negatives only). A redefined
 /// method is forced impure (we can't prove which body a dispatch
-/// runs). Mirrors Python's method branch of `analyse_interprocedural_ir`.
+/// runs).
 fn build_method_summaries(
     ir_module: &crate::ir::Module,
     known: &HashSet<String>,
@@ -537,7 +520,7 @@ fn build_method_summaries(
             &mut facts,
             &params,
         );
-        // Fall-through exit is non-constant (MID-H2/O103); see `scan_proc`.
+        // Fall-through exit is non-constant (O103); see `scan_proc`.
         if !script_always_returns(&method.body) {
             facts.returns.push(ReturnKind::Other);
         }
@@ -613,7 +596,7 @@ fn build_method_summaries(
                 },
                 class_name: method.class_name.clone(),
                 method_kind: method.kind.as_str().to_owned(),
-                // Read-set / MRO-dispatch tracking is not part of SF-2;
+                // Read-set / MRO-dispatch tracking is not implemented;
                 // left empty (the purity gate consumes only `pure`).
                 reads_instance_vars: HashSet::new(),
                 writes_instance_vars: written_ivars,
@@ -879,7 +862,7 @@ fn materialise_summaries(
         direct_calls.sort();
         let is_pure = *pure.get(qname).unwrap_or(&false);
 
-        // MID-H4: `writes_global` / `has_unknown_calls` are documented as
+        // `writes_global` / `has_unknown_calls` are documented as
         // transitive, but were copied straight from local facts — so a proc
         // that writes a global (or calls an unknown command) only via a
         // callee reported `false`, and `propagate_taints` then failed to
@@ -956,16 +939,14 @@ struct LocalFacts {
     /// enclosing-namespace scope via `global` / `variable` / `upvar
     /// #0`. A later bare `set g` / `incr g` / `append g` to one of
     /// these mutates a variable the *caller* can see, so it counts as
-    /// `writes_global` even though the written name is bare. Mirrors
-    /// Python's `_LocalFacts.global_aliases` (#519).
+    /// `writes_global` even though the written name is bare.
     global_aliases: HashSet<String>,
     /// Call-by-name upvar aliases: a local variable name (text) → the
     /// parameter whose value named the *caller-frame* variable it
     /// aliases (`upvar 1 $param local` → `local` → `param`).  A later
     /// `set local …` upgrades that param to [`ProcArgTrait::VarWrite`].
     /// Only level-1 upvars populate this (other levels don't write back
-    /// to the caller).  Mirrors Python's `_handle_upvar` `upvar_aliases`.
-    /// SYNC-JUN02d-2.
+    /// to the caller).
     upvar_aliases: HashMap<String, String>,
 }
 
@@ -1021,7 +1002,7 @@ fn scan_proc(
     // result of the last command — not a constant. Record a non-constant
     // exit so `summarise_returns` won't fold a conditional `return CONST`
     // to a constant when a fall-through path returns something else
-    // (MID-H2/O103).
+    // (O103).
     if !script_always_returns(&proc.body) {
         facts.returns.push(ReturnKind::Other);
     }
@@ -1128,8 +1109,7 @@ fn scan_call_facts(
 
 /// Extract a bare scalar variable name from a `$var` / `${var}` word —
 /// the whole word must be exactly one scalar variable substitution (no
-/// array index, conventional name shape).  Mirrors Python's
-/// `_extract_var_name` (`proc_arg_traits`).
+/// array index, conventional name shape).
 fn extract_var_name(text: &str) -> Option<&str> {
     let name = text
         .strip_prefix("${")
@@ -1148,8 +1128,7 @@ fn extract_var_name(text: &str) -> Option<&str> {
     Some(name)
 }
 
-/// Call-by-name `upvar` handling (SYNC-JUN02d-2): port of Python's
-/// `_handle_upvar`.  For `upvar ?level? other local …`, mark a `$param`
+/// Call-by-name `upvar` handling.  For `upvar ?level? other local …`, mark a `$param`
 /// *other* (caller-var-name source) as [`ProcArgTrait::VarRead`] and —
 /// only for the default level 1, which writes back to the caller's frame
 /// — record `local → param` so a later `set local …` upgrades it to
@@ -1286,11 +1265,11 @@ fn scan_statement(
             defs,
             ..
         } => {
-            // SYNC-JUN02b-2: track scope-aliasing declarations (`global`
+            // Track scope-aliasing declarations (`global`
             // / `variable` / `upvar #0`) so a later bare write to an
             // aliased name counts as `writes_global`. Declaring is not
             // writing, so handle the declaration before the defs-based
-            // write check. Mirrors Python's `_scan_local_facts`.
+            // write check.
             match global_alias_names(command, args) {
                 Some(alias_names) => {
                     if alias_names.contains("") {
@@ -1312,7 +1291,7 @@ fn scan_statement(
                     }
                 }
             }
-            // SYNC-JUN02d-2 (call-by-name): record `upvar` aliases, and
+            // Call-by-name: record `upvar` aliases, and
             // treat any command writing a level-1 upvar alias (`append`
             // / `lappend` / `lassign` … via `defs`) as a write-back to
             // the caller's variable.
@@ -1415,8 +1394,7 @@ fn is_global_or_namespace(name: &str) -> bool {
 /// string (`""`) in the set is a sentinel for a dynamic / unbounded
 /// declaration (`global $x`), which the caller must treat as a global
 /// write. `upvar` at any level other than `#0` / `0` aliases a caller
-/// frame, not global scope, and returns `None`. Mirrors Python's
-/// `_global_alias_names` (#519).
+/// frame, not global scope, and returns `None`.
 fn global_alias_names(command: &str, args: &[String]) -> Option<HashSet<String>> {
     fn names(raw_names: &[String]) -> HashSet<String> {
         raw_names
@@ -1453,9 +1431,7 @@ fn global_alias_names(command: &str, args: &[String]) -> Option<HashSet<String>>
 /// recursion) for every `[cmd ...]` command substitution embedded
 /// in the expression.
 ///
-/// Mirrors `_scan_expr_for_calls` in
-/// `core/compiler/interprocedural.py` (PR #410, 7578a480): call-
-/// graph edges and unused-proc detection used to miss proc calls
+/// Call-graph edges and unused-proc detection used to miss proc calls
 /// embedded in control-flow predicates because the per-proc fact
 /// scanner walked statement bodies but skipped expression operands.
 /// `if {[q]} ...`, `while {[q]} ...`, and `for {init} {[q]} {next}
@@ -1537,13 +1513,12 @@ fn scan_expr_for_calls(
 /// Record the caller-visible-state effect of an assignment to `name`.
 /// A write to a `::`-qualified name OR a name aliased into global /
 /// namespace scope earlier in the body (`global g; set g 5`) mutates
-/// caller-visible state (SYNC-JUN02b-2). Mirrors Python
-/// `_scan_local_facts`'s `IRAssignValue` path: the write is recorded via
+/// caller-visible state. The write is recorded via
 /// `writes_global` ONLY — it does not enter the coarse [`EffectRegion`]
 /// set (which tracks HTTP / response-lifecycle / unknown state, not plain
 /// variable storage), so the `callgraph`/`dataflow` effect string stays
 /// `NONE` for a purely global-mutating proc. Also upgrades a level-1
-/// upvar alias write to `VarWrite` (SYNC-JUN02d-2).
+/// upvar alias write to `VarWrite`.
 fn note_assign_global_write(name: &str, facts: &mut LocalFacts) {
     if is_global_or_namespace(name) || facts.global_aliases.contains(name) {
         facts.writes_global = true;
@@ -1553,8 +1528,7 @@ fn note_assign_global_write(name: &str, facts: &mut LocalFacts) {
 }
 
 /// Scan every `[cmd …]` command substitution embedded in a value /
-/// expression `text` for call-graph edges — port of Python
-/// `_scan_embedded_commands`. The text is lexed under the document
+/// expression `text` for call-graph edges. The text is lexed under the document
 /// dialect; each [`TokenType::Cmd`] token's inner script is handed to
 /// [`scan_source_for_calls`] (which resolves the head, applies the
 /// callee's effects, and recurses into `BODY`-role args).
@@ -1610,7 +1584,7 @@ fn scan_source_for_calls(
     facts: &mut LocalFacts,
     params: &HashSet<String>,
 ) {
-    // SYNC-MAY19-dialect-contextvar strip 4: scan the call graph under the
+    // Scan the call graph under the
     // document dialect so `{*}` (8.4 / iRules) and `}{` (iRules) tokenise
     // the same way the rest of the analyser/lowering now does.
     let commands = crate::segmenter::segment_commands_with_offset_and_config(
@@ -1789,7 +1763,7 @@ fn classify_return(
     if let Some(inside) = v.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
         return ReturnKind::Literal(inside.to_owned());
     }
-    // B3 (SYNC-JUN02d-2, #525): a substitution-free value — including a
+    // A substitution-free value — including a
     // multi-word string whose delimiters the lowerer already stripped
     // (`return {a b c}` / `return "a b c"` both lower to the value
     // `a b c`) — is a literal constant return.  Gated on no `$` / `[` /
@@ -1898,7 +1872,7 @@ fn is_plain_proc_name(text: &str) -> bool {
 /// the proc cannot fall off the end. A fall-through exit returns the
 /// result of the body's last command — generally **not** a compile-time
 /// constant — so a proc that returns a literal on one path but can fall
-/// through on another is not constant-returning (MID-H2/O103).
+/// through on another is not constant-returning (O103).
 ///
 /// Deliberately conservative: it recognises only `return` and a
 /// fully-covered `if`/`elseif`/`else` whose every arm returns. Anything
@@ -2142,7 +2116,7 @@ mod tests {
         assert_eq!(s.arity, Arity::exact(1));
     }
 
-    // -- SYNC-JUN02b-2: writes_global recognises scope aliases ------------
+    // -- writes_global recognises scope aliases ------------
 
     #[test]
     fn global_alias_write_counts_as_writes_global() {
@@ -2178,7 +2152,7 @@ mod tests {
         }
     }
 
-    // -- SF-2 (SYNC-JUN02-1) method-purity summary tests ------------------
+    // -- method-purity summary tests ------------------
 
     #[test]
     fn pure_getter_method_is_summarised_pure() {
@@ -2281,8 +2255,7 @@ mod tests {
 
     #[test]
     fn call_in_if_condition_is_recorded() {
-        // SYNC-MAY19-stub-overlay (sub-strip b, PR #410): call-graph
-        // edges and unused-proc detection used to miss proc calls
+        // Call-graph edges and unused-proc detection used to miss proc calls
         // embedded in `if {[q]} ...` predicates.  Verify ::q now
         // appears in ::a's direct calls.
         let ia = build(
@@ -2384,7 +2357,7 @@ mod tests {
 
     #[test]
     fn conditional_return_is_not_constant_when_body_falls_through() {
-        // MID-H2/O103: `f` returns 42 only when `$x > 0`; otherwise it
+        // O103: `f` returns 42 only when `$x > 0`; otherwise it
         // falls off the end (the `if` returns "" on the no-match path),
         // so it is NOT constant-returning and must not be folded.
         let ia = build("proc ::f {x} { if {$x > 0} { return 42 } }");
@@ -2446,7 +2419,7 @@ mod tests {
 
     #[test]
     fn call_by_name_param_traits_inferred() {
-        // SYNC-JUN02d-2: `upvar 1 $n x; set x ...` → n is VarWrite;
+        // `upvar 1 $n x; set x ...` → n is VarWrite;
         // `upvar 1 $n x; return $x` (read only) → n is VarRead.
         let w = build("proc ::setvar {n v} { upvar 1 $n x\nset x $v }");
         let s = w.procedures.get("::setvar").unwrap();

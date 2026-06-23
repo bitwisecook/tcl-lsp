@@ -1,6 +1,4 @@
-//! Code-sinking optimiser pass — **O125** (C30i).
-//!
-//! Ported from `core/compiler/optimiser/_code_sinking.py`.
+//! Code-sinking optimiser pass — **O125**.
 //!
 //! Detects `set X V; <decision>` pairs where the following
 //! statement is an `if` / `switch`, the variable `X` is read
@@ -53,14 +51,12 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
         // A variable that carries state across `when <event>` boundaries
         // (iRules) is observable after this event handler returns, so its
         // definition must not be sunk into a branch that may not run.
-        // Mirrors Python's `var_name in ctx.cross_event_vars` guard.
         if ctx.cross_event_vars.contains(&var) {
             continue;
         }
         // Already-covered guard: a statement an earlier pass already rewrites
         // (e.g. O109 / O126 dead-store elimination, which runs before code
         // sinking) must not also be sunk — the two rewrites would conflict.
-        // Mirrors Python's `already_covered` check over `ctx.optimisations`.
         if ctx.optimisations.iter().any(|o| {
             o.span.start() <= span.start() && o.span.end() >= span.end() && !span.is_empty()
         }) {
@@ -148,8 +144,7 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
 /// the var live in both arms duplicates the def into each). When the
 /// original source text can be recovered, emits a grouped delete + one
 /// prepend per target; otherwise falls back to a single hint-only
-/// diagnostic. Mirrors Python's `_find_deepest_sink_targets` /
-/// `_emit_sinking_opts`.
+/// diagnostic.
 fn emit_sink(
     ctx: &mut PassContext<'_>,
     original: &Statement,
@@ -204,7 +199,7 @@ fn emit_sink(
 /// Collect the sink-target anchor statements for `decision`: for each
 /// branch body that uses `var`, the deepest first-using statement (a
 /// single-use branch whose lone consumer is itself a decision descends
-/// further). Mirrors the per-branch `_find_deepest_sink_targets` fan-out.
+/// further).
 fn decision_sink_targets<'a>(decision: &'a Statement, var: &str) -> Vec<&'a Statement> {
     let mut targets = Vec::new();
     for body in decision_branch_bodies(decision) {
@@ -249,7 +244,7 @@ fn decision_branch_bodies(decision: &Statement) -> Vec<&Script> {
 /// uses `var` (and no earlier statement redefines it), and that statement
 /// is itself a decision the var's condition does not read, descend into
 /// its branches; otherwise anchor at the first using statement of this
-/// body. Mirrors `_find_deepest_sink_targets`.
+/// body.
 fn find_deepest_targets<'a>(body: &'a Script, var: &str) -> Vec<&'a Statement> {
     let using: Vec<usize> = body
         .statements
@@ -277,7 +272,7 @@ fn find_deepest_targets<'a>(body: &'a Script, var: &str) -> Vec<&'a Statement> {
 
 /// Descend into a decision's branches for a deeper sink — but only when
 /// the var's value is not read by any condition (which would make sinking
-/// past it unsound). Mirrors `_try_deeper_sink`.
+/// past it unsound).
 fn try_deeper_sink<'a>(stmt: &'a Statement, var: &str) -> Vec<&'a Statement> {
     if decision_condition_uses_var(stmt, var) {
         return Vec::new();

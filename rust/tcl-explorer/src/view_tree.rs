@@ -1,13 +1,13 @@
 //! Data-driven view models for the explorer TUI.
 //!
-//! Faithful port of `tooling/explorer/tui_views.py`: every analysis view is
+//! Every analysis view is
 //! an interactive tree of [`ViewNode`]s built from the *same* serialised
 //! result the GUI consumes ([`crate::serialise::serialise_result`]). Each
 //! node has a one-line `label`, a `detail` table revealed when highlighted,
 //! and optional `children`. Keeping these builders next to the one
 //! serialisation means the GUI and TUI show the same fields.
 //!
-//! `asm` / `wasm` deliberately stay on the (future) text renderer — they
+//! `asm` / `wasm` deliberately stay on the text renderer — they
 //! are specialised disassembly, navigated rather than expanded.
 
 use serde_json::Value;

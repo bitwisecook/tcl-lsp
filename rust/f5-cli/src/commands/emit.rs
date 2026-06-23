@@ -1,5 +1,4 @@
-//! Shared output-format plumbing for config-producing verbs — Rust port of
-//! `tooling/f5/verbs/_emit.py`'s `render_config` / `wrap_tmsh_transaction`.
+//! Shared output-format plumbing for config-producing verbs.
 //!
 //! `render_config` renders an SCF text as either SCF (verbatim), a full
 //! `tmsh create|modify` script, or a `tmsh-delta`. When the input fails to

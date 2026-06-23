@@ -1,8 +1,7 @@
-//! Regex / string-category builtins (port of the regex family in the
-//! `string` section of `builtins.py`): `match`, `sub`, `gsub`, `test`,
-//! `scan`, `capture`, `splits`, plus the codepoint / row-format helpers
-//! `index`, `ltrimstr`, `rtrimstr`, `explode`, `implode`, `ascii`,
-//! `utf8bytelength`, `csv`, `tsv`.
+//! Regex / string-category builtins — the regex family `match`, `sub`,
+//! `gsub`, `test`, `scan`, `capture`, `splits`, plus the codepoint /
+//! row-format helpers `index`, `ltrimstr`, `rtrimstr`, `explode`, `implode`,
+//! `ascii`, `utf8bytelength`, `csv`, `tsv`.
 //!
 //! Parity notes:
 //! - Every regex compile routes through the parent `safe_regex_compile`
@@ -527,9 +526,8 @@ mod tests {
 
     #[test]
     fn sub_and_gsub_accept_flags() {
-        // Ported from `tests/test_f5_query.py::test_sub_and_gsub_accept_flags`
-        // (TEST-MIGRATE — regex_str.rs had no unit coverage). `sub` replaces
-        // the first match, `gsub` all; the `"i"` flag is case-insensitive.
+        // `sub` replaces the first match, `gsub` all; the `"i"` flag is
+        // case-insensitive.
         assert_eq!(
             call_str(bi_sub, &[s("ABC"), s("abc"), s("XYZ"), s("i")]),
             "XYZ"

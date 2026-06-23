@@ -1,12 +1,11 @@
-//! Top-level driver — `parse_bigip_conf`, a faithful port of
-//! `dialects/f5/bigip/parser/_driver.py`.
+//! Top-level driver — `parse_bigip_conf`.
 //!
-//! The container mirrors the Python `BigipConfig`: a `default_partition`,
+//! The container holds a `default_partition`,
 //! the `generic_objects` index (every stanza lands one row), and the
 //! typed objects (each carrying the `BigipConfig` field name it belongs
-//! to so the `PyO3` layer can place it). Typed dispatch is layered on in
-//! subsequent stages; this stage establishes the block iteration,
-//! header resolution, partition-prefixing, and `generic_objects` exactly.
+//! to so the `PyO3` layer can place it). The driver establishes the block
+//! iteration, header resolution, partition-prefixing, and `generic_objects`
+//! index.
 
 use tcl_lexer::LineIndex;
 use tcl_registry::bigip::BigipRegistry;
@@ -18,7 +17,7 @@ use super::header::{ObjectTypeIndex, parse_generic_header};
 use super::helpers::extract_blocks;
 
 /// One typed object placed in a `BigipConfig` collection. `table_name`
-/// is the Python `BigipConfig` attribute it belongs to.
+/// is the `BigipConfig` attribute it belongs to.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Placed {
     /// The `BigipConfig` attribute name (e.g. `"pools"`).
@@ -29,9 +28,8 @@ pub struct Placed {
     pub object: ModelObject,
 }
 
-/// Parsed BIG-IP configuration. Mirrors the Python `BigipConfig`
-/// contract (a `default_partition`, the `generic_objects` index, and the
-/// per-kind typed objects).
+/// Parsed BIG-IP configuration: a `default_partition`, the
+/// `generic_objects` index, and the per-kind typed objects.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct BigipConfig {
     /// The partition short-name this source belongs to.
@@ -46,12 +44,10 @@ pub struct BigipConfig {
 }
 
 /// `(module, object_type)` pairs whose identifier is itself a partition
-/// / cluster-wide reference and must not be partition-prefixed. Mirrors
-/// the Python `_no_partition_prefix`.
+/// / cluster-wide reference and must not be partition-prefixed.
 const NO_PARTITION_PREFIX: &[(&str, &str)] = &[("auth", "partition")];
 
-/// Parse a BIG-IP configuration file into a [`BigipConfig`]. Mirrors
-/// `parse_bigip_conf`.
+/// Parse a BIG-IP configuration file into a [`BigipConfig`].
 #[must_use]
 pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
     let part = if default_partition.is_empty() {
@@ -72,7 +68,7 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
 
     for block in extract_blocks(source) {
         // ``gtm topology`` carries a multi-token condition rather than a
-        // full path; the Python driver builds the typed object here before
+        // full path; the driver builds the typed object here before
         // generic_objects and `continue`s, so it never lands a
         // generic_objects row.
         if let Some(topo_id) = block.header.strip_prefix("gtm topology ") {
@@ -118,7 +114,7 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
             },
         ));
 
-        // Typed dispatch — mirrors the strict `_parse_header` path.
+        // Typed dispatch via the strict-header path.
         let ctx = super::bespoke::BespokeCtx {
             source,
             line_index: &line_index,
@@ -141,9 +137,9 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
     config
 }
 
-/// Route one stanza to its typed object, mirroring the strict-header
-/// dispatch in `_driver.py`. `generic_*` come from the generic header
-/// (already partition-prefixed) for the bare-singleton fallback.
+/// Route one stanza to its typed object via the strict-header dispatch.
+/// `generic_*` come from the generic header (already partition-prefixed)
+/// for the bare-singleton fallback.
 #[allow(
     clippy::too_many_arguments,
     clippy::too_many_lines,

@@ -1,9 +1,9 @@
 //! `f5 push` — send one object to a live device via iControl REST.
 //!
-//! Rust port of `tooling/f5/verbs/push.py`. The `--dry-run` surface (request
-//! summary on stderr + the `json.dumps(payload, indent=2)` body on stdout,
-//! emitted *before* any credential resolution) is byte-for-byte parity-tested
-//! offline; the live PUT/POST is implemented faithfully but untested here.
+//! The `--dry-run` surface (request summary on stderr + the
+//! `json.dumps(payload, indent=2)` body on stdout, emitted *before* any
+//! credential resolution) is byte-for-byte parity-tested offline; the live
+//! PUT/POST is implemented but untested here.
 
 use serde_json::Value;
 

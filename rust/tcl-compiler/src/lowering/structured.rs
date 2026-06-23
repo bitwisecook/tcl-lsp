@@ -141,7 +141,7 @@ impl Lowerer<'_> {
         let mut else_body = None;
         let mut else_span = None;
         let mut i = 0;
-        // C38c: reachability tracking. Once a clause's condition
+        // Reachability tracking. Once a clause's condition
         // folds to a static `true`, every later clause + the
         // ``else`` branch is dead. A clause whose own condition
         // is a static `false` is dead this iteration but not
@@ -371,8 +371,7 @@ impl Lowerer<'_> {
     /// assigned inside the body propagate to the enclosing scope —
     /// matching plain `foreach`'s lattice behaviour rather than the
     /// opaque [`Statement::Barrier`] treatment used for generic
-    /// stdlib procs.  Mirrors `core/compiler/lowering.py` after
-    /// PR #433.
+    /// stdlib procs.
     ///
     /// # Analyser IR only
     ///
@@ -463,7 +462,6 @@ impl Lowerer<'_> {
         // `eval_catch`, which calls `eval_script` on the substituted
         // value.  Without the kind check, ``catch $cmd res`` would
         // be compiled as "call the proc named by ``$cmd``" — wrong.
-        // Mirrors upstream commit ``342d4c7a`` (PR #331).
         if arg_tokens.is_empty()
             || !arg_single.first().copied().unwrap_or(false)
             || arg_tokens[0].kind != TokenType::Str
@@ -601,7 +599,7 @@ impl Lowerer<'_> {
             let body = if let Some(tok) = body_tok {
                 self.lower_body_from_tok(&pair.body_text, Some(tok), namespace)
             } else if let Some(bspan) = pair.body_span {
-                // SYNC-JUN-switch-braced-body: the single-braced form
+                // The single-braced form
                 // (`switch $x { a {body} … }`) has no arg token — the
                 // body tokens live inside the braced word. Lower from
                 // the body's source span instead of returning an empty
@@ -673,7 +671,7 @@ impl Lowerer<'_> {
         // Patterns from a single braced body are literal list elements;
         // patterns supplied as separate words undergo runtime
         // `$var` / `[cmd]` substitution (the `switch $s $pat {body}`
-        // wrapper form). Mirrors Python's `patterns_braced`.
+        // wrapper form).
         let mut patterns_braced = true;
 
         // Single braced body form: switch subject { pat1 body1 pat2 body2 ... }
@@ -890,7 +888,7 @@ mod tests {
 
     #[test]
     fn switch_single_braced_body_is_lowered() {
-        // SYNC-JUN-switch-braced-body: the single-braced arm form
+        // The single-braced arm form
         // `switch $x { a {body} … }` must lower each arm body into real
         // IR statements (it used to produce an empty Script).
         let m = lower_to_ir("switch $x { a {puts hi} b {set y 1} }", &reg());
@@ -907,7 +905,7 @@ mod tests {
         }
     }
 
-    // SYNC-JUN02-3: `patterns_braced` distinguishes a literal-pattern
+    // `patterns_braced` distinguishes a literal-pattern
     // braced block from the substituting separate-words form.
 
     #[test]
@@ -987,8 +985,7 @@ mod tests {
         // snapshot so the CFG's ``Catch → Call`` lowering
         // (`emit_opaque_catch`) can preserve the brace-vs-bare
         // shape of the body word when reconstructing the script
-        // for the runtime's eval-fallback.  Mirrors upstream
-        // commit ``31f5357f`` (PR #341).
+        // for the runtime's eval-fallback.
         let m = lower_to_ir("catch {set x 1} result", &reg());
         if let Statement::Catch { tokens, .. } = &m.top_level.statements[0] {
             let tokens = tokens.as_ref().expect("tokens populated");
@@ -1004,8 +1001,7 @@ mod tests {
         // ``catch $cmd res`` has a single VAR token body, not a
         // brace-literal `Str` token.  The lowering must treat it
         // as a dynamic body and emit a Barrier so the runtime
-        // ``eval_catch`` evaluates the substituted value (Mirrors
-        // upstream commit ``342d4c7a`` / PR #331).
+        // ``eval_catch`` evaluates the substituted value.
         let m = lower_to_ir("catch $cmd res", &reg());
         assert!(matches!(
             &m.top_level.statements[0],

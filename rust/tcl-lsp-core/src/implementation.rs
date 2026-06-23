@@ -1,8 +1,7 @@
 //! `textDocument/implementation` — `TclOO` subclass / method-override
 //! fan-out.
 //!
-//! Port of `lsp/features/implementation.py::get_implementations`
-//! (GAP-B3, strip 1).  Where plain go-to-definition jumps to the
+//! Where plain go-to-definition jumps to the
 //! *defining* site, go-to-implementation answers "who realises this":
 //!
 //! - **Cursor on a class name** → the classes that list it among their

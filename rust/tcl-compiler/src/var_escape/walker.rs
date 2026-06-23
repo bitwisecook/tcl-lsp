@@ -1,19 +1,16 @@
-//! Intra-procedural transfer functions + walker (C33b5/6/7).
+//! Intra-procedural transfer functions + walker.
 //!
 //! Pulls together:
 //!
-//! * **C33b5** — barrier handlers (`eval`, `uplevel`, generic
+//! * Barrier handlers (`eval`, `uplevel`, generic
 //!   barriers) plus `escape_every_name_touched` for literal eval
 //!   bodies.
-//! * **C33b6** — `handle_call` dispatcher that routes a
+//! * The `handle_call` dispatcher that routes a
 //!   [`Statement::Call`] to the per-command handlers in
 //!   [`super::handlers`], plus value/expr scans for embedded
 //!   `[info ...]` hazards and non-frameless command substitutions.
-//! * **C33b7** — `walk` (recursive structural traversal) and
+//! * `walk` (recursive structural traversal) and
 //!   [`analyse_script`] (the public per-proc entry point).
-//!
-//! Mirrors the bottom half of
-//! `core/compiler/var_escape/_propagation.py`.
 
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
@@ -630,7 +627,7 @@ fn walk(stmts: &[Statement], state: &mut EscapeState) {
 ///
 /// The returned summary is *intra-procedural* — callee-induced
 /// escapes haven't been folded in yet. Run the interprocedural
-/// pass (C33d) to produce the final summary the codegen should
+/// pass to produce the final summary the codegen should
 /// consume.
 #[must_use]
 pub fn analyse_script<I: IntoIterator<Item = String>>(
@@ -645,8 +642,7 @@ pub fn analyse_script<I: IntoIterator<Item = String>>(
     // S3.4: tentative pure_leaf — the interprocedural fixpoint can only
     // downgrade it (a proc with an opaque callee loses the flag). Pure
     // means: no escape, no eval/call fallback, no `upvar` source out, no
-    // unbounded upvar source. Mirrors the predicate in Python's
-    // `_propagation.analyse_script`.
+    // unbounded upvar source.
     let pure_leaf = !frame_needed
         && !state.flags.has_fallback()
         && !state.flags.has_call_fallback()
@@ -661,7 +657,7 @@ pub fn analyse_script<I: IntoIterator<Item = String>>(
         ssa_tags: std::collections::HashMap::new(),
         local_slots: std::collections::BTreeMap::new(),
         pure_leaf,
-        // SYNC-JUN-FRAME356-population: thread the structured
+        // Thread the structured
         // per-proc barriers + per-name escape reasons recorded by
         // the handlers into the summary so downstream consumers
         // (LSP hover, compiler-explorer surface) can render the
@@ -755,9 +751,7 @@ mod tests {
         assert!(s.is_frame("x"));
     }
 
-    // -- SYNC-JUN-FRAME356-population ---------------------------------
-    //
-    // Mirrors `015288cf` (PR #356) — `barriers` and `tag_reasons`
+    // `barriers` and `tag_reasons`
     // are populated by the handlers, not synthesised on demand.
 
     #[test]

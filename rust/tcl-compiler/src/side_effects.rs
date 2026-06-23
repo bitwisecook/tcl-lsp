@@ -12,21 +12,14 @@
 //!    [`EffectRegion`] (coarse bitflags for GVN / interprocedural kill
 //!    checks).
 //! 2. **Dataclasses** ([`SideEffect`], [`CommandSideEffects`]) compose
-//!    those into per-invocation facts — landed in C23b.
+//!    those into per-invocation facts.
 //! 3. **Classification functions** resolve registry metadata +
-//!    runtime arguments into a [`CommandSideEffects`] — landed in C23d.
+//!    runtime arguments into a [`CommandSideEffects`].
 //!
 //! Consumers include the optimiser (kill safety, CSE), the iRules
 //! flow checker (response-commit tracking), the taint engine, and
 //! later data-flow analyses that need to know *what* a command
 //! touches rather than just *whether* it is pure.
-//!
-//! Ported from `core/compiler/side_effects.py` in strips:
-//!
-//! - **C23a** (this file) — enums + `target_to_region`.
-//! - **C23b** — `SideEffect`, `CommandSideEffects`, predefined consts.
-//! - **C23c** — `scope_from_varname`, `storage_type_for_command`.
-//! - **C23d** — `classify_side_effects` entry point.
 //!
 //! The registry's lightweight `tcl_registry::SideEffect` /
 //! `SideEffectTarget` / `StorageType` / `ConnectionSide` types stay
@@ -362,9 +355,8 @@ fn lift_registry_storage_type(rt: RegistryStorageType) -> StorageType {
 /// `set`, `incr`, `append`, and similar scalar commands default to
 /// the scalar shape.
 ///
-/// `args` is accepted for API symmetry with the Python port but
-/// currently ignored; argument-dependent shape inference is left
-/// for a follow-up strip if needed.
+/// `args` is accepted for API symmetry but currently ignored;
+/// argument-dependent shape inference is not implemented.
 #[must_use]
 pub fn storage_type_for_command(
     registry: &CommandRegistry,
@@ -606,16 +598,16 @@ impl Default for CalleeSummary {
 /// skipped and the summary's effect regions are translated directly
 /// into effects — see [`classify_from_callee_summary`].
 ///
-/// This is a focused port of the Python classifier. The registry
+/// The registry
 /// traits consulted today are `PURE`, `PURE_EVALUATION`,
 /// `EVALUATES_CODE`, `CREATES_BARRIER`, `DEFINES_PROCEDURE`, and
 /// `DESTROYS_VARIABLE`, plus the spec-level `assigns_variable_at`
-/// field, and the spec's structured `side_effects` (Python's
-/// `side_effect_hints`). A `PURE` command with a mutator subcommand
+/// field, and the spec's structured `side_effects`. A `PURE` command
+/// with a mutator subcommand
 /// (`HTTP::header insert …`) is downgraded to impure and a still-pure
 /// command surfaces its hint read-only. Full arity-based form
 /// resolution and the per-subcommand protocol-namespace write modelling
-/// (`_classify_protocol_ns_command`) are left as follow-ups.
+/// are not implemented.
 #[must_use]
 #[allow(
     clippy::too_many_lines,
@@ -993,15 +985,13 @@ fn spec_in_dialect(spec: &CommandSpec, filter: Option<&str>) -> bool {
 }
 
 /// Resolve the dialect-gated structured side-effect hints for a
-/// command invocation — a focused port of Python
-/// `CommandRegistry.side_effect_hints`.
+/// command invocation.
 ///
-/// Iterates the command's specs newest-first (Python's
-/// `reversed(specs)`), skipping specs that don't support the active
+/// Iterates the command's specs newest-first, skipping specs that don't
+/// support the active
 /// dialect. Subcommand-level hints take precedence over command-level
 /// hints. Returns `None` when no qualifying spec declares any hint
-/// (so the caller falls back to the conservative UNKNOWN write, exactly
-/// as Python's classifier does).
+/// (so the caller falls back to the conservative UNKNOWN write).
 fn dialect_side_effect_hints(
     registry: &CommandRegistry,
     command: &str,

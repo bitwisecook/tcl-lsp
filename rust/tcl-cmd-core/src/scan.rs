@@ -449,7 +449,7 @@ mod tests {
 
     #[test]
     fn huge_field_width_saturates_without_overflow() {
-        // FN-C3: a giant width in the format string must not overflow the usize
+        // A giant width in the format string must not overflow the usize
         // accumulator; it saturates and behaves as an unbounded field (the input
         // length is the real cap), so the whole string scans as one `%s`.
         let o = scan_match(&chars("hello"), &chars("%999999999999999999999s"));

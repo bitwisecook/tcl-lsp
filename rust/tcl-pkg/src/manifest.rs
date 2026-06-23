@@ -1,10 +1,10 @@
 //! `tclpkg.tcl` manifest loader.
 //!
-//! Faithful port of `tooling/tclpkg/manifest.py`. The manifest is a tiny Tcl
+//! The manifest is a tiny Tcl
 //! file evaluated under a whitelist of 13 directives; any other command is
-//! refused with `command not permitted in safe mode: <cmd>`, exactly as the
-//! Python loader's sandboxed `TclInterp(safe=True)` does. Because manifests are
-//! pure data (no variable/command substitution), this port parses the script
+//! refused with `command not permitted in safe mode: <cmd>`, mirroring a
+//! sandboxed `TclInterp(safe=True)`. Because manifests are
+//! pure data (no variable/command substitution), the script is parsed
 //! into commands and words using Tcl grouping rules (braces, quotes,
 //! backslash, comments, semicolons) and dispatches each directive directly —
 //! no VM required.

@@ -1,24 +1,14 @@
-//! Command-signature lookup — Rust port of
-//! ``_signature_for_command`` in
-//! ``core/analysis/_analyser/_commands.py:74-93``.
+//! Command-signature lookup.
 //!
 //! Per-handler dispatch consults the command registry to learn
 //! how many arguments a command accepts and what role each
-//! argument plays. The Python helper returns one of three
-//! shapes:
+//! argument plays. The lookup returns one of three shapes:
 //!
 //! - [`CommandSig`] — a simple command (`set`, `proc`, `puts`).
 //! - [`SubcommandSig`] — a command that dispatches on its first
 //!   argument (`namespace eval`, `dict get`, `string length`,
 //!   `info args`).
 //! - `None` — the command isn't in the registry.
-//!
-//! The Python source also falls back to a module-level
-//! ``SIGNATURES`` dict for commands not in the registry; that
-//! dict lives in ``core.commands.registry.runtime`` and is
-//! initialised empty (an extension point that nothing currently
-//! populates), so the Rust port skips it. If a future Python
-//! change starts populating ``SIGNATURES``, mirror the data here.
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -26,9 +16,6 @@ use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, Arity, CommandRegistry};
 
 /// Signature for a simple Tcl command.
-///
-/// Mirrors ``CommandSig`` in
-/// ``core/commands/registry/signatures.py:60``.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandSig {
     /// Argument-count bounds.
@@ -39,16 +26,12 @@ pub struct CommandSig {
     /// Declared option / switch names valid in the active dialect.
     /// Leading arguments matching one of these are skipped before
     /// counting positional args for the E002 / E003 arity check.
-    /// Mirrors ``CommandSig.leading_options`` in
-    /// ``core/commands/registry/signatures.py``; populated from
-    /// [`tcl_registry::CommandSpec::switch_names`] (dialect-filtered).
+    /// Populated from [`tcl_registry::CommandSpec::switch_names`]
+    /// (dialect-filtered).
     pub leading_options: BTreeSet<String>,
 }
 
 /// Signature for a command that dispatches on a subcommand word.
-///
-/// Mirrors ``SubcommandSig`` in
-/// ``core/commands/registry/signatures.py:86``.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubcommandSig {
     /// Subcommand name → [`CommandSig`] mapping. Empty for
@@ -71,8 +54,7 @@ pub enum CommandSignature {
 
 /// Look up signature metadata for a command.
 ///
-/// Mirrors ``_signature_for_command`` in
-/// ``core/analysis/_analyser/_commands.py:74-93``. Returns:
+/// Returns:
 ///
 /// - [`CommandSignature::WithSubcommands`] when the spec has
 ///   non-empty subcommands.
@@ -95,8 +77,7 @@ pub fn signature_for_command(
         let mut subs: HashMap<String, CommandSig> = HashMap::new();
         for sub in spec.subcommands {
             // `dialects` filters out subcommands not available in
-            // the current dialect — mirrors
-            // `subcommands_for_dialect` in Python.
+            // the current dialect.
             if let Some(spec_dialects) = sub.dialects
                 && !spec_dialects.intersects(dialect)
             {
@@ -109,10 +90,9 @@ pub fn signature_for_command(
                 .collect();
             // Per-subcommand options (e.g. `-symbolic` / `-hard` on
             // `file link`) feed the subcommand arity check's leading-
-            // option skip, mirroring `_subcommand_switch_names` in
-            // `core/commands/registry/runtime.py`.  The option dialect
-            // inherits from the subcommand (falling back to the parent
-            // command) when it does not pin its own.
+            // option skip.  The option dialect inherits from the
+            // subcommand (falling back to the parent command) when it
+            // does not pin its own.
             let leading_options = sub
                 .switch_names(Some(dialect), spec.dialects)
                 .into_iter()

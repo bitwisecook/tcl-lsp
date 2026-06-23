@@ -1,7 +1,6 @@
-//! Pattern-recognition optimiser pass (C30g).
+//! Pattern-recognition optimiser pass.
 //!
-//! Ported from
-//! `core/compiler/optimiser/_pattern_recognition.py`. Entry points:
+//! Entry points:
 //!
 //! - **`optimise_incr_idioms`** (`O114`) — rewrite
 //!   `set x [expr {$x ± N}]` to `incr x N`.
@@ -94,9 +93,8 @@ const SET_PACK_MIN_GROUP: usize = 3;
 /// (distinct variables, safe literal values) into one `lassign` (Tcl
 /// 8.5 / 8.6) or `foreach {…} {…} {break}` (8.4), emitting the applied
 /// rewrite plus paired deletions. Skipped on Tcl 9.0, where individual
-/// `set`s are faster. Mirrors `optimise_multi_set_packing` for the
-/// strictly-consecutive case (Python additionally reorders interspersed
-/// candidates; that flow-sensitive extension is the residual).
+/// `set`s are faster. Handles only the strictly-consecutive case;
+/// interspersed candidates are not reordered.
 fn detect_multi_set_packing(ctx: &mut PassContext<'_>, script: &Script) {
     // Tcl 9.0 prefers individual `set`s; 8.5 / 8.6 get `lassign`; older
     // (and dialect-unset) fall back to the universally-valid `foreach`.

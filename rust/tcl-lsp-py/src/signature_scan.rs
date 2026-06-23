@@ -198,7 +198,7 @@ fn span_tuple(span: Span) -> (u32, u32) {
     (span.start(), span.end())
 }
 
-/// GAP-B5: resolve a `lappend auto_path` argument to an absolute path,
+/// Resolve a `lappend auto_path` argument to an absolute path,
 /// substituting `info_script` for `[info script]`.  Returns `None`
 /// when the expression is outside the supported `[file …]` / `[info
 /// script]` / literal / `~` subset.  The Python

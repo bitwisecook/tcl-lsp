@@ -1,5 +1,4 @@
-//! Single-object iControl REST round-trip helpers — Rust port of
-//! `tooling/f5/f5_remote/object_io.py`.
+//! Single-object iControl REST round-trip helpers.
 //!
 //! Endpoint shape (iControl REST):
 //!
@@ -161,8 +160,7 @@ pub fn push_object(
     }
 }
 
-/// A JSON string field, treating empty strings as absent (mirrors Python's
-/// `obj.get(...)` truthiness checks).
+/// A JSON string field, treating empty strings as absent.
 fn nonempty_str(v: Option<&Value>) -> Option<&str> {
     v.and_then(Value::as_str).filter(|x| !x.is_empty())
 }

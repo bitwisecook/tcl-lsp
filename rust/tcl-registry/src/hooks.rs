@@ -139,10 +139,9 @@ pub enum CodegenHookId {
 /// has a WASM-specific emitter yet — but the field exists on
 /// [`crate::CommandSpec`] / [`crate::SubCommand`] /
 /// [`crate::forms::CommandForm`] so the per-command coverage
-/// audit can track WASM hook stamping alongside the `TclVM` hook
-/// without a follow-up registry refactor.
+/// audit can track WASM hook stamping alongside the `TclVM` hook.
 ///
-/// Add a variant here when a WASM-side specialisation lands;
+/// Add a variant here when a WASM-side specialisation is added;
 /// keep it in sync with whatever dispatcher the WASM emitter
 /// uses on the compiler side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

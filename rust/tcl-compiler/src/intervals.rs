@@ -1,4 +1,4 @@
-//! Integer interval abstract domain over SSA values (Phase 3).
+//! Integer interval abstract domain over SSA values.
 //!
 //! A *parallel, non-perturbing* numeric analysis: it runs **after** SCCP and
 //! reads its constant lattice, but does not feed back into the SCCP lattice or

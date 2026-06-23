@@ -1,12 +1,11 @@
-//! Code-lens provider — Rust port of
-//! `lsp/features/code_lens.py`.
+//! Code-lens provider.
 //!
 //! Surfaces a reference-count lens above every user-proc
 //! definition: `N references` at the proc's name span,
 //! showing how many call sites target it in the current
-//! document.  Mirrors Python's `_proc_reference_count_lens`.
+//! document.
 //!
-//! What landed:
+//! Provided lenses:
 //!
 //! * Per-proc lenses — `N references` per user proc.
 //! * Class lenses — `N references` per `oo::class create`
@@ -14,34 +13,33 @@
 //!   <inst>`, and inheritance references in
 //!   `analysis.command_invocations`.
 //!
-//! Per-method / classmethod reference-count lenses also land:
+//! Per-method / classmethod reference-count lenses:
 //! each member declaration's name span gets a `N references`
 //! lens counting call sites discovered by re-segmenting every
 //! sibling method body in the class (the analyser doesn't
 //! walk into method bodies for `command_invocations`).
 //!
-//! Cross-document reference counts have landed: when the
+//! Cross-document reference counts: when the
 //! caller threads a [`crate::workspace_index::WorkspaceIndex`]
 //! and the document's URI, the proc / class lens count
 //! includes call sites in sibling documents.
 //!
-//! What is *deferred*:
+//! Limitations:
 //!
 //! * `[$obj methodName]` call sites *outside* the class body
-//!   — needs analyser-side variable-type tracking so the
-//!   provider knows which object's class to match against.
-//! * Inline command for "show references" jump-out — the
-//!   minimal lens carries a static label; the editor's
-//!   built-in references command can be invoked from the
-//!   lens itself.
+//!   are not counted — that needs analyser-side variable-type
+//!   tracking so the provider knows which object's class to
+//!   match against.
+//! * The lens carries a static label rather than an inline
+//!   "show references" jump-out; the editor's built-in
+//!   references command can be invoked from the lens itself.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
 
-/// One code-lens entry — anchor range plus a command label
-/// (Python uses commands like `Show Type`/`Show References`).
+/// One code-lens entry — anchor range plus a command label.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeLens {
     /// Anchor range for the lens.
@@ -79,13 +77,12 @@ pub fn code_lenses(
 
     for (qname, proc_def) in &analysis.all_procs {
         // Derive the local count from the *same* matching the peek (Find All
-        // References) uses, so the lens title and the peek can never drift
-        // (issue #637 / PR #644).  The earlier name-only tally could disagree
+        // References) uses, so the lens title and the peek can never drift.
+        // The earlier name-only tally could disagree
         // with the namespace-aware resolver (e.g. a same-named proc in
         // another namespace).  `proc_reference_spans` takes the resolved
         // proc directly, so iterating every proc here doesn't rebuild a
-        // `LineIndex` or rescan the proc table per definition (PR #646
-        // review).
+        // `LineIndex` or rescan the proc table per definition.
         let mut count = crate::references::proc_reference_spans(analysis, qname, proc_def).len();
         if let Some(index) = workspace {
             count += index
@@ -106,13 +103,13 @@ pub fn code_lenses(
             // Empty command — the lens is informational only.
             // Editors render the title as text; clicking is a
             // no-op until the references-jump command is wired
-            // up in a follow-up.
+            // up.
             command: String::new(),
             qname: proc_def.qualified_name.clone(),
         });
     }
 
-    // `S-code-lens-rich`: class lenses.  Surface a reference-
+    // Class lenses.  Surface a reference-
     // count lens at each `oo::class create ClassName` site.
     // The count includes constructor calls (`ClassName new`,
     // `ClassName create instance`) and references in
@@ -365,7 +362,7 @@ mod tests {
         assert_eq!(lenses[0].range.start_character, 5);
     }
 
-    // -- S-code-lens-rich: class lenses -----------------------------
+    // -- class lenses -----------------------------
 
     #[test]
     fn lens_per_class() {
@@ -412,7 +409,7 @@ mod tests {
         );
     }
 
-    // -- S-code-lens-rich: class-member lenses ----------------------
+    // -- class-member lenses ----------------------
 
     #[test]
     fn lens_counts_method_calls_within_class_body() {
@@ -483,7 +480,7 @@ mod tests {
         assert_eq!(helper.command_title, "1 reference", "{lenses:?}");
     }
 
-    // -- issue #637 / PR #644: lens count must equal the reference list -----
+    // -- lens count must equal the reference list -----
 
     /// Parse a `"N reference(s)"` title back into its integer count.
     fn title_count(title: &str) -> usize {
@@ -522,7 +519,7 @@ mod tests {
 
     #[test]
     fn lens_count_matches_references_forward_ref() {
-        // Headline #637 symptom: a call *before* the definition. The
+        // Headline symptom: a call *before* the definition. The
         // name-only resolved-name tally reported 0 here; the lens must
         // agree with the resolver, which finds the forward call.
         let src = "foo\nproc foo {} {}\n";
@@ -570,7 +567,7 @@ mod tests {
     fn lens_count_matches_references_same_name_other_namespace() {
         // The namespace-aware resolver must not count a same-named proc
         // call from a different namespace; the lens count follows it so the
-        // two can never drift (the precise divergence #644 guards against).
+        // two can never drift (the precise divergence this guards against).
         let src = concat!(
             "namespace eval a { proc helper {} {} }\n",
             "namespace eval b { proc helper {} {} ; helper }\n",
@@ -581,7 +578,7 @@ mod tests {
 
     #[test]
     fn lens_does_not_credit_ambiguous_forward_ref_to_other_namespace() {
-        // PR #644 review (Codex P2): a forward `foo` call inside namespace
+        // A forward `foo` call inside namespace
         // `a`, with both `::a::foo` and `::b::foo` defined, must be credited
         // only to `::a::foo`.  A tail-name resolver would attribute the
         // unresolved call to *both* procs, falsely showing `1 reference`

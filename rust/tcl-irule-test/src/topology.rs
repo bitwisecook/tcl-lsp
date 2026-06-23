@@ -1,15 +1,14 @@
 //! SCF topology bridge — generate orchestrator setup Tcl from a BIG-IP config.
 //!
-//! Port of `tooling/irule_test/topology.py::TopologyFromSCF`. Parses a
-//! bigip.conf / SCF source via [`tcl_bigip`] and emits the `::orch::` commands
-//! that configure the iRule-test orchestrator for a given virtual server:
-//! profiles, the VIP address/port, pools + members, data-groups, and the
-//! attached iRules.
+//! Parses a bigip.conf / SCF source via [`tcl_bigip`] and emits the `::orch::`
+//! commands that configure the iRule-test orchestrator for a given virtual
+//! server: profiles, the VIP address/port, pools + members, data-groups, and
+//! the attached iRules.
 
 use std::fmt::Write as _;
 
 use tcl_bigip::model::ModelObject;
-use tcl_bigip::parser::{parse_bigip_conf, BigipConfig};
+use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
 use tcl_bigip::value::ListItemValue;
 
 /// Errors raised when generating a topology setup.
@@ -88,9 +87,7 @@ impl Topology {
 
         // Profiles. Ensure a transport profile is present if any are.
         let mut profile_types = self.resolve_profile_types(vs);
-        if !profile_types.is_empty()
-            && !profile_types.iter().any(|t| t == "TCP" || t == "UDP")
-        {
+        if !profile_types.is_empty() && !profile_types.iter().any(|t| t == "TCP" || t == "UDP") {
             profile_types.insert(0, "TCP".to_owned());
         }
         let profiles_tcl = if profile_types.is_empty() {
@@ -153,10 +150,16 @@ impl Topology {
             };
             let records_tcl = datagroup_records_tcl(&dg.records);
             let key = placed.full_path.as_str();
-            let _ = writeln!(out, "::orch::add_datagroup {key} {dg_type} {{{records_tcl}}}");
+            let _ = writeln!(
+                out,
+                "::orch::add_datagroup {key} {dg_type} {{{records_tcl}}}"
+            );
             let short = short_name(key);
             if short != key {
-                let _ = writeln!(out, "::orch::add_datagroup {short} {dg_type} {{{records_tcl}}}");
+                let _ = writeln!(
+                    out,
+                    "::orch::add_datagroup {short} {dg_type} {{{records_tcl}}}"
+                );
             }
         }
         if any_dg {
@@ -184,7 +187,10 @@ impl Topology {
         let _ = writeln!(out, "#!/usr/bin/env tclsh");
         let _ = writeln!(out, "#");
         let _ = writeln!(out, "# Test script for virtual server: {vs_name}");
-        let _ = writeln!(out, "# Auto-generated -- customise the test scenarios below.");
+        let _ = writeln!(
+            out,
+            "# Auto-generated -- customise the test scenarios below."
+        );
         let _ = writeln!(out, "#\n");
         let _ = writeln!(out, "set script_dir [file dirname [info script]]");
         let _ = writeln!(out, "source [file join $script_dir orchestrator.tcl]");
@@ -193,7 +199,10 @@ impl Topology {
         let _ = writeln!(out, "# Topology setup\n");
         out.push_str(&setup);
         let _ = writeln!(out, "\n# Test scenarios\n");
-        let _ = writeln!(out, "::orch::run_http_request -method GET -uri \"/\" -host \"example.com\"\n");
+        let _ = writeln!(
+            out,
+            "::orch::run_http_request -method GET -uri \"/\" -host \"example.com\"\n"
+        );
         let _ = writeln!(out, "::orch::summary");
         Ok(out)
     }
@@ -212,7 +221,8 @@ impl Topology {
             if placed.full_path == name {
                 return Some(vs);
             }
-            if short_name(&placed.full_path) == name || placed.full_path == format!("/Common/{name}")
+            if short_name(&placed.full_path) == name
+                || placed.full_path == format!("/Common/{name}")
             {
                 by_short.get_or_insert(vs);
             }
@@ -306,8 +316,7 @@ fn datagroup_records_tcl(records: &[String]) -> String {
     parts.join(" ")
 }
 
-/// Infer a TMM profile-type tag from a profile reference name. Port of
-/// `_infer_profile_type`.
+/// Infer a TMM profile-type tag from a profile reference name.
 fn infer_profile_type(pref: &str) -> Option<&'static str> {
     let name = short_name(pref).to_ascii_lowercase();
     if name.contains("clientssl") || name.contains("client-ssl") {
@@ -370,12 +379,24 @@ ltm virtual www_vs {
         let topo = Topology::from_source(CONF);
         let setup = topo.generate_tcl_setup("www_vs").expect("setup");
         // Profiles inferred + TCP prepended; CLIENTSSL/HTTP from the names.
-        assert!(setup.contains("::orch::configure -profiles {TCP CLIENTSSL HTTP}"), "{setup}");
+        assert!(
+            setup.contains("::orch::configure -profiles {TCP CLIENTSSL HTTP}"),
+            "{setup}"
+        );
         // VIP from the destination.
-        assert!(setup.contains("::orch::configure -local_addr 10.0.0.1 -local_port 443"), "{setup}");
+        assert!(
+            setup.contains("::orch::configure -local_addr 10.0.0.1 -local_port 443"),
+            "{setup}"
+        );
         // Pool with members, by full path and short name.
-        assert!(setup.contains("::orch::add_pool /Common/web_pool {10.0.1.1:80 10.0.1.2:80}"), "{setup}");
-        assert!(setup.contains("::orch::add_pool web_pool {10.0.1.1:80 10.0.1.2:80}"), "{setup}");
+        assert!(
+            setup.contains("::orch::add_pool /Common/web_pool {10.0.1.1:80 10.0.1.2:80}"),
+            "{setup}"
+        );
+        assert!(
+            setup.contains("::orch::add_pool web_pool {10.0.1.1:80 10.0.1.2:80}"),
+            "{setup}"
+        );
         // Attached iRule body loaded.
         assert!(setup.contains("::orch::load_irule {"), "{setup}");
         assert!(setup.contains("HTTP::host"), "{setup}");

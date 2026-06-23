@@ -1,4 +1,4 @@
-//! Hover provider — minimal Rust port of `lsp/features/hover.py`.
+//! Hover provider.
 //!
 //! Resolves the word or `$var` reference at a given LSP position
 //! and produces a [`Hover`] with markdown-formatted content for
@@ -14,26 +14,13 @@
 //!   enclosing-scope chain to a [`VarDef`] — formats the
 //!   reference count.
 //!
-//! What is *deferred* (planned as the `S-hover-rich` follow-up):
-//!
-//! * Format-string hovers (`sprintf`, `binary format/scan`, `clock
-//!   format/scan`, `regsub`, `glob`, regex pattern parts) — every
-//!   `_*_hover` helper in `lsp/features/hover.py` from line ~558
-//!   onwards.
-//! * IP-address hover (`_ip_address_hover`).
-//! * Subcommand / operator / event registry lookups.
-//! * Method-body context lookups (Python's `scope.kind == "method"`
-//!   path).
-//!
-//! Inferred-intrep / taint annotations on `$var` hovers
-//! (`_infer_var_type` / `_infer_var_taint`) have landed: when a
+//! Inferred-interp / taint annotations on `$var` hovers: when a
 //! registry is supplied the provider builds a compiler
 //! [`tcl_compiler::compilation_unit::CompilationUnit`] and reads
 //! the per-variable type / taint lattices off it.
 //!
 //! Cache + debounce + `spawn_blocking` + `Ok(None)`-on-no-cached-
-//! analysis (the SYNC11 contract documented in
-//! `docs/rust-rewrite.md`) ride on top of this provider in
+//! analysis ride on top of this provider in
 //! `tcl-lsp-server::Backend::hover`; this module is the pure-CPU
 //! computation, no I/O, no async.
 
@@ -47,8 +34,7 @@ use crate::definition::utf16_col_to_char_col;
 
 /// LSP markup-content kind for a hover body.
 ///
-/// We only emit Markdown today (matches Python's
-/// `MarkupKind.Markdown`); the variant exists so the lift in
+/// We only emit Markdown today; the variant exists so the lift in
 /// `tcl-lsp-server` is exhaustive when we add `PlainText` support
 /// later.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,8 +67,6 @@ impl Hover {
 }
 
 /// Word-delimiter set used by `find_word_span_at_position`.
-///
-/// Mirrors `_WORD_DELIMS` in `lsp/features/symbol_resolution.py`.
 const WORD_DELIMS: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"', '$'];
 
 /// Variable-name continuation set used by `find_var_at_position`.
@@ -103,12 +87,10 @@ fn is_var_continuation(c: char) -> bool {
 /// * no proc / class / var matches the resolved word.
 ///
 /// The character index is interpreted as UTF-16 code units per
-/// the LSP spec, but the minimal port treats it as a char-count
-/// index — matching Python's behaviour, which uses Python string
-/// indexing.  Multi-byte BMP code points round-trip correctly;
+/// the LSP spec, but this provider treats it as a char-count
+/// index.  Multi-byte BMP code points round-trip correctly;
 /// supplementary-plane characters can drift by one position
-/// (rare in Tcl source).  A fully spec-correct UTF-16 mapping is
-/// a follow-up.
+/// (rare in Tcl source).
 #[must_use]
 pub fn hover(
     source: &str,
@@ -147,7 +129,7 @@ pub fn hover(
         }
     }
 
-    // Format-string hover (`S-hover-rich`): when the cursor
+    // Format-string hover: when the cursor
     // sits on the format-string argument of a known
     // format-bearing command, surface a markdown table of the
     // specifiers it contains.  Currently covers `clock format`
@@ -211,8 +193,7 @@ pub fn hover(
 
     // Registry-driven hovers — built-in command name, plus
     // `cmd subcommand` lookups when the cursor sits on the
-    // subcommand word.  Mirrors `lsp/features/hover.py`'s
-    // `SIGNATURES` lookup at the tail of `get_hover`.
+    // subcommand word.
     if let Some(registry) = registry {
         if let Some(text) = option_hover_text(source, line, character, registry, &word) {
             return Some(Hover::markdown(text));
@@ -259,8 +240,7 @@ fn builtin_command_hover_text(
     // Import hint: when the command needs a `package require` the
     // document hasn't imported, append a `**Requires**` line.  Gated on
     // the dialect supporting `package require` at all (the `package`
-    // command must exist — e.g. iRules has no package system).  Mirrors
-    // `lsp/features/hover.py:1032-1038`.
+    // command must exist — e.g. iRules has no package system).
     if let Some(pkg) = spec.required_package {
         let pkg_available = registry.get("package").is_some();
         let imported = analysis.package_requires.iter().any(|pr| pr.name == pkg);
@@ -270,7 +250,7 @@ fn builtin_command_hover_text(
     }
     // iRules: append the **Valid events** list + event **Requires**.
     // Only iRules commands carry `event_requires`, so its presence is the
-    // dialect gate.  Mirrors `hover.py:1039-1065`.
+    // dialect gate.
     if let Some(requires) = spec.event_requires.as_ref() {
         let effective = effective_event_requires(name, requires);
         append_valid_events(&mut out, &effective);
@@ -1063,8 +1043,8 @@ fn render_byte_ruler(
     vec![ruler, top, mid, bot]
 }
 
-/// Center `s` within a `width`-character cell using spaces.
-/// Mirrors Python's `str.center` for the byte-ruler labels.
+/// Center `s` within a `width`-character cell using spaces (the
+/// byte-ruler labels).
 fn center(s: &str, width: usize) -> String {
     let len = s.chars().count();
     if len >= width {
@@ -1286,9 +1266,8 @@ fn regsub_subspec_at_position(source: &str, line: u32, character: u32) -> Option
     // The substitution spec contains backslash sequences,
     // typically as a quoted or braced literal.  Any literal
     // string containing `\\<digit-or-&>` overlapping the cursor
-    // counts as the subspec.  Mirrors the loose detection
-    // Python uses; precise arg-position resolution is deferred
-    // to the same multi-line-aware machinery.
+    // counts as the subspec — a loose detection that does not
+    // do precise arg-position resolution.
     let chars: Vec<char> = line_text.chars().collect();
     let col = utf16_col_to_char_col(line_text, character).min(chars.len());
     let mut i = 0;
@@ -1795,16 +1774,14 @@ fn classify_ipv6(addr: std::net::Ipv6Addr) -> &'static str {
 /// Detect when the cursor sits on a `clock format` /
 /// `clock scan` format-string argument and return the
 /// literal text.  Single-line only — multi-line literals
-/// are deferred.
+/// are not handled.
 fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> Option<String> {
     let line_text = source.split('\n').nth(line as usize)?;
     // Tokenise the line on whitespace — the first two tokens
     // must be `clock format` or `clock scan` for the hover to
     // fire.  This is the same single-line context detection
     // used by `signature_help` / `completion`; multi-line
-    // command segments lift later (gated on the same
-    // multi-line-aware machinery `S-signature-help-rich`
-    // defers).
+    // command segments are not handled.
     let tokens: Vec<&str> = line_text.split_whitespace().collect();
     if tokens.len() < 3 {
         return None;
@@ -1979,7 +1956,7 @@ fn proc_hover_text(proc_def: &ProcDef) -> String {
     );
     let mut parts = vec![format!("```tcl\n{sig}\n```")];
     if !proc_def.doc.is_empty() {
-        // `S-hover-rich`: render `@param` / `@return` /
+        // Render `@param` / `@return` /
         // `@brief` tagged docstrings as structured Markdown
         // sections rather than the raw harvested text.  Lines
         // that don't carry a tag fall through into the
@@ -2247,8 +2224,7 @@ fn infer_var_type(unit: &CompilationUnit, var_name: &str) -> Option<String> {
 }
 
 /// Human-readable mitigation-colour labels present in `taint`,
-/// in display-priority order.  Mirrors Python's
-/// `_taint_colour_labels`.
+/// in display-priority order.
 fn taint_colour_labels(taint: TaintLattice) -> Vec<&'static str> {
     let flag_labels: [(TaintColour, &str); 13] = [
         (TaintColour::PATH_PREFIXED, "path-prefixed"),
@@ -2739,7 +2715,7 @@ mod tests {
         assert!(text.contains("**Taint**: tainted (from I/O)"), "{text}");
     }
 
-    // -- S-hover-rich: clock format hover ----------------------------
+    // -- clock format hover ----------------------------
 
     #[test]
     fn scan_clock_specifiers_finds_each_specifier() {
@@ -2817,7 +2793,7 @@ mod tests {
         );
     }
 
-    // -- S-hover-rich: sprintf format hover --------------------------
+    // -- sprintf format hover --------------------------
 
     #[test]
     fn scan_sprintf_specifiers_finds_basic_types() {
@@ -2891,7 +2867,7 @@ mod tests {
         );
     }
 
-    // -- S-hover-rich: binary format hover --------------------------
+    // -- binary format hover --------------------------
 
     fn binary_ctx(text: &str) -> BinaryContext {
         BinaryContext {
@@ -3029,7 +3005,7 @@ mod tests {
         assert!(h.value.contains("binary format"), "{}", h.value);
     }
 
-    // -- S-hover-rich: regsub substitution-spec hover ---------------
+    // -- regsub substitution-spec hover ---------------
 
     #[test]
     fn scan_regsub_backrefs_finds_each_backref() {
@@ -3067,7 +3043,7 @@ mod tests {
         assert!(h.value.contains("Substitution spec"), "{}", h.value);
     }
 
-    // -- S-hover-rich: glob pattern hover ---------------------------
+    // -- glob pattern hover ---------------------------
 
     #[test]
     fn scan_glob_metachars_finds_star_and_question() {
@@ -3113,7 +3089,7 @@ mod tests {
         assert!(h.value.contains("Glob pattern"), "{}", h.value);
     }
 
-    // -- S-hover-rich: regex pattern hover --------------------------
+    // -- regex pattern hover --------------------------
 
     #[test]
     fn scan_regex_components_finds_anchors_and_quantifiers() {
@@ -3165,7 +3141,7 @@ mod tests {
         assert!(h.value.contains("Regex pattern"), "{}", h.value);
     }
 
-    // -- S-hover-rich: IP address hover -----------------------------
+    // -- IP address hover -----------------------------
 
     #[test]
     fn ip_hover_classifies_private_ipv4() {
@@ -3222,7 +3198,7 @@ mod tests {
         assert!(h.value.contains("IPv4 address"), "{}", h.value);
     }
 
-    // -- S-hover-rich: registry-driven hovers -----------------------
+    // -- registry-driven hovers -----------------------
 
     #[test]
     fn builtin_command_hover_surfaces_summary_from_registry() {
@@ -3284,7 +3260,7 @@ mod tests {
         assert!(h.value.contains("subcommand"), "{}", h.value);
     }
 
-    // -- S-hover-rich: docstring formatting --------------------------
+    // -- docstring formatting --------------------------
 
     #[test]
     fn format_docstring_renders_brief_param_return_tags() {
@@ -3343,7 +3319,7 @@ mod tests {
         assert!(!rendered.contains("**naked** \u{2014}"), "{rendered}");
     }
 
-    // -- S-hover-rich: class-member hover ---------------------------
+    // -- class-member hover ---------------------------
 
     #[test]
     fn class_member_hover_fires_for_method_inside_body() {
@@ -3385,7 +3361,7 @@ mod tests {
         assert!(hover(src, 3, 2, &analysis, None).is_none());
     }
 
-    // -- S-hover-rich: $obj method dispatch -------------------------
+    // -- $obj method dispatch -------------------------
 
     #[test]
     fn obj_method_hover_fires_for_known_instance() {

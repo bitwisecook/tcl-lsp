@@ -64,14 +64,13 @@ bitflags! {
 
 /// Canonical dialect profile names, in sorted order.
 ///
-/// Faithful port of Python's `KNOWN_DIALECTS`
-/// (`compiler/registry/dialects.py`), kept pre-sorted so
-/// [`available_dialects`] matches `sorted(KNOWN_DIALECTS)` exactly. This
+/// Kept pre-sorted so [`available_dialects`] returns them in sorted
+/// order. This
 /// is the single source of truth for the explorer's dialect dropdown and
 /// the CLI's `--dialect` choices. Note it is a *superset* of the names
 /// [`DialectSet::parse`] resolves to a flag — config-only dialects
 /// (`f5-bigip`, `f5-tmsh`) appear here but collapse to plain Tcl when
-/// parsed, matching the Python registry's graceful fallback.
+/// parsed.
 pub const KNOWN_DIALECTS: &[&str] = &[
     "cadence-eda-tcl",
     "expect",

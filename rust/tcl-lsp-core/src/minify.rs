@@ -1,4 +1,4 @@
-//! Tcl code minifier — Rust port of `core/minifier/minifier.py`.
+//! Tcl code minifier.
 //!
 //! Pure function: source in, minified source out.  The **default
 //! tier** ([`minify_tcl`]) is complete and preserves semantic
@@ -21,10 +21,9 @@
 //!     dialects (`f5-irules` / `f5-iapps` / `f5-bigip`).
 //!
 //! Note: the expression tokeniser adds a catch-all so no character
-//! is dropped — the Python reference's `_EXPR_TOKEN` regex silently
-//! drops unmatched characters (e.g. commas in `atan2($a,$b)` and
-//! braces in `$x ni {a b}`), corrupting those expressions; this
-//! port preserves them.
+//! is dropped — naively dropping unmatched characters (e.g. commas
+//! in `atan2($a,$b)` and braces in `$x ni {a b}`) would corrupt
+//! those expressions.
 //!
 //! The **`compact_names` tier** ([`minify_tcl_compact`]) renames
 //! proc-local variables, parameters, and proc names to short
@@ -43,8 +42,7 @@
 //! suffix array), then minifies whitespace, returning a
 //! [`MinifyResult`].  The aliasing generators are seeded with every
 //! compacted short name so a `$alias` can never shadow a proc-local
-//! compacted variable — a collision-safe improvement on the Python
-//! reference.
+//! compacted variable.
 //!
 //! [`unminify_error`] translates compacted names in an error
 //! message back to the originals via a [`SymbolMap`] (round-tripped
@@ -52,7 +50,7 @@
 //! `tcl-lsp.minifyDocument` and `tcl-lsp.unminifyError`
 //! `workspace/executeCommand` handlers are wired in the server.
 //!
-//! SCCP static-substring folding (Python's phase 1.5,
+//! SCCP static-substring folding (phase 1.5,
 //! [`fold_static_substrings`]) replaces `$var` interpolations inside
 //! quoted strings with the literal the compiler's SCCP pass proves
 //! them to be (integer / string constants), taint-guarded.
@@ -60,11 +58,11 @@
 //! original lines ([`remap_line_references`]) when both sources are
 //! supplied.
 //!
-//! **Still deferred** within static-substring folding: compile-time
-//! evaluation of pure command substitutions (`[string …]` /
-//! `[format …]` / `[expr …]`), boolean / float constants, and the
-//! follow-up dead-`set` elimination (leaving the now-unused `set` is
-//! harmless, just larger).
+//! Static-substring folding does not do compile-time evaluation of
+//! pure command substitutions (`[string …]` / `[format …]` /
+//! `[expr …]`), boolean / float constants, or dead-`set`
+//! elimination (leaving the now-unused `set` is harmless, just
+//! larger).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write as _;
@@ -87,9 +85,8 @@ struct Arg {
     is_quoted: bool,
 }
 
-/// Map of original names to compacted names, grouped by scope.
-/// Mirrors Python's `SymbolMap` (the fields the landed tiers
-/// populate).
+/// Map of original names to compacted names, grouped by scope
+/// (only the fields the active tiers populate).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolMap {
     /// Per-scope `{original_var: short}` maps, keyed by scope label.
@@ -197,8 +194,8 @@ impl SymbolMap {
         rev
     }
 
-    /// Parse a symbol map from the [`Self::format`] text.  Mirrors
-    /// `SymbolMap.parse` (the sections the landed tiers emit).
+    /// Parse a symbol map from the [`Self::format`] text (only the
+    /// sections the active tiers emit).
     #[must_use]
     pub fn parse(text: &str) -> Self {
         let mut sm = SymbolMap::default();
@@ -259,9 +256,8 @@ impl SymbolMap {
 
 /// Translate a Tcl / iRule error message from minified names back
 /// to the originals using `symbol_map`.  Replaces `$short` and
-/// `"short"` occurrences.  Mirrors the name-translation half of
-/// `unminify_error` (the source-correlated line remapping is a
-/// follow-up).
+/// `"short"` occurrences; the source-correlated line remapping is
+/// handled separately by [`remap_line_references`].
 #[must_use]
 pub fn unminify_error(error_message: &str, symbol_map: &SymbolMap) -> String {
     let rev = symbol_map.reverse();
@@ -438,8 +434,7 @@ fn try_remap_procline(
     ))
 }
 
-/// Full result from aggressive minification.  Mirrors Python's
-/// `MinifyResult`.
+/// Full result from aggressive minification.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MinifyResult {
     /// The minified source.
@@ -1826,7 +1821,7 @@ fn fold_string_via_sccp(
                 has_dynamic = true;
                 pos = end;
             }
-            b'[' => return None, // command substitution — deferred.
+            b'[' => return None, // command substitution — not handled.
             b'\\' if pos + 1 < n => {
                 match bytes[pos + 1] {
                     b'n' => out.push('\n'),
@@ -2457,7 +2452,7 @@ fn minify_switch_case_list(source: &str, dialect: &str, registry: &CommandRegist
     // `is_quoted` marks a `"…"` word — its delimiters are stripped by the
     // lexer (the inner content lexes as `Esc`/`Var`/`Cmd` tokens), so the
     // reconstructed raw must be re-quoted or a multi-word pattern like
-    // `"c d"` collapses to two bare words and breaks the case list (#540).
+    // `"c d"` collapses to two bare words and breaks the case list.
     let mut words: Vec<(String, bool, bool, Token)> = Vec::new(); // (raw, is_braced, is_quoted, first_tok)
     let mut prev_type = TokenType::Eol;
     for tok in tokens {
@@ -3257,7 +3252,7 @@ mod tests {
 
     #[test]
     fn switch_braced_and_quoted_multiword_patterns_keep_delimiters() {
-        // Issue #540: a braced `{a b}` / quoted `"c d"` pattern must keep its
+        // A braced `{a b}` / quoted `"c d"` pattern must keep its
         // delimiters so the case list stays balanced and re-parses as one word
         // per pattern.  Dropping the quotes turned `"c d"` into two bare words.
         check(

@@ -1,17 +1,15 @@
-//! Branch-folding optimiser pass (C30a + C30a').
+//! Branch-folding optimiser pass.
 //!
-//! Ported from `core/compiler/optimiser/_branch_folding.py`. Two
-//! Python entry points — both folded into [`run`]:
+//! Two entry points, both folded into [`run`]:
 //!
-//! - **C30a** — `optimise_constant_branches`: for every
+//! - `optimise_constant_branches`: for every
 //!   [`ConstantBranch`] SCCP produced, emits an `O101`
 //!   suggestion rewriting the condition to the literal boolean
 //!   it folded to.
-//! - **C30a'** — `optimise_branch_proc_calls`: for every branch
+//! - `optimise_branch_proc_calls`: for every branch
 //!   condition SCCP could *not* fold, tries propagation via
-//!   [`substitute_expr_constants`] (from the landed
-//!   [`super::helpers::expr_simplify`] toolkit). The deeper
-//!   simplification rewriters all landed under C30e4–C30e7;
+//!   [`substitute_expr_constants`] (from the
+//!   [`super::helpers::expr_simplify`] toolkit).
 //!   `propagate_into_branches` runs `substitute_expr_constants`
 //!   first to build a working text, then probes the four AST
 //!   rewriters in priority order — `strength_reduce` (`O113`)
@@ -44,11 +42,11 @@ use super::helpers::expr_simplify::{
 use super::helpers::literals::format_constant;
 use super::{Optimisation, PassContext};
 
-/// Run the branch-folding pass — both C30a
-/// (`optimise_constant_branches`) and C30a'
-/// (`optimise_branch_proc_calls`).
+/// Run the branch-folding pass — both
+/// `optimise_constant_branches` and
+/// `optimise_branch_proc_calls`.
 ///
-/// Constant-branch pass (C30a):
+/// Constant-branch pass (`optimise_constant_branches`):
 ///
 /// - Code: `O101` ("Fold constant expression").
 /// - Replacement: `"1"` or `"0"` depending on the folded value,
@@ -57,7 +55,7 @@ use super::{Optimisation, PassContext};
 /// - Switch-dispatch branches (`StrEq` condition + block or
 ///   targets whose names mention `switch_next`) are skipped.
 ///
-/// Branch-proc-call propagation (C30a'):
+/// Branch-proc-call propagation (`optimise_branch_proc_calls`):
 ///
 /// - Code: `O100` ("Propagate constants into branch
 ///   expression") when SCCP could not fold the branch but the
@@ -181,8 +179,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         }
 
         // Cascade: substitute → strength-reduce → strlen → streq →
-        // instcombine, with an O101 fold short-circuit. Mirrors
-        // `optimise_branch_proc_calls`'s priority order in the Python source.
+        // instcombine, with an O101 fold short-circuit.
         let sub = substitute_expr_constants(inner, &constants, ctx.dialect);
         let working = if sub.changed {
             sub.text.clone()
@@ -192,8 +189,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
 
         // O101: if constant propagation makes the whole condition fold to a
         // literal (`if {$flag > 0}` with `flag == 1` → `1`), emit the fold in
-        // preference to the partial-canonicalisation codes. Mirrors Python's
-        // `_try_fold_expr(combined)` branch.
+        // preference to the partial-canonicalisation codes.
         if sub.changed
             && let Some(folded) = try_fold_expr(&working, ctx.dialect)
             && folded != inner

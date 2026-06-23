@@ -1,9 +1,4 @@
 //! Literal parsing and Tcl-source rendering for the optimiser.
-//!
-//! Ported from `core/compiler/optimiser/_helpers.py` —
-//! `_literal_from_constant_str`, `_render_folded_literal`,
-//! `_render_static_string_word`, `_is_plain_literal`, and
-//! `_format_constant`.
 
 use crate::analyses::ConstValue;
 use crate::tcl_expr_eval::{TclValue, format_tcl_value};

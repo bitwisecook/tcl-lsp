@@ -58,11 +58,10 @@ pub(crate) fn find_expr_shimmers(
         };
         // An expr-operator shimmer inside a loop body re-converts the operand
         // every iteration (S101); outside a loop it is one-time (S100).
-        // Mirrors Python `_find_expr_shimmers`' `in_loop = bn in loop_blocks`.
         let in_loop = loop_blocks.contains(&block_name);
         // Per-block de-duplication keyed on (statement span, variable): several
         // operands of the same statement that name the same variable emit one
-        // warning, not one per operand. Mirrors Python's per-block `seen` set.
+        // warning, not one per operand.
         let mut seen: HashSet<(Span, String)> = HashSet::new();
 
         // 1. SSA statements: AssignExpr and ExprEval.
@@ -122,7 +121,7 @@ fn collect_expr_shimmers(
             match op {
                 // Arithmetic, bitwise, logical, and *ordering* comparison
                 // operators are always a numeric context (Tcl `<`/`<=`/`>`/`>=`
-                // compare numerically when possible).  Mirrors `_NUMERIC_OPS`.
+                // compare numerically when possible).
                 BinOp::Add
                 | BinOp::Sub
                 | BinOp::Mul
@@ -146,8 +145,7 @@ fn collect_expr_shimmers(
 
                 // `==` / `!=` take the numeric-coercion path only when at least
                 // one operand is provably numeric (else Tcl falls back to a
-                // string compare and no shimmer occurs).  Mirrors
-                // `_CONDITIONAL_NUMERIC_OPS` + `_operand_looks_numeric`.
+                // string compare and no shimmer occurs).
                 BinOp::Eq | BinOp::Ne => {
                     if operand_looks_numeric(left, uses, types)
                         || operand_looks_numeric(right, uses, types)
@@ -196,9 +194,9 @@ fn collect_expr_shimmers(
 }
 
 /// True when `node` is provably numeric-looking — gates the conditional
-/// `==` / `!=` numeric-shimmer check.  Mirrors `_operand_looks_numeric`
-/// (the SCCP-CONST arm is omitted; the literal / numeric-string / typed-var
-/// arms cover the shimmer cases the syntactic types reach).
+/// `==` / `!=` numeric-shimmer check.  The SCCP-CONST arm is omitted;
+/// the literal / numeric-string / typed-var arms cover the shimmer
+/// cases the syntactic types reach.
 fn operand_looks_numeric(
     node: &ExprNode,
     uses: &HashMap<String, u32>,
@@ -232,7 +230,6 @@ fn operand_looks_numeric(
 
 /// True when `text` (an `ExprNode::String` body or raw value, possibly still
 /// wrapped in `{}` / `"`) parses as an int, float, or Tcl boolean literal.
-/// Mirrors `_expr_string_is_numeric`.
 fn expr_string_is_numeric(text: &str) -> bool {
     let mut s = text.trim();
     if s.len() >= 2

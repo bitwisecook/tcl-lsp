@@ -1,7 +1,5 @@
 //! `mermaid` renderer — Mermaid flowchart of a query result.
 //!
-//! Faithful port of `dialects/f5/query/renderers/mermaid.py`.
-//!
 //! Two modes pick themselves up automatically:
 //!
 //! - when every value is an [`ObjectRef`](crate::value::ObjectRef), it would

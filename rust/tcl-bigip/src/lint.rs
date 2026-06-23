@@ -1,13 +1,12 @@
-//! Lint engine for `f5 validate` (alias `lint`) — a faithful port of
-//! `dialects/f5/bigip/lint/__init__.py`.
+//! Lint engine for `f5 validate` (alias `lint`).
 //!
 //! This is a *sibling* of the query engine: it walks the parsed
 //! [`BigipConfig`] model directly (it does **not** use the query DSL) and
-//! reuses the already-ported `tcl-bigip` model, [`crate::stats::is_root_kind`],
+//! reuses the `tcl-bigip` model, [`crate::stats::is_root_kind`],
 //! `tcl-irules` (the iRule object-reference walker), and `tcl-registry` (the
 //! known-event set). Eight built-in rules run in a fixed registration order;
 //! [`run_lint`] yields findings in that order (the per-severity / rule-id /
-//! full-path sort lives in the text formatter, mirroring Python).
+//! full-path sort lives in the text formatter).
 
 use std::collections::HashSet;
 
@@ -19,12 +18,12 @@ use tcl_registry::events::EventRegistry;
 use crate::model::ModelObject;
 use crate::parser::driver::{BigipConfig, Placed};
 
-/// The lint rule categories, in fixed order (mirrors Python `CATEGORIES`).
+/// The lint rule categories, in fixed order.
 pub const CATEGORIES: [&str; 2] = ["config", "irule"];
-/// The finding severities, in fixed order (mirrors Python `SEVERITIES`).
+/// The finding severities, in fixed order.
 pub const SEVERITIES: [&str; 3] = ["error", "warning", "info"];
 
-/// One lint finding (mirrors the frozen Python `Finding` dataclass).
+/// One lint finding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Finding {
     /// Rule id (e.g. `"orphan-monitor"`, `"irule-missing-pool"`).
@@ -84,7 +83,7 @@ impl<'a, T> KindMap<'a, T> {
         self.index.contains_key(key)
     }
 
-    /// Look up the value for `key`, mirroring `dict.get`.
+    /// Look up the value for `key`.
     pub(crate) fn get(&self, key: &str) -> Option<&'a T> {
         self.index.get(key).map(|&i| self.entries[i].1)
     }
@@ -95,8 +94,7 @@ impl<'a, T> KindMap<'a, T> {
 }
 
 /// The per-kind model views the rules reason about, grouped from
-/// `config.objects` by `ModelObject` variant (mirrors the dict-per-kind
-/// collections on the Python `BigipConfig`).
+/// `config.objects` by `ModelObject` variant.
 pub(crate) struct ModelView<'a> {
     pub(crate) default_partition: &'a str,
     pub(crate) pools: KindMap<'a, crate::model::BigipPool>,
@@ -232,8 +230,8 @@ pub fn merge_configs(configs: &[(String, &BigipConfig)]) -> BigipConfig {
 
 // ── Python repr (for `{name!r}` / `{event!r}` messages) ──────────────
 
-/// Python `repr()` of a string, as used by `{value!r}` (mirrors the
-/// single-quote-preferred quoting; object paths never contain quotes).
+/// Python `repr()` of a string, as used by `{value!r}` (single-quote-preferred
+/// quoting; object paths never contain quotes).
 fn py_repr(s: &str) -> String {
     let quote = if s.contains('\'') && !s.contains('"') {
         '"'
@@ -366,8 +364,7 @@ fn rule_pool_without_monitor(view: &ModelView<'_>, out: &mut Vec<Finding>) {
     }
 }
 
-/// The deprecated iRule commands, in registration order (mirrors
-/// `_DEPRECATED_IRULE_COMMANDS` — a dict, so insertion order is iterated).
+/// The deprecated iRule commands, in registration order.
 const DEPRECATED_IRULE_COMMANDS: &[(&str, &str)] = &[
     (
         "X509::extensions",
@@ -581,7 +578,7 @@ pub fn run_lint(
     category: Option<&str>,
     severity: Option<&str>,
 ) -> Vec<Finding> {
-    // Mirror `_merge_configs(...) if len(configs) > 1 else next(iter(...))`.
+    // Merge when more than one config; otherwise use the single config.
     let owned;
     let view = if configs.len() > 1 {
         owned = merge_configs(configs);

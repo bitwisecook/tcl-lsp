@@ -1,6 +1,5 @@
 //! Serialisation of the canonical red-green CST for the `cst` view.
 //!
-//! Faithful port of `_serialise_cst` (`tooling/cli/serialise.py`):
 //! `DOCUMENT` → `COMMAND` → `WORD` → fragment, each interior node carrying
 //! its absolute range (and a word's `single`/`braced`/`quoted`/`expand`
 //! shape), each leaf its inner `text` versus lossless `raw` and inner-end
@@ -51,7 +50,7 @@ fn leaf_dict(
         "inQuote": tok.in_quote(),
         "startOffset": tok.start_position().offset,
         // End offsets are exclusive; the red layer's end is the lexer
-        // inner-end (#527), so +1 covers the last inner char.
+        // inner-end, so +1 covers the last inner char.
         "endOffset": tok.end_position().offset + 1,
     });
     if depth < MAX_DEPTH && is_opaque(tok.token_type()) && !tok.text().is_empty() {

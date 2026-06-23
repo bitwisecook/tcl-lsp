@@ -1,5 +1,5 @@
-//! Time / date-category builtins (port of the `time` section of
-//! `builtins.py`, which wraps Python's `time` / `datetime` / `calendar`).
+//! Time / date-category builtins, wrapping the `time` / `datetime` /
+//! `calendar` semantics.
 //!
 //! Covers `now`, the jq date helpers (`todate` / `todateiso8601` / `date`,
 //! `fromdate` / `fromdateiso8601`), the broken-down-time family (`gmtime` /

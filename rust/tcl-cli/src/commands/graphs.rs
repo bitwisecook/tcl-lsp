@@ -1,8 +1,8 @@
-//! Analysis/graph verbs: `symbols` (and, as the analyser engine converges,
-//! `callgraph` / `symbolgraph` / `dataflow` / `diagram`).
+//! Analysis/graph verbs: `symbols`, `callgraph`, `symbolgraph`, `dataflow`,
+//! and `diagram`.
 //!
-//! Ports the handlers in `tooling/tcl/verbs/graphs.py`. These verbs combine
-//! every resolved input into one source (`combine_sources`), analyse it, and
+//! These verbs combine every resolved input into one source
+//! (`combine_sources`), analyse it, and
 //! emit a JSON-serialisable graph/symbol shape (or a plain-text summary).
 //!
 //! Ordering note: the Python source iterates `Scope.procs` / `Scope.variables`
@@ -245,7 +245,7 @@ fn pos_value(line_index: &LineIndex, source: &str, offset: u32) -> Value {
     json!({ "line": pos.line, "character": pos.character })
 }
 
-/// Call sites of a proc, deduplicated by span (port of `find_proc_call_sites`).
+/// Call sites of a proc, deduplicated by span.
 fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
     let no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
     let mut seen = std::collections::HashSet::new();
@@ -264,7 +264,7 @@ fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisRes
 
 /// Serialise one scope (global / namespace) to the wire dict.
 ///
-/// Port of `_scope_to_dict`: procs first (source order), then this scope's
+/// Procs first (source order), then this scope's
 /// variables, then children — namespace children recurse with the full shape,
 /// proc children contribute a `{kind, name, variables, children:[]}` node only
 /// when they carry recorded variables. `HashMap` iteration is made
@@ -404,8 +404,7 @@ fn count_namespaces(scope: &Scope) -> usize {
         .sum()
 }
 
-/// Render the text form of a serialised scope (port of
-/// `_append_symbolgraph_scope`).
+/// Render the text form of a serialised scope.
 fn append_symbolgraph_scope(lines: &mut Vec<String>, scope: &Value, depth: usize) {
     let indent = "  ".repeat(depth);
     let kind = scope.get("kind").and_then(Value::as_str).unwrap_or("?");
@@ -548,8 +547,8 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
 /// The synthetic caller node for calls made outside any proc body.
 const TOP_LEVEL: &str = "<top-level>";
 
-/// Human-readable string for an [`EffectRegion`] — port of
-/// `_effect_region_str`. Empty → `"NONE"`; otherwise the contained
+/// Human-readable string for an [`EffectRegion`].
+/// Empty → `"NONE"`; otherwise the contained
 /// single-bit member names joined with `|` in definition order (which, for
 /// a single member, yields just that name — matching Python's `IntFlag`
 /// `.name`).
@@ -581,8 +580,7 @@ fn proc_line_span(ir_module: &IrModule, qname: &str, line_index: &LineIndex) -> 
     })
 }
 
-/// Whether a span lies wholly within some proc's definition (port of
-/// `_is_inside_proc`).
+/// Whether a span lies wholly within some proc's definition.
 fn is_inside_proc(range: Span, ir_module: &IrModule, line_index: &LineIndex) -> bool {
     let start = line0(line_index, range.start());
     let end = line0(line_index, range.end());
@@ -593,8 +591,7 @@ fn is_inside_proc(range: Span, ir_module: &IrModule, line_index: &LineIndex) -> 
     })
 }
 
-/// Call-site positions of `callee_qname` within `caller_qname`'s body
-/// (port of `_find_call_sites_in_scope`).
+/// Call-site positions of `callee_qname` within `caller_qname`'s body.
 #[allow(clippy::similar_names)] // caller_qname / callee_qname mirror the domain
 fn find_call_sites_in_scope(
     analysis: &AnalysisResult,
@@ -639,8 +636,8 @@ fn find_call_sites_in_scope(
     sites
 }
 
-/// Resolve a top-level invocation to a known proc qname (port of
-/// `_resolve_invocation_target`). Proc names are iterated in sorted order
+/// Resolve a top-level invocation to a known proc qname. Proc names are
+/// iterated in sorted order
 /// for a deterministic pick on the (rare) ambiguous short-name fallback.
 fn resolve_invocation_target(
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
@@ -688,7 +685,7 @@ fn build_nodes(
         .collect()
 }
 
-/// Build the full call-graph payload — port of `build_call_graph`.
+/// Build the full call-graph payload.
 fn build_call_graph(source: &str, dialect: &str) -> Value {
     let registry = registry_for_dialect(dialect);
     // Build the full compilation unit (matching Python's
@@ -882,10 +879,9 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
 // dataflow
 
 /// Aggregate every taint warning kind for one function unit into the
-/// dataflow JSON shape — a faithful port of the per-scope loop in Python
-/// `compiler.taint.find_taint_warnings`, which runs five families in a
+/// dataflow JSON shape. Runs five families in a
 /// fixed order: sink injection (`_find_taint_sinks`), setter-constraint,
-/// uri-split, path-concat, then destructive-file. Mirrors the same order
+/// uri-split, path-concat, then destructive-file — the same order
 /// and dialect gating as `compiler_checks::run_all_checks`. Every kind
 /// yields a `variable` + `sink_command` (Python's path-concat warning is a
 /// `TaintWarning` with `sink_command="set"`; the Rust `PathConcatWarning`
@@ -1025,8 +1021,7 @@ fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
         .collect()
 }
 
-/// Build the dataflow / taint graph payload — port of
-/// `build_dataflow_graph`.
+/// Build the dataflow / taint graph payload.
 fn build_dataflow_graph(source: &str, dialect: &str) -> Value {
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(source, registry, false)

@@ -1,5 +1,4 @@
-//! Expression-simplification optimiser pass (C30e + follow-up
-//! C30e4–C30e7).
+//! Expression-simplification optimiser pass.
 //!
 //! Walks `Statement::ExprEval` (a bare `expr {…}` command) and
 //! `Statement::AssignExpr` (the lowered form of

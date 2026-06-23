@@ -1,7 +1,6 @@
-//! Canonical JSON serialisation matching the Python `_rust_bridge`
-//! schema, so `rebuild(config_to_canonical(rust_parse(src)))` reconstructs
-//! the exact Python dataclasses (the parity gate + the f5 consumption
-//! path).
+//! Canonical JSON serialisation matching the `_rust_bridge` schema, so
+//! `rebuild(config_to_canonical(rust_parse(src)))` reconstructs the exact
+//! Python dataclasses the `f5` layer consumes.
 //!
 //! Tags: `{"r":[6]}` Range, `{"S":[2]}` SourceSpan, `{"e":NAME}` enum,
 //! `{"s":STR}` scalar value, `{"t":[…]}` tuple, `{"m":{…}}` dict,
@@ -341,7 +340,7 @@ mod tests {
         m
     }
 
-    /// F5-M1: the canonical `field_offsets` JSON must be deterministic — two
+    /// The canonical `field_offsets` JSON must be deterministic — two
     /// independently-seeded `HashMap`s with the same entries must serialise
     /// to byte-identical JSON, otherwise the PyO3 cross-language contract
     /// diverges run-to-run.

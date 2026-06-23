@@ -1,12 +1,11 @@
 //! `f5 fetch` — pull SCF/UCS from a live BIG-IP device.
 //!
-//! Rust port of `tooling/f5/verbs/fetch.py` + `f5_remote.fetch_scf`. Credential
-//! resolution and the SSH-deferral / arg surfaces are parity-tested offline;
-//! the live REST flow (UCS save → poll-download → `ucs_to_scf` →
-//! cache-dir/`latest`/`fetch.meta`) is implemented faithfully but untested here.
+//! Credential resolution and the SSH-deferral / arg surfaces are parity-tested
+//! offline; the live REST flow (UCS save → poll-download → `ucs_to_scf` →
+//! cache-dir/`latest`/`fetch.meta`) is implemented but untested here.
 //!
-//! SSH is deferred: `--transport ssh` returns the deferral error, and `auto`
-//! falls back to it only when REST is unavailable.
+//! SSH transport is not supported: `--transport ssh` returns the deferral
+//! error, and `auto` falls back to it only when REST is unavailable.
 
 use std::path::{Path, PathBuf};
 
@@ -161,7 +160,7 @@ fn resolve_output_dir(explicit: Option<&str>, result: &FetchResult) -> Result<Pa
     Ok(out)
 }
 
-/// Sanitise a host into a directory-safe component (mirrors `_safe_host_dir`).
+/// Sanitise a host into a directory-safe component.
 fn safe_host_dir(host: &str) -> String {
     host.chars()
         .map(|c| {

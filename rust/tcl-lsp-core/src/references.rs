@@ -1,5 +1,4 @@
-//! Find-references / document-highlight provider — Rust port
-//! of `lsp/features/references.py`.
+//! Find-references / document-highlight provider.
 //!
 //! Locates every usage of the symbol at the cursor:
 //!
@@ -20,20 +19,20 @@
 //! * [`document_highlights`] — returns
 //!   `Vec<(LspRange, HighlightKind)>` for the LSP
 //!   `textDocument/documentHighlight` request.  Variables get
-//!   the `Write` / `Read` distinction
-//!   (`S-document-highlight-rich`); command-invocation matches
+//!   the `Write` / `Read` distinction;
+//!   command-invocation matches
 //!   stay `Text` because the analyser's
 //!   `command_invocations` doesn't currently surface read /
 //!   write semantics on call-head matches.
 //!
-//! Class-member references also land: when the cursor sits
+//! Class-member references: when the cursor sits
 //! on a method, classmethod, or property name inside the
 //! class body, the provider re-segments every sibling method
 //! body and surfaces each invocation that names the same
 //! member.  `document_highlights` returns the declaration as
 //! `Write` and every call site as `Text`.
 //!
-//! External `$obj method` references also land: when the
+//! External `$obj method` references: when the
 //! cursor sits on the method-name token of a `$obj method`
 //! call (or inside the class body), the provider additionally
 //! scans the whole document for `$v method` / `[$v method]`
@@ -41,13 +40,11 @@
 //! `analysis.instance_classes`) matches.  See
 //! [`find_obj_method_call_sites`] for the scan's coverage.
 //!
-//! What is *still deferred* (planned as `S-references-rich`
-//! follow-ups):
+//! Limitations:
 //!
-//! * Cross-document references — the workspace-index integration
-//!   that surfaces references across every open document; lands
-//!   alongside `S-workspace-symbols` and the workspace-index
-//!   chunks.
+//! * Cross-document references — surfacing references across
+//!   every open document via a workspace-index integration —
+//!   are not supported.
 //! * `$obj method` sites embedded in quoted / word tokens
 //!   (`"prefix[$d bark]"`) — the scan descends into
 //!   command-substitution args and proc / method bodies but
@@ -65,10 +62,10 @@ use crate::hover::{find_var_at_position, find_word_span_at_position};
 ///
 /// This is the matching core shared by [`references`] (the peek / Find
 /// All References) and the code-lens reference count, so the two can never
-/// disagree (issue #637 / PR #644).  It takes the resolved `proc_def`
+/// disagree.  It takes the resolved `proc_def`
 /// directly — no cursor, no `LineIndex`, no proc-table rescan — so a
 /// caller iterating every proc (the code-lens provider) doesn't pay that
-/// per-proc overhead (PR #646 review).
+/// per-proc overhead.
 #[must_use]
 pub(crate) fn proc_reference_spans(
     analysis: &AnalysisResult,
@@ -544,7 +541,7 @@ fn scan_obj_method_body(
 /// args.  `var_set` holds the bare names of in-scope instance
 /// variables.
 // `too_many_arguments`: the recursive OO-method scan threads its working
-// state by value; the added `dialect` (SYNC-MAY19-dialect-contextvar)
+// state by value; the added `dialect`
 // tips it to 8.  A context struct is a separate cleanup.
 #[allow(clippy::too_many_arguments)]
 fn scan_obj_method_region(
@@ -895,7 +892,7 @@ mod tests {
         assert!(refs.iter().any(|r| r.start_line == 0));
     }
 
-    // -- S-document-highlight-rich: read/write distinction -----------
+    // -- read/write distinction -----------
 
     #[test]
     fn document_highlights_var_records_write_at_definition() {
@@ -927,7 +924,7 @@ mod tests {
         // populates `references` for a given source depends
         // on its body-walk heuristics (single-arg `set x`
         // reads are tracked, `$x` substitutions in arg
-        // positions are not in the current Rust port).  This
+        // positions are not).  This
         // test injects a synthetic `VarDef` with a known
         // `references` entry to verify the tagging logic in
         // isolation from the body-walk gap.
@@ -999,7 +996,7 @@ mod tests {
         assert!(document_highlights(src, "tcl", 0, 6, &analysis).is_empty());
     }
 
-    // -- S-references-rich: resolved-qualified-name matching ---------
+    // -- resolved-qualified-name matching ---------
 
     #[test]
     fn resolved_qualified_name_matches_call_site_from_namespace() {
@@ -1021,7 +1018,7 @@ mod tests {
 
     #[test]
     fn document_highlights_surfaces_var_reads_from_arg_positions() {
-        // After the `record_arg_var_reads` follow-up, `$x`
+        // With `record_arg_var_reads`, `$x`
         // reads in command arguments populate
         // `VarDef.references` and surface as `Read` spans in
         // the document-highlight provider.
@@ -1065,7 +1062,7 @@ mod tests {
         );
     }
 
-    // -- S-references-rich: class-member references -----------------
+    // -- class-member references -----------------
 
     #[test]
     fn references_for_method_includes_decl_and_call_sites() {
@@ -1099,7 +1096,7 @@ mod tests {
         assert_eq!(texts, 3, "{h:?}");
     }
 
-    // -- S-references-rich: external $obj method sites --------------
+    // -- external $obj method sites --------------
 
     #[test]
     fn references_from_external_obj_method_site() {

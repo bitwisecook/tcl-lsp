@@ -1,5 +1,4 @@
-//! TLS-handshake probe backend for `tls_handshake` — faithful-but-not-golden
-//! port of `dialects/f5/query/_probes.tls_handshake`.
+//! TLS-handshake probe backend for `tls_handshake` (faithful-but-not-golden).
 //!
 //! Opens a verifying TLS connection via `rustls` and reports the negotiated
 //! `{protocol, cipher, peer_cert, alpn_selected, verify_status, error}` plus a

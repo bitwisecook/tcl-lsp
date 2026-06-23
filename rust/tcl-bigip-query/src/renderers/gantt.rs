@@ -1,7 +1,5 @@
 //! `gantt` renderer — ASCII Gantt of timestamped state transitions.
 //!
-//! Faithful port of `dialects/f5/query/renderers/gantt.py`.
-//!
 //! Accepts the row shape `tsv(.timestamp, .label, .state)` produces, plus a
 //! few friendlier alternatives:
 //!

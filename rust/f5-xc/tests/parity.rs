@@ -3,7 +3,7 @@
 //!
 //! The fixture (`tests/parity_fixture.json`) is generated from the Python
 //! `translate_irule` / `get_xc_diagnostics` by `tests/gen_fixture.py`; this
-//! test re-runs the Rust port over the same sources and asserts the summary
+//! test re-runs the `f5-xc` translator over the same sources and asserts the summary
 //! (per-item codes, status counts, coverage, construct counts, origin-pool
 //! names, and the lifted diagnostic codes + messages) matches byte-for-byte.
 

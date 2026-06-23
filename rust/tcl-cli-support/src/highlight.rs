@@ -1,5 +1,4 @@
-//! Syntax highlighter (ANSI + HTML) — the Rust port of `_highlight_source_ansi`
-//! / `_highlight_source_html` and their helpers in `tooling/cli/_utils.py`.
+//! Syntax highlighter (ANSI + HTML).
 //!
 //! Lexer-driven (no analyser/optimiser dependency), so this reaches byte-for-byte
 //! parity with the Python CLI. Command heads and registry-resolved subcommands

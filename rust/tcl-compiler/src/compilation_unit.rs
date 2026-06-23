@@ -3,17 +3,12 @@
 //! Built once per diagnostics cycle, consumed by the analyser,
 //! optimiser, shimmer analysis, taint engine, and compiler checks.
 //!
-//! Ported from `core/compiler/compilation_unit.py` (C31). This
-//! strip lands the [`CompilationUnit`] / [`FunctionUnit`] facade
-//! types and the `build_for` entry point that drives the landed
-//! pipeline (lower → CFG → SSA → def-use → SCCP). Heavier
-//! analyses (interprocedural, memory-SSA, execution-intent,
-//! rendered-properties) plug in through accessor methods that
-//! return `Option<&T>` — `None` when the analysis hasn't been
-//! run on this unit yet.
-//!
-//! The Python facade also owns class-name extraction and
-//! connection-scope analysis; those are follow-ups.
+//! Hosts the [`CompilationUnit`] / [`FunctionUnit`] facade types and
+//! the `build_for` entry point that drives the pipeline (lower → CFG →
+//! SSA → def-use → SCCP). Heavier analyses (interprocedural,
+//! memory-SSA, execution-intent, rendered-properties) plug in through
+//! accessor methods that return `Option<&T>` — `None` when the analysis
+//! hasn't been run on this unit yet.
 
 use std::collections::{HashMap, HashSet};
 
@@ -145,7 +140,7 @@ pub struct FunctionUnit {
     /// the dataflow lattices are trivial and **every** per-proc diagnostic /
     /// optimiser pass must skip this function (consult the flag, not the cfg,
     /// so byte-large-but-block-light generated bodies are guarded
-    /// consistently). Mirrors Python's `FunctionUnit.complexity_guarded`.
+    /// consistently).
     pub complexity_guarded: bool,
     /// Byte offset to add to this unit's (otherwise relative) spans to recover
     /// **absolute** source positions (Approach B — offset-aware consumers).
@@ -227,8 +222,7 @@ impl FunctionUnit {
         // the deep analysis and flag the unit. The body-byte half is applied by
         // the callers that have the body span (see `build_for_with_config`).
         // Backstop for every path through here — `build`, methods, and the
-        // salsa `function_lattice` callbacks. Mirrors Python's `force_guard or
-        // is_complexity_guarded` short-circuit in `analyse_function`.
+        // salsa `function_lattice` callbacks.
         if crate::ssa::is_complexity_guarded(&cfg) {
             return Self::trivial_guarded(name, cfg);
         }
@@ -243,7 +237,7 @@ impl FunctionUnit {
             param_constants,
             Some(registry.leading_zero_is_octal()),
         );
-        // SYNC-MAY31-3: surface `[info exists X]` / `[array exists X]`
+        // Surface `[info exists X]` / `[array exists X]`
         // folds (parameter → exists, never-defined non-param → absent)
         // as constant branches so the optimiser's O101 fold / DCE sees
         // them. The analyser's I230 uses the same fold via
@@ -399,27 +393,24 @@ pub struct CompilationUnit {
     pub top_level: FunctionUnit,
     /// Per-procedure analyses keyed by qualified name.
     pub procedures: HashMap<String, FunctionUnit>,
-    /// `TclOO` method bodies lowered to per-method [`FunctionUnit`]s
-    /// (SF-2). Keyed by `{class_qname}::{method_name}`; empty for
+    /// `TclOO` method bodies lowered to per-method [`FunctionUnit`]s.
+    /// Keyed by `{class_qname}::{method_name}`; empty for
     /// non-OO sources. Kept separate from [`Self::procedures`] so the
     /// per-proc diagnostic passes are unaffected — only the optimiser's
-    /// O126 gate iterates these. Mirrors Python's
-    /// `CompilationUnit.methods`.
+    /// O126 gate iterates these.
     pub methods: HashMap<String, FunctionUnit>,
     /// Interprocedural summary (optional — populated when the
     /// interprocedural pass has been run).
     pub interproc: Option<InterproceduralAnalysis>,
-    /// Cross-event variable scope analysis.  ``Some`` when at
-    /// least one ``::when::*`` procedure is in
-    /// [`Self::procedures`]; ``None`` for non-iRules sources or
-    /// any source with no ``when`` blocks.  Mirrors Python's
-    /// ``CompilationUnit.connection_scope``.  Lands alongside
-    /// **C41d7** (the IRULE4005 emitter).
+    /// Cross-event variable scope analysis (consumed by the IRULE4005
+    /// emitter).  ``Some`` when at least one ``::when::*`` procedure is
+    /// in [`Self::procedures`]; ``None`` for non-iRules sources or any
+    /// source with no ``when`` blocks.
     pub connection_scope: Option<crate::connection_scope::ConnectionScope>,
 }
 
 impl CompilationUnit {
-    /// Build a [`CompilationUnit`] by running the landed pipeline
+    /// Build a [`CompilationUnit`] by running the pipeline
     /// end-to-end: `lower_to_ir` → `build_cfg` → per-function
     /// SSA / def-use / SCCP.
     ///
@@ -442,7 +433,7 @@ impl CompilationUnit {
 
     /// Like [`Self::build_for`] but lowers with an explicit dialect
     /// [`tcl_lexer::LexerConfig`] so `{*}` / `}{` tokenisation follows the
-    /// document's dialect (`SYNC-MAY19-dialect-contextvar`, strip 3).
+    /// document's dialect.
     #[must_use]
     pub fn build_for_with_config(
         source: &str,
@@ -498,17 +489,17 @@ impl CompilationUnit {
         mut cache: Option<&mut ProcLatticeCache<'_>>,
     ) -> Self {
         let mut ir_module = lower_to_ir_with_config(source, registry, config);
-        // C36d/e/f: specialise Option-shape factories before any
-        // other module-level passes so the synthesised child procs
+        // Specialise Option-shape factories before any other
+        // module-level passes so the synthesised child procs
         // appear in module.procedures for the inline_uplevel pass
         // and CFG construction.
         crate::specialise_factories::specialise_factories(&mut ir_module, registry);
-        // C34e: run the inline_uplevel pass before CFG construction so
+        // Run the inline_uplevel pass before CFG construction so
         // every passthrough callsite is replaced with a Statement::Block
         // that splices the body inline.
         crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
         let cfg_module = build_cfg(&ir_module, defer_top_level);
-        // D3-P2: collect call-site literal arg values per user proc so each
+        // Collect call-site literal arg values per user proc so each
         // callee's SCCP can fold a param every caller passes the same literal
         // for (interprocedural constant propagation).
         let call_site_constants = collect_call_site_constants(&cfg_module, &ir_module.procedures);
@@ -551,8 +542,7 @@ impl CompilationUnit {
             // Complexity guard (block-count or body-byte half): skip both the
             // memo and the deep analysis for an oversized body. A flat
             // generated proc is block-light yet byte-huge, so the byte test is
-            // what catches it. Mirrors Python's `byte_guarded ||
-            // is_complexity_guarded(cfg)` in the compilation-unit build.
+            // what catches it.
             let body_bytes = proc.map_or(0usize, |p| {
                 p.span.end().saturating_sub(p.span.start()) as usize
             });
@@ -616,7 +606,7 @@ impl CompilationUnit {
             });
             procedures.insert(qname.clone(), fu);
         }
-        // SF-2: lower TclOO method bodies (populated in
+        // Lower TclOO method bodies (populated in
         // `ir_module.methods` by lowering) to per-method
         // `FunctionUnit`s, using the same CFG → SSA → analysis
         // pipeline as procs. Kept in a separate map so the per-proc
@@ -663,7 +653,7 @@ impl CompilationUnit {
                 })
                 .collect()
         };
-        // **C41d7.** Build the cross-event scope from the
+        // Build the cross-event scope from the
         // ``::when::*`` subset of procedures.  ``None`` when no
         // ``when`` block is present so non-iRules consumers
         // skip the (empty) sweep.
@@ -874,8 +864,7 @@ fn collect_known_classes(source: &str, registry: &CommandRegistry) -> HashSet<St
 
 /// Collect literal arg values per user-proc call site across the whole
 /// module's CFGs (top-level + every proc body, statements already flattened).
-/// Mirrors `_collect_call_site_constants`.  Returns
-/// `{callee_qname -> {arg_index -> ArgConsts}}`.
+/// Returns `{callee_qname -> {arg_index -> ArgConsts}}`.
 fn collect_call_site_constants(
     cfg_module: &CfgModule,
     procedures: &HashMap<String, crate::ir::Procedure>,
@@ -913,8 +902,8 @@ fn collect_call_site_constants(
                 // A call that omits a (defaulted) parameter uses its default,
                 // an unknown value at that slot — poison every param position
                 // this call doesn't provide so a single literal at another
-                // call site can't bind it.  Mirrors the intent of treating
-                // omitted args as `_UNKNOWN_ARG`.
+                // call site can't bind it (omitted args are treated as
+                // unknown).
                 let nparams = procedures.get(&target).map_or(0, |p| p.params.len());
                 let by_idx = out.entry(target).or_default();
                 for (i, arg) in args.iter().enumerate() {
@@ -936,7 +925,7 @@ fn collect_call_site_constants(
 
 /// Build the SCCP `param_constants` seed for `qname` from collected call-site
 /// literals: bind `(param, 0)` only when every caller passes the same single
-/// literal at that position.  Mirrors `_params_constants_from_call_sites`.
+/// literal at that position.
 fn params_constants_from_call_sites(
     params: &[String],
     call_site_constants: &HashMap<String, HashMap<usize, ArgConsts>>,
@@ -1111,7 +1100,7 @@ mod tests {
 
     #[test]
     fn build_for_lowers_oo_methods_to_function_units() {
-        // SF-2 (SYNC-JUN02-1): TclOO method bodies get their own
+        // TclOO method bodies get their own
         // FunctionUnit (CFG → SSA → analysis) in `cu.methods`, kept
         // separate from `procedures` so the optimiser's O126 gate can
         // iterate them. `procedures` stays free of method qnames.
@@ -1142,7 +1131,7 @@ mod tests {
 
     #[test]
     fn switch_subject_counts_as_param_use() {
-        // SYNC-MAY31-7: the `switch -- $col` subject lowers to an
+        // The `switch -- $col` subject lowers to an
         // `ExprNode::Raw` branch condition.  The expr var-scan now
         // recovers `$col`, so the parameter's def-use chain has a
         // live (terminator) use instead of looking dead — the precise
@@ -1169,7 +1158,7 @@ mod tests {
 
     #[test]
     fn switch_glob_arm_body_read_counts_as_param_use() {
-        // SYNC-MAY31-2: a `switch -glob`/`-regexp` arm body is now a
+        // A `switch -glob`/`-regexp` arm body is now a
         // real analysed CFG region (it used to vanish into a barrier).
         // A parameter referenced *only* inside a glob-arm body therefore
         // has a live def-use chain — the precise path behind W214.

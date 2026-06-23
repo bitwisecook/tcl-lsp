@@ -1,8 +1,5 @@
 //! O128 — end-offset index rewrite.
 //!
-//! Ported from `optimise_end_offset_indexes` in
-//! `core/compiler/optimiser/_pattern_recognition.py`.
-//!
 //! Rewrites length arithmetic used as a list/string index to Tcl's
 //! `end` / `end-N` form: `lindex $L [expr {[llength $L] - 1}]` →
 //! `lindex $L end`, `string range $s 0 [expr {[string length $s] - 2}]`
@@ -58,8 +55,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 
 /// Collect every statement's span, recursing through control-flow bodies
 /// so commands nested in `if` / `for` / `while` / `switch` / `try`
-/// bodies are reached. Mirrors the per-block statement walk Python runs
-/// over the CFG.
+/// bodies are reached.
 fn collect_statement_spans(script: &Script, out: &mut Vec<Span>) {
     for stmt in &script.statements {
         out.push(stmt.span());
@@ -205,7 +201,7 @@ fn emit_for_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand) {
 /// `linsert $L [expr {[llength $L] - 1}] x` inserts before the last
 /// element — no `end`/`end-N` rewrite preserves that). `lindex` with
 /// multiple indices resolves later indices against sub-lists, so only the
-/// first index (position 2) is safe. Mirrors `_end_offset_command_shape`.
+/// first index (position 2) is safe.
 fn end_offset_command_shape(texts: &[String]) -> Option<(Vec<usize>, usize, LengthKind)> {
     let cmd = texts.first()?.as_str();
     let nargs = texts.len();
@@ -225,7 +221,7 @@ fn end_offset_command_shape(texts: &[String]) -> Option<(Vec<usize>, usize, Leng
 
 /// Return the single `expr` argument of a `[expr <arg>]` command word, or
 /// `None` for anything else. The word text is the verbatim `[…]`
-/// substitution. Mirrors `_expr_arg_from_expr_command`.
+/// substitution.
 fn expr_arg_from_command_word(word: &str) -> Option<String> {
     let inner = word.strip_prefix('[').and_then(|s| s.strip_suffix(']'))?;
     let cmds = segment_commands_with_offset(inner, 0);
@@ -241,8 +237,7 @@ fn expr_arg_from_command_word(word: &str) -> Option<String> {
 /// Parse `[llength $L] - N` / `[string length $s] - N` (with `N >= 1`)
 /// into `(kind, container_word, end_offset)` where the Tcl end-offset is
 /// `N - 1` (`[llength $L] - 1` → `end`). A bare `[llength $L]` (no
-/// subtraction) is one past the last index and is rejected. Mirrors
-/// `_try_end_offset_from_length_expr`.
+/// subtraction) is one past the last index and is rejected.
 fn try_end_offset_from_length_expr(expr_text: &str) -> Option<(LengthKind, String, i64)> {
     let node = parse_expr(expr_text.trim(), None);
     let ExprNode::Binary {
@@ -275,8 +270,7 @@ fn try_end_offset_from_length_expr(expr_text: &str) -> Option<(LengthKind, Strin
 /// If `cmd_text` is `[<head…> <arg>]` (or the same without the brackets)
 /// where the leading words equal `head`, return the trailing `<arg>` as
 /// it segments (so the spelling matches the container word). Covers both
-/// `llength $L` (one head word) and `string length $s` (two). Mirrors
-/// `_parse_llength_arg` / `_parse_string_length_arg`.
+/// `llength $L` (one head word) and `string length $s` (two).
 fn parse_length_arg(cmd_text: &str, head: &[&str]) -> Option<String> {
     let inner = cmd_text
         .strip_prefix('[')

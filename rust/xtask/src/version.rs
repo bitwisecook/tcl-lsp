@@ -1,4 +1,4 @@
-//! Project version — Rust port of `scripts/print_version.py`.
+//! Project version.
 //!
 //! Prints the version setuptools-scm / hatch-vcs would produce for the
 //! current tree (the version `uv build` stamps into the wheel name),

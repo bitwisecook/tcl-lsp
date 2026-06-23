@@ -1,7 +1,5 @@
 //! F5 master-key (`f5mku`) secret encryption / decryption.
 //!
-//! Faithful Rust port of `tooling/f5/f5mku.py`.
-//!
 //! BIG-IP stores credential-bearing values (SSL key passphrases, monitor
 //! passwords, RADIUS / TACACS shared secrets, …) in its configuration encrypted
 //! under the unit master key. On a device that key is what `f5mku -K` prints — a
@@ -10,11 +8,10 @@
 //!
 //! The transform is AES in ECB mode with PKCS#7 padding: a two-character salt is
 //! prepended to the plaintext, the result is padded to a 16-byte boundary,
-//! encrypted block-by-block with the master key, and base64 encoded. The Python
-//! original hand-rolls AES so the zipapp ships without a C extension; here we
-//! delegate the block transform to the audited pure-Rust [`aes`] crate and keep
-//! only the thin salt / PKCS#7 / base64 envelope logic, which is exactly what
-//! the Python module layers on top of the cipher.
+//! encrypted block-by-block with the master key, and base64 encoded. The block
+//! transform is delegated to the audited pure-Rust [`aes`] crate; this module
+//! provides only the thin salt / PKCS#7 / base64 envelope logic on top of the
+//! cipher.
 //!
 //! ```
 //! # use f5_cli::f5mku::{encrypt, decrypt, extract_salt};
@@ -34,7 +31,7 @@ const BLOCK_SIZE: usize = 16;
 const SALT_LENGTH: usize = 2;
 const SALT_ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-/// Raised for malformed master keys or ciphertext (port of `F5MkuError`).
+/// Raised for malformed master keys or ciphertext.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct F5MkuError(pub String);
 

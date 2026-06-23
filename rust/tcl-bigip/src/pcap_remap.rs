@@ -1,8 +1,7 @@
 //! Apply a [`RedactionMap`] to a PCAP capture file.
 //!
-//! Faithful Rust port of `dialects/f5/bigip/pcap_remap.py` (powers
-//! `f5 pcap-remap`). For each packet record it parses the link-layer header,
-//! locates the IPv4 / IPv6 header, rewrites src/dst via the redaction map,
+//! Powers `f5 pcap-remap`. For each packet record it parses the link-layer
+//! header, locates the IPv4 / IPv6 header, rewrites src/dst via the redaction map,
 //! recomputes the IPv4 header checksum and the TCP / UDP / ICMP / ICMPv6
 //! checksum (including the pseudo-header), and rewrites peer-IP fields in the
 //! F5 Ethernet trailer at their schema-known offsets.
@@ -76,7 +75,7 @@ pub enum PcapError {
         /// TLV length.
         length: usize,
     },
-    /// Any other malformed-input / value error (mirrors Python `ValueError`).
+    /// Any other malformed-input / value error.
     Value(String),
 }
 
@@ -156,8 +155,7 @@ const IPV6_AH: u8 = 51;
 ///
 /// Returns `(proto, l4_off, l4_len)` — the upper-layer protocol number, the
 /// absolute offset of the L4 header, and the remaining L4 length — or `None`
-/// when the chain is fragmented / encrypted / malformed. Mirrors Python's
-/// `_ipv6_l4_locator` in `dialects/f5/bigip/pcap_remap.py`; exposed for the
+/// when the chain is fragmented / encrypted / malformed. Exposed for the
 /// flow extractor so there is a single canonical walker.
 #[must_use]
 pub fn ipv6_l4_locator(packet: &[u8], ip_off: usize) -> Option<(u8, usize, usize)> {
@@ -983,7 +981,7 @@ mod tests {
     }
 
     /// An odd-length buffer pads with a trailing zero byte (high byte of the
-    /// final word), matching the Python reference.
+    /// final word).
     #[test]
     fn ones_complement_odd_length() {
         let even = [0x12u8, 0x34, 0x56, 0x00];

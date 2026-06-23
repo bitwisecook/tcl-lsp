@@ -1,15 +1,13 @@
-//! Constant / copy propagation optimiser pass (C30f, partial).
+//! Constant / copy propagation optimiser pass.
 //!
-//! Ported from `core/compiler/optimiser/_propagation.py`. The
-//! Python module exposes seven distinct entry points; this
-//! Rust port currently lands three:
+//! Entry points:
 //!
 //! - **`optimise_constant_var_refs`** (`O100`) — replace a
 //!   single-token `$var` call argument with its SCCP-proved
 //!   literal, when the value is safe to inline as a bare word.
 //! - **`optimise_static_proc_calls`** (`O103`) — fold calls to
 //!   pure procs whose return is a proven constant
-//!   (`can_fold_static_calls` from C28x-return). Fires
+//!   (`can_fold_static_calls`). Fires
 //!   applicable rewrites when the call appears as a `[proc …]`
 //!   command substitution inside another call's argv (the argv
 //!   span is the rewrite target); the bare statement form stays
@@ -17,10 +15,9 @@
 //!   `::answer` to `42` would leave an invalid command name.
 //! - **`optimise_return_terminator`** (`O100`) — rewrite
 //!   `return $v` as `return K` when `v` is SCCP-constant.
-//!   (Earlier Rust commits emitted `O104`; that code is reserved
-//!   by the canonical optimisation-codes table for the
-//!   string-build chain fold and was reassigned in the C* close-out
-//!   audit.)
+//!   (`O104` is reserved by the canonical optimisation-codes
+//!   table for the string-build chain fold, so this path uses
+//!   `O100`.)
 //!
 //! - **`optimise_string_interpolation_var_refs`** (`O100`) —
 //!   inline SCCP-proved constants into `"…$x…"` double-quoted
@@ -38,13 +35,12 @@
 //!   on uses inside interpolated strings (the latter covered by
 //!   the O100 string-interpolation path).
 //!
-//! `optimise_expression_args` and `optimise_expr_substitutions`
-//! in the Python source operate on the condition sub-expressions
-//! of `if` / `while` / `for` and the bodies of standalone `expr`
-//! commands. Both are already covered by this Rust port's
-//! `branch_folding::propagate_into_branches` (for
-//! branch conditions) and [`super::expr_simplify::run`] (for
-//! standalone `expr` commands) — no separate port is needed.
+//! Constant propagation into the condition sub-expressions of
+//! `if` / `while` / `for` and the bodies of standalone `expr`
+//! commands is handled elsewhere:
+//! `branch_folding::propagate_into_branches` (for branch
+//! conditions) and [`super::expr_simplify::run`] (for standalone
+//! `expr` commands).
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -85,10 +81,9 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     for fu in cu.procedures.values() {
         run_load_forwarding(ctx, fu);
     }
-    // GAP-B1: O127 store-to-load forwarding for *computed* single-use
+    // O127 store-to-load forwarding for *computed* single-use
     // assignments (`set x [cmd]` inlined to its sole use site, then the
-    // store deleted).  Skips the top-level body, matching Python's
-    // `is_top_level` guard.
+    // store deleted).  Skips the top-level body.
     for fu in cu.procedures.values() {
         run_store_to_load_forwarding(ctx, fu);
     }
@@ -212,8 +207,7 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
 /// O127 — store-to-load forwarding for a *computed* single-use
 /// assignment.
 ///
-/// Port of `optimise_load_forwarding`'s O127 path
-/// (`_propagation.py:716-1046`).  When `set x [cmd]` (a command
+/// The O127 store-to-load-forwarding path.  When `set x [cmd]` (a command
 /// substitution or a command-bearing expr) has exactly one
 /// `Operand` use of `$x` later in the same block, and nothing
 /// between the def and the use can change the value the expression
@@ -221,7 +215,7 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
 /// at the use site (`O127`) and delete the original store (`O127`,
 /// empty replacement).
 ///
-/// Safety gates mirror the Python pass: single operand use; same
+/// Safety gates: single operand use; same
 /// executable block; use after def; the value is not SCCP-constant
 /// (those are O100/O102); neither the defined name nor any name the
 /// expression reads is memory-SSA aliased (upvar / global /
@@ -680,7 +674,7 @@ fn walk_statement(
         // command-argument position already gets. Only the cmd-sub fold
         // path is wired (not `visit_call_tokens`): a bare `set y $c` RHS
         // is handled by SCCP / load-forwarding, and folding it here would
-        // change behaviour beyond the documented gap. SYNC-JUN02b-6 (#519).
+        // change behaviour beyond the documented gap.
         //
         // Note: the *canonical* `set x [expr {[expr {E}]}]` does not reach
         // this arm — `extract_single_expr_arg` strips the outer `expr` at
@@ -768,10 +762,9 @@ fn walk_statement(
 /// constant arguments, returning the constant return value when every
 /// reachable `return` agrees on it.
 ///
-/// Mirrors Python's `interprocedural.evaluate_proc_with_constants`: seed the
-/// parameters as version-0 lattice constants, re-run SCCP over the callee's
-/// CFG, then resolve a single constant from all reachable `return`
-/// terminators. Used for the argument-sensitive O103 fold
+/// Seeds the parameters as version-0 lattice constants, re-runs SCCP over
+/// the callee's CFG, then resolves a single constant from all reachable
+/// `return` terminators. Used for the argument-sensitive O103 fold
 /// (`[::math::add 2 4]` → `6`) that the summary's argument-independent
 /// `constant_return` cannot express.
 fn evaluate_proc_with_constants(
@@ -795,7 +788,6 @@ fn evaluate_proc_with_constants(
 /// Resolve the constant return value of `fu` under a computed SCCP `result`.
 /// Every reachable `return` terminator must fold to the **same** constant;
 /// a void return, an unfoldable return, or disagreeing returns yield `None`.
-/// Mirrors Python's `_resolve_return_constant`.
 fn resolve_return_constant(
     fu: &FunctionUnit,
     result: &crate::sccp::SccpResult,
@@ -935,7 +927,7 @@ fn parse_static_call_args(
 
 /// Resolve a call's head word to a procedure qname that has an
 /// interprocedural summary, walking the enclosing namespace chain for a
-/// bare call. Mirrors Python's `_resolve_summary_proc_name`:
+/// bare call:
 ///
 /// * a `::`-qualified word is taken as-is;
 /// * a word containing `::` (relative-qualified) is rooted at `::`;
@@ -1122,7 +1114,7 @@ fn try_fold_return_terminator(
     let Some(resolved) = constants.get(&name).or_else(|| constants.get(&normalised)) else {
         return;
     };
-    // SYNC-JUN02b-1: render the constant as a single self-contained word
+    // Render the constant as a single self-contained word
     // rather than bailing on metacharacters (`return {Hello World}`).
     let word = render_propagation_word(resolved);
     ctx.report(Optimisation::new(
@@ -1218,8 +1210,7 @@ fn try_substitute_assign_expr(
 /// position word. A plain `[expr {$x + 1}]` (whose unwrap `$x + 1`
 /// would be invalid as a bare value) — or an `[expr {[other]}]` whose
 /// inner is not itself `expr` (not value-equivalent for non-numeric
-/// results) — yields `None`. Mirrors the O115 value-position path added
-/// to `optimise_expr_substitutions` (#519).
+/// results) — yields `None`.
 fn o115_redundant_nested_expr(word: &str) -> Option<String> {
     let expr_arg = try_unwrap_expr_in_expr(word)?;
     try_unwrap_expr_in_expr(&expr_arg)?;
@@ -1319,7 +1310,7 @@ fn visit_call_cmd_subst_folds(
         {
             // `list` / `lindex` keep their historical diagnostic codes
             // (O116 / O118) for editor granularity; everything else reports
-            // the general O129.  Mirrors `_propagation.py:335`.
+            // the general O129.
             let (code, message) = match inner.split_whitespace().next() {
                 Some("list") => ("O116", "Fold constant list command"),
                 Some("lindex") => ("O118", "Fold constant lindex command"),
@@ -1365,10 +1356,10 @@ fn visit_call_cmd_subst_folds(
                 ConstantReturn::Float(f) => f.to_string(),
                 ConstantReturn::Bool(true) => "1".to_owned(),
                 ConstantReturn::Bool(false) => "0".to_owned(),
-                // B3 (SYNC-JUN02d-2, #525): a multi-word string return folds
+                // A multi-word string return folds
                 // too, list-quoted as a single word via the canonical quoter
                 // (the cmd-sub is one argument word) — `set msg {a b}; return
-                // $msg` in the callee no longer blocks the fold.
+                // $msg` in the callee does not block the fold.
                 ConstantReturn::Str(s) => render_propagation_word(s),
             }
         } else if summary.pure
@@ -1383,8 +1374,7 @@ fn visit_call_cmd_subst_folds(
         {
             // Argument-sensitive: re-run SCCP on the pure callee with the
             // call's constant arguments bound and fold the constant return
-            // (`[::math::add 2 4]` → `6`). Mirrors Python's fallback to
-            // `evaluate_proc_with_constants`.
+            // (`[::math::add 2 4]` → `6`).
             render_const(&cv)
         } else {
             continue;
@@ -1419,7 +1409,7 @@ fn parse_cmd_subst_head(inner: &str) -> Option<&str> {
     Some(head)
 }
 
-/// O129 (SYNC-JUN02b-6, #519): fold a pure-builtin command substitution
+/// O129: fold a pure-builtin command substitution
 /// `[cmd args…]` (or `[cmd sub args…]`) whose arguments are constant
 /// literals, by consulting the registry `const_fold` callback for the
 /// resolved command (or subcommand). Returns the rendered replacement
@@ -1430,7 +1420,7 @@ fn parse_cmd_subst_head(inner: &str) -> Option<&str> {
 /// multi-word fold result (`string toupper {a b}` → `A B`) is emitted
 /// as a single brace-quoted word.
 ///
-/// SYNC-JUN02b-4: gated by `mutations.trusts(head)` — if the command was
+/// Gated by `mutations.trusts(head)` — if the command was
 /// renamed / redefined anywhere in the module, it is no longer its
 /// original builtin and must not be folded with the builtin's semantics.
 fn try_o129_fold(
@@ -1519,12 +1509,12 @@ fn literal_words(
                 prev_is_sep = false;
             }
             TokenType::Var => {
-                // B2 (SYNC-JUN02d-2, #525): resolve a single-token `$var`
+                // Resolve a single-token `$var`
                 // word to its constant value (kept as ONE argument so a
                 // multi-word value isn't re-split).  The Rust SCCP
                 // `constants` map is whole-function (a var is present only
                 // if every reaching def agrees), so substituting it here
-                // is sound without Python's same-block reaching-version
+                // is sound without any same-block reaching-version
                 // gating.  A composite word (`foo$bar`), an array element
                 // (`$a(1)` — never a scalar constant), or a non-constant
                 // var bails.
@@ -1585,7 +1575,7 @@ fn visit_call_tokens(
         // single-token (quoted strings) and composite (mixed
         // text + var) words.
         visit_string_interpolation(ctx, *span, text, constants);
-        // B1 (SYNC-JUN02d-2): fold a pure-builtin `[cmd …]` substitution
+        // Fold a pure-builtin `[cmd …]` substitution
         // embedded *inside* an interpolation string.
         visit_string_interpolation_cmd_subs(ctx, *span, text, constants);
     }
@@ -1618,7 +1608,7 @@ fn is_whole_word_cmd_subst(inside: &str) -> bool {
     false
 }
 
-/// B1 (SYNC-JUN02d-2, #525): fold a pure-builtin command substitution
+/// Fold a pure-builtin command substitution
 /// embedded *inside* an interpolation string, splicing the raw result
 /// into the surrounding `"…"` (O129): `puts "v=[string length abc]"` →
 /// `puts "v=5"`.
@@ -1647,7 +1637,7 @@ fn visit_string_interpolation_cmd_subs(
         return;
     }
     // A whole-word `[…]` cmd-sub is already folded by
-    // `visit_call_cmd_subst_folds`; B1 only handles a sub *embedded* in
+    // `visit_call_cmd_subst_folds`; this path only handles a sub *embedded* in
     // surrounding interpolation text (else we'd emit a duplicate O129).
     if is_whole_word_cmd_subst(inside) {
         return;
@@ -1743,7 +1733,7 @@ fn visit_simple_var_word(
     else {
         return;
     };
-    // SYNC-JUN02b-1: re-render a metacharacter-bearing constant as a
+    // Re-render a metacharacter-bearing constant as a
     // single self-contained word instead of bailing.
     let word = render_propagation_word(value);
     ctx.report(Optimisation::new(
@@ -1942,12 +1932,12 @@ fn is_value_safe_bare_word(value: &str) -> bool {
     is_safe_word(value)
 }
 
-/// SYNC-JUN02b-1 (#519): render a constant `value` as a single,
+/// Render a constant `value` as a single,
 /// self-contained Tcl word for O100 propagation into a command-argument
 /// or `return` value position.
 ///
 /// A safe bare word (integer or `[A-Za-z0-9_./:+-]`-only identifier) is
-/// emitted verbatim — its existing parity-tested behaviour. Anything
+/// emitted verbatim. Anything
 /// else (whitespace, `$` / `[` / `;` / quotes, unbalanced braces, a
 /// trailing backslash, …) is re-rendered through the canonical
 /// `TclConvertElement`-style quoter [`crate::codegen::helpers::tcl_list_element`]
@@ -2167,7 +2157,7 @@ mod tests {
 
     #[test]
     fn o100_multi_word_constant_renders_via_quoter() {
-        // SYNC-JUN02b-1 (#519): a constant containing whitespace or
+        // A constant containing whitespace or
         // metacharacters is re-rendered as a single self-contained word
         // via the canonical quoter instead of bailing.
         // `return` value position → `return {Hello World}`.
@@ -2450,9 +2440,9 @@ mod tests {
 
     #[test]
     fn o103_folds_multi_word_string_return_list_quoted() {
-        // B3 (SYNC-JUN02d-2, #525): a pure proc returning a multi-word
+        // A pure proc returning a multi-word
         // string folds in a cmd-sub position, list-quoted as one word
-        // (previously bailed because `a b c` is not a safe bare word).
+        // (a bare `a b c` is not a safe single word).
         use tcl_registry::CommandRegistry;
         let registry = CommandRegistry::build_default();
         let source = "proc ::greet {} { return \"a b c\" }\nputs [::greet]";
@@ -2475,7 +2465,7 @@ mod tests {
 
     #[test]
     fn o103_cmd_subst_fires_on_set_value_target() {
-        // SYNC-JUN02b-6 (#519): the value-position cmd-sub folds must also
+        // The value-position cmd-sub folds must also
         // fire on a `set TARGET [cmd-sub]` target. `set` lowers to
         // `AssignValue`, which `walk_statement` did not visit for cmd-sub
         // folds, so `set y [::answer]` missed the O103 fold that the same
@@ -2590,9 +2580,9 @@ mod tests {
 
     #[test]
     fn o115_collapses_redundant_nested_expr_in_value_positions() {
-        // SYNC-JUN02b-6 (#519): a redundant double-`expr` cmd-sub
+        // A redundant double-`expr` cmd-sub
         // `[expr {[expr {E}]}]` collapses to `[expr {E}]` in command-arg
-        // and return value positions (previously O115 only fired on a
+        // and return value positions (O115 otherwise fires only on a
         // standalone `expr` statement).
         let collapsed = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
@@ -2631,7 +2621,7 @@ mod tests {
 
     #[test]
     fn o129_folds_pure_builtin_cmd_subst() {
-        // SYNC-JUN02b-6 (#519): a pure-builtin cmd-sub with constant
+        // A pure-builtin cmd-sub with constant
         // (literal) args folds via the registry `const_fold` callback
         // (O129). `optimise_raw` sets `ctx.registry`, which the O129
         // path requires.
@@ -2645,9 +2635,9 @@ mod tests {
         assert_eq!(fold("puts [string toupper foo]"), vec!["FOO".to_string()]);
         assert_eq!(fold("puts [string tolower BAR]"), vec!["bar".to_string()]);
         assert_eq!(fold("puts [string reverse abc]"), vec!["cba".to_string()]);
-        // main's headline O129 example.
+        // The headline O129 example.
         assert_eq!(fold("puts [string length abcde]"), vec!["5".to_string()]);
-        // SYNC-JUN02d-1 (#525): the cat / repeat / trim folds.
+        // The cat / repeat / trim folds.
         assert_eq!(
             fold("puts [string cat foo bar]"),
             vec!["foobar".to_string()]
@@ -2662,7 +2652,7 @@ mod tests {
             vec!["bcd".to_string()]
         );
         assert_eq!(fold("puts [string index abc end]"), vec!["c".to_string()]);
-        // SYNC-JUN02d-1 (#525): list + dict folds.
+        // List + dict folds.
         assert_eq!(fold("puts [llength {a b c}]"), vec!["3".to_string()]);
         // The cmd-sub replacement is one word, so a spaced result is
         // brace-quoted by `render_propagation_word`.
@@ -2692,21 +2682,21 @@ mod tests {
         assert_eq!(fold("puts [subst hello]"), vec!["hello".to_string()]);
         // `subst` with a substitution must NOT fold (no upstream resolution).
         assert!(fold("puts [subst {$x}]").is_empty());
-        // SYNC-JUN02d B-tail: `string is` Tcl-faithful classes.
+        // `string is` Tcl-faithful classes.
         assert_eq!(fold("puts [string is alpha abc]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is lower abc1]"), vec!["0".to_string()]);
         assert_eq!(fold("puts [string is boolean yes]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is list {a b c}]"), vec!["1".to_string()]);
-        // SYNC-JUN02d: `format` %s / %d / %% subset.
+        // `format` %s / %d / %% subset.
         assert_eq!(fold("puts [format %d 42]"), vec!["42".to_string()]);
         assert_eq!(fold("puts [format {v=%s} hi]"), vec!["v=hi".to_string()]);
-        // SYNC-JUN03 follow-up: `format` flag / width / precision now folds for
+        // `format` flag / width / precision folds for
         // the decimal-integer + string conversions (dialect-invariant).
         assert_eq!(fold("puts [format %05d 7]"), vec!["00007".to_string()]);
         assert_eq!(fold("puts [format %.3d 5]"), vec!["005".to_string()]);
         // `%#d` stays unfolded (`0d5` on Tcl 9, `5` on 8.6 — divergent).
         assert!(fold("puts [format %#d 5]").is_empty());
-        // SYNC-JUN03 follow-up: `string is integer` / `double` fold over their
+        // `string is integer` / `double` fold over their
         // dialect-invariant subsets.
         assert_eq!(fold("puts [string is integer 42]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is double 1.5]"), vec!["1".to_string()]);
@@ -2730,19 +2720,16 @@ mod tests {
 
     #[test]
     fn o129_concat_trailing_backslash_space_word_is_not_folded() {
-        // SYNC-JUN04: #530 fixed `Tcl_ConcatObj`'s trailing-whitespace trim in
-        // the VM — when the trim lands on a backslash, one byte is re-exposed
-        // (`concat a {b\ } c` -> `a b\  c`, two spaces; the exact util-4.3 shape
-        // `concat a {b\\   } c` -> `a b\\  c`).  The registry `fold_concat` is a
-        // faithful port of main's simple model (`" ".join(a.strip() …)`) and so
-        // does NOT replicate that re-expose rule — it is unsound *in isolation*
-        // for a trailing-backslash-whitespace word.  Soundness is upheld by the
+        // `Tcl_ConcatObj`'s trailing-whitespace trim in the VM, when it lands
+        // on a backslash, re-exposes one byte (`concat a {b\ } c` -> `a b\  c`,
+        // two spaces; the exact util-4.3 shape `concat a {b\\   } c` ->
+        // `a b\\  c`).  The registry `fold_concat` uses a simple
+        // `" ".join(a.strip() …)` model and so does NOT replicate that
+        // re-expose rule — it is unsound *in isolation* for a
+        // trailing-backslash-whitespace word.  Soundness is upheld by the
         // optimiser's input gate: `literal_words` bails on ANY backslash-bearing
         // word (it does not decode escapes), so `fold_concat` never receives one.
-        // (main reaches the same outcome via a *result*-side guard that rejects
-        // a backslash-bearing fold result; for `concat` a backslash in any input
-        // word always survives trimming into the result, so the two are
-        // equivalent.)  Drop the `literal_words` backslash bail and this test
+        // Drop the `literal_words` backslash bail and this test
         // fails — the cmd-sub would fold to a wrong literal.
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
@@ -2759,13 +2746,13 @@ mod tests {
             "trailing backslash-space word must not fold (re-expose rule unmodelled)",
         );
         assert!(fold("puts [concat {b\\ }]").is_empty());
-        // The exact #530 util-4.3 shape (double backslash, trailing spaces).
+        // The exact util-4.3 shape (double backslash, trailing spaces).
         assert!(fold("puts [concat a {b\\\\   } c]").is_empty());
     }
 
     #[test]
     fn o129_resolves_constant_var_args_b2() {
-        // B2 (SYNC-JUN02d-2, #525): a constant `$var` arg in a builtin
+        // A constant `$var` arg in a builtin
         // cmd-sub is resolved (whole-function-constant → sound) before
         // folding; a multi-word value stays a single argument.
         let fold = |src: &str| -> Vec<String> {
@@ -2784,7 +2771,7 @@ mod tests {
             fold("set s {a b}\nputs [llength $s]"),
             vec!["2".to_string()],
         );
-        // Combined B1 + B2: resolved var inside an interpolation cmd-sub.
+        // Combined: a resolved var inside an interpolation cmd-sub.
         assert_eq!(
             fold("set s abc\nputs \"len=[string length $s]\""),
             vec!["\"len=3\"".to_string()],
@@ -2795,7 +2782,7 @@ mod tests {
 
     #[test]
     fn o129_folds_embedded_cmd_subst_in_interpolation() {
-        // B1 (SYNC-JUN02d-2, #525): a pure-builtin cmd-sub embedded inside
+        // A pure-builtin cmd-sub embedded inside
         // an interpolation string folds, splicing the raw result.
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
@@ -2821,7 +2808,7 @@ mod tests {
 
     #[test]
     fn o129_trust_gate_suppresses_fold_for_rebound_builtin() {
-        // SYNC-JUN02b-4 (#519): the builtin-fold trust gate. When the
+        // The builtin-fold trust gate. When the
         // module renames/redefines `string` anywhere, the whole-module
         // mutation scan distrusts it and O129 must not fold a `[string
         // …]` cmd-sub with the original builtin semantics.

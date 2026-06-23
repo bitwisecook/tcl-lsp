@@ -1,4 +1,4 @@
-//! Phase-0 E4/E8: prove salsa early-cutoff + cascade breadth on a minimal item
+//! Prove salsa early-cutoff + cascade breadth on a minimal item
 //! graph. A *body* edit must re-execute exactly one `item_analysis` (O(1)); a
 //! *signature* edit must re-execute the cross-item aggregate but not unrelated
 //! item bodies. The salsa event callback counts `WillExecute` per query.

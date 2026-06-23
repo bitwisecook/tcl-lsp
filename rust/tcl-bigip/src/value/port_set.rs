@@ -1,5 +1,4 @@
-//! `PortSet` value type — F5 firewall-rule port specs. Rust port of
-//! `_port_set.py`.
+//! `PortSet` value type — F5 firewall-rule port specs.
 //!
 //! Parses `80-82,8081`-style comma-separated ranges. Each segment is a
 //! single port or a `low-high` range; `any` / `*` / `0` is the wildcard.
@@ -185,7 +184,7 @@ fn parse_int(text: &str) -> Option<i64> {
 }
 
 /// Merge overlapping / adjacent segments into a canonical list, sorted by
-/// `(low, high)`. Mirrors `_collapse_segments`.
+/// `(low, high)`.
 fn collapse_segments(raw: &[PortSegment]) -> Vec<PortSegment> {
     if raw.is_empty() {
         return Vec::new();

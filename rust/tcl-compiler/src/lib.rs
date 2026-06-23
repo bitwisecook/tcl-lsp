@@ -1,71 +1,67 @@
 //! IR, CFG, SSA, and codegen for the Tcl compiler pipeline.
 //!
-//! This crate is populated chunk-by-chunk as the Python-to-Rust
-//! migration progresses. Currently exported:
+//! Exported modules:
 //!
 //! - [`expr_ast`] — structured AST for `[expr]` expressions, including
-//!   operator enums, expression nodes, and rendering (chunk **C0**).
+//!   operator enums, expression nodes, and rendering.
 //! - [`ir`] — intermediate representation: [`Statement`], [`Script`],
 //!   [`Procedure`], [`Module`], and supporting types. Every node
-//!   carries a [`Span`](tcl_lexer::Span) for position tracking
-//!   (chunk **C0**).
+//!   carries a [`Span`](tcl_lexer::Span) for position tracking.
 //! - [`expr_parser`] — Pratt parser that converts expression tokens
-//!   into [`ExprNode`] trees (chunk **C1**).
-//! - [`naming`] — variable and command name normalisation utilities
-//!   (chunk **C1**).
+//!   into [`ExprNode`] trees.
+//! - [`naming`] — variable and command name normalisation utilities.
 //! - [`cfg`](mod@cfg) — control-flow graph types: [`Block`](cfg::Block),
 //!   [`Function`](cfg::Function), [`CfgModule`](cfg::CfgModule),
 //!   [`Terminator`](cfg::Terminator), plus graph traversal utilities
-//!   (predecessors, reachability, reverse post-order) (chunk **C2**).
+//!   (predecessors, reachability, reverse post-order).
 //! - [`ssa`] — SSA data structures ([`Phi`](ssa::Phi),
 //!   [`SsaBlock`](ssa::SsaBlock), [`SsaFunction`](ssa::SsaFunction)),
 //!   dominator algorithms, dominance frontier, phi placement, and
-//!   variable definition extraction (chunk **C3**).
+//!   variable definition extraction.
 //! - [`codegen`] — bytecode assembly types: [`Op`](codegen::Op) (150+
 //!   opcodes), [`Instruction`](codegen::Instruction),
 //!   [`LiteralTable`](codegen::LiteralTable),
 //!   [`LocalVarTable`](codegen::LocalVarTable),
 //!   [`FunctionAsm`](codegen::FunctionAsm),
 //!   [`ModuleAsm`](codegen::ModuleAsm), plus operator mapping and
-//!   index parsing (chunk **C4**).  The emission context
+//!   index parsing.  The emission context
 //!   [`CodegenCtx`](codegen::CodegenCtx) and submodules
 //!   [`helpers`](codegen::helpers), [`values`](codegen::values),
 //!   [`expressions`](codegen::expressions) provide the codegen emitter
-//!   foundation (chunk **C11**).  Statement emission
+//!   foundation.  Statement emission
 //!   ([`statements`](codegen::statements)), peephole optimisations
 //!   ([`peephole`](codegen::peephole)), layout resolution
 //!   ([`layout`](codegen::layout)), and disassembly formatting
-//!   ([`format`](codegen::format)) complete the codegen pipeline
-//!   (chunks **C12–C15**).
+//!   ([`format`](codegen::format)) complete the codegen pipeline.
 //! - [`types`] — Tcl intrep type lattice:
 //!   [`TclType`](types::TclType), [`TypeLattice`](types::TypeLattice),
-//!   [`type_join`](types::type_join) (chunk **C5**).
+//!   [`type_join`](types::type_join).
 //! - [`analyses`] — analysis result types:
 //!   [`LatticeValue`](analyses::LatticeValue),
 //!   [`FunctionAnalysis`](analyses::FunctionAnalysis),
 //!   [`ModuleAnalysis`](analyses::ModuleAnalysis),
-//!   plus diagnostic types (chunk **C5**).
+//!   plus diagnostic types.
 //! - [`ir_helpers`] — recursive IR/expression helpers:
 //!   [`defs_from_ir_script`](ir_helpers::defs_from_ir_script),
 //!   [`defs_from_expr`](ir_helpers::defs_from_expr) for extracting
 //!   variable definitions from structured IR trees and expression
-//!   command substitutions (chunk **C7**).
+//!   command substitutions.
 //! - [`var_refs`] — variable-reference scanning:
 //!   [`VarReferenceScanner`](var_refs::VarReferenceScanner) for
 //!   extracting variable reads from Tcl words/scripts, with LRU
-//!   caching (chunk **C6**).
+//!   caching.
 //! - [`cfg_builder`] — CFG construction from structured IR:
 //!   [`build_cfg`](cfg_builder::build_cfg),
 //!   [`build_cfg_function`](cfg_builder::build_cfg_function) for
 //!   flattening `if`/`for`/`while`/`switch`/`catch`/`try` into
-//!   basic blocks (chunk **C7**).
+//!   basic blocks.
 //!
 //! - [`parsing`] — the parsing frontend.  Houses the canonical
 //!   red-green concrete syntax tree under
 //!   [`parsing::syntax`]; the position-independent
 //!   green layer ([`parsing::syntax::green`])
 //!   is the lossless representation the segmenter / lowering / formatter
-//!   / tooling are meant to share (`CST-PORT` / `SYNC-JUN06`).
+//!   / tooling are meant to share.
 //!
 //! The crate has no `pyo3` dependency and no Python-compat concerns —
 //! those belong in the `tcl-lsp-rust` binding crate. See

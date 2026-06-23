@@ -1,9 +1,8 @@
-//! BIG-IP object model — Rust port of `dialects/f5/bigip/model/`.
+//! BIG-IP object model.
 //!
 //! The long-tail kinds share [`minimal::BigipMinimalObject`] /
 //! [`minimal::BigipGenericObject`]; rich typed kinds (pool, virtual,
-//! node, monitor, profile, rule, …) land in their per-module submodules
-//! as they are ported.
+//! node, monitor, profile, rule, …) live in their per-module submodules.
 
 pub mod enums;
 pub mod r#gen;

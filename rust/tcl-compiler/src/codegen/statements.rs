@@ -2,7 +2,7 @@
 //!
 //! Extends [`CodegenCtx`] with methods for emitting IR statements
 //! (assignments, calls, returns, barriers) with `startCommand`
-//! wrapping.  Ported from `core/compiler/codegen/_statements.py`.
+//! wrapping.
 
 use crate::ir::Statement;
 
@@ -259,8 +259,7 @@ impl CodegenCtx<'_> {
             // Opaque (glob/regexp/fall-through) switch: the CFG builder keeps
             // it as a single statement rather than expanding arm blocks, so
             // emit a generic `switch` invoke — tclsh 9.0's un-compiled approach
-            // for these modes. Mirrors Python's `IRSwitch` codegen
-            // (`_emit_call("switch", raw_args)`).
+            // for these modes.
             Statement::Switch {
                 raw_args,
                 patterns_braced,
@@ -305,20 +304,17 @@ impl CodegenCtx<'_> {
                 self.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(0)]);
             }
 
-            // Static-body uplevel (C34): IRUpFrame is an intermediate
-            // IR form consumed by the (yet-to-land) inline_uplevel
-            // optimiser pass. If it survives to codegen the pass was
-            // not run; emit a NOP placeholder matching the Python
-            // pipeline's ``# unhandled: IRUpFrame`` marker so the
-            // differential corpus stays exact-match. The IRUpFrame
-            // variant is still the right shape for analyses that
-            // walk the IR (interproc, code_sinking, future
-            // var_escape).
+            // Static-body uplevel: IRUpFrame is an intermediate
+            // IR form consumed by the inline_uplevel optimiser pass.
+            // If it survives to codegen the pass was not run; emit a
+            // NOP placeholder marking the unhandled IRUpFrame. The
+            // IRUpFrame variant is still the right shape for analyses
+            // that walk the IR (interproc, code_sinking, var_escape).
             Statement::UpFrame { .. } => {
                 self.emit_comment(Op::NOP, vec![], "unhandled: IRUpFrame");
             }
 
-            // Inline block (C34d): the inline_uplevel pass replaces
+            // Inline block: the inline_uplevel pass replaces
             // matching call-sites with ``Statement::Block { body, .. }``
             // — emit the body's statements as if they were inline at
             // this point. The block has no scope of its own at the
@@ -342,7 +338,7 @@ impl CodegenCtx<'_> {
     ///
     /// This is a simplified `_emit_value` that handles the common cases.
     /// Full interpolation with command substitution requires the main
-    /// emitter pipeline (deferred to later chunks).
+    /// emitter pipeline.
     pub fn emit_value_interpolated(&mut self, value: &str) {
         // Braced scalar marker: $={name} → push + loadStk
         if let Some(name) = super::values::parse_braced_scalar_ref(value) {
@@ -360,15 +356,15 @@ impl CodegenCtx<'_> {
             self.push_lit_no_dedup_verbatim(&folded);
             return;
         }
-        // Inline [list {*}$a {*}$b] → load a, load b, listConcat (C19).
+        // Inline [list {*}$a {*}$b] → load a, load b, listConcat.
         if self.try_list_expand_concat(value) {
             return;
         }
-        // Inline [list arg ... [break] ...] / [list arg ... [continue] ...] (C19).
+        // Inline [list arg ... [break] ...] / [list arg ... [continue] ...].
         if self.try_inline_list_with_break_continue(value) {
             return;
         }
-        // Constant-fold [format "..." arg ...] (C19).
+        // Constant-fold [format "..." arg ...].
         if let Some(folded) = super::helpers::try_format_fold(value) {
             self.push_lit_no_dedup_verbatim(&folded);
             return;
@@ -456,8 +452,8 @@ impl CodegenCtx<'_> {
 
     /// Whether a `set x VALUE` value should inline-compile its command
     /// substitution (`set x [cmd arg …]`) instead of pushing the raw `[…]` text
-    /// and leaning on the runtime `subst_word` fallback. Mirrors the oracle's
-    /// `IRAssignValue` arm: a balanced `[…]` with inner whitespace (a bare
+    /// and leaning on the runtime `subst_word` fallback. The conditions:
+    /// a balanced `[…]` with inner whitespace (a bare
     /// `[foo]` with no args stays a literal), no `{*}` expansion, and excluding
     /// the commands the constant-fold / special branches in
     /// [`Self::emit_value_interpolated`] own (`list` / `dict create` / `set` /
@@ -579,7 +575,7 @@ impl CodegenCtx<'_> {
             return;
         }
 
-        // C21: try a registered per-command codegen hook before the
+        // Try a registered per-command codegen hook before the
         // generic invoke fallback.
         if super::emitter::bytecoded::try_bytecoded(self, cmd, args, used_generic_invoke) {
             return;

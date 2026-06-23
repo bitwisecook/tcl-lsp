@@ -1,5 +1,4 @@
-//! Refcount-contract lint — Rust port of
-//! `scripts/check/refcount_contract.py`.
+//! Refcount-contract lint.
 //!
 //! Walks every `pub export fn` in `runtime/zig/` and warns when an export
 //! is missing a row in the refcount contract doc

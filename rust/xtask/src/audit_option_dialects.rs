@@ -1,5 +1,4 @@
-//! Audit `OptionSpec` dialect gates against real tclsh 8.4/8.5/8.6/9.0 —
-//! Rust port of `scripts/check/audit_option_dialects.py`.
+//! Audit `OptionSpec` dialect gates against real tclsh 8.4/8.5/8.6/9.0.
 //!
 //! For each option in the probe table, generate a small Tcl probe and run
 //! it against each built tclsh. An option is *supported* if the probe runs
@@ -153,7 +152,12 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-types",
         "glob -types f -directory /tmp -nocomplain *",
     ),
-    ("glob", None, "-nocomplain", "glob -nocomplain /nonexistent/x/*"),
+    (
+        "glob",
+        None,
+        "-nocomplain",
+        "glob -nocomplain /nonexistent/x/*",
+    ),
     // ---- file copy / delete / rename / link ----
     (
         "file",
@@ -395,7 +399,12 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "switch -regexp -matchvar m a {{(.*)} {set x 1}}",
     ),
     // ---- subst ----
-    ("subst", None, "-nobackslashes", r"subst -nobackslashes {\n}"),
+    (
+        "subst",
+        None,
+        "-nobackslashes",
+        r"subst -nobackslashes {\n}",
+    ),
     ("subst", None, "-nocommands", "subst -nocommands {[set x]}"),
     ("subst", None, "-novariables", r"subst -novariables {\$x}"),
     // ---- interp ----
@@ -510,7 +519,12 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-timeout",
         "after 1 {set ::vw 1}; catch {vwait -timeout 100 -variable ::vw}",
     ),
-    ("vwait", None, "-variable", "after 1 {set ::vw 1}; vwait ::vw"),
+    (
+        "vwait",
+        None,
+        "-variable",
+        "after 1 {set ::vw 1}; vwait ::vw",
+    ),
     (
         "vwait",
         None,
@@ -543,7 +557,8 @@ pub fn run() -> Result<ExitCode> {
                 supported.push(ver);
                 println!("  {ver}: ✓");
             } else {
-                let first_line: String = out.lines().next().unwrap_or("").chars().take(60).collect();
+                let first_line: String =
+                    out.lines().next().unwrap_or("").chars().take(60).collect();
                 println!("  {ver}: ✗  {}", py_repr(&first_line));
             }
         }

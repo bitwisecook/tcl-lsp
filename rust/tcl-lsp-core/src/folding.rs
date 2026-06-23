@@ -1,8 +1,8 @@
-//! Folding range provider — Rust port of `lsp/features/folding.py`.
+//! Folding range provider.
 //!
 //! Emits LSP folding ranges for proc bodies, namespace bodies, comment
 //! blocks, and control-structure bodies (`if`, `while`, `for`,
-//! `foreach`, `switch`, …).  Mirrors the Python algorithm: a scope
+//! `foreach`, `switch`, …).  The algorithm is a scope
 //! walk over the analyser's [`AnalysisResult`], a comment-line
 //! collector, and a registry-driven body-argument walker that
 //! recurses through nested braced bodies, followed by the
@@ -340,7 +340,7 @@ fn collect_comment_folds(
 }
 
 /// Collect folds for commands spread across multiple physical lines
-/// via `\<newline>` continuations (SYNC-MAY31-8, mirroring Python #494).
+/// via `\<newline>` continuations.
 ///
 /// Each backslash-newline at a word boundary lexes to a `Sep` token
 /// that starts at the backslash (ordinary whitespace Seps start with a
@@ -409,12 +409,11 @@ struct FoldCtx<'a> {
     original_source: &'a str,
     seen: &'a mut HashSet<(u32, u32)>,
     ranges: &'a mut Vec<FoldingRange>,
-    /// Dialect lexer config so body re-segmentation honours `{*}` / `}{`
-    /// (`SYNC-MAY19-dialect-contextvar`, strip 5).
+    /// Dialect lexer config so body re-segmentation honours `{*}` / `}{`.
     config: tcl_lexer::LexerConfig,
 }
 
-/// Recursion depth is capped at 20 to mirror the Python guard.
+/// Recursion depth is capped at 20.
 fn collect_body_folds(
     body_source: &str,
     base_offset: u32,
@@ -686,7 +685,7 @@ mod tests {
         assert!(fold_lines(&ranges, FoldKind::Region).is_empty());
     }
 
-    // -- SYNC-MAY31-8: backslash line-continuation folding --------
+    // -- backslash line-continuation folding --------
 
     #[test]
     fn backslash_continuation_folds_first_to_last_line() {
@@ -913,9 +912,8 @@ mod tests {
     #[test]
     fn tcloo_method_body_inside_define_emits_a_fold() {
         // Regression: ``method``/``constructor``/``destructor`` inside
-        // ``oo::define`` are context-sensitive and not in the registry.
-        // Python's ``_oo_definition_body_indices`` carried that special
-        // case; the Rust port must mirror it.
+        // ``oo::define`` are context-sensitive and not in the registry,
+        // so a special case handles them.
         let source = concat!(
             "oo::class create Foo {\n",
             "    method greet {name} {\n",
@@ -1059,8 +1057,7 @@ mod tests {
     /// `method` must NOT be treated as an OO method definition.
     /// The body walker only consults [`inner_oo_body_indices`] when
     /// `inside_oo_body == true` — at top level it falls through to
-    /// the registry, which has no `method` entry. Regression for
-    /// the architecture review on PR #231.
+    /// the registry, which has no `method` entry.
     #[test]
     fn top_level_method_is_not_an_oo_definition() {
         let source = concat!(

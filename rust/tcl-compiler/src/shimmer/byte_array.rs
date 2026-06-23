@@ -23,8 +23,7 @@
 //! A `binary scan $v …` re-binarifies `v` in place (the documented fix) and
 //! clears [`ByteProv::Damaged`].
 //!
-//! Ported from `compiler/shimmer.py`'s `_find_byte_array_corruption` family
-//! (Python PR #656); see `docs/design/rust/s110-byte-array-corruption-port.md`.
+//! See `docs/design/rust/s110-byte-array-corruption-port.md`.
 
 use std::collections::HashMap;
 
@@ -195,7 +194,7 @@ fn payload_replace_data_index(
 
 /// Join byte provenance over several inputs — DAMAGED dominates BINARY
 /// (may-corrupt); the first non-empty source of each state is kept for the
-/// diagnostic. Mirrors Python's `_join_prov`.
+/// diagnostic.
 fn join_prov(infos: impl IntoIterator<Item = Option<ByteProvInfo>>) -> Option<ByteProvInfo> {
     let mut damaged: Option<ByteProvInfo> = None;
     let mut binary: Option<ByteProvInfo> = None;
@@ -210,7 +209,7 @@ fn join_prov(infos: impl IntoIterator<Item = Option<ByteProvInfo>>) -> Option<By
 }
 
 /// Build the S110 warning, with related spans pointing at the binary source
-/// and the coercion site. Mirrors Python's `_byte_corruption_warning`.
+/// and the coercion site.
 fn byte_warning(
     span: Span,
     variable: &str,
@@ -328,7 +327,7 @@ impl<'a> ByteCorruption<'a> {
     }
 
     /// Provenance of a single argument expression (var ref, command
-    /// substitution, or interpolation). Mirrors Python's `_arg_byte_prov`.
+    /// substitution, or interpolation).
     fn arg_byte_prov(&self, arg_text: &str, uses: &HashMap<String, u32>) -> Option<ByteProvInfo> {
         let a = arg_text.trim();
         if a.is_empty() {
@@ -403,7 +402,7 @@ impl<'a> ByteCorruption<'a> {
             .collect()
     }
 
-    /// Transfer function for `set name value`. Mirrors `_track_assign_value`.
+    /// Transfer function for `set name value`.
     fn track_assign_value(
         &mut self,
         name: &str,
@@ -505,7 +504,7 @@ impl<'a> ByteCorruption<'a> {
     }
 
     /// If `[cmd cargs]` is a string-coercing op over a binary operand, return
-    /// the originating binary provenance. Mirrors `_coerced_from_binary`.
+    /// the originating binary provenance.
     fn coerced_from_binary(
         &self,
         cmd: &str,
@@ -523,7 +522,7 @@ impl<'a> ByteCorruption<'a> {
     }
 
     /// Transfer function for `set name [expr …]`. Any binary/damaged use makes
-    /// the result DAMAGED. Mirrors `_track_assign_expr`.
+    /// the result DAMAGED.
     fn track_assign_expr(
         &mut self,
         name: &str,
@@ -551,7 +550,7 @@ impl<'a> ByteCorruption<'a> {
 
     /// Transfer function for a command call: `binary scan` re-binarifies its
     /// value operand; `append` damages its target; `*::payload replace` is the
-    /// byte sink. Mirrors `_track_call`.
+    /// byte sink.
     fn track_call(
         &mut self,
         command: &str,

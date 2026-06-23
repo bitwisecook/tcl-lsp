@@ -1,5 +1,4 @@
 //! Convert an `if`/`elseif` equality chain to a `switch` statement.
-//! Ports `tooling/refactoring/_if_to_switch.py`.
 
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
@@ -15,7 +14,7 @@ struct EqTest {
 }
 
 /// Parse an equality condition `$var eq "value"` / `"value" eq $var`
-/// (and the `==` / `ne` / `!=` operators).  Ports `_parse_eq_test`.
+/// (and the `==` / `ne` / `!=` operators).
 fn parse_eq_test(condition: &str) -> Option<EqTest> {
     let mut cond = condition.trim();
 
@@ -122,7 +121,6 @@ fn strip_quotes(s: &str) -> &str {
 }
 
 /// Render a switch pattern, preserving whitespace literals by bracing.
-/// Ports `_render_switch_pattern`.
 fn render_switch_pattern(value: &str) -> String {
     if value.is_empty() {
         return "{}".to_owned();
@@ -135,7 +133,6 @@ fn render_switch_pattern(value: &str) -> String {
 }
 
 /// Convert an `if`/`elseif` chain at byte offset `cursor` to a `switch`.
-/// Ports `if_to_switch`.
 #[must_use]
 pub fn if_to_switch(
     source: &str,

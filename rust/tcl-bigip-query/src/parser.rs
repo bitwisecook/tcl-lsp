@@ -1,7 +1,7 @@
 //! Recursive-descent parser for the query DSL.
 //!
-//! Faithful port of `dialects/f5/query/parser.py`. Grammar (informal — the
-//! canonical version lives in `docs/references/f5_query/dsl.md`):
+//! Grammar (informal — the canonical version lives in
+//! `docs/references/f5_query/dsl.md`):
 //!
 //! ```text
 //! program     := pipeline (';' pipeline)* EOF

@@ -1,5 +1,4 @@
-//! Inlay-hints provider — Rust port of
-//! `lsp/features/inlay_hints.py` (parameter-name hints).
+//! Inlay-hints provider (parameter-name hints).
 //!
 //! Surfaces `param_name:` hints at each positional argument
 //! of every user-proc call site within the requested document
@@ -18,11 +17,9 @@
 //! per-argument token spans are available (the analyser
 //! records the command-head span on `command_invocations` but
 //! not per-arg spans).  Re-segmenting is cheap relative to
-//! the LSP request rate; the keystone async-diagnostics
-//! cached-analysis surface (`S-async-diagnostics`) will
-//! eventually let this share a cached segmenter pass.
+//! the LSP request rate.
 //!
-//! Built-in command hints also land: when a registry is
+//! Built-in command hints: when a registry is
 //! provided and the call's head matches a built-in command (or
 //! `cmd subcommand`), the provider parses the spec's synopsis
 //! for positional parameter names and labels the matching
@@ -32,14 +29,12 @@
 //! like flags (start with `-`) don't consume a positional
 //! slot.  Varargs (`?name ...?`) stop the parse.
 //!
-//! What is *deferred*:
+//! Limitations:
 //!
-//! * Type / inferred-trait annotations on hints (Python's
-//!   richer mode shows `name:string`, `count:int`).  Same
-//!   gating as the `S-hover-rich` `_infer_var_type` follow-up.
+//! * Type / inferred-trait annotations on hints (e.g.
+//!   `name:string`, `count:int`) are not shown.
 //! * Method-call hints inside class bodies — needs the
-//!   analyser's method-resolution machinery that
-//!   `S-references-rich` will eventually land.
+//!   analyser's method-resolution machinery — are not shown.
 
 use std::collections::HashMap;
 
@@ -198,8 +193,8 @@ fn type_display(tl: &TypeLattice) -> Option<String> {
 }
 
 /// Collect inferred-variable-type hints (`: int`) for variable
-/// definitions in `range`.  Rust port of `_collect_type_hints`:
-/// builds a name → display-type map from the type-propagation pass
+/// definitions in `range`.  Builds a name → display-type map from the
+/// type-propagation pass
 /// (over every function in a fresh [`CompilationUnit`]) and walks the
 /// analyser scope tree, annotating each variable definition whose type
 /// is known.
@@ -277,14 +272,13 @@ fn walk_scope_type_hints(
 
 // -- format-string specifier hints ---------------------------------------
 //
-// Rust port of `_collect_format_string_hints`.  These are `Type`-kind
-// hints that annotate the conversion specifiers inside the format string
+// `Type`-kind hints that annotate the conversion specifiers inside the
+// format string
 // of `format`/`scan` (`%d` → `int`), `clock format`/`scan` (`%Y` →
 // `year`), `binary format`/`scan` (`i` → `i32le`), and the substitution
-// backreferences of `regsub` (`\1` → `grp1`).  The compiled patterns
-// mirror the Python regexes one-for-one.
+// backreferences of `regsub` (`\1` → `grp1`).
 
-/// `format`/`scan` conversion specifier — Python `_SPRINTF_RE`.  Capture
+/// `format`/`scan` conversion specifier.  Capture
 /// group 6 is the conversion type letter.
 static SPRINTF_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
     regex::Regex::new(
@@ -293,7 +287,7 @@ static SPRINTF_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(
     .expect("static sprintf regex")
 });
 
-/// `clock format`/`scan` specifier — Python `_CLOCK_FORMAT_RE`.  The
+/// `clock format`/`scan` specifier.  The
 /// significant letter is the final character of the match.
 static CLOCK_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
     regex::Regex::new(r"%(?:[EO])?[aAbBcCdDeEgGhHIjJklmMNOpPqQsSuUVwWxXyYzZ%]")
@@ -330,7 +324,7 @@ fn sprintf_short(c: char) -> Option<&'static str> {
     })
 }
 
-/// Short label for a `clock` field letter — Python `_CLOCK_SHORT`.
+/// Short label for a `clock` field letter.
 #[allow(clippy::too_many_lines)]
 fn clock_short(c: char) -> Option<&'static str> {
     Some(match c {
@@ -589,7 +583,7 @@ fn collect_format_string_hints(
 }
 
 /// Scan a `binary format`/`scan` template for specifier letters and emit
-/// a hint after each.  Hand-rolled (as in Python `_emit_binary_hints`):
+/// a hint after each.  Hand-rolled:
 /// skip whitespace, skip the optional repeat count, read the spec letter,
 /// then an optional `u`/`s` signedness flag and an optional `*` count.
 fn collect_binary_hints(
@@ -1084,7 +1078,7 @@ mod tests {
         assert_eq!(hints[0].position_line, 2);
     }
 
-    // -- S-inlay-hints-rich: built-in command synopsis hints --------
+    // -- built-in command synopsis hints --------
 
     fn registry() -> tcl_registry::CommandRegistry {
         tcl_registry::CommandRegistry::build_default()
@@ -1159,7 +1153,7 @@ mod tests {
         // `lsearch ?option ...? list pattern` (the actual registry hover
         // synopsis) — the `?option ...?` flag-group placeholder must be
         // skipped, NOT treated as a hard varargs stop that drops the real
-        // `list` / `pattern` positionals after it (issue #510 follow-up).
+        // `list` / `pattern` positionals after it.
         let names = param_names_from_synopsis("lsearch ?option ...? list pattern", 1);
         assert_eq!(
             names,

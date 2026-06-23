@@ -1,4 +1,4 @@
-//! Byte-faithful port of Python's `difflib.unified_diff` (and the
+//! Byte-faithful reimplementation of Python's `difflib.unified_diff` (and the
 //! `SequenceMatcher` machinery it rides on) restricted to the
 //! line-oriented string-sequence use the CLI diff verbs need.
 //!
@@ -43,7 +43,7 @@ enum Tag {
     Insert,
 }
 
-/// Port of `difflib.SequenceMatcher` (with `isjunk=None`, `autojunk=True`).
+/// Matches `difflib.SequenceMatcher` (with `isjunk=None`, `autojunk=True`).
 struct SequenceMatcher<'a> {
     a: &'a [&'a str],
     b: &'a [&'a str],
@@ -63,7 +63,7 @@ impl<'a> SequenceMatcher<'a> {
         sm
     }
 
-    /// Port of `SequenceMatcher.__chain_b` (no `isjunk`; `autojunk=True`).
+    /// Equivalent to `SequenceMatcher.__chain_b` (no `isjunk`; `autojunk=True`).
     fn chain_b(&mut self) {
         let b = self.b;
         let mut b2j: HashMap<&str, Vec<usize>> = HashMap::new();
@@ -86,7 +86,7 @@ impl<'a> SequenceMatcher<'a> {
         self.b2j = b2j;
     }
 
-    /// Port of `SequenceMatcher.find_longest_match` (no junk, so the
+    /// Equivalent to `SequenceMatcher.find_longest_match` (no junk, so the
     /// junk-extension passes are no-ops and omitted).
     #[allow(clippy::similar_names, clippy::needless_range_loop)]
     fn find_longest_match(&self, alo: usize, ahi: usize, blo: usize, bhi: usize) -> Match {
@@ -133,7 +133,7 @@ impl<'a> SequenceMatcher<'a> {
         }
     }
 
-    /// Port of `SequenceMatcher.get_matching_blocks`.
+    /// Equivalent to `SequenceMatcher.get_matching_blocks`.
     fn get_matching_blocks(&self) -> Vec<Match> {
         let la = self.a.len();
         let lb = self.b.len();
@@ -188,7 +188,7 @@ impl<'a> SequenceMatcher<'a> {
         non_adjacent
     }
 
-    /// Port of `SequenceMatcher.get_opcodes`.
+    /// Equivalent to `SequenceMatcher.get_opcodes`.
     fn get_opcodes(&self) -> Vec<Opcode> {
         let (mut i, mut j) = (0usize, 0usize);
         let mut answer: Vec<Opcode> = Vec::new();
@@ -227,7 +227,7 @@ impl<'a> SequenceMatcher<'a> {
         answer
     }
 
-    /// Port of `SequenceMatcher.get_grouped_opcodes`.
+    /// Equivalent to `SequenceMatcher.get_grouped_opcodes`.
     fn get_grouped_opcodes(&self, n: usize) -> Vec<Vec<Opcode>> {
         let mut codes = self.get_opcodes();
         if codes.is_empty() {
@@ -289,7 +289,7 @@ impl<'a> SequenceMatcher<'a> {
     }
 }
 
-/// Convert a range to the unified-diff "ed" form — port of
+/// Convert a range to the unified-diff "ed" form, matching
 /// `difflib._format_range_unified`.
 fn format_range_unified(start: usize, stop: usize) -> String {
     let beginning = start + 1;
@@ -303,7 +303,7 @@ fn format_range_unified(start: usize, stop: usize) -> String {
     format!("{beginning},{length}")
 }
 
-/// Generate a unified diff of *a* vs *b* — port of `difflib.unified_diff`
+/// Generate a unified diff of *a* vs *b*, matching `difflib.unified_diff`
 /// with `lineterm="\n"` and the default empty file-dates. Returns each
 /// yielded line as its own `String` (control lines carry the trailing
 /// `"\n"`; data lines carry whatever terminator the caller's

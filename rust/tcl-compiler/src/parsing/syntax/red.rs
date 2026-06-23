@@ -1,7 +1,5 @@
 //! The *red* layer: lazy absolute positions over a green tree.
 //!
-//! Ports `compiler/parsing/syntax/red.py` (#533 / `SYNC-JUN06`).
-//!
 //! A [`GreenNode`] knows only widths.  A [`SyntaxTree`] anchors one at
 //! an absolute `(offset, line, column)` and resolves positions on
 //! demand: a node's absolute start is its parent's start plus the full
@@ -17,10 +15,10 @@
 //!
 //! **Lazy views.**  [`SyntaxNode`] / [`SyntaxToken`] are cheap borrowed
 //! views (`&SyntaxTree` + `&Green…` + a resolved region offset), created
-//! on walk.  Where Python yields generators, this port returns iterators
+//! on walk.  They return iterators
 //! ([`SyntaxNode::children`]) or eagerly-collected `Vec`s
-//! ([`SyntaxNode::tokens`]); the output order is identical.  Python's
-//! unused `parent` back-pointer is omitted (no red method reads it).
+//! ([`SyntaxNode::tokens`]).  No `parent` back-pointer is stored (no red
+//! method reads it).
 
 use tcl_lexer::{SourcePosition, Span, Token, TokenType};
 
@@ -132,12 +130,12 @@ impl SyntaxTree {
 
     /// Resolve a region-relative byte offset to an absolute position.
     ///
-    /// Mirrors the lexer's `_pos_at`: the line index is region-relative,
+    /// The line index is region-relative,
     /// then the anchoring shifts line by `base_line` and the *first*
     /// line's column by `base_col`.
     #[must_use]
     pub fn position_at(&self, region_offset: u32) -> SourcePosition {
-        // `partition_point(<= off)` is Python's `bisect_right`; `- 1`
+        // `partition_point(|&s| s <= off)` then `- 1`
         // gives the line whose start is the greatest `<= region_offset`.
         // `line_starts` always begins with 0, so the result is >= 1.
         let line_idx = self.line_starts.partition_point(|&s| s <= region_offset) - 1;
@@ -207,7 +205,7 @@ impl<'t> SyntaxToken<'t> {
         self.tree.position_at(self.raw_start())
     }
 
-    /// Absolute `Token.end` — the lexer's inner-end convention (#527).
+    /// Absolute `Token.end` — the lexer's inner-end convention.
     #[must_use]
     pub fn end_position(&self) -> SourcePosition {
         self.tree.position_at(self.raw_start() + self.green.end_rel)
@@ -350,7 +348,7 @@ impl<'t> SyntaxNode<'t> {
 
 /// Leading-trivia width of the first fragment under `green` (recursively).
 ///
-/// Mirrors `red.py::_first_leading_width`: descends the first child until
+/// Descends the first child until
 /// it reaches a token, returning that token's leading-trivia width (0 for
 /// a child-less node).
 fn first_leading_width(green: &GreenNode) -> u32 {
@@ -488,7 +486,7 @@ mod tests {
 
     #[test]
     fn to_token_reproduces_lexer_empty_brace() {
-        // The #527 convention: empty `{}` end sits ON the closer (end_rel 1).
+        // By convention, empty `{}` end sits ON the closer (end_rel 1).
         assert_red_matches_lexer("{}", TokenType::Str, 1, 1);
     }
 
@@ -536,7 +534,7 @@ mod tests {
 
     #[test]
     fn lexer_line_index_agrees_with_red_overlay_on_lone_cr() {
-        // #537 (SYNC-JUN08): a lone CR is *not* a line break — post-fix
+        // A lone CR is *not* a line break — post-fix
         // main counts only `\n` (and the LF of a CRLF) in every line
         // index. The red overlay's `build_line_starts` already does, so
         // the lexer's `SourceMap` / `LineIndex` must agree, or the CST
@@ -561,7 +559,7 @@ mod tests {
                 );
             }
         }
-        // Pin the absolute post-fix-Python position too: in `"a\rb"`,
+        // Pin the absolute position too: in `"a\rb"`,
         // `b` (offset 2) is line 0, column 2 — not line 1.
         assert_eq!(
             SourceMap::new("a\rb").position_at(2),

@@ -1,7 +1,6 @@
 //! Source-transformation verbs: `format`, `minify`, `unminify-error`.
 //!
-//! Ports of the handlers in `tooling/tcl/verbs/transform.py`, driving the
-//! formatter / minifier engines in `tcl-lsp-core`.
+//! Drive the formatter / minifier engines in `tcl-lsp-core`.
 
 use std::path::Path;
 
@@ -23,8 +22,7 @@ use tcl_compiler::optimiser::{apply_optimisations, optimise_with_dialect};
 
 use crate::cli::{ColourArgs, InputArgs};
 
-/// Default tab-expansion width used on stdout (mirrors the CLI default; the
-/// config-file `[output] tabs` override lands with the INI-config port).
+/// Default tab-expansion width used on stdout (the CLI default).
 const DEFAULT_TAB_WIDTH: usize = 4;
 
 /// `tcl format` — pretty-print each input with canonical style rules.

@@ -132,8 +132,7 @@ pub(super) fn scan(
 
 /// Recurse into a braced body script.
 ///
-/// Mirrors `_maybe_recurse_body` in
-/// `core/analysis/signature_scan.py`. Only `Str` (braced) bodies
+/// Only `Str` (braced) bodies
 /// can be statically analysed; substituted bodies (`$body`,
 /// `[gen_body]`) cannot be re-segmented and are skipped.
 pub(super) fn maybe_recurse_body(
@@ -158,9 +157,7 @@ pub(super) fn maybe_recurse_body(
 }
 
 // -- Body-recursion handlers --------------------------------------
-// Each port of a `_handle_*` function from
-// `core/analysis/signature_scan.py` whose Python equivalent recurses
-// into braced bodies.
+// Handlers for commands that recurse into braced bodies.
 
 fn handle_if(
     texts: &[String],
@@ -267,8 +264,7 @@ fn handle_try(
 /// Scan a proc body specifically for factory-wrapper candidate
 /// calls.
 ///
-/// Mirrors `_scan_factory_candidates` in
-/// `core/analysis/signature_scan.py`. Unlike [`scan`], this walker
+/// Unlike [`scan`], this walker
 /// only collects four-token `HEAD NAME ARGS BODY` shaped calls and
 /// recurses into structural-control bodies (`if` / `catch` / `try`
 /// / `namespace eval`) that commonly wrap factory calls. It
@@ -308,7 +304,7 @@ pub(super) fn scan_factory_candidates(
 /// Recurse into a structural command's braced bodies for factory
 /// candidates only.
 ///
-/// Mirrors `_scan_factory_structural`. Same set of structural
+/// Same set of structural
 /// commands and same body offsets as the main `handle_if` /
 /// `handle_catch` / `handle_try` / `handle_namespace` (eval arm)
 /// walkers, but the recursive call is `scan_factory_candidates`
@@ -410,7 +406,7 @@ mod tests {
         assert!(ctx.result.procs.contains_key("::foo"));
         // command_invocations should contain at least the top-level "proc"
         // invocation; the body's "set" stays uninvoked since handle_proc
-        // does not yet recurse (C40c7).
+        // does not recurse into the body.
         let names: Vec<&str> = ctx
             .result
             .command_invocations

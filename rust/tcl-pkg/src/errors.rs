@@ -1,6 +1,6 @@
 //! Error types for the `tclpkg` package manager.
 //!
-//! Faithful port of `tooling/tclpkg/errors.py`. The CLI prints the
+//! The CLI prints the
 //! [`Display`] form verbatim, so the message composition (location prefixes,
 //! `hint:` suffix, integrity expected/got detail) must match the Python output
 //! byte-for-byte.

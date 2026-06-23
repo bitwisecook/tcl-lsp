@@ -1,5 +1,4 @@
-//! KCS / design-docs link + index-coverage check — Rust port of
-//! `scripts/check/kcs_index_links.py`.
+//! KCS / design-docs link + index-coverage check.
 //!
 //! Validates four things, matching the Python script's stdout and exit
 //! codes byte-for-byte:

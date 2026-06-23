@@ -1,4 +1,4 @@
-//! Remote-access helpers for the `f5` CLI — Rust port of `tooling/f5/f5_remote`.
+//! Remote-access helpers for the `f5` CLI.
 //!
 //! Hosts the credential resolver (`auth`), the iControl REST transport (`rest`),
 //! the single-object pull/push request shaping (`object_io`), and the SSH

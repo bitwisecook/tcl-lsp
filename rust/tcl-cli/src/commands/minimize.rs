@@ -1,15 +1,15 @@
 //! `minimize` (`minimise` / `repro`) verb: reduce a diagnostic to a minimal
 //! reproducer.
 //!
-//! Ports two Python modules:
+//! Two layers:
 //!
-//! - `server/features/minimize.py` — the engine: delta-debugging (`_ddmin`)
+//! - The engine: delta-debugging (`_ddmin`)
 //!   over source lines, gated by "the target diagnostic still fires", followed
 //!   by a verify-gated identifier-rename pass (`_collect_rename_edits` over the
 //!   tokeniser + segmenter, `_apply_edits`, `_dedent`). `minimize_diagnostic`
 //!   raises `ValueError` when the code does not fire on the input; here that is
 //!   `Err(MinimizeError::NotPresent)`.
-//! - `tooling/tcl/verbs/minimize.py` — the verb: iterate the input documents,
+//! - The verb: iterate the input documents,
 //!   skip those where the code does not fire, and print the per-document result
 //!   as text or JSON.
 //!
@@ -87,8 +87,7 @@ fn fires(source: &str, code: &str, dialect: &str) -> bool {
 }
 
 /// Zeller delta-debugging: minimise `units` keeping `test` true. Returns the
-/// smallest sublist of `units` for which `test(&sublist)` holds. Direct port of
-/// `_ddmin`.
+/// smallest sublist of `units` for which `test(&sublist)` holds.
 fn ddmin<F>(mut units: Vec<String>, test: &F) -> Vec<String>
 where
     F: Fn(&[String]) -> bool,

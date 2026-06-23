@@ -2,12 +2,8 @@
 //! shape (`docs/design/contracts/wasm-explorer-view.md` for the `wasm`
 //! slice; the rest is the de-facto contract `explorer-core.js` reads).
 //!
-//! Faithful port of `tooling/cli/serialise.py`, brought up one view-family
-//! at a time (EXP-1b..N). Each `serialise_*` helper mirrors the matching
-//! Python `_serialise_*` and is verified against it by the differential
-//! parity test. `serialise_result` assembles the top-level object; keys
-//! not yet ported are simply absent (the parity harness compares only the
-//! keys present on both sides as families land).
+//! `serialise_result` assembles the top-level object from the per-view
+//! `serialise_*` helpers.
 
 use serde_json::{Map, Value, json};
 
@@ -1183,8 +1179,7 @@ pub fn serialise_segments(source: &str, config: LexerConfig) -> Value {
 }
 
 /// Serialise the `eventOrder` view: iRules `when EVENT [priority N] { body }`
-/// handlers in canonical firing order. Faithful port of `extract_event_order`
-/// (`compiler/irules_flow.py`) composed with `_serialise_event_order`.
+/// handlers in canonical firing order.
 ///
 /// Reuses the segmenter to find `when` commands (the body must be a braced
 /// block) and the reuse-positive `EventRegistry::{order_events,
@@ -1681,10 +1676,6 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
 }
 
 /// Serialise a full pipeline result to the explorer contract JSON.
-///
-/// Currently emits the ported view families; subsequent EXP-* increments
-/// add one family per step. The argument is accepted now so the signature
-/// is stable as views that read `result` land.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn serialise_result(result: &ExplorerResult) -> Value {

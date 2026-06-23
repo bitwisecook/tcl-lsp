@@ -5,8 +5,7 @@
 //! opt-in, so a request against a document with hintable content (a proc
 //! definition plus a call site) still answers with a well-formed empty
 //! list — never an error or `null` — until the `inlayParameterHints`
-//! feature is explicitly enabled.  This mirrors the Python server's
-//! `on_inlay_hint` gate (PR #643).
+//! feature is explicitly enabled.
 
 use std::time::Duration;
 

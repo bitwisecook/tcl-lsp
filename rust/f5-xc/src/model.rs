@@ -1,5 +1,5 @@
 //! Data structures modelling F5 Distributed Cloud (XC) configuration
-//! objects — the Rust port of `dialects/f5/xc/xc_model.py`.
+//! objects.
 //!
 //! These are the intermediate representation between iRule analysis and
 //! serialisation to Terraform HCL or JSON API format. Source ranges are
@@ -8,8 +8,7 @@
 
 use tcl_lexer::Span;
 
-/// Whether an iRule construct could be translated to XC. Mirrors Python
-/// `TranslateStatus`.
+/// Whether an iRule construct could be translated to XC.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TranslateStatus {
     /// Fully translated to an XC construct.
@@ -22,8 +21,7 @@ pub enum TranslateStatus {
     Advisory,
 }
 
-/// Classification of an XC output construct. Mirrors Python
-/// `XCConstructKind`.
+/// Classification of an XC output construct.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum XCConstructKind {
     /// An L7 route.
@@ -262,8 +260,7 @@ pub struct XCOriginPool {
 
 // ── Translation items (coverage tracking) ────────────────────────────────
 
-/// One translated or untranslatable construct from the iRule. Mirrors
-/// Python `TranslationItem`.
+/// One translated or untranslatable construct from the iRule.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TranslationItem {
     /// Translation status.
@@ -284,8 +281,7 @@ pub struct TranslationItem {
 
 // ── Top-level result ─────────────────────────────────────────────────────
 
-/// Complete result of translating an iRule to XC. Mirrors Python
-/// `XCTranslationResult`.
+/// Complete result of translating an iRule to XC.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct XCTranslationResult {
     /// Generated L7 routes.

@@ -1,8 +1,6 @@
 //! Parser for the F5 BIG-IP Ethernet trailer (HSB / "noise") added by
 //! `tcpdump -i 0.0:nnn[p]` captures.
 //!
-//! Faithful Rust port of `dialects/f5/bigip/f5_trailer.py`.
-//!
 //! Two on-the-wire formats coexist on production fleets:
 //!
 //! - **Legacy** (TMOS 9.4–13.x): a chain of variable-length entries
@@ -64,11 +62,10 @@ impl IpKind {
 
 /// Additional trailer schemas loaded from a `--schema` TOML overlay.
 ///
-/// Faithful behavioural port of the Python module-global `_LEGACY_SCHEMAS` /
-/// `_DPT_SCHEMAS` registries that [`load_schema_overlay`] mutates: entries here
-/// are consulted before the built-in schemas and override a matching built-in
-/// key, so an overlay can both add unknown `(type, version)` combinations and
-/// fix up offsets found wrong in the field.
+/// Holds the overlay schema registries that [`load_schema_overlay`] populates:
+/// entries here are consulted before the built-in schemas and override a
+/// matching built-in key, so an overlay can both add unknown `(type, version)`
+/// combinations and fix up offsets found wrong in the field.
 #[derive(Clone, Debug, Default)]
 pub struct SchemaOverlay {
     legacy: HashMap<(u8, u8, usize), Vec<(usize, IpKind)>>,
@@ -102,13 +99,12 @@ impl SchemaOverlay {
     }
 
     /// A legacy `type` is recognised if it has a built-in or overlay schema.
-    /// Mirrors Python's overlay-aware known-types set.
     fn legacy_type_known(&self, type_: u8) -> bool {
         legacy_type_known(type_) || self.legacy.keys().any(|&(t, _, _)| t == type_)
     }
 }
 
-/// Parse a `--schema` TOML overlay (mirrors Python `load_schema_overlay`).
+/// Parse a `--schema` TOML overlay.
 ///
 /// Accepts the `[[legacy]]` / `[[dpt]]` array-of-tables format documented on
 /// the Python function, each carrying integer keys and an `ip_fields` array of

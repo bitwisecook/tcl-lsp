@@ -1,8 +1,7 @@
 //! Grammar-aware Tcl script generator for differential fuzzing.
 //!
-//! Port of `tooling/fuzzing/tcl_gen.py`, scoped to the surface the native VM
-//! implements so a divergence points at a real miscompile rather than an
-//! unimplemented command. Every emitted script:
+//! Scoped to the surface the native VM implements so a divergence points at a
+//! real miscompile rather than an unimplemented command. Every emitted script:
 //!
 //! * is syntactically valid Tcl (balanced `{}` / `[]` / `""`);
 //! * is **pure** — no I/O, file, socket, exec, clock, or `after` commands;
@@ -55,7 +54,7 @@ const PROC_NAMES: &[&str] = &["p0", "p1", "p2", "helper", "compute"];
 
 /// Single-segment namespace names. Deliberately no `::` prefixes / trailing
 /// runs: namespace-name canonicalisation of multiple/trailing `::` is a known
-/// RT-VM gap, so steering clear of it keeps a divergence pointed at a real
+/// VM gap, so steering clear of it keeps a divergence pointed at a real
 /// miscompile rather than name-normalisation noise.
 const NS_NAMES: &[&str] = &["n1", "n2", "ns"];
 

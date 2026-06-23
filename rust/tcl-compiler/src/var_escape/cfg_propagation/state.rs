@@ -40,11 +40,9 @@ pub struct CfgEscapeResult {
     pub direct_callees: BTreeSet<String>,
     /// Every name the analysis saw (params + assigns + reads).
     pub known_names: HashSet<String>,
-    /// SYNC-JUN-FRAME356-population: structured barrier triggers
-    /// recorded by the CFG walk.
+    /// Structured barrier triggers recorded by the CFG walk.
     pub barriers: Vec<crate::var_escape::types::Barrier>,
-    /// SYNC-JUN-FRAME356-population: per-name escape reasons
-    /// recorded by the CFG walk.
+    /// Per-name escape reasons recorded by the CFG walk.
     pub tag_reasons: HashMap<String, Vec<crate::var_escape::types::EscapeReason>>,
 }
 
@@ -95,9 +93,9 @@ pub struct CfgState {
     literal_assigns: HashMap<String, LiteralBinding>,
     /// Most recent SSA version observed per name.
     ssa_for_name: HashMap<String, Version>,
-    /// SYNC-JUN-FRAME356-population: structured barrier triggers.
+    /// Structured barrier triggers.
     pub barriers: Vec<crate::var_escape::types::Barrier>,
-    /// SYNC-JUN-FRAME356-population: per-name escape reasons.
+    /// Per-name escape reasons.
     pub tag_reasons: HashMap<String, Vec<crate::var_escape::types::EscapeReason>>,
 }
 
@@ -192,7 +190,7 @@ impl CfgState {
         self.flags.insert(EscapeFlags::DYNAMIC_BARRIER);
     }
 
-    /// SYNC-JUN-FRAME356-population: record a structured barrier
+    /// Record a structured barrier
     /// (sets [`EscapeFlags::DYNAMIC_BARRIER`] AND appends the
     /// barrier to [`Self::barriers`] for downstream rendering).
     pub fn record_barrier(&mut self, barrier: crate::var_escape::types::Barrier) {
@@ -200,7 +198,7 @@ impl CfgState {
         self.barriers.push(barrier);
     }
 
-    /// SYNC-JUN-FRAME356-population: escape *name* at its current
+    /// Escape *name* at its current
     /// SSA version and record the triggering reason.
     pub fn escape_with_reason(
         &mut self,

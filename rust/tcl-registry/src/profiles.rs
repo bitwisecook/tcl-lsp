@@ -139,7 +139,7 @@ impl ProfileRegistry {
     }
 
     /// `profiles` plus all transitive [`ProfileSpec::requires`] parents,
-    /// uppercased.  Mirrors Python `expand_profile_stack`.
+    /// uppercased.
     #[must_use]
     pub fn expand_profile_stack(&self, profiles: &[&str]) -> HashSet<String> {
         let mut expanded: HashSet<String> = profiles.iter().map(|p| p.to_uppercase()).collect();
@@ -158,8 +158,7 @@ impl ProfileRegistry {
     }
 
     /// True when `active`'s expanded profile stack satisfies any one of the
-    /// `required` profiles (OR semantics).  Mirrors Python
-    /// `profile_stack_satisfies`.
+    /// `required` profiles (OR semantics).
     #[must_use]
     pub fn stack_satisfies(&self, required: &[&str], active: &[&str]) -> bool {
         if required.is_empty() {

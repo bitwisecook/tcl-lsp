@@ -1,13 +1,11 @@
 //! Minimal JSON dumper for the differential parity harness.
 //!
 //! Reads Tcl source (from `--source <text>`, a file path argument, or
-//! stdin when neither is given) and prints `serialise_result` as JSON —
-//! the same shape `tooling/cli/serialise.py::serialise_result` produces.
+//! stdin when neither is given) and prints `serialise_result` as JSON.
 //! `tests/test_explorer_rust_parity.py` shells out to this and compares
 //! the two implementations key-by-key.
 //!
-//! This is a throwaway bridge until the real `tcl explore --json` verb
-//! lands (EXP-CLI); it deliberately has no dependencies beyond `std`.
+//! It deliberately has no dependencies beyond `std`.
 
 use std::io::Read;
 

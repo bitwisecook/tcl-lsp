@@ -1,17 +1,8 @@
 //! The [`Analyser`] struct and its per-walk state.
 //!
-//! Mirrors ``_AnalyserBase.__init__`` in
-//! ``core/analysis/_analyser/_core.py:39-105``. Where Python uses
-//! cooperative multiple inheritance to share state across mixin
-//! handlers, the Rust analyser is a single struct whose methods
-//! are grouped across modules (``commands.rs``, ``proc.rs``,
-//! ``oo.rs``, ``diagnostics/``, …) but all operate on the same
-//! ``&mut Analyser``. Each Python ``self._field`` becomes a Rust
-//! struct field one-for-one.
-//!
-//! Per-walk handler logic is filled in by **C41b** onwards;
-//! C41a1 lands the struct shape + constructor + a stub
-//! [`Analyser::analyse`] entry point that returns an empty result.
+//! The analyser is a single struct whose methods are grouped across
+//! modules (``commands.rs``, ``proc.rs``, ``oo.rs``, ``diagnostics/``,
+//! …) but all operate on the same ``&mut Analyser``.
 
 use std::collections::{HashMap, HashSet};
 
@@ -22,9 +13,7 @@ use super::types::AnalysisResult;
 /// One entry in [`Analyser::var_command_sites`] —
 /// `(var_name, method_name?, cmd_token_span, in_method)`.
 ///
-/// Mirrors the Python ``self._var_command_sites`` tuple in
-/// ``_AnalyserBase.__init__``. Used by the W307
-/// (variable-as-command misuse) post-pass that lands in **C41d3**.
+/// Used by the W307 (variable-as-command misuse) post-pass.
 #[derive(Debug, Clone, PartialEq)]
 pub struct VarCommandSite {
     /// Variable name used as a command head (no leading ``$``).
@@ -45,9 +34,8 @@ pub struct VarCommandSite {
 /// One entry in [`Analyser::cmd_command_sites`] —
 /// `([cmd] text, method_name?, cmd_token_span, in_method)`.
 ///
-/// Mirrors ``self._cmd_command_sites`` — same shape as
-/// [`VarCommandSite`] except the head is a command-substitution
-/// rather than a variable.
+/// Same shape as [`VarCommandSite`] except the head is a
+/// command-substitution rather than a variable.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CmdCommandSite {
     /// Text of the bracketed command substitution (no brackets).
@@ -62,14 +50,7 @@ pub struct CmdCommandSite {
 
 /// Single-pass Tcl analyser.
 ///
-/// Mirrors the Python ``Analyser`` class composed in
-/// ``core/analysis/_analyser/__init__.py``. Constructed once per
-/// document, walked end-to-end, then dropped.
-///
-/// **Field documentation refers to the Python source field of the
-/// same name** — see ``_AnalyserBase.__init__`` for the full
-/// rationale per field. Comments here only call out where the
-/// Rust shape diverges from Python (e.g. ``ns_cache`` keys).
+/// Constructed once per document, walked end-to-end, then dropped.
 // A long-lived analysis accumulator: its several independent pass flags are
 // intentional, not a sign they should be bit-packed into an enum.
 #[allow(clippy::struct_excessive_bools)]
@@ -80,26 +61,21 @@ pub struct Analyser {
     /// Path through ``result.global_scope`` to the currently-active
     /// scope. Each entry is the index into the parent's
     /// ``children`` list; an empty path means "currently in the
-    /// global scope". Python uses a back-pointer (`Scope.parent`)
-    /// for the same job; Rust prefers an index path so the scope
-    /// tree stays a strict ownership graph.
+    /// global scope". An index path is used rather than a
+    /// back-pointer so the scope tree stays a strict ownership graph.
     pub current_scope_path: Vec<usize>,
     /// Full source text being analysed.
     ///
     /// Set at the top of [`Self::analyse`] (and the chunked
-    /// entries in **C41f2**) and read by handlers that need to
-    /// re-slice the outer source — recovery (**C41e4** / **C41e5**)
-    /// and CFG/SSA diagnostic emission (**C41d**). Mirrors
-    /// ``self._source`` in
-    /// ``core/analysis/_analyser/_core.py:43``.
+    /// entries) and read by handlers that need to re-slice the outer
+    /// source — recovery and CFG/SSA diagnostic emission.
     pub source: String,
     /// Active dialect name (``"tcl"``, ``"f5-irules"``,
     /// ``"f5-iapps"``, etc.).  Set at the top of
-    /// [`Self::analyse`].  Mirrors ``active_dialect()`` in
-    /// Python — handlers that need to compute dialect-specific
-    /// command sets (W113 shadow check, dialect-only command
-    /// gating in C41d) read this directly.  Empty string when
-    /// dialect was not specified.
+    /// [`Self::analyse`].  Handlers that need to compute
+    /// dialect-specific command sets (W113 shadow check,
+    /// dialect-only command gating) read this directly.  Empty
+    /// string when dialect was not specified.
     pub dialect: String,
     /// Diagnostic codes that should not be emitted.
     pub disabled_diagnostics: HashSet<String>,
@@ -111,12 +87,11 @@ pub struct Analyser {
     pub file_path: Option<String>,
     /// Per-scope const-string tracker:
     /// ``scope_kind_path → { var_name → (value, span) }``.
-    /// Python keys this on ``id(scope)``; Rust uses the path
-    /// vector so snapshot/restore doesn't have to remap pointers.
-    /// Filled in by **C41a4**.
+    /// Keyed on the path vector so snapshot/restore doesn't have to
+    /// remap pointers.
     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
     /// Variables known to contain regex patterns:
-    /// ``(scope_path, var_name)``. Filled in by **C41a4**.
+    /// ``(scope_path, var_name)``.
     pub regex_vars: HashSet<(Vec<usize>, String)>,
     /// iRules: enclosing ``when EVENT`` name.
     pub current_event: Option<String>,
@@ -148,13 +123,12 @@ pub struct Analyser {
     /// ``package require`` records as ``conditional=true``.
     pub conditional_depth: u32,
     /// Body-nesting depth — incremented on entry to a braced
-    /// body. Used by **C41d** for top-level-only command checks.
+    /// body. Used for top-level-only command checks.
     pub body_depth: u32,
     /// Command-alias records:
     /// ``alias_name → (target_cmd, prepended_args)``.
     pub command_aliases: HashMap<String, (String, Vec<String>)>,
-    /// Variable-as-command call sites; resolved post-walk by W307
-    /// (lands in **C41d3**).
+    /// Variable-as-command call sites; resolved post-walk by W307.
     pub var_command_sites: Vec<VarCommandSite>,
     /// Command-substitution-as-command call sites; same dispatch
     /// as [`Self::var_command_sites`] but for ``[cmd] args``
@@ -188,7 +162,6 @@ pub struct Analyser {
     /// and catches the common patterns; the deep pass is
     /// intended for asynchronous use behind the `S*` call-graph
     /// / symbol-graph / dataflow-graph / semantic-graph builders.
-    /// Mirrors Python's `deep_param_traits=True` opt-in surface.
     pub deep_param_traits: bool,
     /// Per-document stub-command overlay built at the top of
     /// [`Self::analyse`] from `result.stub_commands` via
@@ -196,10 +169,8 @@ pub struct Analyser {
     /// compiler queries see user-declared `# tcl-lsp: stub`
     /// commands as first-class members of the command surface
     /// without mutating the global [`tcl_registry::CommandRegistry`].
-    /// `None` outside an active analysis run.  Mirrors the
-    /// `_stub_signatures_var` `ContextVar` from Python's
-    /// `core/commands/registry/runtime.py` but tied to the
-    /// (single-threaded) analyser instead of a thread-local.
+    /// `None` outside an active analysis run.  Tied to the
+    /// (single-threaded) analyser instance rather than a thread-local.
     pub stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
     /// Sorted byte offsets of every ``\n`` in [`Self::source`],
     /// precomputed at the top of [`Self::analyse`] /
@@ -224,13 +195,12 @@ pub struct Analyser {
     /// silences such a call when its definition lexically precedes it.
     /// Proc-body calls (`enforce_order == false`) resolve after load,
     /// so any same-named definition shadows regardless of order.
-    /// Mirrors Python's `_arity_checks` over the fully-resolved IR
-    /// (#475) rather than checking inline during the walk.
+    /// The arity check runs over the fully-resolved IR rather than
+    /// inline during the walk.
     pub pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
     /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
     /// [`NonAsciiMode::Default`] resolves per dialect at emit time
-    /// (strict for F5 iRules/iApps, confusables otherwise), matching
-    /// Python's `_non_ascii_mode` + the iRules override.
+    /// (strict for F5 iRules/iApps, confusables otherwise).
     pub non_ascii_mode: NonAsciiMode,
     /// When `true`, the walk builds only the **structural** facts (procs,
     /// classes, aliases, ensembles, namespace/scope tree) and skips every
@@ -329,14 +299,14 @@ pub struct Analyser {
     /// iRules file-profile cache for IRULE1001's informational profile hint:
     /// the sorted, fully-expanded profile stack derived from any
     /// `# profiles:` directive plus the profiles implied by the file's
-    /// `when` events (Python `compute_file_profiles`).  Computed once per
+    /// `when` events.  Computed once per
     /// `analyse` run (only under the `f5-irules` dialect) and cleared at the
     /// top of each run.  `None` outside an active iRules analysis.
     pub(super) irules_file_profiles: Option<Vec<String>>,
 }
 
-/// W108 non-ASCII detection mode — mirrors the `tclLsp.style.nonAscii`
-/// setting (`core/analysis/checks/_style.py`).
+/// W108 non-ASCII detection mode for the `tclLsp.style.nonAscii`
+/// setting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum NonAsciiMode {
     /// No explicit setting: resolve per dialect at emit time — `Strict`
@@ -375,8 +345,7 @@ impl Analyser {
     /// Tcl 8.4 and iRules) and `irules_brace_separator` (`}{` ghost SEP,
     /// iRules-only).  Threaded into every analyser re-segmentation so
     /// tokenisation honours the workspace folder's dialect rather than
-    /// always assuming the Tcl-8.5+ default
-    /// (`SYNC-MAY19-dialect-contextvar`).  Reads `self.dialect`, set at
+    /// always assuming the Tcl-8.5+ default.  Reads `self.dialect`, set at
     /// the top of [`Self::analyse`].
     pub(super) fn lexer_config(&self) -> tcl_lexer::LexerConfig {
         tcl_lexer::LexerConfig::for_dialect(&self.dialect)
@@ -469,7 +438,7 @@ impl Analyser {
     /// Analyse a Tcl source for the given dialect, returning a
     /// fully-populated [`AnalysisResult`].
     ///
-    /// **C41f1 baseline.** Drives end-to-end:
+    /// Drives end-to-end:
     ///
     /// 1. Pre-scans the leading comment block for
     ///    `# tcl-lsp: disable=CODE` directives via
@@ -480,12 +449,6 @@ impl Analyser {
     /// 3. Walks each segmented command through
     ///    [`Self::process_command`].
     ///
-    /// Body recursion (proc bodies, namespace bodies, control-flow
-    /// arm bodies) is **not** wired in this baseline — handlers in
-    /// C41b1-b8 record the body span but don't recurse. Body walks
-    /// land per-handler in **C41c** / **C41e**. Diagnostic emission
-    /// (W210, W211, W120 etc.) lands in **C41d**.
-    ///
     /// `source` is consumed by reference so the analyser can hold
     /// per-walk references back into it; `dialect` is one of
     /// `"tcl"`, `"f5-irules"`, `"irules"`, `"iapps"`, etc. (kept in
@@ -495,10 +458,8 @@ impl Analyser {
         use std::collections::HashSet;
         use tcl_registry::CommandRegistry;
 
-        // Stash the source so handlers (recovery in C41e4/e5,
-        // diagnostic emitters in C41d) can re-slice it.  Mirrors
-        // ``self._source = source`` in
-        // ``core/analysis/_analyser/_core.py``.
+        // Stash the source so handlers (recovery, diagnostic
+        // emitters) can re-slice it.
         self.source = source.to_string();
         self.dialect = dialect.to_string();
         self.tk_possibly_active = super::tk_checks::tk_possibly_active(source, dialect);
@@ -513,29 +474,25 @@ impl Analyser {
         // file-directive set are unioned — both sources should
         // take effect.
         //
-        // Python keeps file-level suppression in
-        // ``result.suppressed_lines[-1]`` (a per-line map keyed
-        // by a sentinel ``-1`` for file-wide). Until the per-line
-        // suppression machinery lands (alongside the diagnostic
-        // emitters in C41d), the simpler "merge into
-        // ``disabled_diagnostics``" route gives directives the
-        // intended effect at the analyser-internal level. C41d
-        // can revisit if a per-line distinction becomes load-bearing.
+        // File-level suppression also lives in
+        // ``result.suppressed_lines[-1]`` (a per-line map keyed by a
+        // sentinel ``-1`` for file-wide); merging the codes into
+        // ``disabled_diagnostics`` gives the directives effect at the
+        // analyser-internal level.
         let file_codes = super::utils::parse_file_suppression(source);
         for code in &file_codes {
             self.disabled_diagnostics.insert(code.clone());
         }
         if !file_codes.is_empty() {
-            // Mirror Python's ``result.suppressed_lines[-1]``
-            // sentinel so downstream consumers (the LSP
-            // suppression filter, code-action UX) see the
-            // file-wide directive set in one place.
+            // Record the ``result.suppressed_lines[-1]`` sentinel so
+            // downstream consumers (the LSP suppression filter,
+            // code-action UX) see the file-wide directive set in one
+            // place.
             self.result
                 .suppressed_lines
                 .insert(-1, file_codes.iter().cloned().collect());
         }
-        // Pre-scan for next-line ``# noqa`` suppressions (issue
-        // #306, Python ``b66f8f9d`` / ``ceb190fc``).  Handles
+        // Pre-scan for next-line ``# noqa`` suppressions.  Handles
         // orphaned noqa at the tail of a brace body and noqa
         // before a comment line that itself generates a
         // diagnostic.  Merges into ``suppressed_lines`` alongside
@@ -549,9 +506,7 @@ impl Analyser {
         // capturing the parsed records, build the per-document
         // overlay so analyser / compiler queries see the
         // user-declared stubs as first-class commands (without
-        // mutating the global registry).  Mirrors the
-        // `_stub_signatures_var` `ContextVar` wiring in Python's
-        // `core/commands/registry/runtime.py`.
+        // mutating the global registry).
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
         self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
         self.result.stub_commands = stub_cmds;
@@ -588,29 +543,22 @@ impl Analyser {
         );
         drop(known_commands);
 
-        // GAP-A1 strip 3c: ghost-token recovery (see method doc).
+        // Ghost-token recovery (see method doc).
         let ghost_recovery_applied = self.apply_ghost_recovery(source, &mut commands);
 
-        // Walk each command through the dispatcher. Body recursion
-        // (proc bodies, namespace bodies, control-flow arms) is
-        // C41c / C41e work; this baseline only walks the top level.
-        // **C41e4** wires ``recover_stray_close_bracket``;
-        // **C41e5** wires ``recover_missing_open_brace`` (for
-        // switch with forgotten body brace), ``detect_stolen_close_brace``
-        // (E103), and the generic E200 partial-command emitter.
+        // Walk each command through the dispatcher.  The dispatcher
+        // wires ``recover_stray_close_bracket``,
+        // ``recover_missing_open_brace`` (for switch with a forgotten
+        // body brace), ``detect_stolen_close_brace`` (E103), and the
+        // generic E200 partial-command emitter.
         self.walk_commands_top_level(&commands, ghost_recovery_applied);
 
-        // **C41d1.** Run the diagnostic-emission orchestrator
-        // and the post-pass filters.  Mirrors the tail of
-        // ``Analyser.analyse`` in
-        // ``core/analysis/_analyser/_core.py:380-384``:
+        // Run the diagnostic-emission orchestrator and the post-pass
+        // filters:
         //
-        // 1. ``emit_unresolved_command_diagnostics`` — C41d4.
-        // 2. ``emit_variable_usage_diagnostics`` — hook landed
-        //    in C41d1 (currently no-op).
-        // 3. ``emit_cfg_ssa_diagnostics(source)`` — orchestrator
-        //    landed in C41d1 (currently inert; per-emitter
-        //    dispatch lands in C41d2-d7).
+        // 1. ``emit_unresolved_command_diagnostics``.
+        // 2. ``emit_variable_usage_diagnostics``.
+        // 3. ``emit_cfg_ssa_diagnostics(source)``.
         // 4. ``apply_disabled_diagnostics`` — filter codes the
         //    caller asked to silence (also covers the
         //    file-suppression directives merged at the top of
@@ -648,14 +596,13 @@ impl Analyser {
                 continue;
             }
             if cmd_ref.is_partial {
-                // GAP-A1: an unterminated `"` / `{` emits E202 / E203
+                // An unterminated `"` / `{` emits E202 / E203
                 // (with a closing-delimiter fix) instead of the generic
                 // E200; only fall through to E103 / E200 when no
                 // delimiter-recovery diagnostic applies.
                 // Stolen-close-brace detection (E103) only applies to a
-                // *brace* partial — Python gates it on `partial_delimiter
-                // is BRACE`; a bracket / quote partial goes straight to
-                // E200.
+                // *brace* partial; a bracket / quote partial goes
+                // straight to E200.
                 let brace_partial = matches!(
                     cmd_ref.partial_delimiter,
                     Some(crate::segmenter::UnclosedDelimiter::Brace)
@@ -670,21 +617,19 @@ impl Analyser {
                 continue;
             }
             let mut cmd = cmd_ref.clone();
-            // GAP-A6: E100 (stray `]`) / E102 (stray `}`) token checks,
-            // run on the *original* token stream before recovery mutates
-            // the clone.  Distinct from the recovery repairs below, which
+            // E100 (stray `]`) / E102 (stray `}`) token checks, run on
+            // the *original* token stream before recovery mutates the
+            // clone.  Distinct from the recovery repairs below, which
             // handle unclosed openers; a stray closer otherwise goes
-            // unreported.  (Top-level only for now — nested body
-            // recursion is a follow-up, mirroring how Python runs the
-            // check on every analysed body.)
+            // unreported.  Runs at the top level; nested bodies are
+            // covered by ``analyse_body``'s own per-body check.
             self.emit_syntax_recovery_diagnostics(cmd_ref, ghost_recovery_applied);
             self.recover_stray_close_bracket(&mut cmd);
             let consumed = self.recover_missing_open_brace(&mut cmd, commands, cmd_idx);
             let single = cmd.single_token_word.clone();
             // ``# noqa[: CODE,...]`` directives in
             // ``cmd.preceding_comment`` suppress diagnostics on
-            // the *following* command's line range.  Mirrors
-            // ``core/analysis/_analyser/_core.py:285-303``.
+            // the *following* command's line range.
             if let Some(line_offsets) = self.line_offsets.as_deref() {
                 super::utils::apply_preceding_noqa(
                     &cmd,
@@ -692,11 +637,9 @@ impl Analyser {
                     &mut self.result.suppressed_lines,
                 );
             }
-            // Mirrors ``self._last_comment = cmd.preceding_comment``
-            // in ``core/analysis/_analyser/_core.py``: handlers
-            // that consume a preceding comment (proc, oo::class)
-            // ``std::mem::take`` it; everything else clears it on
-            // the next command.
+            // Record the preceding comment: handlers that consume one
+            // (proc, oo::class) ``std::mem::take`` it; everything else
+            // clears it on the next command.
             self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
             self.process_command(
                 &cmd.texts,
@@ -711,7 +654,7 @@ impl Analyser {
         }
     }
 
-    /// GAP-A1 strip 3c: ghost-token recovery.  When the scan-to-next
+    /// Ghost-token recovery.  When the scan-to-next
     /// recovery left a partial command (the shape that otherwise emits
     /// E200), re-lex the document with zero-width ghost `]` insertions
     /// derived from the E201 heuristics.  When any apply, the
@@ -743,9 +686,9 @@ impl Analyser {
     }
 
     /// Emit the source-recovery syntax diagnostics for one command's
-    /// token stream: E100 / E102 stray closers (GAP-A6) and, unless
+    /// token stream: E100 / E102 stray closers and, unless
     /// ghost recovery already emitted them, E201 unterminated `[`
-    /// command substitutions (GAP-A1).  When `ghost_recovery_applied`,
+    /// command substitutions.  When `ghost_recovery_applied`,
     /// the stream is the ghost-recovered one and the E201s came from
     /// `segment_with_recovery`; a ghost-terminated command would look
     /// unterminated against the original bytes, so the detector is
@@ -769,9 +712,9 @@ impl Analyser {
             );
             self.result.diagnostics.extend(e201);
         }
-        // GAP-A1: E202 / E203 fire for unterminated `"` / `{` whose
-        // token wasn't split into a partial command (e.g. a quote run
-        // below the segmenter's recovery line threshold).  Top-level scan,
+        // E202 / E203 fire for unterminated `"` / `{` whose token
+        // wasn't split into a partial command (e.g. a quote run below
+        // the segmenter's recovery line threshold).  Top-level scan,
         // so the region ends at the document end.
         self.emit_unterminated_delimiter_diagnostics(cmd, self.source.len());
     }
@@ -779,8 +722,7 @@ impl Analyser {
     /// Emit the E202 (unterminated `"`) / E203 (unterminated `{`)
     /// recovery diagnostics for one command, honouring the disable set.
     /// Returns `true` when at least one was emitted — the partial-command
-    /// path uses this to suppress the generic E200.  Mirrors the E202 /
-    /// E203 slice of `recovery.py::_detect_all_virtual_tokens`.
+    /// path uses this to suppress the generic E200.
     pub(super) fn emit_unterminated_delimiter_diagnostics(
         &mut self,
         cmd: &crate::segmenter::SegmentedCommand,
@@ -803,16 +745,13 @@ impl Analyser {
         emitted
     }
 
-    /// GAP-A1 strip 2: convert the dialect-aware lexer's `LexWarning`s
-    /// into recovery diagnostics.  E204 (extra characters after a
-    /// close-brace), E205 (after a close-quote) and E206 (missing
-    /// close-brace for a `${…}` variable name) map by message; the
-    /// "missing closer" messages that overlap E201 / E202 / E203 are
-    /// skipped (the recovery detectors own those with better positions +
-    /// fixes); every *other* message maps to the catch-all E200.  Mirrors
-    /// `recovery.py::_lexer_warnings_to_diagnostics`
-    /// (`_WARNING_CODE_MAP.get(message, "E200")` minus the
-    /// recovery-handled set).
+    /// Convert the dialect-aware lexer's `LexWarning`s into recovery
+    /// diagnostics.  E204 (extra characters after a close-brace), E205
+    /// (after a close-quote) and E206 (missing close-brace for a
+    /// `${…}` variable name) map by message; the "missing closer"
+    /// messages that overlap E201 / E202 / E203 are skipped (the
+    /// recovery detectors own those with better positions + fixes);
+    /// every *other* message maps to the catch-all E200.
     fn emit_lexer_warning_diagnostics(&mut self) {
         let lexer = tcl_lexer::Lexer::with_source_map(
             tcl_lexer::SourceMap::new(&self.source),
@@ -841,13 +780,11 @@ impl Analyser {
         }
     }
 
-    /// **C41f2** — Analyse pre-segmented commands chunk-by-chunk
-    /// and capture per-chunk snapshots.
+    /// Analyse pre-segmented commands chunk-by-chunk and capture
+    /// per-chunk snapshots.
     ///
-    /// Mirrors `Analyser.analyse_chunked` in
-    /// `core/analysis/_analyser/_core.py:195-239`.  Used by the
-    /// LSP for incremental document re-analysis: when the user
-    /// types into the document, dirty chunks are re-segmented
+    /// Used by the LSP for incremental document re-analysis: when the
+    /// user types into the document, dirty chunks are re-segmented
     /// and fed back through this entry while clean chunks are
     /// restored from a prior snapshot.
     ///
@@ -858,11 +795,8 @@ impl Analyser {
     /// matching prefix.
     ///
     /// `chunk_commands` is grouped already — each inner `Vec`
-    /// is one chunk's worth of commands.  `dialect` mirrors the
-    /// argument to [`Self::analyse`].  Stub-pre-scan (Python's
-    /// `scan_source_for_stubs`) is deferred — that path lands
-    /// alongside the ``stub_commands`` field which the Rust
-    /// `AnalysisResult` doesn't carry yet.
+    /// is one chunk's worth of commands.  `dialect` matches the
+    /// argument to [`Self::analyse`].
     pub fn analyse_chunked(
         &mut self,
         source: &str,
@@ -881,17 +815,16 @@ impl Analyser {
             self.disabled_diagnostics.insert(code.clone());
         }
         if !file_codes.is_empty() {
-            // Mirror ``analyse``'s ``result.suppressed_lines[-1]``
-            // sentinel so downstream consumers see file-wide
-            // ``# tcl-lsp: disable=`` directives via the same
-            // surface regardless of which entry point dispatched
-            // the analyse (Copilot review on PR #371).
+            // Record the same ``result.suppressed_lines[-1]`` sentinel
+            // as ``analyse`` so downstream consumers see file-wide
+            // ``# tcl-lsp: disable=`` directives via the same surface
+            // regardless of which entry point dispatched the analyse.
             self.result
                 .suppressed_lines
                 .insert(-1, file_codes.iter().cloned().collect());
         }
         // Next-line ``# noqa`` pre-scan — see ``analyse`` for
-        // rationale (issue #306).
+        // rationale.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
             super::utils::parse_noqa_line_suppressions(source),
@@ -926,12 +859,9 @@ impl Analyser {
         (result, snapshots)
     }
 
-    /// **C41f2** — Analyse pre-segmented commands without
-    /// re-segmenting `source`.
+    /// Analyse pre-segmented commands without re-segmenting `source`.
     ///
-    /// Mirrors `Analyser.analyse_commands` in
-    /// `core/analysis/_analyser/_core.py:241-272`.  This is
-    /// the single-chunk variant used by the LSP's incremental
+    /// This is the single-chunk variant used by the LSP's incremental
     /// path after a prior `restore` — the analyser starts from
     /// a snapshot covering earlier clean chunks, then walks the
     /// dirty chunk's commands through the dispatcher.
@@ -960,14 +890,13 @@ impl Analyser {
         }
         if !file_codes.is_empty() {
             // ``-1`` sentinel parity with ``analyse`` — see the
-            // matching block in ``analyse_chunked`` (Copilot
-            // review on PR #371).
+            // matching block in ``analyse_chunked``.
             self.result
                 .suppressed_lines
                 .insert(-1, file_codes.iter().cloned().collect());
         }
         // Next-line ``# noqa`` pre-scan — see ``analyse`` for
-        // rationale (issue #306).
+        // rationale.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
             super::utils::parse_noqa_line_suppressions(source),
@@ -987,11 +916,7 @@ impl Analyser {
 
         // Stub-directive pre-scan + overlay, matching ``analyse`` so command
         // resolution (W123 / W307 / param-trait inference) sees the same stub
-        // surface.  Previously deferred, which left ``stub_overlay`` = ``None``
-        // here vs ``Some`` on the full ``analyse`` path — a setup divergence
-        // that made ``analyse_commands`` non-byte-identical to ``analyse`` (the
-        // `incremental == fresh` fuzzer caught it).  ``AnalysisResult`` already
-        // carries the ``stub_commands`` / ``stub_expr_defs`` fields.
+        // surface and ``analyse_commands`` stays byte-identical to ``analyse``.
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
         self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
         self.result.stub_commands = stub_cmds;
@@ -1097,15 +1022,8 @@ impl Analyser {
 
     /// Inner dispatch loop shared by [`Self::analyse_chunked`]
     /// and [`Self::analyse_commands`].  Walks pre-segmented
-    /// commands at the current scope path.
-    ///
-    /// Mirrors `_analyse_commands_inner` in
-    /// `core/analysis/_analyser/_core.py:274-354`.  The Rust
-    /// port is much smaller than Python's because the
-    /// var-read recording, CMD-substitution recursion, and
-    /// recovery hooks land per-strip in C41c / C41e.  This
-    /// helper covers the dispatch portion that's load-bearing
-    /// for incremental analysis.
+    /// commands at the current scope path.  Covers the dispatch
+    /// portion that's load-bearing for incremental analysis.
     fn analyse_commands_inner(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
         let scope_path = self.current_scope_path.clone();
         let total = commands.len();
@@ -1117,10 +1035,10 @@ impl Analyser {
                 continue;
             }
             if cmd_ref.is_partial {
-                // **C41e5** parity — partial commands surface
-                // E103 / E200 in the chunked path too so the
-                // LSP shows parse errors during incremental
-                // analysis.  Stolen-close-brace (E103) is brace-only.
+                // Partial commands surface E103 / E200 in the chunked
+                // path too so the LSP shows parse errors during
+                // incremental analysis.  Stolen-close-brace (E103) is
+                // brace-only.
                 let brace_partial = matches!(
                     cmd_ref.partial_delimiter,
                     Some(crate::segmenter::UnclosedDelimiter::Brace)
@@ -1134,21 +1052,15 @@ impl Analyser {
             // Emit the same source-recovery syntax diagnostics as the
             // top-level loop in ``analyse``: E100 / E102 stray closers
             // *and* E201 (unterminated `[`) / E202 / E203 (unterminated
-            // `"` / `{`).  Previously this path ran only
-            // ``stray_closer_diagnostics`` (E100/E102), so
-            // ``analyse_commands`` / ``analyse_chunked`` (and the
-            // incremental path) under-reported E201/E202/E203 at the top
-            // level relative to ``analyse`` — a real divergence the
-            // `incremental == fresh` fuzzer caught.  ``analyse_commands``
-            // never runs ghost recovery, so pass ``false``.  Run on the
-            // original token stream before ``recover_stray_close_bracket``
-            // repairs the clone.  (Nested bodies dispatched below are
-            // covered by ``analyse_body``'s own per-body check.)
+            // `"` / `{`).  ``analyse_commands`` never runs ghost
+            // recovery, so pass ``false``.  Run on the original token
+            // stream before ``recover_stray_close_bracket`` repairs the
+            // clone.  (Nested bodies dispatched below are covered by
+            // ``analyse_body``'s own per-body check.)
             self.emit_syntax_recovery_diagnostics(cmd_ref, false);
-            // **C41e4 + C41e5.** Repair stray ``]`` and missing
-            // ``{`` in a clone of the segmented command before
-            // dispatch — chunked analysis keeps the original
-            // snapshot copies untouched so re-runs are
+            // Repair stray ``]`` and missing ``{`` in a clone of the
+            // segmented command before dispatch — chunked analysis keeps
+            // the original snapshot copies untouched so re-runs are
             // deterministic.
             let mut cmd = cmd_ref.clone();
             self.recover_stray_close_bracket(&mut cmd);
@@ -1179,21 +1091,15 @@ impl Analyser {
     /// Resolve (and cache) the set of built-in command names for
     /// the active dialect.
     ///
-    /// Mirrors the inline cache in
-    /// ``_AnalyserProcMixin._handle_proc``
-    /// (``core/analysis/_analyser/_proc.py:71-74``) — the
-    /// registry is built once per dialect and the resulting name
+    /// The registry is built once per dialect and the resulting name
     /// set is held on ``self.builtin_names`` for subsequent
     /// proc / class registrations to consult without rebuilding.
     /// Used by **W113** (proc shadows built-in) at proc-emit time
-    /// and the **C41d** emitters that gate on built-in vs
-    /// user-defined.
+    /// and the emitters that gate on built-in vs user-defined.
     ///
     /// The dialect string is parsed via ``DialectSet::parse``;
     /// unknown dialect names fall through to the core registry
-    /// (TCL / stdlib / tcllib only) — same fallback Python uses
-    /// implicitly when ``REGISTRY.command_names(dialect)``
-    /// returns just the built-in set.
+    /// (TCL / stdlib / tcllib only).
     pub fn builtin_command_names(&mut self) -> &std::collections::HashSet<String> {
         use tcl_registry::CommandRegistry;
         use tcl_registry::prelude::DialectSet;
@@ -1345,10 +1251,8 @@ pub(super) fn line_at_offset(line_offsets: &[usize], offset: usize) -> i32 {
 /// Merge a set of ``# noqa``-derived line suppressions into the
 /// analyser's ``suppressed_lines`` map.
 ///
-/// Mirrors the inline-merge block Python writes in
-/// ``Analyser.analyse`` / ``analyse_chunked`` / ``analyse_commands``
-/// after each call to ``parse_noqa_line_suppressions``.  Used by all
-/// three Rust entry points so the merge logic stays in one place.
+/// Called after each ``parse_noqa_line_suppressions`` by all three
+/// entry points so the merge logic stays in one place.
 pub(super) fn merge_noqa_line_suppressions(
     suppressed_lines: &mut std::collections::HashMap<i32, std::collections::HashSet<String>>,
     line_codes: std::collections::HashMap<i32, std::collections::HashSet<String>>,
@@ -1525,10 +1429,8 @@ mod tests {
     fn analyse_threads_next_line_noqa_into_suppressed_lines() {
         // A ``# noqa`` comment on its own line must seed
         // ``suppressed_lines`` for the *following* line via the
-        // ``parse_noqa_line_suppressions`` pre-scan.  Mirrors the
-        // Python merge block in ``_core.py`` post commit
-        // ``ceb190fc`` (issue #306).  Line 0 carries the ``# noqa``
-        // directive so line 1 should be in the map.
+        // ``parse_noqa_line_suppressions`` pre-scan.  Line 0 carries
+        // the ``# noqa`` directive so line 1 should be in the map.
         let mut a = Analyser::new();
         let r = a.analyse("# noqa\nset x 1\n", "tcl");
         let codes = r.suppressed_lines.get(&1).expect("line 1 entry");
@@ -1590,7 +1492,7 @@ mod tests {
         // (`unknown`, `history`, `auto_*`, `parray`, `pkg_mkIndex`,
         // `tcl_*` word helpers) are documented as user-replaceable
         // overlays, not C built-ins — redefining one must not fire
-        // W113.  Mirrors `_OVERRIDABLE_LIBRARY_PROCS` in `_proc.py`.
+        // W113.
         let mut a = Analyser::new();
         for name in [
             "unknown",
@@ -2070,9 +1972,9 @@ mod tests {
 
     #[test]
     fn analyse_records_source_text_for_handler_re_slicing() {
-        // Handlers in C41c / C41d / C41e re-slice ``self.source``
-        // via spans returned by the segmenter; the field must be
-        // populated at the top of ``analyse``.
+        // Handlers re-slice ``self.source`` via spans returned by the
+        // segmenter; the field must be populated at the top of
+        // ``analyse``.
         let mut a = Analyser::new();
         let _ = a.analyse("set x 1", "tcl");
         assert_eq!(a.source, "set x 1");
@@ -2080,9 +1982,9 @@ mod tests {
 
     #[test]
     fn analyse_records_dialect_for_w113_and_emitter_use() {
-        // Handlers (W113 shadow check, dialect-only emitters in
-        // C41d) read ``self.dialect`` directly.  The field must
-        // be populated at the top of ``analyse``.
+        // Handlers (W113 shadow check, dialect-only emitters) read
+        // ``self.dialect`` directly.  The field must be populated at
+        // the top of ``analyse``.
         let mut a = Analyser::new();
         let _ = a.analyse("", "f5-irules");
         assert_eq!(a.dialect, "f5-irules");
@@ -2121,8 +2023,8 @@ mod tests {
 
     #[test]
     fn analyse_commands_fires_stray_close_bracket() {
-        // GAP-A6 follow-up: the incremental / chunked path runs the
-        // E100 stray-`]` check too, matching `analyse`.
+        // The incremental / chunked path runs the E100 stray-`]`
+        // check too, matching `analyse`.
         use crate::segmenter::segment_commands;
         let source = "puts foo]";
         let commands = segment_commands(source);
@@ -2185,13 +2087,6 @@ mod tests {
     }
 
     // -- tcllib `<NS>::import <ALIAS>` wrapper detection
-    //
-    // Mirror the relevant cases in
-    // ``tests/test_namespace_imports.py``
-    // (``test_tcllib_import_wrapper_is_conjectured`` +
-    // ``test_import_wrapper_alias_relative_to_current_namespace``)
-    // against the Rust port so the ``namespace_imports`` supplement
-    // guard can retire.
 
     #[test]
     fn analyse_records_tcllib_import_wrapper_as_conjectured() {
@@ -2244,8 +2139,7 @@ mod tests {
     #[test]
     fn analyse_tcllib_import_wrapper_skips_substituted_alias() {
         // ``$var`` / ``[cmd]`` aliases can't be statically resolved —
-        // matches Python's ``"$" not in alias and "[" not in alias``
-        // guard.
+        // the guard requires the alias to contain no ``$`` or ``[``.
         let mut a = Analyser::new();
         let r1 = a.analyse("term::ansi::send::import $alias\n", "tcl");
         assert!(r1.namespace_imports.iter().all(|i| !i.conjectured));
@@ -2279,17 +2173,12 @@ mod tests {
         assert_eq!(conjectured[0].pattern, "::foo::*");
     }
 
-    // -- ``command_aliases`` parity tests
+    // -- ``command_aliases`` tests
     //
-    // Mirror the relevant cases in tests/test_analyser.py
-    // (``test_alias_chain_not_resolved``, ``test_alias_redefinition_overwrites``)
-    // to pin the no-transitive-chain behaviour the
-    // ``alias-chains`` chunk relies on when retiring the
-    // ``rust.command_aliases`` Python supplement merge.
+    // Pin the no-transitive-chain behaviour of command aliases.
 
     #[test]
     fn analyse_alias_chain_records_each_step_independently() {
-        // Mirrors ``test_alias_chain_not_resolved``:
         // ``a -> b`` and ``b -> expr`` are recorded as two
         // independent entries — neither side resolves
         // transitively to ``expr``.
@@ -2305,8 +2194,7 @@ mod tests {
 
     #[test]
     fn analyse_alias_redefinition_overwrites_target() {
-        // Mirrors ``test_alias_redefinition_overwrites``: the
-        // second declaration wins.
+        // The second declaration wins.
         let mut a = Analyser::new();
         let r = a.analyse(
             "interp alias {} myop {} expr\ninterp alias {} myop {} puts\n",
@@ -2341,12 +2229,10 @@ mod tests {
 
     // -- ``switch -regexp`` literal-pattern recording
     //
-    // Mirror the relevant cases in
-    // ``tests/test_analyser.py``'s switch / regex tests.  The
-    // pattern arms whose token is a literal are recorded as
+    // The pattern arms whose token is a literal are recorded as
     // ``RegexPattern { command = "switch" }``; ``default`` and
     // var / cmd-sub patterns are skipped (variable patterns are
-    // the regex-vars chunk's territory).
+    // handled by the regex-vars resolution instead).
 
     #[test]
     fn analyse_switch_regexp_form1_records_literal_patterns() {
@@ -2419,9 +2305,7 @@ mod tests {
     #[test]
     fn analyse_switch_regexp_skips_unresolved_var_pattern() {
         // ``$pat`` arm with no defining ``set`` — no const value
-        // available, so the arm is dropped (matches Python's
-        // ``const_val is not None`` guard in
-        // ``_proc.py:325-335``).
+        // available, so the arm is dropped.
         let mut a = Analyser::new();
         let r = a.analyse(
             "switch -regexp -- $val { $pat { puts hit } ^lit { puts lit } }\n",
@@ -2439,18 +2323,15 @@ mod tests {
     // -- ``regex-vars`` const-string propagation
     //
     // Verify that ``$var`` regex pattern arguments resolve to the
-    // literal stored by a preceding ``set var "..."``.  Mirrors
-    // Python's ``_lookup_const_string`` branch in
-    // ``_commands.py:511-541`` (regexp / regsub) and
-    // ``_proc.py:319-348`` (switch -regexp Form 2).
+    // literal stored by a preceding ``set var "..."`` (regexp /
+    // regsub and switch -regexp Form 2).
 
     #[test]
     fn analyse_regexp_resolves_var_pattern_to_const_string() {
         let mut a = Analyser::new();
         let r = a.analyse("set p {^foo}\nregexp $p $line\n", "tcl");
         // Two records: the use site (the ``$p`` token) and the
-        // defining ``set`` value (mirrors
-        // ``_record_defining_set_as_regex``).
+        // defining ``set`` value.
         let regexp_pats: Vec<_> = r
             .regex_patterns
             .iter()
@@ -2493,18 +2374,13 @@ mod tests {
     #[test]
     fn analyse_regex_var_unresolved_records_nothing() {
         // No defining ``set`` — Var has no const value.  The
-        // pattern arg is dropped (matches Python).
+        // pattern arg is dropped.
         let mut a = Analyser::new();
         let r = a.analyse("regexp $p $line\n", "tcl");
         assert!(r.regex_patterns.is_empty());
     }
 
-    // -- ``postpass`` chunk: W105 unbraced-body emitter
-    //
-    // Mirror the relevant cases from
-    // ``tests/test_analyser.py`` / ``tests/test_w105*.py`` against
-    // the Rust port so the W105 path retires from the Python
-    // ``run_compiler_checks`` post-pass.
+    // -- W105 unbraced-body emitter
 
     #[test]
     fn analyse_emits_w105_for_unbraced_if_body_with_substitution() {
@@ -2544,9 +2420,8 @@ mod tests {
         // `$cmd`, `$script`) is a script-valued reference — the variable
         // already holds the script — not an inline code block.  Bracing it
         // (`{$body}`) would turn the reference into the literal text, so the
-        // W105 quick-fix is wrong and must not fire.  Verified against the
-        // Python reference (post-#587): `while {$cond} $body` → no W105,
-        // matching `eval $cmd`, `proc $n $a $body`, `uplevel $script`.
+        // W105 quick-fix is wrong and must not fire: `while {$cond} $body`
+        // → no W105, as for `eval $cmd`, `proc $n $a $body`, `uplevel $script`.
         let mut a = Analyser::new();
         for src in [
             "while {$cond} $body\n",
@@ -2569,8 +2444,7 @@ mod tests {
     fn analyse_emits_w105_for_quoted_interpolated_body() {
         // TP control: a *quoted* body with interpolation (`eval "do $script"`)
         // really is an inline script woven from substitutions — it can and
-        // should be braced, so W105 still fires at ERROR severity.  Mirrors
-        // Python: `eval "do $script"` → W105.
+        // should be braced, so W105 still fires at ERROR severity.
         let mut a = Analyser::new();
         let r = a.analyse("eval \"do $script\"\n", "tcl");
         let w105: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W105").collect();
@@ -2578,11 +2452,7 @@ mod tests {
         assert!(matches!(w105[0].severity, crate::analyser::Severity::Error));
     }
 
-    // -- ``postpass`` chunk: W110 string-compare-in-expr emitter
-    //
-    // Mirrors ``tests/test_checks.py::TestStringCompareInExpr``
-    // against the Rust port so the W110 path retires from the
-    // Python ``run_compiler_checks`` post-pass.
+    // -- W110 string-compare-in-expr emitter
 
     #[test]
     fn analyse_emits_w110_for_string_eq_in_if_condition() {
@@ -2724,8 +2594,8 @@ mod tests {
 
     #[test]
     fn analyse_w110_fires_on_multi_arg_expr_command() {
-        // ``expr $x == "foo"`` (no braces, multiple argv slots): Python
-        // parses ``" ".join(args)`` — the *substituted* word values, whose
+        // ``expr $x == "foo"`` (no braces, multiple argv slots): the args
+        // are joined with spaces — the *substituted* word values, whose
         // quote delimiters Tcl's word splitting already stripped — so the
         // expression is ``$x == foo`` with ``foo`` a bareword, not an
         // ``ExprString``.  W110 (string ``==``) therefore does NOT fire on
@@ -2753,9 +2623,9 @@ mod tests {
 
     #[test]
     fn call_by_name_var_not_flagged_unused_or_dead() {
-        // SYNC-JUN02d-2: a caller-local passed *by name* to a proc that
-        // upvar-writes its param (`fill tag`) must not be flagged W211
-        // (unused) or W220 (dead store).
+        // A caller-local passed *by name* to a proc that upvar-writes
+        // its param (`fill tag`) must not be flagged W211 (unused) or
+        // W220 (dead store).
         let mut a = Analyser::new();
         let r = a.analyse(
             "proc ::fill {vn} { upvar 1 $vn v\nset v 1 }\n\
@@ -2787,8 +2657,7 @@ mod tests {
     fn dynamic_name_write_does_not_dead_store_the_name_var() {
         // `set $p 1` writes the variable *named by* `$p` and *reads* `p`
         // (verified against tclsh 8.4–9.0).  It must not produce a spurious
-        // W220 dead-store on the parameter `p` itself.  Matches the Python
-        // analyser (which emits nothing here).
+        // W220 dead-store on the parameter `p` itself.
         for body in ["set $p 1", "set ${p} 1", "set $p [expr {1}]"] {
             let mut a = Analyser::new();
             let r = a.analyse(&format!("proc ::f {{p}} {{ {body} }}\n"), "tcl");
@@ -2809,8 +2678,7 @@ mod tests {
         // `regexp`/`regsub` target, or `set $p`) names a callee-local
         // variable — it does NOT write back to the caller's frame, so a
         // caller's literal arg is genuinely dead and must still fire W211 /
-        // W220 (the PR #498/#499 false-positive regression guard, verified
-        // against the Python analyser).
+        // W220.
         let cases = [
             "proc maybe {target} { scan 42 %d $target }",
             "proc maybe {target} { lassign {1} $target }",
@@ -2853,8 +2721,8 @@ mod tests {
 
     #[test]
     fn analyse_w128_fires_on_call_to_renamed_command() {
-        // SYNC-JUN02b-4 (#519): a builtin renamed/deleted away earlier in
-        // the file → the later call falls through to `unknown` → W128.
+        // A builtin renamed/deleted away earlier in the file → the
+        // later call falls through to `unknown` → W128.
         let mut a = Analyser::new();
         let r = a.analyse("rename string {}\nstring toupper x\n", "tcl");
         let w128: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W128").collect();
@@ -2907,12 +2775,7 @@ mod tests {
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
     }
 
-    // -- ``postpass`` chunk: W302 catch-without-result-var emitter
-    //
-    // Mirrors the IRCatch arm of ``_check_statement`` in
-    // ``core/compiler/compiler_checks.py:491-504`` against the Rust
-    // port so the W302 path retires from the Python
-    // ``run_compiler_checks`` post-pass.
+    // -- W302 catch-without-result-var emitter
 
     #[test]
     fn analyse_emits_w302_for_catch_without_result_var() {
@@ -2956,12 +2819,10 @@ mod tests {
 
     #[test]
     fn analyse_no_w302_for_multi_token_catch_body() {
-        // ``catch pre$x`` — multi-token-word body lands on
-        // Python's ``IRBarrier`` "catch with dynamic body" path
-        // in ``_lower_catch`` (``arg_single[0]`` is false), so no
-        // IRCatch is built and W302 never fires.  The Rust
-        // emitter mirrors that suppression by gating on
-        // ``arg_single[0]``.
+        // ``catch pre$x`` — a multi-token-word body is a dynamic
+        // body (not a single-token word), so it is not treated as a
+        // braced catch body and W302 never fires.  The emitter gates
+        // on the body being a single-token word.
         let mut a = Analyser::new();
         let r = a.analyse("catch pre$x\n", "tcl");
         assert!(
@@ -2973,9 +2834,9 @@ mod tests {
 
     #[test]
     fn analyse_w302_anchors_at_catch_keyword() {
-        // SYNC-MAY21-4 (#464): W302 highlights just the ``catch``
-        // command token — the narrowest span that identifies the
-        // issue — rather than the whole ``catch {…}`` statement
+        // W302 highlights just the ``catch`` command token — the
+        // narrowest span that identifies the issue — rather than the
+        // whole ``catch {…}`` statement
         // (which also dropped the closing brace under the lexer's
         // inner-end convention).
         let mut a = Analyser::new();
@@ -2988,12 +2849,7 @@ mod tests {
         assert_eq!(text, "catch", "W302 should span only the catch keyword");
     }
 
-    // -- ``postpass`` chunk: W001 unknown-subcommand emitter
-    //
-    // Mirrors the SubcommandSig branch of ``_check_arity`` in
-    // ``core/compiler/compiler_checks.py:580-643`` against the
-    // Rust port so the W001 path retires from the Python
-    // ``run_compiler_checks`` post-pass.
+    // -- W001 unknown-subcommand emitter
 
     #[test]
     fn analyse_emits_w001_for_unknown_string_subcommand() {
@@ -3164,21 +3020,17 @@ mod tests {
         }
     }
 
-    // -- ``postpass`` chunk: E004 malformed-if emitter
+    // -- E004 malformed-if emitter
     //
-    // Mirrors the ``IRBarrier`` arm of ``_check_statement`` in
-    // ``core/compiler/compiler_checks.py:506-525`` — fires
-    // ``Severity::Error`` when an ``if`` invocation's structural
+    // Fires ``Severity::Error`` when an ``if`` invocation's structural
     // shape doesn't match
     // ``if COND BODY ?elseif COND BODY ...? ?else BODY?``.
-    // Detection is analyser-side (mirrors W302 / W001 dispatch
-    // pattern) rather than via IR-walk.
+    // Detection is analyser-side rather than via IR-walk.
 
     #[test]
     fn analyse_emits_e004_for_extra_words_after_else() {
-        // ``if {1} { a } else { b } extra`` — Python's
-        // ``_lower_if`` produces an IRBarrier with reason
-        // ``'extra words after "else" clause'``.
+        // ``if {1} { a } else { b } extra`` — extra words follow the
+        // ``else`` clause.
         let mut a = Analyser::new();
         let r = a.analyse("if {1} { a } else { b } extra\n", "tcl");
         let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
@@ -3194,8 +3046,7 @@ mod tests {
     #[test]
     fn analyse_emits_e004_for_bare_else_without_body() {
         // ``if {1} { a } else`` — bare ``else`` keyword with no
-        // body.  Python's ``_lower_if`` produces ``"malformed if
-        // else clause"``.
+        // body.
         let mut a = Analyser::new();
         let r = a.analyse("if {1} { a } else\n", "tcl");
         let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
@@ -3224,7 +3075,7 @@ mod tests {
     #[test]
     fn analyse_emits_e004_for_then_keyword_without_body() {
         // ``if {1} then`` — condition + ``then`` keyword without
-        // body.  Mirrors Python's ``"malformed if clause"``.
+        // body.
         let mut a = Analyser::new();
         let r = a.analyse("if {1} then\n", "tcl");
         let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
@@ -3238,9 +3089,8 @@ mod tests {
 
     #[test]
     fn analyse_emits_e004_for_if_with_only_else() {
-        // ``if else { x }`` — no condition+body clause produced
-        // before the else, so Python's post-walk
-        // ``if not clauses`` check fires with ``"malformed if"``.
+        // ``if else { x }`` — no condition+body clause before the
+        // else, so the malformed-if check fires.
         let mut a = Analyser::new();
         let r = a.analyse("if else { x }\n", "tcl");
         let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
@@ -3292,7 +3142,7 @@ mod tests {
     #[test]
     fn analyse_no_e004_for_if_with_then_keyword() {
         // ``if {1} then { a }`` — explicit ``then`` keyword is
-        // accepted by both Tcl and Python's lowerer.  No E004.
+        // accepted by Tcl.  No E004.
         let mut a = Analyser::new();
         let r = a.analyse("if {1} then { a }\n", "tcl");
         assert!(
@@ -3305,7 +3155,7 @@ mod tests {
     #[test]
     fn analyse_e004_anchors_at_full_command_range() {
         // Span runs from the ``if`` keyword through the last arg
-        // token's end, mirroring Python's ``cmd.range``.
+        // token's end.
         let mut a = Analyser::new();
         let src = "if {1} { a } else { b } extra\n";
         let r = a.analyse(src, "tcl");
@@ -3317,12 +3167,11 @@ mod tests {
         assert!(text.contains("extra"), "span text {text:?}");
     }
 
-    // -- ``postpass`` chunk: W304 missing-option-terminator emitter
+    // -- W304 missing-option-terminator emitter
     //
-    // Mirrors `tests/test_checks.py::TestMissingOptionTerminator`
-    // against the Rust port.  Resolution profile lives in
-    // ``tcl-registry``; tristate severity / two-diagnostic origin /
-    // code-fix logic lives in ``analyser/diagnostics.rs``.
+    // Resolution profile lives in ``tcl-registry``; tristate severity
+    // / two-diagnostic origin / code-fix logic lives in
+    // ``analyser/diagnostics.rs``.
 
     fn w304_diags(src: &str) -> Vec<crate::analyser::types::Diagnostic> {
         let mut a = Analyser::new();
@@ -3352,7 +3201,7 @@ mod tests {
     fn analyse_no_w304_for_regexp_safe_literal_pattern() {
         // Pattern starts with `(` — non-dynamic, doesn't start with
         // `-`, so the OFF gate suppresses regardless of the
-        // command's WARN_WITHOUT_TERMINATOR trait.  Mirrors Python.
+        // command's WARN_WITHOUT_TERMINATOR trait.
         let diags = w304_diags("regexp {(a+)+$} $text\n");
         assert!(diags.is_empty(), "got {diags:?}");
     }
@@ -3362,10 +3211,8 @@ mod tests {
         // ``regexp {-[0-9]+} $text`` — the literal pattern starts
         // with `-` so the positional scanner treats it as an
         // unknown option and lands on the next positional
-        // (``$text``).  Diagnostic still fires (mirrors Python's
-        // ``test_regexp_literal_dash_pattern_warns`` which only
-        // asserts ``len(diags) == 1``); severity comes from the
-        // dynamic-var INFO path because the diag anchors on
+        // (``$text``).  The diagnostic still fires; severity comes
+        // from the dynamic-var INFO path because the diag anchors on
         // ``$text``, not the pattern literal.
         let diags = w304_diags("regexp {-[0-9]+} $text\n");
         assert_eq!(diags.len(), 1, "got {diags:?}");
@@ -3533,11 +3380,10 @@ mod tests {
         assert!(matches!(main.severity, crate::analyser::Severity::Warning));
     }
 
-    // -- ``postpass`` chunk: W101 eval-string-concat emitter
+    // -- W101 eval-string-concat emitter
     //
-    // Mirrors `tests/test_checks.py::TestEvalStringConcat` against
-    // the Rust port.  Canonical-list-idiom suppression lives in the
-    // registry (``is_canonical_list_command``); substitution-detection
+    // Canonical-list-idiom suppression lives in the registry
+    // (``is_canonical_list_command``); substitution-detection
     // approximation lives in the analyser.
 
     fn w101_diags(src: &str) -> Vec<crate::analyser::types::Diagnostic> {
@@ -3653,14 +3499,12 @@ mod tests {
 
     #[test]
     fn analyse_no_w101_for_eval_literal_multi_token_word() {
-        // Regression for PR #290 review (Codex bot, P2):
         // ``eval foo{bar}`` is a multi-token word (Esc + Str joined,
         // ``single_token_word == false``) that contains no Var/Cmd
-        // substitution — Python's reference check only fires on
-        // actual VAR/CMD tokens, so this must not trigger W101.
-        // The fix replaces the multi-token-word-implies-substitution
-        // heuristic with a brace/backslash-aware source-byte scan
-        // that looks for unescaped ``$`` / ``[`` outside ``{...}``.
+        // substitution — W101 only fires on actual VAR/CMD tokens, so
+        // this must not trigger it.  The check is a brace/backslash-aware
+        // source-byte scan that looks for unescaped ``$`` / ``[``
+        // outside ``{...}``.
         let diags = w101_diags("eval foo{bar}\n");
         assert!(diags.is_empty(), "got {diags:?}");
     }
@@ -3691,10 +3535,10 @@ mod tests {
         assert_eq!(applied, "exec -- $cmd\n", "got {applied:?}");
     }
 
-    // -- ``recovery`` chunk: body-walk and nested-cmd improvements
+    // -- body-walk and nested-cmd recovery
     //
-    // Verify ``when EVENT { body }`` recurses (registry
-    // ``arg_role_resolver`` now records BODY at the last index)
+    // Verify ``when EVENT { body }`` recurses (the registry
+    // ``arg_role_resolver`` records BODY at the last index)
     // and that braced expr args (``Str`` tokens) have their
     // outer braces unwrapped before the nested-``[cmd]`` scan
     // (otherwise the scanner skips the entire braced region
@@ -3708,7 +3552,6 @@ mod tests {
         // nested-invocation recorder must descend only the `[…]`
         // fragment(s) — not the merged span — so it records the real
         // inner head (`foo`) rather than a bogus one (`foo]bar`).
-        // Regression for the Codex P2 review on PR #542.
         type Inv = (&'static str, u32, u32);
         let cases: &[(&str, &[Inv])] = &[
             ("puts [foo]bar\n", &[("foo", 6, 9)]),
@@ -3787,16 +3630,14 @@ mod tests {
 
     #[test]
     fn analyse_records_every_command_in_a_substitution() {
-        // CST-CONSUMERS strip 1: a command substitution can hold more than one
-        // command (`;`- / newline-separated), and substitutions nest.
-        // The CST descent records every inner command head, matching
-        // main (`set x [foo; bar]` -> {foo, bar, set}); the old flat
-        // scan recorded only the *first* head (missing `bar` / `baz`).
-        // CST-CONSUMERS strip 2: a head is recorded in main's
-        // `word_piece` form for every command, incl. a `$var` head
-        // (`${var}`), a `"quoted"` head (unquoted), and a compound head
-        // (`set x [$cmd a; bar]` -> {${cmd}, bar, set}). Verified against
-        // main's analyser.
+        // A command substitution can hold more than one command (`;`- /
+        // newline-separated), and substitutions nest.  The CST descent
+        // records every inner command head (`set x [foo; bar]` ->
+        // {foo, bar, set}).
+        // A head is recorded in `word_piece` form for every command,
+        // incl. a `$var` head (`${var}`), a `"quoted"` head (unquoted),
+        // and a compound head (`set x [$cmd a; bar]` -> {${cmd}, bar,
+        // set}).
         let cases: &[(&str, &[&str])] = &[
             ("set x [foo; bar]\n", &["set", "foo", "bar"]),
             ("puts [a; b; c]\n", &["puts", "a", "b", "c"]),
@@ -3805,20 +3646,19 @@ mod tests {
             ("set x [$cmd a; bar]\n", &["set", "${cmd}", "bar"]),
             ("set x [foo; $y arg]\n", &["set", "foo", "${y}"]),
             ("set x [\"q\" a; bar]\n", &["set", "q", "bar"]),
-            // CST-CONSUMERS strip 3: a control-flow command inside a
-            // substitution has body arguments whose commands are inner
-            // invocations too (descend_command resolves them via the
-            // registry). `[if {$c} {puts hi}]` -> {if, puts}.
+            // A control-flow command inside a substitution has body
+            // arguments whose commands are inner invocations too
+            // (descend_command resolves them via the registry).
+            // `[if {$c} {puts hi}]` -> {if, puts}.
             ("set x [if {$c} {puts hi}]\n", &["set", "if", "puts"]),
             (
                 "set x [foreach a $l {log $a}]\n",
                 &["set", "foreach", "log"],
             ),
             ("set x [eval {one; two}]\n", &["set", "eval", "one", "two"]),
-            // CST-CONSUMERS strip 4: a command substitution inside an
-            // *expr* argument of a command nested in a substitution is an
-            // invocation too (collect_expr_substitutions, mirroring
-            // `_recurse_expression_subcommands`). `[if {[check]} {fwd}]`
+            // A command substitution inside an *expr* argument of a
+            // command nested in a substitution is an invocation too
+            // (collect_expr_substitutions). `[if {[check]} {fwd}]`
             // -> {if, check, fwd}; `[expr {[bar] + 1}]` -> {expr, bar}.
             (
                 "set x [if {[check]} {fwd}]\n",
@@ -3829,9 +3669,9 @@ mod tests {
                 "set x [while {[cond]} {act}]\n",
                 &["set", "while", "cond", "act"],
             ),
-            // CST-CONSUMERS strip 8: main records argv_texts[0] for every
-            // command, incl. a `[subst]` head (recorded *and* descended)
-            // and a `{braced}` head (its inner text).
+            // argv_texts[0] is recorded for every command, incl. a
+            // `[subst]` head (recorded *and* descended) and a `{braced}`
+            // head (its inner text).
             ("set x [[gen] arg]\n", &["set", "[gen]", "gen"]),
             ("puts [[a] [b]]\n", &["puts", "[a]", "a", "b"]),
         ];
@@ -3854,14 +3694,13 @@ mod tests {
 
     #[test]
     fn analyse_records_switch_arm_bodies_not_patterns() {
-        // CST-CONSUMERS strip 7: the `switch … {pat body …}` list-form arg
-        // is a Tcl *list*, not a script.  The arm *bodies* are scripts
-        // (their commands are invocations), but the *patterns* are not —
-        // descending the whole list as a script would mis-record a pattern
-        // (`a`/`b`) as a command head.  Mirror main's
-        // `_recurse_switch_list_body`: parse the pairs and descend each
-        // body.  A `default` keyword / `-` fall-through is a pattern, not a
-        // body.  Matches main exactly: {cmd1, cmd2, set, switch}.
+        // The `switch … {pat body …}` list-form arg is a Tcl *list*,
+        // not a script.  The arm *bodies* are scripts (their commands
+        // are invocations), but the *patterns* are not — descending
+        // the whole list as a script would mis-record a pattern
+        // (`a`/`b`) as a command head.  Parse the pairs and descend
+        // each body.  A `default` keyword / `-` fall-through is a
+        // pattern, not a body.  Result: {cmd1, cmd2, set, switch}.
         let mut a = Analyser::new();
         let r = a.analyse("set x [switch $v {a {cmd1} b {cmd2}}]\n", "tcl8.6");
         let names: Vec<&str> = r
@@ -3884,12 +3723,11 @@ mod tests {
 
     #[test]
     fn analyse_braced_data_word_is_not_over_recorded() {
-        // CST-CONSUMERS strip 6: a `[...]` inside a braced *data* word is
-        // literal (braces suppress substitution), so it must not be
-        // recorded — only an *expr* arg's substitutions are.  And a
-        // command whose name is itself a substitution (`[x] hi`) must
-        // still be descended (main iterates the head token too).  Matches
-        // main exactly on each case.
+        // A `[...]` inside a braced *data* word is literal (braces
+        // suppress substitution), so it must not be recorded — only an
+        // *expr* arg's substitutions are.  And a command whose name is
+        // itself a substitution (`[x] hi`) must still be descended (the
+        // head token is iterated too).
         let cases: &[(&str, &[&str], &[&str])] = &[
             // (source, must-contain, must-NOT-contain)
             ("set x {[noeval]}\n", &["set"], &["noeval"]),
@@ -3959,7 +3797,7 @@ mod tests {
         // the file-level ``# tcl-lsp: disable=`` set; verify
         // ``analyse_chunked`` does the same so consumers see the
         // file-wide directives via the same surface regardless of
-        // which entry point dispatched (Copilot review on PR #371).
+        // which entry point dispatched.
         use crate::segmenter::SegmentedCommand;
         let mut a = Analyser::new();
         let cmds: Vec<Vec<SegmentedCommand>> = vec![Vec::new()];

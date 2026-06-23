@@ -1,18 +1,12 @@
-//! Top-level optimiser orchestration (C30j).
+//! Top-level optimiser orchestration.
 //!
-//! Ported from `core/compiler/optimiser/_manager.py`. The Python
-//! manager is a ~500-line class that coordinates
-//! [`CompilationUnit`] construction, per-function SSA/SCCP
-//! building, interprocedural analysis, and interleaves pass
-//! execution. In Rust that orchestration is already implicit in
-//! the layered pipeline: [`CompilationUnit::build_for`] runs the
-//! analyses, [`build_interprocedural_analysis`]
-//! builds the summaries, and [`super::run_passes`] dispatches
-//! each pass. The only value-add of a dedicated manager is the
-//! thin façade below — a single entry point that plumbs these
-//! together, runs every pass in default order, and then applies
-//! the overlap-aware selection filter from
-//! [`super::helpers::select`].
+//! Orchestration is implicit in the layered pipeline:
+//! [`CompilationUnit::build_for`] runs the analyses,
+//! [`build_interprocedural_analysis`] builds the summaries, and
+//! [`super::run_passes`] dispatches each pass. The thin façade
+//! below is a single entry point that plumbs these together, runs
+//! every pass in default order, and then applies the overlap-aware
+//! selection filter from [`super::helpers::select`].
 //!
 //! Callers that need a single `optimise(source)` one-shot call
 //! use [`optimise`] / [`optimise_with_dialect`]. Callers that
@@ -29,7 +23,7 @@ use super::elimination::DeadStore;
 use super::helpers::select::select_non_overlapping;
 use super::{Optimisation, PassContext, PassId, run_passes};
 
-/// Build a [`CompilationUnit`] for `source`, run every landed
+/// Build a [`CompilationUnit`] for `source`, run every
 /// optimiser pass in canonical order, and return the overlap-
 /// free set of [`Optimisation`] suggestions.
 ///
@@ -75,7 +69,7 @@ pub fn optimise_unit(
     let ia = cu.interproc.clone().unwrap_or_default();
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
-    // SYNC-JUN02b-4: the whole-module builtin-fold trust gate (O129/O116/O118).
+    // The whole-module builtin-fold trust gate (O129/O116/O118).
     // Without this the production path leaves `command_mutations` at its default,
     // whose `trusts()` returns `true` for everything, so renamed/redefined
     // builtins (`rename string {}; [string length …]`) get const-folded — a
@@ -117,8 +111,7 @@ pub fn optimise_unit(
     // rewrite is now dead and can be removed. Done after overlap selection so
     // the removal is emitted only when the propagations actually survived —
     // Rust's group mechanism is not application-gating, so a survival check is
-    // the safe coupling primitive. Mirrors Python's
-    // `_eliminate_propagated_constants`.
+    // the safe coupling primitive.
     couple_propagated_const_dead_stores(cu, registry, dialect, &mut selected);
     // Re-canonicalise: `couple_propagated_const_dead_stores` appends its O109
     // removals in `cu.procedures` / `cu.methods` HashMap-iteration order, which
@@ -164,10 +157,9 @@ fn is_propagation_code(code: &str) -> bool {
 }
 
 /// How many `$var` / `${var}` references `opt` consumed — present in its
-/// original source span but gone from its replacement. Mirrors the
-/// "`ref in orig_span and ref not in opt.replacement`" idea in Python's
-/// `_CompilerOptimiser`, generalised to a count so one string rewrite that
-/// folds several `$var` occurrences is tallied correctly.
+/// original source span but gone from its replacement. Counted (not just
+/// detected) so one string rewrite that folds several `$var` occurrences is
+/// tallied correctly.
 fn consumed_var_count(opt: &Optimisation, source: &str, var: &str) -> usize {
     let (s, e) = (opt.span.start() as usize, opt.span.end() as usize);
     if s >= e || e > source.len() {
@@ -386,8 +378,8 @@ fn couple_const_dead_stores_in_function(
         //   * `set x <literal>` (`AssignConst`) inlines its literal verbatim.
         //   * `set x [expr {1+1}]` (`AssignExpr` / `AssignValue`) was proven
         //     `Const` by SCCP above, so O100 substituted the *rendered
-        //     constant* (`2`), not the original expression text. Python
-        //     removes these too once the fold + propagation land — match it.
+        //     constant* (`2`), not the original expression text. These are
+        //     removed too once the fold and propagation are applied.
         //
         // Either way reject a value bearing `$ [ ] \`: it could re-substitute
         // differently once inlined, so those are left to the conservative path.
@@ -633,7 +625,7 @@ pub fn optimise_raw(
     let ia = build_interprocedural_analysis(&cu.ir_module, registry, dialect);
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
-    // SYNC-JUN02b-4: the whole-module builtin-fold trust gate (O129).
+    // The whole-module builtin-fold trust gate (O129).
     ctx.command_mutations =
         crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
     run_passes(&mut ctx, &cu, &PassId::all());
@@ -644,7 +636,6 @@ pub fn optimise_raw(
 /// rewritten text.  Edits are applied in reverse-offset order (so earlier
 /// offsets stay valid) and deduplicated by `(offset, length)`.  Spans are
 /// half-open `[start, end)`, so the byte range is `span.start()..span.end()`.
-/// Mirrors `_manager.py::apply_optimisations`.
 #[must_use]
 pub fn apply_optimisations(source: &str, optimisations: &[Optimisation]) -> String {
     let mut edits: Vec<(usize, usize, &str)> = optimisations
@@ -681,8 +672,7 @@ pub fn apply_optimisations(source: &str, optimisations: &[Optimisation]) -> Stri
 /// reached: each pass recompiles the rewritten source so optimisations
 /// exposed by an earlier pass (constant folding enabling further folding /
 /// dead-store removal) are discovered.  Returns `(final_source,
-/// all_optimisations_applied)`.  Mirrors
-/// `_manager.py::optimise_source_multipass`.
+/// all_optimisations_applied)`.
 #[must_use]
 pub fn optimise_source_multipass(
     source: &str,
@@ -712,7 +702,7 @@ mod tests {
     use super::*;
 
     fn registry() -> CommandRegistry {
-        // C43 sub-strip 4: `when` is now registry-resolved (no
+        // `when` is registry-resolved (no
         // string-pattern fallback in `lower_command`), so any
         // test that lowers iRule code through `optimise_*` must
         // carry the iRules dialect.  Loading it here keeps the
@@ -891,7 +881,7 @@ mod tests {
 
     #[test]
     fn info_exists_fold_surfaces_o101() {
-        // SYNC-MAY31-3 DCE wiring: a provably-constant `info exists`
+        // A provably-constant `info exists`
         // guard (never-defined non-param folds false; a parameter folds
         // true) surfaces as an O101 constant-branch fold.
         let never = optimise(
@@ -955,8 +945,7 @@ mod tests {
         // filtered path would dedupe — the `raw` entry point is
         // the escape hatch that leaves them visible.
         let raw = optimise_raw("if {1} { set x 1 } else { set y 2 }", &registry(), None);
-        // Presence alone is the contract; specific counts depend
-        // on which pass bodies are landed.
+        // Presence alone is the contract.
         let _ = raw;
     }
 

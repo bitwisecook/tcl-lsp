@@ -1,7 +1,6 @@
 //! Campaign runner: generate → run both backends → compare → record.
 //!
-//! Port of `tooling/fuzzing/runner.py::run_campaign`, over the native
-//! `tclvm` / `tclsh` subprocess harness.
+//! Runs over the native `tclvm` / `tclsh` subprocess harness.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;

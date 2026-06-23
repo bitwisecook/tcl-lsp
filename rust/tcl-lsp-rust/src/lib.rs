@@ -1,10 +1,9 @@
 //! Transitional alias for [`tcl_lsp_py`].
 //!
-//! ARCH9 split the public `PyO3` surface into a dedicated
-//! [`tcl_lsp_py`] crate. This crate now exists only to expose the
+//! The public `PyO3` surface lives in the dedicated
+//! [`tcl_lsp_py`] crate. This crate exists only to expose the
 //! same surface under the legacy `tcl_lsp_rust` module name so
-//! existing wheel consumers keep working for one release cycle —
-//! the alias retires in vNext.
+//! existing wheel consumers keep working.
 //!
 //! New Python code should `import tcl_lsp_py` directly. Both
 //! modules resolve to the same Rust functions and classes; the

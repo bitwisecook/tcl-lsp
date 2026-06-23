@@ -1,6 +1,6 @@
 //! Natural-loop forest over a function's CFG/SSA.
 //!
-//! Faithful port of `compiler/loops.py`: a back edge is `tail -> succ`
+//! A back edge is `tail -> succ`
 //! where `succ` dominates `tail`; the natural-loop bodies of all back
 //! edges sharing a header are unioned into one [`NaturalLoop`]. Lives in
 //! `tcl-compiler` next to the CFG/SSA so the compiler explorer (and any

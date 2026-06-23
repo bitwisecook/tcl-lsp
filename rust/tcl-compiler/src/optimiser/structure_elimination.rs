@@ -1,6 +1,5 @@
-//! Structure-elimination optimiser pass — O112 (C30c).
+//! Structure-elimination optimiser pass — O112.
 //!
-//! Ported from `core/compiler/optimiser/_structure_elimination.py`.
 //! Walks the structured IR and suggests rewrites where the
 //! condition of a compound statement is a compile-time constant:
 //!

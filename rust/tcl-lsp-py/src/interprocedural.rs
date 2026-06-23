@@ -4,7 +4,7 @@
 // whole module.
 #![allow(clippy::useless_conversion)]
 
-//! `PyO3` bindings for the interprocedural analysis (C32-shim).
+//! `PyO3` bindings for the interprocedural analysis.
 //!
 //! Exposes `interprocedural_summaries(source, dialect)` to Python.
 //! Returns a dict keyed on qualified proc name, where each value
@@ -13,10 +13,9 @@
 //! `ProcSummary` dataclass on top — this keeps the Rust crate
 //! free of Python-type knowledge.
 //!
-//! The method-level `MethodSummary` is not yet surfaced — the
-//! Rust side doesn't populate the OO fields today (C28-OO
-//! deferred). When they land, this binding will grow a
-//! parallel `methods` key.
+//! The method-level `MethodSummary` is not surfaced — the
+//! Rust side doesn't populate the OO fields, so there is no
+//! `methods` key.
 
 use std::collections::HashMap;
 

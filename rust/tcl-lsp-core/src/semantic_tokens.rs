@@ -1,5 +1,4 @@
-//! Semantic-tokens provider — Rust port of
-//! `lsp/features/_semantic_tokens/`.
+//! Semantic-tokens provider.
 //!
 //! Produces an LSP-encoded semantic-tokens stream covering
 //! the common Tcl token categories:
@@ -39,7 +38,7 @@
 //! [`legend_token_modifiers`] so the server advertises it in
 //! the LSP `initialize` capabilities response.
 //!
-//! What landed in `S-semantic-tokens-rich`:
+//! Additional variants:
 //!
 //! * Range variant ([`range`]) — same encoding as [`full`]
 //!   filtered to tokens whose start position falls inside
@@ -50,15 +49,14 @@
 //!   edit list when nothing changed); a stale / unknown previous
 //!   id falls back to a fresh full stream.
 //!
-//! What is *still deferred* (a separate document-mode feature, not a
-//! per-argument sub-token slice):
-//!
-//! * BIG-IP **config-file** mode (`is_bigip_conf`) — partition paths
-//!   (`/Common/…`), IPv4 / route-domain / port literals in `.conf`
-//!   text — and **APL** embedded-Tcl detection.  These run on whole
-//!   documents of a different type, not on Tcl/iRules command
-//!   arguments; the iRules object-reference highlighting (the
-//!   code-relevant half of the BIG-IP taxonomy) has landed.
+//! Not handled (a separate document-mode feature, not a
+//! per-argument sub-token slice): BIG-IP **config-file** mode
+//! (`is_bigip_conf`) — partition paths (`/Common/…`), IPv4 /
+//! route-domain / port literals in `.conf` text — and **APL**
+//! embedded-Tcl detection.  These run on whole documents of a
+//! different type, not on Tcl/iRules command arguments.  The
+//! iRules object-reference highlighting (the code-relevant half
+//! of the BIG-IP taxonomy) is handled.
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Token, TokenType};
@@ -204,9 +202,7 @@ const MOD_DEFINITION: u32 = 1 << 1;
 /// Sub-keywords highlighted as `keyword` that are **not** standalone
 /// commands, so they have no `CommandSpec` to carry the
 /// `LANGUAGE_KEYWORD` trait: clause keywords of `if`/`try`/`switch`
-/// and `TclOO` definition-/method-context words.  Mirrors Python's
-/// `_LANGUAGE_KEYWORD_SUB_KEYWORDS` in
-/// `lsp/features/_semantic_tokens/_constants.py`.  The standalone
+/// and `TclOO` definition-/method-context words.  The standalone
 /// commands (`if`, `while`, `proc`, `when`, `oo::*`, …) are sourced
 /// from the registry's `LANGUAGE_KEYWORD` trait instead of a
 /// hardcoded list.
@@ -242,8 +238,7 @@ const LANGUAGE_KEYWORD_SUB_KEYWORDS: &[&str] = &[
     "link",
 ];
 
-/// Classify a command-head token name.  Mirrors Python's
-/// `_classify_token` (command-name branch): a name is a `keyword`
+/// Classify a command-head token name: a name is a `keyword`
 /// when it carries the registry's `LANGUAGE_KEYWORD` trait or is one
 /// of the non-command [`LANGUAGE_KEYWORD_SUB_KEYWORDS`]; a
 /// `::`-qualified name is a `namespace`; everything else is a
@@ -296,8 +291,8 @@ pub fn range(
 ) -> SemanticTokens {
     let mut entries = collect_entries(source, dialect, registry);
     entries.retain(|(line, col, _, _, _)| {
-        // Half-open interval per LSP `Range` semantics (PR #454
-        // Copilot review): start is inclusive, end is exclusive.
+        // Half-open interval per LSP `Range` semantics: start is
+        // inclusive, end is exclusive.
         let pos = (*line, *col);
         let start = (range.start_line, range.start_character);
         let end = (range.end_line, range.end_character);
@@ -482,9 +477,6 @@ fn push_regsub_subtokens(
 ///   `pattern_type == Regex`, option-skipped first positional) →
 ///   [`ArgOverride::RegexPattern`] (sub-tokenised into ARE components);
 /// * a `when EVENT` event-name argument → [`TokenKind::Event`].
-///
-/// The format-string (`%Y` / `%s`) and `BigIP` object sub-token
-/// taxonomies remain the deferred bulk of `S-semantic-tokens-rich`.
 #[allow(clippy::too_many_lines)]
 fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
@@ -1705,8 +1697,7 @@ fn collect_script(
 /// Tokenise a braced expression argument via the expression sub-lexer,
 /// emitting variable / number / operator / function / string / boolean
 /// sub-tokens (math functions carry `defaultLibrary`) and recursing into
-/// nested `[cmd]` substitutions.  Mirrors Python's
-/// `_collect_expression_tokens`.
+/// nested `[cmd]` substitutions.
 fn collect_expr(
     full_source: &str,
     tok: Token,
@@ -1927,7 +1918,7 @@ fn push_escape_subtokens(
                     entries,
                 );
             }
-            // Minimal `\X` (two chars); richer `\uHHHH` widths are a follow-up.
+            // Minimal `\X` (two chars); richer `\uHHHH` widths aren't handled.
             let esc = &text[i..(i + 2).min(text.len())];
             push_subtoken(
                 source,
@@ -1976,8 +1967,7 @@ fn classify_arg_token(tok: Token, source: &str) -> Option<TokenKind> {
             // — including the leading fragment whose span may
             // not include the opening `"`.  This matches the
             // lexer contract and avoids the prior byte-peek
-            // heuristic that missed inner fragments (PR #454
-            // Copilot review).
+            // heuristic that missed inner fragments.
             if tok.in_quote {
                 return Some(TokenKind::String);
             }
@@ -2029,7 +2019,7 @@ fn is_number_literal(text: &str) -> bool {
 }
 
 /// Scan `source` for `#` comment lines and push each one as
-/// a Comment-kind entry.  Mirrors Python's `_collect_comments`.
+/// a Comment-kind entry.
 fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<Entry>) {
     let bytes = source.as_bytes();
     let mut line_start = true;
@@ -2118,8 +2108,7 @@ fn push_token(
 /// on/trap/finally) as a `Keyword` token.  Offsets past any leading
 /// delimiter so a quoted `"else"` — whose span starts on the opening
 /// quote — marks `else` rather than `"els`, and trims the matching
-/// trailing delimiter.  Mirrors Python's `token_content_base` use in
-/// the KEYWORD-role branch.
+/// trailing delimiter.
 fn push_keyword_arg(line_index: &LineIndex, source: &str, tok: Token, entries: &mut Vec<Entry>) {
     if let Some((cstart, inner)) = subspec_content(source, tok) {
         let content = inner.trim_end_matches(['"', '}']);
@@ -2587,13 +2576,12 @@ mod tests {
 
     #[test]
     fn semantic_tokens_are_dialect_aware_via_expand_syntax() {
-        // SYNC-MAY19-dialect-contextvar strip 5: the provider re-segments
+        // The provider re-segments
         // under the document dialect.  In `foo {*}$x`, on 8.5+ the `{*}`
         // is the expansion operator (consumed — not a highlighted word),
         // but on 8.4 it is a literal braced string `{*}`, which adds an
         // extra `string` token.  So the packed token stream is longer on
-        // 8.4.  Before strip 5 the provider always lexed `{*}` as
-        // expansion regardless of dialect.
+        // 8.4.
         let src = "foo {*}$x\n";
         let on_90 = full(src, "tcl9.0", &reg()).data;
         let on_84 = full(src, "tcl8.4", &reg()).data;
@@ -2753,7 +2741,7 @@ mod tests {
 
     #[test]
     fn if_else_elseif_are_keywords() {
-        // else/elseif structural keywords highlight like `if` (issue #637).
+        // else/elseif structural keywords highlight like `if`.
         let src = "if 1 {\n puts a\n} elseif 2 {\n puts b\n} else {\n puts c\n}";
         let kw = keyword_words(src, &reg());
         for expected in ["if", "elseif", "else"] {
@@ -2785,7 +2773,7 @@ mod tests {
 
     #[test]
     fn quoted_structural_keyword_offsets_past_quote() {
-        // A quoted `"else"` keyword marks `else`, not `"els` (PR #643).
+        // A quoted `"else"` keyword marks `else`, not `"els`.
         let src = "if 0 {} \"else\" {puts ok}";
         let kw = decode_words(src, &reg())
             .into_iter()
@@ -2871,7 +2859,7 @@ mod tests {
         assert_eq!(classify_command_head("if", &reg()), TokenKind::Keyword);
     }
 
-    // -- S-semantic-tokens-rich: range variant -----------------------
+    // -- range variant -----------------------
 
     #[test]
     fn range_filters_tokens_outside_window() {
@@ -2918,7 +2906,7 @@ mod tests {
 
     #[test]
     fn range_excludes_token_at_exact_end_position() {
-        // Regression for PR #454 Codex review: LSP ranges are
+        // Regression: LSP ranges are
         // half-open [start, end), so a token starting exactly
         // at `end` is OUTSIDE the range.
         let src = "set a 1\nset b 2\n";

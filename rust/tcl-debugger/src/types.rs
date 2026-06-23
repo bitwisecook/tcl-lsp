@@ -1,4 +1,4 @@
-//! Shared debugger types. Port of `tooling/debugger/types.py`.
+//! Shared debugger types.
 
 /// What the debug hook tells the VM to do after a source-line boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
