@@ -2064,8 +2064,21 @@ impl Vm {
 
 #[cfg(test)]
 mod tests {
-    use super::{brace_safe, char_find, imm_index, quote_for_script};
+    use super::{
+        brace_safe, char_find, dict_set_path, dict_unset_path, imm_index, quote_for_script,
+    };
+    use crate::value::Value;
     use tcl_bytecode::INDEX_END;
+
+    /// A dict `Value`'s top-level `(key, value-string)` pairs, mirroring the
+    /// production `dict_pairs` decode.
+    fn top_pairs(v: &Value) -> Vec<(String, String)> {
+        v.as_list()
+            .expect("dict value is a valid list")
+            .chunks_exact(2)
+            .map(|c| (c[0].to_str().to_string(), c[1].to_str().to_string()))
+            .collect()
+    }
 
     #[test]
     fn brace_safe_tracks_balance_and_escapes() {
@@ -2118,5 +2131,60 @@ mod tests {
         assert_eq!(char_find("héllo", "é", false), 1);
         assert_eq!(char_find("héllo", "llo", false), 2);
         assert_eq!(char_find("héllo", "l", true), 3);
+    }
+
+    #[test]
+    fn dict_set_path_creates_updates_and_autovivifies() {
+        let s = Value::string;
+        // `dict set {} a 1` → {a 1}.
+        let d = dict_set_path(&Value::list(vec![]), &[s("a")], s("1")).unwrap();
+        assert_eq!(top_pairs(&d), [("a".into(), "1".into())]);
+
+        // Updating an existing key keeps its position (order-preserving).
+        let base = Value::list(vec![s("a"), s("1"), s("b"), s("2")]);
+        let updated = dict_set_path(&base, &[s("a")], s("9")).unwrap();
+        assert_eq!(
+            top_pairs(&updated),
+            [("a".into(), "9".into()), ("b".into(), "2".into())]
+        );
+
+        // A new key appends at the end.
+        let appended = dict_set_path(&base, &[s("c")], s("3")).unwrap();
+        assert_eq!(
+            top_pairs(&appended),
+            [
+                ("a".into(), "1".into()),
+                ("b".into(), "2".into()),
+                ("c".into(), "3".into())
+            ]
+        );
+
+        // A multi-key path auto-vivifies intermediate dicts: the inner dict's
+        // list string-rep is "b 1".
+        let nested = dict_set_path(&Value::list(vec![]), &[s("a"), s("b")], s("1")).unwrap();
+        assert_eq!(top_pairs(&nested), [("a".into(), "b 1".into())]);
+    }
+
+    #[test]
+    fn dict_unset_path_removes_and_is_a_noop_when_absent() {
+        let s = Value::string;
+        let base = Value::list(vec![s("a"), s("1"), s("b"), s("2")]);
+
+        // Removing a present key drops just that pair.
+        let removed = dict_unset_path(&base, &[s("a")]).unwrap();
+        assert_eq!(top_pairs(&removed), [("b".into(), "2".into())]);
+
+        // Removing an absent key leaves the dict unchanged (matching Tcl).
+        let untouched = dict_unset_path(&base, &[s("z")]).unwrap();
+        assert_eq!(
+            top_pairs(&untouched),
+            [("a".into(), "1".into()), ("b".into(), "2".into())]
+        );
+
+        // A nested unset rewrites only the inner dict: {a {b 1 c 2}} → {a {c 2}}.
+        let inner = Value::list(vec![s("b"), s("1"), s("c"), s("2")]);
+        let outer = Value::list(vec![s("a"), inner]);
+        let nested = dict_unset_path(&outer, &[s("a"), s("b")]).unwrap();
+        assert_eq!(top_pairs(&nested), [("a".into(), "c 2".into())]);
     }
 }
