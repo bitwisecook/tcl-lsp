@@ -123,7 +123,10 @@ impl Value {
                 *self.0.intrep.borrow_mut() = IntRep::Int(n);
                 Ok(n)
             }
-            _ => Err(TclError::new(format!("expected integer but got \"{s}\""))),
+            _ => Err(TclError::new(format!(
+                "expected integer but got {}",
+                list::describe_bad_value(&s)
+            ))),
         }
     }
 
@@ -204,7 +207,8 @@ impl Value {
             Some(Number::Int(n)) => Ok(n as f64),
             Some(Number::Double(f)) => Ok(f),
             _ => Err(TclError::new(format!(
-                "expected floating-point number but got \"{s}\""
+                "expected floating-point number but got {}",
+                list::describe_bad_value(&s)
             ))),
         }
     }
@@ -230,7 +234,8 @@ impl Value {
             "true" | "yes" | "on" => Ok(true),
             "false" | "no" | "off" => Ok(false),
             _ => Err(TclError::new(format!(
-                "expected boolean value but got \"{s}\""
+                "expected boolean value but got {}",
+                list::describe_bad_value(&s)
             ))),
         }
     }
