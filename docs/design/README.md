@@ -211,6 +211,14 @@ chunk-by-chunk dispatch story lives in
   **"information" subsystem** (Info→Hint severity collapse; `info`-command
   `VM ⊂ WASM` parity gap). Reconciled against the just-landed `origin/rust`
   API-PYO3 / xtask / TEST-MIGRATE work.
+- [rust/srv-incremental-review-2026-06-23.md](rust/srv-incremental-review-2026-06-23.md)
+  — deep review of the SRV-INCREMENTAL work (#692): per-edit incremental salsa
+  pipeline (incremental `LineIndex`, per-function check memo, interprocedural
+  taint summary memo) + opt-in cross-file W123/arity diagnostics. Verdict: lands
+  clean (no correctness regression; off-by-default airtight; corpus differentials
+  + 38 gates green), with three actionable findings — a `project_command_arities`
+  firewall perf-leak, an open→open push-staleness gap, and god-code growth — plus
+  the doc's own missing random-edit checks fuzzer.
 - [rust/compiler-pipeline-parity.md](rust/compiler-pipeline-parity.md) —
   deep parity audit of the Rust rewrite's lexer, CST, IR/lowering, CFG/SSA,
   analyses, optimiser, and bytecode codegen against the Python source of
