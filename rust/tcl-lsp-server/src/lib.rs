@@ -956,10 +956,61 @@ impl Backend {
         }
     }
 
+    /// Add/update many salsa `SourceFile` inputs at once (disk-backed workspace
+    /// files from the startup scan), re-setting the [`tcl_lsp_db::Project`] **once**
+    /// if membership changed — not once per file (which would be O(files²) over a
+    /// large tree).  Used so cross-file diagnostics resolve against the *whole*
+    /// workspace (matching `workspace_index`), not only open documents.  Lock order
+    /// is `db` → `db_files` → `db_project`, as everywhere.
+    async fn db_set_sources_batch(&self, entries: &[(Url, String, String)]) {
+        use salsa::Setter as _;
+        if entries.is_empty() {
+            return;
+        }
+        let mut db = self.db.lock().await;
+        let mut files = self.db_files.lock().await;
+        let mut membership_changed = false;
+        for (uri, text, dialect) in entries {
+            if let Some(&file) = files.get(uri) {
+                file.set_text(&mut *db).to(text.clone());
+                file.set_dialect(&mut *db).to(dialect.clone());
+            } else {
+                let file = tcl_lsp_db::SourceFile::new(&*db, text.clone(), dialect.clone());
+                files.insert(uri.clone(), file);
+                membership_changed = true;
+            }
+        }
+        if membership_changed {
+            let mut project = self.db_project.lock().await;
+            Self::sync_db_project(&mut db, &files, &mut project);
+        }
+    }
+
+    /// Drop many salsa `SourceFile` inputs at once (files under a removed workspace
+    /// folder), re-setting the `Project` once if membership changed.  Lock order is
+    /// `db` → `db_files` → `db_project`.
+    async fn db_remove_sources_batch(&self, uris: &[Url]) {
+        if uris.is_empty() {
+            return;
+        }
+        let mut db = self.db.lock().await;
+        let mut files = self.db_files.lock().await;
+        let mut membership_changed = false;
+        for uri in uris {
+            if files.remove(uri).is_some() {
+                membership_changed = true;
+            }
+        }
+        if membership_changed {
+            let mut project = self.db_project.lock().await;
+            Self::sync_db_project(&mut db, &files, &mut project);
+        }
+    }
+
     /// Re-set the salsa [`tcl_lsp_db::Project`] input to the current `db_files`
     /// set (sorted by URI for a stable, iteration-order-independent `Vec` so the
     /// input only changes when membership does — not on `HashMap` reshuffles).
-    /// Called only when membership changes (open/close), so a text edit never
+    /// Called when membership changes (open/close/scan), so a text edit never
     /// re-derives the project aggregates.  The `Project` handle is stable across
     /// re-sets, so workers holding it keep reading the current value.
     fn sync_db_project(
@@ -1358,20 +1409,37 @@ impl Backend {
                         .any(|folder| uri_under_folder(uri, folder))
             })
             .collect();
-        for uri in to_remove {
-            index.remove_document(&uri);
+        for uri in &to_remove {
+            index.remove_document(uri);
         }
+        // Release workspace_index before taking the db locks (never hold
+        // workspace_index while acquiring db), but keep `documents` held so the
+        // open-file filter above stays current across the db removal too.
+        drop(index);
+        // Drop the same files from the salsa `Project` so their procs stop
+        // resolving cross-file.  Lock order: documents (held) → db → db_files →
+        // db_project, matching `did_open`.
+        let removed_urls: Vec<Url> = to_remove.iter().filter_map(|u| Url::parse(u).ok()).collect();
+        self.db_remove_sources_batch(&removed_urls).await;
+        drop(docs);
     }
 
     async fn reindex_index_from_disk(&self, uri: &Url) {
-        let analysed: Option<AnalysisResult> = if let Ok(path) = uri.to_file_path() {
+        // Read + analyse off-lock.  Keep the source text + dialect too: the salsa
+        // db (cross-file diagnostics) must track the same on-disk population as the
+        // workspace index, so a proc defined in a closed/never-opened file still
+        // suppresses W123 / drives W124 in its siblings.
+        let scanned: Option<(String, String, AnalysisResult)> = if let Ok(path) =
+            uri.to_file_path()
+        {
             let dialect = match self.resolve_folder_dialect(uri).await {
                 Some(d) => d,
                 None => self.default_dialect.lock().await.clone(),
             };
             tokio::task::spawn_blocking(move || {
                 let text = std::fs::read_to_string(path).ok()?;
-                Some(Analyser::new().analyse(&text, &dialect).clone())
+                let analysis = Analyser::new().analyse(&text, &dialect).clone();
+                Some((text, dialect, analysis))
             })
             .await
             .ok()
@@ -1379,19 +1447,28 @@ impl Backend {
         } else {
             None
         };
-        // Hold `documents` across the still-closed re-check and the index
-        // update (the `documents` → `workspace_index` order used everywhere
-        // since the global gate was retired) so a concurrent `did_open` cannot
-        // open the buffer between them and have its index entry clobbered by
-        // this disk-backed one.
+        // Hold `documents` across the still-closed re-check and both updates (the
+        // `documents` → db → `workspace_index` order established by `did_open`) so a
+        // concurrent `did_open` cannot open the buffer between them and have its
+        // live text clobbered by this disk-backed copy.
         let docs = self.documents.lock().await;
         if docs.contains_key(uri) {
             return;
         }
+        // Salsa db first (locks db → db_files → db_project, all *before* the
+        // workspace_index lock) to preserve the global lock order.
+        match &scanned {
+            Some((text, dialect, _)) => {
+                self.db_set_source(uri, text.clone(), dialect.clone()).await;
+            }
+            // No readable on-disk copy (untitled / deleted) — drop it from the
+            // project so a stale definition can't keep resolving cross-file.
+            None => self.db_remove_source(uri).await,
+        }
         let mut index = self.workspace_index.lock().await;
         index.remove_document(uri.as_str());
-        if let Some(analysis) = analysed {
-            index.add_document(uri.as_str(), &analysis);
+        if let Some((_, _, analysis)) = &scanned {
+            index.add_document(uri.as_str(), analysis);
         }
     }
 
@@ -2991,7 +3068,9 @@ impl Backend {
             for root in &roots {
                 collect_tcl_files(root, WORKSPACE_SCAN_FILE_CAP, &mut files);
             }
-            let mut out: Vec<(String, AnalysisResult)> = Vec::new();
+            // Carry the source text + dialect alongside the analysis so the salsa
+            // db (cross-file diagnostics) can index the same disk-backed files.
+            let mut out: Vec<(Url, String, String, AnalysisResult)> = Vec::new();
             for path in files {
                 let Ok(uri) = Url::from_file_path(&path) else {
                     continue;
@@ -3006,7 +3085,7 @@ impl Backend {
                     .unwrap_or_else(|| default_dialect.clone());
                 let mut analyser = Analyser::new();
                 let analysis = analyser.analyse(&text, &dialect).clone();
-                out.push((uri.to_string(), analysis));
+                out.push((uri, text, dialect, analysis));
             }
             out
         })
@@ -3016,26 +3095,40 @@ impl Backend {
         self.merge_workspace_scan_results(&analysed).await;
     }
 
-    /// Merge disk-backed workspace scan results into the shared index.
+    /// Merge disk-backed workspace scan results into the shared index **and** the
+    /// salsa `Project`, so cross-file diagnostics resolve against the whole
+    /// workspace (not just open documents), matching the other cross-document
+    /// features.
     ///
     /// The blocking scan snapshots open documents before it starts, but
     /// an editor can open a file while the scan is still running. Recheck
     /// the live document map at publication time so stale on-disk
-    /// analysis cannot overwrite the open-buffer entry.
-    async fn merge_workspace_scan_results(&self, analysed: &[(String, AnalysisResult)]) {
-        // Hold `documents` across the open-set read + index merge (the
-        // `documents` → `workspace_index` order that replaced the global gate)
-        // so a file opening mid-merge can't have its open-buffer index entry
-        // overwritten by this disk-backed scan result.
+    /// analysis cannot overwrite the open-buffer entry in either store.
+    async fn merge_workspace_scan_results(
+        &self,
+        analysed: &[(Url, String, String, AnalysisResult)],
+    ) {
+        // Hold `documents` across the open-set read, the salsa-db batch, and the
+        // index merge (the `documents` → db → `workspace_index` order established
+        // by `did_open`) so a file opening mid-merge can't have its live buffer
+        // overwritten by this disk-backed scan result in either store.
         let docs = self.documents.lock().await;
         let open: HashSet<String> = docs.keys().map(ToString::to_string).collect();
+        // Salsa db first (db → db_files → db_project), before the workspace_index
+        // lock, to preserve the global lock order.
+        let db_entries: Vec<(Url, String, String)> = analysed
+            .iter()
+            .filter(|(uri, _, _, _)| !open.contains(uri.as_str()))
+            .map(|(uri, text, dialect, _)| (uri.clone(), text.clone(), dialect.clone()))
+            .collect();
+        self.db_set_sources_batch(&db_entries).await;
         let mut index = self.workspace_index.lock().await;
-        for (uri, analysis) in analysed {
-            if open.contains(uri) {
+        for (uri, _, _, analysis) in analysed {
+            if open.contains(uri.as_str()) {
                 continue;
             }
-            index.remove_document(uri);
-            index.add_document(uri, analysis);
+            index.remove_document(uri.as_str());
+            index.add_document(uri.as_str(), analysis);
         }
     }
 }
@@ -3256,16 +3349,15 @@ impl LanguageServer for Backend {
         // sweep no longer reports the now-closed document and a later reopen
         // recomputes from scratch.
         self.pull_diag_cache.lock().await.remove(uri);
-        self.db_remove_source(uri).await;
-        // Re-index the file from disk rather than dropping it: the
-        // file still exists on disk and was (or would be) part of
-        // the on-disk index, so cross-document definition /
-        // references / rename / call-hierarchy must keep seeing it
-        // after the editor closes the buffer.  `scan_workspace_folders`
-        // only runs at `initialized`, so a plain `remove_document`
-        // here would make the file vanish until restart. The helper
-        // rechecks that this URI is still closed before publishing
-        // the disk-backed index entry.
+        // Re-index the file from disk rather than dropping it: the file still
+        // exists on disk and was (or would be) part of the on-disk index, so
+        // cross-document definition / references / rename / call-hierarchy — and
+        // cross-file diagnostics (the salsa `Project`) — must keep seeing it after
+        // the editor closes the buffer.  `scan_workspace_folders` only runs at
+        // `initialized`, so dropping it here would make the file vanish until
+        // restart.  The helper rechecks that this URI is still closed, then
+        // refreshes both the salsa db source and the disk-backed index entry (or
+        // drops both when the URI is not a readable file).
         self.reindex_index_from_disk(uri).await;
     }
 
@@ -3322,6 +3414,9 @@ impl LanguageServer for Backend {
                     .lock()
                     .await
                     .remove_document(change.uri.as_str());
+                // Drop it from the salsa `Project` too, so a deleted file's procs
+                // stop suppressing W123 / driving W124 cross-file.
+                self.db_remove_source(&change.uri).await;
             } else {
                 // CREATED or CHANGED: re-analyse from disk (a Tcl source file)
                 // or drop it if it no longer reads as one.
@@ -8210,7 +8305,12 @@ mod tests {
 
         let mut analyser = Analyser::new();
         let stale_analysis = analyser.analyse("proc stale {} {}\n", "tcl8.6").clone();
-        let scan_results = vec![(uri.to_string(), stale_analysis)];
+        let scan_results = vec![(
+            uri.clone(),
+            "proc stale {} {}\n".to_owned(),
+            "tcl8.6".to_owned(),
+            stale_analysis,
+        )];
 
         backend.merge_workspace_scan_results(&scan_results).await;
 
@@ -8321,6 +8421,106 @@ mod tests {
             index.proc_definitions("ghost", "other").is_empty(),
             "an entry whose file no longer exists must be dropped",
         );
+    }
+
+    /// SRV-INCREMENTAL Task 6 (whole-workspace scope): a proc defined in a file
+    /// that is on disk but **not open** in the editor (driven here through
+    /// `reindex_index_from_disk`, the `did_close` / scan / watched-file path) must
+    /// still suppress a sibling's W123 and drive its W124 — cross-file diagnostics
+    /// tracks the same on-disk population as the workspace index, not only open
+    /// documents.  Regression for Codex review on #692.
+    #[tokio::test]
+    async fn cross_file_resolves_against_disk_backed_file() {
+        let root = unique_scratch_dir("xc-disk");
+        let on_disk = root.join("lib.tcl");
+        std::fs::write(&on_disk, "proc helper {x y} { return $x }\n").unwrap();
+
+        let backend = test_backend();
+        let b = Url::from_file_path(&on_disk).unwrap();
+        let a = Url::parse("file:///caller.tcl").unwrap();
+
+        // B is on disk but never opened — the did_close / scan path indexes it
+        // into both the workspace index and the salsa `Project`.
+        backend.reindex_index_from_disk(&b).await;
+        assert!(
+            backend.db_project.lock().await.is_some(),
+            "a disk-backed file must seed the salsa Project"
+        );
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+
+        // Correct arity (2 args) → resolves cross-file, no W123, proving the
+        // never-opened disk file is in the resolution domain.
+        let ok = backend
+            .full_diagnostics_for(&a, "helper foo bar\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diag_codes(&ok).iter().any(|c| c == "W123"),
+            "W123 must be suppressed against a disk-backed (unopened) file, got: {:?}",
+            diag_codes(&ok),
+        );
+
+        // Wrong arity (3 args to the 2-param proc) → W124 from the disk-backed
+        // proc's arity signature.
+        let bad = backend
+            .full_diagnostics_for(&a, "helper a b c\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            diag_codes(&bad).iter().any(|c| c == "W124"),
+            "W124 must fire against a disk-backed proc's arity, got: {:?}",
+            diag_codes(&bad),
+        );
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// When a disk-backed workspace file disappears (deletion / no longer readable)
+    /// and is reindexed, it must drop out of the salsa `Project` too, so its procs
+    /// stop resolving cross-file (a sibling's W123 returns).  Guards the removal
+    /// half of the whole-workspace scope.
+    #[tokio::test]
+    async fn cross_file_drops_disk_backed_file_when_gone() {
+        let root = unique_scratch_dir("xc-disk-gone");
+        let on_disk = root.join("lib.tcl");
+        std::fs::write(&on_disk, "proc helper {x y} { return $x }\n").unwrap();
+
+        let backend = test_backend();
+        let b = Url::from_file_path(&on_disk).unwrap();
+        let a = Url::parse("file:///caller.tcl").unwrap();
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "xcDiagnostics": true })
+                .as_object()
+                .unwrap(),
+        );
+
+        // Present on disk → resolves cross-file (no W123).
+        backend.reindex_index_from_disk(&b).await;
+        let present = backend
+            .full_diagnostics_for(&a, "helper foo bar\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diag_codes(&present).iter().any(|c| c == "W123"),
+            "precondition: resolves while the file is present, got: {:?}",
+            diag_codes(&present),
+        );
+
+        // Delete the file and reindex — it must leave the Project, so `helper` is
+        // unresolved again (W123 returns).
+        std::fs::remove_file(&on_disk).unwrap();
+        backend.reindex_index_from_disk(&b).await;
+        let gone = backend
+            .full_diagnostics_for(&a, "helper foo bar\n".to_owned(), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            diag_codes(&gone).iter().any(|c| c == "W123"),
+            "W123 must return once the defining file is gone, got: {:?}",
+            diag_codes(&gone),
+        );
+
+        std::fs::remove_dir_all(&root).ok();
     }
 
     #[tokio::test]

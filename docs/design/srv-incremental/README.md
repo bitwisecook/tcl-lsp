@@ -555,18 +555,31 @@ exist yet — the verification-status table follows the list.
      Per-call-site `argc` is recorded on `SignatureCommandInvocation`; arities come
      from `item_sigs` params (required params set the min; a trailing `args` is
      unbounded).
-   - **Live server wiring:** the server maintains the `Project` input in lock-step
-     with `db_files` (re-set only on open/close); both diagnostics paths
-     (`run_diagnostics_core` push + `full_diagnostics_for` pull) consume it behind
-     the existing `xcDiagnostics` opt-in — off ⇒ zero behaviour change.
+   - **Live server wiring:** the server maintains the `Project` input to track the
+     same on-disk population as `workspace_index` — open documents **and**
+     disk-scanned / closed files — so cross-file resolution matches the other
+     cross-document features (definition / references / rename) rather than seeing
+     only open buffers. The salsa db is synced at every population site: `did_open`
+     / `did_change` (live buffer), the startup `scan_workspace_folders`
+     (batch-loaded disk files, `db_set_sources_batch` re-sets the `Project` once,
+     not once-per-file), `did_close` → `reindex_index_from_disk` (reload the disk
+     copy rather than drop), `did_change_watched_files` (external create / change /
+     delete), and `drop_index_under_folders` (removed workspace folder). Both
+     diagnostics paths (`run_diagnostics_core` push + `full_diagnostics_for` pull)
+     consume it behind the existing `xcDiagnostics` opt-in — off ⇒ zero behaviour
+     change. Lock order is `documents` → db → `workspace_index` everywhere (the db
+     sync precedes the `workspace_index` lock, never nested under it).
    - **Soundness gates built:** the multi-file `incremental == fresh` fuzzer
      (`project_diagnostics_incremental_matches_fresh_under_edits` — 60 edits to the
-     defining file, caller's diagnostics always match a fresh rebuild) + focused
-     W123-suppression and W124-arity tests
-     (`project_diagnostics_suppresses_cross_file_w123`,
-     `project_diagnostics_emits_cross_file_arity`) + an end-to-end server test
-     (`cross_file_w123_suppressed_when_workspace_defines_proc`). ci-fast (805 e2e)
-     green; no regression.
+     defining file, caller's diagnostics always match a fresh rebuild; plus
+     `…_both_files_edited`, editing caller and callee) + focused W123-suppression,
+     W124-arity, arity-edge-case, disabled-W124, and `{*}`-expansion tests + a
+     `project_command_arities_firewall` (body edit re-runs the arity table 0×, a
+     signature edit 1×) + end-to-end server tests
+     (`cross_file_w123_suppressed_when_workspace_defines_proc`,
+     `cross_file_resolves_against_disk_backed_file`,
+     `cross_file_drops_disk_backed_file_when_gone`). ci-fast (805 e2e) green; no
+     regression.
 
    *Remaining extensions (not blockers — the cross-file machinery + its fuzzer
    now exist):* a per-symbol `signature(qname)` query for
