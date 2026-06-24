@@ -212,3 +212,46 @@ Remaining 3 `#[ignore]`s + astral, each with a now-confirmed structural root:
   must count EXPR-role consumption across the nested-if fold.
 - **astral-output C1** — analyser var-reference / `name_span` byte-spans
   miscounted by an astral char's extra UTF-16 unit (LSP range-lift is correct).
+
+## Final — all 12 resolved (0 non-eglot `#[ignore]` remaining)
+
+The last four items are now closed:
+
+9. **FP-OPT-08** — `drop_def_elims_resurrected_by_replacements` (optimiser
+   `manager.rs`): after `couple_propagated_const_dead_stores`, drop any
+   def-elimination (empty replacement) whose target var still appears as
+   `$var`/`${var}` in another surviving optimisation's replacement text. So
+   `set b 0` is no longer deleted when an O112 `if {$a}` unwrap keeps `$b` live.
+
+10. **FP-OPT-03** — the `oo::class` "opaque Barrier" diagnosis was wrong for
+    LICM; the real defect was in `gvn::find_loop_invariants`, which skipped the
+    loop **header** block entirely. In a bottom-test `for`/`while` loop the
+    header carries the *body* statements while the guard lives in the latch's
+    `Branch` terminator (never a statement), so scanning header statements is
+    safe and necessary. Removed the header skip; `set s [format %04d [expr
+    {$k + 1}]]` now surfaces O106. (O106/O107 are diagnostics from
+    `run_all_checks`, not optimiser-manager rewrites — the paired tests were
+    rewired to probe that surface via a new `check_fires` helper.)
+
+11. **FP-OBJ-D4-F5** — `oo::class` method bodies *are* lowered to full
+    `FunctionUnit`s in `cu.methods` (the earlier "opaque Barrier" note was stale
+    for the analysis path). The W307 `in_method` gate yields to SCCP
+    non-command evidence, but `all_constsets` / `all_object_types` were gathered
+    only from `cu.top_level` + `cu.procedures`. Extending both collection loops
+    to include `cu.methods.values()` makes `set cmd nope; $cmd arg` inside a
+    method body fire W307, while undetermined instance-var / snit-typevariable
+    dispatch stays silent (no const → in-method suppression still applies).
+
+12. **astral-output C1** — **not a bug.** Re-verified end-to-end against the
+    native `tcl-lsp-server`: `document_highlight` returns the exact UTF-16
+    column (16) for `$z` after a 🚀 prefix, not the scalar 15. The providers
+    already lift every range through `span_to_range` → `position_at_utf16`
+    (`encode_utf16().count()`), which is correct for supplementary-plane chars.
+    The withheld assertion is now enabled as
+    `test_highlight_columns_are_utf16_through_astral_prefix` and passes; the
+    earlier NOTE was stale.
+
+**Result: 11 genuine defects fixed + 1 non-reproducing, 0 non-eglot `#[ignore]`
+remaining in the FP suite.** Full `tcl-compiler` lib suite: 3270 passed, 0
+failed, 9 ignored (the 9 remaining are the pre-existing static-uplevel
+"pending VM frame-shift opcodes" lowering tests, unrelated to the FP port).

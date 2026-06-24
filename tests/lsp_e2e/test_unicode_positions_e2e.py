@@ -89,15 +89,27 @@ class TestUtf16OutputColumns:
             f"column ({byte_col}); got {cols}"
         )
 
-    # NOTE — found bug, tracked in docs/design/rust/fp-rust-port-status.md:
-    # astral-character OUTPUT columns. For BMP multibyte (above) the server
-    # returns correct UTF-16 columns, and astral INPUT mapping is correct (see
-    # `test_references_resolve_through_astral_prefix`). But provider OUTPUT
-    # columns (document_highlight, go-to-definition target ranges) are computed
-    # as a Unicode *scalar* (code-point) count, so an astral char (🚀 = 2 UTF-16
-    # units) yields a column one short per astral char. A focused astral-output
-    # assertion is withheld here until that cross-provider scalar→UTF-16 fix
-    # lands, to keep this suite green rather than assert against a known defect.
+    def test_highlight_columns_are_utf16_through_astral_prefix(self, lsp_server, uri_factory):
+        # The astral-output counterpart of the BMP test above: 🚀 is a single
+        # code point but TWO UTF-16 units, so a scalar (code-point) count yields
+        # a column one short. The returned highlight must carry the exact UTF-16
+        # column, proving provider OUTPUT ranges are UTF-16 — not scalar — counts.
+        uri = uri_factory()
+        src = 'set z 3\nputs "🚀 résumé $z"\n'
+        lsp_server.open_ready(uri, src)
+        line1 = 'puts "🚀 résumé $z"'
+        dollar = _utf16_col(line1, "$z")
+        name = dollar + 1
+        scalar_col = line1.index("$z")  # NB: str.index → code-point (scalar) index
+        # The 🚀 makes UTF-16 and scalar columns differ — that gap is what a
+        # scalar→UTF-16 confusion would expose.
+        assert dollar > scalar_col, "test setup: astral prefix must widen the UTF-16 column"
+        cols = {c for line, c in starts(lsp_server.document_highlight(uri, 1, name)) if line == 1}
+        assert cols, "expected a highlight on line 1 for $z; got none"
+        assert cols <= {dollar, name}, (
+            f"highlight column must be UTF-16 ({dollar} or {name}), not the scalar "
+            f"column ({scalar_col} / {scalar_col + 1}); got {cols}"
+        )
 
 
 class TestRapidEditConsistency:
