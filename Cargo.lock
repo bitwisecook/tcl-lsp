@@ -4366,6 +4366,7 @@ dependencies = [
  "anyhow",
  "clap",
  "regex",
+ "tcl-core-types",
 ]
 
 [[package]]

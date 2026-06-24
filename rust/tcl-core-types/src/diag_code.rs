@@ -1,12 +1,19 @@
-//! Stable diagnostic-code identities (`W210`, `E001`, `O100`, `IRULE3102`, …).
+//! Stable diagnostic-code identities and their published metadata.
 //!
 //! Every diagnostic the analyser, compiler-checks pipeline, CLI, and LSP emit is
-//! tagged with one of these codes. Historically each site carried a bare string
-//! literal; [`DiagCode`] makes the set a single typed vocabulary so a code can
-//! no longer be mistyped, an unknown code is a parse error at the one boundary
-//! that ingests user config, and the full catalogue is enumerable
-//! ([`DiagCode::ALL`]) — which lets a test prove the published code table and
-//! the emitted set never drift apart.
+//! tagged with one of these codes (`W210`, `E001`, `O100`, `IRULE3102`, …).
+//! Historically each site carried a bare string literal; [`DiagCode`] makes the
+//! set a single typed vocabulary so a code can no longer be mistyped, an unknown
+//! code is a parse error at the one boundary that ingests user config, and the
+//! full catalogue is enumerable ([`DiagCode::ALL`]).
+//!
+//! Each variant also carries its *documentation metadata* — the section/category,
+//! one-line description, and default-on flag that the published code tables
+//! (`docs/generated/diagnostic_tables.md` and friends) are generated from. This
+//! module is therefore the single source of truth for both the code identities
+//! and the docs: `cargo xtask diag-tables` renders the tables from
+//! [`DiagCode::ALL`], and a check-mode guard fails the build if the committed
+//! tables ever drift from what the enum would produce.
 //!
 //! The string spelling is the wire/UI contract (LSP `Diagnostic.code`, CLI
 //! output, `--disable W123`, the docs); [`DiagCode::as_str`] / [`core::fmt::Display`]
@@ -34,6 +41,135 @@ pub enum DiagFamily {
     IRule,
 }
 
+/// The documentation *section* a diagnostic belongs to — a finer grouping than
+/// [`DiagFamily`] (e.g. `W###` codes split across `Warning`, `Variable`,
+/// `Security`, `Hint`, `Tclpkg`). Declaration order is the order sections appear
+/// in the generated tables.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum DiagSection {
+    /// Hard parse / arity errors.
+    Error,
+    /// Style & best-practice lints.
+    Warning,
+    /// Variable usage lints.
+    Variable,
+    /// Security / injection lints.
+    Security,
+    /// Non-actionable hints.
+    Hint,
+    /// Shimmer (representation-change) notes.
+    Shimmer,
+    /// Taint / injection findings.
+    Taint,
+    /// Tk-toolkit lints.
+    Tk,
+    /// iRules-dialect flow checks.
+    Irules,
+    /// iRules security findings.
+    IrulesSecurity,
+    /// iRules variable-scoping checks.
+    IrulesVariable,
+    /// `tclpkg` package-manager diagnostics.
+    Tclpkg,
+}
+
+impl DiagSection {
+    /// The lower-case section key used in the generated tables.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Error => "error",
+            Self::Warning => "warning",
+            Self::Variable => "variable",
+            Self::Security => "security",
+            Self::Hint => "hint",
+            Self::Shimmer => "shimmer",
+            Self::Taint => "taint",
+            Self::Tk => "tk",
+            Self::Irules => "irules",
+            Self::IrulesSecurity => "irules_security",
+            Self::IrulesVariable => "irules_variable",
+            Self::Tclpkg => "tclpkg",
+        }
+    }
+}
+
+/// An optimisation-pass category. A profile enables a set of categories; the
+/// generated `readability`/`standard`/`full` columns and the runtime
+/// `profile_to_disabled` gate both key off this (see
+/// `tcl_compiler::optimiser::profiles`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum OptCategory {
+    /// Idiomatic rewrites, no code removal/restructuring.
+    Readability,
+    /// Constant folding and propagation.
+    ConstantFolding,
+    /// Pattern-recognition rewrites.
+    Pattern,
+    /// Dead-code / dead-store elimination.
+    Dce,
+    /// Code motion (hoisting / sinking).
+    CodeMotion,
+    /// Tail-call / recursion transforms.
+    Recursion,
+}
+
+impl OptCategory {
+    /// The lower-case category key used in the generated tables.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Readability => "readability",
+            Self::ConstantFolding => "constant_folding",
+            Self::Pattern => "pattern",
+            Self::Dce => "dce",
+            Self::CodeMotion => "code_motion",
+            Self::Recursion => "recursion",
+        }
+    }
+
+    /// Whether the `readability` profile enables this category (it only enables
+    /// [`OptCategory::Readability`]).
+    #[must_use]
+    pub const fn in_readability_profile(self) -> bool {
+        matches!(self, Self::Readability)
+    }
+
+    /// Whether the `standard` profile enables this category (`readability` +
+    /// constant folding + pattern recognition).
+    #[must_use]
+    pub const fn in_standard_profile(self) -> bool {
+        matches!(
+            self,
+            Self::Readability | Self::ConstantFolding | Self::Pattern
+        )
+    }
+}
+
+/// The published-table metadata for one [`DiagCode`]: either a diagnostic
+/// (section + default-on flag) or an optimisation (category). Both carry the
+/// one-line description the tables render.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DocRow {
+    /// A diagnostic row (`E###`/`W###`/`S###`/`T###`/`IRULE###`/…).
+    Diagnostic {
+        /// The documentation section it groups under.
+        section: DiagSection,
+        /// Whether the diagnostic is emitted by default (the table's `Default`
+        /// column: `✓` when true, `✗` when opt-in).
+        default_on: bool,
+        /// The one-line description.
+        description: &'static str,
+    },
+    /// An optimisation row (`O###`).
+    Optimisation {
+        /// The optimisation category.
+        category: OptCategory,
+        /// The one-line description.
+        description: &'static str,
+    },
+}
+
 /// Error returned when a string is not a known [`DiagCode`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnknownDiagCode;
@@ -45,7 +181,9 @@ impl fmt::Display for UnknownDiagCode {
 }
 
 macro_rules! diagnostic_codes {
-    ($($variant:ident => $str:literal),+ $(,)?) => {
+    (
+        $( $variant:ident => $str:literal, $kind:ident ( $($meta:tt)* ) ; )+
+    ) => {
         /// A stable diagnostic-code identity. See the [module docs](self).
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
         pub enum DiagCode {
@@ -56,14 +194,22 @@ macro_rules! diagnostic_codes {
         }
 
         impl DiagCode {
-            /// Every diagnostic code, in declaration order. Lets a test assert
-            /// the emitted set and the documented table stay in lock-step.
+            /// Every diagnostic code, in declaration order. Lets the doc
+            /// generator and a completeness guard iterate the full catalogue.
             pub const ALL: &'static [DiagCode] = &[ $(DiagCode::$variant),+ ];
 
             /// The stable wire/UI spelling (e.g. `"W210"`).
             #[must_use]
             pub const fn as_str(self) -> &'static str {
                 match self { $(DiagCode::$variant => $str,)+ }
+            }
+
+            /// The published-table metadata for this code (section/category,
+            /// description, default-on flag). The single source the generated
+            /// code tables are rendered from.
+            #[must_use]
+            pub const fn doc_row(self) -> DocRow {
+                match self { $(DiagCode::$variant => diagnostic_codes!(@row $kind ( $($meta)* )),)+ }
             }
         }
 
@@ -77,171 +223,185 @@ macro_rules! diagnostic_codes {
             }
         }
     };
+
+    (@row diag ( $sec:ident, $default:literal, $desc:literal )) => {
+        DocRow::Diagnostic {
+            section: DiagSection::$sec,
+            default_on: $default,
+            description: $desc,
+        }
+    };
+    (@row opt ( $cat:ident, $desc:literal )) => {
+        DocRow::Optimisation {
+            category: OptCategory::$cat,
+            description: $desc,
+        }
+    };
 }
 
 diagnostic_codes! {
-    E001 => "E001",
-    E002 => "E002",
-    E003 => "E003",
-    E004 => "E004",
-    E100 => "E100",
-    E101 => "E101",
-    E102 => "E102",
-    E103 => "E103",
-    E200 => "E200",
-    E201 => "E201",
-    E202 => "E202",
-    E203 => "E203",
-    E204 => "E204",
-    E205 => "E205",
-    E206 => "E206",
-    H300 => "H300",
-    I230 => "I230",
-    I231 => "I231",
-    Irule1001 => "IRULE1001",
-    Irule1002 => "IRULE1002",
-    Irule1003 => "IRULE1003",
-    Irule1004 => "IRULE1004",
-    Irule1005 => "IRULE1005",
-    Irule1006 => "IRULE1006",
-    Irule1007 => "IRULE1007",
-    Irule1008 => "IRULE1008",
-    Irule1201 => "IRULE1201",
-    Irule1202 => "IRULE1202",
-    Irule2001 => "IRULE2001",
-    Irule2002 => "IRULE2002",
-    Irule2003 => "IRULE2003",
-    Irule2101 => "IRULE2101",
-    Irule3001 => "IRULE3001",
-    Irule3002 => "IRULE3002",
-    Irule3003 => "IRULE3003",
-    Irule3004 => "IRULE3004",
-    Irule3101 => "IRULE3101",
-    Irule3102 => "IRULE3102",
-    Irule3103 => "IRULE3103",
-    Irule4001 => "IRULE4001",
-    Irule4002 => "IRULE4002",
-    Irule4003 => "IRULE4003",
-    Irule4004 => "IRULE4004",
-    Irule4005 => "IRULE4005",
-    Irule5001 => "IRULE5001",
-    Irule5002 => "IRULE5002",
-    Irule5003 => "IRULE5003",
-    Irule5004 => "IRULE5004",
-    Irule5005 => "IRULE5005",
-    Irule5006 => "IRULE5006",
-    Irule5007 => "IRULE5007",
-    Irule6001 => "IRULE6001",
-    O100 => "O100",
-    O101 => "O101",
-    O102 => "O102",
-    O103 => "O103",
-    O104 => "O104",
-    O105 => "O105",
-    O106 => "O106",
-    O107 => "O107",
-    O108 => "O108",
-    O109 => "O109",
-    O110 => "O110",
-    O111 => "O111",
-    O112 => "O112",
-    O113 => "O113",
-    O114 => "O114",
-    O115 => "O115",
-    O116 => "O116",
-    O117 => "O117",
-    O118 => "O118",
-    O119 => "O119",
-    O120 => "O120",
-    O121 => "O121",
-    O122 => "O122",
-    O123 => "O123",
-    O124 => "O124",
-    O125 => "O125",
-    O126 => "O126",
-    O127 => "O127",
-    O128 => "O128",
-    O129 => "O129",
-    O130 => "O130",
-    S100 => "S100",
-    S101 => "S101",
-    S102 => "S102",
-    S110 => "S110",
-    T100 => "T100",
-    T101 => "T101",
-    T102 => "T102",
-    T103 => "T103",
-    T104 => "T104",
-    T105 => "T105",
-    T106 => "T106",
-    Tk1001 => "TK1001",
-    Tk1002 => "TK1002",
-    Tk1003 => "TK1003",
-    W001 => "W001",
-    W002 => "W002",
-    W003 => "W003",
-    W004 => "W004",
-    W100 => "W100",
-    W101 => "W101",
-    W102 => "W102",
-    W103 => "W103",
-    W104 => "W104",
-    W105 => "W105",
-    W106 => "W106",
-    W108 => "W108",
-    W110 => "W110",
-    W111 => "W111",
-    W112 => "W112",
-    W113 => "W113",
-    W114 => "W114",
-    W115 => "W115",
-    W116 => "W116",
-    W117 => "W117",
-    W118 => "W118",
-    W120 => "W120",
-    W121 => "W121",
-    W122 => "W122",
-    W123 => "W123",
-    W124 => "W124",
-    W125 => "W125",
-    W126 => "W126",
-    W127 => "W127",
-    W128 => "W128",
-    W130 => "W130",
-    W131 => "W131",
-    W132 => "W132",
-    W133 => "W133",
-    W134 => "W134",
-    W200 => "W200",
-    W201 => "W201",
-    W210 => "W210",
-    W211 => "W211",
-    W212 => "W212",
-    W213 => "W213",
-    W214 => "W214",
-    W215 => "W215",
-    W216 => "W216",
-    W220 => "W220",
-    W230 => "W230",
-    W231 => "W231",
-    W232 => "W232",
-    W233 => "W233",
-    W240 => "W240",
-    W241 => "W241",
-    W242 => "W242",
-    W300 => "W300",
-    W301 => "W301",
-    W302 => "W302",
-    W303 => "W303",
-    W304 => "W304",
-    W306 => "W306",
-    W307 => "W307",
-    W308 => "W308",
-    W309 => "W309",
-    W310 => "W310",
-    W311 => "W311",
-    W312 => "W312",
-    W313 => "W313",
+    E001 => "E001", diag(Error, true, "Missing subcommand — e.g. bare `string` without a subcommand.");
+    E002 => "E002", diag(Error, true, "Too few arguments for command.");
+    E003 => "E003", diag(Error, true, "Too many arguments for command.");
+    E004 => "E004", diag(Error, true, "Malformed `if` command — missing clauses or extra words after `else`.");
+    E100 => "E100", diag(Error, true, "Unmatched `]` — missing opening `[`?");
+    E101 => "E101", diag(Error, true, "Missing `{` after `switch` — case bodies follow without braces.");
+    E102 => "E102", diag(Error, true, "Unmatched `}` — missing opening `{`?");
+    E103 => "E103", diag(Error, true, "Missing `}` — a nested body consumed this closing brace.");
+    E200 => "E200", diag(Error, true, "Shimmer parse error — internal representation cannot be determined.");
+    E201 => "E201", diag(Error, true, "Unterminated command substitution — missing close bracket `]`.");
+    E202 => "E202", diag(Error, true, "Unterminated double-quoted string — missing closing `\"`.");
+    E203 => "E203", diag(Error, true, "Unterminated braced word — missing closing `}`.");
+    E204 => "E204", diag(Error, true, "Extra characters after the close brace of a `${name}` variable reference.");
+    E205 => "E205", diag(Error, true, "Extra characters after the close quote in a variable name.");
+    E206 => "E206", diag(Error, true, "Missing close brace for a `${name}` variable reference.");
+    H300 => "H300", diag(Hint, true, "Possible paste error — repeated assignment to same variable with same value.");
+    I230 => "I230", diag(Hint, true, "Constant branch condition — the alternate branch is provably unreachable.");
+    I231 => "I231", diag(Hint, true, "Constant switch arm condition — the arm is provably unreachable.");
+    Irule1001 => "IRULE1001", diag(Irules, true, "Command invalid or ineffective in this iRules event.");
+    Irule1002 => "IRULE1002", diag(Irules, true, "Unknown iRules event name.");
+    Irule1003 => "IRULE1003", diag(Irules, true, "Deprecated iRules event.");
+    Irule1004 => "IRULE1004", diag(Irules, true, "`when` block missing explicit `priority`.");
+    Irule1005 => "IRULE1005", diag(Irules, true, "Data event without a matching `*::collect` call.");
+    Irule1006 => "IRULE1006", diag(Irules, true, "`*::payload` without a matching `*::collect` call.");
+    Irule1007 => "IRULE1007", diag(Irules, true, "`*::collect` without a matching `*::release` on the same connection side.");
+    Irule1008 => "IRULE1008", diag(Irules, true, "`*::release` without a matching `*::collect` on the same connection side.");
+    Irule1201 => "IRULE1201", diag(Irules, true, "HTTP command used after `HTTP::respond`/`HTTP::redirect`.");
+    Irule1202 => "IRULE1202", diag(Irules, true, "Multiple `HTTP::respond`/`HTTP::redirect` on different branches.");
+    Irule2001 => "IRULE2001", diag(Irules, true, "Deprecated `matchclass` — use `class match` instead.");
+    Irule2002 => "IRULE2002", diag(Irules, true, "Deprecated iRules command.");
+    Irule2003 => "IRULE2003", diag(Irules, true, "Unsafe iRules command.");
+    Irule2101 => "IRULE2101", diag(Irules, true, "Heavy `regexp` in a high-frequency event — consider `string match` or data-group.");
+    Irule3001 => "IRULE3001", diag(IrulesSecurity, true, "Tainted data in HTTP response body.");
+    Irule3002 => "IRULE3002", diag(IrulesSecurity, true, "Tainted data in HTTP header or cookie value.");
+    Irule3003 => "IRULE3003", diag(IrulesSecurity, true, "Tainted data in `log` command — log injection risk.");
+    Irule3004 => "IRULE3004", diag(IrulesSecurity, true, "Tainted data in an `HTTP::redirect` URL — open-redirect risk.");
+    Irule3101 => "IRULE3101", diag(IrulesSecurity, true, "`HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.");
+    Irule3102 => "IRULE3102", diag(IrulesSecurity, true, "`HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.");
+    Irule3103 => "IRULE3103", diag(IrulesSecurity, true, "Manual split/match of an un-normalised URI getter — parse-differential / traversal risk.");
+    Irule4001 => "IRULE4001", diag(IrulesVariable, true, "Write to `static::` variable outside `RULE_INIT`.");
+    Irule4002 => "IRULE4002", diag(IrulesVariable, true, "Generic `static::` variable name — collision likely across iRules.");
+    Irule4003 => "IRULE4003", diag(IrulesVariable, true, "Variable scoping concern across events.");
+    Irule4004 => "IRULE4004", diag(IrulesVariable, true, "Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.");
+    Irule4005 => "IRULE4005", diag(IrulesVariable, true, "Potential race — `static::` variable written outside `RULE_INIT` and read in another event.");
+    Irule5001 => "IRULE5001", diag(Irules, true, "Ungated `log` in a high-frequency event.");
+    Irule5002 => "IRULE5002", diag(Irules, true, "`drop`/`reject`/`discard` without `event disable all` or `return`.");
+    Irule5003 => "IRULE5003", diag(Irules, true, "Loop condition `$x != 0` can skip zero when decremented past it — use `$x > 0`.");
+    Irule5004 => "IRULE5004", diag(Irules, true, "`DNS::return` without `return`.");
+    Irule5005 => "IRULE5005", diag(Irules, true, "Direct proc invocation without `call` — use `call proc_name`.");
+    Irule5006 => "IRULE5006", diag(Irules, true, "Top-level-only command used inside a nested body.");
+    Irule5007 => "IRULE5007", diag(Irules, true, "Event-context command used at top level outside a `when` block.");
+    Irule6001 => "IRULE6001", diag(Irules, true, "`global`/`::`-qualified variable forces CMP compatibility mode, pinning the virtual server to one TMM — use `static::`.");
+    O100 => "O100", opt(ConstantFolding, "Propagate constant variables into expressions and command arguments.");
+    O101 => "O101", opt(ConstantFolding, "Fold constant integer expressions.");
+    O102 => "O102", opt(ConstantFolding, "Fold constant `[expr {...}]` command substitutions.");
+    O103 => "O103", opt(ConstantFolding, "Fold static procedure calls using interprocedural summaries.");
+    O104 => "O104", opt(Pattern, "Fold static string build chains into a single assignment.");
+    O105 => "O105", opt(ConstantFolding, "Propagate constants into variable references and detect redundant computations (GVN/CSE).");
+    O106 => "O106", opt(CodeMotion, "Hoist loop-invariant computations.");
+    O107 => "O107", opt(Dce, "Eliminate unreachable dead code.");
+    O108 => "O108", opt(Dce, "Eliminate transitively dead code.");
+    O109 => "O109", opt(Dce, "Eliminate dead stores.");
+    O110 => "O110", opt(ConstantFolding, "Canonicalise expressions (InstCombine).");
+    O111 => "O111", opt(Readability, "Brace expression performance hints (paired with W100).");
+    O112 => "O112", opt(Dce, "Eliminate constant-condition compound statements.");
+    O113 => "O113", opt(ConstantFolding, "Strength-reduce expressions (`x**2` → `x*x`, `x%8` → `x&7`).");
+    O114 => "O114", opt(Readability, "Recognise `incr` idiom (`set x [expr {$x + N}]` → `incr x N`).");
+    O115 => "O115", opt(Readability, "Remove redundant nested `[expr {...}]` in expression context.");
+    O116 => "O116", opt(ConstantFolding, "Fold constant `[list a b c]` to literal value.");
+    O117 => "O117", opt(Readability, "Simplify `[string length $s] == 0` → `$s eq \"\"`.");
+    O118 => "O118", opt(ConstantFolding, "Fold constant `[lindex {a b c} 1]` to element.");
+    O119 => "O119", opt(Pattern, "Pack consecutive `set` literals into `lassign`/`foreach`.");
+    O120 => "O120", opt(Readability, "Prefer `eq`/`ne` over `==`/`!=` for string comparisons.");
+    O121 => "O121", opt(Recursion, "Rewrite self-recursive tail calls to `tailcall`.");
+    O122 => "O122", opt(Recursion, "Convert fully tail-recursive proc to iterative `while` loop.");
+    O123 => "O123", opt(Recursion, "Detect non-tail recursion eligible for accumulator introduction (hint only).");
+    O124 => "O124", opt(Dce, "Comment out unused procs in iRules (not called from any event).");
+    O125 => "O125", opt(CodeMotion, "Sink side-effect-free assignments into the deepest decision block (`if`/`switch`) that uses them.");
+    O126 => "O126", opt(Dce, "Remove unused variable assignments — eliminate `set` statements for variables that are never read.");
+    O127 => "O127", opt(CodeMotion, "Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site.");
+    O128 => "O128", opt(Readability, "Rewrite `[expr {[llength $L] - N}]` / `[expr {[string length $s] - N}]` to `end-(N-1)` when used as an index argument.");
+    O129 => "O129", opt(ConstantFolding, "Fold a pure builtin command substitution with constant arguments (`[string length ...]`, `[join ...]`, `[format ...]`, `[dict get ...]`, …).");
+    O130 => "O130", opt(Pattern, "Fold static `lappend` list build chains into a single assignment.");
+    S100 => "S100", diag(Shimmer, true, "Single shimmer outside a loop — object internal representation changed.");
+    S101 => "S101", diag(Shimmer, true, "Shimmer inside a loop body — per-iteration representation conversion cost.");
+    S102 => "S102", diag(Shimmer, true, "Variable oscillates between two types across loop iterations.");
+    S110 => "S110", diag(Shimmer, true, "Byte-array value coerced to a string by a string operation — binary representation corrupted.");
+    T100 => "T100", diag(Taint, true, "Tainted data flows into a dangerous sink: `eval`/`uplevel`/`subst`/unbraced-`expr`/`exec` (code-execution); braced `expr` operands (numeric/type-coercion).");
+    T101 => "T101", diag(Taint, true, "Tainted data flows into an output command (`puts`).");
+    T102 => "T102", diag(Taint, true, "Tainted data in option position without `--` terminator — option injection risk.");
+    T103 => "T103", diag(Taint, true, "Tainted data in a `regexp`/`regsub` pattern — regex-injection or ReDoS risk.");
+    T104 => "T104", diag(Taint, true, "Tainted data in a network-address argument (e.g. `socket`) — SSRF risk.");
+    T105 => "T105", diag(Taint, true, "Tainted data in a cross-interpreter eval subcommand (`interp eval`/`invokehidden`) — code-execution risk.");
+    T106 => "T106", diag(Taint, true, "Already-encoded value passed through a command that re-encodes it — double-encoding.");
+    Tk1001 => "TK1001", diag(Tk, true, "Geometry-manager conflict — `pack` and `grid` used on the same parent.");
+    Tk1002 => "TK1002", diag(Tk, true, "Widget path references a non-existent parent widget.");
+    Tk1003 => "TK1003", diag(Tk, true, "Unknown option for a widget command.");
+    W001 => "W001", diag(Warning, true, "Unknown subcommand.");
+    W002 => "W002", diag(Warning, true, "Command is disabled in active dialect profile.");
+    W003 => "W003", diag(Warning, true, "Expression operator not available in active dialect.");
+    W004 => "W004", diag(Warning, true, "Command option is not available in the active dialect.");
+    W100 => "W100", diag(Warning, true, "Unbraced expression argument — prevents byte-compilation and risks double substitution.");
+    W101 => "W101", diag(Security, true, "`eval` with string concatenation — code injection risk.");
+    W102 => "W102", diag(Security, true, "`subst` on variable input — code injection risk.");
+    W103 => "W103", diag(Security, true, "`open` with pipeline `|` — command injection risk.");
+    W104 => "W104", diag(Warning, true, "String concatenation for list building — use `lappend` instead.");
+    W105 => "W105", diag(Warning, true, "Unbraced code block or missing `variable` declaration in `namespace eval`.");
+    W106 => "W106", diag(Warning, true, "Dangerous unbraced `switch` body — risks double substitution.");
+    W108 => "W108", diag(Warning, true, "Non-ASCII characters in token content.");
+    W110 => "W110", diag(Warning, true, "Use `eq`/`ne` instead of `==`/`!=` for string comparison.");
+    W111 => "W111", diag(Warning, true, "Line exceeds maximum length (see `tclLsp.style.lineLength`).");
+    W112 => "W112", diag(Warning, true, "Trailing whitespace.");
+    W113 => "W113", diag(Warning, true, "Procedure shadows built-in command.");
+    W114 => "W114", diag(Warning, true, "Redundant nested `[expr {...}]` — already in expression context.");
+    W115 => "W115", diag(Warning, true, "Backslash-newline in comment silently swallows the next line.");
+    W116 => "W116", diag(Warning, true, "Stub command shadows built-in command.");
+    W117 => "W117", diag(Warning, true, "Stub expression definition shadows built-in function or operator.");
+    W118 => "W118", diag(Warning, true, "Inconsistent line endings.");
+    W120 => "W120", diag(Warning, true, "Command used without a corresponding `package require`.");
+    W121 => "W121", diag(Warning, true, "Subnet mask has non-contiguous bits.");
+    W122 => "W122", diag(Warning, true, "Mistyped IPv4 address (octet > 255 or leading zero).");
+    W123 => "W123", diag(Hint, false, "Unresolved command — not found in registry, user procs, or `unknown` handler.");
+    W124 => "W124", diag(Warning, true, "Invalid IP address literal.");
+    W125 => "W125", diag(Warning, true, "Orphaned control-flow keyword used as standalone command.");
+    W126 => "W126", diag(Warning, true, "Non-channel value in channel argument position.");
+    W127 => "W127", diag(Warning, true, "Value not in the command's allowed set.");
+    W128 => "W128", diag(Warning, true, "Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler.");
+    W130 => "W130", diag(Tclpkg, true, "tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl pkg install'.");
+    W131 => "W131", diag(Tclpkg, true, "tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'.");
+    W132 => "W132", diag(Tclpkg, true, "tclpkg.lock integrity mismatch — CAS hash differs from lockfile.");
+    W133 => "W133", diag(Tclpkg, true, "tclpkg.tcl directive not permitted in safe mode.");
+    W134 => "W134", diag(Tclpkg, true, "Package resolved but no pkgIndex.tcl found — 'package require' will fail at runtime.");
+    W200 => "W200", diag(Warning, true, "`exec` result not captured or binary format modifier requires newer Tcl.");
+    W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
+    W210 => "W210", diag(Variable, true, "Variable read before set.");
+    W211 => "W211", diag(Variable, true, "Variable set but never used.");
+    W212 => "W212", diag(Variable, true, "Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.).");
+    W213 => "W213", diag(Variable, true, "Variable may not exist — use `unset -nocomplain` to suppress the error.");
+    W214 => "W214", diag(Variable, true, "Unused proc parameter — argument is declared but never read in the procedure body.");
+    W215 => "W215", diag(Variable, true, "Variable name unreachable via $-substitution (creatable via set/info exists/upvar but no $-form can read it).");
+    W216 => "W216", diag(Variable, true, "Broken brace-form array element reference — ``${arr}(x)`` parses as scalar+literal, ``${arr($foo)}`` does not substitute the index.");
+    W220 => "W220", diag(Variable, true, "Dead store — variable set but overwritten before use.");
+    W230 => "W230", diag(Warning, true, "Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.");
+    W231 => "W231", diag(Warning, true, "Constant list index out of range — lset raises a runtime error.");
+    W232 => "W232", diag(Warning, true, "Constant string index out of range — string index/range/replace/insert silently return empty or no-op.");
+    W233 => "W233", diag(Warning, true, "Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime.");
+    W240 => "W240", diag(Warning, true, "Loop condition is a constant false — body never executes.");
+    W241 => "W241", diag(Warning, true, "Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.");
+    W242 => "W242", diag(Hint, false, "Loop termination cannot be proven — counter not provably modified by the loop body or step.");
+    W300 => "W300", diag(Security, true, "`source` with variable argument — code execution risk.");
+    W301 => "W301", diag(Security, true, "`uplevel` with string-built script — injection risk.");
+    W302 => "W302", diag(Security, true, "`catch` without result variable — errors are silently swallowed.");
+    W303 => "W303", diag(Security, true, "Regexp vulnerable to catastrophic backtracking (ReDoS).");
+    W304 => "W304", diag(Security, true, "Missing option terminator `--` on option-bearing commands.");
+    W306 => "W306", diag(Security, true, "Substitution in literal-expected argument position.");
+    W307 => "W307", diag(Security, true, "Non-literal command name — variable or command substitution as command.");
+    W308 => "W308", diag(Security, true, "`subst` without `-nocommands` — risk of unintended command execution.");
+    W309 => "W309", diag(Security, true, "`eval`/`uplevel` with `subst` — double substitution risk.");
+    W310 => "W310", diag(Security, true, "Hardcoded credential in a password/auth argument — store secrets outside source.");
+    W311 => "W311", diag(Security, true, "Channel set to `-encoding binary` with a non-binary `-translation` — may corrupt data or enable encoding-differential attacks.");
+    W312 => "W312", diag(Security, true, "`interp eval` with multiple or unbraced script words — concatenated like `eval`, injection risk.");
+    W313 => "W313", diag(Security, true, "Destructive file operation with variable path — path-traversal risk.");
 }
 
 impl DiagCode {
@@ -287,6 +447,44 @@ impl DiagCode {
     #[must_use]
     pub const fn is_error(self) -> bool {
         matches!(self.family(), DiagFamily::Error)
+    }
+
+    /// The one-line description rendered in the published code tables.
+    #[must_use]
+    pub const fn description(self) -> &'static str {
+        match self.doc_row() {
+            DocRow::Diagnostic { description, .. } | DocRow::Optimisation { description, .. } => {
+                description
+            }
+        }
+    }
+
+    /// The optimisation category, for `O###` codes (`None` for diagnostics).
+    #[must_use]
+    pub const fn opt_category(self) -> Option<OptCategory> {
+        match self.doc_row() {
+            DocRow::Optimisation { category, .. } => Some(category),
+            DocRow::Diagnostic { .. } => None,
+        }
+    }
+
+    /// The documentation section, for diagnostics (`None` for `O###` codes).
+    #[must_use]
+    pub const fn diag_section(self) -> Option<DiagSection> {
+        match self.doc_row() {
+            DocRow::Diagnostic { section, .. } => Some(section),
+            DocRow::Optimisation { .. } => None,
+        }
+    }
+
+    /// Whether the code is emitted by default — the table's `Default` column.
+    /// Optimisations are always on within their profile, so they report `true`.
+    #[must_use]
+    pub const fn default_on(self) -> bool {
+        match self.doc_row() {
+            DocRow::Diagnostic { default_on, .. } => default_on,
+            DocRow::Optimisation { .. } => true,
+        }
     }
 }
 
@@ -336,6 +534,32 @@ mod tests {
         assert_eq!(DiagCode::Irule3102.family(), DiagFamily::IRule);
         assert!(DiagCode::O129.is_optimisation());
         assert!(!DiagCode::W210.is_optimisation());
+    }
+
+    #[test]
+    fn doc_metadata_is_consistent() {
+        for &code in DiagCode::ALL {
+            // Every code carries a non-empty description.
+            assert!(
+                !code.description().is_empty(),
+                "{} has an empty description",
+                code.as_str()
+            );
+            // The two metadata shapes line up with `is_optimisation()`:
+            // optimisations carry a category, diagnostics carry a section.
+            match code.doc_row() {
+                DocRow::Optimisation { .. } => {
+                    assert!(code.is_optimisation(), "{} is not O-family", code.as_str());
+                    assert!(code.opt_category().is_some());
+                    assert!(code.diag_section().is_none());
+                }
+                DocRow::Diagnostic { .. } => {
+                    assert!(!code.is_optimisation(), "{} is O-family", code.as_str());
+                    assert!(code.diag_section().is_some());
+                    assert!(code.opt_category().is_none());
+                }
+            }
+        }
     }
 
     /// Tiny `no_std` set for the uniqueness test (avoids pulling in std).
