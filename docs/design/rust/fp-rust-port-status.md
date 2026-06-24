@@ -255,3 +255,16 @@ The last four items are now closed:
 remaining in the FP suite.** Full `tcl-compiler` lib suite: 3270 passed, 0
 failed, 9 ignored (the 9 remaining are the pre-existing static-uplevel
 "pending VM frame-shift opcodes" lowering tests, unrelated to the FP port).
+
+### Rust-structure internal-API coverage (FP-NAB-03 / FP-NAB-12)
+
+The two NAB entries that probe internal APIs rather than diagnostics now have
+dedicated Rust tests (the Python suite asserted on `cu.interproc` /
+`compiler.value_shapes` directly):
+
+- **FP-NAB-03** → `interprocedural.rs::tests::fp_nab_03_recursive_arithmetic_proc_is_pure`
+  (+ `_impure_proc_still_detected` control): a self-recursive arithmetic proc
+  summarises `pure == true` (greatest fix-point), an I/O proc `pure == false`.
+- **FP-NAB-12** → `value_shapes.rs::tests::fp_nab_12_escaped_paren_array_index_companions`:
+  `is_pure_var_ref` accepts `$a(x\)y)` / `${some name}` / `$ns::x` /
+  `$arr(plain)` and rejects the unescaped-paren `$a(x)y`.
