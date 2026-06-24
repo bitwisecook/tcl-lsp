@@ -307,7 +307,31 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         None,
     );
 
-    for fu in cu.procedures.values() {
+    // iRules cross-event state: a variable set in one `when EVENT {…}` handler
+    // (lowered to a `::when::*` proc) and read in another flows across events on
+    // the same connection. Deleting such a store as "unused" is a miscompile
+    // (e.g. `set uri [HTTP::uri]` in HTTP_REQUEST read by `$uri` in
+    // HTTP_RESPONSE). Mirror the analyser/diagnostics path: thread the
+    // ConnectionScope's `cross_event_defs | cross_event_imports` into
+    // `cross_event_vars` for `::when::*` procs so O109/O126 skip them.
+    let when_cross_event: std::collections::HashSet<String> = cu
+        .connection_scope
+        .as_ref()
+        .map(|s| {
+            s.cross_event_defs
+                .iter()
+                .chain(s.cross_event_imports.iter())
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    let saved_proc_cross = std::mem::take(&mut ctx.cross_event_vars);
+    for (qname, fu) in &cu.procedures {
+        ctx.cross_event_vars = if qname.starts_with("::when::") {
+            when_cross_event.clone()
+        } else {
+            std::collections::HashSet::new()
+        };
         emit_unreachable(ctx, fu);
         let baseline = emit_dead_stores_and_unused(
             ctx,
@@ -320,6 +344,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         );
         emit_adce(ctx, fu, &baseline, &interproc_pure, &pure_methods, None);
     }
+    ctx.cross_event_vars = saved_proc_cross;
 
     // Optimise TclOO method bodies as functions too,
     // passing the owning class qname so the O126 `my <method>` purity
