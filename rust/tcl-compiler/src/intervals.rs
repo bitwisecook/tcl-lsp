@@ -687,4 +687,204 @@ mod tests {
             })
         );
     }
+
+    fn iv(lo: i64, hi: i64) -> Interval {
+        Interval {
+            lo: Some(lo),
+            hi: Some(hi),
+        }
+    }
+
+    #[test]
+    fn top_bottom_predicates() {
+        assert!(TOP.is_top());
+        assert!(!TOP.is_bottom());
+        assert!(BOTTOM.is_bottom());
+        assert!(!BOTTOM.is_top());
+        assert!(!constant(5).is_top());
+        assert!(!constant(5).is_bottom());
+        // lo > hi is bottom.
+        assert!(iv(3, 1).is_bottom());
+    }
+
+    #[test]
+    fn join_absorbs_bottom_and_widens_to_inf() {
+        // BOTTOM is the identity for join.
+        assert_eq!(join(BOTTOM, constant(4)), constant(4));
+        assert_eq!(join(constant(4), BOTTOM), constant(4));
+        // A None (±inf) bound dominates.
+        assert_eq!(join(TOP, constant(4)), TOP);
+        assert_eq!(
+            join(iv(0, 5), Interval { lo: None, hi: Some(2) }),
+            Interval { lo: None, hi: Some(5) }
+        );
+    }
+
+    #[test]
+    fn widen_bottom_and_downward_bound() {
+        assert_eq!(widen(BOTTOM, constant(3)), constant(3));
+        assert_eq!(widen(constant(3), BOTTOM), constant(3));
+        // A lower bound moving down jumps to -inf.
+        assert_eq!(
+            widen(iv(5, 10), iv(2, 10)),
+            Interval { lo: None, hi: Some(10) }
+        );
+    }
+
+    #[test]
+    fn arithmetic_bottom_overflow_and_inf() {
+        // BOTTOM propagates through add/sub/mul/negate.
+        assert_eq!(add(BOTTOM, constant(1)), BOTTOM);
+        assert_eq!(sub(constant(1), BOTTOM), BOTTOM);
+        assert_eq!(mul(BOTTOM, constant(1)), BOTTOM);
+        assert_eq!(negate(BOTTOM), BOTTOM);
+        // mul of fully-bounded intervals takes the corner min/max:
+        // [2,3]*[4,5] = [8,15] (corners 8,10,12,15) — tclsh: expr {2*4}=8, {3*5}=15.
+        assert_eq!(mul(iv(2, 3), iv(4, 5)), iv(8, 15));
+        // mul with a negative interval: [-2,3]*[4,5] → corners -10,-8,12,15 → [-10,15].
+        assert_eq!(mul(iv(-2, 3), iv(4, 5)), iv(-10, 15));
+        // An unbounded operand → TOP (sound).
+        assert_eq!(mul(TOP, iv(1, 2)), TOP);
+        // Overflow on add → None (±inf) bound, not a wrap.
+        assert_eq!(
+            add(constant(i64::MAX), constant(1)),
+            Interval { lo: None, hi: None }
+        );
+        // negate flips the bounds: -[2,5] = [-5,-2].
+        assert_eq!(negate(iv(2, 5)), iv(-5, -2));
+    }
+
+    #[test]
+    fn intersect_uses_none_as_identity() {
+        // [0,10] ∩ [5,20] = [5,10].
+        assert_eq!(intersect(iv(0, 10), iv(5, 20)), iv(5, 10));
+        // None is the identity (not absorbing) in intersect.
+        assert_eq!(
+            intersect(iv(0, 10), Interval { lo: None, hi: Some(7) }),
+            iv(0, 7)
+        );
+        assert_eq!(intersect(BOTTOM, iv(0, 10)), BOTTOM);
+    }
+
+    #[test]
+    fn literal_int_parses_radix_and_bool_keywords() {
+        // Verified against tclsh9.0: 0xff=255, 0o17=15, 0b101=5,
+        // true/yes/on=1, false/no/off=0, 42=42, -7=-7.
+        let lit = |t: &str| literal_int(&ExprNode::Literal {
+            text: t.to_string(),
+            start: 0,
+            end: 0,
+        });
+        assert_eq!(lit("0xff"), Some(255));
+        assert_eq!(lit("0xFF"), Some(255));
+        assert_eq!(lit("0o17"), Some(15));
+        assert_eq!(lit("0b101"), Some(5));
+        assert_eq!(lit("42"), Some(42));
+        assert_eq!(lit("-7"), Some(-7));
+        assert_eq!(lit("true"), Some(1));
+        assert_eq!(lit("yes"), Some(1));
+        assert_eq!(lit("on"), Some(1));
+        assert_eq!(lit("false"), Some(0));
+        assert_eq!(lit("no"), Some(0));
+        assert_eq!(lit("off"), Some(0));
+        assert_eq!(lit("notanumber"), None);
+        // A non-literal node yields None.
+        assert_eq!(
+            literal_int(&ExprNode::Var {
+                text: "$x".into(),
+                name: "x".into(),
+                start: 0,
+                end: 0
+            }),
+            None
+        );
+        // parse_radix_int / const_int_from_value directly.
+        assert_eq!(parse_radix_int("0b1111"), Some(15));
+        assert_eq!(parse_radix_int("zzz"), None);
+        assert_eq!(const_int_from_value(" 9 "), Some(9));
+        assert_eq!(const_int_from_value("0xff"), None); // const value is plain decimal only
+    }
+
+    fn pexpr(src: &str) -> ExprNode {
+        tcl_syntax::expr::parser::parse_expr(src, None)
+    }
+
+    #[test]
+    fn eval_expr_abstract_semantics() {
+        let mut env: HashMap<String, Interval> = HashMap::new();
+        env.insert("x".to_string(), iv(2, 4));
+        // literal → point interval.
+        assert_eq!(eval_expr(&pexpr("5"), &env), constant(5));
+        // var in env → its interval; unknown var → TOP.
+        assert_eq!(eval_expr(&pexpr("$x"), &env), iv(2, 4));
+        assert_eq!(eval_expr(&pexpr("$unknown"), &env), TOP);
+        // unary neg / pos.
+        assert_eq!(eval_expr(&pexpr("-$x"), &env), iv(-4, -2));
+        assert_eq!(eval_expr(&pexpr("+$x"), &env), iv(2, 4));
+        // binary add/sub/mul over the env.
+        assert_eq!(eval_expr(&pexpr("$x + 1"), &env), iv(3, 5));
+        assert_eq!(eval_expr(&pexpr("$x - 1"), &env), iv(1, 3));
+        assert_eq!(eval_expr(&pexpr("$x * 2"), &env), iv(4, 8));
+        // comparison → boolean [0,1].
+        assert_eq!(eval_expr(&pexpr("$x < 3"), &env), iv(0, 1));
+        // division is unmodelled → TOP (sound).
+        assert_eq!(eval_expr(&pexpr("$x / 2"), &env), TOP);
+    }
+
+    #[test]
+    fn guard_constraint_both_operand_orders() {
+        // `$x < 5` true → x ∈ [-inf, 4] (tclsh: 4<5=1, 5<5=0).
+        assert_eq!(
+            guard_constraint(&pexpr("$x < 5"), "x", false),
+            Some(Interval { lo: None, hi: Some(4) })
+        );
+        // mirrored: `5 < $x` true → x ∈ [6, +inf].
+        assert_eq!(
+            guard_constraint(&pexpr("5 < $x"), "x", false),
+            Some(Interval { lo: Some(6), hi: None })
+        );
+        // `$x == 7` → [7,7]; negated → Ne → None.
+        assert_eq!(guard_constraint(&pexpr("$x == 7"), "x", false), Some(constant(7)));
+        assert_eq!(guard_constraint(&pexpr("$x == 7"), "x", true), None);
+        // not a comparison against this name → None.
+        assert_eq!(guard_constraint(&pexpr("$y < 5"), "x", false), None);
+        assert_eq!(guard_constraint(&pexpr("$x + 1"), "x", false), None);
+    }
+
+    #[test]
+    fn guard_interval_all_ops_and_negation() {
+        assert_eq!(guard_interval(BinOp::Le, 5, false), Some(Interval { lo: None, hi: Some(5) }));
+        assert_eq!(guard_interval(BinOp::Gt, 5, false), Some(Interval { lo: Some(6), hi: None }));
+        assert_eq!(guard_interval(BinOp::Ge, 5, false), Some(Interval { lo: Some(5), hi: None }));
+        assert_eq!(guard_interval(BinOp::Eq, 5, false), Some(constant(5)));
+        // Ne yields no single interval.
+        assert_eq!(guard_interval(BinOp::Ne, 5, false), None);
+        // Negations flip Le↔Gt, Ge↔Lt, Eq↔Ne.
+        assert_eq!(guard_interval(BinOp::Le, 5, true), Some(Interval { lo: Some(6), hi: None }));
+        assert_eq!(guard_interval(BinOp::Ge, 5, true), Some(Interval { lo: None, hi: Some(4) }));
+    }
+
+    #[test]
+    fn compute_intervals_end_to_end() {
+        use crate::compilation_unit::CompilationUnit;
+        use tcl_registry::cache::registry_for_dialect;
+        let registry = registry_for_dialect("tcl8.6");
+        // A constant assignment gives a point interval the analysis can infer.
+        let cu = CompilationUnit::build_for(
+            "proc f {} { set x 5\n incr x\n return $x }",
+            registry,
+            false,
+        );
+        let fu = cu.procedures.get("::f").expect("proc");
+        let intervals = compute_intervals(&fu.cfg, &fu.ssa, &fu.sccp.values);
+        // The analysis runs and produces a (possibly empty but well-formed) map;
+        // every computed interval is a valid lattice element (not the lo>hi
+        // sentinel unless explicitly bottom).
+        for (_k, &i) in &intervals {
+            assert!(
+                !i.is_bottom() || i == BOTTOM,
+                "computed interval must be a sound lattice element: {i:?}"
+            );
+        }
+    }
 }
