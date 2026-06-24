@@ -26,6 +26,8 @@ mod map_set;
 // Layer 2 — verdicts.
 mod accept;
 mod drop;
+// Control flow.
+mod loop_;
 // Layer 3 — the event framework.
 mod when;
 
@@ -48,6 +50,7 @@ pub fn bpf_command_specs() -> Vec<CommandSpec> {
         map_set::spec(),
         accept::spec(),
         drop::spec(),
+        loop_::spec(),
         when::spec(),
     ]
 }
@@ -60,11 +63,11 @@ mod tests {
     #[test]
     fn all_bpf_commands_present_and_tagged() {
         let specs = bpf_command_specs();
-        assert_eq!(specs.len(), 14);
+        assert_eq!(specs.len(), 15);
         let names: Vec<&str> = specs.iter().map(|s| s.name).collect();
         for n in [
             "setint", "seti32", "setu32", "setbuf", "load8", "load16", "load32", "pktlen", "map",
-            "map_get", "map_set", "accept", "drop", "when",
+            "map_get", "map_set", "accept", "drop", "loop", "when",
         ] {
             assert!(names.contains(&n), "missing `{n}`");
         }

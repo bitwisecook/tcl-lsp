@@ -18,6 +18,7 @@ use crate::diag::{BpfDiag, BpfError};
 use crate::event::{KNOWN_EVENTS, event_to_prog_type};
 use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
 use crate::lower::lower_function;
+use crate::unroll::unroll_loops;
 
 /// Compile a `.bpftcl` translation unit into a bundle of typed programs.
 ///
@@ -54,7 +55,8 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // No framework envelope: treat the whole top level as a single anonymous
     // SOCKET_FILTER program (the raw-DSL path, handy for tests).
     if !saw_when && !module.top_level.statements.is_empty() {
-        let cfg = build_cfg_function("main", &module.top_level, false);
+        let unrolled = unroll_loops(&module.top_level, &registry)?;
+        let cfg = build_cfg_function("main", &unrolled, false);
         let program = lower_function(&cfg, ProgType::SocketFilter)?;
         programs.push(BpfProgramDecl {
             event: "SOCKET_FILTER".to_owned(),
@@ -121,7 +123,9 @@ fn lower_when_decl(
         .map_or(0, |sp| sp.start() + 1);
 
     let body_module = lower_to_ir(body_text, registry);
-    let cfg = build_cfg_function(&format!("::bpf::{event}"), &body_module.top_level, false);
+    let unrolled =
+        unroll_loops(&body_module.top_level, registry).map_err(|e| e.offset(source_base))?;
+    let cfg = build_cfg_function(&format!("::bpf::{event}"), &unrolled, false);
     let program = lower_function(&cfg, prog_type).map_err(|e| e.offset(source_base))?;
 
     Ok(BpfProgramDecl {

@@ -238,6 +238,42 @@ impl Lowerer<'_> {
         Ok(None)
     }
 
+    fn lower_load(
+        &mut self,
+        cmd: &str,
+        args: &[String],
+        span: Span,
+        insts: &mut Vec<Inst>,
+    ) -> Result<Option<Term>, BpfError> {
+        if args.len() != 3 {
+            return Err(arity(span, cmd, "DST SRC OFFSET"));
+        }
+        let ptr = self.expect_ctx_ptr(&args[1], span)?;
+        let off_i64 = parse_int(&args[2]).ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::BadInt,
+                span,
+                format!("invalid offset `{}`", args[2]),
+            )
+        })?;
+        let off = i32::try_from(off_i64)
+            .map_err(|_| BpfError::new(BpfDiag::BadInt, span, "load offset out of range"))?;
+        let width = match cmd {
+            "load8" => Width::B8,
+            "load16" => Width::B16,
+            _ => Width::B32,
+        };
+        let dst = self.var_slot(&args[0], Ty::Int, span)?;
+        insts.push(Inst::Load {
+            dst,
+            width,
+            ptr,
+            off,
+            span,
+        });
+        Ok(None)
+    }
+
     fn expect_ctx_ptr(&self, name: &str, span: Span) -> Result<SlotId, BpfError> {
         match self.env.get(name) {
             Some((slot, Ty::Ptr(Region::Ctx))) => Ok(*slot),
@@ -373,36 +409,7 @@ impl Lowerer<'_> {
                 insts.push(Inst::CtxPtr { dst, span });
                 Ok(None)
             }
-            "load8" | "load16" | "load32" => {
-                if args.len() != 3 {
-                    return Err(arity(span, cmd, "DST SRC OFFSET"));
-                }
-                let ptr = self.expect_ctx_ptr(&args[1], span)?;
-                let off_i64 = parse_int(&args[2]).ok_or_else(|| {
-                    BpfError::new(
-                        BpfDiag::BadInt,
-                        span,
-                        format!("invalid offset `{}`", args[2]),
-                    )
-                })?;
-                let off = i32::try_from(off_i64).map_err(|_| {
-                    BpfError::new(BpfDiag::BadInt, span, "load offset out of range")
-                })?;
-                let width = match cmd {
-                    "load8" => Width::B8,
-                    "load16" => Width::B16,
-                    _ => Width::B32,
-                };
-                let dst = self.var_slot(&args[0], Ty::Int, span)?;
-                insts.push(Inst::Load {
-                    dst,
-                    width,
-                    ptr,
-                    off,
-                    span,
-                });
-                Ok(None)
-            }
+            "load8" | "load16" | "load32" => self.lower_load(cmd, args, span, insts),
             "pktlen" => {
                 if args.len() != 2 {
                     return Err(arity(span, "pktlen", "DST SRC"));
@@ -437,6 +444,11 @@ impl Lowerer<'_> {
             "map" => Ok(None),
             "map_get" => self.lower_map_get(args, span, insts),
             "map_set" => self.lower_map_set(args, span, insts),
+            "loop" => Err(BpfError::new(
+                BpfDiag::OutOfSubset,
+                span,
+                "`loop` must appear at the handler/loop top level, not nested inside `if` (v1)",
+            )),
             other => Err(BpfError::new(
                 BpfDiag::UnknownCommand,
                 span,
