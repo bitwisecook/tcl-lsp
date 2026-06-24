@@ -736,9 +736,6 @@ fn fp_w307_oo_class_bare_name_factory_propagates() {
     );
 }
 
-#[ignore = "FP-OBJ-D4-F5: in_method now yields to SCCP-non-command evidence, but \
-the `set cmd nope` const value is not captured in an oo::class method-body scope, \
-so sccp_not_command is false there. Needs const-set tracking into method bodies."]
 #[test]
 fn fp_w307_oo_class_method_local_literal_fires() {
     // TP: a bare local set to a literal non-command inside an oo::class method body must
