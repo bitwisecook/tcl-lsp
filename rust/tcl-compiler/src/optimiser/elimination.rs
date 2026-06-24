@@ -1118,6 +1118,52 @@ pub(crate) fn scan_scope_aliases(cfg: &CfgFunction) -> HashSet<String> {
     aliases
 }
 
+/// Module-wide set of namespace-qualified (`::`) globals that carry a variable
+/// **write trace** anywhere in the compilation unit.
+///
+/// A traced global is observable across scopes — a write trace fires its
+/// callback on every `set`, so a `set ::w 1` in one proc is neither a dead
+/// store (W220) nor unused (W211) even when the `trace add variable ::w …`
+/// lives in a *different* proc or at the top level. The per-function
+/// [`scan_scope_aliases`] only sees a function's own traces; this closes the
+/// cross-scope gap (FP-DS-04). Restricted to `::`-qualified names because those
+/// are the only ones that denote the same variable across scopes.
+pub(crate) fn scan_module_traced_globals(
+    cu: &crate::compilation_unit::CompilationUnit,
+) -> HashSet<String> {
+    fn scan_cfg(cfg: &CfgFunction, out: &mut HashSet<String>) {
+        for block in cfg.blocks.values() {
+            for stmt in &block.statements {
+                if let Statement::Call { command, args, .. } = stmt
+                    && command == "trace"
+                {
+                    // `trace add variable NAME …` (8.5+) or `trace variable NAME …` (8.4).
+                    let target = if args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
+                        Some(&args[2])
+                    } else if args.len() >= 2 && args[0] == "variable" {
+                        Some(&args[1])
+                    } else {
+                        None
+                    };
+                    if let Some(t) = target
+                        && t.contains("::")
+                        && !t.starts_with('$')
+                        && !t.contains('[')
+                    {
+                        out.insert(t.clone());
+                    }
+                }
+            }
+        }
+    }
+    let mut out: HashSet<String> = HashSet::new();
+    scan_cfg(&cu.top_level.cfg, &mut out);
+    for fu in cu.procedures.values() {
+        scan_cfg(&fu.cfg, &mut out);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

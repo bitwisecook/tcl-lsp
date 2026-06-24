@@ -184,9 +184,9 @@ fn fp_ds_04_untraced_unrelated_var_still_fires() {
 }
 
 // FP-DS-04 cross-scope variant: namespace-global ::w traced in one proc,
-// written in another — Rust currently emits a false W211 on ::w.
+// written in another. Fixed by folding module-wide traced ::-globals into every
+// function's suppression context (scan_module_traced_globals).
 #[test]
-#[ignore = "FP-DS-04: Rust emits false W211 on namespace-global ::w traced in one proc, written in another (scan_scope_aliases is per-CFG-function)"]
 fn fp_ds_04_cross_scope_namespace_global_trace() {
     // Python is silent: the trace on ::w in proc s observes the write `set ::w 1`.
     let src = "trace add variable ::w write h\nproc s {} { set ::w 1 }";
