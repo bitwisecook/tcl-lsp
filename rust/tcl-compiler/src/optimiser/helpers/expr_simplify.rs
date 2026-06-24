@@ -56,17 +56,17 @@ pub type NumericCtx<'a> = Option<&'a HashSet<String>>;
 #[must_use]
 pub fn numeric_var_names(fu: &FunctionUnit) -> HashSet<String> {
     use std::collections::HashMap;
-    // name → (all-versions-numeric-so-far).
-    let mut acc: HashMap<&str, bool> = HashMap::new();
-    for ((name, _ver), lattice) in &fu.types {
+    // symbol → (all-versions-numeric-so-far).
+    let mut acc: HashMap<crate::ssa::Symbol, bool> = HashMap::new();
+    for ((sym, _ver), lattice) in &fu.types {
         let is_num = lattice_is_numeric(lattice);
-        acc.entry(name.as_str())
+        acc.entry(*sym)
             .and_modify(|v| *v = *v && is_num)
             .or_insert(is_num);
     }
     acc.into_iter()
         .filter(|(_, ok)| *ok)
-        .map(|(n, _)| n.to_owned())
+        .map(|(sym, _)| fu.ssa.var_name(sym).to_owned())
         .collect()
 }
 

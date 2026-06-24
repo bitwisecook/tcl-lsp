@@ -7,7 +7,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use crate::ssa::{SsaStatement, ValueKey, Version};
+use crate::ssa::{SsaFunction, SsaStatement, Version};
 use crate::var_escape::helpers::is_dynamic_name;
 use crate::var_escape::types::{EscapeFlags, EscapeTag};
 
@@ -26,7 +26,7 @@ enum LiteralBinding {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CfgEscapeResult {
     /// Per-(name, version) escape tags.
-    pub ssa_tags: HashMap<ValueKey, EscapeTag>,
+    pub ssa_tags: HashMap<(String, Version), EscapeTag>,
     /// Per-name collapse: `Frame` iff any version was tagged.
     pub name_tags: HashMap<String, EscapeTag>,
     /// Pessimism / fallback flag set.
@@ -77,7 +77,7 @@ impl CfgEscapeResult {
 #[derive(Debug, Default)]
 pub struct CfgState {
     /// Per-(name, version) escape tags.
-    pub ssa_tags: HashMap<ValueKey, EscapeTag>,
+    pub ssa_tags: HashMap<(String, Version), EscapeTag>,
     /// Pessimism / fallback flag set.
     pub flags: EscapeFlags,
     /// Names the analysis has seen.
@@ -142,17 +142,19 @@ impl CfgState {
     }
 
     /// Update the name → latest-version map from a [`SsaStatement`].
-    pub fn remember_versions(&mut self, stmt: &SsaStatement) {
-        for (name, version) in &stmt.defs {
-            self.ssa_for_name.insert(name.clone(), *version);
-            self.known_names.insert(name.clone());
+    pub fn remember_versions(&mut self, stmt: &SsaStatement, ssa: &SsaFunction) {
+        for (&sym, version) in &stmt.defs {
+            let name = ssa.var_name(sym);
+            self.ssa_for_name.insert(name.to_owned(), *version);
+            self.known_names.insert(name.to_owned());
         }
-        for (name, version) in &stmt.uses {
+        for (&sym, version) in &stmt.uses {
+            let name = ssa.var_name(sym);
             // Defensive: keep the latest if an SSA quirk hands us a
             // higher version on a use than on the def map.
             let cur = self.ssa_for_name.get(name).copied().unwrap_or(0);
             if *version > cur {
-                self.ssa_for_name.insert(name.clone(), *version);
+                self.ssa_for_name.insert(name.to_owned(), *version);
             }
         }
     }

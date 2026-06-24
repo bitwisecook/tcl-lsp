@@ -33,7 +33,7 @@ use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::{SccpResult, cfg_order};
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
 bitflags! {
@@ -537,22 +537,21 @@ fn utf8_char_len(first: u8) -> usize {
 #[must_use]
 fn evaluate_value(
     value: &str,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     props: &HashMap<ValueKey, RenderedValueProps>,
     registry: &CommandRegistry,
+    ssa: &SsaFunction,
 ) -> RenderedValueProps {
     let stripped = value.trim();
 
     // Pure variable reference → inherit from the source.
     if is_pure_var_ref(stripped) {
         let name = normalise_var_name(stripped);
-        if let Some(&ver) = uses.get(name)
+        if let Some(sym) = ssa.var_symbol(name)
+            && let Some(&ver) = uses.get(&sym)
             && ver > 0
         {
-            return props
-                .get(&(name.to_owned(), ver))
-                .copied()
-                .unwrap_or_default();
+            return props.get(&(sym, ver)).copied().unwrap_or_default();
         }
         // Version 0 / unseen: the value comes from an enclosing scope
         // or hasn't been defined on this path. Be conservative — every
@@ -608,15 +607,15 @@ fn unknown_top() -> RenderedValueProps {
 
 /// Union the `may` bits of every SSA input used by a statement.
 fn collect_use_may(
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     props: &HashMap<ValueKey, RenderedValueProps>,
 ) -> RenderedProperties {
     let mut out = RenderedProperties::NONE;
-    for (name, &ver) in uses {
+    for (&sym, &ver) in uses {
         if ver == 0 {
             continue;
         }
-        if let Some(p) = props.get(&(name.clone(), ver)) {
+        if let Some(p) = props.get(&(sym, ver)) {
             out |= p.may;
         }
     }
@@ -627,7 +626,7 @@ fn collect_use_may(
 fn evaluate_call(
     command: &str,
     args: &[String],
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     props: &HashMap<ValueKey, RenderedValueProps>,
     registry: &CommandRegistry,
 ) -> RenderedValueProps {
@@ -671,9 +670,10 @@ fn evaluate_call(
 /// Infer rendered properties for a statement's def(s).
 fn evaluate_def(
     stmt: &Statement,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     props: &HashMap<ValueKey, RenderedValueProps>,
     registry: &CommandRegistry,
+    ssa: &SsaFunction,
 ) -> RenderedValueProps {
     match stmt {
         Statement::AssignConst { value, .. } => evaluate_const(value),
@@ -682,7 +682,7 @@ fn evaluate_def(
             // have a known source; otherwise fall through to the
             // scanner. The `evaluate_value` helper already handles
             // both cases and the unescape-escalation logic.
-            evaluate_value(value, uses, props, registry)
+            evaluate_value(value, uses, props, registry, ssa)
         }
         Statement::AssignExpr { .. } | Statement::Incr { .. } => {
             // Numeric result: no path separators, no interpolation.
@@ -774,19 +774,11 @@ pub fn propagate_rendered_props(
                         let incoming = if ver == 0 {
                             unknown_top()
                         } else {
-                            props
-                                .get(&(phi.name.clone(), ver))
-                                .copied()
-                                .unwrap_or_default()
+                            props.get(&(phi.name, ver)).copied().unwrap_or_default()
                         };
                         phi_props = rendered_join(phi_props, incoming);
                     }
-                    set_props(
-                        &mut props,
-                        (phi.name.clone(), phi.version),
-                        phi_props,
-                        &mut changed,
-                    );
+                    set_props(&mut props, (phi.name, phi.version), phi_props, &mut changed);
                 }
             }
 
@@ -794,19 +786,19 @@ pub fn propagate_rendered_props(
             for ssa_stmt in &ssa_block.statements {
                 let stmt = &ssa_stmt.statement;
                 if matches!(stmt, Statement::Barrier { .. }) {
-                    for (var, &ver) in &ssa_stmt.defs {
+                    for (&var, &ver) in &ssa_stmt.defs {
                         set_props(
                             &mut props,
-                            (var.clone(), ver),
+                            (var, ver),
                             RenderedValueProps::top(),
                             &mut changed,
                         );
                     }
                     continue;
                 }
-                for (var, &ver) in &ssa_stmt.defs {
-                    let inferred = evaluate_def(stmt, &ssa_stmt.uses, &props, registry);
-                    set_props(&mut props, (var.clone(), ver), inferred, &mut changed);
+                for (&var, &ver) in &ssa_stmt.defs {
+                    let inferred = evaluate_def(stmt, &ssa_stmt.uses, &props, registry, ssa);
+                    set_props(&mut props, (var, ver), inferred, &mut changed);
                 }
             }
         }
@@ -891,13 +883,16 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let uses = HashMap::new();
         let props = HashMap::new();
+        // No interned variables are referenced by these opaque substitutions, so
+        // a bare (block-less) SSA function suffices for symbol resolution.
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         // `[list 1 2 3]` is opaque interpolation — only HAS_INTERPOLATION,
         // never the full may-mask (the old over-report).
-        let p = evaluate_value("[list 1 2 3]", &uses, &props, &registry);
+        let p = evaluate_value("[list 1 2 3]", &uses, &props, &registry, &ssa);
         assert_eq!(p.may, RenderedProperties::HAS_INTERPOLATION);
         assert_eq!(p.must, RenderedProperties::NONE);
         // `[exec ls]` likewise.
-        let p = evaluate_value("[exec ls]", &uses, &props, &registry);
+        let p = evaluate_value("[exec ls]", &uses, &props, &registry, &ssa);
         assert_eq!(p.may, RenderedProperties::HAS_INTERPOLATION);
     }
 
@@ -960,7 +955,7 @@ mod tests {
         let p = fu
             .rendered_props
             .iter()
-            .find(|((n, _), _)| n == "path")
+            .find(|((n, _), _)| fu.ssa.var_name(*n) == "path")
             .expect("path entry");
         assert!(p.1.may.contains(RenderedProperties::HAS_FORWARD_SLASH));
         assert!(p.1.must.contains(RenderedProperties::STARTS_WITH_SLASH));
@@ -973,7 +968,7 @@ mod tests {
         let p = fu
             .rendered_props
             .iter()
-            .find(|((n, _), _)| n == "flag")
+            .find(|((n, _), _)| fu.ssa.var_name(*n) == "flag")
             .expect("flag entry");
         assert!(p.1.must.contains(RenderedProperties::STARTS_WITH_DASH));
     }
@@ -986,7 +981,7 @@ mod tests {
         let copy = fu
             .rendered_props
             .iter()
-            .find(|((n, _), _)| n == "copy")
+            .find(|((n, _), _)| fu.ssa.var_name(*n) == "copy")
             .expect("copy entry");
         assert!(copy.1.may.contains(RenderedProperties::HAS_FORWARD_SLASH));
         assert!(copy.1.must.contains(RenderedProperties::STARTS_WITH_SLASH));
@@ -997,7 +992,11 @@ mod tests {
         let cu = CompilationUnit::build_for("set n [expr {1 + 2}]", &registry(), false);
         let fu = cu.function("::top").unwrap();
         // n should have neither forward slash nor starts-with bits.
-        if let Some(((_, _), p)) = fu.rendered_props.iter().find(|((n, _), _)| n == "n") {
+        if let Some(((_, _), p)) = fu
+            .rendered_props
+            .iter()
+            .find(|((n, _), _)| fu.ssa.var_name(*n) == "n")
+        {
             assert!(!p.may.contains(RenderedProperties::HAS_FORWARD_SLASH));
             assert!(!p.must.contains(RenderedProperties::STARTS_WITH_DASH));
         }
@@ -1071,7 +1070,7 @@ mod tests {
         let merged = fu
             .rendered_props
             .iter()
-            .filter(|((n, _), _)| n == "x")
+            .filter(|((n, _), _)| fu.ssa.var_name(*n) == "x")
             .map(|(_, p)| *p)
             .fold(RenderedValueProps::bottom(), rendered_join);
         assert!(merged.may.contains(RenderedProperties::HAS_FORWARD_SLASH));

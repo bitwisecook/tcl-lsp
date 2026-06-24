@@ -1030,7 +1030,12 @@ file; this call falls through to the 'unknown' handler."
                 if reported.contains(&name) {
                     continue;
                 }
-                let ver = ssa_block.exit_versions.get(&name).copied().unwrap_or(0);
+                let ver = fu
+                    .ssa
+                    .var_symbol(&name)
+                    .and_then(|s| ssa_block.exit_versions.get(&s))
+                    .copied()
+                    .unwrap_or(0);
                 // Version-0 return reads are now recorded in def_use, so the
                 // version-0 (`DefKind::Parameter`) emitter handles them with
                 // the full suppression set — this pass only covers the
@@ -1169,7 +1174,8 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             };
             for (idx, s) in ssa_block.statements.iter().enumerate() {
-                for name in s.uses.keys() {
+                for &sym in s.uses.keys() {
+                    let name = fu.ssa.var_name(sym);
                     if reported.contains(name) {
                         continue;
                     }
@@ -1186,7 +1192,7 @@ file; this call falls through to the 'unknown' handler."
                         Some(st) if !st.span().is_empty() => fu.abs_span(st.span()),
                         _ => continue,
                     };
-                    reported.insert(name.clone());
+                    reported.insert(name.to_owned());
                     let mut message = format!("Variable '{name}' is read before it is set");
                     if let Some(similar) = find_case_mismatch(name, defined_vars) {
                         let _ = write!(message, "; did you mean '{similar}'?");
@@ -1495,10 +1501,13 @@ file; this call falls through to the 'unknown' handler."
                         };
 
                     if let Some(name) = var_name {
-                        let Some(&version) = ssa_stmt.uses.get(name) else {
+                        let Some(sym) = fu.ssa.var_symbol(name) else {
                             continue;
                         };
-                        let key: crate::ssa::ValueKey = (name.to_string(), version);
+                        let Some(&version) = ssa_stmt.uses.get(&sym) else {
+                            continue;
+                        };
+                        let key: crate::ssa::ValueKey = (sym, version);
                         let Some(var_type) = fu.types.get(&key) else {
                             continue;
                         };
@@ -1752,7 +1761,7 @@ file; this call falls through to the 'unknown' handler."
                     }
                 }
                 if let Some((msg, sev)) = diag {
-                    self.emit_ip_diag_at_def(fu, key, &msg, sev, &mut seen_offsets);
+                    self.emit_ip_diag_at_def(fu, *key, &msg, sev, &mut seen_offsets);
                     break;
                 }
             }
@@ -1761,7 +1770,7 @@ file; this call falls through to the 'unknown' handler."
             for candidate in find_ipv6_candidates(text) {
                 if Ipv6Addr::from_str(candidate).is_err() {
                     let msg = format!("Invalid IPv6 address '{candidate}'.");
-                    self.emit_ip_diag_at_def(fu, key, &msg, Severity::Error, &mut seen_offsets);
+                    self.emit_ip_diag_at_def(fu, *key, &msg, Severity::Error, &mut seen_offsets);
                     break;
                 }
             }
@@ -1772,13 +1781,14 @@ file; this call falls through to the 'unknown' handler."
     fn emit_ip_diag_at_def(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
-        key: &crate::ssa::ValueKey,
+        key: crate::ssa::ValueKey,
         message: &str,
         severity: Severity,
         seen_offsets: &mut FxHashSet<u32>,
     ) {
-        let (var_name, version) = key;
-        let Some(chain) = fu.def_use.chain_for(var_name, *version) else {
+        let (sym, version) = key;
+        let var_name = fu.ssa.var_name(sym);
+        let Some(chain) = fu.def_use.chain_for(var_name, version) else {
             return;
         };
         let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
@@ -1832,7 +1842,8 @@ file; this call falls through to the 'unknown' handler."
                 {
                     continue;
                 }
-                for name in stmt.defs.keys() {
+                for &sym in stmt.defs.keys() {
+                    let name = fu.ssa.var_name(sym);
                     if !racy_vars.contains(name) {
                         continue;
                     }

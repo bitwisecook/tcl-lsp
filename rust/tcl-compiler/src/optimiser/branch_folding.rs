@@ -260,27 +260,27 @@ fn is_switch_dispatch_cond(cond: &ExprNode) -> bool {
 }
 
 fn sccp_constants_for(fu: &FunctionUnit) -> HashMap<String, String> {
-    let mut per_var: HashMap<String, Vec<&ConstValue>> = HashMap::new();
-    let mut dirty: HashSet<String> = HashSet::new();
-    for ((name, _ver), lv) in &fu.sccp.values {
-        if dirty.contains(name) {
+    let mut per_var: HashMap<crate::ssa::Symbol, Vec<&ConstValue>> = HashMap::new();
+    let mut dirty: HashSet<crate::ssa::Symbol> = HashSet::new();
+    for ((sym, _ver), lv) in &fu.sccp.values {
+        if dirty.contains(sym) {
             continue;
         }
         if let LatticeValue::Const(cv) = lv {
-            per_var.entry(name.clone()).or_default().push(cv);
+            per_var.entry(*sym).or_default().push(cv);
         } else {
-            dirty.insert(name.clone());
-            per_var.remove(name);
+            dirty.insert(*sym);
+            per_var.remove(sym);
         }
     }
     let mut out = HashMap::new();
-    for (name, cvs) in per_var {
+    for (sym, cvs) in per_var {
         let first = cvs[0];
         if !cvs.iter().all(|cv| *cv == first) {
             continue;
         }
         if let Some(text) = format_constant(first) {
-            out.insert(name, text);
+            out.insert(fu.ssa.var_name(sym).to_owned(), text);
         }
     }
     out
@@ -372,7 +372,7 @@ mod tests {
     use crate::expr_ast::{BinOp, ExprNode};
     use crate::interprocedural::InterproceduralAnalysis;
     use crate::sccp::{ConstantBranch, SccpResult};
-    use crate::ssa::{SsaBlock, SsaFunction};
+    use crate::ssa::{SsaBlock, SsaFunction, Symbol};
 
     use super::super::{PassContext, PassId};
     use super::run;
@@ -706,11 +706,12 @@ mod tests {
         cfg.blocks.insert(e, ret_block("e"));
         cfg.blocks.insert(after, ret_block("after"));
 
-        let ssa = make_ssa(&cfg);
-        let mut values: HashMap<(String, u32), LatticeValue> = HashMap::new();
+        let mut ssa = make_ssa(&cfg);
+        let x = ssa.intern_var("x");
+        let mut values: HashMap<(Symbol, u32), LatticeValue> = HashMap::new();
         // Simulate a mixed / Overdefined lattice for x.
         values.insert(
-            ("x".into(), 1),
+            (x, 1),
             LatticeValue::ConstSet(vec![ConstValue::Int(0), ConstValue::Int(1)]),
         );
         let sccp = SccpResult {
@@ -762,9 +763,10 @@ mod tests {
         cfg.blocks.insert(t, ret_block("t"));
         cfg.blocks.insert(e, ret_block("e"));
 
-        let ssa = make_ssa(&cfg);
-        let mut values: HashMap<(String, u32), LatticeValue> = HashMap::new();
-        values.insert(("x".into(), 1), LatticeValue::Overdefined);
+        let mut ssa = make_ssa(&cfg);
+        let x = ssa.intern_var("x");
+        let mut values: HashMap<(Symbol, u32), LatticeValue> = HashMap::new();
+        values.insert((x, 1), LatticeValue::Overdefined);
         let sccp = SccpResult {
             values,
             executable_blocks: id_set(&cfg, &["entry", "t", "e"]),

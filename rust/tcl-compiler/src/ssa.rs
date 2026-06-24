@@ -38,8 +38,24 @@ use crate::var_refs::{VarReferenceScanner, VarScanOptions, vars_in_expr};
 /// SSA version number — each definition of a variable gets a unique version.
 pub type Version = u32;
 
-/// Key identifying a specific SSA value: `(variable_name, version)`.
-pub type ValueKey = (String, Version);
+/// Interned identifier for an SSA variable name.
+///
+/// Variable names (`"x"`, `"::ns::count"`, `"arr"`, …) are interned per
+/// [`SsaFunction`] into a dense `u32` index so the hot per-statement SSA and
+/// dataflow maps (`defs` / `uses`, `entry_versions` / `exit_versions`, the
+/// taint / SCCP / type lattices keyed by [`ValueKey`]) key on a cheap copyable
+/// id instead of hashing and cloning the name string. The `u32` reflects
+/// first-seen order during SSA construction, so [`Symbol`]'s `Ord` is that
+/// first-seen order — a deterministic ordering; no analysis relies on
+/// variable names being in lexicographic order.
+///
+/// Resolve a symbol back to its display name with [`SsaFunction::var_name`],
+/// and a name to its symbol (when interned) with [`SsaFunction::var_symbol`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Symbol(pub u32);
+
+/// Key identifying a specific SSA value: `(variable symbol, version)`.
+pub type ValueKey = (Symbol, Version);
 
 // SSA data structures
 
@@ -49,8 +65,9 @@ pub type ValueKey = (String, Version);
 /// flows in from that edge.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Phi {
-    /// Variable name.
-    pub name: String,
+    /// Variable, as an interned [`Symbol`]. Resolve the display name with
+    /// [`SsaFunction::var_name`].
+    pub name: Symbol,
     /// SSA version assigned by this phi.
     pub version: Version,
     /// Predecessor block → incoming version.
@@ -59,23 +76,26 @@ pub struct Phi {
 
 /// An IR statement annotated with SSA version numbers.
 ///
-/// `uses` maps each variable name read by the statement to the
-/// SSA version in scope. `defs` maps each variable name written
-/// to its newly assigned version.
+/// `uses` maps each variable read by the statement to the
+/// SSA version in scope. `defs` maps each variable written
+/// to its newly assigned version. Both key on the interned
+/// variable [`Symbol`]; resolve a symbol's display name with
+/// [`SsaFunction::var_name`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct SsaStatement {
     /// The underlying IR statement.
     pub statement: Statement,
-    /// Variables read: name → SSA version.
-    pub uses: HashMap<String, Version>,
-    /// Variables written: name → SSA version.
-    pub defs: HashMap<String, Version>,
+    /// Variables read: symbol → SSA version.
+    pub uses: HashMap<Symbol, Version>,
+    /// Variables written: symbol → SSA version.
+    pub defs: HashMap<Symbol, Version>,
 }
 
 /// A CFG basic block in SSA form.
 ///
 /// `entry_versions` / `exit_versions` record which SSA version
-/// of each variable is live at the start and end of the block.
+/// of each variable is live at the start and end of the block,
+/// keyed by the interned variable [`Symbol`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct SsaBlock {
     /// Block name.
@@ -84,10 +104,10 @@ pub struct SsaBlock {
     pub phis: Vec<Phi>,
     /// SSA-annotated statements.
     pub statements: Vec<SsaStatement>,
-    /// Variable versions at block entry.
-    pub entry_versions: HashMap<String, Version>,
-    /// Variable versions at block exit.
-    pub exit_versions: HashMap<String, Version>,
+    /// Variable versions at block entry: symbol → version.
+    pub entry_versions: HashMap<Symbol, Version>,
+    /// Variable versions at block exit: symbol → version.
+    pub exit_versions: HashMap<Symbol, Version>,
 }
 
 /// Complete SSA representation of one Tcl procedure or top-level script.
@@ -112,6 +132,37 @@ pub struct SsaFunction {
     /// [`SsaFunction`]-only consumer can still resolve a [`BlockId`] to its
     /// display name. Names indexed by [`BlockId`]`.0`, in creation order.
     block_names: Vec<String>,
+    /// Variable-name interner: names indexed by [`Symbol`]`.0`, in first-seen
+    /// order during SSA construction. Resolves a [`Symbol`] back to the
+    /// display name needed for diagnostics and serialised output.
+    var_names: Vec<String>,
+    /// Reverse interner index: variable name → its [`Symbol`].
+    var_to_symbol: FxHashMap<String, Symbol>,
+}
+
+/// Per-[`SsaFunction`] variable-name interner.
+///
+/// Assigns each distinct variable name a dense [`Symbol`] in first-seen order
+/// and resolves a symbol back to its name. The SSA builder threads one of
+/// these while renaming and hands its tables to the finished [`SsaFunction`].
+#[derive(Debug, Default, Clone)]
+struct VarInterner {
+    names: Vec<String>,
+    to_symbol: FxHashMap<String, Symbol>,
+}
+
+impl VarInterner {
+    /// Intern `name`, returning its [`Symbol`]. Assigns the next dense id the
+    /// first time a name is seen and returns the existing id on re-interning.
+    fn intern(&mut self, name: &str) -> Symbol {
+        if let Some(&sym) = self.to_symbol.get(name) {
+            return sym;
+        }
+        let sym = Symbol(u32::try_from(self.names.len()).expect("SSA var count fits in u32"));
+        self.names.push(name.to_owned());
+        self.to_symbol.insert(name.to_owned(), sym);
+        sym
+    }
 }
 
 impl SsaFunction {
@@ -130,7 +181,49 @@ impl SsaFunction {
             dominance_frontier: HashMap::new(),
             dominator_tree: HashMap::new(),
             block_names,
+            var_names: Vec::new(),
+            var_to_symbol: FxHashMap::default(),
         }
+    }
+
+    /// Intern variable `name`, returning its [`Symbol`].
+    ///
+    /// Assigns the next dense id (first-seen order) the first time a name is
+    /// seen and returns the existing id on re-interning, so a symbol is stable
+    /// for the life of the function. Used by tests and consumers that build a
+    /// fresh SSA function by hand.
+    pub fn intern_var(&mut self, name: &str) -> Symbol {
+        if let Some(&sym) = self.var_to_symbol.get(name) {
+            return sym;
+        }
+        let sym = Symbol(u32::try_from(self.var_names.len()).expect("SSA var count fits in u32"));
+        self.var_names.push(name.to_owned());
+        self.var_to_symbol.insert(name.to_owned(), sym);
+        sym
+    }
+
+    /// The display name of variable [`Symbol`] `sym`.
+    ///
+    /// # Panics
+    /// Panics if `sym` was not produced by this function's variable interner.
+    #[must_use]
+    pub fn var_name(&self, sym: Symbol) -> &str {
+        &self.var_names[sym.0 as usize]
+    }
+
+    /// The [`Symbol`] a variable name resolves to, if it was interned during
+    /// SSA construction. Returns `None` for a name that is not an SSA variable
+    /// of this function — a lookup of such a name in any [`ValueKey`]-keyed map
+    /// is a miss, which is the correct "no fact" answer.
+    #[must_use]
+    pub fn var_symbol(&self, name: &str) -> Option<Symbol> {
+        self.var_to_symbol.get(name).copied()
+    }
+
+    /// The interned variable names, indexed by [`Symbol`]`.0` (first-seen order).
+    #[must_use]
+    pub fn var_names(&self) -> &[String] {
+        &self.var_names
     }
 
     /// The display name of block `id`.
@@ -1296,6 +1389,11 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
         include_reads_before_write: false,
     });
 
+    // Variable-name interner. The rename walk keeps its transient state
+    // (`stacks`, `version_counter`, …) keyed by name; the persisted
+    // per-statement maps and phi names key on the interned [`Symbol`].
+    let mut interner = VarInterner::default();
+
     // 3. Rename walk — iterative using an explicit stack to avoid
     //    deep recursion on large dominator trees.
     let mut stack: Vec<RenameFrame> = Vec::new();
@@ -1349,16 +1447,16 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
                     let stmts: Vec<Statement> = block.statements.clone();
                     for stmt in &stmts {
                         let uses_list = uses_of(stmt, &mut scanner, registry);
-                        let mut uses_map: HashMap<String, Version> = HashMap::new();
+                        let mut uses_map: HashMap<Symbol, Version> = HashMap::new();
                         for var in &uses_list {
-                            uses_map.insert(var.clone(), top(&stacks, var));
+                            uses_map.insert(interner.intern(var), top(&stacks, var));
                         }
 
-                        let mut defs_map: HashMap<String, Version> = HashMap::new();
+                        let mut defs_map: HashMap<Symbol, Version> = HashMap::new();
                         for var in defs_of_with_registry(stmt, Some(registry)) {
                             let ver = push_new(&mut version_counter, &mut stacks, &var);
                             frame.pushed_vars.push(var.clone());
-                            defs_map.insert(var, ver);
+                            defs_map.insert(interner.intern(&var), ver);
                         }
 
                         stmt_infos.get_mut(&bn).unwrap().push(SsaStatement {
@@ -1452,7 +1550,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
 
         for var in &phi_var_list {
             phis.push(Phi {
-                name: var.clone(),
+                name: interner.intern(var),
                 version: phi_versions
                     .get(bn)
                     .and_then(|m| m.get(var))
@@ -1466,16 +1564,57 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
             });
         }
 
+        // Intern the entry / exit version maps (built name-keyed during the
+        // walk) onto the persisted [`Symbol`]-keyed block.
+        let intern_versions = |interner: &mut VarInterner, m: HashMap<String, Version>| {
+            m.into_iter()
+                .map(|(name, ver)| (interner.intern(&name), ver))
+                .collect::<HashMap<Symbol, Version>>()
+        };
+        let entry_v = intern_versions(&mut interner, entry_versions.remove(bn).unwrap_or_default());
+        let exit_v = intern_versions(&mut interner, exit_versions.remove(bn).unwrap_or_default());
+
         ssa_blocks.insert(
             *bn,
             SsaBlock {
                 name: block.name.clone(),
                 phis,
                 statements: stmt_infos.remove(bn).unwrap_or_default(),
-                entry_versions: entry_versions.remove(bn).unwrap_or_default(),
-                exit_versions: exit_versions.remove(bn).unwrap_or_default(),
+                entry_versions: entry_v,
+                exit_versions: exit_v,
             },
         );
+    }
+
+    // Intern names that appear *only* in a terminator (a `return $x` value /
+    // expr, or a branch condition). The rename walk interns statement and phi
+    // names but not terminator reads, so a parameter read solely in the return
+    // (`proc p {x} { return $x }`) would otherwise be absent from the interner —
+    // leaving `var_symbol` unable to resolve it, which breaks any consumer that
+    // resolves such a name (e.g. the interprocedural O103 seed for an
+    // argument-sensitive passthrough). Interning is map-membership only; no SSA
+    // statement / version map changes, so every analysis result is unaffected.
+    for block in func.blocks.values() {
+        match &block.terminator {
+            Some(cfg::Terminator::Branch { condition, .. }) => {
+                for u in vars_in_expr(condition) {
+                    interner.intern(&u);
+                }
+            }
+            Some(cfg::Terminator::Return { value, expr, .. }) => {
+                if let Some(v) = value {
+                    for u in scanner.scan_word(v, registry) {
+                        interner.intern(&u);
+                    }
+                }
+                if let Some(e) = expr {
+                    for u in vars_in_expr(e) {
+                        interner.intern(&u);
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
     SsaFunction {
@@ -1493,6 +1632,8 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
             .collect(),
         dominator_tree: tree,
         block_names: func.block_names().to_vec(),
+        var_names: interner.names,
+        var_to_symbol: interner.to_symbol,
     }
 }
 
@@ -1572,11 +1713,11 @@ mod tests {
     #[test]
     fn phi_construction() {
         let phi = Phi {
-            name: "x".into(),
+            name: Symbol(0),
             version: 3,
             incoming: HashMap::from([(BlockId(1), 1), (BlockId(2), 2)]),
         };
-        assert_eq!(phi.name, "x");
+        assert_eq!(phi.name, Symbol(0));
         assert_eq!(phi.version, 3);
         assert_eq!(phi.incoming.len(), 2);
     }
@@ -1591,9 +1732,9 @@ mod tests {
                 value: "1".into(),
             },
             uses: HashMap::new(),
-            defs: HashMap::from([("x".into(), 1)]),
+            defs: HashMap::from([(Symbol(0), 1)]),
         };
-        assert_eq!(stmt.defs["x"], 1);
+        assert_eq!(stmt.defs[&Symbol(0)], 1);
         assert!(stmt.uses.is_empty());
     }
 
@@ -1604,7 +1745,7 @@ mod tests {
             phis: vec![],
             statements: vec![],
             entry_versions: HashMap::new(),
-            exit_versions: HashMap::from([("x".into(), 1)]),
+            exit_versions: HashMap::from([(Symbol(0), 1)]),
         };
         assert_eq!(block.name, "entry");
         assert!(block.phis.is_empty());
@@ -1620,8 +1761,25 @@ mod tests {
             dominance_frontier: HashMap::new(),
             dominator_tree: HashMap::new(),
             block_names: vec!["entry".into()],
+            var_names: Vec::new(),
+            var_to_symbol: rustc_hash::FxHashMap::default(),
         };
         assert_eq!(func.name, "::test");
+    }
+
+    #[test]
+    fn var_interner_assigns_first_seen_order_symbols() {
+        let mut func = SsaFunction::trivial("::test", BlockId(0), vec!["entry".into()]);
+        let x = func.intern_var("x");
+        let y = func.intern_var("y");
+        assert_eq!(x, Symbol(0));
+        assert_eq!(y, Symbol(1));
+        // Re-interning a known name returns the existing symbol.
+        assert_eq!(func.intern_var("x"), x);
+        assert_eq!(func.var_symbol("y"), Some(y));
+        assert_eq!(func.var_symbol("missing"), None);
+        assert_eq!(func.var_name(x), "x");
+        assert_eq!(func.var_names(), ["x".to_string(), "y".to_string()]);
     }
 
     // defs_of tests
@@ -2267,12 +2425,14 @@ mod tests {
         assert_eq!(ssa.name, "::test");
         assert_eq!(ssa.entry, entry);
 
+        let sx = ssa.var_symbol("x").expect("x interned");
+        let sy = ssa.var_symbol("y").expect("y interned");
         let entry_blk = &ssa.blocks[&entry];
         // First statement (set x 1): defs x=1
-        assert_eq!(entry_blk.statements[0].defs.get("x"), Some(&1));
+        assert_eq!(entry_blk.statements[0].defs.get(&sx), Some(&1));
         // Second statement (set y $x): uses x=1, defs y=1
-        assert_eq!(entry_blk.statements[1].uses.get("x"), Some(&1));
-        assert_eq!(entry_blk.statements[1].defs.get("y"), Some(&1));
+        assert_eq!(entry_blk.statements[1].uses.get(&sx), Some(&1));
+        assert_eq!(entry_blk.statements[1].defs.get(&sy), Some(&1));
     }
 
     #[test]
@@ -2344,14 +2504,15 @@ mod tests {
 
         // x is defined in both then and else and read at end, so the end block
         // should have a phi for x.
+        let sx = ssa.var_symbol("x").expect("x interned");
         let end_block = &ssa.blocks[&end];
         assert!(
-            end_block.phis.iter().any(|phi| phi.name == "x"),
+            end_block.phis.iter().any(|phi| phi.name == sx),
             "end block should have a phi for x"
         );
 
         // The phi should have incoming edges from then and else.
-        if let Some(phi) = end_block.phis.iter().find(|p| p.name == "x") {
+        if let Some(phi) = end_block.phis.iter().find(|p| p.name == sx) {
             assert!(
                 phi.incoming.contains_key(&then),
                 "phi should have incoming from then"
@@ -2397,9 +2558,10 @@ mod tests {
         let ssa = build_ssa(&func, &reg);
 
         // header should have a phi for i (from entry and body).
+        let si = ssa.var_symbol("i").expect("i interned");
         let header_blk = &ssa.blocks[&header];
         assert!(
-            header_blk.phis.iter().any(|p| p.name == "i"),
+            header_blk.phis.iter().any(|p| p.name == si),
             "header should have a phi for i"
         );
     }

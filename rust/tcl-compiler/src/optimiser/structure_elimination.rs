@@ -60,21 +60,21 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 /// variable name. Only variables whose every tracked version
 /// collapses to the same `Const` value survive.
 fn sccp_env_for(fu: &FunctionUnit) -> Env {
-    let mut per_var: HashMap<String, Vec<&ConstValue>> = HashMap::new();
-    let mut dirty: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for ((name, _ver), lv) in &fu.sccp.values {
-        if dirty.contains(name) {
+    let mut per_var: HashMap<crate::ssa::Symbol, Vec<&ConstValue>> = HashMap::new();
+    let mut dirty: std::collections::HashSet<crate::ssa::Symbol> = std::collections::HashSet::new();
+    for ((sym, _ver), lv) in &fu.sccp.values {
+        if dirty.contains(sym) {
             continue;
         }
         if let LatticeValue::Const(cv) = lv {
-            per_var.entry(name.clone()).or_default().push(cv);
+            per_var.entry(*sym).or_default().push(cv);
         } else {
-            dirty.insert(name.clone());
-            per_var.remove(name);
+            dirty.insert(*sym);
+            per_var.remove(sym);
         }
     }
     let mut env = Env::new();
-    for (name, cvs) in per_var {
+    for (sym, cvs) in per_var {
         // Require every version to agree on one constant.
         let first = cvs[0];
         if !cvs.iter().all(|cv| *cv == first) {
@@ -86,7 +86,7 @@ fn sccp_env_for(fu: &FunctionUnit) -> Env {
             ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
             ConstValue::String(s) => EnvValue::Str(s.clone()),
         };
-        env.insert(name, entry);
+        env.insert(fu.ssa.var_name(sym).to_owned(), entry);
     }
     env
 }

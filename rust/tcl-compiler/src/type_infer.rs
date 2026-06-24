@@ -32,7 +32,7 @@ use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::SccpResult;
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice, type_join};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
@@ -399,11 +399,12 @@ fn is_scope_alias_call(registry: &CommandRegistry, command: &str, args: &[String
 #[must_use]
 fn evaluate_type_def(
     stmt: &Statement,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     registry: &CommandRegistry,
     known_classes: &HashSet<String>,
     namespace: &str,
+    ssa: &SsaFunction,
 ) -> TypeLattice {
     match stmt {
         Statement::AssignConst { value, .. } => literal_type(value),
@@ -412,12 +413,12 @@ fn evaluate_type_def(
             // Build a name→TypeLattice map for variables used in the expression.
             let var_types: HashMap<String, TypeLattice> = uses
                 .iter()
-                .filter_map(|(name, &ver)| {
+                .filter_map(|(&sym, &ver)| {
                     if ver == 0 {
                         return None;
                     }
-                    let t = types.get(&(name.clone(), ver))?;
-                    Some((name.clone(), t.clone()))
+                    let t = types.get(&(sym, ver))?;
+                    Some((ssa.var_name(sym).to_owned(), t.clone()))
                 })
                 .collect();
             infer_expr_type(expr, &var_types)
@@ -428,11 +429,12 @@ fn evaluate_type_def(
             // Pure variable reference: inherit source type.
             if is_pure_var_ref(stripped) {
                 let name = normalise_var_name(stripped);
-                if let Some(&ver) = uses.get(name)
+                if let Some(&ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s))
                     && ver > 0
                 {
-                    return types
-                        .get(&(name.to_owned(), ver))
+                    return ssa
+                        .var_symbol(name)
+                        .and_then(|s| types.get(&(s, ver)))
                         .cloned()
                         .unwrap_or_else(TypeLattice::unknown);
                 }
@@ -540,12 +542,12 @@ pub fn propagate_types(
                             continue;
                         }
                         let t = types
-                            .get(&(phi.name.clone(), ver))
+                            .get(&(phi.name, ver))
                             .cloned()
                             .unwrap_or_else(TypeLattice::unknown);
                         phi_type = type_join(&phi_type, &t);
                     }
-                    let key = (phi.name.clone(), phi.version);
+                    let key = (phi.name, phi.version);
                     let old = types
                         .get(&key)
                         .cloned()
@@ -585,10 +587,11 @@ pub fn propagate_types(
                         registry,
                         known_classes,
                         &namespace,
+                        ssa,
                     ),
                 };
-                for (var, &ver) in &ssa_stmt.defs {
-                    let key = (var.clone(), ver);
+                for (&var, &ver) in &ssa_stmt.defs {
+                    let key = (var, ver);
                     let old = types
                         .get(&key)
                         .cloned()
@@ -631,14 +634,15 @@ pub(crate) fn infer_function_return_type(
     types: &HashMap<ValueKey, TypeLattice>,
     registry: &CommandRegistry,
     known_classes: &HashSet<String>,
+    ssa: &SsaFunction,
 ) -> TypeLattice {
     let namespace = function_namespace(&cfg.name);
     // Collapse the versioned type map to a name-keyed map by joining
     // every version of each name — the over-approximation noted above.
     let mut var_types: HashMap<String, TypeLattice> = HashMap::new();
-    for ((name, _ver), t) in types {
+    for ((sym, _ver), t) in types {
         var_types
-            .entry(name.clone())
+            .entry(ssa.var_name(*sym).to_owned())
             .and_modify(|acc| *acc = type_join(acc, t))
             .or_insert_with(|| t.clone());
     }
@@ -741,11 +745,11 @@ mod tests {
         }
     }
 
-    fn make_ssa_stmt(stmt: Statement, defs: &[(&str, u32)]) -> SsaStatement {
+    fn make_ssa_stmt(ssa: &mut SsaFunction, stmt: Statement, defs: &[(&str, u32)]) -> SsaStatement {
         SsaStatement {
             statement: stmt,
             uses: HashMap::new(),
-            defs: defs.iter().map(|&(n, v)| (String::from(n), v)).collect(),
+            defs: defs.iter().map(|&(n, v)| (ssa.intern_var(n), v)).collect(),
         }
     }
 
@@ -761,21 +765,20 @@ mod tests {
 
         let sccp = empty_sccp(&f, &["entry"]);
         let mut ssa = SsaFunction::trivial("::top", entry, f.block_names().to_vec());
+        let stmt = make_ssa_stmt(&mut ssa, assign_const("x", "42"), &[("x", 1)]);
         ssa.blocks.insert(
             entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
-                statements: vec![make_ssa_stmt(assign_const("x", "42"), &[("x", 1)])],
+                statements: vec![stmt],
                 entry_versions: HashMap::new(),
                 exit_versions: HashMap::new(),
             },
         );
+        let x = ssa.var_symbol("x").unwrap();
         let types = propagate_types(&f, &ssa, &sccp, &registry(), &HashSet::new());
-        assert_eq!(
-            types.get(&("x".to_owned(), 1)),
-            Some(&TypeLattice::of(TclType::Int))
-        );
+        assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
     }
 
     #[test]
@@ -787,6 +790,7 @@ mod tests {
             amount: None,
             safe_on_uninit: false,
         };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         let t = evaluate_type_def(
             &stmt,
             &HashMap::new(),
@@ -794,6 +798,7 @@ mod tests {
             &registry(),
             &HashSet::new(),
             "::",
+            &ssa,
         );
         assert_eq!(t, TypeLattice::of(TclType::Int));
     }
@@ -847,13 +852,14 @@ mod tests {
             span: None,
         });
 
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
+        let x = ssa.intern_var("x");
         let phi = Phi {
-            name: "x".into(),
+            name: x,
             version: 2,
             incoming: [(entry, 1u32)].into_iter().collect(),
         };
-        let entry_stmt = make_ssa_stmt(assign_const("x", "10"), &[("x", 1)]);
-        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
+        let entry_stmt = make_ssa_stmt(&mut ssa, assign_const("x", "10"), &[("x", 1)]);
         ssa.blocks.insert(
             entry,
             SsaBlock {
@@ -880,15 +886,9 @@ mod tests {
 
         let types = propagate_types(&cfg, &ssa, &sccp, &registry(), &HashSet::new());
         // x@1 (entry) should be Int.
-        assert_eq!(
-            types.get(&("x".to_owned(), 1)),
-            Some(&TypeLattice::of(TclType::Int))
-        );
+        assert_eq!(types.get(&(x, 1)), Some(&TypeLattice::of(TclType::Int)));
         // x@2 (phi in exit) should propagate Int from entry.
-        assert_eq!(
-            types.get(&("x".to_owned(), 2)),
-            Some(&TypeLattice::of(TclType::Int))
-        );
+        assert_eq!(types.get(&(x, 2)), Some(&TypeLattice::of(TclType::Int)));
     }
 
     /// `AssignValue` with a pure variable reference inherits the source type.
@@ -898,14 +898,12 @@ mod tests {
         let cu = CompilationUnit::build_for("set x 42\nset y $x", &registry(), false);
         let fu = cu.function("::top").unwrap();
         // x should be Int; y (which copies x) should also be Int.
-        let x_is_int = fu
-            .types
-            .iter()
-            .any(|((name, _), t)| name == "x" && t.tcl_type == Some(TclType::Int));
-        let y_is_int = fu
-            .types
-            .iter()
-            .any(|((name, _), t)| name == "y" && t.tcl_type == Some(TclType::Int));
+        let x_is_int = fu.types.iter().any(|((name, _), t)| {
+            fu.ssa.var_name(*name) == "x" && t.tcl_type == Some(TclType::Int)
+        });
+        let y_is_int = fu.types.iter().any(|((name, _), t)| {
+            fu.ssa.var_name(*name) == "y" && t.tcl_type == Some(TclType::Int)
+        });
         assert!(x_is_int, "expected x to be Int");
         assert!(y_is_int, "expected y to inherit Int type from x");
     }
@@ -918,10 +916,9 @@ mod tests {
         let cu =
             CompilationUnit::build_for("set lst {a b c}\nset n [llength $lst]", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let n_is_int = fu
-            .types
-            .iter()
-            .any(|((name, _), t)| name == "n" && t.tcl_type == Some(TclType::Int));
+        let n_is_int = fu.types.iter().any(|((name, _), t)| {
+            fu.ssa.var_name(*name) == "n" && t.tcl_type == Some(TclType::Int)
+        });
         assert!(n_is_int, "expected n to be Int (llength return type)");
     }
 
@@ -1060,7 +1057,7 @@ mod tests {
         let widened = fu
             .types
             .iter()
-            .any(|((n, _), t)| n == "counter" && t.kind == TypeKind::Overdefined);
+            .any(|((n, _), t)| fu.ssa.var_name(*n) == "counter" && t.kind == TypeKind::Overdefined);
         assert!(
             widened,
             "scope-aliased 'counter' should be OVERDEFINED: {:?}",

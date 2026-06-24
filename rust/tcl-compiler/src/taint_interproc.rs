@@ -29,7 +29,7 @@ use crate::cfg::Terminator;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::interprocedural::resolve_call_target;
 use crate::naming::normalise_var_name;
-use crate::ssa::ValueKey;
+use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::taint::{TaintColour, TaintCtx, TaintLattice, propagate_taints, word_taint};
 use crate::value_shapes::parse_command_substitution;
 
@@ -224,10 +224,15 @@ pub fn apply_proc_return_summary(
 
 // Return-taint collection
 
-/// Build a `name -> version` use map for `text` from a block's exit versions,
-/// scanning the word for `$var` references.
-fn word_uses_from_versions(text: &str, versions: &HashMap<String, u32>) -> HashMap<String, u32> {
-    let mut uses: HashMap<String, u32> = HashMap::new();
+/// Build a `symbol -> version` use map for `text` from a block's exit
+/// versions, scanning the word for `$var` references. A scanned name not
+/// interned in `ssa` is not an SSA variable here, so it is dropped.
+fn word_uses_from_versions(
+    text: &str,
+    versions: &HashMap<Symbol, u32>,
+    ssa: &SsaFunction,
+) -> HashMap<Symbol, u32> {
+    let mut uses: HashMap<Symbol, u32> = HashMap::new();
     let source_map = SourceMap::new(text);
     let Ok(tokens) = Lexer::new(text).tokenise_all() else {
         return uses;
@@ -240,8 +245,11 @@ fn word_uses_from_versions(text: &str, versions: &HashMap<String, u32>) -> HashM
         if name.is_empty() {
             continue;
         }
-        let ver = versions.get(name).copied().unwrap_or(0);
-        uses.insert(name.to_owned(), ver);
+        let Some(sym) = ssa.var_symbol(name) else {
+            continue;
+        };
+        let ver = versions.get(&sym).copied().unwrap_or(0);
+        uses.insert(sym, ver);
     }
     uses
 }
@@ -266,7 +274,7 @@ fn collect_return_taint(
         let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
             continue;
         };
-        let uses = word_uses_from_versions(value, &ssa_block.exit_versions);
+        let uses = word_uses_from_versions(value, &ssa_block.exit_versions, &fu.ssa);
         ret = ret.join(word_taint(value, &uses, taints, ctx));
     }
     ret
@@ -306,6 +314,7 @@ fn return_ctx<'a>(
 ) -> TaintCtx<'a> {
     TaintCtx {
         registry,
+        ssa: &fu.ssa,
         interproc,
         known_procs: Some(known),
         caller_qname: Some(fu.ssa.name.as_str()),

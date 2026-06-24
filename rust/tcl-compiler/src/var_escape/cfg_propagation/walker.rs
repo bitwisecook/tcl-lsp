@@ -532,10 +532,17 @@ fn handle_stmt_assign_or_incr(
 
 /// Process one [`SsaStatement`] — apply the appropriate
 /// per-Statement transfer function.
-fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState) {
+fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState, ssa: &SsaFunction) {
     let stmt = &ssa_stmt.statement;
-    let defs = &ssa_stmt.defs;
-    state.remember_versions(ssa_stmt);
+    // The SSA per-statement `defs` map is keyed by interned [`Symbol`]; the
+    // escape handlers work in display names, so resolve each symbol once here.
+    let defs: HashMap<String, Version> = ssa_stmt
+        .defs
+        .iter()
+        .map(|(&sym, &ver)| (ssa.var_name(sym).to_owned(), ver))
+        .collect();
+    let defs = &defs;
+    state.remember_versions(ssa_stmt, ssa);
 
     if handle_stmt_call_or_barrier(stmt, state, defs) {
         return;
@@ -632,12 +639,17 @@ fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState) {
 /// Process one SSA block — every statement plus the terminator's
 /// branch condition (so `[info exists ...]` inside an `if`
 /// condition isn't missed).
-fn walk_block(block: &SsaBlock, state: &mut CfgState, terminator_condition: Option<&ExprNode>) {
+fn walk_block(
+    block: &SsaBlock,
+    state: &mut CfgState,
+    terminator_condition: Option<&ExprNode>,
+    ssa: &SsaFunction,
+) {
     for stmt in &block.statements {
         if state.dynamic_barrier() {
             return;
         }
-        handle_statement(stmt, state);
+        handle_statement(stmt, state, ssa);
     }
     if let Some(cond) = terminator_condition {
         // The terminator's condition doesn't live in any
@@ -678,7 +690,7 @@ pub fn analyse_cfg_function<I: IntoIterator<Item = String>>(
                 Terminator::Branch { condition, .. } => Some(condition),
                 _ => None,
             });
-        walk_block(block, &mut state, term_cond);
+        walk_block(block, &mut state, term_cond, ssa);
     }
 
     state.into_result()

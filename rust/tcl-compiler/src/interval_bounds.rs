@@ -25,7 +25,7 @@ use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::intervals::{Interval, build_guard_index, compute_intervals, refine_interval};
 use crate::ir::Statement;
 use crate::segmenter::segment_commands;
-use crate::ssa::{Phi, SsaFunction, ValueKey, Version};
+use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
 
 /// `(name, version) → Phi` index over every block, for length resolution
 /// through loop-header phis.
@@ -42,17 +42,21 @@ type PhiIndex<'a> = HashMap<ValueKey, &'a Phi>;
 /// assume-no-error model the diagnostic already encodes).  A genuine
 /// disagreement (two known but different lengths) yields `None` (sound).
 fn resolve_list_length(
+    ssa: &SsaFunction,
     name: &str,
     version: Version,
     phi_index: &PhiIndex<'_>,
     lengths: &HashMap<ValueKey, i64>,
     visited: &mut std::collections::HashSet<ValueKey>,
 ) -> Option<i64> {
-    let key = (name.to_owned(), version);
+    // A name that was never interned has no tracked length (it can't be a
+    // literal-list assignment target).
+    let sym = ssa.var_symbol(name)?;
+    let key = (sym, version);
     if let Some(&l) = lengths.get(&key) {
         return Some(l);
     }
-    if !visited.insert(key.clone()) {
+    if !visited.insert(key) {
         return None; // cycle (loop back-edge) — give up this path
     }
     let phi = phi_index.get(&key)?;
@@ -61,7 +65,7 @@ fn resolve_list_length(
         if inc == 0 {
             continue;
         }
-        if let Some(l) = resolve_list_length(name, inc, phi_index, lengths, visited) {
+        if let Some(l) = resolve_list_length(ssa, name, inc, phi_index, lengths, visited) {
             match found {
                 None => found = Some(l),
                 Some(f) if f == l => {}
@@ -161,8 +165,8 @@ fn list_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
                 _ => None,
             };
             if let Some(n) = n {
-                for (name, &ver) in &s.defs {
-                    lengths.insert((name.clone(), ver), n);
+                for (&sym, &ver) in &s.defs {
+                    lengths.insert((sym, ver), n);
                 }
             }
         }
@@ -193,8 +197,8 @@ fn string_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
                 value.clone()
             };
             if let Ok(len) = i64::try_from(resolved.chars().count()) {
-                for (name, &ver) in &s.defs {
-                    lengths.insert((name.clone(), ver), len);
+                for (&sym, &ver) in &s.defs {
+                    lengths.insert((sym, ver), len);
                 }
             }
         }
@@ -205,14 +209,14 @@ fn string_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
 /// Versions of each name reaching statement index `upto` within a block.  Used
 /// for `lset`, whose target list is a *def* (not a use).
 fn reaching_versions(
-    entry: &HashMap<String, Version>,
+    entry: &HashMap<Symbol, Version>,
     stmts: &[crate::ssa::SsaStatement],
     upto: usize,
-) -> HashMap<String, Version> {
+) -> HashMap<Symbol, Version> {
     let mut cur = entry.clone();
     for s in stmts.iter().take(upto) {
-        for (name, &ver) in &s.defs {
-            cur.insert(name.clone(), ver);
+        for (&sym, &ver) in &s.defs {
+            cur.insert(sym, ver);
         }
     }
     cur
@@ -468,13 +472,13 @@ pub fn find_interval_bounds(
         .blocks
         .values()
         .flat_map(|sb| sb.phis.iter())
-        .map(|p| ((p.name.clone(), p.version), p))
+        .map(|p| ((p.name, p.version), p))
         .collect();
     let mut findings = Vec::new();
 
     let length_for_list = |cand: &Candidate,
-                           version_map: &HashMap<String, Version>,
-                           entry_versions: &HashMap<String, Version>,
+                           version_map: &HashMap<Symbol, Version>,
+                           entry_versions: &HashMap<Symbol, Version>,
                            block_stmts: &[crate::ssa::SsaStatement],
                            stmt_idx: usize|
      -> Option<i64> {
@@ -487,30 +491,33 @@ pub fn find_interval_bounds(
                 return None;
             }
             let reaching = reaching_versions(entry_versions, block_stmts, stmt_idx);
-            let lver = *reaching.get(lname)?;
-            return resolve_list_length(lname, lver, &phi_index, &lengths, &mut visited);
+            let lver = *reaching.get(&ssa.var_symbol(lname)?)?;
+            return resolve_list_length(ssa, lname, lver, &phi_index, &lengths, &mut visited);
         }
         // A *value* arg: literal list, or `$l`.
         if let Some(lit) = literal_list_length(&cand.list_arg) {
             return Some(lit);
         }
         let lvar = plain_var_name(&cand.list_arg)?;
-        let lver = *version_map.get(&lvar)?;
-        resolve_list_length(&lvar, lver, &phi_index, &lengths, &mut visited)
+        let lver = *version_map.get(&ssa.var_symbol(&lvar)?)?;
+        resolve_list_length(ssa, &lvar, lver, &phi_index, &lengths, &mut visited)
     };
 
     let process = |cand: &Candidate,
                    bn: crate::cfg::BlockId,
                    span: Span,
-                   version_map: &HashMap<String, Version>,
-                   entry_versions: &HashMap<String, Version>,
+                   version_map: &HashMap<Symbol, Version>,
+                   entry_versions: &HashMap<Symbol, Version>,
                    block_stmts: &[crate::ssa::SsaStatement],
                    stmt_idx: usize,
                    findings: &mut Vec<BoundsFinding>| {
         let Some(ivar) = plain_var_name(&cand.index_arg) else {
             return;
         };
-        let Some(&iver) = version_map.get(&ivar) else {
+        let Some(isym) = ssa.var_symbol(&ivar) else {
+            return;
+        };
+        let Some(&iver) = version_map.get(&isym) else {
             return;
         };
         if iver == 0 {
@@ -519,9 +526,9 @@ pub fn find_interval_bounds(
         let length = if cand.command == STRING_INDEX {
             let svar = plain_var_name(&cand.list_arg);
             svar.and_then(|sv| {
-                version_map
-                    .get(&sv)
-                    .and_then(|&v| str_lengths.get(&(sv.clone(), v)).copied())
+                ssa.var_symbol(&sv)
+                    .and_then(|ssym| version_map.get(&ssym).map(|&v| (ssym, v)))
+                    .and_then(|(ssym, v)| str_lengths.get(&(ssym, v)).copied())
             })
         } else {
             length_for_list(cand, version_map, entry_versions, block_stmts, stmt_idx)
@@ -744,12 +751,13 @@ pub fn find_divide_by_zero(
     let guard_index = build_guard_index(cfg, ssa);
 
     let env_for =
-        |uses: &HashMap<String, Version>, bn: crate::cfg::BlockId| -> HashMap<String, Interval> {
+        |uses: &HashMap<Symbol, Version>, bn: crate::cfg::BlockId| -> HashMap<String, Interval> {
             uses.iter()
                 .filter(|&(_, &ver)| ver > 0)
-                .map(|(name, &ver)| {
+                .map(|(&sym, &ver)| {
+                    let name = ssa.var_name(sym);
                     (
-                        name.clone(),
+                        name.to_owned(),
                         refine_interval(&intervals, cfg, ssa, bn, name, ver, &guard_index),
                     )
                 })

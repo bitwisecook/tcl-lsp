@@ -324,9 +324,9 @@ impl Analyser {
         // hierarchy.
         let mut all_object_types: HashMap<String, HashSet<String>> = HashMap::new();
         let collect_object_types =
-            |types: &HashMap<crate::ssa::ValueKey, crate::types::TypeLattice>,
+            |fu: &crate::compilation_unit::FunctionUnit,
              out: &mut HashMap<String, HashSet<String>>| {
-                for ((var_name, _ver), tl) in types {
+                for ((sym, _ver), tl) in &fu.types {
                     if tl.kind != TypeKind::Known {
                         continue;
                     }
@@ -336,14 +336,14 @@ impl Analyser {
                     let Some(class_name) = &tl.class_name else {
                         continue;
                     };
-                    out.entry(var_name.clone())
+                    out.entry(fu.ssa.var_name(*sym).to_owned())
                         .or_default()
                         .insert(class_name.clone());
                 }
             };
-        collect_object_types(&cu.top_level.types, &mut all_object_types);
+        collect_object_types(&cu.top_level, &mut all_object_types);
         for fu in cu.procedures.values() {
-            collect_object_types(&fu.types, &mut all_object_types);
+            collect_object_types(fu, &mut all_object_types);
         }
         self.harvest_constructor_object_types(cu, &mut all_object_types);
 
@@ -361,22 +361,21 @@ impl Analyser {
         // across every function in the CompilationUnit.  CONST and
         // CONSTSET are expanded into a flat set of values.
         let mut all_constsets: HashMap<String, HashSet<String>> = HashMap::new();
-        let collect_from = |sccp: &crate::sccp::SccpResult,
+        let collect_from = |fu: &crate::compilation_unit::FunctionUnit,
                             out: &mut HashMap<String, HashSet<String>>| {
-            for (key, lv) in &sccp.values {
-                let (var_name, _ver) = key;
+            for ((sym, _ver), lv) in &fu.sccp.values {
                 let Some(values) = lattice_command_values(lv) else {
                     continue;
                 };
-                let entry = out.entry(var_name.clone()).or_default();
+                let entry = out.entry(fu.ssa.var_name(*sym).to_owned()).or_default();
                 for v in values {
                     entry.insert(v);
                 }
             }
         };
-        collect_from(&cu.top_level.sccp, &mut all_constsets);
+        collect_from(&cu.top_level, &mut all_constsets);
         for fu in cu.procedures.values() {
-            collect_from(&fu.sccp, &mut all_constsets);
+            collect_from(fu, &mut all_constsets);
         }
 
         harvest_array_set_constants(cu, &mut all_constsets);
@@ -513,7 +512,7 @@ impl Analyser {
             fu.taints
                 .iter()
                 .filter(|(_, tl)| tl.is_tainted())
-                .map(|((var, _ver), _)| var.clone())
+                .map(|((sym, _ver), _)| fu.ssa.var_name(*sym).to_owned())
                 .collect()
         };
         let mut tainted_by_scope: FxHashMap<String, HashSet<String>> = FxHashMap::default();
@@ -932,9 +931,9 @@ impl Analyser {
         // across every function in the CU.  Same shape as
         // ``emit_var_command_diagnostics``.
         let mut all_constsets: HashMap<String, HashSet<String>> = HashMap::new();
-        let collect_from = |sccp: &crate::sccp::SccpResult,
+        let collect_from = |fu: &crate::compilation_unit::FunctionUnit,
                             out: &mut HashMap<String, HashSet<String>>| {
-            for ((var_name, _ver), lv) in &sccp.values {
+            for ((sym, _ver), lv) in &fu.sccp.values {
                 let values: Option<Vec<String>> = match lv {
                     LatticeValue::Const(ConstValue::String(s)) => Some(vec![s.clone()]),
                     LatticeValue::ConstSet(set) => set
@@ -947,15 +946,15 @@ impl Analyser {
                     _ => None,
                 };
                 let Some(values) = values else { continue };
-                let entry = out.entry(var_name.clone()).or_default();
+                let entry = out.entry(fu.ssa.var_name(*sym).to_owned()).or_default();
                 for v in values {
                     entry.insert(v);
                 }
             }
         };
-        collect_from(&cu.top_level.sccp, &mut all_constsets);
+        collect_from(&cu.top_level, &mut all_constsets);
         for fu in cu.procedures.values() {
-            collect_from(&fu.sccp, &mut all_constsets);
+            collect_from(fu, &mut all_constsets);
         }
 
         // Build the universe of names that count as "known
@@ -1109,7 +1108,10 @@ fn harvest_dict_with_constants(
                 // The call-site-propagated literal lands at the param entry (v0).
                 let Some(crate::analyses::LatticeValue::Const(
                     crate::analyses::ConstValue::String(dict_text),
-                )) = fu.sccp.values.get(&(dvar.to_string(), 0))
+                )) = fu
+                    .ssa
+                    .var_symbol(dvar)
+                    .and_then(|s| fu.sccp.values.get(&(s, 0)))
                 else {
                     continue;
                 };
@@ -1268,6 +1270,9 @@ fn w307_precise_cmd_values(
         }
     }
     let fu = fu_by_qname.get(best?.1)?;
+    // A command-head variable that is not an SSA variable of `fu` has no
+    // precise per-version value here.
+    let sym = fu.ssa.var_symbol(var_name)?;
 
     // Narrowest CFG statement containing `offset` that uses `var_name`,
     // reading its SSA use-version (CFG / SSA blocks are parallel-indexed).
@@ -1285,7 +1290,7 @@ fn w307_precise_cmd_values(
             let Some(ssa_stmt) = ssa_block.statements.get(idx) else {
                 continue;
             };
-            let Some(version) = ssa_stmt.uses.get(var_name) else {
+            let Some(version) = ssa_stmt.uses.get(&sym) else {
                 continue;
             };
             let width = span.end() - span.start();
@@ -1296,6 +1301,6 @@ fn w307_precise_cmd_values(
         }
     }
     let version = best_version?;
-    let lv = fu.sccp.values.get(&(var_name.to_string(), version))?;
+    let lv = fu.sccp.values.get(&(sym, version))?;
     Some(lattice_command_values(lv)?.into_iter().collect())
 }

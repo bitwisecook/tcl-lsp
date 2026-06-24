@@ -209,8 +209,8 @@ pub fn find_path_concat_warnings(
             let mut has_interp = false;
             let mut has_literal_space = false;
             let mut suppressed_by_colour = false;
-            for (def_name, &def_ver) in &ssa_stmt.defs {
-                let key: ValueKey = (def_name.clone(), def_ver);
+            for (&def_name, &def_ver) in &ssa_stmt.defs {
+                let key: ValueKey = (def_name, def_ver);
                 if let Some(rp) = rendered_props.get(&key) {
                     if rp.may.intersects(path_sep_bits) {
                         has_path_sep = true;

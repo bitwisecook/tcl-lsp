@@ -184,7 +184,10 @@ impl FunctionUnit {
         params: &[String],
         registry: &CommandRegistry,
         param_constants: Option<
-            &std::collections::HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>,
+            &std::collections::HashMap<
+                (String, crate::ssa::Version),
+                crate::analyses::LatticeValue,
+            >,
         >,
     ) -> Self {
         Self::build_with_param_constants_and_classes(
@@ -213,7 +216,10 @@ impl FunctionUnit {
         params: &[String],
         registry: &CommandRegistry,
         param_constants: Option<
-            &std::collections::HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>,
+            &std::collections::HashMap<
+                (String, crate::ssa::Version),
+                crate::analyses::LatticeValue,
+            >,
         >,
         known_classes: &HashSet<String>,
     ) -> Self {
@@ -254,6 +260,7 @@ impl FunctionUnit {
             &types,
             registry,
             known_classes,
+            &ssa,
         );
         let rendered_props = propagate_rendered_props(&cfg, &ssa, &sccp, registry);
         let taints = propagate_taints(
@@ -930,10 +937,10 @@ fn params_constants_from_call_sites(
     params: &[String],
     call_site_constants: &HashMap<String, HashMap<usize, ArgConsts>>,
     qname: &str,
-) -> Option<HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>> {
+) -> Option<HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>> {
     use crate::analyses::{ConstValue, LatticeValue};
     let by_idx = call_site_constants.get(qname)?;
-    let mut consts: HashMap<crate::ssa::ValueKey, LatticeValue> = HashMap::new();
+    let mut consts: HashMap<(String, crate::ssa::Version), LatticeValue> = HashMap::new();
     for (i, pname) in params.iter().enumerate() {
         if pname == "args" {
             break;
@@ -970,7 +977,7 @@ fn params_constants_from_call_sites(
 /// Defensive: the current producer never emits a non-string seed.
 #[must_use]
 pub(crate) fn encode_param_constants(
-    param_constants: Option<&HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>>,
+    param_constants: Option<&HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>>,
 ) -> Option<Vec<(String, u32, String)>> {
     use crate::analyses::{ConstValue, LatticeValue};
     let Some(map) = param_constants else {
@@ -993,7 +1000,7 @@ pub(crate) fn encode_param_constants(
 #[must_use]
 pub fn decode_param_constants(
     encoded: &[(String, u32, String)],
-) -> Option<HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>> {
+) -> Option<HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>> {
     use crate::analyses::{ConstValue, LatticeValue};
     if encoded.is_empty() {
         return None;

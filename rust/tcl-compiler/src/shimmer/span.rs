@@ -27,8 +27,8 @@ pub fn def_range_map(ssa: &SsaFunction) -> HashMap<ValueKey, Span> {
     for block in ssa.blocks.values() {
         for ss in &block.statements {
             let sp = ss.statement.span();
-            for (name, &ver) in &ss.defs {
-                out.insert((name.clone(), ver), sp);
+            for (&sym, &ver) in &ss.defs {
+                out.insert((sym, ver), sp);
             }
         }
     }
@@ -53,7 +53,7 @@ pub(crate) fn phi_span(phi: &Phi, ssa: &SsaFunction, def_map: &HashMap<ValueKey,
     let earliest = phi
         .incoming
         .values()
-        .filter_map(|&ver| def_map.get(&(phi.name.clone(), ver)).copied())
+        .filter_map(|&ver| def_map.get(&(phi.name, ver)).copied())
         .min_by_key(|sp| (sp.start(), sp.end()));
     if let Some(sp) = earliest {
         return sp;
@@ -81,6 +81,8 @@ mod tests {
     /// just `entry`, so its [`BlockId`] is `BlockId(0)`.
     fn make_ssa_with_def(name: &str, ver: u32, span: Span) -> SsaFunction {
         let entry = BlockId(0);
+        let mut ssa = SsaFunction::trivial("::top", entry, vec!["entry".to_owned()]);
+        let sym = ssa.intern_var(name);
         let stmt = Statement::AssignConst {
             span,
             name: name.to_owned(),
@@ -92,7 +94,7 @@ mod tests {
             uses: HashMap::new(),
             defs: {
                 let mut d = HashMap::new();
-                d.insert(name.to_owned(), ver);
+                d.insert(sym, ver);
                 d
             },
         };
@@ -103,7 +105,6 @@ mod tests {
             entry_versions: HashMap::new(),
             exit_versions: HashMap::new(),
         };
-        let mut ssa = SsaFunction::trivial("::top", entry, vec!["entry".to_owned()]);
         ssa.blocks.insert(entry, block);
         ssa
     }
@@ -111,24 +112,28 @@ mod tests {
     #[test]
     fn def_range_map_finds_statement_span() {
         let ssa = make_ssa_with_def("x", 1, Span::new(10, 20));
+        let x = ssa.var_symbol("x").unwrap();
         let map = def_range_map(&ssa);
-        assert_eq!(map.get(&("x".to_owned(), 1)), Some(&Span::new(10, 20)));
+        assert_eq!(map.get(&(x, 1)), Some(&Span::new(10, 20)));
     }
 
     #[test]
     fn def_range_map_misses_unknown_key() {
-        let ssa = make_ssa_with_def("x", 1, Span::new(10, 20));
+        let mut ssa = make_ssa_with_def("x", 1, Span::new(10, 20));
+        let x = ssa.var_symbol("x").unwrap();
+        let y = ssa.intern_var("y");
         let map = def_range_map(&ssa);
-        assert!(!map.contains_key(&("y".to_owned(), 1)));
-        assert!(!map.contains_key(&("x".to_owned(), 2)));
+        assert!(!map.contains_key(&(y, 1)));
+        assert!(!map.contains_key(&(x, 2)));
     }
 
     #[test]
     fn phi_span_uses_incoming_version() {
         let ssa = make_ssa_with_def("x", 1, Span::new(10, 20));
+        let x = ssa.var_symbol("x").unwrap();
         let def_map = def_range_map(&ssa);
         let phi = Phi {
-            name: "x".to_owned(),
+            name: x,
             version: 2,
             incoming: {
                 let mut m = HashMap::new();
@@ -141,11 +146,12 @@ mod tests {
 
     #[test]
     fn phi_span_falls_back_to_first_statement() {
-        let ssa = make_ssa_with_def("x", 1, Span::new(5, 15));
+        let mut ssa = make_ssa_with_def("x", 1, Span::new(5, 15));
+        let z = ssa.intern_var("z");
         let empty_map: HashMap<ValueKey, Span> = HashMap::new();
         // phi for an unrelated variable — no incoming matches def_map.
         let phi = Phi {
-            name: "z".to_owned(),
+            name: z,
             version: 1,
             incoming: HashMap::new(),
         };
@@ -156,9 +162,10 @@ mod tests {
 
     #[test]
     fn phi_span_returns_zero_when_empty_ssa() {
-        let empty_ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".to_owned()]);
+        let mut empty_ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".to_owned()]);
+        let x = empty_ssa.intern_var("x");
         let phi = Phi {
-            name: "x".to_owned(),
+            name: x,
             version: 1,
             incoming: HashMap::new(),
         };
