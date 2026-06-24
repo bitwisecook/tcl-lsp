@@ -722,6 +722,27 @@ impl Analyser {
         // hierarchy and emit W308 instead of W307.
         let cmd_sites = std::mem::take(&mut self.cmd_command_sites);
         for site in &cmd_sites {
+            // `[cmd]::method` namespaced-ensemble dispatch (FP-OBJ-07): a
+            // command-substitution head composed with a literal `::method` tail.
+            // The literal tail is static method-name evidence — the dispatch is
+            // well-formed (only the namespace prefix is computed at runtime), so
+            // W307 must not fire. A bare `[cmd] arg` dispatch with no `::method`
+            // tail has no such evidence and still fires.
+            {
+                let s = site.cmd_span.start() as usize;
+                let e = (site.cmd_span.end() as usize).min(self.source.len());
+                let word = &self.source[s..e];
+                if word.starts_with('[')
+                    && let Some(p) = word.find("]::")
+                {
+                    let tail = &word[p + 3..];
+                    if !tail.is_empty()
+                        && tail.chars().all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+                    {
+                        continue;
+                    }
+                }
+            }
             // No blanket `in_method` suppression: an in-method `[cmd] method`
             // dispatch must earn its silence from a positive signal (a known
             // OBJECT return type, or `my`/`self` self-dispatch resolving to a

@@ -271,7 +271,6 @@ namespace eval ::ns {
 [::ns::dispatch]::work hello
 ";
 
-#[ignore = "FP-OBJ-07: Rust emits W307 where Python suppresses; emitted=[\"W307\"]; cmd-sub namespaced ensemble [cmd]::method suppression not yet implemented in Rust analyser"]
 #[test]
 fn fp_obj_07_cmdsub_namespaced_ensemble_no_w307() {
     // FP-OBJ-07: `[cmd]::method` is the namespaced-ensemble dispatch idiom — W307 must NOT fire.
