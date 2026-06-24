@@ -81,3 +81,5 @@ mod sanity {
 }
 
 mod obj;
+mod ds;
+mod sh;
