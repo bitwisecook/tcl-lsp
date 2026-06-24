@@ -1409,3 +1409,60 @@ fn multipass_string_build_collapses_to_literal() {
     assert!(!out.contains("append"));
     assert!(!out.contains("set msg"));
 }
+
+// Cross-event dead-store / info-exists soundness (TestCrossEventDSE) — these
+// were miscompiles surfaced by the port and are now FIXED in the source
+// (connection_scope info-exists read detection + the O126 cross-event skip +
+// the cross-event existence-fold post-pass). iRule `when` handlers share
+// connection-scoped variables, so a store read in a later event must survive.
+mod cross_event_dse {
+    use tcl_compiler::optimiser::manager::{apply_optimisations, optimise_with_dialect};
+    use tcl_registry::registry_for_dialect;
+
+    fn optimised(src: &str) -> String {
+        let reg = registry_for_dialect("f5-irules");
+        apply_optimisations(src, &optimise_with_dialect(src, reg, Some("f5-irules")))
+    }
+
+    #[test]
+    fn direct_read_store_survives() {
+        // `$uri` in HTTP_RESPONSE reads the value set in HTTP_REQUEST; O126 must
+        // not delete the store. (tclsh: the response handler logs the request's
+        // uri — deleting `set uri` leaves $uri undefined.)
+        let out = optimised(
+            "when HTTP_REQUEST { set uri [HTTP::uri] }\nwhen HTTP_RESPONSE { log local0. \"uri=$uri\" }",
+        );
+        assert!(out.contains("set uri"), "cross-event store deleted:\n{out}");
+    }
+
+    #[test]
+    fn info_exists_flag_survives_and_is_not_folded() {
+        // `[info exists ans_cleared]` in DNS_RESPONSE observes a flag set in
+        // DNS_REQUEST — neither the store nor the existence check may be folded
+        // away (else the response takes the wrong branch).
+        let out = optimised(
+            "when DNS_REQUEST { set ans_cleared 1 }\nwhen DNS_RESPONSE { if {[info exists ans_cleared]} { return } }",
+        );
+        assert!(out.contains("set ans_cleared"), "store deleted:\n{out}");
+        assert!(
+            out.contains("info exists ans_cleared"),
+            "info exists folded to a constant:\n{out}"
+        );
+    }
+
+    #[test]
+    fn second_info_exists_variant_survives() {
+        let out = optimised(
+            "when HTTP_REQUEST { set allowlist 1 }\nwhen HTTP_RESPONSE { if {[info exists allowlist]} { log local0. ok } }",
+        );
+        assert!(out.contains("set allowlist"), "store deleted:\n{out}");
+        assert!(out.contains("info exists allowlist"), "folded:\n{out}");
+    }
+
+    #[test]
+    fn same_event_dead_store_still_eliminated() {
+        // Control: a store overwritten in the SAME event is genuinely dead.
+        let out = optimised("when HTTP_REQUEST { set t 1\n set t 2\n log local0. $t }");
+        assert!(!out.contains("set t 1"), "same-event dead store kept:\n{out}");
+    }
+}
