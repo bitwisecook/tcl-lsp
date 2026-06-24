@@ -88,10 +88,10 @@ pub fn range_dict(span: Span, line_index: &LineIndex, source: &str) -> Value {
     let end = line_index.position_at(inclusive_end);
     json!({
         "startLine": start.line,
-        "startCol": start.character,
+        "startCol": start.character.get(),
         "startOffset": start.offset,
         "endLine": end.line,
-        "endCol": end.character + 1,
+        "endCol": end.character.get() + 1,
         "endOffset": end.offset + 1,
     })
 }

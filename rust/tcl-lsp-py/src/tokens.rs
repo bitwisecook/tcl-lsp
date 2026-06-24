@@ -11,7 +11,7 @@
 
 use pyo3::prelude::*;
 
-use tcl_lexer::{SourcePosition as CoreSourcePosition, TokenType as CoreTokenType};
+use tcl_lexer::{ByteCol, SourcePosition as CoreSourcePosition, TokenType as CoreTokenType};
 
 /// `enum.Enum`-style token kind exposed to Python as
 /// `tcl_lsp_py.TokenType` (also reachable via the
@@ -157,7 +157,7 @@ impl PySourcePosition {
     #[pyo3(signature = (line, character, offset))]
     fn new(line: u32, character: u32, offset: u32) -> Self {
         Self {
-            inner: CoreSourcePosition::new(line, character, offset),
+            inner: CoreSourcePosition::new(line, ByteCol::new(character), offset),
         }
     }
 
@@ -168,7 +168,7 @@ impl PySourcePosition {
 
     #[getter]
     fn character(&self) -> u32 {
-        self.inner.character
+        self.inner.character.get()
     }
 
     #[getter]
