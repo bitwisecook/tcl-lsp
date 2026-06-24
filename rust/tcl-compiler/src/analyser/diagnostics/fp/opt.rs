@@ -5,6 +5,8 @@
 //! O120, O126 (and related analyser codes W211/W220 where they overlap with the
 //! optimiser surface).
 
+use crate::compilation_unit::CompilationUnit;
+use crate::compiler_checks::run_all_checks;
 use crate::optimiser::manager::{apply_optimisations, optimise_with_dialect};
 use tcl_registry::registry_for_dialect;
 
@@ -38,6 +40,25 @@ fn opt_rewrites(src: &str, dialect: &str) -> Vec<(String, String)> {
         .into_iter()
         .map(|o| (o.code.as_str().to_owned(), o.replacement.clone()))
         .collect()
+}
+
+/// Diagnostic codes from the compiler-checks pass (the LICM / GVN / reachability
+/// surface). O106/O107 are *diagnostics*, not rewrites, so they flow through
+/// `run_all_checks` rather than the optimiser rewrite manager — this helper is
+/// the right probe for those codes.
+fn check_codes(src: &str, dialect: &str) -> Vec<String> {
+    let registry = registry_for_dialect(dialect);
+    let d = (!dialect.is_empty()).then_some(dialect);
+    let cu = CompilationUnit::build_for(src, registry, false);
+    run_all_checks(&cu, registry, d)
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
+/// True if `code` appears in the compiler-checks diagnostic set for `src`.
+fn check_fires(src: &str, dialect: &str, code: &str) -> bool {
+    check_codes(src, dialect).iter().any(|c| c == code)
 }
 
 // ---------------------------------------------------------------------------
@@ -143,17 +164,21 @@ proc f {} {
 #[test]
 fn fp_opt_03_inner_impure_blocks_licm() {
     // FP-OPT-03: LICM must NOT hoist [format %04d [incr testnum]] — inner impure.
+    // O106 is a *diagnostic* (find_loop_invariants), so probe the compiler-checks
+    // surface, not the rewrite manager.
     assert!(
-        !opt_fires(FP_OPT_03_REPRO, D, "O106"),
-        "FP-OPT-03: inner-impure expression must block LICM O106; rewrites={:?}",
-        opt_rewrites(FP_OPT_03_REPRO, D)
+        !check_fires(FP_OPT_03_REPRO, D, "O106"),
+        "FP-OPT-03: inner-impure expression must block LICM O106; codes={:?}",
+        check_codes(FP_OPT_03_REPRO, D)
     );
 }
 
 #[test]
-#[ignore = "FP-OPT-03: Rust suppresses O106 vs Python fires; actual=[] (LICM hoistability not yet implemented for outer-pure/inner-pure nested call shape)"]
 fn fp_opt_03_outer_pure_inner_pure_still_fires() {
     // TP control: genuinely pure-recursive expression IS hoistable and O106 fires.
+    // The `set s [...]` body sits in the loop *header* of this bottom-test `for`
+    // loop; find_loop_invariants must scan header statements (the guard is in the
+    // latch terminator) to surface the hoistable `[format %04d [expr {$k + 1}]]`.
     let src = "\
 proc f {} {
     set k 42
@@ -164,9 +189,9 @@ proc f {} {
 }
 ";
     assert!(
-        opt_fires(src, D, "O106"),
-        "FP-OPT-03 TP: pure expression should be hoistable, O106 should fire; rewrites={:?}",
-        opt_rewrites(src, D)
+        check_fires(src, D, "O106"),
+        "FP-OPT-03 TP: pure expression should be hoistable, O106 should fire; codes={:?}",
+        check_codes(src, D)
     );
 }
 
