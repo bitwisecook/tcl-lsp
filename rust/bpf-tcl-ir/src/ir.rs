@@ -222,8 +222,10 @@ pub struct Block {
 /// The eBPF program type / attach point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgType {
-    /// `BPF_PROG_TYPE_SOCKET_FILTER`.
+    /// `BPF_PROG_TYPE_SOCKET_FILTER` — verdict is bytes to accept (`0` = drop).
     SocketFilter,
+    /// `BPF_PROG_TYPE_XDP` — verdict is `XDP_ABORTED`(0)/`DROP`(1)/`PASS`(2)/`TX`(3).
+    Xdp,
 }
 
 /// A declared BPF map. In v1 maps are integer-keyed, integer-valued (`key` and

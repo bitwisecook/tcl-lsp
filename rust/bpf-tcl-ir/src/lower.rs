@@ -33,6 +33,7 @@ pub fn lower_function(func: &Function, prog_type: ProgType) -> Result<BpfProgram
     }
     let mut l = Lowerer {
         func,
+        prog_type,
         env: HashMap::new(),
         slot_types: Vec::new(),
         block_ids: HashMap::new(),
@@ -71,6 +72,8 @@ pub fn lower_function(func: &Function, prog_type: ProgType) -> Result<BpfProgram
 
 struct Lowerer<'f> {
     func: &'f Function,
+    /// Program type — selects verdict semantics (`accept`/`drop` vs `pass`/`tx`).
+    prog_type: ProgType,
     /// Typed symbol table: variable name → (stable slot, type). Function-global
     /// because slots are mutable locals (no SSA).
     env: HashMap<String, (SlotId, Ty)>,
@@ -274,6 +277,81 @@ impl Lowerer<'_> {
         Ok(None)
     }
 
+    /// Lower a verdict command (`accept`/`drop`/`pass`/`tx`), validated against
+    /// the program type, into a `Return`.
+    fn lower_verdict(
+        &mut self,
+        cmd: &str,
+        args: &[String],
+        span: Span,
+        insts: &mut Vec<Inst>,
+    ) -> Result<Option<Term>, BpfError> {
+        let verdict = match cmd {
+            "accept" => {
+                if self.prog_type != ProgType::SocketFilter {
+                    return Err(BpfError::new(
+                        BpfDiag::OutOfSubset,
+                        span,
+                        "`accept` is a socket-filter verdict; use `pass`/`drop`/`tx` for XDP",
+                    ));
+                }
+                if args.is_empty() {
+                    let dst = self.fresh_slot(Ty::Int, span)?;
+                    insts.push(Inst::CtxLen { dst, span });
+                    dst
+                } else if args.len() == 1 {
+                    self.lower_expr(&parse_expr(&args[0], None), insts, span)?
+                } else {
+                    return Err(arity(span, "accept", "?N?"));
+                }
+            }
+            "pass" | "tx" => {
+                if self.prog_type != ProgType::Xdp {
+                    return Err(BpfError::new(
+                        BpfDiag::OutOfSubset,
+                        span,
+                        format!(
+                            "`{cmd}` is an XDP verdict; use `accept`/`drop` for socket filters"
+                        ),
+                    ));
+                }
+                if !args.is_empty() {
+                    return Err(arity(span, cmd, "(no arguments)"));
+                }
+                let val = if cmd == "pass" { 2 } else { 3 };
+                self.const_slot(val, span, insts)?
+            }
+            // `drop` is valid for both; the value differs by program type.
+            _ => {
+                if !args.is_empty() {
+                    return Err(arity(span, "drop", "(no arguments)"));
+                }
+                let val = self.drop_verdict();
+                self.const_slot(val, span, insts)?
+            }
+        };
+        Ok(Some(Term::Return { verdict, span }))
+    }
+
+    fn const_slot(
+        &mut self,
+        val: i64,
+        span: Span,
+        insts: &mut Vec<Inst>,
+    ) -> Result<SlotId, BpfError> {
+        let dst = self.fresh_slot(Ty::Int, span)?;
+        insts.push(Inst::Const { dst, val, span });
+        Ok(dst)
+    }
+
+    /// The `drop` verdict value for this program type.
+    fn drop_verdict(&self) -> i64 {
+        match self.prog_type {
+            ProgType::Xdp => 1, // XDP_DROP
+            ProgType::SocketFilter => 0,
+        }
+    }
+
     fn expect_ctx_ptr(&self, name: &str, span: Span) -> Result<SlotId, BpfError> {
         match self.env.get(name) {
             Some((slot, Ty::Ptr(Region::Ctx))) => Ok(*slot),
@@ -419,27 +497,7 @@ impl Lowerer<'_> {
                 insts.push(Inst::CtxLen { dst, span });
                 Ok(None)
             }
-            "accept" => {
-                let verdict = if args.is_empty() {
-                    let dst = self.fresh_slot(Ty::Int, span)?;
-                    insts.push(Inst::CtxLen { dst, span });
-                    dst
-                } else if args.len() == 1 {
-                    let e = parse_expr(&args[0], None);
-                    self.lower_expr(&e, insts, span)?
-                } else {
-                    return Err(arity(span, "accept", "?N?"));
-                };
-                Ok(Some(Term::Return { verdict, span }))
-            }
-            "drop" => {
-                if !args.is_empty() {
-                    return Err(arity(span, "drop", "(no arguments)"));
-                }
-                let dst = self.fresh_slot(Ty::Int, span)?;
-                insts.push(Inst::Const { dst, val: 0, span });
-                Ok(Some(Term::Return { verdict: dst, span }))
-            }
+            "accept" | "drop" | "pass" | "tx" => self.lower_verdict(cmd, args, span, insts),
             // `map NAME hash KEYSZ VALSZ MAX` is a declaration, collected up front.
             "map" => Ok(None),
             "map_get" => self.lower_map_get(args, span, insts),
@@ -592,16 +650,12 @@ impl Lowerer<'_> {
                     vec![true_target.clone(), false_target.clone()],
                 ))
             }
-            // A fall-through with no explicit `accept`/`drop` defaults to drop (0)
-            // — the safe default for a filter.
+            // A fall-through with no explicit verdict defaults to the program's
+            // `drop` value (0 for socket filters, XDP_DROP for XDP).
             Some(Terminator::Return { span, .. }) => {
                 let sp = span.unwrap_or_else(|| Span::empty(0));
-                let dst = self.fresh_slot(Ty::Int, sp)?;
-                insts.push(Inst::Const {
-                    dst,
-                    val: 0,
-                    span: sp,
-                });
+                let val = self.drop_verdict();
+                let dst = self.const_slot(val, sp, insts)?;
                 Ok((
                     Term::Return {
                         verdict: dst,
@@ -612,12 +666,8 @@ impl Lowerer<'_> {
             }
             None => {
                 let sp = Span::empty(0);
-                let dst = self.fresh_slot(Ty::Int, sp)?;
-                insts.push(Inst::Const {
-                    dst,
-                    val: 0,
-                    span: sp,
-                });
+                let val = self.drop_verdict();
+                let dst = self.const_slot(val, sp, insts)?;
                 Ok((
                     Term::Return {
                         verdict: dst,

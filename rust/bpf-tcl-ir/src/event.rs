@@ -10,9 +10,10 @@ use crate::ir::ProgType;
 pub fn event_to_prog_type(event: &str) -> Option<ProgType> {
     match event.to_ascii_uppercase().as_str() {
         "SOCKET_FILTER" | "SOCKET" => Some(ProgType::SocketFilter),
+        "XDP" => Some(ProgType::Xdp),
         _ => None,
     }
 }
 
 /// The known event names, for diagnostics and help text.
-pub const KNOWN_EVENTS: &[&str] = &["SOCKET_FILTER"];
+pub const KNOWN_EVENTS: &[&str] = &["SOCKET_FILTER", "XDP"];
