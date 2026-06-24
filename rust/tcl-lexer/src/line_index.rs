@@ -14,7 +14,7 @@
 //!
 //! [`Lexer`]: crate::lexer::Lexer
 
-use crate::tokens::SourcePosition;
+use crate::tokens::{SourcePosition, Utf16Col, Utf16Position};
 
 /// Sorted index of line-start byte offsets for a source string.
 ///
@@ -200,7 +200,7 @@ impl LineIndex {
     /// sequence (the resulting position would be unrepresentable). Callers
     /// should align *offset* to a `char` boundary before calling.
     #[must_use]
-    pub fn position_at_utf16(&self, offset: u32, source: &str) -> SourcePosition {
+    pub fn position_at_utf16(&self, offset: u32, source: &str) -> Utf16Position {
         let line_idx = self
             .line_starts
             .partition_point(|&start| start <= offset)
@@ -221,9 +221,9 @@ impl LineIndex {
         // but allocates per char.
         let line_prefix = &source[prefix_start..prefix_end];
         let col_utf16 = line_prefix.encode_utf16().count();
-        SourcePosition::new(
+        Utf16Position::new(
             u32::try_from(line_idx).expect("line count fits u32"),
-            u32::try_from(col_utf16).expect("UTF-16 column fits u32"),
+            Utf16Col::new(u32::try_from(col_utf16).expect("UTF-16 column fits u32")),
             offset,
         )
     }
@@ -240,7 +240,8 @@ impl LineIndex {
     /// `character` landing mid-code-point rounds up to the next char
     /// boundary so the result is always a valid byte index.
     #[must_use]
-    pub fn offset_at_utf16(&self, line: u32, character: u32, source: &str) -> u32 {
+    pub fn offset_at_utf16(&self, line: u32, character: Utf16Col, source: &str) -> u32 {
+        let character = character.get();
         let line_count = self.line_starts.len();
         let line_idx = line as usize;
         if line_idx >= line_count {
@@ -359,7 +360,7 @@ mod tests {
         let len = u32::try_from(src.len()).unwrap();
         let pos = idx.position_at_utf16(len + 2, src);
         assert_eq!(pos.line, 0);
-        assert_eq!(pos.character, len); // clamped to the line's full length
+        assert_eq!(pos.character.get(), len); // clamped to the line's full length
         assert_eq!(pos.offset, len + 2); // raw offset preserved
     }
 
@@ -388,15 +389,15 @@ mod tests {
         let src = "ab\ncde\nf";
         let idx = LineIndex::new(src);
         // (line, char) -> byte offset.
-        assert_eq!(idx.offset_at_utf16(0, 0, src), 0); // 'a'
-        assert_eq!(idx.offset_at_utf16(0, 2, src), 2); // end of line 0 (the '\n')
-        assert_eq!(idx.offset_at_utf16(1, 0, src), 3); // 'c'
-        assert_eq!(idx.offset_at_utf16(1, 3, src), 6); // end of line 1 (the '\n')
-        assert_eq!(idx.offset_at_utf16(2, 1, src), 8); // end of last line (EOF)
+        assert_eq!(idx.offset_at_utf16(0, Utf16Col::new(0), src), 0); // 'a'
+        assert_eq!(idx.offset_at_utf16(0, Utf16Col::new(2), src), 2); // end of line 0 (the '\n')
+        assert_eq!(idx.offset_at_utf16(1, Utf16Col::new(0), src), 3); // 'c'
+        assert_eq!(idx.offset_at_utf16(1, Utf16Col::new(3), src), 6); // end of line 1 (the '\n')
+        assert_eq!(idx.offset_at_utf16(2, Utf16Col::new(1), src), 8); // end of last line (EOF)
         // Clamps: char past content -> line content end; line past EOF -> len.
-        assert_eq!(idx.offset_at_utf16(0, 99, src), 2);
+        assert_eq!(idx.offset_at_utf16(0, Utf16Col::new(99), src), 2);
         assert_eq!(
-            idx.offset_at_utf16(9, 0, src),
+            idx.offset_at_utf16(9, Utf16Col::new(0), src),
             u32::try_from(src.len()).unwrap()
         );
         // Round-trips with position_at_utf16 at char boundaries.
@@ -415,9 +416,9 @@ mod tests {
         // 'a' + U+1F600 (2 UTF-16 units, 4 bytes) + 'b'.
         let src = "a\u{1F600}b";
         let idx = LineIndex::new(src);
-        assert_eq!(idx.offset_at_utf16(0, 0, src), 0); // 'a'
-        assert_eq!(idx.offset_at_utf16(0, 1, src), 1); // emoji start
-        assert_eq!(idx.offset_at_utf16(0, 3, src), 5); // 'b' (after 2 units)
+        assert_eq!(idx.offset_at_utf16(0, Utf16Col::new(0), src), 0); // 'a'
+        assert_eq!(idx.offset_at_utf16(0, Utf16Col::new(1), src), 1); // emoji start
+        assert_eq!(idx.offset_at_utf16(0, Utf16Col::new(3), src), 5); // 'b' (after 2 units)
     }
 
     #[test]
@@ -536,7 +537,7 @@ mod tests {
             let byte_pos = idx.position_at(offset);
             let utf16_pos = idx.position_at_utf16(offset, src);
             assert_eq!(byte_pos.line, utf16_pos.line);
-            assert_eq!(byte_pos.character, utf16_pos.character);
+            assert_eq!(byte_pos.character, utf16_pos.character.get());
         }
     }
 
@@ -548,7 +549,7 @@ mod tests {
         // ``é`` ends at byte offset 3 (``a`` = 1 + ``é`` = 2).
         // Byte column at offset 3 = 3; UTF-16 column = 2.
         assert_eq!(idx.position_at(3).character, 3);
-        assert_eq!(idx.position_at_utf16(3, src).character, 2);
+        assert_eq!(idx.position_at_utf16(3, src).character.get(), 2);
     }
 
     #[test]
@@ -561,7 +562,7 @@ mod tests {
         // Byte column at offset 5 = 5; UTF-16 column = 3 (1 ASCII
         // + 2 surrogates).
         assert_eq!(idx.position_at(5).character, 5);
-        assert_eq!(idx.position_at_utf16(5, src).character, 3);
+        assert_eq!(idx.position_at_utf16(5, src).character.get(), 3);
     }
 
     #[test]
@@ -571,8 +572,11 @@ mod tests {
         // ``é`` is 2 bytes, so ``hello\n`` line spans 0..7. UTF-16
         // chars on line 0: h, é, l, l, o = 5 code units.
         // The terminating ``\n`` is at byte offset 6.
-        assert_eq!(idx.position_at_utf16(6, src).character, 5);
+        assert_eq!(idx.position_at_utf16(6, src).character.get(), 5);
         // First char of line 1 (``w``) at byte offset 7.
-        assert_eq!(idx.position_at_utf16(7, src), SourcePosition::new(1, 0, 7));
+        assert_eq!(
+            idx.position_at_utf16(7, src),
+            Utf16Position::new(1, Utf16Col::new(0), 7)
+        );
     }
 }
