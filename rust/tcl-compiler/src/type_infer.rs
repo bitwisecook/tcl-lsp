@@ -358,14 +358,15 @@ fn expr_call_type(
         };
     }
     match function {
-        // Integer-returning conversions.
-        "int" | "round" | "ceil" | "floor" | "isqrt" | "wide" | "entier" => {
-            TypeLattice::of(TclType::Int)
-        }
-        // Double-returning math.
-        "double" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "atan2" | "sinh" | "cosh"
-        | "tanh" | "sqrt" | "exp" | "log" | "log10" | "pow" | "hypot" | "fmod" | "rand"
-        | "srand" => TypeLattice::of(TclType::Double),
+        // Integer-returning conversions. NB: `ceil`/`floor` are NOT here — they
+        // return a *double* in Tcl (`expr {ceil(3.14)}` → 4.0, `string is
+        // integer 4.0` → 0), unlike `round`/`int`/`entier` which round to an
+        // integer. Verified against tclsh8.6/9.0.
+        "int" | "round" | "isqrt" | "wide" | "entier" => TypeLattice::of(TclType::Int),
+        // Double-returning math (incl. ceil/floor, which yield N.0).
+        "double" | "ceil" | "floor" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "atan2"
+        | "sinh" | "cosh" | "tanh" | "sqrt" | "exp" | "log" | "log10" | "pow" | "hypot" | "fmod"
+        | "rand" | "srand" => TypeLattice::of(TclType::Double),
         // Boolean-returning predicates.
         "bool" | "isnan" | "isinf" => TypeLattice::of(TclType::Boolean),
         // Unknown function — conservative.
