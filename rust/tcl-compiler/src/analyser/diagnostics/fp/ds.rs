@@ -58,10 +58,6 @@ proc f {} {
 }
 ";
 
-#[ignore = "FP-DS-02: false W220 on `set w 5` in `incr i [expr {$w}]` — the $w read \
-sits inside the expr's {..} braces, which the substitution-hidden-reads scanner \
-does not treat as an expression (so it is modelled as neither an SSA use nor a \
-hidden read). Needs expr-brace awareness in the cmd-sub read scan / lowering."]
 #[test]
 fn fp_ds_02_expr_cmdsub_read_keeps_def_live() {
     // FP-DS-02: [expr {$w}] reads w; set w 5 is alive.
