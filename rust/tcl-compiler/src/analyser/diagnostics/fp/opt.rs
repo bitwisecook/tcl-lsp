@@ -320,7 +320,6 @@ proc f {} {
 ";
 
 #[test]
-#[ignore = "FP-OPT-08: Rust deletes `set b 0` even though $b survives vs Python keeps it; actual optimised=`... if {$b} { puts X }` without `set b 0` — EXPR/BODY descent in overlap filter not yet ported (D4-F10)"]
 fn fp_opt_08_nested_if_constant_chain_does_not_delete_inner_var() {
     // FP-OPT-08: overlap filter must NOT delete `set b 0` when $b survives in EXPR context.
     let opt_src = optimised(FP_OPT_08_REPRO, D);
