@@ -1,5 +1,6 @@
 [package]
 name = "tcl-compiler"
+publish.workspace = true
 description = "IR, CFG, SSA, and codegen for the Tcl compiler pipeline"
 version.workspace = true
 edition.workspace = true

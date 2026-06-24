@@ -10,6 +10,7 @@
 # See `docs/design/common-runtime-emitter-architecture.md`.
 [package]
 name = "tcl-vm"
+publish.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

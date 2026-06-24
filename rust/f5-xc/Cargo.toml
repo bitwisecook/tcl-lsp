@@ -1,5 +1,6 @@
 [package]
 name = "f5-xc"
+publish.workspace = true
 description = "iRule → F5 Distributed Cloud (XC) static translator and XC-translatability diagnostics"
 version.workspace = true
 edition.workspace = true

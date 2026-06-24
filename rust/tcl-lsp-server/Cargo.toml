@@ -1,5 +1,6 @@
 [package]
 name = "tcl-lsp-server"
+publish.workspace = true
 description = "Native LSP server for Tcl, built on tower-lsp-server + tcl-lsp-core"
 version.workspace = true
 edition.workspace = true

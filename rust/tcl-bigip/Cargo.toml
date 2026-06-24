@@ -1,5 +1,6 @@
 [package]
 name = "tcl-bigip"
+publish.workspace = true
 description = "The F5 BIG-IP object model and config parser"
 version.workspace = true
 edition.workspace = true

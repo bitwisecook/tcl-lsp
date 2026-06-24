@@ -1,5 +1,6 @@
 [package]
 name = "tcl-registry"
+publish.workspace = true
 description = "Command registry — single source of truth for Tcl command metadata"
 version.workspace = true
 edition.workspace = true

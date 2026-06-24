@@ -6,6 +6,7 @@
 # Built via `make explorer-wasm` (wasm-pack + wasm-opt); see the Makefile.
 [package]
 name = "tcl-explorer-wasm"
+publish.workspace = true
 description = "Rust → WASM compile() facade for the Tcl compiler-explorer GUI"
 version = "0.1.0"
 edition = "2024"

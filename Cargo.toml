@@ -95,6 +95,7 @@ exclude = [
 ]
 
 [workspace.package]
+publish = false
 version = "0.1.0"
 edition = "2024"
 # 2024 is the current Rust edition (editions ship ~every 3 years: 2015 / 2018 /

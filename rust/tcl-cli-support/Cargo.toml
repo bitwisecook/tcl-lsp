@@ -1,5 +1,6 @@
 [package]
 name = "tcl-cli-support"
+publish.workspace = true
 description = "Shared CLI plumbing for the native tcl / f5 CLIs (input/output, dialect registries)"
 version.workspace = true
 edition.workspace = true

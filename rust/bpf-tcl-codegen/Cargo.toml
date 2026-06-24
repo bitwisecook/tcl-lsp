@@ -1,5 +1,6 @@
 [package]
 name = "bpf-tcl-codegen"
+publish.workspace = true
 description = "eBPF (and later WASM) code generation for the BPF-Tcl DSL"
 version.workspace = true
 edition.workspace = true

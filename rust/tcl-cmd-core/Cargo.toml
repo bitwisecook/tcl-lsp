@@ -17,6 +17,7 @@
 # `tcl-bytecode` or a concrete runtime.
 [package]
 name = "tcl-cmd-core"
+publish.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

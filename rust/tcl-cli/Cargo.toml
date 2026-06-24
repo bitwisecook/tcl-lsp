@@ -1,5 +1,6 @@
 [package]
 name = "tcl-cli"
+publish.workspace = true
 description = "The unified `tcl` toolchain CLI"
 version.workspace = true
 edition.workspace = true

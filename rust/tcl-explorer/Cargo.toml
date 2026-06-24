@@ -1,5 +1,6 @@
 [package]
 name = "tcl-explorer"
+publish.workspace = true
 description = "Compiler-explorer pipeline + serialiser over the Tcl compiler crates (CLI / TUI / WASM front-ends consume this)"
 version.workspace = true
 edition.workspace = true

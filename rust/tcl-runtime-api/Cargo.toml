@@ -7,6 +7,7 @@
 # `docs/design/common-runtime-emitter-architecture.md` (§4f/§4g, Family B).
 [package]
 name = "tcl-runtime-api"
+publish.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

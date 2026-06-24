@@ -12,6 +12,7 @@
 # Tcl needs — see the `session` module.
 [package]
 name = "tcl-irule-test"
+publish.workspace = true
 description = "iRule test framework: BIG-IP topology → orchestrator setup, and the TMM-sim session driver"
 version.workspace = true
 edition.workspace = true
