@@ -1,0 +1,17 @@
+[package]
+name = "bpf-tcl-ir"
+description = "Typed, backend-agnostic mid-IR and framework front-end for the BPF-Tcl DSL"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-compiler = { path = "../tcl-compiler" }
+
+[lints]
+workspace = true

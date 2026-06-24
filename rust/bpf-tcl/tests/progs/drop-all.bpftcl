@@ -1,0 +1,4 @@
+# Drop every packet.
+when SOCKET_FILTER {
+    drop
+}

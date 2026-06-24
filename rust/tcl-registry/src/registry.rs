@@ -125,6 +125,7 @@ fn all_dialect_command_names() -> &'static HashSet<&'static str> {
                 set.insert(spec.name);
             }
         };
+        add(crate::commands::bpf::bpf_command_specs());
         add(crate::commands::tcl::tcl_command_specs());
         add(crate::commands::stdlib::stdlib_command_specs());
         add(crate::commands::tcllib::tcllib_command_specs());
@@ -178,6 +179,7 @@ impl CommandRegistry {
             return;
         }
         let specs: Vec<CommandSpec> = match dialect {
+            d if d == DialectSet::BPF => crate::commands::bpf::bpf_command_specs(),
             d if d == DialectSet::IRULES => crate::commands::irules::irules_command_specs(),
             d if d == DialectSet::IAPPS => crate::commands::iapps::iapps_command_specs(),
             d if d == DialectSet::TK => crate::commands::tk::tk_command_specs(),
@@ -218,6 +220,11 @@ impl CommandRegistry {
     /// Load iRules dialect commands (convenience wrapper).
     pub fn load_irules(&mut self) {
         self.load_dialect(DialectSet::IRULES);
+    }
+
+    /// Load BPF-Tcl dialect commands (convenience wrapper).
+    pub fn load_bpf(&mut self) {
+        self.load_dialect(DialectSet::BPF);
     }
 
     /// Whether this registry's dialect reads a bare leading-zero integer
