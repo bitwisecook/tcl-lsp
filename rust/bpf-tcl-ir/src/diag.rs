@@ -27,6 +27,9 @@ pub enum BpfDiag {
     BadProfile,
     /// An unknown template, or a malformed `template`/`use` declaration.
     BadTemplate,
+    /// A command forbidden by the profile's `allow`/`deny` capability policy,
+    /// or a malformed `allow`/`deny` declaration.
+    CapabilityDenied,
     /// Too many values for the 512-byte eBPF stack.
     StackOverflow,
     /// An internal invariant failure (a compiler bug, not user error).
@@ -49,6 +52,7 @@ impl BpfDiag {
             BpfDiag::StackOverflow => "BPF009",
             BpfDiag::BadProfile => "BPF010",
             BpfDiag::BadTemplate => "BPF011",
+            BpfDiag::CapabilityDenied => "BPF012",
             BpfDiag::Internal => "BPF999",
         }
     }
