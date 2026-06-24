@@ -82,8 +82,12 @@ fn cmd_check(args: &[String]) -> ExitCode {
         Ok(m) => {
             println!("ok: {} program(s)", m.programs.len());
             for d in &m.programs {
+                let attach = d
+                    .attach
+                    .as_ref()
+                    .map_or_else(String::new, |a| format!(", attach {} {}", a.kind, a.target));
                 println!(
-                    "  when {} (priority {}, {} slots, {} blocks)",
+                    "  when {} (priority {}, {} slots, {} blocks{attach})",
                     d.event,
                     d.priority,
                     d.program.num_slots,

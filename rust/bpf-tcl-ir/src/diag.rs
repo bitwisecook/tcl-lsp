@@ -30,6 +30,8 @@ pub enum BpfDiag {
     /// A command forbidden by the profile's `allow`/`deny` capability policy,
     /// or a malformed `allow`/`deny` declaration.
     CapabilityDenied,
+    /// A malformed `attach`, or an attach that matches no program's type.
+    BadAttach,
     /// Too many values for the 512-byte eBPF stack.
     StackOverflow,
     /// An internal invariant failure (a compiler bug, not user error).
@@ -53,6 +55,7 @@ impl BpfDiag {
             BpfDiag::BadProfile => "BPF010",
             BpfDiag::BadTemplate => "BPF011",
             BpfDiag::CapabilityDenied => "BPF012",
+            BpfDiag::BadAttach => "BPF013",
             BpfDiag::Internal => "BPF999",
         }
     }

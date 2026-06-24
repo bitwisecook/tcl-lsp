@@ -15,6 +15,7 @@ use tcl_lexer::Span;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::capability::{CapabilityPolicy, check_policy, collect_policy};
+use crate::deploy::resolve_attach;
 use crate::diag::{BpfDiag, BpfError};
 use crate::event::{KNOWN_EVENTS, event_to_prog_type};
 use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
@@ -88,10 +89,14 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
                 event: "SOCKET_FILTER".to_owned(),
                 priority: 500,
                 program,
+                attach: None,
                 source_base: 0,
             });
         }
     }
+
+    // Hang the (optional) deployment target off each program it governs.
+    resolve_attach(&module.top_level, &mut programs)?;
 
     // Deterministic order: ascending priority (lower = runs first, F5-style),
     // then event name as a tiebreaker.
@@ -167,12 +172,13 @@ fn lower_when_decl(
         event,
         priority,
         program,
+        attach: None,
         source_base,
     })
 }
 
-/// Remove top-level `profile`/`field`/`template`/`allow`/`deny` declarations
-/// (metadata, macro definitions, or policy — not executable code).
+/// Remove top-level `profile`/`field`/`template`/`allow`/`deny`/`attach`
+/// declarations (metadata, macro definitions, or policy — not executable code).
 fn strip_decls(script: &Script) -> Script {
     let kept = script
         .statements
@@ -189,7 +195,7 @@ fn is_decl(stmt: &Statement) -> bool {
         Statement::Call { command, canonical_command, .. }
             if matches!(
                 canonical_command.as_deref().unwrap_or(command.as_str()),
-                "profile" | "field" | "template" | "allow" | "deny"
+                "profile" | "field" | "template" | "allow" | "deny" | "attach"
             )
     )
 }
