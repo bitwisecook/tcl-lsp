@@ -589,6 +589,21 @@ impl Analyser {
                     if !found && objdefined_vars.contains(&site.var_name) {
                         found = true;
                     }
+                    // snit instances route method calls through delegation /
+                    // hull / options / built-ins (`$self`, `-option` cget/configure,
+                    // `info`/`destroy`), none of which the analyser models — so
+                    // method validation on a snit-typed receiver is unsound and
+                    // never fires W308 (FP-OBJ-05).
+                    if !found
+                        && class_names.iter().any(|cls| {
+                            self.result
+                                .all_classes
+                                .get(cls)
+                                .is_some_and(|cd| cd.metaclass.contains("snit::"))
+                        })
+                    {
+                        found = true;
+                    }
                     if !found && has_local_class && !self.disabled_diagnostics.contains("W308") {
                         let mut classes_sorted: Vec<&str> =
                             class_names.iter().map(String::as_str).collect();
