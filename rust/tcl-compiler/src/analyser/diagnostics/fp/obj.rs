@@ -229,7 +229,6 @@ fn fp_obj_05_snit_create_shorthand_no_w307() {
     );
 }
 
-#[ignore = "FP-OBJ-05: Rust emits W308 where Python suppresses; emitted=[\"W120\", \"W308\"]; snit instance method validation not yet suppressed in Rust analyser"]
 #[test]
 fn fp_obj_05_snit_instance_no_w308() {
     // FP-OBJ-05: snit instances must not get W308 method validation.
