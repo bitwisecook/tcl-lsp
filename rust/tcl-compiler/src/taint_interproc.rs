@@ -555,6 +555,11 @@ fn update_entry(
 /// [`infer_proc_summary`] (not `infer_fn`), so it validates the worklist's
 /// convergence *and* an injected memo's correctness at once — a stale memo entry
 /// trips the same assertion a missed call-graph edge would.
+///
+/// `registry` and `dialect` feed only the debug-only round-robin guard below, so
+/// in a release build (where `debug_assertions` is off and the guard is compiled
+/// out) they are genuinely unused.
+#[cfg_attr(not(debug_assertions), allow(unused_variables))]
 pub fn converge_summaries_with(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
