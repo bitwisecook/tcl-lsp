@@ -84,3 +84,6 @@ mod obj;
 mod ds;
 mod sh;
 mod rbs;
+mod rch;
+mod inj;
+mod bnd;
