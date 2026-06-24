@@ -23,6 +23,8 @@ pub enum BpfDiag {
     UnboundedLoop,
     /// An unknown event name in a `when` block.
     BadEvent,
+    /// An unknown profile, or a malformed `profile`/`field` declaration.
+    BadProfile,
     /// Too many values for the 512-byte eBPF stack.
     StackOverflow,
     /// An internal invariant failure (a compiler bug, not user error).
@@ -43,6 +45,7 @@ impl BpfDiag {
             BpfDiag::UnboundedLoop => "BPF007",
             BpfDiag::BadEvent => "BPF008",
             BpfDiag::StackOverflow => "BPF009",
+            BpfDiag::BadProfile => "BPF010",
             BpfDiag::Internal => "BPF999",
         }
     }
