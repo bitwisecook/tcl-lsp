@@ -16,6 +16,7 @@
 # wasm32-clean leaf.
 [package]
 name = "tcl-bytecode"
+publish.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

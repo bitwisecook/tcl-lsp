@@ -1,5 +1,6 @@
 [package]
 name = "tcl-bigip-query"
+publish.workspace = true
 description = "The F5 BIG-IP query DSL: the jq-flavoured language powering `f5 query` (lexer, parser, evaluator, projection, builtins)."
 version.workspace = true
 edition.workspace = true

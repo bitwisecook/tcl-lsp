@@ -1,5 +1,6 @@
 [package]
 name = "bpf-tcl"
+publish.workspace = true
 description = "BPF-Tcl compiler CLI and userspace eBPF run harness"
 version.workspace = true
 edition.workspace = true

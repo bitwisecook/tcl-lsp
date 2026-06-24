@@ -16,6 +16,7 @@
 # the approximate `regex`-crate path (the bytecode VM).
 [package]
 name = "tcl-regex"
+publish.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

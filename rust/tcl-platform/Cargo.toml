@@ -15,6 +15,7 @@
 # See `docs/design/common-runtime-emitter-architecture.md` (§ capability model).
 [package]
 name = "tcl-platform"
+publish.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

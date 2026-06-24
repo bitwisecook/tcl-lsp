@@ -1,5 +1,6 @@
 [package]
 name = "tcl-lexer"
+publish.workspace = true
 description = "Position-aware lexer for Tcl, iRules, and related dialects"
 version.workspace = true
 edition.workspace = true

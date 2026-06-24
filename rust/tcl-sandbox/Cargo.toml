@@ -1,5 +1,6 @@
 [package]
 name = "tcl-sandbox"
+publish.workspace = true
 description = "Portable, deprivileged execution sandbox for the tcl package manager: a capability/policy-floor model over a portable baseline (environment scrubbing, working-directory confinement, wall-clock timeouts) with OS-native confinement layered on per platform."
 version.workspace = true
 edition.workspace = true

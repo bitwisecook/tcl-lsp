@@ -1,5 +1,6 @@
 [package]
 name = "tcl-lsp-core"
+publish.workspace = true
 description = "Pure Rust LSP feature providers for tcl-lsp (folding, symbols, diagnostics projection)"
 version.workspace = true
 edition.workspace = true

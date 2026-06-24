@@ -16,6 +16,7 @@
 # convert at the call on the UTF-8-internal-rep invariant.
 [package]
 name = "tcl-syntax"
+publish.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

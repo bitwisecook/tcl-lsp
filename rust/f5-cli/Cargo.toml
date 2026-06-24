@@ -1,5 +1,6 @@
 [package]
 name = "f5-cli"
+publish.workspace = true
 description = "The `f5-query` BIG-IP / iRules CLI"
 version.workspace = true
 edition.workspace = true
