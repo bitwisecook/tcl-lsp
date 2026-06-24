@@ -68,21 +68,51 @@ impl TokenType {
     }
 }
 
-/// A position in source text.
+/// A zero-based column counted in **bytes** from the start of its line.
 ///
-/// Stores 0-based line and character plus the absolute byte offset into
-/// the source string. The `character` field is currently a **byte
-/// offset within the line**, not a UTF-16 code-unit column; it
-/// therefore matches LSP-style columns only for ASCII text. All three
-/// fields are `u32`, which bounds the largest source file we care about
-/// at 4 GiB, well above any realistic Tcl/iRules input.
+/// This is the raw column [`LineIndex::position_at`](crate::LineIndex::position_at)
+/// produces; it agrees with an LSP UTF-16 column ([`Utf16Col`]) only for ASCII
+/// text. Kept a distinct type so a byte column can never be handed to an LSP
+/// consumer that expects UTF-16 code units — the conversion has to go through
+/// [`LineIndex::position_at_utf16`](crate::LineIndex::position_at_utf16). Build
+/// one with [`ByteCol::new`], read it back with [`ByteCol::get`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct ByteCol(u32);
+
+impl ByteCol {
+    /// Wrap a raw byte-column count.
+    #[must_use]
+    pub const fn new(bytes: u32) -> Self {
+        Self(bytes)
+    }
+
+    /// The raw byte-column count.
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl std::fmt::Display for ByteCol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// A position in source text whose `character` column is counted in **bytes**
+/// (see [`ByteCol`]).
+///
+/// Stores a 0-based line and byte column plus the absolute byte offset into the
+/// source string. Produced by
+/// [`LineIndex::position_at`](crate::LineIndex::position_at); the UTF-16-column
+/// counterpart is [`Utf16Position`]. Keeping the two columns as separate types
+/// means the byte column can never be mistaken for an LSP UTF-16 column.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct SourcePosition {
     /// 0-based line number.
     pub line: u32,
-    /// 0-based byte offset within the line (ASCII-parity with LSP
-    /// columns; UTF-16 parity is deferred work).
-    pub character: u32,
+    /// 0-based column, in bytes from the line start.
+    pub character: ByteCol,
     /// Byte offset into the source string.
     pub offset: u32,
 }
@@ -91,7 +121,7 @@ impl SourcePosition {
     /// Construct a new `SourcePosition`. `const`-friendly so callers can
     /// build sentinel positions in static contexts.
     #[must_use]
-    pub const fn new(line: u32, character: u32, offset: u32) -> Self {
+    pub const fn new(line: u32, character: ByteCol, offset: u32) -> Self {
         Self {
             line,
             character,
@@ -176,7 +206,7 @@ impl Utf16Position {
 /// assert_eq!(source_map.text(first.span), "puts");
 /// let (start, end) = source_map.range_positions(first.span);
 /// assert_eq!(start.line, 0);
-/// assert_eq!(end.character, 3);
+/// assert_eq!(end.character.get(), 3);
 /// ```
 ///
 /// The `Token` itself is 16 bytes, `Copy`, and has no lifetime —
@@ -344,9 +374,9 @@ mod tests {
     #[test]
     fn source_position_construction_and_field_access() {
         // A position at line 5, character 10, byte offset 100.
-        let pos = SourcePosition::new(5, 10, 100);
+        let pos = SourcePosition::new(5, ByteCol::new(10), 100);
         assert_eq!(pos.line, 5);
-        assert_eq!(pos.character, 10);
+        assert_eq!(pos.character.get(), 10);
         assert_eq!(pos.offset, 100);
     }
 
@@ -354,15 +384,15 @@ mod tests {
     fn source_position_default_is_origin() {
         let pos = SourcePosition::default();
         assert_eq!(pos.line, 0);
-        assert_eq!(pos.character, 0);
+        assert_eq!(pos.character.get(), 0);
         assert_eq!(pos.offset, 0);
     }
 
     #[test]
     fn source_position_equality_and_hash() {
-        let a = SourcePosition::new(1, 2, 3);
-        let b = SourcePosition::new(1, 2, 3);
-        let c = SourcePosition::new(1, 2, 4);
+        let a = SourcePosition::new(1, ByteCol::new(2), 3);
+        let b = SourcePosition::new(1, ByteCol::new(2), 3);
+        let c = SourcePosition::new(1, ByteCol::new(2), 4);
         assert_eq!(a, b);
         assert_ne!(a, c);
 
@@ -376,7 +406,7 @@ mod tests {
     #[test]
     fn source_position_is_copy() {
         // Copy check via shadowing.
-        let a = SourcePosition::new(1, 2, 3);
+        let a = SourcePosition::new(1, ByteCol::new(2), 3);
         let b = a;
         assert_eq!(a, b);
     }
@@ -387,9 +417,9 @@ mod tests {
         // narrow on any supported target. We don't expect real Tcl
         // files to approach these values, but the type must not
         // panic or overflow if a fabricated test fixture does.
-        let pos = SourcePosition::new(u32::MAX, u32::MAX, u32::MAX);
+        let pos = SourcePosition::new(u32::MAX, ByteCol::new(u32::MAX), u32::MAX);
         assert_eq!(pos.line, u32::MAX);
-        assert_eq!(pos.character, u32::MAX);
+        assert_eq!(pos.character.get(), u32::MAX);
         assert_eq!(pos.offset, u32::MAX);
     }
 
@@ -469,8 +499,8 @@ mod tests {
         assert!(eof.span.is_empty());
         assert_eq!(map.text(eof.span), "");
         let (start, end) = map.range_positions(eof.span);
-        assert_eq!(start, SourcePosition::new(0, 3, 3));
-        assert_eq!(end, SourcePosition::new(0, 3, 3));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(3), 3));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(3), 3));
     }
 
     #[test]

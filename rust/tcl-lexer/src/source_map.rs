@@ -19,7 +19,7 @@
 
 use crate::line_index::LineIndex;
 use crate::span::Span;
-use crate::tokens::{SourcePosition, Token, TokenType};
+use crate::tokens::{ByteCol, SourcePosition, Token, TokenType};
 
 /// A source buffer paired with its line index.
 ///
@@ -190,7 +190,7 @@ impl<'src> SourceMap<'src> {
         SourcePosition::new(
             self.base_line + raw.line,
             if raw.line == 0 {
-                self.base_col + raw.character
+                ByteCol::new(self.base_col + raw.character.get())
             } else {
                 raw.character
             },
@@ -237,8 +237,14 @@ mod tests {
     #[test]
     fn position_at_start_of_line() {
         let map = SourceMap::new("abc\ndef");
-        assert_eq!(map.position_at(0), SourcePosition::new(0, 0, 0));
-        assert_eq!(map.position_at(4), SourcePosition::new(1, 0, 4));
+        assert_eq!(
+            map.position_at(0),
+            SourcePosition::new(0, ByteCol::new(0), 0)
+        );
+        assert_eq!(
+            map.position_at(4),
+            SourcePosition::new(1, ByteCol::new(0), 4)
+        );
     }
 
     #[test]
@@ -246,16 +252,16 @@ mod tests {
         let map = SourceMap::new("abc def");
         // span covering "abc" — start at (0,0,0), end at (0,2,2) for 'c'
         let (start, end) = map.range_positions(Span::new(0, 3));
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 2, 2));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(2), 2));
     }
 
     #[test]
     fn range_positions_for_empty_span_point_at_start() {
         let map = SourceMap::new("abc");
         let (start, end) = map.range_positions(Span::empty(3));
-        assert_eq!(start, SourcePosition::new(0, 3, 3));
-        assert_eq!(end, SourcePosition::new(0, 3, 3));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(3), 3));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(3), 3));
     }
 
     #[test]
@@ -263,12 +269,12 @@ mod tests {
         let map = SourceMap::new("ab\ncd");
         // Span covering just the '\n' at offset 2
         let (start, end) = map.range_positions(Span::new(2, 3));
-        assert_eq!(start, SourcePosition::new(0, 2, 2));
-        assert_eq!(end, SourcePosition::new(0, 2, 2));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(2), 2));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(2), 2));
         // Span covering "cd" on line 1
         let (start, end) = map.range_positions(Span::new(3, 5));
-        assert_eq!(start, SourcePosition::new(1, 0, 3));
-        assert_eq!(end, SourcePosition::new(1, 1, 4));
+        assert_eq!(start, SourcePosition::new(1, ByteCol::new(0), 3));
+        assert_eq!(end, SourcePosition::new(1, ByteCol::new(1), 4));
     }
 
     #[test]

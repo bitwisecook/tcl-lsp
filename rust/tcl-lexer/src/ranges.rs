@@ -24,7 +24,7 @@
 //! [`SourceMap`]: crate::SourceMap
 
 use crate::source_map::SourceMap;
-use crate::tokens::{SourcePosition, Token};
+use crate::tokens::{ByteCol, SourcePosition, Token};
 
 /// The closing delimiter for an opening `"` / `{` / `[`, or `None`.
 const fn closer_for(opener: u8) -> Option<u8> {
@@ -45,9 +45,13 @@ const fn closer_for(opener: u8) -> Option<u8> {
 /// `offset` for line/column-based consumers.
 fn closer_position(end: SourcePosition, last_inner: Option<u8>) -> SourcePosition {
     if matches!(last_inner, Some(b'\n' | b'\r')) {
-        SourcePosition::new(end.line + 1, 0, end.offset + 1)
+        SourcePosition::new(end.line + 1, ByteCol::new(0), end.offset + 1)
     } else {
-        SourcePosition::new(end.line, end.character + 1, end.offset + 1)
+        SourcePosition::new(
+            end.line,
+            ByteCol::new(end.character.get() + 1),
+            end.offset + 1,
+        )
     }
 }
 
@@ -290,7 +294,7 @@ mod tests {
         let sm = SourceMap::new(src);
         let tok = first_word(src);
         let pos = word_end_position(&sm, tok);
-        assert_eq!(pos, SourcePosition::new(0, 4, 4));
+        assert_eq!(pos, SourcePosition::new(0, ByteCol::new(4), 4));
     }
 
     #[test]
@@ -314,7 +318,7 @@ mod tests {
         let tok = first_word(src);
         assert_eq!(tok.kind, TokenType::Str);
         let pos = word_end_position(&sm, tok);
-        assert_eq!(pos, SourcePosition::new(1, 0, 3));
+        assert_eq!(pos, SourcePosition::new(1, ByteCol::new(0), 3));
         assert_eq!(src.as_bytes()[pos.offset as usize], b'}');
     }
 

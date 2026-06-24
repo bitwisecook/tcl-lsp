@@ -1271,7 +1271,7 @@ fn is_separator_byte(byte: u8) -> bool {
 mod tests {
     use super::*;
     use crate::line_index::LineIndex;
-    use crate::tokens::SourcePosition;
+    use crate::tokens::{ByteCol, SourcePosition};
 
     struct Lexed<'src> {
         source_map: SourceMap<'src>,
@@ -1482,8 +1482,8 @@ mod tests {
     fn position_tracking_simple_word() {
         let lexed = Lexed::run("foo");
         let (start, end) = lexed.positions(0);
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 2, 2));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(2), 2));
     }
 
     #[test]
@@ -1492,19 +1492,19 @@ mod tests {
         // ESC "ab" at (0,0)-(0,1)
         let (start, end) = lexed.positions(0);
         assert_eq!(lexed.source_map.text(lexed.tokens[0].span), "ab");
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 1, 1));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(1), 1));
         // EOL "\n" at (0,2)-(0,2)
         let (start, end) = lexed.positions(1);
         assert_eq!(lexed.tokens[1].kind, TokenType::Eol);
         assert_eq!(lexed.source_map.text(lexed.tokens[1].span), "\n");
-        assert_eq!(start, SourcePosition::new(0, 2, 2));
-        assert_eq!(end, SourcePosition::new(0, 2, 2));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(2), 2));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(2), 2));
         // ESC "cd" at (1,0)-(1,1)
         let (start, end) = lexed.positions(2);
         assert_eq!(lexed.source_map.text(lexed.tokens[2].span), "cd");
-        assert_eq!(start, SourcePosition::new(1, 0, 3));
-        assert_eq!(end, SourcePosition::new(1, 1, 4));
+        assert_eq!(start, SourcePosition::new(1, ByteCol::new(0), 3));
+        assert_eq!(end, SourcePosition::new(1, ByteCol::new(1), 4));
     }
 
     #[test]
@@ -1883,8 +1883,8 @@ mod tests {
         assert_eq!(var.span.start(), 0);
         assert_eq!(var.span.end(), 4);
         let (start, end) = map.range_positions(var.span);
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 3, 3));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(3), 3));
         assert_eq!(map.token_text(*var), "foo");
     }
 
@@ -2070,8 +2070,8 @@ mod tests {
         assert_eq!(cmd.span.start(), 0);
         assert_eq!(cmd.span.end(), 4);
         let (start, end) = map.range_positions(cmd.span);
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 3, 3));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(3), 3));
         assert_eq!(map.token_text(*cmd), "cmd");
     }
 
@@ -2262,8 +2262,8 @@ mod tests {
         assert_eq!(brace.span.start(), 0);
         assert_eq!(brace.span.end(), 6);
         let (start, end) = map.range_positions(brace.span);
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 5, 5));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(5), 5));
         assert_eq!(map.token_text(*brace), "hello");
     }
 
@@ -2445,8 +2445,8 @@ mod tests {
         assert_eq!(esc.span.start(), 0);
         assert_eq!(esc.span.end(), 6);
         let (start, end) = map.range_positions(esc.span);
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 5, 5));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(5), 5));
         assert_eq!(map.token_text(*esc), "hello");
     }
 
@@ -2590,8 +2590,8 @@ mod tests {
         assert_eq!(expand.span.start(), 0);
         assert_eq!(expand.span.end(), 0);
         let (start, end) = map.range_positions(expand.span);
-        assert_eq!(start, SourcePosition::new(0, 0, 0));
-        assert_eq!(end, SourcePosition::new(0, 0, 0));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(0), 0));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(0), 0));
     }
 
     #[test]

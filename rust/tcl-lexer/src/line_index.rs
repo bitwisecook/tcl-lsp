@@ -14,7 +14,7 @@
 //!
 //! [`Lexer`]: crate::lexer::Lexer
 
-use crate::tokens::{SourcePosition, Utf16Col, Utf16Position};
+use crate::tokens::{ByteCol, SourcePosition, Utf16Col, Utf16Position};
 
 /// Sorted index of line-start byte offsets for a source string.
 ///
@@ -156,7 +156,7 @@ impl LineIndex {
         let line_start = self.line_starts[line_idx];
         SourcePosition::new(
             u32::try_from(line_idx).expect("line count fits u32"),
-            offset - line_start,
+            ByteCol::new(offset - line_start),
             offset,
         )
     }
@@ -426,15 +426,24 @@ mod tests {
         let idx = LineIndex::new("");
         assert_eq!(idx.line_count(), 1);
         assert_eq!(idx.line_start(0), 0);
-        assert_eq!(idx.position_at(0), SourcePosition::new(0, 0, 0));
+        assert_eq!(
+            idx.position_at(0),
+            SourcePosition::new(0, ByteCol::new(0), 0)
+        );
     }
 
     #[test]
     fn single_line_no_newline() {
         let idx = LineIndex::new("hello");
         assert_eq!(idx.line_count(), 1);
-        assert_eq!(idx.position_at(0), SourcePosition::new(0, 0, 0));
-        assert_eq!(idx.position_at(3), SourcePosition::new(0, 3, 3));
+        assert_eq!(
+            idx.position_at(0),
+            SourcePosition::new(0, ByteCol::new(0), 0)
+        );
+        assert_eq!(
+            idx.position_at(3),
+            SourcePosition::new(0, ByteCol::new(3), 3)
+        );
     }
 
     #[test]
@@ -444,27 +453,57 @@ mod tests {
         assert_eq!(idx.line_start(0), 0);
         assert_eq!(idx.line_start(1), 4);
         // 'a' at offset 0 → (0, 0, 0)
-        assert_eq!(idx.position_at(0), SourcePosition::new(0, 0, 0));
+        assert_eq!(
+            idx.position_at(0),
+            SourcePosition::new(0, ByteCol::new(0), 0)
+        );
         // 'c' at offset 2 → (0, 2, 2)
-        assert_eq!(idx.position_at(2), SourcePosition::new(0, 2, 2));
+        assert_eq!(
+            idx.position_at(2),
+            SourcePosition::new(0, ByteCol::new(2), 2)
+        );
         // '\n' at offset 3 → (0, 3, 3) — still on line 0
-        assert_eq!(idx.position_at(3), SourcePosition::new(0, 3, 3));
+        assert_eq!(
+            idx.position_at(3),
+            SourcePosition::new(0, ByteCol::new(3), 3)
+        );
         // 'd' at offset 4 → (1, 0, 4) — first char of line 1
-        assert_eq!(idx.position_at(4), SourcePosition::new(1, 0, 4));
+        assert_eq!(
+            idx.position_at(4),
+            SourcePosition::new(1, ByteCol::new(0), 4)
+        );
         // 'f' at offset 6 → (1, 2, 6)
-        assert_eq!(idx.position_at(6), SourcePosition::new(1, 2, 6));
+        assert_eq!(
+            idx.position_at(6),
+            SourcePosition::new(1, ByteCol::new(2), 6)
+        );
     }
 
     #[test]
     fn many_lines() {
         let idx = LineIndex::new("a\nb\nc\nd\n");
         assert_eq!(idx.line_count(), 5);
-        assert_eq!(idx.position_at(0), SourcePosition::new(0, 0, 0));
-        assert_eq!(idx.position_at(2), SourcePosition::new(1, 0, 2));
-        assert_eq!(idx.position_at(4), SourcePosition::new(2, 0, 4));
-        assert_eq!(idx.position_at(6), SourcePosition::new(3, 0, 6));
+        assert_eq!(
+            idx.position_at(0),
+            SourcePosition::new(0, ByteCol::new(0), 0)
+        );
+        assert_eq!(
+            idx.position_at(2),
+            SourcePosition::new(1, ByteCol::new(0), 2)
+        );
+        assert_eq!(
+            idx.position_at(4),
+            SourcePosition::new(2, ByteCol::new(0), 4)
+        );
+        assert_eq!(
+            idx.position_at(6),
+            SourcePosition::new(3, ByteCol::new(0), 6)
+        );
         // Past the final '\n' — empty 5th line at offset 8.
-        assert_eq!(idx.position_at(8), SourcePosition::new(4, 0, 8));
+        assert_eq!(
+            idx.position_at(8),
+            SourcePosition::new(4, ByteCol::new(0), 8)
+        );
     }
 
     #[test]
@@ -474,9 +513,18 @@ mod tests {
         // line 1: ""
         // line 2: "b"
         assert_eq!(idx.line_count(), 3);
-        assert_eq!(idx.position_at(0), SourcePosition::new(0, 0, 0));
-        assert_eq!(idx.position_at(2), SourcePosition::new(1, 0, 2));
-        assert_eq!(idx.position_at(3), SourcePosition::new(2, 0, 3));
+        assert_eq!(
+            idx.position_at(0),
+            SourcePosition::new(0, ByteCol::new(0), 0)
+        );
+        assert_eq!(
+            idx.position_at(2),
+            SourcePosition::new(1, ByteCol::new(0), 2)
+        );
+        assert_eq!(
+            idx.position_at(3),
+            SourcePosition::new(2, ByteCol::new(0), 3)
+        );
     }
 
     #[test]
@@ -494,9 +542,15 @@ mod tests {
         // First line spans bytes 0..5 (``abc\r\n``); second line
         // starts at offset 5.
         assert_eq!(idx.line_start(1), 5);
-        assert_eq!(idx.position_at(5), SourcePosition::new(1, 0, 5));
+        assert_eq!(
+            idx.position_at(5),
+            SourcePosition::new(1, ByteCol::new(0), 5)
+        );
         // Within line 1, offset 7 is column 2 (``f``).
-        assert_eq!(idx.position_at(7), SourcePosition::new(1, 2, 7));
+        assert_eq!(
+            idx.position_at(7),
+            SourcePosition::new(1, ByteCol::new(2), 7)
+        );
     }
 
     #[test]
@@ -507,9 +561,15 @@ mod tests {
         let idx = LineIndex::new("abc\rdef");
         assert_eq!(idx.line_count(), 1);
         // The lone CR at offset 3 is itself on line 0, column 3.
-        assert_eq!(idx.position_at(3), SourcePosition::new(0, 3, 3));
+        assert_eq!(
+            idx.position_at(3),
+            SourcePosition::new(0, ByteCol::new(3), 3)
+        );
         // ``def`` (offset 4) stays on line 0, column 4 — not line 1.
-        assert_eq!(idx.position_at(4), SourcePosition::new(0, 4, 4));
+        assert_eq!(
+            idx.position_at(4),
+            SourcePosition::new(0, ByteCol::new(4), 4)
+        );
     }
 
     #[test]
@@ -524,8 +584,14 @@ mod tests {
         assert_eq!(idx.line_start(1), 2);
         assert_eq!(idx.line_start(2), 5);
         // The bare ``\r`` at offset 6 stays on line 2, not a new line.
-        assert_eq!(idx.position_at(6), SourcePosition::new(2, 1, 6));
-        assert_eq!(idx.position_at(7), SourcePosition::new(2, 2, 7));
+        assert_eq!(
+            idx.position_at(6),
+            SourcePosition::new(2, ByteCol::new(1), 6)
+        );
+        assert_eq!(
+            idx.position_at(7),
+            SourcePosition::new(2, ByteCol::new(2), 7)
+        );
     }
 
     #[test]
@@ -537,7 +603,7 @@ mod tests {
             let byte_pos = idx.position_at(offset);
             let utf16_pos = idx.position_at_utf16(offset, src);
             assert_eq!(byte_pos.line, utf16_pos.line);
-            assert_eq!(byte_pos.character, utf16_pos.character.get());
+            assert_eq!(byte_pos.character.get(), utf16_pos.character.get());
         }
     }
 
@@ -548,7 +614,7 @@ mod tests {
         let idx = LineIndex::new(src);
         // ``é`` ends at byte offset 3 (``a`` = 1 + ``é`` = 2).
         // Byte column at offset 3 = 3; UTF-16 column = 2.
-        assert_eq!(idx.position_at(3).character, 3);
+        assert_eq!(idx.position_at(3).character.get(), 3);
         assert_eq!(idx.position_at_utf16(3, src).character.get(), 2);
     }
 
@@ -561,7 +627,7 @@ mod tests {
         // ``😀`` ends at byte offset 5 (1 + 4).
         // Byte column at offset 5 = 5; UTF-16 column = 3 (1 ASCII
         // + 2 surrogates).
-        assert_eq!(idx.position_at(5).character, 5);
+        assert_eq!(idx.position_at(5).character.get(), 5);
         assert_eq!(idx.position_at_utf16(5, src).character.get(), 3);
     }
 
