@@ -1846,7 +1846,8 @@ mod tests {
     #[test]
     fn meta_lists_all_dialects_views_and_severities() {
         let meta = serialise_meta();
-        assert_eq!(meta["dialects"].as_array().unwrap().len(), 14);
+        // 15 dialects: the prior 14 + `bpf` (the BPF-Tcl eBPF dialect).
+        assert_eq!(meta["dialects"].as_array().unwrap().len(), 15);
         // 26 views: the base 24 minus the dropped `greentree` tab (Rust has a
         // single red-green CST) plus the Rust-native `structuralIndex`,
         // `sourceMap`, and `optimiserPasses` views.

@@ -1,0 +1,79 @@
+//! End-to-end: a `.bpftcl` source → typed IR → eBPF bytes → executed under the
+//! userspace `rbpf` VM over a synthetic packet → asserted verdict.
+
+use bpf_tcl::run::run_socket_filter;
+use bpf_tcl_codegen::ebpf::emit_program;
+use bpf_tcl_ir::compile_module;
+
+fn run_src(src: &str, packet: &mut [u8]) -> u64 {
+    let module = compile_module(src).expect("source should compile");
+    let obj = emit_program(&module.programs[0].program).expect("program should emit");
+    run_socket_filter(&obj, packet).expect("program should run")
+}
+
+#[test]
+fn accept_all_returns_packet_len() {
+    let mut pkt = vec![0u8; 64];
+    assert_eq!(
+        run_src("when SOCKET_FILTER { setbuf pkt ctx\n accept }\n", &mut pkt),
+        64
+    );
+}
+
+#[test]
+fn drop_all_returns_zero() {
+    let mut pkt = vec![0u8; 64];
+    assert_eq!(run_src("drop\n", &mut pkt), 0);
+}
+
+#[test]
+fn arithmetic_verdict() {
+    // `accept {3 * 4 + 2}` → 14 (exercises Const/Bin/verdict end-to-end).
+    let mut pkt = vec![0u8; 8];
+    assert_eq!(
+        run_src("when SOCKET_FILTER { accept {3 * 4 + 2} }\n", &mut pkt),
+        14
+    );
+}
+
+const BLOCK_SSH: &str = "when SOCKET_FILTER priority 50 {\n\
+    setbuf pkt ctx\n\
+    pktlen len pkt\n\
+    if {$len < 38} { drop }\n\
+    load16 dport pkt 36\n\
+    if {$dport == 22} { drop }\n\
+    accept\n}\n";
+
+#[test]
+fn block_ssh_drops_port_22() {
+    let mut pkt = vec![0u8; 40];
+    // native-endian u16 at offset 36 == 22  →  bytes 0x16 0x00
+    pkt[36] = 0x16;
+    pkt[37] = 0x00;
+    assert_eq!(run_src(BLOCK_SSH, &mut pkt), 0);
+}
+
+#[test]
+fn block_ssh_accepts_port_80() {
+    let mut pkt = vec![0u8; 40];
+    pkt[36] = 0x50; // 80
+    pkt[37] = 0x00;
+    assert_eq!(run_src(BLOCK_SSH, &mut pkt), 40);
+}
+
+#[test]
+fn block_ssh_drops_short_packet() {
+    // len (20) < 38  → drop before the load.
+    let mut pkt = vec![0u8; 20];
+    assert_eq!(run_src(BLOCK_SSH, &mut pkt), 0);
+}
+
+#[test]
+fn example_programs_compile_and_run() {
+    // The shipped example files compile and run.
+    let accept = include_str!("progs/accept-all.bpftcl");
+    let drop = include_str!("progs/drop-all.bpftcl");
+    let mut pkt = vec![0u8; 100];
+    assert_eq!(run_src(accept, &mut pkt), 100);
+    assert_eq!(run_src(drop, &mut pkt), 0);
+}
