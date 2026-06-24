@@ -522,8 +522,12 @@ impl CodegenCtx<'_> {
         try_body_name: &str,
         try_finally_name: &str,
     ) {
-        let body_blk = &cfg.blocks[try_body_name];
-        let finally_blk = &cfg.blocks[try_finally_name];
+        let body_blk = cfg
+            .block_by_name(try_body_name)
+            .expect("try body block present");
+        let finally_blk = cfg
+            .block_by_name(try_finally_name)
+            .expect("try finally block present");
 
         // try body
         self.emit(

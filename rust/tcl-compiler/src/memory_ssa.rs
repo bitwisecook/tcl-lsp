@@ -25,6 +25,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
+use crate::cfg::BlockId;
 use crate::ir::Statement;
 use crate::ssa::{SsaFunction, Version};
 use crate::var_scoping::{
@@ -496,12 +497,12 @@ impl AliasUnionFind {
 pub fn compute_aliases(ssa: &SsaFunction) -> Vec<AliasSet> {
     let mut uf = AliasUnionFind::default();
 
-    // Walk blocks in deterministic name order so alias sets are
+    // Walk blocks in deterministic id order so alias sets are
     // reproducible across runs.
-    let mut block_names: Vec<&String> = ssa.blocks.keys().collect();
-    block_names.sort();
-    for bn in &block_names {
-        let block = &ssa.blocks[*bn];
+    let mut block_ids: Vec<BlockId> = ssa.blocks.keys().copied().collect();
+    block_ids.sort_unstable();
+    for &bid in &block_ids {
+        let block = &ssa.blocks[&bid];
         for stmt_ssa in &block.statements {
             let stmt = &stmt_ssa.statement;
 
@@ -573,16 +574,17 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
     let mut memory_phis: HashMap<String, Vec<MemoryOp>> = HashMap::new();
     let mut version_counter: Version = 0;
 
-    let mut visited: BTreeSet<String> = BTreeSet::new();
-    let mut stack: Vec<String> = vec![ssa.entry.clone()];
+    let mut visited: BTreeSet<BlockId> = BTreeSet::new();
+    let mut stack: Vec<BlockId> = vec![ssa.entry];
 
-    while let Some(bn) = stack.pop() {
-        if visited.contains(&bn) || !ssa.blocks.contains_key(&bn) {
+    while let Some(bid) = stack.pop() {
+        if visited.contains(&bid) || !ssa.blocks.contains_key(&bid) {
             continue;
         }
-        visited.insert(bn.clone());
+        visited.insert(bid);
 
-        let block = &ssa.blocks[&bn];
+        let block = &ssa.blocks[&bid];
+        let bn = ssa.block_name(bid);
 
         // Memory phis at merge points: one phi per aliased variable
         // that has a scalar phi here.
@@ -593,14 +595,14 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
                 let op = MemoryOp::new_phi(
                     MemoryLocation::new(MemoryLocationKind::Local, &phi.name),
                     version_counter,
-                    &bn,
+                    bn,
                 );
                 block_phis.push(op.clone());
                 memory_ops.push(op);
             }
         }
         if !block_phis.is_empty() {
-            memory_phis.insert(bn.clone(), block_phis);
+            memory_phis.insert(bn.to_string(), block_phis);
         }
 
         // Statements: clobbers, then defs, then uses.
@@ -610,7 +612,7 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
 
             if is_clobber(stmt) {
                 version_counter += 1;
-                memory_ops.push(MemoryOp::new_clobber(version_counter, &bn, idx_i32));
+                memory_ops.push(MemoryOp::new_clobber(version_counter, bn, idx_i32));
                 // Fall through — a barrier that also defines
                 // aliased vars still emits its defs.
             }
@@ -621,7 +623,7 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
                     memory_ops.push(MemoryOp::new_def(
                         MemoryLocation::new(MemoryLocationKind::Local, name),
                         version_counter,
-                        &bn,
+                        bn,
                         idx_i32,
                     ));
                 }
@@ -632,7 +634,7 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
                     memory_ops.push(MemoryOp::new_use(
                         MemoryLocation::new(MemoryLocationKind::Local, name),
                         version_counter,
-                        &bn,
+                        bn,
                         idx_i32,
                     ));
                 }
@@ -642,9 +644,9 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
         // Push dominator-tree children in reverse so the iterative
         // stack visits them left-to-right, preserving the recursive
         // visitation order.
-        if let Some(children) = ssa.dominator_tree.get(&bn) {
-            for child in children.iter().rev() {
-                stack.push(child.clone());
+        if let Some(children) = ssa.dominator_tree.get(&bid) {
+            for &child in children.iter().rev() {
+                stack.push(child);
             }
         }
     }
@@ -866,9 +868,10 @@ mod tests {
                 defs: HashMap::new(),
             });
         }
-        let mut blocks = HashMap::new();
-        blocks.insert(
-            "entry".into(),
+        let entry = BlockId(0);
+        let mut ssa = SsaFunction::trivial("::test", entry, vec!["entry".into()]);
+        ssa.blocks.insert(
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -877,16 +880,8 @@ mod tests {
                 exit_versions: HashMap::new(),
             },
         );
-        let mut dom = HashMap::new();
-        dom.insert("entry".to_string(), Vec::new());
-        SsaFunction {
-            name: "::test".into(),
-            entry: "entry".into(),
-            blocks,
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: dom,
-        }
+        ssa.dominator_tree.insert(entry, Vec::new());
+        ssa
     }
 
     #[test]
@@ -1009,9 +1004,10 @@ mod tests {
             defs: HashMap::new(),
         });
 
-        let mut blocks = HashMap::new();
-        blocks.insert(
-            "entry".into(),
+        let entry = BlockId(0);
+        let mut ssa = SsaFunction::trivial("::test", entry, vec!["entry".into()]);
+        ssa.blocks.insert(
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -1020,16 +1016,7 @@ mod tests {
                 exit_versions: HashMap::new(),
             },
         );
-        let mut dom = HashMap::new();
-        dom.insert("entry".to_string(), Vec::new());
-        let ssa = SsaFunction {
-            name: "::test".into(),
-            entry: "entry".into(),
-            blocks,
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: dom,
-        };
+        ssa.dominator_tree.insert(entry, Vec::new());
         let m = build_memory_ssa(&ssa);
         assert_eq!(m.count_defs, 1);
         assert_eq!(m.count_uses, 1);

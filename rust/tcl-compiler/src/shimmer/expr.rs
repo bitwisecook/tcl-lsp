@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_lexer::Span;
 use tcl_registry::TclType;
 
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
@@ -44,21 +44,21 @@ pub(crate) fn find_expr_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
 ) -> Vec<ShimmerWarning> {
     let mut out = Vec::new();
     let loop_blocks = loop_body_blocks(cfg);
 
-    for block_name in cfg_order(cfg) {
-        if !executable_blocks.contains(&block_name) {
+    for block_id in cfg_order(cfg) {
+        if !executable_blocks.contains(&block_id) {
             continue;
         }
-        let Some(ssa_block) = ssa.blocks.get(&block_name) else {
+        let Some(ssa_block) = ssa.blocks.get(&block_id) else {
             continue;
         };
         // An expr-operator shimmer inside a loop body re-converts the operand
         // every iteration (S101); outside a loop it is one-time (S100).
-        let in_loop = loop_blocks.contains(&block_name);
+        let in_loop = loop_blocks.contains(cfg.block_name(block_id));
         // Per-block de-duplication keyed on (statement span, variable): several
         // operands of the same statement that name the same variable emit one
         // warning, not one per operand.
@@ -78,7 +78,7 @@ pub(crate) fn find_expr_shimmers(
         }
 
         // 2. Branch terminator condition (if/while/for predicate).
-        if let Some(block) = cfg.blocks.get(&block_name)
+        if let Some(block) = cfg.blocks.get(&block_id)
             && let Some(Terminator::Branch {
                 condition, span, ..
             }) = &block.terminator

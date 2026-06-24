@@ -14,7 +14,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
 use tcl_registry::{CommandRegistry, Traits};
 
-use crate::cfg::{CfgModule, Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, CfgModule, Function as CfgFunction, Terminator};
 use crate::ir::Statement;
 use crate::side_effects::{EffectRegion, classify_side_effects};
 use crate::ssa::{SsaFunction, SsaStatement};
@@ -920,8 +920,8 @@ fn split_cmd_text(text: &str) -> Option<(String, Vec<String>)> {
 /// Iterative dominator-tree walk step. `Enter` pushes a fresh
 /// scope and processes the block; `Leave` pops the scope when all
 /// dominator children have been visited.
-enum WalkStep<'a> {
-    Enter(&'a str),
+enum WalkStep {
+    Enter(BlockId),
     Leave,
 }
 
@@ -962,7 +962,7 @@ pub fn find_redundancies(
     if !cfg.blocks.contains_key(&ssa.entry) {
         return results;
     }
-    let mut stack: Vec<WalkStep> = vec![WalkStep::Enter(ssa.entry.as_str())];
+    let mut stack: Vec<WalkStep> = vec![WalkStep::Enter(ssa.entry)];
 
     while let Some(step) = stack.pop() {
         match step {
@@ -973,12 +973,13 @@ pub fn find_redundancies(
                 table.push_scope();
                 stack.push(WalkStep::Leave);
 
-                let Some(cfg_block) = cfg.blocks.get(bn) else {
+                let Some(cfg_block) = cfg.blocks.get(&bn) else {
                     continue;
                 };
-                let Some(ssa_block) = ssa.blocks.get(bn) else {
+                let Some(ssa_block) = ssa.blocks.get(&bn) else {
                     continue;
                 };
+                let block_name = ssa.block_name(bn);
                 let stmt_count =
                     std::cmp::min(cfg_block.statements.len(), ssa_block.statements.len());
 
@@ -991,7 +992,8 @@ pub fn find_redundancies(
                         continue;
                     }
 
-                    let occurrences = statement_occurrences(registry, ssa_stmt, bn, idx, dialect);
+                    let occurrences =
+                        statement_occurrences(registry, ssa_stmt, block_name, idx, dialect);
                     for occ in occurrences {
                         if let Some(existing) = table.lookup(&occ.key) {
                             let text = existing.expression_text.clone();
@@ -1016,11 +1018,9 @@ pub fn find_redundancies(
 
                 // Visit dominator-tree children. Push in reverse so
                 // they're popped in left-to-right order.
-                if let Some(children) = ssa.dominator_tree.get(bn) {
-                    // Store borrowed references; the `children`
-                    // Vec's strings outlive the walk.
+                if let Some(children) = ssa.dominator_tree.get(&bn) {
                     for child in children.iter().rev() {
-                        stack.push(WalkStep::Enter(child.as_str()));
+                        stack.push(WalkStep::Enter(*child));
                     }
                 }
             }
@@ -1033,44 +1033,44 @@ pub fn find_redundancies(
 // Loop-invariant detection
 
 /// True when `ancestor` dominates `node` in `ssa.idom`.
-fn dominates(ssa: &SsaFunction, ancestor: &str, node: &str) -> bool {
+fn dominates(ssa: &SsaFunction, ancestor: BlockId, node: BlockId) -> bool {
     if ancestor == node {
         return true;
     }
-    let mut curr = node.to_owned();
+    let mut curr = node;
     loop {
         match ssa.idom.get(&curr) {
             Some(Some(parent)) => {
-                if parent == ancestor {
+                if *parent == ancestor {
                     return true;
                 }
-                curr = parent.clone();
+                curr = *parent;
             }
             _ => return false,
         }
     }
 }
 
-/// Enumerate block names reachable from `entry` via CFG edges.
-fn reachable_from(cfg: &CfgFunction, entry: &str) -> FxHashSet<String> {
+/// Enumerate blocks reachable from `entry` via CFG edges.
+fn reachable_from(cfg: &CfgFunction, entry: BlockId) -> FxHashSet<BlockId> {
     let mut out = FxHashSet::default();
-    let mut stack = vec![entry.to_owned()];
-    while let Some(name) = stack.pop() {
-        if !out.insert(name.clone()) {
+    let mut stack = vec![entry];
+    while let Some(id) = stack.pop() {
+        if !out.insert(id) {
             continue;
         }
-        if let Some(block) = cfg.blocks.get(&name)
+        if let Some(block) = cfg.blocks.get(&id)
             && let Some(term) = &block.terminator
         {
             match term {
-                Terminator::Goto { target, .. } => stack.push(target.clone()),
+                Terminator::Goto { target, .. } => stack.push(*target),
                 Terminator::Branch {
                     true_target,
                     false_target,
                     ..
                 } => {
-                    stack.push(true_target.clone());
-                    stack.push(false_target.clone());
+                    stack.push(*true_target);
+                    stack.push(*false_target);
                 }
                 Terminator::Return { .. } => {}
             }
@@ -1085,24 +1085,24 @@ fn reachable_from(cfg: &CfgFunction, entry: &str) -> FxHashSet<String> {
 /// the header.
 fn natural_loop_blocks(
     cfg: &CfgFunction,
-    header: &str,
-    latch: &str,
-    executable: &FxHashSet<String>,
-) -> FxHashSet<String> {
+    header: BlockId,
+    latch: BlockId,
+    executable: &FxHashSet<BlockId>,
+) -> FxHashSet<BlockId> {
     let preds = cfg.predecessors();
-    let mut blocks: FxHashSet<String> = FxHashSet::default();
-    blocks.insert(header.to_owned());
-    blocks.insert(latch.to_owned());
-    let mut work = vec![latch.to_owned()];
+    let mut blocks: FxHashSet<BlockId> = FxHashSet::default();
+    blocks.insert(header);
+    blocks.insert(latch);
+    let mut work = vec![latch];
     while let Some(node) = work.pop() {
         if let Some(ps) = preds.get(&node) {
             for p in ps {
                 if !executable.contains(p) || blocks.contains(p) {
                     continue;
                 }
-                blocks.insert(p.clone());
-                if p != header {
-                    work.push(p.clone());
+                blocks.insert(*p);
+                if *p != header {
+                    work.push(*p);
                 }
             }
         }
@@ -1112,7 +1112,10 @@ fn natural_loop_blocks(
 
 /// All variable names defined inside `loop_blocks` (phi LHS +
 /// statement defs).
-fn loop_defined_variables(ssa: &SsaFunction, loop_blocks: &FxHashSet<String>) -> FxHashSet<String> {
+fn loop_defined_variables(
+    ssa: &SsaFunction,
+    loop_blocks: &FxHashSet<BlockId>,
+) -> FxHashSet<String> {
     let mut defs = FxHashSet::default();
     for bn in loop_blocks {
         if let Some(block) = ssa.blocks.get(bn) {
@@ -1145,44 +1148,41 @@ pub fn find_loop_invariants(
     ssa: &SsaFunction,
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
-    let executable = reachable_from(cfg, &ssa.entry);
+    let executable = reachable_from(cfg, ssa.entry);
     let mut results: Vec<RedundantComputation> = Vec::new();
 
     // Collect unique header → loop_blocks pairs via back-edge
     // detection: edge tail → succ where succ dominates tail. The
     // back-edge tails (latches) are tracked per header for the
     // latch-dominance gate below.
-    let mut header_to_blocks: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let mut header_to_latches: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut header_to_blocks: FxHashMap<BlockId, FxHashSet<BlockId>> = FxHashMap::default();
+    let mut header_to_latches: FxHashMap<BlockId, FxHashSet<BlockId>> = FxHashMap::default();
     for tail in &executable {
         let Some(block) = cfg.blocks.get(tail) else {
             continue;
         };
-        let successors: Vec<String> = match &block.terminator {
-            Some(Terminator::Goto { target, .. }) => vec![target.clone()],
+        let successors: Vec<BlockId> = match &block.terminator {
+            Some(Terminator::Goto { target, .. }) => vec![*target],
             Some(Terminator::Branch {
                 true_target,
                 false_target,
                 ..
-            }) => vec![true_target.clone(), false_target.clone()],
+            }) => vec![*true_target, *false_target],
             _ => continue,
         };
         for succ in successors {
             if !executable.contains(&succ) {
                 continue;
             }
-            if !dominates(ssa, &succ, tail) {
+            if !dominates(ssa, succ, *tail) {
                 continue;
             }
-            let blocks = natural_loop_blocks(cfg, &succ, tail, &executable);
+            let blocks = natural_loop_blocks(cfg, succ, *tail, &executable);
             header_to_blocks
-                .entry(succ.clone())
-                .and_modify(|e| e.extend(blocks.iter().cloned()))
-                .or_insert(blocks);
-            header_to_latches
                 .entry(succ)
-                .or_default()
-                .insert(tail.clone());
+                .and_modify(|e| e.extend(blocks.iter().copied()))
+                .or_insert(blocks);
+            header_to_latches.entry(succ).or_default().insert(*tail);
         }
     }
 
@@ -1199,12 +1199,13 @@ pub fn find_loop_invariants(
             // on some iterations (it sits behind a branch inside the loop),
             // so hoisting it changes *when* it runs. Only blocks that
             // dominate every latch are guaranteed to execute each iteration.
-            if !latches.iter().all(|latch| dominates(ssa, bn, latch)) {
+            if !latches.iter().all(|latch| dominates(ssa, *bn, *latch)) {
                 continue;
             }
             let Some(ssa_block) = ssa.blocks.get(bn) else {
                 continue;
             };
+            let block_name = ssa.block_name(*bn);
             for (idx, stmt_ssa) in ssa_block.statements.iter().enumerate() {
                 // Purity gate — loop-invariance only makes sense
                 // for computations that don't otherwise touch
@@ -1212,7 +1213,8 @@ pub fn find_loop_invariants(
                 if statement_writes_state(registry, &stmt_ssa.statement, dialect) {
                     continue;
                 }
-                let occurrences = statement_occurrences(registry, stmt_ssa, bn, idx, dialect);
+                let occurrences =
+                    statement_occurrences(registry, stmt_ssa, block_name, idx, dialect);
                 for occ in occurrences {
                     if occ.variable_uses.iter().any(|name| defined.contains(name)) {
                         continue;
@@ -1260,8 +1262,11 @@ pub fn collect_function_occurrence_events(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     dialect: Option<&str>,
-) -> (FxHashMap<String, Vec<OccurrenceEvent>>, Vec<ExprOccurrence>) {
-    let mut events_by_block: FxHashMap<String, Vec<OccurrenceEvent>> = FxHashMap::default();
+) -> (
+    FxHashMap<BlockId, Vec<OccurrenceEvent>>,
+    Vec<ExprOccurrence>,
+) {
+    let mut events_by_block: FxHashMap<BlockId, Vec<OccurrenceEvent>> = FxHashMap::default();
     let mut all_occurrences: Vec<ExprOccurrence> = Vec::new();
 
     for (bn, cfg_block) in &cfg.blocks {
@@ -1269,6 +1274,7 @@ pub fn collect_function_occurrence_events(
             continue;
         };
         let stmt_count = cfg_block.statements.len().min(ssa_block.statements.len());
+        let block_name = cfg.block_name(*bn);
         let mut events: Vec<OccurrenceEvent> = Vec::new();
         for idx in 0..stmt_count {
             let ir_stmt = &cfg_block.statements[idx];
@@ -1277,13 +1283,13 @@ pub fn collect_function_occurrence_events(
                 events.push(OccurrenceEvent::Kill);
                 continue;
             }
-            for occ in statement_occurrences(registry, ssa_stmt, bn, idx, dialect) {
+            for occ in statement_occurrences(registry, ssa_stmt, block_name, idx, dialect) {
                 all_occurrences.push(occ.clone());
                 events.push(OccurrenceEvent::Occur(occ));
             }
         }
         if !events.is_empty() {
-            events_by_block.insert(bn.clone(), events);
+            events_by_block.insert(*bn, events);
         }
     }
 
@@ -1314,7 +1320,7 @@ fn transfer_occurrence_keys(
 /// hoisting before the merge point would save the computation
 /// on the path where it hadn't yet been run).
 /// Maps tracked by the partial-redundancy dataflow fixpoint.
-type ExprKeySetMap = FxHashMap<String, FxHashSet<ExprKey>>;
+type ExprKeySetMap = FxHashMap<BlockId, FxHashSet<ExprKey>>;
 
 /// Run the partial-redundancy may/must-availability dataflow
 /// fixpoint.  Returns `(may_in, may_out, must_in, must_out)` after
@@ -1323,10 +1329,10 @@ type ExprKeySetMap = FxHashMap<String, FxHashSet<ExprKey>>;
 fn run_partial_redundancy_fixpoint(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    executable: &FxHashSet<String>,
-    events_by_block: &FxHashMap<String, Vec<OccurrenceEvent>>,
+    executable: &FxHashSet<BlockId>,
+    events_by_block: &FxHashMap<BlockId, Vec<OccurrenceEvent>>,
     universe: &FxHashSet<ExprKey>,
-    order: &[String],
+    order: &[BlockId],
 ) -> (ExprKeySetMap, ExprKeySetMap, ExprKeySetMap, ExprKeySetMap) {
     let preds = cfg.predecessors();
     let mut may_in: ExprKeySetMap = FxHashMap::default();
@@ -1334,10 +1340,10 @@ fn run_partial_redundancy_fixpoint(
     let mut must_in: ExprKeySetMap = FxHashMap::default();
     let mut must_out: ExprKeySetMap = FxHashMap::default();
     for bn in executable {
-        may_in.insert(bn.clone(), FxHashSet::default());
-        may_out.insert(bn.clone(), FxHashSet::default());
+        may_in.insert(*bn, FxHashSet::default());
+        may_out.insert(*bn, FxHashSet::default());
         must_in.insert(
-            bn.clone(),
+            *bn,
             if bn == &ssa.entry {
                 FxHashSet::default()
             } else {
@@ -1352,7 +1358,7 @@ fn run_partial_redundancy_fixpoint(
             events_by_block.get(bn).map_or(&[][..], Vec::as_slice),
             initial_must_in,
         );
-        must_out.insert(bn.clone(), out);
+        must_out.insert(*bn, out);
     }
 
     let mut changed = true;
@@ -1362,12 +1368,12 @@ fn run_partial_redundancy_fixpoint(
             if !executable.contains(bn) {
                 continue;
             }
-            let pred_set: Vec<String> = preds
+            let pred_set: Vec<BlockId> = preds
                 .get(bn)
                 .map(|s| {
                     s.iter()
                         .filter(|p| executable.contains(*p))
-                        .cloned()
+                        .copied()
                         .collect()
                 })
                 .unwrap_or_default();
@@ -1393,19 +1399,19 @@ fn run_partial_redundancy_fixpoint(
                 new_may_in.clone(),
             );
             if new_must_in != must_in[bn] {
-                must_in.insert(bn.clone(), new_must_in);
+                must_in.insert(*bn, new_must_in);
                 changed = true;
             }
             if new_may_in != may_in[bn] {
-                may_in.insert(bn.clone(), new_may_in);
+                may_in.insert(*bn, new_may_in);
                 changed = true;
             }
             if new_must_out != must_out[bn] {
-                must_out.insert(bn.clone(), new_must_out);
+                must_out.insert(*bn, new_must_out);
                 changed = true;
             }
             if new_may_out != may_out[bn] {
-                may_out.insert(bn.clone(), new_may_out);
+                may_out.insert(*bn, new_may_out);
                 changed = true;
             }
         }
@@ -1425,7 +1431,7 @@ pub fn find_partial_redundancies(
     ssa: &SsaFunction,
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
-    let executable = reachable_from(cfg, &ssa.entry);
+    let executable = reachable_from(cfg, ssa.entry);
     if !executable.contains(&ssa.entry) {
         return Vec::new();
     }
@@ -1436,11 +1442,11 @@ pub fn find_partial_redundancies(
     }
     let universe: FxHashSet<ExprKey> = all_occurrences.iter().map(|o| o.key.clone()).collect();
 
-    let mut order: Vec<String> = cfg.reverse_postorder();
-    let seen: FxHashSet<String> = order.iter().cloned().collect();
-    for name in &executable {
-        if !seen.contains(name) {
-            order.push(name.clone());
+    let mut order: Vec<BlockId> = cfg.reverse_postorder();
+    let seen: FxHashSet<BlockId> = order.iter().copied().collect();
+    for id in &executable {
+        if !seen.contains(id) {
+            order.push(*id);
         }
     }
 
@@ -1937,6 +1943,11 @@ mod tests {
     use crate::ssa::{SsaBlock, SsaStatement};
     use std::collections::HashMap as Map;
 
+    /// The [`BlockId`] a block name was interned to in `cfg`.
+    fn id_of(cfg: &Function, name: &str) -> BlockId {
+        cfg.block_id(name).expect("interned")
+    }
+
     fn llength_call() -> Statement {
         Statement::Call {
             span: Span::new(0, 0),
@@ -1978,7 +1989,7 @@ mod tests {
     fn find_redundancies_detects_same_block_duplicate() {
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "entry");
-        let entry_blk = cfg.blocks.get_mut("entry").unwrap();
+        let entry_blk = cfg.blocks.get_mut(&cfg.entry).unwrap();
         entry_blk.statements.push(llength_call());
         entry_blk.statements.push(llength_call());
         entry_blk.terminator = Some(Terminator::Return {
@@ -1988,15 +1999,8 @@ mod tests {
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.dominator_tree.insert("entry".into(), Vec::new());
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.dominator_tree.insert(cfg.entry, Vec::new());
         let mut ssa_entry = empty_ssa_block("entry");
         ssa_entry
             .statements
@@ -2004,7 +2008,7 @@ mod tests {
         ssa_entry
             .statements
             .push(ssa_stmt_for(llength_call(), Some(1)));
-        ssa.blocks.insert("entry".into(), ssa_entry);
+        ssa.blocks.insert(cfg.entry, ssa_entry);
 
         let results = find_redundancies(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
@@ -2016,7 +2020,7 @@ mod tests {
     fn find_redundancies_ignores_different_ssa_version() {
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "entry");
-        let entry_blk = cfg.blocks.get_mut("entry").unwrap();
+        let entry_blk = cfg.blocks.get_mut(&cfg.entry).unwrap();
         entry_blk.statements.push(llength_call());
         entry_blk.statements.push(llength_call());
         entry_blk.terminator = Some(Terminator::Return {
@@ -2026,15 +2030,8 @@ mod tests {
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.dominator_tree.insert("entry".into(), Vec::new());
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.dominator_tree.insert(cfg.entry, Vec::new());
         let mut ssa_entry = empty_ssa_block("entry");
         // Same expression but different SSA versions of $x → no
         // redundancy.
@@ -2044,7 +2041,7 @@ mod tests {
         ssa_entry
             .statements
             .push(ssa_stmt_for(llength_call(), Some(2)));
-        ssa.blocks.insert("entry".into(), ssa_entry);
+        ssa.blocks.insert(cfg.entry, ssa_entry);
 
         let results = find_redundancies(&registry, &cfg, &ssa, None);
         assert!(results.is_empty());
@@ -2055,7 +2052,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         // entry: llength $x; set ::g 1; llength $x
         let mut cfg = Function::new("::top", "entry");
-        let entry_blk = cfg.blocks.get_mut("entry").unwrap();
+        let entry_blk = cfg.blocks.get_mut(&cfg.entry).unwrap();
         entry_blk.statements.push(llength_call());
         entry_blk.statements.push(Statement::Call {
             span: Span::new(0, 0),
@@ -2077,27 +2074,20 @@ mod tests {
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.dominator_tree.insert("entry".into(), Vec::new());
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.dominator_tree.insert(cfg.entry, Vec::new());
         let mut ssa_entry = empty_ssa_block("entry");
         ssa_entry
             .statements
             .push(ssa_stmt_for(llength_call(), Some(1)));
         ssa_entry.statements.push(ssa_stmt_for(
-            cfg.blocks["entry"].statements[1].clone(),
+            cfg.blocks[&cfg.entry].statements[1].clone(),
             None,
         ));
         ssa_entry
             .statements
             .push(ssa_stmt_for(llength_call(), Some(1)));
-        ssa.blocks.insert("entry".into(), ssa_entry);
+        ssa.blocks.insert(cfg.entry, ssa_entry);
 
         // The global write should invalidate — no redundancy reported.
         let results = find_redundancies(&registry, &cfg, &ssa, None);
@@ -2110,45 +2100,39 @@ mod tests {
         // entry: llength $x
         // dom_child: llength $x   (should trigger)
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.insert("child".into(), Block::new("child"));
+        let entry = cfg.entry;
+        let child = cfg.intern_block("child");
+        cfg.blocks.insert(child, Block::new("child"));
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(llength_call());
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Goto {
-            target: "child".into(),
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Goto {
+            target: child,
             span: None,
         });
         cfg.blocks
-            .get_mut("child")
+            .get_mut(&child)
             .unwrap()
             .statements
             .push(llength_call());
-        cfg.blocks.get_mut("child").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&child).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.dominator_tree
-            .insert("entry".into(), vec!["child".into()]);
-        ssa.dominator_tree.insert("child".into(), Vec::new());
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.dominator_tree.insert(entry, vec![child]);
+        ssa.dominator_tree.insert(child, Vec::new());
         let mut e = empty_ssa_block("entry");
         e.statements.push(ssa_stmt_for(llength_call(), Some(1)));
         let mut c = empty_ssa_block("child");
         c.statements.push(ssa_stmt_for(llength_call(), Some(1)));
-        ssa.blocks.insert("entry".into(), e);
-        ssa.blocks.insert("child".into(), c);
+        ssa.blocks.insert(entry, e);
+        ssa.blocks.insert(child, c);
 
         let results = find_redundancies(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
@@ -2246,15 +2230,11 @@ mod tests {
     #[test]
     fn find_redundancies_empty_for_no_blocks() {
         let registry = CommandRegistry::build_default();
-        let cfg = Function::new("::top", "entry");
-        let ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "nonexistent".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
+        let mut cfg = Function::new("::top", "entry");
+        // Intern a name with no matching block so the SSA entry is absent
+        // from `cfg.blocks` and the walk early-returns.
+        let nonexistent = cfg.intern_block("nonexistent");
+        let ssa = SsaFunction::trivial(cfg.name.clone(), nonexistent, cfg.block_names().to_vec());
         let results = find_redundancies(&registry, &cfg, &ssa, None);
         assert!(results.is_empty());
     }
@@ -2267,58 +2247,53 @@ mod tests {
         // header: branch on $i < 10 → body → header (back edge)
         // body: llength $x (invariant w.r.t. loop-defined $i)
         let mut cfg = Function::new("::top", "header");
-        cfg.blocks.insert("body".into(), Block::new("body"));
-        cfg.blocks.insert("exit".into(), Block::new("exit"));
-        cfg.blocks.get_mut("header").unwrap().terminator = Some(Terminator::Branch {
+        let header = cfg.entry;
+        let body = cfg.intern_block("body");
+        let exit = cfg.intern_block("exit");
+        cfg.blocks.insert(body, Block::new("body"));
+        cfg.blocks.insert(exit, Block::new("exit"));
+        cfg.blocks.get_mut(&header).unwrap().terminator = Some(Terminator::Branch {
             condition: crate::expr_ast::ExprNode::Literal {
                 text: "1".into(),
                 start: 0,
                 end: 1,
             },
-            true_target: "body".into(),
-            false_target: "exit".into(),
+            true_target: body,
+            false_target: exit,
             span: None,
         });
         cfg.blocks
-            .get_mut("body")
+            .get_mut(&body)
             .unwrap()
             .statements
             .push(llength_call());
-        cfg.blocks.get_mut("body").unwrap().terminator = Some(Terminator::Goto {
-            target: "header".into(),
+        cfg.blocks.get_mut(&body).unwrap().terminator = Some(Terminator::Goto {
+            target: header,
             span: None,
         });
-        cfg.blocks.get_mut("exit").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "header".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
         // header dominates body and exit.
-        ssa.idom.insert("header".into(), None);
-        ssa.idom.insert("body".into(), Some("header".into()));
-        ssa.idom.insert("exit".into(), Some("header".into()));
-        ssa.dominator_tree
-            .insert("header".into(), vec!["body".into(), "exit".into()]);
-        ssa.dominator_tree.insert("body".into(), Vec::new());
-        ssa.dominator_tree.insert("exit".into(), Vec::new());
+        ssa.idom.insert(header, None);
+        ssa.idom.insert(body, Some(header));
+        ssa.idom.insert(exit, Some(header));
+        ssa.dominator_tree.insert(header, vec![body, exit]);
+        ssa.dominator_tree.insert(body, Vec::new());
+        ssa.dominator_tree.insert(exit, Vec::new());
 
         let h = empty_ssa_block("header");
         let mut b = empty_ssa_block("body");
         // $x's SSA version comes from outside the loop (x@1).
         b.statements.push(ssa_stmt_for(llength_call(), Some(1)));
-        ssa.blocks.insert("header".into(), h);
-        ssa.blocks.insert("body".into(), b);
-        ssa.blocks.insert("exit".into(), empty_ssa_block("exit"));
+        ssa.blocks.insert(header, h);
+        ssa.blocks.insert(body, b);
+        ssa.blocks.insert(exit, empty_ssa_block("exit"));
 
         let results = find_loop_invariants(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
@@ -2336,82 +2311,78 @@ mod tests {
         // some iterations — the latch-dominance gate must suppress O106.
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "header");
+        let header = cfg.entry;
         for b in ["cond", "then", "latch", "exit"] {
-            cfg.blocks.insert(b.into(), Block::new(b));
+            let id = cfg.intern_block(b);
+            cfg.blocks.insert(id, Block::new(b));
         }
-        cfg.blocks.get_mut("header").unwrap().terminator = Some(Terminator::Branch {
+        let cond = id_of(&cfg, "cond");
+        let then = id_of(&cfg, "then");
+        let latch = id_of(&cfg, "latch");
+        let exit = id_of(&cfg, "exit");
+        cfg.blocks.get_mut(&header).unwrap().terminator = Some(Terminator::Branch {
             condition: crate::expr_ast::ExprNode::Literal {
                 text: "1".into(),
                 start: 0,
                 end: 1,
             },
-            true_target: "cond".into(),
-            false_target: "exit".into(),
+            true_target: cond,
+            false_target: exit,
             span: None,
         });
-        cfg.blocks.get_mut("cond").unwrap().terminator = Some(Terminator::Branch {
+        cfg.blocks.get_mut(&cond).unwrap().terminator = Some(Terminator::Branch {
             condition: crate::expr_ast::ExprNode::Literal {
                 text: "1".into(),
                 start: 0,
                 end: 1,
             },
-            true_target: "then".into(),
-            false_target: "latch".into(),
+            true_target: then,
+            false_target: latch,
             span: None,
         });
         cfg.blocks
-            .get_mut("then")
+            .get_mut(&then)
             .unwrap()
             .statements
             .push(llength_call());
-        cfg.blocks.get_mut("then").unwrap().terminator = Some(Terminator::Goto {
-            target: "latch".into(),
+        cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
+            target: latch,
             span: None,
         });
-        cfg.blocks.get_mut("latch").unwrap().terminator = Some(Terminator::Goto {
-            target: "header".into(),
+        cfg.blocks.get_mut(&latch).unwrap().terminator = Some(Terminator::Goto {
+            target: header,
             span: None,
         });
-        cfg.blocks.get_mut("exit").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "header".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.idom.insert("header".into(), None);
-        ssa.idom.insert("cond".into(), Some("header".into()));
-        ssa.idom.insert("then".into(), Some("cond".into()));
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(header, None);
+        ssa.idom.insert(cond, Some(header));
+        ssa.idom.insert(then, Some(cond));
         // The latch is reachable from `cond` both directly and via `then`,
         // so its immediate dominator is `cond`, not `then`.
-        ssa.idom.insert("latch".into(), Some("cond".into()));
-        ssa.idom.insert("exit".into(), Some("header".into()));
-        ssa.dominator_tree
-            .insert("header".into(), vec!["cond".into(), "exit".into()]);
-        ssa.dominator_tree
-            .insert("cond".into(), vec!["then".into(), "latch".into()]);
-        for b in ["then", "latch", "exit"] {
-            ssa.dominator_tree.insert(b.into(), Vec::new());
+        ssa.idom.insert(latch, Some(cond));
+        ssa.idom.insert(exit, Some(header));
+        ssa.dominator_tree.insert(header, vec![cond, exit]);
+        ssa.dominator_tree.insert(cond, vec![then, latch]);
+        for b in [then, latch, exit] {
+            ssa.dominator_tree.insert(b, Vec::new());
         }
 
-        ssa.blocks
-            .insert("header".into(), empty_ssa_block("header"));
-        ssa.blocks.insert("cond".into(), empty_ssa_block("cond"));
+        ssa.blocks.insert(header, empty_ssa_block("header"));
+        ssa.blocks.insert(cond, empty_ssa_block("cond"));
         let mut then_b = empty_ssa_block("then");
         then_b
             .statements
             .push(ssa_stmt_for(llength_call(), Some(1)));
-        ssa.blocks.insert("then".into(), then_b);
-        ssa.blocks.insert("latch".into(), empty_ssa_block("latch"));
-        ssa.blocks.insert("exit".into(), empty_ssa_block("exit"));
+        ssa.blocks.insert(then, then_b);
+        ssa.blocks.insert(latch, empty_ssa_block("latch"));
+        ssa.blocks.insert(exit, empty_ssa_block("exit"));
 
         let results = find_loop_invariants(&registry, &cfg, &ssa, None);
         assert!(
@@ -2426,16 +2397,19 @@ mod tests {
         // As above, but `$i` is defined inside the loop — llength
         // uses `$i` → not loop-invariant.
         let mut cfg = Function::new("::top", "header");
-        cfg.blocks.insert("body".into(), Block::new("body"));
-        cfg.blocks.insert("exit".into(), Block::new("exit"));
-        cfg.blocks.get_mut("header").unwrap().terminator = Some(Terminator::Branch {
+        let header = cfg.entry;
+        let body = cfg.intern_block("body");
+        let exit = cfg.intern_block("exit");
+        cfg.blocks.insert(body, Block::new("body"));
+        cfg.blocks.insert(exit, Block::new("exit"));
+        cfg.blocks.get_mut(&header).unwrap().terminator = Some(Terminator::Branch {
             condition: crate::expr_ast::ExprNode::Literal {
                 text: "1".into(),
                 start: 0,
                 end: 1,
             },
-            true_target: "body".into(),
-            false_target: "exit".into(),
+            true_target: body,
+            false_target: exit,
             span: None,
         });
         let llength_on_i = Statement::Call {
@@ -2451,32 +2425,25 @@ mod tests {
             foreach_groups: None,
         };
         cfg.blocks
-            .get_mut("body")
+            .get_mut(&body)
             .unwrap()
             .statements
             .push(llength_on_i.clone());
-        cfg.blocks.get_mut("body").unwrap().terminator = Some(Terminator::Goto {
-            target: "header".into(),
+        cfg.blocks.get_mut(&body).unwrap().terminator = Some(Terminator::Goto {
+            target: header,
             span: None,
         });
-        cfg.blocks.get_mut("exit").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "header".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.idom.insert("header".into(), None);
-        ssa.idom.insert("body".into(), Some("header".into()));
-        ssa.idom.insert("exit".into(), Some("header".into()));
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(header, None);
+        ssa.idom.insert(body, Some(header));
+        ssa.idom.insert(exit, Some(header));
 
         let h = empty_ssa_block("header");
         let mut b = empty_ssa_block("body");
@@ -2501,9 +2468,9 @@ mod tests {
             uses: uses_i,
             defs: Map::new(),
         });
-        ssa.blocks.insert("header".into(), h);
-        ssa.blocks.insert("body".into(), b);
-        ssa.blocks.insert("exit".into(), empty_ssa_block("exit"));
+        ssa.blocks.insert(header, h);
+        ssa.blocks.insert(body, b);
+        ssa.blocks.insert(exit, empty_ssa_block("exit"));
 
         let results = find_loop_invariants(&registry, &cfg, &ssa, None);
         assert!(results.is_empty());
@@ -2513,22 +2480,15 @@ mod tests {
     fn find_loop_invariants_no_loops_empty() {
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&cfg.entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.idom.insert("entry".into(), None);
-        ssa.blocks.insert("entry".into(), empty_ssa_block("entry"));
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(cfg.entry, None);
+        ssa.blocks.insert(cfg.entry, empty_ssa_block("entry"));
         assert!(find_loop_invariants(&registry, &cfg, &ssa, None).is_empty());
     }
 
@@ -2547,22 +2507,26 @@ mod tests {
         // branch.
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.insert("tt".into(), Block::new("tt"));
-        cfg.blocks.insert("ff".into(), Block::new("ff"));
-        cfg.blocks.insert("join".into(), Block::new("join"));
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+        let entry = cfg.entry;
+        let tt = cfg.intern_block("tt");
+        let ff = cfg.intern_block("ff");
+        let join = cfg.intern_block("join");
+        cfg.blocks.insert(tt, Block::new("tt"));
+        cfg.blocks.insert(ff, Block::new("ff"));
+        cfg.blocks.insert(join, Block::new("join"));
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: crate::expr_ast::ExprNode::Var {
                 text: "$c".into(),
                 name: "c".into(),
                 start: 0,
                 end: 2,
             },
-            true_target: "tt".into(),
-            false_target: "ff".into(),
+            true_target: tt,
+            false_target: ff,
             span: None,
         });
         cfg.blocks
-            .get_mut("tt")
+            .get_mut(&tt)
             .unwrap()
             .statements
             .push(Statement::Call {
@@ -2577,16 +2541,16 @@ mod tests {
                 tokens: None,
                 foreach_groups: None,
             });
-        cfg.blocks.get_mut("tt").unwrap().terminator = Some(Terminator::Goto {
-            target: "join".into(),
+        cfg.blocks.get_mut(&tt).unwrap().terminator = Some(Terminator::Goto {
+            target: join,
             span: None,
         });
-        cfg.blocks.get_mut("ff").unwrap().terminator = Some(Terminator::Goto {
-            target: "join".into(),
+        cfg.blocks.get_mut(&ff).unwrap().terminator = Some(Terminator::Goto {
+            target: join,
             span: None,
         });
         cfg.blocks
-            .get_mut("join")
+            .get_mut(&join)
             .unwrap()
             .statements
             .push(Statement::Call {
@@ -2601,25 +2565,18 @@ mod tests {
                 tokens: None,
                 foreach_groups: None,
             });
-        cfg.blocks.get_mut("join").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.idom.insert("entry".into(), None);
-        ssa.idom.insert("tt".into(), Some("entry".into()));
-        ssa.idom.insert("ff".into(), Some("entry".into()));
-        ssa.idom.insert("join".into(), Some("entry".into()));
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(entry, None);
+        ssa.idom.insert(tt, Some(entry));
+        ssa.idom.insert(ff, Some(entry));
+        ssa.idom.insert(join, Some(entry));
 
         let mut uses_x = Map::new();
         uses_x.insert("x".to_string(), 1);
@@ -2660,10 +2617,10 @@ mod tests {
             uses: uses_x,
             defs: Map::new(),
         });
-        ssa.blocks.insert("entry".into(), entry_b);
-        ssa.blocks.insert("tt".into(), tt_b);
-        ssa.blocks.insert("ff".into(), ff_b);
-        ssa.blocks.insert("join".into(), join_b);
+        ssa.blocks.insert(entry, entry_b);
+        ssa.blocks.insert(tt, tt_b);
+        ssa.blocks.insert(ff, ff_b);
+        ssa.blocks.insert(join, join_b);
 
         let results = find_partial_redundancies(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
@@ -2682,31 +2639,24 @@ mod tests {
         // redundancy possible.
         let mut cfg = Function::new("::top", "entry");
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&cfg.entry)
             .unwrap()
             .statements
             .push(llength_call());
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&cfg.entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.idom.insert("entry".into(), None);
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(cfg.entry, None);
         let mut entry_b = empty_ssa_block("entry");
         entry_b
             .statements
             .push(ssa_stmt_for(llength_call(), Some(1)));
-        ssa.blocks.insert("entry".into(), entry_b);
+        ssa.blocks.insert(cfg.entry, entry_b);
 
         assert!(find_partial_redundancies(&registry, &cfg, &ssa, None).is_empty());
     }
@@ -2736,10 +2686,11 @@ mod tests {
         };
         for (name, stmts) in procs {
             let mut cfg = Function::new(name, "entry");
+            let entry = cfg.entry;
             for s in stmts {
-                cfg.blocks.get_mut("entry").unwrap().statements.push(s);
+                cfg.blocks.get_mut(&entry).unwrap().statements.push(s);
             }
-            cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+            cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
                 value: None,
                 span: None,
                 expr: None,
@@ -2936,21 +2887,19 @@ mod tests {
 
     #[test]
     fn dominates_trivial_and_chain() {
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
-        ssa.idom.insert("entry".into(), None);
-        ssa.idom.insert("a".into(), Some("entry".into()));
-        ssa.idom.insert("b".into(), Some("a".into()));
-        assert!(dominates(&ssa, "entry", "b"));
-        assert!(dominates(&ssa, "a", "b"));
-        assert!(!dominates(&ssa, "b", "a"));
-        assert!(dominates(&ssa, "b", "b"));
+        // Intern the chain through a CFG so the SSA shares its BlockIds.
+        let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
+        let a = cfg.intern_block("a");
+        let b = cfg.intern_block("b");
+        let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
+        ssa.idom.insert(entry, None);
+        ssa.idom.insert(a, Some(entry));
+        ssa.idom.insert(b, Some(a));
+        assert!(dominates(&ssa, entry, b));
+        assert!(dominates(&ssa, a, b));
+        assert!(!dominates(&ssa, b, a));
+        assert!(dominates(&ssa, b, b));
     }
 
     #[test]

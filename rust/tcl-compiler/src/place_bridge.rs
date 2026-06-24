@@ -578,7 +578,7 @@ pub fn element_writes_observed_by_reads(
         }
     }
 
-    for (block_name, block) in &cfg.blocks {
+    for block in cfg.blocks.values() {
         for (idx, stmt) in block.statements.iter().enumerate() {
             if !is_array_assign(stmt) {
                 continue;
@@ -594,7 +594,7 @@ pub fn element_writes_observed_by_reads(
                     && !must_alias_killed_in_block(block, idx, d, &ctx, registry)
             });
             if suppress && let Ok(i) = i32::try_from(idx) {
-                out.insert((block_name.clone(), i));
+                out.insert((block.name.clone(), i));
             }
         }
     }

@@ -375,11 +375,12 @@ impl Analyser {
         // the name-level suppression (`dict with` keys, qualified-`variable`
         // alias tails, dict vars), threaded through both the version-0
         // statement/branch emitter and the `Terminator::Return` pass.
-        let considered: HashSet<String> = if function_unit.sccp.executable_blocks.is_empty() {
-            function_unit.ssa.blocks.keys().cloned().collect()
-        } else {
-            function_unit.sccp.executable_blocks.clone()
-        };
+        let considered: HashSet<crate::cfg::BlockId> =
+            if function_unit.sccp.executable_blocks.is_empty() {
+                function_unit.ssa.blocks.keys().copied().collect()
+            } else {
+                function_unit.sccp.executable_blocks.clone()
+            };
         let supp = build_undef_suppression(function_unit, &considered);
         let exists_guards = collect_existence_guards(function_unit);
         let rbs_params: HashSet<&str> = ir_proc

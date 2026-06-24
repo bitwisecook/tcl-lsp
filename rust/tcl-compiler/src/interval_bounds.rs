@@ -21,7 +21,7 @@ use tcl_lexer::Span;
 use tcl_syntax::expr::ast::ExprNode;
 
 use crate::analyses::LatticeValue;
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::intervals::{Interval, build_guard_index, compute_intervals, refine_interval};
 use crate::ir::Statement;
 use crate::segmenter::segment_commands;
@@ -455,7 +455,7 @@ pub fn find_interval_bounds(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     values: &HashMap<ValueKey, LatticeValue>,
-    executable: &std::collections::HashSet<String>,
+    executable: &std::collections::HashSet<BlockId>,
 ) -> Vec<BoundsFinding> {
     if !has_candidate(cfg, ssa) {
         return Vec::new();
@@ -500,7 +500,7 @@ pub fn find_interval_bounds(
     };
 
     let process = |cand: &Candidate,
-                   bn: &str,
+                   bn: crate::cfg::BlockId,
                    span: Span,
                    version_map: &HashMap<String, Version>,
                    entry_versions: &HashMap<String, Version>,
@@ -554,10 +554,11 @@ pub fn find_interval_bounds(
         });
     };
 
-    for (bn, sb) in &ssa.blocks {
-        if !executable.contains(bn) {
+    for (bid, sb) in &ssa.blocks {
+        if !executable.contains(bid) {
             continue;
         }
+        let bn = *bid;
         for (idx, s) in sb.statements.iter().enumerate() {
             let span = statement_span(&s.statement);
             for cand in statement_candidates(&s.statement) {
@@ -577,7 +578,7 @@ pub fn find_interval_bounds(
         }
         // Index accesses in a `return [...]` value / branch condition: the read
         // versions are the block's exit versions; anchor on the terminator.
-        let Some(block) = cfg.blocks.get(bn) else {
+        let Some(block) = cfg.blocks.get(bid) else {
             continue;
         };
         match &block.terminator {
@@ -734,7 +735,7 @@ pub fn find_divide_by_zero(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     values: &HashMap<ValueKey, LatticeValue>,
-    executable: &std::collections::HashSet<String>,
+    executable: &std::collections::HashSet<BlockId>,
 ) -> Vec<DivZeroFinding> {
     if !has_division(cfg, ssa) {
         return Vec::new();
@@ -742,30 +743,32 @@ pub fn find_divide_by_zero(
     let intervals = compute_intervals(cfg, ssa, values);
     let guard_index = build_guard_index(cfg, ssa);
 
-    let env_for = |uses: &HashMap<String, Version>, bn: &str| -> HashMap<String, Interval> {
-        uses.iter()
-            .filter(|&(_, &ver)| ver > 0)
-            .map(|(name, &ver)| {
-                (
-                    name.clone(),
-                    refine_interval(&intervals, cfg, ssa, bn, name, ver, &guard_index),
-                )
-            })
-            .collect()
-    };
+    let env_for =
+        |uses: &HashMap<String, Version>, bn: crate::cfg::BlockId| -> HashMap<String, Interval> {
+            uses.iter()
+                .filter(|&(_, &ver)| ver > 0)
+                .map(|(name, &ver)| {
+                    (
+                        name.clone(),
+                        refine_interval(&intervals, cfg, ssa, bn, name, ver, &guard_index),
+                    )
+                })
+                .collect()
+        };
 
     let mut findings: Vec<DivZeroFinding> = Vec::new();
-    for (bn, sb) in &ssa.blocks {
-        if !executable.contains(bn) {
+    for (bid, sb) in &ssa.blocks {
+        if !executable.contains(bid) {
             continue;
         }
+        let bn = *bid;
         for s in &sb.statements {
             if let Some(expr) = statement_expr(&s.statement) {
                 let span = statement_span(&s.statement).unwrap_or_else(|| Span::new(0, 0));
                 collect_divzero(expr, span, &env_for(&s.uses, bn), &mut findings);
             }
         }
-        let Some(block) = cfg.blocks.get(bn) else {
+        let Some(block) = cfg.blocks.get(bid) else {
             continue;
         };
         match &block.terminator {

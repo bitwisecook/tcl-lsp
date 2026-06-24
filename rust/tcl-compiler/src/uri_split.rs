@@ -26,7 +26,7 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
 
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::expr_parser::parse_expr;
 use crate::ir::Statement;
@@ -121,7 +121,7 @@ struct TraceCtx<'a> {
     cfg: &'a CfgFunction,
     ssa: &'a SsaFunction,
     families: &'a UriFamilies,
-    def_sites: &'a HashMap<ValueKey, (String, usize)>,
+    def_sites: &'a HashMap<ValueKey, (BlockId, usize)>,
     phi_index: &'a HashMap<ValueKey, Phi>,
 }
 
@@ -247,13 +247,13 @@ fn classify_regex_pattern(pattern: &str) -> Option<&'static str> {
 
 // Backward SSA tracing
 
-/// Map `(var_name, version) → (block_name, statement_index)`.
-fn build_def_site_map(ssa: &SsaFunction) -> HashMap<ValueKey, (String, usize)> {
-    let mut result: HashMap<ValueKey, (String, usize)> = HashMap::new();
+/// Map `(var_name, version) → (block_id, statement_index)`.
+fn build_def_site_map(ssa: &SsaFunction) -> HashMap<ValueKey, (BlockId, usize)> {
+    let mut result: HashMap<ValueKey, (BlockId, usize)> = HashMap::new();
     for (bn, ssa_block) in &ssa.blocks {
         for (idx, s) in ssa_block.statements.iter().enumerate() {
             for (var, ver) in &s.defs {
-                result.insert((var.clone(), *ver), (bn.clone(), idx));
+                result.insert((var.clone(), *ver), (*bn, idx));
             }
         }
     }
@@ -286,7 +286,7 @@ fn trace_to_uri_family(
     }
 
     let key: ValueKey = (var_name.to_owned(), version);
-    let Some((bn, idx)) = ctx.def_sites.get(&key).cloned() else {
+    let Some((block_id, idx)) = ctx.def_sites.get(&key).copied() else {
         // Check phi nodes via index (O(1) lookup).
         let phi = ctx.phi_index.get(&key)?;
         // All incoming edges must agree on the same origin.
@@ -305,8 +305,8 @@ fn trace_to_uri_family(
         return origin;
     };
 
-    let block = ctx.cfg.blocks.get(&bn)?;
-    let ssa_block = ctx.ssa.blocks.get(&bn)?;
+    let block = ctx.cfg.blocks.get(&block_id)?;
+    let ssa_block = ctx.ssa.blocks.get(&block_id)?;
     if idx >= block.statements.len() {
         return None;
     }
@@ -931,17 +931,17 @@ fn check_branch_terminator(
 /// `"f5-irules"` / `"irules"`. Also no-ops when the registry has no
 /// `*::uri` family (i.e. no `HTTP::path` / `HTTP::query` siblings).
 #[must_use]
-pub fn find_uri_split_suggestions<S, T>(
+#[allow(clippy::implicit_hasher)]
+pub fn find_uri_split_suggestions<S>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
-    executable_blocks: &HashSet<String, T>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<TaintWarning>
 where
     S: std::hash::BuildHasher,
-    T: std::hash::BuildHasher,
 {
     if !is_irules_dialect(dialect) {
         return Vec::new();
@@ -962,11 +962,11 @@ where
     };
 
     let mut warnings: Vec<TaintWarning> = Vec::new();
-    for bn in executable_blocks {
-        let Some(block) = cfg.blocks.get(bn) else {
+    for block_id in executable_blocks {
+        let Some(block) = cfg.blocks.get(block_id) else {
             continue;
         };
-        let Some(ssa_block) = ssa.blocks.get(bn) else {
+        let Some(ssa_block) = ssa.blocks.get(block_id) else {
             continue;
         };
 

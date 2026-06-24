@@ -29,7 +29,7 @@ use bitflags::bitflags;
 
 use tcl_registry::{CommandRegistry, Traits};
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::{SccpResult, cfg_order};
@@ -750,15 +750,12 @@ pub fn propagate_rendered_props(
 
             // Phi joins at non-entry blocks.
             if bn != &cfg.entry {
-                let exec_preds: Vec<&str> = preds
+                let exec_preds: Vec<BlockId> = preds
                     .get(bn)
                     .map(|ps| {
                         ps.iter()
-                            .filter(|p| {
-                                sccp.executable_edges
-                                    .contains(&((*p).to_owned(), bn.clone()))
-                            })
-                            .map(String::as_str)
+                            .copied()
+                            .filter(|p| sccp.executable_edges.contains(&(*p, *bn)))
                             .collect()
                     })
                     .unwrap_or_default();
@@ -769,7 +766,7 @@ pub fn propagate_rendered_props(
                     }
                     let mut phi_props = RenderedValueProps::bottom();
                     for pred in &exec_preds {
-                        let ver = phi.incoming.get(*pred).copied().unwrap_or(0);
+                        let ver = phi.incoming.get(pred).copied().unwrap_or(0);
                         // Version 0 = undefined-on-this-path / enclosing
                         // scope. Model it as top so the merge stays sound
                         // instead of silently narrowing to the other

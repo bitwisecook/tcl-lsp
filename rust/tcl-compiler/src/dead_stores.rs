@@ -69,10 +69,14 @@ pub fn liveness_dead_stores(fu: &FunctionUnit, registry: &CommandRegistry) -> Ve
             continue;
         }
         // Definitions in SCCP-unreachable blocks are reported as O107.
-        if !fu.sccp.executable_blocks.contains(&chain.definition.block) {
+        if !fu
+            .cfg
+            .block_id(&chain.definition.block)
+            .is_some_and(|id| fu.sccp.executable_blocks.contains(&id))
+        {
             continue;
         }
-        let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+        let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
             continue;
         };
         let Ok(idx) = usize::try_from(chain.definition.statement_index) else {

@@ -101,7 +101,11 @@ pub fn assign_lanes(spans: &[(usize, usize)]) -> Vec<usize> {
 /// router) go through this rather than iterating the map.
 #[must_use]
 pub fn ordered_block_names(func: &Function) -> Vec<String> {
-    let mut names: Vec<String> = func.blocks.keys().cloned().collect();
+    let mut names: Vec<String> = func
+        .blocks
+        .keys()
+        .map(|id| func.block_name(*id).to_owned())
+        .collect();
     names.sort_by_key(|name| (suffix_ordinal(name), name.clone()));
     names
 }
@@ -131,7 +135,7 @@ pub fn build_cfg_edges(func: &Function, order: &[String]) -> Vec<CfgEdge> {
 
     let mut raw: Vec<(String, String, usize, usize, EdgeKind)> = Vec::new();
     for name in order {
-        let Some(block) = func.blocks.get(name) else {
+        let Some(block) = func.block_by_name(name) else {
             continue;
         };
         let Some(term) = &block.terminator else {
@@ -139,12 +143,13 @@ pub fn build_cfg_edges(func: &Function, order: &[String]) -> Vec<CfgEdge> {
         };
         let src_pos = pos[name.as_str()];
         for target in term.successors() {
-            let Some(&dst_pos) = pos.get(target) else {
+            let target_name = func.block_name(target);
+            let Some(&dst_pos) = pos.get(target_name) else {
                 continue;
             };
             let kind = match term {
                 Terminator::Branch { true_target, .. } => {
-                    if target == true_target {
+                    if target == *true_target {
                         EdgeKind::True
                     } else {
                         EdgeKind::False
@@ -152,7 +157,7 @@ pub fn build_cfg_edges(func: &Function, order: &[String]) -> Vec<CfgEdge> {
                 }
                 _ => EdgeKind::Goto,
             };
-            raw.push((name.clone(), target.to_owned(), src_pos, dst_pos, kind));
+            raw.push((name.clone(), target_name.to_owned(), src_pos, dst_pos, kind));
         }
     }
 

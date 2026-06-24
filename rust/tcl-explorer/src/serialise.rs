@@ -233,12 +233,17 @@ pub fn serialise_ir(module: &Module, li: &LineIndex, source: &str) -> Value {
 }
 
 /// Serialise a block terminator.
-fn terminator_dict(term: Option<&Terminator>, li: &LineIndex, source: &str) -> Value {
+fn terminator_dict(
+    func: &Function,
+    term: Option<&Terminator>,
+    li: &LineIndex,
+    source: &str,
+) -> Value {
     match term {
         None => Value::Null,
         Some(Terminator::Goto { target, span }) => json!({
             "type": "goto",
-            "target": target,
+            "target": func.block_name(*target),
             "range": range_or_null(*span, li, source),
         }),
         Some(Terminator::Branch {
@@ -249,8 +254,8 @@ fn terminator_dict(term: Option<&Terminator>, li: &LineIndex, source: &str) -> V
         }) => json!({
             "type": "branch",
             "condition": preview(&render_expr(condition), 80),
-            "trueTarget": true_target,
-            "falseTarget": false_target,
+            "trueTarget": func.block_name(*true_target),
+            "falseTarget": func.block_name(*false_target),
             "range": range_or_null(*span, li, source),
         }),
         Some(Terminator::Return { value, span, .. }) => json!({
@@ -263,8 +268,12 @@ fn terminator_dict(term: Option<&Terminator>, li: &LineIndex, source: &str) -> V
 
 /// The successor block names of a terminator (terminator-only, no
 /// exception edges).
-fn block_successors(term: Option<&Terminator>) -> Vec<&str> {
-    term.map(Terminator::successors).unwrap_or_default()
+fn block_successors<'a>(func: &'a Function, term: Option<&Terminator>) -> Vec<&'a str> {
+    term.map(Terminator::successors)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|id| func.block_name(id))
+        .collect()
 }
 
 /// Serialise the routed control-flow edges of `func`. Lanes come from the
@@ -296,10 +305,11 @@ pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &s
         .map(|snap| {
             let cfg = &snap.unit.cfg;
             let order = ordered_block_names(cfg);
+            let entry_name = cfg.block_name(cfg.entry);
             let blocks: Vec<Value> = order
                 .iter()
                 .map(|bn| {
-                    let block = &cfg.blocks[bn];
+                    let block = cfg.block_by_name(bn).expect("ordered block exists");
                     let statements: Vec<Value> = block
                         .statements
                         .iter()
@@ -313,16 +323,16 @@ pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &s
                         .collect();
                     json!({
                         "name": bn,
-                        "isEntry": *bn == cfg.entry,
+                        "isEntry": bn == entry_name,
                         "statements": statements,
-                        "terminator": terminator_dict(block.terminator.as_ref(), li, source),
-                        "successors": block_successors(block.terminator.as_ref()),
+                        "terminator": terminator_dict(cfg, block.terminator.as_ref(), li, source),
+                        "successors": block_successors(cfg, block.terminator.as_ref()),
                     })
                 })
                 .collect();
             json!({
                 "name": snap.name,
-                "entry": cfg.entry,
+                "entry": entry_name,
                 "blockCount": cfg.blocks.len(),
                 "blocks": blocks,
                 "edges": serialise_cfg_edges(cfg, &order),
@@ -680,25 +690,32 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
             let sccp = &snap.unit.sccp;
             let types = &snap.unit.types;
             let order = ordered_block_names(cfg);
+            let entry_name = cfg.block_name(cfg.entry);
 
             let blocks: Vec<Value> = order
                 .iter()
                 .map(|bn| {
-                    let block = &cfg.blocks[bn];
-                    let ssa_block = ssa.blocks.get(bn);
+                    let block = cfg.block_by_name(bn).expect("ordered block exists");
+                    let bid = cfg.block_id(bn);
+                    let ssa_block = bid.and_then(|id| ssa.blocks.get(&id));
 
                     let phis: Vec<Value> = ssa_block
                         .map(|sb| {
                             sb.phis
                                 .iter()
                                 .map(|phi| {
-                                    let mut inc: Vec<(&String, &u32)> =
-                                        phi.incoming.iter().collect();
+                                    // Key the incoming map by predecessor block
+                                    // name; sort by name for stable output.
+                                    let mut inc: Vec<(&str, u32)> = phi
+                                        .incoming
+                                        .iter()
+                                        .map(|(pred, &ver)| (cfg.block_name(*pred), ver))
+                                        .collect();
                                     inc.sort();
                                     let incoming: Map<String, Value> = inc
                                         .into_iter()
-                                        .map(|(pred, &ver)| {
-                                            (pred.clone(), json!(format!("{}#{ver}", phi.name)))
+                                        .map(|(pred, ver)| {
+                                            (pred.to_owned(), json!(format!("{}#{ver}", phi.name)))
                                         })
                                         .collect();
                                     let phi_type = types
@@ -742,19 +759,19 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
 
                     json!({
                         "name": bn,
-                        "isEntry": *bn == cfg.entry,
-                        "isUnreachable": !sccp.executable_blocks.contains(bn),
+                        "isEntry": bn == entry_name,
+                        "isUnreachable": !bid.is_some_and(|id| sccp.executable_blocks.contains(&id)),
                         "phis": phis,
                         "statements": statements,
-                        "terminator": terminator_dict(block.terminator.as_ref(), li, source),
-                        "successors": block_successors(block.terminator.as_ref()),
+                        "terminator": terminator_dict(cfg, block.terminator.as_ref(), li, source),
+                        "successors": block_successors(cfg, block.terminator.as_ref()),
                     })
                 })
                 .collect();
 
             json!({
                 "name": snap.name,
-                "entry": cfg.entry,
+                "entry": entry_name,
                 "blockCount": cfg.blocks.len(),
                 "blocks": blocks,
                 "edges": serialise_cfg_edges(cfg, &order),
@@ -788,14 +805,14 @@ fn post_ssa_analysis(
         })
         .collect();
 
-    let mut unreachable: Vec<&String> = snap
-        .unit
-        .cfg
+    let cfg = &snap.unit.cfg;
+    let mut unreachable: Vec<&str> = cfg
         .blocks
         .keys()
         .filter(|b| !sccp.executable_blocks.contains(*b))
+        .map(|id| cfg.block_name(*id))
         .collect();
-    unreachable.sort();
+    unreachable.sort_unstable();
 
     // `inferredTypes`: known/shimmered SSA-value types keyed by `name#ver`.
     let mut tkeys: Vec<&(String, u32)> = snap.unit.types.keys().collect();
@@ -972,13 +989,20 @@ pub fn serialise_loops(result: &ExplorerResult) -> Value {
             let executable = &snap.unit.sccp.executable_blocks;
             let forest = build_loop_forest(&snap.unit.cfg, &snap.unit.ssa, executable);
             let headers = forest.headers();
+            let cfg = &snap.unit.cfg;
             let loops: Vec<Value> = forest
                 .loops
                 .iter()
                 .map(|lp| {
+                    // Loop nesting depth: count header loops whose header
+                    // dominates this loop's header. `NaturalLoop` headers are
+                    // block names; resolve each to its id for `dominates`.
+                    let node = cfg.block_id(&lp.header);
                     let depth = 1 + headers
                         .iter()
-                        .filter(|h| **h != lp.header && dominates(&snap.unit.ssa, h, &lp.header))
+                        .filter(|h| **h != lp.header)
+                        .filter_map(|h| Some((cfg.block_id(h)?, node?)))
+                        .filter(|&(dom, node)| dominates(&snap.unit.ssa, dom, node))
                         .count();
                     json!({
                         "header": lp.header,
@@ -1484,7 +1508,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
     let dead_stores = find_dead_stores(&result.unit, registry, dialect);
     for snap in result.snapshots() {
         for dead in dead_stores.iter().filter(|d| d.function == snap.name) {
-            let Some(block) = snap.unit.cfg.blocks.get(&dead.block) else {
+            let Some(block) = snap.unit.cfg.block_by_name(&dead.block) else {
                 continue;
             };
             let Ok(idx) = usize::try_from(dead.statement_index) else {
@@ -1518,16 +1542,18 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
                 });
             }
         }
-        let mut unreachable: Vec<&String> = snap
+        let mut unreachable: Vec<tcl_compiler::cfg::BlockId> = snap
             .unit
             .cfg
             .blocks
             .keys()
-            .filter(|b| !snap.unit.sccp.executable_blocks.contains(*b))
+            .copied()
+            .filter(|b| !snap.unit.sccp.executable_blocks.contains(b))
             .collect();
-        unreachable.sort();
+        unreachable.sort_unstable();
         for bn in unreachable {
-            let block = &snap.unit.cfg.blocks[bn];
+            let block = &snap.unit.cfg.blocks[&bn];
+            let bn_name = snap.unit.cfg.block_name(bn);
             let span = block
                 .statements
                 .first()
@@ -1536,7 +1562,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
             if let Some(span) = span {
                 anns.push(Ann {
                     span,
-                    label: format!("{}: unreachable block {bn}", snap.name),
+                    label: format!("{}: unreachable block {bn_name}", snap.name),
                     kind: "unreachable",
                     severity: "warning",
                     priority: 3,

@@ -21,7 +21,7 @@ use tcl_lexer::Span;
 use tcl_registry::{CommandRegistry, TclType};
 
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::cfg_order;
@@ -45,7 +45,7 @@ pub(crate) fn find_use_site_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     values: &HashMap<ValueKey, LatticeValue>,
 ) -> Vec<ShimmerWarning> {
@@ -56,14 +56,14 @@ pub(crate) fn find_use_site_shimmers(
     let loop_facts = LoopFacts::compute(cfg, ssa, &loop_blocks, registry);
     let mut out: Vec<ShimmerWarning> = Vec::new();
 
-    for block_name in cfg_order(cfg) {
-        if !executable_blocks.contains(&block_name) {
+    for block_id in cfg_order(cfg) {
+        if !executable_blocks.contains(&block_id) {
             continue;
         }
-        let Some(ssa_block) = ssa.blocks.get(&block_name) else {
+        let Some(ssa_block) = ssa.blocks.get(&block_id) else {
             continue;
         };
-        let in_loop = loop_blocks.contains(&block_name);
+        let in_loop = loop_blocks.contains(cfg.block_name(block_id));
         // Per-block coercion ledger: once a use coerces `(var, ver)` to a
         // target intrep, the runtime representation has already changed, so a
         // later use to the *same* target in the same block is not a second
@@ -118,7 +118,10 @@ impl LoopFacts {
             return facts;
         }
         for lbn in loop_blocks {
-            if let Some(sb) = ssa.blocks.get(lbn) {
+            let Some(id) = cfg.block_id(lbn) else {
+                continue;
+            };
+            if let Some(sb) = ssa.blocks.get(&id) {
                 for st in &sb.statements {
                     facts.def_names.extend(st.defs.keys().cloned());
                 }
@@ -126,7 +129,7 @@ impl LoopFacts {
                     facts.def_names.insert(phi.name.clone());
                 }
             }
-            if let Some(cb) = cfg.blocks.get(lbn) {
+            if let Some(cb) = cfg.blocks.get(&id) {
                 for stmt in &cb.statements {
                     facts.record_use_targets(stmt, registry);
                 }

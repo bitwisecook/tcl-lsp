@@ -27,7 +27,7 @@ use std::collections::HashSet;
 
 use tcl_registry::{CommandRegistry, TclType, Traits};
 
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
@@ -512,16 +512,13 @@ pub fn propagate_types(
             };
 
             // Phi nodes at non-entry blocks.
-            if bn != &cfg.entry {
-                let mut exec_preds: Vec<&str> = preds
+            if *bn != cfg.entry {
+                let mut exec_preds: Vec<BlockId> = preds
                     .get(bn)
                     .map(|ps| {
                         ps.iter()
-                            .filter(|p| {
-                                sccp.executable_edges
-                                    .contains(&((*p).to_owned(), bn.clone()))
-                            })
-                            .map(String::as_str)
+                            .filter(|p| sccp.executable_edges.contains(&(**p, *bn)))
+                            .copied()
                             .collect()
                     })
                     .unwrap_or_default();
@@ -538,7 +535,7 @@ pub fn propagate_types(
                     }
                     let mut phi_type = TypeLattice::unknown();
                     for pred in &exec_preds {
-                        let ver = phi.incoming.get(*pred).copied().unwrap_or(0);
+                        let ver = phi.incoming.get(pred).copied().unwrap_or(0);
                         if ver == 0 {
                             continue;
                         }
@@ -723,10 +720,13 @@ mod tests {
         CommandRegistry::build_default()
     }
 
-    fn empty_sccp(blocks: &[&str]) -> SccpResult {
+    fn empty_sccp(f: &Function, blocks: &[&str]) -> SccpResult {
         SccpResult {
             values: HashMap::new(),
-            executable_blocks: blocks.iter().copied().map(String::from).collect(),
+            executable_blocks: blocks
+                .iter()
+                .map(|n| f.block_id(n).expect("interned block"))
+                .collect(),
             executable_edges: HashSet::default(),
             constant_branches: Vec::new(),
         }
@@ -752,23 +752,17 @@ mod tests {
     #[test]
     fn integer_literal_infers_int() {
         let mut f = Function::new("::top", "entry");
+        let entry = f.entry;
         f.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(assign_const("x", "42"));
 
-        let sccp = empty_sccp(&["entry"]);
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let sccp = empty_sccp(&f, &["entry"]);
+        let mut ssa = SsaFunction::trivial("::top", entry, f.block_names().to_vec());
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -845,28 +839,23 @@ mod tests {
         // A minimal two-block CFG: entry → exit.
         // The phi in exit merges version 1 (INT) from entry.
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.insert("exit".into(), Block::new("exit"));
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(crate::cfg::Terminator::Goto {
-            target: "exit".into(),
+        let entry = cfg.entry;
+        let exit = cfg.intern_block("exit");
+        cfg.blocks.insert(exit, Block::new("exit"));
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(crate::cfg::Terminator::Goto {
+            target: exit,
             span: None,
         });
 
         let phi = Phi {
             name: "x".into(),
             version: 2,
-            incoming: [("entry".into(), 1u32)].into_iter().collect(),
+            incoming: [(entry, 1u32)].into_iter().collect(),
         };
         let entry_stmt = make_ssa_stmt(assign_const("x", "10"), &[("x", 1)]);
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -876,7 +865,7 @@ mod tests {
             },
         );
         ssa.blocks.insert(
-            "exit".into(),
+            exit,
             SsaBlock {
                 name: "exit".into(),
                 phis: vec![phi],
@@ -886,9 +875,8 @@ mod tests {
             },
         );
 
-        let mut sccp = empty_sccp(&["entry", "exit"]);
-        sccp.executable_edges
-            .insert(("entry".into(), "exit".into()));
+        let mut sccp = empty_sccp(&cfg, &["entry", "exit"]);
+        sccp.executable_edges.insert((entry, exit));
 
         let types = propagate_types(&cfg, &ssa, &sccp, &registry(), &HashSet::new());
         // x@1 (entry) should be Int.

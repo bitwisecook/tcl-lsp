@@ -7,7 +7,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_compiler::cfg::{Block, CfgModule, Function as CfgFunction, Terminator};
+use tcl_compiler::cfg::{Block, BlockId, CfgModule, Function as CfgFunction, Terminator};
 use tcl_compiler::codegen::{Op, codegen_function, codegen_module};
 use tcl_compiler::expr_ast::ExprNode;
 use tcl_compiler::ir::{Module as IrModule, Script, Statement};
@@ -20,8 +20,9 @@ fn sp() -> Span {
 
 fn toplevel_with(statements: Vec<Statement>) -> CfgFunction {
     let mut cfg = CfgFunction::new("::top", "entry_0");
+    let entry = cfg.entry;
     {
-        let blk = cfg.blocks.get_mut("entry_0").unwrap();
+        let blk = cfg.blocks.get_mut(&entry).unwrap();
         blk.statements = statements;
         blk.terminator = Some(Terminator::Return {
             value: None,
@@ -35,8 +36,9 @@ fn toplevel_with(statements: Vec<Statement>) -> CfgFunction {
 
 fn proc_with(name: &str, params: &[&str], statements: Vec<Statement>) -> CfgFunction {
     let mut cfg = CfgFunction::new(name, "entry_0");
+    let entry = cfg.entry;
     {
-        let blk = cfg.blocks.get_mut("entry_0").unwrap();
+        let blk = cfg.blocks.get_mut(&entry).unwrap();
         blk.statements = statements;
         blk.terminator = Some(Terminator::Return {
             value: None,
@@ -137,7 +139,8 @@ fn empty_proc_pushes_empty_and_dones() {
 #[test]
 fn proc_return_param_loads_and_dones() {
     let mut cfg = CfgFunction::new("::f", "entry_0");
-    cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Return {
+    let entry = cfg.entry;
+    cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
         value: Some("${x}".into()),
         span: None,
         expr: None,
@@ -157,25 +160,27 @@ fn proc_return_param_loads_and_dones() {
 #[test]
 fn if_else_diamond_emits_conditional_jump() {
     let mut cfg = CfgFunction::new("::top", "entry_0");
-    cfg.blocks
-        .insert("if_then_1".into(), Block::new("if_then_1"));
-    cfg.blocks
-        .insert("if_else_1".into(), Block::new("if_else_1"));
-    cfg.blocks.insert("if_end_1".into(), Block::new("if_end_1"));
+    let entry = cfg.entry;
+    let then = cfg.intern_block("if_then_1");
+    cfg.blocks.insert(then, Block::new("if_then_1"));
+    let els = cfg.intern_block("if_else_1");
+    cfg.blocks.insert(els, Block::new("if_else_1"));
+    let end = cfg.intern_block("if_end_1");
+    cfg.blocks.insert(end, Block::new("if_end_1"));
 
-    cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Branch {
+    cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
         condition: ExprNode::Var {
             text: "$x".into(),
             name: "x".into(),
             start: 0,
             end: 2,
         },
-        true_target: "if_then_1".into(),
-        false_target: "if_else_1".into(),
+        true_target: then,
+        false_target: els,
         span: None,
     });
     cfg.blocks
-        .get_mut("if_then_1")
+        .get_mut(&then)
         .unwrap()
         .statements
         .push(Statement::AssignConst {
@@ -184,12 +189,12 @@ fn if_else_diamond_emits_conditional_jump() {
             name_braced: false,
             value: "1".into(),
         });
-    cfg.blocks.get_mut("if_then_1").unwrap().terminator = Some(Terminator::Goto {
-        target: "if_end_1".into(),
+    cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
+        target: end,
         span: None,
     });
     cfg.blocks
-        .get_mut("if_else_1")
+        .get_mut(&els)
         .unwrap()
         .statements
         .push(Statement::AssignConst {
@@ -198,11 +203,11 @@ fn if_else_diamond_emits_conditional_jump() {
             name_braced: false,
             value: "2".into(),
         });
-    cfg.blocks.get_mut("if_else_1").unwrap().terminator = Some(Terminator::Goto {
-        target: "if_end_1".into(),
+    cfg.blocks.get_mut(&els).unwrap().terminator = Some(Terminator::Goto {
+        target: end,
         span: None,
     });
-    cfg.blocks.get_mut("if_end_1").unwrap().terminator = Some(Terminator::Return {
+    cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
         span: None,
         expr: None,
@@ -223,31 +228,33 @@ fn if_else_diamond_emits_conditional_jump() {
 #[test]
 fn if_const_true_dead_branch_eliminated() {
     let mut cfg = CfgFunction::new("::top", "entry_0");
-    cfg.blocks
-        .insert("if_then_1".into(), Block::new("if_then_1"));
-    cfg.blocks
-        .insert("if_else_1".into(), Block::new("if_else_1"));
-    cfg.blocks.insert("if_end_1".into(), Block::new("if_end_1"));
+    let entry = cfg.entry;
+    let then = cfg.intern_block("if_then_1");
+    cfg.blocks.insert(then, Block::new("if_then_1"));
+    let els = cfg.intern_block("if_else_1");
+    cfg.blocks.insert(els, Block::new("if_else_1"));
+    let end = cfg.intern_block("if_end_1");
+    cfg.blocks.insert(end, Block::new("if_end_1"));
 
-    cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Branch {
+    cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
         condition: ExprNode::Literal {
             text: "1".into(),
             start: 0,
             end: 1,
         },
-        true_target: "if_then_1".into(),
-        false_target: "if_else_1".into(),
+        true_target: then,
+        false_target: els,
         span: None,
     });
-    cfg.blocks.get_mut("if_then_1").unwrap().terminator = Some(Terminator::Goto {
-        target: "if_end_1".into(),
+    cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
+        target: end,
         span: None,
     });
-    cfg.blocks.get_mut("if_else_1").unwrap().terminator = Some(Terminator::Goto {
-        target: "if_end_1".into(),
+    cfg.blocks.get_mut(&els).unwrap().terminator = Some(Terminator::Goto {
+        target: end,
         span: None,
     });
-    cfg.blocks.get_mut("if_end_1").unwrap().terminator = Some(Terminator::Return {
+    cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
         span: None,
         expr: None,
@@ -269,7 +276,7 @@ fn if_const_true_dead_branch_eliminated() {
 fn switch_dispatch_emits_jump_table() {
     use tcl_compiler::expr_ast::BinOp;
 
-    fn str_eq_branch(var: &str, pat: &str, tt: &str, ft: &str) -> Terminator {
+    fn str_eq_branch(var: &str, pat: &str, tt: BlockId, ft: BlockId) -> Terminator {
         Terminator::Branch {
             condition: ExprNode::Binary {
                 op: BinOp::StrEq,
@@ -285,24 +292,34 @@ fn switch_dispatch_emits_jump_table() {
                     end: pat.len() as u32,
                 }),
             },
-            true_target: tt.into(),
-            false_target: ft.into(),
+            true_target: tt,
+            false_target: ft,
             span: None,
         }
     }
 
     let mut cfg = CfgFunction::new("::top", "d1");
-    for b in ["d2", "d3", "arm_a", "arm_b", "default", "switch_end_1"] {
-        cfg.blocks.insert(b.into(), Block::new(b));
-    }
-    cfg.blocks.get_mut("d1").unwrap().terminator = Some(str_eq_branch("x", "a", "arm_a", "d2"));
-    cfg.blocks.get_mut("d2").unwrap().terminator = Some(str_eq_branch("x", "b", "arm_b", "d3"));
-    cfg.blocks.get_mut("d3").unwrap().terminator = Some(Terminator::Goto {
-        target: "default".into(),
+    let d1 = cfg.entry;
+    let d2 = cfg.intern_block("d2");
+    cfg.blocks.insert(d2, Block::new("d2"));
+    let d3 = cfg.intern_block("d3");
+    cfg.blocks.insert(d3, Block::new("d3"));
+    let arm_a = cfg.intern_block("arm_a");
+    cfg.blocks.insert(arm_a, Block::new("arm_a"));
+    let arm_b = cfg.intern_block("arm_b");
+    cfg.blocks.insert(arm_b, Block::new("arm_b"));
+    let default = cfg.intern_block("default");
+    cfg.blocks.insert(default, Block::new("default"));
+    let switch_end = cfg.intern_block("switch_end_1");
+    cfg.blocks.insert(switch_end, Block::new("switch_end_1"));
+    cfg.blocks.get_mut(&d1).unwrap().terminator = Some(str_eq_branch("x", "a", arm_a, d2));
+    cfg.blocks.get_mut(&d2).unwrap().terminator = Some(str_eq_branch("x", "b", arm_b, d3));
+    cfg.blocks.get_mut(&d3).unwrap().terminator = Some(Terminator::Goto {
+        target: default,
         span: None,
     });
     cfg.blocks
-        .get_mut("arm_a")
+        .get_mut(&arm_a)
         .unwrap()
         .statements
         .push(Statement::AssignConst {
@@ -311,12 +328,12 @@ fn switch_dispatch_emits_jump_table() {
             name_braced: false,
             value: "1".into(),
         });
-    cfg.blocks.get_mut("arm_a").unwrap().terminator = Some(Terminator::Goto {
-        target: "switch_end_1".into(),
+    cfg.blocks.get_mut(&arm_a).unwrap().terminator = Some(Terminator::Goto {
+        target: switch_end,
         span: None,
     });
     cfg.blocks
-        .get_mut("arm_b")
+        .get_mut(&arm_b)
         .unwrap()
         .statements
         .push(Statement::AssignConst {
@@ -325,15 +342,15 @@ fn switch_dispatch_emits_jump_table() {
             name_braced: false,
             value: "2".into(),
         });
-    cfg.blocks.get_mut("arm_b").unwrap().terminator = Some(Terminator::Goto {
-        target: "switch_end_1".into(),
+    cfg.blocks.get_mut(&arm_b).unwrap().terminator = Some(Terminator::Goto {
+        target: switch_end,
         span: None,
     });
-    cfg.blocks.get_mut("default").unwrap().terminator = Some(Terminator::Goto {
-        target: "switch_end_1".into(),
+    cfg.blocks.get_mut(&default).unwrap().terminator = Some(Terminator::Goto {
+        target: switch_end,
         span: None,
     });
-    cfg.blocks.get_mut("switch_end_1").unwrap().terminator = Some(Terminator::Return {
+    cfg.blocks.get_mut(&switch_end).unwrap().terminator = Some(Terminator::Return {
         value: None,
         span: None,
         expr: None,
@@ -477,20 +494,21 @@ fn switch_glob_emits_generic_invoke_not_jump_table() {
 #[test]
 fn foreach_emits_native_opcodes() {
     let mut cfg = CfgFunction::new("::top", "entry_0");
-    cfg.blocks
-        .insert("foreach_header_1".into(), Block::new("foreach_header_1"));
-    cfg.blocks
-        .insert("foreach_body_1".into(), Block::new("foreach_body_1"));
-    cfg.blocks
-        .insert("foreach_end_1".into(), Block::new("foreach_end_1"));
+    let entry = cfg.entry;
+    let header = cfg.intern_block("foreach_header_1");
+    cfg.blocks.insert(header, Block::new("foreach_header_1"));
+    let body = cfg.intern_block("foreach_body_1");
+    cfg.blocks.insert(body, Block::new("foreach_body_1"));
+    let end = cfg.intern_block("foreach_end_1");
+    cfg.blocks.insert(end, Block::new("foreach_end_1"));
 
-    cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Goto {
-        target: "foreach_header_1".into(),
+    cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Goto {
+        target: header,
         span: None,
     });
     // foreach command is the single statement in the header block
     cfg.blocks
-        .get_mut("foreach_header_1")
+        .get_mut(&header)
         .unwrap()
         .statements
         .push(Statement::Call {
@@ -505,16 +523,16 @@ fn foreach_emits_native_opcodes() {
             tokens: None,
             foreach_groups: None,
         });
-    cfg.blocks.get_mut("foreach_header_1").unwrap().terminator = Some(Terminator::Branch {
+    cfg.blocks.get_mut(&header).unwrap().terminator = Some(Terminator::Branch {
         condition: ExprNode::Raw {
             text: "<foreach>".into(),
         },
-        true_target: "foreach_body_1".into(),
-        false_target: "foreach_end_1".into(),
+        true_target: body,
+        false_target: end,
         span: None,
     });
     cfg.blocks
-        .get_mut("foreach_body_1")
+        .get_mut(&body)
         .unwrap()
         .statements
         .push(Statement::AssignConst {
@@ -523,11 +541,11 @@ fn foreach_emits_native_opcodes() {
             name_braced: false,
             value: "42".into(),
         });
-    cfg.blocks.get_mut("foreach_body_1").unwrap().terminator = Some(Terminator::Goto {
-        target: "foreach_header_1".into(),
+    cfg.blocks.get_mut(&body).unwrap().terminator = Some(Terminator::Goto {
+        target: header,
         span: None,
     });
-    cfg.blocks.get_mut("foreach_end_1").unwrap().terminator = Some(Terminator::Return {
+    cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
         span: None,
         expr: None,
@@ -563,24 +581,26 @@ fn complex_foreach_body_emits_step_at_end() {
     //   if_then_1 ─break command─→ foreach_end_1 (via loop_ctx)
     //   foreach_end_1 ─→ return
     let mut cfg = CfgFunction::new("::top", "entry_0");
-    for b in [
-        "foreach_header_1",
-        "foreach_body_1",
-        "if_then_1",
-        "if_end_1",
-        "foreach_end_1",
-    ] {
-        cfg.blocks.insert(b.into(), Block::new(b));
-    }
+    let entry = cfg.entry;
+    let header = cfg.intern_block("foreach_header_1");
+    cfg.blocks.insert(header, Block::new("foreach_header_1"));
+    let body = cfg.intern_block("foreach_body_1");
+    cfg.blocks.insert(body, Block::new("foreach_body_1"));
+    let then = cfg.intern_block("if_then_1");
+    cfg.blocks.insert(then, Block::new("if_then_1"));
+    let if_end = cfg.intern_block("if_end_1");
+    cfg.blocks.insert(if_end, Block::new("if_end_1"));
+    let end = cfg.intern_block("foreach_end_1");
+    cfg.blocks.insert(end, Block::new("foreach_end_1"));
 
-    cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Goto {
-        target: "foreach_header_1".into(),
+    cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Goto {
+        target: header,
         span: None,
     });
 
     // foreach header has the foreach statement.
     cfg.blocks
-        .get_mut("foreach_header_1")
+        .get_mut(&header)
         .unwrap()
         .statements
         .push(Statement::Call {
@@ -595,31 +615,31 @@ fn complex_foreach_body_emits_step_at_end() {
             tokens: None,
             foreach_groups: None,
         });
-    cfg.blocks.get_mut("foreach_header_1").unwrap().terminator = Some(Terminator::Branch {
+    cfg.blocks.get_mut(&header).unwrap().terminator = Some(Terminator::Branch {
         condition: ExprNode::Raw {
             text: "<foreach>".into(),
         },
-        true_target: "foreach_body_1".into(),
-        false_target: "foreach_end_1".into(),
+        true_target: body,
+        false_target: end,
         span: None,
     });
 
     // Complex body: empty, branch terminator
-    cfg.blocks.get_mut("foreach_body_1").unwrap().terminator = Some(Terminator::Branch {
+    cfg.blocks.get_mut(&body).unwrap().terminator = Some(Terminator::Branch {
         condition: ExprNode::Var {
             text: "$i".into(),
             name: "i".into(),
             start: 0,
             end: 2,
         },
-        true_target: "if_then_1".into(),
-        false_target: "if_end_1".into(),
+        true_target: then,
+        false_target: if_end,
         span: None,
     });
 
     // if_then_1: a break statement
     cfg.blocks
-        .get_mut("if_then_1")
+        .get_mut(&then)
         .unwrap()
         .statements
         .push(Statement::Call {
@@ -634,18 +654,18 @@ fn complex_foreach_body_emits_step_at_end() {
             tokens: None,
             foreach_groups: None,
         });
-    cfg.blocks.get_mut("if_then_1").unwrap().terminator = Some(Terminator::Goto {
-        target: "foreach_header_1".into(),
+    cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
+        target: header,
         span: None,
     });
 
     // if_end_1: no-op, loops back
-    cfg.blocks.get_mut("if_end_1").unwrap().terminator = Some(Terminator::Goto {
-        target: "foreach_header_1".into(),
+    cfg.blocks.get_mut(&if_end).unwrap().terminator = Some(Terminator::Goto {
+        target: header,
         span: None,
     });
 
-    cfg.blocks.get_mut("foreach_end_1").unwrap().terminator = Some(Terminator::Return {
+    cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
         span: None,
         expr: None,
@@ -684,16 +704,17 @@ fn while_in_proc_emits_start_cmd() {
     use tcl_compiler::expr_ast::ExprNode;
 
     let mut cfg = CfgFunction::new("::f", "entry_0");
-    cfg.blocks
-        .insert("while_header_1".into(), Block::new("while_header_1"));
-    cfg.blocks
-        .insert("while_body_1".into(), Block::new("while_body_1"));
-    cfg.blocks
-        .insert("while_end_1".into(), Block::new("while_end_1"));
+    let entry = cfg.entry;
+    let header = cfg.intern_block("while_header_1");
+    cfg.blocks.insert(header, Block::new("while_header_1"));
+    let body = cfg.intern_block("while_body_1");
+    cfg.blocks.insert(body, Block::new("while_body_1"));
+    let end = cfg.intern_block("while_end_1");
+    cfg.blocks.insert(end, Block::new("while_end_1"));
 
     // Entry: a set statement, then goto while_header_1
     cfg.blocks
-        .get_mut("entry_0")
+        .get_mut(&entry)
         .unwrap()
         .statements
         .push(Statement::AssignConst {
@@ -702,23 +723,23 @@ fn while_in_proc_emits_start_cmd() {
             name_braced: false,
             value: "0".into(),
         });
-    cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Goto {
-        target: "while_header_1".into(),
+    cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Goto {
+        target: header,
         span: None,
     });
-    cfg.blocks.get_mut("while_header_1").unwrap().terminator = Some(Terminator::Branch {
+    cfg.blocks.get_mut(&header).unwrap().terminator = Some(Terminator::Branch {
         condition: ExprNode::Var {
             text: "$i".into(),
             name: "i".into(),
             start: 0,
             end: 2,
         },
-        true_target: "while_body_1".into(),
-        false_target: "while_end_1".into(),
+        true_target: body,
+        false_target: end,
         span: None,
     });
     cfg.blocks
-        .get_mut("while_body_1")
+        .get_mut(&body)
         .unwrap()
         .statements
         .push(Statement::Incr {
@@ -728,11 +749,11 @@ fn while_in_proc_emits_start_cmd() {
             amount: None,
             safe_on_uninit: false,
         });
-    cfg.blocks.get_mut("while_body_1").unwrap().terminator = Some(Terminator::Goto {
-        target: "while_header_1".into(),
+    cfg.blocks.get_mut(&body).unwrap().terminator = Some(Terminator::Goto {
+        target: header,
         span: None,
     });
-    cfg.blocks.get_mut("while_end_1").unwrap().terminator = Some(Terminator::Return {
+    cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
         span: None,
         expr: None,

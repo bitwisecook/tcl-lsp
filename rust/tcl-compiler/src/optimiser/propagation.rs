@@ -116,7 +116,7 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
         let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
             continue;
         };
-        let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+        let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
             continue;
         };
         let Some(def_stmt) = block.statements.get(idx) else {
@@ -144,7 +144,7 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
             let Ok(use_idx) = usize::try_from(use_site.statement_index) else {
                 continue;
             };
-            let Some(use_block) = fu.cfg.blocks.get(&use_site.block) else {
+            let Some(use_block) = fu.cfg.block_by_name(&use_site.block) else {
                 continue;
             };
             let Some(use_stmt) = use_block.statements.get(use_idx) else {
@@ -341,8 +341,11 @@ fn forward_candidate(
     if def.kind != DefKind::Statement {
         return None;
     }
-    // Same executable block; use strictly after def.
-    if def.block != use_site.block || !fu.sccp.executable_blocks.contains(&def.block) {
+    // Same executable block; use strictly after def. `def.block` /
+    // `use_site.block` are block names; resolve to the shared `BlockId`
+    // for the `executable_blocks` / `cfg.blocks` / `ssa.blocks` lookups.
+    let def_block = fu.cfg.block_id(&def.block)?;
+    if def.block != use_site.block || !fu.sccp.executable_blocks.contains(&def_block) {
         return None;
     }
     let (Ok(def_idx), Ok(use_idx)) = (
@@ -354,8 +357,8 @@ fn forward_candidate(
     if use_idx <= def_idx {
         return None;
     }
-    let block = fu.cfg.blocks.get(&def.block)?;
-    let ssa_block = fu.ssa.blocks.get(&def.block)?;
+    let block = fu.cfg.blocks.get(&def_block)?;
+    let ssa_block = fu.ssa.blocks.get(&def_block)?;
     let (def_stmt, use_stmt) = (
         block.statements.get(def_idx)?,
         block.statements.get(use_idx)?,
@@ -802,7 +805,7 @@ fn resolve_return_constant(
         let Some(Terminator::Return { value, expr, .. }) = &block.terminator else {
             continue;
         };
-        let folded = fold_return_under_lattice(fu, bn, value.as_deref(), expr.as_ref(), result)?;
+        let folded = fold_return_under_lattice(fu, *bn, value.as_deref(), expr.as_ref(), result)?;
         match &found {
             None => found = Some(folded),
             Some(prev) if *prev == folded => {}
@@ -817,7 +820,7 @@ fn resolve_return_constant(
 /// `return $var` (a lattice constant), and a bare literal return.
 fn fold_return_under_lattice(
     fu: &FunctionUnit,
-    bn: &str,
+    bn: crate::cfg::BlockId,
     value: Option<&str>,
     expr: Option<&crate::expr_ast::ExprNode>,
     result: &crate::sccp::SccpResult,
@@ -841,7 +844,7 @@ fn fold_return_under_lattice(
         let ver = fu
             .ssa
             .blocks
-            .get(bn)
+            .get(&bn)
             .and_then(|b| b.exit_versions.get(name).copied())
             .unwrap_or(0);
         return match result.values.get(&(name.to_owned(), ver)) {
@@ -869,7 +872,7 @@ fn fold_return_under_lattice(
             }
         }
     }
-    if let Some(ssa_block) = fu.ssa.blocks.get(bn) {
+    if let Some(ssa_block) = fu.ssa.blocks.get(&bn) {
         for (name, ver) in &ssa_block.exit_versions {
             if let Some(LatticeValue::Const(c)) = result.values.get(&(name.clone(), *ver)) {
                 env.insert(name.clone(), const_to_env_value(c));

@@ -69,8 +69,8 @@ impl Analyser {
             return;
         }
         // Reverse-postorder for deterministic diagnostic ordering.
-        for block_name in cfg.reverse_postorder() {
-            let Some(block) = cfg.blocks.get(&block_name) else {
+        for block_id in cfg.reverse_postorder() {
+            let Some(block) = cfg.blocks.get(&block_id) else {
                 continue;
             };
             for (idx, stmt) in block.statements.iter().enumerate() {
@@ -81,7 +81,7 @@ impl Analyser {
                 if command.is_empty() || matches!(command.as_str(), "rename" | "interp" | "proc") {
                     continue;
                 }
-                if binding.binding_at(&block_name, idx, command).kind != BindingKind::Opaque {
+                if binding.binding_at(block_id, idx, command).kind != BindingKind::Opaque {
                     continue;
                 }
                 if !rebound.contains(&nqn(command)) {
@@ -262,7 +262,11 @@ file; this call falls through to the 'unknown' handler."
             // Suppress dead stores in SCCP-unreachable blocks —
             // O107 already reports the whole block as dead, and
             // re-flagging individual stores inside it adds noise.
-            if !fu.sccp.executable_blocks.contains(&chain.definition.block) {
+            if !fu
+                .cfg
+                .block_id(&chain.definition.block)
+                .is_some_and(|id| fu.sccp.executable_blocks.contains(&id))
+            {
                 continue;
             }
             // A dead assignment is W220 whether or not the variable is also
@@ -271,7 +275,7 @@ file; this call falls through to the 'unknown' handler."
             // unused hint (W211) are distinct diagnostics with distinct
             // fixes (drop this assignment vs. drop the variable).  Fires
             // on any dead store regardless of other live versions.
-            let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+            let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
                 continue;
             };
             let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
@@ -450,7 +454,7 @@ file; this call falls through to the 'unknown' handler."
             if any_other_live {
                 continue;
             }
-            let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+            let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
                 continue;
             };
             let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
@@ -541,8 +545,8 @@ file; this call falls through to the 'unknown' handler."
                 .insert(idx);
         }
 
-        for (block_name, block) in &fu.cfg.blocks {
-            let Some(dead_indices) = dead_idx.get(block_name.as_str()) else {
+        for block in fu.cfg.blocks.values() {
+            let Some(dead_indices) = dead_idx.get(block.name.as_str()) else {
                 continue;
             };
             // Walk consecutive pairs (idx, idx + 1).  Only the
@@ -848,7 +852,7 @@ file; this call falls through to the 'unknown' handler."
                 if matches!(use_site.kind, UseKind::PhiIncoming) {
                     continue;
                 }
-                let Some(block) = fu.cfg.blocks.get(&use_site.block) else {
+                let Some(block) = fu.cfg.block_by_name(&use_site.block) else {
                     continue;
                 };
                 let (span, stmt_opt): (tcl_lexer::Span, Option<&Statement>) =
@@ -961,11 +965,11 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
         params: &HashSet<&str>,
-        exists_guards: &[(String, String)],
+        exists_guards: &[(String, crate::cfg::BlockId)],
         scope_aliases: &HashSet<String>,
         extra_known_defined: &HashSet<String>,
         defined_vars: &HashSet<String>,
-        considered: &HashSet<String>,
+        considered: &HashSet<crate::cfg::BlockId>,
         supp: &UndefSuppression,
     ) {
         use crate::var_refs::{VarReferenceScanner, VarScanOptions};
@@ -984,12 +988,13 @@ file; this call falls through to the 'unknown' handler."
         });
 
         let mut reported: FxHashSet<String> = FxHashSet::default();
-        // Deterministic block order for stable diagnostics.
-        let mut block_names: Vec<&String> = considered.iter().collect();
-        block_names.sort();
+        // Deterministic block order for stable diagnostics (by BlockId =
+        // creation order; the analyser re-sorts diagnostics by span/code).
+        let mut block_ids: Vec<crate::cfg::BlockId> = considered.iter().copied().collect();
+        block_ids.sort_unstable();
 
-        for bn in block_names {
-            let Some(cfg_block) = fu.cfg.blocks.get(bn) else {
+        for bn in block_ids {
+            let Some(cfg_block) = fu.cfg.blocks.get(&bn) else {
                 continue;
             };
             let Some(crate::cfg::Terminator::Return { value, expr, .. }) = &cfg_block.terminator
@@ -1007,7 +1012,7 @@ file; this call falls through to the 'unknown' handler."
             if span.is_empty() {
                 continue;
             }
-            let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
+            let Some(ssa_block) = fu.ssa.blocks.get(&bn) else {
                 continue;
             };
 
@@ -1061,7 +1066,7 @@ file; this call falls through to the 'unknown' handler."
                 // A dominating existence guard proves the var exists here.
                 if exists_guards
                     .iter()
-                    .any(|(gv, gblk)| *gv == name && block_dominated_by(&fu.ssa, bn, gblk))
+                    .any(|(gv, gblk)| *gv == name && block_dominated_by(&fu.ssa, bn, *gblk))
                 {
                     continue;
                 }
@@ -1090,7 +1095,7 @@ file; this call falls through to the 'unknown' handler."
     pub(super) fn emit_provably_unset_w210(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
-        considered: &HashSet<String>,
+        considered: &HashSet<crate::cfg::BlockId>,
         defined_vars: &HashSet<String>,
     ) {
         use crate::ir::Statement;
@@ -1098,11 +1103,11 @@ file; this call falls through to the 'unknown' handler."
 
         // var name -> (def_block, def_stmt_idx); idx == -1 means "from the
         // start of the block" (the embedded-condition no-match target).
-        let mut provably_unset: std::collections::HashMap<String, (String, i32)> =
+        let mut provably_unset: std::collections::HashMap<String, (crate::cfg::BlockId, i32)> =
             std::collections::HashMap::new();
 
-        for bn in considered {
-            let Some(block) = fu.cfg.blocks.get(bn) else {
+        for &bn in considered {
+            let Some(block) = fu.cfg.blocks.get(&bn) else {
                 continue;
             };
             // Top-level regexp / scan calls.
@@ -1127,9 +1132,9 @@ file; this call falls through to the 'unknown' handler."
                     && no_match
                 {
                     for d in defs {
-                        provably_unset.entry(d.clone()).or_insert_with(|| {
-                            (bn.clone(), i32::try_from(idx).unwrap_or(i32::MAX))
-                        });
+                        provably_unset
+                            .entry(d.clone())
+                            .or_insert_with(|| (bn, i32::try_from(idx).unwrap_or(i32::MAX)));
                     }
                 }
             }
@@ -1143,8 +1148,8 @@ file; this call falls through to the 'unknown' handler."
             {
                 Self::collect_embedded_provably_unset(
                     condition,
-                    true_target,
-                    false_target,
+                    *true_target,
+                    *false_target,
                     &mut provably_unset,
                 );
             }
@@ -1157,10 +1162,10 @@ file; this call falls through to the 'unknown' handler."
         // Fire on every executable use after the def (same block) or in a
         // block dominated by the def block.
         let mut reported: FxHashSet<String> = FxHashSet::default();
-        let mut block_names: Vec<&String> = considered.iter().collect();
-        block_names.sort();
-        for bn in block_names {
-            let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
+        let mut block_ids: Vec<crate::cfg::BlockId> = considered.iter().copied().collect();
+        block_ids.sort_unstable();
+        for bn in block_ids {
+            let Some(ssa_block) = fu.ssa.blocks.get(&bn) else {
                 continue;
             };
             for (idx, s) in ssa_block.statements.iter().enumerate() {
@@ -1172,12 +1177,12 @@ file; this call falls through to the 'unknown' handler."
                         continue;
                     };
                     let in_def_block_after =
-                        bn == def_block && i32::try_from(idx).unwrap_or(i32::MAX) > *def_idx;
-                    let dominated = bn != def_block && block_dominated_by(&fu.ssa, bn, def_block);
+                        bn == *def_block && i32::try_from(idx).unwrap_or(i32::MAX) > *def_idx;
+                    let dominated = bn != *def_block && block_dominated_by(&fu.ssa, bn, *def_block);
                     if !(in_def_block_after || dominated) {
                         continue;
                     }
-                    let span = match fu.cfg.blocks.get(bn).and_then(|b| b.statements.get(idx)) {
+                    let span = match fu.cfg.blocks.get(&bn).and_then(|b| b.statements.get(idx)) {
                         Some(st) if !st.span().is_empty() => fu.abs_span(st.span()),
                         _ => continue,
                     };
@@ -1205,9 +1210,9 @@ file; this call falls through to the 'unknown' handler."
     /// target; more complex shapes are skipped).
     fn collect_embedded_provably_unset(
         condition: &ExprNode,
-        true_target: &str,
-        false_target: &str,
-        provably_unset: &mut std::collections::HashMap<String, (String, i32)>,
+        true_target: crate::cfg::BlockId,
+        false_target: crate::cfg::BlockId,
+        provably_unset: &mut std::collections::HashMap<String, (crate::cfg::BlockId, i32)>,
     ) {
         let (cmd_node, no_match_target) = match condition {
             ExprNode::Command { .. } => (condition, false_target),
@@ -1261,7 +1266,7 @@ file; this call falls through to the 'unknown' handler."
             if !name.is_empty() {
                 provably_unset
                     .entry(name.to_string())
-                    .or_insert_with(|| (no_match_target.to_string(), -1));
+                    .or_insert((no_match_target, -1));
             }
         }
     }
@@ -1293,11 +1298,15 @@ file; this call falls through to the 'unknown' handler."
             // ``executable_blocks`` (the complement); a block
             // is unreachable iff it's in ``cfg.blocks`` but
             // NOT in ``executable_blocks``.
-            if fu.sccp.executable_blocks.contains(&branch.not_taken_target) {
+            if fu
+                .cfg
+                .block_id(&branch.not_taken_target)
+                .is_some_and(|id| fu.sccp.executable_blocks.contains(&id))
+            {
                 continue;
             }
             // Locate the branch's terminator span.
-            let Some(block) = fu.cfg.blocks.get(&branch.block) else {
+            let Some(block) = fu.cfg.block_by_name(&branch.block) else {
                 continue;
             };
             let Some(crate::cfg::Terminator::Branch {
@@ -1579,8 +1588,8 @@ file; this call falls through to the 'unknown' handler."
         // The block set SCCP proved reachable; fall back to every SSA block
         // when SCCP produced nothing (e.g. a trivial function) so the check
         // still runs — matching the previous emitter's reachability fallback.
-        let executable: HashSet<String> = if fu.sccp.executable_blocks.is_empty() {
-            fu.ssa.blocks.keys().cloned().collect()
+        let executable: HashSet<crate::cfg::BlockId> = if fu.sccp.executable_blocks.is_empty() {
+            fu.ssa.blocks.keys().copied().collect()
         } else {
             fu.sccp.executable_blocks.clone()
         };
@@ -1623,10 +1632,10 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
-        let executable: HashSet<String> = if fu.sccp.executable_blocks.is_empty() {
-            fu.ssa.blocks.keys().cloned().collect()
+        let executable: HashSet<crate::cfg::BlockId> = if fu.sccp.executable_blocks.is_empty() {
+            fu.ssa.blocks.keys().copied().collect()
         } else {
-            fu.sccp.executable_blocks.iter().cloned().collect()
+            fu.sccp.executable_blocks.iter().copied().collect()
         };
         let findings = crate::interval_bounds::find_interval_bounds(
             &fu.cfg,
@@ -1772,7 +1781,7 @@ file; this call falls through to the 'unknown' handler."
         let Some(chain) = fu.def_use.chain_for(var_name, *version) else {
             return;
         };
-        let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+        let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
             return;
         };
         let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
@@ -1993,7 +2002,7 @@ fn existence_query_vars(stmt: &crate::ir::Statement) -> Vec<String> {
 fn existence_exempt(
     stmt_opt: Option<&crate::ir::Statement>,
     var: &str,
-    exists_guards: &[(String, String)],
+    exists_guards: &[(String, crate::cfg::BlockId)],
     ssa: &crate::ssa::SsaFunction,
     use_block: &str,
 ) -> bool {
@@ -2002,9 +2011,12 @@ fn existence_exempt(
     {
         return true;
     }
+    let Some(use_id) = ssa.block_id(use_block) else {
+        return false;
+    };
     exists_guards
         .iter()
-        .any(|(gv, gblk)| gv == var && block_dominated_by(ssa, use_block, gblk))
+        .any(|(gv, gblk)| gv == var && block_dominated_by(ssa, use_id, *gblk))
 }
 
 /// True when a read of `var` at this use-site statement is in fact a safe

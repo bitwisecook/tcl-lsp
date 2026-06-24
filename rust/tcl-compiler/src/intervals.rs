@@ -25,7 +25,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp};
 
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::ssa::{SsaFunction, ValueKey, Version};
 
 /// A bound is an `i64`, or `None` for an infinity (sign given by position).
@@ -354,13 +354,13 @@ fn guard_constraint(cond: &ExprNode, name: &str, negate: bool) -> Option<Interva
     None
 }
 
-/// `(name, version) → [branch-block names]` index for guard narrowing: for
+/// `(name, version) → [branch-block ids]` index for guard narrowing: for
 /// each `Branch` block, the names in its condition resolved against the
 /// block's exit version of each.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
-pub fn build_guard_index(cfg: &CfgFunction, ssa: &SsaFunction) -> HashMap<ValueKey, Vec<String>> {
-    let mut index: HashMap<ValueKey, Vec<String>> = HashMap::new();
+pub fn build_guard_index(cfg: &CfgFunction, ssa: &SsaFunction) -> HashMap<ValueKey, Vec<BlockId>> {
+    let mut index: HashMap<ValueKey, Vec<BlockId>> = HashMap::new();
     for (dn, dblock) in &cfg.blocks {
         let Some(Terminator::Branch { condition, .. }) = &dblock.terminator else {
             continue;
@@ -370,7 +370,7 @@ pub fn build_guard_index(cfg: &CfgFunction, ssa: &SsaFunction) -> HashMap<ValueK
         };
         for name in condition.vars() {
             if let Some(&version) = sb.exit_versions.get(&name) {
-                index.entry((name, version)).or_default().push(dn.clone());
+                index.entry((name, version)).or_default().push(*dn);
             }
         }
     }
@@ -379,18 +379,18 @@ pub fn build_guard_index(cfg: &CfgFunction, ssa: &SsaFunction) -> HashMap<ValueK
 
 /// True when `ancestor` dominates `node` (walks `node`'s idom chain).
 #[must_use]
-fn dominates(ssa: &SsaFunction, ancestor: &str, node: &str) -> bool {
+fn dominates(ssa: &SsaFunction, ancestor: BlockId, node: BlockId) -> bool {
     if ancestor == node {
         return true;
     }
-    let mut curr = node.to_owned();
+    let mut curr = node;
     loop {
         match ssa.idom.get(&curr) {
             Some(Some(parent)) => {
-                if parent == ancestor {
+                if *parent == ancestor {
                     return true;
                 }
-                curr = parent.clone();
+                curr = *parent;
             }
             _ => return false,
         }
@@ -405,10 +405,10 @@ pub fn refine_interval(
     base: &HashMap<ValueKey, Interval>,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    block: &str,
+    block: BlockId,
     name: &str,
     version: Version,
-    guard_index: &HashMap<ValueKey, Vec<String>>,
+    guard_index: &HashMap<ValueKey, Vec<BlockId>>,
 ) -> Interval {
     let mut iv = base
         .get(&(name.to_owned(), version))
@@ -417,11 +417,11 @@ pub fn refine_interval(
     let Some(candidate_blocks) = guard_index.get(&(name.to_owned(), version)) else {
         return iv;
     };
-    for dn in candidate_blocks {
+    for &dn in candidate_blocks {
         if dn == block {
             continue;
         }
-        let Some(dblock) = cfg.blocks.get(dn) else {
+        let Some(dblock) = cfg.blocks.get(&dn) else {
             continue;
         };
         let Some(Terminator::Branch {
@@ -433,14 +433,14 @@ pub fn refine_interval(
         else {
             continue;
         };
-        let Some(sb) = ssa.blocks.get(dn) else {
+        let Some(sb) = ssa.blocks.get(&dn) else {
             continue;
         };
         if sb.exit_versions.get(name) != Some(&version) {
             continue;
         }
-        let true_dom = dominates(ssa, true_target.as_str(), block);
-        let false_dom = dominates(ssa, false_target.as_str(), block);
+        let true_dom = dominates(ssa, *true_target, block);
+        let false_dom = dominates(ssa, *false_target, block);
         let c = if true_dom && !false_dom {
             guard_constraint(condition, name, false)
         } else if false_dom && !true_dom {
@@ -497,15 +497,15 @@ const MAX_ITERS: usize = 50;
 /// The set of loop-header blocks: a block `v` that is the target of a back edge
 /// `u → v` (an edge where `v` dominates `u`).  Loop-header phis are widened.
 #[must_use]
-fn loop_headers(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<String> {
+fn loop_headers(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<BlockId> {
     let mut headers = HashSet::new();
     for (u, block) in &cfg.blocks {
         let Some(term) = &block.terminator else {
             continue;
         };
         for v in term.successors() {
-            if dominates(ssa, v, u) {
-                headers.insert(v.to_owned());
+            if dominates(ssa, v, *u) {
+                headers.insert(v);
             }
         }
     }

@@ -71,10 +71,12 @@ impl CfgBuilder {
             let then_block = self.new_block("if_then");
             let next_dispatch = self.new_block("if_next");
 
+            let true_target = self.bid(&then_block);
+            let false_target = self.bid(&next_dispatch);
             self.block_mut(&dispatch).terminator = Some(Terminator::Branch {
                 condition: clause.condition.clone(),
-                true_target: then_block.clone(),
-                false_target: next_dispatch.clone(),
+                true_target,
+                false_target,
                 span: Some(clause.condition_span),
             });
 
@@ -140,10 +142,12 @@ impl CfgBuilder {
 
         self.ensure_goto(&init_tail, &header, Some(*init_span));
 
+        let body_id = self.bid(&body_block);
+        let end_id = self.bid(&end_block);
         self.block_mut(&header).terminator = Some(Terminator::Branch {
             condition: condition.clone(),
-            true_target: body_block.clone(),
-            false_target: end_block.clone(),
+            true_target: body_id,
+            false_target: end_id,
             span: Some(*condition_span),
         });
 
@@ -190,14 +194,14 @@ impl CfgBuilder {
             if rotate {
                 self.block_mut(&header).terminator = Some(Terminator::Branch {
                     condition: literal_true_expr(),
-                    true_target: body_block.clone(),
-                    false_target: end_block.clone(),
+                    true_target: body_id,
+                    false_target: end_id,
                     span: None,
                 });
                 self.block_mut(&step_tail).terminator = Some(Terminator::Branch {
                     condition: condition.clone(),
-                    true_target: body_block.clone(),
-                    false_target: end_block.clone(),
+                    true_target: body_id,
+                    false_target: end_id,
                     span: Some(*condition_span),
                 });
             } else {
@@ -205,10 +209,11 @@ impl CfgBuilder {
             }
         }
 
+        let entry_block = self.bid(block_name);
         self.loop_nodes.insert(
             end_block.clone(),
             LoopNode {
-                entry_block: block_name.to_owned(),
+                entry_block,
                 span: *span,
                 for_stmt: stmt.clone(),
             },
@@ -256,10 +261,12 @@ impl CfgBuilder {
             });
         }
 
+        let body_id = self.bid(&body_block);
+        let end_id = self.bid(&end_block);
         self.block_mut(&header).terminator = Some(Terminator::Branch {
             condition: condition.clone(),
-            true_target: body_block.clone(),
-            false_target: end_block.clone(),
+            true_target: body_id,
+            false_target: end_id,
             span: Some(*condition_span),
         });
 
@@ -337,6 +344,8 @@ impl CfgBuilder {
         // variable) read after the loop is no longer a false read-before-set,
         // while SCCP values stay intact (no synthetic def). `break`/`continue`
         // stay real edges, so partial-def exits remain sound.
+        let body_id = self.bid(&body_block);
+        let end_id = self.bid(&end_block);
         if self.faithful_exceptions && crate::cfg_builder::foreach_runs_at_least_once(stmt) {
             let latch_block = self.new_block("foreach_latch");
             // Entry guard: the list is a non-empty literal, so the body always
@@ -345,8 +354,8 @@ impl CfgBuilder {
             // optimiser's constant-branch source rewriter off this synthetic guard.
             self.block_mut(&header).terminator = Some(Terminator::Branch {
                 condition: literal_true_expr(),
-                true_target: body_block.clone(),
-                false_target: end_block.clone(),
+                true_target: body_id,
+                false_target: end_id,
                 span: None,
             });
             // The iteration variables are (re)bound at the top of every body
@@ -365,8 +374,8 @@ impl CfgBuilder {
                 condition: ExprNode::Raw {
                     text: "<foreach_has_next>".into(),
                 },
-                true_target: body_block.clone(),
-                false_target: end_block.clone(),
+                true_target: body_id,
+                false_target: end_id,
                 span: Some(*span),
             });
             return end_block;
@@ -379,8 +388,8 @@ impl CfgBuilder {
             condition: ExprNode::Raw {
                 text: "<foreach_has_next>".into(),
             },
-            true_target: body_block.clone(),
-            false_target: end_block.clone(),
+            true_target: body_id,
+            false_target: end_id,
             span: Some(*span),
         });
 
@@ -506,10 +515,8 @@ impl CfgBuilder {
             return;
         }
         if targets.len() == 1 {
-            self.block_mut(block_name).terminator = Some(Terminator::Goto {
-                target: targets[0].clone(),
-                span,
-            });
+            let target = self.bid(&targets[0]);
+            self.block_mut(block_name).terminator = Some(Terminator::Goto { target, span });
             return;
         }
         let opaque = ExprNode::Raw {
@@ -522,10 +529,12 @@ impl CfgBuilder {
             } else {
                 self.new_block("switch_jump")
             };
+            let true_id = self.bid(&targets[i]);
+            let false_id = self.bid(&false_target);
             self.block_mut(&current).terminator = Some(Terminator::Branch {
                 condition: opaque.clone(),
-                true_target: targets[i].clone(),
-                false_target: false_target.clone(),
+                true_target: true_id,
+                false_target: false_id,
                 span,
             });
             current = false_target;
@@ -616,10 +625,12 @@ impl CfgBuilder {
                     text: subject.clone(),
                 }
             };
+            let true_id = self.bid(&final_targets[i]);
+            let false_id = self.bid(&next_dispatch);
             self.block_mut(&dispatch).terminator = Some(Terminator::Branch {
                 condition: cond,
-                true_target: final_targets[i].clone(),
-                false_target: next_dispatch.clone(),
+                true_target: true_id,
+                false_target: false_id,
                 span: arm.pattern_span.into(),
             });
             dispatch = next_dispatch;

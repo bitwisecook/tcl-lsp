@@ -359,11 +359,11 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     // cfg_order is deterministic (RPO + trailing unreachables).
-    for block_name in cfg_order(&fu.cfg) {
-        if !unreachable.contains(&block_name) {
+    for block_id in cfg_order(&fu.cfg) {
+        if !unreachable.contains(&block_id) {
             continue;
         }
-        let Some(block) = fu.cfg.blocks.get(&block_name) else {
+        let Some(block) = fu.cfg.blocks.get(&block_id) else {
             continue;
         };
         for stmt in &block.statements {
@@ -386,13 +386,13 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     }
 }
 
-/// Return the set of block names SCCP determined unreachable
+/// Return the set of block ids SCCP determined unreachable
 /// from the CFG entry.
-fn unreachable_blocks(cfg: &CfgFunction, sccp: &SccpResult) -> HashSet<String> {
+fn unreachable_blocks(cfg: &CfgFunction, sccp: &SccpResult) -> HashSet<crate::cfg::BlockId> {
     cfg.blocks
         .keys()
-        .filter(|name| !sccp.executable_blocks.contains(*name))
-        .cloned()
+        .filter(|id| !sccp.executable_blocks.contains(*id))
+        .copied()
         .collect()
 }
 
@@ -478,11 +478,14 @@ fn emit_dead_stores_and_unused(
         if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
             continue;
         }
-        if unreachable.contains(&chain.definition.block) {
+        let Some(def_block) = fu.cfg.block_id(&chain.definition.block) else {
+            continue;
+        };
+        if unreachable.contains(&def_block) {
             // O107 already reports these.
             continue;
         }
-        let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+        let Some(block) = fu.cfg.blocks.get(&def_block) else {
             continue;
         };
         let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
@@ -699,13 +702,16 @@ fn run_adce_fixpoint(
             if removed.contains(key) || keep_forever.contains(key) {
                 continue;
             }
-            if unreachable.contains(&chain.definition.block) {
+            let Some(def_block) = fu.cfg.block_id(&chain.definition.block) else {
+                continue;
+            };
+            if unreachable.contains(&def_block) {
                 continue;
             }
             let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
                 continue;
             };
-            let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+            let Some(block) = fu.cfg.blocks.get(&def_block) else {
                 continue;
             };
             let Some(stmt) = block.statements.get(idx) else {
@@ -762,7 +768,7 @@ fn emit_adce_reports(
             let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
                 continue;
             };
-            let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+            let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
                 continue;
             };
             let Some(stmt) = block.statements.get(idx) else {

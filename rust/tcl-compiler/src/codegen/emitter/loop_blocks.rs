@@ -52,7 +52,8 @@ pub struct ComplexForeach {
 #[must_use]
 pub fn detect_foreach(cfg: &CfgFunction) -> HashMap<String, ForeachInfo> {
     let mut info: HashMap<String, ForeachInfo> = HashMap::new();
-    for (bn, blk) in &cfg.blocks {
+    for (id, blk) in &cfg.blocks {
+        let bn = cfg.block_name(*id);
         if !bn.starts_with("foreach_header_") {
             continue;
         }
@@ -84,10 +85,10 @@ pub fn detect_foreach(cfg: &CfgFunction) -> HashMap<String, ForeachInfo> {
                     i = end;
                 }
                 info.insert(
-                    bn.clone(),
+                    bn.to_owned(),
                     ForeachInfo {
-                        body: true_target.clone(),
-                        end: false_target.clone(),
+                        body: cfg.block_name(*true_target).to_owned(),
+                        end: cfg.block_name(*false_target).to_owned(),
                         list_args: args.clone(),
                         var_groups,
                     },
@@ -112,7 +113,7 @@ pub fn detect_complex_foreach(
 ) -> HashMap<String, ComplexForeach> {
     let mut result: HashMap<String, ComplexForeach> = HashMap::new();
     for (header, info) in foreach_info {
-        let Some(body_blk) = cfg.blocks.get(&info.body) else {
+        let Some(body_blk) = cfg.block_by_name(&info.body) else {
             continue;
         };
         // A *simple* foreach is a single straight-line body block that loops
@@ -127,7 +128,7 @@ pub fn detect_complex_foreach(
         // before the inner loop ran, an infinite loop).
         let is_simple = matches!(
             &body_blk.terminator,
-            Some(Terminator::Goto { target, .. }) if target == header
+            Some(Terminator::Goto { target, .. }) if cfg.block_name(*target) == header
         );
         if is_simple {
             continue;

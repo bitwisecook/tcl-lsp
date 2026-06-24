@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 
 use tcl_registry::TclType;
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
@@ -36,7 +36,7 @@ pub(crate) fn find_phi_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
 ) -> Vec<ShimmerWarning> {
     let loop_blocks = loop_body_blocks(cfg);
     let def_map = def_range_map(ssa);
@@ -48,14 +48,14 @@ pub(crate) fn find_phi_shimmers(
         per_loop_body_types("", &loop_blocks, &destructure, ssa, types, &empty_by_name);
     let mut out = Vec::new();
 
-    for block_name in cfg_order(cfg) {
-        if !executable_blocks.contains(&block_name) {
+    for block_id in cfg_order(cfg) {
+        if !executable_blocks.contains(&block_id) {
             continue;
         }
-        let Some(ssa_block) = ssa.blocks.get(&block_name) else {
+        let Some(ssa_block) = ssa.blocks.get(&block_id) else {
             continue;
         };
-        let in_loop = loop_blocks.contains(&block_name);
+        let in_loop = loop_blocks.contains(cfg.block_name(block_id));
 
         for phi in &ssa_block.phis {
             let key = (phi.name.clone(), phi.version);
@@ -95,7 +95,7 @@ pub(crate) fn find_phi_shimmers(
                 let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
                 if inc_type.kind == TypeKind::Known && !is_empty {
                     if let Some(t) = inc_type.tcl_type {
-                        if loop_blocks.contains(pred) {
+                        if loop_blocks.contains(cfg.block_name(*pred)) {
                             body_types.insert(t);
                         } else {
                             entry_types.insert(t);
@@ -125,10 +125,12 @@ pub(crate) fn find_phi_shimmers(
                 .incoming
                 .iter()
                 .filter_map(|(pred_block, &ver)| {
-                    def_map
-                        .get(&(phi.name.clone(), ver))
-                        .copied()
-                        .map(|sp| (sp, format!("version from '{pred_block}'")))
+                    def_map.get(&(phi.name.clone(), ver)).copied().map(|sp| {
+                        (
+                            sp,
+                            format!("version from '{}'", cfg.block_name(*pred_block)),
+                        )
+                    })
                 })
                 .collect();
 

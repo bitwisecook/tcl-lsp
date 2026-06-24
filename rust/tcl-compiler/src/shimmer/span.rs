@@ -71,13 +71,16 @@ pub(crate) fn phi_span(phi: &Phi, ssa: &SsaFunction, def_map: &HashMap<ValueKey,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cfg::BlockId;
     use crate::ir::Statement;
     use crate::ssa::{Phi, SsaBlock, SsaFunction, SsaStatement};
     use std::collections::HashMap;
     use tcl_lexer::Span;
 
+    /// Single-block ("entry") SSA shell with one `set` def. The interner has
+    /// just `entry`, so its [`BlockId`] is `BlockId(0)`.
     fn make_ssa_with_def(name: &str, ver: u32, span: Span) -> SsaFunction {
-        let mut blocks = HashMap::new();
+        let entry = BlockId(0);
         let stmt = Statement::AssignConst {
             span,
             name: name.to_owned(),
@@ -100,15 +103,9 @@ mod tests {
             entry_versions: HashMap::new(),
             exit_versions: HashMap::new(),
         };
-        blocks.insert("entry".to_owned(), block);
-        SsaFunction {
-            name: "::top".to_owned(),
-            entry: "entry".to_owned(),
-            blocks,
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        }
+        let mut ssa = SsaFunction::trivial("::top", entry, vec!["entry".to_owned()]);
+        ssa.blocks.insert(entry, block);
+        ssa
     }
 
     #[test]
@@ -135,7 +132,7 @@ mod tests {
             version: 2,
             incoming: {
                 let mut m = HashMap::new();
-                m.insert("entry".to_owned(), 1u32);
+                m.insert(BlockId(0), 1u32);
                 m
             },
         };
@@ -159,14 +156,7 @@ mod tests {
 
     #[test]
     fn phi_span_returns_zero_when_empty_ssa() {
-        let empty_ssa = SsaFunction {
-            name: "::top".to_owned(),
-            entry: "entry".to_owned(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let empty_ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".to_owned()]);
         let phi = Phi {
             name: "x".to_owned(),
             version: 1,

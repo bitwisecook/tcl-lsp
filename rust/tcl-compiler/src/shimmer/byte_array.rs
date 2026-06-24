@@ -30,7 +30,7 @@ use std::collections::HashMap;
 use tcl_lexer::Span;
 use tcl_registry::{BytePayloadSpec, CommandRegistry, TclType};
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::cfg_order;
@@ -278,13 +278,13 @@ impl<'a> ByteCorruption<'a> {
         mut self,
         cfg: &CfgFunction,
         ssa: &SsaFunction,
-        executable_blocks: &HashSet<String>,
+        executable_blocks: &HashSet<BlockId>,
     ) -> Vec<ShimmerWarning> {
-        for block_name in cfg_order(cfg) {
-            if !executable_blocks.contains(&block_name) {
+        for block_id in cfg_order(cfg) {
+            if !executable_blocks.contains(&block_id) {
                 continue;
             }
-            let Some(ssa_block) = ssa.blocks.get(&block_name) else {
+            let Some(ssa_block) = ssa.blocks.get(&block_id) else {
                 continue;
             };
 
@@ -652,7 +652,7 @@ fn is_intrinsic_corrupt(cmd: &str, cargs: &[String]) -> bool {
 pub(crate) fn find_byte_array_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
 ) -> Vec<ShimmerWarning> {
