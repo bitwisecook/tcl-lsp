@@ -46,7 +46,22 @@ mirroring the user-facing `tcl diag` / `get_diagnostics` surface.
   evidence), so it no longer fires W307; a bare `[cmd] arg` with no tail still
   fires. (commit `a7474fb2`)
 
-**4 of 12 fixed.** Remaining worklist below.
+- **FP-DS-02 (read inside `[expr {…}]`).** `incr i [expr {$w}]` reads `w`, but
+  `$w` sits inside the expr's `{…}` braces which suppress `$`-substitution to
+  the brace-aware scanner. `collect_rmw_hidden_reads` now collects every `$var`
+  inside a `[…]` command substitution (`dollar_reads_in_cmd_subs`) and scans
+  `Incr.amount`; over-approximating reads only ever silences a warning. (commit
+  `6608a044`)
+
+**5 of 12 fixed.** Remaining worklist below.
+
+Astral-output C1 (lsp_e2e finding) — partly localised: `document_highlights`
+and `references` already build ranges via the correct `span_to_range` /
+`position_at_utf16`, so the scalar-column error is **upstream** — the analyser
+stores `var_def.references` / proc `name_span` byte-spans that are themselves
+miscounted by an astral char's extra UTF-16 unit. The fix is in the analyser's
+span computation for references following an astral character, not in the LSP
+range-lift; identifying that site is the remaining work.
 
 The OBJ-10 fix is 80% done (a working `is_callback_array_slot` suppression gated
 on `sccp_not_command`), but its paired SCCP-const TP variants
