@@ -45,7 +45,7 @@ pub use structural_index::{
     script_is_complete,
 };
 pub use substitution::backslash_subst;
-pub use tokens::{SourcePosition, Token, TokenType, Utf16Col, Utf16Position};
+pub use tokens::{ByteCol, SourcePosition, Token, TokenType, Utf16Col, Utf16Position};
 
 /// Crate version string.
 ///
