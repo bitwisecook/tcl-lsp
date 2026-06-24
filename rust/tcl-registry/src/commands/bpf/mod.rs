@@ -35,6 +35,9 @@ mod when;
 // Layer 4 — the profile-based top layer (protocol facet).
 mod field;
 mod profile;
+// Layer 4 — the profile-based top layer (template/macro facet).
+mod template;
+mod use_;
 
 use crate::spec::CommandSpec;
 
@@ -61,6 +64,8 @@ pub fn bpf_command_specs() -> Vec<CommandSpec> {
         when::spec(),
         profile::spec(),
         field::spec(),
+        template::spec(),
+        use_::spec(),
     ]
 }
 
@@ -72,12 +77,12 @@ mod tests {
     #[test]
     fn all_bpf_commands_present_and_tagged() {
         let specs = bpf_command_specs();
-        assert_eq!(specs.len(), 19);
+        assert_eq!(specs.len(), 21);
         let names: Vec<&str> = specs.iter().map(|s| s.name).collect();
         for n in [
             "setint", "seti32", "setu32", "setbuf", "load8", "load16", "load32", "pktlen", "map",
             "map_get", "map_set", "accept", "drop", "pass", "tx", "loop", "when", "profile",
-            "field",
+            "field", "template", "use",
         ] {
             assert!(names.contains(&n), "missing `{n}`");
         }

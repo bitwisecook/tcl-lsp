@@ -25,6 +25,8 @@ pub enum BpfDiag {
     BadEvent,
     /// An unknown profile, or a malformed `profile`/`field` declaration.
     BadProfile,
+    /// An unknown template, or a malformed `template`/`use` declaration.
+    BadTemplate,
     /// Too many values for the 512-byte eBPF stack.
     StackOverflow,
     /// An internal invariant failure (a compiler bug, not user error).
@@ -46,6 +48,7 @@ impl BpfDiag {
             BpfDiag::BadEvent => "BPF008",
             BpfDiag::StackOverflow => "BPF009",
             BpfDiag::BadProfile => "BPF010",
+            BpfDiag::BadTemplate => "BPF011",
             BpfDiag::Internal => "BPF999",
         }
     }

@@ -19,6 +19,7 @@ use crate::event::{KNOWN_EVENTS, event_to_prog_type};
 use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
 use crate::lower::lower_function;
 use crate::profile::{BpfProfileSpec, collect_profile, expand_fields};
+use crate::template::{TemplateDef, collect_templates, expand_uses};
 use crate::unroll::unroll_loops;
 
 /// Compile a `.bpftcl` translation unit into a bundle of typed programs.
@@ -37,6 +38,8 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
 
     // The (optional) active profile — the top-layer config selected for the file.
     let profile = collect_profile(&module.top_level, &registry)?;
+    // Reusable parameterised handlers a `use` site can splice in.
+    let templates = collect_templates(&module.top_level, &registry)?;
 
     let mut programs = Vec::new();
     let mut saw_when = false;
@@ -58,6 +61,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
                 *span,
                 &registry,
                 profile.as_ref(),
+                &templates,
             )?);
         }
     }
@@ -67,7 +71,8 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     if !saw_when {
         let body = strip_decls(&module.top_level);
         if !body.statements.is_empty() {
-            let unrolled = unroll_loops(&body, &registry)?;
+            let used = expand_uses(&body, &templates)?;
+            let unrolled = unroll_loops(&used, &registry)?;
             let expanded = match profile.as_ref() {
                 Some(p) => expand_fields(&unrolled, p)?,
                 None => unrolled,
@@ -100,6 +105,7 @@ fn lower_when_decl(
     call_span: Span,
     registry: &CommandRegistry,
     profile: Option<&BpfProfileSpec>,
+    templates: &[TemplateDef],
 ) -> Result<BpfProgramDecl, BpfError> {
     if args.len() < 2 {
         return Err(BpfError::new(
@@ -141,8 +147,8 @@ fn lower_when_decl(
         .map_or(0, |sp| sp.start() + 1);
 
     let body_module = lower_to_ir(body_text, registry);
-    let unrolled =
-        unroll_loops(&body_module.top_level, registry).map_err(|e| e.offset(source_base))?;
+    let used = expand_uses(&body_module.top_level, templates).map_err(|e| e.offset(source_base))?;
+    let unrolled = unroll_loops(&used, registry).map_err(|e| e.offset(source_base))?;
     let expanded = match profile {
         Some(p) => expand_fields(&unrolled, p).map_err(|e| e.offset(source_base))?,
         None => unrolled,
@@ -158,7 +164,8 @@ fn lower_when_decl(
     })
 }
 
-/// Remove top-level `profile`/`field` declarations (metadata, not executable).
+/// Remove top-level `profile`/`field`/`template` declarations (metadata or
+/// macro definitions, not executable code).
 fn strip_decls(script: &Script) -> Script {
     let kept = script
         .statements
@@ -175,7 +182,7 @@ fn is_decl(stmt: &Statement) -> bool {
         Statement::Call { command, canonical_command, .. }
             if matches!(
                 canonical_command.as_deref().unwrap_or(command.as_str()),
-                "profile" | "field"
+                "profile" | "field" | "template"
             )
     )
 }
