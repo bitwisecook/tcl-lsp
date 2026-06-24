@@ -174,3 +174,112 @@ impl Severity {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn code_as_int_covers_every_variant() {
+        assert_eq!(Code::Ok.as_int(), 0);
+        assert_eq!(Code::Error.as_int(), 1);
+        assert_eq!(Code::Return.as_int(), 2);
+        assert_eq!(Code::Break.as_int(), 3);
+        assert_eq!(Code::Continue.as_int(), 4);
+        assert_eq!(Code::Other(7).as_int(), 7);
+        assert_eq!(Code::Other(-9).as_int(), -9);
+    }
+
+    #[test]
+    fn code_from_int_maps_named_and_other() {
+        assert_eq!(Code::from_int(0), Code::Ok);
+        assert_eq!(Code::from_int(1), Code::Error);
+        assert_eq!(Code::from_int(2), Code::Return);
+        assert_eq!(Code::from_int(3), Code::Break);
+        assert_eq!(Code::from_int(4), Code::Continue);
+        assert_eq!(Code::from_int(5), Code::Other(5));
+        assert_eq!(Code::from_int(-1), Code::Other(-1));
+    }
+
+    #[test]
+    fn code_round_trips_through_int() {
+        for n in -3..=10 {
+            // Named codes 0..=4 canonicalise; Other preserves the raw value.
+            let c = Code::from_int(n);
+            assert_eq!(c.as_int(), i64::from(n));
+        }
+    }
+
+    #[test]
+    fn code_is_ok_only_for_ok() {
+        assert!(Code::Ok.is_ok());
+        assert!(!Code::Error.is_ok());
+        assert!(!Code::Return.is_ok());
+        assert!(!Code::Break.is_ok());
+        assert!(!Code::Continue.is_ok());
+        assert!(!Code::Other(0).is_ok());
+    }
+
+    #[test]
+    fn code_is_copy_and_eq() {
+        let a = Code::Other(42);
+        let b = a; // Copy
+        assert_eq!(a, b);
+        assert_ne!(Code::Ok, Code::Error);
+    }
+
+    #[test]
+    fn completion_new_and_is_ok() {
+        let ok: Completion<i32> = Completion::new(Code::Ok, 1, 0);
+        assert_eq!(ok.code, Code::Ok);
+        assert_eq!(ok.result, 1);
+        assert_eq!(ok.options, 0);
+        assert!(ok.is_ok());
+
+        let err: Completion<i32> = Completion::new(Code::Error, -1, 99);
+        assert!(!err.is_ok());
+        // Clone yields an equal-by-field copy.
+        let cloned = err.clone();
+        assert_eq!(cloned.code, Code::Error);
+        assert_eq!(cloned.result, -1);
+        assert_eq!(cloned.options, 99);
+    }
+
+    #[test]
+    fn opaque_handles_construct_and_compare() {
+        assert_eq!(NsId(3).0, 3);
+        assert_eq!(FrameId(5).0, 5);
+        assert_eq!(CommandId(7).0, 7);
+        assert_eq!(VarId(9).0, 9);
+        // Copy + Eq.
+        let n = NsId(1);
+        assert_eq!(n, n);
+        assert_ne!(NsId(1), NsId(2));
+        assert_ne!(FrameId(1), FrameId(2));
+        assert_ne!(CommandId(1), CommandId(2));
+        assert_ne!(VarId(1), VarId(2));
+    }
+
+    #[test]
+    fn frame_and_namespace_constants() {
+        assert_eq!(GLOBAL_FRAME, FrameId(0));
+        assert_eq!(ROOT_NS, NsId(0));
+    }
+
+    #[test]
+    fn severity_as_str_covers_every_variant() {
+        assert_eq!(Severity::Hint.as_str(), "hint");
+        assert_eq!(Severity::Suggestion.as_str(), "suggestion");
+        assert_eq!(Severity::Info.as_str(), "info");
+        assert_eq!(Severity::Warning.as_str(), "warning");
+        assert_eq!(Severity::Error.as_str(), "error");
+    }
+
+    #[test]
+    fn severity_is_copy_and_eq() {
+        let s = Severity::Warning;
+        let t = s; // Copy
+        assert_eq!(s, t);
+        assert_ne!(Severity::Hint, Severity::Error);
+    }
+}

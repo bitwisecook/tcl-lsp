@@ -562,6 +562,128 @@ mod tests {
         }
     }
 
+    #[test]
+    fn is_error_matches_error_family() {
+        for &code in DiagCode::ALL {
+            assert_eq!(
+                code.is_error(),
+                code.family() == DiagFamily::Error,
+                "{} is_error disagrees with family",
+                code.as_str()
+            );
+        }
+        assert!(DiagCode::E001.is_error());
+        assert!(!DiagCode::W210.is_error());
+    }
+
+    #[test]
+    fn default_on_is_total_and_true_for_optimisations() {
+        for &code in DiagCode::ALL {
+            // Every code answers default_on without panicking; optimisations
+            // are always on within their profile.
+            let on = code.default_on();
+            if code.is_optimisation() {
+                assert!(on, "{} optimisation must be default-on", code.as_str());
+            }
+        }
+    }
+
+    #[test]
+    fn diag_section_as_str_covers_every_variant() {
+        use DiagSection::*;
+        for (section, key) in [
+            (Error, "error"),
+            (Warning, "warning"),
+            (Variable, "variable"),
+            (Security, "security"),
+            (Hint, "hint"),
+            (Shimmer, "shimmer"),
+            (Taint, "taint"),
+            (Tk, "tk"),
+            (Irules, "irules"),
+            (IrulesSecurity, "irules_security"),
+            (IrulesVariable, "irules_variable"),
+            (Tclpkg, "tclpkg"),
+        ] {
+            assert_eq!(section.as_str(), key);
+        }
+    }
+
+    #[test]
+    fn opt_category_as_str_and_profiles() {
+        use OptCategory::*;
+        for (cat, key) in [
+            (Readability, "readability"),
+            (ConstantFolding, "constant_folding"),
+            (Pattern, "pattern"),
+            (Dce, "dce"),
+            (CodeMotion, "code_motion"),
+            (Recursion, "recursion"),
+        ] {
+            assert_eq!(cat.as_str(), key);
+        }
+        // readability profile enables only Readability.
+        assert!(Readability.in_readability_profile());
+        assert!(!ConstantFolding.in_readability_profile());
+        assert!(!Dce.in_readability_profile());
+        // standard profile enables readability + constant folding + pattern.
+        assert!(Readability.in_standard_profile());
+        assert!(ConstantFolding.in_standard_profile());
+        assert!(Pattern.in_standard_profile());
+        assert!(!Dce.in_standard_profile());
+        assert!(!CodeMotion.in_standard_profile());
+        assert!(!Recursion.in_standard_profile());
+    }
+
+    #[test]
+    fn diag_code_display_matches_as_str() {
+        use core::fmt::Write;
+        for &code in DiagCode::ALL {
+            let mut buf: heapless_fmt::Buf = heapless_fmt::Buf::new();
+            write!(buf, "{code}").unwrap();
+            assert_eq!(buf.as_str(), code.as_str());
+        }
+    }
+
+    #[test]
+    fn unknown_diag_code_displays_message() {
+        // Render `UnknownDiagCode` through Display (exercises the fmt impl).
+        let mut buf: heapless_fmt::Buf = heapless_fmt::Buf::new();
+        use core::fmt::Write;
+        write!(buf, "{UnknownDiagCode}").unwrap();
+        assert_eq!(buf.as_str(), "unknown diagnostic code");
+    }
+
+    /// Minimal `no_std` `fmt::Write` sink so the Display test needs no `String`.
+    mod heapless_fmt {
+        pub struct Buf {
+            bytes: [u8; 64],
+            len: usize,
+        }
+        impl Buf {
+            pub const fn new() -> Self {
+                Self {
+                    bytes: [0; 64],
+                    len: 0,
+                }
+            }
+            pub fn as_str(&self) -> &str {
+                core::str::from_utf8(&self.bytes[..self.len]).unwrap()
+            }
+        }
+        impl core::fmt::Write for Buf {
+            fn write_str(&mut self, s: &str) -> core::fmt::Result {
+                let b = s.as_bytes();
+                if self.len + b.len() > self.bytes.len() {
+                    return Err(core::fmt::Error);
+                }
+                self.bytes[self.len..self.len + b.len()].copy_from_slice(b);
+                self.len += b.len();
+                Ok(())
+            }
+        }
+    }
+
     /// Tiny `no_std` set for the uniqueness test (avoids pulling in std).
     mod heapless_set {
         pub struct Set {
