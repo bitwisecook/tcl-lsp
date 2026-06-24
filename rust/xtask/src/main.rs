@@ -20,6 +20,8 @@
 //!   runtime.
 //! - `audit-option-dialects` — probe `OptionSpec` dialect gates against real
 //!   tclsh 8.4/8.5/8.6/9.0.
+//! - `diag-tables` — generate the `docs/generated/` code tables from the
+//!   `DiagCode` catalogue (`--check` to verify instead of write).
 
 #![forbid(unsafe_code)]
 
@@ -29,6 +31,7 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 
 mod audit_option_dialects;
+mod diag_tables;
 mod kcs_index_links;
 mod refcount_contract;
 mod tzdata_bundle;
@@ -76,6 +79,14 @@ enum Command {
 
     /// Probe `OptionSpec` dialect gates against real tclsh 8.4/8.5/8.6/9.0.
     AuditOptionDialects,
+
+    /// Generate the `docs/generated/` code tables from the `DiagCode` catalogue.
+    DiagTables {
+        /// Verify the committed tables are in sync instead of rewriting them;
+        /// exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 fn main() -> anyhow::Result<ExitCode> {
@@ -90,5 +101,6 @@ fn main() -> anyhow::Result<ExitCode> {
             trim_to,
         } => tzdata_bundle::run(&zoneinfo, &output, trim_from, trim_to),
         Command::AuditOptionDialects => audit_option_dialects::run(),
+        Command::DiagTables { check } => diag_tables::run(check),
     }
 }

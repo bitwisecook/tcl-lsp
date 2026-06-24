@@ -52,40 +52,51 @@ in fact done — verify against current code before re-opening any of them.
   ~800 emit/compare/dispatch sites across 9 crates are migrated. Strings survive
   only at the LSP-wire / JSON / PyO3 / config boundaries. Behaviour is byte-identical
   (`as_str`/`Display` reproduce the prior spellings).
+- **`DiagCode` doc metadata + Rust-generated code tables** — each code's
+  documentation metadata (section/category, one-line description, default-on flag)
+  now lives on the `DiagCode` macro table in `tcl-core-types`, reachable via
+  `doc_row()` and the new `DiagSection` / `OptCategory` / `DocRow` types. The
+  optimisation `OptCategory` is consolidated here too: the optimiser's
+  `profiles.rs` re-exports it and *derives* its code→category map from
+  `DiagCode::ALL` rather than keeping a parallel table. The three published tables
+  (`docs/generated/diagnostic_tables.md`, `diagnostic_codes.md`,
+  `optimisation_codes.md`) are now **generated** from that single source by
+  `cargo xtask diag-tables`, and the Python codegen's three doc targets
+  (`scripts/codegen/editor_settings.py` + the `.md.j2` templates) were retired in
+  favour of it. An xtask `committed_tables_match_generated` test on the required
+  `rust-gate` (`cargo test`) fails the build if the committed tables drift from
+  what the enum would render, and `cargo xtask diag-tables --check` gives the same
+  audit on demand — drift (a code, description, section, or default changed without
+  regenerating) can no longer recur. The migration also surfaced and added the 26
+  codes the frozen Python-era tables were missing (`E004`, `E100`–`E103`,
+  `E201`–`E206`, `S110`, `T103`–`T106`, `TK1001`–`TK1003`, `W310`–`W312`,
+  `IRULE3004`/`3103`/`5003`/`6001`), so the catalogue is now complete.
 
 ## Remaining / discovered work
 
 Ordered by value. Each is in-scope Rust code-quality work (the standalone Python
 implementation and Zig remain out of scope).
 
-### 1. `DiagCode` follow-ups (the migration itself is done — see Completed)
+### 1. Reserved diagnostic codes not yet emitted (implement when support lands)
 
-Two cheap wins remain now that `DiagCode::ALL` is the single source of truth:
+These codes are documented (and now guarded — see Completed) but no analyser path
+emits them yet. They are reserved against live subsystems / specs, **not** stale
+orphans to retire, so the completeness guard correctly keeps them in the table:
 
-- **Generate `docs/generated/diagnostic_tables.md` from `DiagCode::ALL`** (an
-  `xtask`), retiring the hand-maintained table.
-- **Add a completeness guard**: a test asserting the emitted/documented code sets
-  match `DiagCode::ALL`, so the drift in §2 below can never recur. (Severity and
-  one-line descriptions would need to move onto the enum's macro table first, or
-  the guard can check the code set only.)
+- **`W130`–`W134` (tclpkg).** The `tcl-pkg` crate (lockfile / CAS / installer /
+  policy) and the `tcl pkg` CLI verbs exist, and the design docs
+  (`tclpkg-architecture.md`, `contracts/tclpkg-lockfile.md`) specify these editor
+  diagnostics — but the analyser does not yet surface them. Wire them when it
+  gains tclpkg-awareness for `tclpkg.tcl` / `tclpkg.lock`.
+- **`W122` ("Mistyped IPv4 address, octet > 255").** Has dedup-suppression
+  handling (`analyser/diagnostics.rs:475`) and a test, but the octet-range check
+  at `analyser/diagnostics/usage.rs:388` *skips* octets > 255 rather than flagging
+  them — a stubbed check to finish, not stale handling to remove.
 
-### 2. Diagnostic-code documentation drift (concrete bugs)
+An "every code is emitted" guard is deliberately **not** added: it would
+false-positive on exactly these legitimately-reserved codes.
 
-The hand-maintained `docs/generated/diagnostic_tables.md` has drifted both ways:
-
-- **Emitted but undocumented (add to the table):** `E004`, `E100`–`E103`,
-  `E201`–`E206`, `IRULE3004`, `IRULE3103`, `IRULE5003`, `IRULE6001`, `S110`,
-  `T103`–`T106`, `W310`, `W311`, `W312`.
-- **Documented but never emitted (orphans — implement or retire):** `W130`–`W134`,
-  and `W122` ("Mistyped IPv4 address, octet > 255") which is documented and has
-  dedup-suppression handling (`analyser/diagnostics.rs:474`) but is never emitted —
-  the octet-range check at `analyser/diagnostics/usage.rs:388` *skips* octets > 255
-  rather than flagging them. Decide whether W122 is a missing check to implement
-  or stale handling to remove.
-
-Fixing #1's completeness guard makes this class of drift impossible going forward.
-
-### 3. Investigated and rejected — do not re-open
+### 2. Investigated and rejected — do not re-open
 
 - **`ByteOffset` newtype for `Span` offsets.** Measured: a spike newtyping
   `Span::start()/end()` produced 285 compile errors across 44 files in
@@ -98,7 +109,7 @@ Fixing #1's completeness guard makes this class of drift impossible going forwar
   worth it. (Contrast the column newtypes, which were low-cost and addressed a
   real recurring bug class.)
 
-### 4. Smaller / parked items
+### 3. Smaller / parked items
 
 - **GVN `ExprKey = Vec<String>` interning** — the last named O11 slice, deferred:
   contained to `gvn.rs` but `ExprKey` escapes through result structs to consumers.
@@ -108,7 +119,7 @@ Fixing #1's completeness guard makes this class of drift impossible going forwar
   deliberately distinct envelopes for different pipeline stages — **not** a
   unify-me duplicate; leave as-is.
 
-### 5. Other stringly-typed vocabularies — apply the `DiagCode` pattern
+### 4. Other stringly-typed vocabularies — apply the `DiagCode` pattern
 
 Surveyed for closed string vocabularies that are matched/dispatched on and would
 be safer as a typed enum/newtype. The core compiler is already well-typed
