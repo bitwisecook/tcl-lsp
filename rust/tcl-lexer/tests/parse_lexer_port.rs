@@ -598,3 +598,32 @@ fn no_expansion_without_immediately_following_word() {
     // `{**}` is the braced string "**", not expansion (tclsh: `list {**}` → 1).
     assert_eq!(lex("{**}"), [(TokenType::Str, "**".to_string())]);
 }
+
+// -- Port: array-index edge cases. The `$`-form groups the whole `(index)`
+// into one VAR token (tclsh: `$arr(a b)` reads element "a b"). --
+
+#[test]
+fn array_index_groups_into_one_var() {
+    // Each is a single VAR token whose text is `arr(<index>)`.
+    for (src, want) in [
+        ("$arr((nested))", "arr((nested))"),
+        ("$arr($inner)", "arr($inner)"),
+        ("$arr({key})", "arr({key})"),
+        ("$arr(\"key\")", "arr(\"key\")"),
+        ("$arr(a b)", "arr(a b)"),
+        ("$arr(((deep)))", "arr(((deep)))"),
+        ("$ns::arr(key)", "ns::arr(key)"),
+        ("$arr()", "arr()"),
+        ("$arr(a;b)", "arr(a;b)"),
+    ] {
+        assert_eq!(first(src), (TokenType::Var, want.to_string()), "{src}");
+    }
+}
+
+#[test]
+fn array_index_with_escaped_brackets() {
+    // Escaped brackets in the index keep it one VAR token.
+    let v = first("$arr(\\[idx\\])");
+    assert_eq!(v.0, TokenType::Var);
+    assert!(v.1.starts_with("arr("));
+}
