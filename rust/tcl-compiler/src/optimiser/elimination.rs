@@ -1014,6 +1014,15 @@ pub(crate) fn collect_rmw_hidden_reads(
         let d = deep.scan_word(word, registry);
         let s = shallow.scan_word(word, registry);
         out.extend(d.difference(&s).cloned());
+        // Reads buried inside a `[expr {…}]` (or any `[…]`) command substitution
+        // whose `{…}` braces suppress `$`-substitution to the generic scanner,
+        // but which the inner command re-evaluates as an expression — e.g.
+        // `incr i [expr {$w}]` reads `w` (FP-DS-02). Collect every `$var` that
+        // appears inside a command substitution. Over-approximating reads is
+        // safe for the dead-store / unused suppression: it only ever silences a
+        // warning, matching the analyser's correctness-first (err-toward-silence)
+        // bias.
+        out.extend(dollar_reads_in_cmd_subs(word));
     };
     for block in fu.cfg.blocks.values() {
         for stmt in &block.statements {
@@ -1024,9 +1033,67 @@ pub(crate) fn collect_rmw_hidden_reads(
                     }
                 }
                 Statement::AssignValue { value, .. } => scan(value),
+                // `incr i [expr {$w}]`: the amount word is not a Call/AssignValue
+                // arg, so scan it explicitly for the same buried-read reason.
+                Statement::Incr {
+                    amount: Some(amount),
+                    ..
+                } => scan(amount),
                 _ => {}
             }
         }
+    }
+    out
+}
+
+/// Collect every `$name` / `${name}` / `$arr(idx)` variable reference that
+/// appears inside a `[…]` command substitution within `word`. Reads inside an
+/// `[expr {…}]` are invisible to the brace-aware generic scanner (the `{…}`
+/// suppresses `$`-substitution), yet `expr` (and `if`/`while`/…) re-evaluate
+/// that text as an expression where the `$var` is a genuine read. Returns the
+/// bare variable names (no `$`).
+fn dollar_reads_in_cmd_subs(word: &str) -> Vec<String> {
+    let bytes = word.as_bytes();
+    let mut out: Vec<String> = Vec::new();
+    let mut depth: i32 = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'[' => depth += 1,
+            b']' => depth = (depth - 1).max(0),
+            b'$' if depth > 0 => {
+                let mut j = i + 1;
+                if j < bytes.len() && bytes[j] == b'{' {
+                    // ${name with anything}
+                    j += 1;
+                    let start = j;
+                    while j < bytes.len() && bytes[j] != b'}' {
+                        j += 1;
+                    }
+                    if j > start {
+                        out.push(word[start..j].to_string());
+                    }
+                    i = j.saturating_add(1);
+                    continue;
+                }
+                // $name / $ns::name / $arr(idx)
+                let start = j;
+                while j < bytes.len()
+                    && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
+                {
+                    j += 1;
+                }
+                if j > start {
+                    // Bare scalar / namespaced name (the array-base name is the
+                    // tracked dead-store key; the `(idx)` suffix is dropped).
+                    out.push(word[start..j].to_string());
+                }
+                i = j;
+                continue;
+            }
+            _ => {}
+        }
+        i += 1;
     }
     out
 }
