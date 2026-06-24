@@ -66,17 +66,11 @@ from shared.codes import (  # noqa: E402
     diagnostics_sorted,
     optimisations_sorted,
 )
-from shared.optimisation_profiles import (  # noqa: E402
-    READABILITY_CODES,
-    OptimisationProfile,
-    profile_spec,
-)
+from shared.optimisation_profiles import READABILITY_CODES  # noqa: E402
 from tooling.formatter.config import (  # noqa: E402
     FORMATTER_SETTINGS_CATALOGUE,
     FormatterConfig,
 )
-
-_STANDARD_CODES = profile_spec(OptimisationProfile.STANDARD).enabled_codes
 
 
 def _snake_to_camel(name: str) -> str:
@@ -760,74 +754,10 @@ def generate_vscode_package_json(*, dry_run: bool = False) -> tuple[Path, str]:
     return path, result
 
 
-# Generate README tables
-
-_GENERATED_DOCS = ROOT / "docs" / "generated"
-_TABLES_PATH = _GENERATED_DOCS / "diagnostic_tables.md"
-_DIAG_CODES_PATH = _GENERATED_DOCS / "diagnostic_codes.md"
-_OPT_CODES_PATH = _GENERATED_DOCS / "optimisation_codes.md"
-
-
-def _diag_dicts() -> list[dict]:
-    return [
-        {
-            "code": d.code,
-            "section": d.section,
-            "description": d.description,
-            "default": d.default,
-        }
-        for d in diagnostics_sorted()
-    ]
-
-
-def _opt_dicts() -> list[dict]:
-    return [
-        {
-            "code": o.code,
-            "description": o.description,
-            "default": o.default,
-            "category": o.opt_category or "",
-            "readability": o.code in READABILITY_CODES,
-            "standard": o.code in _STANDARD_CODES,
-        }
-        for o in optimisations_sorted()
-    ]
-
-
-def generate_readme_tables(*, dry_run: bool = False) -> tuple[Path, str]:
-    """Generate combined markdown tables from registry."""
-    env = _jinja_env(_TABLES_PATH.parent)
-    template = env.get_template("diagnostic_tables.md.j2")
-    content = template.render(diagnostics=_diag_dicts(), optimisations=_opt_dicts())
-
-    if not dry_run:
-        _TABLES_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _TABLES_PATH.write_text(content, encoding="utf-8")
-    return _TABLES_PATH, content
-
-
-def generate_diagnostic_codes(*, dry_run: bool = False) -> tuple[Path, str]:
-    """Generate diagnostic-only markdown table from registry."""
-    env = _jinja_env(_GENERATED_DOCS)
-    template = env.get_template("diagnostic_codes.md.j2")
-    content = template.render(diagnostics=_diag_dicts())
-
-    if not dry_run:
-        _GENERATED_DOCS.mkdir(parents=True, exist_ok=True)
-        _DIAG_CODES_PATH.write_text(content, encoding="utf-8")
-    return _DIAG_CODES_PATH, content
-
-
-def generate_optimisation_codes(*, dry_run: bool = False) -> tuple[Path, str]:
-    """Generate optimisation-only markdown table from registry."""
-    env = _jinja_env(_GENERATED_DOCS)
-    template = env.get_template("optimisation_codes.md.j2")
-    content = template.render(optimisations=_opt_dicts())
-
-    if not dry_run:
-        _GENERATED_DOCS.mkdir(parents=True, exist_ok=True)
-        _OPT_CODES_PATH.write_text(content, encoding="utf-8")
-    return _OPT_CODES_PATH, content
+# The diagnostic / optimisation code tables under docs/generated/ are now
+# generated from the Rust `DiagCode` catalogue by `cargo xtask diag-tables`
+# (the single source of truth), so they are no longer emitted here. See
+# rust/xtask/src/diag_tables.rs.
 
 
 # ---------------------------------------------------------------------------
@@ -1034,9 +964,6 @@ def render_all(*, dry_run: bool = False) -> list[tuple[Path, str]]:
         generate_jetbrains_panel(dry_run=dry_run),
         generate_vscode_catalog(dry_run=dry_run),
         generate_vscode_package_json(dry_run=dry_run),
-        generate_readme_tables(dry_run=dry_run),
-        generate_diagnostic_codes(dry_run=dry_run),
-        generate_optimisation_codes(dry_run=dry_run),
     ]
     results.extend(generate_ai_files(dry_run=dry_run))
     return results

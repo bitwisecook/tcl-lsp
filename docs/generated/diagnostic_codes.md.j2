@@ -1,7 +1,0 @@
-### Diagnostic Codes
-
-| Code | Section | Description | Default |
-|------|---------|-------------|---------|
-{% for d in diagnostics %}
-| {{ d.code }} | {{ d.section }} | {{ d.description }} | {{ "✓" if d.default else "✗" }} |
-{% endfor %}

@@ -11,22 +11,11 @@
 
 use std::collections::HashSet;
 
-/// Optimisation-pass category.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptCategory {
-    /// Idiomatic rewrites, no code removal/restructuring.
-    Readability,
-    /// Constant folding and propagation.
-    ConstantFolding,
-    /// Pattern recognition rewrites.
-    Pattern,
-    /// Dead-code / dead-store elimination.
-    Dce,
-    /// Code motion (hoisting / sinking).
-    CodeMotion,
-    /// Tail-call / recursion transforms.
-    Recursion,
-}
+use tcl_core_types::DiagCode;
+// The category vocabulary lives with `DiagCode` in `tcl-core-types`, where each
+// optimisation code's `opt_category` metadata is declared — the single source
+// the doc tables and this gate both read.
+pub use tcl_core_types::OptCategory;
 
 /// Named optimisation tiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,47 +35,14 @@ pub enum OptimisationProfile {
 /// The default profile for editor / LSP surfaces.
 pub const DEFAULT_EDITOR_PROFILE: OptimisationProfile = OptimisationProfile::Readability;
 
-/// Every optimisation code with its category — the single home for the
-/// per-pass `opt_category` metadata.
-const OPT_CATEGORIES: &[(&str, OptCategory)] = &[
-    // readability
-    ("O111", OptCategory::Readability),
-    ("O114", OptCategory::Readability),
-    ("O115", OptCategory::Readability),
-    ("O117", OptCategory::Readability),
-    ("O120", OptCategory::Readability),
-    ("O128", OptCategory::Readability),
-    // constant_folding
-    ("O100", OptCategory::ConstantFolding),
-    ("O101", OptCategory::ConstantFolding),
-    ("O102", OptCategory::ConstantFolding),
-    ("O103", OptCategory::ConstantFolding),
-    ("O105", OptCategory::ConstantFolding),
-    ("O110", OptCategory::ConstantFolding),
-    ("O113", OptCategory::ConstantFolding),
-    ("O116", OptCategory::ConstantFolding),
-    ("O118", OptCategory::ConstantFolding),
-    ("O129", OptCategory::ConstantFolding),
-    // pattern
-    ("O104", OptCategory::Pattern),
-    ("O119", OptCategory::Pattern),
-    ("O130", OptCategory::Pattern),
-    // dce
-    ("O107", OptCategory::Dce),
-    ("O108", OptCategory::Dce),
-    ("O109", OptCategory::Dce),
-    ("O112", OptCategory::Dce),
-    ("O124", OptCategory::Dce),
-    ("O126", OptCategory::Dce),
-    // code_motion
-    ("O106", OptCategory::CodeMotion),
-    ("O125", OptCategory::CodeMotion),
-    ("O127", OptCategory::CodeMotion),
-    // recursion
-    ("O121", OptCategory::Recursion),
-    ("O122", OptCategory::Recursion),
-    ("O123", OptCategory::Recursion),
-];
+/// Every optimisation code with its category, derived from the `DiagCode`
+/// metadata in `tcl-core-types` (the single home for the per-pass
+/// `opt_category` — see [`DiagCode::opt_category`]).
+fn opt_code_categories() -> impl Iterator<Item = (&'static str, OptCategory)> {
+    DiagCode::ALL
+        .iter()
+        .filter_map(|c| c.opt_category().map(|cat| (c.as_str(), cat)))
+}
 
 impl OptimisationProfile {
     /// Parse a profile name (`"off"` / `"readability"` / `"standard"` /
@@ -104,17 +60,16 @@ impl OptimisationProfile {
         }
     }
 
-    /// Whether this profile enables `category`.
+    /// Whether this profile enables `category`. The `readability` / `standard`
+    /// membership lives on [`OptCategory`] so the doc-table columns and this
+    /// gate stay in lock-step.
     #[must_use]
     fn enables(self, category: OptCategory) -> bool {
         match self {
             Self::Off => false,
             Self::Full | Self::Aggressive => true,
-            Self::Readability => category == OptCategory::Readability,
-            Self::Standard => matches!(
-                category,
-                OptCategory::Readability | OptCategory::ConstantFolding | OptCategory::Pattern
-            ),
+            Self::Readability => category.in_readability_profile(),
+            Self::Standard => category.in_standard_profile(),
         }
     }
 }
@@ -123,10 +78,9 @@ impl OptimisationProfile {
 /// of its enabled categories.
 #[must_use]
 pub fn profile_to_disabled(profile: OptimisationProfile) -> HashSet<&'static str> {
-    OPT_CATEGORIES
-        .iter()
+    opt_code_categories()
         .filter(|(_, cat)| !profile.enables(*cat))
-        .map(|(code, _)| *code)
+        .map(|(code, _)| code)
         .collect()
 }
 
@@ -169,7 +123,7 @@ mod tests {
         assert!(profile_to_disabled(OptimisationProfile::Full).is_empty());
         assert_eq!(
             profile_to_disabled(OptimisationProfile::Off).len(),
-            OPT_CATEGORIES.len()
+            opt_code_categories().count()
         );
     }
 

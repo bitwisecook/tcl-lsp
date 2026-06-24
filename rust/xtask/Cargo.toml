@@ -17,6 +17,7 @@ path = "src/main.rs"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 anyhow = "1"
 regex = "1"
+tcl-core-types = { path = "../tcl-core-types" }
 
 [lints]
 workspace = true
