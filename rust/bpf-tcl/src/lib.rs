@@ -10,8 +10,8 @@ pub mod run;
 use std::fmt::Write as _;
 use std::process::ExitCode;
 
-use bpf_tcl_codegen::ebpf::{disasm, emit_program};
-use bpf_tcl_ir::{BpfError, compile_module};
+use bpf_tcl_codegen::ebpf::{EbpfObject, disasm, emit_program, write_object};
+use bpf_tcl_ir::{BpfError, BpfProgramDecl, compile_module};
 use tcl_lexer::SourceMap;
 
 /// CLI entry point.
@@ -45,7 +45,7 @@ fn usage() {
     eprintln!(
         "usage:\n  \
          bpf-tcl check   <file.bpftcl>\n  \
-         bpf-tcl compile <file.bpftcl> [--emit asm|hex|raw] [--program N] [-o OUT]\n  \
+         bpf-tcl compile <file.bpftcl> [--emit asm|hex|raw|elf] [--program N] [-o OUT]\n  \
          bpf-tcl run     <file.bpftcl> --packet <HEX> [--program N]"
     );
 }
@@ -155,6 +155,10 @@ fn cmd_compile(args: &[String]) -> ExitCode {
         eprintln!("compile: no programs found");
         return ExitCode::FAILURE;
     }
+    if emit == "elf" && selected.len() > 1 {
+        eprintln!("compile: --emit elf needs --program N (one program per object)");
+        return ExitCode::FAILURE;
+    }
 
     for (i, d) in selected {
         let obj = match emit_program(&d.program) {
@@ -164,32 +168,9 @@ fn cmd_compile(args: &[String]) -> ExitCode {
                 return ExitCode::FAILURE;
             }
         };
-        match emit.as_str() {
-            "asm" => {
-                println!(
-                    "// program #{i}: when {} priority {} ({} insns)",
-                    d.event,
-                    d.priority,
-                    obj.insns.len()
-                );
-                print!("{}", disasm(&obj.insns));
-            }
-            "hex" => println!("{}", to_hex(&obj.raw)),
-            "raw" => {
-                if let Some(o) = &out {
-                    if let Err(e) = std::fs::write(o, &obj.raw) {
-                        eprintln!("compile: cannot write {o}: {e}");
-                        return ExitCode::FAILURE;
-                    }
-                } else {
-                    use std::io::Write;
-                    let _ = std::io::stdout().write_all(&obj.raw);
-                }
-            }
-            other => {
-                eprintln!("compile: unknown --emit `{other}` (want asm|hex|raw)");
-                return ExitCode::FAILURE;
-            }
+        if let Err(msg) = emit_object(&emit, i, d, &obj, out.as_deref()) {
+            eprintln!("compile: {msg}");
+            return ExitCode::FAILURE;
         }
     }
     ExitCode::SUCCESS
@@ -269,6 +250,51 @@ fn cmd_run(args: &[String]) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// Render one compiled program in the requested `--emit` format.
+fn emit_object(
+    emit: &str,
+    idx: usize,
+    decl: &BpfProgramDecl,
+    obj: &EbpfObject,
+    out: Option<&str>,
+) -> Result<(), String> {
+    match emit {
+        "asm" => {
+            println!(
+                "// program #{idx}: when {} priority {} ({} insns)",
+                decl.event,
+                decl.priority,
+                obj.insns.len()
+            );
+            print!("{}", disasm(&obj.insns));
+        }
+        "hex" => println!("{}", to_hex(&obj.raw)),
+        "raw" => write_bytes(&obj.raw, out)?,
+        "elf" => {
+            let bytes = write_object(obj, &elf_symbol(&decl.event)).map_err(|e| e.to_string())?;
+            write_bytes(&bytes, out)?;
+        }
+        other => return Err(format!("unknown --emit `{other}` (want asm|hex|raw|elf)")),
+    }
+    Ok(())
+}
+
+/// Write bytes to `out` (a path) or stdout.
+fn write_bytes(bytes: &[u8], out: Option<&str>) -> Result<(), String> {
+    if let Some(o) = out {
+        std::fs::write(o, bytes).map_err(|e| format!("cannot write {o}: {e}"))?;
+    } else {
+        use std::io::Write;
+        let _ = std::io::stdout().write_all(bytes);
+    }
+    Ok(())
+}
+
+/// The exported program symbol name for an event (the `STT_FUNC` in the ELF).
+fn elf_symbol(event: &str) -> String {
+    event.to_ascii_lowercase()
 }
 
 fn to_hex(bytes: &[u8]) -> String {
