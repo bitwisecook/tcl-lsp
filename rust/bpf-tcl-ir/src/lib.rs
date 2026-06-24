@@ -14,6 +14,7 @@ pub mod frontend;
 pub mod ir;
 pub mod lower;
 pub mod profile;
+pub mod template;
 pub mod ty;
 pub mod unroll;
 
@@ -22,4 +23,5 @@ pub use frontend::compile_module;
 pub use ir::{BpfModule, BpfProgram, BpfProgramDecl, ProgType};
 pub use lower::lower_function;
 pub use profile::{BpfProfileSpec, FieldDef};
+pub use template::TemplateDef;
 pub use unroll::unroll_loops;
