@@ -399,7 +399,6 @@ proc h {state token} {
 }
 ";
 
-#[ignore = "FP-OBJ-10: Rust emits W307 where Python suppresses; emitted=[\"W307\"]; dash-prefixed array key callback heuristic not yet implemented in Rust analyser"]
 #[test]
 fn fp_obj_10_dash_prefixed_array_key_callback_no_w307() {
     // FP-OBJ-10: `$state(-command) $token` -- the array element with a dash-prefixed key is
@@ -411,7 +410,6 @@ fn fp_obj_10_dash_prefixed_array_key_callback_no_w307() {
     );
 }
 
-#[ignore = "FP-OBJ-10: Rust emits W307 where Python suppresses; emitted=[\"W307\"]; callback-suffix array key heuristic not yet implemented in Rust analyser"]
 #[test]
 fn fp_obj_10_suffix_keyed_callback_no_w307() {
     // FP-OBJ-10: array element keyed by a callback-shaped suffix is also a callback slot.

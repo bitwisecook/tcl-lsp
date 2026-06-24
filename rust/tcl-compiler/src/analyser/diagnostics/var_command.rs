@@ -380,6 +380,7 @@ impl Analyser {
         }
 
         harvest_array_set_constants(cu, &mut all_constsets);
+        harvest_array_element_set_constants(cu, &mut all_constsets);
         harvest_dict_with_constants(cu, &mut all_constsets);
 
         // Build the "known commands" universe — registry +
@@ -700,6 +701,16 @@ impl Analyser {
             // Class instance-variable dispatch inside the class body (component
             // / sub-object) — W307 exemption.
             if is_snit_member(&site.var_name, site.cmd_span.start()) {
+                continue;
+            }
+            // Callback-registration array slot: `$state(-command)` /
+            // `$state(doneCallback)` dispatches a command the user registered
+            // into a switch-style option / callback slot. Unless SCCP has
+            // concrete evidence the slot holds a non-command (handled above via
+            // `sccp_not_command`, e.g. `array set state {-command notACommand}`
+            // or `set state(-command) notACommand`), treat it as a designed
+            // callback dispatch (FP-OBJ-10).
+            if !sccp_not_command && is_callback_array_slot(&site.var_name) {
                 continue;
             }
             self.result.diagnostics.push(super::types::Diagnostic {
@@ -1084,6 +1095,75 @@ fn parse_namespaced_ensemble(source: &str, span: tcl_lexer::Span) -> Option<(Str
 /// set.  Without this, the dash-prefixed / callback-suffixed array-key
 /// heuristic fires even when SCCP-equivalent literal evidence proves the value
 /// is (or isn't) a command.
+/// True when `var_name` is an array element `base(key)` whose key denotes a
+/// switch-style callback / option registration slot: a dash-prefixed option
+/// key (`-command`) or a callback-shaped suffix word
+/// (`cmd`/`command`/`callback`/`handler`/`hook`/`proc`). Dispatching such a
+/// slot is a designed callback invocation, not a stray non-literal command
+/// (FP-OBJ-10); the caller still fires W307 when SCCP proves the slot holds a
+/// concrete non-command value.
+fn is_callback_array_slot(var_name: &str) -> bool {
+    let Some((_base, rest)) = var_name.split_once('(') else {
+        return false;
+    };
+    let Some(key) = rest.strip_suffix(')') else {
+        return false;
+    };
+    if key.starts_with('-') {
+        return true;
+    }
+    let k = key.to_ascii_lowercase();
+    ["cmd", "command", "callback", "handler", "hook", "proc"]
+        .iter()
+        .any(|suffix| k.ends_with(suffix))
+}
+
+/// Harvest direct single-element array assignments — `set arr(key) <literal>`,
+/// which lowers to an `AssignValue { name: "arr(key)", value }` (the scalar
+/// `set_literal_body` path excludes `(`-bearing names) — into the constset map
+/// keyed by `arr(key)`. The SSA const collector keys on scalar SSA variables
+/// and does not track array elements, and `harvest_array_set_constants` only
+/// covers the `array set` list form; this covers the single-element form so the
+/// W307 callback-array suppression can see the slot's concrete value
+/// (FP-OBJ-10 SCCP-evidence override). Also accepts the `AssignConst` / generic
+/// `Call "set"` shapes defensively.
+fn harvest_array_element_set_constants(
+    cu: &crate::compilation_unit::CompilationUnit,
+    out: &mut HashMap<String, HashSet<String>>,
+) {
+    use crate::ir::Statement;
+    let is_literal = |s: &str| !s.contains('$') && !s.contains('[');
+    let is_array_elem = |name: &str| name.contains('(') && name.ends_with(')');
+    let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
+    for fu in units {
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                match stmt {
+                    Statement::AssignValue { name, value, .. }
+                        if is_array_elem(name) && is_literal(value) =>
+                    {
+                        out.entry(name.clone()).or_default().insert(value.clone());
+                    }
+                    Statement::AssignConst { name, value, .. } if is_array_elem(name) => {
+                        out.entry(name.clone()).or_default().insert(value.clone());
+                    }
+                    Statement::Call { command, args, .. }
+                        if command == "set"
+                            && args.len() == 2
+                            && is_array_elem(&args[0])
+                            && is_literal(&args[1]) =>
+                    {
+                        out.entry(args[0].clone())
+                            .or_default()
+                            .insert(args[1].clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 fn harvest_array_set_constants(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,
