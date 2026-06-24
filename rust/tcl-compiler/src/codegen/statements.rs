@@ -315,14 +315,27 @@ impl CodegenCtx<'_> {
                 self.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(0)]);
             }
 
-            // Static-body uplevel: IRUpFrame is an intermediate
-            // IR form consumed by the inline_uplevel optimiser pass.
-            // If it survives to codegen the pass was not run; emit a
-            // NOP placeholder marking the unhandled IRUpFrame. The
-            // IRUpFrame variant is still the right shape for analyses
-            // that walk the IR (interproc, code_sinking, var_escape).
-            Statement::UpFrame { .. } => {
-                self.emit_comment(Op::NOP, vec![], "unhandled: IRUpFrame");
+            // Static-body uplevel: `UpFrame` is the structured IR form the
+            // analysers consume (interproc purity, code-sinking, var-escape, the
+            // inline_uplevel pass). The whole-callee inline_uplevel splice
+            // rewrites passthrough call-sites into `Statement::Block` (emitted
+            // inline below); any `UpFrame` that reaches codegen unspliced is run
+            // through the runtime `uplevel` builtin by re-emitting the original
+            // `uplevel <level> {body}` invoke from its preserved command tokens.
+            // This is byte-identical to the pre-static-lowering barrier path and
+            // keeps correct frame semantics without needing frame-shift opcodes.
+            Statement::UpFrame { tokens, .. } => {
+                if let Some(ct) = tokens
+                    && ct.argv_texts.len() >= 2
+                {
+                    let command = ct.argv_texts[0].clone();
+                    let args: Vec<String> = ct.argv_texts[1..].to_vec();
+                    self.emit_call_stmt(&command, &args, Some(ct), used_generic_invoke);
+                } else {
+                    // No preserved tokens (synthetic UpFrame) — nothing to
+                    // dispatch; mark it rather than silently dropping a body.
+                    self.emit_comment(Op::NOP, vec![], "unhandled: IRUpFrame (no tokens)");
+                }
             }
 
             // Inline block: the inline_uplevel pass replaces
