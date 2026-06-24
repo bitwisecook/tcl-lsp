@@ -11,6 +11,7 @@
 # campaign.
 [package]
 name = "tcl-fuzz"
+publish.workspace = true
 description = "Differential fuzzer for the native Tcl bytecode VM (tclvm vs tclsh)"
 version.workspace = true
 edition.workspace = true

@@ -9,6 +9,7 @@
 # `std::process`/`std::time`).
 [package]
 name = "tcl-host-native"
+publish.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

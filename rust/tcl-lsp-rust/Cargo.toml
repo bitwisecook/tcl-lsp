@@ -1,5 +1,6 @@
 [package]
 name = "tcl-lsp-rust"
+publish.workspace = true
 description = "Alias for tcl-lsp-py — re-exports the public PyO3 surface under the `tcl_lsp_rust` module name."
 version.workspace = true
 edition.workspace = true
@@ -15,7 +16,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 tcl-lsp-py = { path = "../tcl-lsp-py" }
-pyo3 = { version = "0.28", features = ["extension-module", "abi3-py310"] }
+pyo3 = { version = "0.29", features = ["extension-module", "abi3-py310"] }
 
 [lints]
 workspace = true

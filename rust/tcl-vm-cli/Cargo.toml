@@ -8,6 +8,7 @@
 # evaluates inline scripts, pipes stdin, and offers an interactive REPL.
 [package]
 name = "tcl-vm-cli"
+publish.workspace = true
 description = "The `tclvm` binary: a CLI/REPL driver for the native Tcl bytecode VM"
 version.workspace = true
 edition.workspace = true

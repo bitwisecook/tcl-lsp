@@ -1,5 +1,6 @@
 [package]
 name = "tcl-pkg"
+publish.workspace = true
 description = "The tclpkg package manager: manifest, MVS resolver, lockfile, CAS, fetchers, venv, docker"
 version.workspace = true
 edition.workspace = true

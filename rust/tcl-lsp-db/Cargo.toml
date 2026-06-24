@@ -1,5 +1,6 @@
 [package]
 name = "tcl-lsp-db"
+publish.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -1,5 +1,6 @@
 [package]
 name = "tcl-bigip-io"
+publish.workspace = true
 description = "Pure-Rust f5 input layer: UCS (gzip-tar + OpenPGP-symmetric) archives and the read_path/load_paths resolver"
 version.workspace = true
 edition.workspace = true

@@ -11,6 +11,7 @@
 # info (tracked under RT-VM) — see the `backend` module.
 [package]
 name = "tcl-debugger"
+publish.workspace = true
 description = "Step debugger for the native Tcl VM: breakpoints, step-mode controller, backend contract"
 version.workspace = true
 edition.workspace = true

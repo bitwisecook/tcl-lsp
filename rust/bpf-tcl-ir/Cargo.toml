@@ -1,5 +1,6 @@
 [package]
 name = "bpf-tcl-ir"
+publish.workspace = true
 description = "Typed, backend-agnostic mid-IR and framework front-end for the BPF-Tcl DSL"
 version.workspace = true
 edition.workspace = true

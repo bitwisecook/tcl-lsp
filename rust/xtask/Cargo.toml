@@ -1,5 +1,6 @@
 [package]
 name = "xtask"
+publish.workspace = true
 description = "Build/check task runner for the workspace"
 version.workspace = true
 edition.workspace = true
