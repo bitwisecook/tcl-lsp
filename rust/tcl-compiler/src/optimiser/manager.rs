@@ -315,6 +315,7 @@ fn couple_propagated_const_dead_stores(
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn couple_const_dead_stores_in_function(
     fu: &crate::compilation_unit::FunctionUnit,
     registry: &CommandRegistry,
@@ -350,7 +351,14 @@ fn couple_const_dead_stores_in_function(
         if var.starts_with("::") || scope_aliases.contains(var) || rmw_hidden.contains(var) {
             continue;
         }
-        if !matches!(fu.sccp.values.get(&chain.key), Some(LatticeValue::Const(_))) {
+        // The def-use chain keys on the variable name; resolve it to the SSA
+        // symbol to index the `(Symbol, Version)`-keyed SCCP lattice.
+        let is_const = fu
+            .ssa
+            .var_symbol(var)
+            .and_then(|s| fu.sccp.values.get(&(s, chain.key.1)))
+            .is_some_and(|lv| matches!(lv, LatticeValue::Const(_)));
+        if !is_const {
             continue;
         }
         // Any def-tracked use must be a simple operand read — a phi/terminator
@@ -386,7 +394,11 @@ fn couple_const_dead_stores_in_function(
         let inlined_value = match def_stmt {
             crate::ir::Statement::AssignConst { value, .. } => value.clone(),
             crate::ir::Statement::AssignExpr { .. } | crate::ir::Statement::AssignValue { .. } => {
-                let Some(LatticeValue::Const(c)) = fu.sccp.values.get(&chain.key) else {
+                let Some(LatticeValue::Const(c)) = fu
+                    .ssa
+                    .var_symbol(&chain.key.0)
+                    .and_then(|s| fu.sccp.values.get(&(s, chain.key.1)))
+                else {
                     continue;
                 };
                 let Some(text) = super::helpers::literals::format_constant(c) else {

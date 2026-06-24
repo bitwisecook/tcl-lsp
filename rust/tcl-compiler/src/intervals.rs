@@ -369,8 +369,13 @@ pub fn build_guard_index(cfg: &CfgFunction, ssa: &SsaFunction) -> HashMap<ValueK
             continue;
         };
         for name in condition.vars() {
-            if let Some(&version) = sb.exit_versions.get(&name) {
-                index.entry((name, version)).or_default().push(*dn);
+            // `name` is a raw IR scan; only an interned SSA variable can carry
+            // a guard fact (an un-interned name is not a tracked value).
+            let Some(sym) = ssa.var_symbol(&name) else {
+                continue;
+            };
+            if let Some(&version) = sb.exit_versions.get(&sym) {
+                index.entry((sym, version)).or_default().push(*dn);
             }
         }
     }
@@ -410,11 +415,13 @@ pub fn refine_interval(
     version: Version,
     guard_index: &HashMap<ValueKey, Vec<BlockId>>,
 ) -> Interval {
-    let mut iv = base
-        .get(&(name.to_owned(), version))
-        .copied()
-        .unwrap_or(TOP);
-    let Some(candidate_blocks) = guard_index.get(&(name.to_owned(), version)) else {
+    // A name that was never interned is not a tracked SSA value: no base
+    // interval and no guard fact, so its interval is TOP.
+    let Some(sym) = ssa.var_symbol(name) else {
+        return TOP;
+    };
+    let mut iv = base.get(&(sym, version)).copied().unwrap_or(TOP);
+    let Some(candidate_blocks) = guard_index.get(&(sym, version)) else {
         return iv;
     };
     for &dn in candidate_blocks {
@@ -436,7 +443,7 @@ pub fn refine_interval(
         let Some(sb) = ssa.blocks.get(&dn) else {
             continue;
         };
-        if sb.exit_versions.get(name) != Some(&version) {
+        if sb.exit_versions.get(&sym) != Some(&version) {
             continue;
         }
         let true_dom = dominates(ssa, *true_target, block);
@@ -457,8 +464,8 @@ pub fn refine_interval(
 
 /// Seed a `[c, c]` interval from a constant-integer SCCP value, else `None`.
 #[must_use]
-fn seed_const(key: &ValueKey, values: &HashMap<ValueKey, LatticeValue>) -> Option<Interval> {
-    match values.get(key) {
+fn seed_const(key: ValueKey, values: &HashMap<ValueKey, LatticeValue>) -> Option<Interval> {
+    match values.get(&key) {
         Some(LatticeValue::Const(ConstValue::Int(n))) => Some(constant(*n)),
         Some(LatticeValue::Const(ConstValue::Bool(b))) => Some(constant(i64::from(*b))),
         _ => None,
@@ -539,11 +546,11 @@ pub fn compute_intervals(
             };
             let is_loop_header = headers.contains(bn);
             for phi in &ssa_block.phis {
-                let key = (phi.name.clone(), phi.version);
+                let key = (phi.name, phi.version);
                 let mut merged = BOTTOM;
                 for &inc in phi.incoming.values() {
                     merged = if inc > 0 {
-                        join(merged, cur(&result, &(phi.name.clone(), inc)))
+                        join(merged, cur(&result, &(phi.name, inc)))
                     } else {
                         join(merged, TOP)
                     };
@@ -557,14 +564,18 @@ pub fn compute_intervals(
                 }
             }
             for s in &ssa_block.statements {
+                // `env` is keyed by display name for `transfer` / `eval_expr`
+                // (which resolve `ExprNode::Var` by name); resolve each use
+                // symbol to its name, looking the interval up by `(sym, ver)`.
                 let env: HashMap<String, Interval> = s
                     .uses
                     .iter()
-                    .map(|(nm, &ver)| (nm.clone(), cur(&result, &(nm.clone(), ver))))
+                    .map(|(&sym, &ver)| (ssa.var_name(sym).to_owned(), cur(&result, &(sym, ver))))
                     .collect();
-                for (nm, &ver) in &s.defs {
-                    let key = (nm.clone(), ver);
-                    let val = seed_const(&key, values)
+                for (&sym, &ver) in &s.defs {
+                    let key = (sym, ver);
+                    let nm = ssa.var_name(sym);
+                    let val = seed_const(key, values)
                         .unwrap_or_else(|| transfer(&s.statement, nm, &env, cur(&result, &key)));
                     if val != cur(&result, &key) {
                         result.insert(key, val);

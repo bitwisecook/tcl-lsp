@@ -317,8 +317,9 @@ pub(super) fn build_phi_undef_index(
             continue;
         };
         for phi in &sblock.phis {
-            phi_def.insert((phi.name.clone(), phi.version), phi.clone());
-            phi_block.insert((phi.name.clone(), phi.version), bn);
+            let phi_name = ssa.var_name(phi.name).to_owned();
+            phi_def.insert((phi_name.clone(), phi.version), phi.clone());
+            phi_block.insert((phi_name, phi.version), bn);
         }
         for s in &sblock.statements {
             let Statement::Call {
@@ -335,9 +336,10 @@ pub(super) fn build_phi_undef_index(
                 continue;
             }
             let whole = whole_unset_names(args);
-            for (def_name, def_ver) in &s.defs {
+            for (&def_sym, def_ver) in &s.defs {
+                let def_name = ssa.var_name(def_sym);
                 if whole.contains(def_name) {
-                    killed.insert((def_name.clone(), *def_ver));
+                    killed.insert((def_name.to_owned(), *def_ver));
                 }
             }
         }
@@ -489,14 +491,15 @@ fn harvest_dict_with_suppression(
             // known value (even empty) harvests its keys; only a value that
             // resolves to neither marks the dict shape unknown.
             let mut literal: Option<String> = None;
-            if let Some(sb) = fu.ssa.blocks.get(&bn)
+            if let Some(dsym) = fu.ssa.var_symbol(&dvar)
+                && let Some(sb) = fu.ssa.blocks.get(&bn)
                 && let Some(ver) = sb
                     .statements
                     .get(idx)
-                    .and_then(|s| s.uses.get(&dvar).copied())
+                    .and_then(|s| s.uses.get(&dsym).copied())
                 && let Some(crate::analyses::LatticeValue::Const(
                     crate::analyses::ConstValue::String(v),
-                )) = fu.sccp.values.get(&(dvar.clone(), ver))
+                )) = fu.sccp.values.get(&(dsym, ver))
             {
                 literal = Some(v.clone());
             }
@@ -576,15 +579,16 @@ pub(super) fn build_undef_suppression(
                 continue;
             };
             for st in &sb.statements {
-                for (n, v) in &st.defs {
+                for (&n, v) in &st.defs {
                     if *v > 0 {
-                        s.explicitly_defined.insert(n.clone());
+                        s.explicitly_defined.insert(fu.ssa.var_name(n).to_owned());
                     }
                 }
             }
             for phi in &sb.phis {
                 if phi.version > 0 {
-                    s.explicitly_defined.insert(phi.name.clone());
+                    s.explicitly_defined
+                        .insert(fu.ssa.var_name(phi.name).to_owned());
                 }
             }
         }

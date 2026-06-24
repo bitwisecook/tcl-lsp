@@ -590,10 +590,11 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
         // that has a scalar phi here.
         let mut block_phis: Vec<MemoryOp> = Vec::new();
         for phi in &block.phis {
-            if aliased_names.contains(&phi.name) {
+            let phi_name = ssa.var_name(phi.name);
+            if aliased_names.contains(phi_name) {
                 version_counter += 1;
                 let op = MemoryOp::new_phi(
-                    MemoryLocation::new(MemoryLocationKind::Local, &phi.name),
+                    MemoryLocation::new(MemoryLocationKind::Local, phi_name),
                     version_counter,
                     bn,
                 );
@@ -617,7 +618,8 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
                 // aliased vars still emits its defs.
             }
 
-            for name in stmt_ssa.defs.keys() {
+            for &sym in stmt_ssa.defs.keys() {
+                let name = ssa.var_name(sym);
                 if aliased_names.contains(name) {
                     version_counter += 1;
                     memory_ops.push(MemoryOp::new_def(
@@ -629,7 +631,8 @@ pub fn build_memory_ssa(ssa: &SsaFunction) -> MemorySsaFunction {
                 }
             }
 
-            for name in stmt_ssa.uses.keys() {
+            for &sym in stmt_ssa.uses.keys() {
+                let name = ssa.var_name(sym);
                 if aliased_names.contains(name) {
                     memory_ops.push(MemoryOp::new_use(
                         MemoryLocation::new(MemoryLocationKind::Local, name),
@@ -983,6 +986,9 @@ mod tests {
     #[test]
     fn build_memory_ssa_tracks_aliased_def_and_use() {
         // global shared; then a statement that uses+defs shared.
+        let entry = BlockId(0);
+        let mut ssa = SsaFunction::trivial("::test", entry, vec!["entry".into()]);
+        let shared = ssa.intern_var("shared");
         let mut stmts: Vec<SsaStatement> = Vec::new();
         stmts.push(SsaStatement {
             statement: call("global", &["shared"]),
@@ -990,22 +996,20 @@ mod tests {
             defs: HashMap::new(),
         });
         let mut defs = HashMap::new();
-        defs.insert("shared".to_string(), 1);
+        defs.insert(shared, 1);
         stmts.push(SsaStatement {
             statement: call("set", &["shared", "1"]),
             uses: HashMap::new(),
             defs,
         });
         let mut uses = HashMap::new();
-        uses.insert("shared".to_string(), 1);
+        uses.insert(shared, 1);
         stmts.push(SsaStatement {
             statement: call("puts", &["$shared"]),
             uses,
             defs: HashMap::new(),
         });
 
-        let entry = BlockId(0);
-        let mut ssa = SsaFunction::trivial("::test", entry, vec!["entry".into()]);
         ssa.blocks.insert(
             entry,
             SsaBlock {

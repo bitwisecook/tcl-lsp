@@ -25,7 +25,7 @@ use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::cfg_order;
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 use crate::value_shapes::is_pure_var_ref;
 
@@ -79,6 +79,7 @@ pub(crate) fn find_use_site_shimmers(
                 &def_map,
                 values,
                 &loop_facts,
+                ssa,
                 &mut already_coerced,
                 &mut out,
             );
@@ -123,10 +124,12 @@ impl LoopFacts {
             };
             if let Some(sb) = ssa.blocks.get(&id) {
                 for st in &sb.statements {
-                    facts.def_names.extend(st.defs.keys().cloned());
+                    facts
+                        .def_names
+                        .extend(st.defs.keys().map(|&sym| ssa.var_name(sym).to_owned()));
                 }
                 for phi in &sb.phis {
-                    facts.def_names.insert(phi.name.clone());
+                    facts.def_names.insert(ssa.var_name(phi.name).to_owned());
                 }
             }
             if let Some(cb) = cfg.blocks.get(&id) {
@@ -213,12 +216,13 @@ fn check_invocation(
     command: &str,
     args: &[String],
     span: Span,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     registry: &CommandRegistry,
     in_loop: bool,
     def_map: &HashMap<ValueKey, Span>,
     loop_facts: &LoopFacts,
+    ssa: &SsaFunction,
     already_coerced: &mut HashSet<(String, u32, TclType)>,
     out: &mut Vec<ShimmerWarning>,
 ) {
@@ -234,12 +238,15 @@ fn check_invocation(
             continue;
         }
         let var = normalise_var_name(stripped).to_owned();
-        let Some(&ver) = uses.get(&var) else { continue };
+        let Some(sym) = ssa.var_symbol(&var) else {
+            continue;
+        };
+        let Some(&ver) = uses.get(&sym) else { continue };
         if ver == 0 {
             continue;
         }
         let lattice = types
-            .get(&(var.clone(), ver))
+            .get(&(sym, ver))
             .cloned()
             .unwrap_or_else(TypeLattice::unknown);
         if lattice.kind != TypeKind::Known {
@@ -259,7 +266,7 @@ fn check_invocation(
             continue;
         }
         let related: Vec<(Span, String)> = def_map
-            .get(&(var.clone(), ver))
+            .get(&(sym, ver))
             .map(|&sp| vec![(sp, "value defined here".to_owned())])
             .unwrap_or_default();
         // A loop-invariant variable coerced to a single intrep inside the
@@ -294,13 +301,14 @@ fn check_invocation(
 #[allow(clippy::too_many_arguments)]
 fn check_statement(
     stmt: &Statement,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     registry: &CommandRegistry,
     in_loop: bool,
     def_map: &HashMap<ValueKey, Span>,
     values: &HashMap<ValueKey, LatticeValue>,
     loop_facts: &LoopFacts,
+    ssa: &SsaFunction,
     already_coerced: &mut HashSet<(String, u32, TclType)>,
     out: &mut Vec<ShimmerWarning>,
 ) {
@@ -316,6 +324,7 @@ fn check_statement(
                 in_loop,
                 def_map,
                 loop_facts,
+                ssa,
                 already_coerced,
                 out,
             );
@@ -338,6 +347,7 @@ fn check_statement(
                     in_loop,
                     def_map,
                     loop_facts,
+                    ssa,
                     already_coerced,
                     out,
                 );
@@ -357,6 +367,7 @@ fn check_statement(
                 values,
                 in_loop,
                 def_map,
+                ssa,
                 out,
             );
             if let Some(amt) = amount.as_deref().map(str::trim)
@@ -370,6 +381,7 @@ fn check_statement(
                     values,
                     in_loop,
                     def_map,
+                    ssa,
                     out,
                 );
             }
@@ -389,19 +401,23 @@ fn check_statement(
 fn check_incr_var(
     var: &str,
     span: Span,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     values: &HashMap<ValueKey, LatticeValue>,
     in_loop: bool,
     def_map: &HashMap<ValueKey, Span>,
+    ssa: &SsaFunction,
     out: &mut Vec<ShimmerWarning>,
 ) {
-    let Some(&ver) = uses.get(var) else { return };
+    let Some(sym) = ssa.var_symbol(var) else {
+        return;
+    };
+    let Some(&ver) = uses.get(&sym) else { return };
     if ver == 0 {
         return;
     }
     let lattice = types
-        .get(&(var.to_owned(), ver))
+        .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if lattice.kind != TypeKind::Known {
@@ -413,11 +429,11 @@ fn check_incr_var(
     if current == TclType::Int || is_numeric_compatible(current, TclType::Int) {
         return;
     }
-    if value_is_int_literal_string(values.get(&(var.to_owned(), ver))) {
+    if value_is_int_literal_string(values.get(&(sym, ver))) {
         return;
     }
     let related: Vec<(Span, String)> = def_map
-        .get(&(var.to_owned(), ver))
+        .get(&(sym, ver))
         .map(|&sp| vec![(sp, "value defined here".to_owned())])
         .unwrap_or_default();
     let code = if in_loop { "S101" } else { "S100" }.to_owned();

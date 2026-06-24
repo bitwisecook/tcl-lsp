@@ -15,7 +15,7 @@ use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
-use crate::ssa::{SsaFunction, SsaStatement, ValueKey};
+use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
 use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, eval_tcl_expr_with_octal};
 
 // Public aliases
@@ -215,14 +215,20 @@ pub struct SccpResult {
 pub fn sccp(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    param_constants: Option<&HashMap<ValueKey, LatticeValue>>,
+    param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
     octal: Option<bool>,
 ) -> SccpResult {
     let preds = compute_predecessors(cfg);
     let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
     if let Some(seed) = param_constants {
-        for (k, v) in seed {
-            values.insert(k.clone(), v.clone());
+        // The interprocedural seed keys on the parameter *name* (a stable,
+        // cache-safe identity); resolve each to this build's interned symbol.
+        // A param never read in the body isn't interned, and its seed slot
+        // would never be consulted, so dropping it is behaviour-neutral.
+        for ((name, version), v) in seed {
+            if let Some(sym) = ssa.var_symbol(name) {
+                values.insert((sym, *version), v.clone());
+            }
         }
     }
 
@@ -290,11 +296,11 @@ pub fn sccp(
                         if incoming_ver == 0 {
                             continue;
                         }
-                        let key: ValueKey = (phi.name.clone(), incoming_ver);
+                        let key: ValueKey = (phi.name, incoming_ver);
                         let candidate = values.get(&key).cloned().unwrap_or(LatticeValue::Unknown);
                         phi_val = join(&phi_val, &candidate);
                     }
-                    if set_value(&mut values, (phi.name.clone(), phi.version), &phi_val) {
+                    if set_value(&mut values, (phi.name, phi.version), &phi_val) {
                         changed = true;
                     }
                 }
@@ -308,7 +314,7 @@ pub fn sccp(
                         // that mutates the var produces a fresh version), so a
                         // callee `dict with $param` still sees the interproc
                         // literal.
-                        let keys: Vec<ValueKey> = values.keys().cloned().collect();
+                        let keys: Vec<ValueKey> = values.keys().copied().collect();
                         for k in keys {
                             if k.1 == 0 {
                                 continue;
@@ -319,13 +325,13 @@ pub fn sccp(
                         }
                         continue;
                     }
-                    for (var, ver) in &stmt_ssa.defs {
-                        let val = if is_externally_mutable(var) {
+                    for (&var, ver) in &stmt_ssa.defs {
+                        let val = if is_externally_mutable(ssa.var_name(var)) {
                             LatticeValue::Overdefined
                         } else {
-                            evaluate_def(stmt_ssa, &values)
+                            evaluate_def(stmt_ssa, &values, ssa)
                         };
-                        if set_value(&mut values, (var.clone(), *ver), &val) {
+                        if set_value(&mut values, (var, *ver), &val) {
                             changed = true;
                         }
                     }
@@ -378,19 +384,19 @@ fn seed_live_in_roots<S: std::hash::BuildHasher>(
     let mut used_keys: FxHashSet<ValueKey> = FxHashSet::default();
     for ssa_block in ssa.blocks.values() {
         for phi in &ssa_block.phis {
-            defined_keys.insert((phi.name.clone(), phi.version));
+            defined_keys.insert((phi.name, phi.version));
             for inc in phi.incoming.values() {
                 if *inc > 0 {
-                    used_keys.insert((phi.name.clone(), *inc));
+                    used_keys.insert((phi.name, *inc));
                 }
             }
         }
         for s in &ssa_block.statements {
-            for (var, ver) in &s.defs {
-                defined_keys.insert((var.clone(), *ver));
+            for (&var, ver) in &s.defs {
+                defined_keys.insert((var, *ver));
             }
-            for (var, ver) in &s.uses {
-                used_keys.insert((var.clone(), *ver));
+            for (&var, ver) in &s.uses {
+                used_keys.insert((var, *ver));
             }
         }
     }
@@ -400,15 +406,16 @@ fn seed_live_in_roots<S: std::hash::BuildHasher>(
             && let Some(sb) = ssa.blocks.get(bn)
         {
             for var in crate::var_refs::vars_in_expr(condition) {
-                let ver = sb.exit_versions.get(&var).copied().unwrap_or(0);
-                used_keys.insert((var, ver));
+                let Some(sym) = ssa.var_symbol(&var) else {
+                    continue;
+                };
+                let ver = sb.exit_versions.get(&sym).copied().unwrap_or(0);
+                used_keys.insert((sym, ver));
             }
         }
     }
     for key in used_keys.difference(&defined_keys) {
-        values
-            .entry(key.clone())
-            .or_insert(LatticeValue::Overdefined);
+        values.entry(*key).or_insert(LatticeValue::Overdefined);
     }
 }
 
@@ -427,16 +434,20 @@ fn branch_deferrable(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
+    ssa: &SsaFunction,
 ) -> bool {
     let mut any_operand = false;
     let mut any_unknown = false;
     for name in crate::var_refs::vars_in_expr(condition) {
-        let ver = ssa_block.exit_versions.get(&name).copied().unwrap_or(0);
+        let Some(sym) = ssa.var_symbol(&name) else {
+            continue;
+        };
+        let ver = ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
         if ver == 0 {
             continue;
         }
         any_operand = true;
-        match values.get(&(name, ver)) {
+        match values.get(&(sym, ver)) {
             Some(LatticeValue::Overdefined) => return false,
             Some(LatticeValue::Unknown) | None => any_unknown = true,
             _ => {}
@@ -497,7 +508,7 @@ fn sccp_process_terminator(
                 // conditions instead of pessimistically opening both arms
                 // forever. The finalising pass forces both arms for any
                 // branch still stuck this way.
-                None if !finalizing && branch_deferrable(ssa_block, condition, values) => {
+                None if !finalizing && branch_deferrable(ssa_block, condition, values, ssa) => {
                     Vec::new()
                 }
                 None => vec![*true_target, *false_target],
@@ -711,11 +722,12 @@ pub fn existence_constant_branches(
 pub fn evaluate_def(
     stmt_ssa: &SsaStatement,
     values: &HashMap<ValueKey, LatticeValue>,
+    ssa: &SsaFunction,
 ) -> LatticeValue {
     match &stmt_ssa.statement {
         Statement::AssignConst { value, .. } => LatticeValue::Const(parse_literal_value(value)),
         Statement::AssignExpr { expr, .. } => {
-            let env = env_from_uses(&stmt_ssa.uses, values);
+            let env = env_from_uses(&stmt_ssa.uses, values, ssa);
             match eval_tcl_expr(expr, &env) {
                 Some(v) => LatticeValue::Const(tcl_value_to_const(v)),
                 None => LatticeValue::Overdefined,
@@ -726,7 +738,7 @@ pub fn evaluate_def(
             // (no command substitution), a simple `$var` that
             // resolves to a lattice Const, or a `[cmd args...]`
             // that try_fold_cmd_subst recognises.
-            fold_assign_value(value, &stmt_ssa.uses, values)
+            fold_assign_value(value, &stmt_ssa.uses, values, ssa)
         }
         Statement::Call {
             command,
@@ -742,8 +754,9 @@ pub fn evaluate_def(
             // LIST is a literal or resolves to a Const(String)
             // through the lattice. Multi-variable and multi-list
             // foreaches are left as Overdefined.
-            let elements = extract_foreach_elements(&args[0])
-                .or_else(|| resolve_foreach_list_via_lattice(&args[0], &stmt_ssa.uses, values));
+            let elements = extract_foreach_elements(&args[0]).or_else(|| {
+                resolve_foreach_list_via_lattice(&args[0], &stmt_ssa.uses, values, ssa)
+            });
             match elements {
                 Some(items) if items.is_empty() => LatticeValue::Overdefined,
                 Some(items) => {
@@ -764,9 +777,13 @@ pub fn evaluate_def(
             // and AMOUNT is either absent (defaults to 1), a decimal
             // integer literal, or a simple `$var` reference that
             // resolves to Const(Int) via `uses`.
-            let ver = stmt_ssa.uses.get(name).copied().unwrap_or(0);
-            let base = values
-                .get(&(name.clone(), ver))
+            let sym = ssa.var_symbol(name);
+            let ver = sym
+                .and_then(|s| stmt_ssa.uses.get(&s))
+                .copied()
+                .unwrap_or(0);
+            let base = sym
+                .and_then(|s| values.get(&(s, ver)))
                 .cloned()
                 .unwrap_or(LatticeValue::Unknown);
             let base_int = match &base {
@@ -782,7 +799,7 @@ pub fn evaluate_def(
                     if let Ok(v) = trimmed.parse::<i64>() {
                         v
                     } else if let Some(amount) =
-                        resolve_simple_var_ref(trimmed, &stmt_ssa.uses, values)
+                        resolve_simple_var_ref(trimmed, &stmt_ssa.uses, values, ssa)
                     {
                         match amount {
                             LatticeValue::Const(ConstValue::Int(i)) => i,
@@ -809,8 +826,9 @@ pub fn evaluate_def(
 /// the text isn't a simple var reference.
 fn resolve_simple_var_ref(
     text: &str,
-    uses: &HashMap<String, crate::ssa::Version>,
+    uses: &HashMap<Symbol, crate::ssa::Version>,
     values: &HashMap<ValueKey, LatticeValue>,
+    ssa: &SsaFunction,
 ) -> Option<LatticeValue> {
     let name = if let Some(name) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
         name
@@ -826,10 +844,11 @@ fn resolve_simple_var_ref(
     } else {
         return None;
     };
-    let ver = *uses.get(name)?;
+    let sym = ssa.var_symbol(name)?;
+    let ver = *uses.get(&sym)?;
     Some(
         values
-            .get(&(name.to_owned(), ver))
+            .get(&(sym, ver))
             .cloned()
             .unwrap_or(LatticeValue::Unknown),
     )
@@ -855,7 +874,7 @@ fn branch_decision(
     octal: Option<bool>,
 ) -> Option<bool> {
     loop_summary_decision(cfg, ssa, bn, condition, values)
-        .or_else(|| evaluate_branch(ssa_block, condition, values, octal))
+        .or_else(|| evaluate_branch(ssa_block, condition, values, octal, ssa))
 }
 
 /// Convert an SCCP [`ConstValue`] to the static simulator's
@@ -884,9 +903,9 @@ fn loop_summary_decision(
     let node = cfg.loop_nodes.get(&bn)?;
     let start_ssa = ssa.blocks.get(&node.entry_block)?;
     let mut start_env = crate::static_loops::StaticEnv::new();
-    for (name, &ver) in &start_ssa.exit_versions {
-        if let Some(LatticeValue::Const(c)) = values.get(&(name.clone(), ver)) {
-            start_env.insert(name.clone(), const_to_static(c));
+    for (&sym, &ver) in &start_ssa.exit_versions {
+        if let Some(LatticeValue::Const(c)) = values.get(&(sym, ver)) {
+            start_env.insert(ssa.var_name(sym).to_owned(), const_to_static(c));
         }
     }
     let summarised = crate::static_loops::summarise_for_statement(
@@ -908,8 +927,9 @@ pub fn evaluate_branch(
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
     octal: Option<bool>,
+    ssa: &SsaFunction,
 ) -> Option<bool> {
-    let mut env = env_from_uses(&ssa_block.exit_versions, values);
+    let mut env = env_from_uses(&ssa_block.exit_versions, values, ssa);
     // A parameter read in a branch condition without a local redefinition
     // isn't in `exit_versions` (those carry defined-in-block versions), so
     // its caller-provided version-0 seed never reaches the fold. Bind it
@@ -919,8 +939,11 @@ pub fn evaluate_branch(
         if env.contains_key(&name) {
             continue;
         }
-        let v0_live = ssa_block.exit_versions.get(&name).copied().unwrap_or(0) == 0;
-        if v0_live && let Some(LatticeValue::Const(c)) = values.get(&(name.clone(), 0)) {
+        let Some(sym) = ssa.var_symbol(&name) else {
+            continue;
+        };
+        let v0_live = ssa_block.exit_versions.get(&sym).copied().unwrap_or(0) == 0;
+        if v0_live && let Some(LatticeValue::Const(c)) = values.get(&(sym, 0)) {
             env.insert(name, const_to_env_value(c));
         }
     }
@@ -928,19 +951,19 @@ pub fn evaluate_branch(
     Some(v.is_truthy())
 }
 
-/// Build a [`tcl_expr_eval::Env`] from a `{name → version}` map
+/// Build a [`tcl_expr_eval::Env`] from a `{symbol → version}` map
 /// and the current lattice. Only entries whose lattice value is
 /// a single [`LatticeValue::Const`] are bound; anything else
 /// leaves the variable unbound so the evaluator returns `None`.
 fn env_from_uses(
-    uses: &HashMap<String, crate::ssa::Version>,
+    uses: &HashMap<Symbol, crate::ssa::Version>,
     values: &HashMap<ValueKey, LatticeValue>,
+    ssa: &SsaFunction,
 ) -> Env {
     let mut env = Env::new();
-    for (name, ver) in uses {
-        let key: ValueKey = (name.clone(), *ver);
-        if let Some(LatticeValue::Const(c)) = values.get(&key) {
-            env.insert(name.clone(), const_to_env_value(c));
+    for (&sym, &ver) in uses {
+        if let Some(LatticeValue::Const(c)) = values.get(&(sym, ver)) {
+            env.insert(ssa.var_name(sym).to_owned(), const_to_env_value(c));
         }
     }
     env
@@ -952,19 +975,19 @@ fn env_from_uses(
 /// parsing: a non-numeric value becomes an invalid bareword, so leaving it
 /// unbound makes the fold bail (matching Tcl's runtime error).
 fn env_from_uses_numeric(
-    uses: &HashMap<String, crate::ssa::Version>,
+    uses: &HashMap<Symbol, crate::ssa::Version>,
     values: &HashMap<ValueKey, LatticeValue>,
+    ssa: &SsaFunction,
 ) -> Env {
     let mut env = Env::new();
-    for (name, ver) in uses {
-        let key: ValueKey = (name.clone(), *ver);
-        if let Some(LatticeValue::Const(c)) = values.get(&key)
+    for (&sym, &ver) in uses {
+        if let Some(LatticeValue::Const(c)) = values.get(&(sym, ver))
             && matches!(
                 c,
                 ConstValue::Int(_) | ConstValue::Float(_) | ConstValue::Bool(_)
             )
         {
-            env.insert(name.clone(), const_to_env_value(c));
+            env.insert(ssa.var_name(sym).to_owned(), const_to_env_value(c));
         }
     }
     env
@@ -1021,8 +1044,9 @@ pub fn extract_foreach_elements(list_text: &str) -> Option<Vec<String>> {
 #[must_use]
 pub fn resolve_foreach_list_via_lattice(
     list_text: &str,
-    uses: &HashMap<String, crate::ssa::Version>,
+    uses: &HashMap<Symbol, crate::ssa::Version>,
     values: &HashMap<ValueKey, LatticeValue>,
+    ssa: &SsaFunction,
 ) -> Option<Vec<String>> {
     let stripped = list_text.trim();
     let name = if let Some(name) = stripped
@@ -1042,8 +1066,9 @@ pub fn resolve_foreach_list_via_lattice(
     } else {
         return None;
     };
-    let ver = uses.get(name).copied()?;
-    match values.get(&(name.to_owned(), ver))? {
+    let sym = ssa.var_symbol(name)?;
+    let ver = uses.get(&sym).copied()?;
+    match values.get(&(sym, ver))? {
         LatticeValue::Const(ConstValue::String(s)) => {
             Some(s.split_ascii_whitespace().map(str::to_owned).collect())
         }
@@ -1064,8 +1089,9 @@ pub fn resolve_foreach_list_via_lattice(
 /// Anything else widens to `Overdefined`.
 fn fold_assign_value(
     value: &str,
-    uses: &HashMap<String, crate::ssa::Version>,
+    uses: &HashMap<Symbol, crate::ssa::Version>,
     values: &HashMap<ValueKey, LatticeValue>,
+    ssa: &SsaFunction,
 ) -> LatticeValue {
     let stripped = value.trim();
     // Plain literal.
@@ -1073,13 +1099,13 @@ fn fold_assign_value(
         return LatticeValue::Const(parse_literal_value(stripped));
     }
     // Simple var reference.
-    if let Some(resolved) = resolve_simple_var_ref(stripped, uses, values) {
+    if let Some(resolved) = resolve_simple_var_ref(stripped, uses, values, ssa) {
         return resolved;
     }
     // Command substitution.
     if stripped.starts_with('[')
         && stripped.ends_with(']')
-        && let Some(lv) = try_fold_cmd_subst(stripped, uses, values)
+        && let Some(lv) = try_fold_cmd_subst(stripped, uses, values, ssa)
     {
         return lv;
     }
@@ -1104,8 +1130,9 @@ fn fold_assign_value(
 /// so the caller skips folding.
 fn resolve_const_string(
     arg: &str,
-    uses: &HashMap<String, crate::ssa::Version>,
+    uses: &HashMap<Symbol, crate::ssa::Version>,
     values: &HashMap<ValueKey, LatticeValue>,
+    ssa: &SsaFunction,
 ) -> Option<String> {
     let arg = arg.trim();
     if let Some(rest) = arg.strip_prefix('$') {
@@ -1122,8 +1149,9 @@ fn resolve_const_string(
         {
             return None;
         }
-        let ver = uses.get(name)?;
-        return match values.get(&(name.to_owned(), *ver))? {
+        let sym = ssa.var_symbol(name)?;
+        let ver = uses.get(&sym)?;
+        return match values.get(&(sym, *ver))? {
             LatticeValue::Const(ConstValue::String(s)) => Some(s.clone()),
             LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
             LatticeValue::Const(ConstValue::Bool(b)) => Some(if *b { "1" } else { "0" }.to_owned()),
@@ -1140,8 +1168,9 @@ fn resolve_const_string(
 
 fn try_fold_cmd_subst(
     value: &str,
-    uses: &HashMap<String, crate::ssa::Version>,
+    uses: &HashMap<Symbol, crate::ssa::Version>,
     values: &HashMap<ValueKey, LatticeValue>,
+    ssa: &SsaFunction,
 ) -> Option<LatticeValue> {
     // `[list ...]` — reuse the codegen fold.
     if let Some(folded) = crate::codegen::helpers::fold_list_cmd(value) {
@@ -1162,7 +1191,7 @@ fn try_fold_cmd_subst(
             let n = i64::try_from(elements.len()).unwrap_or(i64::MAX);
             return Some(LatticeValue::Const(ConstValue::Int(n)));
         }
-        if let Some(items) = resolve_foreach_list_via_lattice(arg, uses, values) {
+        if let Some(items) = resolve_foreach_list_via_lattice(arg, uses, values, ssa) {
             let n = i64::try_from(items.len()).unwrap_or(i64::MAX);
             return Some(LatticeValue::Const(ConstValue::Int(n)));
         }
@@ -1178,7 +1207,7 @@ fn try_fold_cmd_subst(
             let (sub, sub_rest) = split_head(after_cmd.trim());
             if sub == "length"
                 && let Some(raw) = sub_rest
-                && let Some(s) = resolve_const_string(raw.trim(), uses, values)
+                && let Some(s) = resolve_const_string(raw.trim(), uses, values, ssa)
             {
                 let len = i64::try_from(s.chars().count()).unwrap_or(i64::MAX);
                 return Some(LatticeValue::Const(ConstValue::Int(len)));
@@ -1208,9 +1237,9 @@ fn try_fold_cmd_subst(
         let expr_text = strip_one_level(arg);
         let expr = crate::expr_parser::parse_expr(expr_text, None);
         let env = if braced {
-            env_from_uses(uses, values)
+            env_from_uses(uses, values, ssa)
         } else {
-            env_from_uses_numeric(uses, values)
+            env_from_uses_numeric(uses, values, ssa)
         };
         return eval_tcl_expr(&expr, &env).map(|v| LatticeValue::Const(tcl_value_to_const(v)));
     }
@@ -1373,15 +1402,15 @@ mod tests {
     #[test]
     fn set_value_tracks_change() {
         let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
-        let key: ValueKey = ("x".into(), 1);
+        let key: ValueKey = (Symbol(0), 1);
         assert!(set_value(
             &mut values,
-            key.clone(),
+            key,
             &LatticeValue::Const(ConstValue::Int(1))
         ));
         assert!(!set_value(
             &mut values,
-            key.clone(),
+            key,
             &LatticeValue::Const(ConstValue::Int(1))
         ));
         assert!(set_value(
@@ -1443,9 +1472,15 @@ mod tests {
     use crate::ssa::{SsaBlock, SsaStatement};
     use tcl_lexer::Span;
 
-    fn assign_const_stmt(name: &str, value: &str, ver: u32) -> SsaStatement {
+    /// A block-less SSA function used purely as a variable-name interner for
+    /// the hand-built statement / lattice tests.
+    fn bare_ssa() -> SsaFunction {
+        SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()])
+    }
+
+    fn assign_const_stmt(ssa: &mut SsaFunction, name: &str, value: &str, ver: u32) -> SsaStatement {
         let mut defs = HashMap::new();
-        defs.insert(name.to_string(), ver);
+        defs.insert(ssa.intern_var(name), ver);
         SsaStatement {
             statement: Statement::AssignConst {
                 span: Span::new(0, 0),
@@ -1497,14 +1532,15 @@ mod tests {
             expr: None,
             braced: false,
         });
-        let mut ssa_entry = empty_ssa_block("entry");
-        ssa_entry.statements.push(assign_const_stmt("x", "42", 1));
-        let ssa = make_ssa(&f, vec![("entry", ssa_entry)]);
+        let mut ssa = make_ssa(&f, vec![]);
+        let stmt = assign_const_stmt(&mut ssa, "x", "42", 1);
+        ssa.blocks.get_mut(&entry).unwrap().statements.push(stmt);
+        let x = ssa.var_symbol("x").unwrap();
 
         let r = sccp(&f, &ssa, None, None);
         assert!(r.executable_blocks.contains(&entry));
         assert_eq!(
-            r.values.get(&("x".to_string(), 1)),
+            r.values.get(&(x, 1)),
             Some(&LatticeValue::Const(ConstValue::Int(42)))
         );
     }
@@ -1603,14 +1639,15 @@ mod tests {
 
     #[test]
     fn evaluate_def_assign_const_produces_int_or_string() {
-        let s_int = assign_const_stmt("x", "42", 1);
+        let mut ssa = bare_ssa();
+        let s_int = assign_const_stmt(&mut ssa, "x", "42", 1);
         assert_eq!(
-            evaluate_def(&s_int, &HashMap::new()),
+            evaluate_def(&s_int, &HashMap::new(), &ssa),
             LatticeValue::Const(ConstValue::Int(42))
         );
-        let s_str = assign_const_stmt("x", "hello", 1);
+        let s_str = assign_const_stmt(&mut ssa, "x", "hello", 1);
         assert_eq!(
-            evaluate_def(&s_str, &HashMap::new()),
+            evaluate_def(&s_str, &HashMap::new(), &ssa),
             LatticeValue::Const(ConstValue::String("hello".into()))
         );
     }
@@ -1618,10 +1655,13 @@ mod tests {
     #[test]
     fn evaluate_def_assign_expr_folds_with_lattice() {
         // `set x [expr {$a + 3}]` with $a → Const(2) should fold to 5.
+        let mut ssa = bare_ssa();
+        let a = ssa.intern_var("a");
+        let x = ssa.intern_var("x");
         let mut uses = HashMap::new();
-        uses.insert("a".to_string(), 1);
+        uses.insert(a, 1);
         let mut defs = HashMap::new();
-        defs.insert("x".to_string(), 1);
+        defs.insert(x, 1);
 
         let expr = ExprNode::Binary {
             op: BinOp::Add,
@@ -1649,24 +1689,28 @@ mod tests {
         };
 
         let mut values = HashMap::new();
-        values.insert(
-            ("a".to_string(), 1),
-            LatticeValue::Const(ConstValue::Int(2)),
-        );
+        values.insert((a, 1), LatticeValue::Const(ConstValue::Int(2)));
 
         assert_eq!(
-            evaluate_def(&stmt_ssa, &values),
+            evaluate_def(&stmt_ssa, &values, &ssa),
             LatticeValue::Const(ConstValue::Int(5))
         );
     }
 
     // -- evaluate_def for Incr --
 
-    fn incr_stmt(name: &str, amount: Option<&str>, old_ver: u32, new_ver: u32) -> SsaStatement {
+    fn incr_stmt(
+        ssa: &mut SsaFunction,
+        name: &str,
+        amount: Option<&str>,
+        old_ver: u32,
+        new_ver: u32,
+    ) -> SsaStatement {
+        let sym = ssa.intern_var(name);
         let mut uses = HashMap::new();
-        uses.insert(name.to_string(), old_ver);
+        uses.insert(sym, old_ver);
         let mut defs = HashMap::new();
-        defs.insert(name.to_string(), new_ver);
+        defs.insert(sym, new_ver);
         SsaStatement {
             statement: Statement::Incr {
                 span: Span::new(0, 0),
@@ -1683,42 +1727,39 @@ mod tests {
     #[test]
     fn evaluate_def_incr_default_amount() {
         // x@1 = Const(Int(5)); `incr x` → x@2 = Const(Int(6)).
-        let stmt = incr_stmt("x", None, 1, 2);
+        let mut ssa = bare_ssa();
+        let stmt = incr_stmt(&mut ssa, "x", None, 1, 2);
+        let x = ssa.var_symbol("x").unwrap();
         let mut values = HashMap::new();
-        values.insert(
-            ("x".to_string(), 1),
-            LatticeValue::Const(ConstValue::Int(5)),
-        );
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
         assert_eq!(
-            evaluate_def(&stmt, &values),
+            evaluate_def(&stmt, &values, &ssa),
             LatticeValue::Const(ConstValue::Int(6))
         );
     }
 
     #[test]
     fn evaluate_def_incr_integer_literal_amount() {
-        let stmt = incr_stmt("x", Some("10"), 1, 2);
+        let mut ssa = bare_ssa();
+        let stmt = incr_stmt(&mut ssa, "x", Some("10"), 1, 2);
+        let x = ssa.var_symbol("x").unwrap();
         let mut values = HashMap::new();
-        values.insert(
-            ("x".to_string(), 1),
-            LatticeValue::Const(ConstValue::Int(3)),
-        );
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(3)));
         assert_eq!(
-            evaluate_def(&stmt, &values),
+            evaluate_def(&stmt, &values, &ssa),
             LatticeValue::Const(ConstValue::Int(13))
         );
     }
 
     #[test]
     fn evaluate_def_incr_negative_literal_amount() {
-        let stmt = incr_stmt("x", Some("-2"), 1, 2);
+        let mut ssa = bare_ssa();
+        let stmt = incr_stmt(&mut ssa, "x", Some("-2"), 1, 2);
+        let x = ssa.var_symbol("x").unwrap();
         let mut values = HashMap::new();
-        values.insert(
-            ("x".to_string(), 1),
-            LatticeValue::Const(ConstValue::Int(10)),
-        );
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(10)));
         assert_eq!(
-            evaluate_def(&stmt, &values),
+            evaluate_def(&stmt, &values, &ssa),
             LatticeValue::Const(ConstValue::Int(8))
         );
     }
@@ -1726,76 +1767,80 @@ mod tests {
     #[test]
     fn evaluate_def_incr_var_ref_amount() {
         // `incr x $y` where $y resolves to 4.
-        let mut stmt = incr_stmt("x", Some("$y"), 1, 2);
-        stmt.uses.insert("y".to_string(), 1);
+        let mut ssa = bare_ssa();
+        let mut stmt = incr_stmt(&mut ssa, "x", Some("$y"), 1, 2);
+        let x = ssa.var_symbol("x").unwrap();
+        let y = ssa.intern_var("y");
+        stmt.uses.insert(y, 1);
         let mut values = HashMap::new();
-        values.insert(
-            ("x".to_string(), 1),
-            LatticeValue::Const(ConstValue::Int(6)),
-        );
-        values.insert(
-            ("y".to_string(), 1),
-            LatticeValue::Const(ConstValue::Int(4)),
-        );
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(6)));
+        values.insert((y, 1), LatticeValue::Const(ConstValue::Int(4)));
         assert_eq!(
-            evaluate_def(&stmt, &values),
+            evaluate_def(&stmt, &values, &ssa),
             LatticeValue::Const(ConstValue::Int(10))
         );
     }
 
     #[test]
     fn evaluate_def_incr_unknown_base_propagates_unknown() {
-        let stmt = incr_stmt("x", None, 1, 2);
+        let mut ssa = bare_ssa();
+        let stmt = incr_stmt(&mut ssa, "x", None, 1, 2);
         let values = HashMap::new();
         // No entry for x@1 → base is Unknown → result Unknown.
-        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Unknown);
+        assert_eq!(evaluate_def(&stmt, &values, &ssa), LatticeValue::Unknown);
     }
 
     #[test]
     fn evaluate_def_incr_overdefined_base_widens() {
-        let stmt = incr_stmt("x", None, 1, 2);
+        let mut ssa = bare_ssa();
+        let stmt = incr_stmt(&mut ssa, "x", None, 1, 2);
+        let x = ssa.var_symbol("x").unwrap();
         let mut values = HashMap::new();
-        values.insert(("x".to_string(), 1), LatticeValue::Overdefined);
-        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Overdefined);
+        values.insert((x, 1), LatticeValue::Overdefined);
+        assert_eq!(
+            evaluate_def(&stmt, &values, &ssa),
+            LatticeValue::Overdefined
+        );
     }
 
     #[test]
     fn evaluate_def_incr_non_integer_amount_widens() {
-        let stmt = incr_stmt("x", Some("2.5"), 1, 2);
+        let mut ssa = bare_ssa();
+        let stmt = incr_stmt(&mut ssa, "x", Some("2.5"), 1, 2);
+        let x = ssa.var_symbol("x").unwrap();
         let mut values = HashMap::new();
-        values.insert(
-            ("x".to_string(), 1),
-            LatticeValue::Const(ConstValue::Int(1)),
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(1)));
+        assert_eq!(
+            evaluate_def(&stmt, &values, &ssa),
+            LatticeValue::Overdefined
         );
-        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Overdefined);
     }
 
     #[test]
     fn resolve_simple_var_ref_accepts_bare_and_braced() {
+        let mut ssa = bare_ssa();
+        let x = ssa.intern_var("x");
         let mut uses = HashMap::new();
-        uses.insert("x".to_string(), 1);
+        uses.insert(x, 1);
         let mut values = HashMap::new();
-        values.insert(
-            ("x".to_string(), 1),
-            LatticeValue::Const(ConstValue::Int(7)),
-        );
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(7)));
         assert_eq!(
-            resolve_simple_var_ref("$x", &uses, &values),
+            resolve_simple_var_ref("$x", &uses, &values, &ssa),
             Some(LatticeValue::Const(ConstValue::Int(7)))
         );
         assert_eq!(
-            resolve_simple_var_ref("${x}", &uses, &values),
+            resolve_simple_var_ref("${x}", &uses, &values, &ssa),
             Some(LatticeValue::Const(ConstValue::Int(7)))
         );
-        assert_eq!(resolve_simple_var_ref("$y", &uses, &values), None);
-        assert_eq!(resolve_simple_var_ref("plain", &uses, &values), None);
+        assert_eq!(resolve_simple_var_ref("$y", &uses, &values, &ssa), None);
+        assert_eq!(resolve_simple_var_ref("plain", &uses, &values, &ssa), None);
     }
 
     // -- foreach constset extraction --
 
-    fn foreach_stmt(var: &str, list: &str, new_ver: u32) -> SsaStatement {
+    fn foreach_stmt(ssa: &mut SsaFunction, var: &str, list: &str, new_ver: u32) -> SsaStatement {
         let mut defs = HashMap::new();
-        defs.insert(var.to_string(), new_ver);
+        defs.insert(ssa.intern_var(var), new_ver);
         SsaStatement {
             statement: Statement::Call {
                 span: Span::new(0, 0),
@@ -1844,8 +1889,9 @@ mod tests {
 
     #[test]
     fn evaluate_def_foreach_literal_list_folds_constset() {
-        let stmt = foreach_stmt("v", "{1 2 3}", 1);
-        let result = evaluate_def(&stmt, &HashMap::new());
+        let mut ssa = bare_ssa();
+        let stmt = foreach_stmt(&mut ssa, "v", "{1 2 3}", 1);
+        let result = evaluate_def(&stmt, &HashMap::new(), &ssa);
         match result {
             LatticeValue::ConstSet(ref vs) => {
                 assert_eq!(vs.len(), 3);
@@ -1858,23 +1904,26 @@ mod tests {
 
     #[test]
     fn evaluate_def_foreach_single_element_folds_const() {
-        let stmt = foreach_stmt("v", "{only}", 1);
+        let mut ssa = bare_ssa();
+        let stmt = foreach_stmt(&mut ssa, "v", "{only}", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new()),
+            evaluate_def(&stmt, &HashMap::new(), &ssa),
             LatticeValue::Const(ConstValue::String("only".into()))
         );
     }
 
     #[test]
     fn evaluate_def_foreach_via_lattice_var() {
-        let mut stmt = foreach_stmt("v", "$lst", 1);
-        stmt.uses.insert("lst".to_string(), 1);
+        let mut ssa = bare_ssa();
+        let mut stmt = foreach_stmt(&mut ssa, "v", "$lst", 1);
+        let lst = ssa.intern_var("lst");
+        stmt.uses.insert(lst, 1);
         let mut values = HashMap::new();
         values.insert(
-            ("lst".to_string(), 1),
+            (lst, 1),
             LatticeValue::Const(ConstValue::String("a b c".into())),
         );
-        let result = evaluate_def(&stmt, &values);
+        let result = evaluate_def(&stmt, &values, &ssa);
         match result {
             LatticeValue::ConstSet(ref vs) => assert_eq!(vs.len(), 3),
             other => panic!("expected ConstSet, got {other:?}"),
@@ -1883,30 +1932,33 @@ mod tests {
 
     #[test]
     fn evaluate_def_foreach_unbound_var_widens() {
-        let mut stmt = foreach_stmt("v", "$lst", 1);
-        stmt.uses.insert("lst".to_string(), 1);
+        let mut ssa = bare_ssa();
+        let mut stmt = foreach_stmt(&mut ssa, "v", "$lst", 1);
+        let lst = ssa.intern_var("lst");
+        stmt.uses.insert(lst, 1);
         // Empty lattice — var not bound.
-        let result = evaluate_def(&stmt, &HashMap::new());
+        let result = evaluate_def(&stmt, &HashMap::new(), &ssa);
         assert_eq!(result, LatticeValue::Overdefined);
     }
 
     #[test]
     fn evaluate_def_foreach_multi_var_widens() {
         // 2-element defs → no constset extraction.
-        let mut stmt = foreach_stmt("v", "{a b}", 1);
+        let mut ssa = bare_ssa();
+        let mut stmt = foreach_stmt(&mut ssa, "v", "{a b}", 1);
         let Statement::Call { defs, .. } = &mut stmt.statement else {
             panic!();
         };
         defs.push("w".into());
-        let result = evaluate_def(&stmt, &HashMap::new());
+        let result = evaluate_def(&stmt, &HashMap::new(), &ssa);
         assert_eq!(result, LatticeValue::Overdefined);
     }
 
     // -- AssignValue + command-substitution folding --
 
-    fn assign_value_stmt(name: &str, value: &str, ver: u32) -> SsaStatement {
+    fn assign_value_stmt(ssa: &mut SsaFunction, name: &str, value: &str, ver: u32) -> SsaStatement {
         let mut defs = HashMap::new();
-        defs.insert(name.to_string(), ver);
+        defs.insert(ssa.intern_var(name), ver);
         SsaStatement {
             statement: Statement::AssignValue {
                 span: Span::new(0, 0),
@@ -1923,41 +1975,43 @@ mod tests {
 
     #[test]
     fn evaluate_def_assign_value_plain_literal() {
-        let stmt = assign_value_stmt("x", "hello", 1);
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "x", "hello", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new()),
+            evaluate_def(&stmt, &HashMap::new(), &ssa),
             LatticeValue::Const(ConstValue::String("hello".into()))
         );
     }
 
     #[test]
     fn evaluate_def_assign_value_integer_literal() {
-        let stmt = assign_value_stmt("x", "42", 1);
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "x", "42", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new()),
+            evaluate_def(&stmt, &HashMap::new(), &ssa),
             LatticeValue::Const(ConstValue::Int(42))
         );
     }
 
     #[test]
     fn evaluate_def_assign_value_resolves_var_ref() {
-        let mut stmt = assign_value_stmt("y", "$x", 1);
-        stmt.uses.insert("x".into(), 1);
+        let mut ssa = bare_ssa();
+        let mut stmt = assign_value_stmt(&mut ssa, "y", "$x", 1);
+        let x = ssa.intern_var("x");
+        stmt.uses.insert(x, 1);
         let mut values = HashMap::new();
-        values.insert(
-            ("x".to_string(), 1),
-            LatticeValue::Const(ConstValue::Int(7)),
-        );
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(7)));
         assert_eq!(
-            evaluate_def(&stmt, &values),
+            evaluate_def(&stmt, &values, &ssa),
             LatticeValue::Const(ConstValue::Int(7))
         );
     }
 
     #[test]
     fn evaluate_def_assign_value_folds_list_cmd() {
-        let stmt = assign_value_stmt("x", "[list a b c]", 1);
-        let result = evaluate_def(&stmt, &HashMap::new());
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "x", "[list a b c]", 1);
+        let result = evaluate_def(&stmt, &HashMap::new(), &ssa);
         match result {
             LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "a b c"),
             other => panic!("expected Const(String), got {other:?}"),
@@ -1966,35 +2020,39 @@ mod tests {
 
     #[test]
     fn evaluate_def_assign_value_folds_llength_literal() {
-        let stmt = assign_value_stmt("n", "[llength {a b c d}]", 1);
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c d}]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new()),
+            evaluate_def(&stmt, &HashMap::new(), &ssa),
             LatticeValue::Const(ConstValue::Int(4))
         );
     }
 
     #[test]
     fn evaluate_def_assign_value_folds_string_length() {
-        let stmt = assign_value_stmt("n", "[string length \"hello\"]", 1);
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"hello\"]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new()),
+            evaluate_def(&stmt, &HashMap::new(), &ssa),
             LatticeValue::Const(ConstValue::Int(5))
         );
     }
 
     #[test]
     fn evaluate_def_assign_value_folds_expr_cmd_subst() {
-        let stmt = assign_value_stmt("x", "[expr {1 + 2}]", 1);
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "x", "[expr {1 + 2}]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new()),
+            evaluate_def(&stmt, &HashMap::new(), &ssa),
             LatticeValue::Const(ConstValue::Int(3))
         );
     }
 
     #[test]
     fn evaluate_def_assign_value_folds_format_literal() {
-        let stmt = assign_value_stmt("s", "[format \"%d-%d\" 1 2]", 1);
-        match evaluate_def(&stmt, &HashMap::new()) {
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "s", "[format \"%d-%d\" 1 2]", 1);
+        match evaluate_def(&stmt, &HashMap::new(), &ssa) {
             LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "1-2"),
             other => panic!("expected Const(String), got {other:?}"),
         }
@@ -2006,39 +2064,42 @@ mod tests {
         // the values textually before parsing, so `expr "alpha == beta"`
         // errors (`invalid bareword`). The fold must bail rather than treat
         // the strings as operands and return 0.
-        let mut stmt = assign_value_stmt("r", "[expr \"$a == $b\"]", 1);
-        stmt.uses.insert("a".into(), 1);
-        stmt.uses.insert("b".into(), 1);
+        let mut ssa = bare_ssa();
+        let mut stmt = assign_value_stmt(&mut ssa, "r", "[expr \"$a == $b\"]", 1);
+        let a = ssa.intern_var("a");
+        let b = ssa.intern_var("b");
+        stmt.uses.insert(a, 1);
+        stmt.uses.insert(b, 1);
         let mut values = HashMap::new();
         values.insert(
-            ("a".to_string(), 1),
+            (a, 1),
             LatticeValue::Const(ConstValue::String("alpha".into())),
         );
         values.insert(
-            ("b".to_string(), 1),
+            (b, 1),
             LatticeValue::Const(ConstValue::String("beta".into())),
         );
-        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Overdefined);
+        assert_eq!(
+            evaluate_def(&stmt, &values, &ssa),
+            LatticeValue::Overdefined
+        );
     }
 
     #[test]
     fn quoted_expr_with_numeric_var_still_folds() {
         // `set r [expr "$a + $b"]` with numeric a, b is sound: textual
         // substitution yields `3 + 4`, a valid expr → fold to 7.
-        let mut stmt = assign_value_stmt("r", "[expr \"$a + $b\"]", 1);
-        stmt.uses.insert("a".into(), 1);
-        stmt.uses.insert("b".into(), 1);
+        let mut ssa = bare_ssa();
+        let mut stmt = assign_value_stmt(&mut ssa, "r", "[expr \"$a + $b\"]", 1);
+        let a = ssa.intern_var("a");
+        let b = ssa.intern_var("b");
+        stmt.uses.insert(a, 1);
+        stmt.uses.insert(b, 1);
         let mut values = HashMap::new();
-        values.insert(
-            ("a".to_string(), 1),
-            LatticeValue::Const(ConstValue::Int(3)),
-        );
-        values.insert(
-            ("b".to_string(), 1),
-            LatticeValue::Const(ConstValue::Int(4)),
-        );
+        values.insert((a, 1), LatticeValue::Const(ConstValue::Int(3)));
+        values.insert((b, 1), LatticeValue::Const(ConstValue::Int(4)));
         assert_eq!(
-            evaluate_def(&stmt, &values),
+            evaluate_def(&stmt, &values, &ssa),
             LatticeValue::Const(ConstValue::Int(7))
         );
     }
@@ -2047,44 +2108,50 @@ mod tests {
     fn braced_expr_with_string_var_folds_as_string_compare() {
         // `set r [expr {$a == $b}]` is braced — expr resolves the vars itself,
         // so a string-valued var is a valid operand and the compare folds.
-        let mut stmt = assign_value_stmt("r", "[expr {$a == $b}]", 1);
-        stmt.uses.insert("a".into(), 1);
-        stmt.uses.insert("b".into(), 1);
+        let mut ssa = bare_ssa();
+        let mut stmt = assign_value_stmt(&mut ssa, "r", "[expr {$a == $b}]", 1);
+        let a = ssa.intern_var("a");
+        let b = ssa.intern_var("b");
+        stmt.uses.insert(a, 1);
+        stmt.uses.insert(b, 1);
         let mut values = HashMap::new();
         values.insert(
-            ("a".to_string(), 1),
+            (a, 1),
             LatticeValue::Const(ConstValue::String("alpha".into())),
         );
         values.insert(
-            ("b".to_string(), 1),
+            (b, 1),
             LatticeValue::Const(ConstValue::String("beta".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values),
+            evaluate_def(&stmt, &values, &ssa),
             LatticeValue::Const(ConstValue::Int(0))
         );
     }
 
     #[test]
     fn evaluate_def_assign_value_unknown_cmd_widens() {
-        let stmt = assign_value_stmt("x", "[nonexistent_fold args]", 1);
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "x", "[nonexistent_fold args]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new()),
+            evaluate_def(&stmt, &HashMap::new(), &ssa),
             LatticeValue::Overdefined
         );
     }
 
     #[test]
     fn evaluate_def_assign_value_llength_via_lattice_var() {
-        let mut stmt = assign_value_stmt("n", "[llength $lst]", 1);
-        stmt.uses.insert("lst".into(), 1);
+        let mut ssa = bare_ssa();
+        let mut stmt = assign_value_stmt(&mut ssa, "n", "[llength $lst]", 1);
+        let lst = ssa.intern_var("lst");
+        stmt.uses.insert(lst, 1);
         let mut values = HashMap::new();
         values.insert(
-            ("lst".to_string(), 1),
+            (lst, 1),
             LatticeValue::Const(ConstValue::String("a b c".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values),
+            evaluate_def(&stmt, &values, &ssa),
             LatticeValue::Const(ConstValue::Int(3))
         );
     }
@@ -2206,30 +2273,32 @@ mod tests {
             start: 0,
             end: 2,
         };
+        let mut ssa = bare_ssa();
+        let x = ssa.intern_var("x");
         let mut sb = empty_ssa_block("b");
-        sb.exit_versions.insert("x".into(), 1);
+        sb.exit_versions.insert(x, 1);
         let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
 
         // Defined operand (version 1) not yet computed → defer.
-        assert!(branch_deferrable(&sb, &cond, &values));
-        values.insert(("x".into(), 1), LatticeValue::Unknown);
-        assert!(branch_deferrable(&sb, &cond, &values));
+        assert!(branch_deferrable(&sb, &cond, &values, &ssa));
+        values.insert((x, 1), LatticeValue::Unknown);
+        assert!(branch_deferrable(&sb, &cond, &values, &ssa));
 
         // An `Overdefined` operand proves the condition genuinely
         // non-constant → never defer.
-        values.insert(("x".into(), 1), LatticeValue::Overdefined);
-        assert!(!branch_deferrable(&sb, &cond, &values));
+        values.insert((x, 1), LatticeValue::Overdefined);
+        assert!(!branch_deferrable(&sb, &cond, &values, &ssa));
 
         // A constant operand folds via `evaluate_branch`, so the `None`
         // arm is never reached → not deferrable here.
-        values.insert(("x".into(), 1), LatticeValue::Const(ConstValue::Int(1)));
-        assert!(!branch_deferrable(&sb, &cond, &values));
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(1)));
+        assert!(!branch_deferrable(&sb, &cond, &values, &ssa));
 
         // Version-0 operands (parameters / globals / live-in roots) are
         // already `Overdefined` and excluded from the deferral test.
         let mut sb0 = empty_ssa_block("b");
-        sb0.exit_versions.insert("x".into(), 0);
-        assert!(!branch_deferrable(&sb0, &cond, &HashMap::new()));
+        sb0.exit_versions.insert(x, 0);
+        assert!(!branch_deferrable(&sb0, &cond, &HashMap::new(), &ssa));
     }
 
     #[test]

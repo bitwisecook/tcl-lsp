@@ -164,18 +164,20 @@ fn extract_event_summary(event: &str, fu: &FunctionUnit) -> EventVarSummary {
                 Statement::Call { command, .. } if command == "unset"
             );
 
-            for name in stmt.defs.keys() {
+            for &sym in stmt.defs.keys() {
+                let name = fu.ssa.var_name(sym);
                 if name.starts_with("::") {
                     continue;
                 }
                 if !(name.starts_with("static::") && is_unset) {
-                    defs.insert(name.clone());
+                    defs.insert(name.to_owned());
                 }
             }
 
-            for (name, ver) in &stmt.uses {
+            for (&sym, ver) in &stmt.uses {
+                let name = fu.ssa.var_name(sym);
                 if *ver == 0 && !name.starts_with("::") {
-                    uses_v0.insert(name.clone());
+                    uses_v0.insert(name.to_owned());
                 }
             }
 

@@ -469,8 +469,10 @@ mod tests {
     #[test]
     fn reset_function_state_clears_propagation_scratch() {
         let mut ctx = PassContext::default();
-        ctx.propagated_branch_uses.insert(("x".into(), 1));
-        ctx.propagated_use_groups.insert(("x".into(), 1), 0);
+        ctx.propagated_branch_uses
+            .insert((crate::ssa::Symbol(0), 1));
+        ctx.propagated_use_groups
+            .insert((crate::ssa::Symbol(0), 1), 0);
         ctx.propagated_expr_stmts.insert(("b".into(), 3));
         // cross_event_vars and next_group are intentionally
         // preserved across functions.

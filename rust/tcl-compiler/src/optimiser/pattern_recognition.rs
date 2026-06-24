@@ -61,16 +61,16 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 /// sound over-approximation of the per-use check.
 fn int_var_names(fu: &FunctionUnit) -> HashSet<String> {
     use std::collections::HashMap;
-    let mut acc: HashMap<&str, bool> = HashMap::new();
-    for ((name, _ver), lattice) in &fu.types {
+    let mut acc: HashMap<crate::ssa::Symbol, bool> = HashMap::new();
+    for ((sym, _ver), lattice) in &fu.types {
         let is_int = lattice_is_int(lattice);
-        acc.entry(name.as_str())
+        acc.entry(*sym)
             .and_modify(|v| *v = *v && is_int)
             .or_insert(is_int);
     }
     acc.into_iter()
         .filter(|(_, ok)| *ok)
-        .map(|(n, _)| n.to_owned())
+        .map(|(sym, _)| fu.ssa.var_name(sym).to_owned())
         .collect()
 }
 

@@ -24,7 +24,7 @@ use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::cfg_order;
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
 use super::graph::loop_body_blocks;
@@ -70,7 +70,7 @@ pub(crate) fn find_expr_shimmers(
                 Statement::AssignExpr { expr, span, .. }
                 | Statement::ExprEval { expr, span, .. } => {
                     collect_expr_shimmers(
-                        expr, &ss.uses, types, *span, in_loop, &mut seen, &mut out,
+                        expr, &ss.uses, types, *span, in_loop, ssa, &mut seen, &mut out,
                     );
                 }
                 _ => {}
@@ -92,6 +92,7 @@ pub(crate) fn find_expr_shimmers(
                 types,
                 branch_span,
                 in_loop,
+                ssa,
                 &mut seen,
                 &mut out,
             );
@@ -101,12 +102,14 @@ pub(crate) fn find_expr_shimmers(
     out
 }
 
+#[allow(clippy::too_many_arguments)]
 fn collect_expr_shimmers(
     node: &ExprNode,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     stmt_span: Span,
     in_loop: bool,
+    ssa: &SsaFunction,
     seen: &mut HashSet<(Span, String)>,
     out: &mut Vec<ShimmerWarning>,
 ) {
@@ -115,8 +118,8 @@ fn collect_expr_shimmers(
             op, left, right, ..
         } => {
             // Recurse into children first.
-            collect_expr_shimmers(left, uses, types, stmt_span, in_loop, seen, out);
-            collect_expr_shimmers(right, uses, types, stmt_span, in_loop, seen, out);
+            collect_expr_shimmers(left, uses, types, stmt_span, in_loop, ssa, seen, out);
+            collect_expr_shimmers(right, uses, types, stmt_span, in_loop, ssa, seen, out);
 
             match op {
                 // Arithmetic, bitwise, logical, and *ordering* comparison
@@ -139,22 +142,26 @@ fn collect_expr_shimmers(
                 | BinOp::Le
                 | BinOp::Gt
                 | BinOp::Ge => {
-                    check_numeric_operand(left, uses, types, stmt_span, *op, in_loop, seen, out);
-                    check_numeric_operand(right, uses, types, stmt_span, *op, in_loop, seen, out);
+                    check_numeric_operand(
+                        left, uses, types, stmt_span, *op, in_loop, ssa, seen, out,
+                    );
+                    check_numeric_operand(
+                        right, uses, types, stmt_span, *op, in_loop, ssa, seen, out,
+                    );
                 }
 
                 // `==` / `!=` take the numeric-coercion path only when at least
                 // one operand is provably numeric (else Tcl falls back to a
                 // string compare and no shimmer occurs).
                 BinOp::Eq | BinOp::Ne => {
-                    if operand_looks_numeric(left, uses, types)
-                        || operand_looks_numeric(right, uses, types)
+                    if operand_looks_numeric(left, uses, types, ssa)
+                        || operand_looks_numeric(right, uses, types, ssa)
                     {
                         check_numeric_operand(
-                            left, uses, types, stmt_span, *op, in_loop, seen, out,
+                            left, uses, types, stmt_span, *op, in_loop, ssa, seen, out,
                         );
                         check_numeric_operand(
-                            right, uses, types, stmt_span, *op, in_loop, seen, out,
+                            right, uses, types, stmt_span, *op, in_loop, ssa, seen, out,
                         );
                     }
                 }
@@ -166,8 +173,12 @@ fn collect_expr_shimmers(
                 | BinOp::StrLe
                 | BinOp::StrGt
                 | BinOp::StrGe => {
-                    check_string_operand(left, uses, types, stmt_span, *op, in_loop, seen, out);
-                    check_string_operand(right, uses, types, stmt_span, *op, in_loop, seen, out);
+                    check_string_operand(
+                        left, uses, types, stmt_span, *op, in_loop, ssa, seen, out,
+                    );
+                    check_string_operand(
+                        right, uses, types, stmt_span, *op, in_loop, ssa, seen, out,
+                    );
                 }
 
                 _ => {}
@@ -175,7 +186,7 @@ fn collect_expr_shimmers(
         }
 
         ExprNode::Unary { operand, .. } => {
-            collect_expr_shimmers(operand, uses, types, stmt_span, in_loop, seen, out);
+            collect_expr_shimmers(operand, uses, types, stmt_span, in_loop, ssa, seen, out);
         }
 
         ExprNode::Ternary {
@@ -184,9 +195,18 @@ fn collect_expr_shimmers(
             false_branch,
             ..
         } => {
-            collect_expr_shimmers(condition, uses, types, stmt_span, in_loop, seen, out);
-            collect_expr_shimmers(true_branch, uses, types, stmt_span, in_loop, seen, out);
-            collect_expr_shimmers(false_branch, uses, types, stmt_span, in_loop, seen, out);
+            collect_expr_shimmers(condition, uses, types, stmt_span, in_loop, ssa, seen, out);
+            collect_expr_shimmers(true_branch, uses, types, stmt_span, in_loop, ssa, seen, out);
+            collect_expr_shimmers(
+                false_branch,
+                uses,
+                types,
+                stmt_span,
+                in_loop,
+                ssa,
+                seen,
+                out,
+            );
         }
 
         _ => {}
@@ -199,22 +219,26 @@ fn collect_expr_shimmers(
 /// cases the syntactic types reach.
 fn operand_looks_numeric(
     node: &ExprNode,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
+    ssa: &SsaFunction,
 ) -> bool {
     match node {
         ExprNode::Literal { .. } => true,
         ExprNode::String { text, .. } => expr_string_is_numeric(text),
         ExprNode::Var { name, .. } => {
             let base = normalise_var_name(name);
-            let Some(&ver) = uses.get(base) else {
+            let Some(sym) = ssa.var_symbol(base) else {
+                return false;
+            };
+            let Some(&ver) = uses.get(&sym) else {
                 return false;
             };
             if ver == 0 {
                 return false;
             }
             types
-                .get(&(base.to_owned(), ver))
+                .get(&(sym, ver))
                 .filter(|l| l.kind == TypeKind::Known)
                 .and_then(|l| l.tcl_type)
                 .is_some_and(|t| {
@@ -256,11 +280,12 @@ fn expr_string_is_numeric(text: &str) -> bool {
 #[allow(clippy::too_many_arguments)]
 fn check_numeric_operand(
     node: &ExprNode,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     span: Span,
     op: BinOp,
     in_loop: bool,
+    ssa: &SsaFunction,
     seen: &mut HashSet<(Span, String)>,
     out: &mut Vec<ShimmerWarning>,
 ) {
@@ -268,12 +293,15 @@ fn check_numeric_operand(
         return;
     };
     let base = normalise_var_name(name);
-    let Some(&ver) = uses.get(base) else { return };
+    let Some(sym) = ssa.var_symbol(base) else {
+        return;
+    };
+    let Some(&ver) = uses.get(&sym) else { return };
     if ver == 0 {
         return;
     }
     let lattice = types
-        .get(&(base.to_owned(), ver))
+        .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if lattice.kind != TypeKind::Known {
@@ -313,11 +341,12 @@ fn check_numeric_operand(
 #[allow(clippy::too_many_arguments)]
 fn check_string_operand(
     node: &ExprNode,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     span: Span,
     op: BinOp,
     in_loop: bool,
+    ssa: &SsaFunction,
     seen: &mut HashSet<(Span, String)>,
     out: &mut Vec<ShimmerWarning>,
 ) {
@@ -325,12 +354,15 @@ fn check_string_operand(
         return;
     };
     let base = normalise_var_name(name);
-    let Some(&ver) = uses.get(base) else { return };
+    let Some(sym) = ssa.var_symbol(base) else {
+        return;
+    };
+    let Some(&ver) = uses.get(&sym) else { return };
     if ver == 0 {
         return;
     }
     let lattice = types
-        .get(&(base.to_owned(), ver))
+        .get(&(sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if lattice.kind != TypeKind::Known {

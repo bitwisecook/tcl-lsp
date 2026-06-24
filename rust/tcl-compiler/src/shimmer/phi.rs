@@ -58,7 +58,7 @@ pub(crate) fn find_phi_shimmers(
         let in_loop = loop_blocks.contains(cfg.block_name(block_id));
 
         for phi in &ssa_block.phis {
-            let key = (phi.name.clone(), phi.version);
+            let key = (phi.name, phi.version);
             let Some(lattice) = types.get(&key) else {
                 continue;
             };
@@ -86,7 +86,7 @@ pub(crate) fn find_phi_shimmers(
                 if inc_ver == 0 {
                     continue;
                 }
-                let Some(inc_type) = types.get(&(phi.name.clone(), inc_ver)) else {
+                let Some(inc_type) = types.get(&(phi.name, inc_ver)) else {
                     continue;
                 };
                 if inc_type.kind == TypeKind::Unknown {
@@ -125,7 +125,7 @@ pub(crate) fn find_phi_shimmers(
                 .incoming
                 .iter()
                 .filter_map(|(pred_block, &ver)| {
-                    def_map.get(&(phi.name.clone(), ver)).copied().map(|sp| {
+                    def_map.get(&(phi.name, ver)).copied().map(|sp| {
                         (
                             sp,
                             format!("version from '{}'", cfg.block_name(*pred_block)),
@@ -137,9 +137,10 @@ pub(crate) fn find_phi_shimmers(
             // A merge inside a loop body re-shimmers every iteration (S101);
             // an out-of-loop branch merge is a one-time conversion (S100).
             let code = if in_loop { "S101" } else { "S100" };
+            let var = ssa.var_name(phi.name);
             out.push(ShimmerWarning {
                 span,
-                variable: phi.name.clone(),
+                variable: var.to_owned(),
                 from_type: from,
                 to_type: to,
                 command: "<phi>".to_owned(),
@@ -147,7 +148,6 @@ pub(crate) fn find_phi_shimmers(
                 code: code.to_owned(),
                 message: format!(
                     "{code}: '{var}' merges {from} and {to} at control-flow join",
-                    var = phi.name,
                     from = type_name(from),
                     to = type_name(to),
                 ),

@@ -26,7 +26,7 @@ use tcl_registry::TclType;
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
-use crate::ssa::{SsaFunction, ValueKey, Version};
+use crate::ssa::{SsaFunction, Symbol, ValueKey, Version};
 use crate::types::{TypeKind, TypeLattice};
 
 use super::graph::{build_successors, loop_body_blocks};
@@ -85,8 +85,8 @@ pub(super) fn natural_loop_blocks(
 /// SSA versions of each name defined by the empty literal (`set x {}` / `""`)
 /// over the whole function — the typeless-empty reset, excluded from the
 /// oscillation type sets.
-pub(super) fn empty_value_versions(ssa: &SsaFunction) -> HashMap<String, HashSet<Version>> {
-    let mut out: HashMap<String, HashSet<Version>> = HashMap::new();
+pub(super) fn empty_value_versions(ssa: &SsaFunction) -> HashMap<Symbol, HashSet<Version>> {
+    let mut out: HashMap<Symbol, HashSet<Version>> = HashMap::new();
     for sb in ssa.blocks.values() {
         for s in &sb.statements {
             let is_empty = matches!(
@@ -95,8 +95,8 @@ pub(super) fn empty_value_versions(ssa: &SsaFunction) -> HashMap<String, HashSet
                     if value.is_empty()
             );
             if is_empty {
-                for (name, &ver) in &s.defs {
-                    out.entry(name.clone()).or_default().insert(ver);
+                for (&sym, &ver) in &s.defs {
+                    out.entry(sym).or_default().insert(ver);
                 }
             }
         }
@@ -145,11 +145,11 @@ pub(super) fn per_loop_body_types(
     destructure: &HashSet<String>,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    empty_by_name: &HashMap<String, HashSet<Version>>,
-) -> HashMap<String, HashSet<TclType>> {
+    empty_by_name: &HashMap<Symbol, HashSet<Version>>,
+) -> HashMap<Symbol, HashSet<TclType>> {
     let _ = header;
     let name_to_id = ssa_name_to_id(ssa);
-    let mut out: HashMap<String, HashSet<TclType>> = HashMap::new();
+    let mut out: HashMap<Symbol, HashSet<TclType>> = HashMap::new();
     for lbn in loop_block_set {
         if destructure.contains(lbn) {
             continue;
@@ -161,18 +161,18 @@ pub(super) fn per_loop_body_types(
             continue;
         };
         for s in &lssa.statements {
-            for (name, &ver) in &s.defs {
+            for (&sym, &ver) in &s.defs {
                 if empty_by_name
-                    .get(name)
+                    .get(&sym)
                     .is_some_and(|set| set.contains(&ver))
                 {
                     continue;
                 }
-                if let Some(t) = types.get(&(name.clone(), ver))
+                if let Some(t) = types.get(&(sym, ver))
                     && t.kind == TypeKind::Known
                     && let Some(tt) = t.tcl_type
                 {
-                    out.entry(name.clone()).or_default().insert(tt);
+                    out.entry(sym).or_default().insert(tt);
                 }
             }
         }
@@ -248,7 +248,7 @@ pub(crate) fn find_thunking_warnings(
         );
 
         for phi in &ssa_block.phis {
-            let key = (phi.name.clone(), phi.version);
+            let key = (phi.name, phi.version);
             let Some(lattice) = types.get(&key) else {
                 continue;
             };
@@ -278,7 +278,7 @@ pub(crate) fn find_thunking_warnings(
                 if inc_ver == 0 {
                     continue;
                 }
-                let Some(inc_type) = types.get(&(phi.name.clone(), inc_ver)) else {
+                let Some(inc_type) = types.get(&(phi.name, inc_ver)) else {
                     continue;
                 };
                 let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
@@ -314,7 +314,7 @@ pub(crate) fn find_thunking_warnings(
                 .incoming
                 .iter()
                 .filter_map(|(pred_block, &ver)| {
-                    def_map.get(&(phi.name.clone(), ver)).copied().map(|sp| {
+                    def_map.get(&(phi.name, ver)).copied().map(|sp| {
                         (
                             sp,
                             format!("version from '{}'", cfg.block_name(*pred_block)),
@@ -323,16 +323,16 @@ pub(crate) fn find_thunking_warnings(
                 })
                 .collect();
 
+            let var = ssa.var_name(phi.name);
             out.push(ThunkingWarning {
                 span,
-                variable: phi.name.clone(),
+                variable: var.to_owned(),
                 type_a,
                 type_b,
                 code: "S102".to_owned(),
                 message: format!(
                     "S102: '{var}' oscillates between {a} and {b} across \
                      loop iterations (thunking)",
-                    var = phi.name,
                     a = type_name(type_a),
                     b = type_name(type_b),
                 ),

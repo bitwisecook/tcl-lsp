@@ -210,7 +210,11 @@ impl ScopedValueTable {
 ///
 /// Names that are not present in `uses` are left unchanged.
 #[must_use]
-pub fn canonicalise_word(text: &str, uses: &HashMap<String, u32>) -> String {
+pub fn canonicalise_word(
+    text: &str,
+    uses: &HashMap<crate::ssa::Symbol, u32>,
+    ssa: &SsaFunction,
+) -> String {
     if uses.is_empty() {
         return text.to_owned();
     }
@@ -233,7 +237,7 @@ pub fn canonicalise_word(text: &str, uses: &HashMap<String, u32>) -> String {
             }
             if j < bytes.len() {
                 let name = &text[start..j];
-                if let Some(ver) = uses.get(name) {
+                if let Some(ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s)) {
                     out.push_str(&format!("${name}@{ver}"));
                 } else {
                     out.push_str(&text[i..=j]);
@@ -264,7 +268,7 @@ pub fn canonicalise_word(text: &str, uses: &HashMap<String, u32>) -> String {
             continue;
         }
         let name = &text[start..j];
-        if let Some(ver) = uses.get(name) {
+        if let Some(ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s)) {
             out.push_str(&format!("${name}@{ver}"));
         } else {
             out.push_str(&text[i..j]);
@@ -277,12 +281,17 @@ pub fn canonicalise_word(text: &str, uses: &HashMap<String, u32>) -> String {
 /// Build the canonical [`ExprKey`] for a pure-command invocation:
 /// `["call", command, canonicalised_arg1, canonicalised_arg2, …]`.
 #[must_use]
-pub fn build_call_key(command: &str, args: &[String], uses: &HashMap<String, u32>) -> ExprKey {
+pub fn build_call_key(
+    command: &str,
+    args: &[String],
+    uses: &HashMap<crate::ssa::Symbol, u32>,
+    ssa: &SsaFunction,
+) -> ExprKey {
     let mut parts: ExprKey = Vec::with_capacity(2 + args.len());
     parts.push("call".into());
     parts.push(command.to_owned());
     for arg in args {
-        parts.push(canonicalise_word(arg, uses));
+        parts.push(canonicalise_word(arg, uses, ssa));
     }
     parts
 }
@@ -675,8 +684,16 @@ pub fn statement_occurrences(
     block_name: &str,
     statement_index: usize,
     dialect: Option<&str>,
+    ssa: &SsaFunction,
 ) -> Vec<ExprOccurrence> {
     let mut out: Vec<ExprOccurrence> = Vec::new();
+    let variable_uses = || -> Vec<String> {
+        stmt_ssa
+            .uses
+            .keys()
+            .map(|&s| ssa.var_name(s).to_owned())
+            .collect()
+    };
 
     // Top-level pure Call.
     if let Statement::Call {
@@ -689,12 +706,12 @@ pub fn statement_occurrences(
         && is_worth_reporting(registry, command)
     {
         out.push(ExprOccurrence {
-            key: build_call_key(command, args, &stmt_ssa.uses),
+            key: build_call_key(command, args, &stmt_ssa.uses, ssa),
             span: *span,
             expression_text: format_expression_text(command, args),
             block: block_name.to_owned(),
             statement_index,
-            variable_uses: stmt_ssa.uses.keys().cloned().collect(),
+            variable_uses: variable_uses(),
         });
     }
 
@@ -714,12 +731,12 @@ pub fn statement_occurrences(
                 continue;
             }
             out.push(ExprOccurrence {
-                key: build_call_key(&cmd, &args, &stmt_ssa.uses),
+                key: build_call_key(&cmd, &args, &stmt_ssa.uses, ssa),
                 span,
                 expression_text: format_expression_text(&cmd, &args),
                 block: block_name.to_owned(),
                 statement_index,
-                variable_uses: stmt_ssa.uses.keys().cloned().collect(),
+                variable_uses: variable_uses(),
             });
         }
     }
@@ -993,7 +1010,7 @@ pub fn find_redundancies(
                     }
 
                     let occurrences =
-                        statement_occurrences(registry, ssa_stmt, block_name, idx, dialect);
+                        statement_occurrences(registry, ssa_stmt, block_name, idx, dialect, ssa);
                     for occ in occurrences {
                         if let Some(existing) = table.lookup(&occ.key) {
                             let text = existing.expression_text.clone();
@@ -1120,11 +1137,11 @@ fn loop_defined_variables(
     for bn in loop_blocks {
         if let Some(block) = ssa.blocks.get(bn) {
             for phi in &block.phis {
-                defs.insert(phi.name.clone());
+                defs.insert(ssa.var_name(phi.name).to_owned());
             }
             for stmt in &block.statements {
-                for name in stmt.defs.keys() {
-                    defs.insert(name.clone());
+                for &sym in stmt.defs.keys() {
+                    defs.insert(ssa.var_name(sym).to_owned());
                 }
             }
         }
@@ -1214,7 +1231,7 @@ pub fn find_loop_invariants(
                     continue;
                 }
                 let occurrences =
-                    statement_occurrences(registry, stmt_ssa, block_name, idx, dialect);
+                    statement_occurrences(registry, stmt_ssa, block_name, idx, dialect, ssa);
                 for occ in occurrences {
                     if occ.variable_uses.iter().any(|name| defined.contains(name)) {
                         continue;
@@ -1283,7 +1300,7 @@ pub fn collect_function_occurrence_events(
                 events.push(OccurrenceEvent::Kill);
                 continue;
             }
-            for occ in statement_occurrences(registry, ssa_stmt, block_name, idx, dialect) {
+            for occ in statement_occurrences(registry, ssa_stmt, block_name, idx, dialect, ssa) {
                 all_occurrences.push(occ.clone());
                 events.push(OccurrenceEvent::Occur(occ));
             }
@@ -1658,43 +1675,54 @@ mod tests {
 
     // -- canonicalisation + messages --
 
+    /// A bare SSA shell (no blocks) for tests that only need the variable
+    /// interner to resolve canonicalisation names.
+    fn bare_ssa() -> SsaFunction {
+        SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()])
+    }
+
     #[test]
     fn canonicalise_empty_uses_returns_input() {
+        let ssa = bare_ssa();
         let uses = HashMap::new();
-        assert_eq!(canonicalise_word("foo", &uses), "foo");
+        assert_eq!(canonicalise_word("foo", &uses, &ssa), "foo");
     }
 
     #[test]
     fn canonicalise_replaces_bare_and_braced() {
+        let mut ssa = bare_ssa();
         let mut uses = HashMap::new();
-        uses.insert("x".to_string(), 3);
-        assert_eq!(canonicalise_word("$x", &uses), "$x@3");
-        assert_eq!(canonicalise_word("${x}", &uses), "$x@3");
+        uses.insert(ssa.intern_var("x"), 3);
+        assert_eq!(canonicalise_word("$x", &uses, &ssa), "$x@3");
+        assert_eq!(canonicalise_word("${x}", &uses, &ssa), "$x@3");
     }
 
     #[test]
     fn canonicalise_sorts_by_name_length_desc() {
         // `$longname` must be replaced before `$long` so the
         // longer name is not partially matched.
+        let mut ssa = bare_ssa();
         let mut uses = HashMap::new();
-        uses.insert("long".to_string(), 1);
-        uses.insert("longname".to_string(), 2);
-        let out = canonicalise_word("$longname$long", &uses);
+        uses.insert(ssa.intern_var("long"), 1);
+        uses.insert(ssa.intern_var("longname"), 2);
+        let out = canonicalise_word("$longname$long", &uses, &ssa);
         assert_eq!(out, "$longname@2$long@1");
     }
 
     #[test]
     fn canonicalise_ignores_unmentioned_variables() {
+        let ssa = bare_ssa();
         let uses = HashMap::new();
-        assert_eq!(canonicalise_word("$x", &uses), "$x");
+        assert_eq!(canonicalise_word("$x", &uses, &ssa), "$x");
     }
 
     #[test]
     fn build_call_key_for_pure_command() {
+        let mut ssa = bare_ssa();
         let mut uses = HashMap::new();
-        uses.insert("x".to_string(), 3);
+        uses.insert(ssa.intern_var("x"), 3);
         let args = vec!["$x".into(), "literal".into()];
-        let key = build_call_key("llength", &args, &uses);
+        let key = build_call_key("llength", &args, &uses, &ssa);
         assert_eq!(
             key,
             vec![
@@ -1911,7 +1939,8 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
         };
-        let occurrences = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None);
+        let occurrences =
+            statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
         assert!(occurrences.is_empty());
     }
 
@@ -1928,7 +1957,9 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
         };
-        assert!(statement_occurrences(&registry, &stmt_ssa, "entry", 0, None).is_empty());
+        assert!(
+            statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa()).is_empty()
+        );
     }
 
     #[test]
@@ -1963,10 +1994,14 @@ mod tests {
         }
     }
 
-    fn ssa_stmt_for(stmt: Statement, uses_x_ver: Option<u32>) -> SsaStatement {
+    fn ssa_stmt_for(
+        ssa: &mut SsaFunction,
+        stmt: Statement,
+        uses_x_ver: Option<u32>,
+    ) -> SsaStatement {
         let mut uses = Map::new();
         if let Some(v) = uses_x_ver {
-            uses.insert("x".to_string(), v);
+            uses.insert(ssa.intern_var("x"), v);
         }
         SsaStatement {
             statement: stmt,
@@ -2004,10 +2039,10 @@ mod tests {
         let mut ssa_entry = empty_ssa_block("entry");
         ssa_entry
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa_entry
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa.blocks.insert(cfg.entry, ssa_entry);
 
         let results = find_redundancies(&registry, &cfg, &ssa, None);
@@ -2037,10 +2072,10 @@ mod tests {
         // redundancy.
         ssa_entry
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa_entry
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(2)));
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(2)));
         ssa.blocks.insert(cfg.entry, ssa_entry);
 
         let results = find_redundancies(&registry, &cfg, &ssa, None);
@@ -2079,14 +2114,15 @@ mod tests {
         let mut ssa_entry = empty_ssa_block("entry");
         ssa_entry
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa_entry.statements.push(ssa_stmt_for(
+            &mut ssa,
             cfg.blocks[&cfg.entry].statements[1].clone(),
             None,
         ));
         ssa_entry
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa.blocks.insert(cfg.entry, ssa_entry);
 
         // The global write should invalidate — no redundancy reported.
@@ -2128,9 +2164,11 @@ mod tests {
         ssa.dominator_tree.insert(entry, vec![child]);
         ssa.dominator_tree.insert(child, Vec::new());
         let mut e = empty_ssa_block("entry");
-        e.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        e.statements
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         let mut c = empty_ssa_block("child");
-        c.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        c.statements
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa.blocks.insert(entry, e);
         ssa.blocks.insert(child, c);
 
@@ -2202,7 +2240,7 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
         };
-        let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None);
+        let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
         assert_eq!(occ.len(), 1);
         assert_eq!(occ[0].expression_text, "llength $y");
     }
@@ -2222,7 +2260,7 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
         };
-        let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None);
+        let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
         assert_eq!(occ.len(), 1);
         assert_eq!(occ[0].expression_text, "llength $y");
     }
@@ -2290,7 +2328,8 @@ mod tests {
         let h = empty_ssa_block("header");
         let mut b = empty_ssa_block("body");
         // $x's SSA version comes from outside the loop (x@1).
-        b.statements.push(ssa_stmt_for(llength_call(), Some(1)));
+        b.statements
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa.blocks.insert(header, h);
         ssa.blocks.insert(body, b);
         ssa.blocks.insert(exit, empty_ssa_block("exit"));
@@ -2379,7 +2418,7 @@ mod tests {
         let mut then_b = empty_ssa_block("then");
         then_b
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa.blocks.insert(then, then_b);
         ssa.blocks.insert(latch, empty_ssa_block("latch"));
         ssa.blocks.insert(exit, empty_ssa_block("exit"));
@@ -2449,7 +2488,7 @@ mod tests {
         let mut b = empty_ssa_block("body");
         // `$i` defined in body.
         let mut defs = Map::new();
-        defs.insert("i".to_string(), 1);
+        defs.insert(ssa.intern_var("i"), 1);
         b.statements.push(SsaStatement {
             statement: Statement::AssignConst {
                 span: Span::new(0, 0),
@@ -2462,7 +2501,7 @@ mod tests {
         });
         // llength $i — uses map tracks `i`, not `x`.
         let mut uses_i = Map::new();
-        uses_i.insert("i".to_string(), 1);
+        uses_i.insert(ssa.intern_var("i"), 1);
         b.statements.push(SsaStatement {
             statement: llength_on_i,
             uses: uses_i,
@@ -2579,7 +2618,7 @@ mod tests {
         ssa.idom.insert(join, Some(entry));
 
         let mut uses_x = Map::new();
-        uses_x.insert("x".to_string(), 1);
+        uses_x.insert(ssa.intern_var("x"), 1);
 
         let entry_b = empty_ssa_block("entry");
         let mut tt_b = empty_ssa_block("tt");
@@ -2655,7 +2694,7 @@ mod tests {
         let mut entry_b = empty_ssa_block("entry");
         entry_b
             .statements
-            .push(ssa_stmt_for(llength_call(), Some(1)));
+            .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa.blocks.insert(cfg.entry, entry_b);
 
         assert!(find_partial_redundancies(&registry, &cfg, &ssa, None).is_empty());

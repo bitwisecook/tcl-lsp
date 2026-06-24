@@ -372,18 +372,27 @@ fn forward_candidate(
     }
 
     let def_key = chain.key.clone();
-    // Skip SCCP constants (O100 owns those).
-    if matches!(fu.sccp.values.get(&def_key), Some(LatticeValue::Const(_))) {
+    // Skip SCCP constants (O100 owns those). The def-use chain keys on the
+    // variable name; resolve it to the SSA symbol to index the SCCP lattice.
+    if let Some(sym) = fu.ssa.var_symbol(&def_key.0)
+        && matches!(
+            fu.sccp.values.get(&(sym, def_key.1)),
+            Some(LatticeValue::Const(_))
+        )
+    {
         return None;
     }
-    // Skip statements another pass already rewrote / consumed.
+    // Skip statements another pass already rewrote / consumed. The
+    // def-use chain keys on the variable name; resolve it to the SSA symbol
+    // to test the `(Symbol, Version)`-keyed branch-use set.
+    let def_key_sym = fu.ssa.var_symbol(&def_key.0).map(|s| (s, def_key.1));
     if ctx
         .propagated_expr_stmts
         .contains(&(def.block.clone(), def_idx))
         || ctx
             .propagated_expr_stmts
             .contains(&(use_site.block.clone(), use_idx))
-        || ctx.propagated_branch_uses.contains(&def_key)
+        || def_key_sym.is_some_and(|k| ctx.propagated_branch_uses.contains(&k))
     {
         return None;
     }
@@ -393,8 +402,11 @@ fn forward_candidate(
         return None;
     }
     // Names the def expression reads — used for alias + version safety.
-    let def_read_names: BTreeSet<String> =
-        ssa_block.statements[def_idx].uses.keys().cloned().collect();
+    let def_read_names: BTreeSet<String> = ssa_block.statements[def_idx]
+        .uses
+        .keys()
+        .map(|&s| fu.ssa.var_name(s).to_owned())
+        .collect();
     if def_read_names.iter().any(|n| env.aliased.contains(n)) {
         return None;
     }
@@ -540,7 +552,12 @@ fn intervening_is_safe(
         }
         // A redefinition of any read name invalidates the forward.
         if let Some(sb) = ssa_block.statements.get(idx)
-            && def_read_names.iter().any(|n| sb.defs.contains_key(n))
+            && def_read_names.iter().any(|n| {
+                env.fu
+                    .ssa
+                    .var_symbol(n)
+                    .is_some_and(|s| sb.defs.contains_key(&s))
+            })
         {
             return false;
         }
@@ -780,7 +797,9 @@ fn evaluate_proc_with_constants(
     if params.len() != args.len() {
         return None;
     }
-    let mut seed: std::collections::HashMap<crate::ssa::ValueKey, LatticeValue> =
+    // The seed keys on the parameter *name* (a stable, cache-safe identity);
+    // `sccp` resolves each to the callee build's interned symbol.
+    let mut seed: std::collections::HashMap<(String, crate::ssa::Version), LatticeValue> =
         std::collections::HashMap::new();
     for (p, a) in params.iter().zip(args.iter()) {
         seed.insert((p.clone(), 0), LatticeValue::Const(a.clone()));
@@ -841,13 +860,14 @@ fn fold_return_under_lattice(
     // version. Reading the precise version is what makes us bail on
     // `sum_list` / `fibonacci` instead of mis-folding to the pre-loop value.
     if let Some(name) = simple_var_ref(value) {
+        let sym = fu.ssa.var_symbol(name)?;
         let ver = fu
             .ssa
             .blocks
             .get(&bn)
-            .and_then(|b| b.exit_versions.get(name).copied())
+            .and_then(|b| b.exit_versions.get(&sym).copied())
             .unwrap_or(0);
-        return match result.values.get(&(name.to_owned(), ver)) {
+        return match result.values.get(&(sym, ver)) {
             Some(LatticeValue::Const(c)) => Some(c.clone()),
             _ => None,
         };
@@ -859,23 +879,21 @@ fn fold_return_under_lattice(
     // versions for precise local state. Only used for the expr/interpolation
     // form (the simple-`$var` precision above is handled by path 2).
     let mut env: Env = Env::new();
-    let mut chosen_ver: std::collections::HashMap<&str, crate::ssa::Version> =
+    let mut chosen_ver: std::collections::HashMap<crate::ssa::Symbol, crate::ssa::Version> =
         std::collections::HashMap::new();
-    for ((name, ver), lv) in &result.values {
+    for ((sym, ver), lv) in &result.values {
         if let LatticeValue::Const(c) = lv {
-            let take = chosen_ver
-                .get(name.as_str())
-                .is_none_or(|prev| *ver > *prev);
+            let take = chosen_ver.get(sym).is_none_or(|prev| *ver > *prev);
             if take {
-                chosen_ver.insert(name.as_str(), *ver);
-                env.insert(name.clone(), const_to_env_value(c));
+                chosen_ver.insert(*sym, *ver);
+                env.insert(fu.ssa.var_name(*sym).to_owned(), const_to_env_value(c));
             }
         }
     }
     if let Some(ssa_block) = fu.ssa.blocks.get(&bn) {
-        for (name, ver) in &ssa_block.exit_versions {
-            if let Some(LatticeValue::Const(c)) = result.values.get(&(name.clone(), *ver)) {
-                env.insert(name.clone(), const_to_env_value(c));
+        for (&sym, ver) in &ssa_block.exit_versions {
+            if let Some(LatticeValue::Const(c)) = result.values.get(&(sym, *ver)) {
+                env.insert(fu.ssa.var_name(sym).to_owned(), const_to_env_value(c));
             }
         }
     }
@@ -1959,28 +1977,28 @@ fn render_propagation_word(value: &str) -> String {
 fn sccp_constants_for(fu: &FunctionUnit) -> std::collections::HashMap<String, String> {
     use super::helpers::literals::format_constant;
 
-    let mut per_var: std::collections::HashMap<String, Vec<&ConstValue>> =
+    let mut per_var: std::collections::HashMap<crate::ssa::Symbol, Vec<&ConstValue>> =
         std::collections::HashMap::new();
-    let mut dirty: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for ((name, _ver), lv) in &fu.sccp.values {
-        if dirty.contains(name) {
+    let mut dirty: std::collections::HashSet<crate::ssa::Symbol> = std::collections::HashSet::new();
+    for ((sym, _ver), lv) in &fu.sccp.values {
+        if dirty.contains(sym) {
             continue;
         }
         if let LatticeValue::Const(cv) = lv {
-            per_var.entry(name.clone()).or_default().push(cv);
+            per_var.entry(*sym).or_default().push(cv);
         } else {
-            dirty.insert(name.clone());
-            per_var.remove(name);
+            dirty.insert(*sym);
+            per_var.remove(sym);
         }
     }
     let mut out = std::collections::HashMap::new();
-    for (name, cvs) in per_var {
+    for (sym, cvs) in per_var {
         let first = cvs[0];
         if !cvs.iter().all(|cv| *cv == first) {
             continue;
         }
         if let Some(text) = format_constant(first) {
-            out.insert(name, text);
+            out.insert(fu.ssa.var_name(sym).to_owned(), text);
         }
     }
     out
