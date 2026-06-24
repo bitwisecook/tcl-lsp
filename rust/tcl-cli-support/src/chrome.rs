@@ -15,8 +15,6 @@ use std::io::Write;
 
 use anstyle::{AnsiColor, Style};
 
-pub use tabled::Tabled;
-
 /// Style for error prefixes (red, bold).
 #[must_use]
 pub fn error_style() -> Style {
@@ -63,44 +61,35 @@ pub fn eprint_status(style: Style, msg: impl Display) {
     let _ = writeln!(err, "{}{msg}{}", style.render(), style.render_reset());
 }
 
-/// Render `rows` as a table with the project's house style (rounded borders).
+/// Render a table with the project's house style (rounded borders) from a
+/// header row and body rows.
 ///
 /// The single entry point for tabular verbs (`stats`, `registry`, `pkg list`,
-/// …) so every table looks the same. Derive [`Tabled`] on the row type.
+/// …) so every table looks the same. Pass the column headers and one iterator
+/// of cells per row; each cell only needs to be `Into<String>`.
 #[must_use]
-pub fn render_table<T, I>(rows: I) -> String
-where
-    T: Tabled,
-    I: IntoIterator<Item = T>,
-{
+pub fn render_table(
+    headers: impl IntoIterator<Item = impl Into<String>>,
+    rows: impl IntoIterator<Item = impl IntoIterator<Item = impl Into<String>>>,
+) -> String {
+    use tabled::builder::Builder;
     use tabled::settings::Style as TableStyle;
-    tabled::Table::new(rows)
-        .with(TableStyle::rounded())
-        .to_string()
+
+    let mut builder = Builder::new();
+    builder.push_record(headers);
+    for row in rows {
+        builder.push_record(row);
+    }
+    builder.build().with(TableStyle::rounded()).to_string()
 }
 
 #[cfg(test)]
 mod tests {
     use super::{dim_style, error_style, heading_style, render_table, success_style, warn_style};
 
-    #[derive(tabled::Tabled)]
-    struct Row {
-        name: &'static str,
-        count: usize,
-    }
-
     #[test]
     fn render_table_emits_header_rows_and_border() {
-        let table = render_table([
-            Row {
-                name: "pool",
-                count: 3,
-            },
-            Row {
-                name: "node",
-                count: 5,
-            },
-        ]);
+        let table = render_table(["name", "count"], [["pool", "3"], ["node", "5"]]);
         assert!(table.contains("name"), "header present: {table}");
         assert!(
             table.contains("pool") && table.contains('5'),
