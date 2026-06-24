@@ -2,9 +2,11 @@
 //! 64-bit instruction model (no assembler, no LLVM in the compile path).
 
 pub mod disasm;
+pub mod elf;
 pub mod emit;
 pub mod insn;
 
 pub use disasm::disasm;
+pub use elf::{ElfError, write_object};
 pub use emit::{EbpfObject, emit_program};
 pub use insn::Insn;
