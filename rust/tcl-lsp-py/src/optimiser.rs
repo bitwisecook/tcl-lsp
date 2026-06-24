@@ -22,7 +22,7 @@ type OptimisationRow = (String, String, u32, u32, String, Option<u32>, bool);
 
 fn lift_optimisation(o: optimiser::Optimisation) -> OptimisationRow {
     (
-        o.code,
+        o.code.to_string(),
         o.message,
         o.span.start(),
         o.span.end(),
@@ -92,7 +92,8 @@ pub fn optimiser_find_optimisations_raw(
 #[pyfunction]
 #[pyo3(signature = (code, /))]
 pub fn optimiser_opt_priority(code: &str) -> u8 {
-    optimiser::opt_priority(code)
+    code.parse::<tcl_compiler::compiler_checks::DiagCode>()
+        .map_or(0, optimiser::opt_priority)
 }
 
 pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {

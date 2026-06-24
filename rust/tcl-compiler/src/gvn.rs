@@ -9,6 +9,7 @@
 #![allow(clippy::implicit_hasher, clippy::format_push_string)]
 
 use std::collections::HashMap;
+use tcl_core_types::DiagCode;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
@@ -47,7 +48,7 @@ pub struct RedundantComputation {
     /// partial both default to O105; loop-invariant sets O106).
     /// `O107` is *unreachable dead code* and is owned by the
     /// elimination pass, never emitted here.
-    pub code: String,
+    pub code: DiagCode,
     /// Formatted diagnostic message.
     pub message: String,
 }
@@ -59,14 +60,14 @@ impl RedundantComputation {
         span: Span,
         first_span: Span,
         expression_text: impl Into<String>,
-        code: impl Into<String>,
+        code: DiagCode,
         message: impl Into<String>,
     ) -> Self {
         Self {
             span,
             first_span,
             expression_text: expression_text.into(),
-            code: code.into(),
+            code,
             message: message.into(),
         }
     }
@@ -1018,7 +1019,7 @@ pub fn find_redundancies(
                                 span: occ.span,
                                 first_span: existing.span,
                                 expression_text: text.clone(),
-                                code: "O105".into(),
+                                code: DiagCode::O105,
                                 message: full_redundancy_message(&text),
                             });
                             continue;
@@ -1241,7 +1242,7 @@ pub fn find_loop_invariants(
                         span: occ.span,
                         first_span: occ.span,
                         expression_text: text.clone(),
-                        code: "O106".into(),
+                        code: DiagCode::O106,
                         message: loop_invariant_message(&text),
                     });
                 }
@@ -1511,7 +1512,7 @@ pub fn find_partial_redundancies(
                             span: occ.span,
                             first_span: first.span,
                             expression_text: text.clone(),
-                            code: "O105".into(),
+                            code: DiagCode::O105,
                             message: partial_redundancy_message(&text),
                         });
                     }
@@ -1664,11 +1665,11 @@ mod tests {
             Span::new(10, 20),
             Span::new(0, 5),
             "llength $x",
-            "O105",
+            DiagCode::O105,
             "message",
         );
         assert_eq!(r.expression_text, "llength $x");
-        assert_eq!(r.code, "O105");
+        assert_eq!(r.code, DiagCode::O105);
         assert_eq!(r.span.start(), 10);
         assert_eq!(r.first_span.end(), 5);
     }
@@ -2047,7 +2048,7 @@ mod tests {
 
         let results = find_redundancies(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].code, "O105");
+        assert_eq!(results[0].code, DiagCode::O105);
         assert!(results[0].expression_text.contains("llength"));
     }
 
@@ -2338,7 +2339,7 @@ mod tests {
         assert_eq!(results.len(), 1);
         // Canonical: loop-invariant code motion is O106 (not O107,
         // which is unreachable dead code).
-        assert_eq!(results[0].code, "O106");
+        assert_eq!(results[0].code, DiagCode::O106);
         assert!(results[0].expression_text.contains("llength"));
     }
 
@@ -2666,7 +2667,7 @@ mod tests {
         // Canonical: partial redundancy (GVN-PRE) shares O105 with
         // full redundancy — the loop-invariant code O106 was wrong
         // here.
-        assert_eq!(results[0].code, "O105");
+        assert_eq!(results[0].code, DiagCode::O105);
         assert_eq!(results[0].span.start(), 200);
         assert_eq!(results[0].first_span.start(), 100);
     }

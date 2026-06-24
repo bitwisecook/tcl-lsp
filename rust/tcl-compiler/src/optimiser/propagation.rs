@@ -46,6 +46,7 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
+use tcl_core_types::DiagCode;
 
 use super::helpers::expr_simplify::{NumericCtx, numeric_var_names, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
@@ -175,7 +176,7 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
                         continue;
                     }
                     ctx.report(Optimisation::new(
-                        "O102",
+                        DiagCode::O102,
                         message.clone(),
                         full_word_span(ctx.source, fu.abs_span(*argv_span)),
                         literal.clone(),
@@ -193,7 +194,7 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
             // read is inside an interpolated string — the O100
             // string-interpolation path handles that).
             let mut opt = Optimisation::new(
-                "O102",
+                DiagCode::O102,
                 message.clone(),
                 fu.abs_span(use_stmt.span()),
                 literal.clone(),
@@ -480,13 +481,13 @@ fn build_forward_edits(
     }
     let stmt_text = &source[ds as usize..de as usize];
     let inline = Optimisation::new(
-        "O127",
+        DiagCode::O127,
         format!("Inline single-use variable `${def_name}`"),
         target,
         format!("[{stmt_text}]"),
     );
     let delete = Optimisation::new(
-        "O127",
+        DiagCode::O127,
         "Remove inlined assignment",
         line_delete_span(source, def_span),
         "",
@@ -1042,7 +1043,7 @@ fn try_fold_static_proc_call(
     // editors surface the fold without proposing an applicable
     // quick-fix.
     let mut opt = Optimisation::new(
-        "O103",
+        DiagCode::O103,
         format!(
             "Fold pure-proc call to '{}' to its constant return",
             summary.qualified_name
@@ -1079,7 +1080,7 @@ fn try_fold_return_terminator(
     // operates on the raw value text.
     if let Some(collapsed) = value.and_then(|raw| o115_redundant_nested_expr(raw.trim())) {
         ctx.report(Optimisation::new(
-            "O115",
+            DiagCode::O115,
             "Remove redundant nested expr",
             span,
             format!("return {collapsed}"),
@@ -1104,7 +1105,7 @@ fn try_fold_return_terminator(
                 && !folded.contains(['$', '['])
             {
                 ctx.report(Optimisation::new(
-                    "O101",
+                    DiagCode::O101,
                     "Fold constant expression",
                     span,
                     format!("return {}", render_propagation_word(&folded)),
@@ -1138,7 +1139,7 @@ fn try_fold_return_terminator(
     // rather than bailing on metacharacters (`return {Hello World}`).
     let word = render_propagation_word(resolved);
     ctx.report(Optimisation::new(
-        "O100",
+        DiagCode::O100,
         "Fold return of constant variable",
         span,
         format!("return {word}"),
@@ -1195,7 +1196,7 @@ fn try_substitute_assign_expr(
             ]);
         if !needs_quoting {
             ctx.report(Optimisation::new(
-                "O100",
+                DiagCode::O100,
                 "Propagate constant and fold",
                 full_rewrite_span(ctx.source, span),
                 format!("set {name} {folded}"),
@@ -1213,7 +1214,7 @@ fn try_substitute_assign_expr(
         simplified
     };
     ctx.report(Optimisation::new(
-        "O100",
+        DiagCode::O100,
         "Propagate constant into expr argument",
         full_rewrite_span(ctx.source, span),
         format!("set {name} [expr {{{final_text}}}]"),
@@ -1272,7 +1273,7 @@ fn visit_call_cmd_subst_folds(
         // argument value position (needs no interproc summary).
         if let Some(collapsed) = o115_redundant_nested_expr(text) {
             ctx.report(Optimisation::new(
-                "O115",
+                DiagCode::O115,
                 "Remove redundant nested expr",
                 full_word_span(ctx.source, *argv_span),
                 collapsed,
@@ -1311,7 +1312,7 @@ fn visit_call_cmd_subst_folds(
                     && !folded.contains(['$', '['])
                 {
                     ctx.report(Optimisation::new(
-                        "O101",
+                        DiagCode::O101,
                         "Fold constant expression",
                         full_word_span(ctx.source, *argv_span),
                         folded,
@@ -1332,9 +1333,9 @@ fn visit_call_cmd_subst_folds(
             // (O116 / O118) for editor granularity; everything else reports
             // the general O129.
             let (code, message) = match inner.split_whitespace().next() {
-                Some("list") => ("O116", "Fold constant list command"),
-                Some("lindex") => ("O118", "Fold constant lindex command"),
-                _ => ("O129", "Fold constant builtin command substitution"),
+                Some("list") => (DiagCode::O116, "Fold constant list command"),
+                Some("lindex") => (DiagCode::O118, "Fold constant lindex command"),
+                _ => (DiagCode::O129, "Fold constant builtin command substitution"),
             };
             ctx.report(Optimisation::new(
                 code,
@@ -1400,7 +1401,7 @@ fn visit_call_cmd_subst_folds(
             continue;
         };
         ctx.report(Optimisation::new(
-            "O103",
+            DiagCode::O103,
             format!(
                 "Fold pure-proc call to '{}' to its constant return",
                 summary.qualified_name
@@ -1730,7 +1731,7 @@ fn visit_string_interpolation_cmd_subs(
     out.push_str(&inside[last..]);
     let rewrite_span = full_quoted_string_span(ctx.source, span);
     ctx.report(Optimisation::new(
-        "O129",
+        DiagCode::O129,
         "Fold constant builtin command substitution in interpolation",
         rewrite_span,
         format!("\"{out}\""),
@@ -1757,7 +1758,7 @@ fn visit_simple_var_word(
     // single self-contained word instead of bailing.
     let word = render_propagation_word(value);
     ctx.report(Optimisation::new(
-        "O100",
+        DiagCode::O100,
         "Propagate constant into command argument",
         span,
         word,
@@ -1815,7 +1816,7 @@ fn visit_string_interpolation(
     // string — otherwise we leave trailing `$b $c"` garbage.
     let rewrite_span = full_quoted_string_span(ctx.source, span);
     ctx.report(Optimisation::new(
-        "O100",
+        DiagCode::O100,
         "Inline constant into string interpolation",
         rewrite_span,
         format!("\"{rewritten}\""),
@@ -2058,7 +2059,7 @@ mod tests {
     fn o127(source: &str) -> Vec<Optimisation> {
         crate::optimiser::optimise_raw(source, &registry(), None)
             .into_iter()
-            .filter(|o| o.code == "O127")
+            .filter(|o| o.code == DiagCode::O127)
             .collect()
     }
 
@@ -2158,7 +2159,7 @@ mod tests {
         let opts = run_pass("set x 42\nputs $x");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O100" && o.replacement == "42"),
+                .any(|o| o.code == DiagCode::O100 && o.replacement == "42"),
             "expected O100 propagating 42, got {opts:?}",
         );
     }
@@ -2169,7 +2170,7 @@ mod tests {
         // a bare word.
         let opts = run_pass("set x \"$other\"\nputs $x");
         assert!(
-            opts.iter().all(|o| o.code != "O100"),
+            opts.iter().all(|o| o.code != DiagCode::O100),
             "unsafe string should not be propagated, got {opts:?}",
         );
     }
@@ -2183,14 +2184,14 @@ mod tests {
         let ret = run_pass("proc ::f {} { set msg {Hello World}\nreturn $msg }");
         assert!(
             ret.iter()
-                .any(|o| o.code == "O100" && o.replacement == "return {Hello World}"),
+                .any(|o| o.code == DiagCode::O100 && o.replacement == "return {Hello World}"),
             "expected O100 `return {{Hello World}}`, got {ret:?}",
         );
         // Command-argument position → `puts {Hello World}`.
         let arg = run_pass("proc ::f {} { set msg {Hello World}\nputs $msg }");
         assert!(
             arg.iter()
-                .any(|o| o.code == "O100" && o.replacement == "{Hello World}"),
+                .any(|o| o.code == DiagCode::O100 && o.replacement == "{Hello World}"),
             "expected O100 `{{Hello World}}` arg, got {arg:?}",
         );
         // A `$`/`[`-bearing literal constant is brace-quoted (the value
@@ -2198,7 +2199,7 @@ mod tests {
         let meta = run_pass("proc ::f {} { set m {a$b}\nputs $m }");
         assert!(
             meta.iter()
-                .any(|o| o.code == "O100" && o.replacement == "{a$b}"),
+                .any(|o| o.code == DiagCode::O100 && o.replacement == "{a$b}"),
             "expected O100 `{{a$b}}` arg, got {meta:?}",
         );
     }
@@ -2209,7 +2210,7 @@ mod tests {
         // not a single Const.
         let opts = run_pass("set x 1\nif {$cond} { set x 2 }\nputs $x");
         assert!(
-            opts.iter().all(|o| o.code != "O100"),
+            opts.iter().all(|o| o.code != DiagCode::O100),
             "non-const lattice should be skipped, got {opts:?}",
         );
     }
@@ -2219,7 +2220,7 @@ mod tests {
         let opts = run_pass("set x 7\nputs ${x}");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O100" && o.replacement == "7"),
+                .any(|o| o.code == DiagCode::O100 && o.replacement == "7"),
             "expected O100 for braced var ref, got {opts:?}",
         );
     }
@@ -2229,7 +2230,7 @@ mod tests {
         let opts = run_pass("proc ::f {} { set x 42; return $x }");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O100" && o.replacement.contains("42")),
+                .any(|o| o.code == DiagCode::O100 && o.replacement.contains("42")),
             "expected O100 folding return $x to return 42, got {opts:?}",
         );
     }
@@ -2249,7 +2250,7 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
         run(&mut ctx, &cu);
         assert!(
-            ctx.optimisations.iter().any(|o| o.code == "O103"),
+            ctx.optimisations.iter().any(|o| o.code == DiagCode::O103),
             "expected O103 static-proc fold, got {:?}",
             ctx.optimisations,
         );
@@ -2262,7 +2263,7 @@ mod tests {
         let opts = run_pass("set count 42\nputs \"count is $count\"");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O100" && o.replacement.contains("42")),
+                .any(|o| o.code == DiagCode::O100 && o.replacement.contains("42")),
             "expected O100 inlining count into interpolation, got {opts:?}",
         );
     }
@@ -2274,7 +2275,7 @@ mod tests {
         let opts = run_pass("set a 3\nset b 4\nputs [expr {$a + $b}]");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O101" && o.replacement == "7"),
+                .any(|o| o.code == DiagCode::O101 && o.replacement == "7"),
             "expected O101 folding [expr {{$a + $b}}] to 7, got {opts:?}",
         );
     }
@@ -2286,7 +2287,7 @@ mod tests {
         let opts = run_pass("set a 3\nset b 4\nputs [expr \"$a + $b\"]");
         assert!(
             opts.iter()
-                .all(|o| !(o.code == "O101" && o.replacement == "7")),
+                .all(|o| !(o.code == DiagCode::O101 && o.replacement == "7")),
             "quoted expr must not fold under constants, got {opts:?}",
         );
     }
@@ -2296,7 +2297,7 @@ mod tests {
         // `$name` is not in the constants map → must not fire.
         let opts = run_pass("puts \"hello $name\"");
         assert!(
-            opts.iter().all(|o| o.code != "O100"),
+            opts.iter().all(|o| o.code != DiagCode::O100),
             "unknown var should not be inlined, got {opts:?}",
         );
     }
@@ -2369,7 +2370,7 @@ mod tests {
         // → emit O102 on the puts use site.
         let opts = run_pass("set n 7\nputs $n");
         assert!(
-            opts.iter().any(|o| o.code == "O102"),
+            opts.iter().any(|o| o.code == DiagCode::O102),
             "expected O102 load-forwarding, got {opts:?}",
         );
     }
@@ -2382,7 +2383,7 @@ mod tests {
         // the last 2 chars of the source: `$n`.
         let source = "set n 7\nputs $n";
         let opts = run_pass(source);
-        let o102s: Vec<_> = opts.iter().filter(|o| o.code == "O102").collect();
+        let o102s: Vec<_> = opts.iter().filter(|o| o.code == DiagCode::O102).collect();
         assert!(
             !o102s.is_empty(),
             "expected at least one O102, got {opts:?}"
@@ -2407,7 +2408,7 @@ mod tests {
         // level and produce an applicable rewrite.
         let source = "set n 7\nputs ${n}";
         let opts = run_pass(source);
-        let o102s: Vec<_> = opts.iter().filter(|o| o.code == "O102").collect();
+        let o102s: Vec<_> = opts.iter().filter(|o| o.code == DiagCode::O102).collect();
         assert!(
             o102s.iter().any(|o| !o.hint_only
                 && o.replacement == "7"
@@ -2424,7 +2425,7 @@ mod tests {
         // path handles the actual inlining).
         let source = "set n 7\nputs \"n=$n\"";
         let opts = run_pass(source);
-        let o102s: Vec<_> = opts.iter().filter(|o| o.code == "O102").collect();
+        let o102s: Vec<_> = opts.iter().filter(|o| o.code == DiagCode::O102).collect();
         assert!(!o102s.is_empty(), "expected O102 hint, got {opts:?}");
         assert!(
             o102s.iter().all(|o| o.hint_only),
@@ -2447,7 +2448,7 @@ mod tests {
         let o103s: Vec<_> = ctx
             .optimisations
             .iter()
-            .filter(|o| o.code == "O103")
+            .filter(|o| o.code == DiagCode::O103)
             .collect();
         assert!(
             o103s.iter().any(|o| !o.hint_only
@@ -2472,7 +2473,7 @@ mod tests {
         let o103s: Vec<_> = ctx
             .optimisations
             .iter()
-            .filter(|o| o.code == "O103")
+            .filter(|o| o.code == DiagCode::O103)
             .collect();
         assert!(
             o103s
@@ -2501,7 +2502,7 @@ mod tests {
         let o103s: Vec<_> = ctx
             .optimisations
             .iter()
-            .filter(|o| o.code == "O103")
+            .filter(|o| o.code == DiagCode::O103)
             .collect();
         assert!(
             o103s.iter().any(|o| !o.hint_only
@@ -2529,7 +2530,7 @@ mod tests {
         let o103s: Vec<_> = ctx
             .optimisations
             .iter()
-            .filter(|o| o.code == "O103")
+            .filter(|o| o.code == DiagCode::O103)
             .collect();
         assert!(!o103s.is_empty(), "expected at least one O103");
         assert!(
@@ -2558,7 +2559,7 @@ mod tests {
         assert!(
             ctx.optimisations
                 .iter()
-                .any(|o| o.code == "O103" && o.replacement == "1" && !o.hint_only),
+                .any(|o| o.code == DiagCode::O103 && o.replacement == "1" && !o.hint_only),
             "expected applicable O103 folding [::not_const 1] to 1, got {:?}",
             ctx.optimisations,
         );
@@ -2580,7 +2581,7 @@ mod tests {
         assert!(
             ctx.optimisations
                 .iter()
-                .all(|o| o.code != "O103" || o.hint_only),
+                .all(|o| o.code != DiagCode::O103 || o.hint_only),
             "loop-carried return must not fold, got {:?}",
             ctx.optimisations,
         );
@@ -2606,7 +2607,7 @@ mod tests {
         let collapsed = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == "O115")
+                .filter(|o| o.code == DiagCode::O115)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2631,7 +2632,7 @@ mod tests {
         let has_o115 = |src: &str| -> bool {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .iter()
-                .any(|o| o.code == "O115")
+                .any(|o| o.code == DiagCode::O115)
         };
         assert!(!has_o115("proc ::f {x} { puts [expr {$x + 1}] }"));
         assert!(!has_o115("proc ::f {x} { return [expr {$x + 1}] }"));
@@ -2647,7 +2648,7 @@ mod tests {
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == "O129")
+                .filter(|o| o.code == DiagCode::O129)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2682,7 +2683,7 @@ mod tests {
         let fold_code = |src: &str, code: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == code)
+                .filter(|o| o.code.as_str() == code)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2753,7 +2754,7 @@ mod tests {
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == "O129")
+                .filter(|o| o.code == DiagCode::O129)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2777,7 +2778,7 @@ mod tests {
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == "O129")
+                .filter(|o| o.code == DiagCode::O129)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2806,7 +2807,7 @@ mod tests {
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == "O129")
+                .filter(|o| o.code == DiagCode::O129)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2834,7 +2835,7 @@ mod tests {
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == "O129")
+                .filter(|o| o.code == DiagCode::O129)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2871,7 +2872,7 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::Propagation]);
         assert!(
-            ctx.optimisations.iter().any(|o| o.code == "O100"),
+            ctx.optimisations.iter().any(|o| o.code == DiagCode::O100),
             "expected O100 via run_passes, got {:?}",
             ctx.optimisations,
         );

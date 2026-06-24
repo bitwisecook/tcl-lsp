@@ -9,6 +9,7 @@
 //! offset.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use rustc_hash::FxHashSet;
 
@@ -246,7 +247,7 @@ impl Analyser {
                 });
             }
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W123".to_string(),
+                code: DiagCode::W123,
                 span: inv.range,
                 message,
                 severity: Severity::Hint,
@@ -350,7 +351,7 @@ impl Analyser {
                 description: format!("Add 'package require {pkg}'"),
             };
             new_diags.push(super::types::Diagnostic {
-                code: "W120".to_string(),
+                code: DiagCode::W120,
                 span: inv.range,
                 message: format!("\"{}\" requires `package require {pkg}`", inv.name),
                 severity: Severity::Warning,

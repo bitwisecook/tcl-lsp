@@ -8,7 +8,7 @@ use crate::taint::SetterConstraint;
 const SETTER_CONSTRAINTS: &[SetterConstraint] = &[SetterConstraint {
     arg_index: 0,
     required_prefix: "/",
-    code: "IRULE3101",
+    code: tcl_core_types::DiagCode::Irule3101,
     message: "HTTP::path value must start with '/'",
 }];
 

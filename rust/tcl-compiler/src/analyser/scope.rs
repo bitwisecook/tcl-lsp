@@ -15,6 +15,7 @@
 //! tracking maps (``const_strings``, ``regex_vars``, ``ns_cache``,
 //! ``result.regex_patterns``).
 
+use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 
 use crate::naming::{normalise_qualified_name, normalise_var_name, split_array_name};
@@ -586,7 +587,7 @@ impl Analyser {
                 "the brace form ``${name}`` cannot match this name"
             };
             self.result.diagnostics.push(Diagnostic {
-                code: "W215".to_string(),
+                code: DiagCode::W215,
                 span: site_span,
                 message: format!(
                     "variable name ``{runtime_name}`` is not reachable via $-substitution; \
@@ -606,7 +607,7 @@ impl Analyser {
             };
             if runtime_element.contains(')') {
                 self.result.diagnostics.push(Diagnostic {
-                    code: "W215".to_string(),
+                    code: DiagCode::W215,
                     span: site_span,
                     message: "array element index contains ')'; the element can be created \
                               and read via ``set arr(idx) ...`` / ``[set \"arr(idx)\"]``, but \
@@ -911,7 +912,7 @@ mod tests {
         a.analyse(source, dialect)
             .diagnostics
             .iter()
-            .map(|d| d.code.clone())
+            .map(|d| d.code.to_string())
             .collect()
     }
 

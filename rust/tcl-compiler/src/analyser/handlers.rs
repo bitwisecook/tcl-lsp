@@ -12,6 +12,7 @@
 //! `switch`, `catch`/`try`, `interp alias`, `oo::objdefine`, and
 //! alias resolution.
 
+use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 
 use crate::alias::{detect_interp_alias, resolve_alias};
@@ -317,7 +318,7 @@ impl Analyser {
             };
             let message = format!("Procedure '{raw_name}' shadows built-in command{dialect_label}");
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W113".to_string(),
+                code: DiagCode::W113,
                 span: name_span,
                 message,
                 severity: super::types::Severity::Warning,
@@ -2086,7 +2087,7 @@ mod tests {
             .result
             .diagnostics
             .iter()
-            .filter(|d| d.code == "W113")
+            .filter(|d| d.code == DiagCode::W113)
             .collect();
         assert_eq!(w113s.len(), 1);
         assert_eq!(w113s[0].span, span(5, 8));
@@ -2111,7 +2112,10 @@ mod tests {
             &[],
         );
         assert!(
-            !a.result.diagnostics.iter().any(|d| d.code == "W113"),
+            !a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W113),
             "should NOT emit W113 for non-built-in name 'foo'",
         );
     }
@@ -2133,7 +2137,12 @@ mod tests {
             ],
             &[],
         );
-        assert!(a.result.diagnostics.iter().any(|d| d.code == "W113"));
+        assert!(
+            a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W113)
+        );
     }
 
     #[test]
@@ -2155,7 +2164,7 @@ mod tests {
             .result
             .diagnostics
             .iter()
-            .find(|d| d.code == "W113")
+            .find(|d| d.code == DiagCode::W113)
             .expect("W113 expected");
         assert!(w113.message.contains("'set' shadows built-in"));
         assert!(!w113.message.contains('('), "no dialect label expected");
@@ -2182,7 +2191,10 @@ mod tests {
             &[],
         );
         assert!(
-            a.result.diagnostics.iter().any(|d| d.code == "W113"),
+            a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W113),
             "f5-irules dialect should treat pool as built-in",
         );
 
@@ -2200,7 +2212,10 @@ mod tests {
             &[],
         );
         assert!(
-            !b.result.diagnostics.iter().any(|d| d.code == "W113"),
+            !b.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W113),
             "plain tcl dialect should NOT flag pool",
         );
     }
@@ -2223,7 +2238,10 @@ mod tests {
             &[],
         );
         assert!(
-            !a.result.diagnostics.iter().any(|d| d.code == "W113"),
+            !a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W113),
             "namespace-qualified HTTP::respond must not fire W113",
         );
     }
@@ -3549,7 +3567,7 @@ mod tests {
         // file — package may load arbitrary commands.
         let mut a = crate::analyser::Analyser::new();
         let r = a.analyse("package require Foo\nbogus_command arg", "tcl");
-        assert!(!r.diagnostics.iter().any(|d| d.code == "W123"));
+        assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
     }
 
     #[test]
@@ -3562,7 +3580,7 @@ mod tests {
             "proc unknown {cmd args} { _original_unknown $cmd {*}$args }\nbogus_command arg",
             "tcl",
         );
-        assert!(!r.diagnostics.iter().any(|d| d.code == "W123"));
+        assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
     }
 
     #[test]
@@ -3574,7 +3592,7 @@ mod tests {
             "proc unknown {cmd args} { exec $cmd {*}$args }\nbogus_command arg",
             "tcl",
         );
-        assert!(!r.diagnostics.iter().any(|d| d.code == "W123"));
+        assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
     }
 
     #[test]
@@ -3589,7 +3607,7 @@ mod tests {
             "tcl",
         );
         assert!(
-            r.diagnostics.iter().any(|d| d.code == "W123"),
+            r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
             "W123 expected for ``bogus_command`` outside explicit dispatch targets; got {:?}",
             r.diagnostics,
         );
@@ -3608,7 +3626,7 @@ mod tests {
         assert!(
             !r.diagnostics
                 .iter()
-                .any(|d| d.code == "W123" && d.message.contains("'foo'")),
+                .any(|d| d.code == DiagCode::W123 && d.message.contains("'foo'")),
             "W123 should not fire for command listed in dispatch_targets; got {:?}",
             r.diagnostics,
         );
@@ -3621,7 +3639,7 @@ mod tests {
         let mut a = crate::analyser::Analyser::new();
         let r = a.analyse("proc unknown {cmd args} {}\nbogus_command arg", "tcl");
         // ``bogus_command`` should be flagged.
-        assert!(r.diagnostics.iter().any(|d| d.code == "W123"));
+        assert!(r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
     }
 
     // deep_param_traits plumbing

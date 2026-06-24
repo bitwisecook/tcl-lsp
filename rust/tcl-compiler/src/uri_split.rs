@@ -20,6 +20,7 @@
 //! sibling `*::path` and/or `*::query` commands in the registry.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
@@ -868,7 +869,7 @@ fn check_statement<S: std::hash::BuildHasher>(
             span: stmt_span,
             variable: String::new(),
             sink_command: "split".to_owned(),
-            code: "IRULE3103".to_owned(),
+            code: DiagCode::Irule3103,
             message: split_message(ctx.families, &uri_cmd, &sep),
             replacement: None,
         });
@@ -886,7 +887,7 @@ fn check_statement<S: std::hash::BuildHasher>(
                     span: stmt_span,
                     variable: String::new(),
                     sink_command: "string match".to_owned(),
-                    code: "IRULE3103".to_owned(),
+                    code: DiagCode::Irule3103,
                     message: comparison_message(ctx.families, &uri_cmd, "string match", component),
                     replacement: None,
                 });
@@ -896,7 +897,7 @@ fn check_statement<S: std::hash::BuildHasher>(
                 span: stmt_span,
                 variable: String::new(),
                 sink_command: "string first".to_owned(),
-                code: "IRULE3103".to_owned(),
+                code: DiagCode::Irule3103,
                 message: string_first_message(ctx.families, &uri_cmd, &pattern),
                 replacement: None,
             });
@@ -912,7 +913,7 @@ fn check_statement<S: std::hash::BuildHasher>(
                 span: stmt_span,
                 variable: String::new(),
                 sink_command: op_name.clone(),
-                code: "IRULE3103".to_owned(),
+                code: DiagCode::Irule3103,
                 message: expr_hit_message(ctx.families, &uri_cmd, &op_name, &component),
                 replacement: None,
             });
@@ -943,7 +944,7 @@ fn check_branch_terminator(
             span: *span,
             variable: String::new(),
             sink_command: op_name.clone(),
-            code: "IRULE3103".to_owned(),
+            code: DiagCode::Irule3103,
             message: expr_hit_message(ctx.families, &uri_cmd, &op_name, &component),
             replacement: None,
         });
@@ -1086,7 +1087,7 @@ mod tests {
 set parts [split $uri "?"]"#,
         );
         assert_eq!(ws.len(), 1, "expected one IRULE3103, got {ws:?}");
-        assert_eq!(ws[0].code, "IRULE3103");
+        assert_eq!(ws[0].code, DiagCode::Irule3103);
         assert!(ws[0].message.contains("HTTP::path"));
         assert!(ws[0].message.contains("HTTP::query"));
     }
@@ -1103,7 +1104,7 @@ set parts [split $uri "?"]"#,
 set parts [::split $uri "?"]"#,
         );
         assert_eq!(ws.len(), 1, "expected one IRULE3103, got {ws:?}");
-        assert_eq!(ws[0].code, "IRULE3103");
+        assert_eq!(ws[0].code, DiagCode::Irule3103);
     }
 
     /// Sibling regression: `[::string match …]` inside a `set` must
@@ -1115,7 +1116,7 @@ set parts [::split $uri "?"]"#,
 set m [::string match "/api/*" $uri]"#,
         );
         assert_eq!(ws.len(), 1, "expected one IRULE3103, got {ws:?}");
-        assert_eq!(ws[0].code, "IRULE3103");
+        assert_eq!(ws[0].code, DiagCode::Irule3103);
         assert!(ws[0].message.contains("HTTP::path"));
     }
 

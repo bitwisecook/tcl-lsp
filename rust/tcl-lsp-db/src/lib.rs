@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex};
 use tcl_compiler::cfg_builder::build_cfg_function_with_upvars;
 use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit, LatticeRequest};
-use tcl_compiler::compiler_checks::Diagnostic as CompilerCheck;
+use tcl_compiler::compiler_checks::{DiagCode, Diagnostic as CompilerCheck};
 use tcl_compiler::interprocedural::{InterproceduralAnalysis, ProcSummary};
 use tcl_compiler::ir::Script;
 use tcl_compiler::optimiser::Optimisation;
@@ -331,19 +331,19 @@ fn cross_file_arity_diagnostic(
     let max = candidates.iter().map(|&(_, hi)| hi).max()?;
     let (code, message) = if argc < min {
         (
-            "E002",
+            DiagCode::E002,
             format!("Too few arguments for '{name}': expected at least {min}, got {argc}"),
         )
     } else if max != usize::MAX && argc > max {
         (
-            "E003",
+            DiagCode::E003,
             format!("Too many arguments for '{name}': expected at most {max}, got {argc}"),
         )
     } else {
         return None;
     };
     Some(Diagnostic {
-        code: code.to_string(),
+        code,
         span,
         message,
         severity: Severity::Error,
@@ -385,7 +385,7 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
     let mut out: Vec<tcl_compiler::analyser::types::Diagnostic> = diags
         .iter()
         .filter(|d| {
-            d.code != "W123"
+            d.code != DiagCode::W123
                 || !w123_command(&d.message).is_some_and(|name| arities.contains_key(name))
         })
         .cloned()
@@ -403,7 +403,7 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
             && !candidates.is_empty()
             && let Some(Some(argc)) = argc_by_span.get(&(span.start(), span.end()))
             && let Some(diag) = cross_file_arity_diagnostic(name, *span, *argc, candidates)
-            && !is_disabled(&diag.code)
+            && !is_disabled(diag.code.as_str())
         {
             out.push(diag);
         }
@@ -1964,7 +1964,7 @@ mod tests {
             .iter()
             .map(|d| {
                 (
-                    d.code.clone(),
+                    d.code.to_string(),
                     d.span.start(),
                     d.span.end(),
                     d.message.clone(),
@@ -1989,7 +1989,7 @@ mod tests {
         let has_helper_w123 = |diags: &[tcl_compiler::analyser::types::Diagnostic]| {
             diags
                 .iter()
-                .any(|d| d.code == "W123" && d.message.contains("helper"))
+                .any(|d| d.code == DiagCode::W123 && d.message.contains("helper"))
         };
         // A alone: `helper` is unresolved → W123 present.
         let proj_a = Project::new(&db, vec![a]);
@@ -2144,7 +2144,7 @@ mod tests {
         let has = |diags: &[tcl_compiler::analyser::types::Diagnostic], code: &str| {
             diags
                 .iter()
-                .any(|d| d.code == code && d.message.contains("helper"))
+                .any(|d| d.code.as_str() == code && d.message.contains("helper"))
         };
 
         // 3 args to a 2-param proc → E003 (too many), and the W123 is suppressed.
@@ -2207,12 +2207,13 @@ mod tests {
         let proj = Project::new(&db, vec![a, b]);
         let d = project_diagnostics(&db, a, cfg, proj);
         assert!(
-            !d.iter().any(|x| x.code == "E002" || x.code == "E003"),
+            !d.iter()
+                .any(|x| x.code == DiagCode::E002 || x.code == DiagCode::E003),
             "a mixed proc/non-proc tail must never draw an arity error"
         );
         assert!(
             !d.iter()
-                .any(|x| x.code == "W123" && x.message.contains("Widget")),
+                .any(|x| x.code == DiagCode::W123 && x.message.contains("Widget")),
             "the call still resolves cross-file (no W123)"
         );
     }
@@ -2236,7 +2237,7 @@ mod tests {
         let has = |diags: &[tcl_compiler::analyser::types::Diagnostic], code: &str| {
             diags
                 .iter()
-                .any(|d| d.code == code && d.message.contains("helper"))
+                .any(|d| d.code.as_str() == code && d.message.contains("helper"))
         };
 
         // E003 enabled (default): wrong arity surfaces as E003, W123 suppressed.
@@ -2274,7 +2275,7 @@ mod tests {
             "tcl8.6".to_owned(),
         );
         let has = |diags: &[tcl_compiler::analyser::types::Diagnostic], code: &str| {
-            diags.iter().any(|d| d.code == code)
+            diags.iter().any(|d| d.code.as_str() == code)
         };
         // W123 disabled, E003 left enabled.
         let cfg = AnalyserConfig::new(&db, vec!["W123".to_owned()], NonAsciiMode::Default);
@@ -2326,11 +2327,12 @@ mod tests {
         let d = project_diagnostics(&db, a, cfg, proj);
         assert!(
             !d.iter()
-                .any(|x| x.code == "W123" && x.message.contains("Widget")),
+                .any(|x| x.code == DiagCode::W123 && x.message.contains("Widget")),
             "cross-file class command must resolve (no W123)"
         );
         assert!(
-            !d.iter().any(|x| x.code == "E002" || x.code == "E003"),
+            !d.iter()
+                .any(|x| x.code == DiagCode::E002 || x.code == DiagCode::E003),
             "a class command has no proc arity → no arity error"
         );
     }
@@ -2357,8 +2359,8 @@ mod tests {
             let proj = Project::new(&db, vec![a, b]);
             project_diagnostics(&db, a, cfg, proj)
                 .iter()
-                .find(|d| d.code == "E002" || d.code == "E003")
-                .map(|d| d.code.clone())
+                .find(|d| d.code == DiagCode::E002 || d.code == DiagCode::E003)
+                .map(|d| d.code.to_string())
         };
         let e002 = || Some("E002".to_owned());
         let e003 = || Some("E003".to_owned());
@@ -2418,12 +2420,13 @@ mod tests {
         let proj = Project::new(&db, vec![a, b]);
         let d = project_diagnostics(&db, a, cfg, proj);
         assert!(
-            !d.iter().any(|x| x.code == "E002" || x.code == "E003"),
+            !d.iter()
+                .any(|x| x.code == DiagCode::E002 || x.code == DiagCode::E003),
             "a {{*}}-expanded call must not draw an arity error (argc unknown)"
         );
         assert!(
             !d.iter()
-                .any(|x| x.code == "W123" && x.message.contains("two")),
+                .any(|x| x.code == DiagCode::W123 && x.message.contains("two")),
             "the call still resolves cross-file (no W123)"
         );
     }
@@ -2451,13 +2454,13 @@ mod tests {
         let d = project_diagnostics(&db, a, cfg, proj);
         assert!(
             d.iter()
-                .any(|x| x.code == "E003" && x.message.contains("helper")),
+                .any(|x| x.code == DiagCode::E003 && x.message.contains("helper")),
             "nested cross-file call must draw E003, got: {:?}",
             d.iter().map(|x| (&x.code, &x.message)).collect::<Vec<_>>()
         );
         assert!(
             !d.iter()
-                .any(|x| x.code == "W123" && x.message.contains("helper")),
+                .any(|x| x.code == DiagCode::W123 && x.message.contains("helper")),
             "the nested call still resolves cross-file (no W123)"
         );
     }

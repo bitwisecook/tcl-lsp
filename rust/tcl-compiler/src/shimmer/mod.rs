@@ -25,6 +25,7 @@ pub mod thunking;
 pub mod use_site;
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::{BytePayloadSpec, CommandRegistry, TclType};
@@ -49,7 +50,7 @@ pub struct ShimmerWarning {
     /// Whether the use is inside a loop body.
     pub in_loop: bool,
     /// Diagnostic code (`"S100"` / `"S101"`).
-    pub code: String,
+    pub code: DiagCode,
     /// Formatted message.
     pub message: String,
     /// Related spans + labels for diagnostic context.
@@ -68,7 +69,7 @@ pub struct ThunkingWarning {
     /// Second observed type.
     pub type_b: TclType,
     /// Diagnostic code (`"S102"`).
-    pub code: String,
+    pub code: DiagCode,
     /// Formatted message.
     pub message: String,
     /// Related spans.

@@ -620,6 +620,7 @@ fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCom
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_core_types::DiagCode;
 
     /// `(start, end, texts, is_partial, token-spans)` — the fields that
     /// define a command's identity for incremental-vs-full comparison.
@@ -794,7 +795,7 @@ mod tests {
         assert_eq!(rec[0].texts, vec!["set", "x", "[foo bar]"]);
         assert_eq!(rec[1].texts, vec!["puts", "done"]);
         assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].code, "E201");
+        assert_eq!(diags[0].code, DiagCode::E201);
     }
 
     #[test]

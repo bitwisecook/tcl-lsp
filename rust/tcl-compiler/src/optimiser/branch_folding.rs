@@ -26,6 +26,7 @@
 //! text.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::Terminator;
@@ -171,7 +172,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
             && unwrapped != inner
         {
             ctx.report(Optimisation::new(
-                "O115",
+                DiagCode::O115,
                 "Remove redundant nested expr",
                 span,
                 rewrap(&unwrapped),
@@ -196,7 +197,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
             && folded != inner
         {
             ctx.report(Optimisation::new(
-                "O101",
+                DiagCode::O101,
                 "Fold constant expression",
                 span,
                 rewrap(&folded),
@@ -222,26 +223,30 @@ fn branch_cascade(
     sub_changed: bool,
     sub_text: &str,
     numeric: &HashSet<String>,
-) -> Option<(&'static str, &'static str, String)> {
+) -> Option<(DiagCode, &'static str, String)> {
     let (sred, sred_changed) = try_strength_reduce_expr_typed(working, Some(numeric));
     if sred_changed {
-        return Some(("O113", "Strength-reduce expression", sred));
+        return Some((DiagCode::O113, "Strength-reduce expression", sred));
     }
     let (slen, slen_changed) = try_strlen_simplify_expr(working);
     if slen_changed {
-        return Some(("O117", "Simplify string length zero-check", slen));
+        return Some((DiagCode::O117, "Simplify string length zero-check", slen));
     }
     let (streq, streq_changed) = try_eq_ne_string_compare_simplify_expr(working);
     if streq_changed {
-        return Some(("O120", "Use eq/ne for string comparison", streq));
+        return Some((DiagCode::O120, "Use eq/ne for string comparison", streq));
     }
     let (combined, combined_changed) = instcombine_expr_typed(working, true, Some(numeric));
     if combined_changed {
-        return Some(("O110", "Canonicalise expression (InstCombine)", combined));
+        return Some((
+            DiagCode::O110,
+            "Canonicalise expression (InstCombine)",
+            combined,
+        ));
     }
     if sub_changed {
         return Some((
-            "O100",
+            DiagCode::O100,
             "Propagate constants into branch expression",
             sub_text.to_owned(),
         ));
@@ -330,7 +335,7 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         let replacement = format!("{prefix}{folded}{suffix}");
 
         ctx.report(Optimisation::new(
-            "O101",
+            DiagCode::O101,
             "Fold constant expression",
             span,
             replacement,
@@ -361,6 +366,7 @@ fn is_switch_dispatch(cond: &ExprNode, cb: &ConstantBranch) -> bool {
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
+    use tcl_core_types::DiagCode;
 
     use tcl_lexer::Span;
     use tcl_registry::CommandRegistry;
@@ -563,7 +569,7 @@ mod tests {
 
         assert_eq!(ctx.optimisations.len(), 1);
         let opt = &ctx.optimisations[0];
-        assert_eq!(opt.code, "O101");
+        assert_eq!(opt.code, DiagCode::O101);
         assert_eq!(opt.message, "Fold constant expression");
         assert_eq!(opt.replacement, "{1}");
         assert_eq!(opt.span, cond_span);
@@ -890,7 +896,7 @@ mod tests {
         // No O100 because $cond is not a single constant across
         // all tracked versions.
         assert!(
-            !ctx.optimisations.iter().any(|o| o.code == "O100"),
+            !ctx.optimisations.iter().any(|o| o.code == DiagCode::O100),
             "unexpected O100 for Overdefined variable: {:?}",
             ctx.optimisations,
         );
@@ -910,7 +916,7 @@ mod tests {
         let got = ctx
             .optimisations
             .iter()
-            .find(|o| o.code == "O100" && o.message.contains("branch"));
+            .find(|o| o.code == DiagCode::O100 && o.message.contains("branch"));
         assert!(
             got.is_some(),
             "expected O100 propagating x=5 into branch, got {:?}",
@@ -935,7 +941,7 @@ mod tests {
         assert!(
             ctx.optimisations
                 .iter()
-                .any(|o| o.code == "O101" && o.replacement.contains('1')),
+                .any(|o| o.code == DiagCode::O101 && o.replacement.contains('1')),
             "expected an O101 fold via run_passes, got {:?}",
             ctx.optimisations,
         );
@@ -956,7 +962,7 @@ mod tests {
         let o115 = ctx
             .optimisations
             .iter()
-            .find(|o| o.code == "O115")
+            .find(|o| o.code == DiagCode::O115)
             .expect("expected an O115 unwrap on the branch condition");
         assert_eq!(o115.replacement, "{$x}");
     }

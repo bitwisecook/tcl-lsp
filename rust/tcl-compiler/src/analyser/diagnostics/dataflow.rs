@@ -12,6 +12,7 @@
 //! check (W128).
 
 use std::collections::HashSet;
+use tcl_core_types::DiagCode;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -88,7 +89,7 @@ impl Analyser {
                     continue; // never bound here → an ordinary external command
                 }
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W128".to_string(),
+                    code: DiagCode::W128,
                     span: *span,
                     message: format!(
                         "Command '{command}' was renamed or deleted earlier in this \
@@ -324,7 +325,7 @@ file; this call falls through to the 'unknown' handler."
                 let _ = write!(message, "; did you mean '{similar}'?");
             }
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W220".to_string(),
+                code: DiagCode::W220,
                 span,
                 message,
                 severity: Severity::Hint,
@@ -499,7 +500,7 @@ file; this call falls through to the 'unknown' handler."
                 let _ = write!(message, "; did you mean '{similar}'?");
             }
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W211".to_string(),
+                code: DiagCode::W211,
                 span,
                 message,
                 severity: Severity::Hint,
@@ -584,7 +585,7 @@ file; this call falls through to the 'unknown' handler."
                      did you mean to assign a different variable?"
                 );
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "H300".to_string(),
+                    code: DiagCode::H300,
                     span,
                     message,
                     severity: Severity::Hint,
@@ -685,7 +686,7 @@ file; this call falls through to the 'unknown' handler."
                 name = ir_proc.qualified_name,
             );
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W214".to_string(),
+                code: DiagCode::W214,
                 span: ir_proc.span,
                 message,
                 severity: Severity::Hint,
@@ -910,7 +911,7 @@ file; this call falls through to the 'unknown' handler."
                              use 'unset -nocomplain' to suppress the error",
                     );
                     self.result.diagnostics.push(super::types::Diagnostic {
-                        code: "W213".to_string(),
+                        code: DiagCode::W213,
                         span,
                         message,
                         severity: Severity::Warning,
@@ -946,7 +947,7 @@ file; this call falls through to the 'unknown' handler."
                 let _ = write!(message, "; did you mean '{similar}'?");
             }
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W210".to_string(),
+                code: DiagCode::W210,
                 span,
                 message,
                 severity: Severity::Warning,
@@ -1081,7 +1082,7 @@ file; this call falls through to the 'unknown' handler."
                     let _ = write!(message, "; did you mean '{similar}'?");
                 }
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W210".to_string(),
+                    code: DiagCode::W210,
                     span,
                     message,
                     severity: Severity::Warning,
@@ -1198,7 +1199,7 @@ file; this call falls through to the 'unknown' handler."
                         let _ = write!(message, "; did you mean '{similar}'?");
                     }
                     self.result.diagnostics.push(super::types::Diagnostic {
-                        code: "W210".to_string(),
+                        code: DiagCode::W210,
                         span,
                         message,
                         severity: Severity::Warning,
@@ -1341,7 +1342,7 @@ file; this call falls through to the 'unknown' handler."
             }
 
             let (code, message) = if is_switch {
-                let code = "I231";
+                let code = DiagCode::I231;
                 let msg = if branch.value {
                     format!(
                         "Switch condition '{}' is always true here; \
@@ -1370,17 +1371,17 @@ file; this call falls through to the 'unknown' handler."
                         branch.condition,
                     )
                 };
-                ("I230", msg)
+                (DiagCode::I230, msg)
             } else {
                 let msg = format!(
                     "Branch condition '{}' is constant; one branch is unreachable",
                     branch.condition,
                 );
-                ("I230", msg)
+                (DiagCode::I230, msg)
             };
 
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: code.to_string(),
+                code,
                 span,
                 message,
                 // I230/I231 are observational (LSP `Information`);
@@ -1429,7 +1430,7 @@ file; this call falls through to the 'unknown' handler."
                 )
             };
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "I230".to_string(),
+                code: DiagCode::I230,
                 span,
                 message,
                 // I230 is observational (LSP `Information`).
@@ -1526,7 +1527,7 @@ file; this call falls through to the 'unknown' handler."
                              has type {type_label}, not CHANNEL.",
                         );
                         self.result.diagnostics.push(super::types::Diagnostic {
-                            code: "W126".to_string(),
+                            code: DiagCode::W126,
                             span: fu.abs_span(*span),
                             message,
                             severity: Severity::Warning,
@@ -1550,7 +1551,7 @@ file; this call falls through to the 'unknown' handler."
                              '{command}' — expected a channel from open/socket/chan create.",
                         );
                         self.result.diagnostics.push(super::types::Diagnostic {
-                            code: "W126".to_string(),
+                            code: DiagCode::W126,
                             span: fu.abs_span(*span),
                             message,
                             severity: Severity::Warning,
@@ -1618,7 +1619,7 @@ file; this call falls through to the 'unknown' handler."
                 "Modulo"
             };
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W233".to_string(),
+                code: DiagCode::W233,
                 span,
                 message: format!(
                     "{verb} by a provably-zero divisor — raises 'divide by zero' at runtime."
@@ -1676,7 +1677,7 @@ file; this call falls through to the 'unknown' handler."
                     .map_or("+inf".to_string(), |h| h.to_string());
                 format!("is in [{lo}, {hi}]")
             };
-            let outcome = if f.code == "W231" {
+            let outcome = if f.code == DiagCode::W231 {
                 "raises 'index out of range' at runtime"
             } else {
                 "silently returns the empty string"
@@ -1808,7 +1809,7 @@ file; this call falls through to the 'unknown' handler."
             return;
         }
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "W124".to_string(),
+            code: DiagCode::W124,
             span,
             message: message.to_string(),
             severity,
@@ -1858,7 +1859,7 @@ file; this call falls through to the 'unknown' handler."
                          results."
                     );
                     self.result.diagnostics.push(super::types::Diagnostic {
-                        code: "IRULE4005".to_string(),
+                        code: DiagCode::Irule4005,
                         span,
                         message,
                         severity: Severity::Warning,

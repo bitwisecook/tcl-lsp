@@ -20,6 +20,7 @@
 //!   iterations.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_registry::TclType;
 
@@ -329,7 +330,7 @@ pub(crate) fn find_thunking_warnings(
                 variable: var.to_owned(),
                 type_a,
                 type_b,
-                code: "S102".to_owned(),
+                code: DiagCode::S102,
                 message: format!(
                     "S102: '{var}' oscillates between {a} and {b} across \
                      loop iterations (thunking)",
@@ -429,7 +430,9 @@ mod tests {
         );
         let fu = cu.function("::f").unwrap();
         let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
-        let has_thunking = w.iter().any(|tw| tw.variable == "x" && tw.code == "S102");
+        let has_thunking = w
+            .iter()
+            .any(|tw| tw.variable == "x" && tw.code == DiagCode::S102);
         assert!(
             has_thunking,
             "expected S102 thunking for 'x' with a two-type loop body, got: {w:?}"

@@ -24,6 +24,7 @@
 //! - **IRULE6001** (WARNING): global namespace variable usage.
 
 use std::sync::OnceLock;
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::{Token, TokenType};
 use tcl_registry::events::{EventProps, EventRegistry, EventRequires};
@@ -279,7 +280,7 @@ impl Analyser {
                 });
             if let Some(info) = hint {
                 self.result.diagnostics.push(Diagnostic {
-                    code: "IRULE1001".to_string(),
+                    code: DiagCode::Irule1001,
                     span: cmd_tok.span,
                     message: format!("'{cmd_name}' {info}."),
                     severity: Severity::Hint,
@@ -303,7 +304,7 @@ impl Analyser {
                 hint.push('.');
             }
             self.result.diagnostics.push(Diagnostic {
-                code: "IRULE1001".to_string(),
+                code: DiagCode::Irule1001,
                 span: cmd_tok.span,
                 message: format!("'{cmd_name}' cannot be used in {event}.{hint}"),
                 severity: Severity::Warning,
@@ -323,7 +324,7 @@ impl Analyser {
                 }
             };
             self.result.diagnostics.push(Diagnostic {
-                code: "IRULE1001".to_string(),
+                code: DiagCode::Irule1001,
                 span: cmd_tok.span,
                 message,
                 severity: Severity::Warning,
@@ -352,7 +353,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE5003".to_string(),
+            code: DiagCode::Irule5003,
             span: tok.span,
             message: format!(
                 "Loop condition '${var_name} != 0' can miss zero if decremented past it. \
@@ -377,7 +378,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE5006".to_string(),
+            code: DiagCode::Irule5006,
             span: cmd_tok.span,
             message: format!("'{cmd_name}' is only valid at the top level of an iRule."),
             severity: Severity::Warning,
@@ -409,7 +410,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE5007".to_string(),
+            code: DiagCode::Irule5007,
             span: cmd_tok.span,
             message: format!(
                 "'{cmd_name}' requires an event context — use it inside a `when` block."
@@ -440,7 +441,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE1002".to_string(),
+            code: DiagCode::Irule1002,
             span: tok.span,
             message: format!("Unknown iRules event '{event_name}'. Check the event name spelling."),
             severity: Severity::Warning,
@@ -458,7 +459,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE2003".to_string(),
+            code: DiagCode::Irule2003,
             span: cmd_tok.span,
             message: format!("'{cmd_name}' is unsafe in iRules and may allow context escalation"),
             severity: Severity::Error,
@@ -486,7 +487,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE3102".to_string(),
+            code: DiagCode::Irule3102,
             span: cmd_tok.span,
             message: crate::irules_checks::format_message(cmd_name),
             severity: Severity::Warning,
@@ -511,7 +512,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE1003".to_string(),
+            code: DiagCode::Irule1003,
             span: tok.span,
             message: format!("'{event_name}' event is deprecated."),
             severity: Severity::Warning,
@@ -535,7 +536,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE1004".to_string(),
+            code: DiagCode::Irule1004,
             span: cmd_tok.span,
             message:
                 "'when' missing an explicit priority. Add 'priority <N>' to control execution order."
@@ -555,7 +556,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE2101".to_string(),
+            code: DiagCode::Irule2101,
             span: cmd_tok.span,
             message: format!(
                 "'regexp' in {event} may be expensive at high traffic volumes. \
@@ -576,7 +577,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE5001".to_string(),
+            code: DiagCode::Irule5001,
             span: cmd_tok.span,
             message: format!(
                 "'log' in {event} fires on every request. \
@@ -603,7 +604,7 @@ impl Analyser {
             return;
         };
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE4001".to_string(),
+            code: DiagCode::Irule4001,
             span: cmd_tok.span,
             message: format!(
                 "Writing to '{var_name}' outside RULE_INIT is dangerous. \
@@ -664,7 +665,7 @@ impl Analyser {
             msg = format!("{msg}; {}", concerns[1..].join("; "));
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE4003".to_string(),
+            code: DiagCode::Irule4003,
             span: cmd_tok.span,
             message: msg,
             severity: Severity::Hint,
@@ -687,7 +688,7 @@ impl Analyser {
         {
             let static_name = format!("static::{var_name}");
             self.result.diagnostics.push(Diagnostic {
-                code: "IRULE6001".to_string(),
+                code: DiagCode::Irule6001,
                 span: cmd_tok.span,
                 message: format!(
                     "'global {var_name}' imports from the global namespace, \
@@ -708,7 +709,7 @@ impl Analyser {
                 .and_then(|idx| arg_tokens.get(idx))
                 .map_or(cmd_tok.span, |t| t.span);
             self.result.diagnostics.push(Diagnostic {
-                code: "IRULE6001".to_string(),
+                code: DiagCode::Irule6001,
                 span: fix_span,
                 message: format!(
                     "Global namespace variable '{var_name}' forces CMP compatibility \
@@ -735,7 +736,7 @@ impl Analyser {
                 .and_then(|idx| arg_tokens.get(idx))
                 .map_or(cmd_tok.span, |t| t.span);
             self.result.diagnostics.push(Diagnostic {
-                code: "IRULE6001".to_string(),
+                code: DiagCode::Irule6001,
                 span: fix_span,
                 message: format!(
                     "'{bare}' in RULE_INIT is implicitly global — RULE_INIT \
@@ -1032,8 +1033,8 @@ mod tests {
         let res = a.analyse(source, "f5-irules");
         res.diagnostics
             .iter()
-            .filter(|d| d.code.starts_with("IRULE"))
-            .map(|d| (d.code.clone(), d.message.clone()))
+            .filter(|d| d.code.as_str().starts_with("IRULE"))
+            .map(|d| (d.code.to_string(), d.message.clone()))
             .collect()
     }
 
@@ -1220,7 +1221,11 @@ mod tests {
     fn no_irule_checks_outside_f5_dialect() {
         let mut a = Analyser::new();
         let res = a.analyse("when AUTH_SUCCESS { set static::c 1 }", "tcl");
-        assert!(!res.diagnostics.iter().any(|d| d.code.starts_with("IRULE")));
+        assert!(
+            !res.diagnostics
+                .iter()
+                .any(|d| d.code.as_str().starts_with("IRULE"))
+        );
     }
 
     #[test]
@@ -1249,7 +1254,7 @@ mod tests {
         a.analyse(source, "f5-irules")
             .diagnostics
             .into_iter()
-            .filter(|d| d.code == "IRULE1001")
+            .filter(|d| d.code == DiagCode::Irule1001)
             .map(|d| (d.severity, d.message))
             .collect()
     }
@@ -1333,7 +1338,11 @@ mod tests {
     fn irule1001_quiet_outside_f5_dialect() {
         let mut a = Analyser::new();
         let res = a.analyse("when CLIENT_ACCEPTED { HTTP::respond 200 }", "tcl");
-        assert!(!res.diagnostics.iter().any(|d| d.code == "IRULE1001"));
+        assert!(
+            !res.diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::Irule1001)
+        );
     }
 
     #[test]

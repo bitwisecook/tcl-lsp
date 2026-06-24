@@ -13,6 +13,7 @@ use crate::signature_scan::types::{
     SignaturePackageRequire, SignatureSource,
 };
 
+pub use tcl_core_types::DiagCode;
 /// Severity of a diagnostic — the shared [`tcl_core_types::Severity`] so the
 /// analyser, compiler-checks, and LSP/CLI layers speak one type.
 pub use tcl_core_types::Severity;
@@ -71,7 +72,7 @@ pub use crate::irules_checks::CodeFix;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     /// Stable W-/IRULE-coded identifier.
-    pub code: String,
+    pub code: DiagCode,
     /// Source span the diagnostic anchors to.
     pub span: Span,
     /// One-line user-facing message.

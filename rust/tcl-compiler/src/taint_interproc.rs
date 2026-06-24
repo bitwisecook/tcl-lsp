@@ -770,6 +770,7 @@ pub fn solve_interprocedural_taints_with(
 mod tests {
     use super::*;
     use crate::compilation_unit::CompilationUnit;
+    use tcl_core_types::DiagCode;
     use tcl_registry::CommandRegistry;
 
     fn warnings(src: &str) -> Vec<crate::taint::TaintWarning> {
@@ -786,7 +787,7 @@ mod tests {
         let src = "proc s {v} { eval $v }\nset x [gets stdin]\ns $x\n";
         let w = warnings(src);
         assert_eq!(w.len(), 1, "expected one cross-proc sink warning: {w:?}");
-        assert_eq!(w[0].code, "T100");
+        assert_eq!(w[0].code, DiagCode::T100);
         assert_eq!(w[0].variable, "v");
         assert_eq!(w[0].sink_command, "eval");
     }
@@ -806,7 +807,7 @@ mod tests {
         let w = warnings(src);
         assert!(
             w.iter()
-                .any(|w| w.code == "T100" && w.sink_command == "eval"),
+                .any(|w| w.code == DiagCode::T100 && w.sink_command == "eval"),
             "expected eval injection via return summary: {w:?}"
         );
     }

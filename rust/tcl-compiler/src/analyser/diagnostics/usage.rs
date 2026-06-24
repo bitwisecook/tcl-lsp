@@ -11,6 +11,7 @@
 //! (W200), and an invalid subnet mask literal (W121).
 
 use rustc_hash::FxHashSet;
+use tcl_core_types::DiagCode;
 use tcl_lexer::SourceMap;
 
 use super::helpers::{find_dotted_quads, has_substitution, is_braced_word, source_slice};
@@ -98,7 +99,7 @@ Use braces: {{ \u{2026} }}"
         };
         let new_text = format!("{{{body_text}}}");
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "W105".to_string(),
+            code: DiagCode::W105,
             span: body_tok.span,
             message,
             severity,
@@ -241,7 +242,7 @@ Use braces: {{ \u{2026} }}"
             text
         };
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "W100".to_string(),
+            code: DiagCode::W100,
             span,
             message,
             severity,
@@ -291,7 +292,7 @@ Use braces: {{ \u{2026} }}"
                 .or_else(|| arg_tokens.first());
             if let Some(tok) = target {
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W311".to_string(),
+                    code: DiagCode::W311,
                     span: tok.span,
                     message: "Channel configured with -encoding binary and a non-binary \
                               -translation. Binary encoding implies no translation; the \
@@ -349,7 +350,7 @@ Use braces: {{ \u{2026} }}"
             {
                 let modifier = fmt[i] as char;
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W200".to_string(),
+                    code: DiagCode::W200,
                     span: fmt_tok.span,
                     message: format!(
                         "signed/unsigned modifier '{modifier}' on binary format specifier \
@@ -408,7 +409,7 @@ Use braces: {{ \u{2026} }}"
                     let _ = write!(message, " Did you mean '{s}'?");
                 }
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W121".to_string(),
+                    code: DiagCode::W121,
                     span: tok.span,
                     message,
                     severity: super::types::Severity::Warning,
@@ -491,7 +492,7 @@ Use braces: {{ \u{2026} }}"
                     })
                     .unwrap_or_default();
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W108".to_string(),
+                    code: DiagCode::W108,
                     span,
                     message: format!(
                         "Non-ASCII character U+{:04X} '{ch}' \u{2014} outside the standard ASCII \
@@ -525,7 +526,7 @@ Use braces: {{ \u{2026} }}"
             if text.starts_with(' ') || text.ends_with(' ') {
                 let tok = arg_tokens.get(i).unwrap_or(&arg_tokens[0]);
                 self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W104".to_string(),
+                    code: DiagCode::W104,
                     span: tok.span,
                     message: "append with space-separated values looks like list \
                               construction. Use [lappend] instead to safely handle values \
@@ -636,7 +637,7 @@ Use braces: {{ \u{2026} }}"
             super::types::Severity::Warning
         };
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "W106".to_string(),
+            code: DiagCode::W106,
             span,
             message,
             severity,
@@ -682,7 +683,7 @@ Use braces: {{ \u{2026} }}"
                 cmd_name.to_string()
             };
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W212".to_string(),
+                code: DiagCode::W212,
                 span: tok.span,
                 message: format!(
                     "'{display_cmd}' expects a variable name, got substitution (${bare}). \
@@ -759,7 +760,7 @@ Use braces: {{ \u{2026} }}"
 content); use `{corrected}` to access the array element with index substitution"
                         );
                         self.result.diagnostics.push(super::types::Diagnostic {
-                            code: "W216".to_string(),
+                            code: DiagCode::W216,
                             span,
                             message,
                             severity: Severity::Warning,
@@ -803,7 +804,7 @@ content); use `{corrected}` to access the array element with index substitution"
 literal text `({inner})`; did you mean `{corrected}` for array element access?"
             );
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W216".to_string(),
+                code: DiagCode::W216,
                 span,
                 message,
                 severity: Severity::Warning,
@@ -841,7 +842,7 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
             u32::try_from(start + close + 1).unwrap_or(diag_span.end()),
         );
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "W114".to_string(),
+            code: DiagCode::W114,
             span: nested_span,
             message: "Redundant nested [expr] \u{2014} already in expression context".to_string(),
             severity: super::types::Severity::Warning,
@@ -910,7 +911,7 @@ comparison in expressions to avoid ambiguous \
 numeric/string coercion."
         );
         self.result.diagnostics.push(super::types::Diagnostic {
-            code: "W110".to_string(),
+            code: DiagCode::W110,
             span: diag_span,
             message,
             severity: Severity::Hint,

@@ -410,7 +410,7 @@ fn var_to_dict<'py>(py: Python<'py>, v: &VarDef) -> PyResult<Bound<'py, PyDict>>
 
 fn diagnostic_to_dict<'py>(py: Python<'py>, d: &Diagnostic) -> PyResult<Bound<'py, PyDict>> {
     let out = PyDict::new(py);
-    out.set_item("code", &d.code)?;
+    out.set_item("code", d.code.as_str())?;
     out.set_item("range", span_tuple(d.span))?;
     out.set_item("message", &d.message)?;
     out.set_item("severity", d.severity.as_str())?;

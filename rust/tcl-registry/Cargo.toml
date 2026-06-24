@@ -10,6 +10,7 @@ authors.workspace = true
 
 [dependencies]
 tcl-syntax = { path = "../tcl-syntax" }
+tcl-core-types = { path = "../tcl-core-types" }
 bitflags = "2"
 sha2 = "0.10"
 rustc-hash = { workspace = true }

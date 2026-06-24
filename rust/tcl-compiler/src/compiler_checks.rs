@@ -33,6 +33,7 @@ use tcl_registry::CommandRegistry;
 
 // Unified diagnostic envelope
 
+pub use tcl_core_types::DiagCode;
 /// Severity of a compiler diagnostic — the shared [`tcl_core_types::Severity`].
 pub use tcl_core_types::Severity;
 
@@ -45,7 +46,7 @@ pub struct Diagnostic {
     /// Source span.
     pub span: Span,
     /// Diagnostic code (e.g. `"O105"`, `"S100"`, `"T100"`).
-    pub code: String,
+    pub code: DiagCode,
     /// Short category name (`"gvn"`, `"shimmer"`, `"taint"`, …).
     pub category: String,
     /// Severity.
@@ -72,7 +73,7 @@ impl Diagnostic {
             // editors / CLIs can highlight the condition that was
             // folded, rather than the start of the file.
             span: cb.span.unwrap_or_else(|| Span::new(0, 0)),
-            code: "O100".into(),
+            code: DiagCode::O100,
             category: "sccp".into(),
             severity: Severity::Hint,
             message: format!(
@@ -87,11 +88,11 @@ impl Diagnostic {
     fn from_shimmer(w: &ShimmerWarning) -> Self {
         Self {
             span: w.span,
-            code: w.code.clone(),
+            code: w.code,
             category: "shimmer".into(),
             // S100 (single shimmer outside a loop) is informational; S101
             // (per-iteration loop shimmer) is a warning.
-            severity: if w.code == "S100" {
+            severity: if w.code == DiagCode::S100 {
                 Severity::Info
             } else {
                 Severity::Warning
@@ -105,7 +106,7 @@ impl Diagnostic {
     fn from_thunking(w: &ThunkingWarning) -> Self {
         Self {
             span: w.span,
-            code: w.code.clone(),
+            code: w.code,
             category: "shimmer".into(),
             severity: Severity::Warning,
             message: w.message.clone(),
@@ -117,7 +118,7 @@ impl Diagnostic {
     fn from_taint(w: &TaintWarning) -> Self {
         Self {
             span: w.span,
-            code: w.code.clone(),
+            code: w.code,
             category: "taint".into(),
             // The taint family is a Warning by default (not an Error); T106
             // and IRULE3103 are informational.
@@ -134,7 +135,7 @@ impl Diagnostic {
     fn from_irules_check(w: &IrulesCheckWarning) -> Self {
         Self {
             span: w.span,
-            code: w.code.clone(),
+            code: w.code,
             category: "irules".into(),
             // IRULE1007/1008 (collect-without-release / release-without-
             // collect) are hard connection-state errors; IRULE4004 is
@@ -153,7 +154,7 @@ impl Diagnostic {
     fn from_redundant(r: &crate::gvn::RedundantComputation) -> Self {
         Self {
             span: r.span,
-            code: r.code.clone(),
+            code: r.code,
             category: "gvn".into(),
             severity: Severity::Suggestion,
             message: r.message.clone(),
@@ -165,7 +166,7 @@ impl Diagnostic {
     fn from_path_concat(w: &PathConcatWarning) -> Self {
         Self {
             span: w.span,
-            code: w.code.clone(),
+            code: w.code,
             category: "taint".into(),
             // W201 (path concatenation) is a Hint, not a Warning.
             severity: match w.code.as_str() {
@@ -473,7 +474,7 @@ mod tests {
         let diags = run_all_checks(&cu, &registry(), None);
         let s100 = diags
             .iter()
-            .find(|d| d.code == "S100")
+            .find(|d| d.code == DiagCode::S100)
             .expect("expected an S100 shimmer");
         assert_eq!(s100.severity, Severity::Info, "S100 must be Info: {s100:?}");
         assert_eq!(s100.severity.as_str(), "info");
@@ -487,7 +488,7 @@ mod tests {
         let diags = run_all_checks(&cu, &registry(), None);
         let s101 = diags
             .iter()
-            .find(|d| d.code == "S101")
+            .find(|d| d.code == DiagCode::S101)
             .expect("expected an S101 shimmer");
         assert_eq!(
             s101.severity,
@@ -502,11 +503,11 @@ mod tests {
             Span::new(0, 5),
             Span::new(10, 15),
             "llength $x",
-            "O105",
+            DiagCode::O105,
             "msg",
         );
         let d = Diagnostic::from_redundant(&r);
-        assert_eq!(d.code, "O105");
+        assert_eq!(d.code, DiagCode::O105);
         assert_eq!(d.category, "gvn");
     }
 
@@ -522,7 +523,7 @@ mod tests {
         assert!(
             diagnostics
                 .iter()
-                .any(|d| d.code == "IRULE3001" && d.category == "taint"),
+                .any(|d| d.code == DiagCode::Irule3001 && d.category == "taint"),
             "expected IRULE3001, got {diagnostics:?}",
         );
     }
@@ -535,7 +536,7 @@ mod tests {
         assert!(
             diagnostics
                 .iter()
-                .any(|d| d.code == "IRULE3101" && d.category == "taint"),
+                .any(|d| d.code == DiagCode::Irule3101 && d.category == "taint"),
             "expected IRULE3101, got {diagnostics:?}",
         );
     }
@@ -552,7 +553,7 @@ mod tests {
         let diagnostics = run_all_checks(&cu, &registry(), Some("f5-irules"));
         let hit = diagnostics
             .iter()
-            .find(|d| d.code == "S110")
+            .find(|d| d.code == DiagCode::S110)
             .unwrap_or_else(|| panic!("expected S110, got {diagnostics:?}"));
         assert_eq!(hit.category, "shimmer");
         assert_eq!(hit.severity, Severity::Warning, "S110 must be a Warning");
@@ -567,7 +568,7 @@ mod tests {
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let diagnostics = run_all_checks(&cu, &registry(), None);
         assert!(
-            diagnostics.iter().all(|d| d.code != "S110"),
+            diagnostics.iter().all(|d| d.code != DiagCode::S110),
             "S110 must not fire under plain Tcl: {diagnostics:?}"
         );
     }
@@ -579,7 +580,7 @@ mod tests {
         let diagnostics = run_all_checks(&cu, &registry(), Some("f5-irules"));
         let hit = diagnostics
             .iter()
-            .find(|d| d.code == "IRULE3102")
+            .find(|d| d.code == DiagCode::Irule3102)
             .unwrap_or_else(|| panic!("expected IRULE3102, got {diagnostics:?}"));
         assert_eq!(hit.category, "irules");
         assert_eq!(hit.severity, Severity::Warning);
@@ -597,14 +598,14 @@ mod tests {
             .with_interprocedural(&registry(), Some("f5-irules"));
         let irules_diags = run_all_checks(&irules_cu, &registry(), Some("f5-irules"));
         assert!(
-            irules_diags.iter().any(|d| d.code == "IRULE3101"),
+            irules_diags.iter().any(|d| d.code == DiagCode::Irule3101),
             "expected IRULE3101 under f5-irules dialect, got {irules_diags:?}",
         );
 
         let plain_cu = CompilationUnit::build_for(src, &registry(), false);
         let plain_diags = run_all_checks(&plain_cu, &registry(), None);
         assert!(
-            plain_diags.iter().all(|d| d.code != "IRULE3101"),
+            plain_diags.iter().all(|d| d.code != DiagCode::Irule3101),
             "no IRULE3101 without dialect, got {plain_diags:?}",
         );
     }
@@ -618,7 +619,9 @@ mod tests {
         );
         let diagnostics = run_all_checks(&cu, &registry(), None);
         assert!(
-            diagnostics.iter().all(|d| !d.code.starts_with("IRULE")),
+            diagnostics
+                .iter()
+                .all(|d| !d.code.as_str().starts_with("IRULE")),
             "no IRULE diagnostics without dialect, got {diagnostics:?}",
         );
     }
@@ -629,7 +632,7 @@ mod tests {
         let diagnostics = run_all_checks(&cu, &registry(), None);
         let w201 = diagnostics
             .iter()
-            .find(|d| d.code == "W201" && d.category == "taint")
+            .find(|d| d.code == DiagCode::W201 && d.category == "taint")
             .unwrap_or_else(|| panic!("expected W201 path-concat diagnostic, got {diagnostics:?}"));
         // The `[file join …]` suggestion must survive the lowering
         // from `PathConcatWarning` to `Diagnostic`.

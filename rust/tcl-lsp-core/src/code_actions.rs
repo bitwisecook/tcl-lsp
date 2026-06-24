@@ -38,6 +38,7 @@
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::compiler_checks::DiagCode;
 use tcl_lexer::{LineIndex, Utf16Col};
 
 use crate::definition::{LspRange, utf16_col_to_char_col};
@@ -165,7 +166,7 @@ pub fn code_actions(
         // diagnostic's span end sits past the body's closing
         // `}`, so the insertion point is exactly the diag-end
         // position.
-        if diag.code == "W302" {
+        if diag.code == DiagCode::W302 {
             let insertion = LspRange {
                 start_line: diag_end.line,
                 start_character: diag_end.character.get(),
@@ -194,7 +195,7 @@ pub fn code_actions(
         // $var`, so offer that as a one-click fix.  The diag
         // span starts at `unset`; we splice ` -nocomplain`
         // immediately after the keyword (offset +5).
-        if diag.code == "W213"
+        if diag.code == DiagCode::W213
             && let Some(action) = build_unset_nocomplain_action(source, diag, &line_index)
         {
             actions.push(action);
@@ -278,7 +279,7 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
     let line_index = LineIndex::new(source);
     let mut actions = Vec::new();
     for diag in checks {
-        if diag.fixes.is_empty() || disabled.contains(&diag.code) {
+        if diag.fixes.is_empty() || disabled.contains(diag.code.as_str()) {
             continue;
         }
         let diag_start = line_index.position_at_utf16(diag.span.start(), source);
@@ -539,7 +540,7 @@ fn continuation_comment_actions(
         // file-wide "any W115" check would rewrite an unrelated
         // backslash-continued command on a different line as commented text.
         let has_overlapping_w115 = analysis.diagnostics.iter().any(|d| {
-            if d.code != "W115" {
+            if d.code != DiagCode::W115 {
                 return false;
             }
             let start = line_index.position_at_utf16(d.span.start(), source);
@@ -1618,7 +1619,7 @@ mod tests {
         // from the analyser's diagnostic emitters.
         let mut r = AnalysisResult::default();
         r.diagnostics.push(Diagnostic {
-            code: "W210".to_string(),
+            code: DiagCode::W210,
             message: "Variable read before set".to_string(),
             severity: tcl_compiler::analyser::Severity::Warning,
             span: Span::new(0, 5),
@@ -1643,7 +1644,7 @@ mod tests {
     fn no_action_when_range_outside_diagnostic() {
         let mut r = AnalysisResult::default();
         r.diagnostics.push(Diagnostic {
-            code: "W210".to_string(),
+            code: DiagCode::W210,
             message: "msg".to_string(),
             severity: tcl_compiler::analyser::Severity::Warning,
             span: Span::new(0, 5),
@@ -1668,7 +1669,7 @@ mod tests {
     fn empty_description_falls_back_to_diagnostic_message() {
         let mut r = AnalysisResult::default();
         r.diagnostics.push(Diagnostic {
-            code: "W210".to_string(),
+            code: DiagCode::W210,
             message: "Variable read before set".to_string(),
             severity: tcl_compiler::analyser::Severity::Warning,
             span: Span::new(0, 5),
@@ -1710,7 +1711,7 @@ mod tests {
     fn multiple_fixes_on_one_diagnostic_each_become_an_action() {
         let mut r = AnalysisResult::default();
         r.diagnostics.push(Diagnostic {
-            code: "Wxxx".to_string(),
+            code: DiagCode::W210,
             message: "msg".to_string(),
             severity: tcl_compiler::analyser::Severity::Warning,
             span: Span::new(0, 5),
@@ -1748,7 +1749,10 @@ mod tests {
         let mut a = Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
         assert!(
-            analysis.diagnostics.iter().any(|d| d.code == "W213"),
+            analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W213),
             "expected W213 from {:?}",
             analysis.diagnostics,
         );
@@ -1806,7 +1810,10 @@ mod tests {
         let analysis = a.analyse(src, "tcl8.6").clone();
         // Sanity-check the analyser actually emitted W302.
         assert!(
-            analysis.diagnostics.iter().any(|d| d.code == "W302"),
+            analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W302),
             "expected W302 from {:?}",
             analysis.diagnostics,
         );
@@ -1849,7 +1856,10 @@ mod tests {
         let mut a = Analyser::new();
         let analysis = a.analyse(src, "tcl9.0").clone();
         assert!(
-            analysis.diagnostics.iter().any(|d| d.code == "W120"),
+            analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W120),
             "expected W120 from {:?}",
             analysis.diagnostics,
         );
@@ -1958,7 +1968,7 @@ mod tests {
         assert!(
             checks
                 .iter()
-                .any(|d| d.code == "IRULE5002" && !d.fixes.is_empty()),
+                .any(|d| d.code == DiagCode::Irule5002 && !d.fixes.is_empty()),
             "expected an IRULE5002 check with a fix, got {checks:?}",
         );
 

@@ -16,6 +16,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
+use tcl_compiler::compiler_checks::DiagCode;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
 use tcl_lsp_core::bigip as core_bigip;
@@ -2085,7 +2086,7 @@ impl Backend {
                     let start = line_index.position_at_utf16(o.span.start(), &text);
                     let end = line_index.position_at_utf16(o.span.end(), &text);
                     serde_json::json!({
-                        "code": o.code,
+                        "code": o.code.as_str(),
                         "message": o.message,
                         "startLine": start.line,
                         "startCharacter": start.character.get(),
@@ -2285,7 +2286,7 @@ impl Backend {
                             f.span.start(),
                             f.span.end(),
                             f.new_text.clone(),
-                            d.code.clone(),
+                            d.code.to_string(),
                             f.description.clone(),
                         ));
                     }
@@ -5969,7 +5970,7 @@ fn lift_xc_diagnostics(
                 f5_xc::XcSeverity::Hint => DiagnosticSeverity::HINT,
                 f5_xc::XcSeverity::Info => DiagnosticSeverity::INFORMATION,
             }),
-            code: Some(NumberOrString::String(d.code)),
+            code: Some(NumberOrString::String(d.code.clone())),
             code_description: None,
             source: Some("tcl-lsp".to_string()),
             message: d.message,
@@ -6174,7 +6175,9 @@ fn lift_analyser_diagnostics(
                     tower_lsp_server::ls_types::DiagnosticSeverity::HINT
                 }
             }),
-            code: Some(tower_lsp_server::ls_types::NumberOrString::String(d.code)),
+            code: Some(tower_lsp_server::ls_types::NumberOrString::String(
+                d.code.to_string(),
+            )),
             code_description: None,
             source: Some("tcl-lsp".to_string()),
             message: d.message,
@@ -6289,12 +6292,13 @@ fn lift_compiler_diagnostics(
     // master switch and the profile + per-code `disabled_optimisations` set,
     // wherever it is emitted (some — e.g. the constant-branch `O100` — come
     // from `run_all_checks` rather than `optimise_with_dialect`).
-    let optimiser_suppressed = |code: &str| {
-        code.starts_with('O') && (!optimiser_enabled || disabled_optimisations.contains(code))
+    let optimiser_suppressed = |code: DiagCode| {
+        code.is_optimisation()
+            && (!optimiser_enabled || disabled_optimisations.contains(code.as_str()))
     };
     for d in &diags.checks {
         let d = d.clone();
-        if optimiser_suppressed(&d.code) {
+        if optimiser_suppressed(d.code) {
             continue;
         }
         // Per-check feature toggle (`tclLsp.diagnostics.<CODE> = false`).
@@ -6302,7 +6306,7 @@ fn lift_compiler_diagnostics(
         // compiler-checks (S1xx shimmer, T1xx / W2xx taint, IRULE1xxx-5xxx flow,
         // GVN, SCCP constant-branch) come through this separate lift, so the
         // toggle must be applied here too.
-        if disabled_diagnostics.contains(&d.code) {
+        if disabled_diagnostics.contains(d.code.as_str()) {
             continue;
         }
         out.push(tower_lsp_server::ls_types::Diagnostic {
@@ -6313,7 +6317,7 @@ fn lift_compiler_diagnostics(
                 CheckSeverity::Info => DiagnosticSeverity::INFORMATION,
                 CheckSeverity::Hint | CheckSeverity::Suggestion => DiagnosticSeverity::HINT,
             }),
-            code: Some(NumberOrString::String(d.code)),
+            code: Some(NumberOrString::String(d.code.to_string())),
             code_description: None,
             source: Some("tcl-lsp".to_string()),
             message: d.message,
@@ -6353,7 +6357,7 @@ fn lift_compiler_diagnostics(
         out.push(tower_lsp_server::ls_types::Diagnostic {
             range: lift_span(text, &line_index, o.span),
             severity: Some(DiagnosticSeverity::HINT),
-            code: Some(NumberOrString::String(o.code)),
+            code: Some(NumberOrString::String(o.code.to_string())),
             code_description: None,
             source: Some("tcl-lsp".to_string()),
             message: o.message,
@@ -6864,7 +6868,10 @@ mod tests {
         let mut a = Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
         assert!(
-            analysis.diagnostics.iter().any(|d| d.code == "W242"),
+            analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W242),
             "analyser should still emit W242"
         );
         let lifted = lift_analyser_diagnostics(src, &analysis.diagnostics);
@@ -7288,13 +7295,13 @@ mod tests {
         // `Off` mode suppresses W108 entirely.
         let mut a = Backend::configured_analyser(HashSet::new(), NonAsciiMode::Off);
         let r = a.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
-        assert!(!r.diagnostics.iter().any(|d| d.code == "W108"));
+        assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W108));
         // A disabled code is filtered from the analyser's output.
         let mut disabled = HashSet::new();
         disabled.insert("W108".to_string());
         let mut b = Backend::configured_analyser(disabled, NonAsciiMode::Strict);
         let r = b.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
-        assert!(!r.diagnostics.iter().any(|d| d.code == "W108"));
+        assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W108));
     }
 
     #[test]

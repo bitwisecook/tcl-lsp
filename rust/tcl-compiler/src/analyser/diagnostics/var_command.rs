@@ -12,6 +12,7 @@
 //! command heads that fold to a finite known-command set (W123 suppression).
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -596,7 +597,7 @@ impl Analyser {
                         let message =
                             format!("Unknown method '{method_name}' on class '{cls_display}'");
                         self.result.diagnostics.push(super::types::Diagnostic {
-                            code: "W308".to_string(),
+                            code: DiagCode::W308,
                             span: site.cmd_span,
                             message,
                             severity: Severity::Warning,
@@ -685,7 +686,7 @@ impl Analyser {
                 continue;
             }
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W307".to_string(),
+                code: DiagCode::W307,
                 span: site.cmd_span,
                 message: "Non-literal command name — cannot statically analyze".to_string(),
                 severity: Severity::Warning,
@@ -738,7 +739,7 @@ impl Analyser {
                 });
                 if returns_literal {
                     self.result.diagnostics.push(super::types::Diagnostic {
-                        code: "W307".to_string(),
+                        code: DiagCode::W307,
                         span: site.cmd_span,
                         message: "Non-literal command name — cannot statically analyze".to_string(),
                         severity: Severity::Warning,
@@ -807,7 +808,7 @@ impl Analyser {
                     );
                     if !method_ok {
                         self.result.diagnostics.push(super::types::Diagnostic {
-                            code: "W308".to_string(),
+                            code: DiagCode::W308,
                             span: site.cmd_span,
                             message: format!("Unknown method '{method}' on class '{class_name}'"),
                             severity: Severity::Warning,
@@ -821,7 +822,7 @@ impl Analyser {
             // Type is unknown — emit W307 (only the emit-half
             // for the residual unknown-type case).
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: "W307".to_string(),
+                code: DiagCode::W307,
                 span: site.cmd_span,
                 message: "Non-literal command name — cannot statically analyze".to_string(),
                 severity: Severity::Warning,
@@ -922,7 +923,7 @@ impl Analyser {
             .result
             .diagnostics
             .iter()
-            .any(|d| d.code == "W123" && d.message.contains('$'));
+            .any(|d| d.code == DiagCode::W123 && d.message.contains('$'));
         if !has_interpolated {
             return;
         }
@@ -975,7 +976,7 @@ impl Analyser {
         let drained = std::mem::take(&mut self.result.diagnostics);
         let mut kept: Vec<super::types::Diagnostic> = Vec::with_capacity(drained.len());
         for d in drained {
-            if d.code != "W123" {
+            if d.code != DiagCode::W123 {
                 kept.push(d);
                 continue;
             }

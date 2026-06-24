@@ -399,10 +399,10 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
     let mut out: Vec<Value> = Vec::new();
     for w in find_shimmer_warnings_for_cu(&result.unit, registry) {
         out.push(json!({
-            "code": w.code,
+            "code": w.code.as_str(),
             "message": w.message,
             "range": range_dict(w.span, li, source),
-            "severity": shimmer_severity(&w.code),
+            "severity": shimmer_severity(w.code.as_str()),
             "variable": w.variable,
             "fromType": type_name(w.from_type),
             "toType": type_name(w.to_type),
@@ -412,10 +412,10 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
     }
     for w in find_thunking_warnings_for_cu(&result.unit) {
         out.push(json!({
-            "code": w.code,
+            "code": w.code.as_str(),
             "message": w.message,
             "range": range_dict(w.span, li, source),
-            "severity": shimmer_severity(&w.code),
+            "severity": shimmer_severity(w.code.as_str()),
             "variable": w.variable,
             "typeA": type_name(w.type_a),
             "typeB": type_name(w.type_b),
@@ -425,10 +425,10 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
     // value-shape shape as the S100/S101 family.
     for w in find_byte_array_warnings_for_cu(&result.unit, registry) {
         out.push(json!({
-            "code": w.code,
+            "code": w.code.as_str(),
             "message": w.message,
             "range": range_dict(w.span, li, source),
-            "severity": shimmer_severity(&w.code),
+            "severity": shimmer_severity(w.code.as_str()),
             "variable": w.variable,
             "fromType": type_name(w.from_type),
             "toType": type_name(w.to_type),
@@ -477,7 +477,7 @@ pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
         .iter()
         .filter(|w| {
             seen.insert((
-                w.code.clone(),
+                w.code,
                 w.span.start(),
                 w.span.end(),
                 w.first_span.start(),
@@ -486,7 +486,7 @@ pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
         })
         .map(|w| {
             json!({
-                "code": w.code,
+                "code": w.code.as_str(),
                 "message": w.message,
                 "expression": w.expression_text,
                 "range": range_dict(w.span, li, source),
@@ -518,10 +518,10 @@ pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) ->
         .iter()
         .map(|w| {
             json!({
-                "code": w.code,
+                "code": w.code.as_str(),
                 "message": w.message,
                 "range": range_dict(w.span, li, source),
-                "severity": taint_severity(&w.code),
+                "severity": taint_severity(w.code.as_str()),
                 "variable": w.variable,
                 "sinkCommand": w.sink_command,
             })
@@ -541,7 +541,7 @@ pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: 
         .iter()
         .map(|o| {
             json!({
-                "code": o.code,
+                "code": o.code.as_str(),
                 "message": o.message,
                 "range": range_dict(o.span, li, source),
                 "replacement": o.replacement,
@@ -567,7 +567,7 @@ pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, sourc
                 .iter()
                 .map(|o| {
                     json!({
-                        "code": o.code,
+                        "code": o.code.as_str(),
                         "message": o.message,
                         "range": range_dict(o.span, li, source),
                         "replacement": o.replacement,
@@ -978,7 +978,7 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
         .iter()
         .map(|w| {
             json!({
-                "code": w.code,
+                "code": w.code.as_str(),
                 "message": w.message,
                 "range": range_dict(w.span, li, source),
                 "severity": "warning",
@@ -1052,7 +1052,7 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
             .iter()
             .map(|f| {
                 json!({
-                    "code": f.code,
+                    "code": f.code.as_str(),
                     "command": f.command,
                     "indexVar": f.index_var,
                     "lo": f.index_interval.lo,
@@ -1601,7 +1601,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
     }
     // Shimmer + thunking.
     for w in find_shimmer_warnings_for_cu(&result.unit, registry) {
-        let sev = shimmer_severity(&w.code);
+        let sev = shimmer_severity(w.code.as_str());
         anns.push(Ann {
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
@@ -1611,7 +1611,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
         });
     }
     for w in find_thunking_warnings_for_cu(&result.unit) {
-        let sev = shimmer_severity(&w.code);
+        let sev = shimmer_severity(w.code.as_str());
         anns.push(Ann {
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
@@ -1621,7 +1621,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
         });
     }
     for w in find_byte_array_warnings_for_cu(&result.unit, registry) {
-        let sev = shimmer_severity(&w.code);
+        let sev = shimmer_severity(w.code.as_str());
         anns.push(Ann {
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
@@ -1658,7 +1658,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
             kind: "taint",
-            severity: taint_severity(&w.code),
+            severity: taint_severity(w.code.as_str()),
             priority: 0,
         });
     }

@@ -24,9 +24,7 @@ fn main() {
     let reg = db.registry(&dialect);
     let fresh = compiler_check_diagnostics_uncached(&src, &reg, &dialect);
 
-    let ck = |d: &tcl_compiler::compiler_checks::Diagnostic| {
-        (d.span.start(), d.span.end(), d.code.clone())
-    };
+    let ck = |d: &tcl_compiler::compiler_checks::Diagnostic| (d.span.start(), d.span.end(), d.code);
     let ms: BTreeSet<_> = memo.checks.iter().map(ck).collect();
     let fs: BTreeSet<_> = fresh.checks.iter().map(ck).collect();
     println!(
@@ -41,8 +39,7 @@ fn main() {
         println!("  fresh-only {k:?}");
     }
 
-    let ok =
-        |o: &tcl_compiler::optimiser::Optimisation| (o.span.start(), o.span.end(), o.code.clone());
+    let ok = |o: &tcl_compiler::optimiser::Optimisation| (o.span.start(), o.span.end(), o.code);
     let mo: BTreeSet<_> = memo.optimisations.iter().map(ok).collect();
     let fo: BTreeSet<_> = fresh.optimisations.iter().map(ok).collect();
     println!(

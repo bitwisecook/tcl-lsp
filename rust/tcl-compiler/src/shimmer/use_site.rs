@@ -16,6 +16,7 @@
 //! - [`Statement::Incr`] — always reads its variable as `Int`.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::{CommandRegistry, TclType};
@@ -273,11 +274,10 @@ fn check_invocation(
         // loop converts once and is cached → S100, not the per-iteration
         // S101.
         let code = if loop_facts.effective_in_loop(&var, in_loop) {
-            "S101"
+            DiagCode::S101
         } else {
-            "S100"
-        }
-        .to_owned();
+            DiagCode::S100
+        };
         out.push(ShimmerWarning {
             span,
             variable: var.clone(),
@@ -285,7 +285,7 @@ fn check_invocation(
             to_type: expected,
             command: command.to_owned(),
             in_loop,
-            code: code.clone(),
+            code,
             message: format!(
                 "{code}: variable '{var}' has {from} intrep \
                  but '{cmd}' expects {to} at arg {i}",
@@ -436,7 +436,11 @@ fn check_incr_var(
         .get(&(sym, ver))
         .map(|&sp| vec![(sp, "value defined here".to_owned())])
         .unwrap_or_default();
-    let code = if in_loop { "S101" } else { "S100" }.to_owned();
+    let code = if in_loop {
+        DiagCode::S101
+    } else {
+        DiagCode::S100
+    };
     out.push(ShimmerWarning {
         span,
         variable: var.to_owned(),
@@ -444,7 +448,7 @@ fn check_incr_var(
         to_type: TclType::Int,
         command: "incr".to_owned(),
         in_loop,
-        code: code.clone(),
+        code,
         message: format!(
             "{code}: variable '{var}' has {from} intrep but 'incr' expects int",
             from = type_name(current),
@@ -574,7 +578,7 @@ mod tests {
             "expected lindex S101 for foreach var, got: {warnings:?}"
         );
         let w = w.unwrap();
-        assert_eq!(w.code, "S101");
+        assert_eq!(w.code, DiagCode::S101);
         assert_eq!(w.from_type, TclType::String);
         assert_eq!(w.to_type, TclType::List);
     }
@@ -604,7 +608,7 @@ mod tests {
         );
         assert_eq!(
             w.unwrap().code,
-            "S100",
+            DiagCode::S100,
             "loop-invariant single-target use is one-time (S100): {warnings:?}"
         );
     }

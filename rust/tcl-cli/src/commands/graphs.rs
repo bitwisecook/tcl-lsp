@@ -915,7 +915,13 @@ fn collect_taint_warnings(
         registry,
         Some(dialect),
     ) {
-        push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+        push(
+            w.code.as_str(),
+            w.span,
+            &w.message,
+            &w.variable,
+            &w.sink_command,
+        );
     }
 
     // 2 + 3. Setter-constraint + uri-split are iRules-only. The helpers
@@ -930,7 +936,13 @@ fn collect_taint_warnings(
             &fu.sccp.executable_blocks,
             Some(dialect),
         ) {
-            push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+            push(
+                w.code.as_str(),
+                w.span,
+                &w.message,
+                &w.variable,
+                &w.sink_command,
+            );
         }
         for w in find_uri_split_suggestions(
             &fu.cfg,
@@ -940,7 +952,13 @@ fn collect_taint_warnings(
             registry,
             Some(dialect),
         ) {
-            push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+            push(
+                w.code.as_str(),
+                w.span,
+                &w.message,
+                &w.variable,
+                &w.sink_command,
+            );
         }
     }
 
@@ -952,7 +970,7 @@ fn collect_taint_warnings(
         taints,
         &fu.sccp.executable_blocks,
     ) {
-        push(&w.code, w.span, &w.message, &w.variable, "set");
+        push(w.code.as_str(), w.span, &w.message, &w.variable, "set");
     }
 
     // 5. Destructive-file (`W313`).
@@ -963,7 +981,13 @@ fn collect_taint_warnings(
         &fu.sccp.executable_blocks,
         registry,
     ) {
-        push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+        push(
+            w.code.as_str(),
+            w.span,
+            &w.message,
+            &w.variable,
+            &w.sink_command,
+        );
     }
 }
 

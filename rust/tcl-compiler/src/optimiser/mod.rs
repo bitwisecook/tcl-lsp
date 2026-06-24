@@ -51,6 +51,7 @@ pub use manager::{
 };
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 
@@ -66,7 +67,7 @@ use tcl_registry::CommandRegistry;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Optimisation {
     /// Diagnostic code (`"O100"` … `"O127"`).
-    pub code: String,
+    pub code: DiagCode,
     /// Human-readable message.
     pub message: String,
     /// Source span the rewrite targets.
@@ -85,13 +86,13 @@ impl Optimisation {
     /// `hint_only` flag.
     #[must_use]
     pub fn new(
-        code: impl Into<String>,
+        code: DiagCode,
         message: impl Into<String>,
         span: Span,
         replacement: impl Into<String>,
     ) -> Self {
         Self {
-            code: code.into(),
+            code,
             message: message.into(),
             span,
             replacement: replacement.into(),
@@ -106,19 +107,29 @@ impl Optimisation {
 /// Higher priorities are displayed first in editor quick-fix
 /// menus. Unknown codes default to `0`.
 #[must_use]
-pub fn opt_priority(code: &str) -> u8 {
+pub fn opt_priority(code: DiagCode) -> u8 {
     match code {
-        "O126" | "O124" => 10,
-        "O112" => 9,
-        "O109" => 8,
-        "O108" => 7,
-        "O107" | "O122" => 6,
-        "O121" | "O123" | "O125" | "O119" | "O120" | "O118" | "O117" | "O116" | "O115" | "O114"
-        | "O113" | "O110" => 5,
-        "O104" => 4,
-        "O103" => 3,
-        "O102" => 2,
-        "O101" => 1,
+        DiagCode::O126 | DiagCode::O124 => 10,
+        DiagCode::O112 => 9,
+        DiagCode::O109 => 8,
+        DiagCode::O108 => 7,
+        DiagCode::O107 | DiagCode::O122 => 6,
+        DiagCode::O121
+        | DiagCode::O123
+        | DiagCode::O125
+        | DiagCode::O119
+        | DiagCode::O120
+        | DiagCode::O118
+        | DiagCode::O117
+        | DiagCode::O116
+        | DiagCode::O115
+        | DiagCode::O114
+        | DiagCode::O113
+        | DiagCode::O110 => 5,
+        DiagCode::O104 => 4,
+        DiagCode::O103 => 3,
+        DiagCode::O102 => 2,
+        DiagCode::O101 => 1,
         _ => 0,
     }
 }
@@ -423,25 +434,25 @@ mod tests {
 
     #[test]
     fn optimisation_new_defaults() {
-        let o = Optimisation::new("O105", "message", Span::new(0, 5), "replacement");
-        assert_eq!(o.code, "O105");
+        let o = Optimisation::new(DiagCode::O105, "message", Span::new(0, 5), "replacement");
+        assert_eq!(o.code, DiagCode::O105);
         assert!(o.group.is_none());
         assert!(!o.hint_only);
     }
 
     #[test]
     fn opt_priority_known_and_unknown() {
-        assert_eq!(opt_priority("O126"), 10);
-        assert_eq!(opt_priority("O112"), 9);
-        assert_eq!(opt_priority("O104"), 4);
-        assert_eq!(opt_priority("unknown"), 0);
+        assert_eq!(opt_priority(DiagCode::O126), 10);
+        assert_eq!(opt_priority(DiagCode::O112), 9);
+        assert_eq!(opt_priority(DiagCode::O104), 4);
+        assert_eq!(opt_priority(DiagCode::O130), 0);
     }
 
     #[test]
     fn pass_context_records_diagnostics() {
         let interproc = InterproceduralAnalysis::default();
         let mut ctx = PassContext::new("set x 1", interproc);
-        ctx.report(Optimisation::new("O105", "m", Span::new(0, 1), "x"));
+        ctx.report(Optimisation::new(DiagCode::O105, "m", Span::new(0, 1), "x"));
         assert_eq!(ctx.optimisations.len(), 1);
     }
 

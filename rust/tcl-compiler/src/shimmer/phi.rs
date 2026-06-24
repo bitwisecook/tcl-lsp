@@ -12,6 +12,7 @@
 //! "related" notes so the user can see both assignment sites.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_registry::TclType;
 
@@ -136,7 +137,11 @@ pub(crate) fn find_phi_shimmers(
 
             // A merge inside a loop body re-shimmers every iteration (S101);
             // an out-of-loop branch merge is a one-time conversion (S100).
-            let code = if in_loop { "S101" } else { "S100" };
+            let code = if in_loop {
+                DiagCode::S101
+            } else {
+                DiagCode::S100
+            };
             let var = ssa.var_name(phi.name);
             out.push(ShimmerWarning {
                 span,
@@ -145,7 +150,7 @@ pub(crate) fn find_phi_shimmers(
                 to_type: to,
                 command: "<phi>".to_owned(),
                 in_loop,
-                code: code.to_owned(),
+                code,
                 message: format!(
                     "{code}: '{var}' merges {from} and {to} at control-flow join",
                     from = type_name(from),
@@ -237,7 +242,7 @@ mod tests {
             "expected a phi shimmer for Int/String merge of 'x', got: {warnings:?}"
         );
         let merge = merge.unwrap();
-        assert_eq!(merge.code, "S100", "out-of-loop merge must be S100");
+        assert_eq!(merge.code, DiagCode::S100, "out-of-loop merge must be S100");
         assert!(!merge.in_loop);
     }
 }

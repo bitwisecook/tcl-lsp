@@ -66,6 +66,7 @@
 //! [`Traits::EVALUATES_CODE`] flags inside `find_taint_warnings`.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use bitflags::bitflags;
 use rustc_hash::FxHashSet;
@@ -261,7 +262,7 @@ pub struct TaintWarning {
     /// Command that acted as the sink.
     pub sink_command: String,
     /// Diagnostic code (`"T100"` family).
-    pub code: String,
+    pub code: DiagCode,
     /// Formatted message.
     pub message: String,
     /// Optional replacement text for a code-action fix. Currently
@@ -1109,20 +1110,20 @@ fn classify_sink(
     command: &str,
     args: &[String],
     dialect: Option<&str>,
-) -> Option<(&'static str, String)> {
+) -> Option<(DiagCode, String)> {
     if let Some(spec) = registry.get(command) {
         // T100: dangerous code-execution sinks.
         if spec.traits.contains(Traits::EVALUATES_CODE) {
-            return Some(("T100", command.to_owned()));
+            return Some((DiagCode::T100, command.to_owned()));
         }
         // expr, subst, exec also carry TAINT_SINK but not EVALUATES_CODE.
         if spec.traits.contains(Traits::TAINT_SINK) {
             // puts → T101 (output, not code execution).
             if command == "puts" {
-                return Some(("T101", "puts".to_owned()));
+                return Some((DiagCode::T101, "puts".to_owned()));
             }
             // Everything else with TAINT_SINK is T100.
-            return Some(("T100", command.to_owned()));
+            return Some((DiagCode::T100, command.to_owned()));
         }
     }
 
@@ -1153,19 +1154,19 @@ fn classify_sink(
 /// TODO: once the Rust command registry carries `taint_hints` /
 /// `taint_output_sink_subcommands` metadata, replace the hardcoded
 /// command list with registry lookups.
-fn classify_irules_sink(command: &str, args: &[String]) -> Option<(&'static str, String)> {
+fn classify_irules_sink(command: &str, args: &[String]) -> Option<(DiagCode, String)> {
     match command {
-        "HTTP::respond" => Some(("IRULE3001", command.to_owned())),
+        "HTTP::respond" => Some((DiagCode::Irule3001, command.to_owned())),
         "HTTP::header" | "HTTP::cookie" => {
             let sub = args.first().map(String::as_str);
             if matches!(sub, Some("insert" | "replace")) {
-                Some(("IRULE3002", format!("{command} {}", sub.unwrap())))
+                Some((DiagCode::Irule3002, format!("{command} {}", sub.unwrap())))
             } else {
                 None
             }
         }
-        "HTTP::redirect" => Some(("IRULE3004", command.to_owned())),
-        "log" => Some(("IRULE3003", command.to_owned())),
+        "HTTP::redirect" => Some((DiagCode::Irule3004, command.to_owned())),
+        "log" => Some((DiagCode::Irule3003, command.to_owned())),
         _ => None,
     }
 }
@@ -1183,18 +1184,18 @@ fn classify_network_interp_sinks(
     registry: &CommandRegistry,
     command: &str,
     args: &[String],
-) -> Vec<(&'static str, String)> {
+) -> Vec<(DiagCode, String)> {
     let mut out = Vec::new();
     let Some(spec) = registry.get(command) else {
         return out;
     };
     if spec.taint_network_sink_args.is_some() {
-        out.push(("T104", command.to_owned()));
+        out.push((DiagCode::T104, command.to_owned()));
     }
     if let Some(sub) = args.first()
         && spec.taint_interp_eval_subcommands.contains(&sub.as_str())
     {
-        out.push(("T105", format!("{command} {sub}")));
+        out.push((DiagCode::T105, format!("{command} {sub}")));
     }
     out
 }
@@ -1309,7 +1310,7 @@ pub fn find_destructive_file_warnings(
                     span: *span,
                     variable: name.clone(),
                     sink_command: format!("file {sub}"),
-                    code: "W313".to_owned(),
+                    code: DiagCode::W313,
                     message,
                     replacement: None,
                 });
@@ -1599,7 +1600,7 @@ fn emit_double_encode_warnings(
                 span,
                 variable: name.to_owned(),
                 sink_command: command.to_owned(),
-                code: "T106".to_owned(),
+                code: DiagCode::T106,
                 message: format!(
                     "Variable ${name} is already {label}; passing through {command} \
                      double-encodes the value"
@@ -1619,14 +1620,14 @@ fn emit_double_encode_warnings(
 /// `HEADER_TOKEN_SAFE` colour is an additional mitigation. That extra
 /// check is handled at the call site because it needs the per-use arg
 /// index; the function signature here is deliberately kept narrow.
-fn irules_sink_suppressed(code: &str, lat: TaintLattice) -> bool {
+fn irules_sink_suppressed(code: DiagCode, lat: TaintLattice) -> bool {
     if !lat.is_tainted() {
         return false;
     }
     match code {
-        "IRULE3001" => lat.colours.intersects(TaintColour::HTML_ESCAPED),
-        "IRULE3002" | "IRULE3003" => lat.colours.intersects(TaintColour::CRLF_SAFE),
-        "IRULE3004" => lat.colours.intersects(TaintColour::REDIRECT_SAFE),
+        DiagCode::Irule3001 => lat.colours.intersects(TaintColour::HTML_ESCAPED),
+        DiagCode::Irule3002 | DiagCode::Irule3003 => lat.colours.intersects(TaintColour::CRLF_SAFE),
+        DiagCode::Irule3004 => lat.colours.intersects(TaintColour::REDIRECT_SAFE),
         _ => false,
     }
 }
@@ -1937,7 +1938,7 @@ fn emit_regexp_pattern_warnings(
             span,
             variable: var.clone(),
             sink_command: command.to_owned(),
-            code: "T103".to_owned(),
+            code: DiagCode::T103,
             message: format!(
                 "Tainted variable ${var} in regexp pattern position ({command}); \
                  risk of regex injection or ReDoS"
@@ -1969,7 +1970,7 @@ fn emit_expr_warnings(
                 span,
                 variable: name.to_owned(),
                 sink_command: "expr".to_owned(),
-                code: "T100".to_owned(),
+                code: DiagCode::T100,
                 message: format!(
                     "Tainted variable ${name} flows into expr operand; \
                      numeric coercion may misinterpret value \
@@ -2034,7 +2035,7 @@ fn positional_arg_strings(spec: &tcl_registry::CommandSpec, args: &[String]) -> 
 /// the sink.
 fn sink_var_position_safe(
     registry: &CommandRegistry,
-    code: &str,
+    code: DiagCode,
     command: &str,
     args: &[String],
     name: &str,
@@ -2042,13 +2043,13 @@ fn sink_var_position_safe(
     match code {
         // `puts ?-nonewline? ?channelId? string` — only the trailing
         // content arg is an output sink; a tainted channel id is a handle.
-        "T101" if command == "puts" => args
+        DiagCode::T101 if command == "puts" => args
             .last()
             .is_none_or(|content| !arg_var_names(content).contains(name)),
         // T104 SSRF — only the network-address positional slots named by
         // `taint_network_sink_args`. `Some(&[])` (positions unspecified)
         // imposes no filter.
-        "T104" => {
+        DiagCode::T104 => {
             let Some(spec) = registry.get(command) else {
                 return false;
             };
@@ -2116,7 +2117,7 @@ fn emit_sink_warnings(
     uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
     span: Span,
-    code: &str,
+    code: DiagCode,
     sink_label: &str,
     call: &SinkCall<'_>,
     warnings: &mut Vec<TaintWarning>,
@@ -2139,7 +2140,9 @@ fn emit_sink_warnings(
         if irules_sink_suppressed(code, t) {
             continue;
         }
-        if code == "IRULE3002" && irule3002_name_position_safe(call.command, call.args, name, t) {
+        if code == DiagCode::Irule3002
+            && irule3002_name_position_safe(call.command, call.args, name, t)
+        {
             continue;
         }
         // Position-aware sink filter: a tainted variable only trips the
@@ -2153,7 +2156,7 @@ fn emit_sink_warnings(
         // so the tainted `$v` is a quoted argument, not the command word —
         // no code-injection vector LIST_CANONICAL
         // head-literal filter).
-        if matches!(code, "T100" | "T105")
+        if matches!(code, DiagCode::T100 | DiagCode::T105)
             && list_wrapped_arg_command_is_literal(call.registry, call.args, name)
         {
             continue;
@@ -2161,45 +2164,45 @@ fn emit_sink_warnings(
         // T104 / T105 mitigations: a
         // validated network address (IP / port / FQDN colour) clears
         // T104; a canonical list (`LIST_CANONICAL`) clears T105.
-        if code == "T104"
+        if code == DiagCode::T104
             && t.colours
                 .intersects(TaintColour::IP_ADDRESS | TaintColour::PORT | TaintColour::FQDN)
         {
             continue;
         }
-        if code == "T105" && t.colours.intersects(TaintColour::LIST_CANONICAL) {
+        if code == DiagCode::T105 && t.colours.intersects(TaintColour::LIST_CANONICAL) {
             continue;
         }
         let message = match code {
-            "T100" => format!(
+            DiagCode::T100 => format!(
                 "Tainted variable ${name} flows into {sink_label}; \
                  possible code injection"
             ),
-            "T101" => format!(
+            DiagCode::T101 => format!(
                 "Tainted variable ${name} flows into {sink_label}; \
                  output may contain injected content"
             ),
-            "IRULE3001" => format!(
+            DiagCode::Irule3001 => format!(
                 "Tainted variable ${name} in HTTP response body ({sink_label}); \
                  risk of XSS or content injection"
             ),
-            "IRULE3002" => format!(
+            DiagCode::Irule3002 => format!(
                 "Tainted variable ${name} in HTTP header/cookie value ({sink_label}); \
                  risk of header injection"
             ),
-            "IRULE3003" => format!(
+            DiagCode::Irule3003 => format!(
                 "Tainted variable ${name} in log output ({sink_label}); \
                  risk of log injection or log forging"
             ),
-            "IRULE3004" => format!(
+            DiagCode::Irule3004 => format!(
                 "Tainted variable ${name} in redirect URL ({sink_label}); \
                  risk of open redirect"
             ),
-            "T104" => format!(
+            DiagCode::T104 => format!(
                 "Tainted variable ${name} in network address argument of {sink_label}; \
                  risk of SSRF (server-side request forgery)"
             ),
-            "T105" => format!(
+            DiagCode::T105 => format!(
                 "Tainted variable ${name} in {sink_label} script argument; \
                  risk of cross-interpreter code injection"
             ),
@@ -2209,7 +2212,7 @@ fn emit_sink_warnings(
             span,
             variable: name.to_owned(),
             sink_command: sink_label.to_owned(),
-            code: code.to_owned(),
+            code,
             message,
             replacement: None,
         });
@@ -2351,7 +2354,7 @@ fn emit_option_injection(
                 span,
                 variable: var.clone(),
                 sink_command: cmd_label.clone(),
-                code: "T102".to_owned(),
+                code: DiagCode::T102,
                 message: format!(
                     "Tainted variable ${var} in option position of '{cmd_label}' \
                      without '--' terminator; risk of option injection"
@@ -2423,7 +2426,7 @@ pub fn find_setter_constraint_warnings(
                     span,
                     variable,
                     sink_command: command.clone(),
-                    code: constraint.code.to_owned(),
+                    code: constraint.code,
                     message: constraint.message.to_owned(),
                     replacement: None,
                 };
@@ -2679,7 +2682,7 @@ mod tests {
         assert!(
             warnings
                 .iter()
-                .any(|w| w.code == "T100" && w.variable == "x"),
+                .any(|w| w.code == DiagCode::T100 && w.variable == "x"),
             "expected T100 for tainted $x passed to eval, got {warnings:?}"
         );
     }
@@ -2771,7 +2774,8 @@ mod tests {
         let sink = call_stmt("socket", &["$x", "80"]);
         let w = warnings_for_tainted_sink(sink, &[("x", 1)]);
         assert!(
-            w.iter().any(|w| w.code == "T104" && w.variable == "x"),
+            w.iter()
+                .any(|w| w.code == DiagCode::T104 && w.variable == "x"),
             "expected T104 for tainted socket address; got {w:?}"
         );
     }
@@ -2781,7 +2785,9 @@ mod tests {
         // `interp eval $child $x` with tainted `$x` → cross-interp (T105).
         let sink = call_stmt("interp", &["eval", "$child", "$x"]);
         let w = warnings_for_tainted_sink(sink, &[("x", 1)]);
-        let t105 = w.iter().find(|w| w.code == "T105" && w.variable == "x");
+        let t105 = w
+            .iter()
+            .find(|w| w.code == DiagCode::T105 && w.variable == "x");
         assert!(t105.is_some(), "expected T105 for interp eval; got {w:?}");
         assert_eq!(t105.unwrap().sink_command, "interp eval");
     }
@@ -2880,7 +2886,7 @@ mod tests {
         );
         let t106 = warnings
             .iter()
-            .find(|w| w.code == "T106" && w.variable == "y");
+            .find(|w| w.code == DiagCode::T106 && w.variable == "y");
         assert!(
             t106.is_some(),
             "expected T106 double-encode; got {warnings:?}"
@@ -2957,7 +2963,7 @@ mod tests {
                 defs: HashMap::new(),
             }]
         });
-        let d = w.iter().find(|w| w.code == "W313").expect("W313");
+        let d = w.iter().find(|w| w.code == DiagCode::W313).expect("W313");
         assert_eq!(d.variable, "p");
         assert!(
             d.message
@@ -2995,7 +3001,7 @@ mod tests {
             };
             vec![s0, s1]
         });
-        let d = w.iter().find(|w| w.code == "W313").expect("W313");
+        let d = w.iter().find(|w| w.code == DiagCode::W313).expect("W313");
         assert!(
             d.message.contains("file delete with normalised path ($p)"),
             "{}",
@@ -3049,11 +3055,11 @@ mod tests {
         let reg = CommandRegistry::build_default();
         assert_eq!(
             classify_network_interp_sinks(&reg, "socket", &["host".into(), "80".into()]),
-            vec![("T104", "socket".to_owned())]
+            vec![(DiagCode::T104, "socket".to_owned())]
         );
         assert_eq!(
             classify_network_interp_sinks(&reg, "interp", &["eval".into(), "$c".into()]),
-            vec![("T105", "interp eval".to_owned())]
+            vec![(DiagCode::T105, "interp eval".to_owned())]
         );
         // A non-eval interp subcommand and a plain command map to nothing.
         assert!(classify_network_interp_sinks(&reg, "interp", &["share".into()]).is_empty());
@@ -3202,7 +3208,7 @@ mod tests {
         assert!(
             warnings
                 .iter()
-                .any(|w| w.code == "T102" && w.variable == "pattern"),
+                .any(|w| w.code == DiagCode::T102 && w.variable == "pattern"),
             "expected T102 for tainted $pattern passed to regexp, got {warnings:?}"
         );
     }
@@ -3292,7 +3298,10 @@ mod tests {
             None,
         );
 
-        let t102: Vec<_> = warnings.iter().filter(|w| w.code == "T102").collect();
+        let t102: Vec<_> = warnings
+            .iter()
+            .filter(|w| w.code == DiagCode::T102)
+            .collect();
         assert!(
             t102.is_empty(),
             "expected no T102 when '--' terminator present, got {t102:?}"
@@ -3466,7 +3475,7 @@ mod tests {
     #[test]
     fn classify_irules_sink_http_respond() {
         let hit = classify_irules_sink("HTTP::respond", &[]);
-        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some("IRULE3001"));
+        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3001));
     }
 
     #[test]
@@ -3475,7 +3484,7 @@ mod tests {
             "HTTP::header",
             &["insert".to_owned(), "X-Foo".to_owned(), "bar".to_owned()],
         );
-        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some("IRULE3002"));
+        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3002));
         assert_eq!(hit.as_ref().unwrap().1, "HTTP::header insert");
     }
 
@@ -3485,7 +3494,7 @@ mod tests {
             "HTTP::cookie",
             &["replace".to_owned(), "sid".to_owned(), "val".to_owned()],
         );
-        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some("IRULE3002"));
+        assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3002));
         assert_eq!(hit.as_ref().unwrap().1, "HTTP::cookie replace");
     }
 
@@ -3501,13 +3510,13 @@ mod tests {
             classify_irules_sink("log", &["local0.info".to_owned(), "x".to_owned()])
                 .as_ref()
                 .map(|(c, _)| *c),
-            Some("IRULE3003"),
+            Some(DiagCode::Irule3003),
         );
         assert_eq!(
             classify_irules_sink("HTTP::redirect", &["https://evil".to_owned()])
                 .as_ref()
                 .map(|(c, _)| *c),
-            Some("IRULE3004"),
+            Some(DiagCode::Irule3004),
         );
     }
 
@@ -3522,7 +3531,7 @@ mod tests {
     fn irule3001_fires_on_tainted_respond_body() {
         let w = irules_warnings_for("set u [HTTP::uri]\nHTTP::respond 200 content $u");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3001"),
+            w.iter().any(|x| x.code == DiagCode::Irule3001),
             "expected IRULE3001, got {w:?}"
         );
     }
@@ -3531,7 +3540,7 @@ mod tests {
     fn irule3001_no_warning_for_literal_body() {
         let w = irules_warnings_for("HTTP::respond 200 content \"hello\"");
         assert!(
-            w.iter().all(|x| x.code != "IRULE3001"),
+            w.iter().all(|x| x.code != DiagCode::Irule3001),
             "expected no IRULE3001 on literal body, got {w:?}"
         );
     }
@@ -3540,7 +3549,7 @@ mod tests {
     fn irule3002_fires_on_tainted_header_value() {
         let w = irules_warnings_for("set v [HTTP::header X-Src]\nHTTP::header insert X-Echo $v");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3002"),
+            w.iter().any(|x| x.code == DiagCode::Irule3002),
             "expected IRULE3002, got {w:?}"
         );
     }
@@ -3555,7 +3564,7 @@ mod tests {
             "set v [HTTP::header X-Src]\nset _ [HTTP::header insert X-Echo $v]",
         );
         assert!(
-            w.iter().any(|x| x.code == "IRULE3002"),
+            w.iter().any(|x| x.code == DiagCode::Irule3002),
             "expected IRULE3002 inside command-sub sink, got {w:?}"
         );
     }
@@ -3564,7 +3573,7 @@ mod tests {
     fn irule3002_skipped_on_remove_subcommand() {
         let w = irules_warnings_for("set v [HTTP::header X-Src]\nHTTP::header remove $v");
         assert!(
-            w.iter().all(|x| x.code != "IRULE3002"),
+            w.iter().all(|x| x.code != DiagCode::Irule3002),
             "remove subcommand must not fire IRULE3002, got {w:?}"
         );
     }
@@ -3573,7 +3582,7 @@ mod tests {
     fn irule3003_fires_on_tainted_log() {
         let w = irules_warnings_for("set u [HTTP::uri]\nlog local0.info $u");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3003"),
+            w.iter().any(|x| x.code == DiagCode::Irule3003),
             "expected IRULE3003, got {w:?}"
         );
     }
@@ -3582,7 +3591,7 @@ mod tests {
     fn irule3004_fires_on_tainted_redirect() {
         let w = irules_warnings_for("set target [HTTP::header Location]\nHTTP::redirect $target");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3004"),
+            w.iter().any(|x| x.code == DiagCode::Irule3004),
             "expected IRULE3004, got {w:?}"
         );
     }
@@ -3594,12 +3603,12 @@ mod tests {
         // with PATH_PREFIXED from their `taint_hints` — `HTTP::path`
         // carries PATH_PREFIXED on the getter form.)
         let lat = TaintLattice::tainted().with(TaintColour::PATH_PREFIXED);
-        assert!(irules_sink_suppressed("IRULE3004", lat));
+        assert!(irules_sink_suppressed(DiagCode::Irule3004, lat));
         let lat = TaintLattice::tainted().with(TaintColour::PATH_NORMALISED);
-        assert!(irules_sink_suppressed("IRULE3004", lat));
+        assert!(irules_sink_suppressed(DiagCode::Irule3004, lat));
         // Plain tainted should not suppress.
         assert!(!irules_sink_suppressed(
-            "IRULE3004",
+            DiagCode::Irule3004,
             TaintLattice::tainted()
         ));
     }
@@ -3625,7 +3634,7 @@ mod tests {
             &registry,
             Some("tcl8.6"),
         );
-        let t102 = warnings.iter().find(|w| w.code == "T102");
+        let t102 = warnings.iter().find(|w| w.code == DiagCode::T102);
         assert!(
             t102.is_some_and(|w| w.sink_command == "file delete"),
             "expected a T102 with ensemble label 'file delete', got {warnings:?}",
@@ -3633,7 +3642,7 @@ mod tests {
         assert!(
             warnings
                 .iter()
-                .any(|w| w.code == "T103" && w.sink_command == "regexp"),
+                .any(|w| w.code == DiagCode::T103 && w.sink_command == "regexp"),
             "expected T103 for tainted regexp pattern, got {warnings:?}",
         );
         // T103 must precede the regexp T102 (the pattern check is
@@ -3668,7 +3677,7 @@ mod tests {
             Some("tcl8.6"),
         );
         assert!(
-            warnings.iter().all(|w| w.code != "T102"),
+            warnings.iter().all(|w| w.code != DiagCode::T102),
             "no T102 when `--` precedes the tainted path, got {warnings:?}",
         );
     }
@@ -3694,7 +3703,9 @@ mod tests {
             None,
         );
         assert!(
-            warnings.iter().all(|w| !w.code.starts_with("IRULE")),
+            warnings
+                .iter()
+                .all(|w| !w.code.as_str().starts_with("IRULE")),
             "no IRULE warnings without dialect, got {warnings:?}"
         );
     }
@@ -3703,21 +3714,27 @@ mod tests {
     fn irules_sink_suppressed_html_escaped_only_mitigates_3001() {
         let tainted_html = TaintLattice::tainted().with(TaintColour::HTML_ESCAPED);
         // IRULE3001 (HTTP response body) — HTML_ESCAPED directly mitigates.
-        assert!(irules_sink_suppressed("IRULE3001", tainted_html));
+        assert!(irules_sink_suppressed(DiagCode::Irule3001, tainted_html));
         // IRULE3002/3003 (header / log) — HTML_ESCAPED does NOT prove
         // CRLF-injection safety (the escape rewrites `<`/`>`/`&` but
         // leaves raw CR/LF untouched). The CRLF-safe mask excludes
         // `HTML_ESCAPED`.
-        assert!(!irules_sink_suppressed("IRULE3002", tainted_html));
-        assert!(!irules_sink_suppressed("IRULE3003", tainted_html));
+        assert!(!irules_sink_suppressed(DiagCode::Irule3002, tainted_html));
+        assert!(!irules_sink_suppressed(DiagCode::Irule3003, tainted_html));
         // IRULE3004 (redirect) — also not mitigated by HTML_ESCAPED.
-        assert!(!irules_sink_suppressed("IRULE3004", tainted_html));
+        assert!(!irules_sink_suppressed(DiagCode::Irule3004, tainted_html));
 
         // `CRLF_FREE` does suppress IRULE3002/3003 (the one mitigation
         // accepted in the value position).
         let tainted_crlf_free = TaintLattice::tainted().with(TaintColour::CRLF_FREE);
-        assert!(irules_sink_suppressed("IRULE3002", tainted_crlf_free));
-        assert!(irules_sink_suppressed("IRULE3003", tainted_crlf_free));
+        assert!(irules_sink_suppressed(
+            DiagCode::Irule3002,
+            tainted_crlf_free
+        ));
+        assert!(irules_sink_suppressed(
+            DiagCode::Irule3003,
+            tainted_crlf_free
+        ));
     }
 
     #[test]
@@ -3793,7 +3810,7 @@ mod tests {
     fn irule3101_literal_missing_slash_warns() {
         let w = setter_warnings_for("HTTP::uri foo");
         assert_eq!(w.len(), 1);
-        assert_eq!(w[0].code, "IRULE3101");
+        assert_eq!(w[0].code, DiagCode::Irule3101);
         assert!(w[0].message.contains("HTTP::uri value must start"));
     }
 
@@ -3807,7 +3824,7 @@ mod tests {
     fn irule3101_http_path_literal_variants() {
         let bad = setter_warnings_for("HTTP::path bar");
         assert_eq!(bad.len(), 1);
-        assert_eq!(bad[0].code, "IRULE3101");
+        assert_eq!(bad[0].code, DiagCode::Irule3101);
         let good = setter_warnings_for("HTTP::path /bar");
         assert!(good.is_empty());
     }
@@ -3818,7 +3835,7 @@ mod tests {
         // has generic taint (no PATH_PREFIXED / _NORMALISED / _BOUNDED).
         let w = setter_warnings_for("set v [HTTP::header X-Foo]\nHTTP::uri $v");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3101"),
+            w.iter().any(|x| x.code == DiagCode::Irule3101),
             "generic taint must fire IRULE3101, got {w:?}"
         );
     }
@@ -3833,7 +3850,7 @@ mod tests {
         // lattice.
         let w = setter_warnings_for("set p /safe\nHTTP::uri $p");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3101"),
+            w.iter().any(|x| x.code == DiagCode::Irule3101),
             "pure var-ref setter value must warn without tainted-safe-colour, got {w:?}"
         );
     }
@@ -3844,7 +3861,7 @@ mod tests {
         // always warns. The literal-check also bails on `[`.
         let w = setter_warnings_for("HTTP::uri [something]");
         assert!(
-            w.iter().any(|x| x.code == "IRULE3101"),
+            w.iter().any(|x| x.code == DiagCode::Irule3101),
             "command-sub setter value must warn, got {w:?}"
         );
     }
@@ -3858,7 +3875,7 @@ mod tests {
         // `HTTP::path`.
         let under_irules = setter_warnings_for_dialect("HTTP::uri foo", Some("f5-irules"));
         assert_eq!(under_irules.len(), 1);
-        assert_eq!(under_irules[0].code, "IRULE3101");
+        assert_eq!(under_irules[0].code, DiagCode::Irule3101);
 
         let under_none = setter_warnings_for_dialect("HTTP::uri foo", None);
         assert!(
@@ -3916,7 +3933,7 @@ mod tests {
             ));
         }
         assert!(
-            warnings.iter().any(|w| w.code == "T100"),
+            warnings.iter().any(|w| w.code == DiagCode::T100),
             "expected T100 from gets→eval with registry-driven source, got {warnings:?}",
         );
     }
@@ -3939,7 +3956,7 @@ mod tests {
         // surfaces T100 under the iRules dialect.
         let w = irules_warnings_for("set u [HTTP::uri]\nexpr $u");
         assert!(
-            w.iter().any(|d| d.code == "T100"),
+            w.iter().any(|d| d.code == DiagCode::T100),
             "expected T100 on tainted expr sink under iRules, got {w:?}",
         );
     }
@@ -3954,7 +3971,7 @@ mod tests {
         // an IRULE3101 setter-constraint violation.
         let irules = setter_warnings_for_dialect("HTTP::uri foo", Some("f5-irules"));
         assert!(
-            irules.iter().any(|w| w.code == "IRULE3101"),
+            irules.iter().any(|w| w.code == DiagCode::Irule3101),
             "expected IRULE3101 under iRules dialect, got {irules:?}",
         );
 
@@ -3962,7 +3979,7 @@ mod tests {
         // `HTTP::uri` is legal and the setter check must stay silent.
         let plain = setter_warnings_for_dialect("HTTP::uri foo", None);
         assert!(
-            plain.iter().all(|w| w.code != "IRULE3101"),
+            plain.iter().all(|w| w.code != DiagCode::Irule3101),
             "no IRULE3101 outside iRules, got {plain:?}",
         );
     }

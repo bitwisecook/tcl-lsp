@@ -5,6 +5,7 @@
 //! …) but all operate on the same ``&mut Analyser``.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 
@@ -736,7 +737,7 @@ impl Analyser {
         );
         let mut emitted = false;
         for d in diags {
-            if self.disabled_diagnostics.contains(&d.code) {
+            if self.disabled_diagnostics.contains(d.code.as_str()) {
                 continue;
             }
             self.result.diagnostics.push(d);
@@ -764,14 +765,14 @@ impl Analyser {
             let code = match w.message.as_str() {
                 // Owned by the E201/E202/E203 recovery heuristics.
                 "missing close-bracket" | "missing \"" | "missing close-brace" => continue,
-                "extra characters after close-brace" => "E204",
-                "extra characters after close-quote" => "E205",
-                "missing close-brace for variable name" => "E206",
+                "extra characters after close-brace" => DiagCode::E204,
+                "extra characters after close-quote" => DiagCode::E205,
+                "missing close-brace for variable name" => DiagCode::E206,
                 // Any unexpected lexer warning → catch-all E200.
-                _ => "E200",
+                _ => DiagCode::E200,
             };
             self.result.diagnostics.push(super::types::Diagnostic {
-                code: code.to_string(),
+                code,
                 span: Span::new(w.offset, w.offset),
                 message: w.message,
                 severity: super::types::Severity::Error,
@@ -1002,7 +1003,7 @@ impl Analyser {
         // equals a from-scratch `analyse`.  The fast path stays the common
         // well-formed edit; only mid-edit broken states (transient) take the
         // slow path.
-        if result.diagnostics.iter().any(|d| d.code.starts_with('E')) {
+        if result.diagnostics.iter().any(|d| d.code.is_error()) {
             return self.fresh_full_analyse(new_text, dialect);
         }
         result
@@ -1319,7 +1320,7 @@ mod tests {
         // must surface as the catch-all E200 (not be silently dropped).
         let mut a = Analyser::new();
         let r = a.analyse("set x $arr(idx\n", "tcl8.6");
-        let e200 = r.diagnostics.iter().find(|d| d.code == "E200");
+        let e200 = r.diagnostics.iter().find(|d| d.code == DiagCode::E200);
         assert!(
             e200.is_some_and(|d| d.message == "missing )"),
             "{:?}",
@@ -1481,7 +1482,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("# tcl-lsp: disable=W113\nproc set {} {}\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W113"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W113),
             "W113 should be silenced by file-suppression directive",
         );
     }
@@ -1510,14 +1511,14 @@ mod tests {
         ] {
             let r = a.analyse(&format!("proc {name} args {{ return }}\n"), "tcl");
             assert!(
-                !r.diagnostics.iter().any(|d| d.code == "W113"),
+                !r.diagnostics.iter().any(|d| d.code == DiagCode::W113),
                 "W113 should be silent on overridable library proc {name:?}",
             );
         }
         // TP control: a genuine C built-in still fires.
         let r = a.analyse("proc set {} {}\n", "tcl");
         assert!(
-            r.diagnostics.iter().any(|d| d.code == "W113"),
+            r.diagnostics.iter().any(|d| d.code == DiagCode::W113),
             "W113 must still fire when redefining a C built-in (`set`)",
         );
     }
@@ -1535,7 +1536,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W307");
+            .any(|d| d.code == DiagCode::W307);
         assert!(
             !has_w307,
             "array-element holding a known command must not fire W307",
@@ -1549,7 +1550,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W307");
+            .any(|d| d.code == DiagCode::W307);
         assert!(
             has_w307,
             "array-element holding a non-command must still fire W307",
@@ -1564,7 +1565,7 @@ mod tests {
             .diagnostics
             .iter()
             .filter(|d| matches!(d.code.as_str(), "W210" | "W213" | "W214"))
-            .map(|d| d.code.clone())
+            .map(|d| d.code.to_string())
             .collect()
     }
 
@@ -1582,7 +1583,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W220" || d.code == "O109"),
+            .any(|d| d.code == DiagCode::W220 || d.code == DiagCode::O109),
             "two writes to a(k) with no intervening read: first is dead",
         );
         // Control: different keys are independent — no dead store.
@@ -1594,7 +1595,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W220" || d.code == "O109"),
+            .any(|d| d.code == DiagCode::W220 || d.code == DiagCode::O109),
             "writes to different array elements are not dead stores",
         );
         // Control: an intervening read of the same element cancels the kill.
@@ -1606,7 +1607,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W220" || d.code == "O109"),
+            .any(|d| d.code == DiagCode::W220 || d.code == DiagCode::O109),
             "an intervening read of a(k) keeps the first write live",
         );
     }
@@ -1625,7 +1626,7 @@ mod tests {
             .diagnostics
             .iter()
             .filter(|d| matches!(d.code.as_str(), "W220" | "W211" | "O109" | "O126"))
-            .map(|d| d.code.clone())
+            .map(|d| d.code.to_string())
             .collect();
         assert!(
             codes.is_empty(),
@@ -1638,7 +1639,7 @@ mod tests {
             b.analyse("proc f {} { set i 0\n set i 5\n return $i }", "tcl")
                 .diagnostics
                 .iter()
-                .any(|d| d.code == "W220" || d.code == "O109"),
+                .any(|d| d.code == DiagCode::W220 || d.code == DiagCode::O109),
             "a genuine dead store must still fire",
         );
     }
@@ -1678,7 +1679,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W220"),
+            .any(|d| d.code == DiagCode::W220),
             "write through a dynamic upvar alias is observable, not a dead store",
         );
     }
@@ -1717,7 +1718,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W214"),
+            .any(|d| d.code == DiagCode::W214),
             "namespace-eval body must not recover the caller's param read",
         );
         let mut b = Analyser::new();
@@ -1725,7 +1726,7 @@ mod tests {
             !b.analyse("proc f {x} {\n  eval { puts $x }\n}\n", "tcl")
                 .diagnostics
                 .iter()
-                .any(|d| d.code == "W214"),
+                .any(|d| d.code == DiagCode::W214),
             "eval body runs in the caller frame; $x read recovers the param",
         );
     }
@@ -1743,7 +1744,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W307");
+            .any(|d| d.code == DiagCode::W307);
         assert!(fires, "in-method [format ...] dispatch must fire W307");
 
         // Control: `[D new] run` where D is a known class returns an Object —
@@ -1757,7 +1758,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W307");
+            .any(|d| d.code == DiagCode::W307);
         assert!(
             !fires,
             "in-method [D new] dispatch on known class must not fire W307"
@@ -1777,7 +1778,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W307");
+            .any(|d| d.code == DiagCode::W307);
         assert!(fires, "[my plain] returning a literal must fire W307");
 
         // Control: `[my obj] run` where `obj` returns `[D new]` — object
@@ -1792,7 +1793,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W307");
+            .any(|d| d.code == DiagCode::W307);
         assert!(!fires, "[my obj] returning an object must not fire W307");
     }
 
@@ -1812,7 +1813,7 @@ mod tests {
             .diagnostics
             .iter()
             .filter(|d| matches!(d.code.as_str(), "W210" | "W214"))
-            .map(|d| d.code.clone())
+            .map(|d| d.code.to_string())
             .collect();
         assert!(
             offenders.is_empty(),
@@ -1834,7 +1835,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W307");
+            .any(|d| d.code == DiagCode::W307);
         assert!(!has, "resolvable namespaced ensemble must not fire W307");
         // TP control: composed name with no known proc still fires.
         let mut b = Analyser::new();
@@ -1845,7 +1846,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W307");
+            .any(|d| d.code == DiagCode::W307);
         assert!(
             has,
             "unresolvable composed namespaced ensemble must fire W307"
@@ -1866,7 +1867,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W307");
+            .any(|d| d.code == DiagCode::W307);
         assert!(
             !has_w307,
             "dict-with-unpacked known command must not fire W307"
@@ -1880,7 +1881,7 @@ mod tests {
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W307");
+            .any(|d| d.code == DiagCode::W307);
         assert!(
             has_w307,
             "dict-with-unpacked non-command must still fire W307"
@@ -1899,7 +1900,7 @@ mod tests {
             "tcl",
         );
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W307"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
             "var assigned from a known-class constructor must not fire W307: {:?}",
             r.diagnostics,
         );
@@ -1925,7 +1926,7 @@ mod tests {
             assert!(
                 !r.diagnostics
                     .iter()
-                    .any(|d| d.code == "W216" || d.code == "W212"),
+                    .any(|d| d.code == DiagCode::W216 || d.code == DiagCode::W212),
                 "indirect-array idiom must not fire W216/W212: {src:?} -> {:?}",
                 r.diagnostics,
             );
@@ -1935,7 +1936,7 @@ mod tests {
         for src in ["puts ${arr}(x)\n", "set y ${arr}(x)\n"] {
             let r = a.analyse(src, "tcl");
             assert!(
-                r.diagnostics.iter().any(|d| d.code == "W216"),
+                r.diagnostics.iter().any(|d| d.code == DiagCode::W216),
                 "value-position ${{arr}}(x) must fire W216: {src:?} -> {:?}",
                 r.diagnostics,
             );
@@ -1945,7 +1946,7 @@ mod tests {
         for src in ["set $x v\n", "set ${x} v\n"] {
             let r = a.analyse(src, "tcl");
             assert!(
-                r.diagnostics.iter().any(|d| d.code == "W212"),
+                r.diagnostics.iter().any(|d| d.code == DiagCode::W212),
                 "bare dynamic-name must still fire W212: {src:?} -> {:?}",
                 r.diagnostics,
             );
@@ -1962,7 +1963,11 @@ mod tests {
         // twice — but the second emission is at a *different*
         // span (different proc-name token), so dedupe leaves
         // them both; the test that follows pins the actual count.
-        let w113s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W113").collect();
+        let w113s: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W113)
+            .collect();
         assert_eq!(
             w113s.len(),
             2,
@@ -2031,12 +2036,15 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse_commands(source, &commands, "tcl", true);
         assert_eq!(
-            r.diagnostics.iter().filter(|d| d.code == "E100").count(),
+            r.diagnostics
+                .iter()
+                .filter(|d| d.code == DiagCode::E100)
+                .count(),
             1,
             "expected one E100; got {:?}",
             r.diagnostics
                 .iter()
-                .map(|d| d.code.clone())
+                .map(|d| d.code.to_string())
                 .collect::<Vec<_>>(),
         );
     }
@@ -2076,7 +2084,7 @@ mod tests {
         // W113 was emitted by handle_proc but the tail didn't
         // run, so apply_disabled_diagnostics / dedupe didn't
         // touch the diag list.  The diag is still there.
-        assert!(r.diagnostics.iter().any(|d| d.code == "W113"));
+        assert!(r.diagnostics.iter().any(|d| d.code == DiagCode::W113));
     }
 
     #[test]
@@ -2386,7 +2394,11 @@ mod tests {
     fn analyse_emits_w105_for_unbraced_if_body_with_substitution() {
         let mut a = Analyser::new();
         let r = a.analyse("if {$cond} \"puts $x\"\n", "tcl");
-        let w105: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W105").collect();
+        let w105: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W105)
+            .collect();
         assert!(!w105.is_empty(), "expected W105, got {:?}", r.diagnostics);
         // Substitution-bearing bodies are flagged at error severity.
         assert!(matches!(w105[0].severity, crate::analyser::Severity::Error));
@@ -2397,7 +2409,7 @@ mod tests {
         // Braced ``{ ... }`` body — no W105.
         let mut a = Analyser::new();
         let r = a.analyse("if {$cond} { puts $x }\n", "tcl");
-        assert!(!r.diagnostics.iter().any(|d| d.code == "W105"));
+        assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W105));
     }
 
     #[test]
@@ -2408,7 +2420,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("eval [list set y $x]\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W105"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W105),
             "{:?}",
             r.diagnostics
         );
@@ -2433,7 +2445,7 @@ mod tests {
         ] {
             let r = a.analyse(src, "tcl");
             assert!(
-                !r.diagnostics.iter().any(|d| d.code == "W105"),
+                !r.diagnostics.iter().any(|d| d.code == DiagCode::W105),
                 "W105 should be silent on single-var body {src:?}, got {:?}",
                 r.diagnostics,
             );
@@ -2447,7 +2459,11 @@ mod tests {
         // should be braced, so W105 still fires at ERROR severity.
         let mut a = Analyser::new();
         let r = a.analyse("eval \"do $script\"\n", "tcl");
-        let w105: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W105").collect();
+        let w105: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W105)
+            .collect();
         assert!(!w105.is_empty(), "expected W105, got {:?}", r.diagnostics);
         assert!(matches!(w105[0].severity, crate::analyser::Severity::Error));
     }
@@ -2458,7 +2474,11 @@ mod tests {
     fn analyse_emits_w110_for_string_eq_in_if_condition() {
         let mut a = Analyser::new();
         let r = a.analyse("if {$x == \"foo\"} {puts yes}\n", "tcl");
-        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
         assert!(w110[0].message.contains("eq"), "got {:?}", w110[0].message);
         assert!(matches!(w110[0].severity, crate::analyser::Severity::Hint));
@@ -2468,7 +2488,11 @@ mod tests {
     fn analyse_emits_w110_for_string_ne_in_if_condition() {
         let mut a = Analyser::new();
         let r = a.analyse("if {$x != \"bar\"} {puts no}\n", "tcl");
-        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
         assert!(w110[0].message.contains("ne"), "got {:?}", w110[0].message);
     }
@@ -2480,7 +2504,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("if {$x == 42} {puts yes}\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W110"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W110),
             "got {:?}",
             r.diagnostics
         );
@@ -2492,7 +2516,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("if {$x eq \"foo\"} {puts yes}\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W110"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W110),
             "got {:?}",
             r.diagnostics
         );
@@ -2504,7 +2528,11 @@ mod tests {
         // rewrite should run and produce a fix containing ``eq``.
         let mut a = Analyser::new();
         let r = a.analyse("if {$x == \"foo\"} {puts yes}\n", "tcl");
-        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
         assert_eq!(w110[0].fixes.len(), 1, "got {:?}", w110[0].fixes);
         assert!(
@@ -2521,7 +2549,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("if {$a == $b} {puts yes}\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W110"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W110),
             "got {:?}",
             r.diagnostics
         );
@@ -2533,7 +2561,11 @@ mod tests {
         // (with quotes), so W110 still fires.
         let mut a = Analyser::new();
         let r = a.analyse("if {$x == \"42\"} {puts yes}\n", "tcl");
-        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
     }
 
@@ -2543,7 +2575,11 @@ mod tests {
         // counts as ExprString.
         let mut a = Analyser::new();
         let r = a.analyse("if {$x == \"true\"} {puts yes}\n", "tcl");
-        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
     }
 
@@ -2552,7 +2588,11 @@ mod tests {
         // ``!($x == "foo")`` — W110 walks through ExprUnary.
         let mut a = Analyser::new();
         let r = a.analyse("if {!($x == \"foo\")} {puts no}\n", "tcl");
-        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
     }
 
@@ -2564,7 +2604,11 @@ mod tests {
         // is suppressed.
         let mut a = Analyser::new();
         let r = a.analyse("if {$a == $b || $x == \"foo\"} {puts y}\n", "tcl");
-        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
         assert_eq!(w110[0].fixes.len(), 0, "got {:?}", w110[0].fixes);
     }
@@ -2574,7 +2618,11 @@ mod tests {
         // ``while {EXPR} {body}`` — EXPR-role is at index 0.
         let mut a = Analyser::new();
         let r = a.analyse("while {$x == \"foo\"} { break }\n", "tcl");
-        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
     }
 
@@ -2588,7 +2636,11 @@ mod tests {
         // command checks; that's a separate concern.)
         let mut a = Analyser::new();
         let r = a.analyse("expr {$x == \"foo\"}\n", "tcl");
-        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
     }
 
@@ -2603,7 +2655,11 @@ mod tests {
         // ``expr {$x == "foo"}`` where the string literal survives.
         let mut a = Analyser::new();
         let r = a.analyse("expr $x == \"foo\"\n", "tcl");
-        let unbraced: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        let unbraced: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
         assert!(
             unbraced.is_empty(),
             "unbraced expr must not fire W110, got {:?}",
@@ -2612,7 +2668,11 @@ mod tests {
 
         let mut a2 = Analyser::new();
         let r2 = a2.analyse("set z [expr {$x == \"foo\"}]\n", "tcl");
-        let braced: Vec<_> = r2.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        let braced: Vec<_> = r2
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
         assert_eq!(
             braced.len(),
             1,
@@ -2634,7 +2694,8 @@ mod tests {
         );
         assert!(
             r.diagnostics.iter().all(|d| {
-                !((d.code == "W211" || d.code == "W220") && d.message.contains("tag"))
+                !((d.code == DiagCode::W211 || d.code == DiagCode::W220)
+                    && d.message.contains("tag"))
             }),
             "call-by-name var `tag` must not be flagged unused/dead, got {:?}",
             r.diagnostics,
@@ -2647,7 +2708,7 @@ mod tests {
         assert!(
             r2.diagnostics
                 .iter()
-                .any(|d| d.code == "W211" && d.message.contains("unused")),
+                .any(|d| d.code == DiagCode::W211 && d.message.contains("unused")),
             "a genuinely unused var should still be flagged, got {:?}",
             r2.diagnostics,
         );
@@ -2693,7 +2754,8 @@ mod tests {
             assert!(
                 r.diagnostics
                     .iter()
-                    .any(|d| (d.code == "W211" || d.code == "W220") && d.message.contains("'x'")),
+                    .any(|d| (d.code == DiagCode::W211 || d.code == DiagCode::W220)
+                        && d.message.contains("'x'")),
                 "caller's dead `x` must still fire for `{callee}`, got {:?}",
                 r.diagnostics,
             );
@@ -2713,7 +2775,8 @@ mod tests {
         assert!(
             r.diagnostics
                 .iter()
-                .all(|d| !((d.code == "W211" || d.code == "W220") && d.message.contains("result"))),
+                .all(|d| !((d.code == DiagCode::W211 || d.code == DiagCode::W220)
+                    && d.message.contains("result"))),
             "upvar write-back must suppress the caller dead-store, got {:?}",
             r.diagnostics,
         );
@@ -2725,14 +2788,18 @@ mod tests {
         // later call falls through to `unknown` → W128.
         let mut a = Analyser::new();
         let r = a.analyse("rename string {}\nstring toupper x\n", "tcl");
-        let w128: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W128").collect();
+        let w128: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W128)
+            .collect();
         assert_eq!(w128.len(), 1, "expected one W128, got {:?}", r.diagnostics);
 
         // Negative: a normal builtin call with no rename → no W128.
         let mut a2 = Analyser::new();
         let r2 = a2.analyse("string toupper x\n", "tcl");
         assert!(
-            r2.diagnostics.iter().all(|d| d.code != "W128"),
+            r2.diagnostics.iter().all(|d| d.code != DiagCode::W128),
             "unexpected W128: {:?}",
             r2.diagnostics,
         );
@@ -2742,7 +2809,7 @@ mod tests {
         let mut a3 = Analyser::new();
         let r3 = a3.analyse("someunknowncmd a b\n", "tcl");
         assert!(
-            r3.diagnostics.iter().all(|d| d.code != "W128"),
+            r3.diagnostics.iter().all(|d| d.code != DiagCode::W128),
             "unexpected W128: {:?}",
             r3.diagnostics,
         );
@@ -2756,7 +2823,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("for {set i 0} {$i < 10} {incr i} { break }\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W110"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W110),
             "got {:?}",
             r.diagnostics
         );
@@ -2771,7 +2838,11 @@ mod tests {
         // W110 on a ``for`` condition would silently miss).
         let mut a = Analyser::new();
         let r = a.analyse("for {set i 0} {$x == \"foo\"} {incr i} { break }\n", "tcl");
-        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        let w110: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W110)
+            .collect();
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
     }
 
@@ -2781,7 +2852,11 @@ mod tests {
     fn analyse_emits_w302_for_catch_without_result_var() {
         let mut a = Analyser::new();
         let r = a.analyse("catch { puts hi }\n", "tcl");
-        let w302: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W302").collect();
+        let w302: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W302)
+            .collect();
         assert_eq!(w302.len(), 1, "got {:?}", r.diagnostics);
         assert!(
             w302[0].message.contains("silently swallows errors"),
@@ -2798,7 +2873,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("catch { puts hi } result\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W302"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W302),
             "got {:?}",
             r.diagnostics
         );
@@ -2811,7 +2886,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("catch { puts hi } result options\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W302"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W302),
             "got {:?}",
             r.diagnostics
         );
@@ -2826,7 +2901,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("catch pre$x\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W302"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W302),
             "got {:?}",
             r.diagnostics
         );
@@ -2842,7 +2917,11 @@ mod tests {
         let mut a = Analyser::new();
         let src = "catch { puts hi }\n";
         let r = a.analyse(src, "tcl");
-        let w302: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W302").collect();
+        let w302: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W302)
+            .collect();
         assert_eq!(w302.len(), 1);
         let span = w302[0].span;
         let text = &src[span.start() as usize..span.end() as usize];
@@ -2855,7 +2934,11 @@ mod tests {
     fn analyse_emits_w001_for_unknown_string_subcommand() {
         let mut a = Analyser::new();
         let r = a.analyse("string bogus $x\n", "tcl");
-        let w001: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W001").collect();
+        let w001: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W001)
+            .collect();
         assert_eq!(w001.len(), 1, "got {:?}", r.diagnostics);
         assert!(
             w001[0].message.contains("'bogus'") && w001[0].message.contains("'string'"),
@@ -2875,7 +2958,11 @@ mod tests {
         // ``length``.
         let mut a = Analyser::new();
         let r = a.analyse("string lenght $x\n", "tcl");
-        let w001: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W001").collect();
+        let w001: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W001)
+            .collect();
         assert_eq!(w001.len(), 1, "got {:?}", r.diagnostics);
         assert!(
             w001[0].message.contains("did you mean 'length'"),
@@ -2895,7 +2982,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("string length $x\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W001"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W001),
             "got {:?}",
             r.diagnostics
         );
@@ -2908,7 +2995,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("string $sub $x\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W001"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W001),
             "got {:?}",
             r.diagnostics
         );
@@ -2921,7 +3008,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("string [pick] $x\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W001"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W001),
             "got {:?}",
             r.diagnostics
         );
@@ -2933,7 +3020,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("set x 1\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W001"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W001),
             "got {:?}",
             r.diagnostics
         );
@@ -2947,7 +3034,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("unknownthing foo\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "W001"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W001),
             "got {:?}",
             r.diagnostics
         );
@@ -2958,7 +3045,11 @@ mod tests {
         let mut a = Analyser::new();
         let src = "string bogus $x\n";
         let r = a.analyse(src, "tcl");
-        let w001: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W001").collect();
+        let w001: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W001)
+            .collect();
         assert_eq!(w001.len(), 1);
         let span = w001[0].span;
         let text = &src[span.start() as usize..span.end() as usize];
@@ -2971,7 +3062,11 @@ mod tests {
         // dispatch isn't ``string``-specific.
         let mut a = Analyser::new();
         let r = a.analyse("dict froob $d $k\n", "tcl");
-        let w001: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W001").collect();
+        let w001: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W001)
+            .collect();
         assert_eq!(w001.len(), 1, "got {:?}", r.diagnostics);
         assert!(
             w001[0].message.contains("'dict'"),
@@ -2996,7 +3091,11 @@ mod tests {
         ] {
             let mut a = Analyser::new();
             let r = a.analyse(src, "tcl");
-            let w001: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W001").collect();
+            let w001: Vec<_> = r
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == DiagCode::W001)
+                .collect();
             assert_eq!(w001.len(), 1, "src={src:?} got {:?}", r.diagnostics);
             assert!(
                 w001[0].message.contains("did you mean 'length'"),
@@ -3033,7 +3132,11 @@ mod tests {
         // ``else`` clause.
         let mut a = Analyser::new();
         let r = a.analyse("if {1} { a } else { b } extra\n", "tcl");
-        let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
+        let e004: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E004)
+            .collect();
         assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
         assert!(
             e004[0].message.contains("Extra words after \"else\""),
@@ -3049,7 +3152,11 @@ mod tests {
         // body.
         let mut a = Analyser::new();
         let r = a.analyse("if {1} { a } else\n", "tcl");
-        let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
+        let e004: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E004)
+            .collect();
         assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
         assert!(
             e004[0].message.contains("Malformed 'if'"),
@@ -3063,7 +3170,11 @@ mod tests {
         // ``if {1}`` — condition with no body following.
         let mut a = Analyser::new();
         let r = a.analyse("if {1}\n", "tcl");
-        let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
+        let e004: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E004)
+            .collect();
         assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
         assert!(
             e004[0].message.contains("Malformed 'if'"),
@@ -3078,7 +3189,11 @@ mod tests {
         // body.
         let mut a = Analyser::new();
         let r = a.analyse("if {1} then\n", "tcl");
-        let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
+        let e004: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E004)
+            .collect();
         assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
         assert!(
             e004[0].message.contains("Malformed 'if'"),
@@ -3093,7 +3208,11 @@ mod tests {
         // else, so the malformed-if check fires.
         let mut a = Analyser::new();
         let r = a.analyse("if else { x }\n", "tcl");
-        let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
+        let e004: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E004)
+            .collect();
         assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
         assert!(
             e004[0].message.contains("Malformed 'if'"),
@@ -3108,7 +3227,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("if {1} { a }\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "E004"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::E004),
             "got {:?}",
             r.diagnostics
         );
@@ -3120,7 +3239,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("if {1} { a } else { b }\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "E004"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::E004),
             "got {:?}",
             r.diagnostics
         );
@@ -3133,7 +3252,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("if {$a} { x } elseif {$b} { y } else { z }\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "E004"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::E004),
             "got {:?}",
             r.diagnostics
         );
@@ -3146,7 +3265,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("if {1} then { a }\n", "tcl");
         assert!(
-            !r.diagnostics.iter().any(|d| d.code == "E004"),
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::E004),
             "got {:?}",
             r.diagnostics
         );
@@ -3159,7 +3278,11 @@ mod tests {
         let mut a = Analyser::new();
         let src = "if {1} { a } else { b } extra\n";
         let r = a.analyse(src, "tcl");
-        let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
+        let e004: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::E004)
+            .collect();
         assert_eq!(e004.len(), 1);
         let span = e004[0].span;
         let text = &src[span.start() as usize..span.end() as usize];
@@ -3178,7 +3301,7 @@ mod tests {
         let r = a.analyse(src, "tcl");
         r.diagnostics
             .into_iter()
-            .filter(|d| d.code == "W304")
+            .filter(|d| d.code == DiagCode::W304)
             .collect()
     }
 
@@ -3391,7 +3514,7 @@ mod tests {
         let r = a.analyse(src, "tcl");
         r.diagnostics
             .into_iter()
-            .filter(|d| d.code == "W101")
+            .filter(|d| d.code == DiagCode::W101)
             .collect()
     }
 
@@ -3841,7 +3964,7 @@ mod tests {
         let mut diags: Vec<_> = r
             .diagnostics
             .iter()
-            .map(|d| (d.code.clone(), d.span.start(), d.span.end()))
+            .map(|d| (d.code.to_string(), d.span.start(), d.span.end()))
             .collect();
         diags.sort();
         let mut procs: Vec<_> = r.all_procs.keys().cloned().collect();

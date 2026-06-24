@@ -13,6 +13,7 @@
 //! argument's command-substitution span is recovered by re-tokenising),
 //! and nested `[…]` command substitutions are walked recursively.
 
+use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, TokenType};
 
 use crate::compilation_unit::CompilationUnit;
@@ -185,7 +186,7 @@ fn emit_for_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand) {
         // full `[…]` substitution is `start..end + 1`.
         let span = Span::new(idx_tok.span.start(), idx_tok.span.end() + 1);
         ctx.report(Optimisation::new(
-            "O128",
+            DiagCode::O128,
             "Use end-offset index instead of length arithmetic",
             span,
             replacement,
@@ -315,7 +316,10 @@ mod tests {
         let cu = CompilationUnit::build_for(source, &registry(), false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         run(&mut ctx, &cu);
-        let opt = ctx.optimisations.into_iter().find(|o| o.code == "O128")?;
+        let opt = ctx
+            .optimisations
+            .into_iter()
+            .find(|o| o.code == DiagCode::O128)?;
         let slice = source
             .get(opt.span.start() as usize..opt.span.end() as usize)?
             .to_owned();
@@ -348,7 +352,7 @@ mod tests {
         let opts = run_pass("lrange $L [expr {[llength $L] - 3}] [expr {[llength $L] - 1}]");
         let repls: Vec<&str> = opts
             .iter()
-            .filter(|o| o.code == "O128")
+            .filter(|o| o.code == DiagCode::O128)
             .map(|o| o.replacement.as_str())
             .collect();
         assert!(repls.contains(&"end-2"), "got {repls:?}");
@@ -361,7 +365,7 @@ mod tests {
         // to `end` would change semantics.
         let opts = run_pass("lindex $L [expr {[llength $A] - 1}]");
         assert!(
-            opts.iter().all(|o| o.code != "O128"),
+            opts.iter().all(|o| o.code != DiagCode::O128),
             "mismatched container must not rewrite, got {opts:?}",
         );
     }
@@ -370,13 +374,19 @@ mod tests {
     fn bare_llength_index_is_not_end_offset() {
         // `[llength $L]` (no subtraction) is one past the last index.
         let opts = run_pass("lindex $L [expr {[llength $L]}]");
-        assert!(opts.iter().all(|o| o.code != "O128"), "got {opts:?}");
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O128),
+            "got {opts:?}"
+        );
     }
 
     #[test]
     fn linsert_is_excluded() {
         let opts = run_pass("linsert $L [expr {[llength $L] - 1}] x");
-        assert!(opts.iter().all(|o| o.code != "O128"), "got {opts:?}");
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O128),
+            "got {opts:?}"
+        );
     }
 
     #[test]

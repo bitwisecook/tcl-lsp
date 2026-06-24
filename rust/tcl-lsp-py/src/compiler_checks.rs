@@ -52,7 +52,7 @@ pub fn compiler_checks_run_all(
             .into_iter()
             .map(|d| {
                 (
-                    d.code,
+                    d.code.to_string(),
                     d.category,
                     d.severity.as_str().to_owned(),
                     d.message,
