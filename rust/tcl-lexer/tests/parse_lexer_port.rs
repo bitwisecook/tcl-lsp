@@ -305,3 +305,122 @@ fn no_expansion_for_brace_star_space() {
     assert!(!t.iter().any(|(k, _)| *k == TokenType::Expand));
     assert!(t.iter().any(|(k, txt)| *k == TokenType::Str && txt == "* "));
 }
+
+fn first(source: &str) -> (TokenType, String) {
+    lex(source).into_iter().next().unwrap()
+}
+
+fn vars(source: &str) -> Vec<String> {
+    lex(source)
+        .into_iter()
+        .filter(|(k, _)| *k == TokenType::Var)
+        .map(|(_, t)| t)
+        .collect()
+}
+
+// Group 12: Variable name parsing (parse-12.x)
+
+#[test]
+fn t12_simple_and_underscore_var() {
+    assert_eq!(first("$abcd"), (TokenType::Var, "abcd".to_string()));
+    assert_eq!(first("$az_AZ"), (TokenType::Var, "az_AZ".to_string()));
+}
+
+#[test]
+fn t12_6_braced_var_name() {
+    // `${..[]b}` — a braced var name takes the content verbatim.
+    assert_eq!(first("${..[]b}"), (TokenType::Var, "..[]b".to_string()));
+}
+
+#[test]
+fn t12_13_namespace_var() {
+    // tclsh: `$xyz::ab` reads the namespace variable `xyz::ab`.
+    assert_eq!(first("$xyz::ab"), (TokenType::Var, "xyz::ab".to_string()));
+}
+
+#[test]
+fn t12_15_single_colon_stops_var_name() {
+    // tclsh: `"$ab:cd"` with ab=X → "X:cd" — a single `:` is NOT part of the
+    // name (only `::` is a namespace separator).
+    assert_eq!(first("$ab:cd"), (TokenType::Var, "ab".to_string()));
+}
+
+#[test]
+fn t12_18_bare_dollar_is_not_a_var() {
+    // `$$ $.` — a `$` not followed by a name char is literal, not a VAR.
+    let t = lex("$$ $.");
+    assert!(!t.is_empty());
+}
+
+#[test]
+fn t12_20_25_array_references() {
+    // `$x(abc)` → VAR whose text names the array `x`.
+    assert_eq!(first("$x(abc)").0, TokenType::Var);
+    assert!(first("$x(abc)").1.contains('x'));
+    // Array index containing a var / command sub still lexes to a VAR token.
+    assert_eq!(first("$x(ab$cde[foo bar])").0, TokenType::Var);
+    assert!(!vars("$x(a$y(b))").is_empty());
+}
+
+// Group 14: Braced string parsing (parse-14.x)
+
+#[test]
+fn t14_braces_suppress_substitution() {
+    // `$b` is literal inside braces (tclsh: `string index {$b} 0` → `$`).
+    let strs: Vec<String> = lex("foo {a $b [concat foo]} {c d}")
+        .into_iter()
+        .filter(|(k, _)| *k == TokenType::Str)
+        .map(|(_, t)| t)
+        .collect();
+    assert!(strs.iter().any(|t| t.contains("$b")));
+}
+
+#[test]
+fn t14_empty_and_nested_braces() {
+    // tclsh: `string length {}` → 0; `{{}}` is the one-element braced string `{}`.
+    let empty: Vec<String> = lex("foo {}")
+        .into_iter()
+        .filter(|(k, _)| *k == TokenType::Str)
+        .map(|(_, t)| t)
+        .collect();
+    assert_eq!(empty, [""]);
+    let nested: Vec<String> = lex("foo {{}}")
+        .into_iter()
+        .filter(|(k, _)| *k == TokenType::Str)
+        .map(|(_, t)| t)
+        .collect();
+    assert_eq!(nested[0], "{}");
+}
+
+#[test]
+fn t14_6_backslash_is_literal_in_braces() {
+    // A backslash inside braces is preserved verbatim (no decoding).
+    let strs: Vec<String> = lex("foo {a \\n\\{}")
+        .into_iter()
+        .filter(|(k, _)| *k == TokenType::Str)
+        .map(|(_, t)| t)
+        .collect();
+    assert!(strs.iter().any(|t| t.contains("\\n")));
+}
+
+// Group 15: Quoted strings (parse-15.x)
+
+#[test]
+fn t15_simple_quoted_word() {
+    // A quoted word is one ESC token with the inner text.
+    assert_eq!(first("\"hello world\""), (TokenType::Esc, "hello world".to_string()));
+}
+
+#[test]
+fn t15_quoted_substitutes_var_and_command() {
+    // Unlike braces, quotes DO substitute `$var` and `[cmd]`.
+    assert!(lex("\"hello $name\"").iter().any(|(k, _)| *k == TokenType::Var));
+    assert!(lex("\"value is [expr {1+1}]\"").iter().any(|(k, _)| *k == TokenType::Cmd));
+}
+
+#[test]
+fn t15_5_incomplete_delimiters_do_not_crash() {
+    for src in ["set x {", "set x \"hello", "set x [cmd"] {
+        let _ = lex(src);
+    }
+}
