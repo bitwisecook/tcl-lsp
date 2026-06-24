@@ -156,3 +156,152 @@ fn comment_not_in_command_position_is_a_word() {
     assert!(comments(src).is_empty());
     assert!(texts(src).iter().any(|w| w == "#foo"));
 }
+
+fn kinds(source: &str) -> Vec<TokenType> {
+    lex(source).into_iter().map(|(k, _)| k).collect()
+}
+
+// Group 3: Word parsing and space skipping (parse-3.x)
+
+#[test]
+fn t3_1_multiple_spaces_and_tabs() {
+    assert_eq!(texts("foo  bar\t\tx"), ["foo", "bar", "x"]);
+}
+
+#[test]
+fn t3_3_semicolon_separator_words() {
+    let t = texts("foo  ;  bar x");
+    for w in ["foo", "bar", "x"] {
+        assert!(t.iter().any(|s| s == w), "{w}");
+    }
+}
+
+#[test]
+fn t3_4_trailing_spaces_dropped() {
+    assert_eq!(texts("foo       "), ["foo"]);
+}
+
+#[test]
+fn t3_5_quoted_word_is_one_unit() {
+    // `"a b c"` is a single word (tclsh: `cnt "a b c"` → 1).
+    assert!(lex("foo \"a b c\" d \"efg\"")
+        .iter()
+        .any(|(_, t)| t == "a b c"));
+}
+
+#[test]
+fn t3_6_braces_group_and_suppress_substitution() {
+    // `$b` is NOT substituted inside braces; the braced word is one STR.
+    let strs: Vec<String> = lex("foo {a $b [concat foo]} {c d}")
+        .into_iter()
+        .filter(|(k, _)| *k == TokenType::Str)
+        .map(|(_, t)| t)
+        .collect();
+    assert!(strs.iter().any(|t| t.contains("$b")));
+    assert!(strs.iter().any(|t| t == "c d"));
+}
+
+#[test]
+fn t3_7_braced_var_name() {
+    // `${abc}` → a VAR token whose name is `abc`.
+    let toks = lex("foo ${abc}");
+    assert_eq!(toks[0].1, "foo");
+    let vars: Vec<&String> = toks.iter().filter(|(k, _)| *k == TokenType::Var).map(|(_, t)| t).collect();
+    assert!(vars.iter().any(|t| *t == "abc"));
+}
+
+#[test]
+fn t3_empty_commands_from_semicolons() {
+    assert_eq!(texts("set a 1; set b 2").iter().filter(|w| *w == "set").count(), 2);
+    assert!(texts(";;;foo").iter().any(|w| w == "foo"));
+}
+
+// Group 4: Simple words (parse-4.x)
+
+#[test]
+fn t4_1_simple_word_is_esc() {
+    let t = lex("foo");
+    assert_eq!(t.len(), 1);
+    assert_eq!(t[0].0, TokenType::Esc);
+    assert_eq!(t[0].1, "foo");
+}
+
+#[test]
+fn t4_2_braced_word_is_str() {
+    let t = lex("{abc}");
+    assert_eq!(t.len(), 1);
+    assert_eq!(t[0].0, TokenType::Str);
+    assert_eq!(t[0].1, "abc");
+}
+
+#[test]
+fn t4_4_word_with_variable_concatenates() {
+    // `x$d` → an ESC piece and a VAR piece in one word.
+    let k = kinds("x$d");
+    assert!(k.contains(&TokenType::Esc));
+    assert!(k.contains(&TokenType::Var));
+}
+
+#[test]
+fn t4_5_word_with_command_sub() {
+    assert!(kinds("\"a [foo] b\"").contains(&TokenType::Cmd));
+}
+
+#[test]
+fn t4_6_simple_variable() {
+    let t = lex("$x");
+    assert_eq!(t.len(), 1);
+    assert_eq!(t[0].0, TokenType::Var);
+    assert_eq!(t[0].1, "x");
+}
+
+// Group 5: Word terminators (parse-5.x)
+
+#[test]
+fn t5_newline_and_semicolon_terminate_words() {
+    for src in ["foo\n bar", "foo; bar", "\"foo\" bar"] {
+        let t = texts(src);
+        assert!(t.iter().any(|w| w == "foo"), "{src}");
+        assert!(t.iter().any(|w| w == "bar"), "{src}");
+    }
+}
+
+#[test]
+fn t5_backslash_newline_after_brace() {
+    assert!(texts("{abc}\\\nfoo").iter().any(|w| w == "abc"));
+}
+
+// Group 5 continued: {*} expansion (parse-5.11+)
+
+#[test]
+fn expansion_basic_var() {
+    // tclsh: `list a {*}{b c} d` → 4 elements (the {*} expands).
+    let k = kinds("cmd {*}$args");
+    assert_eq!(lex("cmd {*}$args")[0].1, "cmd");
+    assert!(k.contains(&TokenType::Expand));
+    assert!(k.contains(&TokenType::Var));
+}
+
+#[test]
+fn expansion_with_list_quotes_bracket() {
+    // {*}{a b c} — STR "a b c"; tclsh `list {*}{a b c}` → llength 3.
+    let lst = lex("cmd {*}{a b c}");
+    assert!(lst.iter().any(|(k, _)| *k == TokenType::Expand));
+    assert!(lst.iter().any(|(k, t)| *k == TokenType::Str && t == "a b c"));
+    // {*}"a b c" — quoted argument.
+    let q = lex("cmd {*}\"a b c\"");
+    assert!(q.iter().any(|(k, _)| *k == TokenType::Expand));
+    // {*}[list a b] — command substitution.
+    let b = kinds("cmd {*}[list a b]");
+    assert!(b.contains(&TokenType::Expand));
+    assert!(b.contains(&TokenType::Cmd));
+}
+
+#[test]
+fn no_expansion_for_brace_star_space() {
+    // `{* }` is the literal string "* ", not an expansion prefix
+    // (tclsh: `list {* }` → llength 1).
+    let t = lex("cmd {* }");
+    assert!(!t.iter().any(|(k, _)| *k == TokenType::Expand));
+    assert!(t.iter().any(|(k, txt)| *k == TokenType::Str && txt == "* "));
+}
