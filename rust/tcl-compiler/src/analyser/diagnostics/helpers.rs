@@ -116,6 +116,12 @@ pub(super) fn has_substitution(text: &str, tok: &tcl_lexer::Token) -> bool {
         )
 }
 
+/// An identifier-continuation byte: ASCII alphanumeric, `_`, or `:` (the
+/// namespace-separator byte).
+pub(super) fn is_ident_continue(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_' || b == b':'
+}
+
 /// Collect `(var, guard_block)` pairs for every
 /// `[info exists X]` / `[array exists X]` branch condition in `fu`.
 /// A read of `var` in any block dominated by `guard_block` is guarded
