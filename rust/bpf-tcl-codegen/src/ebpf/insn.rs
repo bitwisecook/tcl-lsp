@@ -75,6 +75,7 @@ pub const JSGE: u8 = 0x70;
 pub const JSLT: u8 = 0xc0;
 pub const JSLE: u8 = 0xd0;
 pub const EXIT: u8 = 0x90;
+pub const CALL: u8 = 0x80;
 
 // ── registers ──────────────────────────────────────────────────────────────
 pub const R0: u8 = 0;
@@ -216,5 +217,17 @@ pub fn exit() -> Insn {
         src: 0,
         off: 0,
         imm: 0,
+    }
+}
+
+/// `call <helper_id>` — a helper call (`src = 0` selects the helper table; the
+/// id is the immediate). Arguments are in r1–r5, the result in r0.
+pub fn call(helper_id: i32) -> Insn {
+    Insn {
+        op: JMP | CALL,
+        dst: 0,
+        src: 0,
+        off: 0,
+        imm: helper_id,
     }
 }

@@ -11,14 +11,14 @@
 
 use std::collections::HashMap;
 
-use bpf_tcl_ir::ir::{Block, BpfProgram, CmpOp, Inst, IntBinOp, Term, UnOp};
+use bpf_tcl_ir::ir::{Block, BpfProgram, CmpOp, Inst, IntBinOp, MapDef, Term, UnOp};
 use bpf_tcl_ir::ty::Width;
 use bpf_tcl_ir::{BpfDiag, BpfError};
 use tcl_lexer::Span;
 
 use crate::ebpf::insn::{
     ADD, AND, DIV, Insn, JEQ, JNE, JSGE, JSGT, JSLE, JSLT, LSH, MOD, MUL, OR, R0, R1, R2, R3, R6,
-    R7, R10, RSH, SUB, SZ_B, SZ_DW, SZ_H, SZ_W, XOR, alu64_imm, alu64_reg, exit, ja, jmp_imm,
+    R7, R10, RSH, SUB, SZ_B, SZ_DW, SZ_H, SZ_W, XOR, alu64_imm, alu64_reg, call, exit, ja, jmp_imm,
     jmp_reg, ldx, mov64_imm, mov64_reg, neg64, st_imm, stx,
 };
 
@@ -32,6 +32,11 @@ const DATA_OFF: i16 = 0;
 /// Offset in the metadata buffer (r1) holding the `data_end` pointer.
 const DATA_END_OFF: i16 = 8;
 
+/// Helper id for `map_get` (must match the run harness registration).
+const MAP_GET_ID: i32 = 1;
+/// Helper id for `map_set`.
+const MAP_SET_ID: i32 = 2;
+
 /// A compiled eBPF object: the instruction array plus its raw little-endian
 /// byte encoding (exactly what `rbpf` executes).
 #[derive(Debug, Clone)]
@@ -40,15 +45,17 @@ pub struct EbpfObject {
     pub insns: Vec<Insn>,
     /// The flattened little-endian bytes (`insns.len() * 8`).
     pub raw: Vec<u8>,
+    /// Declared maps (so the run harness can size its map store).
+    pub maps: Vec<MapDef>,
 }
 
 impl EbpfObject {
-    fn from_insns(insns: Vec<Insn>) -> Self {
+    fn assemble(insns: Vec<Insn>, maps: Vec<MapDef>) -> Self {
         let mut raw = Vec::with_capacity(insns.len() * 8);
         for i in &insns {
             raw.extend_from_slice(&i.to_le_bytes());
         }
-        Self { insns, raw }
+        Self { insns, raw, maps }
     }
 }
 
@@ -121,7 +128,7 @@ pub fn emit_program(prog: &BpfProgram) -> Result<EbpfObject, BpfError> {
         };
         insns.push(insn);
     }
-    Ok(EbpfObject::from_insns(insns))
+    Ok(EbpfObject::assemble(insns, prog.maps.clone()))
 }
 
 fn rel_off(from: usize, to: usize) -> Result<i16, BpfError> {
@@ -210,8 +217,27 @@ fn emit_inst(inst: &Inst, pend: &mut Vec<Pending>) -> Result<(), BpfError> {
             pend.push(Pending::Ins(ldx(width_size(*width), R2, R1, off16)));
             pend.push(Pending::Ins(stx(SZ_DW, R10, R2, slot_off(dst.0))));
         }
+        Inst::MapGet { dst, map, key, .. } => {
+            // r1 = map index, r2 = key; r0 = map_get(...); store r0.
+            pend.push(Pending::Ins(mov64_imm(R1, map_imm(*map))));
+            pend.push(Pending::Ins(ldx(SZ_DW, R2, R10, slot_off(key.0))));
+            pend.push(Pending::Ins(call(MAP_GET_ID)));
+            pend.push(Pending::Ins(stx(SZ_DW, R10, R0, slot_off(dst.0))));
+        }
+        Inst::MapSet { map, key, val, .. } => {
+            // r1 = map index, r2 = key, r3 = value; map_set(...).
+            pend.push(Pending::Ins(mov64_imm(R1, map_imm(*map))));
+            pend.push(Pending::Ins(ldx(SZ_DW, R2, R10, slot_off(key.0))));
+            pend.push(Pending::Ins(ldx(SZ_DW, R3, R10, slot_off(val.0))));
+            pend.push(Pending::Ins(call(MAP_SET_ID)));
+        }
     }
     Ok(())
+}
+
+/// A small map index as a 32-bit immediate.
+fn map_imm(map: u32) -> i32 {
+    i32::try_from(map).unwrap_or(0)
 }
 
 fn emit_term(term: &Term, pend: &mut Vec<Pending>) {
