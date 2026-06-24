@@ -7,10 +7,10 @@
 //! the F5 `::when::` lowering. We recognise that call, map the event via our own
 //! table, and re-lower each handler body independently.
 
-use tcl_compiler::Statement;
 use tcl_compiler::cfg_builder::build_cfg_function;
 use tcl_compiler::ir::CommandTokens;
 use tcl_compiler::lowering::lower_to_ir;
+use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
 use tcl_registry::registry::CommandRegistry;
 
@@ -18,6 +18,7 @@ use crate::diag::{BpfDiag, BpfError};
 use crate::event::{KNOWN_EVENTS, event_to_prog_type};
 use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
 use crate::lower::lower_function;
+use crate::profile::{BpfProfileSpec, collect_profile, expand_fields};
 use crate::unroll::unroll_loops;
 
 /// Compile a `.bpftcl` translation unit into a bundle of typed programs.
@@ -34,6 +35,9 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     registry.load_bpf();
     let module = lower_to_ir(source, &registry);
 
+    // The (optional) active profile — the top-layer config selected for the file.
+    let profile = collect_profile(&module.top_level, &registry)?;
+
     let mut programs = Vec::new();
     let mut saw_when = false;
 
@@ -48,22 +52,35 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
             && command == "when"
         {
             saw_when = true;
-            programs.push(lower_when_decl(args, tokens.as_ref(), *span, &registry)?);
+            programs.push(lower_when_decl(
+                args,
+                tokens.as_ref(),
+                *span,
+                &registry,
+                profile.as_ref(),
+            )?);
         }
     }
 
-    // No framework envelope: treat the whole top level as a single anonymous
-    // SOCKET_FILTER program (the raw-DSL path, handy for tests).
-    if !saw_when && !module.top_level.statements.is_empty() {
-        let unrolled = unroll_loops(&module.top_level, &registry)?;
-        let cfg = build_cfg_function("main", &unrolled, false);
-        let program = lower_function(&cfg, ProgType::SocketFilter)?;
-        programs.push(BpfProgramDecl {
-            event: "SOCKET_FILTER".to_owned(),
-            priority: 500,
-            program,
-            source_base: 0,
-        });
+    // No framework envelope: treat the top level (minus profile/field decls) as a
+    // single anonymous SOCKET_FILTER program (the raw-DSL path, handy for tests).
+    if !saw_when {
+        let body = strip_decls(&module.top_level);
+        if !body.statements.is_empty() {
+            let unrolled = unroll_loops(&body, &registry)?;
+            let expanded = match profile.as_ref() {
+                Some(p) => expand_fields(&unrolled, p)?,
+                None => unrolled,
+            };
+            let cfg = build_cfg_function("main", &expanded, false);
+            let program = lower_function(&cfg, ProgType::SocketFilter)?;
+            programs.push(BpfProgramDecl {
+                event: "SOCKET_FILTER".to_owned(),
+                priority: 500,
+                program,
+                source_base: 0,
+            });
+        }
     }
 
     // Deterministic order: ascending priority (lower = runs first, F5-style),
@@ -82,6 +99,7 @@ fn lower_when_decl(
     tokens: Option<&CommandTokens>,
     call_span: Span,
     registry: &CommandRegistry,
+    profile: Option<&BpfProfileSpec>,
 ) -> Result<BpfProgramDecl, BpfError> {
     if args.len() < 2 {
         return Err(BpfError::new(
@@ -125,7 +143,11 @@ fn lower_when_decl(
     let body_module = lower_to_ir(body_text, registry);
     let unrolled =
         unroll_loops(&body_module.top_level, registry).map_err(|e| e.offset(source_base))?;
-    let cfg = build_cfg_function(&format!("::bpf::{event}"), &unrolled, false);
+    let expanded = match profile {
+        Some(p) => expand_fields(&unrolled, p).map_err(|e| e.offset(source_base))?,
+        None => unrolled,
+    };
+    let cfg = build_cfg_function(&format!("::bpf::{event}"), &expanded, false);
     let program = lower_function(&cfg, prog_type).map_err(|e| e.offset(source_base))?;
 
     Ok(BpfProgramDecl {
@@ -134,6 +156,28 @@ fn lower_when_decl(
         program,
         source_base,
     })
+}
+
+/// Remove top-level `profile`/`field` declarations (metadata, not executable).
+fn strip_decls(script: &Script) -> Script {
+    let kept = script
+        .statements
+        .iter()
+        .filter(|s| !is_decl(s))
+        .cloned()
+        .collect();
+    Script::from_statements(kept)
+}
+
+fn is_decl(stmt: &Statement) -> bool {
+    matches!(
+        stmt,
+        Statement::Call { command, canonical_command, .. }
+            if matches!(
+                canonical_command.as_deref().unwrap_or(command.as_str()),
+                "profile" | "field"
+            )
+    )
 }
 
 #[cfg(test)]
