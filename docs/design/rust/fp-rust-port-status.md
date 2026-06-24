@@ -32,6 +32,11 @@ mirroring the user-facing `tcl diag` / `get_diagnostics` surface.
   one proc but a `set ::w 1` in another emitted a false `W211`. Added
   `scan_module_traced_globals(cu)` and folded module-wide traced `::`-globals
   into every function's `cross_event_vars` suppression. (commit `b71f8859`)
+- **FP-OBJ-09 (SCCP non-command overrides W307 multi-dispatch).** When SCCP
+  proves every feasible value of a dispatched local is a concrete non-command
+  literal, that evidence now overrides the heuristic object-dispatch
+  suppressions (in-method, proc-param / multi-dispatch) so the real
+  invalid-command-name hazard fires W307. (commit `6102bec8`)
 
 ## Remaining bug worklist (11)
 
@@ -62,12 +67,18 @@ Over-fires (Rust emits where Python suppresses — add a suppression):
    literal `::method` tail is static method evidence; suppress.
 4. **FP-OBJ-10** (×2) — `W307` on dash-prefixed (`$state(-command)`) and
    callback-suffix (`$state(doneCallback)`) array-element dispatch (callback
-   registration slots).
+   registration slots). A `is_callback_array_slot` suppression (gated on the
+   FP-OBJ-09 `sccp_not_command` check) fixes the no-evidence FP cases, but the
+   paired TP variants (`set state(doneCallback) notacommand; $state(...) a` must
+   *fire*) need a direct `set arr(key) literal` const harvester so the slot's
+   concrete value reaches `sccp_not_command` — the current constset only
+   captures `array set` element literals, not direct element assignment. Land
+   both together.
 
 Under-fires (Rust suppresses where Python emits — tighten the heuristic):
 
-5. **FP-OBJ-09** — SCCP-const evidence (`set cmd notacommand; $cmd a; $cmd b`)
-   must override the multi-dispatch suppression and fire `W307`.
+5. **FP-OBJ-09** — **FIXED** (commit `6102bec8`): SCCP-const non-command evidence
+   now overrides the multi-dispatch suppression.
 6. **FP-OBJ-D4-F5** — a local literal dispatched inside an `oo::class` method
    body (`set cmd nope; $cmd arg`) must fire `W307` (the `in_method` blanket
    suppression should not apply without positive object-evidence).
