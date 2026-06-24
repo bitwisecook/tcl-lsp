@@ -22,6 +22,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::alias::detect_interp_alias;
+use crate::cfg::BlockId;
 use crate::cfg::Function as CfgFunction;
 use crate::ir::Statement;
 use crate::naming::normalise_qualified_name as nqn;
@@ -259,16 +260,16 @@ fn merge_preds(pred_exits: &[&State], registry: &CommandRegistry) -> State {
 /// queried index.  Borrows the `cfg` and `registry` for the
 /// point-wise query API.
 pub struct CommandBinding<'a> {
-    block_entry: HashMap<String, State>,
-    ordered_blocks: Vec<String>,
+    block_entry: HashMap<BlockId, State>,
+    ordered_blocks: Vec<BlockId>,
     cfg: &'a CfgFunction,
     registry: &'a CommandRegistry,
 }
 
 impl CommandBinding<'_> {
-    fn state_at_block(&self, block: &str, stmt_idx: usize) -> State {
-        let mut state = self.block_entry.get(block).cloned().unwrap_or_default();
-        if let Some(blk) = self.cfg.blocks.get(block) {
+    fn state_at_block(&self, block: BlockId, stmt_idx: usize) -> State {
+        let mut state = self.block_entry.get(&block).cloned().unwrap_or_default();
+        if let Some(blk) = self.cfg.blocks.get(&block) {
             for stmt in blk.statements.iter().take(stmt_idx) {
                 stmt_gen(stmt, &mut state, self.registry);
             }
@@ -278,7 +279,7 @@ impl CommandBinding<'_> {
 
     /// The binding of `command_name` when `block::stmt_idx` executes.
     #[must_use]
-    pub fn binding_at(&self, block: &str, stmt_idx: usize, command_name: &str) -> Binding {
+    pub fn binding_at(&self, block: BlockId, stmt_idx: usize, command_name: &str) -> Binding {
         binding_in(
             &self.state_at_block(block, stmt_idx),
             &nqn(command_name),
@@ -288,7 +289,12 @@ impl CommandBinding<'_> {
 
     /// True when `command_name` still denotes its core builtin here.
     #[must_use]
-    pub fn is_original_builtin_at(&self, block: &str, stmt_idx: usize, command_name: &str) -> bool {
+    pub fn is_original_builtin_at(
+        &self,
+        block: BlockId,
+        stmt_idx: usize,
+        command_name: &str,
+    ) -> bool {
         self.binding_at(block, stmt_idx, command_name)
             .is_original_builtin()
     }
@@ -355,13 +361,13 @@ pub fn analyse_command_binding<'a>(
     registry: &'a CommandRegistry,
     initial: &[(String, Binding)],
 ) -> CommandBinding<'a> {
-    let mut preds: HashMap<String, Vec<String>> =
-        cfg.blocks.keys().map(|n| (n.clone(), Vec::new())).collect();
-    for (name, blk) in &cfg.blocks {
+    let mut preds: HashMap<BlockId, Vec<BlockId>> =
+        cfg.blocks.keys().map(|id| (*id, Vec::new())).collect();
+    for (id, blk) in &cfg.blocks {
         if let Some(term) = &blk.terminator {
             for succ in term.successors() {
-                if let Some(v) = preds.get_mut(succ) {
-                    v.push(name.clone());
+                if let Some(v) = preds.get_mut(&succ) {
+                    v.push(*id);
                 }
             }
         }
@@ -373,10 +379,10 @@ pub fn analyse_command_binding<'a>(
         wildcard: false,
     };
 
-    let mut block_entry: HashMap<String, State> = cfg
+    let mut block_entry: HashMap<BlockId, State> = cfg
         .blocks
         .keys()
-        .map(|n| (n.clone(), State::default()))
+        .map(|id| (*id, State::default()))
         .collect();
     let mut block_exit = block_entry.clone();
 
@@ -385,26 +391,26 @@ pub fn analyse_command_binding<'a>(
     let mut changed = true;
     while changed {
         changed = false;
-        for name in &order {
+        for id in &order {
             let entry = {
                 let mut pred_states: Vec<&State> = preds
-                    .get(name)
+                    .get(id)
                     .map(|ps| ps.iter().map(|p| &block_exit[p]).collect())
                     .unwrap_or_default();
-                if *name == cfg.entry {
+                if *id == cfg.entry {
                     pred_states.push(&seed);
                 }
                 merge_preds(&pred_states, registry)
             };
-            block_entry.insert(name.clone(), entry.clone());
+            block_entry.insert(*id, entry.clone());
             let mut exit_state = entry;
-            if let Some(blk) = cfg.blocks.get(name) {
+            if let Some(blk) = cfg.blocks.get(id) {
                 for stmt in &blk.statements {
                     stmt_gen(stmt, &mut exit_state, registry);
                 }
             }
-            if exit_state != block_exit[name] {
-                block_exit.insert(name.clone(), exit_state);
+            if exit_state != block_exit[id] {
+                block_exit.insert(*id, exit_state);
                 changed = true;
             }
         }
@@ -593,7 +599,7 @@ mod tests {
         let (cu, reg) = analyse("string toupper a");
         let fu = cu.function("::top").unwrap();
         let cb = analyse_command_binding(&fu.cfg, &reg, &[]);
-        assert!(cb.is_original_builtin_at(&fu.cfg.entry, 0, "string"));
+        assert!(cb.is_original_builtin_at(fu.cfg.entry, 0, "string"));
         assert!(cb.rebound_names().is_empty());
         assert!(!cb.has_wildcard());
     }
@@ -604,7 +610,7 @@ mod tests {
         let (cu, reg) = analyse("string toupper a\nrename string {}\nstring toupper b");
         let fu = cu.function("::top").unwrap();
         let cb = analyse_command_binding(&fu.cfg, &reg, &[]);
-        let entry = &fu.cfg.entry;
+        let entry = fu.cfg.entry;
         assert!(cb.is_original_builtin_at(entry, 0, "string"));
         assert_eq!(
             cb.binding_at(entry, 2, "string").kind,
@@ -619,7 +625,7 @@ mod tests {
         let (cu, reg) = analyse("rename string mystr\nmystr toupper b");
         let fu = cu.function("::top").unwrap();
         let cb = analyse_command_binding(&fu.cfg, &reg, &[]);
-        let entry = &fu.cfg.entry;
+        let entry = fu.cfg.entry;
         // After the rename: old `string` is opaque, `mystr` inherits the
         // builtin binding `string` denoted.
         assert_eq!(cb.binding_at(entry, 1, "string").kind, BindingKind::Opaque);
@@ -631,7 +637,7 @@ mod tests {
         let (cu, reg) = analyse("proc string {x} { return $x }\nstring foo");
         let fu = cu.function("::top").unwrap();
         let cb = analyse_command_binding(&fu.cfg, &reg, &[]);
-        let entry = &fu.cfg.entry;
+        let entry = fu.cfg.entry;
         let b = cb.binding_at(entry, 1, "string");
         assert_eq!(b.kind, BindingKind::Proc);
         assert_eq!(b.target.as_deref(), Some("::string"));
@@ -647,7 +653,7 @@ mod tests {
         assert!(cb.has_wildcard(), "dynamic rename sets the wildcard");
         // Under the wildcard everything resolves to Unknown (⊤), never a
         // concrete binding — so no spurious W128 can fire.
-        let entry = &fu.cfg.entry;
+        let entry = fu.cfg.entry;
         assert_eq!(cb.binding_at(entry, 2, "string").kind, BindingKind::Unknown);
     }
 
@@ -665,7 +671,7 @@ mod tests {
         )];
         let cb = analyse_command_binding(&fu.cfg, &reg, &seed);
         assert_eq!(
-            cb.binding_at(&fu.cfg.entry, 0, "myproc").kind,
+            cb.binding_at(fu.cfg.entry, 0, "myproc").kind,
             BindingKind::Proc
         );
     }

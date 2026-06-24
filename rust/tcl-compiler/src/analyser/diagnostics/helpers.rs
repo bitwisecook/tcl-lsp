@@ -14,6 +14,8 @@ use std::collections::HashSet;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::cfg::BlockId;
+
 /// Find a case-insensitive match for `variable` in `defined_vars`.
 ///
 /// The source text covered by `span`, or `None` when the span is out
@@ -129,7 +131,7 @@ pub(super) fn is_ident_continue(b: u8) -> bool {
 /// `![info exists X]` query guards the false target.
 pub(super) fn collect_existence_guards(
     fu: &crate::compilation_unit::FunctionUnit,
-) -> Vec<(String, String)> {
+) -> Vec<(String, BlockId)> {
     use crate::cfg::Terminator;
     let mut guards = Vec::new();
     for block in fu.cfg.blocks.values() {
@@ -141,8 +143,8 @@ pub(super) fn collect_existence_guards(
         }) = &block.terminator
             && let Some((var, negated)) = crate::expr_ast::existence_query_var(condition)
         {
-            let target = if negated { false_target } else { true_target };
-            guards.push((var, target.clone()));
+            let target = if negated { *false_target } else { *true_target };
+            guards.push((var, target));
         }
     }
     guards
@@ -150,14 +152,18 @@ pub(super) fn collect_existence_guards(
 
 /// True when `block` is dominated by `dom` (walking the SSA immediate
 /// dominator chain; a block dominates itself).
-pub(super) fn block_dominated_by(ssa: &crate::ssa::SsaFunction, block: &str, dom: &str) -> bool {
+pub(super) fn block_dominated_by(
+    ssa: &crate::ssa::SsaFunction,
+    block: BlockId,
+    dom: BlockId,
+) -> bool {
     let mut cur = block;
     loop {
         if cur == dom {
             return true;
         }
-        match ssa.idom.get(cur) {
-            Some(Some(parent)) => cur = parent,
+        match ssa.idom.get(&cur) {
+            Some(Some(parent)) => cur = *parent,
             _ => return false,
         }
     }
@@ -212,9 +218,9 @@ pub(super) fn phi_can_undef(
     phi_def: &PhiDefMap,
     phi_block: &PhiBlockMap,
     killed: &FxHashSet<(String, crate::ssa::Version)>,
-    considered: &HashSet<String>,
-    executable_edges: &HashSet<(String, String)>,
-    exists_guards: &[(String, String)],
+    considered: &HashSet<BlockId>,
+    executable_edges: &HashSet<(BlockId, BlockId)>,
+    exists_guards: &[(String, BlockId)],
     ssa: &crate::ssa::SsaFunction,
     seen: &mut FxHashSet<(String, crate::ssa::Version)>,
 ) -> bool {
@@ -236,11 +242,11 @@ pub(super) fn phi_can_undef(
         return false;
     };
     // The block this phi lives in — the destination of each incoming edge.
-    let this_block = phi_block.get(&key).map(String::as_str);
+    let this_block = phi_block.get(&key).copied();
     seen.insert(key.clone());
     let mut result = false;
-    for (pred, &incoming_ver) in &phi.incoming {
-        if !considered.contains(pred) {
+    for (&pred, &incoming_ver) in &phi.incoming {
+        if !considered.contains(&pred) {
             continue;
         }
         // A phi has one operand per predecessor *edge*; an operand arriving on
@@ -251,7 +257,7 @@ pub(super) fn phi_can_undef(
         // when SCCP edge info is available (a non-empty set).
         if let Some(blk) = this_block
             && !executable_edges.is_empty()
-            && !executable_edges.contains(&(pred.clone(), blk.to_owned()))
+            && !executable_edges.contains(&(pred, blk))
         {
             continue;
         }
@@ -260,7 +266,7 @@ pub(super) fn phi_can_undef(
         // its SSA version.
         if exists_guards
             .iter()
-            .any(|(gv, gblk)| gv == name && block_dominated_by(ssa, pred, gblk))
+            .any(|(gv, gblk)| gv == name && block_dominated_by(ssa, pred, *gblk))
         {
             continue;
         }
@@ -289,14 +295,14 @@ pub(super) type PhiDefMap = FxHashMap<(String, crate::ssa::Version), crate::ssa:
 
 /// `(name, version) → defining block` index, so [`phi_can_undef`] can test
 /// each incoming `(pred, phi_block)` edge against the SCCP-executable edge set.
-pub(super) type PhiBlockMap = FxHashMap<(String, crate::ssa::Version), String>;
+pub(super) type PhiBlockMap = FxHashMap<(String, crate::ssa::Version), BlockId>;
 
 /// Build the `(name, version) → Phi` index, the `(name, version) → block`
 /// index, and the set of `unset`-killed versions for [`phi_can_undef`],
 /// restricted to `considered` (executable) blocks.
 pub(super) fn build_phi_undef_index(
     ssa: &crate::ssa::SsaFunction,
-    considered: &HashSet<String>,
+    considered: &HashSet<BlockId>,
 ) -> (
     PhiDefMap,
     PhiBlockMap,
@@ -306,13 +312,13 @@ pub(super) fn build_phi_undef_index(
     let mut phi_def: PhiDefMap = FxHashMap::default();
     let mut phi_block: PhiBlockMap = FxHashMap::default();
     let mut killed: FxHashSet<(String, crate::ssa::Version)> = FxHashSet::default();
-    for bn in considered {
-        let Some(sblock) = ssa.blocks.get(bn) else {
+    for &bn in considered {
+        let Some(sblock) = ssa.blocks.get(&bn) else {
             continue;
         };
         for phi in &sblock.phis {
             phi_def.insert((phi.name.clone(), phi.version), phi.clone());
-            phi_block.insert((phi.name.clone(), phi.version), bn.clone());
+            phi_block.insert((phi.name.clone(), phi.version), bn);
         }
         for s in &sblock.statements {
             let Statement::Call {
@@ -419,12 +425,12 @@ impl UndefSuppression {
 /// Name-level, suppress-only.
 fn collect_expr_cmd_sub_writes(
     fu: &crate::compilation_unit::FunctionUnit,
-    considered: &HashSet<String>,
+    considered: &HashSet<BlockId>,
 ) -> FxHashSet<String> {
     use crate::ir::Statement;
     let mut out = FxHashSet::default();
-    for bn in considered {
-        let Some(block) = fu.cfg.blocks.get(bn) else {
+    for &bn in considered {
+        let Some(block) = fu.cfg.blocks.get(&bn) else {
             continue;
         };
         for stmt in &block.statements {
@@ -442,12 +448,12 @@ fn collect_expr_cmd_sub_writes(
 /// to neither marks the dict shape unknown.
 fn harvest_dict_with_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
-    considered: &HashSet<String>,
+    considered: &HashSet<BlockId>,
     s: &mut UndefSuppression,
 ) {
     use crate::ir::Statement;
-    for bn in considered {
-        let Some(block) = fu.cfg.blocks.get(bn) else {
+    for &bn in considered {
+        let Some(block) = fu.cfg.blocks.get(&bn) else {
             continue;
         };
         for (idx, stmt) in block.statements.iter().enumerate() {
@@ -483,7 +489,7 @@ fn harvest_dict_with_suppression(
             // known value (even empty) harvests its keys; only a value that
             // resolves to neither marks the dict shape unknown.
             let mut literal: Option<String> = None;
-            if let Some(sb) = fu.ssa.blocks.get(bn)
+            if let Some(sb) = fu.ssa.blocks.get(&bn)
                 && let Some(ver) = sb
                     .statements
                     .get(idx)
@@ -528,7 +534,7 @@ fn harvest_dict_with_suppression(
 
 pub(super) fn build_undef_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
-    considered: &HashSet<String>,
+    considered: &HashSet<BlockId>,
 ) -> UndefSuppression {
     let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
     // Phi versions that can reach an undef origin on some executable path —
@@ -565,8 +571,8 @@ pub(super) fn build_undef_suppression(
     // Names with a concrete (version > 0) statement or phi definition — a
     // dict-with scope never suppresses these (they are genuinely set).
     if s.has_dict_with {
-        for bn in considered {
-            let Some(sb) = fu.ssa.blocks.get(bn) else {
+        for &bn in considered {
+            let Some(sb) = fu.ssa.blocks.get(&bn) else {
                 continue;
             };
             for st in &sb.statements {
@@ -593,12 +599,12 @@ pub(super) fn build_undef_suppression(
 /// resolves to the namespace var, not an unset local.
 fn collect_qualified_variable_alias_tails(
     fu: &crate::compilation_unit::FunctionUnit,
-    considered: &HashSet<String>,
+    considered: &HashSet<BlockId>,
 ) -> FxHashSet<String> {
     use crate::ir::Statement;
     let mut tails = FxHashSet::default();
-    for bn in considered {
-        let Some(block) = fu.cfg.blocks.get(bn) else {
+    for &bn in considered {
+        let Some(block) = fu.cfg.blocks.get(&bn) else {
             continue;
         };
         for stmt in &block.statements {

@@ -289,7 +289,7 @@ impl FunctionUnit {
     /// empty lattices are never read as real facts.
     #[must_use]
     pub fn trivial_guarded(name: impl Into<String>, cfg: CfgFunction) -> Self {
-        let ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry.clone());
+        let ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
         Self {
             name: name.into(),
             cfg,

@@ -80,22 +80,23 @@ fn follow_until_prefix(cfg: &CfgFunction, start: &str, prefix: &str) -> Option<S
         if !visited.insert(current.clone()) {
             return None;
         }
-        let blk = cfg.blocks.get(&current)?;
+        let blk = cfg.block_by_name(&current)?;
         let Some(Terminator::Goto { target, .. }) = &blk.terminator else {
             return None;
         };
+        let target = cfg.block_name(*target);
         if target.starts_with(prefix) {
-            return Some(target.clone());
+            return Some(target.to_owned());
         }
-        current = target.clone();
+        target.clone_into(&mut current);
     }
 }
 
 /// Return the direct Goto target of `name`, if any.
 fn direct_goto(cfg: &CfgFunction, name: &str) -> Option<String> {
-    let blk = cfg.blocks.get(name)?;
+    let blk = cfg.block_by_name(name)?;
     match &blk.terminator {
-        Some(Terminator::Goto { target, .. }) => Some(target.clone()),
+        Some(Terminator::Goto { target, .. }) => Some(cfg.block_name(*target).to_owned()),
         _ => None,
     }
 }

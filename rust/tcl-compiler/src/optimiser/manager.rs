@@ -363,7 +363,7 @@ fn couple_const_dead_stores_in_function(
         {
             continue;
         }
-        let Some(def_block) = fu.cfg.blocks.get(&chain.definition.block) else {
+        let Some(def_block) = fu.cfg.block_by_name(&chain.definition.block) else {
             continue;
         };
         let Ok(def_idx) = usize::try_from(chain.definition.statement_index) else {

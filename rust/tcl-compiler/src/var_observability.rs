@@ -29,7 +29,7 @@ use std::collections::HashMap;
 
 use bitflags::bitflags;
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::var_scoping::{
@@ -169,15 +169,15 @@ fn join_into(dst: &mut State, src: &State) -> bool {
 
 /// Result of the alias/observability analysis for one function.
 pub struct VarObservability<'a> {
-    block_entry: HashMap<String, State>,
-    ordered_blocks: Vec<String>,
+    block_entry: HashMap<BlockId, State>,
+    ordered_blocks: Vec<BlockId>,
     cfg: &'a CfgFunction,
 }
 
 impl VarObservability<'_> {
-    fn state_at(&self, block: &str, stmt_idx: usize) -> State {
-        let mut state = self.block_entry.get(block).cloned().unwrap_or_default();
-        if let Some(blk) = self.cfg.blocks.get(block) {
+    fn state_at(&self, block: BlockId, stmt_idx: usize) -> State {
+        let mut state = self.block_entry.get(&block).cloned().unwrap_or_default();
+        if let Some(blk) = self.cfg.blocks.get(&block) {
             for stmt in blk.statements.iter().take(stmt_idx) {
                 stmt_gen(stmt, &mut state);
             }
@@ -187,7 +187,7 @@ impl VarObservability<'_> {
 
     /// The escape flags of `name` when `block::stmt_idx` executes.
     #[must_use]
-    pub fn flag_at(&self, block: &str, stmt_idx: usize, name: &str) -> EscapeFlag {
+    pub fn flag_at(&self, block: BlockId, stmt_idx: usize, name: &str) -> EscapeFlag {
         self.state_at(block, stmt_idx)
             .get(normalise_var_name(name))
             .copied()
@@ -196,13 +196,13 @@ impl VarObservability<'_> {
 
     /// True when `name` is aliased or traced at this point.
     #[must_use]
-    pub fn is_escaping_at(&self, block: &str, stmt_idx: usize, name: &str) -> bool {
+    pub fn is_escaping_at(&self, block: BlockId, stmt_idx: usize, name: &str) -> bool {
         !self.flag_at(block, stmt_idx, name).is_empty()
     }
 
     /// True when `name` is under a `trace` at this point.
     #[must_use]
-    pub fn is_traced_at(&self, block: &str, stmt_idx: usize, name: &str) -> bool {
+    pub fn is_traced_at(&self, block: BlockId, stmt_idx: usize, name: &str) -> bool {
         self.flag_at(block, stmt_idx, name).is_traced()
     }
 
@@ -236,23 +236,23 @@ fn collect_escaping(state: &State, names: &mut std::collections::HashSet<String>
 /// Compute the flow-sensitive alias/observability lattice for `cfg`.
 #[must_use]
 pub fn analyse_var_observability(cfg: &CfgFunction) -> VarObservability<'_> {
-    let mut preds: HashMap<String, Vec<String>> =
-        cfg.blocks.keys().map(|n| (n.clone(), Vec::new())).collect();
-    for (name, blk) in &cfg.blocks {
+    let mut preds: HashMap<BlockId, Vec<BlockId>> =
+        cfg.blocks.keys().map(|id| (*id, Vec::new())).collect();
+    for (&id, blk) in &cfg.blocks {
         if let Some(term) = &blk.terminator {
             for succ in term.successors() {
-                if let Some(v) = preds.get_mut(succ) {
-                    v.push(name.clone());
+                if let Some(v) = preds.get_mut(&succ) {
+                    v.push(id);
                 }
             }
         }
     }
 
     let order = cfg.reverse_postorder();
-    let mut block_entry: HashMap<String, State> = cfg
+    let mut block_entry: HashMap<BlockId, State> = cfg
         .blocks
         .keys()
-        .map(|n| (n.clone(), State::default()))
+        .map(|id| (*id, State::default()))
         .collect();
     let mut block_exit = block_entry.clone();
 
@@ -261,22 +261,22 @@ pub fn analyse_var_observability(cfg: &CfgFunction) -> VarObservability<'_> {
     let mut changed = true;
     while changed {
         changed = false;
-        for name in &order {
+        for &id in &order {
             let mut entry = State::default();
-            if let Some(ps) = preds.get(name) {
+            if let Some(ps) = preds.get(&id) {
                 for p in ps {
                     join_into(&mut entry, &block_exit[p]);
                 }
             }
-            block_entry.insert(name.clone(), entry.clone());
+            block_entry.insert(id, entry.clone());
             let mut exit_state = entry;
-            if let Some(blk) = cfg.blocks.get(name) {
+            if let Some(blk) = cfg.blocks.get(&id) {
                 for stmt in &blk.statements {
                     stmt_gen(stmt, &mut exit_state);
                 }
             }
-            if exit_state != block_exit[name] {
-                block_exit.insert(name.clone(), exit_state);
+            if exit_state != block_exit[&id] {
+                block_exit.insert(id, exit_state);
                 changed = true;
             }
         }
@@ -306,11 +306,11 @@ mod tests {
         let c = cu("proc ::p {} { set x 1\nglobal g\nset g 2 }");
         let fu = c.function("::p").unwrap();
         let obs = analyse_var_observability(&fu.cfg);
-        let entry = fu.cfg.entry.clone();
+        let entry = fu.cfg.entry;
         // x is never aliased.
-        assert!(!obs.is_escaping_at(&entry, 3, "x"));
+        assert!(!obs.is_escaping_at(entry, 3, "x"));
         // g is GLOBAL-aliased after the `global` declaration.
-        assert!(obs.flag_at(&entry, 3, "g").contains(EscapeFlag::GLOBAL));
+        assert!(obs.flag_at(entry, 3, "g").contains(EscapeFlag::GLOBAL));
         assert!(obs.escaping_var_names().contains("g"));
         assert!(!obs.escaping_var_names().contains("x"));
     }
@@ -321,10 +321,10 @@ mod tests {
         let fu = c.function("::p").unwrap();
         let obs = analyse_var_observability(&fu.cfg);
         assert!(
-            obs.flag_at(&fu.cfg.entry, 2, "v")
+            obs.flag_at(fu.cfg.entry, 2, "v")
                 .contains(EscapeFlag::NAMESPACE)
         );
-        assert!(obs.flag_at(&fu.cfg.entry, 2, "v").writes_outer_scope());
+        assert!(obs.flag_at(fu.cfg.entry, 2, "v").writes_outer_scope());
     }
 
     #[test]
@@ -332,7 +332,7 @@ mod tests {
         let c = cu("proc ::p {} { trace add variable t write cb\nset t 1 }");
         let fu = c.function("::p").unwrap();
         let obs = analyse_var_observability(&fu.cfg);
-        assert!(obs.is_traced_at(&fu.cfg.entry, 2, "t"));
+        assert!(obs.is_traced_at(fu.cfg.entry, 2, "t"));
         assert!(obs.escaping_var_names().contains("t"));
     }
 
@@ -342,14 +342,14 @@ mod tests {
         let f0 = c0.function("::p").unwrap();
         let o0 = analyse_var_observability(&f0.cfg);
         assert!(
-            o0.flag_at(&f0.cfg.entry, 1, "loc")
+            o0.flag_at(f0.cfg.entry, 1, "loc")
                 .contains(EscapeFlag::GLOBAL)
         );
 
         let c1 = cu("proc ::p {} { upvar 1 caller loc }");
         let f1 = c1.function("::p").unwrap();
         let o1 = analyse_var_observability(&f1.cfg);
-        let f = o1.flag_at(&f1.cfg.entry, 1, "loc");
+        let f = o1.flag_at(f1.cfg.entry, 1, "loc");
         assert!(f.contains(EscapeFlag::UPVAR));
         assert!(f.aliased());
         assert!(

@@ -23,7 +23,7 @@ use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::Span;
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::cfg_order;
@@ -152,7 +152,7 @@ pub fn find_path_concat_warnings(
     ssa: &SsaFunction,
     rendered_props: &HashMap<ValueKey, RenderedValueProps>,
     taints: &HashMap<ValueKey, TaintLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
 ) -> Vec<PathConcatWarning> {
     let mut out: Vec<PathConcatWarning> = Vec::new();
     let path_sep_bits = RenderedProperties::HAS_FORWARD_SLASH | RenderedProperties::HAS_BACKSLASH;

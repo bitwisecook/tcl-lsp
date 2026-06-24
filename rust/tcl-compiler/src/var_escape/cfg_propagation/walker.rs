@@ -15,7 +15,7 @@
 
 use std::collections::HashMap;
 
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Statement};
 use crate::ssa::{SsaBlock, SsaFunction, SsaStatement, Version};
@@ -651,7 +651,7 @@ fn walk_block(block: &SsaBlock, state: &mut CfgState, terminator_condition: Opti
 /// Reverse-postorder block traversal. The escape analysis is
 /// monotone, so any order produces the same final tags; RPO
 /// gives tests a deterministic walk order.
-fn block_order(cfg: &CfgFunction) -> Vec<String> {
+fn block_order(cfg: &CfgFunction) -> Vec<BlockId> {
     cfg.reverse_postorder()
 }
 
@@ -666,13 +666,13 @@ pub fn analyse_cfg_function<I: IntoIterator<Item = String>>(
     let known = collect_known_names_from_cfg(params, ssa);
     let mut state = CfgState::new(known);
 
-    for block_name in block_order(cfg) {
-        let Some(block) = ssa.blocks.get(&block_name) else {
+    for block_id in block_order(cfg) {
+        let Some(block) = ssa.blocks.get(&block_id) else {
             continue;
         };
         let term_cond = cfg
             .blocks
-            .get(&block_name)
+            .get(&block_id)
             .and_then(|b| b.terminator.as_ref())
             .and_then(|t| match t {
                 Terminator::Branch { condition, .. } => Some(condition),

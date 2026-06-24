@@ -1686,11 +1686,11 @@ fn collect_folds_for_scope(
     edits: &mut Vec<Edit>,
     fold_map: &mut BTreeMap<String, String>,
 ) {
-    for (block_name, block) in &fu.cfg.blocks {
-        let Some(ssa_block) = fu.ssa.blocks.get(block_name) else {
+    for (block_id, block) in &fu.cfg.blocks {
+        let Some(ssa_block) = fu.ssa.blocks.get(block_id) else {
             continue;
         };
-        if !fu.sccp.executable_blocks.contains(block_name) {
+        if !fu.sccp.executable_blocks.contains(block_id) {
             continue;
         }
         let mut block_vars: HashMap<String, Version> = ssa_block.entry_versions.clone();

@@ -74,7 +74,7 @@ use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst};
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::{CommandRegistry, Traits};
 
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Statement;
@@ -1005,10 +1005,7 @@ pub(crate) fn propagate_taints(
                     .get(bn)
                     .map(|ps| {
                         ps.iter()
-                            .filter(|p| {
-                                sccp.executable_edges
-                                    .contains(&((*p).to_owned(), bn.clone()))
-                            })
+                            .filter(|p| sccp.executable_edges.contains(&(**p, *bn)))
                             .collect::<Vec<_>>()
                     })
                     .unwrap_or_default();
@@ -1203,7 +1200,7 @@ pub fn find_destructive_file_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
 ) -> Vec<TaintWarning> {
     let destructive = destructive_file_subs(registry);
@@ -1384,8 +1381,8 @@ fn is_normalised_def(name: &str, ver: u32, ssa: &SsaFunction) -> bool {
 fn compute_branch_guard_map(
     cfg: &CfgFunction,
     registry: &CommandRegistry,
-) -> HashMap<String, HashSet<String>> {
-    let mut guarded: HashMap<String, HashSet<String>> = HashMap::new();
+) -> HashMap<BlockId, HashSet<String>> {
+    let mut guarded: HashMap<BlockId, HashSet<String>> = HashMap::new();
     for block in cfg.blocks.values() {
         let Some(Terminator::Branch {
             condition,
@@ -1401,9 +1398,9 @@ fn compute_branch_guard_map(
             continue;
         };
         let (guarded_target, other_target) = if negated {
-            (false_target, true_target)
+            (*false_target, *true_target)
         } else {
-            (true_target, false_target)
+            (*true_target, *false_target)
         };
         propagate_guard(
             cfg,
@@ -1485,11 +1482,11 @@ fn extract_var_name(arg: &str) -> Option<String> {
     None
 }
 
-/// True when `block_name` executes a block-terminating command
+/// True when block `id` executes a block-terminating command
 /// (`error` / `return` / `exit` — the `TERMINATES_BLOCK` trait) so its
 /// successors are unreachable from this path.
-fn is_dead_end_block(cfg: &CfgFunction, block_name: &str, registry: &CommandRegistry) -> bool {
-    let Some(block) = cfg.blocks.get(block_name) else {
+fn is_dead_end_block(cfg: &CfgFunction, id: BlockId, registry: &CommandRegistry) -> bool {
+    let Some(block) = cfg.blocks.get(&id) else {
         return false;
     };
     block.statements.iter().any(|stmt| {
@@ -1504,15 +1501,15 @@ fn is_dead_end_block(cfg: &CfgFunction, block_name: &str, registry: &CommandRegi
 /// reachable through the guard, so the guard extends through it.
 fn propagate_guard(
     cfg: &CfgFunction,
-    guarded_target: &str,
-    other_target: &str,
+    guarded_target: BlockId,
+    other_target: BlockId,
     var: &str,
     registry: &CommandRegistry,
-    guarded: &mut HashMap<String, HashSet<String>>,
+    guarded: &mut HashMap<BlockId, HashSet<String>>,
 ) {
-    let mut other_reachable: HashSet<String> = HashSet::new();
+    let mut other_reachable: HashSet<BlockId> = HashSet::new();
     if !is_dead_end_block(cfg, other_target, registry) {
-        let mut stack = vec![other_target.to_owned()];
+        let mut stack = vec![other_target];
         while let Some(b) = stack.pop() {
             if other_reachable.contains(&b) {
                 continue;
@@ -1520,14 +1517,14 @@ fn propagate_guard(
             let Some(block) = cfg.blocks.get(&b) else {
                 continue;
             };
-            other_reachable.insert(b.clone());
+            other_reachable.insert(b);
             for succ in block.terminator.iter().flat_map(Terminator::successors) {
-                stack.push(succ.to_owned());
+                stack.push(succ);
             }
         }
     }
-    let mut visit = vec![guarded_target.to_owned()];
-    let mut visited: HashSet<String> = HashSet::new();
+    let mut visit = vec![guarded_target];
+    let mut visited: HashSet<BlockId> = HashSet::new();
     while let Some(b) = visit.pop() {
         if visited.contains(&b) {
             continue;
@@ -1538,10 +1535,10 @@ fn propagate_guard(
         let Some(block) = cfg.blocks.get(&b) else {
             continue;
         };
-        visited.insert(b.clone());
-        guarded.entry(b.clone()).or_default().insert(var.to_owned());
+        visited.insert(b);
+        guarded.entry(b).or_default().insert(var.to_owned());
         for succ in block.terminator.iter().flat_map(Terminator::successors) {
-            visit.push(succ.to_owned());
+            visit.push(succ);
         }
     }
 }
@@ -1694,7 +1691,7 @@ pub fn find_taint_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<TaintWarning> {
@@ -2341,7 +2338,7 @@ pub fn find_setter_constraint_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     dialect: Option<&str>,
 ) -> Vec<TaintWarning> {
     let mut out: Vec<TaintWarning> = Vec::new();
@@ -2421,10 +2418,10 @@ mod tests {
     use super::*;
     use crate::sccp::SccpResult;
 
-    fn simple_sccp(blocks: &[&str]) -> SccpResult {
+    fn simple_sccp(blocks: &[BlockId]) -> SccpResult {
         SccpResult {
             values: HashMap::new(),
-            executable_blocks: blocks.iter().copied().map(String::from).collect(),
+            executable_blocks: blocks.iter().copied().collect(),
             executable_edges: HashSet::new(),
             constant_branches: Vec::new(),
         }
@@ -2503,12 +2500,13 @@ mod tests {
             tokens: None,
         };
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(stmt.clone());
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
@@ -2520,16 +2518,9 @@ mod tests {
             uses: HashMap::new(),
             defs: [("x".to_string(), 1u32)].into_iter().collect(),
         };
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -2539,7 +2530,7 @@ mod tests {
             },
         );
 
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         assert!(
             taints
@@ -2580,17 +2571,18 @@ mod tests {
         };
 
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(assign.clone());
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(eval_call.clone());
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
@@ -2608,16 +2600,9 @@ mod tests {
             defs: HashMap::new(),
         };
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -2627,7 +2612,7 @@ mod tests {
             },
         );
 
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         let warnings = find_taint_warnings(
             &cfg,
@@ -2667,8 +2652,9 @@ mod tests {
             tokens: None,
         };
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         {
-            let b = cfg.blocks.get_mut("entry").unwrap();
+            let b = cfg.blocks.get_mut(&entry).unwrap();
             b.statements.push(assign.clone());
             b.statements.push(sink.clone());
             b.terminator = Some(Terminator::Return {
@@ -2688,16 +2674,9 @@ mod tests {
             uses: sink_uses,
             defs: HashMap::new(),
         };
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -2706,7 +2685,7 @@ mod tests {
                 exit_versions: HashMap::new(),
             },
         );
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         find_taint_warnings(
             &cfg,
@@ -2789,8 +2768,9 @@ mod tests {
         let s2 = call_stmt("URI::encode", &["$y"]);
 
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         {
-            let b = cfg.blocks.get_mut("entry").unwrap();
+            let b = cfg.blocks.get_mut(&entry).unwrap();
             b.statements.push(s0.clone());
             b.statements.push(s1.clone());
             b.statements.push(s2.clone());
@@ -2816,16 +2796,9 @@ mod tests {
             uses: [("y".to_owned(), 1u32)].into_iter().collect(),
             defs: HashMap::new(),
         };
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -2834,7 +2807,7 @@ mod tests {
                 exit_versions: HashMap::new(),
             },
         );
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         // The transform colour must have propagated to y.
         assert!(
@@ -2873,8 +2846,9 @@ mod tests {
 
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         {
-            let b = cfg.blocks.get_mut("entry").unwrap();
+            let b = cfg.blocks.get_mut(&entry).unwrap();
             for s in &ssa_stmts {
                 b.statements.push(s.statement.clone());
             }
@@ -2885,16 +2859,9 @@ mod tests {
                 braced: false,
             });
         }
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -2903,7 +2870,7 @@ mod tests {
                 exit_versions: HashMap::new(),
             },
         );
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         find_destructive_file_warnings(&cfg, &ssa, &taints, &sccp.executable_blocks, &registry)
     }
@@ -3048,24 +3015,18 @@ mod tests {
         };
 
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().statements.push(stmt);
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        let entry = cfg.entry;
+        cfg.blocks.get_mut(&entry).unwrap().statements.push(stmt);
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -3075,7 +3036,7 @@ mod tests {
             },
         );
 
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         assert!(
             taints
@@ -3117,17 +3078,18 @@ mod tests {
         };
 
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(assign.clone());
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(regexp_call.clone());
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
@@ -3145,16 +3107,9 @@ mod tests {
             defs: HashMap::new(),
         };
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -3164,7 +3119,7 @@ mod tests {
             },
         );
 
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         let warnings = find_taint_warnings(
             &cfg,
@@ -3215,17 +3170,18 @@ mod tests {
         };
 
         let mut cfg = Function::new("::top", "entry");
+        let entry = cfg.entry;
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(assign.clone());
         cfg.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(regexp_call.clone());
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
@@ -3243,16 +3199,9 @@ mod tests {
             defs: HashMap::new(),
         };
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
+        let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         ssa.blocks.insert(
-            "entry".into(),
+            entry,
             SsaBlock {
                 name: "entry".into(),
                 phis: Vec::new(),
@@ -3262,7 +3211,7 @@ mod tests {
             },
         );
 
-        let sccp = simple_sccp(&["entry"]);
+        let sccp = simple_sccp(&[entry]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         let warnings = find_taint_warnings(
             &cfg,

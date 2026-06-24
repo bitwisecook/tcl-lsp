@@ -30,7 +30,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use tcl_registry::CommandRegistry;
 
-use crate::cfg;
+use crate::cfg::{self, BlockId};
 use crate::ir::{CommandTokens, Statement};
 use crate::naming::normalise_var_name;
 use crate::var_refs::{VarReferenceScanner, VarScanOptions, vars_in_expr};
@@ -45,8 +45,8 @@ pub type ValueKey = (String, Version);
 
 /// A phi node merging variable versions at a control-flow join.
 ///
-/// `incoming` maps each predecessor block name to the variable
-/// version that flows in from that edge.
+/// `incoming` maps each predecessor block to the variable version that
+/// flows in from that edge.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Phi {
     /// Variable name.
@@ -54,7 +54,7 @@ pub struct Phi {
     /// SSA version assigned by this phi.
     pub version: Version,
     /// Predecessor block → incoming version.
-    pub incoming: HashMap<String, Version>,
+    pub incoming: HashMap<BlockId, Version>,
 }
 
 /// An IR statement annotated with SSA version numbers.
@@ -98,16 +98,20 @@ pub struct SsaBlock {
 pub struct SsaFunction {
     /// Procedure name.
     pub name: String,
-    /// Entry block name.
-    pub entry: String,
-    /// SSA blocks keyed by block name.
-    pub blocks: HashMap<String, SsaBlock>,
+    /// Entry block id.
+    pub entry: BlockId,
+    /// SSA blocks keyed by block id.
+    pub blocks: HashMap<BlockId, SsaBlock>,
     /// Immediate dominator: block → parent (None for entry).
-    pub idom: HashMap<String, Option<String>>,
+    pub idom: HashMap<BlockId, Option<BlockId>>,
     /// Dominance frontier: block → frontier blocks.
-    pub dominance_frontier: HashMap<String, Vec<String>>,
+    pub dominance_frontier: HashMap<BlockId, Vec<BlockId>>,
     /// Dominator tree: block → children.
-    pub dominator_tree: HashMap<String, Vec<String>>,
+    pub dominator_tree: HashMap<BlockId, Vec<BlockId>>,
+    /// Block-name interner copied from the source CFG, so an
+    /// [`SsaFunction`]-only consumer can still resolve a [`BlockId`] to its
+    /// display name. Names indexed by [`BlockId`]`.0`, in creation order.
+    block_names: Vec<String>,
 }
 
 impl SsaFunction {
@@ -117,15 +121,41 @@ impl SsaFunction {
     /// and the compilation-unit builder flags the function so per-proc
     /// diagnostic passes skip it entirely.
     #[must_use]
-    pub fn trivial(name: impl Into<String>, entry: impl Into<String>) -> Self {
+    pub fn trivial(name: impl Into<String>, entry: BlockId, block_names: Vec<String>) -> Self {
         Self {
             name: name.into(),
-            entry: entry.into(),
+            entry,
             blocks: HashMap::new(),
             idom: HashMap::new(),
             dominance_frontier: HashMap::new(),
             dominator_tree: HashMap::new(),
+            block_names,
         }
+    }
+
+    /// The display name of block `id`.
+    ///
+    /// # Panics
+    /// Panics if `id` is outside this function's interner range.
+    #[must_use]
+    pub fn block_name(&self, id: BlockId) -> &str {
+        &self.block_names[id.0 as usize]
+    }
+
+    /// The interned block names, indexed by [`BlockId`]`.0`.
+    #[must_use]
+    pub fn block_names(&self) -> &[String] {
+        &self.block_names
+    }
+
+    /// The [`BlockId`] a block name resolves to, if interned. Linear scan over
+    /// the (per-function, small) name table.
+    #[must_use]
+    pub fn block_id(&self, name: &str) -> Option<BlockId> {
+        self.block_names
+            .iter()
+            .position(|n| n == name)
+            .map(|i| BlockId(u32::try_from(i).expect("block count fits in u32")))
     }
 }
 
@@ -301,15 +331,15 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
 /// `if {$x == N} {...}` dispatch), where it turned an O(N²) job into
 /// O(N³) and stalled the analyser.
 #[must_use]
-pub fn compute_dominators(func: &cfg::Function) -> HashMap<String, HashSet<String>> {
+pub fn compute_dominators(func: &cfg::Function) -> HashMap<BlockId, HashSet<BlockId>> {
     let reachable = func.reachable_blocks();
-    let mut dom: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut dom: HashMap<BlockId, HashSet<BlockId>> = HashMap::new();
 
-    for name in func.blocks.keys() {
-        if !reachable.contains(name.as_str()) || *name == func.entry {
-            dom.insert(name.clone(), HashSet::from([name.clone()]));
+    for id in func.blocks.keys() {
+        if !reachable.contains(id) || *id == func.entry {
+            dom.insert(*id, HashSet::from([*id]));
         } else {
-            dom.insert(name.clone(), reachable.clone());
+            dom.insert(*id, reachable.clone());
         }
     }
 
@@ -321,32 +351,33 @@ pub fn compute_dominators(func: &cfg::Function) -> HashMap<String, HashSet<Strin
     let mut changed = true;
     while changed {
         changed = false;
-        for name in &rpo {
-            if *name == func.entry {
+        for id in &rpo {
+            if *id == func.entry {
                 continue;
             }
-            let bn_preds: Vec<&String> = preds
-                .get(name)
+            let bn_preds: Vec<BlockId> = preds
+                .get(id)
                 .map(|p| {
                     p.iter()
-                        .filter(|p| reachable.contains(p.as_str()))
+                        .copied()
+                        .filter(|p| reachable.contains(p))
                         .collect()
                 })
                 .unwrap_or_default();
 
             let new_dom = if bn_preds.is_empty() {
-                HashSet::from([name.clone()])
+                HashSet::from([*id])
             } else {
-                let mut inter = dom[bn_preds[0]].clone();
+                let mut inter = dom[&bn_preds[0]].clone();
                 for p in &bn_preds[1..] {
-                    inter = inter.intersection(&dom[*p]).cloned().collect();
+                    inter = inter.intersection(&dom[p]).copied().collect();
                 }
-                inter.insert(name.clone());
+                inter.insert(*id);
                 inter
             };
 
-            if new_dom != dom[name] {
-                dom.insert(name.clone(), new_dom);
+            if new_dom != dom[id] {
+                dom.insert(*id, new_dom);
                 changed = true;
             }
         }
@@ -368,23 +399,23 @@ pub fn compute_dominators(func: &cfg::Function) -> HashMap<String, HashSet<Strin
 /// (a single multi-thousand-branch generated proc would otherwise
 /// exhaust memory building the dominator sets).
 #[must_use]
-pub(crate) fn compute_idom_fast(func: &cfg::Function) -> HashMap<String, Option<String>> {
+pub(crate) fn compute_idom_fast(func: &cfg::Function) -> HashMap<BlockId, Option<BlockId>> {
     const UNDEF: usize = usize::MAX;
 
     // Shared iterative RPO — see `cfg::Function::reverse_postorder`.
     let rpo = func.reverse_postorder();
-    let mut out: HashMap<String, Option<String>> = HashMap::new();
-    for name in func.blocks.keys() {
-        out.insert(name.clone(), None);
+    let mut out: HashMap<BlockId, Option<BlockId>> = HashMap::new();
+    for id in func.blocks.keys() {
+        out.insert(*id, None);
     }
     if rpo.is_empty() {
         return out;
     }
-    // Map block name → reverse-postorder index (entry == 0).
-    let mut rpo_index: FxHashMap<&str, usize> =
+    // Map block id → reverse-postorder index (entry == 0).
+    let mut rpo_index: FxHashMap<BlockId, usize> =
         FxHashMap::with_capacity_and_hasher(rpo.len(), FxBuildHasher);
     for (i, n) in rpo.iter().enumerate() {
-        rpo_index.insert(n.as_str(), i);
+        rpo_index.insert(*n, i);
     }
     let preds = func.predecessors();
 
@@ -414,7 +445,7 @@ pub(crate) fn compute_idom_fast(func: &cfg::Function) -> HashMap<String, Option<
             let mut new_idom = UNDEF;
             if let Some(ps) = preds.get(&rpo[i]) {
                 for p in ps {
-                    let Some(&pi) = rpo_index.get(p.as_str()) else {
+                    let Some(&pi) = rpo_index.get(p) else {
                         continue; // unreachable predecessor
                     };
                     if idom[pi] == UNDEF {
@@ -434,11 +465,11 @@ pub(crate) fn compute_idom_fast(func: &cfg::Function) -> HashMap<String, Option<
         }
     }
 
-    for (i, name) in rpo.iter().enumerate() {
+    for (i, id) in rpo.iter().enumerate() {
         if i == 0 || idom[i] == UNDEF {
-            out.insert(name.clone(), None);
+            out.insert(*id, None);
         } else {
-            out.insert(name.clone(), Some(rpo[idom[i]].clone()));
+            out.insert(*id, Some(rpo[idom[i]]));
         }
     }
     out
@@ -457,26 +488,26 @@ pub(crate) fn compute_idom_fast(func: &cfg::Function) -> HashMap<String, Option<
 #[must_use]
 pub(crate) fn compute_idom(
     func: &cfg::Function,
-    dom: &HashMap<String, HashSet<String>>,
-) -> HashMap<String, Option<String>> {
+    dom: &HashMap<BlockId, HashSet<BlockId>>,
+) -> HashMap<BlockId, Option<BlockId>> {
     let reachable = func.reachable_blocks();
-    let mut idom: HashMap<String, Option<String>> = HashMap::new();
+    let mut idom: HashMap<BlockId, Option<BlockId>> = HashMap::new();
 
-    for name in func.blocks.keys() {
-        idom.insert(name.clone(), None);
+    for id in func.blocks.keys() {
+        idom.insert(*id, None);
     }
 
-    for name in &reachable {
-        if *name == func.entry {
+    for id in &reachable {
+        if *id == func.entry {
             continue;
         }
-        let strict: HashSet<&String> = dom[name].iter().filter(|d| *d != name).collect();
+        let strict: HashSet<BlockId> = dom[id].iter().copied().filter(|d| d != id).collect();
         if strict.is_empty() {
             continue;
         }
         // The idom is the strict dominator with the largest dom set.
-        let best = strict.iter().max_by_key(|d| dom[**d].len()).unwrap();
-        idom.insert(name.clone(), Some((*best).clone()));
+        let best = *strict.iter().max_by_key(|d| dom[*d].len()).unwrap();
+        idom.insert(*id, Some(best));
     }
     idom
 }
@@ -488,22 +519,23 @@ pub(crate) fn compute_idom(
 #[must_use]
 pub(crate) fn compute_dominance_frontier(
     func: &cfg::Function,
-    idom: &HashMap<String, Option<String>>,
-) -> HashMap<String, HashSet<String>> {
+    idom: &HashMap<BlockId, Option<BlockId>>,
+) -> HashMap<BlockId, HashSet<BlockId>> {
     let reachable = func.reachable_blocks();
     let preds = func.predecessors();
-    let mut df: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut df: HashMap<BlockId, HashSet<BlockId>> = HashMap::new();
 
-    for name in func.blocks.keys() {
-        df.insert(name.clone(), HashSet::new());
+    for id in func.blocks.keys() {
+        df.insert(*id, HashSet::new());
     }
 
-    for name in &reachable {
-        let bn_preds: Vec<&String> = preds
-            .get(name)
+    for id in &reachable {
+        let bn_preds: Vec<BlockId> = preds
+            .get(id)
             .map(|p| {
                 p.iter()
-                    .filter(|p| reachable.contains(p.as_str()))
+                    .copied()
+                    .filter(|p| reachable.contains(p))
                     .collect()
             })
             .unwrap_or_default();
@@ -513,13 +545,13 @@ pub(crate) fn compute_dominance_frontier(
         }
 
         for p in &bn_preds {
-            let mut runner = Some((*p).clone());
-            while let Some(ref r) = runner {
-                if idom.get(name).and_then(|i| i.as_ref()) == Some(r) {
+            let mut runner = Some(*p);
+            while let Some(r) = runner {
+                if idom.get(id).and_then(|i| i.as_ref()) == Some(&r) {
                     break;
                 }
-                df.entry(r.clone()).or_default().insert(name.clone());
-                runner = idom.get(r).cloned().flatten();
+                df.entry(r).or_default().insert(*id);
+                runner = idom.get(&r).copied().flatten();
             }
         }
     }
@@ -529,21 +561,23 @@ pub(crate) fn compute_dominance_frontier(
 /// Build the dominator tree from immediate dominators.
 ///
 /// Returns a map from each block to its children in the dominator tree.
+/// Children are sorted by [`BlockId`] (block-creation order) for
+/// deterministic traversal.
 #[must_use]
 pub(crate) fn build_dom_tree(
-    idom: &HashMap<String, Option<String>>,
-) -> HashMap<String, Vec<String>> {
-    let mut tree: HashMap<String, Vec<String>> = HashMap::new();
-    for name in idom.keys() {
-        tree.entry(name.clone()).or_default();
+    idom: &HashMap<BlockId, Option<BlockId>>,
+) -> HashMap<BlockId, Vec<BlockId>> {
+    let mut tree: HashMap<BlockId, Vec<BlockId>> = HashMap::new();
+    for id in idom.keys() {
+        tree.entry(*id).or_default();
     }
-    for (name, parent) in idom {
+    for (id, parent) in idom {
         if let Some(p) = parent {
-            tree.entry(p.clone()).or_default().push(name.clone());
+            tree.entry(*p).or_default().push(*id);
         }
     }
     for children in tree.values_mut() {
-        children.sort();
+        children.sort_unstable();
     }
     tree
 }
@@ -556,9 +590,9 @@ pub(crate) fn build_dom_tree(
 #[must_use]
 pub(crate) fn compute_phi_vars(
     func: &cfg::Function,
-    df: &HashMap<String, HashSet<String>>,
+    df: &HashMap<BlockId, HashSet<BlockId>>,
     registry: &CommandRegistry,
-) -> HashMap<String, HashSet<String>> {
+) -> HashMap<BlockId, HashSet<String>> {
     let reachable = func.reachable_blocks();
     let (nonlocal_names, all_defsites) = nonlocal_names_and_defsites(func, &reachable, registry);
 
@@ -566,25 +600,25 @@ pub(crate) fn compute_phi_vars(
     // (upward-exposed-use) names. A phi for a purely-local name has no reader,
     // so dropping it removes only dead phis (~40% of minimal-SSA phis) without
     // changing any use/value/liveness/diagnostic result.
-    let mut phi: HashMap<String, HashSet<String>> = HashMap::new();
-    for name in func.blocks.keys() {
-        phi.insert(name.clone(), HashSet::new());
+    let mut phi: HashMap<BlockId, HashSet<String>> = HashMap::new();
+    for id in func.blocks.keys() {
+        phi.insert(*id, HashSet::new());
     }
 
     for (var, sites) in &all_defsites {
         if !nonlocal_names.contains(var) {
             continue;
         }
-        let mut work: Vec<String> = sites.iter().cloned().collect();
-        work.sort();
-        let mut has_phi: FxHashSet<String> = FxHashSet::default();
+        let mut work: Vec<BlockId> = sites.iter().copied().collect();
+        work.sort_unstable();
+        let mut has_phi: FxHashSet<BlockId> = FxHashSet::default();
 
         while let Some(nb) = work.pop() {
             for fb in df.get(&nb).into_iter().flatten() {
-                if has_phi.insert(fb.clone()) {
-                    phi.entry(fb.clone()).or_default().insert(var.clone());
+                if has_phi.insert(*fb) {
+                    phi.entry(*fb).or_default().insert(var.clone());
                     if !sites.contains(fb) {
-                        work.push(fb.clone());
+                        work.push(*fb);
                     }
                 }
             }
@@ -603,16 +637,16 @@ pub(crate) fn compute_phi_vars(
 /// defined names); the caller restricts phi placement to the non-local names.
 fn nonlocal_names_and_defsites(
     func: &cfg::Function,
-    reachable: &HashSet<String>,
+    reachable: &HashSet<BlockId>,
     registry: &CommandRegistry,
-) -> (FxHashSet<String>, FxHashMap<String, FxHashSet<String>>) {
+) -> (FxHashSet<String>, FxHashMap<String, FxHashSet<BlockId>>) {
     let mut scanner = VarReferenceScanner::new(VarScanOptions {
         include_var_read_roles: true,
         recurse_cmd_substitutions: true,
         include_reads_before_write: false,
     });
     let mut nonlocal_names: FxHashSet<String> = FxHashSet::default();
-    let mut defsites: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut defsites: FxHashMap<String, FxHashSet<BlockId>> = FxHashMap::default();
 
     for bn in reachable {
         let Some(block) = func.blocks.get(bn) else {
@@ -626,7 +660,7 @@ fn nonlocal_names_and_defsites(
                 }
             }
             for var in defs_of_with_registry(stmt, Some(registry)) {
-                defsites.entry(var.clone()).or_default().insert(bn.clone());
+                defsites.entry(var.clone()).or_default().insert(*bn);
                 defined_here.insert(var);
             }
         }
@@ -1174,7 +1208,7 @@ fn collapsed_extra_defs(
 /// and use.
 /// Frame for the iterative rename walk (avoids deep recursion).
 struct RenameFrame {
-    block_name: String,
+    block: BlockId,
     child_index: usize,
     pushed_vars: Vec<String>,
     phase: RenamePhase,
@@ -1207,7 +1241,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
     // SSA; the compilation-unit builder likewise produces a trivial analysis
     // and flags the function so per-proc diagnostic passes skip it.
     if is_complexity_guarded(func) {
-        return SsaFunction::trivial(func.name.clone(), func.entry.clone());
+        return SsaFunction::trivial(func.name.clone(), func.entry, func.block_names().to_vec());
     }
 
     // 1. Compute dominance information.  Use the Cooper-Harvey-
@@ -1238,20 +1272,21 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
         vn
     };
 
-    // Per-block state collected during the rename walk.
-    let mut phi_versions: HashMap<String, HashMap<String, Version>> = HashMap::new();
-    let mut phi_incoming: HashMap<String, HashMap<String, HashMap<String, Version>>> =
+    // Per-block state collected during the rename walk. The outer key is the
+    // block; inner maps stay keyed by variable name / version.
+    let mut phi_versions: HashMap<BlockId, HashMap<String, Version>> = HashMap::new();
+    let mut phi_incoming: HashMap<BlockId, HashMap<String, HashMap<BlockId, Version>>> =
         HashMap::new();
-    let mut entry_versions: HashMap<String, HashMap<String, Version>> = HashMap::new();
-    let mut exit_versions: HashMap<String, HashMap<String, Version>> = HashMap::new();
-    let mut stmt_infos: HashMap<String, Vec<SsaStatement>> = HashMap::new();
+    let mut entry_versions: HashMap<BlockId, HashMap<String, Version>> = HashMap::new();
+    let mut exit_versions: HashMap<BlockId, HashMap<String, Version>> = HashMap::new();
+    let mut stmt_infos: HashMap<BlockId, Vec<SsaStatement>> = HashMap::new();
 
-    for name in func.blocks.keys() {
-        phi_versions.insert(name.clone(), HashMap::new());
-        phi_incoming.insert(name.clone(), HashMap::new());
-        entry_versions.insert(name.clone(), HashMap::new());
-        exit_versions.insert(name.clone(), HashMap::new());
-        stmt_infos.insert(name.clone(), Vec::new());
+    for id in func.blocks.keys() {
+        phi_versions.insert(*id, HashMap::new());
+        phi_incoming.insert(*id, HashMap::new());
+        entry_versions.insert(*id, HashMap::new());
+        exit_versions.insert(*id, HashMap::new());
+        stmt_infos.insert(*id, Vec::new());
     }
 
     // Create a scanner for variable-use extraction.
@@ -1267,7 +1302,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
 
     if func.blocks.contains_key(&func.entry) {
         stack.push(RenameFrame {
-            block_name: func.entry.clone(),
+            block: func.entry,
             child_index: 0,
             pushed_vars: Vec::new(),
             phase: RenamePhase::Enter,
@@ -1277,7 +1312,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
     while let Some(frame) = stack.last_mut() {
         match frame.phase {
             RenamePhase::Enter => {
-                let bn = frame.block_name.clone();
+                let bn = frame.block;
 
                 // Process phi nodes — push new versions.
                 let mut phi_var_list: Vec<String> = phi_vars
@@ -1349,7 +1384,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
                 // Fill in phi incoming edges for successors — the terminator's
                 // successors plus any `try` exception-edge handler targets, so
                 // a handler block's phis see this block's versions.
-                for succ in func.block_successors(&bn) {
+                for succ in func.block_successors(bn) {
                     if !func.blocks.contains_key(&succ) {
                         continue;
                     }
@@ -1367,7 +1402,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
                             .unwrap()
                             .entry(var.clone())
                             .or_default()
-                            .insert(bn.clone(), top(&stacks, var));
+                            .insert(bn, top(&stacks, var));
                     }
                 }
 
@@ -1375,15 +1410,15 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
             }
 
             RenamePhase::ProcessChildren => {
-                let bn = frame.block_name.clone();
+                let bn = frame.block;
                 let children = tree.get(&bn).cloned().unwrap_or_default();
                 let idx = frame.child_index;
 
                 if idx < children.len() {
                     frame.child_index += 1;
-                    let child = children[idx].clone();
+                    let child = children[idx];
                     stack.push(RenameFrame {
-                        block_name: child,
+                        block: child,
                         child_index: 0,
                         pushed_vars: Vec::new(),
                         phase: RenamePhase::Enter,
@@ -1406,7 +1441,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
     }
 
     // 4. Assemble SSA blocks.
-    let mut ssa_blocks: HashMap<String, SsaBlock> = HashMap::new();
+    let mut ssa_blocks: HashMap<BlockId, SsaBlock> = HashMap::new();
     for (bn, block) in &func.blocks {
         let mut phis: Vec<Phi> = Vec::new();
         let mut phi_var_list: Vec<String> = phi_vars
@@ -1432,32 +1467,32 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
         }
 
         ssa_blocks.insert(
-            bn.clone(),
+            *bn,
             SsaBlock {
-                name: bn.clone(),
+                name: block.name.clone(),
                 phis,
                 statements: stmt_infos.remove(bn).unwrap_or_default(),
                 entry_versions: entry_versions.remove(bn).unwrap_or_default(),
                 exit_versions: exit_versions.remove(bn).unwrap_or_default(),
             },
         );
-        let _ = block; // used only for iteration
     }
 
     SsaFunction {
         name: func.name.clone(),
-        entry: func.entry.clone(),
+        entry: func.entry,
         blocks: ssa_blocks,
         idom,
         dominance_frontier: df
             .into_iter()
             .map(|(k, v)| {
-                let mut sorted: Vec<String> = v.into_iter().collect();
-                sorted.sort();
+                let mut sorted: Vec<BlockId> = v.into_iter().collect();
+                sorted.sort_unstable();
                 (k, sorted)
             })
             .collect(),
         dominator_tree: tree,
+        block_names: func.block_names().to_vec(),
     }
 }
 
@@ -1468,18 +1503,23 @@ mod tests {
     use crate::expr_ast::ExprNode;
     use tcl_lexer::Span;
 
-    fn make_goto(target: &str) -> Terminator {
-        Terminator::Goto {
-            target: target.into(),
-            span: None,
-        }
+    /// Intern `name` into `func` and insert a fresh block for it, returning
+    /// the [`BlockId`]. The shared test idiom for building a CFG by hand.
+    fn block(func: &mut Function, name: &str) -> BlockId {
+        let id = func.intern_block(name);
+        func.blocks.insert(id, Block::new(name));
+        id
     }
 
-    fn make_branch(cond: &str, t: &str, f: &str) -> Terminator {
+    fn make_goto(target: BlockId) -> Terminator {
+        Terminator::Goto { target, span: None }
+    }
+
+    fn make_branch(cond: &str, t: BlockId, f: BlockId) -> Terminator {
         Terminator::Branch {
             condition: ExprNode::Raw { text: cond.into() },
-            true_target: t.into(),
-            false_target: f.into(),
+            true_target: t,
+            false_target: f,
             span: None,
         }
     }
@@ -1493,31 +1533,38 @@ mod tests {
         }
     }
 
-    /// Build a diamond CFG: entry → branch → then/else → end → return
+    /// `(func, [entry, then, else, end])` for a diamond CFG:
+    /// entry → branch → then/else → end → return.
     fn diamond_cfg() -> Function {
         let mut func = Function::new("::test", "entry");
-        func.blocks.get_mut("entry").unwrap().terminator = Some(make_branch("$x", "then", "else"));
-        func.blocks.insert("then".into(), Block::new("then"));
-        func.blocks.get_mut("then").unwrap().terminator = Some(make_goto("end"));
-        func.blocks.insert("else".into(), Block::new("else"));
-        func.blocks.get_mut("else").unwrap().terminator = Some(make_goto("end"));
-        func.blocks.insert("end".into(), Block::new("end"));
-        func.blocks.get_mut("end").unwrap().terminator = Some(make_return());
+        let entry = func.entry;
+        let then = block(&mut func, "then");
+        let els = block(&mut func, "else");
+        let end = block(&mut func, "end");
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_branch("$x", then, els));
+        func.blocks.get_mut(&then).unwrap().terminator = Some(make_goto(end));
+        func.blocks.get_mut(&els).unwrap().terminator = Some(make_goto(end));
+        func.blocks.get_mut(&end).unwrap().terminator = Some(make_return());
         func
     }
 
     /// Build a loop CFG: entry → header → branch → body → header / end
     fn loop_cfg() -> Function {
         let mut func = Function::new("::test", "entry");
-        func.blocks.get_mut("entry").unwrap().terminator = Some(make_goto("header"));
-        func.blocks.insert("header".into(), Block::new("header"));
-        func.blocks.get_mut("header").unwrap().terminator =
-            Some(make_branch("$i < 10", "body", "end"));
-        func.blocks.insert("body".into(), Block::new("body"));
-        func.blocks.get_mut("body").unwrap().terminator = Some(make_goto("header"));
-        func.blocks.insert("end".into(), Block::new("end"));
-        func.blocks.get_mut("end").unwrap().terminator = Some(make_return());
+        let entry = func.entry;
+        let header = block(&mut func, "header");
+        let body = block(&mut func, "body");
+        let end = block(&mut func, "end");
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_goto(header));
+        func.blocks.get_mut(&header).unwrap().terminator = Some(make_branch("$i < 10", body, end));
+        func.blocks.get_mut(&body).unwrap().terminator = Some(make_goto(header));
+        func.blocks.get_mut(&end).unwrap().terminator = Some(make_return());
         func
+    }
+
+    /// Resolve a block name to its id in `func` (test convenience).
+    fn id_of(func: &Function, name: &str) -> BlockId {
+        func.block_id(name).expect("block name interned")
     }
 
     // Data structure tests
@@ -1527,7 +1574,7 @@ mod tests {
         let phi = Phi {
             name: "x".into(),
             version: 3,
-            incoming: HashMap::from([("then".into(), 1), ("else".into(), 2)]),
+            incoming: HashMap::from([(BlockId(1), 1), (BlockId(2), 2)]),
         };
         assert_eq!(phi.name, "x");
         assert_eq!(phi.version, 3);
@@ -1567,11 +1614,12 @@ mod tests {
     fn ssa_function_construction() {
         let func = SsaFunction {
             name: "::test".into(),
-            entry: "entry".into(),
+            entry: BlockId(0),
             blocks: HashMap::new(),
             idom: HashMap::new(),
             dominance_frontier: HashMap::new(),
             dominator_tree: HashMap::new(),
+            block_names: vec!["entry".into()],
         };
         assert_eq!(func.name, "::test");
     }
@@ -1785,61 +1833,77 @@ mod tests {
     fn dominators_linear() {
         // entry → b1 → b2 → return
         let mut func = Function::new("::test", "entry");
-        func.blocks.get_mut("entry").unwrap().terminator = Some(make_goto("b1"));
-        func.blocks.insert("b1".into(), Block::new("b1"));
-        func.blocks.get_mut("b1").unwrap().terminator = Some(make_goto("b2"));
-        func.blocks.insert("b2".into(), Block::new("b2"));
-        func.blocks.get_mut("b2").unwrap().terminator = Some(make_return());
+        let entry = func.entry;
+        let b1 = block(&mut func, "b1");
+        let b2 = block(&mut func, "b2");
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_goto(b1));
+        func.blocks.get_mut(&b1).unwrap().terminator = Some(make_goto(b2));
+        func.blocks.get_mut(&b2).unwrap().terminator = Some(make_return());
 
         let dom = compute_dominators(&func);
-        assert_eq!(dom["entry"], HashSet::from(["entry".into()]));
-        assert_eq!(dom["b1"], HashSet::from(["entry".into(), "b1".into()]));
-        assert_eq!(
-            dom["b2"],
-            HashSet::from(["entry".into(), "b1".into(), "b2".into()])
-        );
+        assert_eq!(dom[&entry], HashSet::from([entry]));
+        assert_eq!(dom[&b1], HashSet::from([entry, b1]));
+        assert_eq!(dom[&b2], HashSet::from([entry, b1, b2]));
     }
 
     #[test]
     fn dominators_diamond() {
         let func = diamond_cfg();
+        let entry = func.entry;
+        let (then, els, end) = (
+            id_of(&func, "then"),
+            id_of(&func, "else"),
+            id_of(&func, "end"),
+        );
         let dom = compute_dominators(&func);
 
         // entry dominates everything
-        for name in func.blocks.keys() {
-            assert!(dom[name].contains("entry"));
+        for id in func.blocks.keys() {
+            assert!(dom[id].contains(&entry));
         }
         // then and else are not dominated by each other
-        assert!(!dom["then"].contains("else"));
-        assert!(!dom["else"].contains("then"));
+        assert!(!dom[&then].contains(&els));
+        assert!(!dom[&els].contains(&then));
         // end is dominated by entry but not by then or else
-        assert!(dom["end"].contains("entry"));
-        assert!(!dom["end"].contains("then"));
-        assert!(!dom["end"].contains("else"));
+        assert!(dom[&end].contains(&entry));
+        assert!(!dom[&end].contains(&then));
+        assert!(!dom[&end].contains(&els));
     }
 
     #[test]
     fn idom_diamond() {
         let func = diamond_cfg();
+        let entry = func.entry;
+        let (then, els, end) = (
+            id_of(&func, "then"),
+            id_of(&func, "else"),
+            id_of(&func, "end"),
+        );
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
 
-        assert_eq!(idom["entry"], None);
-        assert_eq!(idom["then"], Some("entry".into()));
-        assert_eq!(idom["else"], Some("entry".into()));
-        assert_eq!(idom["end"], Some("entry".into()));
+        assert_eq!(idom[&entry], None);
+        assert_eq!(idom[&then], Some(entry));
+        assert_eq!(idom[&els], Some(entry));
+        assert_eq!(idom[&end], Some(entry));
     }
 
     #[test]
     fn idom_loop() {
         let func = loop_cfg();
+        let entry = func.entry;
+        let (header, body, end) = (
+            id_of(&func, "header"),
+            id_of(&func, "body"),
+            id_of(&func, "end"),
+        );
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
 
-        assert_eq!(idom["entry"], None);
-        assert_eq!(idom["header"], Some("entry".into()));
-        assert_eq!(idom["body"], Some("header".into()));
-        assert_eq!(idom["end"], Some("header".into()));
+        assert_eq!(idom[&entry], None);
+        assert_eq!(idom[&header], Some(entry));
+        assert_eq!(idom[&body], Some(header));
+        assert_eq!(idom[&end], Some(header));
     }
 
     #[test]
@@ -1849,11 +1913,12 @@ mod tests {
         // reference (`compute_idom` over `compute_dominators`) across
         // linear / diamond / loop shapes.
         let mut linear = Function::new("::test", "entry");
-        linear.blocks.get_mut("entry").unwrap().terminator = Some(make_goto("b1"));
-        linear.blocks.insert("b1".into(), Block::new("b1"));
-        linear.blocks.get_mut("b1").unwrap().terminator = Some(make_goto("b2"));
-        linear.blocks.insert("b2".into(), Block::new("b2"));
-        linear.blocks.get_mut("b2").unwrap().terminator = Some(make_return());
+        let entry = linear.entry;
+        let b1 = block(&mut linear, "b1");
+        let b2 = block(&mut linear, "b2");
+        linear.blocks.get_mut(&entry).unwrap().terminator = Some(make_goto(b1));
+        linear.blocks.get_mut(&b1).unwrap().terminator = Some(make_goto(b2));
+        linear.blocks.get_mut(&b2).unwrap().terminator = Some(make_return());
 
         for func in [linear, diamond_cfg(), loop_cfg()] {
             let reference = compute_idom(&func, &compute_dominators(&func));
@@ -1871,68 +1936,81 @@ mod tests {
         let mut func = Function::new("::big", "b0");
         let n = 4000;
         for i in 0..n {
-            let cur = format!("b{i}");
-            let then = format!("t{i}");
-            let next = format!("b{}", i + 1);
+            let cur = func.intern_block(format!("b{i}"));
             func.blocks
-                .entry(cur.clone())
-                .or_insert_with(|| Block::new(&cur));
-            func.blocks.insert(then.clone(), Block::new(&then));
+                .entry(cur)
+                .or_insert_with(|| Block::new(format!("b{i}")));
+            let then = block(&mut func, &format!("t{i}"));
+            let next = block(&mut func, &format!("b{}", i + 1));
             func.blocks.get_mut(&then).unwrap().terminator = Some(make_return());
-            func.blocks.insert(next.clone(), Block::new(&next));
-            func.blocks.get_mut(&cur).unwrap().terminator = Some(make_branch("c", &then, &next));
+            func.blocks.get_mut(&cur).unwrap().terminator = Some(make_branch("c", then, next));
         }
-        func.blocks.get_mut(&format!("b{n}")).unwrap().terminator = Some(make_return());
+        let bn = id_of(&func, &format!("b{n}"));
+        func.blocks.get_mut(&bn).unwrap().terminator = Some(make_return());
         let idom = compute_idom_fast(&func);
         // Each chain block's idom is the previous chain block.
-        assert_eq!(idom["b1"], Some("b0".into()));
-        assert_eq!(idom[&format!("b{n}")], Some(format!("b{}", n - 1)));
-        assert_eq!(idom["b0"], None);
+        assert_eq!(idom[&id_of(&func, "b1")], Some(id_of(&func, "b0")));
+        assert_eq!(idom[&bn], Some(id_of(&func, &format!("b{}", n - 1))));
+        assert_eq!(idom[&id_of(&func, "b0")], None);
     }
 
     #[test]
     fn dominance_frontier_diamond() {
         let func = diamond_cfg();
+        let entry = func.entry;
+        let (then, els, end) = (
+            id_of(&func, "then"),
+            id_of(&func, "else"),
+            id_of(&func, "end"),
+        );
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
         let df = compute_dominance_frontier(&func, &idom);
 
         // then and else have "end" in their dominance frontier
-        assert!(df["then"].contains("end"));
-        assert!(df["else"].contains("end"));
+        assert!(df[&then].contains(&end));
+        assert!(df[&els].contains(&end));
         // entry has no dominance frontier
-        assert!(df["entry"].is_empty());
+        assert!(df[&entry].is_empty());
     }
 
     #[test]
     fn dominance_frontier_loop() {
         let func = loop_cfg();
+        let entry = func.entry;
+        let (header, body) = (id_of(&func, "header"), id_of(&func, "body"));
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
         let df = compute_dominance_frontier(&func, &idom);
 
         // body has "header" in its dominance frontier (back edge)
-        assert!(df["body"].contains("header"));
+        assert!(df[&body].contains(&header));
         // entry strictly dominates header, so header is NOT in entry's DF
         assert!(
-            df["entry"].is_empty(),
+            df[&entry].is_empty(),
             "entry's DF should be empty; got {:?}",
-            df["entry"]
+            df[&entry]
         );
     }
 
     #[test]
     fn dom_tree_diamond() {
         let func = diamond_cfg();
+        let entry = func.entry;
+        let (then, els, end) = (
+            id_of(&func, "then"),
+            id_of(&func, "else"),
+            id_of(&func, "end"),
+        );
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
         let tree = build_dom_tree(&idom);
 
         // entry's children include then, else, end (all directly dominated)
-        let entry_children = &tree["entry"];
-        assert!(entry_children.contains(&"else".to_string()));
-        assert!(entry_children.contains(&"end".to_string()));
-        assert!(entry_children.contains(&"then".to_string()));
+        let entry_children = &tree[&entry];
+        assert!(entry_children.contains(&els));
+        assert!(entry_children.contains(&end));
+        assert!(entry_children.contains(&then));
     }
 
     // Phi placement tests
@@ -1941,8 +2019,14 @@ mod tests {
     fn phi_vars_diamond_with_defs() {
         // x defined in both then and else → phi needed at end
         let mut func = diamond_cfg();
+        let entry = func.entry;
+        let (then, els, end) = (
+            id_of(&func, "then"),
+            id_of(&func, "else"),
+            id_of(&func, "end"),
+        );
         func.blocks
-            .get_mut("then")
+            .get_mut(&then)
             .unwrap()
             .statements
             .push(Statement::AssignConst {
@@ -1952,7 +2036,7 @@ mod tests {
                 value: "1".into(),
             });
         func.blocks
-            .get_mut("else")
+            .get_mut(&els)
             .unwrap()
             .statements
             .push(Statement::AssignConst {
@@ -1967,9 +2051,9 @@ mod tests {
         let df = compute_dominance_frontier(&func, &idom);
         let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
 
-        assert!(phi["end"].contains("x"), "x should need a phi at 'end'");
+        assert!(phi[&end].contains("x"), "x should need a phi at 'end'");
         assert!(
-            !phi["entry"].contains("x"),
+            !phi[&entry].contains("x"),
             "x should not need a phi at entry"
         );
     }
@@ -1978,8 +2062,9 @@ mod tests {
     fn phi_vars_single_def_no_phi() {
         // x defined only in entry → no phi needed anywhere
         let mut func = diamond_cfg();
+        let entry = func.entry;
         func.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(Statement::AssignConst {
@@ -2003,8 +2088,10 @@ mod tests {
     fn phi_vars_loop_def() {
         // i defined in entry and body → phi at header
         let mut func = loop_cfg();
+        let entry = func.entry;
+        let (header, body) = (id_of(&func, "header"), id_of(&func, "body"));
         func.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(Statement::AssignConst {
@@ -2014,7 +2101,7 @@ mod tests {
                 value: "0".into(),
             });
         func.blocks
-            .get_mut("body")
+            .get_mut(&body)
             .unwrap()
             .statements
             .push(Statement::Incr {
@@ -2031,7 +2118,7 @@ mod tests {
         let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
 
         assert!(
-            phi["header"].contains("i"),
+            phi[&header].contains("i"),
             "i should need a phi at 'header'"
         );
     }
@@ -2157,7 +2244,8 @@ mod tests {
         let reg = default_registry();
         // entry: set x 1; set y $x; return
         let mut func = Function::new("::test", "entry");
-        func.blocks.get_mut("entry").unwrap().statements = vec![
+        let entry = func.entry;
+        func.blocks.get_mut(&entry).unwrap().statements = vec![
             Statement::AssignConst {
                 span: Span::new(0, 7),
                 name: "x".into(),
@@ -2173,18 +2261,18 @@ mod tests {
                 tokens: None,
             },
         ];
-        func.blocks.get_mut("entry").unwrap().terminator = Some(make_return());
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_return());
 
         let ssa = build_ssa(&func, &reg);
         assert_eq!(ssa.name, "::test");
-        assert_eq!(ssa.entry, "entry");
+        assert_eq!(ssa.entry, entry);
 
-        let entry = &ssa.blocks["entry"];
+        let entry_blk = &ssa.blocks[&entry];
         // First statement (set x 1): defs x=1
-        assert_eq!(entry.statements[0].defs.get("x"), Some(&1));
+        assert_eq!(entry_blk.statements[0].defs.get("x"), Some(&1));
         // Second statement (set y $x): uses x=1, defs y=1
-        assert_eq!(entry.statements[1].uses.get("x"), Some(&1));
-        assert_eq!(entry.statements[1].defs.get("y"), Some(&1));
+        assert_eq!(entry_blk.statements[1].uses.get("x"), Some(&1));
+        assert_eq!(entry_blk.statements[1].defs.get("y"), Some(&1));
     }
 
     #[test]
@@ -2193,10 +2281,16 @@ mod tests {
         // entry → branch on $x → then: set x 1 → end
         //                       → else: set x 2 → end
         let mut func = diamond_cfg();
+        let entry = func.entry;
+        let (then, els, end) = (
+            id_of(&func, "then"),
+            id_of(&func, "else"),
+            id_of(&func, "end"),
+        );
 
         // Define x in entry first so it's used in the condition.
         func.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(Statement::AssignConst {
@@ -2207,7 +2301,7 @@ mod tests {
             });
 
         func.blocks
-            .get_mut("then")
+            .get_mut(&then)
             .unwrap()
             .statements
             .push(Statement::AssignConst {
@@ -2217,7 +2311,7 @@ mod tests {
                 value: "1".into(),
             });
         func.blocks
-            .get_mut("else")
+            .get_mut(&els)
             .unwrap()
             .statements
             .push(Statement::AssignConst {
@@ -2230,7 +2324,7 @@ mod tests {
         // semi-pruned SSA a phi is placed only for a name with a downstream
         // reader (a dead phi for an unread merge is correctly dropped).
         func.blocks
-            .get_mut("end")
+            .get_mut(&end)
             .unwrap()
             .statements
             .push(Statement::Call {
@@ -2250,7 +2344,7 @@ mod tests {
 
         // x is defined in both then and else and read at end, so the end block
         // should have a phi for x.
-        let end_block = &ssa.blocks["end"];
+        let end_block = &ssa.blocks[&end];
         assert!(
             end_block.phis.iter().any(|phi| phi.name == "x"),
             "end block should have a phi for x"
@@ -2259,11 +2353,11 @@ mod tests {
         // The phi should have incoming edges from then and else.
         if let Some(phi) = end_block.phis.iter().find(|p| p.name == "x") {
             assert!(
-                phi.incoming.contains_key("then"),
+                phi.incoming.contains_key(&then),
                 "phi should have incoming from then"
             );
             assert!(
-                phi.incoming.contains_key("else"),
+                phi.incoming.contains_key(&els),
                 "phi should have incoming from else"
             );
         }
@@ -2275,9 +2369,11 @@ mod tests {
         // entry: set i 0 → header: branch $i<10 → body: incr i → header
         //                                        → end: return
         let mut func = loop_cfg();
+        let entry = func.entry;
+        let (header, body) = (id_of(&func, "header"), id_of(&func, "body"));
 
         func.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(Statement::AssignConst {
@@ -2287,7 +2383,7 @@ mod tests {
                 value: "0".into(),
             });
         func.blocks
-            .get_mut("body")
+            .get_mut(&body)
             .unwrap()
             .statements
             .push(Statement::Incr {
@@ -2301,9 +2397,9 @@ mod tests {
         let ssa = build_ssa(&func, &reg);
 
         // header should have a phi for i (from entry and body).
-        let header = &ssa.blocks["header"];
+        let header_blk = &ssa.blocks[&header];
         assert!(
-            header.phis.iter().any(|p| p.name == "i"),
+            header_blk.phis.iter().any(|p| p.name == "i"),
             "header should have a phi for i"
         );
     }
@@ -2312,12 +2408,13 @@ mod tests {
     fn build_ssa_empty_function() {
         let reg = default_registry();
         let mut func = Function::new("::empty", "entry");
-        func.blocks.get_mut("entry").unwrap().terminator = Some(make_return());
+        let entry = func.entry;
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_return());
 
         let ssa = build_ssa(&func, &reg);
         assert_eq!(ssa.blocks.len(), 1);
-        assert!(ssa.blocks["entry"].phis.is_empty());
-        assert!(ssa.blocks["entry"].statements.is_empty());
+        assert!(ssa.blocks[&entry].phis.is_empty());
+        assert!(ssa.blocks[&entry].statements.is_empty());
     }
 
     #[test]
@@ -2331,9 +2428,10 @@ mod tests {
         // trivial SSA without running the O(blocks·vars) dominator + phi walk
         // that would cost seconds on a pathological generated body.
         let mut big = Function::new("::big", "b0");
+        let b0 = big.entry;
         for i in 0..=COMPLEXITY_GUARD_BLOCKS {
-            big.blocks
-                .insert(format!("b{i}"), Block::new(format!("b{i}")));
+            let id = big.intern_block(format!("b{i}"));
+            big.blocks.insert(id, Block::new(format!("b{i}")));
         }
         assert!(big.blocks.len() > COMPLEXITY_GUARD_BLOCKS);
         assert!(is_complexity_guarded(&big));
@@ -2341,6 +2439,6 @@ mod tests {
         let ssa = build_ssa(&big, &reg);
         assert!(ssa.blocks.is_empty(), "guarded SSA must be trivial");
         assert_eq!(ssa.name, "::big");
-        assert_eq!(ssa.entry, "b0");
+        assert_eq!(ssa.entry, b0);
     }
 }

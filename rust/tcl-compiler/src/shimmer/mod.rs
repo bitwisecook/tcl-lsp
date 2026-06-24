@@ -29,7 +29,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_lexer::Span;
 use tcl_registry::{BytePayloadSpec, CommandRegistry, TclType};
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::TypeLattice;
 
@@ -102,7 +102,7 @@ pub(crate) fn find_shimmer_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     values: &HashMap<ValueKey, crate::analyses::LatticeValue>,
 ) -> Vec<ShimmerWarning> {
@@ -173,7 +173,7 @@ pub(crate) fn find_thunking_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
 ) -> Vec<ThunkingWarning> {
     thunking::find_thunking_warnings(cfg, ssa, types, executable_blocks)
 }
@@ -190,7 +190,7 @@ pub(crate) fn find_thunking_warnings(
 pub(crate) fn find_byte_array_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
     registry: &CommandRegistry,
     payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
 ) -> Vec<ShimmerWarning> {

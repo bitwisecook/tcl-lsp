@@ -23,7 +23,7 @@ use std::collections::{HashMap, HashSet};
 
 use tcl_registry::TclType;
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, ValueKey, Version};
@@ -110,15 +110,31 @@ pub(super) fn empty_value_versions(ssa: &SsaFunction) -> HashMap<String, HashSet
 /// block-shape heuristic.
 pub(super) fn destructure_foreach_blocks(cfg: &CfgFunction) -> HashSet<String> {
     let mut out = HashSet::new();
-    for (bn, block) in &cfg.blocks {
+    for block in cfg.blocks.values() {
         if block.statements.len() == 1
             && let Statement::Call { command, .. } = &block.statements[0]
             && command == "break"
         {
-            out.insert(bn.clone());
+            out.insert(block.name.clone());
         }
     }
     out
+}
+
+/// Reverse name → [`BlockId`] lookup for an [`SsaFunction`], built from its
+/// own interned name table. Lets a name-keyed loop-block set index the
+/// `BlockId`-keyed `ssa.blocks` map without a `&cfg::Function` on hand.
+fn ssa_name_to_id(ssa: &SsaFunction) -> HashMap<&str, BlockId> {
+    ssa.block_names()
+        .iter()
+        .enumerate()
+        .map(|(i, name)| {
+            (
+                name.as_str(),
+                BlockId(u32::try_from(i).expect("SSA block count fits in u32")),
+            )
+        })
+        .collect()
 }
 
 /// KNOWN, non-empty intreps each name is *defined as* inside the per-loop
@@ -132,12 +148,16 @@ pub(super) fn per_loop_body_types(
     empty_by_name: &HashMap<String, HashSet<Version>>,
 ) -> HashMap<String, HashSet<TclType>> {
     let _ = header;
+    let name_to_id = ssa_name_to_id(ssa);
     let mut out: HashMap<String, HashSet<TclType>> = HashMap::new();
     for lbn in loop_block_set {
         if destructure.contains(lbn) {
             continue;
         }
-        let Some(lssa) = ssa.blocks.get(lbn) else {
+        let Some(lssa) = name_to_id
+            .get(lbn.as_str())
+            .and_then(|id| ssa.blocks.get(id))
+        else {
             continue;
         };
         for s in &lssa.statements {
@@ -170,7 +190,7 @@ pub(crate) fn find_thunking_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
 ) -> Vec<ThunkingWarning> {
     let loop_blocks = loop_body_blocks(cfg);
     let succs = build_successors(cfg);
@@ -179,12 +199,13 @@ pub(crate) fn find_thunking_warnings(
 
     // A loop header is a block that is on a cycle and has both an
     // entry edge (predecessor outside the loop) and a back edge
-    // (predecessor inside the loop, other than self-loops).
+    // (predecessor inside the loop, other than self-loops).  The
+    // successor graph is name-keyed, so headers are tracked by name too.
     let loop_headers: HashSet<String> = cfg
-        .blocks
-        .keys()
+        .block_names()
+        .iter()
         .filter(|bn| {
-            if !loop_blocks.contains(*bn) {
+            if !loop_blocks.contains(bn.as_str()) {
                 return false;
             }
             let has_entry = succs.iter().any(|(pred, targets)| {
@@ -202,22 +223,23 @@ pub(crate) fn find_thunking_warnings(
     let empty_by_name = empty_value_versions(ssa);
     let destructure = destructure_foreach_blocks(cfg);
 
-    for block_name in cfg_order(cfg) {
-        if !executable_blocks.contains(&block_name) {
+    for block_id in cfg_order(cfg) {
+        if !executable_blocks.contains(&block_id) {
             continue;
         }
-        if !loop_headers.contains(&block_name) {
+        let block_name = cfg.block_name(block_id);
+        if !loop_headers.contains(block_name) {
             continue;
         }
-        let Some(ssa_block) = ssa.blocks.get(&block_name) else {
+        let Some(ssa_block) = ssa.blocks.get(&block_id) else {
             continue;
         };
 
         // Per-loop body types for *this* loop only (sibling loops must not
         // pollute the oscillation check).
-        let this_loop = natural_loop_blocks(&block_name, &preds, &loop_blocks);
+        let this_loop = natural_loop_blocks(block_name, &preds, &loop_blocks);
         let per_loop = per_loop_body_types(
-            &block_name,
+            block_name,
             &this_loop,
             &destructure,
             ssa,
@@ -260,7 +282,7 @@ pub(crate) fn find_thunking_warnings(
                     continue;
                 };
                 let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
-                if loop_blocks.contains(pred) {
+                if loop_blocks.contains(cfg.block_name(*pred)) {
                     if inc_type.kind == TypeKind::Known && !is_empty {
                         has_body_incoming = true;
                         if let Some(t) = inc_type.tcl_type {
@@ -292,10 +314,12 @@ pub(crate) fn find_thunking_warnings(
                 .incoming
                 .iter()
                 .filter_map(|(pred_block, &ver)| {
-                    def_map
-                        .get(&(phi.name.clone(), ver))
-                        .copied()
-                        .map(|sp| (sp, format!("version from '{pred_block}'")))
+                    def_map.get(&(phi.name.clone(), ver)).copied().map(|sp| {
+                        (
+                            sp,
+                            format!("version from '{}'", cfg.block_name(*pred_block)),
+                        )
+                    })
                 })
                 .collect();
 

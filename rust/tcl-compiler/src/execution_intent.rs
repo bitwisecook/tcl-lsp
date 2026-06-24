@@ -347,13 +347,13 @@ pub fn build_function_execution_intent(
     dialect: Option<&str>,
 ) -> FunctionExecutionIntent {
     let mut out = FunctionExecutionIntent::new();
-    for (block_name, block) in &cfg.blocks {
+    for block in cfg.blocks.values() {
         for (idx, stmt) in block.statements.iter().enumerate() {
             if let Statement::AssignValue { value, .. } = stmt
                 && let Some(parsed) = parse_command_substitution(registry, value, dialect)
             {
                 out.command_substitutions
-                    .insert((block_name.clone(), idx), parsed);
+                    .insert((block.name.clone(), idx), parsed);
             }
         }
     }
@@ -560,7 +560,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let mut f = Function::new("::top", "entry_0");
         {
-            let entry = f.blocks.get_mut("entry_0").unwrap();
+            let entry = f.block_by_name_mut("entry_0").unwrap();
             entry.statements.push(Statement::AssignValue {
                 span: Span::new(0, 0),
                 name: "len".into(),

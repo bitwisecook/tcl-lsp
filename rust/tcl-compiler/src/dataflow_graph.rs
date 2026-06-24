@@ -477,7 +477,7 @@ mod tests {
 
     // -- extract_function_dataflow --
 
-    use crate::cfg::Function as CfgFunction;
+    use crate::cfg::{BlockId, Function as CfgFunction};
     use crate::def_use::build_def_use_chains;
     use crate::ir::Statement;
     use crate::sccp::sccp;
@@ -513,24 +513,18 @@ mod tests {
     #[test]
     fn extract_node_per_def_with_sccp_lattice() {
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(crate::cfg::Terminator::Return {
+        let entry_id = cfg.entry;
+        cfg.blocks.get_mut(&entry_id).unwrap().terminator = Some(crate::cfg::Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
+        let mut ssa = SsaFunction::trivial("::top", cfg.entry, cfg.block_names().to_vec());
         let mut entry = empty_ssa_block("entry");
         entry.statements.push(assign_const_ssa("x", "42", 1));
-        ssa.blocks.insert("entry".into(), entry);
+        ssa.blocks.insert(entry_id, entry);
 
         let du = build_def_use_chains(&ssa, Some(&cfg));
         let sccp_result = sccp(&cfg, &ssa, None, None);
@@ -551,17 +545,10 @@ mod tests {
 
     #[test]
     fn type_info_projects_lattice_kind_name() {
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
+        let mut ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         let mut entry = empty_ssa_block("entry");
         entry.statements.push(assign_const_ssa("x", "42", 1));
-        ssa.blocks.insert("entry".into(), entry);
+        ssa.blocks.insert(BlockId(0), entry);
         let du = build_def_use_chains(&ssa, None);
 
         // A `Known` type lattice for x@1 must render as the uppercase
@@ -585,21 +572,15 @@ mod tests {
         //   x@1 = 1 (def)
         //   y@1 = {uses x@1} (use)
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(crate::cfg::Terminator::Return {
+        let entry_id = cfg.entry;
+        cfg.blocks.get_mut(&entry_id).unwrap().terminator = Some(crate::cfg::Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
 
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
+        let mut ssa = SsaFunction::trivial("::top", cfg.entry, cfg.block_names().to_vec());
         let mut entry = empty_ssa_block("entry");
         entry.statements.push(assign_const_ssa("x", "1", 1));
         let mut uses = Map::new();
@@ -616,7 +597,7 @@ mod tests {
             uses,
             defs: ydefs,
         });
-        ssa.blocks.insert("entry".into(), entry);
+        ssa.blocks.insert(entry_id, entry);
 
         let du = build_def_use_chains(&ssa, Some(&cfg));
         let g = extract_function_dataflow("::top", &ssa, &du, None, None, None);
@@ -644,14 +625,7 @@ mod tests {
             ..MemorySsaFunction::default()
         };
         let du = DefUseResult::default();
-        let ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         let g = extract_function_dataflow("::top", &ssa, &du, None, Some(&mem), None);
         assert_eq!(g.aliases.len(), 1);
         let a = &g.aliases[0];
@@ -665,29 +639,15 @@ mod tests {
 
     #[test]
     fn extract_dataflow_graph_merges_and_sorts_functions() {
-        let mut ssa_a = SsaFunction {
-            name: "::a".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
+        let mut ssa_a = SsaFunction::trivial("::a", BlockId(0), vec!["entry".into()]);
         let mut entry_a = empty_ssa_block("entry");
         entry_a.statements.push(assign_const_ssa("x", "1", 1));
-        ssa_a.blocks.insert("entry".into(), entry_a);
+        ssa_a.blocks.insert(BlockId(0), entry_a);
 
-        let mut ssa_b = SsaFunction {
-            name: "::b".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
+        let mut ssa_b = SsaFunction::trivial("::b", BlockId(0), vec!["entry".into()]);
         let mut entry_b = empty_ssa_block("entry");
         entry_b.statements.push(assign_const_ssa("y", "2", 1));
-        ssa_b.blocks.insert("entry".into(), entry_b);
+        ssa_b.blocks.insert(BlockId(0), entry_b);
 
         let du_a = crate::def_use::build_def_use_chains(&ssa_a, None);
         let du_b = crate::def_use::build_def_use_chains(&ssa_b, None);
@@ -730,14 +690,7 @@ mod tests {
     #[test]
     fn extract_empty_when_no_chains() {
         let du = DefUseResult::default();
-        let ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: Map::new(),
-            idom: Map::new(),
-            dominance_frontier: Map::new(),
-            dominator_tree: Map::new(),
-        };
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         let g = extract_function_dataflow("::top", &ssa, &du, None, None, None);
         assert!(g.nodes.is_empty());
         assert!(g.edges.is_empty());

@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 use rustc_hash::FxHashSet;
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::ssa::{SsaFunction, SsaStatement, ValueKey};
@@ -20,12 +20,11 @@ use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, eval_tcl_expr
 
 // Public aliases
 
-/// Predecessor map: block name → set of block names that branch
-/// into it. Thin wrapper around [`CfgFunction::predecessors`] kept
-/// in this module so callers can reach it without reaching into
-/// the CFG type directly.
+/// Predecessor map: block → set of blocks that branch into it. Thin
+/// wrapper around [`CfgFunction::predecessors`] kept in this module so
+/// callers can reach it without reaching into the CFG type directly.
 #[must_use]
-pub fn compute_predecessors(cfg: &CfgFunction) -> HashMap<String, HashSet<String>> {
+pub fn compute_predecessors(cfg: &CfgFunction) -> HashMap<BlockId, HashSet<BlockId>> {
     cfg.predecessors()
 }
 
@@ -33,12 +32,12 @@ pub fn compute_predecessors(cfg: &CfgFunction) -> HashMap<String, HashSet<String
 /// entry block. Blocks that the RPO walk cannot reach from `entry`
 /// are appended at the end so the driver can still observe them.
 #[must_use]
-pub fn cfg_order(cfg: &CfgFunction) -> Vec<String> {
+pub fn cfg_order(cfg: &CfgFunction) -> Vec<BlockId> {
     let mut order = cfg.reverse_postorder();
-    let seen: HashSet<String> = order.iter().cloned().collect();
-    for name in cfg.blocks.keys() {
-        if !seen.contains(name) {
-            order.push(name.clone());
+    let seen: HashSet<BlockId> = order.iter().copied().collect();
+    for id in cfg.blocks.keys() {
+        if !seen.contains(id) {
+            order.push(*id);
         }
     }
     order
@@ -178,9 +177,9 @@ pub struct SccpResult {
     /// Per-SSA-value lattice entry.
     pub values: HashMap<ValueKey, LatticeValue>,
     /// Blocks reachable from `cfg.entry` under current assumptions.
-    pub executable_blocks: HashSet<String>,
+    pub executable_blocks: HashSet<BlockId>,
     /// `(from_block, to_block)` edges known executable.
-    pub executable_edges: HashSet<(String, String)>,
+    pub executable_edges: HashSet<(BlockId, BlockId)>,
     /// Constant branches detected during propagation.
     pub constant_branches: Vec<ConstantBranch>,
 }
@@ -241,10 +240,10 @@ pub fn sccp(
     let escaping = crate::var_observability::analyse_var_observability(cfg).escaping_var_names();
     let is_externally_mutable = |name: &str| name.starts_with("::") || escaping.contains(name);
 
-    let mut executable_blocks: HashSet<String> = HashSet::new();
-    let mut executable_edges: HashSet<(String, String)> = HashSet::new();
+    let mut executable_blocks: HashSet<BlockId> = HashSet::new();
+    let mut executable_edges: HashSet<(BlockId, BlockId)> = HashSet::new();
     if cfg.blocks.contains_key(&cfg.entry) {
-        executable_blocks.insert(cfg.entry.clone());
+        executable_blocks.insert(cfg.entry);
     }
     let order = cfg_order(cfg);
 
@@ -266,12 +265,12 @@ pub fn sccp(
                     continue;
                 };
 
-                let incoming_exec: Vec<String> = preds
+                let incoming_exec: Vec<BlockId> = preds
                     .get(bn)
                     .map(|set| {
                         set.iter()
-                            .filter(|p| executable_edges.contains(&((*p).clone(), bn.clone())))
-                            .cloned()
+                            .copied()
+                            .filter(|p| executable_edges.contains(&(*p, *bn)))
                             .collect()
                     })
                     .unwrap_or_default();
@@ -334,7 +333,7 @@ pub fn sccp(
 
                 // Terminator.
                 if sccp_process_terminator(
-                    bn,
+                    *bn,
                     cfg,
                     ssa,
                     &values,
@@ -451,17 +450,17 @@ fn branch_deferrable(
 /// added.  Extracted from [`sccp`].
 #[allow(clippy::too_many_arguments)]
 fn sccp_process_terminator(
-    bn: &str,
+    bn: BlockId,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     values: &HashMap<ValueKey, LatticeValue>,
-    executable_blocks: &mut HashSet<String>,
-    executable_edges: &mut HashSet<(String, String)>,
+    executable_blocks: &mut HashSet<BlockId>,
+    executable_edges: &mut HashSet<(BlockId, BlockId)>,
     octal: Option<bool>,
     finalizing: bool,
 ) -> bool {
     let mut changed = false;
-    let Some(block) = cfg.blocks.get(bn) else {
+    let Some(block) = cfg.blocks.get(&bn) else {
         return false;
     };
     let Some(term) = &block.terminator else {
@@ -469,12 +468,12 @@ fn sccp_process_terminator(
     };
     match term {
         Terminator::Goto { target, .. } => {
-            let edge = (bn.to_owned(), target.clone());
+            let edge = (bn, *target);
             if !executable_edges.contains(&edge) {
                 executable_edges.insert(edge);
                 changed = true;
             }
-            if cfg.blocks.contains_key(target) && executable_blocks.insert(target.clone()) {
+            if cfg.blocks.contains_key(target) && executable_blocks.insert(*target) {
                 changed = true;
             }
         }
@@ -484,13 +483,13 @@ fn sccp_process_terminator(
             false_target,
             ..
         } => {
-            let Some(ssa_block) = ssa.blocks.get(bn) else {
+            let Some(ssa_block) = ssa.blocks.get(&bn) else {
                 return changed;
             };
             let decision = branch_decision(cfg, ssa, bn, ssa_block, condition, values, octal);
-            let targets: Vec<&str> = match decision {
-                Some(true) => vec![true_target.as_str()],
-                Some(false) => vec![false_target.as_str()],
+            let targets: Vec<BlockId> = match decision {
+                Some(true) => vec![*true_target],
+                Some(false) => vec![*false_target],
                 // Optimistic (Wegman–Zadeck): while the condition may still
                 // fold on a later sweep (a not-yet-computed operand, no
                 // `Overdefined` one), open neither arm and let the fixpoint
@@ -501,15 +500,15 @@ fn sccp_process_terminator(
                 None if !finalizing && branch_deferrable(ssa_block, condition, values) => {
                     Vec::new()
                 }
-                None => vec![true_target.as_str(), false_target.as_str()],
+                None => vec![*true_target, *false_target],
             };
             for tgt in targets {
-                let edge = (bn.to_owned(), tgt.to_owned());
+                let edge = (bn, tgt);
                 if !executable_edges.contains(&edge) {
                     executable_edges.insert(edge);
                     changed = true;
                 }
-                if cfg.blocks.contains_key(tgt) && executable_blocks.insert(tgt.to_owned()) {
+                if cfg.blocks.contains_key(&tgt) && executable_blocks.insert(tgt) {
                     changed = true;
                 }
             }
@@ -519,14 +518,14 @@ fn sccp_process_terminator(
     // `try` exception edges sourced at `bn`: when `bn` is executable the
     // handler is reachable (a throw can occur in the body).
     for (from, to) in &cfg.exception_edges {
-        if from != bn {
+        if *from != bn {
             continue;
         }
-        let edge = (bn.to_owned(), to.clone());
+        let edge = (bn, *to);
         if executable_edges.insert(edge) {
             changed = true;
         }
-        if cfg.blocks.contains_key(to) && executable_blocks.insert(to.clone()) {
+        if cfg.blocks.contains_key(to) && executable_blocks.insert(*to) {
             changed = true;
         }
     }
@@ -540,8 +539,8 @@ fn collect_constant_branches(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     values: &HashMap<ValueKey, LatticeValue>,
-    executable_blocks: &HashSet<String>,
-    order: &[String],
+    executable_blocks: &HashSet<BlockId>,
+    order: &[BlockId],
     octal: Option<bool>,
 ) -> Vec<ConstantBranch> {
     let mut constant_branches: Vec<ConstantBranch> = Vec::new();
@@ -565,24 +564,28 @@ fn collect_constant_branches(
         let Some(ssa_block) = ssa.blocks.get(bn) else {
             continue;
         };
-        let decision = branch_decision(cfg, ssa, bn, ssa_block, condition, values, octal);
+        let decision = branch_decision(cfg, ssa, *bn, ssa_block, condition, values, octal);
         let cond_text = crate::expr_ast::expr_text(condition);
+        let (true_name, false_name) = (
+            cfg.block_name(*true_target).to_owned(),
+            cfg.block_name(*false_target).to_owned(),
+        );
         match decision {
             Some(true) => constant_branches.push(ConstantBranch {
-                block: bn.clone(),
+                block: cfg.block_name(*bn).to_owned(),
                 span: *term_span,
                 condition: cond_text,
                 value: true,
-                taken_target: true_target.clone(),
-                not_taken_target: false_target.clone(),
+                taken_target: true_name,
+                not_taken_target: false_name,
             }),
             Some(false) => constant_branches.push(ConstantBranch {
-                block: bn.clone(),
+                block: cfg.block_name(*bn).to_owned(),
                 span: *term_span,
                 condition: cond_text,
                 value: false,
-                taken_target: false_target.clone(),
-                not_taken_target: true_target.clone(),
+                taken_target: false_name,
+                not_taken_target: true_name,
             }),
             None => {}
         }
@@ -677,10 +680,14 @@ pub fn existence_constant_branches(
             continue;
         };
         let value = exists ^ negated;
+        let (true_name, false_name) = (
+            cfg.block_name(*true_target).to_owned(),
+            cfg.block_name(*false_target).to_owned(),
+        );
         let (taken, not_taken) = if value {
-            (true_target.clone(), false_target.clone())
+            (true_name, false_name)
         } else {
-            (false_target.clone(), true_target.clone())
+            (false_name, true_name)
         };
         out.push(ConstantBranch {
             block: block.name.clone(),
@@ -841,7 +848,7 @@ fn resolve_simple_var_ref(
 fn branch_decision(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    bn: &str,
+    bn: BlockId,
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
@@ -870,11 +877,11 @@ fn const_to_static(c: &ConstValue) -> crate::static_loops::StaticValue {
 fn loop_summary_decision(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    bn: &str,
+    bn: BlockId,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
 ) -> Option<bool> {
-    let node = cfg.loop_nodes.get(bn)?;
+    let node = cfg.loop_nodes.get(&bn)?;
     let start_ssa = ssa.blocks.get(&node.entry_block)?;
     let mut start_env = crate::static_loops::StaticEnv::new();
     for (name, &ver) in &start_ssa.exit_versions {
@@ -1269,21 +1276,29 @@ pub fn parse_literal_value(text: &str) -> ConstValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cfg::{Block, Function, Terminator};
+    use crate::cfg::{Block, BlockId, Function, Terminator};
     use crate::expr_ast::ExprNode;
 
-    fn goto(target: &str) -> Terminator {
-        Terminator::Goto {
-            target: target.into(),
-            span: None,
-        }
+    /// Intern `name` and insert a fresh block; returns its [`BlockId`].
+    fn block(f: &mut Function, name: &str) -> BlockId {
+        let id = f.intern_block(name);
+        f.blocks.insert(id, Block::new(name));
+        id
     }
 
-    fn branch(cond: ExprNode, tt: &str, ft: &str) -> Terminator {
+    fn id_of(f: &Function, name: &str) -> BlockId {
+        f.block_id(name).expect("interned")
+    }
+
+    fn goto(target: BlockId) -> Terminator {
+        Terminator::Goto { target, span: None }
+    }
+
+    fn branch(cond: ExprNode, tt: BlockId, ft: BlockId) -> Terminator {
         Terminator::Branch {
             condition: cond,
-            true_target: tt.into(),
-            false_target: ft.into(),
+            true_target: tt,
+            false_target: ft,
             span: None,
         }
     }
@@ -1381,40 +1396,42 @@ mod tests {
     #[test]
     fn predecessors_simple_chain() {
         let mut f = Function::new("::top", "a");
-        f.blocks.insert("b".into(), Block::new("b"));
-        f.blocks.get_mut("a").unwrap().terminator = Some(goto("b"));
-        f.blocks.get_mut("b").unwrap().terminator = Some(Terminator::Return {
+        let a = f.entry;
+        let b = block(&mut f, "b");
+        f.blocks.get_mut(&a).unwrap().terminator = Some(goto(b));
+        f.blocks.get_mut(&b).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
         let p = compute_predecessors(&f);
-        assert!(p.get("b").unwrap().contains("a"));
-        assert!(p.get("a").is_none_or(HashSet::is_empty));
+        assert!(p.get(&b).unwrap().contains(&a));
+        assert!(p.get(&a).is_none_or(HashSet::is_empty));
     }
 
     #[test]
     fn cfg_order_starts_at_entry() {
         let mut f = Function::new("::top", "entry");
-        f.blocks.insert("t".into(), Block::new("t"));
-        f.blocks.insert("e".into(), Block::new("e"));
-        f.blocks.insert("join".into(), Block::new("join"));
-        f.blocks.get_mut("entry").unwrap().terminator = Some(branch(literal("1"), "t", "e"));
-        f.blocks.get_mut("t").unwrap().terminator = Some(goto("join"));
-        f.blocks.get_mut("e").unwrap().terminator = Some(goto("join"));
-        f.blocks.get_mut("join").unwrap().terminator = Some(Terminator::Return {
+        let entry = f.entry;
+        let t = block(&mut f, "t");
+        let e = block(&mut f, "e");
+        let join = block(&mut f, "join");
+        f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(literal("1"), t, e));
+        f.blocks.get_mut(&t).unwrap().terminator = Some(goto(join));
+        f.blocks.get_mut(&e).unwrap().terminator = Some(goto(join));
+        f.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
         let order = cfg_order(&f);
-        assert_eq!(order[0], "entry");
+        assert_eq!(order[0], entry);
         // join must appear after both branches.
-        let join_pos = order.iter().position(|b| b == "join").unwrap();
-        let t_pos = order.iter().position(|b| b == "t").unwrap();
-        let e_pos = order.iter().position(|b| b == "e").unwrap();
+        let join_pos = order.iter().position(|b| *b == join).unwrap();
+        let t_pos = order.iter().position(|b| *b == t).unwrap();
+        let e_pos = order.iter().position(|b| *b == e).unwrap();
         assert!(join_pos > t_pos);
         assert!(join_pos > e_pos);
     }
@@ -1451,12 +1468,30 @@ mod tests {
         }
     }
 
+    /// Build an [`SsaFunction`] over `f`'s interner with the given per-name SSA
+    /// blocks; any CFG block not listed gets an empty SSA block.
+    fn make_ssa(f: &Function, named: Vec<(&str, SsaBlock)>) -> SsaFunction {
+        let mut ssa = SsaFunction::trivial("::top", f.entry, f.block_names().to_vec());
+        let mut provided: std::collections::HashSet<BlockId> = std::collections::HashSet::new();
+        for (name, blk) in named {
+            let id = id_of(f, name);
+            provided.insert(id);
+            ssa.blocks.insert(id, blk);
+        }
+        for id in f.blocks.keys() {
+            if !provided.contains(id) {
+                ssa.blocks.insert(*id, empty_ssa_block(f.block_name(*id)));
+            }
+        }
+        ssa
+    }
+
     #[test]
     fn sccp_marks_entry_executable_and_propagates_const() {
         // entry: set x 42
         let mut f = Function::new("::top", "entry");
-        let entry_blk = f.blocks.get_mut("entry").unwrap();
-        entry_blk.terminator = Some(Terminator::Return {
+        let entry = f.entry;
+        f.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
@@ -1464,18 +1499,10 @@ mod tests {
         });
         let mut ssa_entry = empty_ssa_block("entry");
         ssa_entry.statements.push(assign_const_stmt("x", "42", 1));
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
-        ssa.blocks.insert("entry".into(), ssa_entry);
+        let ssa = make_ssa(&f, vec![("entry", ssa_entry)]);
 
         let r = sccp(&f, &ssa, None, None);
-        assert!(r.executable_blocks.contains("entry"));
+        assert!(r.executable_blocks.contains(&entry));
         assert_eq!(
             r.values.get(&("x".to_string(), 1)),
             Some(&LatticeValue::Const(ConstValue::Int(42)))
@@ -1486,36 +1513,27 @@ mod tests {
     fn sccp_constant_branch_detected_and_taken_target_marked() {
         // entry: branch on literal "1" → true → "t", false → "e"
         let mut f = Function::new("::top", "entry");
-        f.blocks.insert("t".into(), Block::new("t"));
-        f.blocks.insert("e".into(), Block::new("e"));
-        f.blocks.get_mut("entry").unwrap().terminator = Some(branch(literal("1"), "t", "e"));
-        f.blocks.get_mut("t").unwrap().terminator = Some(Terminator::Return {
+        let entry = f.entry;
+        let t = block(&mut f, "t");
+        let e = block(&mut f, "e");
+        f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(literal("1"), t, e));
+        f.blocks.get_mut(&t).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
-        f.blocks.get_mut("e").unwrap().terminator = Some(Terminator::Return {
+        f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
-        ssa.blocks.insert("entry".into(), empty_ssa_block("entry"));
-        ssa.blocks.insert("t".into(), empty_ssa_block("t"));
-        ssa.blocks.insert("e".into(), empty_ssa_block("e"));
+        let ssa = make_ssa(&f, vec![]);
 
         let r = sccp(&f, &ssa, None, None);
-        assert!(r.executable_blocks.contains("t"));
-        assert!(!r.executable_blocks.contains("e"));
+        assert!(r.executable_blocks.contains(&t));
+        assert!(!r.executable_blocks.contains(&e));
         assert_eq!(r.constant_branches.len(), 1);
         let cb = &r.constant_branches[0];
         assert!(cb.value);
@@ -1526,78 +1544,60 @@ mod tests {
     #[test]
     fn sccp_false_branch_prunes_true_target() {
         let mut f = Function::new("::top", "entry");
-        f.blocks.insert("t".into(), Block::new("t"));
-        f.blocks.insert("e".into(), Block::new("e"));
-        f.blocks.get_mut("entry").unwrap().terminator = Some(branch(literal("0"), "t", "e"));
-        f.blocks.get_mut("t").unwrap().terminator = Some(Terminator::Return {
+        let entry = f.entry;
+        let t = block(&mut f, "t");
+        let e = block(&mut f, "e");
+        f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(literal("0"), t, e));
+        f.blocks.get_mut(&t).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
-        f.blocks.get_mut("e").unwrap().terminator = Some(Terminator::Return {
+        f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
-        ssa.blocks.insert("entry".into(), empty_ssa_block("entry"));
-        ssa.blocks.insert("t".into(), empty_ssa_block("t"));
-        ssa.blocks.insert("e".into(), empty_ssa_block("e"));
+        let ssa = make_ssa(&f, vec![]);
 
         let r = sccp(&f, &ssa, None, None);
-        assert!(!r.executable_blocks.contains("t"));
-        assert!(r.executable_blocks.contains("e"));
+        assert!(!r.executable_blocks.contains(&t));
+        assert!(r.executable_blocks.contains(&e));
     }
 
     #[test]
     fn sccp_unknown_branch_executes_both_targets() {
         // Var reference — lattice value defaults to Unknown → decision None.
         let mut f = Function::new("::top", "entry");
-        f.blocks.insert("t".into(), Block::new("t"));
-        f.blocks.insert("e".into(), Block::new("e"));
+        let entry = f.entry;
+        let t = block(&mut f, "t");
+        let e = block(&mut f, "e");
         let cond = ExprNode::Var {
             text: "$z".into(),
             name: "z".into(),
             start: 0,
             end: 2,
         };
-        f.blocks.get_mut("entry").unwrap().terminator = Some(branch(cond, "t", "e"));
-        f.blocks.get_mut("t").unwrap().terminator = Some(Terminator::Return {
+        f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(cond, t, e));
+        f.blocks.get_mut(&t).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
-        f.blocks.get_mut("e").unwrap().terminator = Some(Terminator::Return {
+        f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: "entry".into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
-        ssa.blocks.insert("entry".into(), empty_ssa_block("entry"));
-        ssa.blocks.insert("t".into(), empty_ssa_block("t"));
-        ssa.blocks.insert("e".into(), empty_ssa_block("e"));
+        let ssa = make_ssa(&f, vec![]);
 
         let r = sccp(&f, &ssa, None, None);
-        assert!(r.executable_blocks.contains("t"));
-        assert!(r.executable_blocks.contains("e"));
+        assert!(r.executable_blocks.contains(&t));
+        assert!(r.executable_blocks.contains(&e));
         assert!(r.constant_branches.is_empty());
     }
 
@@ -2124,22 +2124,23 @@ mod tests {
     #[test]
     fn cfg_order_appends_unreachable_blocks() {
         let mut f = Function::new("::top", "entry");
-        f.blocks.insert("dead".into(), Block::new("dead"));
-        f.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
+        let entry = f.entry;
+        let dead = block(&mut f, "dead");
+        f.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
-        f.blocks.get_mut("dead").unwrap().terminator = Some(Terminator::Return {
+        f.blocks.get_mut(&dead).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         });
         let order = cfg_order(&f);
-        assert!(order.contains(&"entry".to_string()));
-        assert!(order.contains(&"dead".to_string()));
+        assert!(order.contains(&entry));
+        assert!(order.contains(&dead));
     }
 
     fn cu(src: &str) -> crate::compilation_unit::CompilationUnit {

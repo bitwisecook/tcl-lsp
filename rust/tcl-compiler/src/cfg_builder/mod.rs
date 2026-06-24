@@ -10,9 +10,10 @@
 
 use std::collections::{BTreeSet, HashMap};
 
+use rustc_hash::FxHashMap;
 use tcl_lexer::{Span, TokenType};
 
-use crate::cfg::{Block, CfgModule, Function, LoopNode, Terminator};
+use crate::cfg::{Block, BlockId, CfgModule, Function, LoopNode, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Module, Script, Statement};
 use crate::ir_helpers::defs_from_ir_script;
@@ -102,6 +103,9 @@ struct MutableBlock {
 pub(crate) struct CfgBuilder {
     counter: u32,
     blocks: HashMap<String, MutableBlock>,
+    /// Block name → [`BlockId`], assigned in block-creation order so the
+    /// frozen [`Function`]'s interner reflects that order.
+    block_ids: FxHashMap<String, BlockId>,
     loop_nodes: HashMap<String, LoopNode>,
     inline_loops: bool,
     /// Map from command name to upvar summary, used to pre-populate
@@ -169,6 +173,7 @@ impl CfgBuilder {
         Self {
             counter: 0,
             blocks: HashMap::new(),
+            block_ids: FxHashMap::default(),
             loop_nodes: HashMap::new(),
             inline_loops,
             upvar_procs,
@@ -348,7 +353,8 @@ impl CfgBuilder {
         let Some((brk, cont)) = self.loop_stack.last().cloned() else {
             return false;
         };
-        let target = if command == "break" { brk } else { cont };
+        let target_name = if command == "break" { brk } else { cont };
+        let target = self.bid(&target_name);
         self.block_mut(current).statements.push(stmt.clone());
         self.block_mut(current).terminator = Some(Terminator::Goto {
             target,
@@ -401,10 +407,13 @@ impl CfgBuilder {
         }
     }
 
-    /// Allocate a new empty block with a unique name.
+    /// Allocate a new empty block with a unique name, interning its
+    /// [`BlockId`] in creation order.
     fn new_block(&mut self, prefix: &str) -> String {
         self.counter += 1;
         let name = format!("{prefix}_{}", self.counter);
+        let id = BlockId(u32::try_from(self.block_ids.len()).expect("CFG block count fits in u32"));
+        self.block_ids.insert(name.clone(), id);
         self.blocks.insert(
             name.clone(),
             MutableBlock {
@@ -414,6 +423,15 @@ impl CfgBuilder {
             },
         );
         name
+    }
+
+    /// The [`BlockId`] interned for a created block name. Panics if the
+    /// name was never created by [`Self::new_block`].
+    fn bid(&self, name: &str) -> BlockId {
+        *self
+            .block_ids
+            .get(name)
+            .unwrap_or_else(|| panic!("block {name} has no id"))
     }
 
     /// Borrow a mutable block by name. Panics if missing.
@@ -426,12 +444,10 @@ impl CfgBuilder {
     /// Set a `Goto` terminator on a block only if it doesn't already
     /// have one.
     fn ensure_goto(&mut self, block_name: &str, target: &str, span: Option<Span>) {
+        let target = self.bid(target);
         let block = self.block_mut(block_name);
         if block.terminator.is_none() {
-            block.terminator = Some(Terminator::Goto {
-                target: target.to_owned(),
-                span,
-            });
+            block.terminator = Some(Terminator::Goto { target, span });
         }
     }
 
@@ -445,12 +461,26 @@ impl CfgBuilder {
             self.ensure_goto(&tail, &exit, None);
         }
 
-        let frozen: HashMap<String, Block> = self
+        // Seed the function's interner in block-creation order (by `BlockId`),
+        // so the frozen interner's ids match the ones the builder stamped into
+        // every terminator / loop node / exception edge.
+        let mut func = Function::new(name, &entry);
+        let mut ordered: Vec<(BlockId, &String)> =
+            self.block_ids.iter().map(|(n, id)| (*id, n)).collect();
+        ordered.sort_by_key(|(id, _)| *id);
+        for (_, n) in &ordered {
+            func.intern_block((*n).clone());
+        }
+
+        func.blocks = self
             .blocks
             .drain()
             .map(|(k, mb)| {
+                let id = func
+                    .block_id(&k)
+                    .unwrap_or_else(|| panic!("frozen block {k} not interned"));
                 (
-                    k,
+                    id,
                     Block {
                         name: mb.name,
                         statements: mb.statements,
@@ -460,18 +490,16 @@ impl CfgBuilder {
             })
             .collect();
 
-        let loop_nodes = std::mem::take(&mut self.loop_nodes);
-        let exception_edges = std::mem::take(&mut self.exception_edges);
-        let inline_eval_spans = std::mem::take(&mut self.inline_eval_spans);
-
-        Function {
-            name: name.to_owned(),
-            entry,
-            blocks: frozen,
-            loop_nodes,
-            exception_edges,
-            inline_eval_spans,
-        }
+        func.loop_nodes = std::mem::take(&mut self.loop_nodes)
+            .into_iter()
+            .map(|(k, ln)| (self.bid(&k), ln))
+            .collect();
+        func.exception_edges = std::mem::take(&mut self.exception_edges)
+            .into_iter()
+            .map(|(from, to)| (self.bid(&from), self.bid(&to)))
+            .collect();
+        func.inline_eval_spans = std::mem::take(&mut self.inline_eval_spans);
+        func
     }
 
     /// Lower a script (sequence of IR statements) into CFG blocks.

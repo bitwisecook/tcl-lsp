@@ -165,7 +165,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             ctx.place_label(bname);
             continue;
         }
-        let blk = &cfg.blocks[bname];
+        let blk = cfg.block_by_name(bname).expect("layout block exists");
         ctx.place_label(bname);
 
         // Synthetic per-block instructions (loop-result pushes, padding
@@ -202,7 +202,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         let is_loop_end = starts_with_any(bname, LOOP_END_PREFIXES);
         if is_loop_end && blk.statements.is_empty() {
             let target = match &blk.terminator {
-                Some(Terminator::Goto { target, .. }) => Some(target.clone()),
+                Some(Terminator::Goto { target, .. }) => Some(cfg.block_name(*target).to_owned()),
                 _ => None,
             };
             if let Some(t) = &target {
@@ -261,9 +261,11 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             if let Some(Terminator::Branch { true_target, .. }) = &blk.terminator
                 && let Some(tt_blk) = cfg.blocks.get(true_target)
                 && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
-                && join.starts_with("if_end_")
+                && cfg.block_name(*join).starts_with("if_end_")
             {
-                state.for_body_end_labels.insert(join.clone(), fb_end_label);
+                state
+                    .for_body_end_labels
+                    .insert(cfg.block_name(*join).to_owned(), fb_end_label);
             }
         }
 
@@ -287,11 +289,14 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             if let Some(Terminator::Branch { true_target, .. }) = &blk.terminator
                 && let Some(tt_blk) = cfg.blocks.get(true_target)
                 && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
-                && (join.starts_with("if_end_") || join.starts_with("if_next_"))
+                && {
+                    let j = cfg.block_name(*join);
+                    j.starts_with("if_end_") || j.starts_with("if_next_")
+                }
             {
                 state
                     .for_body_end_labels
-                    .insert(join.clone(), fif_end_label);
+                    .insert(cfg.block_name(*join).to_owned(), fif_end_label);
             }
         }
 
@@ -304,7 +309,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         // pending startCommand end label *before* the pop so the
         // startCommand covers only the arm body, not the result
         // cleanup.
-        if starts_with_any(bname, VALUE_JOIN_PREFIXES) && block_has_work(blk, ctx.is_proc) {
+        if starts_with_any(bname, VALUE_JOIN_PREFIXES) && block_has_work(cfg, blk, ctx.is_proc) {
             if let Some(lbl) = state.pending_join_labels.remove(bname) {
                 ctx.place_label(&lbl);
             }
@@ -380,7 +385,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
                     let fi_label = ctx.fresh_label("for_cmd_end");
                     state
                         .for_init_end_labels
-                        .insert(for_end.clone(), fi_label.clone());
+                        .insert(cfg.block_name(*for_end).to_owned(), fi_label.clone());
                     ctx.emit_stmt_with_start_cmd(stmt, Some(2), Some(&fi_label));
                     continue;
                 }
@@ -403,7 +408,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         // If/switch arms: keep last statement value on TOS instead of
         // popping — the value is the arm's result.
         if let Some(Terminator::Goto { target, .. }) = &blk.terminator
-            && starts_with_any(target, VALUE_JOIN_PREFIXES)
+            && starts_with_any(cfg.block_name(*target), VALUE_JOIN_PREFIXES)
         {
             if !blk.statements.is_empty()
                 && ctx.instructions.last().is_some_and(|i| i.op == Op::POP)
@@ -421,7 +426,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         let mut foreach_backedge = false;
         if complex_body_blocks.contains(bname)
             && let Some(Terminator::Goto { target, .. }) = &blk.terminator
-            && let Some(info) = complex_foreach.get(target)
+            && let Some(info) = complex_foreach.get(cfg.block_name(*target))
         {
             let next_peek = block_order.get(i + 1).map(String::as_str);
             if next_peek != Some(info.end.as_str()) {
@@ -441,7 +446,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
                 target: wh_header, ..
             }) = &blk.terminator
         {
-            let is_while_entry = wh_header.starts_with("while_header_")
+            let is_while_entry = cfg.block_name(*wh_header).starts_with("while_header_")
                 && !bname.starts_with("while_body_")
                 && !bname.starts_with("while_step_");
             if is_while_entry
@@ -457,7 +462,9 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
                     vec![Operand::Label(wh_label.clone()), Operand::Imm(1)],
                     "",
                 );
-                state.while_end_labels.insert(wh_end.clone(), wh_label);
+                state
+                    .while_end_labels
+                    .insert(cfg.block_name(*wh_end).to_owned(), wh_label);
                 ctx.cmd_index += 1;
             }
         }
@@ -481,7 +488,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
                 && super::ordering::fold_const_branch(condition) == Some(true)
                 && let Some(tt_blk) = cfg.blocks.get(true_target)
                 && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
-                && join.starts_with("if_end_")
+                && cfg.block_name(*join).starts_with("if_end_")
             {
                 let end_label = ctx.fresh_label("cmd_end");
                 ctx.emit_comment(
@@ -491,7 +498,9 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
                 );
                 ctx.cmd_index += 1;
                 ctx.seen_generic_invoke = true;
-                state.pending_join_labels.insert(join.clone(), end_label);
+                state
+                    .pending_join_labels
+                    .insert(cfg.block_name(*join).to_owned(), end_label);
             }
 
             // Try switch-dispatch jump-table emission first.
@@ -502,7 +511,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             } else if ctx.is_proc && matches!(term, Terminator::Return { .. }) {
                 ctx.emit_proc_return(term, bname, next_block, &block_order, i, cfg);
             } else {
-                ctx.emit_term(term, next_block);
+                ctx.emit_term(cfg, term, next_block);
             }
         } else if next_block.is_some() {
             // Terminal block not last in layout — emit done to prevent
@@ -659,7 +668,7 @@ fn detect_for_init_last_stmt(
     let Terminator::Goto { target, .. } = blk.terminator.as_ref()? else {
         return None;
     };
-    if !target.starts_with("for_header_") {
+    if !cfg.block_name(*target).starts_with("for_header_") {
         return None;
     }
     if blk.name.starts_with("for_step_") {
@@ -691,14 +700,14 @@ fn place_label_before_trailing_pop(ctx: &mut CodegenCtx, label: &str) {
 }
 
 /// Return `true` if the join block has work beyond a single fallthrough.
-fn block_has_work(blk: &crate::cfg::Block, is_proc: bool) -> bool {
+fn block_has_work(cfg: &CfgFunction, blk: &crate::cfg::Block, is_proc: bool) -> bool {
     if !blk.statements.is_empty() {
         return true;
     }
     match &blk.terminator {
         Some(Terminator::Branch { .. }) => true,
         Some(Terminator::Return { .. }) => is_proc,
-        Some(Terminator::Goto { target, .. }) => !target.starts_with("exit_"),
+        Some(Terminator::Goto { target, .. }) => !cfg.block_name(*target).starts_with("exit_"),
         None => false,
     }
 }
@@ -718,7 +727,8 @@ mod tests {
 
     fn trivial_cfg() -> CfgFunction {
         let mut cfg = CfgFunction::new("::top", "entry_0");
-        cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Return {
+        let entry = cfg.entry;
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
@@ -749,9 +759,10 @@ mod tests {
         // (push / store) must carry that span; the synthetic trailing
         // DONE carries none.
         let mut cfg = CfgFunction::new("::top", "entry_0");
+        let entry = cfg.entry;
         let stmt_span = Span::new(4, 10);
         cfg.blocks
-            .get_mut("entry_0")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(Statement::AssignConst {
@@ -760,7 +771,7 @@ mod tests {
                 value: "42".into(),
                 name_braced: false,
             });
-        cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
@@ -794,8 +805,9 @@ mod tests {
     #[test]
     fn generate_simple_set() {
         let mut cfg = CfgFunction::new("::top", "entry_0");
+        let entry = cfg.entry;
         cfg.blocks
-            .get_mut("entry_0")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(Statement::AssignConst {
@@ -804,7 +816,7 @@ mod tests {
                 value: "42".into(),
                 name_braced: false,
             });
-        cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
@@ -826,7 +838,8 @@ mod tests {
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         // Give the entry block a return terminator
         let mut cfg = cfg;
-        cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Return {
+        let entry = cfg.entry;
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
@@ -841,25 +854,27 @@ mod tests {
     fn generate_if_diamond() {
         use crate::expr_ast::ExprNode;
         let mut cfg = CfgFunction::new("::top", "entry_0");
-        cfg.blocks
-            .insert("if_then_1".into(), Block::new("if_then_1"));
-        cfg.blocks
-            .insert("if_else_1".into(), Block::new("if_else_1"));
-        cfg.blocks.insert("if_end_1".into(), Block::new("if_end_1"));
+        let entry = cfg.entry;
+        let then = cfg.intern_block("if_then_1");
+        cfg.blocks.insert(then, Block::new("if_then_1"));
+        let els = cfg.intern_block("if_else_1");
+        cfg.blocks.insert(els, Block::new("if_else_1"));
+        let end = cfg.intern_block("if_end_1");
+        cfg.blocks.insert(end, Block::new("if_end_1"));
 
-        cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Branch {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: ExprNode::Var {
                 text: "$x".into(),
                 name: "x".into(),
                 start: 0,
                 end: 2,
             },
-            true_target: "if_then_1".into(),
-            false_target: "if_else_1".into(),
+            true_target: then,
+            false_target: els,
             span: None,
         });
         cfg.blocks
-            .get_mut("if_then_1")
+            .get_mut(&then)
             .unwrap()
             .statements
             .push(Statement::AssignConst {
@@ -868,12 +883,12 @@ mod tests {
                 value: "1".into(),
                 name_braced: false,
             });
-        cfg.blocks.get_mut("if_then_1").unwrap().terminator = Some(Terminator::Goto {
-            target: "if_end_1".into(),
+        cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
+            target: end,
             span: None,
         });
         cfg.blocks
-            .get_mut("if_else_1")
+            .get_mut(&els)
             .unwrap()
             .statements
             .push(Statement::AssignConst {
@@ -882,11 +897,11 @@ mod tests {
                 value: "2".into(),
                 name_braced: false,
             });
-        cfg.blocks.get_mut("if_else_1").unwrap().terminator = Some(Terminator::Goto {
-            target: "if_end_1".into(),
+        cfg.blocks.get_mut(&els).unwrap().terminator = Some(Terminator::Goto {
+            target: end,
             span: None,
         });
-        cfg.blocks.get_mut("if_end_1").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,

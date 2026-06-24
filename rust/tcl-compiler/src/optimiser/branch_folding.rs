@@ -117,7 +117,9 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         .collect();
 
     for (bn, block) in &fu.cfg.blocks {
-        if folded.contains(bn) {
+        // `folded` holds block *names* (from each `ConstantBranch.block`);
+        // resolve the iterated `BlockId` to its name to test membership.
+        if folded.contains(fu.cfg.block_name(*bn)) {
             continue;
         }
         let Some(Terminator::Branch {
@@ -286,7 +288,7 @@ fn sccp_constants_for(fu: &FunctionUnit) -> HashMap<String, String> {
 
 fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     for cb in &fu.sccp.constant_branches {
-        let Some(block) = fu.cfg.blocks.get(&cb.block) else {
+        let Some(block) = fu.cfg.block_by_name(&cb.block) else {
             continue;
         };
         let Some(Terminator::Branch {
@@ -364,7 +366,7 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     use crate::analyses::{ConstValue, LatticeValue};
-    use crate::cfg::{Block, Function as CfgFunction, Terminator};
+    use crate::cfg::{Block, BlockId, Function as CfgFunction, Terminator};
     use crate::compilation_unit::{CompilationUnit, FunctionUnit};
     use crate::def_use::DefUseResult;
     use crate::expr_ast::{BinOp, ExprNode};
@@ -414,19 +416,24 @@ mod tests {
         }
     }
 
-    fn make_ssa(blocks: &[&str]) -> SsaFunction {
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: blocks[0].into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
-        for b in blocks {
-            ssa.blocks.insert((*b).into(), empty_ssa_block(b));
+    /// Resolve an already-interned block name to its [`BlockId`].
+    fn id_of(cfg: &CfgFunction, name: &str) -> BlockId {
+        cfg.block_id(name).expect("block name interned")
+    }
+
+    /// Build an `SsaFunction` sharing `cfg`'s block-id numbering, with an
+    /// empty `SsaBlock` inserted for every block in `cfg`.
+    fn make_ssa(cfg: &CfgFunction) -> SsaFunction {
+        let mut ssa = SsaFunction::trivial("::top", cfg.entry, cfg.block_names().to_vec());
+        for (id, b) in &cfg.blocks {
+            ssa.blocks.insert(*id, empty_ssa_block(&b.name));
         }
         ssa
+    }
+
+    /// The set of [`BlockId`]s for `names`, resolved against `cfg`.
+    fn id_set(cfg: &CfgFunction, names: &[&str]) -> HashSet<BlockId> {
+        names.iter().map(|n| id_of(cfg, n)).collect()
     }
 
     /// Build a synthetic [`FunctionUnit`] wrapping `cfg`, `ssa`,
@@ -484,12 +491,18 @@ mod tests {
         }
     }
 
-    fn branch_block(name: &str, cond: ExprNode, span: Span, true_t: &str, false_t: &str) -> Block {
+    fn branch_block(
+        name: &str,
+        cond: ExprNode,
+        span: Span,
+        true_t: BlockId,
+        false_t: BlockId,
+    ) -> Block {
         let mut b = Block::new(name);
         b.terminator = Some(Terminator::Branch {
             condition: cond,
-            true_target: true_t.into(),
-            false_target: false_t.into(),
+            true_target: true_t,
+            false_target: false_t,
             span: Some(span),
         });
         b
@@ -517,19 +530,22 @@ mod tests {
         let source = "if {1} { set x 1 } else { set y 2 }";
         let cond_span = Span::new(3, 6); // covers "{1}"
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+        let entry = cfg.entry;
+        let t = cfg.intern_block("t");
+        let e = cfg.intern_block("e");
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: literal("1"),
-            true_target: "t".into(),
-            false_target: "e".into(),
+            true_target: t,
+            false_target: e,
             span: Some(cond_span),
         });
-        cfg.blocks.insert("t".into(), ret_block("t"));
-        cfg.blocks.insert("e".into(), ret_block("e"));
+        cfg.blocks.insert(t, ret_block("t"));
+        cfg.blocks.insert(e, ret_block("e"));
 
-        let ssa = make_ssa(&["entry", "t", "e"]);
+        let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             values: HashMap::new(),
-            executable_blocks: ["entry", "t"].iter().map(|s| (*s).into()).collect(),
+            executable_blocks: id_set(&cfg, &["entry", "t"]),
             executable_edges: HashSet::default(),
             constant_branches: vec![ConstantBranch {
                 block: "entry".into(),
@@ -560,19 +576,22 @@ mod tests {
         let source = "if {0} {a} else {b}";
         let cond_span = Span::new(3, 6);
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+        let entry = cfg.entry;
+        let t = cfg.intern_block("t");
+        let e = cfg.intern_block("e");
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: literal("0"),
-            true_target: "t".into(),
-            false_target: "e".into(),
+            true_target: t,
+            false_target: e,
             span: Some(cond_span),
         });
-        cfg.blocks.insert("t".into(), ret_block("t"));
-        cfg.blocks.insert("e".into(), ret_block("e"));
+        cfg.blocks.insert(t, ret_block("t"));
+        cfg.blocks.insert(e, ret_block("e"));
 
-        let ssa = make_ssa(&["entry", "t", "e"]);
+        let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             values: HashMap::new(),
-            executable_blocks: ["entry", "e"].iter().map(|s| (*s).into()).collect(),
+            executable_blocks: id_set(&cfg, &["entry", "e"]),
             executable_edges: HashSet::default(),
             constant_branches: vec![ConstantBranch {
                 block: "entry".into(),
@@ -600,27 +619,27 @@ mod tests {
         let inner_span = Span::new(12, 15); // "{0}"
 
         let mut cfg = CfgFunction::new("::top", "entry");
+        let entry = cfg.entry;
+        let mid = cfg.intern_block("mid");
+        let after = cfg.intern_block("after");
+        let inner_then = cfg.intern_block("inner_then");
+        let inner_else = cfg.intern_block("inner_else");
         cfg.blocks.insert(
-            "entry".into(),
-            branch_block("entry", literal("1"), outer_span, "mid", "after"),
+            entry,
+            branch_block("entry", literal("1"), outer_span, mid, after),
         );
         cfg.blocks.insert(
-            "mid".into(),
-            branch_block("mid", literal("0"), inner_span, "inner_then", "inner_else"),
+            mid,
+            branch_block("mid", literal("0"), inner_span, inner_then, inner_else),
         );
-        cfg.blocks
-            .insert("inner_then".into(), ret_block("inner_then"));
-        cfg.blocks
-            .insert("inner_else".into(), ret_block("inner_else"));
-        cfg.blocks.insert("after".into(), ret_block("after"));
+        cfg.blocks.insert(inner_then, ret_block("inner_then"));
+        cfg.blocks.insert(inner_else, ret_block("inner_else"));
+        cfg.blocks.insert(after, ret_block("after"));
 
-        let ssa = make_ssa(&["entry", "mid", "inner_then", "inner_else", "after"]);
+        let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             values: HashMap::new(),
-            executable_blocks: ["entry", "mid", "inner_else"]
-                .iter()
-                .map(|s| (*s).into())
-                .collect(),
+            executable_blocks: id_set(&cfg, &["entry", "mid", "inner_else"]),
             executable_edges: HashSet::default(),
             constant_branches: vec![
                 ConstantBranch {
@@ -665,26 +684,29 @@ mod tests {
         let folded_span = Span::new(13, 16); // "{1}"
 
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+        let entry = cfg.entry;
+        let mid = cfg.intern_block("mid");
+        let after = cfg.intern_block("after");
+        let t = cfg.intern_block("t");
+        let e = cfg.intern_block("e");
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: ExprNode::Var {
                 text: "$x".into(),
                 name: "x".into(),
                 start: 0,
                 end: 2,
             },
-            true_target: "mid".into(),
-            false_target: "after".into(),
+            true_target: mid,
+            false_target: after,
             span: Some(Span::new(3, 7)), // "{$x}"
         });
-        cfg.blocks.insert(
-            "mid".into(),
-            branch_block("mid", literal("1"), folded_span, "t", "e"),
-        );
-        cfg.blocks.insert("t".into(), ret_block("t"));
-        cfg.blocks.insert("e".into(), ret_block("e"));
-        cfg.blocks.insert("after".into(), ret_block("after"));
+        cfg.blocks
+            .insert(mid, branch_block("mid", literal("1"), folded_span, t, e));
+        cfg.blocks.insert(t, ret_block("t"));
+        cfg.blocks.insert(e, ret_block("e"));
+        cfg.blocks.insert(after, ret_block("after"));
 
-        let ssa = make_ssa(&["entry", "mid", "t", "e", "after"]);
+        let ssa = make_ssa(&cfg);
         let mut values: HashMap<(String, u32), LatticeValue> = HashMap::new();
         // Simulate a mixed / Overdefined lattice for x.
         values.insert(
@@ -693,10 +715,7 @@ mod tests {
         );
         let sccp = SccpResult {
             values,
-            executable_blocks: ["entry", "mid", "t", "e"]
-                .iter()
-                .map(|s| (*s).into())
-                .collect(),
+            executable_blocks: id_set(&cfg, &["entry", "mid", "t", "e"]),
             executable_edges: HashSet::default(),
             // Only the SCCP-proved constant branch appears here —
             // the ConstSet lattice does not produce one.
@@ -726,26 +745,29 @@ mod tests {
         // `constant_branches`, so the pass emits nothing.
         let source = "if {$x} { ok }";
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+        let entry = cfg.entry;
+        let t = cfg.intern_block("t");
+        let e = cfg.intern_block("e");
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: ExprNode::Var {
                 text: "$x".into(),
                 name: "x".into(),
                 start: 0,
                 end: 2,
             },
-            true_target: "t".into(),
-            false_target: "e".into(),
+            true_target: t,
+            false_target: e,
             span: Some(Span::new(3, 7)),
         });
-        cfg.blocks.insert("t".into(), ret_block("t"));
-        cfg.blocks.insert("e".into(), ret_block("e"));
+        cfg.blocks.insert(t, ret_block("t"));
+        cfg.blocks.insert(e, ret_block("e"));
 
-        let ssa = make_ssa(&["entry", "t", "e"]);
+        let ssa = make_ssa(&cfg);
         let mut values: HashMap<(String, u32), LatticeValue> = HashMap::new();
         values.insert(("x".into(), 1), LatticeValue::Overdefined);
         let sccp = SccpResult {
             values,
-            executable_blocks: ["entry", "t", "e"].iter().map(|s| (*s).into()).collect(),
+            executable_blocks: id_set(&cfg, &["entry", "t", "e"]),
             executable_edges: HashSet::default(),
             constant_branches: Vec::new(),
         };
@@ -763,19 +785,22 @@ mod tests {
         let source = "if 1 { a } else { b }";
         let cond_span = Span::new(3, 4);
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+        let entry = cfg.entry;
+        let t = cfg.intern_block("t");
+        let e = cfg.intern_block("e");
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: literal("1"),
-            true_target: "t".into(),
-            false_target: "e".into(),
+            true_target: t,
+            false_target: e,
             span: Some(cond_span),
         });
-        cfg.blocks.insert("t".into(), ret_block("t"));
-        cfg.blocks.insert("e".into(), ret_block("e"));
+        cfg.blocks.insert(t, ret_block("t"));
+        cfg.blocks.insert(e, ret_block("e"));
 
-        let ssa = make_ssa(&["entry", "t", "e"]);
+        let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             values: HashMap::new(),
-            executable_blocks: ["entry", "t"].iter().map(|s| (*s).into()).collect(),
+            executable_blocks: id_set(&cfg, &["entry", "t"]),
             executable_edges: HashSet::default(),
             constant_branches: vec![ConstantBranch {
                 block: "entry".into(),
@@ -803,27 +828,26 @@ mod tests {
         let source = "switch -- $s { a { one } b { two } }";
         let cond_span = Span::new(14, 17);
         let mut cfg = CfgFunction::new("::top", "switch_probe_0");
+        let probe = cfg.entry;
+        let arm_a = cfg.intern_block("arm_a");
+        let switch_next_1 = cfg.intern_block("switch_next_1");
         cfg.blocks.insert(
-            "switch_probe_0".into(),
+            probe,
             branch_block(
                 "switch_probe_0",
                 str_eq_cond("s", "a"),
                 cond_span,
-                "arm_a",
-                "switch_next_1",
+                arm_a,
+                switch_next_1,
             ),
         );
-        cfg.blocks.insert("arm_a".into(), ret_block("arm_a"));
-        cfg.blocks
-            .insert("switch_next_1".into(), ret_block("switch_next_1"));
+        cfg.blocks.insert(arm_a, ret_block("arm_a"));
+        cfg.blocks.insert(switch_next_1, ret_block("switch_next_1"));
 
-        let ssa = make_ssa(&["switch_probe_0", "arm_a", "switch_next_1"]);
+        let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             values: HashMap::new(),
-            executable_blocks: ["switch_probe_0", "arm_a"]
-                .iter()
-                .map(|s| (*s).into())
-                .collect(),
+            executable_blocks: id_set(&cfg, &["switch_probe_0", "arm_a"]),
             executable_edges: HashSet::default(),
             constant_branches: vec![ConstantBranch {
                 block: "switch_probe_0".into(),

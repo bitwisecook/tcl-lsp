@@ -22,10 +22,27 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
+use rustc_hash::FxHashMap;
 use tcl_lexer::Span;
 
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
+
+// Block identity
+
+/// Interned identifier for a CFG basic block.
+///
+/// Block names (`"entry_1"`, `"if_then_2"`, …) are interned per
+/// [`Function`] into a dense `u32` index so the hot dataflow maps
+/// (predecessors, dominators, phi incoming, …) key on a cheap copyable
+/// id instead of hashing and cloning the name string. The `u32`
+/// reflects block-*creation* order, so [`BlockId`]'s `Ord` is creation
+/// order: a deterministic, source-top-to-bottom ordering that earlier
+/// code approximated by sorting block-name strings.
+///
+/// Resolve an id back to its display name with [`Function::block_name`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct BlockId(pub u32);
 
 // Terminators
 
@@ -34,8 +51,8 @@ use crate::ir::Statement;
 pub enum Terminator {
     /// Unconditional jump to a single successor.
     Goto {
-        /// Target block name.
-        target: String,
+        /// Target block.
+        target: BlockId,
         /// Source span of the jump (e.g. closing brace of a body).
         span: Option<Span>,
     },
@@ -45,10 +62,10 @@ pub enum Terminator {
     Branch {
         /// The condition expression.
         condition: ExprNode,
-        /// Block name when condition is true.
-        true_target: String,
-        /// Block name when condition is false.
-        false_target: String,
+        /// Block when condition is true.
+        true_target: BlockId,
+        /// Block when condition is false.
+        false_target: BlockId,
         /// Source span of the condition.
         span: Option<Span>,
     },
@@ -67,16 +84,16 @@ pub enum Terminator {
 }
 
 impl Terminator {
-    /// Return the names of all successor blocks.
+    /// Return the ids of all successor blocks.
     #[must_use]
-    pub fn successors(&self) -> Vec<&str> {
+    pub fn successors(&self) -> Vec<BlockId> {
         match self {
-            Self::Goto { target, .. } => vec![target],
+            Self::Goto { target, .. } => vec![*target],
             Self::Branch {
                 true_target,
                 false_target,
                 ..
-            } => vec![true_target, false_target],
+            } => vec![*true_target, *false_target],
             Self::Return { .. } => vec![],
         }
     }
@@ -121,9 +138,9 @@ impl Block {
         }
     }
 
-    /// Return the names of all successor blocks.
+    /// Return the ids of all successor blocks.
     #[must_use]
-    pub fn successors(&self) -> Vec<&str> {
+    pub fn successors(&self) -> Vec<BlockId> {
         match &self.terminator {
             Some(t) => t.successors(),
             None => vec![],
@@ -140,8 +157,8 @@ impl Block {
 /// bottom-tested loop rewriter in codegen.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoopNode {
-    /// Name of the loop header/entry block.
-    pub entry_block: String,
+    /// Id of the loop header/entry block.
+    pub entry_block: BlockId,
     /// Source span of the original `for` statement.
     pub span: Span,
     /// The original `for` statement ([`Statement::For`]), retained so SCCP can
@@ -155,56 +172,113 @@ pub struct LoopNode {
 pub struct Function {
     /// Fully qualified procedure name (e.g. `"::top"`, `"::ns::proc"`).
     pub name: String,
-    /// Name of the entry block.
-    pub entry: String,
-    /// All blocks in the function, keyed by block name.
-    pub blocks: HashMap<String, Block>,
+    /// Id of the entry block.
+    pub entry: BlockId,
+    /// All blocks in the function, keyed by block id.
+    pub blocks: HashMap<BlockId, Block>,
     /// Loop metadata: exit block → loop info.
-    pub loop_nodes: HashMap<String, LoopNode>,
+    pub loop_nodes: HashMap<BlockId, LoopNode>,
     /// `try` body→handler exception edges for control flow the single-
     /// successor terminator can't express.  Consumed by SSA (as extra phi
     /// predecessors so a handler sees the body's versions) and SCCP (as
     /// extra reachability edges so handler bodies aren't false-unreachable
     /// → O107).  `(from_block, handler_block)` pairs; empty in codegen
     /// builds so the default bytecode is unchanged.
-    pub exception_edges: Vec<(String, String)>,
+    pub exception_edges: Vec<(BlockId, BlockId)>,
     /// Source spans of the inlined command bodies (`eval {…}`) the CFG builder
     /// flattened into this function's statement stream. Codegen turns each into
     /// a [`tcl_bytecode::ErrorRegion`] so an error unwinding through the inlined
     /// body still gets the body frame the uncompiled command would add to
     /// `errorInfo` (the LSP keeps its inlined view). Empty when none were folded.
     pub inline_eval_spans: Vec<tcl_lexer::Span>,
+    /// Block-name interner: names indexed by [`BlockId`]`.0`, in creation order.
+    block_names: Vec<String>,
+    /// Reverse interner index: block name → its [`BlockId`].
+    name_to_id: FxHashMap<String, BlockId>,
 }
 
 impl Function {
     /// Create a new function with a single empty entry block.
     #[must_use]
     pub fn new(name: impl Into<String>, entry: impl Into<String>) -> Self {
-        let entry = entry.into();
-        let mut blocks = HashMap::new();
-        blocks.insert(entry.clone(), Block::new(entry.clone()));
-        Self {
+        let mut f = Self {
             name: name.into(),
-            entry,
-            blocks,
+            entry: BlockId(0),
+            blocks: HashMap::new(),
             loop_nodes: HashMap::new(),
             exception_edges: Vec::new(),
             inline_eval_spans: Vec::new(),
-        }
+            block_names: Vec::new(),
+            name_to_id: FxHashMap::default(),
+        };
+        let entry = entry.into();
+        let id = f.intern_block(entry.clone());
+        f.entry = id;
+        f.blocks.insert(id, Block::new(entry));
+        f
     }
 
-    /// All successor block names of `name`: the terminator's successors plus
-    /// any `try` exception-edge handler targets sourced at `name`.
+    /// Intern a block name, returning its [`BlockId`].
+    ///
+    /// Assigns the next dense id (block-creation order) the first time a
+    /// name is seen and returns the existing id on re-interning, so an id
+    /// is stable for the life of the function.
+    pub fn intern_block(&mut self, name: impl Into<String>) -> BlockId {
+        let name = name.into();
+        if let Some(&id) = self.name_to_id.get(&name) {
+            return id;
+        }
+        let id =
+            BlockId(u32::try_from(self.block_names.len()).expect("CFG block count fits in u32"));
+        self.block_names.push(name.clone());
+        self.name_to_id.insert(name, id);
+        id
+    }
+
+    /// The display name of block `id`.
+    ///
+    /// # Panics
+    /// Panics if `id` was not produced by this function's interner.
     #[must_use]
-    pub fn block_successors(&self, name: &str) -> Vec<String> {
-        let mut out: Vec<String> = self
+    pub fn block_name(&self, id: BlockId) -> &str {
+        &self.block_names[id.0 as usize]
+    }
+
+    /// The [`BlockId`] a name was interned to, if any.
+    #[must_use]
+    pub fn block_id(&self, name: &str) -> Option<BlockId> {
+        self.name_to_id.get(name).copied()
+    }
+
+    /// The interned block names, indexed by [`BlockId`]`.0` (creation order).
+    #[must_use]
+    pub fn block_names(&self) -> &[String] {
+        &self.block_names
+    }
+
+    /// Borrow a block by its display name, if present.
+    #[must_use]
+    pub fn block_by_name(&self, name: &str) -> Option<&Block> {
+        self.block_id(name).and_then(|id| self.blocks.get(&id))
+    }
+
+    /// Mutably borrow a block by its display name, if present.
+    pub fn block_by_name_mut(&mut self, name: &str) -> Option<&mut Block> {
+        self.block_id(name).and_then(|id| self.blocks.get_mut(&id))
+    }
+
+    /// All successor ids of block `id`: the terminator's successors plus
+    /// any `try` exception-edge handler targets sourced at `id`.
+    #[must_use]
+    pub fn block_successors(&self, id: BlockId) -> Vec<BlockId> {
+        let mut out: Vec<BlockId> = self
             .blocks
-            .get(name)
-            .map(|b| b.successors().into_iter().map(str::to_owned).collect())
+            .get(&id)
+            .map(Block::successors)
             .unwrap_or_default();
         for (from, to) in &self.exception_edges {
-            if from == name && !out.contains(to) {
-                out.push(to.clone());
+            if *from == id && !out.contains(to) {
+                out.push(*to);
             }
         }
         out
@@ -232,33 +306,33 @@ impl Function {
             .any(|s| matches!(s, Statement::Barrier { .. }))
     }
 
-    /// Compute the predecessor map: block name → set of predecessor block names.
+    /// Compute the predecessor map: block → set of predecessor blocks.
     #[must_use]
-    pub fn predecessors(&self) -> HashMap<String, HashSet<String>> {
-        let mut preds: HashMap<String, HashSet<String>> = HashMap::new();
-        for name in self.blocks.keys() {
-            preds.entry(name.clone()).or_default();
+    pub fn predecessors(&self) -> HashMap<BlockId, HashSet<BlockId>> {
+        let mut preds: HashMap<BlockId, HashSet<BlockId>> = HashMap::new();
+        for id in self.blocks.keys() {
+            preds.entry(*id).or_default();
         }
-        for name in self.blocks.keys() {
-            for succ in self.block_successors(name) {
-                preds.entry(succ).or_default().insert(name.clone());
+        for id in self.blocks.keys() {
+            for succ in self.block_successors(*id) {
+                preds.entry(succ).or_default().insert(*id);
             }
         }
         preds
     }
 
-    /// Return the set of block names reachable from the entry block.
+    /// Return the set of blocks reachable from the entry block.
     #[must_use]
-    pub fn reachable_blocks(&self) -> HashSet<String> {
+    pub fn reachable_blocks(&self) -> HashSet<BlockId> {
         let mut visited = HashSet::new();
         let mut queue = VecDeque::new();
-        queue.push_back(self.entry.clone());
-        while let Some(name) = queue.pop_front() {
-            if !visited.insert(name.clone()) {
+        queue.push_back(self.entry);
+        while let Some(id) = queue.pop_front() {
+            if !visited.insert(id) {
                 continue;
             }
-            if self.blocks.contains_key(&name) {
-                for succ in self.block_successors(&name) {
+            if self.blocks.contains_key(&id) {
+                for succ in self.block_successors(id) {
                     if !visited.contains(&succ) {
                         queue.push_back(succ);
                     }
@@ -284,7 +358,7 @@ impl Function {
     /// propagation, GVN, `cfg_order`), so keeping it iterative keeps
     /// all of them bounded.
     #[must_use]
-    pub fn reverse_postorder(&self) -> Vec<String> {
+    pub fn reverse_postorder(&self) -> Vec<BlockId> {
         // Each frame caches the block's successor list — computed once
         // when the frame is pushed — alongside the index of the next
         // successor to visit, so advancing through them doesn't
@@ -294,39 +368,39 @@ impl Function {
         // have been pushed — the recursive post-order DFS order,
         // reversed.
         struct Frame {
-            name: String,
-            succs: Vec<String>,
+            id: BlockId,
+            succs: Vec<BlockId>,
             idx: usize,
         }
-        let succs_of = |name: &str| -> Vec<String> { self.block_successors(name) };
+        let succs_of = |id: BlockId| -> Vec<BlockId> { self.block_successors(id) };
 
-        let mut visited: HashSet<String> = HashSet::new();
-        let mut postorder: Vec<String> = Vec::new();
+        let mut visited: HashSet<BlockId> = HashSet::new();
+        let mut postorder: Vec<BlockId> = Vec::new();
         let mut stack: Vec<Frame> = Vec::new();
         if self.blocks.contains_key(&self.entry) {
-            visited.insert(self.entry.clone());
+            visited.insert(self.entry);
             stack.push(Frame {
-                name: self.entry.clone(),
-                succs: succs_of(&self.entry),
+                id: self.entry,
+                succs: succs_of(self.entry),
                 idx: 0,
             });
         }
         while let Some(frame) = stack.last_mut() {
             if frame.idx < frame.succs.len() {
-                let next = frame.succs[frame.idx].clone();
+                let next = frame.succs[frame.idx];
                 frame.idx += 1;
-                if visited.insert(next.clone()) {
-                    let succs = succs_of(&next);
+                if visited.insert(next) {
+                    let succs = succs_of(next);
                     stack.push(Frame {
-                        name: next,
+                        id: next,
                         succs,
                         idx: 0,
                     });
                 }
             } else {
-                let name = std::mem::take(&mut frame.name);
+                let id = frame.id;
                 stack.pop();
-                postorder.push(name);
+                postorder.push(id);
             }
         }
         postorder.reverse();
@@ -368,20 +442,25 @@ impl CfgModule {
 mod tests {
     use super::*;
 
-    fn make_goto(target: &str) -> Terminator {
-        Terminator::Goto {
-            target: target.into(),
-            span: None,
-        }
+    /// Intern `name` into `func` and insert a fresh block for it, returning
+    /// the [`BlockId`]. The shared test idiom for building a CFG by hand.
+    fn block(func: &mut Function, name: &str) -> BlockId {
+        let id = func.intern_block(name);
+        func.blocks.insert(id, Block::new(name));
+        id
     }
 
-    fn make_branch(cond_text: &str, t: &str, f: &str) -> Terminator {
+    fn make_goto(target: BlockId) -> Terminator {
+        Terminator::Goto { target, span: None }
+    }
+
+    fn make_branch(cond_text: &str, t: BlockId, f: BlockId) -> Terminator {
         Terminator::Branch {
             condition: ExprNode::Raw {
                 text: cond_text.into(),
             },
-            true_target: t.into(),
-            false_target: f.into(),
+            true_target: t,
+            false_target: f,
             span: None,
         }
     }
@@ -399,16 +478,16 @@ mod tests {
 
     #[test]
     fn goto_successors() {
-        let t = make_goto("block_2");
-        assert_eq!(t.successors(), vec!["block_2"]);
+        let t = make_goto(BlockId(2));
+        assert_eq!(t.successors(), vec![BlockId(2)]);
     }
 
     #[test]
     fn branch_successors() {
-        let t = make_branch("$x", "then", "else");
+        let t = make_branch("$x", BlockId(1), BlockId(2));
         let mut succs = t.successors();
         succs.sort_unstable();
-        assert_eq!(succs, vec!["else", "then"]);
+        assert_eq!(succs, vec![BlockId(1), BlockId(2)]);
     }
 
     #[test]
@@ -419,17 +498,34 @@ mod tests {
 
     #[test]
     fn terminator_span_none() {
-        let t = make_goto("b");
+        let t = make_goto(BlockId(0));
         assert!(t.span().is_none());
     }
 
     #[test]
     fn terminator_span_some() {
         let t = Terminator::Goto {
-            target: "b".into(),
+            target: BlockId(0),
             span: Some(Span::new(0, 5)),
         };
         assert_eq!(t.span(), Some(Span::new(0, 5)));
+    }
+
+    // Interner tests
+
+    #[test]
+    fn intern_assigns_creation_order_ids() {
+        let mut func = Function::new("::test", "entry");
+        assert_eq!(func.entry, BlockId(0));
+        assert_eq!(func.block_name(BlockId(0)), "entry");
+        let a = func.intern_block("a");
+        let b = func.intern_block("b");
+        assert_eq!(a, BlockId(1));
+        assert_eq!(b, BlockId(2));
+        // Re-interning a known name returns the existing id.
+        assert_eq!(func.intern_block("a"), a);
+        assert_eq!(func.block_id("b"), Some(b));
+        assert_eq!(func.block_id("missing"), None);
     }
 
     // AOT-clean classifier tests
@@ -456,8 +552,9 @@ mod tests {
     #[test]
     fn not_aot_clean_with_barrier() {
         let mut f = Function::new("::p", "entry");
+        let entry = f.entry;
         f.blocks
-            .get_mut("entry")
+            .get_mut(&entry)
             .unwrap()
             .statements
             .push(barrier_stmt());
@@ -468,8 +565,9 @@ mod tests {
     fn module_aot_coverage_counts_clean_functions() {
         // top-level clean, `::p` has a barrier, `::q` clean → 2 of 3.
         let mut p = Function::new("::p", "entry");
+        let p_entry = p.entry;
         p.blocks
-            .get_mut("entry")
+            .get_mut(&p_entry)
             .unwrap()
             .statements
             .push(barrier_stmt());
@@ -497,8 +595,8 @@ mod tests {
     #[test]
     fn block_with_goto() {
         let mut block = Block::new("b1");
-        block.terminator = Some(make_goto("b2"));
-        assert_eq!(block.successors(), vec!["b2"]);
+        block.terminator = Some(make_goto(BlockId(2)));
+        assert_eq!(block.successors(), vec![BlockId(2)]);
     }
 
     #[test]
@@ -521,102 +619,104 @@ mod tests {
     fn new_function_has_entry() {
         let func = Function::new("::test", "entry_1");
         assert_eq!(func.name, "::test");
-        assert_eq!(func.entry, "entry_1");
-        assert!(func.blocks.contains_key("entry_1"));
+        assert_eq!(func.block_name(func.entry), "entry_1");
+        assert!(func.blocks.contains_key(&func.entry));
     }
 
     #[test]
     fn predecessors_simple() {
         // entry → b1 → b2
         let mut func = Function::new("::test", "entry");
-        func.blocks.get_mut("entry").unwrap().terminator = Some(make_goto("b1"));
-        func.blocks.insert("b1".into(), Block::new("b1"));
-        func.blocks.get_mut("b1").unwrap().terminator = Some(make_goto("b2"));
-        func.blocks.insert("b2".into(), Block::new("b2"));
-        func.blocks.get_mut("b2").unwrap().terminator = Some(make_return(None));
+        let entry = func.entry;
+        let b1 = block(&mut func, "b1");
+        let b2 = block(&mut func, "b2");
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_goto(b1));
+        func.blocks.get_mut(&b1).unwrap().terminator = Some(make_goto(b2));
+        func.blocks.get_mut(&b2).unwrap().terminator = Some(make_return(None));
 
         let preds = func.predecessors();
-        assert!(preds["entry"].is_empty());
-        assert_eq!(preds["b1"], HashSet::from(["entry".into()]));
-        assert_eq!(preds["b2"], HashSet::from(["b1".into()]));
+        assert!(preds[&entry].is_empty());
+        assert_eq!(preds[&b1], HashSet::from([entry]));
+        assert_eq!(preds[&b2], HashSet::from([b1]));
     }
 
     #[test]
     fn predecessors_branch() {
         // entry → (branch) → then / else → end
         let mut func = Function::new("::test", "entry");
-        func.blocks.get_mut("entry").unwrap().terminator = Some(make_branch("$x", "then", "else"));
-        func.blocks.insert("then".into(), Block::new("then"));
-        func.blocks.get_mut("then").unwrap().terminator = Some(make_goto("end"));
-        func.blocks.insert("else".into(), Block::new("else"));
-        func.blocks.get_mut("else").unwrap().terminator = Some(make_goto("end"));
-        func.blocks.insert("end".into(), Block::new("end"));
-        func.blocks.get_mut("end").unwrap().terminator = Some(make_return(None));
+        let entry = func.entry;
+        let then = block(&mut func, "then");
+        let els = block(&mut func, "else");
+        let end = block(&mut func, "end");
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_branch("$x", then, els));
+        func.blocks.get_mut(&then).unwrap().terminator = Some(make_goto(end));
+        func.blocks.get_mut(&els).unwrap().terminator = Some(make_goto(end));
+        func.blocks.get_mut(&end).unwrap().terminator = Some(make_return(None));
 
         let preds = func.predecessors();
-        assert!(preds["entry"].is_empty());
-        assert_eq!(preds["then"], HashSet::from(["entry".into()]));
-        assert_eq!(preds["else"], HashSet::from(["entry".into()]));
-        assert_eq!(preds["end"], HashSet::from(["then".into(), "else".into()]));
+        assert!(preds[&entry].is_empty());
+        assert_eq!(preds[&then], HashSet::from([entry]));
+        assert_eq!(preds[&els], HashSet::from([entry]));
+        assert_eq!(preds[&end], HashSet::from([then, els]));
     }
 
     #[test]
     fn reachable_blocks_simple() {
         let mut func = Function::new("::test", "entry");
-        func.blocks.get_mut("entry").unwrap().terminator = Some(make_goto("b1"));
-        func.blocks.insert("b1".into(), Block::new("b1"));
-        func.blocks.get_mut("b1").unwrap().terminator = Some(make_return(None));
-        // Unreachable block
-        func.blocks
-            .insert("unreachable".into(), Block::new("unreachable"));
+        let entry = func.entry;
+        let b1 = block(&mut func, "b1");
+        let unreachable = block(&mut func, "unreachable");
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_goto(b1));
+        func.blocks.get_mut(&b1).unwrap().terminator = Some(make_return(None));
 
         let reachable = func.reachable_blocks();
-        assert!(reachable.contains("entry"));
-        assert!(reachable.contains("b1"));
-        assert!(!reachable.contains("unreachable"));
+        assert!(reachable.contains(&entry));
+        assert!(reachable.contains(&b1));
+        assert!(!reachable.contains(&unreachable));
     }
 
     #[test]
     fn reachable_blocks_with_loop() {
         // entry → header → (branch) → body → header / end
         let mut func = Function::new("::test", "entry");
-        func.blocks.get_mut("entry").unwrap().terminator = Some(make_goto("header"));
-        func.blocks.insert("header".into(), Block::new("header"));
-        func.blocks.get_mut("header").unwrap().terminator =
-            Some(make_branch("$i < 10", "body", "end"));
-        func.blocks.insert("body".into(), Block::new("body"));
-        func.blocks.get_mut("body").unwrap().terminator = Some(make_goto("header"));
-        func.blocks.insert("end".into(), Block::new("end"));
-        func.blocks.get_mut("end").unwrap().terminator = Some(make_return(None));
+        let entry = func.entry;
+        let header = block(&mut func, "header");
+        let body = block(&mut func, "body");
+        let end = block(&mut func, "end");
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_goto(header));
+        func.blocks.get_mut(&header).unwrap().terminator = Some(make_branch("$i < 10", body, end));
+        func.blocks.get_mut(&body).unwrap().terminator = Some(make_goto(header));
+        func.blocks.get_mut(&end).unwrap().terminator = Some(make_return(None));
 
         let reachable = func.reachable_blocks();
         assert_eq!(reachable.len(), 4);
-        assert!(reachable.contains("entry"));
-        assert!(reachable.contains("header"));
-        assert!(reachable.contains("body"));
-        assert!(reachable.contains("end"));
+        assert!(reachable.contains(&entry));
+        assert!(reachable.contains(&header));
+        assert!(reachable.contains(&body));
+        assert!(reachable.contains(&end));
     }
 
     #[test]
     fn reverse_postorder_diamond() {
         // entry → (branch) → then / else → end
         let mut func = Function::new("::test", "entry");
-        func.blocks.get_mut("entry").unwrap().terminator = Some(make_branch("$x", "then", "else"));
-        func.blocks.insert("then".into(), Block::new("then"));
-        func.blocks.get_mut("then").unwrap().terminator = Some(make_goto("end"));
-        func.blocks.insert("else".into(), Block::new("else"));
-        func.blocks.get_mut("else").unwrap().terminator = Some(make_goto("end"));
-        func.blocks.insert("end".into(), Block::new("end"));
-        func.blocks.get_mut("end").unwrap().terminator = Some(make_return(None));
+        let entry = func.entry;
+        let then = block(&mut func, "then");
+        let els = block(&mut func, "else");
+        let end = block(&mut func, "end");
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_branch("$x", then, els));
+        func.blocks.get_mut(&then).unwrap().terminator = Some(make_goto(end));
+        func.blocks.get_mut(&els).unwrap().terminator = Some(make_goto(end));
+        func.blocks.get_mut(&end).unwrap().terminator = Some(make_return(None));
 
         let rpo = func.reverse_postorder();
         // entry comes first, end comes last
-        assert_eq!(rpo[0], "entry");
-        assert_eq!(*rpo.last().unwrap(), "end");
+        assert_eq!(rpo[0], entry);
+        assert_eq!(*rpo.last().unwrap(), end);
         // then and else are between entry and end
-        let then_pos = rpo.iter().position(|n| n == "then").unwrap();
-        let else_pos = rpo.iter().position(|n| n == "else").unwrap();
-        let end_pos = rpo.iter().position(|n| n == "end").unwrap();
+        let then_pos = rpo.iter().position(|n| *n == then).unwrap();
+        let else_pos = rpo.iter().position(|n| *n == els).unwrap();
+        let end_pos = rpo.iter().position(|n| *n == end).unwrap();
         assert!(then_pos < end_pos);
         assert!(else_pos < end_pos);
     }
@@ -625,20 +725,20 @@ mod tests {
     fn reverse_postorder_loop() {
         // entry → header → (branch) → body → header / end
         let mut func = Function::new("::test", "entry");
-        func.blocks.get_mut("entry").unwrap().terminator = Some(make_goto("header"));
-        func.blocks.insert("header".into(), Block::new("header"));
-        func.blocks.get_mut("header").unwrap().terminator =
-            Some(make_branch("$i < 10", "body", "end"));
-        func.blocks.insert("body".into(), Block::new("body"));
-        func.blocks.get_mut("body").unwrap().terminator = Some(make_goto("header"));
-        func.blocks.insert("end".into(), Block::new("end"));
-        func.blocks.get_mut("end").unwrap().terminator = Some(make_return(None));
+        let entry = func.entry;
+        let header = block(&mut func, "header");
+        let body = block(&mut func, "body");
+        let end = block(&mut func, "end");
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_goto(header));
+        func.blocks.get_mut(&header).unwrap().terminator = Some(make_branch("$i < 10", body, end));
+        func.blocks.get_mut(&body).unwrap().terminator = Some(make_goto(header));
+        func.blocks.get_mut(&end).unwrap().terminator = Some(make_return(None));
 
         let rpo = func.reverse_postorder();
-        assert_eq!(rpo[0], "entry");
+        assert_eq!(rpo[0], entry);
         // header before body (non-back-edge predecessor)
-        let header_pos = rpo.iter().position(|n| n == "header").unwrap();
-        let body_pos = rpo.iter().position(|n| n == "body").unwrap();
+        let header_pos = rpo.iter().position(|n| *n == header).unwrap();
+        let body_pos = rpo.iter().position(|n| *n == body).unwrap();
         assert!(header_pos < body_pos);
     }
 
@@ -661,7 +761,8 @@ mod tests {
     #[test]
     fn clone_preserves_equality() {
         let mut func = Function::new("::test", "entry");
-        func.blocks.get_mut("entry").unwrap().terminator = Some(make_return(Some("0")));
+        let entry = func.entry;
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_return(Some("0")));
         let cloned = func.clone();
         assert_eq!(func, cloned);
     }
@@ -671,10 +772,12 @@ mod tests {
     #[test]
     fn loop_node_metadata() {
         let mut func = Function::new("::test", "entry");
+        let for_header = func.intern_block("for_header_1");
+        let for_end = func.intern_block("for_end_1");
         func.loop_nodes.insert(
-            "for_end_1".into(),
+            for_end,
             LoopNode {
-                entry_block: "for_header_1".into(),
+                entry_block: for_header,
                 span: Span::new(0, 30),
                 for_stmt: Statement::For {
                     span: Span::new(0, 30),
@@ -695,7 +798,7 @@ mod tests {
                 },
             },
         );
-        assert!(func.loop_nodes.contains_key("for_end_1"));
-        assert_eq!(func.loop_nodes["for_end_1"].entry_block, "for_header_1");
+        assert!(func.loop_nodes.contains_key(&for_end));
+        assert_eq!(func.loop_nodes[&for_end].entry_block, for_header);
     }
 }
