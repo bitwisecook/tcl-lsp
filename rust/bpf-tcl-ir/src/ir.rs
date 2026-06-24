@@ -264,6 +264,16 @@ pub struct BpfProgram {
     pub maps: Vec<MapDef>,
 }
 
+/// Where and how a program is deployed (the attach/deployment facet). Pure
+/// metadata in v1: carried for a future ELF/loader, not used by codegen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttachSpec {
+    /// Attach kind as written (`xdp`, `socket_filter`, `socket`).
+    pub kind: String,
+    /// Attach target (an interface like `eth0`, a cgroup path, …).
+    pub target: String,
+}
+
 /// One `when EVENT priority N { … }` declaration compiled to a program.
 #[derive(Debug, Clone)]
 pub struct BpfProgramDecl {
@@ -273,6 +283,8 @@ pub struct BpfProgramDecl {
     pub priority: u32,
     /// The compiled program.
     pub program: BpfProgram,
+    /// The deployment target, if a matching `attach` was declared.
+    pub attach: Option<AttachSpec>,
     /// Byte offset of the handler body within the original source (so
     /// body-relative diagnostic spans can be mapped back to the file).
     pub source_base: u32,

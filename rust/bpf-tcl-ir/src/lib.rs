@@ -9,6 +9,7 @@
 #![forbid(unsafe_code)]
 
 pub mod capability;
+pub mod deploy;
 pub mod diag;
 pub mod event;
 pub mod frontend;
@@ -20,9 +21,10 @@ pub mod ty;
 pub mod unroll;
 
 pub use capability::CapabilityPolicy;
+pub use deploy::collect_attach;
 pub use diag::{BpfDiag, BpfError};
 pub use frontend::compile_module;
-pub use ir::{BpfModule, BpfProgram, BpfProgramDecl, ProgType};
+pub use ir::{AttachSpec, BpfModule, BpfProgram, BpfProgramDecl, ProgType};
 pub use lower::lower_function;
 pub use profile::{BpfProfileSpec, FieldDef};
 pub use template::TemplateDef;

@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 
-use bpf_tcl_ir::ir::{Block, BpfProgram, CmpOp, Inst, IntBinOp, MapDef, Term, UnOp};
+use bpf_tcl_ir::ir::{Block, BpfProgram, CmpOp, Inst, IntBinOp, MapDef, ProgType, Term, UnOp};
 use bpf_tcl_ir::ty::Width;
 use bpf_tcl_ir::{BpfDiag, BpfError};
 use tcl_lexer::Span;
@@ -41,6 +41,8 @@ const MAP_SET_ID: i32 = 2;
 /// byte encoding (exactly what `rbpf` executes).
 #[derive(Debug, Clone)]
 pub struct EbpfObject {
+    /// The program type (so the object is self-describing for a loader).
+    pub prog_type: ProgType,
     /// The decoded instructions.
     pub insns: Vec<Insn>,
     /// The flattened little-endian bytes (`insns.len() * 8`).
@@ -50,12 +52,17 @@ pub struct EbpfObject {
 }
 
 impl EbpfObject {
-    fn assemble(insns: Vec<Insn>, maps: Vec<MapDef>) -> Self {
+    fn assemble(prog_type: ProgType, insns: Vec<Insn>, maps: Vec<MapDef>) -> Self {
         let mut raw = Vec::with_capacity(insns.len() * 8);
         for i in &insns {
             raw.extend_from_slice(&i.to_le_bytes());
         }
-        Self { insns, raw, maps }
+        Self {
+            prog_type,
+            insns,
+            raw,
+            maps,
+        }
     }
 }
 
@@ -128,7 +135,11 @@ pub fn emit_program(prog: &BpfProgram) -> Result<EbpfObject, BpfError> {
         };
         insns.push(insn);
     }
-    Ok(EbpfObject::assemble(insns, prog.maps.clone()))
+    Ok(EbpfObject::assemble(
+        prog.prog_type,
+        insns,
+        prog.maps.clone(),
+    ))
 }
 
 fn rel_off(from: usize, to: usize) -> Result<i16, BpfError> {
