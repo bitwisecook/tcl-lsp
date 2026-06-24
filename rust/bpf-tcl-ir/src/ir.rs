@@ -153,6 +153,29 @@ pub enum Inst {
         /// Source span.
         span: Span,
     },
+    /// `dst = map_get(map, key)` — the value for `key`, or `0` if absent (the
+    /// null case is folded to zero by the helper).
+    MapGet {
+        /// Destination slot.
+        dst: SlotId,
+        /// Map index.
+        map: u32,
+        /// Key slot.
+        key: SlotId,
+        /// Source span.
+        span: Span,
+    },
+    /// `map_set(map, key, val)` — store `val` for `key`.
+    MapSet {
+        /// Map index.
+        map: u32,
+        /// Key slot.
+        key: SlotId,
+        /// Value slot.
+        val: SlotId,
+        /// Source span.
+        span: Span,
+    },
 }
 
 /// How a basic block ends.
@@ -203,6 +226,25 @@ pub enum ProgType {
     SocketFilter,
 }
 
+/// A declared BPF map. In v1 maps are integer-keyed, integer-valued (`key` and
+/// `value` are passed by value to the map helpers); the declared sizes are kept
+/// as metadata.
+#[derive(Debug, Clone)]
+pub struct MapDef {
+    /// Map name as written.
+    pub name: String,
+    /// Dense map index (0-based, in declaration order).
+    pub index: u32,
+    /// Declared key size in bytes.
+    pub key_size: u32,
+    /// Declared value size in bytes.
+    pub value_size: u32,
+    /// Declared maximum entries.
+    pub max_entries: u32,
+    /// Source span of the declaration.
+    pub span: Span,
+}
+
 /// A complete, typed, verifier-shaped program.
 #[derive(Debug, Clone)]
 pub struct BpfProgram {
@@ -216,6 +258,8 @@ pub struct BpfProgram {
     pub num_slots: u32,
     /// Type of each slot, indexed by [`SlotId`].
     pub slot_types: Vec<Ty>,
+    /// Declared maps, indexed by [`MapDef::index`].
+    pub maps: Vec<MapDef>,
 }
 
 /// One `when EVENT priority N { … }` declaration compiled to a program.

@@ -60,6 +60,7 @@ fn one(i: Insn) -> String {
         0x05 => match i.op & 0xf0 {
             0x00 => format!("goto {:+}", i.off),
             0x90 => "exit".to_string(),
+            0x80 => format!("call {}", i.imm),
             op => {
                 let src_reg = i.op & 0x08 != 0;
                 let rhs = if src_reg {

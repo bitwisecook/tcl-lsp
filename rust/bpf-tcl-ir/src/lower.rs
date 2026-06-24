@@ -9,7 +9,9 @@ use tcl_compiler::{BinOp, ExprNode, Statement, UnaryOp, parse_expr};
 use tcl_lexer::Span;
 
 use crate::diag::{BpfDiag, BpfError};
-use crate::ir::{Block, BlockId, BpfProgram, CmpOp, Inst, IntBinOp, ProgType, SlotId, Term, UnOp};
+use crate::ir::{
+    Block, BlockId, BpfProgram, CmpOp, Inst, IntBinOp, MapDef, ProgType, SlotId, Term, UnOp,
+};
 use crate::ty::{Region, Ty, Width};
 
 /// 64 slots × 8 bytes = the 512-byte eBPF stack.
@@ -35,7 +37,10 @@ pub fn lower_function(func: &Function, prog_type: ProgType) -> Result<BpfProgram
         slot_types: Vec::new(),
         block_ids: HashMap::new(),
         lowered: HashMap::new(),
+        map_index: HashMap::new(),
+        map_defs: Vec::new(),
     };
+    l.collect_maps()?;
     let entry = l.block_id(&func.entry);
 
     // Worklist over the truncated graph: `accept`/`drop` cut a block short, so
@@ -60,6 +65,7 @@ pub fn lower_function(func: &Function, prog_type: ProgType) -> Result<BpfProgram
         blocks,
         num_slots,
         slot_types: l.slot_types,
+        maps: l.map_defs,
     })
 }
 
@@ -72,6 +78,10 @@ struct Lowerer<'f> {
     block_ids: HashMap<String, BlockId>,
     /// Lowered blocks keyed by `BlockId.0`.
     lowered: HashMap<u32, Block>,
+    /// Declared map name → dense index.
+    map_index: HashMap<String, u32>,
+    /// Declared maps in index order.
+    map_defs: Vec<MapDef>,
 }
 
 impl Lowerer<'_> {
@@ -115,6 +125,117 @@ impl Lowerer<'_> {
         let id = BlockId(u32::try_from(self.block_ids.len()).unwrap_or(u32::MAX));
         self.block_ids.insert(name.to_owned(), id);
         id
+    }
+
+    /// Pre-scan every block for `map` declarations so `map_get`/`map_set` can
+    /// resolve names regardless of ordering.
+    fn collect_maps(&mut self) -> Result<(), BpfError> {
+        let func = self.func;
+        for block in func.blocks.values() {
+            for stmt in &block.statements {
+                if let Statement::Call {
+                    command,
+                    canonical_command,
+                    args,
+                    span,
+                    ..
+                } = stmt
+                    && canonical_command.as_deref().unwrap_or(command.as_str()) == "map"
+                {
+                    self.declare_map(args, *span)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn declare_map(&mut self, args: &[String], span: Span) -> Result<(), BpfError> {
+        // map NAME hash KEYSZ VALSZ MAX  (the kind word is metadata in v1)
+        if args.len() != 5 {
+            return Err(arity(span, "map", "NAME hash KEYSZ VALSZ MAX"));
+        }
+        let name = args[0].clone();
+        if self.map_index.contains_key(&name) {
+            return Err(BpfError::new(
+                BpfDiag::TypeMismatch,
+                span,
+                format!("map `{name}` is already declared"),
+            ));
+        }
+        let key_size = parse_u32(&args[2]).ok_or_else(|| {
+            BpfError::new(BpfDiag::BadInt, span, "map key size must be an integer")
+        })?;
+        let value_size = parse_u32(&args[3]).ok_or_else(|| {
+            BpfError::new(BpfDiag::BadInt, span, "map value size must be an integer")
+        })?;
+        let max_entries = parse_u32(&args[4]).ok_or_else(|| {
+            BpfError::new(BpfDiag::BadInt, span, "map max-entries must be an integer")
+        })?;
+        let index = u32::try_from(self.map_defs.len()).unwrap_or(u32::MAX);
+        self.map_index.insert(name.clone(), index);
+        self.map_defs.push(MapDef {
+            name,
+            index,
+            key_size,
+            value_size,
+            max_entries,
+            span,
+        });
+        Ok(())
+    }
+
+    fn resolve_map(&self, name: &str, span: Span) -> Result<u32, BpfError> {
+        self.map_index.get(name).copied().ok_or_else(|| {
+            BpfError::new(
+                BpfDiag::UndefinedVar,
+                span,
+                format!("undefined map `{name}`"),
+            )
+        })
+    }
+
+    fn lower_map_get(
+        &mut self,
+        args: &[String],
+        span: Span,
+        insts: &mut Vec<Inst>,
+    ) -> Result<Option<Term>, BpfError> {
+        // map_get DST NAME {KEY}
+        if args.len() != 3 {
+            return Err(arity(span, "map_get", "DST NAME {KEY}"));
+        }
+        let map = self.resolve_map(&args[1], span)?;
+        let key = self.lower_expr(&parse_expr(&args[2], None), insts, span)?;
+        let dst = self.var_slot(&args[0], Ty::Int, span)?;
+        insts.push(Inst::MapGet {
+            dst,
+            map,
+            key,
+            span,
+        });
+        Ok(None)
+    }
+
+    fn lower_map_set(
+        &mut self,
+        args: &[String],
+        span: Span,
+        insts: &mut Vec<Inst>,
+    ) -> Result<Option<Term>, BpfError> {
+        // map_set NAME {KEY} {VAL}
+        if args.len() != 3 {
+            return Err(arity(span, "map_set", "NAME {KEY} {VAL}"));
+        }
+        let map = self.resolve_map(&args[0], span)?;
+        let key = self.lower_expr(&parse_expr(&args[1], None), insts, span)?;
+        let val = self.lower_expr(&parse_expr(&args[2], None), insts, span)?;
+        insts.push(Inst::MapSet {
+            map,
+            key,
+            val,
+            span,
+        });
+        Ok(None)
     }
 
     fn expect_ctx_ptr(&self, name: &str, span: Span) -> Result<SlotId, BpfError> {
@@ -312,6 +433,10 @@ impl Lowerer<'_> {
                 insts.push(Inst::Const { dst, val: 0, span });
                 Ok(Some(Term::Return { verdict: dst, span }))
             }
+            // `map NAME hash KEYSZ VALSZ MAX` is a declaration, collected up front.
+            "map" => Ok(None),
+            "map_get" => self.lower_map_get(args, span, insts),
+            "map_set" => self.lower_map_set(args, span, insts),
             other => Err(BpfError::new(
                 BpfDiag::UnknownCommand,
                 span,
@@ -581,6 +706,11 @@ fn parse_int(text: &str) -> Option<i64> {
         rest.parse::<i64>().ok()?
     };
     Some(if neg { -v } else { v })
+}
+
+/// Parse a non-negative integer literal into a `u32`.
+fn parse_u32(s: &str) -> Option<u32> {
+    parse_int(s).and_then(|v| u32::try_from(v).ok())
 }
 
 /// The span of some loop in `func`, if it contains a cycle (back-edge).
