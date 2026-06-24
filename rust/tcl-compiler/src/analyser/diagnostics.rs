@@ -176,6 +176,15 @@ impl Analyser {
         // populate them before the top-level read fires.
         let globals_written = globals_written_by_procs(cu);
 
+        // **FP-DS-04 cross-scope traces.** A `::`-qualified global with a write
+        // trace anywhere in the module is observable across scopes, so a
+        // `set ::w 1` in one proc is neither a dead store (W220) nor unused
+        // (W211) even when the `trace add variable ::w …` lives elsewhere. The
+        // per-function `scan_scope_aliases` only sees a function's own traces;
+        // fold the module-wide traced globals into every function's
+        // suppression context (which already covers both W211 and W220).
+        let traced_globals = crate::optimiser::elimination::scan_module_traced_globals(cu);
+
         // **W220 call-by-name suppression.** Build the
         // interprocedural proc-index once so a caller-local passed *by
         // name* to a proc that consumes it via `upvar` (`set tag "";
@@ -208,6 +217,7 @@ impl Analyser {
             &cu.top_level.cfg,
             &cbn_proc_index,
         ));
+        top_level_cross_event_vars.extend(traced_globals.iter().cloned());
 
         // Top-level first, then procedures in insertion order —
         // matches the iteration order of
@@ -248,6 +258,7 @@ impl Analyser {
                 &fu.cfg,
                 &cbn_proc_index,
             ));
+            cross_event_vars.extend(traced_globals.iter().cloned());
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
                 &cu.ir_module,
