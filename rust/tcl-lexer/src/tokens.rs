@@ -100,6 +100,66 @@ impl SourcePosition {
     }
 }
 
+/// A zero-based column counted in **UTF-16 code units** from the start of its
+/// line — the unit the LSP `Position.character` field is defined in.
+///
+/// Kept distinct from a byte column ([`SourcePosition::character`]) so the two
+/// cannot be interchanged without an explicit conversion: only ASCII text makes
+/// them numerically equal, and silently swapping the units is the classic
+/// off-by-column LSP bug. Build one with [`Utf16Col::new`], read it back with
+/// [`Utf16Col::get`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct Utf16Col(u32);
+
+impl Utf16Col {
+    /// Wrap a raw UTF-16 code-unit count.
+    #[must_use]
+    pub const fn new(units: u32) -> Self {
+        Self(units)
+    }
+
+    /// The raw UTF-16 code-unit count.
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl std::fmt::Display for Utf16Col {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// An LSP-style source position whose `character` column is counted in UTF-16
+/// code units (see [`Utf16Col`]).
+///
+/// Produced by [`LineIndex::position_at_utf16`](crate::LineIndex::position_at_utf16);
+/// the byte-column counterpart is [`SourcePosition`]. Keeping the two as
+/// separate types means a byte position can never be handed to an LSP consumer
+/// that expects UTF-16 columns without the mismatch surfacing at compile time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Utf16Position {
+    /// 0-based line number.
+    pub line: u32,
+    /// 0-based column, in UTF-16 code units.
+    pub character: Utf16Col,
+    /// Byte offset into the source string.
+    pub offset: u32,
+}
+
+impl Utf16Position {
+    /// Construct a new `Utf16Position`.
+    #[must_use]
+    pub const fn new(line: u32, character: Utf16Col, offset: u32) -> Self {
+        Self {
+            line,
+            character,
+            offset,
+        }
+    }
+}
+
 /// A Tcl token: kind, source span, and quoting context.
 ///
 /// Stores **only** the kind, a byte-level [`Span`] into the source
