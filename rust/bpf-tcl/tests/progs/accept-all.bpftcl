@@ -1,0 +1,5 @@
+# Accept every packet (verdict = full packet length).
+when SOCKET_FILTER priority 100 {
+    setbuf pkt ctx
+    accept
+}
