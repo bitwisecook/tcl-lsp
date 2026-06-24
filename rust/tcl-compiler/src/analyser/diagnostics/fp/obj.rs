@@ -827,7 +827,6 @@ fn fp_var_as_cmd_param_flow_single_caller_silent() {
     );
 }
 
-#[ignore = "FP-OBJ-VAR-as-cmd: Rust suppresses W307 where Python emits; emitted=[]; interproc param-constant seeding does not yet propagate non-command evidence in Rust analyser"]
 #[test]
 fn fp_var_as_cmd_param_flow_non_command_fires() {
     // TP: the only caller passes `notacommand` for the dispatched param.
