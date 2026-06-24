@@ -1,10 +1,10 @@
 //! Minimal JSON helpers for the hand-built reports (graph / stats / cleanup),
-//! matching Python's `json.dumps(..., indent=2)` exactly — including
-//! `ensure_ascii=True`, which escapes every non-ASCII char as `\uXXXX`
+//! matching a 2-space-indented JSON encoding exactly — including
+//! full ASCII-escaping, which escapes every non-ASCII char as `\uXXXX`
 //! (surrogate pairs for astral code points). `serde_json` emits raw UTF-8, so a
 //! bespoke escaper is needed for byte-parity.
 
-/// A `json.dumps(ensure_ascii=True)`-compatible quoted string literal.
+/// An ASCII-escaped, double-quoted JSON string literal.
 #[must_use]
 pub fn json_string(s: &str) -> String {
     use std::fmt::Write as _;

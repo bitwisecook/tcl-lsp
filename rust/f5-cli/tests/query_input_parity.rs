@@ -5,8 +5,8 @@
 //! file's parsed content as `$NAME`) and the in-query `json_load` /
 //! `jsonl_load` / `csv_load` / `f5log_load` loader builtins.
 //!
-//! Goldens are captured from `python -m tooling.f5.main query`; the suite is
-//! self-contained (no Python at test time). Binding goldens embed a
+//! The captured golden output drives the `query` assertions; the suite is
+//! self-contained (no external tool runs at test time). Binding goldens embed a
 //! `__FIXTURES__` placeholder in place of the absolute fixtures `file://`
 //! URI (the per-file banner / JSON envelope embeds it). Loader-builtin
 //! goldens are path-independent (single positional config → no banner, and
@@ -63,7 +63,7 @@ fn assert_query(golden: &str, ok_codes: &[i32], args: &[&str]) {
     let actual = run_query(args, ok_codes);
     assert_eq!(
         actual, expected,
-        "f5 query output does not match the Python CLI ({golden})\nargs: {args:?}"
+        "f5 query output does not match the golden ({golden})\nargs: {args:?}"
     );
 }
 
@@ -71,7 +71,7 @@ fn conf() -> String {
     fixture("bigip.conf")
 }
 
-// --- binding flags ------------------------------------------------------
+// binding flags
 
 #[test]
 fn input_json_obj() {
@@ -244,7 +244,7 @@ fn input_generic_json() {
     );
 }
 
-// --- loader builtins (path-independent goldens) -------------------------
+// loader builtins (path-independent goldens)
 
 /// Assert a loader-builtin query (whose only path is inside the query
 /// string, absent from the output) matches a static golden.
@@ -303,7 +303,7 @@ fn load_f5log() {
     );
 }
 
-// --- error cases --------------------------------------------------------
+// error cases
 
 /// Run an erroring invocation and assert exit code + stderr substring.
 fn assert_error(args: &[&str], code: i32, stderr_contains: &str) {
@@ -383,7 +383,7 @@ fn err_load_missing_file() {
     );
 }
 
-// --- help-inputs --------------------------------------------------------
+// help-inputs
 
 #[test]
 fn help_inputs() {

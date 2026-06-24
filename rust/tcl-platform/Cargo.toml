@@ -11,7 +11,7 @@
 # The capability model: a `Host` exposes mandatory facilities (`Clock`/`StdIo`/
 # `Env`) as `&dyn` and conditional ones (`Filesystem`/`Sockets`/`Process`) as
 # `Option<&dyn>`, so a platform that cannot do something (e.g. `exec` under WASI)
-# returns `None` and the shared command body yields the faithful Tcl error.
+# returns `None` and the shared command body yields the proper Tcl error.
 # See `docs/design/common-runtime-emitter-architecture.md` (§ capability model).
 [package]
 name = "tcl-platform"

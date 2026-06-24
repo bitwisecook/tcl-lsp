@@ -1,7 +1,7 @@
 //! Live VM driver — run the TMM-sim orchestrator Tcl on [`tcl-vm`] and drive a
 //! real event round-trip.
 //!
-//! This is the runtime half of `tooling/irule_test/bridge.py::IruleTestSession`.
+//! This is the runtime half of the iRule test session.
 //! Where [`crate::session::SessionPlan`] assembles the *bootstrap script*, a
 //! [`LiveSession`] actually stands the orchestrator up on a bytecode VM, loads
 //! an iRule, fires events, and reads back the pool/node decisions, captured
@@ -172,7 +172,9 @@ impl LiveSession {
             return Err(SessionError::Eval(format!("script called exit {code}")));
         }
         match result {
-            Ok(c) if c.code == Code::Error => Err(SessionError::Eval(c.result.to_str().to_string())),
+            Ok(c) if c.code == Code::Error => {
+                Err(SessionError::Eval(c.result.to_str().to_string()))
+            }
             Ok(c) => Ok(c.result.to_str().to_string()),
             Err(e) => Err(SessionError::Compile(e.message)),
         }

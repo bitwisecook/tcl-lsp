@@ -1,7 +1,6 @@
 //! Static mini-evaluator for `lappend auto_path` / `set auto_path`
-//! arguments (GAP-B5).
+//! arguments.
 //!
-//! Port of `core/analysis/auto_path_eval.py::evaluate_auto_path_expr`.
 //! A common Tcl idiom adds a sibling / parent directory to the package
 //! search path using only a handful of side-effect-free built-ins:
 //!
@@ -18,11 +17,10 @@
 //! commands are *not* evaluated — anything outside the subset returns
 //! `None` and the caller skips the entry.  We never guess.
 //!
-//! The Rust `signature_scan` handler records only the raw literal of
-//! each entry; this evaluator is the idiom-resolver the audit flagged
-//! as missing (GAP-B5).  It is consulted when a workspace / package
-//! index has the analysed file's path (the `[info script]` value)
-//! available.
+//! The `signature_scan` handler records only the raw literal of
+//! each entry; this evaluator resolves those idioms.  It is consulted
+//! when a workspace / package index has the analysed file's path (the
+//! `[info script]` value) available.
 
 /// A parsed word: a literal, or a command substitution
 /// `[name arg …]`.
@@ -57,10 +55,9 @@ pub fn evaluate_auto_path_expr(raw: &str, info_script: Option<&str>) -> Option<S
 
 /// Split `text` into `[` / `]` / word tokens.  Brace groups are kept
 /// as a single word (brackets inside braces are literal); an
-/// unterminated brace / quote aborts with `None`.  Mirrors the Python
-/// tokeniser byte-for-byte, including its `{[}`-as-open-bracket quirk
-/// (a brace word whose content is exactly `[` reads as a bracket in
-/// `parse`).
+/// unterminated brace / quote aborts with `None`.  One quirk: a brace
+/// word whose content is exactly `[` reads as an open bracket in
+/// `parse` (the `{[}`-as-open-bracket case).
 fn tokenise(text: &str) -> Option<Vec<String>> {
     let b: Vec<char> = text.chars().collect();
     let n = b.len();
@@ -194,7 +191,7 @@ fn eval(node: &Node, info_script: Option<&str>) -> Option<String> {
     }
 }
 
-/// Posix `os.path.dirname` — everything up to (not including) the last
+/// POSIX path dirname — everything up to (not including) the last
 /// `/`, collapsing trailing slashes on the head unless it is all
 /// slashes (the root).
 fn posix_dirname(p: &str) -> String {
@@ -207,7 +204,7 @@ fn posix_dirname(p: &str) -> String {
     }
 }
 
-/// Posix `os.path.join` — a later absolute component resets the
+/// POSIX path join — a later absolute component resets the
 /// accumulator; otherwise components are joined with a single `/`.
 fn posix_join(parts: &[String]) -> String {
     let mut result = parts[0].clone();
@@ -224,7 +221,7 @@ fn posix_join(parts: &[String]) -> String {
     result
 }
 
-/// Posix `os.path.expanduser` for the bare `~` and `~/…` forms; a
+/// POSIX path tilde-expansion for the bare `~` and `~/…` forms; a
 /// `~user` form is left unchanged (no passwd lookup).  `~` expands to
 /// `$HOME` when set.
 fn expanduser(p: &str) -> String {
@@ -242,7 +239,7 @@ fn expanduser(p: &str) -> String {
     p.to_owned()
 }
 
-/// Posix `os.path.abspath` — make `p` absolute against the current
+/// POSIX path absolutisation — make `p` absolute against the current
 /// working directory, then normalise (`.` / `..` / `//`).
 fn abspath(p: &str) -> String {
     let joined = if p.starts_with('/') {
@@ -257,9 +254,9 @@ fn abspath(p: &str) -> String {
     normpath(&joined)
 }
 
-/// Posix `os.path.normpath` — collapse `.` / `..` / repeated slashes.
-/// A leading `//` (exactly two) is preserved per POSIX, matching
-/// `CPython`; three or more collapse to one.
+/// POSIX path normalisation — collapse `.` / `..` / repeated slashes.
+/// A leading `//` (exactly two) is preserved per POSIX; three or more
+/// collapse to one.
 fn normpath(p: &str) -> String {
     if p.is_empty() {
         return ".".to_owned();

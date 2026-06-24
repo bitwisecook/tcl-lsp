@@ -1,17 +1,16 @@
-//! Walk the query AST against a root value — faithful port of
-//! `dialects/f5/query/evaluator.py`.
+//! Walk the query AST against a root value.
 //!
 //! The evaluator is a set of recursive functions that translate each AST
 //! node into a [`Value`]. Streams flatten lazily: an expression producing a
 //! `Stream` continues to flow through pipes one value at a time.
 //!
-//! This increment implements the full jq-flavoured core over the plain
-//! value model + `Stream` / `ObjectRef` / `PathRef`, plus the
+//! It implements the full jq-flavoured core over the plain value model +
+//! `Stream` / `ObjectRef` / `PathRef`, plus the
 //! [`Container`](crate::projection::Container) navigation branches
-//! (projection over a real `BigipConfig`). The assignment → edit-plan path
-//! is wired in a later increment.
+//! (projection over a real `BigipConfig`), and the assignment → edit-plan
+//! path.
 
-// Index / length casts between `usize` and `i64` mirror Python's unbounded
+// Index / length casts between `usize` and `i64` model unbounded
 // integer indexing and are intentional throughout the evaluator. The
 // arithmetic operators take operands by value to consume them on the
 // list/string branches.
@@ -34,7 +33,7 @@ use crate::errors::QueryError;
 use crate::projection;
 use crate::value::{self, ObjectRef, PathRef, Value};
 
-/// The per-file evaluation root (port of `values.Root`).
+/// The per-file evaluation root.
 ///
 /// For external-JSON roots `json_value` carries the parsed value and `.`
 /// uses native dict/list semantics. BIG-IP roots carry the parsed
@@ -52,9 +51,8 @@ pub struct Root {
     pub object_cache: RefCell<HashMap<(String, String), Rc<ObjectRef>>>,
     /// Lazily built BIG-IP reference graph, memoised on first use by the
     /// graph builtins (`refs` / `referenced_by` / …) and the rule `.refs`
-    /// projection. Mirrors Python's per-call `compute_grep`, but caches the
-    /// expensive `build_bigip_object_graph` step so repeated per-object
-    /// queries don't rebuild the whole graph each time.
+    /// projection, caching the expensive `build_bigip_object_graph` step so
+    /// repeated per-object queries don't rebuild the whole graph each time.
     pub object_graph: RefCell<Option<Rc<tcl_bigip::graph::ObjectGraph>>>,
 }
 
@@ -108,8 +106,7 @@ impl Root {
     /// Return this root's BIG-IP reference graph, building it on first use
     /// and memoising it for subsequent graph-builtin / projection calls.
     ///
-    /// Mirrors Python's `compute_grep`, which rebuilds the graph each call;
-    /// we cache the (expensive) `build_bigip_object_graph` result so a query
+    /// The (expensive) `build_bigip_object_graph` result is cached so a query
     /// touching `refs` / `referenced_by` / `.refs` per object stays cheap.
     #[must_use]
     pub fn graph(&self) -> Rc<tcl_bigip::graph::ObjectGraph> {
@@ -127,30 +124,29 @@ impl Root {
     }
 }
 
-/// Return the synthetic top-level input for *root* — port of
-/// `projection.root_container`. JSON roots yield their parsed value
-/// directly; BIG-IP roots yield the synthetic `<root>` [`Container`](crate::projection::Container).
+/// Return the synthetic top-level input for *root*. JSON roots yield their
+/// parsed value directly; BIG-IP roots yield the synthetic `<root>`
+/// [`Container`](crate::projection::Container).
 #[must_use]
 pub fn root_container(root: &Rc<Root>) -> Value {
     projection::root_container(root)
 }
 
-/// Reader hook for `ucs_cert` — port of the `UCS_CERT_READER` contextvar.
+/// Reader hook for `ucs_cert`.
 ///
 /// Maps `(config_uri, cache_path)` to an `x509_parse`-shaped [`Value`] dict.
 /// `dialects` must not import the `tooling` UCS layer, so the CLI injects this
-/// callable (see `tooling/f5/verbs/query.py::_make_ucs_cert_reader`). `None`
+/// callable `None`
 /// means "not wired", and `ucs_cert` raises a clear error.
 pub type UcsCertReader = Rc<dyn Fn(&str, &str) -> Result<Value, QueryError>>;
 
-/// Evaluation context (port of `evaluator.EvalContext`).
+/// Evaluation context.
 pub struct EvalContext {
     pub root: Rc<Root>,
     pub named_roots: HashMap<String, Rc<Root>>,
     pub merge_mode: bool,
-    /// Every loaded root, in source order — the merge-mode "active roots"
-    /// (port of the runner's `_active_roots(step_roots)` binding). Graph
-    /// builtins consult this when `merge_mode` so `refs` / `referenced_by`
+    /// Every loaded root, in source order — the merge-mode "active roots".
+    /// Graph builtins consult this when `merge_mode` so `refs` / `referenced_by`
     /// walk references across files. Empty / single-element in non-merge
     /// mode, where graph builtins stay scoped to the originating source.
     pub merge_roots: Vec<Rc<Root>>,
@@ -158,17 +154,17 @@ pub struct EvalContext {
     /// first and falls back to `named_roots`.
     pub bindings: HashMap<String, Value>,
     /// Edit ops queued by assignment statements; applied by the runner after
-    /// each statement evaluates (port of `evaluator.EvalContext.edits`).
+    /// each statement evaluates.
     pub edits: crate::edit_plan::EditPlan,
-    /// Whether live network probes are enabled (port of the `PROBES_ENABLED`
-    /// contextvar — the `--enable-probes` flag). When `false`, every network
-    /// probe builtin raises the gating error before touching the network.
+    /// Whether live network probes are enabled (the `--enable-probes` flag).
+    /// When `false`, every network probe builtin raises the gating error
+    /// before touching the network.
     pub probes_enabled: bool,
     /// Optional CA bundle path used by TLS-aware probes (`url_*` /
-    /// `tls_handshake`) for chain verification — port of `TLS_CA_BUNDLE`.
+    /// `tls_handshake`) for chain verification.
     /// `None` falls back to the system trust store.
     pub ca_bundle: Option<String>,
-    /// Reader hook for `ucs_cert` (port of `UCS_CERT_READER`). `None` means
+    /// Reader hook for `ucs_cert`. `None` means
     /// no reader is wired (e.g. when driven outside the f5 CLI).
     pub ucs_cert_reader: Option<UcsCertReader>,
     /// Lazily built merged reference graph spanning every [`merge_roots`]
@@ -185,11 +181,11 @@ impl EvalContext {
     /// Return the merged reference graph spanning every [`merge_roots`] entry,
     /// building it on first use and memoising it on [`merge_graph`].
     ///
-    /// Mirrors Python's merge-mode `_grep_inputs`, which feeds every active
-    /// root's `(uri, source)` + `(uri, config)` into `compute_grep` so a
-    /// reference in one file resolves into an object in another. Built once
-    /// per statement (the runner constructs a fresh context per root, but the
-    /// merge graph is identical across them, so each rebuilds at most once).
+    /// Feeds every active root's `(uri, source)` + `(uri, config)` into the
+    /// graph builder so a reference in one file resolves into an object in
+    /// another. Built once per statement (the runner constructs a fresh
+    /// context per root, but the merge graph is identical across them, so each
+    /// rebuilds at most once).
     ///
     /// [`merge_roots`]: EvalContext::merge_roots
     /// [`merge_graph`]: EvalContext::merge_graph
@@ -235,9 +231,7 @@ impl EvalContext {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Top-level entry points
-// ---------------------------------------------------------------------------
 
 /// Evaluate a single statement against `ctx.root`; return the flattened
 /// list of values produced.
@@ -265,15 +259,62 @@ pub fn evaluate(
     Ok(out)
 }
 
-// ---------------------------------------------------------------------------
 // Core dispatch
-// ---------------------------------------------------------------------------
+
+/// Recursion-depth ceiling for the evaluator. `eval` spends a native stack
+/// frame (plus its per-node helper's frame) per nested AST form, so a
+/// pathological program — a hand-built AST, or one that nests deeper at eval
+/// than at parse — could otherwise overflow the stack.
+///
+/// Sized empirically: a debug build overflows a small 2 MiB worker stack near
+/// ~700 nested `eval` frames. 256 sits well below that on the tightest stack
+/// we run on, yet stays above the parser's `MAX_PARSE_DEPTH` (64) with ample
+/// headroom so every tree the parser accepts still evaluates — the guard only
+/// ever fires on an abusive (typically hand-built) AST.
+const MAX_EVAL_DEPTH: usize = 256;
+
+thread_local! {
+    /// Per-thread evaluation recursion depth, reset to zero between
+    /// top-level statements. A thread-local keeps the guard off the public
+    /// `EvalContext` struct (which callers build with field literals) while
+    /// still bounding every `eval` re-entry.
+    static EVAL_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// RAII counter for [`EVAL_DEPTH`]: increments on construction, decrements on
+/// drop so the depth unwinds correctly through `?` early returns and panics.
+struct DepthGuard;
+
+impl DepthGuard {
+    /// Enter one evaluation level, or return the eval error at the cap.
+    fn enter() -> Result<DepthGuard, QueryError> {
+        let depth = EVAL_DEPTH.with(|d| {
+            let next = d.get() + 1;
+            d.set(next);
+            next
+        });
+        if depth > MAX_EVAL_DEPTH {
+            // No `DepthGuard` is constructed on this path, so undo the bump
+            // by hand before bailing — the whole evaluation then unwinds.
+            EVAL_DEPTH.with(|d| d.set(d.get() - 1));
+            return Err(QueryError::eval("query nests too deeply to evaluate"));
+        }
+        Ok(DepthGuard)
+    }
+}
+
+impl Drop for DepthGuard {
+    fn drop(&mut self) {
+        EVAL_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
+    }
+}
 
 pub(crate) fn eval(
     node: &Expr,
     current: &Value,
     ctx: &mut EvalContext,
 ) -> Result<Value, QueryError> {
+    let _guard = DepthGuard::enter()?;
     match node {
         Expr::Literal { value, .. } => Ok(lit_to_value(value)),
         Expr::Identity { .. } => Ok(current.clone()),
@@ -405,9 +446,7 @@ fn pipe_through(values: Value, rhs: &Expr, ctx: &mut EvalContext) -> Result<Valu
     }
 }
 
-// ---------------------------------------------------------------------------
 // Object literals
-// ---------------------------------------------------------------------------
 
 fn eval_object_literal(
     entries: &[(String, Expr)],
@@ -476,9 +515,7 @@ fn scalarise_dict_value(value: Value) -> Value {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Variables
-// ---------------------------------------------------------------------------
 
 fn eval_variable(name: &str, ctx: &mut EvalContext) -> Result<Value, QueryError> {
     if let Some(v) = ctx.bindings.get(name) {
@@ -545,9 +582,7 @@ fn eval_let_binding(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Paths
-// ---------------------------------------------------------------------------
 
 fn eval_path(
     steps: &[PathStep],
@@ -688,7 +723,7 @@ fn subscript_root(value: &Value, ctx: &mut EvalContext) -> Result<Value, QueryEr
         },
         Value::Container(c) => {
             // Flatten container → container → object until the entries are
-            // no longer all containers (port of `_subscript_root`'s loop).
+            // no longer all containers.
             let mut entries: Vec<Value> = c.entries().values().cloned().collect();
             while !entries.is_empty() && entries.iter().all(|e| matches!(e, Value::Container(_))) {
                 let mut flat = Vec::new();
@@ -845,7 +880,7 @@ fn require_index(index: &Value) -> Result<i64, QueryError> {
 }
 
 /// Resolve a possibly-negative index against a length; `None` if out of
-/// range. Mirrors Python's `-len <= i < len` check.
+/// range. The index check is `-len <= i < len`.
 fn resolve_index(i: i64, len: usize) -> Option<usize> {
     let len_i = len as i64;
     if i >= -len_i && i < len_i {
@@ -866,9 +901,7 @@ fn resolve_pathref(reference: &Rc<PathRef>, ctx: &mut EvalContext) -> Option<Rc<
     projection::resolve_pathref(reference, &ctx.root)
 }
 
-// ---------------------------------------------------------------------------
 // Calls
-// ---------------------------------------------------------------------------
 
 fn eval_call(
     name: &str,
@@ -992,9 +1025,7 @@ fn broadcast_call_args(name: &str, args: &[Value]) -> Result<Option<Vec<Vec<Valu
     Ok(Some(plan))
 }
 
-// ---------------------------------------------------------------------------
 // Operators
-// ---------------------------------------------------------------------------
 
 fn eval_binop(
     op: &str,
@@ -1129,13 +1160,23 @@ fn num_parts(v: &Value) -> Option<(NumKind, f64, i64)> {
     }
 }
 
+/// The runtime error raised when integer arithmetic on untrusted query
+/// operands exceeds the `i64` range. Phrased like tclsh's `expr` overflow so
+/// the message reads naturally for the DSL's users.
+fn int_overflow() -> QueryError {
+    QueryError::eval("integer overflow")
+}
+
 fn add(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
     if let (Value::Str(a), Value::Str(b)) = (&lhs, &rhs) {
         return Ok(Value::Str(format!("{a}{b}")));
     }
     if let Some((kind, lf, rf, li, ri)) = num_pair(&lhs, &rhs) {
         return Ok(match kind {
-            NumKind::Int => Value::Int(li + ri),
+            // The operands come from untrusted query input; mirror tclsh's
+            // "integer overflow" rather than panicking in debug / silently
+            // wrapping in release the way `li + ri` would.
+            NumKind::Int => Value::Int(li.checked_add(ri).ok_or_else(int_overflow)?),
             NumKind::Float => Value::Float(lf + rf),
         });
     }
@@ -1186,7 +1227,9 @@ fn scalar_to_string(value: &Value) -> String {
 fn sub(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
     if let Some((kind, lf, rf, li, ri)) = num_pair(&lhs, &rhs) {
         return Ok(match kind {
-            NumKind::Int => Value::Int(li - ri),
+            // See `add`: subtraction of two untrusted integers can overflow
+            // (e.g. `i64::MIN - 1`), so report it instead of wrapping.
+            NumKind::Int => Value::Int(li.checked_sub(ri).ok_or_else(int_overflow)?),
             NumKind::Float => Value::Float(lf - rf),
         });
     }
@@ -1215,7 +1258,9 @@ fn sub(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
 fn mul(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
     if let Some((kind, lf, rf, li, ri)) = num_pair(&lhs, &rhs) {
         return Ok(match kind {
-            NumKind::Int => Value::Int(li * ri),
+            // See `add`: multiplication of two untrusted integers overflows
+            // fastest of all, so report it instead of wrapping.
+            NumKind::Int => Value::Int(li.checked_mul(ri).ok_or_else(int_overflow)?),
             NumKind::Float => Value::Float(lf * rf),
         });
     }
@@ -1227,7 +1272,7 @@ fn mul(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
 }
 
 fn div(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
-    // Python 3 true division always yields a float.
+    // True division always yields a float.
     if let Some((_, lf, rf, _, _)) = num_pair(&lhs, &rhs) {
         if rf == 0.0 {
             return Err(QueryError::eval("division by zero"));
@@ -1265,12 +1310,10 @@ fn eval_unop(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Flatten a value into a list, dropping the `select` sentinel and
-/// unwrapping a top-level `Stream` — port of `evaluator._flatten`.
+/// unwrapping a top-level `Stream`.
 #[must_use]
 pub fn flatten(value: Value) -> Vec<Value> {
     match value {
@@ -1283,8 +1326,7 @@ pub fn flatten(value: Value) -> Vec<Value> {
     }
 }
 
-/// Reduce a value to a single item, erroring on empty / multi — port of
-/// `evaluator._flatten_one`.
+/// Reduce a value to a single item, erroring on empty / multi.
 pub(crate) fn flatten_one(value: Value) -> Result<Value, QueryError> {
     let mut flat = flatten(value);
     match flat.len() {
@@ -1295,7 +1337,7 @@ pub(crate) fn flatten_one(value: Value) -> Result<Value, QueryError> {
 }
 
 /// A list view of *value*: `Stream`/`List` give their items, scalars give a
-/// one-element list — port of `evaluator._stream_items`.
+/// one-element list.
 #[must_use]
 pub fn stream_items(value: Value) -> Vec<Value> {
     match value {
@@ -1317,7 +1359,7 @@ pub fn eval_from_builtin_pub(e: QueryError) -> QueryError {
     eval_from_builtin(e)
 }
 
-/// Python `repr()` of a string for `{name!r}`-style error messages.
+/// Repr-style rendering of a string for `{name!r}`-style error messages.
 fn pyr(s: &str) -> String {
     crate::lexer::py_repr_str(s)
 }
@@ -1328,15 +1370,11 @@ pub fn pyr_pub(s: &str) -> String {
     pyr(s)
 }
 
-// ---------------------------------------------------------------------------
 // Assignments
-// ---------------------------------------------------------------------------
 //
-// Assignments collect into an edit plan and return the post-edit value. The
-// edit-plan application engine (rewriting SCF source) lands in a later
-// increment; this resolves the LHS targets faithfully so the error paths
-// (which are all an external-JSON query can hit, since JSON has no
-// `ObjectRef`s) match Python exactly.
+// Assignments collect into an edit plan and return the post-edit value. This
+// resolves the LHS targets so the error paths (which are all an external-JSON
+// query can hit, since JSON has no `ObjectRef`s) match the canonical behaviour exactly.
 
 fn eval_assignment(
     target: &Expr,
@@ -1365,7 +1403,7 @@ fn eval_assignment(
     }
 }
 
-/// A single resolved writable LHS (port of `evaluator._AssignTarget`).
+/// A single resolved writable LHS.
 struct AssignTarget {
     obj: Rc<ObjectRef>,
     field_name: String,
@@ -1431,8 +1469,7 @@ fn resolve_assignment_targets(
     Ok(targets)
 }
 
-/// Compute the new value for one assignment target — port of
-/// `evaluator._compute_assignment_value`.
+/// Compute the new value for one assignment target.
 fn compute_assignment_value(
     op: &str,
     rhs: &Expr,
@@ -1457,8 +1494,7 @@ fn compute_assignment_value(
     }
 }
 
-/// Build the [`EditOp`](crate::edit_plan::EditOp) for one resolved target —
-/// port of `evaluator._build_edit_op`.
+/// Build the [`EditOp`](crate::edit_plan::EditOp) for one resolved target.
 fn build_edit_op(
     target: &AssignTarget,
     op: &str,

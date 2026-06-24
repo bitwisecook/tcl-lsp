@@ -1,8 +1,6 @@
 //! Extract to data-group — convert inline if/switch membership /
 //! mapping patterns to iRules `class match` / `class lookup` against a
-//! generated data-group.  Ports the static-extraction half of
-//! `tooling/refactoring/_extract_datagroup.py` (`extract_to_datagroup`,
-//! `extract_to_datagroup_from_if`, `extract_to_datagroup_from_switch`).
+//! generated data-group.
 
 use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -11,13 +9,12 @@ use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 
 use super::{
-    Refactoring, RefactorEdit, command_span_offsets, find_command_at, line_indent, reindent_body,
+    RefactorEdit, Refactoring, command_span_offsets, find_command_at, line_indent, reindent_body,
     token_end_offset,
 };
 use crate::code_actions::ActionKind;
 
 /// A generated data-group artefact (separate from the iRule edits).
-/// Ports Python's `DataGroupDefinition`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataGroupDefinition {
     /// Data-group name.
@@ -28,8 +25,7 @@ pub struct DataGroupDefinition {
     pub records: Vec<(String, String)>,
 }
 
-/// Render a [`DataGroupDefinition`] as a BIG-IP tmsh definition.  Ports
-/// Python's `DataGroupExtractionResult.data_group_tcl`.
+/// Render a [`DataGroupDefinition`] as a BIG-IP tmsh definition.
 #[must_use]
 pub fn data_group_tcl(dg: &DataGroupDefinition) -> String {
     let mut lines = vec![format!("ltm data-group internal {} {{", dg.name)];
@@ -51,11 +47,9 @@ pub fn data_group_tcl(dg: &DataGroupDefinition) -> String {
     lines.join("\n")
 }
 
-// ── Value-type inference ──────────────────────────────────────────────
+// Value-type inference
 
 /// `true` when `value` looks like an IPv4/IPv6 address or CIDR range.
-/// Ports `_is_ip_or_cidr` (Python uses `ipaddress.ip_network` /
-/// `ip_address`).
 fn is_ip_or_cidr(value: &str) -> bool {
     let v = strip_quotes(value);
     is_ip_address(v) || is_ip_network(v)
@@ -65,8 +59,8 @@ fn is_ip_address(v: &str) -> bool {
     v.parse::<Ipv4Addr>().is_ok() || v.parse::<Ipv6Addr>().is_ok()
 }
 
-/// Parse a `addr/prefix` CIDR (host bits allowed — Python's
-/// `strict=False`), validating the address family and prefix width.
+/// Parse a `addr/prefix` CIDR (host bits allowed), validating the
+/// address family and prefix width.
 fn is_ip_network(v: &str) -> bool {
     let Some((addr, prefix)) = v.split_once('/') else {
         return false;
@@ -88,8 +82,7 @@ fn is_integer(value: &str) -> bool {
     !v.is_empty() && v.parse::<i64>().is_ok()
 }
 
-/// Infer the data-group value type from a list of keys/values.  Ports
-/// `_infer_value_type`.
+/// Infer the data-group value type from a list of keys/values.
 fn infer_value_type(values: &[String]) -> &'static str {
     if values.is_empty() {
         return "string";
@@ -113,9 +106,8 @@ fn strip_quotes(s: &str) -> &str {
     }
 }
 
-/// Derive a clean data-group name from a descriptive string.  Ports
-/// `_normalise_dg_name`: non-alphanumeric → `_`, collapse runs, trim,
-/// lower-case.
+/// Derive a clean data-group name from a descriptive string:
+/// non-alphanumeric → `_`, collapse runs, trim, lower-case.
 fn normalise_dg_name(name: &str) -> String {
     let mut out = String::with_capacity(name.len());
     let mut prev_underscore = false;
@@ -136,14 +128,14 @@ fn normalise_dg_name(name: &str) -> String {
     }
 }
 
-// ── Equality-condition parsing ────────────────────────────────────────
+// Equality-condition parsing
 
 /// Recognised equality operators.
 const EQ_OPS: &[&str] = &["==", "!=", "eq", "ne"];
 
-/// Parse a simple equality test `(var, value, negated)`.  Ports
-/// `_parse_eq` (used by the datagroup transform; mirrors the shape of
-/// `if_to_switch::parse_eq_test` minus the operator capture).
+/// Parse a simple equality test `(var, value, negated)`.  Used by the
+/// datagroup transform; mirrors the shape of
+/// `if_to_switch::parse_eq_test` minus the operator capture.
 fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
     let mut cond = cond.trim();
     if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
@@ -165,7 +157,11 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
             && let Some(var) = parse_var_word(cond[..pos].trim())
         {
             let is_ne = *op == "ne" || *op == "!=";
-            return Some((var, cond[pos + needle.len()..].trim().to_owned(), negated ^ is_ne));
+            return Some((
+                var,
+                cond[pos + needle.len()..].trim().to_owned(),
+                negated ^ is_ne,
+            ));
         }
     }
     // `value OP $var`.
@@ -197,8 +193,7 @@ fn parse_var_word(word: &str) -> Option<String> {
     }
 }
 
-/// Detect `$var eq "a" || $var eq "b" || …` chains.  Ports
-/// `_try_or_chain`.
+/// Detect `$var eq "a" || $var eq "b" || …` chains.
 fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
     let mut cond = condition.trim();
     if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
@@ -229,8 +224,7 @@ fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
     Some((target_var, values))
 }
 
-/// Extract a variable name from `$var` / `${var}` subject.  Ports
-/// `_extract_var_name`.
+/// Extract a variable name from `$var` / `${var}` subject.
 fn extract_var_name(subject: &str) -> Option<String> {
     let s = subject.trim();
     if let Some(inner) = s.strip_prefix("${").and_then(|x| x.strip_suffix('}')) {
@@ -238,7 +232,10 @@ fn extract_var_name(subject: &str) -> Option<String> {
     }
     if let Some(name) = s.strip_prefix('$')
         && !name.is_empty()
-        && name.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_')
+        && name
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_alphabetic() || c == '_')
         && name.chars().all(|c| c.is_alphanumeric() || c == '_')
     {
         return Some(name.to_owned());
@@ -246,7 +243,7 @@ fn extract_var_name(subject: &str) -> Option<String> {
     None
 }
 
-// ── set/return body parsing ───────────────────────────────────────────
+// set/return body parsing
 
 /// Parsed single-command arm body.
 enum SetOrReturn {
@@ -254,8 +251,7 @@ enum SetOrReturn {
     Return(String),
 }
 
-/// Parse a single-command arm body via the tokeniser.  Ports
-/// `_parse_set_or_return`.
+/// Parse a single-command arm body via the tokeniser.
 fn parse_set_or_return(text: &str) -> Option<SetOrReturn> {
     let commands = segment_commands_with_offset(text, 0);
     if commands.len() != 1 || commands[0].texts.is_empty() {
@@ -275,8 +271,7 @@ fn parse_set_or_return(text: &str) -> Option<SetOrReturn> {
     None
 }
 
-/// Extract `(target_var, use_return, values)` from arm bodies.  Ports
-/// `_extract_set_or_return_values`.
+/// Extract `(target_var, use_return, values)` from arm bodies.
 fn extract_set_or_return_values(pairs: &[(String, String)]) -> Option<(String, bool, Vec<String>)> {
     let mut target_var: Option<String> = None;
     let mut use_return: Option<bool> = None;
@@ -319,8 +314,7 @@ fn extract_set_or_return_values(pairs: &[(String, String)]) -> Option<(String, b
     Some((target_var, use_return.unwrap_or(false), values))
 }
 
-/// Extract the value from a single arm body.  Ports
-/// `_extract_single_value`.
+/// Extract the value from a single arm body.
 fn extract_single_value(body: &str, use_return: bool, target_var: &str) -> Option<String> {
     let mut text = body.trim();
     if text.starts_with('{') && text.ends_with('}') && text.len() >= 2 {
@@ -333,10 +327,9 @@ fn extract_single_value(body: &str, use_return: bool, target_var: &str) -> Optio
     }
 }
 
-// ── if-chain extraction ───────────────────────────────────────────────
+// if-chain extraction
 
-/// Extract an if/elseif chain comparing one variable to literals.  Ports
-/// `extract_to_datagroup_from_if`.
+/// Extract an if/elseif chain comparing one variable to literals.
 #[must_use]
 pub fn extract_to_datagroup_from_if(
     source: &str,
@@ -361,8 +354,7 @@ pub fn extract_to_datagroup_from_if(
 
     let indent = command_indent(source, &cmd, line_index).to_owned();
     let bodies_identical = {
-        let set: std::collections::BTreeSet<&str> =
-            chain.bodies.iter().map(|b| b.trim()).collect();
+        let set: std::collections::BTreeSet<&str> = chain.bodies.iter().map(|b| b.trim()).collect();
         set.len() <= 1
     };
 
@@ -393,12 +385,22 @@ pub fn extract_to_datagroup_from_if(
         let replacement = if use_return {
             format!("return [class lookup ${} {dg_name}]", chain.target_var)
         } else {
-            format!("set {set_var} [class lookup ${} {dg_name}]", chain.target_var)
+            format!(
+                "set {set_var} [class lookup ${} {dg_name}]",
+                chain.target_var
+            )
         };
         (dg, replacement)
     };
 
-    Some(build_result(source, &cmd, &dg_name, value_type, replacement, data_group))
+    Some(build_result(
+        source,
+        &cmd,
+        &dg_name,
+        value_type,
+        replacement,
+        data_group,
+    ))
 }
 
 /// A parsed if/elseif equality chain.
@@ -410,8 +412,7 @@ struct IfChain {
 }
 
 /// Parse the if/elseif chain (OR-chain in a single condition, or an
-/// `elseif` ladder).  Mirrors the chain-parsing prologue of
-/// `extract_to_datagroup_from_if`.
+/// `elseif` ladder).
 fn parse_if_chain(texts: &[String]) -> Option<IfChain> {
     // OR-chain in a single condition.
     if texts.len() >= 3
@@ -550,10 +551,9 @@ fn build_result(
     }
 }
 
-// ── switch extraction ─────────────────────────────────────────────────
+// switch extraction
 
 /// Extract a switch statement with many literal arms to a data-group.
-/// Ports `extract_to_datagroup_from_switch`.
 #[must_use]
 pub fn extract_to_datagroup_from_switch(
     source: &str,
@@ -620,7 +620,14 @@ pub fn extract_to_datagroup_from_switch(
         )?
     };
 
-    Some(build_result(source, &cmd, &dg_name, value_type, replacement, data_group))
+    Some(build_result(
+        source,
+        &cmd,
+        &dg_name,
+        value_type,
+        replacement,
+        data_group,
+    ))
 }
 
 /// Build the value-mapping (`class lookup`) extraction for a switch.
@@ -660,7 +667,7 @@ fn switch_mapping_extraction(
 }
 
 /// Try all static extraction patterns at the cursor — if/elseif first,
-/// then switch.  Ports `extract_to_datagroup`.
+/// then switch.
 #[must_use]
 pub fn extract_to_datagroup(
     source: &str,
@@ -804,7 +811,7 @@ mod tests {
         let source = "if {$host eq \"a.com\"} {\n    pool web_pool\n} elseif {$host eq \"b.com\"} {\n    pool web_pool\n}";
         let r = if_dg(source, "hosts").expect("result");
         let applied = r.apply(source);
-        // Byte-for-byte parity with the Python oracle (apply + tmsh).
+        // Verify the full applied output (apply + tmsh).
         assert_eq!(
             applied,
             "if { [class match $host equals hosts] } {\n    pool web_pool\n}"
@@ -823,7 +830,7 @@ mod tests {
         let source = "when HTTP_REQUEST {\n    if {$host eq \"a.com\"} {\n        pool web_pool\n    } elseif {$host eq \"b.com\"} {\n        pool web_pool\n    } elseif {$host eq \"c.com\"} {\n        pool web_pool\n    }\n}";
         let r = reg();
         let li = LineIndex::new(source);
-        let cursor = source.find("if {").unwrap() as u32;
+        let cursor = u32::try_from(source.find("if {").unwrap()).unwrap();
         let res = extract_to_datagroup(source, cursor, "", &r, &li).expect("nested result");
         let g = dg(&res);
         assert_eq!(g.value_type, "string");

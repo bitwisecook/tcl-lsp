@@ -1,7 +1,5 @@
 //! `ascii-blocks` renderer — Unicode line-art block diagrams.
 //!
-//! Faithful port of `dialects/f5/query/renderers/ascii_blocks.py`.
-//!
 //! Walks a nested `{title, rows}` (or `{label, children}`) tree and lays it
 //! out as a stack of boxes with `┌─┬─┐` borders.
 //!
@@ -96,7 +94,7 @@ pub fn render(values: &[Value], opts: &BTreeMap<String, String>) -> Result<Strin
         "square" => &SQUARE,
         "ascii" => &ASCII,
         _ => {
-            // Python: ", ".join(sorted(_STYLES)) → "ascii, rounded, square".
+            // The sorted style names joined by ", " → "ascii, rounded, square".
             return Err(QueryError::Renderer(format!(
                 "ascii-blocks: unknown style '{style_name}' (expected one of ascii, rounded, square)"
             )));
@@ -160,8 +158,8 @@ fn coerce_box(v: &Value) -> Result<Box, QueryError> {
                 .filter(|x| truthy(x))
                 .or_else(|| map.get("children").filter(|x| truthy(x)))
                 .or_else(|| map.get("items").filter(|x| truthy(x)));
-            // Python checks `isinstance(kids_raw, (list, tuple))` — a `Stream`
-            // (Python `Stream`, not a list) is rejected, matching `_coerce_box`.
+            // Only a list / tuple is accepted here — a `Stream` (not a list)
+            // is rejected.
             let children = match kids_raw {
                 None => Vec::new(),
                 Some(Value::List(items)) => {
@@ -230,7 +228,7 @@ fn render_box(b: &Box, glyphs: &Glyphs, min_width: i64) -> String {
         out.push(glyphs.stem.to_owned());
         let child_text = render_box(child, glyphs, min_width);
         let child_lines: Vec<&str> = child_text.split('\n').collect();
-        // Python `str.splitlines()` drops a trailing empty element from the
+        // Line-splitting drops a trailing empty element from the
         // final newline; mirror that by ignoring the empty tail.
         let child_lines: Vec<&str> = if child_lines.last() == Some(&"") {
             child_lines[..child_lines.len() - 1].to_vec()
@@ -283,7 +281,7 @@ fn truthy(v: &Value) -> bool {
     crate::value::truthy(v)
 }
 
-/// Python `str(value)` for `str(title)` / `str(note)`.
+/// String coercion of a value, for the `title` / `note` fields.
 fn py_str_value(v: &Value) -> String {
     match v {
         Value::Str(s) => s.clone(),

@@ -12,10 +12,11 @@
 //! "related" notes so the user can see both assignment sites.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_registry::TclType;
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
@@ -36,29 +37,29 @@ pub(crate) fn find_phi_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
 ) -> Vec<ShimmerWarning> {
     let loop_blocks = loop_body_blocks(cfg);
     let def_map = def_range_map(ssa);
     let empty_by_name = empty_value_versions(ssa);
     let destructure = destructure_foreach_blocks(cfg);
-    // Python's phi pass uses the *function-wide* loop-body type map (unlike the
-    // per-loop S102 thunking pass); reproduce that with the whole loop-block set.
+    // The phi pass uses the *function-wide* loop-body type map (unlike the
+    // per-loop S102 thunking pass), built from the whole loop-block set.
     let loop_body_types =
         per_loop_body_types("", &loop_blocks, &destructure, ssa, types, &empty_by_name);
     let mut out = Vec::new();
 
-    for block_name in cfg_order(cfg) {
-        if !executable_blocks.contains(&block_name) {
+    for block_id in cfg_order(cfg) {
+        if !executable_blocks.contains(&block_id) {
             continue;
         }
-        let Some(ssa_block) = ssa.blocks.get(&block_name) else {
+        let Some(ssa_block) = ssa.blocks.get(&block_id) else {
             continue;
         };
-        let in_loop = loop_blocks.contains(&block_name);
+        let in_loop = loop_blocks.contains(cfg.block_name(block_id));
 
         for phi in &ssa_block.phis {
-            let key = (phi.name.clone(), phi.version);
+            let key = (phi.name, phi.version);
             let Some(lattice) = types.get(&key) else {
                 continue;
             };
@@ -72,7 +73,7 @@ pub(crate) fn find_phi_shimmers(
                 continue;
             };
 
-            // Refine the SHIMMERED-phi verdict (mirrors `_find_phi_shimmers`).
+            // Refine the SHIMMERED-phi verdict.
             // A loop-header phi is SHIMMERED on any entry-vs-body type change,
             // but the empty-accumulator promotion (`set r {}`; `lappend r …`)
             // and a branch merge whose only shimmer comes from an empty literal
@@ -86,7 +87,7 @@ pub(crate) fn find_phi_shimmers(
                 if inc_ver == 0 {
                     continue;
                 }
-                let Some(inc_type) = types.get(&(phi.name.clone(), inc_ver)) else {
+                let Some(inc_type) = types.get(&(phi.name, inc_ver)) else {
                     continue;
                 };
                 if inc_type.kind == TypeKind::Unknown {
@@ -95,7 +96,7 @@ pub(crate) fn find_phi_shimmers(
                 let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
                 if inc_type.kind == TypeKind::Known && !is_empty {
                     if let Some(t) = inc_type.tcl_type {
-                        if loop_blocks.contains(pred) {
+                        if loop_blocks.contains(cfg.block_name(*pred)) {
                             body_types.insert(t);
                         } else {
                             entry_types.insert(t);
@@ -125,29 +126,33 @@ pub(crate) fn find_phi_shimmers(
                 .incoming
                 .iter()
                 .filter_map(|(pred_block, &ver)| {
-                    def_map
-                        .get(&(phi.name.clone(), ver))
-                        .copied()
-                        .map(|sp| (sp, format!("version from '{pred_block}'")))
+                    def_map.get(&(phi.name, ver)).copied().map(|sp| {
+                        (
+                            sp,
+                            format!("version from '{}'", cfg.block_name(*pred_block)),
+                        )
+                    })
                 })
                 .collect();
 
             // A merge inside a loop body re-shimmers every iteration (S101);
             // an out-of-loop branch merge is a one-time conversion (S100).
-            // Mirrors Python `_find_phi_shimmers`' `code = "S101" if in_loop
-            // else "S100"` (was hardcoded to S101).
-            let code = if in_loop { "S101" } else { "S100" };
+            let code = if in_loop {
+                DiagCode::S101
+            } else {
+                DiagCode::S100
+            };
+            let var = ssa.var_name(phi.name);
             out.push(ShimmerWarning {
                 span,
-                variable: phi.name.clone(),
+                variable: var.to_owned(),
                 from_type: from,
                 to_type: to,
                 command: "<phi>".to_owned(),
                 in_loop,
-                code: code.to_owned(),
+                code,
                 message: format!(
                     "{code}: '{var}' merges {from} and {to} at control-flow join",
-                    var = phi.name,
                     from = type_name(from),
                     to = type_name(to),
                 ),
@@ -237,7 +242,7 @@ mod tests {
             "expected a phi shimmer for Int/String merge of 'x', got: {warnings:?}"
         );
         let merge = merge.unwrap();
-        assert_eq!(merge.code, "S100", "out-of-loop merge must be S100");
+        assert_eq!(merge.code, DiagCode::S100, "out-of-loop merge must be S100");
         assert!(!merge.in_loop);
     }
 }

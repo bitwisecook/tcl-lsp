@@ -1,5 +1,5 @@
-//! Byte-parity for `compute_stats` (text report + JSON) against the Python
-//! `dialects.f5.bigip.stats`, on a realistic `bigip.conf`. Self-contained.
+//! Byte-stable fixtures for `compute_stats` (text report + JSON), checked
+//! against captured expected output on a realistic `bigip.conf`. Self-contained.
 
 use tcl_bigip::graph::{GraphContext, build_bigip_object_graph};
 use tcl_bigip::parser::parse_bigip_conf;
@@ -28,7 +28,7 @@ fn stats_match_python() {
             .expect("read text golden");
         assert_eq!(
             text, want_text,
-            "stats text (top {top}) differs from Python"
+            "stats text (top {top}) differs from the expected fixture"
         );
 
         let json = report_to_json(&report) + "\n";
@@ -36,7 +36,7 @@ fn stats_match_python() {
             .expect("read json golden");
         assert_eq!(
             json, want_json,
-            "stats JSON (top {top}) differs from Python"
+            "stats JSON (top {top}) differs from the expected fixture"
         );
     }
 }

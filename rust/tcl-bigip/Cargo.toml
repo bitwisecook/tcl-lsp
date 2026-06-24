@@ -1,6 +1,6 @@
 [package]
 name = "tcl-bigip"
-description = "Faithful Rust port of the F5 BIG-IP object model and config parser (dialects/f5/bigip)"
+description = "The F5 BIG-IP object model and config parser"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -17,6 +17,7 @@ regex = "1"
 ipnet = "2"
 sha2 = "0.10"
 indexmap = "2"
+thiserror = "2"
 
 [lints]
 workspace = true

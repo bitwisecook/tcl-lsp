@@ -2,12 +2,8 @@
 //! shape (`docs/design/contracts/wasm-explorer-view.md` for the `wasm`
 //! slice; the rest is the de-facto contract `explorer-core.js` reads).
 //!
-//! Faithful port of `tooling/cli/serialise.py`, brought up one view-family
-//! at a time (EXP-1b..N). Each `serialise_*` helper mirrors the matching
-//! Python `_serialise_*` and is verified against it by the differential
-//! parity test. `serialise_result` assembles the top-level object; keys
-//! not yet ported are simply absent (the parity harness compares only the
-//! keys present on both sides as families land).
+//! `serialise_result` assembles the top-level object from the per-view
+//! `serialise_*` helpers.
 
 use serde_json::{Map, Value, json};
 
@@ -45,7 +41,7 @@ use crate::formatters::{
 use crate::views::{Severity, VIEW_META};
 
 /// Serialise the `meta` view: dialect list, view-tab table, and the
-/// severity vocabulary. Mirrors `_serialise_meta`.
+/// severity vocabulary.
 #[must_use]
 pub fn serialise_meta() -> Value {
     let dialects: Vec<Value> = available_dialects()
@@ -68,14 +64,12 @@ pub fn serialise_meta() -> Value {
 }
 
 /// `range_dict` for an optional span, emitting `null` when absent
-/// (mirrors `range_dict(r) if r else None`).
 fn range_or_null(span: Option<Span>, li: &LineIndex, source: &str) -> Value {
     span.map_or(Value::Null, |s| range_dict(s, li, source))
 }
 
-/// Serialise an IR script (a list of statement nodes). Mirrors
-/// `_serialise_script`; children are emitted only for If/For/Switch, as on
-/// the Python side.
+/// Serialise an IR script (a list of statement nodes). Children are emitted
+/// only for If/For/Switch.
 fn serialise_script(script: &Script, li: &LineIndex, source: &str) -> Value {
     let nodes: Vec<Value> = script
         .statements
@@ -214,7 +208,7 @@ fn serialise_wasm(module: &Module, source: &str) -> Value {
     Value::Array(entries)
 }
 
-/// Serialise the `ir` view. Mirrors `_serialise_ir`:
+/// Serialise the `ir` view.:
 /// `{ topLevel: [...], procedures: { qname: { params, range, body } } }`.
 #[must_use]
 pub fn serialise_ir(module: &Module, li: &LineIndex, source: &str) -> Value {
@@ -238,13 +232,18 @@ pub fn serialise_ir(module: &Module, li: &LineIndex, source: &str) -> Value {
     })
 }
 
-/// Serialise a block terminator. Mirrors `_terminator_dict`.
-fn terminator_dict(term: Option<&Terminator>, li: &LineIndex, source: &str) -> Value {
+/// Serialise a block terminator.
+fn terminator_dict(
+    func: &Function,
+    term: Option<&Terminator>,
+    li: &LineIndex,
+    source: &str,
+) -> Value {
     match term {
         None => Value::Null,
         Some(Terminator::Goto { target, span }) => json!({
             "type": "goto",
-            "target": target,
+            "target": func.block_name(*target),
             "range": range_or_null(*span, li, source),
         }),
         Some(Terminator::Branch {
@@ -255,8 +254,8 @@ fn terminator_dict(term: Option<&Terminator>, li: &LineIndex, source: &str) -> V
         }) => json!({
             "type": "branch",
             "condition": preview(&render_expr(condition), 80),
-            "trueTarget": true_target,
-            "falseTarget": false_target,
+            "trueTarget": func.block_name(*true_target),
+            "falseTarget": func.block_name(*false_target),
             "range": range_or_null(*span, li, source),
         }),
         Some(Terminator::Return { value, span, .. }) => json!({
@@ -268,13 +267,17 @@ fn terminator_dict(term: Option<&Terminator>, li: &LineIndex, source: &str) -> V
 }
 
 /// The successor block names of a terminator (terminator-only, no
-/// exception edges) — mirrors Python's `_block_successors`.
-fn block_successors(term: Option<&Terminator>) -> Vec<&str> {
-    term.map(Terminator::successors).unwrap_or_default()
+/// exception edges).
+fn block_successors<'a>(func: &'a Function, term: Option<&Terminator>) -> Vec<&'a str> {
+    term.map(Terminator::successors)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|id| func.block_name(id))
+        .collect()
 }
 
-/// Serialise the routed control-flow edges of `func`. Mirrors
-/// `_serialise_cfg_edges`; lanes come from the shared `cfg_layout`.
+/// Serialise the routed control-flow edges of `func`. Lanes come from the
+/// shared `cfg_layout`.
 fn serialise_cfg_edges(func: &Function, order: &[String]) -> Value {
     let edges: Vec<Value> = build_cfg_edges(func, order)
         .into_iter()
@@ -292,7 +295,7 @@ fn serialise_cfg_edges(func: &Function, order: &[String]) -> Value {
     Value::Array(edges)
 }
 
-/// Serialise the pre-SSA CFG view. Mirrors `_serialise_cfg_pre_ssa`:
+/// Serialise the pre-SSA CFG view.:
 /// one entry per function, blocks in creation order, with routed edges.
 #[must_use]
 pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
@@ -302,10 +305,11 @@ pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &s
         .map(|snap| {
             let cfg = &snap.unit.cfg;
             let order = ordered_block_names(cfg);
+            let entry_name = cfg.block_name(cfg.entry);
             let blocks: Vec<Value> = order
                 .iter()
                 .map(|bn| {
-                    let block = &cfg.blocks[bn];
+                    let block = cfg.block_by_name(bn).expect("ordered block exists");
                     let statements: Vec<Value> = block
                         .statements
                         .iter()
@@ -319,16 +323,16 @@ pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &s
                         .collect();
                     json!({
                         "name": bn,
-                        "isEntry": *bn == cfg.entry,
+                        "isEntry": bn == entry_name,
                         "statements": statements,
-                        "terminator": terminator_dict(block.terminator.as_ref(), li, source),
-                        "successors": block_successors(block.terminator.as_ref()),
+                        "terminator": terminator_dict(cfg, block.terminator.as_ref(), li, source),
+                        "successors": block_successors(cfg, block.terminator.as_ref()),
                     })
                 })
                 .collect();
             json!({
                 "name": snap.name,
-                "entry": cfg.entry,
+                "entry": entry_name,
                 "blockCount": cfg.blocks.len(),
                 "blocks": blocks,
                 "edges": serialise_cfg_edges(cfg, &order),
@@ -338,7 +342,7 @@ pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &s
     Value::Array(funcs)
 }
 
-/// Format a declared arity. Mirrors `_serialise_interproc`'s arity string:
+/// Format a declared arity.'s arity string:
 /// `"{min}+"` when unlimited (`max == u32::MAX`), else `"{min}..{max}"`.
 fn arity_str(arity: tcl_compiler::interprocedural::Arity) -> String {
     if arity.max == u32::MAX {
@@ -349,19 +353,18 @@ fn arity_str(arity: tcl_compiler::interprocedural::Arity) -> String {
 }
 
 /// Serialise the `renderedProperties` view: each SSA value's `may` / `must`
-/// rendered-property flag names, per function. Mirrors
-/// `_serialise_rendered_properties` — values with no flags are skipped, and
-/// functions with no entries are omitted. `iter_names()` yields the set
-/// named flags in declaration order (NONE excluded), matching Python's
-/// enum-member filter.
+/// rendered-property flag names, per function. Values with no flags are
+/// skipped, and functions with no entries are omitted. `iter_names()` yields
+/// the set named flags in declaration order (NONE excluded).
 #[must_use]
 pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
     let funcs: Vec<Value> = result
         .snapshots()
         .iter()
         .filter_map(|snap| {
-            let mut keys: Vec<&(String, u32)> = snap.unit.rendered_props.keys().collect();
-            keys.sort();
+            let ssa = &snap.unit.ssa;
+            let mut keys: Vec<_> = snap.unit.rendered_props.keys().collect();
+            keys.sort_by(|a, b| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
             let entries: Vec<Value> = keys
                 .iter()
                 .filter_map(|key| {
@@ -371,7 +374,7 @@ pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
                     if may.is_empty() && must.is_empty() {
                         return None;
                     }
-                    Some(json!({ "variable": key.0, "version": key.1, "may": may, "must": must }))
+                    Some(json!({ "variable": ssa.var_name(key.0), "version": key.1, "may": may, "must": must }))
                 })
                 .collect();
             (!entries.is_empty()).then(|| json!({ "name": snap.name, "entries": entries }))
@@ -380,26 +383,26 @@ pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
     Value::Array(funcs)
 }
 
-/// Renderer severity for a shimmer/thunking code. Mirrors
-/// `annotations.shimmer_severity` (`_DANGER_SHIMMER_CODES = {"S102"}`).
+/// Renderer severity for a shimmer/thunking code. `S102` is the sole
+/// danger-level code (rendered as `error`); all others are `warning`.
 fn shimmer_severity(code: &str) -> &'static str {
     if code == "S102" { "error" } else { "warning" }
 }
 
 /// Serialise the `shimmer` view: intrep-shimmer (S100/S101) and
-/// loop-thunking (S102) warnings. Mirrors `_serialise_shimmer`, combining
-/// both warning kinds into one list. The shimmer analysis matches Python,
-/// so this view is strictly gated by the differential harness.
+/// loop-thunking (S102) warnings., combining
+/// both warning kinds into one list. This view is strictly gated by the
+/// differential harness.
 #[must_use]
 pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
     let mut out: Vec<Value> = Vec::new();
     for w in find_shimmer_warnings_for_cu(&result.unit, registry) {
         out.push(json!({
-            "code": w.code,
+            "code": w.code.as_str(),
             "message": w.message,
             "range": range_dict(w.span, li, source),
-            "severity": shimmer_severity(&w.code),
+            "severity": shimmer_severity(w.code.as_str()),
             "variable": w.variable,
             "fromType": type_name(w.from_type),
             "toType": type_name(w.to_type),
@@ -409,10 +412,10 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
     }
     for w in find_thunking_warnings_for_cu(&result.unit) {
         out.push(json!({
-            "code": w.code,
+            "code": w.code.as_str(),
             "message": w.message,
             "range": range_dict(w.span, li, source),
-            "severity": shimmer_severity(&w.code),
+            "severity": shimmer_severity(w.code.as_str()),
             "variable": w.variable,
             "typeA": type_name(w.type_a),
             "typeB": type_name(w.type_b),
@@ -422,10 +425,10 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
     // value-shape shape as the S100/S101 family.
     for w in find_byte_array_warnings_for_cu(&result.unit, registry) {
         out.push(json!({
-            "code": w.code,
+            "code": w.code.as_str(),
             "message": w.message,
             "range": range_dict(w.span, li, source),
-            "severity": shimmer_severity(&w.code),
+            "severity": shimmer_severity(w.code.as_str()),
             "variable": w.variable,
             "fromType": type_name(w.from_type),
             "toType": type_name(w.to_type),
@@ -453,10 +456,10 @@ fn optimised_result(result: &ExplorerResult) -> Option<(crate::ExplorerResult, S
 }
 
 /// Serialise the `gvn` view: redundant-computation hints (GVN/CSE + PRE +
-/// LICM). Mirrors `_serialise_gvn` — `{code, message, expression, range,
-/// firstRange, severity: info}`. Composes the three ported `*_for_cu`
+/// LICM). — `{code, message, expression, range,
+/// firstRange, severity: info}`. Composes the three `*_for_cu`
 /// finders and de-duplicates on `(code, span, first_span)`. Optimiser-
-/// derived → `_NO_PARITY_KEYS`, pinned by a Rust unit test.
+/// derived, pinned by a Rust unit test.
 #[must_use]
 pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
@@ -474,7 +477,7 @@ pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
         .iter()
         .filter(|w| {
             seen.insert((
-                w.code.clone(),
+                w.code,
                 w.span.start(),
                 w.span.end(),
                 w.first_span.start(),
@@ -483,7 +486,7 @@ pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
         })
         .map(|w| {
             json!({
-                "code": w.code,
+                "code": w.code.as_str(),
                 "message": w.message,
                 "expression": w.expression_text,
                 "range": range_dict(w.span, li, source),
@@ -495,7 +498,7 @@ pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
     Value::Array(out)
 }
 
-/// Renderer severity for a taint code. Mirrors `annotations.taint_severity`
+/// Renderer severity for a taint code.
 /// (`T1*` prefix or `T3001`-`T3004` → error, else warning).
 fn taint_severity(code: &str) -> &'static str {
     if code.starts_with("T1") || matches!(code, "T3001" | "T3002" | "T3003" | "T3004") {
@@ -505,9 +508,8 @@ fn taint_severity(code: &str) -> &'static str {
     }
 }
 
-/// Serialise the `taint` view: information-flow sink warnings. Mirrors
-/// `_serialise_taint`. Composes the taint passes via the ported
-/// `find_taint_warnings_for_cu`.
+/// Serialise the `taint` view: information-flow sink warnings. Composes the
+/// taint passes via `find_taint_warnings_for_cu`.
 #[must_use]
 pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
@@ -516,10 +518,10 @@ pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) ->
         .iter()
         .map(|w| {
             json!({
-                "code": w.code,
+                "code": w.code.as_str(),
                 "message": w.message,
                 "range": range_dict(w.span, li, source),
-                "severity": taint_severity(&w.code),
+                "severity": taint_severity(w.code.as_str()),
                 "variable": w.variable,
                 "sinkCommand": w.sink_command,
             })
@@ -529,8 +531,8 @@ pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) ->
 }
 
 /// Serialise the `optimisations` view: the optimiser rewrites found for
-/// the source. Mirrors `_serialise_optimisations` — `{code, message,
-/// range, replacement}` per rewrite. Runs the ported `optimise` pass over
+/// the source. — `{code, message,
+/// range, replacement}` per rewrite. Runs the `optimise` pass over
 /// the cached per-dialect registry.
 #[must_use]
 pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
@@ -539,7 +541,7 @@ pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: 
         .iter()
         .map(|o| {
             json!({
-                "code": o.code,
+                "code": o.code.as_str(),
                 "message": o.message,
                 "range": range_dict(o.span, li, source),
                 "replacement": o.replacement,
@@ -553,9 +555,8 @@ pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: 
 /// `PassId::all()` order with the optimisations it produced (raw, before the
 /// overlap arbitration the `optimisations` view applies).
 ///
-/// **Rust-native** — there is no Python `serialise_result` counterpart, since
-/// the Python optimiser is not structured as this pass sequence. It surfaces
-/// the actual Rust pipeline: which pass found what, in execution order.
+/// **Rust-native** — surfaces the actual pipeline: which pass found what, in
+/// execution order.
 #[must_use]
 pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
@@ -566,7 +567,7 @@ pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, sourc
                 .iter()
                 .map(|o| {
                     json!({
-                        "code": o.code,
+                        "code": o.code.as_str(),
                         "message": o.message,
                         "range": range_dict(o.span, li, source),
                         "replacement": o.replacement,
@@ -585,7 +586,7 @@ pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, sourc
 }
 
 /// Serialise the `intervals` view: the integer-interval domain per tracked
-/// SSA value, per function. Mirrors `_serialise_intervals` — only bounded
+/// SSA value, per function. — only bounded
 /// (non-top) ranges are emitted; `lo`/`hi` are `null` for ±infinity.
 #[must_use]
 pub fn serialise_intervals(result: &ExplorerResult) -> Value {
@@ -593,10 +594,10 @@ pub fn serialise_intervals(result: &ExplorerResult) -> Value {
         .snapshots()
         .iter()
         .map(|snap| {
-            let intervals =
-                compute_intervals(&snap.unit.cfg, &snap.unit.ssa, &snap.unit.sccp.values);
-            let mut keys: Vec<&(String, u32)> = intervals.keys().collect();
-            keys.sort();
+            let ssa = &snap.unit.ssa;
+            let intervals = compute_intervals(&snap.unit.cfg, ssa, &snap.unit.sccp.values);
+            let mut keys: Vec<_> = intervals.keys().collect();
+            keys.sort_by(|a, b| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
             let entries: Vec<Value> = keys
                 .iter()
                 .filter_map(|key| {
@@ -604,7 +605,7 @@ pub fn serialise_intervals(result: &ExplorerResult) -> Value {
                     if iv.is_top() || (iv.lo.is_none() && iv.hi.is_none()) {
                         return None;
                     }
-                    Some(json!({ "variable": key.0, "version": key.1, "lo": iv.lo, "hi": iv.hi }))
+                    Some(json!({ "variable": ssa.var_name(key.0), "version": key.1, "lo": iv.lo, "hi": iv.hi }))
                 })
                 .collect();
             json!({ "name": snap.name, "entries": entries })
@@ -614,7 +615,7 @@ pub fn serialise_intervals(result: &ExplorerResult) -> Value {
 }
 
 /// Serialise the `taintTracking` view: every tainted SSA value's taint
-/// lattice per function. Mirrors `_serialise_taint_tracking` — only
+/// lattice per function. — only
 /// tainted entries, functions with none omitted.
 #[must_use]
 pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
@@ -622,15 +623,16 @@ pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
         .snapshots()
         .iter()
         .filter_map(|snap| {
-            let mut keys: Vec<&(String, u32)> = snap.unit.taints.keys().collect();
-            keys.sort();
+            let ssa = &snap.unit.ssa;
+            let mut keys: Vec<_> = snap.unit.taints.keys().collect();
+            keys.sort_by(|a, b| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
             let entries: Vec<Value> = keys
                 .iter()
                 .filter_map(|key| {
                     let tl = &snap.unit.taints[*key];
                     tl.colours
                         .contains(tcl_compiler::taint::TaintColour::TAINTED)
-                        .then(|| json!({ "variable": key.0, "version": key.1, "taint": format_taint(tl) }))
+                        .then(|| json!({ "variable": ssa.var_name(key.0), "version": key.1, "taint": format_taint(tl) }))
                 })
                 .collect();
             (!entries.is_empty()).then(|| json!({ "name": snap.name, "entries": entries }))
@@ -640,42 +642,46 @@ pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
 }
 
 /// Per-SSA-value `{version, lattice?, type?}` detail used by the post-SSA
-/// CFG view's `uses`/`defs` maps. Mirrors the inline dict in
-/// `_serialise_cfg_post_ssa`.
+/// CFG view's `uses`/`defs` maps.
 fn ssa_value_detail(
-    refs: &std::collections::HashMap<String, tcl_compiler::ssa::Version>,
+    refs: &std::collections::HashMap<tcl_compiler::ssa::Symbol, tcl_compiler::ssa::Version>,
     sccp: &tcl_compiler::sccp::SccpResult,
     types: &std::collections::HashMap<
         tcl_compiler::ssa::ValueKey,
         tcl_compiler::types::TypeLattice,
     >,
+    ssa: &tcl_compiler::ssa::SsaFunction,
 ) -> Value {
-    let mut keys: Vec<(&String, &u32)> = refs.iter().collect();
-    keys.sort();
+    let mut keys: Vec<(&tcl_compiler::ssa::Symbol, &u32)> = refs.iter().collect();
+    keys.sort_by(|a, b| {
+        ssa.var_name(*a.0)
+            .cmp(ssa.var_name(*b.0))
+            .then(a.1.cmp(b.1))
+    });
     let mut out = Map::new();
-    for (name, &ver) in keys {
+    for (&sym, &ver) in keys {
         let mut d = Map::new();
         d.insert("version".to_owned(), json!(ver));
-        if let Some(lat) = sccp.values.get(&(name.clone(), ver)) {
+        if let Some(lat) = sccp.values.get(&(sym, ver)) {
             d.insert("lattice".to_owned(), json!(format_lattice(lat)));
         }
-        if let Some(tl) = types.get(&(name.clone(), ver))
+        if let Some(tl) = types.get(&(sym, ver))
             && tl.kind != tcl_compiler::types::TypeKind::Unknown
         {
             d.insert("type".to_owned(), json!(format_type(tl)));
         }
-        out.insert(name.clone(), Value::Object(d));
+        out.insert(ssa.var_name(sym).to_owned(), Value::Object(d));
     }
     Value::Object(out)
 }
 
 /// Serialise the post-SSA CFG view (`cfgPostSsa`): per-block phi nodes and
 /// per-statement SSA `uses`/`defs` with lattice + type detail, plus a
-/// function-level `analysis` block. Mirrors `_serialise_cfg_post_ssa`.
+/// function-level `analysis` block.
 ///
 /// `analysis.deadStores` is the per-function liveness-based set
-/// ([`tcl_compiler::dead_stores::liveness_dead_stores`]), byte-identical to
-/// Python's `analysis.dead_stores`. The lattice/type detail comes from the Rust
+/// ([`tcl_compiler::dead_stores::liveness_dead_stores`]). The lattice/type
+/// detail comes from the Rust
 /// analyses; `constantBranches`/`unreachableBlocks`/`inferredTypes` come from
 /// SCCP + the type lattice.
 #[must_use]
@@ -691,32 +697,40 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
             let sccp = &snap.unit.sccp;
             let types = &snap.unit.types;
             let order = ordered_block_names(cfg);
+            let entry_name = cfg.block_name(cfg.entry);
 
             let blocks: Vec<Value> = order
                 .iter()
                 .map(|bn| {
-                    let block = &cfg.blocks[bn];
-                    let ssa_block = ssa.blocks.get(bn);
+                    let block = cfg.block_by_name(bn).expect("ordered block exists");
+                    let bid = cfg.block_id(bn);
+                    let ssa_block = bid.and_then(|id| ssa.blocks.get(&id));
 
                     let phis: Vec<Value> = ssa_block
                         .map(|sb| {
                             sb.phis
                                 .iter()
                                 .map(|phi| {
-                                    let mut inc: Vec<(&String, &u32)> =
-                                        phi.incoming.iter().collect();
-                                    inc.sort();
+                                    // Key the incoming map by predecessor block
+                                    // name; sort by name for stable output.
+                                    let mut inc: Vec<(&str, u32)> = phi
+                                        .incoming
+                                        .iter()
+                                        .map(|(pred, &ver)| (cfg.block_name(*pred), ver))
+                                        .collect();
+                                    inc.sort_unstable();
+                                    let phi_name = ssa.var_name(phi.name);
                                     let incoming: Map<String, Value> = inc
                                         .into_iter()
-                                        .map(|(pred, &ver)| {
-                                            (pred.clone(), json!(format!("{}#{ver}", phi.name)))
+                                        .map(|(pred, ver)| {
+                                            (pred.to_owned(), json!(format!("{phi_name}#{ver}")))
                                         })
                                         .collect();
                                     let phi_type = types
-                                        .get(&(phi.name.clone(), phi.version))
+                                        .get(&(phi.name, phi.version))
                                         .map_or(Value::Null, |tl| json!(format_type(tl)));
                                     json!({
-                                        "name": phi.name,
+                                        "name": phi_name,
                                         "version": phi.version,
                                         "incoming": incoming,
                                         "type": phi_type,
@@ -736,8 +750,8 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
                                     || (json!({}), json!({})),
                                     |ss| {
                                         (
-                                            ssa_value_detail(&ss.uses, sccp, types),
-                                            ssa_value_detail(&ss.defs, sccp, types),
+                                            ssa_value_detail(&ss.uses, sccp, types, ssa),
+                                            ssa_value_detail(&ss.defs, sccp, types, ssa),
                                         )
                                     },
                                 );
@@ -753,19 +767,19 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
 
                     json!({
                         "name": bn,
-                        "isEntry": *bn == cfg.entry,
-                        "isUnreachable": !sccp.executable_blocks.contains(bn),
+                        "isEntry": bn == entry_name,
+                        "isUnreachable": !bid.is_some_and(|id| sccp.executable_blocks.contains(&id)),
                         "phis": phis,
                         "statements": statements,
-                        "terminator": terminator_dict(block.terminator.as_ref(), li, source),
-                        "successors": block_successors(block.terminator.as_ref()),
+                        "terminator": terminator_dict(cfg, block.terminator.as_ref(), li, source),
+                        "successors": block_successors(cfg, block.terminator.as_ref()),
                     })
                 })
                 .collect();
 
             json!({
                 "name": snap.name,
-                "entry": cfg.entry,
+                "entry": entry_name,
                 "blockCount": cfg.blocks.len(),
                 "blocks": blocks,
                 "edges": serialise_cfg_edges(cfg, &order),
@@ -779,8 +793,7 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
 /// The function-level `analysis` block of the post-SSA CFG view.
 ///
 /// `deadStores` is the per-function liveness-based set
-/// ([`tcl_compiler::dead_stores::liveness_dead_stores`]), matching Python's
-/// `analysis.dead_stores`.
+/// ([`tcl_compiler::dead_stores::liveness_dead_stores`]).
 fn post_ssa_analysis(
     snap: &crate::FunctionSnapshot,
     registry: &tcl_registry::CommandRegistry,
@@ -800,18 +813,19 @@ fn post_ssa_analysis(
         })
         .collect();
 
-    let mut unreachable: Vec<&String> = snap
-        .unit
-        .cfg
+    let cfg = &snap.unit.cfg;
+    let mut unreachable: Vec<&str> = cfg
         .blocks
         .keys()
         .filter(|b| !sccp.executable_blocks.contains(*b))
+        .map(|id| cfg.block_name(*id))
         .collect();
-    unreachable.sort();
+    unreachable.sort_unstable();
 
     // `inferredTypes`: known/shimmered SSA-value types keyed by `name#ver`.
-    let mut tkeys: Vec<&(String, u32)> = snap.unit.types.keys().collect();
-    tkeys.sort();
+    let ssa = &snap.unit.ssa;
+    let mut tkeys: Vec<_> = snap.unit.types.keys().collect();
+    tkeys.sort_by(|a, b| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
     let mut inferred = Map::new();
     for key in tkeys {
         let tl = &snap.unit.types[key];
@@ -819,12 +833,15 @@ fn post_ssa_analysis(
             tl.kind,
             tcl_compiler::types::TypeKind::Known | tcl_compiler::types::TypeKind::Shimmered
         ) {
-            inferred.insert(format!("{}#{}", key.0, key.1), json!(format_type(tl)));
+            inferred.insert(
+                format!("{}#{}", ssa.var_name(key.0), key.1),
+                json!(format_type(tl)),
+            );
         }
     }
 
-    // Liveness-based dead stores for this function (Python's
-    // `analysis.dead_stores`), already in deterministic block/statement order.
+    // Liveness-based dead stores for this function, already in deterministic
+    // block/statement order.
     let dead_store_values: Vec<Value> =
         tcl_compiler::dead_stores::liveness_dead_stores(snap.unit, registry)
             .iter()
@@ -846,13 +863,12 @@ fn post_ssa_analysis(
     })
 }
 
-/// Serialise the `dataflow` view: the def-use data-flow graph. Mirrors
-/// `dataflow_graph_to_dict` over `extract_dataflow_graph`.
+/// Serialise the `dataflow` view: the def-use data-flow graph, built over
+/// `extract_dataflow_graph`.
 ///
-/// `_NO_PARITY`: `extract_dataflow_graph` sorts functions whereas Python
-/// emits top-level-first, and alias info comes from memory-SSA (not built
-/// here, so `aliases` are limited); the node/edge detail also follows the
-/// (divergent) Rust analyses.
+/// `extract_dataflow_graph` sorts functions, and alias info comes from
+/// memory-SSA (not built here, so `aliases` are limited); the node/edge
+/// detail follows the Rust analyses.
 #[must_use]
 pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
     let snaps = result.snapshots();
@@ -944,10 +960,9 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
     })
 }
 
-/// Serialise the `irulesFlow` view: iRules flow / performance warnings.
-/// Mirrors `_serialise_irules_flow` — `{code, message, range, severity}`,
-/// composing the five `irules_checks` finders. Empty for non-iRules
-/// dialects, so it strict-matches Python's empty list on the tcl corpus.
+/// Serialise the `irulesFlow` view: iRules flow / performance warnings —
+/// `{code, message, range, severity}`, composing the five `irules_checks`
+/// finders. Empty for non-iRules dialects (an empty list on the tcl corpus).
 #[must_use]
 pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
@@ -963,7 +978,7 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
         .iter()
         .map(|w| {
             json!({
-                "code": w.code,
+                "code": w.code.as_str(),
                 "message": w.message,
                 "range": range_dict(w.span, li, source),
                 "severity": "warning",
@@ -974,7 +989,7 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
 }
 
 /// Serialise the `loops` view: the natural-loop forest per function, with
-/// nesting depth. Mirrors `_serialise_loops` over the ported
+/// nesting depth, built over
 /// `build_loop_forest`. Depth = 1 + the number of *other* loop headers
 /// that dominate this loop's header.
 #[must_use]
@@ -986,13 +1001,20 @@ pub fn serialise_loops(result: &ExplorerResult) -> Value {
             let executable = &snap.unit.sccp.executable_blocks;
             let forest = build_loop_forest(&snap.unit.cfg, &snap.unit.ssa, executable);
             let headers = forest.headers();
+            let cfg = &snap.unit.cfg;
             let loops: Vec<Value> = forest
                 .loops
                 .iter()
                 .map(|lp| {
+                    // Loop nesting depth: count header loops whose header
+                    // dominates this loop's header. `NaturalLoop` headers are
+                    // block names; resolve each to its id for `dominates`.
+                    let node = cfg.block_id(&lp.header);
                     let depth = 1 + headers
                         .iter()
-                        .filter(|h| **h != lp.header && dominates(&snap.unit.ssa, h, &lp.header))
+                        .filter(|h| **h != lp.header)
+                        .filter_map(|h| Some((cfg.block_id(h)?, node?)))
+                        .filter(|&(dom, node)| dominates(&snap.unit.ssa, dom, node))
                         .count();
                     json!({
                         "header": lp.header,
@@ -1010,7 +1032,7 @@ pub fn serialise_loops(result: &ExplorerResult) -> Value {
 }
 
 /// Serialise the `bounds` view: interval-driven out-of-range findings per
-/// function. Mirrors `_serialise_bounds`.
+/// function.
 ///
 /// Both interval-driven passes share the same SCCP-executable-block filter:
 /// `find_interval_bounds` (W230/W231/W232 out-of-range index access) and
@@ -1030,7 +1052,7 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
             .iter()
             .map(|f| {
                 json!({
-                    "code": f.code,
+                    "code": f.code.as_str(),
                     "command": f.command,
                     "indexVar": f.index_var,
                     "lo": f.index_interval.lo,
@@ -1056,7 +1078,7 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
 }
 
 /// Serialise the `interprocedural` view: per-procedure summaries followed
-/// by `TclOO` method summaries. Mirrors `_serialise_interproc`.
+/// by `TclOO` method summaries.
 #[must_use]
 pub fn serialise_interproc(interproc: &InterproceduralAnalysis) -> Value {
     let mut out: Vec<Value> = Vec::new();
@@ -1102,7 +1124,7 @@ pub fn serialise_interproc(interproc: &InterproceduralAnalysis) -> Value {
 }
 
 /// Serialise the `types` view: every tracked SSA value's lattice type per
-/// function, including `?`/`*` entries. Mirrors `_serialise_types`.
+/// function, including `?`/`*` entries.
 #[must_use]
 pub fn serialise_types(result: &ExplorerResult) -> Value {
     let funcs: Vec<Value> = result
@@ -1117,12 +1139,13 @@ pub fn serialise_types(result: &ExplorerResult) -> Value {
                 "type": format_type(rt),
                 "kind": type_kind_name(rt.kind),
             }));
-            let mut keys: Vec<&(String, u32)> = snap.unit.types.keys().collect();
-            keys.sort();
+            let ssa = &snap.unit.ssa;
+            let mut keys: Vec<_> = snap.unit.types.keys().collect();
+            keys.sort_by(|a, b| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
             for key in keys {
                 let tl = &snap.unit.types[key];
                 entries.push(json!({
-                    "variable": key.0,
+                    "variable": ssa.var_name(key.0),
                     "version": key.1,
                     "type": format_type(tl),
                     "kind": type_kind_name(tl.kind),
@@ -1137,13 +1160,12 @@ pub fn serialise_types(result: &ExplorerResult) -> Value {
 /// Serialise the `segments` view: the `SegmentedCommand` list with each
 /// command's closer-inclusive range, source slice, words (in `word_piece`
 /// form with per-word shape flags), and forward-attached preceding comment.
-/// Mirrors `_serialise_segments`.
 ///
 /// `name` is the first word's text; `subcommand` is always `null` (the CST
 /// segment path does not resolve subcommands). `braced` is whether the
 /// word's first fragment is a braced `{…}` (`Str`) token; `quoted` whether
-/// its raw begins with `"` — both derived from the representative token, as
-/// the Python CST derives them from the first fragment.
+/// its raw begins with `"` — both derived from the representative token's
+/// first fragment.
 #[must_use]
 pub fn serialise_segments(source: &str, config: LexerConfig) -> Value {
     let bytes = source.as_bytes();
@@ -1183,8 +1205,7 @@ pub fn serialise_segments(source: &str, config: LexerConfig) -> Value {
 }
 
 /// Serialise the `eventOrder` view: iRules `when EVENT [priority N] { body }`
-/// handlers in canonical firing order. Faithful port of `extract_event_order`
-/// (`compiler/irules_flow.py`) composed with `_serialise_event_order`.
+/// handlers in canonical firing order.
 ///
 /// Reuses the segmenter to find `when` commands (the body must be a braced
 /// block) and the reuse-positive `EventRegistry::{order_events,
@@ -1212,8 +1233,8 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
         if seg.texts.first().map(String::as_str) != Some("when") || seg.argv.len() < 3 {
             continue;
         }
-        // The body (last word) must be a braced block (`Str`), matching the
-        // Python `body_tok.type is TokenType.STR` guard.
+        // The body (last word) must be a braced block (`Str`): the guard
+        // requires `body.kind == TokenType::Str`.
         let Some(body) = seg.argv.last() else {
             continue;
         };
@@ -1224,7 +1245,7 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
         let span = seg.argv[1].span;
         // `when EVENT priority N { body }` — base priority defaults to 500.
         // `when EVENT priority N { body }`; a missing/non-integer priority
-        // keeps the 500 default (matching Python).
+        // keeps the 500 default.
         let mut priority = 500;
         if seg.texts.len() >= 5
             && seg.texts[2] == "priority"
@@ -1276,14 +1297,14 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
 /// pre-scan (`tcl_lexer::structural_index`) — where commands begin, the
 /// bracket/brace balance, and the inert spans where `[`/`]`/`{`/`}` are
 /// *literal* (brace words, comments, `${…}`, escapes). This acceleration
-/// layer drives incremental reparse; **Python has no analogue**.
+/// layer drives incremental reparse.
 #[must_use]
 pub fn serialise_structural_index(source: &str, li: &LineIndex) -> Value {
     use tcl_lexer::{BraceIndex, BracketIndex, command_boundaries, script_is_complete};
 
     fn pos(li: &LineIndex, off: u32) -> Value {
         let p = li.position_at(off);
-        json!({ "line": p.line, "col": p.character, "offset": p.offset })
+        json!({ "line": p.line, "col": p.character.get(), "offset": p.offset })
     }
     fn inert_spans(li: &LineIndex, source: &str, spans: &[(u32, u32, bool)]) -> Value {
         Value::Array(
@@ -1329,8 +1350,7 @@ pub fn serialise_structural_index(source: &str, li: &LineIndex) -> Value {
 /// Serialise the Rust-native `sourceMap` view: the `LineIndex` span model
 /// that powers O(1) offset ↔ line:col resolution (`tcl_lexer::SourceMap` /
 /// `LineIndex`). Surfaces the line-start table the analyses resolve every
-/// span through — the reference for debugging range/offset bugs. **Python
-/// has no analogue** (it recomputes positions ad hoc).
+/// span through — the reference for debugging range/offset bugs.
 #[must_use]
 pub fn serialise_source_map(source: &str, li: &LineIndex) -> Value {
     let byte_length = u32::try_from(source.len()).unwrap_or(u32::MAX);
@@ -1363,13 +1383,12 @@ pub fn serialise_source_map(source: &str, li: &LineIndex) -> Value {
     })
 }
 
-/// Serialise the `stats` summary. Mirrors `compute_stats`.
+/// Serialise the `stats` summary.
 ///
-/// `_NO_PARITY`: `deadStores` counts the optimiser's **O109** dead stores
-/// (Rust has no standalone liveness pass) and the warning counts come from
-/// the Rust analyses (which diverge from Python). `dataflow*` counts are
-/// omitted — `dataflow` is unported, and Python only adds them when a
-/// dataflow graph is present.
+/// `deadStores` counts the optimiser's **O109** dead stores (there is no
+/// standalone liveness pass) and the warning counts come from the Rust
+/// analyses. `dataflow*` counts are omitted — `dataflow` is not implemented,
+/// and such counts only apply when a dataflow graph is present.
 fn serialise_stats(result: &ExplorerResult) -> Value {
     let registry = registry_for_dialect(&result.dialect);
     let dialect = Some(result.dialect.as_str());
@@ -1426,7 +1445,7 @@ struct Ann {
 }
 
 /// Collect compiler-barrier annotations from a script, recursing into
-/// If/For/Switch bodies only — mirroring Python's `_walk_barriers`.
+/// If/For/Switch bodies only.
 fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
     for stmt in &script.statements {
         match stmt {
@@ -1472,13 +1491,13 @@ fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
 }
 
 /// Serialise the `annotations` + `annotationsByLine` source-callout views.
-/// Mirrors `collect_annotations` (all sources, GUI default), then
-/// `_serialise_annotation` + `_group_annotations_by_line`.
+/// Collects all sources (GUI default), then emits per-annotation entries
+/// grouped by line.
 ///
-/// `_NO_PARITY`: aggregates the optimiser / shimmer / gvn / taint sources
-/// (which diverge from Python). Dead-store callouts come from the optimiser's
-/// **O109** findings (Rust has no standalone liveness pass); constant-branch
-/// + unreachable-block callouts come from `sccp`.
+/// Aggregates the optimiser / shimmer / gvn / taint sources. Dead-store
+/// callouts come from the optimiser's **O109** findings (there is no
+/// standalone liveness pass); constant-branch + unreachable-block callouts
+/// come from `sccp`.
 #[allow(clippy::too_many_lines)]
 fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) -> (Value, Value) {
     let registry = registry_for_dialect(&result.dialect);
@@ -1502,7 +1521,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
     let dead_stores = find_dead_stores(&result.unit, registry, dialect);
     for snap in result.snapshots() {
         for dead in dead_stores.iter().filter(|d| d.function == snap.name) {
-            let Some(block) = snap.unit.cfg.blocks.get(&dead.block) else {
+            let Some(block) = snap.unit.cfg.block_by_name(&dead.block) else {
                 continue;
             };
             let Ok(idx) = usize::try_from(dead.statement_index) else {
@@ -1536,16 +1555,18 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
                 });
             }
         }
-        let mut unreachable: Vec<&String> = snap
+        let mut unreachable: Vec<tcl_compiler::cfg::BlockId> = snap
             .unit
             .cfg
             .blocks
             .keys()
-            .filter(|b| !snap.unit.sccp.executable_blocks.contains(*b))
+            .copied()
+            .filter(|b| !snap.unit.sccp.executable_blocks.contains(b))
             .collect();
-        unreachable.sort();
+        unreachable.sort_unstable();
         for bn in unreachable {
-            let block = &snap.unit.cfg.blocks[bn];
+            let block = &snap.unit.cfg.blocks[&bn];
+            let bn_name = snap.unit.cfg.block_name(bn);
             let span = block
                 .statements
                 .first()
@@ -1554,7 +1575,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
             if let Some(span) = span {
                 anns.push(Ann {
                     span,
-                    label: format!("{}: unreachable block {bn}", snap.name),
+                    label: format!("{}: unreachable block {bn_name}", snap.name),
                     kind: "unreachable",
                     severity: "warning",
                     priority: 3,
@@ -1580,7 +1601,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
     }
     // Shimmer + thunking.
     for w in find_shimmer_warnings_for_cu(&result.unit, registry) {
-        let sev = shimmer_severity(&w.code);
+        let sev = shimmer_severity(w.code.as_str());
         anns.push(Ann {
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
@@ -1590,7 +1611,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
         });
     }
     for w in find_thunking_warnings_for_cu(&result.unit) {
-        let sev = shimmer_severity(&w.code);
+        let sev = shimmer_severity(w.code.as_str());
         anns.push(Ann {
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
@@ -1600,7 +1621,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
         });
     }
     for w in find_byte_array_warnings_for_cu(&result.unit, registry) {
-        let sev = shimmer_severity(&w.code);
+        let sev = shimmer_severity(w.code.as_str());
         anns.push(Ann {
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
@@ -1637,7 +1658,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
             kind: "taint",
-            severity: taint_severity(&w.code),
+            severity: taint_severity(w.code.as_str()),
             priority: 0,
         });
     }
@@ -1681,10 +1702,6 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
 }
 
 /// Serialise a full pipeline result to the explorer contract JSON.
-///
-/// Currently emits the ported view families; subsequent EXP-* increments
-/// add one family per step. The argument is accepted now so the signature
-/// is stable as views that read `result` land.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn serialise_result(result: &ExplorerResult) -> Value {
@@ -1718,12 +1735,12 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "segments".to_owned(),
         serialise_segments(&result.source, lexer_config),
     );
-    // Rust-native: the lexer structural pre-scan (no Python counterpart).
+    // Rust-native: the lexer structural pre-scan.
     out.insert(
         "structuralIndex".to_owned(),
         serialise_structural_index(&result.source, &li),
     );
-    // Rust-native: the LineIndex span model (no Python counterpart).
+    // Rust-native: the LineIndex span model.
     out.insert(
         "sourceMap".to_owned(),
         serialise_source_map(&result.source, &li),
@@ -1739,7 +1756,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "optimisations".to_owned(),
         serialise_optimisations(result, &li, &result.source),
     );
-    // Rust-native: the optimiser pass pipeline (no Python counterpart).
+    // Rust-native: the optimiser pass pipeline.
     out.insert(
         "optimiserPasses".to_owned(),
         serialise_optimiser_passes(result, &li, &result.source),
@@ -1801,9 +1818,9 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     );
 
     // WASM views: drive the eval-fallback WASM emitter (the same one `tcl
-    // compwasm` uses) and surface its WAT. The rich per-instruction explorer
-    // shape (`to_explorer_json`) is not ported yet — these carry the full
-    // module WAT plus per-function headers, which the text/`wasm` view renders.
+    // compwasm` uses) and surface its WAT plus the rich per-instruction
+    // explorer shape (resolved `call`/branch targets, per-instruction ranges)
+    // alongside per-function headers, which the text/`wasm` view renders.
     out.insert(
         "wasm".to_owned(),
         serialise_wasm(&result.unit.ir_module, &result.source),
@@ -1831,7 +1848,7 @@ mod tests {
         let meta = serialise_meta();
         // 15 dialects: the prior 14 + `bpf` (the BPF-Tcl eBPF dialect).
         assert_eq!(meta["dialects"].as_array().unwrap().len(), 15);
-        // 26 views: Python's 24 minus the dropped `greentree` tab (Rust has a
+        // 26 views: the base 24 minus the dropped `greentree` tab (Rust has a
         // single red-green CST) plus the Rust-native `structuralIndex`,
         // `sourceMap`, and `optimiserPasses` views.
         assert_eq!(meta["views"].as_array().unwrap().len(), 26);
@@ -1885,7 +1902,7 @@ mod tests {
         let opt = serialise_result(&result)["optimisedSource"].clone();
         // The constant fold changes the source, so it is a non-null string.
         // SCCP proves `x` is `3` and its only use is propagated, so the
-        // computed def couple-removes (matching Python) — the result is
+        // computed def couple-removes — the result is
         // `puts 3`, not `set x 3`.
         let s = opt.as_str().expect("optimised source string");
         assert!(s.contains("puts 3"), "{s:?}");
@@ -2039,8 +2056,7 @@ mod tests {
     #[test]
     fn event_order_orders_when_handlers_by_firing_order() {
         // Two HTTP_REQUEST handlers (one with explicit priority) plus
-        // RULE_INIT and HTTP_RESPONSE. Verified byte-for-byte against Python
-        // `_serialise_event_order` for this snippet.
+        // RULE_INIT and HTTP_RESPONSE. Verified byte-for-byte for this snippet.
         let src = "when RULE_INIT { set ::x 1 }\n\
                    when HTTP_REQUEST priority 100 { log local0. a }\n\
                    when HTTP_REQUEST { log local0. b }\n\

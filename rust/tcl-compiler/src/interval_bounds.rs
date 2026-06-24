@@ -1,4 +1,4 @@
-//! Interval-driven dynamic bounds checking (Phase 3).
+//! Interval-driven dynamic bounds checking.
 //!
 //! The syntactic bounds checks (`analyser::bounds_checks`) only fire when *both*
 //! the container and the index are literals.  This module covers the **dynamic**
@@ -13,20 +13,20 @@
 //!
 //! Soundness rule: an [`Interval`] over-approximates the runtime value, so a
 //! finding is reported **only** when the *whole* interval lies outside the valid
-//! range — never on "might be out of range".  Port of the bounds-finding portion
-//! of `compiler/interval_bounds.py::find_interval_bounds`.
+//! range — never on "might be out of range".
 
 use std::collections::HashMap;
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_syntax::expr::ast::ExprNode;
 
 use crate::analyses::LatticeValue;
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::intervals::{Interval, build_guard_index, compute_intervals, refine_interval};
 use crate::ir::Statement;
 use crate::segmenter::segment_commands;
-use crate::ssa::{Phi, SsaFunction, ValueKey, Version};
+use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
 
 /// `(name, version) → Phi` index over every block, for length resolution
 /// through loop-header phis.
@@ -35,27 +35,29 @@ type PhiIndex<'a> = HashMap<ValueKey, &'a Phi>;
 /// Resolve the list length of `(name, version)`, following phis when the
 /// version itself was not seeded by a literal-list assignment.
 ///
-/// Rust's SSA inserts a loop-header phi for a list `l` that `lset` mutates
+/// The SSA inserts a loop-header phi for a list `l` that `lset` mutates
 /// (`l_h = phi(l_entry, l_body)`); the body's `lset` then reads `l_h`, which is
-/// not in the length map.  Python's pruned SSA never inserts that phi (its
-/// `lset` does not *read* `l`, so `l` is not live across the back-edge), leaving
-/// `l` at its literal-assignment version.  To match Python's *result*, resolve a
+/// not in the length map.  Resolve such a
 /// phi to the length its known incomings agree on, ignoring an unknown back-edge
 /// incoming (the `lset` result — `lset` preserves length under the
 /// assume-no-error model the diagnostic already encodes).  A genuine
 /// disagreement (two known but different lengths) yields `None` (sound).
 fn resolve_list_length(
+    ssa: &SsaFunction,
     name: &str,
     version: Version,
     phi_index: &PhiIndex<'_>,
     lengths: &HashMap<ValueKey, i64>,
     visited: &mut std::collections::HashSet<ValueKey>,
 ) -> Option<i64> {
-    let key = (name.to_owned(), version);
+    // A name that was never interned has no tracked length (it can't be a
+    // literal-list assignment target).
+    let sym = ssa.var_symbol(name)?;
+    let key = (sym, version);
     if let Some(&l) = lengths.get(&key) {
         return Some(l);
     }
-    if !visited.insert(key.clone()) {
+    if !visited.insert(key) {
         return None; // cycle (loop back-edge) — give up this path
     }
     let phi = phi_index.get(&key)?;
@@ -64,7 +66,7 @@ fn resolve_list_length(
         if inc == 0 {
             continue;
         }
-        if let Some(l) = resolve_list_length(name, inc, phi_index, lengths, visited) {
+        if let Some(l) = resolve_list_length(ssa, name, inc, phi_index, lengths, visited) {
             match found {
                 None => found = Some(l),
                 Some(f) if f == l => {}
@@ -85,7 +87,7 @@ pub struct BoundsFinding {
     /// Source span to anchor the diagnostic on.
     pub span: Span,
     /// `"W230"` (lindex) / `"W231"` (lset) / `"W232"` (string index).
-    pub code: String,
+    pub code: DiagCode,
     /// `"lindex"` / `"lset"` / `"string index"` (display).
     pub command: String,
     /// The `$var` index name (display only).
@@ -108,8 +110,7 @@ struct Candidate {
 }
 
 /// The scalar variable name if `arg` is exactly `$name` / `${name}`.  Returns
-/// `None` for `end`, `end-1`, `$arr(i)`, `[expr …]`, composites.  Mirrors
-/// `_plain_var_name`.
+/// `None` for `end`, `end-1`, `$arr(i)`, `[expr …]`, composites.
 fn plain_var_name(arg: &str) -> Option<String> {
     let s = arg.trim();
     let mut s = s.strip_prefix('$')?;
@@ -128,7 +129,6 @@ fn plain_var_name(arg: &str) -> Option<String> {
 }
 
 /// Element count of a static Tcl list literal, or `None` if not literal.
-/// Mirrors `_literal_list_length`.
 fn literal_list_length(text: &str) -> Option<i64> {
     if text.contains('$') || text.contains('[') {
         return None;
@@ -137,8 +137,7 @@ fn literal_list_length(text: &str) -> Option<i64> {
 }
 
 /// If a value word is exactly `[list a b c]` with no substitution / expansion,
-/// its element count, else `None`.  Replaces Python's intent-driven `[list …]`
-/// detection in `_list_length_map`.
+/// its element count, else `None`.
 fn list_command_length(value: &str) -> Option<i64> {
     let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?;
     let cmds = segment_commands(inner);
@@ -157,7 +156,6 @@ fn list_command_length(value: &str) -> Option<i64> {
 }
 
 /// Length of list-valued SSA versions established from literal-list assignments.
-/// Mirrors `_list_length_map`.
 fn list_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
     let mut lengths = HashMap::new();
     for sb in ssa.blocks.values() {
@@ -168,8 +166,8 @@ fn list_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
                 _ => None,
             };
             if let Some(n) = n {
-                for (name, &ver) in &s.defs {
-                    lengths.insert((name.clone(), ver), n);
+                for (&sym, &ver) in &s.defs {
+                    lengths.insert((sym, ver), n);
                 }
             }
         }
@@ -178,7 +176,6 @@ fn list_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
 }
 
 /// Character length of string-valued SSA versions from literal assignments.
-/// Mirrors `_string_length_map`.
 fn string_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
     let mut lengths = HashMap::new();
     for sb in ssa.blocks.values() {
@@ -201,8 +198,8 @@ fn string_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
                 value.clone()
             };
             if let Ok(len) = i64::try_from(resolved.chars().count()) {
-                for (name, &ver) in &s.defs {
-                    lengths.insert((name.clone(), ver), len);
+                for (&sym, &ver) in &s.defs {
+                    lengths.insert((sym, ver), len);
                 }
             }
         }
@@ -211,17 +208,16 @@ fn string_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
 }
 
 /// Versions of each name reaching statement index `upto` within a block.  Used
-/// for `lset`, whose target list is a *def* (not a use).  Mirrors
-/// `_reaching_versions`.
+/// for `lset`, whose target list is a *def* (not a use).
 fn reaching_versions(
-    entry: &HashMap<String, Version>,
+    entry: &HashMap<Symbol, Version>,
     stmts: &[crate::ssa::SsaStatement],
     upto: usize,
-) -> HashMap<String, Version> {
+) -> HashMap<Symbol, Version> {
     let mut cur = entry.clone();
     for s in stmts.iter().take(upto) {
-        for (name, &ver) in &s.defs {
-            cur.insert(name.clone(), ver);
+        for (&sym, &ver) in &s.defs {
+            cur.insert(sym, ver);
         }
     }
     cur
@@ -229,7 +225,6 @@ fn reaching_versions(
 
 /// Reason string if `index` is *wholly* out of range for `length`, else `None`.
 /// `lset` permits the append slot (`index == length`); `lindex` does not.
-/// Mirrors `_classify`.
 fn classify(index: Interval, length: i64, is_lset: bool) -> Option<&'static str> {
     // Provably negative: the whole interval is below 0.
     if let Some(hi) = index.hi
@@ -251,8 +246,7 @@ fn classify(index: Interval, length: i64, is_lset: bool) -> Option<&'static str>
 }
 
 /// If `text` is exactly `[lindex …]` / `[string index …]`, its candidate; else
-/// `None`.  `lset` is excluded (its first arg is a var *name*).  Mirrors
-/// `_parse_index_sub`.
+/// `None`.  `lset` is excluded (its first arg is a var *name*).
 fn parse_index_sub(text: &str) -> Option<Candidate> {
     let s = text.trim();
     let inner = s.strip_prefix('[')?.strip_suffix(']')?;
@@ -278,8 +272,7 @@ fn parse_index_sub(text: &str) -> Option<Candidate> {
 
 /// Index accesses embedded as `[…]` command substitutions inside an expression,
 /// restricted to *guaranteed-to-evaluate* positions (short-circuit operands and
-/// non-selected ternary arms are skipped).  Mirrors `_index_subs_in_expr` over
-/// `_walk_eager`.
+/// non-selected ternary arms are skipped).
 fn index_subs_in_expr(expr: &ExprNode) -> Vec<Candidate> {
     let mut out = Vec::new();
     walk_eager(expr, &mut |e| {
@@ -293,11 +286,11 @@ fn index_subs_in_expr(expr: &ExprNode) -> Vec<Candidate> {
 }
 
 /// Constant truthiness of a literal expression node (`Some(true/false)`), else
-/// `None`.  Mirrors `_const_bool` for the eager walk's guard resolution.
+/// `None`.
 fn const_bool(expr: &ExprNode) -> Option<bool> {
     use tcl_syntax::expr::ast::UnaryOp;
-    // Fold the boolean-relevant unaries over a constant operand, matching
-    // Python's `expr_ast._const_bool`: `+`/`-` preserve zero-ness (`-1` is
+    // Fold the boolean-relevant unaries over a constant operand:
+    // `+`/`-` preserve zero-ness (`-1` is
     // true, `-0` false), `!`/`not` invert it. `~` needs the integer value (a
     // bitwise-not guard is rare) so it stays conservative. Verified against
     // tclsh 8.4–9.0: `-1 && 1/0`, `!0 && 1/0` evaluate the RHS (a forced
@@ -328,7 +321,7 @@ fn const_bool(expr: &ExprNode) -> Option<bool> {
 
 /// Visit `expr` and every **guaranteed-to-evaluate** sub-expression.  The
 /// short-circuit operand of `&&`/`||`/`and`/`or` and the non-selected ternary
-/// arm run only when forced by a *constant* guard.  Mirrors `_walk_eager`.
+/// arm run only when forced by a *constant* guard.
 fn walk_eager(expr: &ExprNode, visit: &mut impl FnMut(&ExprNode)) {
     use tcl_syntax::expr::ast::BinOp;
     visit(expr);
@@ -371,7 +364,7 @@ fn walk_eager(expr: &ExprNode, visit: &mut impl FnMut(&ExprNode)) {
     }
 }
 
-/// All index accesses a statement performs.  Mirrors `_statement_candidates`.
+/// All index accesses a statement performs.
 fn statement_candidates(stmt: &Statement) -> Vec<Candidate> {
     let mut out = Vec::new();
     match stmt {
@@ -423,8 +416,7 @@ fn statement_candidates(stmt: &Statement) -> Vec<Candidate> {
     out
 }
 
-/// Cheap pre-scan: any index access with a plain `$var` index?  Mirrors
-/// `_has_candidate`.
+/// Cheap pre-scan: any index access with a plain `$var` index?
 fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
     for sb in ssa.blocks.values() {
         for s in &sb.statements {
@@ -460,15 +452,15 @@ fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
     false
 }
 
-/// Dynamic out-of-range findings for this function (empty if none).  Mirrors
-/// `find_interval_bounds`; `executable` restricts to SCCP-reachable blocks.
+/// Dynamic out-of-range findings for this function (empty if none).
+/// `executable` restricts to SCCP-reachable blocks.
 #[must_use]
 #[allow(clippy::too_many_lines, clippy::similar_names, clippy::implicit_hasher)]
 pub fn find_interval_bounds(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     values: &HashMap<ValueKey, LatticeValue>,
-    executable: &std::collections::HashSet<String>,
+    executable: &std::collections::HashSet<BlockId>,
 ) -> Vec<BoundsFinding> {
     if !has_candidate(cfg, ssa) {
         return Vec::new();
@@ -481,13 +473,13 @@ pub fn find_interval_bounds(
         .blocks
         .values()
         .flat_map(|sb| sb.phis.iter())
-        .map(|p| ((p.name.clone(), p.version), p))
+        .map(|p| ((p.name, p.version), p))
         .collect();
     let mut findings = Vec::new();
 
     let length_for_list = |cand: &Candidate,
-                           version_map: &HashMap<String, Version>,
-                           entry_versions: &HashMap<String, Version>,
+                           version_map: &HashMap<Symbol, Version>,
+                           entry_versions: &HashMap<Symbol, Version>,
                            block_stmts: &[crate::ssa::SsaStatement],
                            stmt_idx: usize|
      -> Option<i64> {
@@ -500,30 +492,33 @@ pub fn find_interval_bounds(
                 return None;
             }
             let reaching = reaching_versions(entry_versions, block_stmts, stmt_idx);
-            let lver = *reaching.get(lname)?;
-            return resolve_list_length(lname, lver, &phi_index, &lengths, &mut visited);
+            let lver = *reaching.get(&ssa.var_symbol(lname)?)?;
+            return resolve_list_length(ssa, lname, lver, &phi_index, &lengths, &mut visited);
         }
         // A *value* arg: literal list, or `$l`.
         if let Some(lit) = literal_list_length(&cand.list_arg) {
             return Some(lit);
         }
         let lvar = plain_var_name(&cand.list_arg)?;
-        let lver = *version_map.get(&lvar)?;
-        resolve_list_length(&lvar, lver, &phi_index, &lengths, &mut visited)
+        let lver = *version_map.get(&ssa.var_symbol(&lvar)?)?;
+        resolve_list_length(ssa, &lvar, lver, &phi_index, &lengths, &mut visited)
     };
 
     let process = |cand: &Candidate,
-                   bn: &str,
+                   bn: crate::cfg::BlockId,
                    span: Span,
-                   version_map: &HashMap<String, Version>,
-                   entry_versions: &HashMap<String, Version>,
+                   version_map: &HashMap<Symbol, Version>,
+                   entry_versions: &HashMap<Symbol, Version>,
                    block_stmts: &[crate::ssa::SsaStatement],
                    stmt_idx: usize,
                    findings: &mut Vec<BoundsFinding>| {
         let Some(ivar) = plain_var_name(&cand.index_arg) else {
             return;
         };
-        let Some(&iver) = version_map.get(&ivar) else {
+        let Some(isym) = ssa.var_symbol(&ivar) else {
+            return;
+        };
+        let Some(&iver) = version_map.get(&isym) else {
             return;
         };
         if iver == 0 {
@@ -532,9 +527,9 @@ pub fn find_interval_bounds(
         let length = if cand.command == STRING_INDEX {
             let svar = plain_var_name(&cand.list_arg);
             svar.and_then(|sv| {
-                version_map
-                    .get(&sv)
-                    .and_then(|&v| str_lengths.get(&(sv.clone(), v)).copied())
+                ssa.var_symbol(&sv)
+                    .and_then(|ssym| version_map.get(&ssym).map(|&v| (ssym, v)))
+                    .and_then(|(ssym, v)| str_lengths.get(&(ssym, v)).copied())
             })
         } else {
             length_for_list(cand, version_map, entry_versions, block_stmts, stmt_idx)
@@ -550,15 +545,15 @@ pub fn find_interval_bounds(
             return;
         };
         let code = if cand.is_lset {
-            "W231"
+            DiagCode::W231
         } else if cand.command == STRING_INDEX {
-            "W232"
+            DiagCode::W232
         } else {
-            "W230"
+            DiagCode::W230
         };
         findings.push(BoundsFinding {
             span,
-            code: code.to_owned(),
+            code,
             command: cand.command.to_owned(),
             index_var: ivar,
             index_interval: iv,
@@ -567,10 +562,11 @@ pub fn find_interval_bounds(
         });
     };
 
-    for (bn, sb) in &ssa.blocks {
-        if !executable.contains(bn) {
+    for (bid, sb) in &ssa.blocks {
+        if !executable.contains(bid) {
             continue;
         }
+        let bn = *bid;
         for (idx, s) in sb.statements.iter().enumerate() {
             let span = statement_span(&s.statement);
             for cand in statement_candidates(&s.statement) {
@@ -590,7 +586,7 @@ pub fn find_interval_bounds(
         }
         // Index accesses in a `return [...]` value / branch condition: the read
         // versions are the block's exit versions; anchor on the terminator.
-        let Some(block) = cfg.blocks.get(bn) else {
+        let Some(block) = cfg.blocks.get(bid) else {
             continue;
         };
         match &block.terminator {
@@ -652,7 +648,7 @@ pub fn find_interval_bounds(
 
 /// A divide-by-zero finding: a `/` or `%` whose divisor is provably the
 /// single point `[0, 0]` on the always-evaluated spine of an executable
-/// expression. Mirrors `interval_bounds.DivZeroFinding`.
+/// expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DivZeroFinding {
     /// Source span of the enclosing statement / terminator.
@@ -661,8 +657,7 @@ pub struct DivZeroFinding {
     pub op: &'static str,
 }
 
-/// The expression a flat IR statement evaluates, if any. Mirrors Python's
-/// `_expr_of` (`IRAssignExpr` / `IRExprEval` / `IRReturn`).
+/// The expression a flat IR statement evaluates, if any.
 fn statement_expr(stmt: &Statement) -> Option<&ExprNode> {
     match stmt {
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => Some(expr),
@@ -672,7 +667,7 @@ fn statement_expr(stmt: &Statement) -> Option<&ExprNode> {
 }
 
 /// Does `expr` contain a `/` or `%` operator anywhere (eager or not)?
-/// Cheap pre-scan helper; mirrors the body of Python's `_divisors` test.
+/// Cheap pre-scan helper.
 fn expr_has_divisor(expr: &ExprNode) -> bool {
     use tcl_syntax::expr::ast::BinOp;
     let mut found = false;
@@ -689,9 +684,8 @@ fn expr_has_divisor(expr: &ExprNode) -> bool {
 /// Push a [`DivZeroFinding`] for each unconditionally-evaluated `/` / `%`
 /// whose divisor abstract-evaluates to exactly `[0, 0]`. Short-circuited
 /// `&&`/`||` operands and dead ternary arms are skipped by [`walk_eager`],
-/// so a guarded `1/$d` never yields a finding (mirrors Python's
-/// `_divisors` + `check`). Only owned `Copy`/`'static` data escapes the
-/// walk closure.
+/// so a guarded `1/$d` never yields a finding. Only owned `Copy`/`'static`
+/// data escapes the walk closure.
 fn collect_divzero(
     expr: &ExprNode,
     span: Span,
@@ -715,7 +709,6 @@ fn collect_divzero(
 }
 
 /// Cheap pre-scan: does any reachable expression contain a `/` or `%`?
-/// Mirrors Python's `_has_division`.
 fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
     for sb in ssa.blocks.values() {
         for s in &sb.statements {
@@ -740,18 +733,17 @@ fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
 /// Divisions / modulo whose divisor is provably `[0, 0]` (a runtime error).
 ///
 /// Sound: the divisor's interval (guard-narrowed at the use site) must be
-/// exactly `[0, 0]`, and the block must be SCCP-executable. Mirrors Python's
-/// `interval_bounds.find_divide_by_zero`; shares the same interval
-/// machinery (`compute_intervals` / `refine_interval` / `eval_expr`) as
-/// [`find_interval_bounds`]. Findings are returned in source-span order for
-/// deterministic output.
+/// exactly `[0, 0]`, and the block must be SCCP-executable. Shares the same
+/// interval machinery (`compute_intervals` / `refine_interval` / `eval_expr`)
+/// as [`find_interval_bounds`]. Findings are returned in source-span order
+/// for deterministic output.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn find_divide_by_zero(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     values: &HashMap<ValueKey, LatticeValue>,
-    executable: &std::collections::HashSet<String>,
+    executable: &std::collections::HashSet<BlockId>,
 ) -> Vec<DivZeroFinding> {
     if !has_division(cfg, ssa) {
         return Vec::new();
@@ -759,30 +751,33 @@ pub fn find_divide_by_zero(
     let intervals = compute_intervals(cfg, ssa, values);
     let guard_index = build_guard_index(cfg, ssa);
 
-    let env_for = |uses: &HashMap<String, Version>, bn: &str| -> HashMap<String, Interval> {
-        uses.iter()
-            .filter(|&(_, &ver)| ver > 0)
-            .map(|(name, &ver)| {
-                (
-                    name.clone(),
-                    refine_interval(&intervals, cfg, ssa, bn, name, ver, &guard_index),
-                )
-            })
-            .collect()
-    };
+    let env_for =
+        |uses: &HashMap<Symbol, Version>, bn: crate::cfg::BlockId| -> HashMap<String, Interval> {
+            uses.iter()
+                .filter(|&(_, &ver)| ver > 0)
+                .map(|(&sym, &ver)| {
+                    let name = ssa.var_name(sym);
+                    (
+                        name.to_owned(),
+                        refine_interval(&intervals, cfg, ssa, bn, name, ver, &guard_index),
+                    )
+                })
+                .collect()
+        };
 
     let mut findings: Vec<DivZeroFinding> = Vec::new();
-    for (bn, sb) in &ssa.blocks {
-        if !executable.contains(bn) {
+    for (bid, sb) in &ssa.blocks {
+        if !executable.contains(bid) {
             continue;
         }
+        let bn = *bid;
         for s in &sb.statements {
             if let Some(expr) = statement_expr(&s.statement) {
                 let span = statement_span(&s.statement).unwrap_or_else(|| Span::new(0, 0));
                 collect_divzero(expr, span, &env_for(&s.uses, bn), &mut findings);
             }
         }
-        let Some(block) = cfg.blocks.get(bn) else {
+        let Some(block) = cfg.blocks.get(bid) else {
             continue;
         };
         match &block.terminator {
@@ -873,7 +868,7 @@ mod tests {
             .diagnostics
             .iter()
             .filter(|d| matches!(d.code.as_str(), "W230" | "W231" | "W232"))
-            .map(|d| (d.code.clone(), d.message.clone()))
+            .map(|d| (d.code.to_string(), d.message.clone()))
             .collect()
     }
 
@@ -919,7 +914,7 @@ mod tests {
         // The legal append slot (`index == length`) for `lset` is silent.
         assert!(bounds("proc f {v} { set l {a b c}\n set j 3\n lset l $j $v }").is_empty());
         // A second `lset` reads a non-phi mutated version — length not
-        // recovered (matches Python's pruned SSA), so no false positive.
+        // recovered, so no false positive.
         assert!(
             bounds("proc f {v w} { set l {a b c}\n lset l 0 $v\n set j 99\n lset l $j $w }")
                 .is_empty()

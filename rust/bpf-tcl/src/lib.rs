@@ -63,7 +63,7 @@ fn print_error(path: &str, src: &str, e: &BpfError) {
     eprintln!(
         "{path}:{}:{}: error[{}]: {}",
         pos.line + 1,
-        pos.character + 1,
+        pos.character.get() + 1,
         e.code.code(),
         e.msg
     );

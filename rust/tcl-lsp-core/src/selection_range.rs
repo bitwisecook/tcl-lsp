@@ -1,38 +1,32 @@
-//! Selection-range provider — Rust port of
-//! `lsp/features/selection_range.py`.
+//! Selection-range provider.
 //!
 //! Builds a chain of nested ranges that grow outward from the
 //! cursor: word at cursor → command segment on the line →
 //! enclosing line → entire document.  The command-segment
-//! link is part of the `S-selection-range-rich` follow-up;
-//! when the segment would coincide with the enclosing line
-//! (no `;` separators and no leading / trailing whitespace),
-//! the link is omitted so the chain stays strictly outward-
-//! growing.
+//! link is omitted when the segment would coincide with the
+//! enclosing line (no `;` separators and no leading / trailing
+//! whitespace), so the chain stays strictly outward-growing.
 //!
-//! `S-selection-range-rich` enclosing-body ranges: when the
+//! Enclosing-body ranges: when the
 //! caller threads an [`AnalysisResult`] through, the chain
 //! grows with one link per containing proc / class body,
 //! ordered innermost first.  This makes `Ctrl-Shift-Right`
 //! step from a statement to its proc body, then to the
 //! enclosing class body, then to the document.
 //!
-//! What is *still deferred* (planned as further
-//! `S-selection-range-rich` sub-strips):
+//! Limitations:
 //!
 //! * Namespace-body enclosing ranges.  Needs a flat list of
 //!   namespace scope body spans on the analyser side; today
 //!   they only live in the scope tree, which the selection-
 //!   range provider doesn't walk.
-//! * Multi-line command segments (the current port uses a
-//!   single-line `;`-aware scan; continuation lines and
-//!   embedded `[…]` / `{…}` tokens are deferred to the same
-//!   multi-line machinery `S-signature-help-rich` defers).
+//! * Multi-line command segments — a single-line `;`-aware
+//!   scan is used, so continuation lines and embedded `[…]` /
+//!   `{…}` tokens aren't handled.
 //! * Containment-invariant validation against VS Code's
 //!   requirement that each parent strictly contains its
-//!   child (Python's `_lsp_range_contains` check); the
-//!   chain is built so parents always contain children by
-//!   construction.
+//!   child; the chain is built so parents always contain
+//!   children by construction.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{LineIndex, Span};
@@ -42,9 +36,8 @@ use crate::hover::find_word_span_at_position;
 
 /// One link in the selection-range chain.
 ///
-/// Mirrors `lsprotocol.types.SelectionRange`: a range and an
-/// optional parent. The chain runs from innermost (word at
-/// cursor) outward (whole document).
+/// A range and an optional parent. The chain runs from
+/// innermost (word at cursor) outward (whole document).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectionRange {
     /// Range covered by this link.
@@ -60,7 +53,7 @@ pub struct SelectionRange {
 /// innermost first.  Parent links are wired so each child's
 /// `parent_index` points to the next outward link in the
 /// chain.  The server is responsible for materialising the
-/// recursive `tower_lsp::lsp_types::SelectionRange` tree from
+/// recursive `ls_types::SelectionRange` tree from
 /// this flat representation.
 ///
 /// Chain order (each link strictly contains the next):
@@ -134,7 +127,7 @@ pub fn selection_range(
     // innermost first so the chain stays outward-growing.
     if let Some(analysis) = analysis {
         let line_index = LineIndex::new(source);
-        let cursor_offset = byte_offset_at(source, line, character);
+        let cursor_offset = byte_offset_at(&line_index, source, line, character);
         for span in enclosing_body_spans(analysis, cursor_offset) {
             ranges.push(span_to_range(source, &line_index, span));
         }
@@ -217,9 +210,9 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
     let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
-        start_character: start.character,
+        start_character: start.character.get(),
         end_line: end.line,
-        end_character: end.character,
+        end_character: end.character.get(),
     }
 }
 
@@ -231,9 +224,8 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
 /// the segment is empty.
 ///
 /// **Single-line only.**  Continuation lines, embedded `[…]`
-/// / `{…}` token nesting, and full segmenter parity are
-/// deferred to the same machinery `S-signature-help-rich`
-/// will eventually port.  For the common single-line editor
+/// / `{…}` token nesting, and full segmenter parity are not
+/// handled.  For the common single-line editor
 /// cases this is sufficient.
 fn command_segment_on_line(line_text: &str, character: u32) -> Option<(u32, u32)> {
     let chars: Vec<char> = line_text.chars().collect();
@@ -308,7 +300,7 @@ mod tests {
         assert!(ranges.len() >= 2);
     }
 
-    // -- S-selection-range-rich: command-segment link ----------------
+    // command-segment link
 
     #[test]
     fn command_segment_inserted_between_word_and_line_with_semicolon() {
@@ -417,7 +409,7 @@ mod tests {
         assert_eq!(&line[start as usize..end as usize], "set x 1");
     }
 
-    // -- S-selection-range-rich: enclosing-body links ----------------
+    // enclosing-body links
 
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = tcl_compiler::analyser::Analyser::new();

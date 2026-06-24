@@ -2,8 +2,7 @@
 //!
 //! Every facade returns a small, frozen `#[pyclass]` (or a `str`)
 //! rather than an `Any`-shaped dict, so downstream embedders get a
-//! stable, typed surface they can introspect and that survives the
-//! eventual retirement of the legacy soft-dependency shims. Each
+//! stable, typed surface they can introspect. Each
 //! positional field is exposed as a resolved
 //! `(line, character)` pair — the facade resolves [`Span`]s against a
 //! [`SourceMap`] at the boundary, so Python never sees a bare byte
@@ -24,7 +23,10 @@ use super::errors::RangeTuple;
 /// `((start_line, start_char), (end_line, end_char))` shape.
 pub(crate) fn range_of(sm: &SourceMap<'_>, span: tcl_lexer::Span) -> RangeTuple {
     let (start, end) = sm.range_positions(span);
-    ((start.line, start.character), (end.line, end.character))
+    (
+        (start.line, start.character.get()),
+        (end.line, end.character.get()),
+    )
 }
 
 /// One lexer token: its kind name, source text, and position.
@@ -173,7 +175,7 @@ impl Diagnostic {
         Py::new(
             py,
             Diagnostic {
-                code: d.code.clone(),
+                code: d.code.to_string(),
                 message: d.message.clone(),
                 severity: d.severity.as_str().to_owned(),
                 start,

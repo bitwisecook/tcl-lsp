@@ -1,7 +1,7 @@
 //! Shared helpers for the generated scalar per-kind parsers — the
-//! property-extraction primitives the Python parsers build on
-//! (`_parse_properties`, `_description`, `_state_flag`, `_list_field`,
-//! and the `full_path.rsplit("/")[-1]` name convention).
+//! property-extraction primitives they build on (`props_map`, `description`,
+//! `state_flag`, `list_field`) and the `full_path.rsplit("/")[-1]` name
+//! convention.
 
 #![allow(clippy::implicit_hasher)]
 
@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use super::helpers::{parse_list_block, parse_properties, unquote};
 
 /// Build a `key -> value` map from a block body, last-wins on duplicate
-/// keys (mirrors Python `_parse_properties` returning a dict).
+/// keys.
 #[must_use]
 pub fn props_map(body: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
@@ -20,14 +20,14 @@ pub fn props_map(body: &str) -> HashMap<String, String> {
     map
 }
 
-/// Leaf name of a full path: the segment after the last `/`. Mirrors
-/// `full_path.rsplit("/", 1)[-1]` (an empty path yields `""`).
+/// Leaf name of a full path: the segment after the last `/` (an empty
+/// path yields `""`).
 #[must_use]
 pub fn name_leaf(full_path: &str) -> String {
     full_path.rsplit('/').next().unwrap_or(full_path).to_owned()
 }
 
-/// The unquoted `description` property, or empty. Mirrors `_description`.
+/// The unquoted `description` property, or empty.
 #[must_use]
 pub fn description(props: &HashMap<String, String>) -> String {
     props
@@ -36,8 +36,7 @@ pub fn description(props: &HashMap<String, String>) -> String {
         .unwrap_or_default()
 }
 
-/// `"enabled"` / `"disabled"` for a bare state flag, else `""`. Mirrors
-/// `_state_flag`.
+/// `"enabled"` / `"disabled"` for a bare state flag, else `""`.
 #[must_use]
 pub fn state_flag(props: &HashMap<String, String>) -> String {
     if props.contains_key("enabled") {
@@ -49,9 +48,8 @@ pub fn state_flag(props: &HashMap<String, String>) -> String {
     }
 }
 
-/// A brace-delimited list field, or empty. Mirrors `_list_field`:
-/// `key { a b c }` yields the items; a bare `key value` yields a single
-/// entry; absent yields empty.
+/// A brace-delimited list field, or empty: `key { a b c }` yields the
+/// items; a bare `key value` yields a single entry; absent yields empty.
 #[must_use]
 pub fn list_field(props: &HashMap<String, String>, key: &str) -> Vec<String> {
     match props.get(key) {
@@ -62,13 +60,13 @@ pub fn list_field(props: &HashMap<String, String>, key: &str) -> Vec<String> {
     }
 }
 
-/// A scalar string property, or empty (mirrors `props.get(key, "")`).
+/// A scalar string property, or empty.
 #[must_use]
 pub fn get_str(props: &HashMap<String, String>, key: &str) -> String {
     props.get(key).cloned().unwrap_or_default()
 }
 
-/// Whether a bare flag property is present (mirrors `"key" in props`).
+/// Whether a bare flag property is present.
 #[must_use]
 pub fn get_bool(props: &HashMap<String, String>, key: &str) -> bool {
     props.contains_key(key)
@@ -87,7 +85,7 @@ mod tests {
 
     #[test]
     fn scalar_parser_matches_python_ltm_nat() {
-        // Body + expected field values captured from the live Python
+        // Body + expected field values captured as fixtures from the reference
         // `_parse_ltm_nat` (see the differential corpus).
         let body = "\n    translation-address 1.2.3.4\n    originating-address 5.6.7.8\n    \
                     traffic-group /Common/tg\n    description \"my nat\"\n    \

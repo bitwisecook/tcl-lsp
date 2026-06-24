@@ -1,10 +1,10 @@
-//! `tcl-pkg` — native Rust port of the `tclpkg` package manager.
+//! `tcl-pkg` — the `tclpkg` package manager.
 //!
-//! Faithful port of `tooling/tclpkg/` (manifest loader, MVS resolver, lockfile
-//! I/O, content-addressable store, source fetchers, registry client, virtual
-//! environments, and Dockerfile generation). The `tcl pkg` / `tcl venv` /
+//! Manifest loader, MVS resolver, lockfile I/O, content-addressable store,
+//! source fetchers, registry client, virtual
+//! environments, and Dockerfile generation. The `tcl pkg` / `tcl venv` /
 //! `tcl docker` CLI verb groups in `tcl-cli` drive these modules; behaviour and
-//! on-disk formats match the Python implementation byte-for-byte.
+//! on-disk formats are stable and canonical.
 
 pub mod cas;
 pub mod docker;
@@ -28,8 +28,8 @@ pub use version::{Version, VersionError, max_version, parse_version};
 
 use std::path::PathBuf;
 
-/// Return the cache directory using platform-native conventions, mirroring
-/// `shared.user_config._cache_dir()`. `$XDG_CACHE_HOME` always wins; otherwise
+/// Return the cache directory using platform-native conventions.
+/// `$XDG_CACHE_HOME` always wins; otherwise
 /// `%LOCALAPPDATA%/tcl-lsp/Cache` (native Windows), `~/Library/Caches/tcl-lsp`
 /// (macOS), or `~/.cache/tcl-lsp` (Linux/BSD/WSL/MSYS).
 #[must_use]

@@ -1,52 +1,45 @@
 //! Public `PyO3` bindings exposing the tcl-lsp Rust crates to Python.
 //!
 //! This crate is the sole place where Python-compatibility concerns live:
-//! `#[pyclass]` wrappers, `PyErr` translations, and any back-compat shims
-//! that mimic the current Python API surface. The underlying Rust crates
+//! `#[pyclass]` wrappers, `PyErr` translations, and compatibility shims
+//! for the public API surface. The underlying Rust crates
 //! (starting with `tcl-lexer`) remain free of `pyo3` and are shaped for
 //! idiomatic Rust use.
 //!
-//! ARCH7 finished the binding-only audit: every binding module in
-//! this crate is now `#[pyfunction]` / `#[pyclass]` definitions plus
+//! Every binding module in
+//! this crate is `#[pyfunction]` / `#[pyclass]` definitions plus
 //! Python-type conversion glue. Algorithm bodies, command tables,
 //! and wire-form mappings all live in pure crates (`tcl-compiler`,
 //! `tcl-lsp-core`, `tcl-registry`).
 //!
-//! ARCH9 split this crate out from the transitional `tcl-lsp-rust`
-//! cdylib. The same Rust code now backs two Python modules:
+//! The same Rust code backs two Python modules:
 //!
 //! - `tcl_lsp_py` — the canonical, public API. New Python code
 //!   should `import tcl_lsp_py`.
-//! - `tcl_lsp_rust` — a one-release alias that re-exports the same
-//!   functions and classes via [`register_with`]. Existing Python
-//!   code keeps working unchanged.
+//! - `tcl_lsp_rust` — an alias that re-exports the same
+//!   functions and classes via [`register_with`].
 //!
 //! Both wheels share the same Rust binding source; only the
 //! `#[pymodule]` entry-point name differs.
 //!
 //! Two surfaces share this module:
 //!
-//! - The **designed public API** ([`public`]) — the track **API-PYO3**
-//!   product: the `parse_tcl` / `compile_tcl` / `analyse_tcl` /
-//!   `format_tcl` / `parse_bigip_config` / `query_bigip` facades plus
-//!   the [`TclLspError`](public::errors::TclLspError) hierarchy. This
-//!   is the semver-stable surface downstream embedders target; it is
-//!   not a transcription of in-tree calls.
-//! - The **legacy soft-dependency shims** — the per-subsystem
-//!   `#[pyfunction]`s the in-tree Python still imports, retained until
-//!   PYTHON-RETIRE per the rewrite plan's boundary rule.
+//! - The **designed public API** ([`public`]) — the `parse_tcl` /
+//!   `compile_tcl` / `analyse_tcl` / `format_tcl` / `parse_bigip_config`
+//!   / `query_bigip` facades plus the
+//!   [`TclLspError`](public::errors::TclLspError) hierarchy. This
+//!   is the semver-stable surface downstream embedders target.
+//! - The **per-subsystem shims** — the subsystem-level
+//!   `#[pyfunction]`s callers import directly.
 //!
-//! Legacy shims exposed:
+//! Subsystem shims exposed:
 //!
-//! - `hello_rust()` / `lexer_version()` — L0 smoke-test bridge.
-//! - `backslash_subst(text)` — L1 port of
-//!   `core/parsing/substitution.py::backslash_subst`.
-//! - `TokenType`, `SourcePosition`, `Token` — L2 port of the
-//!   `core/parsing/tokens.py` data types.
-//! - `lexer_tokenise(source)` — L3 port of the Tcl lexer skeleton
+//! - `hello_rust()` / `lexer_version()` — smoke-test bridge.
+//! - `backslash_subst(text)` — backslash substitution.
+//! - `TokenType`, `SourcePosition`, `Token` — the lexer data types.
+//! - `lexer_tokenise(source)` — the Tcl lexer skeleton
 //!   (EOF / SEP / EOL / COMMENT / plain ESC). Inputs containing
-//!   deferred constructs (`$ [ ] {} " \`) raise `ValueError` so the
-//!   differential harness can filter them.
+//!   unsupported constructs (`$ [ ] {} " \`) raise `ValueError`.
 
 #![deny(missing_docs)]
 
@@ -78,9 +71,8 @@ pub(crate) mod tokens;
 
 /// Return the Rust-side greeting used by the smoke test.
 ///
-/// The exact return value is asserted by
-/// `tests/test_rust_bindings_smoke.py`; if you change it, update the test
-/// in the same commit.
+/// The exact return value is part of the public contract; changing it is
+/// a breaking change for callers asserting on it.
 #[pyfunction]
 #[must_use]
 pub fn hello_rust() -> &'static str {
@@ -119,7 +111,7 @@ pub fn backslash_subst(text: &str) -> Cow<'_, str> {
 /// Register every public binding on the Python module `m`.
 ///
 /// Both `#[pymodule] tcl_lsp_py` (this crate's cdylib) and
-/// `#[pymodule] tcl_lsp_rust` (the legacy alias crate) call this
+/// `#[pymodule] tcl_lsp_rust` (the alias crate) call this
 /// function so the two wheels expose identical surfaces.
 pub fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hello_rust, m)?)?;

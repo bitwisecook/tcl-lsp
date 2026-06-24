@@ -1,11 +1,11 @@
-//! Differential parity tests for `f5 query` surfaces added to reach Python
-//! parity: the `--format tmsh` / `tmsh-delta` / `--transaction` rendering of
-//! **mutating** queries, the `--in-place` + tmsh incompatibility guard, the
-//! `--partition` loader binding, and `-f/--from-file`.
+//! Differential parity tests for additional `f5 query` surfaces: the
+//! `--format tmsh` / `tmsh-delta` / `--transaction` rendering of **mutating**
+//! queries, the `--in-place` + tmsh incompatibility guard, the `--partition`
+//! loader binding, and `-f/--from-file`.
 //!
-//! Each golden was captured from `python -m tooling.f5.main query …`; the test
-//! runs the built `f5-query` binary against the committed fixtures and asserts
-//! byte-equality. Self-contained: no Python at test time.
+//! Each test asserts byte-equality against the captured golden output for
+//! `query …`; the test runs the built `f5-query` binary against the committed
+//! fixtures. Self-contained: no external tool runs at test time.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -44,11 +44,11 @@ fn assert_stdout(golden_name: &str, code: i32, args: &[&str]) {
     assert_eq!(
         out,
         golden(golden_name),
-        "stdout does not match the Python CLI ({golden_name})\nargs: {args:?}"
+        "stdout does not match the golden ({golden_name})\nargs: {args:?}"
     );
 }
 
-// --- mutating queries rendered through --format -------------------------
+// mutating queries rendered through --format
 
 #[test]
 fn mutation_write_tmsh() {
@@ -114,7 +114,7 @@ fn in_place_tmsh_refused() {
     assert_eq!(err, golden("query-inplace-tmsh-refused.err.golden"));
 }
 
-// --- --partition --------------------------------------------------------
+// --partition
 
 #[test]
 fn partition_bare_qualifies_short_names() {
@@ -163,7 +163,7 @@ fn partition_path_form() {
     );
 }
 
-// --- -f/--from-file -----------------------------------------------------
+// -f/--from-file
 
 #[test]
 fn from_file_reads_expression() {

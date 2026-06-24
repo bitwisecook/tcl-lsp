@@ -6,7 +6,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "format formatString ?arg arg ...?",
 }];
 
-/// SYNC-JUN02d (#525 B-tail) + SYNC-JUN03 follow-up: constant-fold the
+/// Constant-fold the
 /// integer (`%d` / `%i` / `%u`), radix (`%x` / `%X` / `%o` / `%b`), character
 /// (`%c`), float (`%f` / `%F` / `%e` / `%E` / `%g` / `%G`) and string (`%s`)
 /// conversions of `format`, with the printf flag / width / precision matrix.
@@ -90,11 +90,11 @@ fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
 }
 
 /// The specifier *grammar* (flags / width / `.precision` / verb parsing) lives
-/// in the shared `tcl-syntax` crate so the runtime port reuses it; the
+/// in the shared `tcl-syntax` crate so the WASM runtime reuses it; the
 /// version-aware renderers below are this const-folder's own.
 use tcl_syntax::format::{FmtFlags, Spec, parse_spec};
 
-/// A single parsed `%…` conversion — the render input. Mirrors
+/// A single parsed `%…` conversion — the render input. Matches
 /// [`tcl_syntax::format::Spec`]; kept local so the version-aware `render*`
 /// methods can hang off it (the orphan rule forbids `impl` on the shared type).
 struct Conversion {

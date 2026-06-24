@@ -1,11 +1,9 @@
 //! Generate a Wireshark profile directory from a BIG-IP config.
 //!
-//! Faithful Rust port of `dialects/f5/bigip/wireshark_profile.py` (powers
-//! `f5 enrich-wireshark`). A pure text generator: walk one or more
+//! Powers `f5 enrich-wireshark`. A pure text generator: walk one or more
 //! `(config, source)` pairs, derive `hosts` / `subnets` / `vlans` /
 //! `dfilters` / `services` / `ethers` / `colorfilters` / `preferences`
-//! files plus a `README.md`, and render each byte-for-byte the way the
-//! Python verb does.
+//! files plus a `README.md`, and render each.
 
 use std::net::IpAddr;
 
@@ -17,7 +15,7 @@ use crate::pcap_enrich::{
     resolve_port, split_destination,
 };
 
-/// One coloring rule with 16-bit RGB foreground/background. Mirrors `ColorRule`.
+/// One coloring rule with 16-bit RGB foreground/background.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ColorRule {
     /// Rule name (shown in View → Coloring Rules).
@@ -44,8 +42,7 @@ impl ColorRule {
     }
 }
 
-/// In-memory model of every file the profile directory will contain. Mirrors
-/// `WiresharkProfile`.
+/// In-memory model of every file the profile directory will contain.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WiresharkProfile {
     /// `(addr, name)` rows for `hosts`.
@@ -68,7 +65,7 @@ pub struct WiresharkProfile {
 
 impl WiresharkProfile {
     /// Drop duplicate rows while preserving insertion order. Color rules dedupe
-    /// by name. Mirrors `WiresharkProfile.deduplicate`.
+    /// by name.
     fn deduplicate(&mut self) {
         dedup_preserve(&mut self.hosts);
         dedup_preserve(&mut self.subnets);
@@ -144,7 +141,7 @@ fn dedup_preserve<T: Clone + PartialEq>(items: &mut Vec<T>) {
     *items = seen;
 }
 
-// ── Formatters ──────────────────────────────────────────────────────
+// Formatters
 
 fn format_hosts(entries: &[(String, String)]) -> String {
     let mut lines =
@@ -246,14 +243,13 @@ Drop this directory into your Wireshark profiles folder and select it from \
     )
 }
 
-// ── Source-text extractors ──────────────────────────────────────────
+// Source-text extractors
 
 fn property(props: &[(String, String)], key: &str) -> Option<String> {
     props.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
 }
 
-/// Pull `net arp` static-ARP entries: `[(mac, ip, full_path), …]`. Mirrors
-/// `_extract_arp_entries`.
+/// Pull `net arp` static-ARP entries: `[(mac, ip, full_path), …]`.
 fn extract_arp_entries(source: &str) -> Vec<(String, String, String)> {
     let mut entries = Vec::new();
     for block in extract_blocks(source) {
@@ -279,8 +275,7 @@ fn extract_arp_entries(source: &str) -> Vec<(String, String, String)> {
     entries
 }
 
-/// Return `[(full_path, tag), …]` for every `net vlan` block. Mirrors
-/// `_extract_vlans`.
+/// Return `[(full_path, tag), …]` for every `net vlan` block.
 fn extract_vlans(source: &str) -> Vec<(String, i64)> {
     let mut out = Vec::new();
     for block in extract_blocks(source) {
@@ -315,7 +310,7 @@ const BIGIP_CONTROL_SERVICES: &[(&str, i64, &str)] = &[
     ("f5-snmp-trap", 162, "udp"),
 ];
 
-// ── BigipConfig accessors ───────────────────────────────────────────
+// BigipConfig accessors
 
 fn typed_objects<'a>(
     cfg: &'a BigipConfig,
@@ -387,7 +382,7 @@ fn profile_types_for_virtual(
     out
 }
 
-// ── Index → file rows ───────────────────────────────────────────────
+// Index → file rows
 
 fn hosts_from_index(index: &NameIndex) -> Vec<(String, String)> {
     let mut pairs = Vec::new();
@@ -454,8 +449,7 @@ fn dfilters_for_self_ips(source: &str) -> Vec<(String, String)> {
     out
 }
 
-/// Extract `(port, "tcp")` from a BIG-IP destination string. Mirrors
-/// `_vs_port_proto`.
+/// Extract `(port, "tcp")` from a BIG-IP destination string.
 fn vs_port_proto(dest: &str) -> Option<(i64, &'static str)> {
     if dest.is_empty() {
         return None;
@@ -504,7 +498,7 @@ fn services_from_virtuals(config: &BigipConfig) -> Vec<(String, i64, String)> {
     out
 }
 
-/// Match a UDP-hint token in a monitor type. Mirrors the `udp_hint` regex
+/// Match a UDP-hint token in a monitor type:
 /// `\b(udp|dns|radius|sip-udp|snmp|wmi)\b`.
 fn monitor_is_udp(monitor_type: &str) -> bool {
     const HINTS: &[&str] = &["udp", "dns", "radius", "sip-udp", "snmp", "wmi"];
@@ -605,7 +599,7 @@ fn services_from_self_allow(source: &str) -> Vec<(String, i64, String)> {
 }
 
 /// Find `allow-service { ... }` and return the inner text (DOTALL, non-greedy
-/// to the first `}`). Mirrors `re.search(r"allow-service\s*\{(.*?)\}", DOTALL)`.
+/// to the first `}`).
 fn extract_braced(body: &str, keyword: &str) -> Option<String> {
     let idx = body.find(keyword)?;
     let after = &body[idx + keyword.len()..];
@@ -616,7 +610,7 @@ fn extract_braced(body: &str, keyword: &str) -> Option<String> {
 }
 
 /// `\b(tcp|udp|sctp):(\d+)\b` over `text`, in left-to-right match order.
-/// Returns `(proto_lower, port)` — matching `re.findall`'s document order with
+/// Returns `(proto_lower, port)` — in document order with
 /// non-overlapping, leftmost matches.
 fn allow_service_tokens(text: &str) -> Vec<(String, i64)> {
     let mut out = Vec::new();
@@ -684,7 +678,7 @@ fn services_from_gtm_servers(source: &str) -> Vec<(String, i64, String)> {
 
 /// Find `keyword\s*\{(.*)\}\s*$` with a greedy inner capture (DOTALL): the
 /// inner text spans from the first `{` after `keyword` to the LAST `}` in the
-/// body. Mirrors `re.search(r"...\{(.*)\}\s*$", DOTALL)`.
+/// body.
 fn extract_braced_greedy(body: &str, keyword: &str) -> Option<String> {
     let idx = body.find(keyword)?;
     let after = &body[idx + keyword.len()..];
@@ -771,7 +765,7 @@ fn ethers_from_arp(source: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-// ── iRule / policy port regex ports ─────────────────────────────────
+// iRule / policy port regex ports
 
 /// `\b(?:node|connect)\s+\S+\s+(\d{1,5})\b | \bpool\s+\S+\s+member\s+\S+\s+(\d{1,5})\b`.
 fn irule_host_port(body: &str) -> Vec<i64> {
@@ -907,7 +901,7 @@ fn parse_trailing_digits(tok: &str) -> Option<i64> {
     s.parse::<i64>().ok()
 }
 
-// ── Color rules + proxy-side filters ────────────────────────────────
+// Color rules + proxy-side filters
 
 fn addresses_for_label_prefix(index: &NameIndex, prefix: &str) -> (Vec<String>, Vec<String>) {
     let needle = format!("{prefix}-");
@@ -927,7 +921,7 @@ fn addresses_for_label_prefix(index: &NameIndex, prefix: &str) -> (Vec<String>, 
 }
 
 /// Build a Wireshark `ip.addr in {…}` filter over sorted addresses. Sorting is
-/// lexicographic on the string form, matching Python's `sorted(set(...))`.
+/// lexicographic on the string form (sorted, deduplicated).
 fn ip_set_filter(addrs_v4: &[String], addrs_v6: &[String]) -> String {
     let mut parts = Vec::new();
     if !addrs_v4.is_empty() {
@@ -1034,10 +1028,9 @@ fn build_preferences() -> Vec<String> {
     vec![format!("gui.column.format: {column_format}")]
 }
 
-// ── Builder ─────────────────────────────────────────────────────────
+// Builder
 
 /// Assemble a [`WiresharkProfile`] from one or more `(config, source)` pairs.
-/// Mirrors `build_wireshark_profile`.
 #[must_use]
 pub fn build_wireshark_profile(configs_with_sources: &[(BigipConfig, String)]) -> WiresharkProfile {
     if configs_with_sources.is_empty() {

@@ -1,7 +1,7 @@
 //! `HTTP::cookie` iRules command.
 use crate::prelude::*;
 
-/// Subcommands ported from the Python source of truth.
+/// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "names",
@@ -297,10 +297,10 @@ pub const fn spec() -> CommandSpec {
             examples: "# Or just for one statically defined cookie:\nwhen HTTP_RESPONSE {\n   HTTP::cookie version myCookie 1\n   HTTP::cookie httponly myCookie enable\n}",
             return_value: "",
         }),
-        // GAP-D2: `HTTP::cookie insert|replace` with tainted data →
-        // header injection (IRULE3002). Mirrors `irules/http__cookie.py`.
+        // `HTTP::cookie insert|replace` with tainted data →
+        // header injection (IRULE3002).
         // (`credential_arg` + `sensitive_headers` now live on the
-        // `insert` / `replace` SubCommand specs above — GAP-3a.)
+        // `insert` / `replace` SubCommand specs above.)
         taint_output_sink: Some("IRULE3002"),
         taint_output_sink_subcommands: &["insert", "replace"],
         event_requires: Some(EventRequires {

@@ -1,4 +1,4 @@
-//! `memory` command (name-parity reconcile, GAP-d).
+//! `memory` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

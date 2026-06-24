@@ -8,9 +8,7 @@
 //! Returns a dict serialising the [`AnalysisResult`] produced
 //! by the Rust analyser walk + diagnostic emitters.  Spans are
 //! encoded as `(start, end)` `u32` tuples; the materialiser on
-//! the Python side resolves them to LSP `Range` via
-//! `core/compiler/rust_spans.py::build_position_resolver` (same
-//! pattern as the C40e ``signature_scan_extract`` binding).
+//! the Python side resolves them to LSP `Range`.
 //!
 //! Dict shape:
 //!
@@ -27,12 +25,12 @@
 //! - `namespace_imports` — list of `{ns, pattern, range, conjectured}`
 //! - `unknown_proc_info` — `{dispatch_targets, chains_original,
 //!   empty_stub, case_insensitive, has_pattern_dispatch, has_exec,
-//!   has_auto_load}` or ``None`` (C41e3)
+//!   has_auto_load}` or ``None``
 //!
-//! Class dicts (since C41e3) carry the full Python `ClassDef`
+//! Class dicts carry the full `ClassDef`
 //! field set: `metaclass`, `constructors`, `destructor`,
 //! `variables`, `properties`, `filters`, `exports`, `unexports`,
-//! and `doc` in addition to the C41e0/e1/e2 fields.
+//! and `doc`.
 //!
 //! [`AnalysisResult`]: tcl_compiler::analyser::AnalysisResult
 
@@ -62,8 +60,12 @@ pub fn analyser_analyse<'py>(
     source: &str,
     dialect: &str,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let mut analyser = Analyser::new();
-    let result = analyser.analyse(source, dialect);
+    let owned_source = source.to_owned();
+    let owned_dialect = dialect.to_owned();
+    let result = py.detach(move || {
+        let mut analyser = Analyser::new();
+        analyser.analyse(&owned_source, &owned_dialect)
+    });
     result_to_dict(py, &result)
 }
 
@@ -169,7 +171,7 @@ fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'p
     }
     out.set_item("suppressed_lines", suppressed)?;
 
-    // **C41e3.** Optional unknown-proc-info dict; ``None`` when
+    // Optional unknown-proc-info dict; ``None`` when
     // the document didn't define a ``proc unknown`` (the W123
     // emitter then runs unconditionally).
     match &r.unknown_proc_info {
@@ -408,7 +410,7 @@ fn var_to_dict<'py>(py: Python<'py>, v: &VarDef) -> PyResult<Bound<'py, PyDict>>
 
 fn diagnostic_to_dict<'py>(py: Python<'py>, d: &Diagnostic) -> PyResult<Bound<'py, PyDict>> {
     let out = PyDict::new(py);
-    out.set_item("code", &d.code)?;
+    out.set_item("code", d.code.as_str())?;
     out.set_item("range", span_tuple(d.span))?;
     out.set_item("message", &d.message)?;
     out.set_item("severity", d.severity.as_str())?;

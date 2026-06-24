@@ -1,5 +1,4 @@
-//! Audit `OptionSpec` dialect gates against real tclsh 8.4/8.5/8.6/9.0 —
-//! Rust port of `scripts/check/audit_option_dialects.py`.
+//! Audit `OptionSpec` dialect gates against real tclsh 8.4/8.5/8.6/9.0.
 //!
 //! For each option in the probe table, generate a small Tcl probe and run
 //! it against each built tclsh. An option is *supported* if the probe runs
@@ -10,13 +9,11 @@
 //! `tmp/option_dialect_audit.json` so the registry can be updated with
 //! accurate `dialects` frozensets.
 //!
-//! Parity with the Python original: the JSON artifact at
-//! `tmp/option_dialect_audit.json` is byte-for-byte identical (the probe
-//! table, version order, and `json.dumps(indent=2)` layout are all
-//! reproduced exactly), and the console progress log mirrors the Python
-//! `print` output including the `repr()`-formatted failure diagnostics and
-//! the Python-list-repr summary. An unbuilt tclsh yields
-//! `"tclsh not found"` for every probe (matching the Python `exists()`
+//! The JSON artifact at `tmp/option_dialect_audit.json` is deterministic:
+//! the probe table, version order, and 2-space indent layout are all fixed.
+//! The console progress log prints a line per probe, including
+//! `repr()`-formatted failure diagnostics and a list-repr summary. An
+//! unbuilt tclsh yields `"tclsh not found"` for every probe (a missing-tree
 //! short-circuit), so the audit is meaningful on whatever subset of the
 //! four trees is built.
 
@@ -60,7 +57,7 @@ const NOT_SUPPORTED_TOKENS: &[&str] = &[
 /// probe exercises the option in a way that gives a definitive answer —
 /// acceptance (lexical/dispatch wise) versus a "bad option" rejection.
 /// Declaration order is preserved in the JSON output and the console log,
-/// matching the Python `dict` insertion order.
+/// matching `dict` insertion order.
 #[allow(clippy::too_many_lines)]
 const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
     // ---- lsearch ----
@@ -153,7 +150,12 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-types",
         "glob -types f -directory /tmp -nocomplain *",
     ),
-    ("glob", None, "-nocomplain", "glob -nocomplain /nonexistent/x/*"),
+    (
+        "glob",
+        None,
+        "-nocomplain",
+        "glob -nocomplain /nonexistent/x/*",
+    ),
     // ---- file copy / delete / rename / link ----
     (
         "file",
@@ -395,7 +397,12 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "switch -regexp -matchvar m a {{(.*)} {set x 1}}",
     ),
     // ---- subst ----
-    ("subst", None, "-nobackslashes", r"subst -nobackslashes {\n}"),
+    (
+        "subst",
+        None,
+        "-nobackslashes",
+        r"subst -nobackslashes {\n}",
+    ),
     ("subst", None, "-nocommands", "subst -nocommands {[set x]}"),
     ("subst", None, "-novariables", r"subst -novariables {\$x}"),
     // ---- interp ----
@@ -510,7 +517,12 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-timeout",
         "after 1 {set ::vw 1}; catch {vwait -timeout 100 -variable ::vw}",
     ),
-    ("vwait", None, "-variable", "after 1 {set ::vw 1}; vwait ::vw"),
+    (
+        "vwait",
+        None,
+        "-variable",
+        "after 1 {set ::vw 1}; vwait ::vw",
+    ),
     (
         "vwait",
         None,
@@ -529,7 +541,7 @@ struct Entry {
 
 /// Run the dialect audit: probe every option against each built tclsh,
 /// write the JSON artifact, and print the per-option / summary log.
-/// Always exits 0 (matching the Python `return 0`).
+/// Always exits 0 (matching `return 0`).
 pub fn run() -> Result<ExitCode> {
     let root = repo_root();
     let mut entries: Vec<Entry> = Vec::with_capacity(PROBES.len());
@@ -543,7 +555,8 @@ pub fn run() -> Result<ExitCode> {
                 supported.push(ver);
                 println!("  {ver}: ✓");
             } else {
-                let first_line: String = out.lines().next().unwrap_or("").chars().take(60).collect();
+                let first_line: String =
+                    out.lines().next().unwrap_or("").chars().take(60).collect();
                 println!("  {ver}: ✗  {}", py_repr(&first_line));
             }
         }
@@ -588,7 +601,7 @@ fn label(cmd: &str, sub: Option<&str>, opt: &str) -> String {
 /// `ok` is false only when the output indicates the option was not
 /// recognised; runtime errors (network, permission, channel) count as
 /// "recognised". A missing tclsh short-circuits to `(false, "tclsh not
-/// found")` exactly as the Python `exists()` check does.
+/// found")` exactly as `exists()` check does.
 fn probe(tclsh_dir: &Path, script: &str) -> (bool, String) {
     let tclsh = tclsh_dir.join("tclsh");
     if !tclsh.exists() {
@@ -683,10 +696,9 @@ fn drain<R: Read>(reader: Option<&mut R>) -> String {
     s
 }
 
-/// Serialise the audit results to match Python's
-/// `json.dumps(serialisable, indent=2) + "\n"` byte-for-byte. Every value
-/// here is ASCII (command/option/version identifiers), so no escaping is
-/// required.
+/// Serialise the audit results as JSON with a 2-space indent and a trailing
+/// newline. Every value here is ASCII (command/option/version identifiers),
+/// so no escaping is required.
 fn render_json(entries: &[Entry]) -> String {
     if entries.is_empty() {
         return "[]\n".to_string();
@@ -732,10 +744,11 @@ fn render_json(entries: &[Entry]) -> String {
     s
 }
 
-/// Python `repr()` of a string for the failure diagnostics. Picks single
+/// Render a string in repr style for the failure diagnostics. Picks single
 /// quotes unless the string contains a single quote and no double quote
 /// (then double), escaping the active quote, backslash, and the common
-/// control characters exactly as `CPython` does for ASCII text.
+/// control characters (`\n`, `\r`, `\t`, and `\xHH` for other ASCII
+/// controls).
 fn py_repr(s: &str) -> String {
     let has_single = s.contains('\'');
     let has_double = s.contains('"');
@@ -766,7 +779,7 @@ fn py_repr(s: &str) -> String {
     out
 }
 
-/// Python `repr()` of a list of strings — `['a', 'b']`, single-quoted
+/// Render a list of strings in repr style — `['a', 'b']`, single-quoted
 /// items, comma-space separated; `[]` when empty.
 fn py_list_repr(items: &[&str]) -> String {
     let mut sorted: Vec<&str> = items.to_vec();
@@ -789,7 +802,7 @@ mod tests {
         assert!(classify("ERR:can't open socket: connection refused"));
         assert!(!classify(r#"ERR:bad option "-foo": must be -bar"#));
         assert!(!classify("ERR:wrong # args: should be ..."));
-        // Case-insensitive, matching the Python `.lower()`.
+        // Case-insensitive, matching `.lower()`.
         assert!(!classify("ERR:Unknown Option -x"));
     }
 

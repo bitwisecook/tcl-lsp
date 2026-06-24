@@ -1,9 +1,9 @@
 //! The `info` ensemble — introspection over the retained frame/proc metadata.
 //!
-//! Implemented against the data M2 deliberately kept (per-frame proc name +
+//! Implemented against the data the frame deliberately keeps (per-frame proc name +
 //! invocation argv, `ProcDef.body_src`/`params`, the command table) so the
-//! answers are correct rather than faked — the subsystem the WASM work found
-//! painful when that metadata was missing.
+//! answers are correct rather than faked — this metadata must be retained or
+//! the introspection answers cannot be computed.
 
 use tcl_runtime_api::Completion;
 

@@ -1,15 +1,13 @@
-//! Analyser-level iRules event-context checks — Rust port of
-//! `analyser/irules_checks.py`.
+//! Analyser-level iRules event-context checks.
 //!
 //! These checks run per command from
 //! [`super::commands::Analyser::emit_dispatch_site_diagnostics`] and
 //! are all gated on the `f5-irules` dialect.  Several of them also
 //! consult the enclosing `when EVENT` block via
 //! [`super::state::Analyser::current_event`] — set during the body
-//! walk of a `when` command, exactly as Python threads
-//! `_current_event` in `analyser/compiler_checks.py`.
+//! walk of a `when` command.
 //!
-//! Diagnostic codes ported here:
+//! Diagnostic codes:
 //!
 //! - **IRULE1002** (WARNING): unknown iRules event name.
 //! - **IRULE1003** (WARNING): deprecated iRules event.
@@ -26,6 +24,7 @@
 //! - **IRULE6001** (WARNING): global namespace variable usage.
 
 use std::sync::OnceLock;
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::{Token, TokenType};
 use tcl_registry::events::{EventProps, EventRegistry, EventRequires};
@@ -54,7 +53,6 @@ fn profile_registry() -> &'static ProfileRegistry {
 /// `profile_info_description` — an informational hint string when a command's
 /// `required` profiles are not confirmed present on the file, or `None` when
 /// there is no requirement or the file's profile stack already covers it.
-/// Mirrors Python `profile_info_description`.
 fn profile_info_description(
     required: &[&str],
     file_profiles: &[&str],
@@ -71,9 +69,8 @@ fn profile_info_description(
     ))
 }
 
-/// `missing_requirements_description` — a `; `-joined human-readable list of
-/// the protocol-stack requirements an `event` fails to satisfy for a command.
-/// Mirrors Python `missing_requirements_description`.
+/// A `; `-joined human-readable list of the protocol-stack requirements
+/// an `event` fails to satisfy for a command.
 fn missing_requirements_description(
     props: &EventProps,
     requires: &EventRequires,
@@ -122,8 +119,8 @@ fn is_deprecated_event(event: &str) -> bool {
         .is_some_and(|p| p.deprecated)
 }
 
-/// Mirror of `compiler.registry.runtime.variable_writing_commands()` —
-/// command name to the argument index that names the written variable.
+/// Maps a command name to the argument index that names the written
+/// variable.
 fn var_write_index(cmd_name: &str) -> Option<usize> {
     match cmd_name {
         "append" | "const" | "global" | "incr" | "lappend" | "ledit" | "lpop" | "lset" | "set"
@@ -133,7 +130,7 @@ fn var_write_index(cmd_name: &str) -> Option<usize> {
     }
 }
 
-/// `_static_var_from_set` — return the `static::` variable name a command
+/// Return the `static::` variable name a command
 /// writes, or `None`.
 fn static_var_from_set<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str> {
     if cmd_name == "set" && args.first().is_some_and(|f| f.starts_with("static::")) {
@@ -146,7 +143,7 @@ fn static_var_from_set<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str
     None
 }
 
-/// `_global_var_from_command` — return the `::`-qualified global variable
+/// Return the `::`-qualified global variable
 /// name a command writes, or `None`.
 fn global_var_from_command<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str> {
     let idx = var_write_index(cmd_name)?;
@@ -158,7 +155,7 @@ fn global_var_from_command<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a
     }
 }
 
-/// `_implicit_global_var_from_command` — a plain variable name that is
+/// A plain variable name that is
 /// implicitly global when written in `RULE_INIT`.
 fn implicit_global_var_from_command<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str> {
     let idx = var_write_index(cmd_name)?;
@@ -217,7 +214,7 @@ impl Analyser {
     }
 
     /// Compute and cache the file-level profile stack for IRULE1001's
-    /// informational hint (Python `compute_file_profiles`).  No-op outside
+    /// informational hint.  No-op outside
     /// the `f5-irules` dialect.  Called once from [`Self::analyse`] after the
     /// registry is built; the result is read immutably by
     /// [`Self::emit_irule1001_command_event_validity`].
@@ -233,8 +230,7 @@ impl Analyser {
     }
 
     /// **IRULE1001.** A command used in an iRules event where it is invalid or
-    /// ineffective — registry-legality-matrix driven (Python
-    /// `check_command_event_validity`):
+    /// ineffective — registry-legality-matrix driven:
     ///
     /// - **Warning** when the command is illegal in the event: either
     ///   explicitly excluded (`'X' cannot be used in EVENT. Available in: …`)
@@ -265,7 +261,7 @@ impl Analyser {
         if registry.is_irules_command_legal_in_event(cmd_name, event, events, profiles) {
             // Legal — only an informational profile hint may fire.  Namespace
             // profiles (`HTTP::respond` ⇒ HTTP) take precedence over the
-            // command's own `event_requires.profiles`, matching Python.
+            // command's own `event_requires.profiles`.
             let file_profiles: Vec<&str> = self
                 .irules_file_profiles
                 .as_deref()
@@ -284,7 +280,7 @@ impl Analyser {
                 });
             if let Some(info) = hint {
                 self.result.diagnostics.push(Diagnostic {
-                    code: "IRULE1001".to_string(),
+                    code: DiagCode::Irule1001,
                     span: cmd_tok.span,
                     message: format!("'{cmd_name}' {info}."),
                     severity: Severity::Hint,
@@ -308,7 +304,7 @@ impl Analyser {
                 hint.push('.');
             }
             self.result.diagnostics.push(Diagnostic {
-                code: "IRULE1001".to_string(),
+                code: DiagCode::Irule1001,
                 span: cmd_tok.span,
                 message: format!("'{cmd_name}' cannot be used in {event}.{hint}"),
                 severity: Severity::Warning,
@@ -328,7 +324,7 @@ impl Analyser {
                 }
             };
             self.result.diagnostics.push(Diagnostic {
-                code: "IRULE1001".to_string(),
+                code: DiagCode::Irule1001,
                 span: cmd_tok.span,
                 message,
                 severity: Severity::Warning,
@@ -357,7 +353,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE5003".to_string(),
+            code: DiagCode::Irule5003,
             span: tok.span,
             message: format!(
                 "Loop condition '${var_name} != 0' can miss zero if decremented past it. \
@@ -382,7 +378,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE5006".to_string(),
+            code: DiagCode::Irule5006,
             span: cmd_tok.span,
             message: format!("'{cmd_name}' is only valid at the top level of an iRule."),
             severity: Severity::Warning,
@@ -414,7 +410,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE5007".to_string(),
+            code: DiagCode::Irule5007,
             span: cmd_tok.span,
             message: format!(
                 "'{cmd_name}' requires an event context — use it inside a `when` block."
@@ -445,7 +441,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE1002".to_string(),
+            code: DiagCode::Irule1002,
             span: tok.span,
             message: format!("Unknown iRules event '{event_name}'. Check the event name spelling."),
             severity: Severity::Warning,
@@ -463,7 +459,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE2003".to_string(),
+            code: DiagCode::Irule2003,
             span: cmd_tok.span,
             message: format!("'{cmd_name}' is unsafe in iRules and may allow context escalation"),
             severity: Severity::Error,
@@ -472,12 +468,11 @@ impl Analyser {
     }
 
     /// **IRULE3102.** `HTTP::path` / `HTTP::uri` / `HTTP::query` getter
-    /// used without `-normalized`.  Analyser-level per-command check
-    /// mirroring `analyser/checks/_domain.py::check_irules_unnormalized_http_getter`
-    /// — fires in `tcl diag` and the LSP exactly as Python's `analyse`
-    /// does (the flow-path getter scan in `irules_checks.rs` is the
-    /// separate PyO3-bridge surface).  Reuses the shared getter-form
-    /// predicate so the trigger stays single-sourced.
+    /// used without `-normalized`.  Analyser-level per-command check that
+    /// fires in `tcl diag` and the LSP (the flow-path getter scan in
+    /// `irules_checks.rs` is the separate PyO3-bridge surface).  Reuses
+    /// the shared getter-form predicate so the trigger stays
+    /// single-sourced.
     fn emit_irule3102_unnormalised_getter(
         &mut self,
         cmd_name: &str,
@@ -492,7 +487,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE3102".to_string(),
+            code: DiagCode::Irule3102,
             span: cmd_tok.span,
             message: crate::irules_checks::format_message(cmd_name),
             severity: Severity::Warning,
@@ -517,7 +512,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE1003".to_string(),
+            code: DiagCode::Irule1003,
             span: tok.span,
             message: format!("'{event_name}' event is deprecated."),
             severity: Severity::Warning,
@@ -541,7 +536,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE1004".to_string(),
+            code: DiagCode::Irule1004,
             span: cmd_tok.span,
             message:
                 "'when' missing an explicit priority. Add 'priority <N>' to control execution order."
@@ -561,7 +556,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE2101".to_string(),
+            code: DiagCode::Irule2101,
             span: cmd_tok.span,
             message: format!(
                 "'regexp' in {event} may be expensive at high traffic volumes. \
@@ -582,7 +577,7 @@ impl Analyser {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE5001".to_string(),
+            code: DiagCode::Irule5001,
             span: cmd_tok.span,
             message: format!(
                 "'log' in {event} fires on every request. \
@@ -609,7 +604,7 @@ impl Analyser {
             return;
         };
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE4001".to_string(),
+            code: DiagCode::Irule4001,
             span: cmd_tok.span,
             message: format!(
                 "Writing to '{var_name}' outside RULE_INIT is dangerous. \
@@ -670,7 +665,7 @@ impl Analyser {
             msg = format!("{msg}; {}", concerns[1..].join("; "));
         }
         self.result.diagnostics.push(Diagnostic {
-            code: "IRULE4003".to_string(),
+            code: DiagCode::Irule4003,
             span: cmd_tok.span,
             message: msg,
             severity: Severity::Hint,
@@ -693,7 +688,7 @@ impl Analyser {
         {
             let static_name = format!("static::{var_name}");
             self.result.diagnostics.push(Diagnostic {
-                code: "IRULE6001".to_string(),
+                code: DiagCode::Irule6001,
                 span: cmd_tok.span,
                 message: format!(
                     "'global {var_name}' imports from the global namespace, \
@@ -714,7 +709,7 @@ impl Analyser {
                 .and_then(|idx| arg_tokens.get(idx))
                 .map_or(cmd_tok.span, |t| t.span);
             self.result.diagnostics.push(Diagnostic {
-                code: "IRULE6001".to_string(),
+                code: DiagCode::Irule6001,
                 span: fix_span,
                 message: format!(
                     "Global namespace variable '{var_name}' forces CMP compatibility \
@@ -741,7 +736,7 @@ impl Analyser {
                 .and_then(|idx| arg_tokens.get(idx))
                 .map_or(cmd_tok.span, |t| t.span);
             self.result.diagnostics.push(Diagnostic {
-                code: "IRULE6001".to_string(),
+                code: DiagCode::Irule6001,
                 span: fix_span,
                 message: format!(
                     "'{bare}' in RULE_INIT is implicitly global — RULE_INIT \
@@ -760,9 +755,8 @@ impl Analyser {
     }
 }
 
-/// `_scan_when_blocks` — return `{event_name: [body_text, ...]}` for all
-/// `when` blocks via balanced-brace scanning.  Ports the regex + manual
-/// scanner in `analyser/irules_checks.py`.
+/// Return `{event_name: [body_text, ...]}` for all `when` blocks via
+/// balanced-brace scanning.
 fn scan_when_blocks(source: &str) -> Vec<(String, Vec<String>)> {
     let bytes = source.as_bytes();
     let mut result: Vec<(String, Vec<String>)> = Vec::new();
@@ -847,7 +841,7 @@ fn scan_when_blocks(source: &str) -> Vec<(String, Vec<String>)> {
     result
 }
 
-/// `_var_referenced_in` — is `$var_name` referenced in *body*?  Matches
+/// Is `$var_name` referenced in *body*?  Matches
 /// `$name` (not followed by a word char) or `${name}`.
 fn var_referenced_in(var_name: &str, body: &str) -> bool {
     let bytes = body.as_bytes();
@@ -877,10 +871,9 @@ fn var_referenced_in(var_name: &str, body: &str) -> bool {
     false
 }
 
-/// Port of `_LOOP_NE_ZERO_RE.search` — find the first `$var != 0` /
-/// `$var ne 0` / `0 != $var` / `0 ne $var` comparison and return the bare
-/// variable name.  Mirrors the leftmost-match, alternation-A-then-B order
-/// of the Python regex.
+/// Find the first `$var != 0` / `$var ne 0` / `0 != $var` / `0 ne $var`
+/// comparison and return the bare variable name.  Uses leftmost-match,
+/// alternation-A-then-B order.
 fn find_loop_ne_zero(condition: &str) -> Option<String> {
     let b = condition.as_bytes();
     for i in 0..b.len() {
@@ -959,8 +952,8 @@ fn match_ne_op(b: &[u8], p: usize) -> Option<usize> {
     is_ne.then_some(p + 2)
 }
 
-/// Port of `_INCR_DECREMENT_RE.finditer` — does *body* contain
-/// `incr <var> -<digits>` (word-bounded) for the given variable?
+/// Does *body* contain `incr <var> -<digits>` (word-bounded) for the
+/// given variable?
 fn body_decrements(body: &str, var_name: &str) -> bool {
     let b = body.as_bytes();
     let mut search = 0usize;
@@ -1040,8 +1033,8 @@ mod tests {
         let res = a.analyse(source, "f5-irules");
         res.diagnostics
             .iter()
-            .filter(|d| d.code.starts_with("IRULE"))
-            .map(|d| (d.code.clone(), d.message.clone()))
+            .filter(|d| d.code.as_str().starts_with("IRULE"))
+            .map(|d| (d.code.to_string(), d.message.clone()))
             .collect()
     }
 
@@ -1228,7 +1221,11 @@ mod tests {
     fn no_irule_checks_outside_f5_dialect() {
         let mut a = Analyser::new();
         let res = a.analyse("when AUTH_SUCCESS { set static::c 1 }", "tcl");
-        assert!(!res.diagnostics.iter().any(|d| d.code.starts_with("IRULE")));
+        assert!(
+            !res.diagnostics
+                .iter()
+                .any(|d| d.code.as_str().starts_with("IRULE"))
+        );
     }
 
     #[test]
@@ -1248,7 +1245,7 @@ mod tests {
     }
 
     // IRULE1001 — command-event-validity.  Messages and severities below are
-    // pinned against the Python `check_command_event_validity` oracle (run on
+    // pinned against `check_command_event_validity` oracle (run on
     // the same snippets) and the registry legality matrix.
 
     /// `(severity, message)` for every IRULE1001 diagnostic, whole-file.
@@ -1257,7 +1254,7 @@ mod tests {
         a.analyse(source, "f5-irules")
             .diagnostics
             .into_iter()
-            .filter(|d| d.code == "IRULE1001")
+            .filter(|d| d.code == DiagCode::Irule1001)
             .map(|d| (d.severity, d.message))
             .collect()
     }
@@ -1341,7 +1338,11 @@ mod tests {
     fn irule1001_quiet_outside_f5_dialect() {
         let mut a = Analyser::new();
         let res = a.analyse("when CLIENT_ACCEPTED { HTTP::respond 200 }", "tcl");
-        assert!(!res.diagnostics.iter().any(|d| d.code == "IRULE1001"));
+        assert!(
+            !res.diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::Irule1001)
+        );
     }
 
     #[test]

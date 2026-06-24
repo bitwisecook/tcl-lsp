@@ -1,14 +1,9 @@
-//! Phase 7 of the var/frame architecture refactor — compile-time
+//! Compile-time
 //! slot resolution for proc-locals.
-//!
-//! Mirrors `core/compiler/var_escape/_slot_resolution.py` from
-//! upstream commit ``957dc1f6`` ("runtime: variable traces on
-//! proc-locals, info frame in compiled procs, interp share-
-//! variable, coroutine frame isolation" — PR #334).
 //!
 //! For every proc whose body satisfies a small set of safety
 //! checks the pass assigns indices ``0..LOCALS_ARRAY_CAP-1`` to
-//! its scalar literal locals.  The codegen consumer (Zig WASM
+//! its scalar literal locals.  The codegen consumer (the WASM
 //! emitter on the runtime side) swaps the name-keyed
 //! ``tcl_local_set`` / ``tcl_local_get`` calls for the indexed
 //! accessors.
@@ -42,9 +37,9 @@ use tcl_registry::{CommandRegistry, Traits};
 use crate::ir::{Module, Script, Statement};
 use crate::var_escape::types::ProcEscapeSummary;
 
-/// Cap on the indexed-locals array.  Must mirror
-/// :data:`runtime.zig.interp.tcl_frames.LOCALS_ARRAY_CAP`; bumping
-/// the runtime side should bump this constant too.
+/// Cap on the indexed-locals array.  Must match the runtime side's
+/// locals-array capacity; bumping the runtime side should bump this
+/// constant too.
 pub const LOCALS_ARRAY_CAP: usize = 16;
 
 /// Commands whose call shape forces the entire proc out of slot
@@ -146,9 +141,9 @@ fn proc_is_slot_eligible(summary: &ProcEscapeSummary) -> bool {
 }
 
 /// Walk every statement reachable from *script*, recursing
-/// through compound bodies.  Mirrors Python's `_walk_statements`
-/// — depth-first source order so a slot-assignment loop sees
-/// names in the same order codegen emits them.
+/// through compound bodies.  Depth-first source order so a
+/// slot-assignment loop sees names in the same order codegen
+/// emits them.
 fn walk_statements<'a>(script: &'a Script, out: &mut Vec<&'a Statement>) {
     for stmt in &script.statements {
         out.push(stmt);
@@ -220,11 +215,9 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
         // would target any local at runtime; we can't know which
         // one and indexed storage can't satisfy the by-name lookup
         // the runtime would perform.  Disable the whole proc.
-        // Mirrors the spirit of the Python pass's ``::set $name v``
-        // handling (Codex review on PR #374); the Rust IR lowering
-        // can preserve dynamic names on these variants directly,
-        // unlike Python which always routes them through an
-        // ``IRCall ::set``.
+        // The IR lowering can preserve dynamic names on these
+        // assignment variants directly, so an empty or dynamic
+        // name here is enough to bail.
         Statement::AssignConst { name, .. }
         | Statement::AssignExpr { name, .. }
         | Statement::AssignValue { name, .. }
@@ -381,8 +374,7 @@ pub fn assign_local_slots(
 /// [`ProcEscapeSummary::with_local_slots`].
 ///
 /// Pure transformation — never mutates the input map.  Procs that
-/// aren't slot-eligible round-trip unchanged.  Mirrors Python's
-/// `populate_local_slots` (commit ``957dc1f6``).
+/// aren't slot-eligible round-trip unchanged.
 pub fn populate_local_slots<S>(
     summaries: &std::collections::HashMap<String, ProcEscapeSummary, S>,
     ir_module: Option<&Module>,
@@ -662,8 +654,7 @@ mod tests {
         // "$varname", .. }`` directly when the source ``set
         // $varname v`` doesn't get re-routed through an ``IRCall``.
         // Without this guard the slot map could include locals
-        // that the dynamic write may target at runtime — Codex
-        // review on PR #374.
+        // that the dynamic write may target at runtime.
         let s = ProcEscapeSummary::default();
         let body = script_with(vec![
             assign_const("x", "1"),

@@ -1,14 +1,13 @@
 //! Differential parity tests for the native `tcl` CLI.
 //!
 //! Each test runs the built `tcl` binary on a committed fixture and asserts its
-//! stdout matches a golden file captured from the Python CLI
-//! (`python -m tooling.tcl.main <verb> ...`). This locks byte-for-byte parity
-//! for the verbs whose engines are fully ported; regenerate the `.golden`
-//! files from the Python CLI if intended behaviour changes.
+//! stdout matches the captured golden fixtures. This locks byte-for-byte parity
+//! for the verbs asserted below; regenerate the `.golden`
+//! files if intended behaviour changes.
 //!
 //! Verbs gated here: `format`, `minify`, `minify --compact`. (Verbs whose
-//! Rust engine is still reaching parity — e.g. `diag`/`validate` via the
-//! analyser — are intentionally not asserted byte-for-byte yet.)
+//! engine does not yet match the goldens byte-for-byte — e.g. `diag`/`validate`
+//! via the analyser — are intentionally not asserted here.)
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -126,10 +125,10 @@ fn highlight_html_matches_python() {
     );
 }
 
-// `symbols` is wired onto the analyser scope tree. The analyser is not yet a
-// full 1:1 port (e.g. explicit `::`-qualified proc names report the simple
+// `symbols` is wired onto the analyser scope tree. The analyser still diverges
+// in places (e.g. explicit `::`-qualified proc names report the simple
 // name, and some implicitly-created variables aren't recorded), so these
-// goldens use a fixture that exercises the faithful subset — namespaces,
+// goldens use a fixture that exercises the matching subset — namespaces,
 // nested procs, namespace variables, params, and iRules `when` events — and
 // lock the wiring + JSON/text serialisation shape byte-for-byte.
 #[test]
@@ -174,16 +173,18 @@ fn symbolgraph_json_matches_python() {
 // `callgraph` is wired onto the interprocedural engine (`tcl-compiler`
 // `InterproceduralAnalysis`, via the `ProcSummary::direct_calls` accessor) for
 // nodes + proc→proc edges, and onto the analyser's command invocations for
-// call-site resolution + top-level edges. The interproc-engine closure that
-// flips proc→proc edges to parity has landed: the call scanner now detects
+// call-site resolution + top-level edges. The interproc-engine handling of
+// proc→proc edges is asserted against the captured golden output: the call
+// scanner detects
 // calls nested in `[cmd …]` substitutions (`return [add …]` / `set x [f …]`),
 // a resolved internal call no longer applies the callee's command-effect
-// locally (so `pure` matches Python), and a global-variable write is recorded
+// locally (so `pure` is computed accordingly), and a global-variable write is
+// recorded
 // via `writes_global` rather than the effect-region string. The
-// side-effects-classification closure has also landed: `classify_side_effects`
+// side-effects classification also matches: `classify_side_effects`
 // now consults a command's structured `side_effects`, so a proc that calls an
-// untracked-effect command (`puts`) is impure yet region-free — matching
-// Python — instead of falling back to `UNKNOWN_STATE`. This fixture exercises
+// untracked-effect command (`puts`) is impure yet region-free — as the golden
+// expects — instead of falling back to `UNKNOWN_STATE`. This fixture exercises
 // real proc→proc edges (with multiple call sites), a namespace proc, an impure
 // `puts`-calling proc (no `[pure]` marker, a leaf + top-level edge), and roots
 // and leaves, all byte-identical.
@@ -203,12 +204,10 @@ fn callgraph_json_matches_python() {
 }
 
 // `diff` compares two sources at the AST / IR / CFG layers. The **AST layer**
-// is a byte-parity port: it segments each side (`tcl-compiler` segmenter),
+// is byte-parity: it segments each side (`tcl-compiler` segmenter),
 // resolves subcommands + ranges into the canonical `_serialise_command_ast`
 // JSON, and emits a `difflib.unified_diff`-faithful diff
-// (`tcl_cli_support::difflib`). The IR/CFG layers depend on the IR/SSA
-// serialiser (`tooling/cli/serialise.py`) and are not ported yet (requesting
-// them is a clear error), so these goldens lock the AST layer. The tests run
+// (`tcl_cli_support::difflib`). These goldens lock the AST layer. The tests run
 // the binary from the fixtures dir with bare filenames so the `ast:<name>`
 // headers + `leftInput` stay stable; the JSON's absolute `leftDocuments` path
 // is normalised to a `__FIXTURES__` placeholder (as the golden was captured).
@@ -247,9 +246,8 @@ fn diff_ast_json_matches_python() {
     assert_eq!(normalised, expected);
 }
 
-// `diff --show ir` — the **IR layer** is a byte-parity port of the `ir` half of
-// `tooling/cli/serialise.py` (`_serialise_ir` / `_serialise_script` + the
-// `stmt_*` / `preview` helpers) via the new `tcl-cli` `serialise` module: the
+// `diff --show ir` — the **IR layer** is byte-parity with the captured IR
+// fixtures via the `tcl-cli` `serialise` module: the
 // `tcl-compiler` `CompilationUnit` IR is rendered with the same statement kinds,
 // summaries, colour classes, control-flow children, and span-derived ranges
 // (incl. `widen_for_highlight` brace widening). The CFG layer still needs the
@@ -299,9 +297,10 @@ fn diff_ir_json_matches_python() {
 // `diff --show cfg` — the **CFG layer** rides on the CFG/SSA engine-parity work
 // (trailing exit block, opaque glob/regexp/fall-through switches, semi-pruned
 // phi placement, SCCP live-in-root seeding), so `{preSsa, postSsa}` now matches
-// the Python CLI byte-for-byte. The fixtures carry a proc, an `if`/`expr`, and a
+// the captured golden output byte-for-byte. The fixtures carry a proc, an
+// `if`/`expr`, and a
 // glob `switch`, with every variable read (no dead stores) so the documented
-// `_NO_PARITY` `analysis.deadStores` sub-field (Rust O109 vs Python liveness)
+// `_NO_PARITY` `analysis.deadStores` sub-field (`O109` vs the liveness pass)
 // is `[]` on both sides and does not perturb the diff.
 #[test]
 fn diff_cfg_text_matches_python() {
@@ -391,25 +390,24 @@ fn diff_cfg2_json_matches_python() {
 // `dataflow` is wired onto the same `CompilationUnit` (`interproc` summaries
 // for the `proc_effects` half — `pure` / `reads` / `writes` / `has_barrier` via
 // `_effect_region_str`) and the taint engine. The `taint_warnings` half now
-// aggregates all five Python warning families per scope, in Python's order
+// aggregates all five warning families per scope, in a fixed order
 // (sink-injection / setter-constraint / uri-split / path-concat /
 // destructive-file), mirroring `compiler_checks::run_all_checks`. The
-// sink-injection family is reconciled with Python's per-statement order and
+// sink-injection family is reconciled with the expected per-statement order and
 // labels: `T102` option-injection now resolves the option-terminator profile
 // (`resolve_option_terminator`) so ensemble subcommands report a compound
 // label (`file delete`) and the option-scan region filters positions, and
 // `T103` (regex injection) fires for tainted `regexp`/`regsub` patterns. The
 // fixture exercises `eval $tainted` (`T100`), `file delete $tainted`
-// (`T102` + `W313`), and `regexp $tainted …` (`T103` + `T102`), in Python's
+// (`T102` + `W313`), and `regexp $tainted …` (`T103` + `T102`), in pass
 // order. `tainted_variables` walks the per-unit lattices, ordered by SSA
-// definition site (matching Python's `analysis.taints` iteration) and
+// definition site (matching `analysis.taints` iteration) and
 // skipping version-0 entries — a `(global, 0)` slot is only ever tainted by
-// the conservative cross-proc global-write seeding, which Python's per-unit
+// the conservative cross-proc global-write seeding, which the per-unit
 // analysis never surfaces (so `proc save {v} { set ::store $v }` no longer
 // reports `::store`). The `proc_effects` half is at parity (closed interproc
 // engine), incl. an impure `puts`-calling proc (region-free) and a
-// global-writing proc. **Remaining taint gap** (documented in
-// docs/rust-cli-port.md): no inter-procedural taint *solve*
+// global-writing proc. **Remaining taint gap**: no inter-procedural taint *solve*
 // (`_solve_interprocedural_taints`), so a tainted argument flowing into a
 // proc parameter and then into a sink inside that proc is not yet warned
 // (cross-proc entry-taint). The fixture exercises a global-writing proc but
@@ -429,11 +427,11 @@ fn dataflow_json_matches_python() {
     );
 }
 
-// `diagram` ports `tooling/diagram/extract.py` (`extract_diagram_data`) over
-// the lowered IR — now byte-parity since lowering/IR reached parity. The only
+// `diagram` extracts flow data (`extract_diagram_data`) over
+// the lowered IR, byte-parity with the captured golden output. The only
 // registry dependency is the `DIAGRAM_ACTION` trait
 // (`CommandRegistry::is_diagram_action`). The fixture is an f5-irules script
-// exercising the faithful subset: multiple `when` events (canonical firing
+// exercising the matching subset: multiple `when` events (canonical firing
 // order + priority + multiplicity), `switch` with a fall-through arm, an
 // `if`/`else` with conditions and notable (`[` command-substitution) assigns,
 // `foreach`, `catch`, `try`/`on error`/`finally`, action commands (`pool`,
@@ -463,16 +461,17 @@ fn diagram_json_matches_python() {
 }
 
 // `help` (`docs`) searches the bundled KCS help database — an FTS5 index built
-// at compile time by `build.rs` (a port of `scripts/build/kcs_db.py`) from the
+// at compile time by `build.rs` from the
 // committed `docs/kcs/features/*.md`, then embedded via `include_bytes!`. The
-// query layer (`search_help` / `list_features`) ports `shared/help/kcs_db.py`
+// query layer (`search_help` / `list_features`) runs
 // over `rusqlite`'s bundled SQLite (FTS5). The rendered text + catalogue match
-// Python byte-for-byte (locked by `help_search_text_matches_python` /
+// the captured golden output byte-for-byte (locked by
+// `help_search_text_matches_python` /
 // `help_catalogue_dialect_matches_python`).
 //
 // The one field that is NOT cross-environment-stable is the raw BM25 `rank`
 // float in `--json`: it is computed by whatever SQLite version is linked
-// (Python links the host's; rusqlite bundles its own, and that drifts across
+// (rusqlite bundles its own, and that drifts across
 // rusqlite versions), so the low-order digits diverge on some corpora. The
 // thing that actually matters for the help feature is *document retrieval* —
 // which KCS documents come back for a query — so the JSON test asserts the
@@ -545,20 +544,19 @@ fn help_catalogue_dialect_matches_python() {
     );
 }
 
-// `registry-dump` is wired onto the Rust command-registry snapshot
-// (`tcl_registry::command_snapshot`, a faithful port of Python
+// `registry-dump` is wired onto the command-registry snapshot
+// (`tcl_registry::command_snapshot`, matching the
 // `command_registry_snapshot`). Whole-dialect byte-parity is gated by
-// command-registry *data* parity: the Rust and Python registries differ on
-// the `dialects` field representation (Rust uses explicit dialect sets where
-// Python uses `None`, and Rust carries no `f5-bigip`/`f5-tmsh` dialect bits)
+// command-registry *data* parity: the snapshots differ on
+// the `dialects` field representation (the snapshot uses explicit dialect sets
+// where the golden uses `None`, and carries no `f5-bigip`/`f5-tmsh` dialect bits)
 // plus scattered trait / hover-synopsis / arity / subcommand-modelling data
-// divergences (see docs/rust-cli-port.md). So this golden locks the faithful
+// divergences. So this golden locks the matching
 // subset — the core commands whose registry data is already byte-identical to
-// Python — verifying the snapshot serialisation + field derivation while the
-// data gap converges as a separate workstream.
+// the golden — verifying the snapshot serialisation + field derivation.
 #[test]
 fn registry_dump_faithful_subset_matches_python() {
-    // Core commands verified byte-identical to the Python `registry-dump`
+    // Core commands verified byte-identical to `registry-dump`
     // entry (`dialects: null` in both, matching traits/forms/scalars/info).
     const NAMES: &[&str] = &[
         "append", "array", "break", "catch", "continue", "error", "eval", "expr", "for", "global",
@@ -583,7 +581,7 @@ fn registry_dump_faithful_subset_matches_python() {
         .unwrap_or_else(|e| panic!("read golden {}: {e}", golden_path.display()));
     assert_eq!(
         actual, expected,
-        "registry-dump faithful-subset snapshot does not match the Python golden"
+        "registry-dump faithful-subset snapshot does not match the golden"
     );
 }
 
@@ -593,7 +591,7 @@ fn explore_json_emits_the_contract_keys() {
     let value: serde_json::Value =
         serde_json::from_slice(&out).expect("explore --json must emit valid JSON");
     let obj = value.as_object().expect("top-level object");
-    // A representative spread of ported views is present.
+    // A representative spread of views is present.
     for key in [
         "meta",
         "ir",
@@ -635,20 +633,21 @@ fn explore_text_renders_box_drawing_trees() {
     assert!(!text.contains('\x1b'), "no ANSI escapes with --no-colour");
 }
 
-// `find-legacy` (`tooling/tcl/verbs/misc.py::_run_find_legacy`) runs the
+// `find-legacy` runs the
 // analyser over the combined input, keeps the six convertible codes (W100,
 // W104, W110, W304, IRULE2001, IRULE5001), and reports each with its
 // modernisation hint. The firing condition, span, message, and severity match
-// the Python analyser byte-for-byte; the only accepted divergence is the
-// emission *order* of the underlying diagnostics (Rust sorts by source
-// position, Python emits in pass order — see docs/rust-cli-port.md). The
+// the captured golden output byte-for-byte; the only accepted divergence is the
+// emission *order* of the underlying diagnostics (the diagnostics are sorted by
+// source
+// position, whereas they are emitted in pass order). The
 // fixtures below are deliberately single-pattern-per-line, so source order and
-// Python's pass order coincide and the goldens match Python exactly (verified
+// pass order coincide and the goldens match exactly (verified
 // at capture time); they are captured from the Rust binary per the
 // ordering-divergence guardrail. `.irule` fixtures run under `f5-irules` — the
 // realistic dialect; analysing an iRule under `tcl8.6` is a degenerate
 // wrong-dialect run (the `when` body is an opaque string there, so Rust's
-// dialect-aware body recursion (#640) intentionally skips it).
+// dialect-aware body recursion intentionally skips it).
 #[test]
 fn find_legacy_tcl_text_matches_python() {
     let input = fixtures_dir().join("find-legacy.tcl");
@@ -712,23 +711,23 @@ fn find_legacy_empty_json_matches_python() {
     );
 }
 
-// `minimize` (`server/features/minimize.py` engine + `tooling/tcl/verbs/
-// minimize.py` verb) delta-debugs the input down to the smallest snippet that
+// `minimize` delta-debugs the input down to the smallest snippet that
 // still fires CODE, then verify-gated-renames identifiers to short `a b c …`
-// names. The diagnostic CODE is the trailing positional (argparse parity). The
+// names. The diagnostic CODE is the trailing positional. The
 // engine is membership-only ("does CODE fire?"), so the analyser's accepted
 // diagnostic-ordering divergence is irrelevant. These tcl goldens reduce to a
-// single well-formed line whose analysis matches Python exactly, so they are
-// byte-identical to the Python CLI (verified at capture time) even though they
+// single well-formed line whose analysis matches the golden exactly, so they are
+// byte-identical to the captured golden output (verified at capture time) even
+// though they
 // are captured from the Rust binary per the project guardrail. NB: ddmin can
-// also explore *brace-unbalanced* reductions, on which the Rust and Python
-// analysers legitimately differ (e.g. Rust fires IRULE2001 on a lone
-// `if {[matchclass …]} {` whose `if` body is unterminated, where Python's
+// also explore *brace-unbalanced* reductions, on which the two analysers
+// legitimately differ (e.g. one fires IRULE2001 on a lone
+// `if {[matchclass …]} {` whose `if` body is unterminated, where the other's
 // segmentation does not descend); the reduced output still reproduces CODE
 // (the verb's invariant), so the divergence is in *how far* ddmin reduces, not
-// correctness — see the `minimize_reduced_output_still_fires` property test and
-// docs/rust-cli-port.md. The fixtures stay on well-formed-reducing tcl to keep
-// the goldens Python-faithful.
+// correctness — see the `minimize_reduced_output_still_fires` property test.
+// The fixtures stay on well-formed-reducing tcl to keep
+// the goldens faithful.
 #[test]
 fn minimize_w100_text_matches_python() {
     let input = fixtures_dir().join("minimize.tcl");
@@ -766,8 +765,7 @@ fn minimize_w211_text_matches_python() {
 }
 
 // When CODE fires on no input, the verb prints `CODE does not fire on any
-// input.` to stderr and exits 1 (ports the Python `print(..., file=sys.stderr)`
-// + `return 1`).
+// input.` to stderr and exits 1.
 #[test]
 fn minimize_missing_code_errors() {
     let input = fixtures_dir().join("minimize.tcl");

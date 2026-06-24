@@ -1,9 +1,7 @@
-//! Compile-time constant-folding callbacks for Tcl list / dict commands
-//! (SYNC-JUN02d-1, #525).
+//! Compile-time constant-folding callbacks for Tcl list / dict commands.
 //!
-//! Port of the list/dict half of `dialects/tcl/const_fold.py`.  Each
-//! callback takes the resolved literal argument strings and returns the
-//! result string, or `None` when the operation cannot be folded soundly.
+//! Each callback takes the resolved literal argument strings and returns
+//! the result string, or `None` when the operation cannot be folded soundly.
 //! Wired onto the `const_fold` field of the matching `CommandSpec` /
 //! `SubCommand`; consumed by the optimiser's O129 path, which renders the
 //! result as a single word.
@@ -105,12 +103,10 @@ pub(crate) fn split_list(s: &str) -> Option<Vec<String>> {
 
 /// Quote one element for a Tcl list — bare when it has no list-special
 /// characters, brace-quoted when its braces are balanced and it does not
-/// end with a backslash, else backslash-escaped.  Mirrors
-/// `tcl-compiler::codegen::helpers::tcl_list_element` (a
-/// `TclConvertElement` port).
+/// end with a backslash, else backslash-escaped.
 pub(crate) fn list_element(s: &str) -> String {
     // The canonical `Tcl_ScanElement`+`Tcl_ConvertElement` quoter, now shared
-    // with the runtime port via `tcl-syntax` (and additionally correct on the
+    // with the runtime via `tcl-syntax` (and additionally correct on the
     // leading-`#` and control-char cases the old local copy mis-quoted).
     tcl_syntax::list::list_element(s)
 }
@@ -126,8 +122,7 @@ pub(crate) fn list_join<S: AsRef<str>>(elems: &[S]) -> String {
 }
 
 /// Parse a Tcl index expression (`end`, `end-N`, `end+N`, integer)
-/// against a string/list of `length`.  Mirrors `_parse_index` in
-/// `dialects/tcl/const_fold.py`.  May return a negative or out-of-range
+/// against a string/list of `length`.  May return a negative or out-of-range
 /// value — the caller clamps.
 pub(crate) fn parse_index(s: &str, length: usize) -> Option<i64> {
     let s = s.trim();
@@ -158,7 +153,7 @@ pub(crate) fn clamp_range(first: i64, last: i64, len: usize) -> Option<(usize, u
     Some((usize::try_from(first).ok()?, usize::try_from(last).ok()?))
 }
 
-// ── list commands ──────────────────────────────────────────────────
+// list commands
 
 /// `concat ?arg ...?` — trim each arg and space-join the non-empty ones
 /// (a flatten, not a re-quote) for the backslash-free subset. Tcl exposes
@@ -239,6 +234,11 @@ pub(crate) fn fold_split(args: &[&str]) -> Option<String> {
     Some(list_join(&pieces))
 }
 
+/// Cap on a single constant-fold's materialised output (1 MiB) — bound the
+/// product (count × element bytes), not just the count, so large elements
+/// can't blow up the fold.
+const MAX_FOLD_OUTPUT_BYTES: usize = 1 << 20;
+
 /// `lrepeat count ?element ...?`.
 pub(crate) fn fold_lrepeat(args: &[&str]) -> Option<String> {
     if args.len() < 2 {
@@ -246,9 +246,16 @@ pub(crate) fn fold_lrepeat(args: &[&str]) -> Option<String> {
     }
     let count: usize = args[0].trim().parse().ok()?;
     if count > 1000 {
-        return None; // sanity cap (matches Python)
+        return None; // sanity cap
     }
     let elems = &args[1..];
+    let elem_bytes: usize = elems.iter().map(|e| e.len() + 1).sum();
+    if elem_bytes
+        .checked_mul(count)
+        .is_none_or(|bytes| bytes > MAX_FOLD_OUTPUT_BYTES)
+    {
+        return None;
+    }
     let repeated: Vec<&str> = (0..count).flat_map(|_| elems.iter().copied()).collect();
     Some(list_join(&repeated))
 }
@@ -286,7 +293,7 @@ pub(crate) fn fold_lrange(args: &[&str]) -> Option<String> {
     }
 }
 
-// ── dict commands ──────────────────────────────────────────────────
+// dict commands
 
 /// Parse a flat Tcl dict string into key/value pairs (insertion order),
 /// or `None` when malformed (odd element count or unsplittable).

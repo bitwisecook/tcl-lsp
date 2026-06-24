@@ -6,8 +6,7 @@
 //!   an encrypted UCS is an `OpenPGP` *symmetric* message (F5 KB K5437) whose
 //!   plaintext is that same gzip-tar.
 //! * [`openpgp`] — a minimal, dependency-free `OpenPGP` symmetric decryptor
-//!   (S2K + AES-CFB + SHA-1 MDC), a faithful port of the Python `_openpgp` /
-//!   `_aes` fallback — entirely pure Rust, no shelling out to `gpg`.
+//!   (S2K + AES-CFB + SHA-1 MDC) — entirely pure Rust, no shelling out to `gpg`.
 //! * [`paths`] — the `read_path` / `load_paths` input resolver: read a path
 //!   (or stdin), transparently extract a `.ucs` (plain or encrypted) to SCF,
 //!   and hand back the source text (and parsed [`tcl_bigip::BigipConfig`]).

@@ -1,6 +1,4 @@
-//! Types for the var-escape analysis (C33a).
-//!
-//! Mirrors `core/compiler/var_escape/_types.py`.
+//! Types for the var-escape analysis.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -9,8 +7,7 @@ use tcl_lexer::Span;
 
 /// Why the analysis fell back to the dynamic-barrier path.
 ///
-/// Mirrors Python's `BarrierKind` enum added by upstream commit
-/// ``015288cf`` (PR #356).  Each kind names a distinct *reason* so
+/// Each kind names a distinct *reason* so
 /// codegen, the LSP, and the compiler explorer can narrow / explain
 /// rather than treat every pessimistic-frame proc as opaque.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -43,7 +40,6 @@ pub enum BarrierKind {
 
 /// A single barrier trigger recorded by the analysis.
 ///
-/// Mirrors Python's `Barrier` dataclass added by ``015288cf``.
 /// `kind` identifies the category (see [`BarrierKind`]); `detail`
 /// is a short human-readable explanation surfaced verbatim in
 /// compiler-explorer hovers and LSP hints (e.g. ``"info level"``,
@@ -90,8 +86,7 @@ impl Barrier {
 /// reason is a per-variable fact ("this var is `Frame` because
 /// …") — they overlap (a barrier *implies* every-known-var is
 /// `Frame`) but the finer split lets the LSP / compiler explorer
-/// answer "why is `x` `Frame`?" precisely.  Mirrors Python's
-/// `EscapeReasonKind` enum added by ``015288cf``.
+/// answer "why is `x` `Frame`?" precisely.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EscapeReasonKind {
     /// Proc went pessimistic; the var is `Frame` by virtue of
@@ -121,8 +116,6 @@ pub enum EscapeReasonKind {
 }
 
 /// A single per-variable escape reason recorded by the analysis.
-///
-/// Mirrors Python's `EscapeReason` dataclass added by ``015288cf``.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EscapeReason {
     /// Reason category.
@@ -272,9 +265,6 @@ pub struct ProcEscapeSummary {
     /// all (dynamic eval body, `has_fallback`, etc.) or when no
     /// local survives the per-name checks.  Populated by
     /// [`super::slot_resolution::populate_local_slots`].
-    ///
-    /// Mirrors `local_slots` on Python's `ProcEscapeSummary`
-    /// (added by upstream commit ``957dc1f6``).
     pub local_slots: BTreeMap<String, u32>,
     /// Recorded barrier triggers.  Each barrier carries its kind +
     /// detail + source range so callers (codegen, compiler
@@ -283,16 +273,12 @@ pub struct ProcEscapeSummary {
     /// `dynamic_barrier`: the latter is `true` iff `barriers` is
     /// non-empty *or* the dynamic-barrier flag was set explicitly.
     /// Empty for procs the analysis proved frame-elidable.
-    /// Mirrors Python's `ProcEscapeSummary.barriers` field added
-    /// by upstream commit ``015288cf`` (PR #356).
     ///
-    /// **Status:** the analysis pipeline (`propagation` /
-    /// `cfg_propagation` / `interprocedural`) does not yet
-    /// populate this field — that's tracked as a deferred
-    /// follow-up.  Consumers see an empty `Vec` until the
-    /// population work lands; `reasons_for` synthesises a single
-    /// `Barrier` reason from `dynamic_barrier()` so LSP / explorer
-    /// surfaces still get a structured fallback.
+    /// The walker populates this from each frame-crossing barrier it
+    /// encounters (`state.rs` `record_barrier`); `reasons_for` also
+    /// synthesises a `Barrier` reason from `dynamic_barrier()` so a
+    /// summary built without a captured barrier list still surfaces a
+    /// structured reason to the LSP / explorer.
     pub barriers: Vec<Barrier>,
     /// Per-variable escape reasons.  `tag_reasons[name]` lists
     /// every trigger that contributed to `tags[name] == Frame`.
@@ -301,15 +287,9 @@ pub struct ProcEscapeSummary {
     /// stayed `Local` or because a barrier-induced escape is
     /// implied by `barriers` rather than explicit per-name
     /// (`Barrier` reasons are usually synthesised on demand by
-    /// [`Self::reasons_for`]).  Mirrors Python's
-    /// `ProcEscapeSummary.tag_reasons` field added by ``015288cf``.
-    ///
-    /// **Status:** like `barriers`, this is a deferred follow-up
-    /// for the population pipeline; the type surface lands here
-    /// so downstream consumers (LSP, compiler explorer) can adopt
-    /// it incrementally.
+    /// [`Self::reasons_for`]).
     pub tag_reasons: HashMap<String, Vec<EscapeReason>>,
-    /// **S3.4 — pure-leaf flag.** `true` when this proc is provably
+    /// **Pure-leaf flag.** `true` when this proc is provably
     /// pure-leaf: no escaping var (no `Frame` tag, no dynamic barrier),
     /// no eval / call fallback, no `upvar` source out, and — after the
     /// interprocedural fixpoint — every direct callee is itself pure-leaf
@@ -329,7 +309,7 @@ impl ProcEscapeSummary {
     /// IR without changing observable behaviour (the inliner's gate).
     /// Identical to [`Self::pure_leaf`] today; split out so a future
     /// relaxation can separate the body-frame-observation clause from the
-    /// transitive callee clause. Mirrors Python's `safe_to_inline`.
+    /// transitive callee clause.
     #[must_use]
     pub fn safe_to_inline(&self) -> bool {
         self.pure_leaf
@@ -338,8 +318,7 @@ impl ProcEscapeSummary {
     /// Whether dead-store elimination on this proc's locals is sound — a
     /// relaxation of [`Self::pure_leaf`] that drops the transitive
     /// "callees are pure-leaf" clause (DCE only cares whether an external
-    /// observer can read our locals, not what callees do). Mirrors
-    /// Python's `safe_to_dce`.
+    /// observer can read our locals, not what callees do).
     #[must_use]
     pub fn safe_to_dce(&self) -> bool {
         !self.frame_needed
@@ -351,8 +330,7 @@ impl ProcEscapeSummary {
 
     /// Whether codegen may omit the per-call frame push/pop for this proc
     /// — the proc's frame is never observed externally. A relaxation of
-    /// [`Self::pure_leaf`] that only requires `!frame_needed`. Mirrors
-    /// Python's `safe_for_frame_elision`.
+    /// [`Self::pure_leaf`] that only requires `!frame_needed`.
     #[must_use]
     pub fn safe_for_frame_elision(&self) -> bool {
         !self.frame_needed
@@ -365,8 +343,7 @@ impl ProcEscapeSummary {
     /// non-empty.  Treating populated `barriers` as pessimistic
     /// enforces the documented invariant in code rather than
     /// relying on every future population path to remember to set
-    /// the flag alongside pushing a barrier (Copilot review on
-    /// PR #377).
+    /// the flag alongside pushing a barrier.
     #[must_use]
     pub fn dynamic_barrier(&self) -> bool {
         self.flags.dynamic_barrier() || !self.barriers.is_empty()
@@ -426,9 +403,7 @@ impl ProcEscapeSummary {
     /// scans (e.g. `info level` references the analysis missed) —
     /// those are layered on top of this gate by the emitter's
     /// top-level `wants_frame` resolver until the analysis itself
-    /// catches every hazard.  Mirrors Python's
-    /// `ProcEscapeSummary.wants_frame` property added by upstream
-    /// commit ``015288cf`` (PR #356).
+    /// catches every hazard.
     #[must_use]
     pub fn wants_frame(&self) -> bool {
         self.frame_needed || self.has_fallback()
@@ -443,13 +418,10 @@ impl ProcEscapeSummary {
     /// so callers can answer "why is `x` `Frame`?" with structured
     /// detail instead of "because everything is".  When the var
     /// is `Local` returns an empty `Vec` — the var is not in the
-    /// frame; no reason to surface.  Mirrors Python's
-    /// `ProcEscapeSummary.reasons_for` method added by ``015288cf``.
+    /// frame; no reason to surface.
     ///
-    /// **Status:** matches Python's behaviour for the synthesise-
-    /// from-barriers fallback path; explicit per-name reasons are
-    /// returned when the population follow-up populates
-    /// `tag_reasons`.  Until then this method returns either the
+    /// When `tag_reasons` holds explicit per-name reasons they are
+    /// returned directly.  Otherwise this method returns either the
     /// empty `Vec` (var is `Local`) or a single placeholder
     /// `Barrier` reason (var is `Frame` due to `dynamic_barrier`).
     #[must_use]
@@ -463,10 +435,10 @@ impl ProcEscapeSummary {
             return explicit.clone();
         }
         if self.dynamic_barrier() {
-            // Synthesise from proc-level barriers when present —
-            // matches Python's fallback so the LSP / compiler
-            // explorer has structured detail to surface even when
-            // nothing specific was recorded for this var.
+            // Synthesise from proc-level barriers when present so
+            // the LSP / compiler explorer has structured detail to
+            // surface even when nothing specific was recorded for
+            // this var.
             if !self.barriers.is_empty() {
                 return self
                     .barriers
@@ -507,7 +479,7 @@ impl ProcEscapeSummary {
         let mut new_flags = self.flags;
         new_flags.set(EscapeFlags::DYNAMIC_BARRIER, new_pessimistic);
         // A callee-induced escape or a pessimistic downgrade clears
-        // pure_leaf. Mirrors Python's `with_escapes` new_pure_leaf.
+        // pure_leaf.
         let new_pure_leaf = self.pure_leaf && !any_extra && !new_pessimistic;
         Self {
             tags: new_tags,
@@ -524,9 +496,7 @@ impl ProcEscapeSummary {
     }
 
     /// Return a new summary with *slots* installed as the
-    /// `local_slots` field.  Mirrors Python's
-    /// `ProcEscapeSummary.with_local_slots` (added by upstream
-    /// commit ``957dc1f6`` for the slot-resolution pass).
+    /// `local_slots` field.
     #[must_use]
     pub fn with_local_slots(&self, slots: BTreeMap<String, u32>) -> Self {
         Self {
@@ -664,8 +634,7 @@ mod tests {
     #[test]
     fn reasons_for_synthesises_barrier_when_dynamic_barrier_set() {
         // No explicit tag_reason but proc is pessimistic — return
-        // a synthesised ``Barrier`` reason mirroring Python's
-        // fallback path.
+        // a synthesised ``Barrier`` reason.
         let s = ProcEscapeSummary {
             flags: EscapeFlags::DYNAMIC_BARRIER,
             barriers: vec![Barrier::with_detail(BarrierKind::Eval, "eval $body")],
@@ -712,7 +681,7 @@ mod tests {
 
     #[test]
     fn non_empty_barriers_imply_dynamic_barrier_even_without_flag() {
-        // Pinned invariant from Copilot review on PR #377: a future
+        // A future
         // population path that pushes to ``barriers`` without also
         // setting the ``DYNAMIC_BARRIER`` flag must still cause
         // ``tag()`` / ``is_frame()`` / ``reasons_for()`` to treat

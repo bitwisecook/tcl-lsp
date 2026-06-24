@@ -1,6 +1,6 @@
 //! End-to-end LSP smoke test for `tcl-lsp-server::hover`.
 //!
-//! Drives the server through `tower_lsp::LspService` over an
+//! Drives the server through `tower_lsp_server::LspService` over an
 //! in-memory duplex pipe and exercises the same
 //! `initialize` → `textDocument/didOpen` →
 //! `textDocument/hover` sequence a real client would. Verifies
@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use tcl_lsp_server::Backend;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tower_lsp::{LspService, Server};
+use tower_lsp_server::{LspService, Server};
 
 fn frame(body: &str) -> String {
     format!("Content-Length: {}\r\n\r\n{body}", body.len())

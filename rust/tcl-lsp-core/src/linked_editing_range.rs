@@ -1,5 +1,4 @@
-//! Linked editing range provider — Rust port of
-//! `lsp/features/linked_editing_range.py`.
+//! Linked editing range provider.
 //!
 //! When the cursor sits on a proc name (either at the
 //! declaration site or at a self-call inside the proc's own
@@ -18,6 +17,7 @@
 
 use crate::definition::LspRange;
 use crate::hover::find_word_span_at_position;
+use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef};
 use tcl_lexer::{LineIndex, Span};
 
@@ -26,7 +26,7 @@ use tcl_lexer::{LineIndex, Span};
 pub const WORD_PATTERN: &str = r"[A-Za-z_][A-Za-z0-9_]*";
 
 /// A bundle of linked-editing ranges and their validating word
-/// pattern.  Mirrors `lsprotocol.types.LinkedEditingRanges`.
+/// pattern.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinkedEditingRanges {
     /// The ranges that edit together.
@@ -53,8 +53,8 @@ pub fn linked_editing_ranges(
     analysis: &AnalysisResult,
 ) -> Option<LinkedEditingRanges> {
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
-    let proc = cursor_proc(source, line, character, &word, analysis)?;
     let line_index = LineIndex::new(source);
+    let proc = cursor_proc(&line_index, source, line, character, &word, analysis)?;
 
     let mut ranges: Vec<LspRange> = Vec::new();
     ranges.push(span_to_range(source, &line_index, proc.name_span));
@@ -65,7 +65,7 @@ pub fn linked_editing_ranges(
             .as_deref()
             .is_some_and(|q| q == proc.qualified_name);
         if !matches_self_call(inv.name.as_str(), proc) && !resolved_matches {
-            // Resolved-qualified-name follow-up: a relative
+            // Resolved-qualified-name case: a relative
             // call inside `namespace eval ::ns { ... }` to its
             // own proc surfaces with `name = "greet"` and
             // `resolved_qualified_name = Some("::ns::greet")`.
@@ -91,13 +91,14 @@ pub fn linked_editing_ranges(
 /// span or anywhere in its body.  Matches the proc by short or
 /// qualified name.
 fn cursor_proc<'a>(
+    line_index: &LineIndex,
     source: &str,
     line: u32,
     character: u32,
     word: &str,
     analysis: &'a AnalysisResult,
 ) -> Option<&'a ProcDef> {
-    let byte_offset = crate::definition::byte_offset_at(source, line, character);
+    let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     for proc in analysis.all_procs.values() {
         if proc.name != word && proc.qualified_name != word {
             continue;
@@ -119,7 +120,7 @@ fn matches_self_call(name: &str, proc: &ProcDef) -> bool {
 fn span_contains(span: Span, offset: u32) -> bool {
     // `Span` is half-open `[start, end)` so `offset == span.end()`
     // sits one byte past the span — strictly before the end is the
-    // correct containment check (PR #454 Copilot review).
+    // correct containment check.
     span.start() <= offset && offset < span.end()
 }
 
@@ -128,15 +129,14 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
     let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
-        start_character: start.character,
+        start_character: start.character.get(),
         end_line: end.line,
-        end_character: end.character,
+        end_character: end.character.get(),
     }
 }
 
 fn dedup_ranges(ranges: &mut Vec<LspRange>) {
-    let mut seen: std::collections::HashSet<(u32, u32, u32, u32)> =
-        std::collections::HashSet::new();
+    let mut seen: FxHashSet<(u32, u32, u32, u32)> = FxHashSet::default();
     ranges.retain(|r| seen.insert((r.start_line, r.start_character, r.end_line, r.end_character)));
 }
 

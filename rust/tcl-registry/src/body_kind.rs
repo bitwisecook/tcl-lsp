@@ -1,10 +1,8 @@
 //! Body-kind classification for `ArgRole::Body` arguments.
 //!
-//! Mirrors Python's `core/commands/registry/body_kind.py::BodyKind`
-//! (introduced in `88970edc` / `91daf5c2`, closes `#250`).  Tells SSA
-//! and other data-flow consumers whether a body argument shares the
-//! caller's frame (`Plain`) or runs in a definition / dispatch context
-//! that is *not* the caller's scope (`Structural`).
+//! Tells SSA and other data-flow consumers whether a body argument
+//! shares the caller's frame (`Plain`) or runs in a definition /
+//! dispatch context that is *not* the caller's scope (`Structural`).
 //!
 //! ## Why
 //!

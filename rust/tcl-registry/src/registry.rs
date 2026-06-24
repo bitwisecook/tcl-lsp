@@ -5,8 +5,9 @@
 //! queries.
 
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::sync::OnceLock;
+
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
@@ -17,8 +18,7 @@ use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
 
 /// Resolved metadata for an iRules event — the result of
-/// [`CommandRegistry::event_info`]. Field-for-field port of the Python
-/// `compiler.registry.info.EventInfo` dataclass.
+/// [`CommandRegistry::event_info`].
 #[derive(Debug, Clone)]
 pub struct EventInfo {
     /// The upper-cased event name as queried.
@@ -92,8 +92,8 @@ const TAINT_SOURCE_COUNT: usize = count_taint_sources(crate::commands::irules::I
 /// [`crate::CommandSpec::taint_source`] — the data's single home is each
 /// `CommandSpec`, so this never drifts from the spec definitions.
 ///
-/// Independent of which dialects a registry has loaded, mirroring
-/// Python's import-time global `TAINT_HINTS`: a `tcl8.6` document still
+/// Independent of which dialects a registry has loaded: a `tcl8.6`
+/// document still
 /// sees `HTTP::path` as a source. (The core Tcl sources `gets` / `read` /
 /// `exec` / … are classified by [`crate::Traits::TAINT_SOURCE`] instead,
 /// so they carry no index entry.)
@@ -106,20 +106,20 @@ const TAINT_SOURCE_INDEX: [(&str, crate::taint::TaintColour); TAINT_SOURCE_COUNT
 /// queried read-only. All command-specific knowledge lives in the
 /// specs — consumers never match on command name strings.
 pub struct CommandRegistry {
-    by_name: HashMap<String, Vec<CommandSpec>>,
+    by_name: FxHashMap<String, Vec<CommandSpec>>,
     loaded_dialects: DialectSet,
 }
 
 /// The set of command names registered by *every* dialect, built once and
 /// cached.  Backs [`CommandRegistry::known_in_any_dialect`] — the
-/// dialect-agnostic existence check Python gets for free from its global
-/// `specs_by_name`.  Built from the same spec functions [`CommandRegistry::build_default`]
+/// dialect-agnostic existence check over every loaded dialect.
+/// Built from the same spec functions [`CommandRegistry::build_default`]
 /// and [`CommandRegistry::load_dialect`] draw from, so it stays in lock-step
 /// with the registry's command universe.
-fn all_dialect_command_names() -> &'static HashSet<&'static str> {
-    static NAMES: OnceLock<HashSet<&'static str>> = OnceLock::new();
+fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
+    static NAMES: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
     NAMES.get_or_init(|| {
-        let mut set: HashSet<&'static str> = HashSet::new();
+        let mut set: FxHashSet<&'static str> = FxHashSet::default();
         let mut add = |specs: Vec<CommandSpec>| {
             for spec in specs {
                 set.insert(spec.name);
@@ -148,7 +148,7 @@ impl CommandRegistry {
     #[must_use]
     pub fn build_default() -> Self {
         let mut registry = Self {
-            by_name: HashMap::new(),
+            by_name: FxHashMap::default(),
             loaded_dialects: DialectSet::empty(),
         };
         for spec in crate::commands::tcl::tcl_command_specs() {
@@ -163,8 +163,8 @@ impl CommandRegistry {
         // Tk geometry/widget commands (`grid` / `pack` / `wm` / `button` / …)
         // are part of the always-known command universe: a `.tcl` script may
         // `package require Tk` at runtime, and the diagnostics treat them as
-        // recognised under every Tcl dialect (Python loads Tk into its base
-        // registry).  Mark the dialect loaded so a later `load_dialect(TK)` is
+        // recognised under every Tcl dialect, so Tk is folded into the base
+        // registry.  Mark the dialect loaded so a later `load_dialect(TK)` is
         // a no-op rather than a double-insert.
         for spec in crate::commands::tk::tk_command_specs() {
             registry.insert(spec);
@@ -257,8 +257,7 @@ impl CommandRegistry {
     /// Whether `name` exists as a command in *any* dialect, independent of
     /// which dialects this registry instance loaded.
     ///
-    /// Mirrors Python's `CommandRegistry.get_any` over the global
-    /// `specs_by_name` (every dialect's specs are registered at import).
+    /// Looks up the global by-name index across every dialect's specs.
     /// Like [`Self::taint_source`], this is deliberately dialect-agnostic:
     /// an iRules command such as `when` is "known" even when analysing a
     /// `tcl8.6` document whose registry never loaded the iRules specs — the
@@ -276,8 +275,7 @@ impl CommandRegistry {
     ///
     /// A leading `::` (global qualifier) falls back to the bare name, so an
     /// explicitly-global call to a built-in (`::foreach`, `::for`, …)
-    /// resolves to the same spec as its unqualified form.  Mirrors
-    /// `core/commands/registry/command_registry.py::get`.
+    /// resolves to the same spec as its unqualified form.
     #[must_use]
     pub fn get(&self, name: &str) -> Option<&CommandSpec> {
         self.by_name
@@ -312,7 +310,7 @@ impl CommandRegistry {
     /// in registration order. Empty when the name is unknown.
     ///
     /// Used by the registry-snapshot builder's order-independent
-    /// `resolve_spec` (mirrors Python `REGISTRY.specs_by_name.get(name)`).
+    /// `resolve_spec`.
     #[must_use]
     pub fn specs(&self, name: &str) -> &[CommandSpec] {
         self.by_name.get(name).map_or(&[], Vec::as_slice)
@@ -324,8 +322,8 @@ impl CommandRegistry {
     /// Reads the compile-time [`TAINT_SOURCE_INDEX`] — a table *derived*
     /// from every command spec's [`crate::CommandSpec::taint_source`],
     /// built at compile time. It is deliberately **dialect-agnostic and
-    /// independent of which dialects are loaded into this registry**,
-    /// mirroring Python's import-time global `TAINT_HINTS`: an iRules
+    /// independent of which dialects are loaded into this registry**:
+    /// an iRules
     /// getter such as `HTTP::path` is a known source even when analysing a
     /// `tcl8.6` document whose registry never loaded the iRules commands.
     #[must_use]
@@ -352,8 +350,7 @@ impl CommandRegistry {
 
     /// Return the sorted names of every f5-irules command valid in `event`.
     ///
-    /// Mirrors the valid-command set of Python
-    /// `CommandRegistry._build_event_set` (`commands_for_event`): a command
+    /// The valid-command set: a command
     /// is valid when it supports the iRules dialect, the event is not in its
     /// `excluded_events`, and either it carries no `event_requires` or the
     /// event's [`crate::events::EventProps`] satisfy them.  Returns an empty
@@ -373,7 +370,7 @@ impl CommandRegistry {
             .iter()
             .filter_map(|(name, specs)| {
                 // Best spec for the dialect — reversed so curated overrides
-                // win, matching `get_for_dialect` / Python's `get`.
+                // win, matching `get_for_dialect` / `get`.
                 let spec = specs
                     .iter()
                     .rev()
@@ -394,14 +391,14 @@ impl CommandRegistry {
     }
 
     /// Whether `command` is legal in iRules `event` — the O(1) legality-matrix
-    /// test of Python `CommandLegality.is_legal` (`command_legality`).
+    /// test.
     ///
     /// A command is legal when the event is known, the command supports the
     /// iRules dialect, the event is not in the command's `excluded_events`,
     /// and the command's [`crate::events::EventRequires`] (if any) are
     /// satisfied by the event's [`crate::events::EventProps`].  An unknown
-    /// event is illegal for every command, matching Python's empty
-    /// valid-command set for events with no props.
+    /// event is illegal for every command — an event with no props has an
+    /// empty valid-command set.
     #[must_use]
     pub fn is_irules_command_legal_in_event(
         &self,
@@ -424,8 +421,7 @@ impl CommandRegistry {
             .is_none_or(|req| crate::events::event_satisfies(props, req, event, profiles))
     }
 
-    /// Sorted iRules events where `command` is legal — Python
-    /// `CommandLegality.events_for_command`, the inverse of
+    /// Sorted iRules events where `command` is legal — the inverse of
     /// [`Self::valid_irules_commands_for_event`].  Used by the IRULE1001
     /// "Available in: …" hint.
     #[must_use]
@@ -444,17 +440,16 @@ impl CommandRegistry {
         names
     }
 
-    /// Resolve full metadata for an iRules `event` — a faithful port of
-    /// `compiler.registry.info.lookup_event_info` (the engine behind
-    /// `f5 irule event-info`).
+    /// Resolve full metadata for an iRules `event` — the engine behind
+    /// `f5 irule event-info`.
     ///
     /// The event name is upper-cased and trimmed. `known` /
     /// `valid_commands` come from this registry (the cross-product is the
     /// same as [`Self::valid_irules_commands_for_event`]); the side /
     /// transport / implied-profiles / description / multiplicity come from
-    /// `events`. `deprecated` mirrors Python's `when`-argument-value detail
-    /// path, which carries no "deprecated" markers, so it is always
-    /// `false` (independent of [`crate::events::EventProps::deprecated`]).
+    /// `events`. `deprecated` is always `false` — the `when`-argument-value
+    /// detail path carries no "deprecated" markers (independent of
+    /// [`crate::events::EventProps::deprecated`]).
     #[must_use]
     pub fn event_info(
         &self,
@@ -479,7 +474,7 @@ impl CommandRegistry {
             multiplicity: events.multiplicity(&name),
             description: events.description(&name).unwrap_or("").to_owned(),
             side: props.map_or("unknown", crate::events::EventProps::side_label),
-            // Python models "no transport" as `None`, not an empty string.
+            // "No transport" is modelled as `None`, not an empty string.
             transport: props.and_then(|p| (!p.transport.is_empty()).then(|| p.transport.join("/"))),
             implied_profiles: {
                 let mut v: Vec<&'static str> = props
@@ -524,9 +519,8 @@ impl CommandRegistry {
 
     /// Whether `name` is unsafe in sandboxed dialects — it allows
     /// context escalation (`uplevel`, `history`).  Drives the IRULE2003
-    /// "unsafe iRules command" check.  Mirrors Python
-    /// `CommandRegistry.is_unsafe` (`_any_spec_has(name, "unsafe")`):
-    /// checks every spec registered under the name.
+    /// "unsafe iRules command" check.  Checks every spec registered
+    /// under the name.
     #[must_use]
     pub fn is_unsafe(&self, name: &str) -> bool {
         self.by_name
@@ -536,9 +530,7 @@ impl CommandRegistry {
 
     /// Whether `name` is valid only at the top level of an iRule script
     /// (`when`, `proc`, `priority`, `timing`).  Drives the IRULE5006 /
-    /// IRULE5007 placement checks.  Mirrors Python
-    /// `CommandRegistry.irules_top_level_only_commands`
-    /// ([`Traits::IRULES_TOP_LEVEL_ONLY`]).
+    /// IRULE5007 placement checks ([`Traits::IRULES_TOP_LEVEL_ONLY`]).
     #[must_use]
     pub fn is_irules_top_level_only(&self, name: &str) -> bool {
         self.by_name.get(name).is_some_and(|specs| {
@@ -549,9 +541,8 @@ impl CommandRegistry {
     }
 
     /// Whether `name` should appear as a notable action node in a flow
-    /// diagram ([`Traits::DIAGRAM_ACTION`]). Mirrors Python
-    /// `CommandRegistry.is_diagram_action` (`_any_spec_has(name,
-    /// "diagram_action")`): accepts both the bare (`HTTP::respond`) and the
+    /// diagram ([`Traits::DIAGRAM_ACTION`]). Accepts both the bare
+    /// (`HTTP::respond`) and the
     /// canonical (`::HTTP::respond`) spelling — the leading `::` stamped on
     /// `IRCall.canonical_command` by lowering is stripped to recover the
     /// bare registration form — and reflects the dialects loaded into this
@@ -573,9 +564,7 @@ impl CommandRegistry {
     /// Whether `name` is explicitly marked **never** translatable to F5
     /// Distributed Cloud (XC) — any registered spec whose
     /// [`CommandSpec::xc_translatable`](crate::CommandSpec) is
-    /// `Some(false)`. Mirrors Python
-    /// `CommandRegistry.is_xc_never_translatable`; consumed by the
-    /// `f5-xc` iRule→XC translator.
+    /// `Some(false)`. Consumed by the `f5-xc` iRule→XC translator.
     #[must_use]
     pub fn is_xc_never_translatable(&self, name: &str) -> bool {
         self.by_name
@@ -586,8 +575,7 @@ impl CommandRegistry {
     /// Whether `name` is explicitly marked translatable to XC despite an
     /// otherwise-untranslatable namespace prefix — any registered spec
     /// whose [`CommandSpec::xc_translatable`](crate::CommandSpec) is
-    /// `Some(true)`. Mirrors Python
-    /// `CommandRegistry.is_xc_translatable_override`.
+    /// `Some(true)`.
     #[must_use]
     pub fn is_xc_translatable_override(&self, name: &str) -> bool {
         self.by_name
@@ -612,9 +600,8 @@ impl CommandRegistry {
     /// Whether `name` is an iRules side-switch — `clientside`,
     /// `serverside`, or `peer` — i.e. a command that evaluates its
     /// nesting-script body under a different connection-side context
-    /// than the surrounding event.  Mirrors Python's
-    /// `CommandRegistry.is_side_switch` ([`Traits::IS_SIDE_SWITCH`]),
-    /// consulted by the iRules collect/release/payload flow check when
+    /// than the surrounding event ([`Traits::IS_SIDE_SWITCH`]).
+    /// Consulted by the iRules collect/release/payload flow check when
     /// it descends into a side-switch body.  Like
     /// [`Self::is_byte_compiled`], checks every spec registered under
     /// the name.
@@ -631,7 +618,7 @@ impl CommandRegistry {
     ///
     /// For subcommand-based commands (e.g. `dict create`), pass the
     /// subcommand as the first element of `args`. This is the Rust
-    /// equivalent of Python's `arg_indices_for_role()`.
+    /// equivalent of `arg_indices_for_role()`.
     #[must_use]
     pub fn arg_indices_for_role(&self, name: &str, args: &[&str], role: ArgRole) -> Vec<usize> {
         let Some(spec) = self.get(name) else {
@@ -746,7 +733,6 @@ impl CommandRegistry {
 
     /// Resolve the option-terminator profile for a command invocation.
     ///
-    /// Mirrors Python's `core/commands/registry/command_registry.py::resolve_option_terminator`.
     /// Matches the invocation's first argument against subcommands
     /// that declare an [`OptionSpec`](crate::hover::OptionSpec) with
     /// `name == "--"`, then falls back to form-level `--` declarations.
@@ -767,13 +753,10 @@ impl CommandRegistry {
     ///
     /// `warn_without_terminator` lifts the
     /// [`Traits::WARN_WITHOUT_TERMINATOR`] flag from the matched
-    /// command spec and surfaces it on `ResolvedTerminator` for
-    /// parity with the Python registry, but the current Rust W304
-    /// emitter does not consume it (mirroring Python's
-    /// `_style.py`, which also stores but never reads it).  Kept
-    /// on the resolver for future emit logic and so the registry
-    /// API doesn't need to change when consumers start gating on
-    /// it.
+    /// command spec and surfaces it on `ResolvedTerminator`, but the
+    /// current W304 emitter does not consume it.  Kept on the resolver
+    /// for future emit logic and so the registry API doesn't need to
+    /// change when consumers start gating on it.
     #[must_use]
     pub fn resolve_option_terminator(
         &self,
@@ -802,10 +785,9 @@ impl CommandRegistry {
             });
         }
 
-        // Form-level fallback — Python iterates `spec.forms`; the
-        // Rust port stores option specs at the `CommandSpec.options`
-        // level (single set per spec) so we consult that directly
-        // when no subcommand match was found.
+        // Form-level fallback — option specs live at the
+        // `CommandSpec.options` level (a single set per spec), so we
+        // consult that directly when no subcommand match was found.
         if spec.options.iter().any(|o| o.name == "--") {
             return Some(ResolvedTerminator {
                 scan_start: 0,
@@ -823,7 +805,7 @@ impl CommandRegistry {
     /// quoted so re-parsing by ``eval`` / ``uplevel`` /
     /// ``interp eval`` doesn't trigger unwanted substitution.
     ///
-    /// Mirrors `core/commands/registry/runtime.py::canonical_list_commands`:
+    /// The canonical-list-command set is
     /// derived from `return_type == TclType::List` on the command
     /// (or its subcommand entry), minus the explicit exclusion
     /// `concat` whose join-strip-grouping semantics can leave
@@ -860,9 +842,8 @@ impl CommandRegistry {
     ///
     /// Only commands actually loaded into this registry are returned, so the
     /// set is implicitly gated by the active dialect: a plain-Tcl registry
-    /// (no iRules pack loaded) yields an empty map, matching Python's
-    /// `byte_array_payload_layouts()` intersected with the active dialect.
-    /// Mirrors `compiler/registry/runtime.py::byte_array_payload_layouts`.
+    /// (no iRules pack loaded) yields an empty map — the payload layouts
+    /// are intersected with the active dialect.
     #[must_use]
     pub fn byte_array_payload_layouts(&self) -> HashMap<&'static str, BytePayloadSpec> {
         let mut out = HashMap::new();
@@ -913,10 +894,9 @@ pub struct ResolvedTerminator {
     /// cheaper than a heap-allocated set on the analyser hot path.
     pub options: &'static [crate::hover::OptionSpec],
     /// Lifted from [`Traits::WARN_WITHOUT_TERMINATOR`] on the matched
-    /// command spec.  Surfaced here for parity with the Python
-    /// registry's `ResolvedTerminator`; the current Rust W304
-    /// emitter does not consume the flag (mirroring Python's
-    /// `_style.py`, which stores but never reads it).  Kept on the
+    /// command spec.  The current W304
+    /// emitter does not consume the flag (it is stored but never read).
+    /// Kept on the
     /// type so future emit logic can gate on it without an API
     /// change.
     pub warn_without_terminator: bool,
@@ -1111,7 +1091,6 @@ mod tests {
 
     #[test]
     fn tcl9_commands_from_pr_433_are_registered() {
-        // SYNC-MAY19-tcl9-commands: mirrors PR #433 (0f9288d2).
         let reg = CommandRegistry::build_default();
         for name in [
             "foreachLine",
@@ -1133,9 +1112,8 @@ mod tests {
 
     #[test]
     fn coroinject_coroprobe_registered() {
-        // Python PR #433 also fixed the missing import that made
-        // these two commands invisible to the LSP.  Rust always
-        // registered them — verify they remain registered.
+        // Verify these two commands remain registered and visible to
+        // the LSP.
         let reg = CommandRegistry::build_default();
         assert!(reg.get("coroinject").is_some());
         assert!(reg.get("coroprobe").is_some());
@@ -1153,23 +1131,19 @@ mod tests {
                 "{name} should be Tcl 9.0-only",
             );
         }
-        // Unlike the four above, the Python registry marks `const`
-        // `dialects = None` (universal) rather than Tcl-9.0-gated, so it
-        // is valid inside iRules events. The dialect-reconcile
-        // (`scripts/registry-audit/reconcile_irules_dialects.py`) mirrors
-        // that so `commands_for_event` matches Python.
+        // Unlike the four above, `const` is `dialects = None`
+        // (universal) rather than Tcl-9.0-gated, so it is valid inside
+        // iRules events and `commands_for_event` accepts it.
         assert_eq!(
             reg.get("const").expect("registered").dialects,
             None,
-            "const should be universal (Python marks it dialects=None)",
+            "const should be universal (it is dialect-agnostic)",
         );
     }
 
     #[test]
     fn timerate_registered_with_body_and_int_hint() {
-        // SYNC-JUN02c (main #522): `timerate` ported from
-        // dialects/tcl/timerate.py — measures the rate of execution
-        // of a script.
+        // `timerate` measures the rate of execution of a script.
         use crate::arg_role::ArgRole;
         use crate::side_effects::SideEffectTarget;
         use crate::types::TclType;
@@ -1265,7 +1239,7 @@ mod tests {
     fn byte_compiled_covers_the_core_builtins() {
         let reg = CommandRegistry::build_default();
         // Every registered command the minifier must never alias.
-        // Mirrors the former `_BUILTIN_SKIP` list (minus the
+        // The former built-in skip list (minus the
         // non-command keywords `else` / `elseif` and the unregistered
         // `pwd`).
         let expected = [
@@ -1476,7 +1450,7 @@ mod tests {
         assert_eq!(set_vars, vec![0]);
     }
 
-    /// SYNC4: `trace add variable name ops body` declares arg 1
+    /// `trace add variable name ops body` declares arg 1
     /// (the variable name) as `VarWrite` via the registry.
     #[test]
     fn arg_indices_for_role_trace_add_variable_var_write() {
@@ -1491,7 +1465,7 @@ mod tests {
         assert!(writes.contains(&2), "VarWrite writes={writes:?}");
     }
 
-    /// SYNC4: `trace add execution` does NOT declare `VarWrite`
+    /// `trace add execution` does NOT declare `VarWrite`
     /// (the second arg is a command name, not a variable).
     #[test]
     fn arg_indices_for_role_trace_add_execution_no_var_write() {
@@ -1504,9 +1478,8 @@ mod tests {
         assert!(writes.is_empty(), "VarWrite writes={writes:?}");
     }
 
-    /// SYNC4: `trace remove variable` mirrors `trace add variable`
-    /// for registry parity (alias spellings flow through the same
-    /// `VarWrite` query).
+    /// `trace remove variable` behaves like `trace add variable`:
+    /// both alias spellings flow through the same `VarWrite` query.
     #[test]
     fn arg_indices_for_role_trace_remove_variable_var_write() {
         let reg = CommandRegistry::build_default();
@@ -1518,7 +1491,7 @@ mod tests {
         assert!(writes.contains(&2), "VarWrite writes={writes:?}");
     }
 
-    /// SYNC5: `global` / `variable` / `upvar` carry
+    /// `global` / `variable` / `upvar` carry
     /// `CREATES_DYNAMIC_BARRIER` so SSA's barrier-def walk knows the
     /// per-arg list belongs to `var_scoping`, not the role-driven
     /// `VarWrite` query.
@@ -1544,14 +1517,11 @@ mod tests {
         );
     }
 
-    /// SYNC1 acceptance: `dict with` / `dict update` arg 0 (the dict
-    /// variable) plays both `VarRead` and `VarWrite` roles. Mirrors
-    /// Python's `frozenset({VAR_READ, VAR_WRITE})` post-`8c95c2ee`.
-    /// The Rust port emits this via duplicate `(idx, role)` rows in
-    /// the resolver; the type widening to an explicit `ArgRoleSet`
-    /// is deferred (the multi-role observable behaviour is already
-    /// what consumers query).
-    /// SYNC2: every spec defaults to `BodyKind::Plain` unless it
+    /// `dict with` / `dict update` arg 0 (the dict variable) plays
+    /// both `VarRead` and `VarWrite` roles. This is emitted via
+    /// duplicate `(idx, role)` rows in the resolver (the multi-role
+    /// observable behaviour is what consumers query).
+    /// Every spec defaults to `BodyKind::Plain` unless it
     /// opts into `Structural`.
     #[test]
     fn body_kind_default_plain() {
@@ -1563,7 +1533,7 @@ mod tests {
         assert_eq!(reg.get("foreach").unwrap().body_kind, BodyKind::Plain);
     }
 
-    /// SYNC2: `proc` / `oo::class` / `oo::define` / `oo::objdefine`
+    /// `proc` / `oo::class` / `oo::define` / `oo::objdefine`
     /// stamp `Structural` so SSA skips their body args from the
     /// enclosing block's data flow.
     #[test]
@@ -1597,7 +1567,7 @@ mod tests {
         );
     }
 
-    /// SYNC2: iRules `when` event handler bodies are structural.
+    /// iRules `when` event handler bodies are structural.
     #[test]
     fn body_kind_irules_when_structural() {
         use crate::body_kind::BodyKind;
@@ -1606,7 +1576,7 @@ mod tests {
         assert_eq!(reg.get("when").unwrap().body_kind, BodyKind::Structural);
     }
 
-    /// SYNC3: `body_arg_implicit_args` defaults to 0 and is set on
+    /// `body_arg_implicit_args` defaults to 0 and is set on
     /// `fileutil::updateInPlace` (which appends file contents to
     /// the body's first command at runtime).
     #[test]
@@ -1822,8 +1792,8 @@ mod tests {
 
     // -- ``resolve_option_terminator`` (W304 driver)
     //
-    // Mirrors ``core/commands/registry/command_registry.py::resolve_option_terminator``.
-    // Each W304 fixture in ``tests/test_checks.py::TestMissingOptionTerminator``
+    // Exercises option-terminator resolution for each command.
+    // Each W304 fixture
     // is rooted in one of these resolver outcomes; the resolver tests
     // here pin the per-command shape, the analyser tests pin the
     // tristate-severity / two-diagnostic / code-fix behaviour.
@@ -1913,7 +1883,7 @@ mod tests {
         assert!(reg.is_canonical_list_command("split"));
         assert!(reg.is_canonical_list_command("lreverse"));
         // ``concat`` returns LIST but is the explicit non-canonical
-        // exclusion (mirrors Python's ``_NON_CANONICAL_LIST_COMMANDS``).
+        // exclusion.
         assert!(!reg.is_canonical_list_command("concat"));
         // Non-list commands (e.g. ``set``) are filtered out.
         assert!(!reg.is_canonical_list_command("set"));
@@ -1937,8 +1907,8 @@ mod tests {
 
         let respond = reg.get("HTTP::respond").expect("HTTP::respond loaded");
         let opts: Vec<&str> = respond.options.iter().map(|o| o.name).collect();
-        // Option set mirrors the Python reference standard
-        // (`irules/http__respond.py`): -version/-content/-ifile/
+        // Option set follows the reference standard:
+        // -version/-content/-ifile/
         // -noserver/-reset. (`-status` is the positional status arg.)
         assert!(
             opts.contains(&"-version")

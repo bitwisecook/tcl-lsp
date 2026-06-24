@@ -13,24 +13,23 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "scan string format ?varName varName ...?",
 }];
 
-/// D4-F2: `scan string format ?varName ...?` accepts variable-name args from
+/// `scan string format ?varName ...?` accepts variable-name args from
 /// index 2 onward to the end of the call.  Resolve `VarWrite` dynamically for
 /// every trailing arg rather than hard-coding a finite slot count, so calls
 /// with 20 / 50 / 100 vars don't false-fire W210 on the unmodelled tail.
-/// Mirrors `dialects/tcl/scan.py::_scan_arg_roles`.
 fn scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     (2..args.len())
         .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite)))
         .collect()
 }
 
-/// SYNC-JUN03 follow-up: constant-fold the *inline* `scan string format` form
+/// Constant-fold the *inline* `scan string format` form
 /// (no `varName` — that form writes variables and must never fold).
 ///
-/// The scanf semantics are modelled **directly on tclsh**, *not* transcribed
-/// from main's `dialects/tcl/const_fold.py::_tcl_scan`, which is unsound: it
-/// reads no `0x` prefix and so folds `scan 0xff %x` to `0` where every tclsh
-/// gives `255`.  Only the dialect-invariant subset folds — verified against
+/// The scanf semantics are modelled **directly on tclsh**.  A naive fold
+/// that reads no `0x` prefix is unsound: it folds `scan 0xff %x` to `0`
+/// where every tclsh gives `255`.
+/// Only the dialect-invariant subset folds — verified against
 /// `tclsh8.4`/`8.5`/`8.6`/`9.0` during development (the differential harness
 /// pins these against the live `tclsh9.0`):
 ///
@@ -200,10 +199,9 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(2),
         // Documented return is the int conversion count (`scan str fmt
-        // var ...`), matching the Python reference spec. The inline
-        // `scan str fmt` form (folded by `fold_scan`) actually yields the
-        // *list* of converted values — a per-form refinement Python does
-        // not capture either; deferred to per-form return typing.
+        // var ...`). The inline `scan str fmt` form (folded by `fold_scan`)
+        // actually yields the *list* of converted values — a per-form
+        // refinement deferred to per-form return typing.
         return_type: Some(TclType::Int),
         const_fold: Some(fold_scan),
         hover: Some(HoverSnippet {

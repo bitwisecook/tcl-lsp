@@ -1,5 +1,4 @@
-//! Regression tests for nullable repeated subpatterns — the corner Codex
-//! flagged on PR #688. Two distinct bugs:
+//! Regression tests for nullable repeated subpatterns. Two distinct bugs:
 //!
 //! 1. **Counting empty iterations toward `min`** — `()+` must match `""`,
 //!    `(a?){2}` must match `"a"` (the second iteration is empty).

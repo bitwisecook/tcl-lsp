@@ -42,11 +42,11 @@ pub fn lower_function(func: &Function, prog_type: ProgType) -> Result<BpfProgram
         map_defs: Vec::new(),
     };
     l.collect_maps()?;
-    let entry = l.block_id(&func.entry);
+    let entry = l.block_id(func.block_name(func.entry));
 
     // Worklist over the truncated graph: `accept`/`drop` cut a block short, so
     // only blocks reachable through the surviving terminators get lowered.
-    let mut worklist = vec![func.entry.clone()];
+    let mut worklist = vec![func.block_name(func.entry).to_owned()];
     while let Some(name) = worklist.pop() {
         let succs = l.lower_block(&name)?;
         for s in succs {
@@ -374,7 +374,7 @@ impl Lowerer<'_> {
             return Ok(Vec::new());
         }
         let func = self.func;
-        let Some(cfg_block) = func.blocks.get(name) else {
+        let Some(cfg_block) = func.block_by_name(name) else {
             return Err(BpfError::new(
                 BpfDiag::Internal,
                 Span::empty(0),
@@ -621,13 +621,14 @@ impl Lowerer<'_> {
     ) -> Result<(Term, Vec<String>), BpfError> {
         match &block.terminator {
             Some(Terminator::Goto { target, span }) => {
-                let t = self.block_id(target);
+                let name = self.func.block_name(*target).to_owned();
+                let t = self.block_id(&name);
                 Ok((
                     Term::Goto {
                         target: t,
                         span: span.unwrap_or_else(|| Span::empty(0)),
                     },
-                    vec![target.clone()],
+                    vec![name],
                 ))
             }
             Some(Terminator::Branch {
@@ -638,8 +639,10 @@ impl Lowerer<'_> {
             }) => {
                 let sp = span.unwrap_or_else(|| Span::empty(0));
                 let cond = self.lower_expr(condition, insts, sp)?;
-                let t = self.block_id(true_target);
-                let f = self.block_id(false_target);
+                let tname = self.func.block_name(*true_target).to_owned();
+                let fname = self.func.block_name(*false_target).to_owned();
+                let t = self.block_id(&tname);
+                let f = self.block_id(&fname);
                 Ok((
                     Term::BranchNz {
                         cond,
@@ -647,7 +650,7 @@ impl Lowerer<'_> {
                         f,
                         span: sp,
                     },
-                    vec![true_target.clone(), false_target.clone()],
+                    vec![tname, fname],
                 ))
             }
             // A fall-through with no explicit verdict defaults to the program's
@@ -796,7 +799,7 @@ fn has_cycle(func: &Function) -> bool {
     }
     // 1 = on the current path (gray), 2 = fully explored (black).
     let mut color: HashMap<String, u8> = HashMap::new();
-    let mut stack = vec![Step::Enter(func.entry.clone())];
+    let mut stack = vec![Step::Enter(func.block_name(func.entry).to_owned())];
     while let Some(step) = stack.pop() {
         match step {
             Step::Enter(node) => {
@@ -805,7 +808,12 @@ fn has_cycle(func: &Function) -> bool {
                 }
                 color.insert(node.clone(), 1);
                 stack.push(Step::Exit(node.clone()));
-                for succ in func.block_successors(&node) {
+                let succs = func
+                    .block_id(&node)
+                    .map(|id| func.block_successors(id))
+                    .unwrap_or_default();
+                for succ_id in succs {
+                    let succ = func.block_name(succ_id).to_owned();
                     match color.get(&succ).copied() {
                         Some(1) => return true,
                         Some(2) => {}

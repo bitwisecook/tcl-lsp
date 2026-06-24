@@ -3,16 +3,16 @@
 //!
 //! Runs the built `f5-query` binary against the committed `redact.conf` fixture
 //! and asserts the redacted config, the sidecar `.map` file, and the stderr
-//! summary line all match goldens captured from `python -m tooling.f5.main
-//! redact` / `unredact`. Self-contained: no Python at test time.
+//! summary line all match the captured golden output for `redact` /
+//! `unredact`. Self-contained: no external tool runs at test time.
 //!
 //! Paths that vary per machine are normalised: the temp map path the summary
 //! line carries is replaced with `__MAP__`, and the fixtures dir (which never
 //! actually appears in these goldens) with `__FIXTURES__`.
 //!
-//! `--shuffle` reaches byte-parity here: `tcl-bigip::redact` reproduces
-//! `CPython`'s `MT19937` `random.Random(seed_int).shuffle` exactly, so the
-//! shuffled map + config are byte-identical to the Python CLI.
+//! `--shuffle` reaches byte-parity here: `tcl-bigip::redact` reproduces the
+//! `MT19937` Fisher-Yates shuffle permutation exactly, so the shuffled map
+//! + config are byte-identical to the captured golden output.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -116,17 +116,17 @@ fn assert_redact(base: &str, extra: &[&str]) {
     assert_eq!(
         config,
         golden(&format!("redact-{base}.conf.golden")),
-        "{base}: redacted config does not match the Python CLI"
+        "{base}: redacted config does not match the golden"
     );
     assert_eq!(
         map,
         golden(&format!("redact-{base}.map.golden")),
-        "{base}: sidecar map file does not match the Python CLI"
+        "{base}: sidecar map file does not match the golden"
     );
     assert_eq!(
         stderr,
         golden(&format!("redact-{base}.err.golden")),
-        "{base}: summary line does not match the Python CLI"
+        "{base}: summary line does not match the golden"
     );
 }
 
@@ -149,8 +149,8 @@ fn custom_target_cidr_pool() {
 
 #[test]
 fn shuffle_mode_byte_parity() {
-    // CPython MT19937 shuffle reproduced exactly: shuffled host bits + the
-    // per-CIDR shuffle keys in the map match Python byte-for-byte.
+    // MT19937 shuffle reproduced exactly: shuffled host bits + the
+    // per-CIDR shuffle keys in the map match the golden byte-for-byte.
     assert_redact("shuffle", &["--shuffle", "--seed", "42"]);
 }
 
@@ -176,10 +176,10 @@ fn keep_ips_redacts_secrets_only() {
     assert_eq!(
         config,
         golden("redact-keepips.conf.golden"),
-        "keep-ips: config does not match the Python CLI"
+        "keep-ips: config does not match the golden"
     );
     // No map file is derived (no --map-file, but -o derives one) — but with
-    // --keep-ips Python never writes it. Assert it was not created.
+    // --keep-ips a map file is never written. Assert it was not created.
     let derived = format!("{}.redact.toml", out_path.to_string_lossy());
     assert!(
         !std::path::Path::new(&derived).exists(),
@@ -189,7 +189,7 @@ fn keep_ips_redacts_secrets_only() {
     assert_eq!(
         stderr,
         golden("redact-keepips.err.golden"),
-        "keep-ips: summary line does not match the Python CLI"
+        "keep-ips: summary line does not match the golden"
     );
 }
 
@@ -247,7 +247,7 @@ fn redact_format_tmsh_transaction_byte_parity() {
 fn unredact_format_tmsh_byte_parity() {
     // `unredact --format tmsh` re-renders the recovered config as a `tmsh
     // modify` script. Drives committed `unredact-input.{conf,map}` (a frozen
-    // redaction) so the run is deterministic and Python-free.
+    // redaction) so the run is deterministic with no external tool.
     let map = fixtures_dir()
         .join("unredact-input.map")
         .to_string_lossy()
@@ -307,12 +307,12 @@ fn redact_unredact_round_trip() {
     assert_eq!(
         back,
         golden("redact-roundtrip.conf.golden"),
-        "round-trip: unredacted config does not match the Python CLI"
+        "round-trip: unredacted config does not match the golden"
     );
     let uerr = String::from_utf8_lossy(&u.stderr).into_owned();
     assert_eq!(
         uerr,
         golden("redact-roundtrip.uerr.golden"),
-        "round-trip: unredact summary does not match the Python CLI"
+        "round-trip: unredact summary does not match the golden"
     );
 }

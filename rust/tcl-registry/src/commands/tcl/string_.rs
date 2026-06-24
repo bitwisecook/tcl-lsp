@@ -8,7 +8,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "string option arg ?arg ...?",
 }];
 
-/// SYNC-JUN02b-6 (#519): compile-time folds for pure `string`
+/// Compile-time folds for pure `string`
 /// subcommands, consumed by the optimiser's O129 general-builtin
 /// constant-fold path through the registry `const_fold` callbacks.
 ///
@@ -61,15 +61,26 @@ fn fold_cat(args: &[&str]) -> Option<String> {
     Some(args.concat())
 }
 
-/// `string repeat string count` — repeat (bounded, matching Python's
-/// 10000 sanity cap).  No char transformation → sound for any input.
-/// A negative count fails the `usize` parse → bails (matches Python).
+/// Cap on a single constant-fold's materialised output (1 MiB). `s` may
+/// already be large from a nested fold, so bounding only the repeat count
+/// leaves an allocation bomb; bound the product and bail above the cap.
+const MAX_FOLD_OUTPUT_BYTES: usize = 1 << 20;
+
+/// `string repeat string count` — repeat (bounded by a 10000 count cap and a
+/// 1 MiB output cap).  No char transformation → sound for any input.
+/// A negative count fails the `usize` parse → bails.
 fn fold_repeat(args: &[&str]) -> Option<String> {
     let [s, count] = args else {
         return None;
     };
     let n: usize = count.trim().parse().ok()?;
     if n > 10_000 {
+        return None;
+    }
+    if s.len()
+        .checked_mul(n)
+        .is_none_or(|bytes| bytes > MAX_FOLD_OUTPUT_BYTES)
+    {
         return None;
     }
     Some(s.repeat(n))
@@ -359,14 +370,15 @@ fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<Stri
     Some(out)
 }
 
-/// `string is class ?-strict? ?-failindex var? string` (SYNC-JUN02d-1
-/// follow-up, #525 B-tail).  Constant-folds the **Tcl-faithful** classes
+/// `string is class ?-strict? ?-failindex var? string`.
+/// Constant-folds the **Tcl-faithful** classes
 /// the optimiser can decide soundly.
 ///
-/// Deliberately *not* a transcription of Python's `str`-method fold,
-/// whose semantics diverge from Tcl: e.g. `str.islower("abc1")` is
-/// `True` but `string is lower abc1` is `0` (Tcl requires *every* char
-/// to be a lowercase letter; a digit fails).  The ASCII character
+/// Deliberately follows Tcl's classification, not a naive
+/// letter-case predicate whose semantics diverge: e.g. a check that
+/// passes `"abc1"` as "lower" disagrees with `string is lower abc1`,
+/// which is `0` (Tcl requires *every* char to be a lowercase letter;
+/// a digit fails).  The ASCII character
 /// classes here apply the predicate to every char and **bail on
 /// non-ASCII input** (Unicode class membership isn't modelled — a
 /// missed fold, never a wrong one).  `ascii` is the membership test
@@ -712,8 +724,7 @@ fn tcl_bool(s: &str) -> Option<bool> {
     }
 }
 
-/// Character classes accepted by `string is <class>`.  Mirrors
-/// `_IS_CLASSES` in `core/commands/registry/tcl/string.py`.
+/// Character classes accepted by `string is <class>`.
 static IS_CLASSES: &[ArgValue] = &[
     ArgValue {
         value: "alnum",
@@ -1298,8 +1309,8 @@ mod tests {
         assert_eq!(is(&["wordchar", "a_b9"]).as_deref(), Some("1"));
         assert_eq!(is(&["wordchar", "a-b"]).as_deref(), Some("0"));
 
-        // The Tcl-vs-Python divergence the deferral called out:
-        // `str.islower("abc1")` is True, but Tcl `string is lower` is 0
+        // A divergence worth pinning: a naive "all lowercase" check would
+        // pass `"abc1"`, but Tcl `string is lower` is 0
         // (a digit is not a lowercase *letter*).
         assert_eq!(is(&["lower", "abc1"]).as_deref(), Some("0"));
         assert_eq!(is(&["lower", "abc"]).as_deref(), Some("1"));
@@ -1554,7 +1565,7 @@ mod tests {
 
     #[test]
     fn pure_string_subcommands_carry_const_fold() {
-        // SYNC-JUN02b-6 (#519): toupper / tolower / reverse expose a
+        // toupper / tolower / reverse expose a
         // const_fold callback for the optimiser's O129 path.
         let reg = CommandRegistry::build_default();
         let spec = reg.get("string").expect("string spec");
@@ -1592,7 +1603,7 @@ mod tests {
 
     #[test]
     fn string_value_folds_match_tcl() {
-        // SYNC-JUN02d-1 (#525): the cat / repeat / trim* / totitle folds.
+        // The cat / repeat / trim* / totitle folds.
         let reg = CommandRegistry::build_default();
         let spec = reg.get("string").expect("string spec");
         let f = |sub: &str| spec.subcommand(sub).and_then(|s| s.const_fold).unwrap();
@@ -1614,7 +1625,7 @@ mod tests {
 
     #[test]
     fn string_index_comparison_folds_match_tcl() {
-        // SYNC-JUN02d-1 (#525): index / range / replace / first / last /
+        // index / range / replace / first / last /
         // compare / equal, with `end` / `end-N` index parsing.
         let reg = CommandRegistry::build_default();
         let spec = reg.get("string").expect("string spec");
@@ -1661,7 +1672,7 @@ mod tests {
 
     #[test]
     fn string_map_folds_match_tcl() {
-        // SYNC-JUN02d-1 (#525): `string map` greedy left-to-right replace.
+        // `string map` greedy left-to-right replace.
         let reg = CommandRegistry::build_default();
         let m = reg
             .get("string")

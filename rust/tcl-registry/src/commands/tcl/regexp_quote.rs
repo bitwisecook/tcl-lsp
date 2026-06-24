@@ -7,9 +7,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
-        // GAP-D1(d): the command is `regexp::quote` (`::`, not `_`) —
-        // the Rust port mis-spelled it `regexp_quote`. Mirrors
-        // `tcl/regexp__quote.py`.
+        // The command is `regexp::quote` (`::`, not `_`); the module
+        // name uses `_` because `::` is not a legal file-name character.
         name: "regexp::quote",
         dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         traits: Traits::PURE,
@@ -24,7 +23,6 @@ pub fn spec() -> CommandSpec {
             return_value: "Returns a regex-escaped string.",
         }),
         // GAP-D2: regex-escaped literal output; double-encode → T106.
-        // Mirrors `tcl/regexp__quote.py`.
         taint_transform: Some(TaintColour::REGEX_LITERAL),
         taint_double_encode_colour: Some(TaintColour::REGEX_LITERAL),
         forms: FORMS,

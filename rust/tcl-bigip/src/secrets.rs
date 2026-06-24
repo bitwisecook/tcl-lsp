@@ -1,8 +1,7 @@
 //! Locate and rewrite the master-key-encrypted secret values in a config.
 //!
-//! Faithful Rust port of the `rewrite_secrets` half of
-//! `dialects/f5/bigip/rewrite.py` ([`rewrite_secrets`], [`ENCRYPTED_SECRET_KEYS`],
-//! [`SecretRewriteReport`]). This is a text-level rewrite — comments,
+//! Exposes [`rewrite_secrets`], [`ENCRYPTED_SECRET_KEYS`], and
+//! [`SecretRewriteReport`]. This is a text-level rewrite — comments,
 //! whitespace, and ordering survive — and it stays free of any crypto
 //! dependency: the caller (`f5 encrypt-secrets` / `f5 decrypt-secrets`) supplies
 //! the actual cipher as a `transform` closure.
@@ -56,18 +55,17 @@ pub struct SecretRewriteReport {
 /// key and value, then the value token (a double-quoted string or a run of
 /// non-whitespace, non-brace characters). Group 1 = key, 2 = gap, 3 = value.
 ///
-/// Python emulates the `(?<![\w-])` look-behind with a leading boundary group;
-/// the `regex` crate has no look-around, so the caller checks the preceding byte
-/// manually (mirroring `redact.rs`'s approach for the IP guards).
+/// The `regex` crate has no look-around, so the caller checks the preceding
+/// byte manually to emulate the `(?<![\w-])` boundary.
 fn key_pattern(key: &str) -> Regex {
     // `"(?:[^"\\]|\\.)*"|[^\s{}]+` — quoted string OR bare token.
     let value = r#""(?:[^"\\]|\\.)*"|[^\s{}]+"#;
     Regex::new(&format!(r"({})([ \t]+)({value})", regex::escape(key))).expect("valid secret regex")
 }
 
-/// `\w` in Python's default mode for ASCII config text is `[A-Za-z0-9_]`; the
-/// key-boundary guard is `(?<![\w-])`, so the preceding byte must not be a word
-/// byte or a hyphen (keeps `admin-encrypted-password` from matching `password`).
+/// For ASCII config text the key-boundary guard `(?<![\w-])` means the
+/// preceding byte must not be a word byte (`[A-Za-z0-9_]`) or a hyphen (keeps
+/// `admin-encrypted-password` from matching `password`).
 fn key_boundary_ok(bytes: &[u8], start: usize) -> bool {
     start == 0 || {
         let b = bytes[start - 1];
@@ -75,7 +73,7 @@ fn key_boundary_ok(bytes: &[u8], start: usize) -> bool {
     }
 }
 
-/// Return `(value, was_quoted)` for a secret-value `token` (port of `_unquote`).
+/// Return `(value, was_quoted)` for a secret-value `token`.
 fn unquote(token: &str) -> (String, bool) {
     let bytes = token.as_bytes();
     if bytes.len() >= 2 && bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"' {
@@ -86,8 +84,7 @@ fn unquote(token: &str) -> (String, bool) {
     }
 }
 
-/// Render `value` back as a SCF token, quoting when it needs it (port of
-/// `_requote`).
+/// Render `value` back as a SCF token, quoting when it needs it.
 fn requote(value: &str, was_quoted: bool) -> String {
     let needs_quote =
         was_quoted || value.is_empty() || value.chars().any(|c| " \t\"{}#;".contains(c));

@@ -1,9 +1,9 @@
 //! Virtual environment creation and management.
 //!
-//! Faithful port of `tooling/tclpkg/venv.py`. A tclpkg virtual environment is a
+//! A tclpkg virtual environment is a
 //! directory (conventionally `.venv/`) containing a pinned `tclsh` wrapper,
 //! bash/fish activation scripts, and a `lib/` tree for materialised packages.
-//! The model mirrors Python's `venv`: activation prepends `<venv>/bin` to
+//! The model follows the usual `venv` convention: activation prepends `<venv>/bin` to
 //! `$PATH` and sets `$TCLLIBPATH`; the wrapper always sets `TCLLIBPATH` so
 //! non-interactive use works without activation.
 

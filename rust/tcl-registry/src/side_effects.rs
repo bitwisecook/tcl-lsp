@@ -2,11 +2,10 @@
 
 /// What kind of external state a command affects.
 ///
-/// Mirrors Python `SideEffectTarget` in `core/compiler/side_effects.py`
-/// (the reference standard); variant names match the consumer's
-/// `tcl_compiler::side_effects::SideEffectTarget` so the two can be
-/// unified later. `Process` / `ChannelIo` are registry-only (no Python
-/// counterpart) — kept for the existing `exec` / `chan` core specs.
+/// Variant names match the consumer's
+/// `tcl_compiler::side_effects::SideEffectTarget`. `Process` /
+/// `ChannelIo` are registry-only — kept for the existing `exec` /
+/// `chan` core specs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SideEffectTarget {
     /// Tcl variable read or write.
@@ -95,7 +94,7 @@ pub enum SideEffectTarget {
 
 /// Which connection side a command operates on (iRules).
 ///
-/// Mirrors Python `ConnectionSide`; variant names match the consumer's
+/// Variant names match the consumer's
 /// `tcl_compiler::side_effects::ConnectionSide`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ConnectionSide {

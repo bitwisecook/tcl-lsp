@@ -1,8 +1,8 @@
-//! String-category builtins (port of the `string` section of `builtins.py`).
+//! String-category builtins.
 //!
-//! This first batch covers the non-regex string builtins; the regex family
-//! (`match` / `sub` / `gsub` / `test` / `scan` / `capture` / `splits`) lands
-//! in a later batch atop `safe_regex_compile`.
+//! This module covers the non-regex string builtins; the regex family
+//! (`match` / `sub` / `gsub` / `test` / `scan` / `capture` / `splits`) lives
+//! in [`crate::builtins::regex_str`] atop `safe_regex_compile`.
 
 use crate::builtins::{BuiltinSpec, as_sequence, as_str, plain, type_name};
 use crate::errors::QueryError;
@@ -37,7 +37,7 @@ fn bi_endswith(args: &[Value]) -> Result<Value, QueryError> {
 fn bi_contains(args: &[Value]) -> Result<Value, QueryError> {
     let value = &args[0];
     let needle = &args[1];
-    // `_eq` from the Python impl coerces both sides' PathRef to full_path.
+    // Equality coerces both sides' PathRef to full_path.
     let eq = |item: &Value, target: &Value| -> bool {
         let a = match item {
             Value::PathRef(p) => Value::Str(p.full_path.clone()),
@@ -85,7 +85,7 @@ fn bi_join(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_upper(args: &[Value]) -> Result<Value, QueryError> {
-    // Python `.upper()` is full-Unicode; the DSL's ascii_upcase / upcase
+    // `.upper()` is full-Unicode; the DSL's ascii_upcase / upcase
     // both delegate to it.
     Ok(Value::Str(as_str(&args[0], "upcase", 1)?.to_uppercase()))
 }
@@ -131,8 +131,6 @@ mod tests {
 
     #[test]
     fn ascii_case_conversions() {
-        // Ported from `tests/test_f5_query.py::test_ascii_upcase_downcase_aliases`
-        // (TEST-MIGRATE — string.rs had no unit coverage).
         assert_eq!(call_str(bi_upper, &[s("abc")]), "ABC");
         assert_eq!(call_str(bi_lower, &[s("ABC")]), "abc");
     }
@@ -147,9 +145,15 @@ mod tests {
         assert!(call_bool(bi_endswith, &[s("web_pool"), s("_pool")]));
         assert!(call_bool(bi_contains, &[s("foobar"), s("oba")]));
         assert!(!call_bool(bi_contains, &[s("foobar"), s("xyz")]));
-        assert_eq!(call_strlist(bi_split, &[s("a,b,c"), s(",")]), ["a", "b", "c"]);
         assert_eq!(
-            call_str(bi_join, &[Value::List(vec![s("a"), s("b"), s("c")]), s("-")]),
+            call_strlist(bi_split, &[s("a,b,c"), s(",")]),
+            ["a", "b", "c"]
+        );
+        assert_eq!(
+            call_str(
+                bi_join,
+                &[Value::List(vec![s("a"), s("b"), s("c")]), s("-")]
+            ),
             "a-b-c"
         );
     }

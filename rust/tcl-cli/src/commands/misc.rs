@@ -1,15 +1,14 @@
 //! Miscellaneous verbs: `find-legacy`.
 //!
-//! Port of `_run_find_legacy` in `tooling/tcl/verbs/misc.py`. Runs the analyser
-//! over the combined input source, keeps the diagnostics whose codes have a
+//! Runs the analyser over the combined input source, keeps the diagnostics
+//! whose codes have a
 //! known mechanical modernisation (`_CONVERTIBLE_CODES`), and reports them with
 //! the matching conversion hint (`_CONVERSION_MAP`).
 //!
 //! This verb only *reports*; it never rewrites source. The diagnostic firing
-//! conditions, spans, and messages match the Python analyser byte-for-byte —
+//! conditions, spans, and messages are asserted against the captured golden output —
 //! only the emission *order* may differ (Rust sorts diagnostics by source
-//! position; Python emits in pass order). That ordering divergence is the
-//! accepted, documented one — see `docs/rust-cli-port.md`.
+//! position; emitted in pass order).
 
 use serde::Serialize;
 use tcl_cli_support::{OutputTarget, combine_sources, ensure_ascii, read_input_documents};
@@ -18,12 +17,11 @@ use tcl_lexer::LineIndex;
 
 use crate::cli::InputArgs;
 
-/// Diagnostic codes with a known mechanical modernisation — mirrors
-/// `_CONVERTIBLE_CODES` in `tooling/tcl/verbs/misc.py`.
+/// Diagnostic codes with a known mechanical modernisation.
 const CONVERTIBLE_CODES: [&str; 6] = ["W100", "W104", "W110", "W304", "IRULE2001", "IRULE5001"];
 
-/// The modernisation hint shown per code — mirrors `_CONVERSION_MAP`. Codes not
-/// in this table fall back to `"modernise"` (matching the Python `.get` default;
+/// The modernisation hint shown per code. Codes not
+/// in this table fall back to `"modernise"` (the default;
 /// every convertible code is present, so the fallback is unreachable in practice).
 fn conversion_for(code: &str) -> &'static str {
     match code {
@@ -37,9 +35,9 @@ fn conversion_for(code: &str) -> &'static str {
     }
 }
 
-/// One reported legacy pattern. Field order matches the Python issue dict
+/// One reported legacy pattern. Fields are emitted in declaration order
 /// (`code, line, column, message, conversion`); `serde_json::to_string_pretty`
-/// preserves declaration order, so the JSON is byte-faithful.
+/// preserves that order, so the JSON layout is stable.
 #[derive(Serialize)]
 struct LegacyIssue {
     code: String,
@@ -72,11 +70,11 @@ pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
         .map(|d| {
             let pos = line_index.position_at_utf16(d.span.start(), &source);
             LegacyIssue {
-                code: d.code.clone(),
+                code: d.code.to_string(),
                 line: pos.line + 1,
-                column: pos.character + 1,
+                column: pos.character.get() + 1,
                 message: d.message.clone(),
-                conversion: conversion_for(&d.code).to_owned(),
+                conversion: conversion_for(d.code.as_str()).to_owned(),
             }
         })
         .collect();

@@ -7,7 +7,7 @@
 //! lseq count ?by step?
 //! ```
 //!
-//! Ported from C's `Tcl_LseqObjCmd` (`tclCmdIL.c`) + `TclNewArithSeriesObj`
+//! Follows C's `Tcl_LseqObjCmd` (`tclCmdIL.c`) and `TclNewArithSeriesObj`
 //! (`tclArithSeries.c`): the same argument-decode key, the same `..`/`to`/
 //! `count`/`by` keywords, the same int-vs-double selection and length formula
 //! (`ArithSeriesLenInt`/`ArithSeriesLenDbl`), and the same double-precision
@@ -38,7 +38,7 @@
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     clippy::cast_possible_wrap,
-    // The float comparisons here are exact-value ports of C predicates
+    // The float comparisons here are exact-value predicates matching C
     // (`floor(d) != d` to detect a non-integer count; `step == 0.0`), not
     // approximate equalities.
     clippy::float_cmp
@@ -536,6 +536,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::approx_constant)] // `3.14` is parsed test data, not π
     fn as_number_parses_ints_doubles_and_precision() {
         // `lseq` number parsing (cmd-core lseq.rs had no unit coverage):
         // ints stay ints, doubles record their fractional precision, hex is

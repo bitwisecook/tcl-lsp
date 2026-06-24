@@ -1,7 +1,4 @@
-//! Analyser snapshot / restore — Rust port of
-//! ``core/analysis/_analyser/_snapshot.py`` and the
-//! ``snapshot`` / ``restore`` methods in
-//! ``core/analysis/_analyser/_core.py:105-184``.
+//! Analyser snapshot / restore.
 //!
 //! Captures cumulative analyser state at a chunk boundary so the
 //! analyser can resume from a checkpoint when only later chunks
@@ -10,14 +7,9 @@
 //! command, then restores the matching prefix when the user
 //! types into the document.
 //!
-//! Rust simplification vs Python: Python keys
-//! ``const_strings`` / ``regex_vars`` on ``id(scope)`` so the
-//! snapshot has to remap pointers via ``scope_id_map`` on
-//! restore. Rust keys both on a ``Vec<usize>`` path through
-//! ``result.global_scope.children``, so the path remains valid
-//! across deep-copy without remapping. The ``scope_id_map``
-//! field from Python's ``AnalyserSnapshot`` is therefore absent
-//! on the Rust side.
+//! ``const_strings`` / ``regex_vars`` are keyed on a ``Vec<usize>``
+//! path through ``result.global_scope.children``, so the path
+//! remains valid across a deep copy without any pointer remapping.
 
 use std::collections::{HashMap, HashSet};
 
@@ -28,16 +20,13 @@ use super::types::AnalysisResult;
 
 /// Captured analyser state for chunked re-analysis.
 ///
-/// Mirrors ``AnalyserSnapshot`` in
-/// ``core/analysis/_analyser/_snapshot.py:9``. Carries an
-/// independent deep copy of the [`AnalysisResult`] tree plus the
-/// per-walk fields the analyser would otherwise lose on
+/// Carries an independent deep copy of the [`AnalysisResult`] tree
+/// plus the per-walk fields the analyser would otherwise lose on
 /// restoration:
 ///
 /// - ``current_scope_path`` — index path through the result tree
-///   pointing at the active scope when the snapshot was taken.
-///   Replaces Python's ``Scope`` back-pointer + ``scope_id_map``
-///   pair (Rust's scope tree has no back-pointers).
+///   pointing at the active scope when the snapshot was taken
+///   (the scope tree has no back-pointers).
 /// - ``last_comment`` — most recent doc-comment for the next
 ///   ``proc`` / ``oo::class create`` definition.
 /// - ``current_event`` — enclosing ``when EVENT`` for iRules.
@@ -81,10 +70,8 @@ pub struct AnalyserSnapshot {
 impl Analyser {
     /// Capture the current analyser state for later restoration.
     ///
-    /// Mirrors ``Analyser.snapshot`` in
-    /// ``core/analysis/_analyser/_core.py:105-135``. Deep-copies
-    /// the result tree (via [`AnalysisResult::clone`], which
-    /// recursively clones all owned fields) and shallow-copies
+    /// Deep-copies the result tree (via [`AnalysisResult::clone`],
+    /// which recursively clones all owned fields) and shallow-copies
     /// the per-walk tracking state (every field is owned, so
     /// shallow clone is independent).
     ///
@@ -112,10 +99,8 @@ impl Analyser {
 
     /// Restore analyser state from a snapshot.
     ///
-    /// Mirrors ``Analyser.restore`` in
-    /// ``core/analysis/_analyser/_core.py:137-184``. Replaces the
-    /// result tree with an independent deep copy of the snapshot,
-    /// resets the per-walk tracking state, and clears the
+    /// Replaces the result tree with an independent deep copy of the
+    /// snapshot, resets the per-walk tracking state, and clears the
     /// ``ns_cache`` (it caches scope identity which is invalidated
     /// by the deep-copy).
     ///
@@ -126,7 +111,6 @@ impl Analyser {
     /// they're either stable across the analyser's lifetime
     /// (``disabled_diagnostics`` / ``file_path``) or will be
     /// rebuilt as the walk continues from the restored point.
-    /// Same contract as Python.
     pub fn restore(&mut self, snap: AnalyserSnapshot) {
         self.result = snap.result;
         self.current_scope_path = snap.current_scope_path;

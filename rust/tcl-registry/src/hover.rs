@@ -63,8 +63,7 @@ pub struct OptionSpec {
     /// Set this to restrict an option added in a specific Tcl
     /// version (e.g. `lsearch -stride` is Tcl 8.6+, `clock scan
     /// -validate` is Tcl 9.0+) so the option doesn't surface in
-    /// older dialects.  Mirrors `OptionSpec.dialects` in
-    /// `core/commands/registry/models.py` (PR #433).
+    /// older dialects.
     pub dialects: Option<DialectSet>,
 }
 
@@ -97,8 +96,7 @@ impl OptionSpec {
 /// Completion / hover metadata for a single enumerable
 /// positional-argument value.
 ///
-/// Mirrors `ArgumentValueSpec` in
-/// `core/commands/registry/models.py`.  Used for arguments
+/// Used for arguments
 /// whose value comes from a fixed set — e.g. the character
 /// class in `string is <class>`, the event name in iRules
 /// `when <EVENT>`, or a subcommand keyword.  The completion

@@ -223,14 +223,17 @@ pub trait ValueOps {
                 "missing value to go with key".to_string(),
             ));
         }
-        let mut keys: Vec<std::rc::Rc<str>> = Vec::new();
+        // Index keys → position for O(1) dedup (D3): a linear `Vec::position`
+        // scan per element made this O(N²) on every dict operation.
+        let mut index: std::collections::HashMap<Rc<str>, usize> =
+            std::collections::HashMap::with_capacity(elems.len() / 2);
         let mut pairs: Vec<(Self::Value, Self::Value)> = Vec::new();
         for chunk in elems.chunks_exact(2) {
             let key = self.as_str(&chunk[0]);
-            if let Some(pos) = keys.iter().position(|k| **k == *key) {
+            if let Some(&pos) = index.get(&key) {
                 pairs[pos].1 = chunk[1].clone(); // last value wins, keep position
             } else {
-                keys.push(key);
+                index.insert(key, pairs.len());
                 pairs.push((chunk[0].clone(), chunk[1].clone()));
             }
         }

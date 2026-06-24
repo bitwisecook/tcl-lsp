@@ -1,15 +1,13 @@
-//! Constant / copy propagation optimiser pass (C30f, partial).
+//! Constant / copy propagation optimiser pass.
 //!
-//! Ported from `core/compiler/optimiser/_propagation.py`. The
-//! Python module exposes seven distinct entry points; this
-//! Rust port currently lands three:
+//! Entry points:
 //!
 //! - **`optimise_constant_var_refs`** (`O100`) — replace a
 //!   single-token `$var` call argument with its SCCP-proved
 //!   literal, when the value is safe to inline as a bare word.
 //! - **`optimise_static_proc_calls`** (`O103`) — fold calls to
 //!   pure procs whose return is a proven constant
-//!   (`can_fold_static_calls` from C28x-return). Fires
+//!   (`can_fold_static_calls`). Fires
 //!   applicable rewrites when the call appears as a `[proc …]`
 //!   command substitution inside another call's argv (the argv
 //!   span is the rewrite target); the bare statement form stays
@@ -17,10 +15,9 @@
 //!   `::answer` to `42` would leave an invalid command name.
 //! - **`optimise_return_terminator`** (`O100`) — rewrite
 //!   `return $v` as `return K` when `v` is SCCP-constant.
-//!   (Earlier Rust commits emitted `O104`; that code is reserved
-//!   by the canonical optimisation-codes table for the
-//!   string-build chain fold and was reassigned in the C* close-out
-//!   audit.)
+//!   (`O104` is reserved by the canonical optimisation-codes
+//!   table for the string-build chain fold, so this path uses
+//!   `O100`.)
 //!
 //! - **`optimise_string_interpolation_var_refs`** (`O100`) —
 //!   inline SCCP-proved constants into `"…$x…"` double-quoted
@@ -38,18 +35,18 @@
 //!   on uses inside interpolated strings (the latter covered by
 //!   the O100 string-interpolation path).
 //!
-//! `optimise_expression_args` and `optimise_expr_substitutions`
-//! in the Python source operate on the condition sub-expressions
-//! of `if` / `while` / `for` and the bodies of standalone `expr`
-//! commands. Both are already covered by this Rust port's
-//! `branch_folding::propagate_into_branches` (for
-//! branch conditions) and [`super::expr_simplify::run`] (for
-//! standalone `expr` commands) — no separate port is needed.
+//! Constant propagation into the condition sub-expressions of
+//! `if` / `while` / `for` and the bodies of standalone `expr`
+//! commands is handled elsewhere:
+//! `branch_folding::propagate_into_branches` (for branch
+//! conditions) and [`super::expr_simplify::run`] (for standalone
+//! `expr` commands).
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
+use tcl_core_types::DiagCode;
 
 use super::helpers::expr_simplify::{NumericCtx, numeric_var_names, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
@@ -85,10 +82,9 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     for fu in cu.procedures.values() {
         run_load_forwarding(ctx, fu);
     }
-    // GAP-B1: O127 store-to-load forwarding for *computed* single-use
+    // O127 store-to-load forwarding for *computed* single-use
     // assignments (`set x [cmd]` inlined to its sole use site, then the
-    // store deleted).  Skips the top-level body, matching Python's
-    // `is_top_level` guard.
+    // store deleted).  Skips the top-level body.
     for fu in cu.procedures.values() {
         run_store_to_load_forwarding(ctx, fu);
     }
@@ -116,12 +112,12 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
         }
         // Find the defining statement — must be an AssignConst
         // with a literal value to forward. AssignValue without
-        // substitutions could also work, but we're conservative:
-        // the Python pass restricts to the same shapes.
+        // substitutions could also work, but we're conservative
+        // and restrict to the same shapes.
         let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
             continue;
         };
-        let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+        let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
             continue;
         };
         let Some(def_stmt) = block.statements.get(idx) else {
@@ -149,7 +145,7 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
             let Ok(use_idx) = usize::try_from(use_site.statement_index) else {
                 continue;
             };
-            let Some(use_block) = fu.cfg.blocks.get(&use_site.block) else {
+            let Some(use_block) = fu.cfg.block_by_name(&use_site.block) else {
                 continue;
             };
             let Some(use_stmt) = use_block.statements.get(use_idx) else {
@@ -180,7 +176,7 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
                         continue;
                     }
                     ctx.report(Optimisation::new(
-                        "O102",
+                        DiagCode::O102,
                         message.clone(),
                         full_word_span(ctx.source, fu.abs_span(*argv_span)),
                         literal.clone(),
@@ -198,7 +194,7 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
             // read is inside an interpolated string — the O100
             // string-interpolation path handles that).
             let mut opt = Optimisation::new(
-                "O102",
+                DiagCode::O102,
                 message.clone(),
                 fu.abs_span(use_stmt.span()),
                 literal.clone(),
@@ -212,8 +208,7 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
 /// O127 — store-to-load forwarding for a *computed* single-use
 /// assignment.
 ///
-/// Port of `optimise_load_forwarding`'s O127 path
-/// (`_propagation.py:716-1046`).  When `set x [cmd]` (a command
+/// The O127 store-to-load-forwarding path.  When `set x [cmd]` (a command
 /// substitution or a command-bearing expr) has exactly one
 /// `Operand` use of `$x` later in the same block, and nothing
 /// between the def and the use can change the value the expression
@@ -221,7 +216,7 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
 /// at the use site (`O127`) and delete the original store (`O127`,
 /// empty replacement).
 ///
-/// Safety gates mirror the Python pass: single operand use; same
+/// Safety gates: single operand use; same
 /// executable block; use after def; the value is not SCCP-constant
 /// (those are O100/O102); neither the defined name nor any name the
 /// expression reads is memory-SSA aliased (upvar / global /
@@ -333,12 +328,11 @@ fn forward_candidate(
     let (ctx, fu) = (env.ctx, env.fu);
 
     // Exactly one *non-terminator* use, and it must be a statement operand.
-    // A `return $x` / branch-condition read is a `Terminator` use; Rust's
-    // def-use records those in the chain but Python's does not. The forward
-    // preserves the assignment (`[set x …]`), and the operand use precedes
-    // the block terminator, so any terminator read still sees `x` — exclude
-    // terminator uses from the single-use test to match Python's
-    // `optimise_load_forwarding`. (A phi use, like Python, still blocks it.)
+    // A `return $x` / branch-condition read is a `Terminator` use; def-use
+    // records those in the chain. The forward preserves the assignment
+    // (`[set x …]`), and the operand use precedes the block terminator, so
+    // any terminator read still sees `x` — exclude terminator uses from the
+    // single-use test. (A phi use still blocks it.)
     let mut non_terminator = chain.uses.iter().filter(|u| u.kind != UseKind::Terminator);
     let use_site = non_terminator.next()?;
     if non_terminator.next().is_some() || use_site.kind != UseKind::Operand {
@@ -348,8 +342,11 @@ fn forward_candidate(
     if def.kind != DefKind::Statement {
         return None;
     }
-    // Same executable block; use strictly after def.
-    if def.block != use_site.block || !fu.sccp.executable_blocks.contains(&def.block) {
+    // Same executable block; use strictly after def. `def.block` /
+    // `use_site.block` are block names; resolve to the shared `BlockId`
+    // for the `executable_blocks` / `cfg.blocks` / `ssa.blocks` lookups.
+    let def_block = fu.cfg.block_id(&def.block)?;
+    if def.block != use_site.block || !fu.sccp.executable_blocks.contains(&def_block) {
         return None;
     }
     let (Ok(def_idx), Ok(use_idx)) = (
@@ -361,8 +358,8 @@ fn forward_candidate(
     if use_idx <= def_idx {
         return None;
     }
-    let block = fu.cfg.blocks.get(&def.block)?;
-    let ssa_block = fu.ssa.blocks.get(&def.block)?;
+    let block = fu.cfg.blocks.get(&def_block)?;
+    let ssa_block = fu.ssa.blocks.get(&def_block)?;
     let (def_stmt, use_stmt) = (
         block.statements.get(def_idx)?,
         block.statements.get(use_idx)?,
@@ -376,18 +373,27 @@ fn forward_candidate(
     }
 
     let def_key = chain.key.clone();
-    // Skip SCCP constants (O100 owns those).
-    if matches!(fu.sccp.values.get(&def_key), Some(LatticeValue::Const(_))) {
+    // Skip SCCP constants (O100 owns those). The def-use chain keys on the
+    // variable name; resolve it to the SSA symbol to index the SCCP lattice.
+    if let Some(sym) = fu.ssa.var_symbol(&def_key.0)
+        && matches!(
+            fu.sccp.values.get(&(sym, def_key.1)),
+            Some(LatticeValue::Const(_))
+        )
+    {
         return None;
     }
-    // Skip statements another pass already rewrote / consumed.
+    // Skip statements another pass already rewrote / consumed. The
+    // def-use chain keys on the variable name; resolve it to the SSA symbol
+    // to test the `(Symbol, Version)`-keyed branch-use set.
+    let def_key_sym = fu.ssa.var_symbol(&def_key.0).map(|s| (s, def_key.1));
     if ctx
         .propagated_expr_stmts
         .contains(&(def.block.clone(), def_idx))
         || ctx
             .propagated_expr_stmts
             .contains(&(use_site.block.clone(), use_idx))
-        || ctx.propagated_branch_uses.contains(&def_key)
+        || def_key_sym.is_some_and(|k| ctx.propagated_branch_uses.contains(&k))
     {
         return None;
     }
@@ -397,8 +403,11 @@ fn forward_candidate(
         return None;
     }
     // Names the def expression reads — used for alias + version safety.
-    let def_read_names: BTreeSet<String> =
-        ssa_block.statements[def_idx].uses.keys().cloned().collect();
+    let def_read_names: BTreeSet<String> = ssa_block.statements[def_idx]
+        .uses
+        .keys()
+        .map(|&s| fu.ssa.var_name(s).to_owned())
+        .collect();
     if def_read_names.iter().any(|n| env.aliased.contains(n)) {
         return None;
     }
@@ -472,13 +481,13 @@ fn build_forward_edits(
     }
     let stmt_text = &source[ds as usize..de as usize];
     let inline = Optimisation::new(
-        "O127",
+        DiagCode::O127,
         format!("Inline single-use variable `${def_name}`"),
         target,
         format!("[{stmt_text}]"),
     );
     let delete = Optimisation::new(
-        "O127",
+        DiagCode::O127,
         "Remove inlined assignment",
         line_delete_span(source, def_span),
         "",
@@ -544,7 +553,12 @@ fn intervening_is_safe(
         }
         // A redefinition of any read name invalidates the forward.
         if let Some(sb) = ssa_block.statements.get(idx)
-            && def_read_names.iter().any(|n| sb.defs.contains_key(n))
+            && def_read_names.iter().any(|n| {
+                env.fu
+                    .ssa
+                    .var_symbol(n)
+                    .is_some_and(|s| sb.defs.contains_key(&s))
+            })
         {
             return false;
         }
@@ -680,7 +694,7 @@ fn walk_statement(
         // command-argument position already gets. Only the cmd-sub fold
         // path is wired (not `visit_call_tokens`): a bare `set y $c` RHS
         // is handled by SCCP / load-forwarding, and folding it here would
-        // change behaviour beyond the documented gap. SYNC-JUN02b-6 (#519).
+        // change behaviour beyond the documented gap.
         //
         // Note: the *canonical* `set x [expr {[expr {E}]}]` does not reach
         // this arm — `extract_single_expr_arg` strips the outer `expr` at
@@ -770,10 +784,9 @@ fn walk_statement(
 /// constant arguments, returning the constant return value when every
 /// reachable `return` agrees on it.
 ///
-/// Mirrors Python's `interprocedural.evaluate_proc_with_constants`: seed the
-/// parameters as version-0 lattice constants, re-run SCCP over the callee's
-/// CFG, then resolve a single constant from all reachable `return`
-/// terminators. Used for the argument-sensitive O103 fold
+/// Seeds the parameters as version-0 lattice constants, re-runs SCCP over
+/// the callee's CFG, then resolves a single constant from all reachable
+/// `return` terminators. Used for the argument-sensitive O103 fold
 /// (`[::math::add 2 4]` → `6`) that the summary's argument-independent
 /// `constant_return` cannot express.
 fn evaluate_proc_with_constants(
@@ -785,7 +798,9 @@ fn evaluate_proc_with_constants(
     if params.len() != args.len() {
         return None;
     }
-    let mut seed: std::collections::HashMap<crate::ssa::ValueKey, LatticeValue> =
+    // The seed keys on the parameter *name* (a stable, cache-safe identity);
+    // `sccp` resolves each to the callee build's interned symbol.
+    let mut seed: std::collections::HashMap<(String, crate::ssa::Version), LatticeValue> =
         std::collections::HashMap::new();
     for (p, a) in params.iter().zip(args.iter()) {
         seed.insert((p.clone(), 0), LatticeValue::Const(a.clone()));
@@ -797,7 +812,6 @@ fn evaluate_proc_with_constants(
 /// Resolve the constant return value of `fu` under a computed SCCP `result`.
 /// Every reachable `return` terminator must fold to the **same** constant;
 /// a void return, an unfoldable return, or disagreeing returns yield `None`.
-/// Mirrors Python's `_resolve_return_constant`.
 fn resolve_return_constant(
     fu: &FunctionUnit,
     result: &crate::sccp::SccpResult,
@@ -811,7 +825,7 @@ fn resolve_return_constant(
         let Some(Terminator::Return { value, expr, .. }) = &block.terminator else {
             continue;
         };
-        let folded = fold_return_under_lattice(fu, bn, value.as_deref(), expr.as_ref(), result)?;
+        let folded = fold_return_under_lattice(fu, *bn, value.as_deref(), expr.as_ref(), result)?;
         match &found {
             None => found = Some(folded),
             Some(prev) if *prev == folded => {}
@@ -826,7 +840,7 @@ fn resolve_return_constant(
 /// `return $var` (a lattice constant), and a bare literal return.
 fn fold_return_under_lattice(
     fu: &FunctionUnit,
-    bn: &str,
+    bn: crate::cfg::BlockId,
     value: Option<&str>,
     expr: Option<&crate::expr_ast::ExprNode>,
     result: &crate::sccp::SccpResult,
@@ -845,16 +859,16 @@ fn fold_return_under_lattice(
     // after a `foreach`) is a phi whose exit value is Overdefined, even
     // though an earlier `set total 0` left a stale Const(0) under another
     // version. Reading the precise version is what makes us bail on
-    // `sum_list` / `fibonacci` (matching Python's `_try_fold_return_value`
-    // path 2) instead of mis-folding to the pre-loop value.
+    // `sum_list` / `fibonacci` instead of mis-folding to the pre-loop value.
     if let Some(name) = simple_var_ref(value) {
+        let sym = fu.ssa.var_symbol(name)?;
         let ver = fu
             .ssa
             .blocks
-            .get(bn)
-            .and_then(|b| b.exit_versions.get(name).copied())
+            .get(&bn)
+            .and_then(|b| b.exit_versions.get(&sym).copied())
             .unwrap_or(0);
-        return match result.values.get(&(name.to_owned(), ver)) {
+        return match result.values.get(&(sym, ver)) {
             Some(LatticeValue::Const(c)) => Some(c.clone()),
             _ => None,
         };
@@ -866,23 +880,21 @@ fn fold_return_under_lattice(
     // versions for precise local state. Only used for the expr/interpolation
     // form (the simple-`$var` precision above is handled by path 2).
     let mut env: Env = Env::new();
-    let mut chosen_ver: std::collections::HashMap<&str, crate::ssa::Version> =
+    let mut chosen_ver: std::collections::HashMap<crate::ssa::Symbol, crate::ssa::Version> =
         std::collections::HashMap::new();
-    for ((name, ver), lv) in &result.values {
+    for ((sym, ver), lv) in &result.values {
         if let LatticeValue::Const(c) = lv {
-            let take = chosen_ver
-                .get(name.as_str())
-                .is_none_or(|prev| *ver > *prev);
+            let take = chosen_ver.get(sym).is_none_or(|prev| *ver > *prev);
             if take {
-                chosen_ver.insert(name.as_str(), *ver);
-                env.insert(name.clone(), const_to_env_value(c));
+                chosen_ver.insert(*sym, *ver);
+                env.insert(fu.ssa.var_name(*sym).to_owned(), const_to_env_value(c));
             }
         }
     }
-    if let Some(ssa_block) = fu.ssa.blocks.get(bn) {
-        for (name, ver) in &ssa_block.exit_versions {
-            if let Some(LatticeValue::Const(c)) = result.values.get(&(name.clone(), *ver)) {
-                env.insert(name.clone(), const_to_env_value(c));
+    if let Some(ssa_block) = fu.ssa.blocks.get(&bn) {
+        for (&sym, ver) in &ssa_block.exit_versions {
+            if let Some(LatticeValue::Const(c)) = result.values.get(&(sym, *ver)) {
+                env.insert(fu.ssa.var_name(sym).to_owned(), const_to_env_value(c));
             }
         }
     }
@@ -937,7 +949,7 @@ fn parse_static_call_args(
 
 /// Resolve a call's head word to a procedure qname that has an
 /// interprocedural summary, walking the enclosing namespace chain for a
-/// bare call. Mirrors Python's `_resolve_summary_proc_name`:
+/// bare call:
 ///
 /// * a `::`-qualified word is taken as-is;
 /// * a word containing `::` (relative-qualified) is rooted at `::`;
@@ -999,7 +1011,7 @@ fn try_fold_static_proc_call(
     };
     // A redefined proc has an ambiguous body — never fold its calls
     // (the flow-sensitive rename gate, mirroring the cmd-subst form and
-    // Python's `redefined_procedures` check).
+    // `redefined_procedures` check).
     if cu.ir_module.redefined_procedures.contains(&qname) {
         return;
     }
@@ -1024,14 +1036,14 @@ fn try_fold_static_proc_call(
     };
     // The span here covers the whole Statement::Call — applying
     // the literal replacement would turn `::answer` into a
-    // command named `42`, which is invalid Tcl. The Python pass
-    // targets `[procName …]` command substitutions with their
-    // token span instead. Until the Rust side tracks CMD-subst
+    // command named `42`, which is invalid Tcl. Targeting
+    // `[procName …]` command substitutions with their token span
+    // would avoid this. Until the Rust side tracks CMD-subst
     // spans at the call argument level, emit as a hint so
     // editors surface the fold without proposing an applicable
     // quick-fix.
     let mut opt = Optimisation::new(
-        "O103",
+        DiagCode::O103,
         format!(
             "Fold pure-proc call to '{}' to its constant return",
             summary.qualified_name
@@ -1049,10 +1061,9 @@ fn try_fold_static_proc_call(
 /// the original source was `return [expr …]`.
 ///
 /// Uses `O100` (the canonical constant-propagation code) rather
-/// than the `O104` that earlier Rust commits emitted — `O104` is
+/// than the `O104` that earlier commits emitted — `O104` is
 /// reserved by `docs/generated/optimisation_codes.md` for the
-/// pattern-recognition string-build chain fold (matching the
-/// Python optimiser's allocation).
+/// pattern-recognition string-build chain fold.
 fn try_fold_return_terminator(
     ctx: &mut PassContext<'_>,
     span: tcl_lexer::Span,
@@ -1069,7 +1080,7 @@ fn try_fold_return_terminator(
     // operates on the raw value text.
     if let Some(collapsed) = value.and_then(|raw| o115_redundant_nested_expr(raw.trim())) {
         ctx.report(Optimisation::new(
-            "O115",
+            DiagCode::O115,
             "Remove redundant nested expr",
             span,
             format!("return {collapsed}"),
@@ -1094,7 +1105,7 @@ fn try_fold_return_terminator(
                 && !folded.contains(['$', '['])
             {
                 ctx.report(Optimisation::new(
-                    "O101",
+                    DiagCode::O101,
                     "Fold constant expression",
                     span,
                     format!("return {}", render_propagation_word(&folded)),
@@ -1124,11 +1135,11 @@ fn try_fold_return_terminator(
     let Some(resolved) = constants.get(&name).or_else(|| constants.get(&normalised)) else {
         return;
     };
-    // SYNC-JUN02b-1: render the constant as a single self-contained word
+    // Render the constant as a single self-contained word
     // rather than bailing on metacharacters (`return {Hello World}`).
     let word = render_propagation_word(resolved);
     ctx.report(Optimisation::new(
-        "O100",
+        DiagCode::O100,
         "Fold return of constant variable",
         span,
         format!("return {word}"),
@@ -1171,7 +1182,7 @@ fn try_substitute_assign_expr(
         return;
     }
     // After substitution, try to fold the result to a constant
-    // — matches the Python cascade where O100 enables O101. When
+    // — the cascade where O100 enables O101. When
     // the substituted expression is fully constant we can emit
     // the unwrapped ``set name VALUE`` form directly. Otherwise
     // keep the expression wrapper around the substituted text.
@@ -1185,7 +1196,7 @@ fn try_substitute_assign_expr(
             ]);
         if !needs_quoting {
             ctx.report(Optimisation::new(
-                "O100",
+                DiagCode::O100,
                 "Propagate constant and fold",
                 full_rewrite_span(ctx.source, span),
                 format!("set {name} {folded}"),
@@ -1203,7 +1214,7 @@ fn try_substitute_assign_expr(
         simplified
     };
     ctx.report(Optimisation::new(
-        "O100",
+        DiagCode::O100,
         "Propagate constant into expr argument",
         full_rewrite_span(ctx.source, span),
         format!("set {name} [expr {{{final_text}}}]"),
@@ -1220,8 +1231,7 @@ fn try_substitute_assign_expr(
 /// position word. A plain `[expr {$x + 1}]` (whose unwrap `$x + 1`
 /// would be invalid as a bare value) — or an `[expr {[other]}]` whose
 /// inner is not itself `expr` (not value-equivalent for non-numeric
-/// results) — yields `None`. Mirrors the O115 value-position path added
-/// to `optimise_expr_substitutions` (#519).
+/// results) — yields `None`.
 fn o115_redundant_nested_expr(word: &str) -> Option<String> {
     let expr_arg = try_unwrap_expr_in_expr(word)?;
     try_unwrap_expr_in_expr(&expr_arg)?;
@@ -1263,7 +1273,7 @@ fn visit_call_cmd_subst_folds(
         // argument value position (needs no interproc summary).
         if let Some(collapsed) = o115_redundant_nested_expr(text) {
             ctx.report(Optimisation::new(
-                "O115",
+                DiagCode::O115,
                 "Remove redundant nested expr",
                 full_word_span(ctx.source, *argv_span),
                 collapsed,
@@ -1283,9 +1293,9 @@ fn visit_call_cmd_subst_folds(
                 // with `$a`/`$b` proven constant collapses to its value (the
                 // SCCP `[expr …]` fold doesn't reach a Call-argument position).
                 // A quoted / bare `expr "…"` substitutes the variable values
-                // textually before parsing; Python is conservative there and
+                // textually before parsing; this is conservative there and
                 // never folds it, so keep the historical literal-only fold (no
-                // constants env) to preserve parity.
+                // constants env).
                 let folded = if let Some(braced_body) =
                     raw_body.strip_prefix('{').and_then(|b| b.strip_suffix('}'))
                 {
@@ -1302,7 +1312,7 @@ fn visit_call_cmd_subst_folds(
                     && !folded.contains(['$', '['])
                 {
                     ctx.report(Optimisation::new(
-                        "O101",
+                        DiagCode::O101,
                         "Fold constant expression",
                         full_word_span(ctx.source, *argv_span),
                         folded,
@@ -1321,11 +1331,11 @@ fn visit_call_cmd_subst_folds(
         {
             // `list` / `lindex` keep their historical diagnostic codes
             // (O116 / O118) for editor granularity; everything else reports
-            // the general O129.  Mirrors `_propagation.py:335`.
+            // the general O129.
             let (code, message) = match inner.split_whitespace().next() {
-                Some("list") => ("O116", "Fold constant list command"),
-                Some("lindex") => ("O118", "Fold constant lindex command"),
-                _ => ("O129", "Fold constant builtin command substitution"),
+                Some("list") => (DiagCode::O116, "Fold constant list command"),
+                Some("lindex") => (DiagCode::O118, "Fold constant lindex command"),
+                _ => (DiagCode::O129, "Fold constant builtin command substitution"),
             };
             ctx.report(Optimisation::new(
                 code,
@@ -1367,10 +1377,10 @@ fn visit_call_cmd_subst_folds(
                 ConstantReturn::Float(f) => f.to_string(),
                 ConstantReturn::Bool(true) => "1".to_owned(),
                 ConstantReturn::Bool(false) => "0".to_owned(),
-                // B3 (SYNC-JUN02d-2, #525): a multi-word string return folds
+                // A multi-word string return folds
                 // too, list-quoted as a single word via the canonical quoter
                 // (the cmd-sub is one argument word) — `set msg {a b}; return
-                // $msg` in the callee no longer blocks the fold.
+                // $msg` in the callee does not block the fold.
                 ConstantReturn::Str(s) => render_propagation_word(s),
             }
         } else if summary.pure
@@ -1385,14 +1395,13 @@ fn visit_call_cmd_subst_folds(
         {
             // Argument-sensitive: re-run SCCP on the pure callee with the
             // call's constant arguments bound and fold the constant return
-            // (`[::math::add 2 4]` → `6`). Mirrors Python's fallback to
-            // `evaluate_proc_with_constants`.
+            // (`[::math::add 2 4]` → `6`).
             render_const(&cv)
         } else {
             continue;
         };
         ctx.report(Optimisation::new(
-            "O103",
+            DiagCode::O103,
             format!(
                 "Fold pure-proc call to '{}' to its constant return",
                 summary.qualified_name
@@ -1421,7 +1430,7 @@ fn parse_cmd_subst_head(inner: &str) -> Option<&str> {
     Some(head)
 }
 
-/// O129 (SYNC-JUN02b-6, #519): fold a pure-builtin command substitution
+/// O129: fold a pure-builtin command substitution
 /// `[cmd args…]` (or `[cmd sub args…]`) whose arguments are constant
 /// literals, by consulting the registry `const_fold` callback for the
 /// resolved command (or subcommand). Returns the rendered replacement
@@ -1432,7 +1441,7 @@ fn parse_cmd_subst_head(inner: &str) -> Option<&str> {
 /// multi-word fold result (`string toupper {a b}` → `A B`) is emitted
 /// as a single brace-quoted word.
 ///
-/// SYNC-JUN02b-4: gated by `mutations.trusts(head)` — if the command was
+/// Gated by `mutations.trusts(head)` — if the command was
 /// renamed / redefined anywhere in the module, it is no longer its
 /// original builtin and must not be folded with the builtin's semantics.
 fn try_o129_fold(
@@ -1521,12 +1530,12 @@ fn literal_words(
                 prev_is_sep = false;
             }
             TokenType::Var => {
-                // B2 (SYNC-JUN02d-2, #525): resolve a single-token `$var`
+                // Resolve a single-token `$var`
                 // word to its constant value (kept as ONE argument so a
                 // multi-word value isn't re-split).  The Rust SCCP
                 // `constants` map is whole-function (a var is present only
                 // if every reaching def agrees), so substituting it here
-                // is sound without Python's same-block reaching-version
+                // is sound without any same-block reaching-version
                 // gating.  A composite word (`foo$bar`), an array element
                 // (`$a(1)` — never a scalar constant), or a non-constant
                 // var bails.
@@ -1587,7 +1596,7 @@ fn visit_call_tokens(
         // single-token (quoted strings) and composite (mixed
         // text + var) words.
         visit_string_interpolation(ctx, *span, text, constants);
-        // B1 (SYNC-JUN02d-2): fold a pure-builtin `[cmd …]` substitution
+        // Fold a pure-builtin `[cmd …]` substitution
         // embedded *inside* an interpolation string.
         visit_string_interpolation_cmd_subs(ctx, *span, text, constants);
     }
@@ -1620,7 +1629,7 @@ fn is_whole_word_cmd_subst(inside: &str) -> bool {
     false
 }
 
-/// B1 (SYNC-JUN02d-2, #525): fold a pure-builtin command substitution
+/// Fold a pure-builtin command substitution
 /// embedded *inside* an interpolation string, splicing the raw result
 /// into the surrounding `"…"` (O129): `puts "v=[string length abc]"` →
 /// `puts "v=5"`.
@@ -1649,7 +1658,7 @@ fn visit_string_interpolation_cmd_subs(
         return;
     }
     // A whole-word `[…]` cmd-sub is already folded by
-    // `visit_call_cmd_subst_folds`; B1 only handles a sub *embedded* in
+    // `visit_call_cmd_subst_folds`; this path only handles a sub *embedded* in
     // surrounding interpolation text (else we'd emit a duplicate O129).
     if is_whole_word_cmd_subst(inside) {
         return;
@@ -1722,7 +1731,7 @@ fn visit_string_interpolation_cmd_subs(
     out.push_str(&inside[last..]);
     let rewrite_span = full_quoted_string_span(ctx.source, span);
     ctx.report(Optimisation::new(
-        "O129",
+        DiagCode::O129,
         "Fold constant builtin command substitution in interpolation",
         rewrite_span,
         format!("\"{out}\""),
@@ -1745,11 +1754,11 @@ fn visit_simple_var_word(
     else {
         return;
     };
-    // SYNC-JUN02b-1: re-render a metacharacter-bearing constant as a
+    // Re-render a metacharacter-bearing constant as a
     // single self-contained word instead of bailing.
     let word = render_propagation_word(value);
     ctx.report(Optimisation::new(
-        "O100",
+        DiagCode::O100,
         "Propagate constant into command argument",
         span,
         word,
@@ -1807,7 +1816,7 @@ fn visit_string_interpolation(
     // string — otherwise we leave trailing `$b $c"` garbage.
     let rewrite_span = full_quoted_string_span(ctx.source, span);
     ctx.report(Optimisation::new(
-        "O100",
+        DiagCode::O100,
         "Inline constant into string interpolation",
         rewrite_span,
         format!("\"{rewritten}\""),
@@ -1909,8 +1918,8 @@ fn substitute_dollar_refs(
         // Inside a `[…]` command substitution the value becomes a command
         // word, so it must be a single self-contained word — a value with
         // whitespace (a list literal like `tran 1n 100n uic`) would split
-        // into multiple arguments. Bail rather than propagate (matches
-        // Python, which leaves the `$var` in place). Plain string-text
+        // into multiple arguments. Bail rather than propagate, leaving the
+        // `$var` in place. Plain string-text
         // occurrences (`cmd_depth == 0`) inline the value verbatim as before.
         if cmd_depth > 0 && !is_value_safe_bare_word(value) {
             return None;
@@ -1944,12 +1953,12 @@ fn is_value_safe_bare_word(value: &str) -> bool {
     is_safe_word(value)
 }
 
-/// SYNC-JUN02b-1 (#519): render a constant `value` as a single,
+/// Render a constant `value` as a single,
 /// self-contained Tcl word for O100 propagation into a command-argument
 /// or `return` value position.
 ///
 /// A safe bare word (integer or `[A-Za-z0-9_./:+-]`-only identifier) is
-/// emitted verbatim — its existing parity-tested behaviour. Anything
+/// emitted verbatim. Anything
 /// else (whitespace, `$` / `[` / `;` / quotes, unbalanced braces, a
 /// trailing backslash, …) is re-rendered through the canonical
 /// `TclConvertElement`-style quoter [`crate::codegen::helpers::tcl_list_element`]
@@ -1969,28 +1978,28 @@ fn render_propagation_word(value: &str) -> String {
 fn sccp_constants_for(fu: &FunctionUnit) -> std::collections::HashMap<String, String> {
     use super::helpers::literals::format_constant;
 
-    let mut per_var: std::collections::HashMap<String, Vec<&ConstValue>> =
+    let mut per_var: std::collections::HashMap<crate::ssa::Symbol, Vec<&ConstValue>> =
         std::collections::HashMap::new();
-    let mut dirty: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for ((name, _ver), lv) in &fu.sccp.values {
-        if dirty.contains(name) {
+    let mut dirty: std::collections::HashSet<crate::ssa::Symbol> = std::collections::HashSet::new();
+    for ((sym, _ver), lv) in &fu.sccp.values {
+        if dirty.contains(sym) {
             continue;
         }
         if let LatticeValue::Const(cv) = lv {
-            per_var.entry(name.clone()).or_default().push(cv);
+            per_var.entry(*sym).or_default().push(cv);
         } else {
-            dirty.insert(name.clone());
-            per_var.remove(name);
+            dirty.insert(*sym);
+            per_var.remove(sym);
         }
     }
     let mut out = std::collections::HashMap::new();
-    for (name, cvs) in per_var {
+    for (sym, cvs) in per_var {
         let first = cvs[0];
         if !cvs.iter().all(|cv| *cv == first) {
             continue;
         }
         if let Some(text) = format_constant(first) {
-            out.insert(name, text);
+            out.insert(fu.ssa.var_name(sym).to_owned(), text);
         }
     }
     out
@@ -2050,7 +2059,7 @@ mod tests {
     fn o127(source: &str) -> Vec<Optimisation> {
         crate::optimiser::optimise_raw(source, &registry(), None)
             .into_iter()
-            .filter(|o| o.code == "O127")
+            .filter(|o| o.code == DiagCode::O127)
             .collect()
     }
 
@@ -2102,11 +2111,10 @@ mod tests {
     #[test]
     fn o127_forwards_past_extra_terminator_use() {
         // `$x` has one operand use (`baz $x`) plus a terminator use
-        // (`return $x`). Python's def-use chain excludes terminator reads,
-        // so it still forwards into the operand use while preserving the
-        // assignment for the `return`. Rust records the terminator use but
-        // must not let it block the forward — the inlined `[set x …]` keeps
-        // `x` defined for the trailing `return`.
+        // (`return $x`). Def-use records the terminator use, but it must not
+        // block the forward — the forward still fires into the operand use
+        // while preserving the assignment for the `return`. The inlined
+        // `[set x …]` keeps `x` defined for the trailing `return`.
         let src = "proc p {y} {\n    set x [llength $y]\n    baz $x\n    return $x\n}\n";
         let opts = o127(src);
         assert_eq!(opts.len(), 2, "{opts:?}");
@@ -2124,7 +2132,7 @@ mod tests {
         assert!(o127(src).is_empty(), "{:?}", o127(src));
     }
 
-    // -- internal helpers ---------------------------------------------------
+    // internal helpers
 
     #[test]
     fn simple_var_ref_parses_bare_and_braced() {
@@ -2144,14 +2152,14 @@ mod tests {
         assert!(!is_value_safe_bare_word("$dollar"));
     }
 
-    // -- end-to-end tests --------------------------------------------------
+    // end-to-end tests
 
     #[test]
     fn constant_int_propagates_into_call_arg() {
         let opts = run_pass("set x 42\nputs $x");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O100" && o.replacement == "42"),
+                .any(|o| o.code == DiagCode::O100 && o.replacement == "42"),
             "expected O100 propagating 42, got {opts:?}",
         );
     }
@@ -2162,28 +2170,28 @@ mod tests {
         // a bare word.
         let opts = run_pass("set x \"$other\"\nputs $x");
         assert!(
-            opts.iter().all(|o| o.code != "O100"),
+            opts.iter().all(|o| o.code != DiagCode::O100),
             "unsafe string should not be propagated, got {opts:?}",
         );
     }
 
     #[test]
     fn o100_multi_word_constant_renders_via_quoter() {
-        // SYNC-JUN02b-1 (#519): a constant containing whitespace or
+        // A constant containing whitespace or
         // metacharacters is re-rendered as a single self-contained word
         // via the canonical quoter instead of bailing.
         // `return` value position → `return {Hello World}`.
         let ret = run_pass("proc ::f {} { set msg {Hello World}\nreturn $msg }");
         assert!(
             ret.iter()
-                .any(|o| o.code == "O100" && o.replacement == "return {Hello World}"),
+                .any(|o| o.code == DiagCode::O100 && o.replacement == "return {Hello World}"),
             "expected O100 `return {{Hello World}}`, got {ret:?}",
         );
         // Command-argument position → `puts {Hello World}`.
         let arg = run_pass("proc ::f {} { set msg {Hello World}\nputs $msg }");
         assert!(
             arg.iter()
-                .any(|o| o.code == "O100" && o.replacement == "{Hello World}"),
+                .any(|o| o.code == DiagCode::O100 && o.replacement == "{Hello World}"),
             "expected O100 `{{Hello World}}` arg, got {arg:?}",
         );
         // A `$`/`[`-bearing literal constant is brace-quoted (the value
@@ -2191,7 +2199,7 @@ mod tests {
         let meta = run_pass("proc ::f {} { set m {a$b}\nputs $m }");
         assert!(
             meta.iter()
-                .any(|o| o.code == "O100" && o.replacement == "{a$b}"),
+                .any(|o| o.code == DiagCode::O100 && o.replacement == "{a$b}"),
             "expected O100 `{{a$b}}` arg, got {meta:?}",
         );
     }
@@ -2202,7 +2210,7 @@ mod tests {
         // not a single Const.
         let opts = run_pass("set x 1\nif {$cond} { set x 2 }\nputs $x");
         assert!(
-            opts.iter().all(|o| o.code != "O100"),
+            opts.iter().all(|o| o.code != DiagCode::O100),
             "non-const lattice should be skipped, got {opts:?}",
         );
     }
@@ -2212,7 +2220,7 @@ mod tests {
         let opts = run_pass("set x 7\nputs ${x}");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O100" && o.replacement == "7"),
+                .any(|o| o.code == DiagCode::O100 && o.replacement == "7"),
             "expected O100 for braced var ref, got {opts:?}",
         );
     }
@@ -2222,7 +2230,7 @@ mod tests {
         let opts = run_pass("proc ::f {} { set x 42; return $x }");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O100" && o.replacement.contains("42")),
+                .any(|o| o.code == DiagCode::O100 && o.replacement.contains("42")),
             "expected O100 folding return $x to return 42, got {opts:?}",
         );
     }
@@ -2242,7 +2250,7 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
         run(&mut ctx, &cu);
         assert!(
-            ctx.optimisations.iter().any(|o| o.code == "O103"),
+            ctx.optimisations.iter().any(|o| o.code == DiagCode::O103),
             "expected O103 static-proc fold, got {:?}",
             ctx.optimisations,
         );
@@ -2255,7 +2263,7 @@ mod tests {
         let opts = run_pass("set count 42\nputs \"count is $count\"");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O100" && o.replacement.contains("42")),
+                .any(|o| o.code == DiagCode::O100 && o.replacement.contains("42")),
             "expected O100 inlining count into interpolation, got {opts:?}",
         );
     }
@@ -2267,19 +2275,19 @@ mod tests {
         let opts = run_pass("set a 3\nset b 4\nputs [expr {$a + $b}]");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O101" && o.replacement == "7"),
+                .any(|o| o.code == DiagCode::O101 && o.replacement == "7"),
             "expected O101 folding [expr {{$a + $b}}] to 7, got {opts:?}",
         );
     }
 
     #[test]
     fn quoted_expr_cmd_sub_arg_not_folded_under_constants() {
-        // `puts [expr "$a + $b"]` is the quoted form — Python is conservative
-        // and never folds it (textual substitution), so neither do we.
+        // `puts [expr "$a + $b"]` is the quoted form — it uses textual
+        // substitution, so we conservatively never fold it.
         let opts = run_pass("set a 3\nset b 4\nputs [expr \"$a + $b\"]");
         assert!(
             opts.iter()
-                .all(|o| !(o.code == "O101" && o.replacement == "7")),
+                .all(|o| !(o.code == DiagCode::O101 && o.replacement == "7")),
             "quoted expr must not fold under constants, got {opts:?}",
         );
     }
@@ -2289,7 +2297,7 @@ mod tests {
         // `$name` is not in the constants map → must not fire.
         let opts = run_pass("puts \"hello $name\"");
         assert!(
-            opts.iter().all(|o| o.code != "O100"),
+            opts.iter().all(|o| o.code != DiagCode::O100),
             "unknown var should not be inlined, got {opts:?}",
         );
     }
@@ -2318,7 +2326,7 @@ mod tests {
             Some("x=a b c"),
         );
         // The SAME value inside a `[…]` command substitution would split one
-        // argument into several — bail (matches Python, which keeps `$lst`).
+        // argument into several — bail, keeping `$lst`.
         assert!(substitute_dollar_refs("r: [lsearch $lst x]", &c).is_none());
         // A single-word value inside a cmd-sub is still safe to inline.
         assert_eq!(
@@ -2362,7 +2370,7 @@ mod tests {
         // → emit O102 on the puts use site.
         let opts = run_pass("set n 7\nputs $n");
         assert!(
-            opts.iter().any(|o| o.code == "O102"),
+            opts.iter().any(|o| o.code == DiagCode::O102),
             "expected O102 load-forwarding, got {opts:?}",
         );
     }
@@ -2375,7 +2383,7 @@ mod tests {
         // the last 2 chars of the source: `$n`.
         let source = "set n 7\nputs $n";
         let opts = run_pass(source);
-        let o102s: Vec<_> = opts.iter().filter(|o| o.code == "O102").collect();
+        let o102s: Vec<_> = opts.iter().filter(|o| o.code == DiagCode::O102).collect();
         assert!(
             !o102s.is_empty(),
             "expected at least one O102, got {opts:?}"
@@ -2400,7 +2408,7 @@ mod tests {
         // level and produce an applicable rewrite.
         let source = "set n 7\nputs ${n}";
         let opts = run_pass(source);
-        let o102s: Vec<_> = opts.iter().filter(|o| o.code == "O102").collect();
+        let o102s: Vec<_> = opts.iter().filter(|o| o.code == DiagCode::O102).collect();
         assert!(
             o102s.iter().any(|o| !o.hint_only
                 && o.replacement == "7"
@@ -2417,7 +2425,7 @@ mod tests {
         // path handles the actual inlining).
         let source = "set n 7\nputs \"n=$n\"";
         let opts = run_pass(source);
-        let o102s: Vec<_> = opts.iter().filter(|o| o.code == "O102").collect();
+        let o102s: Vec<_> = opts.iter().filter(|o| o.code == DiagCode::O102).collect();
         assert!(!o102s.is_empty(), "expected O102 hint, got {opts:?}");
         assert!(
             o102s.iter().all(|o| o.hint_only),
@@ -2440,7 +2448,7 @@ mod tests {
         let o103s: Vec<_> = ctx
             .optimisations
             .iter()
-            .filter(|o| o.code == "O103")
+            .filter(|o| o.code == DiagCode::O103)
             .collect();
         assert!(
             o103s.iter().any(|o| !o.hint_only
@@ -2452,9 +2460,9 @@ mod tests {
 
     #[test]
     fn o103_folds_multi_word_string_return_list_quoted() {
-        // B3 (SYNC-JUN02d-2, #525): a pure proc returning a multi-word
+        // A pure proc returning a multi-word
         // string folds in a cmd-sub position, list-quoted as one word
-        // (previously bailed because `a b c` is not a safe bare word).
+        // (a bare `a b c` is not a safe single word).
         use tcl_registry::CommandRegistry;
         let registry = CommandRegistry::build_default();
         let source = "proc ::greet {} { return \"a b c\" }\nputs [::greet]";
@@ -2465,7 +2473,7 @@ mod tests {
         let o103s: Vec<_> = ctx
             .optimisations
             .iter()
-            .filter(|o| o.code == "O103")
+            .filter(|o| o.code == DiagCode::O103)
             .collect();
         assert!(
             o103s
@@ -2477,7 +2485,7 @@ mod tests {
 
     #[test]
     fn o103_cmd_subst_fires_on_set_value_target() {
-        // SYNC-JUN02b-6 (#519): the value-position cmd-sub folds must also
+        // The value-position cmd-sub folds must also
         // fire on a `set TARGET [cmd-sub]` target. `set` lowers to
         // `AssignValue`, which `walk_statement` did not visit for cmd-sub
         // folds, so `set y [::answer]` missed the O103 fold that the same
@@ -2494,7 +2502,7 @@ mod tests {
         let o103s: Vec<_> = ctx
             .optimisations
             .iter()
-            .filter(|o| o.code == "O103")
+            .filter(|o| o.code == DiagCode::O103)
             .collect();
         assert!(
             o103s.iter().any(|o| !o.hint_only
@@ -2522,7 +2530,7 @@ mod tests {
         let o103s: Vec<_> = ctx
             .optimisations
             .iter()
-            .filter(|o| o.code == "O103")
+            .filter(|o| o.code == DiagCode::O103)
             .collect();
         assert!(!o103s.is_empty(), "expected at least one O103");
         assert!(
@@ -2535,9 +2543,9 @@ mod tests {
     fn o103_folds_arg_sensitive_passthrough_cmd_subst() {
         // `::not_const {x} { return $x }` has no argument-*independent*
         // constant return, but with the call's constant arg bound it folds:
-        // `[::not_const 1]` → `1` (matching Python, which folds the
-        // passthrough). The applicable rewrite fires only for the CMD-subst
-        // form; the bare-call form stays hint-only.
+        // `[::not_const 1]` → `1` (the passthrough folds). The applicable
+        // rewrite fires only for the CMD-subst form; the bare-call form
+        // stays hint-only.
         use tcl_registry::CommandRegistry;
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(
@@ -2551,7 +2559,7 @@ mod tests {
         assert!(
             ctx.optimisations
                 .iter()
-                .any(|o| o.code == "O103" && o.replacement == "1" && !o.hint_only),
+                .any(|o| o.code == DiagCode::O103 && o.replacement == "1" && !o.hint_only),
             "expected applicable O103 folding [::not_const 1] to 1, got {:?}",
             ctx.optimisations,
         );
@@ -2573,7 +2581,7 @@ mod tests {
         assert!(
             ctx.optimisations
                 .iter()
-                .all(|o| o.code != "O103" || o.hint_only),
+                .all(|o| o.code != DiagCode::O103 || o.hint_only),
             "loop-carried return must not fold, got {:?}",
             ctx.optimisations,
         );
@@ -2592,14 +2600,14 @@ mod tests {
 
     #[test]
     fn o115_collapses_redundant_nested_expr_in_value_positions() {
-        // SYNC-JUN02b-6 (#519): a redundant double-`expr` cmd-sub
+        // A redundant double-`expr` cmd-sub
         // `[expr {[expr {E}]}]` collapses to `[expr {E}]` in command-arg
-        // and return value positions (previously O115 only fired on a
+        // and return value positions (O115 otherwise fires only on a
         // standalone `expr` statement).
         let collapsed = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == "O115")
+                .filter(|o| o.code == DiagCode::O115)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2624,7 +2632,7 @@ mod tests {
         let has_o115 = |src: &str| -> bool {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .iter()
-                .any(|o| o.code == "O115")
+                .any(|o| o.code == DiagCode::O115)
         };
         assert!(!has_o115("proc ::f {x} { puts [expr {$x + 1}] }"));
         assert!(!has_o115("proc ::f {x} { return [expr {$x + 1}] }"));
@@ -2633,23 +2641,23 @@ mod tests {
 
     #[test]
     fn o129_folds_pure_builtin_cmd_subst() {
-        // SYNC-JUN02b-6 (#519): a pure-builtin cmd-sub with constant
+        // A pure-builtin cmd-sub with constant
         // (literal) args folds via the registry `const_fold` callback
         // (O129). `optimise_raw` sets `ctx.registry`, which the O129
         // path requires.
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == "O129")
+                .filter(|o| o.code == DiagCode::O129)
                 .map(|o| o.replacement)
                 .collect()
         };
         assert_eq!(fold("puts [string toupper foo]"), vec!["FOO".to_string()]);
         assert_eq!(fold("puts [string tolower BAR]"), vec!["bar".to_string()]);
         assert_eq!(fold("puts [string reverse abc]"), vec!["cba".to_string()]);
-        // main's headline O129 example.
+        // The headline O129 example.
         assert_eq!(fold("puts [string length abcde]"), vec!["5".to_string()]);
-        // SYNC-JUN02d-1 (#525): the cat / repeat / trim folds.
+        // The cat / repeat / trim folds.
         assert_eq!(
             fold("puts [string cat foo bar]"),
             vec!["foobar".to_string()]
@@ -2664,7 +2672,7 @@ mod tests {
             vec!["bcd".to_string()]
         );
         assert_eq!(fold("puts [string index abc end]"), vec!["c".to_string()]);
-        // SYNC-JUN02d-1 (#525): list + dict folds.
+        // List + dict folds.
         assert_eq!(fold("puts [llength {a b c}]"), vec!["3".to_string()]);
         // The cmd-sub replacement is one word, so a spaced result is
         // brace-quoted by `render_propagation_word`.
@@ -2675,7 +2683,7 @@ mod tests {
         let fold_code = |src: &str, code: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == code)
+                .filter(|o| o.code.as_str() == code)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2694,21 +2702,21 @@ mod tests {
         assert_eq!(fold("puts [subst hello]"), vec!["hello".to_string()]);
         // `subst` with a substitution must NOT fold (no upstream resolution).
         assert!(fold("puts [subst {$x}]").is_empty());
-        // SYNC-JUN02d B-tail: `string is` Tcl-faithful classes.
+        // `string is` Tcl-faithful classes.
         assert_eq!(fold("puts [string is alpha abc]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is lower abc1]"), vec!["0".to_string()]);
         assert_eq!(fold("puts [string is boolean yes]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is list {a b c}]"), vec!["1".to_string()]);
-        // SYNC-JUN02d: `format` %s / %d / %% subset.
+        // `format` %s / %d / %% subset.
         assert_eq!(fold("puts [format %d 42]"), vec!["42".to_string()]);
         assert_eq!(fold("puts [format {v=%s} hi]"), vec!["v=hi".to_string()]);
-        // SYNC-JUN03 follow-up: `format` flag / width / precision now folds for
+        // `format` flag / width / precision folds for
         // the decimal-integer + string conversions (dialect-invariant).
         assert_eq!(fold("puts [format %05d 7]"), vec!["00007".to_string()]);
         assert_eq!(fold("puts [format %.3d 5]"), vec!["005".to_string()]);
         // `%#d` stays unfolded (`0d5` on Tcl 9, `5` on 8.6 — divergent).
         assert!(fold("puts [format %#d 5]").is_empty());
-        // SYNC-JUN03 follow-up: `string is integer` / `double` fold over their
+        // `string is integer` / `double` fold over their
         // dialect-invariant subsets.
         assert_eq!(fold("puts [string is integer 42]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is double 1.5]"), vec!["1".to_string()]);
@@ -2732,24 +2740,21 @@ mod tests {
 
     #[test]
     fn o129_concat_trailing_backslash_space_word_is_not_folded() {
-        // SYNC-JUN04: #530 fixed `Tcl_ConcatObj`'s trailing-whitespace trim in
-        // the VM — when the trim lands on a backslash, one byte is re-exposed
-        // (`concat a {b\ } c` -> `a b\  c`, two spaces; the exact util-4.3 shape
-        // `concat a {b\\   } c` -> `a b\\  c`).  The registry `fold_concat` is a
-        // faithful port of main's simple model (`" ".join(a.strip() …)`) and so
-        // does NOT replicate that re-expose rule — it is unsound *in isolation*
-        // for a trailing-backslash-whitespace word.  Soundness is upheld by the
+        // `Tcl_ConcatObj`'s trailing-whitespace trim in the VM, when it lands
+        // on a backslash, re-exposes one byte (`concat a {b\ } c` -> `a b\  c`,
+        // two spaces; the exact util-4.3 shape `concat a {b\\   } c` ->
+        // `a b\\  c`).  The registry `fold_concat` uses a simple
+        // `" ".join(a.strip() …)` model and so does NOT replicate that
+        // re-expose rule — it is unsound *in isolation* for a
+        // trailing-backslash-whitespace word.  Soundness is upheld by the
         // optimiser's input gate: `literal_words` bails on ANY backslash-bearing
         // word (it does not decode escapes), so `fold_concat` never receives one.
-        // (main reaches the same outcome via a *result*-side guard that rejects
-        // a backslash-bearing fold result; for `concat` a backslash in any input
-        // word always survives trimming into the result, so the two are
-        // equivalent.)  Drop the `literal_words` backslash bail and this test
+        // Drop the `literal_words` backslash bail and this test
         // fails — the cmd-sub would fold to a wrong literal.
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == "O129")
+                .filter(|o| o.code == DiagCode::O129)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2761,19 +2766,19 @@ mod tests {
             "trailing backslash-space word must not fold (re-expose rule unmodelled)",
         );
         assert!(fold("puts [concat {b\\ }]").is_empty());
-        // The exact #530 util-4.3 shape (double backslash, trailing spaces).
+        // The exact util-4.3 shape (double backslash, trailing spaces).
         assert!(fold("puts [concat a {b\\\\   } c]").is_empty());
     }
 
     #[test]
     fn o129_resolves_constant_var_args_b2() {
-        // B2 (SYNC-JUN02d-2, #525): a constant `$var` arg in a builtin
+        // A constant `$var` arg in a builtin
         // cmd-sub is resolved (whole-function-constant → sound) before
         // folding; a multi-word value stays a single argument.
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == "O129")
+                .filter(|o| o.code == DiagCode::O129)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2786,7 +2791,7 @@ mod tests {
             fold("set s {a b}\nputs [llength $s]"),
             vec!["2".to_string()],
         );
-        // Combined B1 + B2: resolved var inside an interpolation cmd-sub.
+        // Combined: a resolved var inside an interpolation cmd-sub.
         assert_eq!(
             fold("set s abc\nputs \"len=[string length $s]\""),
             vec!["\"len=3\"".to_string()],
@@ -2797,12 +2802,12 @@ mod tests {
 
     #[test]
     fn o129_folds_embedded_cmd_subst_in_interpolation() {
-        // B1 (SYNC-JUN02d-2, #525): a pure-builtin cmd-sub embedded inside
+        // A pure-builtin cmd-sub embedded inside
         // an interpolation string folds, splicing the raw result.
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == "O129")
+                .filter(|o| o.code == DiagCode::O129)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2823,14 +2828,14 @@ mod tests {
 
     #[test]
     fn o129_trust_gate_suppresses_fold_for_rebound_builtin() {
-        // SYNC-JUN02b-4 (#519): the builtin-fold trust gate. When the
+        // The builtin-fold trust gate. When the
         // module renames/redefines `string` anywhere, the whole-module
         // mutation scan distrusts it and O129 must not fold a `[string
         // …]` cmd-sub with the original builtin semantics.
         let fold = |src: &str| -> Vec<String> {
             crate::optimiser::optimise_raw(src, &registry(), None)
                 .into_iter()
-                .filter(|o| o.code == "O129")
+                .filter(|o| o.code == DiagCode::O129)
                 .map(|o| o.replacement)
                 .collect()
         };
@@ -2867,7 +2872,7 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::Propagation]);
         assert!(
-            ctx.optimisations.iter().any(|o| o.code == "O100"),
+            ctx.optimisations.iter().any(|o| o.code == DiagCode::O100),
             "expected O100 via run_passes, got {:?}",
             ctx.optimisations,
         );

@@ -1,14 +1,13 @@
 //! General proc inliner (v0 + verbatim + v3 parameterised).
 //!
-//! Ported from `compiler/inlining/` — the catalogue (`decision.py`), the
-//! IR-level splice transform (`inline_pass.py`), and the α-rename
-//! machinery (`_rename.py`, here [`rename`]). The inliner rewrites
+//! Combines the decision catalogue, the IR-level splice transform, and
+//! the α-rename machinery (here [`rename`]). The inliner rewrites
 //! statement-position calls to *inlinable* procedures so the call
 //! boundary disappears before WASM codegen consumes the IR.
 //!
 //! # Scope
 //!
-//! All four Python shapes are ported:
+//! Four call shapes are handled:
 //!
 //! * **v0 — empty body.** A call to a zero-statement proc vanishes.
 //! * **v1 / v2 — verbatim wrapper.** A zero-parameter proc whose every
@@ -22,20 +21,21 @@
 //!   `set __RESULT <v>; break` wrapped in a one-shot `while {1} { … }`
 //!   loop so it doesn't short-circuit the caller.
 //!
-//! # Cross-track handoff
+//! # Consumer
 //!
-//! The inliner's only consumer is the WASM codegen (the **RT-WASM**
-//! track, still unported), so it is exposed but not yet wired into a
-//! pipeline. Execution-differential verification of the value-string
-//! rewriter therefore lands with that consumer; the IR-shape unit tests
-//! here are the available verification meanwhile (see
-//! `docs/rust-rewrite.md` → FE-OPT).
+//! Inlining is a pre-codegen IR transform — it dissolves call boundaries
+//! so the backend emits flatter code — so its only consumer is the WASM
+//! codegen. The LSP and CLI analysis paths report on the program *as
+//! written* and never lower to codegen, so they deliberately do not run
+//! the inliner; wiring it in is owned by the codegen consumer. It is thus
+//! exposed but unwired, with the IR-shape unit tests here as its current
+//! verification.
 //!
 //! # Soundness
 //!
 //! Two gates combine in [`build_inlinable_map`]: the precise
 //! interprocedural [`var_escape::pure_leaf`](crate::var_escape) proof
-//! (`safe_to_inline` — FE-VARESCAPE's S4.1 soundness predicate) and the
+//! (`safe_to_inline`, the soundness predicate) and the
 //! structural shape. Redefined procs are never inlined (their body is
 //! ambiguous). Recursion cannot loop: the splice replaces a single static
 //! call site, and the rename gives every inline a fresh slot namespace.
@@ -56,25 +56,24 @@ use crate::ir::{
 use crate::var_escape::ProcEscapeSummary;
 use crate::var_escape::interprocedural::resolve_callee;
 
-/// Per-proc inlining policy decision. Mirrors Python's `InlineDecision`.
+/// Per-proc inlining policy decision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InlineDecision {
     /// Always inline a call to this proc (small, pure-leaf body).
     Always,
     /// Inline only when the proc has exactly one static caller. Recorded
-    /// for parity / future pruning; not acted on by the splice (the
-    /// post-inline proc-pruning interaction is not yet ported).
+    /// for future pruning; not acted on by the splice (the
+    /// post-inline proc-pruning interaction is not yet implemented).
     IfSingleCall,
     /// Never inline.
     Never,
 }
 
 /// A pure-leaf proc whose body has at most this many flat statements is
-/// unconditionally inlinable. Mirrors `decision.SMALL_BODY_THRESHOLD`.
+/// unconditionally inlinable.
 pub const SMALL_BODY_THRESHOLD: usize = 5;
 
-/// What an inlinable proc splices in at a call site. Mirrors the Python
-/// `_InlineSpec` / `_InlineKind` pair.
+/// What an inlinable proc splices in at a call site.
 #[derive(Debug, Clone)]
 enum InlineSpec {
     /// v0 — empty body; the call vanishes.
@@ -85,11 +84,10 @@ enum InlineSpec {
     Parameterised(Procedure),
 }
 
-// ── statement counting (decision.count_statements) ──────────────────
+// statement counting
 
 /// Total number of leaf statements reachable in `script`, walking nested
-/// control-flow bodies transitively (the inlined code-size cost). Mirrors
-/// `decision.count_statements`.
+/// control-flow bodies transitively (the inlined code-size cost).
 #[must_use]
 pub fn count_statements(script: &Script) -> usize {
     script.statements.iter().map(count_one).sum()
@@ -149,13 +147,12 @@ fn count_one(stmt: &Statement) -> usize {
     }
 }
 
-// ── static call counting (decision.count_static_calls) ──────────────
+// static call counting
 
 /// Return `{qname: static_call_count}` over the whole module. Walks the
 /// top-level script and every proc body; an [`Statement::Call`] whose
 /// command resolves (per the same namespace-walk rules the
-/// interprocedural pass uses) to a tracked proc contributes `+1`. Mirrors
-/// `decision.count_static_calls`.
+/// interprocedural pass uses) to a known proc contributes `+1`.
 fn count_static_calls(
     module: &Module,
     summaries: &HashMap<String, ProcEscapeSummary>,
@@ -171,8 +168,7 @@ fn count_static_calls(
 }
 
 /// The namespace a proc body's unqualified calls resolve against —
-/// `::ns::helper` → `::ns`, bare/global → `::`. Mirrors the `root_ns`
-/// derivation inside `count_static_calls.tally`.
+/// `::ns::helper` → `::ns`, bare/global → `::`.
 fn root_namespace_of(qname: &str) -> String {
     let tail = qname.strip_prefix("::").unwrap_or(qname);
     if let Some(idx) = tail.rfind("::") {
@@ -271,14 +267,13 @@ fn tally_calls(
     }
 }
 
-// ── policy (decision.classify_proc) ─────────────────────────────────
+// policy
 
-/// Apply the S4.1 policy to a single proc. A proc is inlinable only if
+/// Apply the inlining policy to a single proc. A proc is inlinable only if
 /// its escape summary is pure-leaf (`safe_to_inline`); among that set,
 /// size and static-call-count decide between [`InlineDecision::Always`]
 /// (small enough that growth is bounded), [`InlineDecision::IfSingleCall`]
-/// (size-neutral), and [`InlineDecision::Never`]. Mirrors
-/// `decision.classify_proc`.
+/// (size-neutral), and [`InlineDecision::Never`].
 #[must_use]
 pub fn classify_proc(
     proc: &Procedure,
@@ -298,13 +293,13 @@ pub fn classify_proc(
     }
 }
 
-// ── splice-eligibility (inline_pass) ────────────────────────────────
+// splice-eligibility
 
 /// Commands whose semantics are independent of the calling frame — a
 /// wrapped call to one of these can be spliced into any caller's frame.
 /// Frame-observing (`info` / `uplevel` / `upvar`) and frame-affecting
 /// control flow (`return` / `break` / `continue`) are deliberately
-/// excluded. Mirrors `_SPLICE_SAFE_COMMANDS`.
+/// excluded.
 const SPLICE_SAFE_COMMANDS: &[&str] = &[
     // List primitives — pure value computation.
     "list", "lindex", "lrange", "linsert", "llength", "lsort", "lsearch", "lreverse", "lreplace",
@@ -314,17 +309,15 @@ const SPLICE_SAFE_COMMANDS: &[&str] = &[
     "puts",
 ];
 
-/// Whether `command` is a frame-independent, splice-safe builtin. Mirrors
-/// `_command_is_splice_safe`.
+/// Whether `command` is a frame-independent, splice-safe builtin.
 fn command_is_splice_safe(command: &str) -> bool {
     let bare = command.strip_prefix("::").unwrap_or(command);
     SPLICE_SAFE_COMMANDS.contains(&bare)
 }
 
 /// True iff `arg` contains a `[cmd …]` command substitution at brace
-/// depth zero. Mirrors `_arg_has_command_subst` (brace-aware, backslash-
-/// aware). False positives just decline a hoist, never inline an unsafe
-/// one.
+/// depth zero (brace-aware, backslash-aware). False positives just
+/// decline a hoist, never inline an unsafe one.
 fn arg_has_command_subst(arg: &str) -> bool {
     let mut depth = 0i32;
     let mut chars = arg.chars().peekable();
@@ -348,8 +341,8 @@ fn arg_has_command_subst(arg: &str) -> bool {
 
 /// True when `command` resolves the same way from any caller's namespace
 /// as it does from the callee's: it is fully qualified, or it is
-/// unqualified and doesn't resolve to any tracked proc (so it's a global
-/// builtin). Mirrors `_command_is_namespace_invariant`.
+/// unqualified and doesn't resolve to any known proc (so it's a global
+/// builtin).
 fn command_is_namespace_invariant(
     command: &str,
     callee_qname: &str,
@@ -362,8 +355,7 @@ fn command_is_namespace_invariant(
 }
 
 /// True iff `stmt` can be lifted out of the wrapper proc and spliced into
-/// a caller without changing observable behaviour. Mirrors
-/// `_stmt_is_splice_eligible`.
+/// a caller without changing observable behaviour.
 fn stmt_is_splice_eligible(
     stmt: &Statement,
     callee_qname: &str,
@@ -393,10 +385,9 @@ fn stmt_is_splice_eligible(
     true
 }
 
-// ── v3 eligibility (inline_pass._v3_eligible …) ─────────────────────
+// v3 eligibility
 
 /// Return true iff `proc` qualifies for parameterised (v3) inlining.
-/// Mirrors `_v3_eligible`.
 fn v3_eligible(
     proc: &Procedure,
     qname: &str,
@@ -420,7 +411,6 @@ fn v3_eligible(
 /// whose `break` semantics would trap our wrapper's break (loop bodies,
 /// `catch` / `try` traps, `uplevel` frame-shifts). Transparent groupings
 /// (`Block`, `if` clauses, `switch` arms) propagate the parent flag.
-/// Mirrors `_has_irreturn_in_unsafe_scope`.
 fn has_irreturn_in_unsafe_scope(script: &Script, inside_unsafe: bool) -> bool {
     for stmt in &script.statements {
         match stmt {
@@ -508,7 +498,7 @@ fn has_irreturn_in_unsafe_scope(script: &Script, inside_unsafe: bool) -> bool {
     false
 }
 
-/// Per-statement eligibility for v3 inlining. Mirrors `_v3_stmt_eligible`.
+/// Per-statement eligibility for v3 inlining.
 fn v3_stmt_eligible(
     stmt: &Statement,
     callee_qname: &str,
@@ -579,7 +569,7 @@ fn v3_stmt_eligible(
 
 /// Recurse into a nested script and check per-statement eligibility.
 /// `return` inside a nested script IS allowed (the for/break wrap routes
-/// it). Mirrors `_v3_script_eligible`.
+/// it).
 fn v3_script_eligible(
     script: &Script,
     callee_qname: &str,
@@ -596,12 +586,12 @@ fn v3_script_eligible(
     true
 }
 
-// ── catalogue → inlinable map (inline_pass._build_inlinable_map) ─────
+// catalogue → inlinable map
 
 /// Build the qname → [`InlineSpec`] map of inlinable procedures. Only
 /// [`InlineDecision::Always`] procs qualify; `IfSingleCall` is not
-/// eligible (its profitability depends on post-inline pruning, not
-/// ported). Redefined procs are never inlined.
+/// eligible, because its profitability depends on post-inline pruning
+/// this pass does not perform. Redefined procs are never inlined.
 fn build_inlinable_map(
     module: &Module,
     summaries: &HashMap<String, ProcEscapeSummary>,
@@ -646,18 +636,16 @@ fn build_inlinable_map(
     map
 }
 
-// ── the pass (inline_pass.inline_module) ────────────────────────────
+// the pass
 
 /// Inline eligible statement-position calls throughout `module`,
 /// returning the rewritten module. Idempotent: a module with no remaining
-/// inlinable sites is returned structurally unchanged. Mirrors
-/// `inline_pass.inline_module` (v0 / verbatim / v3).
+/// inlinable sites is returned structurally unchanged.
 ///
-/// Dead-proc elimination is intentionally omitted: it is dormant in the
-/// Python original (it only removes `compiler_synthetic` procs, a flag no
-/// lowering pass sets) and the Rust [`Procedure`] carries no such flag.
-/// User procs stay in the module so host eval / `info procs` / `rename`
-/// observers still see them.
+/// Dead-proc elimination is intentionally omitted: the [`Procedure`] type
+/// carries no `compiler_synthetic` flag to key it on. User procs stay in
+/// the module so host eval / `info procs` / `rename` observers still see
+/// them.
 #[must_use]
 pub fn inline_module(mut module: Module) -> Module {
     let summaries = crate::var_escape::analyse_var_escape(&module, true);
@@ -699,7 +687,7 @@ pub fn inline_module(mut module: Module) -> Module {
 /// is true only when this script sits in terminal position of its own
 /// enclosing structure (a proc body / the top-level script); it propagates
 /// to the LAST statement so a v3 inline of a proc with a trailing `return`
-/// can keep the return intact. Mirrors `_rewrite_script`.
+/// can keep the return intact.
 fn rewrite_script(
     script: &Script,
     caller_qname: &str,
@@ -733,10 +721,10 @@ fn rewrite_script(
 
 /// Return a replacement statement list, or `None` to keep `stmt`. `[]`
 /// drops the statement (v0); a non-empty list substitutes the inlined
-/// body. Mirrors `_rewrite_stmt`. Recursion into nested control flow uses
+/// body. Recursion into nested control flow uses
 /// `parent_is_terminal = false` (terminality applies only at a body's
-/// direct top level), matching the Python original.
-#[allow(clippy::too_many_lines)] // one arm per control-flow IR variant, mirrors `_rewrite_stmt`
+/// direct top level).
+#[allow(clippy::too_many_lines)] // one arm per control-flow IR variant
 fn rewrite_stmt(
     stmt: &Statement,
     caller_qname: &str,
@@ -1077,10 +1065,10 @@ fn rewrite_stmt(
     }
 }
 
-// ── per-call-site splice (inline_pass._splice_call_site) ─────────────
+// per-call-site splice
 
 /// Produce the inlined statement list for a single call site, or `None`
-/// to decline (keep the call). Mirrors `_splice_call_site`.
+/// to decline (keep the call).
 fn splice_call_site(
     call: &Statement,
     spec: &InlineSpec,
@@ -1117,8 +1105,7 @@ fn splice_call_site(
 }
 
 /// v3 splice — build parameter bindings, α-rename the body, and handle
-/// the `return`-disposition strategy. Mirrors the `PARAMETERISED` arm of
-/// `_splice_call_site`.
+/// the `return`-disposition strategy.
 fn splice_v3(
     call: &Statement,
     proc: &Procedure,
@@ -1219,7 +1206,7 @@ fn with_span(stmt: &Statement, span: Span) -> Statement {
     }
 }
 
-// ── nested-return scanning (inline_pass._has_nested_irreturn …) ──────
+// nested-return scanning
 
 fn has_nested_irreturn(script: &Script) -> bool {
     script
@@ -1275,7 +1262,7 @@ fn has_any_irreturn(script: &Script) -> bool {
 
 /// Return the literal string the body's last statement contributes as
 /// Tcl's implicit return value, or `None` when the shape is too complex
-/// to capture safely. Mirrors `_capture_implicit_return_value`.
+/// to capture safely.
 fn capture_implicit_return_value(stmt: &Statement) -> Option<String> {
     match stmt {
         Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => {
@@ -1285,10 +1272,10 @@ fn capture_implicit_return_value(stmt: &Statement) -> Option<String> {
     }
 }
 
-// ── return-as-break wrap (inline_pass._wrap_with_irreturn_loop …) ────
+// return-as-break wrap
 
 /// Wrap `renamed_body` in a one-shot `while {1} { … }` loop that routes
-/// `return`-as-break. Mirrors `_wrap_with_irreturn_loop`. Uses `while`
+/// `return`-as-break. Uses `while`
 /// rather than `for` so empty init/next clauses don't emit placeholder
 /// calls the WASM codegen would trap on.
 fn wrap_with_irreturn_loop(
@@ -1356,7 +1343,7 @@ fn break_call(span: Span) -> Statement {
 /// `set <result_var> <value>; break`. Recurses into transparent nested
 /// bodies (`Block`, `if`, `switch`); does NOT recurse into loop / catch /
 /// try / upframe bodies (the eligibility gate guarantees no return is
-/// nested there). Mirrors `_substitute_irreturn`.
+/// nested there).
 fn substitute_irreturn(script: &Script, result_var: &str) -> Script {
     let mut out = Vec::with_capacity(script.statements.len());
     for stmt in &script.statements {
@@ -1450,11 +1437,10 @@ fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
     }
 }
 
-// ── parameter bindings (inline_pass._build_param_bindings …) ─────────
+// parameter bindings
 
 /// Build the parameter-binding statement list for a v3 call. Returns
-/// `(cid, rename, bindings)` on success, or `None` to decline. Mirrors
-/// `_build_param_bindings`.
+/// `(cid, rename, bindings)` on success, or `None` to decline.
 fn build_param_bindings(
     call: &Statement,
     proc: &Procedure,
@@ -1562,7 +1548,6 @@ fn build_param_bindings(
 /// in source — so it must bind as an [`Statement::AssignConst`], preserving
 /// embedded `$`/`[` rather than re-substituting them at the inlined site.
 /// `argv[0]` is the command name, so `args[idx]` aligns with `argv[idx+1]`.
-/// Mirrors `_arg_is_braced_literal`.
 fn arg_is_braced_literal(tokens: Option<&CommandTokens>, idx: usize) -> bool {
     let Some(t) = tokens else { return false };
     t.argv_kinds
@@ -1570,14 +1555,13 @@ fn arg_is_braced_literal(tokens: Option<&CommandTokens>, idx: usize) -> bool {
         .is_some_and(|k| *k == TokenType::Str)
 }
 
-/// Try to fill missing positional args from declared defaults. Mirrors
-/// `_build_with_defaults`.
+/// Try to fill missing positional args from declared defaults.
 ///
-/// Literal-binding parity with the non-default path: a call-site word that
+/// Matches the non-default path's literal binding: a call-site word that
 /// was a braced literal binds as [`Statement::AssignConst`], and so does a
 /// declared default — Tcl proc defaults are literal (`proc p {{a $x}} …; p`
 /// binds `a` to the string `$x`, never the caller's `$x`). Without this the
-/// default path re-substituted both in the caller frame.
+/// default path would re-substitute both in the caller frame.
 fn build_with_defaults(
     cid: usize,
     rename: &HashMap<String, String>,
@@ -1646,7 +1630,6 @@ fn build_with_defaults(
 }
 
 /// Parse a Tcl proc `param_str` into `(name, default_or_None)` pairs.
-/// Mirrors `lowering._parse_params_with_defaults`.
 fn parse_params_with_defaults(param_str: &str) -> Vec<(String, Option<String>)> {
     let text: Vec<char> = param_str.trim().chars().collect();
     let n = text.len();
@@ -1714,8 +1697,7 @@ fn parse_params_with_defaults(param_str: &str) -> Vec<(String, Option<String>)> 
 }
 
 /// Return True iff `text` can be safely spliced verbatim into a Tcl
-/// `[list <e1> <e2> …]` synth as a single element. Mirrors
-/// `_list_clean_for_splice`.
+/// `[list <e1> <e2> …]` synth as a single element.
 fn list_clean_for_splice(text: &str) -> bool {
     if text.is_empty() {
         return true;
@@ -1773,11 +1755,10 @@ fn list_clean_for_splice(text: &str) -> bool {
     true
 }
 
-// ── local-name collection (inline_pass._collect_local_names …) ──────
+// local-name collection
 
 /// Return the union of every local-variable name written inside `script`.
-/// Array-element writes contribute the array base name. Mirrors
-/// `_collect_local_names`.
+/// Array-element writes contribute the array base name.
 fn collect_local_names(script: &Script) -> HashSet<String> {
     let mut names = HashSet::new();
     walk_local_writes(script, &mut names);

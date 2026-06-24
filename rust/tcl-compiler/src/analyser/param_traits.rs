@@ -1,6 +1,4 @@
-//! Proc argument trait inference — Rust port of
-//! ``core/analysis/proc_arg_traits.py::infer_param_traits`` and
-//! ``infer_param_traits_deep``.
+//! Proc argument trait inference.
 //!
 //! Walks a proc body to determine how each parameter is used:
 //!
@@ -87,8 +85,7 @@ pub fn infer_param_traits(
 /// in turn changes which arguments resolve to a clean `$param` and thus
 /// which traits are inferred.  The analyser threads
 /// `Analyser::lexer_config()` here so trait inference honours the
-/// document's dialect rather than always assuming the Tcl-8.5+ default
-/// (`SYNC-MAY19-dialect-contextvar`, strip 2).
+/// document's dialect rather than always assuming the Tcl-8.5+ default.
 #[must_use]
 pub fn infer_param_traits_with_config(
     params: &[&str],
@@ -118,25 +115,22 @@ pub fn infer_param_traits_with_config(
     finalise_traits(traits)
 }
 
-/// Maximum recursion depth for [`infer_param_traits_deep`] —
-/// matches Python's ``_MAX_DEPTH = 8`` in
-/// ``core/analysis/proc_arg_traits.py``.  Pathological input
-/// (deeply-nested braced bodies) stops descending past this
-/// bound rather than blowing the stack.
+/// Maximum recursion depth for [`infer_param_traits_deep`]
+/// (8 levels).  Pathological input (deeply-nested braced bodies)
+/// stops descending past this bound rather than blowing the
+/// stack.
 pub const MAX_DEPTH: u8 = 8;
 
 /// Recursive deep trait inference.  Same return shape as
 /// [`infer_param_traits`] but additionally descends into braced
 /// body arguments to surface traits hidden one or more levels
 /// in.  More expensive than the shallow pass — intended for
-/// asynchronous use behind the `S*` call-graph / symbol-graph /
+/// asynchronous use behind the call-graph / symbol-graph /
 /// dataflow-graph / semantic-graph builders.
 ///
-/// Mirrors Python's ``infer_param_traits_deep``
-/// (``core/analysis/proc_arg_traits.py:216-241``).  Recursion
-/// is bounded by [`MAX_DEPTH`] and only enters braced body args
-/// — `$var` or `[cmd]` references at the head of a body arg
-/// are treated as opaque (their `Eval` trait is already
+/// Recursion is bounded by [`MAX_DEPTH`] and only enters braced
+/// body args — `$var` or `[cmd]` references at the head of a
+/// body arg are treated as opaque (their `Eval` trait is already
 /// captured at the top level by the same call-site's role
 /// scan).
 #[must_use]
@@ -189,10 +183,10 @@ pub fn infer_param_traits_deep_with_config(
     finalise_traits(traits)
 }
 
-/// Union shallow + deep trait results per parameter.  Mirrors
-/// Python's ``merge_traits``.  Useful when callers want to run
-/// the shallow pass synchronously for an initial result and
-/// then upgrade with the deep pass once it completes.
+/// Union shallow + deep trait results per parameter.  Useful
+/// when callers want to run the shallow pass synchronously for
+/// an initial result and then upgrade with the deep pass once it
+/// completes.
 //
 // `implicit_hasher` allowed: this helper is paired with
 // [`infer_param_traits`] / [`infer_param_traits_deep`], both
@@ -261,8 +255,7 @@ fn scan_commands<'p>(
 /// Recursive scan with depth tracking.  Walks every command at
 /// the current level, then descends into the braced body
 /// arguments each command declares via the registry's
-/// ``ArgRole::Body`` role assignments.  Mirrors Python's
-/// ``_scan_deep`` (``core/analysis/proc_arg_traits.py:247-288``).
+/// ``ArgRole::Body`` role assignments.
 ///
 /// `$var` / `[cmd]` body args are skipped — they aren't
 /// braced bodies, and any `Eval` trait they carry is recorded
@@ -273,7 +266,7 @@ fn scan_commands<'p>(
 // / `registry` / `stub_overlay` / `config`) that the sibling
 // `scan_commands` / `scan_command` / `handle_*` helpers also take by
 // value.  Bundling them into a context struct would ripple through that
-// whole family — a separate cleanup, out of scope for this strip.
+// whole family — a separate cleanup, out of scope here.
 #[allow(clippy::too_many_arguments)]
 fn scan_deep<'p>(
     source: &str,
@@ -332,8 +325,8 @@ fn scan_deep<'p>(
             // are already handled at the top-level role scan
             // (their `Eval` trait is recorded by
             // `apply_arg_role_traits` /
-            // `apply_eval_traits`).  Match Python's check by
-            // peeking at the first two bytes for cheap detection.
+            // `apply_eval_traits`).  Peek at the first two bytes
+            // for cheap detection.
             let head = body_text.as_bytes();
             if head.first().is_some_and(|&b| b == b'$' || b == b'[') {
                 continue;
@@ -356,8 +349,7 @@ fn scan_deep<'p>(
 }
 
 /// Extract `(command, args)` pairs from `source` via the
-/// segmenter.  Mirrors ``_extract_commands`` in
-/// ``core/analysis/proc_arg_traits.py:78-95``.
+/// segmenter.
 fn extract_commands(source: &str, config: LexerConfig) -> Vec<(String, Vec<String>)> {
     let mut commands = Vec::new();
     let segments = segment_commands_with_offset_and_config(source, 0, config);
@@ -374,7 +366,7 @@ fn extract_commands(source: &str, config: LexerConfig) -> Vec<(String, Vec<Strin
 
 /// Extract a bare variable name from ``$var`` or ``${var}``.
 /// Returns `None` when the text isn't a simple variable
-/// reference.  Mirrors ``_extract_var_name`` in Python.
+/// reference.
 fn extract_var_name(text: &str) -> Option<&str> {
     let bytes = text.as_bytes();
     if bytes.len() < 2 || bytes[0] != b'$' {
@@ -392,8 +384,7 @@ fn extract_var_name(text: &str) -> Option<&str> {
         return None;
     }
     // Verify identifier-like content (alphanumerics, underscore,
-    // colons for namespace-qualified names — matches the Python
-    // ``_SIMPLE_VAR_RE`` regex shape).
+    // colons for namespace-qualified names).
     let mut iter = name.chars();
     let first = iter.next().unwrap();
     if !first.is_ascii_alphabetic() && first != '_' {
@@ -410,8 +401,7 @@ fn extract_var_name(text: &str) -> Option<&str> {
 }
 
 /// Resolve a command's per-arg roles via the registry, unioned
-/// with any matching `# tcl-lsp: stub` overlay entry.  Mirrors
-/// ``_resolve_arg_roles`` in Python — picks the
+/// with any matching `# tcl-lsp: stub` overlay entry.  Picks the
 /// `arg_role_resolver` callback first, then static
 /// `arg_roles`, then sub-command-level roles.  When
 /// `stub_overlay` is `Some`, user-declared stub commands
@@ -468,8 +458,7 @@ fn scan_command<'p>(
     );
     apply_eval_traits(cmd_name, cmd_args, param_set, traits);
 
-    // Per-command structural handlers — mirror the Python
-    // ``_handle_*`` functions.
+    // Per-command structural handlers.
     match cmd_name {
         "upvar" => handle_upvar(cmd_args, param_set, traits, upvar_aliases),
         "foreach" | "lmap" => handle_foreach(cmd_args, param_set, traits),
@@ -559,8 +548,7 @@ fn apply_arg_role_traits<'p>(
 
 /// Code-evaluating commands — ``eval`` / ``subst`` mark every
 /// ``$param`` arg as ``Eval``; ``uplevel ?level? script`` marks
-/// only the last arg.  Mirrors Python's ``spec.evaluates_code``
-/// / ``spec.performs_substitution`` branch.
+/// only the last arg.
 fn apply_eval_traits<'a>(
     cmd_name: &str,
     cmd_args: &[String],
@@ -843,13 +831,11 @@ mod tests {
 
     #[test]
     fn trait_inference_is_dialect_aware_via_expand_syntax() {
-        // SYNC-MAY19-dialect-contextvar strip 2: `extract_commands` /
-        // `scan_deep` now re-segment under the document dialect, so the
-        // body's `{*}` is the expansion operator on 8.5+ but a literal
-        // brace word on 8.4.  `eval {*}$p` is therefore `eval $p`
-        // (→ `p` is Eval) on 9.0 but `eval` of the single composite word
-        // `{*}$p` (no clean `$p`, no trait) on 8.4.  Before strip 2 the
-        // helper always lexed `{*}` as expansion regardless of dialect.
+        // `extract_commands` / `scan_deep` re-segment under the document
+        // dialect, so the body's `{*}` is the expansion operator on 8.5+
+        // but a literal brace word on 8.4.  `eval {*}$p` is therefore
+        // `eval $p` (→ `p` is Eval) on 9.0 but `eval` of the single
+        // composite word `{*}$p` (no clean `$p`, no trait) on 8.4.
         let registry = CommandRegistry::build_default();
         let on = infer_param_traits_with_config(
             &["p"],
@@ -1072,7 +1058,7 @@ mod tests {
         assert!(deep.is_empty());
     }
 
-    // -- stub-overlay integration ------------------------------------
+    // stub-overlay integration
     //
     // These tests pin the contract that a non-empty
     // [`StubOverlay`] threaded through `infer_param_traits` /

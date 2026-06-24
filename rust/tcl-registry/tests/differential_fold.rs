@@ -7,7 +7,7 @@
 //! wrong literal gets baked into the source, which surfaces as a
 //! false-positive "optimisation" (a behaviour change disguised as a fold).
 //!
-//! This harness mirrors `tcl-compiler`'s `fold_builtin_cmd_subst_raw`: it
+//! This harness's `fold_builtin_cmd_subst_raw`: it
 //! resolves a command through the registry and runs its fold via
 //! `run_const_fold` (with the `tcl9.0` dialect, so version-aware folds resolve
 //! against the 9.0 reference), runs the *same* command on a real `tclsh9.0`,
@@ -16,13 +16,13 @@
 //! missed fold is never wrong. Only a fold that produces the *wrong* value
 //! fails the test.
 //!
-//! It is the Rust-side counterpart of `tests/test_const_fold_vs_tcl.py` on
-//! `main`. The whole O129 long-tail it was built to pin — the `string is`
+//! It is the Rust-side const-fold-vs-tclsh test. The whole O129 long-tail
+//! it was built to pin — the `string is`
 //! number classes, the full `format` flag/width/precision matrix, and `scan`
 //! — now folds and is verified here.
 //!
 //! Skips cleanly (the test passes trivially) when no `tclsh9.0` is on `PATH`,
-//! the same contract as the Python harness's `skipif`.
+//! the same as the harness's skip contract.
 
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -133,8 +133,7 @@ fn check_matrix(tclsh: &str, reg: &CommandRegistry, cases: &[Case]) -> usize {
     folded
 }
 
-/// The broad list / string / dict / subst fold matrix, ported from the
-/// `_FOLDABLE` set in `tests/test_const_fold_vs_tcl.py`. The `string is` number
+/// The broad list / string / dict / subst fold matrix. The `string is` number
 /// classes (integer / wideinteger / entier / double / dict) fold via the
 /// version-aware folder and are pinned here under the `tcl9.0` dialect.
 const FOLDABLE: &[Case] = &[
@@ -255,7 +254,7 @@ fn registry_folds_match_tcl9() {
     );
 }
 
-/// The `format` matrix, ported from `_FORMATS`. The fold now covers the whole
+/// The `format` matrix. The fold now covers the whole
 /// conversion set — every integer verb (`%d`/`%i`/`%x`/`%X`/`%o`/`%b`/`%u`,
 /// version-aware: leading-zero octal/decimal, 8.x↔9.0 width/wrap), `%c`, the
 /// float family (`%f`/`%e`/`%g`), and `%s` — with the full flag/width/precision

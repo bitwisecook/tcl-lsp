@@ -44,7 +44,7 @@ use tcl_registry::CommandRegistry;
 
 /// Mutable context for bytecode emission.
 ///
-/// Replaces the Python `_Emitter` class-level state (`self.asm`,
+/// Replaces `_Emitter` class-level state (`self.asm`,
 /// `self.current_block`, `self.local_vars`).  Each [`CodegenCtx`]
 /// produces one [`FunctionAsm`] — create a separate context for each
 /// procedure or top-level script.

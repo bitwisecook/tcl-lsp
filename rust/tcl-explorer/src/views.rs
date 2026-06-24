@@ -1,8 +1,6 @@
 //! Explorer view metadata: the tab table and severity vocabulary.
 //!
-//! Faithful port of `_VIEW_META` and `annotations.Severity` from the
-//! Python explorer (`tooling/cli/serialise.py`,
-//! `tooling/explorer/annotations.py`). The front-ends key off the `id`
+//! The front-ends key off the `id`
 //! strings, so this table is part of the de-facto explorer contract.
 
 /// One explorer view tab: `(id, label, group)`.
@@ -11,10 +9,9 @@
 /// CLI's `--show` grouping uses the separate `VIEW_GROUPS` mapping.
 pub type ViewMeta = (&'static str, &'static str, &'static str);
 
-/// The ordered view-tab table. Diverges intentionally from Python's
-/// `_VIEW_META`: Rust's parser produces a single red-green CST (no separate
-/// legacy "green tree"), so the `greentree` tab is dropped and `cst` is the
-/// sole parse-tree view.
+/// The ordered view-tab table. The parser produces a single red-green CST
+/// (no separate legacy "green tree"), so there is no `greentree` tab and
+/// `cst` is the sole parse-tree view.
 pub const VIEW_META: &[ViewMeta] = &[
     ("cst", "CST", "compiler"),
     ("segments", "Segments", "compiler"),
@@ -47,8 +44,13 @@ pub const VIEW_META: &[ViewMeta] = &[
 /// Renderer-agnostic severity classification.
 ///
 /// The string value is what each renderer (CLI ANSI, GUI CSS class) keys
-/// off. Mirrors `annotations.Severity`; order matches Python's enum
+/// off.; order matches the severity-enum
 /// declaration so `meta.severities` lists `[error, warning, info]`.
+///
+/// This is the explorer's three-level *view* vocabulary, distinct from the
+/// diagnostic severity in `tcl-core-types`: it carries only the levels a
+/// renderer paints (no `Hint`/`Suggestion`) and its declaration order is the
+/// rendering order the `meta.severities` contract pins.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
     /// An error-level annotation.
@@ -60,7 +62,7 @@ pub enum Severity {
 }
 
 impl Severity {
-    /// All severities in Python declaration order.
+    /// All severities in declaration order.
     pub const ALL: [Severity; 3] = [Severity::Error, Severity::Warning, Severity::Info];
 
     /// The contract string the renderers key off.

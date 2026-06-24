@@ -14,8 +14,7 @@ pub const fn spec() -> CommandSpec {
             examples: "when HTTP_RESPONSE {\n  if { [HTTP::status] == 404} {\n    HTTP::redirect \"http://www.example.com/newlocation.html\"\n  }\n}",
             return_value: "",
         }),
-        // GAP-D2: tainted redirect URL → open-redirect (IRULE3004).
-        // Mirrors `irules/http__redirect.py`.
+        // Tainted redirect URL → open-redirect (IRULE3004).
         taint_output_sink: Some("IRULE3004"),
         event_requires: Some(EventRequires {
             client_side: false,

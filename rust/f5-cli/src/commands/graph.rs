@@ -1,5 +1,5 @@
 //! `f5 graph` (alias `deps`) — emit the BIG-IP object reference graph as
-//! DOT / JSON / Mermaid. Mirrors `tooling/f5/verbs/graph.py`.
+//! DOT / JSON / Mermaid.
 
 use std::path::Path;
 
@@ -18,7 +18,7 @@ pub fn run_graph(
     output: Option<&Path>,
     passphrase: &crate::cli::PassphraseArgs,
 ) -> anyhow::Result<u8> {
-    // Resolve inputs via the UCS-aware loader (mirrors `load_paths`) — each
+    // Resolve inputs via the UCS-aware loader — each
     // loaded config carries its uri + original source text, both of which the
     // graph builder needs (the source for the node/edge walk, the parsed config
     // for reference resolution).

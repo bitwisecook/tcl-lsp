@@ -1,7 +1,7 @@
 //! Recursive-descent parser for the query DSL.
 //!
-//! Faithful port of `dialects/f5/query/parser.py`. Grammar (informal — the
-//! canonical version lives in `docs/references/f5_query/dsl.md`):
+//! Grammar (informal — the canonical version lives in
+//! `docs/references/f5_query/dsl.md`):
 //!
 //! ```text
 //! program     := pipeline (';' pipeline)* EOF
@@ -18,7 +18,7 @@
 //! primary     := literal | call | path_start | '(' pipeline ')'
 //! ```
 //!
-//! See the Python module docstring for the divergences from jq (comma-
+//! The divergences from jq are documented in the parser overview (comma-
 //! separated call args, assignment as a trailing pipe-stage operator,
 //! single `PathExpr` nodes, and `["~pattern"]` regex subscripts).
 
@@ -48,7 +48,7 @@ fn cmp_op(kind: TokenKind) -> Option<&'static str> {
     }
 }
 
-/// Python `str(value)` coercion for the few token-value reads the parser
+/// String coercion of a value for the few token-value reads the parser
 /// performs (always a `Str` in practice — `IDENT` / `$IDENT` / `STRING`).
 fn lit_str(v: &LitValue) -> String {
     match v {
@@ -61,17 +61,58 @@ fn lit_str(v: &LitValue) -> String {
     }
 }
 
+/// Recursion-depth ceiling for the parser. Each nested grouping (`(`, `[`,
+/// `{`, `if`) and each chained unary/`not` prefix descends one native stack
+/// frame; an adversarial query string like `((((…))))` or `- - - …` nests
+/// without bound.
+///
+/// The recursive-descent chain spends a dozen-odd frames per nesting level,
+/// so this is sized empirically, not optimistically: a debug build overflows
+/// a small 2 MiB worker stack near ~100 levels of grouping. 64 sits safely
+/// below that on the tightest stack we run on yet is several times deeper
+/// than any hand-written or generated query, so the budget rejects the
+/// attack without constraining real input. (The evaluator's
+/// [`MAX_EVAL_DEPTH`](crate::eval) is set above this so every tree the parser
+/// accepts still evaluates.)
+const MAX_PARSE_DEPTH: usize = 64;
+
 struct Parser {
     tokens: Vec<Token>,
     pos: usize,
+    /// Current nesting depth, bumped at each recursive grouping / prefix
+    /// entry and checked against [`MAX_PARSE_DEPTH`] to bound stack use.
+    depth: usize,
 }
 
 impl Parser {
     fn new(tokens: Vec<Token>) -> Self {
-        Parser { tokens, pos: 0 }
+        Parser {
+            tokens,
+            pos: 0,
+            depth: 0,
+        }
     }
 
-    // --- token utilities ---------------------------------------------------
+    /// Enter one nesting level, failing with a parse error at the cap.
+    ///
+    /// Callers pair this with [`Self::leave`] so a deeply-nested query
+    /// returns [`QueryError::Parse`] instead of overflowing the stack.
+    fn enter(&mut self, offset: usize) -> Result<(), QueryError> {
+        self.depth += 1;
+        if self.depth > MAX_PARSE_DEPTH {
+            return Err(QueryError::Parse {
+                message: "query nests too deeply".to_string(),
+                offset,
+            });
+        }
+        Ok(())
+    }
+
+    fn leave(&mut self) {
+        self.depth -= 1;
+    }
+
+    // token utilities
 
     fn peek(&self, offset: usize) -> Token {
         let idx = self.pos + offset;
@@ -108,7 +149,7 @@ impl Parser {
         }
     }
 
-    // --- top-level entry point ---------------------------------------------
+    // top-level entry point
 
     fn parse_program(&mut self) -> Result<Program, QueryError> {
         let mut stmts: Vec<Expr> = vec![self.parse_pipeline()?];
@@ -123,7 +164,7 @@ impl Parser {
         Ok(Program { statements: stmts })
     }
 
-    // --- expressions -------------------------------------------------------
+    // expressions
 
     fn parse_pipeline(&mut self) -> Result<Expr, QueryError> {
         let mut expr = self.parse_comma_chain()?;
@@ -281,10 +322,14 @@ impl Parser {
                 return self.parse_cmp();
             }
             self.consume();
-            let operand = self.parse_not()?;
+            // ``not not not …`` self-recurses one frame per prefix; charge
+            // the depth budget so a long run returns an error, not a crash.
+            self.enter(tok.offset)?;
+            let operand = self.parse_not();
+            self.leave();
             return Ok(Expr::UnaryOp {
                 op: "not".to_string(),
-                operand: Box::new(operand),
+                operand: Box::new(operand?),
                 offset: tok.offset,
             });
         }
@@ -361,10 +406,14 @@ impl Parser {
         let tok = self.peek(0);
         if tok.kind == TokenKind::Minus {
             self.consume();
-            let operand = self.parse_unary()?;
+            // ``- - - …`` self-recurses one frame per prefix; charge the
+            // depth budget so a long run returns an error, not a crash.
+            self.enter(tok.offset)?;
+            let operand = self.parse_unary();
+            self.leave();
             return Ok(Expr::UnaryOp {
                 op: "-".to_string(),
-                operand: Box::new(operand),
+                operand: Box::new(operand?),
                 offset: tok.offset,
             });
         }
@@ -411,8 +460,18 @@ impl Parser {
     }
 
     fn parse_primary(&mut self) -> Result<Expr, QueryError> {
+        // Every nesting level reaches its operand through exactly one
+        // `parse_primary` call, so charging the depth budget here bounds the
+        // whole recursive descent (grouping primaries below re-enter
+        // `parse_pipeline`) with a single guard.
         let tok = self.peek(0);
+        self.enter(tok.offset)?;
+        let result = self.parse_primary_inner(&tok);
+        self.leave();
+        result
+    }
 
+    fn parse_primary_inner(&mut self, tok: &Token) -> Result<Expr, QueryError> {
         match tok.kind {
             TokenKind::Not => {
                 // Postfix ``not`` (jq's ``x | not``) reaches us via
@@ -528,7 +587,7 @@ impl Parser {
         })
     }
 
-    // --- path expressions --------------------------------------------------
+    // path expressions
 
     fn parse_path_starting_with_dot(&mut self) -> Result<Expr, QueryError> {
         let dot = self.consume(); // the leading '.'

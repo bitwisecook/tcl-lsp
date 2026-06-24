@@ -1,14 +1,14 @@
-//! Python-`json.dumps`-faithful serialisation of [`Value`]s.
+//! JSON serialisation of [`Value`]s matching the canonical JSON byte format.
 //!
 //! The query DSL emits JSON in two spellings:
 //!
-//! - **pretty** — `json.dumps(obj, indent=2)` (the `--json` output mode);
-//! - **compact** — `json.dumps(obj, separators=(",", ":"))` (`tojson`,
+//! - **pretty** — 2-space-indented JSON (the `--json` output mode);
+//! - **compact** — compact JSON (no spaces after `,` or `:`) (`tojson`,
 //!   `debug`, table cells).
 //!
-//! Both default to `ensure_ascii=True`, so non-ASCII code points are escaped
+//! Both escape non-ASCII so all output is ASCII, so non-ASCII code points are escaped
 //! as `\uXXXX` (with surrogate pairs above the BMP). The transformation from
-//! [`Value`] to JSON mirrors `output._to_json`: an `ObjectRef` becomes
+//! [`Value`] to JSON: an `ObjectRef` becomes
 //! `{"kind", "full-path", "fields"}`, a `PathRef` its full-path string, a
 //! `Stream` an array, and so on.
 
@@ -16,19 +16,32 @@ use std::fmt::Write as _;
 
 use crate::value::Value;
 
-/// Serialise *value* as `json.dumps(_to_json(value), indent=2)` would.
+/// Nesting ceiling for serialisation. `write_value` descends one native
+/// stack frame per nested array / object, so a maliciously deep `Value`
+/// (e.g. a `Stream` of a `Stream` of … built by an adversarial query) would
+/// otherwise overflow the stack while rendering. At the cap we emit a
+/// truncation marker in place of the sub-value rather than recurse; 512 is
+/// far deeper than any real query output yet safely below the stack limit.
+const MAX_JSON_DEPTH: usize = 512;
+
+/// Stand-in emitted (as a JSON string) when a value nests past
+/// [`MAX_JSON_DEPTH`], so deeply-nested input renders to bounded, still
+/// well-formed JSON instead of crashing.
+const TRUNCATION_MARKER: &str = "<max depth exceeded>";
+
+/// Serialise *value* as 2-space-indented JSON.
 #[must_use]
 pub fn to_pretty(value: &Value) -> String {
     let mut out = String::new();
-    write_value(&mut out, value, Some(0), false);
+    write_value(&mut out, value, Some(0), false, 0);
     out
 }
 
-/// Serialise *value* as `json.dumps(_to_json(value), separators=(",", ":"))`.
+/// Serialise *value* as compact JSON (no spaces after `,` or `:`).
 #[must_use]
 pub fn to_compact(value: &Value) -> String {
     let mut out = String::new();
-    write_value(&mut out, value, None, false);
+    write_value(&mut out, value, None, false, 0);
     out
 }
 
@@ -37,7 +50,7 @@ pub fn to_compact(value: &Value) -> String {
 #[must_use]
 pub fn to_compact_sorted(value: &Value) -> String {
     let mut out = String::new();
-    write_value(&mut out, value, None, true);
+    write_value(&mut out, value, None, true, 0);
     out
 }
 
@@ -48,7 +61,21 @@ fn indent(out: &mut String, level: usize) {
     }
 }
 
-fn write_value(out: &mut String, value: &Value, level: Option<usize>, sort_keys: bool) {
+fn write_value(
+    out: &mut String,
+    value: &Value,
+    level: Option<usize>,
+    sort_keys: bool,
+    depth: usize,
+) {
+    // Bound recursion: past the ceiling, substitute a marker string for the
+    // sub-value so a pathologically deep `Value` renders without overflowing
+    // the stack. Scalars are leaves and can never recurse, so the guard only
+    // needs to gate the composite arms below.
+    if depth >= MAX_JSON_DEPTH {
+        write_string(out, TRUNCATION_MARKER);
+        return;
+    }
     match value {
         Value::Null | Value::Drop => out.push_str("null"),
         Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
@@ -56,33 +83,48 @@ fn write_value(out: &mut String, value: &Value, level: Option<usize>, sort_keys:
         Value::Float(f) => out.push_str(&py_float_repr(*f)),
         Value::Str(s) => write_string(out, s),
         Value::PathRef(p) => write_string(out, &p.full_path),
-        Value::List(items) | Value::Stream(items) => write_array(out, items, level, sort_keys),
+        Value::List(items) | Value::Stream(items) => {
+            write_array(out, items, level, sort_keys, depth);
+        }
         Value::Object(map) => {
             write_object(
                 out,
                 map.iter().map(|(k, v)| (k.as_str(), v)),
                 level,
                 sort_keys,
+                depth,
             );
         }
         Value::Container(c) => {
-            // Python `_to_json` falls back to `str(value)` for a Container.
+            // Falls back to `str(value)` for a Container.
             write_string(out, &format!("container({})", c.kind));
         }
         Value::ObjectRef(o) => {
-            // `_to_json(ObjectRef)` → {"kind", "full-path", "fields": {...}}.
+            // An `ObjectRef` serialises to {"kind", "full-path", "fields": {...}}.
             let fields = Value::Object(o.fields.clone());
             let entries: Vec<(&str, Value)> = vec![
                 ("kind", Value::Str(o.kind.clone())),
                 ("full-path", Value::Str(o.full_path.clone())),
                 ("fields", fields),
             ];
-            write_object(out, entries.iter().map(|(k, v)| (*k, v)), level, sort_keys);
+            write_object(
+                out,
+                entries.iter().map(|(k, v)| (*k, v)),
+                level,
+                sort_keys,
+                depth,
+            );
         }
     }
 }
 
-fn write_array(out: &mut String, items: &[Value], level: Option<usize>, sort_keys: bool) {
+fn write_array(
+    out: &mut String,
+    items: &[Value],
+    level: Option<usize>,
+    sort_keys: bool,
+    depth: usize,
+) {
     if items.is_empty() {
         out.push_str("[]");
         return;
@@ -96,7 +138,7 @@ fn write_array(out: &mut String, items: &[Value], level: Option<usize>, sort_key
         if let Some(l) = inner {
             indent(out, l);
         }
-        write_value(out, item, inner, sort_keys);
+        write_value(out, item, inner, sort_keys, depth + 1);
     }
     if let Some(l) = level {
         indent(out, l);
@@ -109,6 +151,7 @@ fn write_object<'a>(
     entries: impl Iterator<Item = (&'a str, &'a Value)>,
     level: Option<usize>,
     sort_keys: bool,
+    depth: usize,
 ) {
     let mut entries: Vec<(&str, &Value)> = entries.collect();
     if sort_keys {
@@ -128,10 +171,10 @@ fn write_object<'a>(
             indent(out, l);
         }
         write_string(out, key);
-        // With `indent` set, Python's key separator is `": "`; compact mode
+        // With `indent` set, the key separator is `": "`; compact mode
         // uses `":"`.
         out.push_str(if level.is_some() { ": " } else { ":" });
-        write_value(out, val, inner, sort_keys);
+        write_value(out, val, inner, sort_keys, depth + 1);
     }
     if let Some(l) = level {
         indent(out, l);
@@ -139,7 +182,7 @@ fn write_object<'a>(
     out.push('}');
 }
 
-/// Escape a string the way Python's `json.dumps(..., ensure_ascii=True)`
+/// Escape a string the way ASCII-only JSON
 /// does: the JSON short escapes plus `\uXXXX` for every control character
 /// and every non-ASCII code point (surrogate pairs above the BMP).
 fn write_string(out: &mut String, s: &str) {
@@ -160,7 +203,7 @@ fn write_string(out: &mut String, s: &str) {
             c => {
                 let cp = c as u32;
                 if cp > 0xFFFF {
-                    // Encode as a UTF-16 surrogate pair, matching CPython.
+                    // Encode as a UTF-16 surrogate pair.
                     let v = cp - 0x1_0000;
                     let hi = 0xD800 + (v >> 10);
                     let lo = 0xDC00 + (v & 0x3FF);
@@ -174,10 +217,10 @@ fn write_string(out: &mut String, s: &str) {
     out.push('"');
 }
 
-/// Render a float the way Python's `repr()` / `json.dumps` would: a
+/// Render a float as the shortest round-tripping float text: a
 /// shortest round-tripping decimal, always carrying a `.0` for integral
 /// values, with `NaN` / `Infinity` / `-Infinity` for the non-finite cases
-/// (the non-standard spelling `CPython`'s `json` emits).
+/// (the non-standard JSON spelling for non-finite values).
 #[must_use]
 pub fn py_float_repr(f: f64) -> String {
     if f.is_nan() {

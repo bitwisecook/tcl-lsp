@@ -1,15 +1,13 @@
 //! The `diff` verb — object-aware diff between two BIG-IP configs.
 //!
-//! Port of `compute_diff` / `_run_diff` (`dialects/f5/bigip/diff.py`,
-//! `tooling/f5/verbs/diff.py`). Parses both configs with `tcl-bigip`, groups
-//! objects by kind, and classifies each full-path as added / removed /
-//! modified, comparing a fixed set of "interesting" fields.
+//! Parses both configs with `tcl-bigip`, groups objects by kind, and classifies
+//! each full-path as added / removed / modified, comparing a fixed set of
+//! "interesting" fields.
 //!
-//! Field values are read from each object's canonical JSON (`canon_fields`),
-//! which carries the same field names as the Python dataclasses. Scalar and
-//! string-list fields reach byte-parity; object-list fields (pool `members`,
-//! data-group `records`) display differently from Python's dataclass `repr`
-//! (change *detection* is still correct since the formatting is deterministic).
+//! Field values are read from each object's canonical JSON (`canon_fields`).
+//! Object-list fields (pool `members`, data-group `records`) are formatted
+//! deterministically, so change *detection* is correct even where their display
+//! form differs.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::Path;
@@ -19,7 +17,7 @@ use serde_json::Value;
 use tcl_bigip::canonical::Canon;
 use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
 
-/// Fields compared inside a modified object (mirrors `_INTERESTING_FIELDS`).
+/// Fields compared inside a modified object.
 const INTERESTING_FIELDS: &[&str] = &[
     "destination",
     "pool",
@@ -42,7 +40,7 @@ const INTERESTING_FIELDS: &[&str] = &[
 ];
 
 /// `(module, object_type)` pairs with a specialised typed inventory, excluded
-/// from the `generic` kind (mirrors `_SPECIALISED_GENERIC_TYPES`).
+/// from the `generic` kind.
 const SPECIALISED: &[(&str, &str)] = &[
     ("ltm", "virtual"),
     ("ltm", "pool"),
@@ -71,10 +69,10 @@ fn table_to_kind(table: &str) -> Option<&'static str> {
     }
 }
 
-/// `kind -> {full_path: canonical-fields}` (mirrors `_kind_inventories`).
+/// `kind -> {full_path: canonical-fields}`.
 fn kind_inventories(cfg: &BigipConfig) -> BTreeMap<String, BTreeMap<String, Value>> {
     let mut inv: BTreeMap<String, BTreeMap<String, Value>> = BTreeMap::new();
-    // All typed kinds are always present (possibly empty), matching Python.
+    // All typed kinds are always present (possibly empty).
     for kind in [
         "virtual",
         "pool",
@@ -233,22 +231,20 @@ pub fn run_diff(
 }
 
 fn read_config(path: &Path) -> anyhow::Result<BigipConfig> {
-    // Read via the UCS-aware resolver (mirrors `read_path` in the Python diff
-    // handler) so a `.ucs` — plain or encrypted — is transparently extracted to
-    // SCF, exactly like a `.conf`/`.scf`.
+    // Read via the UCS-aware resolver so a `.ucs` — plain or encrypted — is
+    // transparently extracted to SCF, exactly like a `.conf`/`.scf`.
     let opts = crate::cli::PassphraseArgs::default().to_options();
     let (_uri, source) = tcl_bigip_io::read_path(&path.to_string_lossy(), false, &opts)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
-    // Accept tmsh-script input as well as SCF (mirrors `_to_scf` in the Python
-    // diff handler) so `tmsh create/modify` headers compare against the same
-    // objects, not `tmsh`-module generics.
+    // Accept tmsh-script input as well as SCF so `tmsh create/modify` headers
+    // compare against the same objects, not `tmsh`-module generics.
     Ok(parse_bigip_conf(
         &crate::commands::scf::to_scf(&source),
         "Common",
     ))
 }
 
-/// Compare the interesting fields of two objects (mirrors `_diff_object`).
+/// Compare the interesting fields of two objects.
 fn diff_object(before: &Value, after: &Value) -> Vec<FieldChange> {
     let mut changes = Vec::new();
     for &field in INTERESTING_FIELDS {
@@ -265,7 +261,7 @@ fn diff_object(before: &Value, after: &Value) -> Vec<FieldChange> {
     changes
 }
 
-/// Extract a field as a comparable string (mirrors `_field_value`).
+/// Extract a field as a comparable string.
 fn field_value(obj: &Value, field: &str) -> String {
     let Some(val) = obj.get(field) else {
         return String::new();
@@ -284,8 +280,8 @@ fn field_value(obj: &Value, field: &str) -> String {
     py_str(val)
 }
 
-/// Python `str(value)` for a JSON scalar/collection (best-effort; object
-/// elements diverge from dataclass `repr`).
+/// Best-effort string form of a JSON scalar/collection (object elements are
+/// rendered approximately).
 fn py_str(val: &Value) -> String {
     match val {
         Value::Null => "None".to_owned(),
@@ -297,7 +293,7 @@ fn py_str(val: &Value) -> String {
     }
 }
 
-/// Strip comments and collapse whitespace (mirrors `_normalise_irule_source`).
+/// Strip comments and collapse whitespace.
 fn normalise_irule_source(source: &str) -> String {
     let mut no_comments = String::with_capacity(source.len());
     for line in source.split_inclusive('\n') {
@@ -310,7 +306,7 @@ fn normalise_irule_source(source: &str) -> String {
     no_comments.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Text report (mirrors `_format_text`).
+/// Text report.
 fn format_text(report: &DiffReport) -> String {
     let mut lines: Vec<String> = vec![format!(
         "diff: +{} added, -{} removed, ~{} modified",
@@ -338,7 +334,7 @@ fn format_text(report: &DiffReport) -> String {
     lines.join("\n")
 }
 
-/// Python `repr()` of a string (mirrors `{value!r}`).
+/// Render a string in repr form (single-quoted with escapes).
 fn py_repr(s: &str) -> String {
     use std::fmt::Write as _;
     let use_double = s.contains('\'') && !s.contains('"');

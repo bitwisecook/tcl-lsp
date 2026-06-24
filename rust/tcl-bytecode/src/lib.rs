@@ -641,10 +641,7 @@ impl Op {
             | Self::EXPAND_STKTOP => 5,
 
             // 6-byte
-            Self::INVOKE_REPLACE
-            | Self::LREPLACE4
-            | Self::UNSET_SCALAR
-            | Self::UNSET_ARRAY => 6,
+            Self::INVOKE_REPLACE | Self::LREPLACE4 | Self::UNSET_SCALAR | Self::UNSET_ARRAY => 6,
 
             // 9-byte: opcode + 2× 4-byte operands
             Self::LIST_RANGE_IMM

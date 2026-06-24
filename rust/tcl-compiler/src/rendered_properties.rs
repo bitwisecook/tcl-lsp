@@ -17,7 +17,6 @@
 //!   underapproximate. `STARTS_WITH_SLASH` only survives when
 //!   *all* incoming edges agree.
 //!
-//! Ported from `core/compiler/rendered_properties.py` (C27c).
 //! Provides the lattice types plus the full SSA-walk propagation
 //! pass (`propagate_rendered_props`) used by `FunctionUnit` to
 //! enrich taint colours (e.g. `STARTS_WITH_SLASH` →
@@ -30,11 +29,11 @@ use bitflags::bitflags;
 
 use tcl_registry::{CommandRegistry, Traits};
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::{SccpResult, cfg_order};
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
 bitflags! {
@@ -150,8 +149,7 @@ impl Default for RenderedValueProps {
 /// Join two lattice values.
 ///
 /// `may` bits use union (overapproximate); `must` bits use
-/// intersection (underapproximate). Ported from the Python
-/// `rendered_join`.
+/// intersection (underapproximate).
 #[must_use]
 pub fn rendered_join(a: RenderedValueProps, b: RenderedValueProps) -> RenderedValueProps {
     RenderedValueProps {
@@ -274,12 +272,10 @@ fn evaluate_const(value: &str) -> RenderedValueProps {
 /// segments, and resolves must-property bits (`STARTS_WITH_SLASH`,
 /// `STARTS_WITH_DASH`) from the first non-interpolation character.
 ///
-/// This is a light-weight replacement for the Python pass's
-/// `TclLexer` walk: it treats `$…` and `[…]` spans as interpolation
-/// holes and analyses the surrounding literal text. The exact
-/// mapping differs from Python when an interpolation hole occurs
-/// before the first literal character (must-bits become unknown),
-/// matching the Python `leading_resolved` semantics.
+/// A light-weight scan: it treats `$…` and `[…]` spans as interpolation
+/// holes and analyses the surrounding literal text. When an interpolation
+/// hole occurs before the first literal character the must-bits become
+/// unknown (`leading_resolved` stays false).
 #[must_use]
 fn scan_value_text(text: &str) -> RenderedValueProps {
     let mut may = RenderedProperties::NONE;
@@ -339,7 +335,7 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
             // protocol line, display text — not a single path token.  A
             // command substitution `[cmd a b]` stays one CMD token (skipped
             // above via `skip_command_sub`), so its internal spaces do NOT
-            // set this.  Mirrors the Python pass's `TokenType.SEP` arm.
+            // set this.
             b' ' | b'\t' => {
                 may |= RenderedProperties::HAS_LITERAL_SPACE;
                 leading_resolved = true;
@@ -357,8 +353,7 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
     }
     // Double-escape: if rendering the literal text leaves a residual
     // backslash-escape sequence (e.g. `a\\b` → `a\b`, still `\b`), the
-    // value was double-escaped. Mirrors Python's per-ESC-token
-    // `_has_double_escape` on the rendered word.
+    // value was double-escaped.
     if saw_escape && has_double_escape(&tcl_lexer::backslash_subst(text)) {
         may |= RenderedProperties::HAS_DOUBLE_ESCAPE;
     }
@@ -366,12 +361,10 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
 }
 
 /// Detect double-escaping: after rendering, the text still contains a
-/// backslash followed by a recognised escape character. Port of Python's
-/// `rendered_properties._has_double_escape`.
+/// backslash followed by a recognised escape character.
 #[must_use]
 fn has_double_escape(rendered: &str) -> bool {
-    // Same recognised-escape set as the Python predicate (note the literal
-    // space and semicolon).
+    // Recognised-escape set (note the literal space and semicolon).
     const ESC_FOLLOW: &[u8] = b"abfnrtv\\{}[]$\"; xuU01234567";
     let bytes = rendered.as_bytes();
     if !bytes.contains(&b'\\') {
@@ -447,7 +440,6 @@ fn scan_escape(text: &str, start: usize, leading_resolved: bool) -> EscapeScan {
     // key fix over the old hand-rolled table: a numeric / hex / unicode /
     // octal escape (`\x2f`, `/`, `\057`) renders to `/` and therefore
     // sets `HAS_FORWARD_SLASH` (its absence caused W201 false-negatives).
-    // Mirrors Python's `_render_esc_text` → per-rendered-char scan.
     let advance = escape_byte_len(bytes, start);
     let rendered = tcl_lexer::backslash_subst(&text[start..start + advance]);
 
@@ -484,7 +476,7 @@ fn scan_escape(text: &str, start: usize, leading_resolved: bool) -> EscapeScan {
 }
 
 /// Source-byte length of one Tcl backslash escape beginning at
-/// `bytes[start]` (which must be `\`).  Mirrors the per-escape consumption
+/// `bytes[start]` (which must be `\`).  Matches the per-escape consumption
 /// rules of [`tcl_lexer::backslash_subst`] so the exact escape can be
 /// sliced out and rendered.
 fn escape_byte_len(bytes: &[u8], start: usize) -> usize {
@@ -545,22 +537,21 @@ fn utf8_char_len(first: u8) -> usize {
 #[must_use]
 fn evaluate_value(
     value: &str,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     props: &HashMap<ValueKey, RenderedValueProps>,
     registry: &CommandRegistry,
+    ssa: &SsaFunction,
 ) -> RenderedValueProps {
     let stripped = value.trim();
 
     // Pure variable reference → inherit from the source.
     if is_pure_var_ref(stripped) {
         let name = normalise_var_name(stripped);
-        if let Some(&ver) = uses.get(name)
+        if let Some(sym) = ssa.var_symbol(name)
+            && let Some(&ver) = uses.get(&sym)
             && ver > 0
         {
-            return props
-                .get(&(name.to_owned(), ver))
-                .copied()
-                .unwrap_or_default();
+            return props.get(&(sym, ver)).copied().unwrap_or_default();
         }
         // Version 0 / unseen: the value comes from an enclosing scope
         // or hasn't been defined on this path. Be conservative — every
@@ -571,7 +562,7 @@ fn evaluate_value(
     // Pure command substitution → interpolated value. The source *word*
     // carries no literal slash/backslash/CRLF/space — only the fact that
     // it is interpolated (`HAS_INTERPOLATION`), refined with semantic
-    // registry hints. Mirrors Python's `_evaluate_rendered_props_for_value`
+    // registry hints.
     // (a minimal baseline, not the conservative lattice top — using `top`
     // here over-reported every may-flag for command-substitution values).
     if let Some((cmd, args)) = parse_command_substitution(stripped) {
@@ -616,15 +607,15 @@ fn unknown_top() -> RenderedValueProps {
 
 /// Union the `may` bits of every SSA input used by a statement.
 fn collect_use_may(
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     props: &HashMap<ValueKey, RenderedValueProps>,
 ) -> RenderedProperties {
     let mut out = RenderedProperties::NONE;
-    for (name, &ver) in uses {
+    for (&sym, &ver) in uses {
         if ver == 0 {
             continue;
         }
-        if let Some(p) = props.get(&(name.clone(), ver)) {
+        if let Some(p) = props.get(&(sym, ver)) {
             out |= p.may;
         }
     }
@@ -635,7 +626,7 @@ fn collect_use_may(
 fn evaluate_call(
     command: &str,
     args: &[String],
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     props: &HashMap<ValueKey, RenderedValueProps>,
     registry: &CommandRegistry,
 ) -> RenderedValueProps {
@@ -679,9 +670,10 @@ fn evaluate_call(
 /// Infer rendered properties for a statement's def(s).
 fn evaluate_def(
     stmt: &Statement,
-    uses: &HashMap<String, u32>,
+    uses: &HashMap<Symbol, u32>,
     props: &HashMap<ValueKey, RenderedValueProps>,
     registry: &CommandRegistry,
+    ssa: &SsaFunction,
 ) -> RenderedValueProps {
     match stmt {
         Statement::AssignConst { value, .. } => evaluate_const(value),
@@ -690,7 +682,7 @@ fn evaluate_def(
             // have a known source; otherwise fall through to the
             // scanner. The `evaluate_value` helper already handles
             // both cases and the unescape-escalation logic.
-            evaluate_value(value, uses, props, registry)
+            evaluate_value(value, uses, props, registry, ssa)
         }
         Statement::AssignExpr { .. } | Statement::Incr { .. } => {
             // Numeric result: no path separators, no interpolation.
@@ -758,15 +750,12 @@ pub fn propagate_rendered_props(
 
             // Phi joins at non-entry blocks.
             if bn != &cfg.entry {
-                let exec_preds: Vec<&str> = preds
+                let exec_preds: Vec<BlockId> = preds
                     .get(bn)
                     .map(|ps| {
                         ps.iter()
-                            .filter(|p| {
-                                sccp.executable_edges
-                                    .contains(&((*p).to_owned(), bn.clone()))
-                            })
-                            .map(String::as_str)
+                            .copied()
+                            .filter(|p| sccp.executable_edges.contains(&(*p, *bn)))
                             .collect()
                     })
                     .unwrap_or_default();
@@ -777,7 +766,7 @@ pub fn propagate_rendered_props(
                     }
                     let mut phi_props = RenderedValueProps::bottom();
                     for pred in &exec_preds {
-                        let ver = phi.incoming.get(*pred).copied().unwrap_or(0);
+                        let ver = phi.incoming.get(pred).copied().unwrap_or(0);
                         // Version 0 = undefined-on-this-path / enclosing
                         // scope. Model it as top so the merge stays sound
                         // instead of silently narrowing to the other
@@ -785,19 +774,11 @@ pub fn propagate_rendered_props(
                         let incoming = if ver == 0 {
                             unknown_top()
                         } else {
-                            props
-                                .get(&(phi.name.clone(), ver))
-                                .copied()
-                                .unwrap_or_default()
+                            props.get(&(phi.name, ver)).copied().unwrap_or_default()
                         };
                         phi_props = rendered_join(phi_props, incoming);
                     }
-                    set_props(
-                        &mut props,
-                        (phi.name.clone(), phi.version),
-                        phi_props,
-                        &mut changed,
-                    );
+                    set_props(&mut props, (phi.name, phi.version), phi_props, &mut changed);
                 }
             }
 
@@ -805,19 +786,19 @@ pub fn propagate_rendered_props(
             for ssa_stmt in &ssa_block.statements {
                 let stmt = &ssa_stmt.statement;
                 if matches!(stmt, Statement::Barrier { .. }) {
-                    for (var, &ver) in &ssa_stmt.defs {
+                    for (&var, &ver) in &ssa_stmt.defs {
                         set_props(
                             &mut props,
-                            (var.clone(), ver),
+                            (var, ver),
                             RenderedValueProps::top(),
                             &mut changed,
                         );
                     }
                     continue;
                 }
-                for (var, &ver) in &ssa_stmt.defs {
-                    let inferred = evaluate_def(stmt, &ssa_stmt.uses, &props, registry);
-                    set_props(&mut props, (var.clone(), ver), inferred, &mut changed);
+                for (&var, &ver) in &ssa_stmt.defs {
+                    let inferred = evaluate_def(stmt, &ssa_stmt.uses, &props, registry, ssa);
+                    set_props(&mut props, (var, ver), inferred, &mut changed);
                 }
             }
         }
@@ -902,13 +883,16 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let uses = HashMap::new();
         let props = HashMap::new();
+        // No interned variables are referenced by these opaque substitutions, so
+        // a bare (block-less) SSA function suffices for symbol resolution.
+        let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         // `[list 1 2 3]` is opaque interpolation — only HAS_INTERPOLATION,
         // never the full may-mask (the old over-report).
-        let p = evaluate_value("[list 1 2 3]", &uses, &props, &registry);
+        let p = evaluate_value("[list 1 2 3]", &uses, &props, &registry, &ssa);
         assert_eq!(p.may, RenderedProperties::HAS_INTERPOLATION);
         assert_eq!(p.must, RenderedProperties::NONE);
         // `[exec ls]` likewise.
-        let p = evaluate_value("[exec ls]", &uses, &props, &registry);
+        let p = evaluate_value("[exec ls]", &uses, &props, &registry, &ssa);
         assert_eq!(p.may, RenderedProperties::HAS_INTERPOLATION);
     }
 
@@ -956,7 +940,7 @@ mod tests {
         assert!(out.may.contains(RenderedProperties::FULLY_NORMALISED));
     }
 
-    // -- SSA walk tests ----------------------------------------------------
+    // SSA walk tests
 
     use crate::compilation_unit::CompilationUnit;
 
@@ -971,7 +955,7 @@ mod tests {
         let p = fu
             .rendered_props
             .iter()
-            .find(|((n, _), _)| n == "path")
+            .find(|((n, _), _)| fu.ssa.var_name(*n) == "path")
             .expect("path entry");
         assert!(p.1.may.contains(RenderedProperties::HAS_FORWARD_SLASH));
         assert!(p.1.must.contains(RenderedProperties::STARTS_WITH_SLASH));
@@ -984,7 +968,7 @@ mod tests {
         let p = fu
             .rendered_props
             .iter()
-            .find(|((n, _), _)| n == "flag")
+            .find(|((n, _), _)| fu.ssa.var_name(*n) == "flag")
             .expect("flag entry");
         assert!(p.1.must.contains(RenderedProperties::STARTS_WITH_DASH));
     }
@@ -997,7 +981,7 @@ mod tests {
         let copy = fu
             .rendered_props
             .iter()
-            .find(|((n, _), _)| n == "copy")
+            .find(|((n, _), _)| fu.ssa.var_name(*n) == "copy")
             .expect("copy entry");
         assert!(copy.1.may.contains(RenderedProperties::HAS_FORWARD_SLASH));
         assert!(copy.1.must.contains(RenderedProperties::STARTS_WITH_SLASH));
@@ -1008,7 +992,11 @@ mod tests {
         let cu = CompilationUnit::build_for("set n [expr {1 + 2}]", &registry(), false);
         let fu = cu.function("::top").unwrap();
         // n should have neither forward slash nor starts-with bits.
-        if let Some(((_, _), p)) = fu.rendered_props.iter().find(|((n, _), _)| n == "n") {
+        if let Some(((_, _), p)) = fu
+            .rendered_props
+            .iter()
+            .find(|((n, _), _)| fu.ssa.var_name(*n) == "n")
+        {
             assert!(!p.may.contains(RenderedProperties::HAS_FORWARD_SLASH));
             assert!(!p.must.contains(RenderedProperties::STARTS_WITH_DASH));
         }
@@ -1082,7 +1070,7 @@ mod tests {
         let merged = fu
             .rendered_props
             .iter()
-            .filter(|((n, _), _)| n == "x")
+            .filter(|((n, _), _)| fu.ssa.var_name(*n) == "x")
             .map(|(_, p)| *p)
             .fold(RenderedValueProps::bottom(), rendered_join);
         assert!(merged.may.contains(RenderedProperties::HAS_FORWARD_SLASH));

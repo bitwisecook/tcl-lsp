@@ -1,5 +1,4 @@
-//! tmsh → SCF normalisation — port of `dialects/f5/bigip/tmsh_parse.py`
-//! (`_to_scf` / `looks_like_tmsh_output` / `normalise_tmsh_to_scf`).
+//! tmsh → SCF normalisation.
 //!
 //! The config verbs accept `tmsh create` / `tmsh modify` script output as well
 //! as SCF. Without this, the SCF parser would read `tmsh` as the module name and
@@ -10,7 +9,7 @@
 const TMSH_PREFIXES: &[&str] = &["tmsh create ", "tmsh modify "];
 
 /// Normalise tmsh output to SCF when it looks like tmsh, else return it
-/// unchanged (mirrors `_to_scf`).
+/// unchanged.
 #[must_use]
 pub fn to_scf(text: &str) -> String {
     if looks_like_tmsh_output(text) {
@@ -20,8 +19,7 @@ pub fn to_scf(text: &str) -> String {
     }
 }
 
-/// True when the first non-blank, non-comment line starts with a tmsh prefix
-/// (mirrors `looks_like_tmsh_output`).
+/// True when the first non-blank, non-comment line starts with a tmsh prefix.
 fn looks_like_tmsh_output(text: &str) -> bool {
     for line in text.lines() {
         let stripped = line.trim_start();
@@ -34,7 +32,7 @@ fn looks_like_tmsh_output(text: &str) -> bool {
 }
 
 /// Strip `tmsh create`/`modify` prefixes from stanza headers at brace depth
-/// zero (mirrors `normalise_tmsh_to_scf`).
+/// zero.
 fn normalise_tmsh_to_scf(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut depth: i32 = 0;
@@ -56,8 +54,8 @@ fn normalise_tmsh_to_scf(text: &str) -> String {
     out
 }
 
-/// `{` minus `}` count outside quoted strings and comments (mirrors
-/// `_net_brace_delta`): a `#` outside a string starts a Tcl-style comment.
+/// `{` minus `}` count outside quoted strings and comments: a `#` outside a
+/// string starts a Tcl-style comment.
 fn net_brace_delta(line: &str) -> i32 {
     let bytes = line.as_bytes();
     let mut depth: i32 = 0;

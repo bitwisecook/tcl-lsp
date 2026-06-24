@@ -1,6 +1,6 @@
 # `tcl-debugger` — step debugger for the native Tcl VM.
 #
-# Rust port of `tooling/debugger/`: a `DebugController` (breakpoints + a
+# A `DebugController` (breakpoints + a
 # step-mode state machine) drives a `DebugBackend` (the debug engine). The VM
 # backend runs the script on `tcl-vm`, calling the controller's step hook at
 # each source-line boundary; the controller decides whether to pause.

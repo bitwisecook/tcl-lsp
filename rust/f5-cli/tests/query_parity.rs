@@ -1,8 +1,8 @@
 //! Differential parity tests for the read-only `f5 query` verb.
 //!
 //! Runs the built `f5-query` binary against the committed `bigip.conf`
-//! fixture and asserts stdout matches a golden captured from
-//! `python -m tooling.f5.main query`. Self-contained: no Python at test time.
+//! fixture and asserts stdout matches the captured golden output.
+//! Self-contained: no external tool runs at test time.
 //!
 //! Multi-file goldens embed a `__FIXTURES__` placeholder in place of the
 //! absolute `file://` URI of the fixtures directory; the test substitutes the
@@ -48,7 +48,7 @@ fn assert_query(golden: &str, ok_codes: &[i32], args: &[&str]) {
     let actual = run_query(args, ok_codes);
     assert_eq!(
         actual, expected,
-        "f5 query output does not match the Python CLI ({golden})\nargs: {args:?}"
+        "f5 query output does not match the golden ({golden})\nargs: {args:?}"
     );
 }
 
@@ -60,7 +60,7 @@ fn conf() -> String {
         .into_owned()
 }
 
-// --- core query matrix --------------------------------------------------
+// core query matrix
 
 #[test]
 fn vs_names() {
@@ -146,7 +146,7 @@ fn select_pool() {
     );
 }
 
-// --- output modes -------------------------------------------------------
+// output modes
 
 #[test]
 fn mode_json() {
@@ -193,7 +193,7 @@ fn mode_table() {
     );
 }
 
-// --- cookbook examples (read-only, non-`.refs`, fully supported) --------
+// cookbook examples (read-only, non-`.refs`, fully supported)
 
 #[test]
 fn ex1_vs_pool() {
@@ -298,7 +298,7 @@ fn ex24_index() {
     );
 }
 
-// --- multi-file (banners + JSON envelope) -------------------------------
+// multi-file (banners + JSON envelope)
 
 #[test]
 fn multi_file_banner() {

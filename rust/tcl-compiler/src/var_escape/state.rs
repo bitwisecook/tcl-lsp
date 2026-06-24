@@ -1,8 +1,6 @@
-//! Mutable per-proc escape accumulator (C33b2).
+//! Mutable per-proc escape accumulator.
 //!
-//! Mirrors the `_EscapeState` class from
-//! `core/compiler/var_escape/_propagation.py`. The walker
-//! (C33b7) holds a `&mut EscapeState` while visiting an IR
+//! The walker holds a `&mut EscapeState` while visiting an IR
 //! script body, calling the methods below as it sees relevant
 //! shapes.
 
@@ -44,14 +42,13 @@ pub struct EscapeState {
     /// `set $n` alias inference to resolve `$n` back to the
     /// literal when one writer was observed.
     literal_assigns: HashMap<String, LiteralBinding>,
-    /// SYNC-JUN-FRAME356-population: recorded barrier triggers
-    /// (mirrors `ProcEscapeSummary.barriers`).  Each
+    /// Recorded barrier triggers.  Each
     /// [`record_barrier`](Self::record_barrier) call appends here;
     /// the summary builder copies this into
     /// [`super::types::ProcEscapeSummary::barriers`] verbatim.
     pub barriers: Vec<Barrier>,
-    /// SYNC-JUN-FRAME356-population: recorded per-name escape
-    /// reasons (mirrors `ProcEscapeSummary.tag_reasons`).
+    /// Recorded per-name escape reasons; the summary builder copies
+    /// this into [`super::types::ProcEscapeSummary::tag_reasons`].
     pub tag_reasons: HashMap<String, Vec<EscapeReason>>,
 }
 
@@ -112,7 +109,7 @@ impl EscapeState {
         self.flags.insert(EscapeFlags::DYNAMIC_BARRIER);
     }
 
-    /// SYNC-JUN-FRAME356-population: record a structured [`Barrier`]
+    /// Record a structured [`Barrier`]
     /// describing why the proc went pessimistic.
     ///
     /// Sets the [`EscapeFlags::DYNAMIC_BARRIER`] flag (so callers that
@@ -125,7 +122,7 @@ impl EscapeState {
         self.barriers.push(barrier);
     }
 
-    /// SYNC-JUN-FRAME356-population: escape *name* and record the
+    /// Escape *name* and record the
     /// triggering [`EscapeReason`].
     ///
     /// Sister of [`Self::escape`]; same `Frame` tag plus a structured

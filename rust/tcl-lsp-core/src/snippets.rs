@@ -1,6 +1,6 @@
-//! Context-aware snippet completion templates (GAP-A9).
+//! Context-aware snippet completion templates.
 //!
-//! Port of `lsp/features/snippet_templates.py`.  Generates VS Code
+//! Generates VS Code
 //! snippet-format completion items (tabstops `${1:…}` / choices
 //! `${2|a,b|}` / final `$0`) that adapt to the formatter's indent unit
 //! and the variables in scope.  The iRules event templates (`RULE_INIT`
@@ -10,8 +10,8 @@
 
 use crate::completion::{CompletionItem, CompletionKind};
 
-/// Immutable context for snippet generation.  Mirrors Python's
-/// `SnippetContext` (brace style is always K&R, i.e. a bare `{`).
+/// Immutable context for snippet generation (brace style is always
+/// K&R, i.e. a bare `{`).
 pub struct SnippetContext<'a> {
     /// Dialect string (`tcl8.6`, `f5-irules`, …).
     pub dialect: &'a str,
@@ -22,8 +22,7 @@ pub struct SnippetContext<'a> {
     /// Text typed so far (the `tcl-…` prefix filter).
     pub partial: &'a str,
     /// The enclosing `when` event at the cursor, or `None` at the top
-    /// level. iRules event templates only offer at the top level
-    /// (Python's `requires_top_level`).
+    /// level. iRules event templates only offer at the top level.
     pub current_event: Option<&'a str>,
     /// `when` events already declared in the file — iRules event
     /// templates decline when their event is already present (avoids
@@ -38,16 +37,16 @@ struct Template {
     detail: &'static str,
     /// `f5-irules`-only when `true` (Tcl-core templates are all-dialect).
     irules_only: bool,
-    /// Offered only outside any `when` block (Python's
-    /// `requires_top_level`).  iRules event templates set this.
+    /// Offered only outside any `when` block.  iRules event templates
+    /// set this.
     requires_top_level: bool,
-    /// Returns the snippet body, or `""` to decline (mirrors Python's
-    /// `str | None` — e.g. when the event is already in the file).
+    /// Returns the snippet body, or `""` to decline (e.g. when the
+    /// event is already in the file).
     generator: fn(&SnippetContext) -> String,
 }
 
-/// Return context-aware snippet completion items.  Mirrors
-/// `get_snippet_completions`: filter each template by dialect and the
+/// Return context-aware snippet completion items.  Filter each
+/// template by dialect and the
 /// typed prefix, then emit a `Snippet`-kind item whose `insert_text` is
 /// the generated body and whose `filter_text` is the `tcl-…` prefix.
 #[must_use]
@@ -63,8 +62,8 @@ pub fn snippet_completions(ctx: &SnippetContext) -> Vec<CompletionItem> {
         if !ctx.partial.is_empty() && !tmpl.prefix.starts_with(ctx.partial) {
             continue;
         }
-        // An empty body is the port of Python's `None` — the generator
-        // declined (e.g. its `when` event is already declared).
+        // An empty body means the generator declined (e.g. its `when`
+        // event is already declared).
         let body = (tmpl.generator)(ctx);
         if body.is_empty() {
             continue;
@@ -86,7 +85,7 @@ pub fn snippet_completions(ctx: &SnippetContext) -> Vec<CompletionItem> {
 }
 
 /// Build a snippet placeholder offering the in-scope variables as
-/// choices, or a plain default.  Mirrors `_var_choices`.
+/// choices, or a plain default.
 fn var_choices(ctx: &SnippetContext, tabstop: u32, default: &str) -> String {
     if ctx.scope_vars.is_empty() {
         return format!("${{{tabstop}:{default}}}");
@@ -104,7 +103,7 @@ fn var_choices(ctx: &SnippetContext, tabstop: u32, default: &str) -> String {
     format!("${{{tabstop}|{choices}|}}")
 }
 
-// -- Tcl-core generators (mirror `_gen_*`) --------------------------
+// Tcl-core generators
 
 fn gen_proc(ctx: &SnippetContext) -> String {
     let i = ctx.indent_unit;
@@ -207,10 +206,9 @@ fn gen_dict_for(ctx: &SnippetContext) -> String {
     format!("dict for {{${{1:key}} ${{2:value}}}} {dict_ph} {{\n{i}$0\n}}")
 }
 
-// -- iRules event generators (mirror `_gen_*`, declining via `""`) ----
+// -- iRules event generators (declining via `""`) ----
 
-/// `true` when `event` is already declared in the file (Python's
-/// `event in ctx.file_events`).
+/// `true` when `event` is already declared in the file.
 fn has_event(ctx: &SnippetContext, event: &str) -> bool {
     ctx.file_events.iter().any(|e| e == event)
 }

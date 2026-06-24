@@ -1,17 +1,14 @@
 //! The `explain-flow` verb — trace each flow in a PCAP through the BIG-IP
 //! config.
 //!
-//! Port of `compute_explain_flow` / `_run_explain_flow`
-//! (`dialects/f5/bigip/explain_flow.py`, `tooling/f5/verbs/explain_flow.py`).
-//!
 //! Covers the always-available built-in walker (static) path end to end: flow
 //! extraction (`tcl_bigip::flow`), session pairing, virtual-server matching,
 //! the matched-session detail (profile chain, iRule event chain, LTM policy
 //! trace via `tcl_bigip::policy_eval`, resolved plan), the reset-cause
 //! narrative, and both the text and `--json` report renderers. The `--tshark`
 //! / `--keylog` / `--tshark-filter` L7-enrichment paths are wired through
-//! `tcl_bigip::flow::tshark`. The `--simulate` (iRule VM) path remains
-//! deferred until the RT-VM-gated native iRule simulator lands.
+//! `tcl_bigip::flow::tshark`. The `--simulate` (iRule VM) path is not yet
+//! implemented.
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -34,7 +31,7 @@ use tcl_cli_support::{OutputTarget, write_text_output};
 use crate::commands::explain;
 
 /// Canonical lifecycle order for L4/SSL/HTTP events on one request/response
-/// cycle. Mirrors `_EVENT_ORDER`.
+/// cycle.
 const EVENT_ORDER: &[&str] = &[
     "RULE_INIT",
     "CLIENT_ACCEPTED",
@@ -60,11 +57,11 @@ const EVENT_ORDER: &[&str] = &[
     "SERVER_CLOSED",
 ];
 
-/// `when EVENT {` opener. Mirrors the pattern in `_extract_event_blocks`.
+/// `when EVENT {` opener.
 static EVENT_BLOCK_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)\bwhen\s+([A-Z][A-Z0-9_]*)\s*\{").expect("event regex"));
 
-/// iRule command invocation inside `[ ... ]`. Mirrors `_HUD_TOKEN_RE`.
+/// iRule command invocation inside `[ ... ]`.
 static HUD_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\[\s*(HTTP::|SSL::|IP::|TCP::|LB::|SNI\b)([^\]\n]*?)\s*\]").expect("hud regex")
 });
@@ -77,7 +74,7 @@ type EventBlock = (String, String, String);
 type EventAnnotation = (String, String, Vec<Annotation>);
 
 /// Per-session explanation: which VS matched, the event chain, RST analysis.
-/// Mirrors `SessionExplain`; fields beyond the current increment default empty.
+/// Unpopulated fields default to empty.
 #[derive(Default)]
 struct SessionExplain {
     session: Option<SessionHolder>,
@@ -101,8 +98,7 @@ struct SessionExplain {
 }
 
 /// The dynamic outcome of running a matched session's iRule(s) under the
-/// embedded TMM-sim orchestrator on `tcl-vm`. Port of the result half of
-/// `tooling/f5/irule_simulation.py::simulate_irule_for_session`.
+/// embedded TMM-sim orchestrator on `tcl-vm`.
 #[derive(Default, Clone)]
 struct SimOutcome {
     pool: String,
@@ -111,7 +107,7 @@ struct SimOutcome {
     logs: Vec<String>,
     decisions: Vec<(String, String, String)>,
     /// Non-empty when the simulation could not run (the static report still
-    /// renders); mirrors the Python adapter's best-effort `error` field.
+    /// renders).
     error: String,
 }
 
@@ -140,7 +136,7 @@ struct ExplainFlowReport {
 }
 
 /// Parse a VS destination string like `/Common/10.0.0.1:443` or `/p/[::1]:80`,
-/// returning the canonical address and port. Mirrors `_parse_destination`.
+/// returning the canonical address and port.
 fn parse_destination(dest: &str, re: &Regex) -> Option<(String, u32)> {
     let caps = re.captures(dest.trim())?;
     let addr = caps
@@ -164,8 +160,8 @@ fn canonicalise_ip(addr: &str) -> Option<String> {
         .map(|ip| ip.to_string())
 }
 
-/// Find the virtual server whose destination matches `(dst_ip, dst_port)`.
-/// Mirrors `_match_virtual`, iterating VSes in source order.
+/// Find the virtual server whose destination matches `(dst_ip, dst_port)`,
+/// iterating VSes in source order.
 fn match_virtual(cfg: &BigipConfig, dst_ip: &str, dst_port: u16, re: &Regex) -> Option<String> {
     let flow_ip = canonicalise_ip(dst_ip).unwrap_or_else(|| dst_ip.to_owned());
     for placed in &cfg.objects {
@@ -208,8 +204,8 @@ fn table_keys<'a>(cfg: &'a BigipConfig, table: &str) -> impl Iterator<Item = &'a
     })
 }
 
-/// Resolve a possibly-short name to a full path in `table`. Faithful port of
-/// `BigipConfig.resolve_name` (exact, partition-qualified, `/Common/`, suffix).
+/// Resolve a possibly-short name to a full path in `table`, trying exact,
+/// partition-qualified, `/Common/`, and suffix matches in turn.
 fn resolve_name(cfg: &BigipConfig, name: &str, table: &str) -> Option<String> {
     if table_keys(cfg, table).any(|k| k == name) {
         return Some(name.to_owned());
@@ -253,8 +249,8 @@ fn find_profile<'a>(cfg: &'a BigipConfig, full_path: &str) -> Option<&'a BigipPr
     })
 }
 
-/// Resolve a generic BIG-IP object key by identifier/name. Faithful port of
-/// `BigipConfig.resolve_generic_object`. Returns the `generic_objects` key.
+/// Resolve a generic BIG-IP object key by identifier/name. Returns the
+/// `generic_objects` key.
 fn resolve_generic_object(
     cfg: &BigipConfig,
     name: &str,
@@ -272,9 +268,8 @@ fn resolve_generic_object(
         if object_types.is_some_and(|types| !types.contains(&obj.object_type.as_str())) {
             continue;
         }
-        // Mirrors `resolve_generic_object._matches`. The reference repeats the
-        // `ident == clean` exact-match inside the unqualified branch; it is
-        // already covered by the leading term, so it is dropped here.
+        // The `ident == clean` exact-match is already covered by the leading
+        // term, so it is not repeated inside the unqualified branch.
         let ident = obj.identifier.as_str();
         let matches = ident == clean
             || (clean.starts_with('/') && ident.ends_with(clean))
@@ -286,8 +281,7 @@ fn resolve_generic_object(
     None
 }
 
-/// Return the LTM policy paths attached to *vs*, in attach order. Faithful port
-/// of `_ltm_policies_for`.
+/// Return the LTM policy paths attached to *vs*, in attach order.
 fn ltm_policies_for(cfg: &BigipConfig, vs: &BigipVirtualServer) -> Vec<String> {
     let policies = vs.policies.paths();
     if policies.is_empty() {
@@ -322,7 +316,7 @@ fn find_policy<'a>(cfg: &'a BigipConfig, full_path: &str) -> Option<&'a BigipPol
 }
 
 /// Evaluate every parsed LTM policy attached to the matched VS against the
-/// captured request state. Faithful port of `_evaluate_attached_policies`.
+/// captured request state.
 fn evaluate_attached_policies(
     cfg: &BigipConfig,
     attached_paths: &[String],
@@ -344,8 +338,7 @@ fn evaluate_attached_policies(
     out
 }
 
-/// Locate the APM access profile attached to *vs*. Faithful port of
-/// `_apm_profile_for`.
+/// Locate the APM access profile attached to *vs*.
 fn apm_profile_for(cfg: &BigipConfig, vs: &BigipVirtualServer) -> String {
     for pref in vs.profiles.paths() {
         let resolved = resolve_profile(cfg, &pref).unwrap_or_else(|| pref.clone());
@@ -363,8 +356,7 @@ fn apm_profile_for(cfg: &BigipConfig, vs: &BigipVirtualServer) -> String {
     String::new()
 }
 
-/// Return every GTM wide-IP identifier in *cfg* (a global inventory). Faithful
-/// port of `_gtm_wide_ips_in_config`.
+/// Return every GTM wide-IP identifier in *cfg* (a global inventory).
 fn gtm_wide_ips_in_config(cfg: &BigipConfig) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for (key, obj) in &cfg.generic_objects {
@@ -392,8 +384,8 @@ fn find_rule<'a>(cfg: &'a BigipConfig, full_path: &str) -> Option<&'a BigipRule>
     })
 }
 
-/// The deduplicated profile types attached to *vs*. Mirrors
-/// `profile_types_for_virtual` (only resolved, present profiles count).
+/// The deduplicated profile types attached to *vs* (only resolved, present
+/// profiles count).
 fn profile_types_for_virtual(cfg: &BigipConfig, vs: &BigipVirtualServer) -> Vec<ProfileType> {
     let mut out: Vec<ProfileType> = Vec::new();
     for pref in vs.profiles.paths() {
@@ -408,9 +400,8 @@ fn profile_types_for_virtual(cfg: &BigipConfig, vs: &BigipVirtualServer) -> Vec<
 }
 
 /// Return `{event_name: body}` for every `when EVENT { … }` block. Brace-aware
-/// extractor; malformed (unbalanced) blocks are skipped. Mirrors
-/// `_extract_event_blocks` (last body wins on a duplicate event, first-seen
-/// position preserved).
+/// extractor; malformed (unbalanced) blocks are skipped. The last body wins on
+/// a duplicate event, with the first-seen position preserved.
 fn extract_event_blocks(rule_source: &str) -> IndexMap<String, String> {
     let mut blocks: IndexMap<String, String> = IndexMap::new();
     let bytes = rule_source.as_bytes();
@@ -437,7 +428,7 @@ fn extract_event_blocks(rule_source: &str) -> IndexMap<String, String> {
 }
 
 /// Pick the events from the rule that would plausibly fire for the connection,
-/// in lifecycle order. Faithful port of `_expected_event_sequence`.
+/// in lifecycle order.
 fn expected_event_sequence(
     cfg: &BigipConfig,
     vs: &BigipVirtualServer,
@@ -498,8 +489,7 @@ fn expected_event_sequence(
     out
 }
 
-/// Resolve an iRule command token like `HTTP::host` against *conn*. Faithful
-/// port of `_hud_value_for`.
+/// Resolve an iRule command token like `HTTP::host` against *conn*.
 #[allow(clippy::too_many_lines)]
 fn hud_value_for(token: &str, conn: &Connection) -> Option<String> {
     let f = &conn.client;
@@ -606,8 +596,8 @@ fn hud_value_for(token: &str, conn: &Connection) -> Option<String> {
     None
 }
 
-/// Return `[(line_excerpt, command, captured_value), …]` for *body*. Faithful
-/// port of `_annotate_event_block` (one annotation per line).
+/// Return `[(line_excerpt, command, captured_value), …]` for *body*, one
+/// annotation per line.
 fn annotate_event_block(body: &str, conn: &Connection) -> Vec<Annotation> {
     let mut out: Vec<Annotation> = Vec::new();
     for line in py_splitlines(body) {
@@ -633,7 +623,6 @@ fn annotate_event_block(body: &str, conn: &Connection) -> Vec<Annotation> {
 }
 
 /// Produce a human-readable narrative of why the session ended.
-/// Faithful port of `_analyse_reset`.
 fn analyse_reset(session: &Session) -> String {
     let mut parts: Vec<String> = Vec::new();
     let front = &session.front;
@@ -700,11 +689,10 @@ fn analyse_reset(session: &Session) -> String {
 /// Build the per-session explanation for the capture against parsed configs.
 #[allow(clippy::too_many_lines)]
 #[allow(clippy::too_many_arguments)]
-// `use_tshark` (input intent) vs `used_tshark` (output fact) mirror the Python
-// names; the one-letter gap is the contract, not an accident.
+// `use_tshark` (input intent) vs `used_tshark` (output fact): the one-letter
+// gap is deliberate, not an accident.
 #[allow(clippy::similar_names)]
 /// The orchestrator profile labels (TCP / CLIENTSSL / HTTP / …) for `vs`.
-/// Mirrors `irule_simulation.profiles_for_orchestrator`.
 fn profiles_for_orchestrator(cfg: &BigipConfig, vs: &BigipVirtualServer) -> Vec<String> {
     let types = profile_types_for_virtual(cfg, vs);
     let mut out: Vec<String> = Vec::new();
@@ -752,7 +740,7 @@ fn tcl_quote(s: &str) -> String {
 /// Run the matched VS's iRule(s) under the embedded orchestrator with the
 /// captured request state. Best-effort: any failure standing the orchestrator
 /// up or running the request lands in [`SimOutcome::error`] so the static
-/// report still renders. Port of `simulate_irule_for_session`.
+/// report still renders.
 #[allow(clippy::too_many_lines)] // setup + load + pools + request + readback, read top-to-bottom
 fn simulate_session(cfg: &BigipConfig, vs: &BigipVirtualServer, session: &Session) -> SimOutcome {
     use std::fmt::Write as _;
@@ -829,7 +817,11 @@ fn simulate_session(cfg: &BigipConfig, vs: &BigipVirtualServer, session: &Sessio
             continue;
         }
         let name = last_segment(&pool.full_path);
-        let member_list = members.iter().map(|m| tcl_quote(m)).collect::<Vec<_>>().join(" ");
+        let member_list = members
+            .iter()
+            .map(|m| tcl_quote(m))
+            .collect::<Vec<_>>()
+            .join(" ");
         guard!(sess.eval(&format!(
             "::orch::add_pool {} [list {member_list}]",
             tcl_quote(name)
@@ -874,8 +866,7 @@ fn simulate_session(cfg: &BigipConfig, vs: &BigipVirtualServer, session: &Sessio
 }
 
 /// Parse the orchestrator's decision log (a Tcl list of `{category action args}`)
-/// into `(category, action, value)` triples. Mirrors the Python adapter's
-/// flattening of `result.decisions`.
+/// into `(category, action, value)` triples.
 fn parse_decisions(list: &str) -> Vec<(String, String, String)> {
     tcl_list_split(list)
         .into_iter()
@@ -897,7 +888,7 @@ fn parse_decisions(list: &str) -> Vec<(String, String, String)> {
 }
 
 /// Parse the captured log list (each entry a `{facility level message …}` Tcl
-/// list) into `" | "`-joined display strings, matching the Python adapter.
+/// list) into `" | "`-joined display strings.
 fn parse_log_entries(list: &str) -> Vec<String> {
     tcl_list_split(list)
         .into_iter()
@@ -967,7 +958,7 @@ fn tcl_list_split(s: &str) -> Vec<String> {
     clippy::too_many_lines,
     clippy::similar_names,
     clippy::too_many_arguments
-)] // faithful port: flow extraction + per-session matching, read top-to-bottom
+)] // flow extraction + per-session matching, read top-to-bottom
 fn compute_explain_flow(
     pcap_display: &str,
     pcap_path: &Path,
@@ -985,13 +976,13 @@ fn compute_explain_flow(
     )
     .expect("static destination regex");
 
-    // Flow extraction mirrors `compute_explain_flow`'s three paths:
+    // Flow extraction has three paths:
     //   * `--tshark-filter` → tshark is the canonical flow source;
     //   * `--tshark` / `--keylog` → built-in walker + tshark L7 overlay;
     //   * neither → built-in walker alone.
     let mut used_tshark = false;
     let flows = if tshark_filter.is_empty() {
-        let mut flows = extract_flows(pcap_bytes)?;
+        let mut flows = extract_flows(pcap_bytes).map_err(|e| e.to_string())?;
         if use_tshark && tshark_available() {
             used_tshark = enrich_with_tshark(&mut flows, pcap_path, keylog_path, "");
         }
@@ -1191,7 +1182,7 @@ fn compute_explain_flow(
     })
 }
 
-/// Render the text report. Faithful port of `_format_report`.
+/// Render the text report.
 #[allow(clippy::too_many_lines)]
 fn format_report(report: &ExplainFlowReport) -> String {
     let pcap_path = &report.pcap_path;
@@ -1423,7 +1414,11 @@ fn format_report(report: &ExplainFlowReport) -> String {
             if sim.error.is_empty() {
                 lines.push(format!(
                     "    pool: {}",
-                    if sim.pool.is_empty() { "(none)" } else { &sim.pool }
+                    if sim.pool.is_empty() {
+                        "(none)"
+                    } else {
+                        &sim.pool
+                    }
                 ));
                 if !sim.node.is_empty() {
                     lines.push(format!("    node: {}", sim.node));
@@ -1458,9 +1453,9 @@ fn format_report(report: &ExplainFlowReport) -> String {
     format!("{}\n", joined.trim_end())
 }
 
-/// Split a string the way Python's `str.splitlines()` does: break on the
-/// Unicode line boundaries Python recognises, treat `\r\n` as one break, and
-/// emit no trailing empty segment when the string ends on a boundary.
+/// Split a string on Unicode line boundaries: break on each recognised
+/// line-boundary character, treat `\r\n` as one break, and emit no trailing
+/// empty segment when the string ends on a boundary.
 fn py_splitlines(s: &str) -> Vec<&str> {
     fn is_boundary(c: char) -> bool {
         matches!(
@@ -1499,18 +1494,18 @@ fn py_splitlines(s: &str) -> Vec<&str> {
     out
 }
 
-/// Render a `bool` the way Python's `str(bool)` does (`True`/`False`).
+/// Render a `bool` as the capitalised `True`/`False` tokens the HUD uses.
 fn py_bool(b: bool) -> &'static str {
     if b { "True" } else { "False" }
 }
 
-/// Render a list of strings as Python `repr(list)` does: `['a', 'b']`.
+/// Render a list of strings in the `['a', 'b']` repr form.
 fn py_list_repr(values: &[String]) -> String {
     let inner: Vec<String> = values.iter().map(|v| py_repr(v)).collect();
     format!("[{}]", inner.join(", "))
 }
 
-/// Render a string the way Python's `repr()` does for the HUD annotations
+/// Render a string in repr form for the HUD annotations
 /// (single-quoted, with `\\`, `\'`, `\n`, `\r`, `\t` escapes).
 fn py_repr(s: &str) -> String {
     let use_double = s.contains('\'') && !s.contains('"');
@@ -1535,7 +1530,7 @@ fn py_repr(s: &str) -> String {
 }
 
 /// Build an insertion-ordered JSON object (relies on the `serde_json`
-/// `preserve_order` feature so keys serialise in the order Python emits them).
+/// `preserve_order` feature so keys serialise in insertion order).
 fn obj(pairs: Vec<(&str, Value)>) -> Value {
     let mut map = Map::new();
     for (k, v) in pairs {
@@ -1556,7 +1551,7 @@ fn headers_value(headers: &[(String, String)]) -> Value {
     Value::Object(map)
 }
 
-/// Faithful port of `_flow_to_dict`.
+/// Serialise a [`Flow`] to its JSON object form.
 fn flow_to_value(f: &Flow) -> Value {
     obj(vec![
         ("src_ip", Value::String(f.src_ip.clone())),
@@ -1652,7 +1647,7 @@ fn flow_to_value(f: &Flow) -> Value {
     ])
 }
 
-/// Faithful port of `_conn_to_dict` (`None` → JSON null).
+/// Serialise an optional [`Connection`] to JSON (`None` → JSON null).
 fn conn_to_value(conn: Option<&Connection>) -> Value {
     match conn {
         None => Value::Null,
@@ -1666,7 +1661,7 @@ fn conn_to_value(conn: Option<&Connection>) -> Value {
     }
 }
 
-/// Faithful port of `_policy_decision_to_dict`.
+/// Serialise a [`PolicyDecision`] to its JSON object form.
 fn policy_decision_to_value(pd: &PolicyDecision) -> Value {
     let rules: Vec<Value> = pd
         .rules
@@ -1718,7 +1713,7 @@ fn policy_decision_to_value(pd: &PolicyDecision) -> Value {
     ])
 }
 
-/// Faithful port of the per-session entry in `report_to_dict`.
+/// Serialise one per-session entry to its JSON object form.
 fn session_to_value(se: &SessionExplain) -> Value {
     let s = se.session();
     let sim = se.simulated.as_ref();
@@ -1818,7 +1813,7 @@ fn session_to_value(se: &SessionExplain) -> Value {
     ])
 }
 
-/// Faithful port of `report_to_dict`, serialised like `json.dumps(indent=2)`.
+/// Serialise the full report as 2-space-indented JSON.
 fn report_to_json(report: &ExplainFlowReport) -> Result<String, String> {
     let sessions: Vec<Value> = report.sessions.iter().map(session_to_value).collect();
     let value = obj(vec![
@@ -1855,7 +1850,9 @@ pub fn run_explain_flow(
     // `--tshark-filter` implies tshark; `--tshark` / `--keylog` request the
     // overlay. `keylog` is forwarded to tshark only when it points at a file.
     let use_tshark = tshark || keylog.is_some() || tshark_filter.is_some();
-    let keylog_path = keylog.map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    let keylog_path = keylog
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
     let tshark_filter = tshark_filter.unwrap_or("");
 
     let opts = crate::cli::PassphraseArgs::default().to_options();

@@ -7,7 +7,7 @@
 //! back to a non-interactive error rather than hanging.
 
 /// Securely read the UCS decryption passphrase from the terminal (no echo). The
-/// prompt text matches the Python `getpass` provider (`"Enter UCS passphrase: "`).
+/// prompt text matches `getpass` provider (`"Enter UCS passphrase: "`).
 ///
 /// # Errors
 /// Returns the underlying I/O error string when there is no controlling

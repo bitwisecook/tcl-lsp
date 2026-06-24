@@ -1,5 +1,4 @@
-//! Inlay-hints provider — Rust port of
-//! `lsp/features/inlay_hints.py` (parameter-name hints).
+//! Inlay-hints provider (parameter-name hints).
 //!
 //! Surfaces `param_name:` hints at each positional argument
 //! of every user-proc call site within the requested document
@@ -18,11 +17,9 @@
 //! per-argument token spans are available (the analyser
 //! records the command-head span on `command_invocations` but
 //! not per-arg spans).  Re-segmenting is cheap relative to
-//! the LSP request rate; the keystone async-diagnostics
-//! cached-analysis surface (`S-async-diagnostics`) will
-//! eventually let this share a cached segmenter pass.
+//! the LSP request rate.
 //!
-//! Built-in command hints also land: when a registry is
+//! Built-in command hints: when a registry is
 //! provided and the call's head matches a built-in command (or
 //! `cmd subcommand`), the provider parses the spec's synopsis
 //! for positional parameter names and labels the matching
@@ -32,17 +29,14 @@
 //! like flags (start with `-`) don't consume a positional
 //! slot.  Varargs (`?name ...?`) stop the parse.
 //!
-//! What is *deferred*:
+//! Limitations:
 //!
-//! * Type / inferred-trait annotations on hints (Python's
-//!   richer mode shows `name:string`, `count:int`).  Same
-//!   gating as the `S-hover-rich` `_infer_var_type` follow-up.
+//! * Type / inferred-trait annotations on hints (e.g.
+//!   `name:string`, `count:int`) are not shown.
 //! * Method-call hints inside class bodies — needs the
-//!   analyser's method-resolution machinery that
-//!   `S-references-rich` will eventually land.
+//!   analyser's method-resolution machinery — are not shown.
 
-use std::collections::HashMap;
-
+use rustc_hash::FxHashMap;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::types::{TypeKind, TypeLattice};
@@ -97,8 +91,7 @@ pub struct InlayHint {
 /// format-string specifier labels ([`InlayHintKind::Type`]);
 /// `parameter_hints` gates the call-site parameter-name labels
 /// ([`InlayHintKind::Parameter`]).  Each family is requested
-/// independently so an editor can opt into one without the other,
-/// mirroring Python's `get_inlay_hints(type_hints=…, parameter_hints=…)`.
+/// independently so an editor can opt into one without the other.
 #[must_use]
 pub fn inlay_hints(
     source: &str,
@@ -162,8 +155,7 @@ pub fn inlay_hints(
     out
 }
 
-/// Short display name for a Tcl intrep type — mirrors Python's
-/// `_TYPE_SHORT` / `_short_type`.
+/// Short display name for a Tcl intrep type.
 fn short_type(t: TclType) -> &'static str {
     match t {
         TclType::String => "str",
@@ -182,8 +174,7 @@ fn short_type(t: TclType) -> &'static str {
 /// Render a [`TypeLattice`] as its inlay display string, or `None`
 /// when the lattice carries no concrete type (Unknown / Overdefined,
 /// or a Shimmered lattice missing an endpoint).  A `Known` type shows
-/// `int`; a `Shimmered` one shows `from → to` (mirrors
-/// `_collect_type_hints`).
+/// `int`; a `Shimmered` one shows `from → to`.
 fn type_display(tl: &TypeLattice) -> Option<String> {
     match tl.kind {
         TypeKind::Known => tl.tcl_type.map(|t| short_type(t).to_owned()),
@@ -198,8 +189,8 @@ fn type_display(tl: &TypeLattice) -> Option<String> {
 }
 
 /// Collect inferred-variable-type hints (`: int`) for variable
-/// definitions in `range`.  Rust port of `_collect_type_hints`:
-/// builds a name → display-type map from the type-propagation pass
+/// definitions in `range`.  Builds a name → display-type map from the
+/// type-propagation pass
 /// (over every function in a fresh [`CompilationUnit`]) and walks the
 /// analyser scope tree, annotating each variable definition whose type
 /// is known.
@@ -216,13 +207,13 @@ fn collect_type_hints(
     let cu = CompilationUnit::build_for_with_config(source, registry, false, config);
 
     // Flatten the per-SSA-definition type lattices into a name → display
-    // map.  Like Python this is last-writer-wins across versions and
+    // map.  This is last-writer-wins across versions and
     // functions; distinct names (the common case) are order-independent.
-    let mut type_map: HashMap<String, String> = HashMap::new();
+    let mut type_map: FxHashMap<String, String> = FxHashMap::default();
     for fu in cu.functions() {
         for ((name, _ver), tl) in &fu.types {
             if let Some(display) = type_display(tl) {
-                type_map.insert(name.clone(), display);
+                type_map.insert(fu.ssa.var_name(*name).to_owned(), display);
             }
         }
     }
@@ -245,7 +236,7 @@ fn collect_type_hints(
 /// definition falls within `range`.
 fn walk_scope_type_hints(
     scope: &Scope,
-    type_map: &HashMap<String, String>,
+    type_map: &FxHashMap<String, String>,
     range: LspRange,
     source: &str,
     line_index: &LineIndex,
@@ -264,7 +255,7 @@ fn walk_scope_type_hints(
         }
         out.push(InlayHint {
             position_line: end.line,
-            position_character: end.character,
+            position_character: end.character.get(),
             label: format!(": {type_str}"),
             kind: InlayHintKind::Type,
             padding_left: true,
@@ -275,16 +266,15 @@ fn walk_scope_type_hints(
     }
 }
 
-// -- format-string specifier hints ---------------------------------------
+// format-string specifier hints
 //
-// Rust port of `_collect_format_string_hints`.  These are `Type`-kind
-// hints that annotate the conversion specifiers inside the format string
+// `Type`-kind hints that annotate the conversion specifiers inside the
+// format string
 // of `format`/`scan` (`%d` → `int`), `clock format`/`scan` (`%Y` →
 // `year`), `binary format`/`scan` (`i` → `i32le`), and the substitution
-// backreferences of `regsub` (`\1` → `grp1`).  The compiled patterns
-// mirror the Python regexes one-for-one.
+// backreferences of `regsub` (`\1` → `grp1`).
 
-/// `format`/`scan` conversion specifier — Python `_SPRINTF_RE`.  Capture
+/// `format`/`scan` conversion specifier.  Capture
 /// group 6 is the conversion type letter.
 static SPRINTF_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
     regex::Regex::new(
@@ -293,21 +283,20 @@ static SPRINTF_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(
     .expect("static sprintf regex")
 });
 
-/// `clock format`/`scan` specifier — Python `_CLOCK_FORMAT_RE`.  The
+/// `clock format`/`scan` specifier.  The
 /// significant letter is the final character of the match.
 static CLOCK_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
     regex::Regex::new(r"%(?:[EO])?[aAbBcCdDeEgGhHIjJklmMNOpPqQsSuUVwWxXyYzZ%]")
         .expect("static clock regex")
 });
 
-/// `regsub` substitution backreference (`\0`-`\9`, `\&`) — Python
-/// `_REGSUB_BACKREF_RE`.  Capture group 1 is the back-reference char.
+/// `regsub` substitution backreference (`\0`-`\9`, `\&`).
+/// Capture group 1 is the back-reference char.
 static REGSUB_RE: std::sync::LazyLock<regex::Regex> =
     std::sync::LazyLock::new(|| regex::Regex::new(r"\\([0-9&])").expect("static regsub regex"));
 
-/// Short label for a `format`/`scan` conversion type — Python
-/// `_SPRINTF_SHORT`.  `%` (literal percent) yields `None` so no hint is
-/// emitted for `%%`.
+/// Short label for a `format`/`scan` conversion type.  `%` (literal
+/// percent) yields `None` so no hint is emitted for `%%`.
 fn sprintf_short(c: char) -> Option<&'static str> {
     Some(match c {
         's' => "str",
@@ -330,7 +319,7 @@ fn sprintf_short(c: char) -> Option<&'static str> {
     })
 }
 
-/// Short label for a `clock` field letter — Python `_CLOCK_SHORT`.
+/// Short label for a `clock` field letter.
 #[allow(clippy::too_many_lines)]
 fn clock_short(c: char) -> Option<&'static str> {
     Some(match c {
@@ -363,8 +352,7 @@ fn clock_short(c: char) -> Option<&'static str> {
     })
 }
 
-/// Short label for a `binary format`/`scan` specifier letter — Python
-/// `_BINARY_SHORT`.
+/// Short label for a `binary format`/`scan` specifier letter.
 fn binary_short(c: char) -> Option<&'static str> {
     Some(match c {
         'a' => "strN",
@@ -394,8 +382,7 @@ fn binary_short(c: char) -> Option<&'static str> {
     })
 }
 
-/// Short label for a `regsub` substitution backreference — Python
-/// `_REGSUB_SHORT`.
+/// Short label for a `regsub` substitution backreference.
 fn regsub_short(c: char) -> Option<&'static str> {
     Some(match c {
         '&' | '0' => "match",
@@ -422,7 +409,7 @@ enum FormatArg {
 }
 
 /// Resolve the argv index (and family) of the format/spec word a command
-/// carries, if any.  Mirrors the `_*_format_arg_index` helpers.
+/// carries, if any.
 fn format_arg(seg: &tcl_compiler::segmenter::SegmentedCommand) -> Option<FormatArg> {
     let texts = &seg.texts;
     let head = texts.first()?.as_str();
@@ -442,7 +429,7 @@ fn format_arg(seg: &tcl_compiler::segmenter::SegmentedCommand) -> Option<FormatA
         "regsub" if texts.len() >= 4 => {
             // `regsub ?switches? exp string subSpec ?varName?` — skip option
             // switches to find the pattern, then the subspec sits two words
-            // past it.  Mirrors `_regsub_subspec_arg_index` /
+            // past it. /
             // `regexp_pattern_index` for the no-registry common case.
             let mut i = 1;
             while i < texts.len() && texts[i].starts_with('-') && texts[i] != "--" {
@@ -497,7 +484,7 @@ fn push_format_hint(
     }
     out.push(InlayHint {
         position_line: pos.line,
-        position_character: pos.character,
+        position_character: pos.character.get(),
         label: label.to_owned(),
         kind: InlayHintKind::Type,
         padding_left: true,
@@ -589,7 +576,7 @@ fn collect_format_string_hints(
 }
 
 /// Scan a `binary format`/`scan` template for specifier letters and emit
-/// a hint after each.  Hand-rolled (as in Python `_emit_binary_hints`):
+/// a hint after each.  Hand-rolled:
 /// skip whitespace, skip the optional repeat count, read the spec letter,
 /// then an optional `u`/`s` signedness flag and an optional `*` count.
 fn collect_binary_hints(
@@ -701,12 +688,12 @@ fn emit_builtin_hints(
     for (&arg_idx, name) in positional_args.iter().zip(selected.iter()) {
         let arg_tok = &seg.argv[arg_idx];
         let pos = line_index.position_at_utf16(arg_tok.span.start(), source);
-        if !position_within_range(pos.line, pos.character, range) {
+        if !position_within_range(pos.line, pos.character.get(), range) {
             continue;
         }
         out.push(InlayHint {
             position_line: pos.line,
-            position_character: pos.character,
+            position_character: pos.character.get(),
             label: format!("{name}:"),
             kind: InlayHintKind::Parameter,
             padding_left: false,
@@ -877,8 +864,7 @@ fn lookup_proc<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ProcD
 /// Walk a single segmented command, emit a hint per argument
 /// that falls inside `range`.  Stops at the proc's parameter
 /// count — extra arguments (e.g. an `args`-tail proc) don't
-/// produce hints, mirroring Python's parameter-by-parameter
-/// loop.
+/// produce hints.
 fn emit_hints_for_call(
     source: &str,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
@@ -903,12 +889,12 @@ fn emit_hints_for_call(
             continue;
         }
         let pos = line_index.position_at_utf16(arg_tok.span.start(), source);
-        if !position_within_range(pos.line, pos.character, range) {
+        if !position_within_range(pos.line, pos.character.get(), range) {
             continue;
         }
         out.push(InlayHint {
             position_line: pos.line,
-            position_character: pos.character,
+            position_character: pos.character.get(),
             label: format!("{}:", param.name),
             kind: InlayHintKind::Parameter,
             padding_left: false,
@@ -1084,7 +1070,7 @@ mod tests {
         assert_eq!(hints[0].position_line, 2);
     }
 
-    // -- S-inlay-hints-rich: built-in command synopsis hints --------
+    // built-in command synopsis hints
 
     fn registry() -> tcl_registry::CommandRegistry {
         tcl_registry::CommandRegistry::build_default()
@@ -1159,7 +1145,7 @@ mod tests {
         // `lsearch ?option ...? list pattern` (the actual registry hover
         // synopsis) — the `?option ...?` flag-group placeholder must be
         // skipped, NOT treated as a hard varargs stop that drops the real
-        // `list` / `pattern` positionals after it (issue #510 follow-up).
+        // `list` / `pattern` positionals after it.
         let names = param_names_from_synopsis("lsearch ?option ...? list pattern", 1);
         assert_eq!(
             names,
@@ -1354,12 +1340,12 @@ mod tests {
         assert!(labels.contains(&"name:"), "{hints:?}");
     }
 
-    // -- inferred type hints (InlayHintKind::Type) ------------------------
+    // inferred type hints (InlayHintKind::Type)
 
     #[test]
     fn type_hint_for_integer_set() {
         // `set x 42` → a `: int` Type-kind hint immediately after `x`
-        // (character 5), mirroring Python's `test_integer_type_hint`.
+        // (character 5).
         let src = "set x 42\n";
         let analysis = analyse(src);
         let reg = registry();
@@ -1464,7 +1450,7 @@ mod tests {
         assert!(hints.is_empty(), "{hints:?}");
     }
 
-    // -- format-string specifier hints (InlayHintKind::Type) --------------
+    // format-string specifier hints (InlayHintKind::Type)
 
     fn type_labels(src: &str) -> Vec<(u32, String)> {
         let analysis = analyse(src);

@@ -1,8 +1,7 @@
 //! Low-level compilation verbs: `dis` (bytecode disassembly) and `compwasm`
 //! (WebAssembly emit).
 //!
-//! Port of `tooling/tcl/verbs/compile.py` (`_run_dis` / `_run_compwasm`). Both
-//! resolve their inputs the same way the rest of the CLI does, then drive the
+//! Both verbs resolve their inputs the same way the rest of the CLI does, then drive the
 //! compiler pipeline directly:
 //!
 //! - `dis` lowers to the bytecode IR, builds the codegen CFG (the
@@ -13,7 +12,7 @@
 //!   text form).
 //!
 //! `--optimise` runs the source-to-source optimiser first, exactly as the
-//! Python `compile_script(optimise=...)` path does (`apply_optimisations` over
+//! `compile_script(optimise=...)` path does (`apply_optimisations` over
 //! the `optimise` rewrites), then compiles the rewritten source.
 
 use tcl_cli_support::{
@@ -31,7 +30,7 @@ use tcl_registry::CommandRegistry;
 use crate::cli::InputArgs;
 
 /// Apply the source-to-source optimiser when `optimise` is set, mirroring the
-/// Python `compile_script(optimise=...)` entry: collect the rewrites, apply
+/// `compile_script(optimise=...)` entry: collect the rewrites, apply
 /// them, and compile the rewritten text. Returns the (possibly unchanged)
 /// source.
 fn maybe_optimise(source: &str, registry: &CommandRegistry, optimise_on: bool) -> String {
@@ -69,9 +68,8 @@ pub fn run_compwasm(input: &InputArgs, wat_output: Option<&std::path::Path>) -> 
     let bytes = wasm.to_bytes();
 
     // Unlike the other verbs, `compwasm` defaults to a file, not stdout: a bare
-    // `tcl compwasm script.tcl` must not dump raw WASM bytes to the terminal.
-    // Mirrors the Python verb's `output="out.wasm"` default; an explicit `-o -`
-    // still selects stdout.
+    // `tcl compwasm script.tcl` must not dump raw WASM bytes to the terminal, so
+    // it writes `out.wasm`; an explicit `-o -` still selects stdout.
     let target = match input.output.as_deref() {
         None => OutputTarget::File(std::path::PathBuf::from("out.wasm")),
         Some(path) => OutputTarget::from_arg(Some(path)),

@@ -1,6 +1,6 @@
 //! Data model for pcap flow extraction (`Flow` / `Connection` / `Session`).
 //!
-//! Faithful port of `dialects/f5/bigip/flow/_model.py`. The per-session
+//! The per-session
 //! explanation types (`SessionExplain` / `ExplainFlowReport`) live with the
 //! driver in `f5-cli`, since they depend on the policy-evaluation model.
 

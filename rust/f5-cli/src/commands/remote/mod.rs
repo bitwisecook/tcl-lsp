@@ -1,4 +1,4 @@
-//! Remote-access helpers for the `f5` CLI — Rust port of `tooling/f5/f5_remote`.
+//! Remote-access helpers for the `f5` CLI.
 //!
 //! Hosts the credential resolver (`auth`), the iControl REST transport (`rest`),
 //! the single-object pull/push request shaping (`object_io`), and the SSH
@@ -10,9 +10,8 @@ pub mod object_io;
 pub mod rest;
 pub mod ssh;
 
-/// Render a file-I/O error the way Python's `OSError.__str__` does:
-/// `[Errno N] <strerror>: '<path>'`. Used by `f5 push` so its
-/// missing-file / permission errors are byte-parity with the Python verb.
+/// Render a file-I/O error in the `[Errno N] <strerror>: '<path>'` format.
+/// Used by `f5 push` for its missing-file / permission errors.
 #[must_use]
 pub fn os_error_string(err: &std::io::Error, path: &str) -> String {
     if let Some(errno) = err.raw_os_error() {
@@ -24,7 +23,7 @@ pub fn os_error_string(err: &std::io::Error, path: &str) -> String {
 }
 
 /// The libc `strerror` text for the handful of errnos a file read surfaces.
-/// Matches the GNU/Linux messages Python echoes (the CI / dev target).
+/// Matches the GNU/Linux messages of the CI / dev target.
 fn strerror(errno: i32) -> &'static str {
     match errno {
         2 => "No such file or directory",

@@ -5,8 +5,8 @@
 //! against the built `f5-query` binary:
 //!
 //! - `push --dry-run` (PUT-replace and POST-create): the request summary on
-//!   stderr + the `json.dumps(payload, indent=2)` body on stdout, captured from
-//!   `python -m tooling.f5.main push … --dry-run` into the committed goldens.
+//!   stderr + the two-space-indented JSON payload body on stdout, asserted
+//!   against the committed golden output.
 //! - credential resolution errors (no host / user / password) for all three
 //!   verbs, including the env-supplies-host/user precedence.
 //! - payload errors: missing file (`[Errno 2] …`) and invalid-JSON position
@@ -14,7 +14,7 @@
 //! - the SSH-transport deferral and clap arg validation (unknown kind /
 //!   transport).
 //!
-//! Self-contained: no live connection and no Python at test time. Every child
+//! Self-contained: no live connection and no external tool at test time. Every child
 //! process has the ambient `F5_*` environment scrubbed; each case sets exactly
 //! the variables it needs, so the host's env can never leak in.
 
@@ -70,9 +70,7 @@ fn run(args: &[&str], env_extra: &[(&str, &str)]) -> (String, String, i32) {
     )
 }
 
-// ---------------------------------------------------------------------------
 // push --dry-run: byte-identical REST request preview (stdout + stderr)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn push_dry_run_put_matches_python() {
@@ -159,9 +157,7 @@ fn push_dry_run_name_only_target() {
     let _ = std::fs::remove_file(&p);
 }
 
-// ---------------------------------------------------------------------------
 // credential resolution errors (no host / user / password) — all three verbs
-// ---------------------------------------------------------------------------
 
 #[test]
 fn missing_host_errors_for_all_verbs() {
@@ -204,7 +200,7 @@ fn missing_password_after_env_host_and_user() {
 }
 
 // Env supplies host + user; `--dry-run` prints before credential resolution, so
-// a missing password never even surfaces (parity with the Python ordering).
+// a missing password never even surfaces.
 #[test]
 fn env_host_user_precedence_dry_run_prints_before_creds() {
     let p = payload();
@@ -217,9 +213,7 @@ fn env_host_user_precedence_dry_run_prints_before_creds() {
     assert_eq!(err, golden("push-dryrun-put.stderr.golden"));
 }
 
-// ---------------------------------------------------------------------------
 // payload errors: missing file + invalid-JSON position
-// ---------------------------------------------------------------------------
 
 #[test]
 fn missing_payload_file_errno_message() {
@@ -248,7 +242,8 @@ fn missing_payload_file_errno_message() {
 #[test]
 fn invalid_json_position_matches_python() {
     // (contents, expected message tail) — the position is recomputed from the
-    // first non-whitespace char (or end-of-input) to mirror Python `json`.
+    // first non-whitespace char (or end-of-input) to match `json`
+    // error position.
     let cases: &[(&str, &str)] = &[
         ("", "Expecting value: line 1 column 1 (char 0)"),
         ("   not json", "Expecting value: line 1 column 4 (char 3)"),
@@ -283,9 +278,7 @@ fn invalid_json_position_matches_python() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // SSH deferral + clap arg validation
-// ---------------------------------------------------------------------------
 
 #[test]
 fn ssh_transport_is_deferred() {

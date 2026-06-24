@@ -1,5 +1,4 @@
-//! Code-actions provider — Rust port of
-//! `lsp/features/code_actions.py`.
+//! Code-actions provider.
 //!
 //! Surfaces every `CodeFix` the analyser attached to a
 //! `Diagnostic` whose span overlaps the requested range.  Each
@@ -7,7 +6,7 @@
 //! as the title and a single-edit `WorkspaceEdit` carrying
 //! the fix's `(span, new_text)`.
 //!
-//! What landed:
+//! Provided actions:
 //!
 //! * Catch-result-variable actions — when the analyser emits
 //!   W302 (`catch` without result variable), the provider
@@ -27,20 +26,20 @@
 //!   (the registry's `required_package` / `tcllib_package`
 //!   catalogue) against the `::`-prefix and offer
 //!   `Add 'package require <pkg>'` (skipping already-required
-//!   packages).  Mirrors `_package_require_actions` +
-//!   `rank_package_suggestions`.
+//!   packages).
 //!
-//! What is *deferred*:
+//! Limitations:
 //!
-//! * The Python workspace `package_resolver`'s *installed*-package
-//!   set — [`package_require_actions`] derives its catalogue from
-//!   the registry instead, so locally-installed-but-unregistered
+//! * [`package_require_actions`] derives its catalogue from
+//!   the registry, so locally-installed-but-unregistered
 //!   packages aren't suggested.
 //! * Cross-document refactors (move to file, split namespace)
-//!   — lands alongside the workspace-index integration.
+//!   are not supported.
 
+use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_lexer::LineIndex;
+use tcl_compiler::compiler_checks::DiagCode;
+use tcl_lexer::{LineIndex, Utf16Col};
 
 use crate::definition::{LspRange, utf16_col_to_char_col};
 
@@ -100,9 +99,7 @@ pub struct CodeAction {
     /// Optional structured payload surfaced as the LSP code action's
     /// `data` field.  Currently carries the rendered tmsh `ltm
     /// data-group internal …` definition for the extract-to-datagroup
-    /// refactor (mirrors Python's
-    /// `_datagroup_to_code_action`'s `data={"data_group_definition": …}`);
-    /// the iRule text rewrite is the action's `edits`, and this field
+    /// refactor; the iRule text rewrite is the action's `edits`, and this field
     /// lets tooling (MCP, AI, clipboard) consume the data-group
     /// definition without injecting comment blocks into the source.
     pub data_group_definition: Option<String>,
@@ -154,14 +151,14 @@ pub fn code_actions(
         let diag_end = line_index.position_at_utf16(diag.span.end(), source);
         let diag_range = LspRange {
             start_line: diag_start.line,
-            start_character: diag_start.character,
+            start_character: diag_start.character.get(),
             end_line: diag_end.line,
-            end_character: diag_end.character,
+            end_character: diag_end.character.get(),
         };
         if !ranges_overlap(diag_range, range) {
             continue;
         }
-        // `S-code-actions-rich`: surface synthetic
+        // Surface synthetic
         // catch-result-variable actions for W302 diagnostics
         // even when the analyser didn't attach a `CodeFix`.
         // Two actions: append ` result` (capture the result)
@@ -169,12 +166,12 @@ pub fn code_actions(
         // diagnostic's span end sits past the body's closing
         // `}`, so the insertion point is exactly the diag-end
         // position.
-        if diag.code == "W302" {
+        if diag.code == DiagCode::W302 {
             let insertion = LspRange {
                 start_line: diag_end.line,
-                start_character: diag_end.character,
+                start_character: diag_end.character.get(),
                 end_line: diag_end.line,
-                end_character: diag_end.character,
+                end_character: diag_end.character.get(),
             };
             for (title, suffix) in [
                 ("Add catch result variable", " result"),
@@ -192,13 +189,13 @@ pub fn code_actions(
                 });
             }
         }
-        // `S-code-actions-rich`: synthetic W213 quick-fix.
+        // Synthetic W213 quick-fix.
         // W213 fires on `unset $var` when the variable may not
         // exist; the canonical Tcl idiom is `unset -nocomplain
         // $var`, so offer that as a one-click fix.  The diag
         // span starts at `unset`; we splice ` -nocomplain`
         // immediately after the keyword (offset +5).
-        if diag.code == "W213"
+        if diag.code == DiagCode::W213
             && let Some(action) = build_unset_nocomplain_action(source, diag, &line_index)
         {
             actions.push(action);
@@ -220,9 +217,9 @@ pub fn code_actions(
                 edits: vec![crate::rename::TextEdit {
                     range: LspRange {
                         start_line: fix_start.line,
-                        start_character: fix_start.character,
+                        start_character: fix_start.character.get(),
                         end_line: fix_end.line,
-                        end_character: fix_end.character,
+                        end_character: fix_end.character.get(),
                     },
                     new_text: fix.new_text.clone(),
                 }],
@@ -262,8 +259,7 @@ pub fn code_actions(
 /// that populates `fixes`), so lifting *all* check fixes here is exactly the
 /// IRULE5002/5004 surfacing with no risk of double-offering an analyser fix.
 ///
-/// Mirrors the `find_irules_flow_warnings` merge in
-/// `server/features/code_actions.py`.  The caller passes the
+/// The caller passes the
 /// `run_all_checks` output (e.g. `CompilerDiagnostics::checks`); for a
 /// non-iRules dialect that list carries no fixes, so this returns empty.
 ///
@@ -283,16 +279,16 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
     let line_index = LineIndex::new(source);
     let mut actions = Vec::new();
     for diag in checks {
-        if diag.fixes.is_empty() || disabled.contains(&diag.code) {
+        if diag.fixes.is_empty() || disabled.contains(diag.code.as_str()) {
             continue;
         }
         let diag_start = line_index.position_at_utf16(diag.span.start(), source);
         let diag_end = line_index.position_at_utf16(diag.span.end(), source);
         let diag_range = LspRange {
             start_line: diag_start.line,
-            start_character: diag_start.character,
+            start_character: diag_start.character.get(),
             end_line: diag_end.line,
-            end_character: diag_end.character,
+            end_character: diag_end.character.get(),
         };
         if !ranges_overlap(diag_range, range) {
             continue;
@@ -311,9 +307,9 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
                 edits: vec![crate::rename::TextEdit {
                     range: LspRange {
                         start_line: fix_start.line,
-                        start_character: fix_start.character,
+                        start_character: fix_start.character.get(),
                         end_line: fix_end.line,
-                        end_character: fix_end.character,
+                        end_character: fix_end.character.get(),
                     },
                     new_text: fix.new_text.clone(),
                 }],
@@ -344,9 +340,9 @@ fn build_unset_nocomplain_action(
     let pos = line_index.position_at_utf16(insert_offset, source);
     let insertion = LspRange {
         start_line: pos.line,
-        start_character: pos.character,
+        start_character: pos.character.get(),
         end_line: pos.line,
-        end_character: pos.character,
+        end_character: pos.character.get(),
     };
     Some(CodeAction {
         title: "Add '-nocomplain' to unset".to_string(),
@@ -375,12 +371,10 @@ fn ranges_overlap(a: LspRange, b: LspRange) -> bool {
 
 /// Fuzzy `package require` suggestions for the word at `range`'s start:
 /// when an unknown command's prefix (the part before `::`) fuzzy-matches
-/// a known package name, offer `Add 'package require <pkg>'`.  Mirrors
-/// `lsp/features/code_actions.py::_package_require_actions` +
-/// `rank_package_suggestions`.  The package catalogue is derived from the
-/// registry's `required_package` / `tcllib_package` fields (the Python
-/// workspace `package_resolver`'s installed-package set isn't modelled in
-/// the Rust core).
+/// a known package name, offer `Add 'package require <pkg>'`.  The package
+/// catalogue is derived from the registry's `required_package` /
+/// `tcllib_package` fields, so locally-installed-but-unregistered packages
+/// aren't suggested.
 #[must_use]
 pub fn package_require_actions(
     source: &str,
@@ -434,8 +428,7 @@ fn package_catalogue(registry: &tcl_registry::CommandRegistry) -> Vec<String> {
 }
 
 /// Rank package names against a symbol's prefix (exact / prefix /
-/// substring), best first, capped at `limit`.  Mirrors
-/// `lsp/features/package_suggestions.py::rank_package_suggestions`.
+/// substring), best first, capped at `limit`.
 fn rank_package_suggestions(symbol: &str, packages: &[String], limit: usize) -> Vec<String> {
     let prefix = symbol
         .trim()
@@ -472,7 +465,6 @@ fn rank_package_suggestions(symbol: &str, packages: &[String], limit: usize) -> 
 
 /// Line at which to insert a new `package require` — after a leading
 /// shebang and any contiguous top-of-file `package require` lines.
-/// Mirrors `_package_insert_line`.
 fn package_insert_line(source: &str) -> u32 {
     let lines: Vec<&str> = source.split('\n').collect();
     let mut line = 0usize;
@@ -524,9 +516,7 @@ fn word_at_position(source: &str, line: u32, character: u32) -> String {
     chars[start..end].iter().collect()
 }
 
-// ---------------------------------------------------------------------------
 // W115 — convert a backslash-continued comment to per-line comments.
-// ---------------------------------------------------------------------------
 
 fn continuation_comment_actions(
     source: &str,
@@ -550,7 +540,7 @@ fn continuation_comment_actions(
         // file-wide "any W115" check would rewrite an unrelated
         // backslash-continued command on a different line as commented text.
         let has_overlapping_w115 = analysis.diagnostics.iter().any(|d| {
-            if d.code != "W115" {
+            if d.code != DiagCode::W115 {
                 return false;
             }
             let start = line_index.position_at_utf16(d.span.start(), source);
@@ -558,9 +548,9 @@ fn continuation_comment_actions(
             ranges_overlap(
                 LspRange {
                     start_line: start.line,
-                    start_character: start.character,
+                    start_character: start.character.get(),
                     end_line: end.line,
-                    end_character: end.character,
+                    end_character: end.character.get(),
                 },
                 range,
             )
@@ -625,9 +615,7 @@ fn continuation_comment_actions(
     }]
 }
 
-// ---------------------------------------------------------------------------
 // IPv4 ↔ IPv6-mapped conversion.
-// ---------------------------------------------------------------------------
 
 /// `true` when `s` is a dotted-quad IPv4 literal (each octet 0-255).
 fn is_ipv4(s: &str) -> bool {
@@ -710,9 +698,7 @@ fn char_col_to_utf16_local(line_text: &str, char_col: usize) -> u32 {
         .sum()
 }
 
-// ---------------------------------------------------------------------------
 // Expression rewrites: De Morgan + invert comparison.
-// ---------------------------------------------------------------------------
 
 fn expr_rewrite_actions(source: &str, range: LspRange, _line_index: &LineIndex) -> Vec<CodeAction> {
     // Single-line, non-empty selection only.
@@ -873,9 +859,7 @@ fn find_top_level(expr: &str, needle: &str) -> Option<usize> {
     None
 }
 
-// ---------------------------------------------------------------------------
 // Generate docstring (source action).
-// ---------------------------------------------------------------------------
 
 fn docstring_actions(
     source: &str,
@@ -934,8 +918,7 @@ fn extract_inline_actions(
 /// Surface the [`crate::refactor`] transforms (extract / inline variable,
 /// if↔switch, switch→dict, extract-to-datagroup) as `CodeAction`s.
 ///
-/// Mirrors `server/features/code_actions.py::_new_refactor_actions`: the
-/// cursor is `range`'s start; extract-variable additionally needs a
+/// The cursor is `range`'s start; extract-variable additionally needs a
 /// non-empty selection.  The data-group transform is iRules-only — it is
 /// gated by [`crate::refactor::extract_to_datagroup`]'s registry
 /// resolution (a non-iRules registry resolves no `class match` /
@@ -957,13 +940,18 @@ fn refactor_engine_actions(
     registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
     let mut out = Vec::new();
 
-    let cursor = line_index.offset_at_utf16(range.start_line, range.start_character, source);
+    let cursor = line_index.offset_at_utf16(
+        range.start_line,
+        Utf16Col::new(range.start_character),
+        source,
+    );
     let has_selection =
         range.start_line != range.end_line || range.start_character != range.end_character;
 
     // Extract variable — requires a selection.
     if has_selection {
-        let end = line_index.offset_at_utf16(range.end_line, range.end_character, source);
+        let end =
+            line_index.offset_at_utf16(range.end_line, Utf16Col::new(range.end_character), source);
         if let Some(r) = refactor::extract_variable(source, cursor, end, "result", line_index) {
             out.push(refactoring_to_action(&r, source, line_index));
         }
@@ -986,8 +974,7 @@ fn refactor_engine_actions(
 
 /// Lift a [`crate::refactor::Refactoring`] into a [`CodeAction`],
 /// converting its byte-offset edits to LSP coordinates and rendering the
-/// data-group definition (if any) into `data_group_definition`.  Mirrors
-/// `_refactoring_to_code_action` / `_datagroup_to_code_action`.
+/// data-group definition (if any) into `data_group_definition`.
 fn refactoring_to_action(
     r: &crate::refactor::Refactoring,
     source: &str,
@@ -1036,7 +1023,7 @@ fn referenced_vars(text: &str) -> Vec<String> {
 }
 
 /// `refactor.extract` — extract the selected lines into a new proc and replace
-/// the selection with a call.  Mirrors `_extract_proc_action`.
+/// the selection with a call.
 fn extract_proc_action(source: &str, range: LspRange) -> Vec<CodeAction> {
     // Need a non-empty selection.
     if range.start_line == range.end_line && range.start_character >= range.end_character {
@@ -1122,7 +1109,7 @@ fn extract_proc_action(source: &str, range: LspRange) -> Vec<CodeAction> {
 }
 
 /// `refactor.inline` — inline a single-command proc at the call cursor.
-/// Mirrors `_inline_proc_action`; declines branchy / control-flow bodies.
+/// Declines branchy / control-flow bodies.
 fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) -> Vec<CodeAction> {
     // Control-flow / scope keywords whose bodies can't be safely inlined.
     const UNSAFE: &[&str] = &[
@@ -1192,13 +1179,10 @@ fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) 
     }]
 }
 
-// ---------------------------------------------------------------------------
 // iRules `# Profiles:` header source action.
-// ---------------------------------------------------------------------------
 
 /// Compute the sorted required virtual-server profiles from the file's events
 /// (`EventProps.implied_profiles`) and commands (`event_requires.profiles`).
-/// Mirrors `_compute_required_profiles`.
 fn compute_required_profiles(
     source: &str,
     analysis: &AnalysisResult,
@@ -1319,11 +1303,9 @@ pub fn profiles_action(
     })
 }
 
-// ---------------------------------------------------------------------------
 // iRules taint quick-fixes — driven by the *context* diagnostics the editor
 // sends (the analyser may not have re-emitted them), so they take a separate
 // entry point.
-// ---------------------------------------------------------------------------
 
 /// A diagnostic supplied in the code-action request context.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1342,8 +1324,7 @@ const REGEX_QUOTE_PROC: &str =
     "proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }";
 
 /// Quick-fixes for context-supplied diagnostics (iRules taint encode-wrap +
-/// double-encode removal).  Mirrors the taint arm of
-/// `server/features/code_actions.py`.
+/// double-encode removal).
 #[must_use]
 pub fn context_diagnostic_actions(source: &str, diags: &[ContextDiagnostic]) -> Vec<CodeAction> {
     let mut out = Vec::new();
@@ -1353,7 +1334,7 @@ pub fn context_diagnostic_actions(source: &str, diags: &[ContextDiagnostic]) -> 
     }
     // De-duplicate (two IRULE1006 diags for the same buffer command yield the
     // same bootstrap action).  Key on the title + edit replacement texts.
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = FxHashSet::default();
     out.retain(|a| {
         let key = (
             a.title.clone(),
@@ -1412,8 +1393,7 @@ fn enclosing_when_line(source: &str, line: u32) -> u32 {
 }
 
 /// IRULE1005 / IRULE1006 "missing collect" quick-fixes: insert a
-/// `when <setup> priority 500 { <proto>::collect }` bootstrap block.  Mirrors
-/// `_irules_collect_bootstrap_actions`.
+/// `when <setup> priority 500 { <proto>::collect }` bootstrap block.
 fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
     if d.code != "IRULE1005" && d.code != "IRULE1006" {
         return Vec::new();
@@ -1639,7 +1619,7 @@ mod tests {
         // from the analyser's diagnostic emitters.
         let mut r = AnalysisResult::default();
         r.diagnostics.push(Diagnostic {
-            code: "W210".to_string(),
+            code: DiagCode::W210,
             message: "Variable read before set".to_string(),
             severity: tcl_compiler::analyser::Severity::Warning,
             span: Span::new(0, 5),
@@ -1664,7 +1644,7 @@ mod tests {
     fn no_action_when_range_outside_diagnostic() {
         let mut r = AnalysisResult::default();
         r.diagnostics.push(Diagnostic {
-            code: "W210".to_string(),
+            code: DiagCode::W210,
             message: "msg".to_string(),
             severity: tcl_compiler::analyser::Severity::Warning,
             span: Span::new(0, 5),
@@ -1689,7 +1669,7 @@ mod tests {
     fn empty_description_falls_back_to_diagnostic_message() {
         let mut r = AnalysisResult::default();
         r.diagnostics.push(Diagnostic {
-            code: "W210".to_string(),
+            code: DiagCode::W210,
             message: "Variable read before set".to_string(),
             severity: tcl_compiler::analyser::Severity::Warning,
             span: Span::new(0, 5),
@@ -1731,7 +1711,7 @@ mod tests {
     fn multiple_fixes_on_one_diagnostic_each_become_an_action() {
         let mut r = AnalysisResult::default();
         r.diagnostics.push(Diagnostic {
-            code: "Wxxx".to_string(),
+            code: DiagCode::W210,
             message: "msg".to_string(),
             severity: tcl_compiler::analyser::Severity::Warning,
             span: Span::new(0, 5),
@@ -1758,7 +1738,7 @@ mod tests {
         assert!(titles.contains(&"A") && titles.contains(&"B"));
     }
 
-    // -- S-code-actions-rich: W213 unset -nocomplain action ----------
+    // W213 unset -nocomplain action
 
     #[test]
     fn w213_emits_unset_nocomplain_action() {
@@ -1769,7 +1749,10 @@ mod tests {
         let mut a = Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
         assert!(
-            analysis.diagnostics.iter().any(|d| d.code == "W213"),
+            analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W213),
             "expected W213 from {:?}",
             analysis.diagnostics,
         );
@@ -1815,7 +1798,7 @@ mod tests {
         );
     }
 
-    // -- S-code-actions-rich: catch-result-variable actions ----------
+    // catch-result-variable actions
 
     #[test]
     fn w302_emits_catch_result_variable_actions() {
@@ -1827,7 +1810,10 @@ mod tests {
         let analysis = a.analyse(src, "tcl8.6").clone();
         // Sanity-check the analyser actually emitted W302.
         assert!(
-            analysis.diagnostics.iter().any(|d| d.code == "W302"),
+            analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W302),
             "expected W302 from {:?}",
             analysis.diagnostics,
         );
@@ -1858,7 +1844,7 @@ mod tests {
         }
     }
 
-    // -- S-code-actions-rich: W120 package-require fix --------------
+    // W120 package-require fix
 
     #[test]
     fn w120_surfaces_add_package_require_action() {
@@ -1870,7 +1856,10 @@ mod tests {
         let mut a = Analyser::new();
         let analysis = a.analyse(src, "tcl9.0").clone();
         assert!(
-            analysis.diagnostics.iter().any(|d| d.code == "W120"),
+            analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W120),
             "expected W120 from {:?}",
             analysis.diagnostics,
         );
@@ -1954,7 +1943,7 @@ mod tests {
         assert_eq!(word_at_position("  set y 1\n", 0, 3), "set");
     }
 
-    // -- check_diagnostic_actions: IRULE5002/5004 flow-warning fixes ------
+    // check_diagnostic_actions: IRULE5002/5004 flow-warning fixes
 
     #[test]
     fn check_actions_surface_irule5002_flow_fix() {
@@ -1979,7 +1968,7 @@ mod tests {
         assert!(
             checks
                 .iter()
-                .any(|d| d.code == "IRULE5002" && !d.fixes.is_empty()),
+                .any(|d| d.code == DiagCode::Irule5002 && !d.fixes.is_empty()),
             "expected an IRULE5002 check with a fix, got {checks:?}",
         );
 
@@ -2045,8 +2034,8 @@ mod tests {
         );
     }
 
-    // -- refactor-engine dispatch (extract/inline var, if↔switch,
-    //    switch→dict, extract-datagroup) ----------------------------------
+    // refactor-engine dispatch (extract/inline var, if↔switch,
+    //    switch→dict, extract-datagroup)
 
     fn analyse(source: &str) -> AnalysisResult {
         Analyser::new().analyse(source, "tcl8.6").clone()
@@ -2084,7 +2073,9 @@ mod tests {
         };
         let actions = code_actions(src, cursor, Some(&analysis));
         assert!(
-            actions.iter().any(|a| a.title.to_lowercase().contains("switch")),
+            actions
+                .iter()
+                .any(|a| a.title.to_lowercase().contains("switch")),
             "{actions:?}",
         );
     }

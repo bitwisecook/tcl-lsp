@@ -506,4 +506,14 @@ mod tests {
         // `%n` is not a conversion for the count.
         assert_eq!(o.nconv, 1);
     }
+
+    #[test]
+    fn huge_field_width_saturates_without_overflow() {
+        // A giant width in the format string must not overflow the usize
+        // accumulator; it saturates and behaves as an unbounded field (the input
+        // length is the real cap), so the whole string scans as one `%s`.
+        let o = scan_match(&chars("hello"), &chars("%999999999999999999999s"));
+        assert_eq!(o.values, vec![Some(Scanned::Str("hello".into()))]);
+        assert_eq!(o.nconv, 1);
+    }
 }

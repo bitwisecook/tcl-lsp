@@ -9,9 +9,7 @@ use std::collections::{HashMap, HashSet};
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 
-// ---------------------------------------------------------------------------
 // Block-name prefix constants
-// ---------------------------------------------------------------------------
 
 /// Block-name prefixes for if/switch join blocks.
 ///
@@ -36,9 +34,7 @@ pub fn starts_with_any(name: &str, prefixes: &[&str]) -> bool {
     prefixes.iter().any(|p| name.starts_with(p))
 }
 
-// ---------------------------------------------------------------------------
 // Constant branch folding
-// ---------------------------------------------------------------------------
 
 /// Evaluate a branch condition at compile time.
 ///
@@ -71,9 +67,7 @@ pub fn fold_const_branch(cond: &ExprNode) -> Option<bool> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Linearisation
-// ---------------------------------------------------------------------------
 
 /// RPO traversal from entry, with dead-branch elimination.
 ///
@@ -85,22 +79,26 @@ pub fn fold_const_branch(cond: &ExprNode) -> Option<bool> {
 pub fn linearise(cfg: &CfgFunction) -> Vec<String> {
     let mut visited: HashSet<String> = HashSet::new();
     let mut order: Vec<String> = Vec::new();
-    dfs(cfg, &cfg.entry, &mut visited, &mut order);
+    let entry = cfg.block_name(cfg.entry).to_owned();
+    dfs(cfg, &entry, &mut visited, &mut order);
     order.reverse();
     reorder_bottom_tested(cfg, order)
 }
 
 /// Depth-first traversal populating `order` in post-order.
 fn dfs(cfg: &CfgFunction, name: &str, visited: &mut HashSet<String>, order: &mut Vec<String>) {
-    if visited.contains(name) || !cfg.blocks.contains_key(name) {
+    if visited.contains(name) {
         return;
     }
+    let Some(blk) = cfg.block_by_name(name) else {
+        return;
+    };
     visited.insert(name.to_owned());
-    let blk = &cfg.blocks[name];
     if let Some(term) = &blk.terminator {
         match term {
             Terminator::Goto { target, .. } => {
-                dfs(cfg, target, visited, order);
+                let target = cfg.block_name(*target).to_owned();
+                dfs(cfg, &target, visited, order);
             }
             Terminator::Branch {
                 condition,
@@ -108,24 +106,26 @@ fn dfs(cfg: &CfgFunction, name: &str, visited: &mut HashSet<String>, order: &mut
                 false_target,
                 ..
             } => {
+                let true_target = cfg.block_name(*true_target).to_owned();
+                let false_target = cfg.block_name(*false_target).to_owned();
                 match fold_const_branch(condition) {
                     Some(true) => {
                         // For loop headers, still visit the exit block
                         // so that break jumps have a valid target.
                         if starts_with_any(name, LOOP_HEADER_PREFIXES) {
-                            dfs(cfg, false_target, visited, order);
+                            dfs(cfg, &false_target, visited, order);
                         }
-                        dfs(cfg, true_target, visited, order);
+                        dfs(cfg, &true_target, visited, order);
                     }
                     Some(false) => {
-                        dfs(cfg, false_target, visited, order);
+                        dfs(cfg, &false_target, visited, order);
                     }
                     None => {
                         // Visit false-target first so that in the
                         // reversed post-order the true-target (then-body)
                         // appears immediately after the condition block.
-                        dfs(cfg, false_target, visited, order);
-                        dfs(cfg, true_target, visited, order);
+                        dfs(cfg, &false_target, visited, order);
+                        dfs(cfg, &true_target, visited, order);
                     }
                 }
             }
@@ -135,9 +135,7 @@ fn dfs(cfg: &CfgFunction, name: &str, visited: &mut HashSet<String>, order: &mut
     order.push(name.to_owned());
 }
 
-// ---------------------------------------------------------------------------
 // Loop body collection and reordering
-// ---------------------------------------------------------------------------
 
 /// Collect blocks reachable from `start` that are part of a loop back
 /// to `header`.
@@ -151,26 +149,31 @@ pub(crate) fn collect_loop_body(
     result: &mut HashSet<String>,
     exit_block: Option<&str>,
 ) {
-    if start == header || result.contains(start) || !cfg.blocks.contains_key(start) {
+    if start == header || result.contains(start) {
         return;
     }
     if exit_block == Some(start) {
         return;
     }
+    let Some(blk) = cfg.block_by_name(start) else {
+        return;
+    };
     result.insert(start.to_owned());
-    let blk = &cfg.blocks[start];
     if let Some(term) = &blk.terminator {
         match term {
             Terminator::Goto { target, .. } => {
-                collect_loop_body(cfg, target, header, result, exit_block);
+                let target = cfg.block_name(*target).to_owned();
+                collect_loop_body(cfg, &target, header, result, exit_block);
             }
             Terminator::Branch {
                 true_target,
                 false_target,
                 ..
             } => {
-                collect_loop_body(cfg, true_target, header, result, exit_block);
-                collect_loop_body(cfg, false_target, header, result, exit_block);
+                let true_target = cfg.block_name(*true_target).to_owned();
+                let false_target = cfg.block_name(*false_target).to_owned();
+                collect_loop_body(cfg, &true_target, header, result, exit_block);
+                collect_loop_body(cfg, &false_target, header, result, exit_block);
             }
             Terminator::Return { .. } => {}
         }
@@ -193,13 +196,14 @@ pub fn reorder_bottom_tested(cfg: &CfgFunction, order: Vec<String>) -> Vec<Strin
     // Find back-edges: blocks with a Goto to an earlier block in RPO.
     let mut back_edges: Vec<(String, String)> = Vec::new();
     for name in &order {
-        let Some(blk) = cfg.blocks.get(name) else {
+        let Some(blk) = cfg.block_by_name(name) else {
             continue;
         };
-        if let Some(Terminator::Goto { target, .. }) = &blk.terminator
-            && pos.get(target).is_some_and(|tp| *tp < pos[name])
-        {
-            back_edges.push((name.clone(), target.clone()));
+        if let Some(Terminator::Goto { target, .. }) = &blk.terminator {
+            let target = cfg.block_name(*target);
+            if pos.get(target).is_some_and(|tp| *tp < pos[name]) {
+                back_edges.push((name.clone(), target.to_owned()));
+            }
         }
     }
 
@@ -212,7 +216,7 @@ pub fn reorder_bottom_tested(cfg: &CfgFunction, order: Vec<String>) -> Vec<Strin
 
     let mut result = order;
     for (_back_src, header) in back_edges {
-        let Some(header_blk) = cfg.blocks.get(&header) else {
+        let Some(header_blk) = cfg.block_by_name(&header) else {
             continue;
         };
         let Some(Terminator::Branch {
@@ -229,8 +233,8 @@ pub fn reorder_bottom_tested(cfg: &CfgFunction, order: Vec<String>) -> Vec<Strin
             continue;
         }
 
-        let body_start = true_target.clone();
-        let exit_block = false_target.clone();
+        let body_start = cfg.block_name(*true_target).to_owned();
+        let exit_block = cfg.block_name(*false_target).to_owned();
         let mut loop_blocks: HashSet<String> = HashSet::new();
         collect_loop_body(
             cfg,
@@ -262,9 +266,7 @@ pub fn reorder_bottom_tested(cfg: &CfgFunction, order: Vec<String>) -> Vec<Strin
     result
 }
 
-// ---------------------------------------------------------------------------
 // Loop context (continue / break targets)
-// ---------------------------------------------------------------------------
 
 /// Map each loop-body block to its `(continue_target, break_target)`.
 ///
@@ -290,7 +292,8 @@ pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (Option<String>,
     let all_loop_headers: &[&str] = &["for_header_", "while_header_", "foreach_header_"];
     let mut loops: Vec<LoopInfo> = Vec::new();
 
-    for (bname, blk) in &cfg.blocks {
+    for (id, blk) in &cfg.blocks {
+        let bname = cfg.block_name(*id);
         if !starts_with_any(bname, all_loop_headers) {
             continue;
         }
@@ -302,28 +305,29 @@ pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (Option<String>,
         else {
             continue;
         };
-        let body_start = true_target.clone();
-        let end_block = false_target.clone();
+        let body_start = cfg.block_name(*true_target).to_owned();
+        let end_block = cfg.block_name(*false_target).to_owned();
 
         // Determine continue target.
         let cont_target = if bname.starts_with("for_header_") {
             // Find the step block: it has a Goto back to the header.
             let mut found: Option<String> = None;
-            for (bn, bl) in &cfg.blocks {
+            for (bn_id, bl) in &cfg.blocks {
+                let bn = cfg.block_name(*bn_id);
                 if !bn.starts_with("for_step_") {
                     continue;
                 }
                 if let Some(Terminator::Goto { target, .. }) = &bl.terminator
-                    && target == bname
+                    && *target == *id
                 {
-                    found = Some(bn.clone());
+                    found = Some(bn.to_owned());
                     break;
                 }
             }
             let Some(ct) = found else { continue };
             ct
         } else {
-            bname.clone()
+            bname.to_owned()
         };
 
         // Collect body blocks (excluding exit). For nested loops this set also
@@ -363,9 +367,7 @@ pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (Option<String>,
     ctx
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -417,10 +419,26 @@ mod tests {
         assert_eq!(fold_const_branch(&b), None);
     }
 
+    /// A CFG whose interner maps `names` (in order, entry first) to ids and
+    /// inserts a block for each.
+    fn cfg_with_blocks(names: &[&str]) -> CfgFunction {
+        let mut cfg = CfgFunction::new("::top", names[0]);
+        for name in &names[1..] {
+            let id = cfg.intern_block(*name);
+            cfg.blocks.insert(id, Block::new(*name));
+        }
+        cfg
+    }
+
+    fn bid(cfg: &CfgFunction, name: &str) -> crate::cfg::BlockId {
+        cfg.block_id(name).expect("interned")
+    }
+
     #[test]
     fn linearise_single_block() {
         let mut cfg = CfgFunction::new("::top", "entry_0");
-        cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Return {
+        let entry = cfg.entry;
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
@@ -432,31 +450,34 @@ mod tests {
     #[test]
     fn linearise_diamond() {
         // entry → branch → {then, else} → join → return
-        let mut cfg = CfgFunction::new("::top", "entry_0");
-        cfg.blocks.insert("then_1".into(), Block::new("then_1"));
-        cfg.blocks.insert("else_1".into(), Block::new("else_1"));
-        cfg.blocks.insert("join_1".into(), Block::new("join_1"));
+        let mut cfg = cfg_with_blocks(&["entry_0", "then_1", "else_1", "join_1"]);
+        let entry = cfg.entry;
+        let (then, els, join) = (
+            bid(&cfg, "then_1"),
+            bid(&cfg, "else_1"),
+            bid(&cfg, "join_1"),
+        );
 
-        cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Branch {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: ExprNode::Var {
                 text: "$x".into(),
                 name: "x".into(),
                 start: 0,
                 end: 2,
             },
-            true_target: "then_1".into(),
-            false_target: "else_1".into(),
+            true_target: then,
+            false_target: els,
             span: None,
         });
-        cfg.blocks.get_mut("then_1").unwrap().terminator = Some(Terminator::Goto {
-            target: "join_1".into(),
+        cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
+            target: join,
             span: None,
         });
-        cfg.blocks.get_mut("else_1").unwrap().terminator = Some(Terminator::Goto {
-            target: "join_1".into(),
+        cfg.blocks.get_mut(&els).unwrap().terminator = Some(Terminator::Goto {
+            target: join,
             span: None,
         });
-        cfg.blocks.get_mut("join_1").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,
@@ -473,26 +494,29 @@ mod tests {
     #[test]
     fn linearise_dead_branch_eliminated() {
         // Constant true condition — else branch is unreachable.
-        let mut cfg = CfgFunction::new("::top", "entry_0");
-        cfg.blocks.insert("then_1".into(), Block::new("then_1"));
-        cfg.blocks.insert("else_1".into(), Block::new("else_1"));
-        cfg.blocks.insert("join_1".into(), Block::new("join_1"));
+        let mut cfg = cfg_with_blocks(&["entry_0", "then_1", "else_1", "join_1"]);
+        let entry = cfg.entry;
+        let (then, els, join) = (
+            bid(&cfg, "then_1"),
+            bid(&cfg, "else_1"),
+            bid(&cfg, "join_1"),
+        );
 
-        cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Branch {
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: lit("1"),
-            true_target: "then_1".into(),
-            false_target: "else_1".into(),
+            true_target: then,
+            false_target: els,
             span: None,
         });
-        cfg.blocks.get_mut("then_1").unwrap().terminator = Some(Terminator::Goto {
-            target: "join_1".into(),
+        cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
+            target: join,
             span: None,
         });
-        cfg.blocks.get_mut("else_1").unwrap().terminator = Some(Terminator::Goto {
-            target: "join_1".into(),
+        cfg.blocks.get_mut(&els).unwrap().terminator = Some(Terminator::Goto {
+            target: join,
             span: None,
         });
-        cfg.blocks.get_mut("join_1").unwrap().terminator = Some(Terminator::Return {
+        cfg.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
             expr: None,

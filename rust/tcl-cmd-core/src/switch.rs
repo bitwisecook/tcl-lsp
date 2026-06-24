@@ -200,6 +200,12 @@ where
     V: Clone,
 {
     let npairs = patterns.len();
+    // No patterns ⇒ nothing can match. Guard here so the `npairs - 1` below
+    // (the "is this the final, `default`-eligible pattern?" test) can't underflow
+    // on an empty list and panic; an empty `patterns` simply has no match.
+    if npairs == 0 {
+        return Ok(Selection::NoMatch);
+    }
     let val_str = ops.as_str(value);
     for (p, pat_val) in patterns.iter().enumerate() {
         let pat = ops.as_str(pat_val);
@@ -337,7 +343,7 @@ where
     writes
 }
 
-// -- option-name resolution + error catalogue --------------------------------
+// option-name resolution + error catalogue
 
 enum IdxErr {
     Bad,
@@ -425,5 +431,118 @@ mod tests {
             no_body_error("foo").message(),
             r#"no body specified for pattern "foo""#
         );
+    }
+
+    /// A throwaway string-only `ValueOps` for the selection tests: just enough of
+    /// the seam to drive `select` (which here only needs `as_str` on the value and
+    /// patterns). Numeric/list methods are present to satisfy the trait but the
+    /// `select` paths under test never reach them.
+    #[derive(Default)]
+    struct StrOps;
+
+    impl ValueOps for StrOps {
+        type Value = String;
+        fn new_str(&mut self, s: &str) -> String {
+            s.to_owned()
+        }
+        fn new_int(&mut self, n: i64) -> String {
+            n.to_string()
+        }
+        fn new_double(&mut self, f: f64) -> String {
+            tcl_syntax::number::format_double(f)
+        }
+        fn new_bool(&mut self, b: bool) -> String {
+            (if b { "1" } else { "0" }).to_owned()
+        }
+        fn new_list(&mut self, items: Vec<String>) -> String {
+            items.join(" ")
+        }
+        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
+            std::rc::Rc::from(v.as_str())
+        }
+        fn as_int(&mut self, v: &String) -> Result<i64, tcl_syntax::value::ValueError> {
+            v.parse()
+                .map_err(|_| tcl_syntax::value::ValueError::NotInteger(v.clone()))
+        }
+        fn as_double(&mut self, _v: &String) -> Result<f64, tcl_syntax::value::ValueError> {
+            Ok(0.0)
+        }
+        fn as_bool(&mut self, _v: &String) -> Result<bool, tcl_syntax::value::ValueError> {
+            Ok(false)
+        }
+        fn list_elements(
+            &mut self,
+            v: &String,
+        ) -> Result<Vec<String>, tcl_syntax::value::ValueError> {
+            Ok(v.split_whitespace().map(str::to_owned).collect())
+        }
+    }
+
+    /// A never-invoked `RegexEngine`: the selection tests below stay in exact/glob
+    /// mode (and the empty-patterns case returns before any engine call), so these
+    /// methods are unreachable.
+    enum NoEngine {}
+
+    impl RegexEngine for NoEngine {
+        type Regex = ();
+        fn compile(_pattern: &[u8], _flags: RegexFlags) -> Result<(), Vec<u8>> {
+            unreachable!("regexp engine not used in these tests")
+        }
+        fn nsub(_re: &()) -> usize {
+            unreachable!()
+        }
+        fn exec(
+            _re: &mut (),
+            _cps: &[i32],
+            _offset: usize,
+            _notbol: bool,
+        ) -> Option<Vec<RegMatch>> {
+            unreachable!()
+        }
+    }
+
+    fn exact_opts() -> Options<String> {
+        Options {
+            mode: Mode::Exact,
+            nocase: false,
+            match_var: None,
+            index_var: None,
+            value_index: 0,
+        }
+    }
+
+    #[test]
+    fn select_empty_patterns_is_no_match_not_underflow() {
+        // An empty `patterns` list must not underflow `npairs - 1` (the
+        // final-pattern `default` test) and panic — it simply matches nothing.
+        let mut ops = StrOps;
+        let opts = exact_opts();
+        let value = String::from("anything");
+        let result = select::<_, NoEngine, _>(&mut ops, &opts, &value, &[]).unwrap();
+        assert!(matches!(result, Selection::NoMatch));
+    }
+
+    #[test]
+    fn select_exact_still_matches_after_guard() {
+        // Regression guard: the empty-list early-return must not disturb normal
+        // selection. A trailing `default` and a literal hit both still work.
+        let mut ops = StrOps;
+        let opts = exact_opts();
+        let value = String::from("b");
+        let pats = vec![
+            String::from("a"),
+            String::from("b"),
+            String::from("default"),
+        ];
+        match select::<_, NoEngine, _>(&mut ops, &opts, &value, &pats).unwrap() {
+            Selection::Matched { index, .. } => assert_eq!(index, 1),
+            Selection::NoMatch => panic!("expected a match"),
+        }
+        // No literal hit ⇒ the final `default` matches.
+        let value = String::from("zzz");
+        match select::<_, NoEngine, _>(&mut ops, &opts, &value, &pats).unwrap() {
+            Selection::Matched { index, .. } => assert_eq!(index, 2),
+            Selection::NoMatch => panic!("expected default to match"),
+        }
     }
 }

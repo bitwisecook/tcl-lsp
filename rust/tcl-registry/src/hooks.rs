@@ -37,7 +37,7 @@ pub enum LoweringHookId {
     Upvar,
     /// `proc name params body` — defines a procedure.  Lowered to a
     /// nested IR script + `Statement::Call` at the proc declaration
-    /// site.  Mirrors `core/compiler/lowering.py::_lower_proc`.
+    /// site.
     Proc,
     /// `when EVENT ?priority N? body` — iRules event handler.
     /// Lowered the same shape as `proc` but indexed by event name.
@@ -135,14 +135,13 @@ pub enum CodegenHookId {
 /// Typed identifier for a WASM-runtime codegen specialisation.
 ///
 /// Reserved for the WASM-target codegen path
-/// (`vm/`, the Zig WASM runtime). Currently empty — no command
+/// (`vm/`, the WASM runtime). Currently empty — no command
 /// has a WASM-specific emitter yet — but the field exists on
 /// [`crate::CommandSpec`] / [`crate::SubCommand`] /
 /// [`crate::forms::CommandForm`] so the per-command coverage
-/// audit can track WASM hook stamping alongside the `TclVM` hook
-/// without a follow-up registry refactor.
+/// audit can track WASM hook stamping alongside the `TclVM` hook.
 ///
-/// Add a variant here when a WASM-side specialisation lands;
+/// Add a variant here when a WASM-side specialisation is added;
 /// keep it in sync with whatever dispatcher the WASM emitter
 /// uses on the compiler side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

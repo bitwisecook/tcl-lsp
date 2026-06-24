@@ -1,5 +1,4 @@
 //! Flow pairing: directional flows → Connections → client/server Sessions.
-//! Faithful port of `dialects/f5/bigip/flow/sessions.py`.
 
 use std::collections::HashMap;
 
@@ -144,7 +143,10 @@ mod tests {
 
         let conns = pair_connections(&flows);
         assert_eq!(conns.len(), 1);
-        assert_eq!(conns[0].client.src_port, 1000, "the SYN-bearer is the client");
+        assert_eq!(
+            conns[0].client.src_port, 1000,
+            "the SYN-bearer is the client"
+        );
         assert_eq!(
             conns[0].server.as_ref().map(|s| s.src_port),
             Some(80),
@@ -160,7 +162,10 @@ mod tests {
         flows.insert(only.key(), only.clone());
         let conns = pair_connections(&flows);
         assert_eq!(conns.len(), 1);
-        assert!(conns[0].server.is_none(), "no reverse flow → server is None");
+        assert!(
+            conns[0].server.is_none(),
+            "no reverse flow → server is None"
+        );
     }
 
     #[test]

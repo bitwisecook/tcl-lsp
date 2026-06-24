@@ -1,16 +1,12 @@
-//! Source-position types mirroring the Python `shared.diagnostic.Range`
-//! / `shared.tokens.SourcePosition` so reconstructed BIG-IP objects
-//! carry byte-identical spans.
+//! Source-position types for BIG-IP objects.
 //!
 //! A [`Position`] is `(line, character, offset)` where `character` is a
 //! 0-based UTF-16 code-unit column (LSP convention) and `offset` is the
-//! byte offset into the source. [`Range`] pairs an inclusive start/end
-//! exactly as the Python parser's `DocumentBuffer.range_from_offsets`
-//! produces them.
+//! byte offset into the source. [`Range`] pairs an inclusive start/end.
 
 use tcl_lexer::LineIndex;
 
-/// A position in source text. Mirrors Python `SourcePosition`.
+/// A position in source text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
     /// 0-based line number.
@@ -21,18 +17,17 @@ pub struct Position {
     pub offset: u32,
 }
 
-/// A span in source text. Mirrors Python `shared.diagnostic.Range`.
+/// A span in source text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Range {
     /// Start position (inclusive).
     pub start: Position,
-    /// End position (inclusive — the last covered byte, matching the
-    /// Python `range_from_offsets(start, end_inclusive)` contract).
+    /// End position (inclusive — the last covered byte).
     pub end: Position,
 }
 
 impl Range {
-    /// A zero-length range at `(0, 0, 0)`, mirroring `Range.zero()`.
+    /// A zero-length range at `(0, 0, 0)`.
     #[must_use]
     pub const fn zero() -> Self {
         let pos = Position {
@@ -46,9 +41,8 @@ impl Range {
         }
     }
 
-    /// Build a [`Range`] from inclusive source byte offsets, mirroring
-    /// `DocumentBuffer.range_from_offsets`: empty source yields the zero
-    /// range, and out-of-bounds offsets clamp to the last byte.
+    /// Build a [`Range`] from inclusive source byte offsets: empty source
+    /// yields the zero range, and out-of-bounds offsets clamp to the last byte.
     #[must_use]
     pub fn from_offsets(
         source: &str,
@@ -72,20 +66,19 @@ impl Range {
     }
 }
 
-/// Resolve a byte offset to a [`Position`] via the line index, matching
-/// Python `offset_to_position` (UTF-16 column).
+/// Resolve a byte offset to a [`Position`] via the line index (UTF-16 column).
 fn position_at(source: &str, line_index: &LineIndex, offset: usize) -> Position {
     let off = u32::try_from(offset).unwrap_or(u32::MAX);
     let sp = line_index.position_at_utf16(off, source);
-    // Python `SourcePosition.offset` is a code-point index (Python str
-    // indexing), not a byte offset — count code points up to the byte
-    // offset so non-ASCII sources still match the Python parser.
+    // The `offset` field is a code-point index, not a byte offset — count
+    // code points up to the byte offset so non-ASCII sources are handled
+    // correctly.
     let codepoint_offset = source
         .get(..offset.min(source.len()))
         .map_or(0, |s| s.chars().count());
     Position {
         line: sp.line,
-        character: sp.character,
+        character: sp.character.get(),
         offset: u32::try_from(codepoint_offset).unwrap_or(u32::MAX),
     }
 }
@@ -96,8 +89,7 @@ mod tests {
 
     #[test]
     fn from_offsets_resolves_positions_and_clamps() {
-        // Mirrors Python's `DocumentBuffer.range_from_offsets` (range.rs had
-        // no unit coverage). "abc\ndef": a0 b1 c2 \n3 d4 e5 f6.
+        // "abc\ndef": a0 b1 c2 \n3 d4 e5 f6.
         let source = "abc\ndef";
         let li = LineIndex::new(source);
 

@@ -1,7 +1,7 @@
 //! `LB::connlimit` iRules command.
 use crate::prelude::*;
 
-/// Subcommands ported from the Python source of truth.
+/// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "virtual",
@@ -77,7 +77,7 @@ pub const fn spec() -> CommandSpec {
                 writes: true,
                 connection_side: ConnectionSide::Both,
             },
-            // Mirrors Python `lb__connlimit.py` (POOL_SELECTION).
+            // Pool selection.
             SideEffect {
                 target: SideEffectTarget::PoolSelection,
                 reads: true,

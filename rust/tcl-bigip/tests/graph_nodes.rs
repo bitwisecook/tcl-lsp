@@ -1,9 +1,9 @@
 //! Differential parity for the BIG-IP graph **node** extraction against
-//! `build_bigip_object_graph` (`link_extract.py`).
+//! `build_bigip_object_graph`.
 //!
 //! Builds nodes for a representative `bigip.conf` and asserts each node's
 //! identity, resolved kind, byte offsets, and source range match a golden
-//! captured from the Python graph builder. Self-contained — no Python at test
+//! captured from the reference graph builder. Self-contained — no external oracle at test
 //! time. (Edges are a separate, later increment.)
 
 use tcl_bigip::graph::{GraphContext, build_objects_for_source};

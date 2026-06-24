@@ -4,7 +4,7 @@
 //! to leave at least the **first** output variable unset (the first
 //! conversion can't consume any input).  Only returns `true` when fully
 //! confident; any uncertain case returns `false` so callers never fire a
-//! spurious W210.  Ported from `compiler/scan_format.py`.
+//! spurious W210.
 
 /// Tcl scan whitespace set (the C `isspace` characters).
 fn is_scan_ws(c: char) -> bool {
@@ -20,7 +20,7 @@ fn skip_leading_whitespace(s: &[char], mut i: usize) -> usize {
 }
 
 /// Conversion-leader class for a `scan` conversion character, or `None` for
-/// an unmodelled conversion.  Mirrors `_CONV_LEADERS`.
+/// an unmodelled conversion.
 fn conv_leader(conv: char) -> Option<&'static str> {
     Some(match conv {
         'd' | 'i' | 'u' => "decimal-int",

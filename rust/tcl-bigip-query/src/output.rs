@@ -1,10 +1,9 @@
 //! Render evaluator output for the `f5 query` verb.
 //!
-//! Faithful port of `dialects/f5/query/output.py`. Five flavours, picked by
-//! CLI flag: `auto` (default), `scf`, `raw`, `paths`, `json`, plus the
-//! `table` / `table-lineart` grids. Unknown modes fall through to the
-//! renderer registry (a later increment); until then an unknown mode is a
-//! [`QueryError::Renderer`].
+//! Five flavours, picked by CLI flag: `auto` (default), `scf`, `raw`,
+//! `paths`, `json`, plus the `table` / `table-lineart` grids. Unknown modes
+//! fall through to the renderer registry; a mode that names neither a
+//! built-in mode nor a registered renderer is a [`QueryError::Renderer`].
 
 use std::collections::BTreeMap;
 
@@ -13,7 +12,7 @@ use crate::jsonfmt;
 use crate::renderers;
 use crate::value::Value;
 
-/// Flatten top-level `Stream`s into the value list — port of `output._flat`.
+/// Flatten top-level `Stream`s into the value list.
 pub(crate) fn flat(values: &[Value]) -> Vec<Value> {
     let mut out = Vec::new();
     for v in values {
@@ -43,7 +42,7 @@ pub fn render(values: &[Value], mode: &str) -> Result<String, QueryError> {
 /// The built-in output modes (`auto` / `scf` / `raw` / `paths` / `json` /
 /// `table` / `table-lineart`) ignore *opts*. Any other *mode* falls through
 /// to the renderer registry (`mermaid` / `gantt` / `ascii-blocks`), which
-/// consumes the `--render-opt KEY=VALUE` map. Port of `output.render`'s
+/// consumes the `--render-opt KEY=VALUE` map.'s
 /// dispatch, including the registry fall-through and the
 /// `unknown output mode: …` error for an unregistered name.
 ///
@@ -171,7 +170,7 @@ fn is_scalar(v: &Value) -> bool {
 }
 
 /// If every value is a scalar or a list of scalars, return the flat list;
-/// otherwise `None`. Port of `output._flatten_scalar_lists`.
+/// otherwise `None`.
 fn flatten_scalar_lists(values: &[Value]) -> Option<Vec<Value>> {
     let mut out = Vec::new();
     for v in values {
@@ -193,8 +192,8 @@ fn flatten_scalar_lists(values: &[Value]) -> Option<Vec<Value>> {
     Some(out)
 }
 
-/// Like [`flatten_scalar_lists`] but never refuses — port of
-/// `output._flatten_scalars` (used by `--raw` / `--paths-only`).
+/// Like [`flatten_scalar_lists`] but never refuses (used by `--raw` /
+/// `--paths-only`).
 fn flatten_scalars(values: &[Value]) -> Vec<Value> {
     let mut out = Vec::new();
     for v in values {
@@ -207,7 +206,7 @@ fn flatten_scalars(values: &[Value]) -> Vec<Value> {
     out
 }
 
-/// Coerce a scalar to its display string — port of `output._scalar_str`.
+/// Coerce a scalar to its display string.
 fn scalar_str(v: &Value) -> String {
     match v {
         Value::Null | Value::Drop => "null".to_string(),
@@ -217,7 +216,7 @@ fn scalar_str(v: &Value) -> String {
     }
 }
 
-/// Python `str(value)` for the scalar values the renderers reach.
+/// String coercion of a value for the scalar values the renderers reach.
 fn py_str(v: &Value) -> String {
     match v {
         Value::Str(s) => s.clone(),
@@ -322,8 +321,7 @@ fn render_table(values: &[Value], lineart: bool) -> String {
     lines.join("\n") + "\n"
 }
 
-/// Coerce a single table cell value to its display string — port of
-/// `output._cell_str`.
+/// Coerce a single table cell value to its display string.
 pub(crate) fn cell_str(v: &Value) -> String {
     match v {
         Value::Null | Value::Drop => String::new(),

@@ -1,7 +1,5 @@
 //! Lower the `expr` and `return` commands to typed IR statements.
 //!
-//! Mirrors `core/compiler/lowering_hooks/_control.py`.
-//!
 //! `expr <one-word>` lowers to [`Statement::ExprEval`] when the
 //! single argument is a single token (typically a braced
 //! expression). Multi-arg forms and `{*}` expansion fall through
@@ -128,11 +126,10 @@ mod tests {
         CommandRegistry::build_default()
     }
 
-    // ── expr — end-to-end via lower_to_ir ─────────────────────────
+    // expr — end-to-end via lower_to_ir
 
     #[test]
     fn expr_braced_lowers_to_expr_eval() {
-        // Mirrors `tests/test_ir_lowering.py::test_standalone_expr`.
         let m = lower_to_ir("expr {$x + 1}", &reg());
         assert_eq!(m.top_level.statements.len(), 1);
         assert!(matches!(
@@ -143,7 +140,6 @@ mod tests {
 
     #[test]
     fn expr_multi_arg_falls_back_to_call() {
-        // Mirrors `tests/test_ir_lowering.py::test_standalone_expr_multiarg_fallback`.
         let m = lower_to_ir("expr $x + 1", &reg());
         assert_eq!(m.top_level.statements.len(), 1);
         assert!(matches!(
@@ -170,7 +166,7 @@ mod tests {
         ));
     }
 
-    // ── return — end-to-end via lower_to_ir ───────────────────────
+    // return — end-to-end via lower_to_ir
 
     #[test]
     fn return_no_args_lowers_to_return() {
@@ -268,7 +264,7 @@ mod tests {
         );
     }
 
-    // ── Unit-level coverage of the hook entry points ──────────────
+    // Unit-level coverage of the hook entry points
 
     fn make_cmd<'a>(
         name: &'a str,

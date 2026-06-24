@@ -1,10 +1,10 @@
-//! Byte-faithful port of Python's `difflib.unified_diff` (and the
+//! Byte-faithful reimplementation of `difflib.unified_diff` (and the
 //! `SequenceMatcher` machinery it rides on) restricted to the
 //! line-oriented string-sequence use the CLI diff verbs need.
 //!
 //! The output — `--- ` / `+++ ` file headers, `@@ -a,b +c,d @@` hunk
-//! headers, and the ` ` / `-` / `+` line prefixes — reproduces `CPython`'s
-//! `difflib` exactly, including the `autojunk` popular-element purge that
+//! headers, and the ` ` / `-` / `+` line prefixes — is the standard
+//! unified-diff format, including the `autojunk` popular-element purge that
 //! kicks in for sequences of 200+ lines and the leading/trailing
 //! context-group fixups in `get_grouped_opcodes`.
 //!
@@ -12,8 +12,8 @@
 //! `keepends=True` semantics), so this module never appends or strips
 //! newlines on the data lines; only the control lines get the `lineterm`
 //! (`"\n"`) appended, matching `unified_diff`'s default. Each generated
-//! line is returned as its own `String` (mirroring Python's generator),
-//! so the caller can `rstrip("\n")` per line and count them.
+//! line is returned as its own `String`, so the caller can `rstrip("\n")`
+//! per line and count them.
 
 use std::collections::HashMap;
 
@@ -43,7 +43,7 @@ enum Tag {
     Insert,
 }
 
-/// Port of `difflib.SequenceMatcher` (with `isjunk=None`, `autojunk=True`).
+/// Matches `difflib.SequenceMatcher` (with `isjunk=None`, `autojunk=True`).
 struct SequenceMatcher<'a> {
     a: &'a [&'a str],
     b: &'a [&'a str],
@@ -63,7 +63,7 @@ impl<'a> SequenceMatcher<'a> {
         sm
     }
 
-    /// Port of `SequenceMatcher.__chain_b` (no `isjunk`; `autojunk=True`).
+    /// Equivalent to `SequenceMatcher.__chain_b` (no `isjunk`; `autojunk=True`).
     fn chain_b(&mut self) {
         let b = self.b;
         let mut b2j: HashMap<&str, Vec<usize>> = HashMap::new();
@@ -86,7 +86,7 @@ impl<'a> SequenceMatcher<'a> {
         self.b2j = b2j;
     }
 
-    /// Port of `SequenceMatcher.find_longest_match` (no junk, so the
+    /// Equivalent to `SequenceMatcher.find_longest_match` (no junk, so the
     /// junk-extension passes are no-ops and omitted).
     #[allow(clippy::similar_names, clippy::needless_range_loop)]
     fn find_longest_match(&self, alo: usize, ahi: usize, blo: usize, bhi: usize) -> Match {
@@ -133,7 +133,7 @@ impl<'a> SequenceMatcher<'a> {
         }
     }
 
-    /// Port of `SequenceMatcher.get_matching_blocks`.
+    /// Equivalent to `SequenceMatcher.get_matching_blocks`.
     fn get_matching_blocks(&self) -> Vec<Match> {
         let la = self.a.len();
         let lb = self.b.len();
@@ -188,7 +188,7 @@ impl<'a> SequenceMatcher<'a> {
         non_adjacent
     }
 
-    /// Port of `SequenceMatcher.get_opcodes`.
+    /// Equivalent to `SequenceMatcher.get_opcodes`.
     fn get_opcodes(&self) -> Vec<Opcode> {
         let (mut i, mut j) = (0usize, 0usize);
         let mut answer: Vec<Opcode> = Vec::new();
@@ -227,7 +227,7 @@ impl<'a> SequenceMatcher<'a> {
         answer
     }
 
-    /// Port of `SequenceMatcher.get_grouped_opcodes`.
+    /// Equivalent to `SequenceMatcher.get_grouped_opcodes`.
     fn get_grouped_opcodes(&self, n: usize) -> Vec<Vec<Opcode>> {
         let mut codes = self.get_opcodes();
         if codes.is_empty() {
@@ -289,7 +289,7 @@ impl<'a> SequenceMatcher<'a> {
     }
 }
 
-/// Convert a range to the unified-diff "ed" form — port of
+/// Convert a range to the unified-diff "ed" form, matching
 /// `difflib._format_range_unified`.
 fn format_range_unified(start: usize, stop: usize) -> String {
     let beginning = start + 1;
@@ -303,11 +303,11 @@ fn format_range_unified(start: usize, stop: usize) -> String {
     format!("{beginning},{length}")
 }
 
-/// Generate a unified diff of *a* vs *b* — port of `difflib.unified_diff`
+/// Generate a unified diff of *a* vs *b*, matching `difflib.unified_diff`
 /// with `lineterm="\n"` and the default empty file-dates. Returns each
 /// yielded line as its own `String` (control lines carry the trailing
 /// `"\n"`; data lines carry whatever terminator the caller's
-/// [`splitlines_keepends`] preserved), mirroring `CPython`'s generator so a
+/// [`splitlines_keepends`] preserved), produced lazily line by line so a
 /// caller can `rstrip` and count lines exactly.
 #[must_use]
 pub fn unified_diff(a: &[&str], b: &[&str], fromfile: &str, tofile: &str, n: usize) -> Vec<String> {
@@ -358,9 +358,8 @@ pub fn unified_diff(a: &[&str], b: &[&str], fromfile: &str, tofile: &str, n: usi
     out
 }
 
-/// Split *text* into lines keeping the trailing `\n` — mirrors Python's
-/// `str.splitlines(keepends=True)` for `\n` endings. A final line with no
-/// trailing newline is preserved without one.
+/// Split *text* into lines keeping the trailing `\n` (a final line with no
+/// trailing newline is preserved without one).
 #[must_use]
 pub fn splitlines_keepends(text: &str) -> Vec<&str> {
     let mut out = Vec::new();

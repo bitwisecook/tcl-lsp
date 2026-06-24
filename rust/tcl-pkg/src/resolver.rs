@@ -1,6 +1,6 @@
 //! Go-style Minimum Version Selection (MVS) resolver.
 //!
-//! Faithful port of `tooling/tclpkg/resolver.py`. MVS is deterministic and
+//! MVS is deterministic and
 //! solverless: every `require <pkg> <minver>` declares a minimum and the
 //! resolver picks the maximum-of-minimums for each package across the whole
 //! graph — no upper bounds, no backtracking, no SAT solver.
@@ -100,7 +100,7 @@ const MAX_ITERATIONS: u32 = 10_000;
 
 /// Run MVS over the dependency graph and return the resolved set, sorted by
 /// package name.
-#[allow(clippy::too_many_lines)] // direct port of the three-phase Python routine
+#[allow(clippy::too_many_lines)] // the three-phase MVS routine in one function
 pub fn resolve(input: &ResolveInput) -> Result<Vec<ResolvedPackage>, TclPkgError> {
     let replace_map: HashMap<&str, &ReplaceSpec> = input
         .replaces
@@ -123,7 +123,7 @@ pub fn resolve(input: &ResolveInput) -> Result<Vec<ResolvedPackage>, TclPkgError
         }
     };
 
-    // Phase 1: collect max-of-minimums via BFS.
+    // Step 1: collect max-of-minimums via BFS.
     let mut minimums: BTreeMap<String, Version> = BTreeMap::new();
     let mut pending: VecDeque<PackageRef> = VecDeque::new();
     // Keyed by name: (version_used, deps), so convergence can detect when a
@@ -181,7 +181,7 @@ pub fn resolve(input: &ResolveInput) -> Result<Vec<ResolvedPackage>, TclPkgError
         }
     }
 
-    // Phase 2: convergence — re-process packages whose minimum was bumped after
+    // Step 2: convergence — re-process packages whose minimum was bumped after
     // their deps were already fetched.
     let mut dirty = true;
     while dirty {
@@ -207,7 +207,7 @@ pub fn resolve(input: &ResolveInput) -> Result<Vec<ResolvedPackage>, TclPkgError
         }
     }
 
-    // Drain any leftover pending from phase 2.
+    // Drain any leftover pending from step 2.
     while let Some(reference) = pending.pop_front() {
         let name = reference.name.clone();
         let mut version = reference.version.clone();
@@ -234,7 +234,7 @@ pub fn resolve(input: &ResolveInput) -> Result<Vec<ResolvedPackage>, TclPkgError
         }
     }
 
-    // Phase 3: build the result list (BTreeMap iterates names in sorted order).
+    // Step 3: build the result list (BTreeMap iterates names in sorted order).
     let mut result = Vec::new();
     for (name, version) in &minimums {
         let reqs = requires_map

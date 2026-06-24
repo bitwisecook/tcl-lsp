@@ -1,5 +1,4 @@
-//! Core iRule → F5 XC static translator — the Rust port of
-//! `dialects/f5/xc/translator.py`.
+//! Core iRule → F5 XC static translator.
 //!
 //! Walks the IR produced by [`lower_to_ir`](tcl_compiler::lowering::lower_to_ir)
 //! and builds an [`XCTranslationResult`] mapping iRule constructs to
@@ -37,10 +36,9 @@ fn is_http_path_command(cmd: &str) -> bool {
     cmd == "HTTP::path" || cmd == "HTTP::uri"
 }
 
-// ── Enclosing context (threaded through from enclosing if/switch) ─────────
+// Enclosing context (threaded through from enclosing if/switch)
 
-/// Match criteria accumulated from enclosing conditions. Mirrors Python
-/// `_EnclosingContext`.
+/// Match criteria accumulated from enclosing conditions.
 #[derive(Debug, Clone, Default)]
 struct EnclosingContext {
     path: Option<XCPathMatch>,
@@ -53,7 +51,7 @@ struct EnclosingContext {
     ip_prefix_list: Vec<String>,
 }
 
-// ── Low-level helpers ────────────────────────────────────────────────────
+// Low-level helpers
 
 /// Strip a leading `[` / trailing `]` from a command-substitution text and
 /// trim surrounding whitespace.
@@ -67,21 +65,21 @@ fn strip_brackets(text: &str) -> &str {
 }
 
 /// Extract the command name from a `[CMD ...]` substitution text (naive
-/// whitespace split, mirroring Python `_extract_command_name`).
+/// whitespace split).
 fn extract_command_name(text: &str) -> Option<&str> {
     strip_brackets(text).split_whitespace().next()
 }
 
 /// If *text* is a `[HTTP::xxx]` getter, return the command name. Also
 /// recognises `[string tolower [HTTP::xxx]]` / `[string toupper [...]]` as
-/// case-insensitive wrappers. Mirrors Python `_is_http_getter`.
+/// case-insensitive wrappers.
 fn is_http_getter(text: &str) -> Option<String> {
     let cmd = extract_command_name(text)?;
     if cmd.starts_with("HTTP::") {
         return Some(cmd.to_owned());
     }
     if cmd == "string" {
-        // Mirror Python `inner.split(None, 2)`: the leading `string`, the
+        // Split into three whitespace fields: the leading `string`, the
         // subcommand, and the argument (which keeps any embedded
         // whitespace). Recurse when it is a `tolower` / `toupper` wrapper.
         let inner = strip_brackets(text);
@@ -95,9 +93,8 @@ fn is_http_getter(text: &str) -> Option<String> {
 }
 
 /// For a `string SUBCMD ARG…` text, return `(subcommand, argument)` where
-/// the argument retains any embedded whitespace — mirroring Python's
-/// `inner.split(None, 2)[1:]`. Returns `None` if fewer than three
-/// whitespace fields are present.
+/// the argument retains any embedded whitespace. Returns `None` if fewer
+/// than three whitespace fields are present.
 fn string_subcommand_and_arg(s: &str) -> Option<(&str, &str)> {
     let (_string, rest) = split_first_word(s.trim_start())?;
     let (subcommand, rest) = split_first_word(rest.trim_start())?;
@@ -120,9 +117,8 @@ fn split_first_word(s: &str) -> Option<(&str, &str)> {
 }
 
 /// Split `[cmd arg1 "arg2"]` into argv parts (command name + args), using
-/// the Tcl segmenter's word reconstruction. Mirrors Python
-/// `_parse_command_parts` (which delegates to `parse_single_command`):
-/// returns an empty vec when the text is not exactly one command.
+/// the Tcl segmenter's word reconstruction. Returns an empty vec when the
+/// text is not exactly one command.
 fn parse_command_parts(text: &str) -> Vec<String> {
     let inner = strip_brackets(text);
     let cmds = segment_commands(inner);
@@ -136,8 +132,7 @@ fn parse_command_parts(text: &str) -> Vec<String> {
     parts
 }
 
-/// Classify what a switch subject switches on. Mirrors Python
-/// `_switch_subject_kind`.
+/// Classify what a switch subject switches on.
 fn switch_subject_kind(subject: &str) -> Option<&'static str> {
     let cmd = is_http_getter(subject)?;
     if is_http_path_command(&cmd) {
@@ -153,8 +148,7 @@ fn switch_subject_kind(subject: &str) -> Option<&'static str> {
     }
 }
 
-/// Convert a glob pattern like `/api/*` to an XC path match. Mirrors Python
-/// `_glob_to_prefix`.
+/// Convert a glob pattern like `/api/*` to an XC path match.
 fn glob_to_prefix(pattern: &str) -> XCPathMatch {
     let no_q = !pattern.contains('?');
     let star_only_at_end = pattern.ends_with('*') && !pattern[..pattern.len() - 1].contains('*');
@@ -175,9 +169,8 @@ fn glob_to_prefix(pattern: &str) -> XCPathMatch {
     }
 }
 
-/// Python `re.escape` (3.7+ semantics): escape only the ASCII special
-/// characters. Used so emitted regex values match the Python translator's
-/// byte-for-byte.
+/// Escape only the ASCII regex metacharacters (and ASCII whitespace),
+/// so emitted regex values are well-formed.
 fn re_escape(s: &str) -> String {
     const SPECIAL: &[char] = &[
         '(', ')', '[', ']', '{', '}', '?', '*', '+', '-', '|', '^', '$', '\\', '.', '&', '~', '#',
@@ -193,8 +186,7 @@ fn re_escape(s: &str) -> String {
     out
 }
 
-/// Convert a glob pattern to a regex string. Mirrors Python
-/// `_glob_to_regex`.
+/// Convert a glob pattern to a regex string.
 fn glob_to_regex(pattern: &str) -> String {
     let mut parts = String::from("^");
     for ch in pattern.chars() {
@@ -208,8 +200,7 @@ fn glob_to_regex(pattern: &str) -> String {
     parts
 }
 
-/// Extract raw text from an `ExprNode::Command` node (mirrors
-/// `_expr_command_text`).
+/// Extract raw text from an `ExprNode::Command` node.
 fn expr_command_text(node: &ExprNode) -> Option<&str> {
     match node {
         ExprNode::Command { text, .. } => Some(text),
@@ -217,8 +208,8 @@ fn expr_command_text(node: &ExprNode) -> Option<&str> {
     }
 }
 
-/// Strip surrounding double quotes from `text` (only `"…"`, matching the
-/// Python helpers, which leave braced strings untouched).
+/// Strip surrounding double quotes from `text` (only `"…"`; braced strings
+/// are left untouched).
 fn strip_dquotes(text: &str) -> &str {
     let bytes = text.as_bytes();
     if bytes.len() >= 2 && bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"' {
@@ -228,8 +219,8 @@ fn strip_dquotes(text: &str) -> &str {
     }
 }
 
-/// Extract the string value from a literal or string node. Mirrors
-/// `_expr_string_value` (handles `ExprString` and `ExprRaw`).
+/// Extract the string value from a literal or string node (handles
+/// `ExprString` and `ExprRaw`).
 fn expr_string_value(node: &ExprNode) -> Option<String> {
     match node {
         ExprNode::String { text, .. } => Some(strip_dquotes(text).to_owned()),
@@ -243,13 +234,13 @@ fn expr_string_value(node: &ExprNode) -> Option<String> {
 
 /// Normalise an `if` / loop condition to the iRules-parsed expression.
 ///
-/// The Rust lowering parses structured-command conditions dialect-agnostically
+/// The lowering parses structured-command conditions dialect-agnostically
 /// (`parse_expr(arg, None)`), so an iRules-specific operator
 /// (`starts_with` / `ends_with` / `contains` / `matches_glob`) leaves the
-/// whole condition as an [`ExprNode::Raw`]. The Python translator runs after
-/// `configure_signatures(dialect="f5-irules")`, so its conditions are parsed
-/// under the iRules grammar. Re-parse any `Raw` fallback under `f5-irules` to
-/// recover that structure; an already-structured node is returned untouched.
+/// whole condition as an [`ExprNode::Raw`]. Conditions must be parsed under
+/// the iRules grammar to recover their structure, so re-parse any `Raw`
+/// fallback under `f5-irules`; an already-structured node is returned
+/// untouched.
 fn normalize_condition(node: &ExprNode) -> Cow<'_, ExprNode> {
     match node {
         ExprNode::Raw { text } => Cow::Owned(parse_expr(text, Some("f5-irules"))),
@@ -257,8 +248,7 @@ fn normalize_condition(node: &ExprNode) -> Cow<'_, ExprNode> {
     }
 }
 
-/// Unwrap a `!` / `not` prefix, returning `(inner, is_negated)`. Mirrors
-/// `_unwrap_negation`.
+/// Unwrap a `!` / `not` prefix, returning `(inner, is_negated)`.
 fn unwrap_negation(node: &ExprNode) -> (&ExprNode, bool) {
     if let ExprNode::Unary { op, operand } = node
         && matches!(op, UnaryOp::Not | UnaryOp::WordNot)
@@ -268,7 +258,7 @@ fn unwrap_negation(node: &ExprNode) -> (&ExprNode, bool) {
     (node, false)
 }
 
-/// Flatten nested `&&` / `and` conditions. Mirrors `_decompose_and_condition`.
+/// Flatten nested `&&` / `and` conditions.
 fn decompose_and_condition<'a>(node: &'a ExprNode, out: &mut Vec<&'a ExprNode>) {
     if let ExprNode::Binary { op, left, right } = node {
         if matches!(op, BinOp::And | BinOp::WordAnd) {
@@ -280,7 +270,7 @@ fn decompose_and_condition<'a>(node: &'a ExprNode, out: &mut Vec<&'a ExprNode>) 
     out.push(node);
 }
 
-/// Flatten nested `||` / `or` conditions. Mirrors `_decompose_or_condition`.
+/// Flatten nested `||` / `or` conditions.
 fn decompose_or_condition<'a>(node: &'a ExprNode, out: &mut Vec<&'a ExprNode>) {
     if let ExprNode::Binary { op, left, right } = node {
         if matches!(op, BinOp::Or | BinOp::WordOr) {
@@ -292,11 +282,11 @@ fn decompose_or_condition<'a>(node: &'a ExprNode, out: &mut Vec<&'a ExprNode>) {
     out.push(node);
 }
 
-// ── Condition extraction helpers ─────────────────────────────────────────
+// Condition extraction helpers
 
 /// Helper: pull `(command_text, string_value)` out of a binary node where
 /// either operand may be the command/string (the `left or right` pattern
-/// the Python helpers use for symmetric equality).
+/// for symmetric equality).
 fn binary_cmd_and_str<'a>(
     left: &'a ExprNode,
     right: &'a ExprNode,
@@ -417,7 +407,7 @@ fn condition_to_host_match(node: &ExprNode) -> Option<XCHostMatch> {
 }
 
 /// Parse `[HTTP::header value "name"]` or `[HTTP::header "name"]` → header
-/// name. Mirrors `_parse_header_getter`.
+/// name.
 fn parse_header_getter(node: &ExprNode) -> Option<String> {
     let ExprNode::Command { text, .. } = node else {
         return None;
@@ -438,8 +428,7 @@ fn parse_header_getter(node: &ExprNode) -> Option<String> {
     None
 }
 
-/// Parse `[HTTP::header exists "name"]` → header name. Mirrors
-/// `_parse_header_exists`.
+/// Parse `[HTTP::header exists "name"]` → header name.
 fn parse_header_exists(text: &str) -> Option<String> {
     let parts = parse_command_parts(text);
     if parts.len() >= 3 && parts[0] == "HTTP::header" && parts[1] == "exists" {
@@ -526,7 +515,7 @@ fn condition_to_header_match(node: &ExprNode) -> Option<XCHeaderMatch> {
 }
 
 /// Parse `[HTTP::cookie "name"]` / `[HTTP::cookie value "name"]` → cookie
-/// name. Mirrors `_parse_cookie_getter`.
+/// name.
 fn parse_cookie_getter(node: &ExprNode) -> Option<String> {
     let ExprNode::Command { text, .. } = node else {
         return None;
@@ -704,7 +693,7 @@ fn condition_to_class_match_method(node: &ExprNode) -> Option<XCMethodMatch> {
 }
 
 /// Extract all recognisable match criteria from a list of AND
-/// sub-conditions. Mirrors `_extract_all_matches`.
+/// sub-conditions.
 fn extract_all_matches(subconditions: &[&ExprNode]) -> EnclosingContext {
     let mut path: Option<XCPathMatch> = None;
     let mut host: Option<XCHostMatch> = None;
@@ -778,7 +767,6 @@ fn extract_all_matches(subconditions: &[&ExprNode]) -> EnclosingContext {
 }
 
 /// Merge child matches into parent — child wins on non-None fields.
-/// Mirrors `_merge_enclosing`.
 fn merge_enclosing(parent: &EnclosingContext, child: &EnclosingContext) -> EnclosingContext {
     EnclosingContext {
         path: child.path.clone().or_else(|| parent.path.clone()),
@@ -821,10 +809,9 @@ fn enclosing_has_matches(enc: &EnclosingContext) -> bool {
         || !enc.ip_prefix_list.is_empty()
 }
 
-// ── Translation state ────────────────────────────────────────────────────
+// Translation state
 
-/// Mutable accumulator for translation results. Mirrors Python
-/// `_TranslationContext`.
+/// Mutable accumulator for translation results.
 struct TranslationContext {
     routes: Vec<XCRoute>,
     policy_rules: Vec<XCServicePolicyRule>,
@@ -880,7 +867,7 @@ impl TranslationContext {
     }
 }
 
-// ── IR walking ───────────────────────────────────────────────────────────
+// IR walking
 
 fn walk_script(
     script: &Script,
@@ -1027,8 +1014,7 @@ fn walk_statement(
             walk_script(body, ctx, registry, depth + 1, &EnclosingContext::default());
         }
         // Assignments and other statements (Incr, ExprEval, Block, UpFrame)
-        // carry no XC construct — ignore, matching the Python translator
-        // which has no match arm for them.
+        // carry no XC construct — ignore.
         _ => {}
     }
 }
@@ -1169,10 +1155,9 @@ fn translated_route_item(
     }
 }
 
-/// Parse a base-10 integer the way Python's `int()` does for these args:
+/// Parse a base-10 integer the way `int()` does for these args:
 /// trim surrounding whitespace, accept an optional sign. Returns `None` on
-/// failure (the caller keeps its default), matching the Python
-/// `try/except (ValueError, IndexError)`.
+/// failure, in which case the caller keeps its default.
 fn py_int(arg: Option<&String>) -> Option<i64> {
     arg.and_then(|s| s.trim().parse::<i64>().ok())
 }
@@ -1402,7 +1387,7 @@ fn walk_call(
     }
 }
 
-// ── Public API ───────────────────────────────────────────────────────────
+// Public API
 
 /// Build a [`CommandRegistry`] with the iRules dialect loaded, suitable for
 /// lowering and translating an iRule.
@@ -1415,7 +1400,6 @@ fn irules_registry() -> CommandRegistry {
 /// Translate an iRule to F5 XC configuration. Analyses the iRule source,
 /// walks the IR, and returns an [`XCTranslationResult`] with routes,
 /// service policies, origin pools, header actions, and a coverage report.
-/// Mirrors Python `translate_irule`.
 #[must_use]
 pub fn translate_irule(source: &str) -> XCTranslationResult {
     let registry = irules_registry();
@@ -1431,9 +1415,7 @@ pub fn translate_irule_with_registry(
 ) -> XCTranslationResult {
     // Lower under the iRules dialect so the iRules expr operators
     // (`starts_with` / `ends_with` / `contains` / `matches_glob` / …) parse
-    // as the corresponding `BinOp`s rather than falling back to `Raw`
-    // (mirroring the Python translator, which runs after
-    // `configure_signatures(dialect="f5-irules")`).
+    // as the corresponding `BinOp`s rather than falling back to `Raw`.
     let config = tcl_lexer::LexerConfig::for_dialect("f5-irules");
     let module: Module = lower_to_ir_with_config(source, registry, config);
 
@@ -1441,9 +1423,8 @@ pub fn translate_irule_with_registry(
 
     // Walk each event handler (procedures keyed `::when::EVENT`), in a
     // deterministic order (BTreeMap-sorted qualified name) so the item order
-    // is stable. Python iterates a dict in insertion order; the resulting
-    // item set is order-independent for diagnostics, and the parity harness
-    // compares as a multiset.
+    // is stable. The resulting item set is order-independent for
+    // diagnostics, and the parity harness compares as a multiset.
     let mut event_procs: Vec<(&String, &tcl_compiler::ir::Procedure)> = module
         .procedures
         .iter()
@@ -1568,8 +1549,7 @@ pub fn translate_irule_with_registry(
     }
 }
 
-/// Round to one decimal place using round-half-to-even (banker's rounding),
-/// matching Python's `round(x, 1)`.
+/// Round to one decimal place using round-half-to-even (banker's rounding).
 fn round_1dp(x: f64) -> f64 {
     let scaled = x * 10.0;
     let rounded = scaled.round_ties_even();

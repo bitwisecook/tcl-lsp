@@ -1,14 +1,8 @@
 //! Result and record types for the analyser.
 //!
-//! Mirrors the subset of ``core/analysis/semantic_model.py`` that
-//! the analyser actually populates. Per-strip plan: this module
-//! starts with the structural shells the rest of C41a needs;
-//! later strips fill in the variant fields as their owning handlers
-//! land.
-//!
-//! Field naming follows the Python source 1:1 — UK-spelt
-//! identifiers stay UK-spelt, ``snake_case`` Python field names
-//! stay ``snake_case`` in Rust.
+//! These are the subset of the semantic model that the analyser
+//! actually populates. Each handler fills in the variant fields of
+//! the records it owns as it walks.
 
 use std::collections::{HashMap, HashSet};
 
@@ -19,46 +13,12 @@ use crate::signature_scan::types::{
     SignaturePackageRequire, SignatureSource,
 };
 
-/// Severity of a diagnostic.
-///
-/// Mirrors ``Severity`` in
-/// ``core/analysis/semantic_model.py``; the Rust
-/// ``compiler_checks::Severity`` is a similar enum but lives at the
-/// compiler-checks layer (taint / GVN / shimmer) rather than the
-/// analyser layer. Kept separate to avoid coupling the two.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Severity {
-    /// Hint — non-actionable suggestion.
-    Hint,
-    /// Suggestion — minor improvement opportunity.
-    Suggestion,
-    /// Warning — likely-incorrect code that still compiles.
-    Warning,
-    /// Error — definitely-incorrect code.
-    Error,
-}
+pub use tcl_core_types::DiagCode;
+/// Severity of a diagnostic — the shared [`tcl_core_types::Severity`] so the
+/// analyser, compiler-checks, and LSP/CLI layers speak one type.
+pub use tcl_core_types::Severity;
 
-impl Severity {
-    /// Stable lower-case wire form (`"hint"`, `"suggestion"`,
-    /// `"warning"`, `"error"`). Same vocabulary as the
-    /// `compiler_checks::Severity` wire form — both LSP layers
-    /// consume the same strings.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Hint => "hint",
-            Self::Suggestion => "suggestion",
-            Self::Warning => "warning",
-            Self::Error => "error",
-        }
-    }
-}
-
-/// Lexical scope kind.
-///
-/// Mirrors the ``Scope.kind`` string in
-/// ``core/analysis/semantic_model.py`` — the three scope kinds the
-/// analyser ever creates.
+/// Lexical scope kind — the scope kinds the analyser ever creates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ScopeKind {
     /// The top-level ``::`` global scope.
@@ -81,8 +41,7 @@ pub enum ScopeKind {
 
 impl ScopeKind {
     /// Stable lower-case wire form (`"global"`, `"namespace"`,
-    /// `"proc"`). Same vocabulary as the Python `Scope.kind`
-    /// string.
+    /// `"proc"`).
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -99,9 +58,9 @@ impl ScopeKind {
 ///
 /// Re-exported from [`crate::irules_checks`] (the canonical, lower-level
 /// definition shared with the iRules-flow / compiler-checks layer) so the
-/// analyser and those passes speak one `CodeFix` type.  Mirrors ``CodeFix`` in
-/// ``core/analysis/semantic_model.py``.  Populated by emitters that know
-/// exactly *what* the user should change (E101 inserts a missing ``{``, E103
+/// analyser and those passes speak one `CodeFix` type.  Populated by
+/// emitters that know exactly *what* the user should change (E101
+/// inserts a missing ``{``, E103
 /// inserts a missing ``}``, W123 may suggest a similarly-named command, etc.).
 pub use crate::irules_checks::CodeFix;
 
@@ -113,7 +72,7 @@ pub use crate::irules_checks::CodeFix;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     /// Stable W-/IRULE-coded identifier.
-    pub code: String,
+    pub code: DiagCode,
     /// Source span the diagnostic anchors to.
     pub span: Span,
     /// One-line user-facing message.
@@ -127,7 +86,6 @@ pub struct Diagnostic {
 
 /// Variable definition record.
 ///
-/// Mirrors ``VarDef`` in ``core/analysis/semantic_model.py``.
 /// Populated by [`Analyser`](super::Analyser) every time it
 /// processes a ``set`` / ``variable`` / ``upvar`` / loop binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,17 +101,14 @@ pub struct VarDef {
     pub warn_if_unused: bool,
     /// Array element indices observed for this variable (`set arr(name) …`
     /// / `$arr(name)`).  Used by completion to offer `$arr(name)`.
-    /// Mirrors Python `VarDef.array_indices`.
     pub array_indices: std::collections::BTreeSet<String>,
 }
 
 /// How a proc parameter is used inside the proc body.
 ///
-/// Mirrors ``ProcArgTrait`` in
-/// ``core/analysis/semantic_model.py``.  Drives optimisation,
-/// shimmer analysis, taint propagation, and diagnostics — tells
-/// downstream passes how a parameter value flows through the
-/// proc.
+/// Drives optimisation, shimmer analysis, taint propagation, and
+/// diagnostics — tells downstream passes how a parameter value
+/// flows through the proc.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ProcArgTrait {
     /// Argument is eval'd as a script (``eval`` / ``uplevel`` /
@@ -175,8 +130,6 @@ pub enum ProcArgTrait {
 
 impl ProcArgTrait {
     /// Stable lower-case name suitable for serialisation.
-    /// Mirrors the Python enum's ``.name`` (uppercase) for the
-    /// API but lowercases for nicer dict keys.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
@@ -192,9 +145,8 @@ impl ProcArgTrait {
 
 /// Proc definition record.
 ///
-/// Mirrors ``ProcDef`` in ``core/analysis/semantic_model.py``.
-/// Reuses the [`ParamDef`] type the signature scanner already
-/// landed in C40a2 — same param shape, same parser.
+/// Reuses the [`ParamDef`] type the signature scanner uses — same
+/// param shape, same parser.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcDef {
     /// Proc name as written (no namespace qualifiers).
@@ -219,10 +171,8 @@ pub struct ProcDef {
 
 /// Method definition inside a `TclOO` class.
 ///
-/// Mirrors ``MethodDef`` in ``core/analysis/semantic_model.py``.
-/// Populated by **C41e1** when the class-body walker lands; the
-/// shape lives here from **C41e0** so the class-hierarchy /
-/// MRO algorithms have a stable target.
+/// Populated by the class-body walker; the shape is shared so the
+/// class-hierarchy / MRO algorithms have a stable target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MethodDef {
     /// Method name as written.
@@ -246,7 +196,6 @@ pub struct MethodDef {
 
 /// `TclOO` property definition.
 ///
-/// Mirrors ``PropertyDef`` in ``core/analysis/semantic_model.py``.
 /// Recorded by the OO body walker for ``property`` subcommands
 /// inside an ``oo::class create`` / ``oo::define`` block.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -257,7 +206,7 @@ pub struct PropertyDef {
     pub name_span: Span,
     /// Property kind: ``"readable"`` / ``"writable"`` /
     /// ``"readwrite"``.  Defaults to ``"readwrite"`` when ``-kind``
-    /// is omitted (matches Python).
+    /// is omitted.
     pub kind: String,
     /// True when ``-get BODY`` was supplied.
     pub has_getter: bool,
@@ -267,16 +216,12 @@ pub struct PropertyDef {
 
 /// Class definition record.
 ///
-/// Mirrors ``ClassDef`` in ``core/analysis/semantic_model.py``.
-/// **C41e0** lands the structural fields (`superclasses`,
-/// `mixins`, `methods`, `class_methods`) needed by the
-/// class-hierarchy / MRO algorithms; **C41e1** wires the body
-/// walker that populates them.  **C41e3** extends the record
-/// with the remaining Python fields (``metaclass``, ``properties``,
-/// ``variables``, ``filters``, ``exports``, ``unexports``,
-/// ``constructors``, ``destructor``, ``doc``) so the
-/// ``_materialise_rust_analysis`` helper can populate the full
-/// dataclass shape.
+/// The structural fields (`superclasses`, `mixins`, `methods`,
+/// `class_methods`) feed the class-hierarchy / MRO algorithms; the
+/// body walker populates them.  The remaining fields (``metaclass``,
+/// ``properties``, ``variables``, ``filters``, ``exports``,
+/// ``unexports``, ``constructors``, ``destructor``, ``doc``) carry
+/// the full record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassDef {
     /// Class name as written.
@@ -289,7 +234,7 @@ pub struct ClassDef {
     pub body_span: Span,
     /// Metaclass — one of ``"oo::class"`` / ``"oo::configurable"``
     /// / ``"oo::abstract"`` / ``"oo::singleton"``.  Defaults to
-    /// ``"oo::class"`` (matches Python's dataclass default).
+    /// ``"oo::class"``.
     pub metaclass: String,
     /// Direct superclasses in declaration order.  Each entry
     /// is a fully-qualified class name with leading ``::``.
@@ -331,7 +276,7 @@ impl Default for ClassDef {
     ///
     /// All names default to empty strings, both spans default to
     /// ``Span::new(0, 0)``, and the metaclass defaults to
-    /// ``"oo::class"`` to mirror the Python dataclass default.
+    /// ``"oo::class"``.
     /// Used by handlers that build a class record incrementally
     /// (most common shape — only `name` / `qualified_name` /
     /// `name_span` / `body_span` need explicit values).
@@ -363,7 +308,6 @@ impl Default for ClassDef {
 
 /// A lexical scope (global, namespace, or proc body).
 ///
-/// Mirrors ``Scope`` in ``core/analysis/semantic_model.py``.
 /// The analyser builds a tree of these as it walks; the root is
 /// ``AnalysisResult.global_scope``.
 ///
@@ -371,9 +315,8 @@ impl Default for ClassDef {
 /// a strict ownership graph.  The parent link is implicit, held
 /// by the analyser's traversal stack
 /// (``Analyser::current_scope_path``) rather than embedded as a
-/// back-pointer the way Python's ``Scope.parent`` is.  Snapshot /
-/// restore (**C41a3**) only needs to copy the result tree, not
-/// rewrite back-pointers.
+/// back-pointer.  Snapshot / restore only needs to copy the result
+/// tree, not rewrite back-pointers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Scope {
     /// Scope kind (global, namespace, proc).
@@ -417,10 +360,8 @@ impl Scope {
 
 /// Analysis result from a user-defined ``unknown`` proc.
 ///
-/// Mirrors ``UnknownProcInfo`` in
-/// ``core/analysis/semantic_model.py``.  Populated by **C41e3**
-/// when the analyser encounters ``proc unknown {cmd args} {
-/// ... }``: the body is lowered to IR and inspected for
+/// Populated when the analyser encounters ``proc unknown {cmd args}
+/// { ... }``: the body is lowered to IR and inspected for
 /// dispatch shapes (switch arms, ``exec``, ``auto_load``,
 /// chains to a saved ``_original_unknown``, case-folding
 /// dispatch).  The result gates the W123 (unresolved command)
@@ -431,10 +372,7 @@ impl Scope {
 // `has_pattern_dispatch` / `has_exec` / `has_auto_load` are
 // orthogonal facts detected about the body of an ``unknown``
 // proc, each consumed independently by the W123 suppression
-// logic. The type also crosses the PyO3 serialisation boundary
-// (the materialiser unpacks each bool by name), so a bitflags
-// migration needs to rewrite the Python-side reader in lockstep
-// — deferred to its own chunk.
+// logic, so they stay as separate bools rather than a bitflags set.
 #[allow(clippy::struct_excessive_bools)]
 pub struct UnknownProcInfo {
     /// Command names explicitly dispatched (e.g. switch arm
@@ -459,12 +397,10 @@ pub struct UnknownProcInfo {
 
 /// Complete analysis result for a single document.
 ///
-/// Mirrors ``AnalysisResult`` in
-/// ``core/analysis/semantic_model.py``, restricted to the field
-/// set the Rust analyser populates. Fields not yet emitted by any
-/// strip default to empty / `None` — they're carried in the shape
-/// so the `PyO3` binding (**C41f3**) can serialise the full result
-/// dict from day one without follow-up plumbing.
+/// Holds the full field set the analyser can produce. Fields that
+/// no emitter populates default to empty / `None` — they're carried
+/// in the shape so the `PyO3` binding can serialise the complete
+/// result dict.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct AnalysisResult {
     /// Root scope tree (`::`).
@@ -554,8 +490,7 @@ pub struct AutoPathEntry {
 }
 
 /// One parameter declared inside a ``# tcl-lsp: stub NAME {ARGS}``
-/// brace block.  Mirrors Python's ``StubArgDef`` in
-/// ``core/analysis/semantic_model.py``.
+/// brace block.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StubArgDef {
     /// Argument name as written.  Optional markers (``?…?``) are
@@ -571,11 +506,10 @@ pub struct StubArgDef {
 }
 
 bitflags::bitflags! {
-    /// Trailing ``?-flag…?`` flags on a ``# tcl-lsp: stub`` line.
-    /// Mirrors the ``barrier`` / ``loop`` / ``pure`` / ``mutator``
-    /// / ``unsafe`` / ``scope_alias`` boolean fields on Python's
-    /// ``StubCommandDef`` dataclass — packed into a single byte
-    /// here because they're an enum-set of orthogonal flags.
+    /// Trailing ``?-flag…?`` flags on a ``# tcl-lsp: stub`` line:
+    /// ``barrier`` / ``loop`` / ``pure`` / ``mutator`` / ``unsafe``
+    /// / ``scope_alias``, packed into a single byte because they're
+    /// an enum-set of orthogonal flags.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
     pub struct StubFlags: u8 {
         /// ``-barrier`` — command creates a dynamic barrier.
@@ -723,9 +657,8 @@ mod tests {
 
     #[test]
     fn class_def_default_has_oo_class_metaclass() {
-        // Mirrors the Python dataclass default — ``metaclass``
-        // is the only non-trivial default the rest of the
-        // analyser depends on.
+        // ``metaclass`` is the only non-trivial default the rest of
+        // the analyser depends on.
         let c = ClassDef::default();
         assert_eq!(c.metaclass, "oo::class");
         assert!(c.constructors.is_empty());

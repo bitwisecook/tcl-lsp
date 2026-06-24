@@ -1,13 +1,13 @@
 //! Data-driven view models for the explorer TUI.
 //!
-//! Faithful port of `tooling/explorer/tui_views.py`: every analysis view is
+//! Every analysis view is
 //! an interactive tree of [`ViewNode`]s built from the *same* serialised
 //! result the GUI consumes ([`crate::serialise::serialise_result`]). Each
 //! node has a one-line `label`, a `detail` table revealed when highlighted,
 //! and optional `children`. Keeping these builders next to the one
 //! serialisation means the GUI and TUI show the same fields.
 //!
-//! `asm` / `wasm` deliberately stay on the (future) text renderer — they
+//! `asm` / `wasm` deliberately stay on the text renderer — they
 //! are specialised disassembly, navigated rather than expanded.
 
 use serde_json::Value;
@@ -15,7 +15,7 @@ use serde_json::Value;
 /// One expandable row: a summary `label`, a `detail` table, and children.
 ///
 /// `Serialize` is for the differential parity harness (compared against
-/// Python's `ViewNode`), not part of the explorer JSON contract.
+/// `ViewNode`), not part of the explorer JSON contract.
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize)]
 pub struct ViewNode {
     /// One-line summary shown in the tree.
@@ -24,7 +24,7 @@ pub struct ViewNode {
     pub detail: Vec<(String, String)>,
     /// Nested rows.
     pub children: Vec<ViewNode>,
-    /// Optional style hint (a colour name), mirroring the Python builders.
+    /// Optional style hint (a colour name).
     pub style: Option<String>,
 }
 
@@ -73,12 +73,12 @@ fn jstr(v: &Value) -> String {
     }
 }
 
-/// Render a JSON scalar the way Python's `str()` would inside an f-string.
+/// Render a JSON scalar as a display string for label interpolation.
 ///
-/// The only divergence from [`jstr`] is booleans: Python emits `True`/`False`
-/// (capitalised) where Rust's `bool` `Display` emits `true`/`false`. The
-/// explorer's SSA-view const-branch label interpolates a JSON bool through a
-/// Python f-string, so the port must capitalise to stay byte-identical.
+/// The only divergence from [`jstr`] is booleans: they render as
+/// `True`/`False` (capitalised) where Rust's `bool` `Display` emits
+/// `true`/`false`. The explorer's SSA-view const-branch label interpolates a
+/// JSON bool, so it is capitalised here to stay byte-identical.
 fn pystr(v: &Value) -> String {
     match v {
         Value::Bool(true) => "True".to_owned(),
@@ -105,7 +105,7 @@ fn yn(v: &Value) -> &'static str {
     }
 }
 
-/// An interval endpoint: `null` is ±infinity. Mirrors `_fmt_bound`.
+/// An interval endpoint: `null` is ±infinity.
 fn fmt_bound(v: &Value, positive: bool) -> String {
     if v.is_null() {
         if positive { "+inf" } else { "-inf" }.to_owned()
@@ -114,7 +114,7 @@ fn fmt_bound(v: &Value, positive: bool) -> String {
     }
 }
 
-/// A range dict → `line:col  (start…end)`. Mirrors `_rng`.
+/// A range dict → `line:col  (start…end)`.
 fn rng(r: &Value) -> String {
     if !r.is_object() {
         return "?".to_owned();
@@ -126,7 +126,7 @@ fn rng(r: &Value) -> String {
     format!("{line}:{col}  ({so}…{eo})")
 }
 
-/// Proc summary flags. Mirrors `_flags`.
+/// Proc summary flags.
 fn flags(p: &Value) -> String {
     let mut f = Vec::new();
     if p["hasBarrier"].as_bool().unwrap_or(false) {
@@ -145,7 +145,7 @@ fn flags(p: &Value) -> String {
     }
 }
 
-/// `{name#ver=lattice:type, …}` for a uses/defs map. Mirrors `_fmt_usedef`.
+/// `{name#ver=lattice:type, …}` for a uses/defs map.
 fn fmt_usedef(m: &Value) -> String {
     let Some(obj) = m.as_object() else {
         return "{}".to_owned();
@@ -1141,12 +1141,12 @@ pub const TREE_VIEWS: &[&str] = &[
     "shimmer",
     "taint",
     "irules",
-    "event-order",
+    "eventOrder",
     "callouts",
 ];
 
-/// Build the [`ViewNode`] forest for `view` from serialised `data`. Mirrors
-/// `build_view`; an unknown view id yields an empty forest.
+/// Build the [`ViewNode`] forest for `view` from serialised `data`.
+/// An unknown view id yields an empty forest.
 #[must_use]
 pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
     match view {
@@ -1168,7 +1168,7 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
         "shimmer" => build_shimmer(data),
         "taint" => build_taint(data),
         "irules" => build_irules(data),
-        "event-order" => build_event_order(data),
+        "eventOrder" => build_event_order(data),
         "callouts" => build_callouts(data),
         _ => Vec::new(),
     }
@@ -1181,6 +1181,24 @@ mod tests {
 
     fn data(src: &str) -> Value {
         serialise_result(&run_pipeline(src, "tcl8.6"))
+    }
+
+    #[test]
+    fn tree_views_are_a_subset_of_view_meta() {
+        // The TUI's `TREE_VIEWS` ids and the canonical `VIEW_META` registry
+        // are two hand-synced vocabularies; an id present in one but spelled
+        // differently in the other (e.g. `event-order` vs `eventOrder`) would
+        // silently break the TUI's label/data lookup. Pin the contract.
+        let meta_ids: std::collections::HashSet<&str> = crate::views::VIEW_META
+            .iter()
+            .map(|(id, _, _)| *id)
+            .collect();
+        for id in TREE_VIEWS {
+            assert!(
+                meta_ids.contains(id),
+                "TREE_VIEWS id {id:?} is not a known VIEW_META id",
+            );
+        }
     }
 
     #[test]

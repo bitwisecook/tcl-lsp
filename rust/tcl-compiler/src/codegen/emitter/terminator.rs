@@ -22,16 +22,17 @@ impl CodegenCtx<'_> {
     /// `next_block` is the block name that will be emitted immediately
     /// after this block (for fallthrough elision), or `None` if this is
     /// the last block in layout order.
-    pub fn emit_term(&mut self, term: &Terminator, next_block: Option<&str>) {
+    pub fn emit_term(&mut self, cfg: &CfgFunction, term: &Terminator, next_block: Option<&str>) {
         // Carry the terminator's source span (jump condition / return
         // value) onto the instructions it lowers to, when one exists.
         self.current_span = term.span();
         match term {
             Terminator::Goto { target, .. } => {
-                if Some(target.as_str()) != next_block {
+                let target = cfg.block_name(*target);
+                if Some(target) != next_block {
                     self.emit_comment(
                         Op::JUMP4,
-                        vec![Operand::Label(target.clone())],
+                        vec![Operand::Label(target.to_owned())],
                         &format!("-> {target}"),
                     );
                 }
@@ -42,6 +43,8 @@ impl CodegenCtx<'_> {
                 false_target,
                 ..
             } => {
+                let true_target = cfg.block_name(*true_target);
+                let false_target = cfg.block_name(*false_target);
                 self.emit_branch(condition, true_target, false_target, next_block);
             }
             Terminator::Return { value, expr, .. } => {
@@ -293,13 +296,13 @@ impl CodegenCtx<'_> {
                 _ => {}
             }
 
-            cases.push((pattern.clone(), true_target.clone()));
+            cases.push((pattern.clone(), cfg.block_name(*true_target).to_owned()));
 
             // Follow false_target to next dispatch block.
             let Some(next_blk) = cfg.blocks.get(false_target) else {
                 break;
             };
-            dispatch_blocks.push(false_target.clone());
+            dispatch_blocks.push(cfg.block_name(*false_target).to_owned());
             // Dispatch blocks should have no statements.
             if !next_blk.statements.is_empty() {
                 break;
@@ -316,7 +319,7 @@ impl CodegenCtx<'_> {
 
         // The final dispatch block should have a Goto to the default.
         let default_target = match &current_term {
-            Some(Terminator::Goto { target, .. }) => target.clone(),
+            Some(Terminator::Goto { target, .. }) => cfg.block_name(*target).to_owned(),
             _ => return false,
         };
 
@@ -362,15 +365,32 @@ mod tests {
         }
     }
 
+    /// A CFG whose interner maps `names` (in order) to ids, so terminator
+    /// targets can reference them. The first name is the entry.
+    fn cfg_with_blocks(names: &[&str]) -> CfgFunction {
+        use crate::cfg::Block;
+        let mut cfg = CfgFunction::new("::top", names[0]);
+        for name in &names[1..] {
+            let id = cfg.intern_block(*name);
+            cfg.blocks.insert(id, Block::new(*name));
+        }
+        cfg
+    }
+
+    fn tgt(cfg: &CfgFunction, name: &str) -> crate::cfg::BlockId {
+        cfg.block_id(name).expect("interned")
+    }
+
     #[test]
     fn emit_goto_with_fallthrough() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let cfg = cfg_with_blocks(&["entry", "next_0"]);
         let term = Terminator::Goto {
-            target: "next_0".into(),
+            target: tgt(&cfg, "next_0"),
             span: None,
         };
-        ctx.emit_term(&term, Some("next_0"));
+        ctx.emit_term(&cfg, &term, Some("next_0"));
         // No jump emitted on fallthrough
         assert!(ctx.instructions.is_empty());
     }
@@ -379,11 +399,12 @@ mod tests {
     fn emit_goto_without_fallthrough() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let cfg = cfg_with_blocks(&["entry", "far_0"]);
         let term = Terminator::Goto {
-            target: "far_0".into(),
+            target: tgt(&cfg, "far_0"),
             span: None,
         };
-        ctx.emit_term(&term, Some("other_0"));
+        ctx.emit_term(&cfg, &term, Some("other_0"));
         assert_eq!(ctx.instructions.len(), 1);
         assert_eq!(ctx.instructions[0].op, Op::JUMP4);
     }
@@ -392,13 +413,14 @@ mod tests {
     fn emit_branch_const_true() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let cfg = cfg_with_blocks(&["entry", "tt", "ft"]);
         let term = Terminator::Branch {
             condition: lit("1"),
-            true_target: "tt".into(),
-            false_target: "ft".into(),
+            true_target: tgt(&cfg, "tt"),
+            false_target: tgt(&cfg, "ft"),
             span: None,
         };
-        ctx.emit_term(&term, Some("other"));
+        ctx.emit_term(&cfg, &term, Some("other"));
         assert_eq!(ctx.instructions[0].op, Op::JUMP4);
         // Jump target should be true branch
         assert!(matches!(
@@ -411,13 +433,14 @@ mod tests {
     fn emit_branch_const_false() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let cfg = cfg_with_blocks(&["entry", "tt", "ft"]);
         let term = Terminator::Branch {
             condition: lit("0"),
-            true_target: "tt".into(),
-            false_target: "ft".into(),
+            true_target: tgt(&cfg, "tt"),
+            false_target: tgt(&cfg, "ft"),
             span: None,
         };
-        ctx.emit_term(&term, Some("other"));
+        ctx.emit_term(&cfg, &term, Some("other"));
         assert_eq!(ctx.instructions[0].op, Op::JUMP4);
         assert!(matches!(
             &ctx.instructions[0].operands[0],
@@ -429,6 +452,7 @@ mod tests {
     fn emit_branch_runtime() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let cfg = cfg_with_blocks(&["entry", "tt", "ft"]);
         let cond = ExprNode::Var {
             text: "$x".into(),
             name: "x".into(),
@@ -437,11 +461,11 @@ mod tests {
         };
         let term = Terminator::Branch {
             condition: cond,
-            true_target: "tt".into(),
-            false_target: "ft".into(),
+            true_target: tgt(&cfg, "tt"),
+            false_target: tgt(&cfg, "ft"),
             span: None,
         };
-        ctx.emit_term(&term, Some("tt")); // true is fallthrough
+        ctx.emit_term(&cfg, &term, Some("tt")); // true is fallthrough
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::JUMP_FALSE4));
     }
@@ -450,13 +474,14 @@ mod tests {
     fn emit_return_proc_emits_done() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let cfg = cfg_with_blocks(&["entry"]);
         let term = Terminator::Return {
             value: Some("hello".into()),
             span: None,
             expr: None,
             braced: false,
         };
-        ctx.emit_term(&term, None);
+        ctx.emit_term(&cfg, &term, None);
         assert_eq!(ctx.instructions.last().map(|i| i.op), Some(Op::DONE));
     }
 
@@ -464,13 +489,14 @@ mod tests {
     fn emit_return_toplevel_emits_return_imm() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let cfg = cfg_with_blocks(&["entry"]);
         let term = Terminator::Return {
             value: None,
             span: None,
             expr: None,
             braced: false,
         };
-        ctx.emit_term(&term, None);
+        ctx.emit_term(&cfg, &term, None);
         assert_eq!(ctx.instructions.last().map(|i| i.op), Some(Op::RETURN_IMM));
     }
 
@@ -487,14 +513,14 @@ mod tests {
 
     #[test]
     fn jump_table_emitted_for_str_eq_chain() {
-        use crate::cfg::{Block, Function as CfgFunction};
+        use crate::cfg::{Block, BlockId, Function as CfgFunction};
         use crate::expr_ast::{BinOp, ExprNode};
 
         fn str_eq_branch(
             subj_name: &str,
             pattern: &str,
-            true_tgt: &str,
-            false_tgt: &str,
+            true_tgt: BlockId,
+            false_tgt: BlockId,
         ) -> Terminator {
             Terminator::Branch {
                 condition: ExprNode::Binary {
@@ -511,8 +537,8 @@ mod tests {
                         end: pattern.len() as u32,
                     }),
                 },
-                true_target: true_tgt.into(),
-                false_target: false_tgt.into(),
+                true_target: true_tgt,
+                false_target: false_tgt,
                 span: None,
             }
         }
@@ -520,17 +546,18 @@ mod tests {
         // Chain: d1 ("a" → arm_a) → d2 ("b" → arm_b) → d3 (goto default).
         // d3 is an intermediate dispatch block with a bare Goto.
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.insert("d1".into(), Block::new("d1"));
-        cfg.blocks.insert("d2".into(), Block::new("d2"));
-        cfg.blocks.insert("d3".into(), Block::new("d3"));
-        cfg.blocks.insert("arm_a".into(), Block::new("arm_a"));
-        cfg.blocks.insert("arm_b".into(), Block::new("arm_b"));
-        cfg.blocks.insert("default".into(), Block::new("default"));
+        for name in ["d1", "d2", "d3", "arm_a", "arm_b", "default"] {
+            let id = cfg.intern_block(name);
+            cfg.blocks.insert(id, Block::new(name));
+        }
+        let id = |c: &CfgFunction, n: &str| c.block_id(n).unwrap();
+        let (d1, d2, d3) = (id(&cfg, "d1"), id(&cfg, "d2"), id(&cfg, "d3"));
+        let (arm_a, arm_b, default) = (id(&cfg, "arm_a"), id(&cfg, "arm_b"), id(&cfg, "default"));
 
-        cfg.blocks.get_mut("d1").unwrap().terminator = Some(str_eq_branch("x", "a", "arm_a", "d2"));
-        cfg.blocks.get_mut("d2").unwrap().terminator = Some(str_eq_branch("x", "b", "arm_b", "d3"));
-        cfg.blocks.get_mut("d3").unwrap().terminator = Some(Terminator::Goto {
-            target: "default".into(),
+        cfg.blocks.get_mut(&d1).unwrap().terminator = Some(str_eq_branch("x", "a", arm_a, d2));
+        cfg.blocks.get_mut(&d2).unwrap().terminator = Some(str_eq_branch("x", "b", arm_b, d3));
+        cfg.blocks.get_mut(&d3).unwrap().terminator = Some(Terminator::Goto {
+            target: default,
             span: None,
         });
 
@@ -538,7 +565,7 @@ mod tests {
 
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let mut skip = std::collections::HashSet::new();
-        let d1_blk = cfg.blocks["d1"].clone();
+        let d1_blk = cfg.blocks[&d1].clone();
         let emitted = ctx.try_emit_jump_table(&cfg, &d1_blk, Some("default"), &mut skip);
         assert!(emitted, "expected jump table emission");
         assert!(skip.contains("d2"), "expected d2 to be skipped");

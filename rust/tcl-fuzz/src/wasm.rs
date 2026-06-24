@@ -2,21 +2,21 @@
 //! module and run it under `wasmtime`, flagging codegen panics / errors and
 //! modules that fail to instantiate or trap.
 //!
-//! This is the **tractable slice** of the planned WASM/Zig third differential
-//! arm. The eval-fallback emitter boxes every leaf command as a `call` to an
-//! imported `tcl_eval`; with the real interpreter-backed host still unbuilt
-//! (RT-WASM), the module cannot *evaluate* Tcl, so a *value* differential
-//! against `tclsh` is not yet possible. What **is** possible — and valuable — is
-//! exercising the WASM **codegen** over the fuzzer's randomised programs: a
-//! generated program that makes `wasm_codegen_module` panic, emits a module that
-//! `wasmtime` rejects, or traps at run time, is a real codegen bug. We satisfy
-//! the module's `tcl_*` imports with the same tiny host stub the
-//! `tcl-compiler` end-to-end execution test uses (`tcl_expr_bool` returns `0`,
-//! so control flow terminates), invoke `::top`, and treat a clean exit as a
-//! pass.
+//! This is the **tractable slice** of the WASM third differential arm. The
+//! eval-fallback emitter boxes every leaf command as a `call` to an imported
+//! `tcl_eval`; without an interpreter-backed host the module cannot *evaluate*
+//! Tcl, so a *value* differential against `tclsh` is not possible here. What
+//! **is** possible — and valuable — is exercising the WASM **codegen** over the
+//! fuzzer's randomised programs: a generated program that makes
+//! `wasm_codegen_module` panic, emits a module that `wasmtime` rejects, or traps
+//! at run time, is a real codegen bug. We satisfy the module's `tcl_*` imports
+//! with the same tiny host stub the `tcl-compiler` end-to-end execution test
+//! uses (`tcl_expr_bool` returns `0`, so control flow terminates), invoke
+//! `::top`, and treat a clean exit as a pass.
 //!
-//! When the interpreter-backed host lands, this arm upgrades in place to a true
-//! value differential by swapping the stub for the real host.
+//! Without an interpreter-backed host this arm performs only a structural
+//! codegen check; swapping the stub for a real host turns it into a true value
+//! differential.
 
 use std::path::Path;
 use std::process::Command;

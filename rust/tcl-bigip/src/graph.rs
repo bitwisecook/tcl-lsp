@@ -1,12 +1,11 @@
-//! BIG-IP object reference graph — Rust port of
-//! `dialects/f5/bigip/link_extract.py`.
+//! BIG-IP object reference graph.
 //!
 //! Builds the node/edge graph that `f5 stats` / `cleanup` / `grep` / `validate`
 //! / `graph` / `rename` all consume. Every stanza becomes an [`ObjectNode`]
 //! (`_build_objects_for_source`) with a stable `node_id`, its `(module,
 //! object_type, identifier)`, resolved registry `kind`, and source [`Range`].
 //! The forward reference **edges** ([`build_bigip_object_graph`]) combine three
-//! passes per the Python `_build_forward_edges`: the registry-first pilot
+//! passes: the registry-first pilot
 //! value-spec dispatch, the legacy token-scan fallback, and — for `ltm`/`gtm`
 //! rule bodies — the iRule object-reference walker (`tcl-irules`).
 
@@ -15,14 +14,15 @@ use tcl_lexer::LineIndex;
 use tcl_registry::BigipRegistry;
 use tcl_registry::bigip::default_registry;
 
+use crate::error::BigipError;
 use crate::model::ModelObject;
 use crate::parser::driver::{BigipConfig, Placed};
 use crate::parser::header::{ObjectTypeIndex, parse_generic_header};
 use crate::parser::helpers::extract_blocks;
 use crate::range::Range;
 
-/// One BIG-IP object stanza as a graph node. Mirrors the Python `_BlockObject`
-/// (exposed publicly as `BigipObjectNode`).
+/// One BIG-IP object stanza as a graph node (exposed publicly as
+/// `BigipObjectNode`).
 #[derive(Debug, Clone)]
 pub struct ObjectNode {
     /// `{uri}:{line}:{char}:{module}:{object_type}:{identifier}` — stable id.
@@ -54,8 +54,6 @@ pub struct ObjectNode {
 /// A graph-building context: the BIG-IP registry + the object-type header index
 /// + the iRules command registry, built once and reused across sources.
 pub struct GraphContext {
-    #[allow(dead_code)]
-    registry: BigipRegistry,
     index: ObjectTypeIndex,
     /// Tcl command registry with the iRules dialect loaded, for the iRule edge
     /// walker.
@@ -71,7 +69,6 @@ impl GraphContext {
         let mut irules_registry = tcl_registry::CommandRegistry::build_default();
         irules_registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
         Self {
-            registry,
             index,
             irules_registry,
         }
@@ -84,9 +81,8 @@ impl Default for GraphContext {
     }
 }
 
-/// Build every [`ObjectNode`] for one source (mirrors
-/// `_build_objects_for_source`): each parseable stanza becomes a node, in
-/// source order.
+/// Build every [`ObjectNode`] for one source: each parseable stanza becomes
+/// a node, in source order.
 #[must_use]
 pub fn build_objects_for_source(uri: &str, source: &str, ctx: &GraphContext) -> Vec<ObjectNode> {
     let line_index = LineIndex::new(source);
@@ -99,7 +95,7 @@ pub fn build_objects_for_source(uri: &str, source: &str, ctx: &GraphContext) -> 
         else {
             continue;
         };
-        // Walk back to the start of the header line (mirrors the Python loop).
+        // Walk back to the start of the header line.
         let mut header_start = block.start_offset;
         while header_start > 0 && bytes[header_start - 1] != b'\n' {
             header_start -= 1;
@@ -128,15 +124,11 @@ pub fn build_objects_for_source(uri: &str, source: &str, ctx: &GraphContext) -> 
     result
 }
 
-// ---------------------------------------------------------------------------
-// Name resolution — port of `object_registry.resolve_kind_in_configs` and the
-// `BigipConfig` resolvers it relies on (`resolve_name` /
-// `resolve_generic_object`). Resolves a `(kind, reference)` to the source span
-// of the named object, which the edge builder matches back to a node.
-// ---------------------------------------------------------------------------
+// Name resolution: resolve a `(kind, reference)` to the source span of the
+// named object, which the edge builder matches back to a node.
 
 /// A node's range identity: `(start.line, start.character, end.line,
-/// end.character)`, mirroring the Python `_range_key`.
+/// end.character)`.
 pub type RangeKey = (u32, u32, u32, u32);
 
 /// The `"range"` from an object's canonical fields as a [`RangeKey`].
@@ -160,9 +152,9 @@ fn range_key_from(range: Range) -> RangeKey {
     )
 }
 
-/// Resolve a possibly-short `name` to a full-path object in `table` (mirrors
-/// `BigipConfig.resolve_name`): exact, then partition-qualified against
-/// `default_partition`, then `/Common/`, then a suffix match.
+/// Resolve a possibly-short `name` to a full-path object in `table`: exact,
+/// then partition-qualified against `default_partition`, then `/Common/`,
+/// then a suffix match.
 fn resolve_name<'a>(
     name: &str,
     table: &[&'a Placed],
@@ -196,9 +188,9 @@ fn resolve_name<'a>(
         .find(|p| p.full_path.ends_with(&suffix))
 }
 
-/// Resolve a generic-object key by identifier (mirrors
-/// `BigipConfig.resolve_generic_object`): exact identifier, or a partition-
-/// tolerant suffix match, optionally constrained by module / object-types.
+/// Resolve a generic-object key by identifier: exact identifier, or a
+/// partition-tolerant suffix match, optionally constrained by module /
+/// object-types.
 fn resolve_generic_object<'a>(
     cfg: &'a BigipConfig,
     clean: &str,
@@ -215,14 +207,14 @@ fn resolve_generic_object<'a>(
         {
             continue;
         }
-        // The Python always passes the spec's (never-None) object-types tuple,
-        // so the membership check always applies.
+        // The spec's object-types tuple is never empty, so the membership
+        // check always applies.
         if !object_types.contains(&obj.object_type.as_str()) {
             continue;
         }
         let ident = &obj.identifier;
-        // `ident == clean` (first disjunct) already covers the equality the
-        // Python repeats inside its non-absolute branch.
+        // `ident == clean` (first disjunct) already covers the equality that
+        // is otherwise repeated inside the non-absolute branch.
         let matches = ident == clean
             || (clean.starts_with('/') && ident.ends_with(clean))
             || (!clean.starts_with('/') && ident.ends_with(&format!("/{clean}")));
@@ -233,8 +225,8 @@ fn resolve_generic_object<'a>(
     None
 }
 
-/// Resolve `(kind, reference)` across `configs` to `(uri, range_key)` (mirrors
-/// `resolve_kind_in_configs`). `configs` is `(uri, config)` in source order.
+/// Resolve `(kind, reference)` across `configs` to `(uri, range_key)`.
+/// `configs` is `(uri, config)` in source order.
 #[must_use]
 pub fn resolve_kind_in_configs(
     kind: &str,
@@ -270,8 +262,8 @@ pub fn resolve_kind_in_configs(
             };
             let Some(placed) = resolved else { continue };
             // For a table-backed kind every object shares the kind's module
-            // (`ks.module`), so it stands in for the per-object `obj.module` the
-            // Python reads; the `spec.module` self-check never fires.
+            // (`ks.module`), so it stands in for the per-object `obj.module`
+            // read here; the `spec.module` self-check never fires.
             if let (Some(pm), Some(om)) = (preferred_module, ks.module)
                 && om != pm
             {
@@ -299,12 +291,9 @@ pub fn resolve_kind_in_configs(
     None
 }
 
-// ---------------------------------------------------------------------------
-// Forward reference edges — port of `_build_forward_edges` (legacy token-scan
-// path). The registry-first (pilot value-spec) dispatch is layered on top in a
-// later increment; this is the always-on fallback path that keeps the graph
-// complete.
-// ---------------------------------------------------------------------------
+// Forward reference edges (legacy token-scan path). The registry-first
+// (pilot value-spec) dispatch is layered on top; this is the always-on
+// fallback path that keeps the graph complete.
 
 use std::collections::{HashMap, HashSet};
 
@@ -312,8 +301,8 @@ use crate::parser::helpers::{
     parse_keyed_block_entries, parse_list_block, parse_properties_with_spans,
 };
 
-/// A forward reference edge between two object nodes. Mirrors the Python
-/// `_Edge` (`BigipObjectEdge`).
+/// A forward reference edge between two object nodes (exposed publicly as
+/// `BigipObjectEdge`).
 #[derive(Debug, Clone)]
 pub struct ObjectEdge {
     /// Referencing node id.
@@ -326,7 +315,7 @@ pub struct ObjectEdge {
     pub via_kind: String,
 }
 
-/// Tokens that look like references but never are (mirrors `_FALSEY_REF_TOKENS`).
+/// Tokens that look like references but never are.
 const FALSEY_REF_TOKENS: &[&str] = &[
     "none",
     "add",
@@ -348,9 +337,8 @@ const FALSEY_REF_TOKENS: &[&str] = &[
 
 const REF_STRIP: &[char] = &['{', '}', '"', '\'', '[', ']', '(', ')', ','];
 
-/// Split a property value into reference tokens (mirrors `_extract_value_tokens`):
-/// a braced value is parsed as a list block; otherwise maximal non-space,
-/// non-brace runs (`[^\s{}]+`).
+/// Split a property value into reference tokens: a braced value is parsed as
+/// a list block; otherwise maximal non-space, non-brace runs (`[^\s{}]+`).
 fn extract_value_tokens(value: &str) -> Vec<String> {
     let stripped = value.trim();
     if stripped.is_empty() {
@@ -366,7 +354,7 @@ fn extract_value_tokens(value: &str) -> Vec<String> {
         .collect()
 }
 
-/// Whether `token` could be an object reference (mirrors `_is_candidate_reference`).
+/// Whether `token` could be an object reference.
 fn is_candidate_reference(token: &str) -> bool {
     let clean = token.trim_matches(REF_STRIP);
     if clean.is_empty() {
@@ -375,9 +363,8 @@ fn is_candidate_reference(token: &str) -> bool {
     !FALSEY_REF_TOKENS.contains(&clean.to_ascii_lowercase().as_str())
 }
 
-/// Normalise a reference token for `kind` (mirrors `_normalise_reference_for_kind`):
-/// strips delimiters, and for node/virtual-address kinds drops a trailing
-/// `:port` suffix.
+/// Normalise a reference token for `kind`: strips delimiters, and for
+/// node/virtual-address kinds drops a trailing `:port` suffix.
 fn normalise_reference_for_kind(kind: &str, token: &str) -> String {
     let mut reference = token.trim_matches(REF_STRIP).to_owned();
     let is_addr_kind = matches!(
@@ -395,8 +382,8 @@ fn normalise_reference_for_kind(kind: &str, token: &str) -> String {
     reference
 }
 
-/// Resolve a reference to a target node id (mirrors `_resolve_target_node_id`):
-/// resolve the span, match a node by exact range, then by line containment.
+/// Resolve a reference to a target node id: resolve the span, match a node by
+/// exact range, then by line containment.
 fn resolve_target_node_id(
     kind: &str,
     reference: &str,
@@ -430,8 +417,8 @@ fn resolve_target_node_id(
 }
 
 /// Build the forward reference edges across all nodes (legacy token-scan path).
-// A faithful port of the (long) `_build_forward_edges` — the pilot + two legacy
-// reference passes plus the shared dedup read most clearly as one function.
+// The pilot + two legacy reference passes plus the shared dedup read most
+// clearly as one function.
 #[allow(clippy::too_many_lines)]
 fn build_forward_edges(
     nodes_by_uri: &[(String, Vec<ObjectNode>)],
@@ -475,7 +462,7 @@ fn build_forward_edges(
         for node in nodes {
             for (key, prop) in parse_properties_with_spans(&node.body) {
                 // Registry-first (pilot value-spec) dispatch — runs BEFORE the
-                // legacy path, exactly like Python, so its edges win the shared
+                // legacy path, so its edges win the shared
                 // dedup and the output order matches. Migrated properties whose
                 // legacy `references` were cleared (e.g. `policies`/`vlans` on
                 // `ltm virtual`) get their edges only from here.
@@ -566,8 +553,8 @@ fn build_forward_edges(
             }
 
             // iRule object references — walk an `ltm`/`gtm` rule body and
-            // resolve every BIG-IP object it names (mirrors the trailing
-            // `extract_irules_object_references` block in `_build_forward_edges`).
+            // resolve every BIG-IP object it names via
+            // `extract_irules_object_references`.
             if matches!(node.module.as_str(), "ltm" | "gtm") && node.object_type == "rule" {
                 for reference in extract_irules_object_references(
                     &node.body,
@@ -601,7 +588,7 @@ fn build_forward_edges(
 }
 
 /// The full object graph: per-source nodes (in source order) and the flat list
-/// of forward edges. Mirrors `build_bigip_object_graph`'s return shape.
+/// of forward edges.
 pub struct ObjectGraph {
     /// `(uri, nodes)` in input order; nodes in source order.
     pub nodes_by_uri: Vec<(String, Vec<ObjectNode>)>,
@@ -609,9 +596,9 @@ pub struct ObjectGraph {
     pub edges: Vec<ObjectEdge>,
 }
 
-/// Build the object reference graph from `(uri, source)` inputs (mirrors
-/// `build_bigip_object_graph`). `configs` supplies the parsed model per uri for
-/// reference resolution; sources without a config are skipped.
+/// Build the object reference graph from `(uri, source)` inputs. `configs`
+/// supplies the parsed model per uri for reference resolution; sources without
+/// a config are skipped.
 #[must_use]
 pub fn build_bigip_object_graph(
     sources: &[(String, String)],
@@ -633,14 +620,12 @@ pub fn build_bigip_object_graph(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Pilot value-spec reference dispatch — the registry-first edge path
 // (`references_via_spec` + the migrated `PILOT_PROPERTY_SPECS`). The graph only
 // consumes each `Reference`'s `(target_kind, target_path)`, so each spec is
 // reproduced as a slim extractor over the raw property value rather than the
 // full `ValueSpec` / `BigipList` materialisation. Specs are added incrementally;
 // an unmigrated property returns `None` and falls through to the legacy path.
-// ---------------------------------------------------------------------------
 
 /// Enumerate `(target_kind, target_path)` references for a migrated property,
 /// or `None` when the property isn't in the pilot table.
@@ -742,13 +727,13 @@ fn pilot_references(
     // Migrated but reference-free for raw-string input: `DestinationSpec` (no
     // `references()`), `DataGroupRecordSpec` / `GtmRegionMemberSpec` (no refs),
     // and `LtmPolicyRuleSpec` (no `parse()`, so it sees a string with no
-    // `actions`). All fall through to the legacy path, exactly like Python's
-    // empty pilot result followed by the unconditional legacy passes.
+    // `actions`). All fall through to the legacy path: an empty pilot result
+    // followed by the unconditional legacy passes.
     None
 }
 
-/// Monitor paths referenced by a `monitor` expression (port of
-/// `MonitorExpression.try_parse` → `.monitors`): `default`/`none` → none;
+/// Monitor paths referenced by a `monitor` expression: `default`/`none` →
+/// none;
 /// `min N of { … }` → the braced tokens; otherwise an `and`-chain of paths.
 fn monitor_paths(text: &str) -> Vec<String> {
     let s = text.trim();
@@ -790,8 +775,8 @@ fn monitor_paths(text: &str) -> Vec<String> {
     monitors
 }
 
-/// The SNAT pool path of a `source-address-translation` body (port of
-/// `SnatMode.try_parse` + `references`), or `None` unless `type snat pool …`.
+/// The SNAT pool path of a `source-address-translation` body, or `None`
+/// unless `type snat pool …`.
 fn snat_pool_path(text: &str) -> Option<String> {
     let mut body = text.trim();
     body = body.strip_prefix('{').unwrap_or(body);
@@ -821,8 +806,8 @@ fn snat_pool_path(text: &str) -> Option<String> {
     (kind == "snat" && !pool.is_empty()).then(|| pool.to_owned())
 }
 
-/// SSL `(kind, path)` refs of one `cert-key-chain` entry body (port of
-/// `CertKeyChain.from_raw` + `references`): cert + key + chain, in order.
+/// SSL `(kind, path)` refs of one `cert-key-chain` entry body: cert + key +
+/// chain, in order.
 fn cert_key_chain_refs(body: &str) -> Vec<(String, String)> {
     let tokens: Vec<&str> = body.split_whitespace().collect();
     let (mut cert, mut key, mut chain) = ("", "", "");
@@ -850,8 +835,8 @@ fn cert_key_chain_refs(body: &str) -> Vec<(String, String)> {
     out
 }
 
-/// `(kind, path)` refs of one firewall rule body (port of `FirewallRule` +
-/// `FirewallEndpoint`): source then destination port-lists + address-lists,
+/// `(kind, path)` refs of one firewall rule body: source then destination
+/// port-lists + address-lists,
 /// then a nested `rule-list`.
 fn firewall_rule_refs(body: &str) -> Vec<(String, String)> {
     let raw: Vec<&str> = body.split_whitespace().collect();
@@ -953,12 +938,10 @@ fn endpoint_refs(sub_body: &str, out: &mut Vec<(String, String)>) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Graph serialisation — port of `graph_export.py` (DOT / JSON / Mermaid) for
-// the `f5 graph` verb. Operates on a built [`ObjectGraph`].
-// ---------------------------------------------------------------------------
+// Graph serialisation (DOT / JSON / Mermaid) for the `f5 graph` verb.
+// Operates on a built [`ObjectGraph`].
 
-/// A serialised graph plus its node/edge counts (mirrors `GraphExport`).
+/// A serialised graph plus its node/edge counts.
 pub struct GraphExport {
     /// The requested format (`"dot"` / `"json"` / `"mermaid"`).
     pub fmt: String,
@@ -989,22 +972,22 @@ fn node_label(node: &ObjectNode) -> String {
 }
 
 /// Serialise `graph` to `fmt`, optionally filtered to the subgraph reachable
-/// from `seeds` (mirrors `export_graph`). `reverse` walks incoming references;
-/// `max_depth` bounds the BFS.
+/// from `seeds`. `reverse` walks incoming references; `max_depth` bounds the
+/// BFS.
 ///
 /// # Errors
-/// Returns `Err` when `fmt` is not one of [`GRAPH_FORMATS`].
+/// Returns [`BigipError::Graph`] when `fmt` is not one of [`GRAPH_FORMATS`].
 pub fn export_graph(
     graph: &ObjectGraph,
     fmt: &str,
     seeds: &[String],
     reverse: bool,
     max_depth: Option<usize>,
-) -> Result<GraphExport, String> {
+) -> Result<GraphExport, BigipError> {
     if !GRAPH_FORMATS.contains(&fmt) {
-        return Err(format!(
+        return Err(BigipError::graph(format!(
             "unknown graph format {fmt:?} (expected one of {GRAPH_FORMATS:?})"
-        ));
+        )));
     }
 
     // Flatten nodes in source order (across uris), keyed by node_id.
@@ -1036,7 +1019,7 @@ pub fn export_graph(
 
 /// BFS from the seed objects (matched by identifier), returning the reached
 /// nodes (in BFS-visit order) and the edges among them. With no seeds the whole
-/// graph passes through unchanged (original order). Mirrors `_filter_to_subgraph`.
+/// graph passes through unchanged (original order).
 fn filter_to_subgraph<'a>(
     all_nodes: &[&'a ObjectNode],
     edges: &'a [ObjectEdge],
@@ -1076,7 +1059,7 @@ fn filter_to_subgraph<'a>(
     }
 
     // `order` is the BFS visit order (seeds first, then discovered neighbours),
-    // which is the order Python's `visited` dict yields — and the order the kept
+    // which is the order `visited` dict yields — and the order the kept
     // nodes are emitted in. (Distinct from the original source order.)
     let mut order: Vec<&str> = Vec::new();
     let mut visited: HashSet<&str> = HashSet::new();
@@ -1167,8 +1150,8 @@ fn to_mermaid(nodes: &[&ObjectNode], edges: &[&ObjectEdge], kept: &HashSet<&str>
     lines.join("\n") + "\n"
 }
 
-/// Serialise to `json.dumps(indent=2)`-compatible JSON, built by hand to match
-/// Python's key order (which `serde_json`'s sorted maps wouldn't preserve).
+/// Serialise to 2-space-indented JSON, built by hand to match
+/// the intended key order (which `serde_json`'s sorted maps wouldn't preserve).
 fn to_json(nodes: &[&ObjectNode], edges: &[&ObjectEdge], kept: &HashSet<&str>) -> String {
     use std::fmt::Write as _;
 

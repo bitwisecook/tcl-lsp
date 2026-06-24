@@ -2,7 +2,7 @@
 //!
 //! Extends [`CodegenCtx`] with methods for pushing literals, loading
 //! and storing variables, emitting increments, and parsing variable
-//! reference markers.  Ported from `core/compiler/codegen/_values.py`.
+//! reference markers.
 
 use super::format::esc;
 use super::statements::has_unescaped_subst;

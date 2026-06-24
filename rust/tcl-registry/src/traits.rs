@@ -1,6 +1,6 @@
 //! Behavioural trait flags for commands.
 //!
-//! Each bit replaces one `bool` field from the Python `CommandSpec`.
+//! Each bit replaces one `bool` field from `CommandSpec`.
 //! Consumers query traits via `spec.traits.contains(Traits::CONTROL_FLOW)`
 //! instead of matching on command name strings.
 
@@ -120,12 +120,11 @@ bitflags! {
         /// `TCP::*` / `UDP::*` / `SSL::*` / `STREAM::*`).
         const IRULES_DATA_GETTER        = 1 << 39;
 
-        /// SYNC5: Creates a runtime scope-alias barrier whose VarWrite
+        /// Creates a runtime scope-alias barrier whose VarWrite
         /// args are vararg lists (`global x y z`, `variable a b c`,
         /// `upvar 1 a b 1 c d`).  The analyser's `var_scoping` pass
         /// handles the per-arg list; SSA must not produce partial
-        /// defs from `arg_roles[0]`.  Mirrors Python's
-        /// `creates_dynamic_barrier` field set by `f87bc090`.
+        /// defs from `arg_roles[0]`.
         const CREATES_DYNAMIC_BARRIER   = 1 << 40;
 
         /// Command invokes a user-defined Tcl procedure named by
@@ -218,9 +217,8 @@ bitflags! {
 
         /// The WASM backend lowers this command to a structural construct
         /// that imports / emits no runtime helper of its own (`foreach`,
-        /// `namespace`, `package`, `proc`).  Mirrors Python's
-        /// `CommandSpec.wasm_emits_nothing`, consulted by the WASM import
-        /// collector (`compiler/codegen/wasm/_imports.py`).
+        /// `namespace`, `package`, `proc`).  Consulted by the WASM import
+        /// collector.
         const WASM_EMITS_NOTHING        = 1 << 52;
     }
 }

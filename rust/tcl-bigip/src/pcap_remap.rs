@@ -1,8 +1,7 @@
 //! Apply a [`RedactionMap`] to a PCAP capture file.
 //!
-//! Faithful Rust port of `dialects/f5/bigip/pcap_remap.py` (powers
-//! `f5 pcap-remap`). For each packet record it parses the link-layer header,
-//! locates the IPv4 / IPv6 header, rewrites src/dst via the redaction map,
+//! Powers `f5 pcap-remap`. For each packet record it parses the link-layer
+//! header, locates the IPv4 / IPv6 header, rewrites src/dst via the redaction map,
 //! recomputes the IPv4 header checksum and the TCP / UDP / ICMP / ICMPv6
 //! checksum (including the pseudo-header), and rewrites peer-IP fields in the
 //! F5 Ethernet trailer at their schema-known offsets.
@@ -76,7 +75,7 @@ pub enum PcapError {
         /// TLV length.
         length: usize,
     },
-    /// Any other malformed-input / value error (mirrors Python `ValueError`).
+    /// Any other malformed-input / value error.
     Value(String),
 }
 
@@ -105,7 +104,7 @@ type V4Lookup = HashMap<[u8; 4], [u8; 4]>;
 /// Packed IPv6 -> IPv6 byte lookup for the sweep fallback.
 type V6Lookup = HashMap<[u8; 16], [u8; 16]>;
 
-// ── checksum helpers ────────────────────────────────────────────────
+// checksum helpers
 
 fn u16_at(buf: &[u8], off: usize) -> u16 {
     u16::from_be_bytes([buf[off], buf[off + 1]])
@@ -156,8 +155,7 @@ const IPV6_AH: u8 = 51;
 ///
 /// Returns `(proto, l4_off, l4_len)` — the upper-layer protocol number, the
 /// absolute offset of the L4 header, and the remaining L4 length — or `None`
-/// when the chain is fragmented / encrypted / malformed. Mirrors Python's
-/// `_ipv6_l4_locator` in `dialects/f5/bigip/pcap_remap.py`; exposed for the
+/// when the chain is fragmented / encrypted / malformed. Exposed for the
 /// flow extractor so there is a single canonical walker.
 #[must_use]
 pub fn ipv6_l4_locator(packet: &[u8], ip_off: usize) -> Option<(u8, usize, usize)> {
@@ -324,12 +322,9 @@ fn l4_checksum(
 /// 20-byte IP header) is therefore reported as "no IP layer" and skipped rather
 /// than triggering an out-of-bounds slice panic.
 ///
-/// Parity note: on such a truncated record Python's `_find_ip_offset` returns
-/// the offset unguarded and `ipaddress.IPv4Address(b'')` then raises, surfacing
-/// as `error:` / exit 2 with a corrupt partial output file. We instead skip the
-/// malformed packet (passing it through unmodified) — a deliberate, safer
-/// divergence on malformed input; well-formed captures (the only shape the
-/// differential corpus and any real device produces) carry full headers and are
+/// On such a truncated record the malformed packet is skipped (passed through
+/// unmodified) rather than risking an out-of-bounds slice; well-formed captures
+/// (the only shape any real device produces) carry full headers and are
 /// unaffected.
 fn ip_header_fits(packet: &[u8], off: usize, is_v6: bool) -> bool {
     let need = if is_v6 { 40 } else { 20 };
@@ -798,7 +793,7 @@ fn rewrite_one_packet(
     Ok(counts)
 }
 
-// ── top-level entry ─────────────────────────────────────────────────
+// top-level entry
 
 // Classic libpcap magics -> (big_endian?).
 fn pcap_magic_endian(magic: u32) -> Option<bool> {
@@ -924,7 +919,7 @@ fn remap_pcapng(
     unknown_policy: UnknownPolicy,
     overlay: &SchemaOverlay,
 ) -> Result<(Vec<u8>, PcapRemapResult), PcapError> {
-    let mut blocks = pcapng::read_blocks(input).map_err(PcapError::Value)?;
+    let mut blocks = pcapng::read_blocks(input).map_err(|e| PcapError::Value(e.to_string()))?;
     let mut result = PcapRemapResult::default();
     let mut interface_linktypes: Vec<u16> = Vec::new();
     let mut out: Vec<u8> = Vec::with_capacity(input.len());
@@ -938,7 +933,8 @@ fn remap_pcapng(
             result.packets_total += 1;
             let iface_idx = block.interface_id.unwrap_or(0) as usize;
             if iface_idx >= interface_linktypes.len() {
-                pcapng::write_block(&mut out, block).map_err(PcapError::Value)?;
+                pcapng::write_block(&mut out, block)
+                    .map_err(|e| PcapError::Value(e.to_string()))?;
                 continue;
             }
             let linktype = interface_linktypes[iface_idx];
@@ -955,7 +951,7 @@ fn remap_pcapng(
             block.packet_data = Some(packet);
         }
 
-        pcapng::write_block(&mut out, block).map_err(PcapError::Value)?;
+        pcapng::write_block(&mut out, block).map_err(|e| PcapError::Value(e.to_string()))?;
     }
 
     Ok((out, result))
@@ -983,7 +979,7 @@ mod tests {
     }
 
     /// An odd-length buffer pads with a trailing zero byte (high byte of the
-    /// final word), matching the Python reference.
+    /// final word).
     #[test]
     fn ones_complement_odd_length() {
         let even = [0x12u8, 0x34, 0x56, 0x00];

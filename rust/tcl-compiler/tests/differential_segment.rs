@@ -31,8 +31,8 @@ fn repo_root() -> PathBuf {
 }
 
 /// The **independent oracle**: a frozen, byte-for-byte copy of the
-/// pre-CST token-loop `segment_commands_local` (snapshotted from commit
-/// `3410dd4e`, the last state before the strip-5 rebase deleted it).
+/// pre-CST token-loop `segment_commands_local`, snapshotted from the last
+/// state before the segmenter switched to CST derivation.
 ///
 /// This is what makes the harness a genuine differential rather than a
 /// self-comparison: the production segmenter
@@ -158,7 +158,7 @@ const EDGE_CASES: &[&str] = &[
     "namespace eval ns {\n  proc g {} {}\n}\n",
     "switch $x {\n a {one}\n b {two}\n}\n",
     // Quoted whole-content line-continuation: the quoted word is a single
-    // ESC whose text is exactly "\\\n". Per C Tcl / `build.py` this is a real
+    // ESC whose text is exactly "\\\n". Per C Tcl this is a real
     // fragment of the quoted word (it collapses to a space at substitution
     // time), so both the frozen oracle and the CST keep it as a word rather
     // than dropping it — see build.rs's backslash-newline note.
@@ -256,7 +256,7 @@ fn cst_matches_oracle_over_tcl_corpus() {
 
 /// Recovery is a post-process over `segment_commands_local`; confirm the
 /// known-commands recovery path still works once the local segmenter is
-/// CST-backed (the rebase only touches `segment_commands_local`).
+/// CST-backed (only `segment_commands_local` is affected).
 #[test]
 fn recovery_known_commands_smoke() {
     use tcl_compiler::segmenter::segment_commands_with_recovery;
@@ -272,10 +272,10 @@ fn recovery_known_commands_smoke() {
 
 /// A frozen, byte-for-byte snapshot of the pre-CST token-loop segmenter.
 ///
-/// Lifted verbatim from `rust/tcl-compiler/src/segmenter.rs` at commit
-/// `3410dd4e` — the last state before the strip-5 rebase replaced the
-/// token loop with the CST derivation.  Kept here as the **independent
-/// reference** the CST port is differentially validated against: comparing
+/// Lifted verbatim from `rust/tcl-compiler/src/segmenter.rs` as it stood
+/// before the token loop was replaced with the CST derivation.  Kept here
+/// as the **independent reference** the CST port is differentially
+/// validated against: comparing
 /// the production segmenter (now CST-backed) against the live
 /// `segment_commands_local` would be a tautology, so this frozen copy
 /// preserves the original behaviour.  It deliberately duplicates

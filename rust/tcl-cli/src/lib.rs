@@ -1,15 +1,14 @@
-//! Native Rust port of the unified `tcl` toolchain CLI.
+//! The unified `tcl` toolchain CLI.
 //!
-//! This crate owns the `clap` command tree that mirrors the Python
-//! `tooling/tcl/main.py` verb registry, plus the dispatch that drives each
-//! verb into the underlying Rust engine crates (`tcl-compiler`,
-//! `tcl-lsp-core`, `tcl-registry`, and the new `tcl-cli-*` support crates).
+//! This crate owns the `clap` command tree (the verb registry) plus the
+//! dispatch that drives each verb into the underlying Rust engine crates
+//! (`tcl-compiler`, `tcl-lsp-core`, `tcl-registry`, and the `tcl-cli-*`
+//! support crates).
 //!
-//! The command surface (verb names, aliases, flags) is the parity contract
-//! with the Python CLI: `tcl --help` and every `tcl <verb> --help` are diffed
-//! against the argparse output during the port. Every top-level verb is now
-//! ported and dispatched to a native engine handler, so the dispatch `match`
-//! is exhaustive — there is no longer a not-yet-implemented fallthrough.
+//! The command surface (verb names, aliases, flags) defines the stable CLI
+//! contract surfaced by `tcl --help` and every `tcl <verb> --help`. Every
+//! top-level verb dispatches to a native engine handler, so the dispatch
+//! `match` is exhaustive.
 
 #![forbid(unsafe_code)]
 

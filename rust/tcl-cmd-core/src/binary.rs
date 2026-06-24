@@ -54,7 +54,7 @@ fn b64_val(c: u8) -> Option<u8> {
     }
 }
 
-// -- encode -----------------------------------------------------------------
+// encode
 
 /// `binary encode hex` — each byte as two lowercase hex digits.
 #[must_use]
@@ -138,7 +138,7 @@ pub fn uu_encode(data: &[u8], maxlen: usize, wrap: &[u8]) -> Vec<u8> {
     out
 }
 
-// -- decode -----------------------------------------------------------------
+// decode
 
 /// `binary decode hex` — pairs of hex digits to bytes; ASCII whitespace is
 /// skipped, any other non-hex byte is a [`DecodeError`].
@@ -242,7 +242,7 @@ pub fn uu_decode(s: &[u8]) -> Vec<u8> {
     out
 }
 
-// -- format (the pack grammar) ----------------------------------------------
+// format (the pack grammar)
 
 /// Endianness of a multi-byte numeric field.
 #[derive(Clone, Copy)]
@@ -576,7 +576,7 @@ fn field_count(count: &Count, available: usize) -> Result<usize, CmdError> {
     Ok(n)
 }
 
-// -- scan (the unpack grammar) ----------------------------------------------
+// scan (the unpack grammar)
 
 /// Read `size` bytes as a sign-extended integer in `end` order.
 #[allow(clippy::cast_possible_wrap)] // the unpacked bit pattern is the signed value
@@ -736,7 +736,18 @@ pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
                     Count::Num(n) => n,
                     Count::None => 1,
                 };
-                if cur + n * size > data.len() {
+                // `n` comes from the format string and `parse_count` saturates it
+                // to `usize::MAX`, so `n * size` (and the cursor add) can overflow
+                // usize and wrap *below* the bounds check, sneaking past it (and
+                // then `Vec::with_capacity(n)` would try to allocate `usize::MAX`).
+                // Compute the field end with checked arithmetic; an overflow means
+                // the field cannot fit in `data`, so stop scanning like the normal
+                // out-of-data path does.
+                let fits = n
+                    .checked_mul(size)
+                    .and_then(|bytes| cur.checked_add(bytes))
+                    .is_some_and(|field_end| field_end <= data.len());
+                if !fits {
                     break;
                 }
                 let mut vals: Vec<Vec<u8>> = Vec::with_capacity(n);
@@ -764,7 +775,14 @@ pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
                     Count::Num(n) => n,
                     Count::None => 1,
                 };
-                if cur + n * size > data.len() {
+                // As for the integer field above: a saturated `n` from the format
+                // string makes `n * size` overflow usize and wrap past the bounds
+                // check, so test "does the field fit" with checked arithmetic.
+                let fits = n
+                    .checked_mul(size)
+                    .and_then(|bytes| cur.checked_add(bytes))
+                    .is_some_and(|field_end| field_end <= data.len());
+                if !fits {
                     break;
                 }
                 let mut vals: Vec<Vec<u8>> = Vec::with_capacity(n);
@@ -884,5 +902,20 @@ mod tests {
         assert!(format(b"Z", &[]).is_err());
         // scan stops when data runs out (returns the values it managed).
         assert_eq!(scan(b"ab", b"c c c").unwrap().len(), 2);
+    }
+
+    #[test]
+    fn scan_huge_field_count_does_not_overflow() {
+        // A field count from the format string is saturated to `usize::MAX`
+        // by `parse_count`, so `n * size` used to overflow usize and wrap *under*
+        // the bounds check (sneaking past it, then trying to allocate `usize::MAX`).
+        // It must instead stop scanning, exactly like the normal out-of-data path.
+        // Both an integer field (`w`, size 8) and a float field (`d`, size 8):
+        let huge = b"w99999999999999999999"; // count saturates to usize::MAX
+        assert!(scan(b"only-eight-bytes", huge).unwrap().is_empty());
+        let huge_f = b"d99999999999999999999";
+        assert!(scan(b"only-eight-bytes", huge_f).unwrap().is_empty());
+        // A field that *does* fit still scans (regression guard).
+        assert_eq!(scan(&[0x01, 0x02], b"s1").unwrap(), vec![b"513".to_vec()]);
     }
 }

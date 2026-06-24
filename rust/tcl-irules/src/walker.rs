@@ -1,5 +1,4 @@
-//! The iRules object-reference walker — port of `irules_refs.py`
-//! (`extract_irules_object_references` + `_walk_irules_commands`).
+//! The iRules object-reference walker.
 //!
 //! Segments an iRule body, asks [`resolve_object_ref_args`] which argument
 //! positions name BIG-IP objects for each command, and resolves those positions
@@ -16,7 +15,7 @@ use tcl_registry::arg_role::ArgRole;
 use crate::resolve_object_ref_args;
 
 /// One iRules object reference resolved from a literal command argument
-/// (mirrors the Python `IrulesObjectReference`).
+/// (mirrors `IrulesObjectReference`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IrulesObjectReference {
     /// The referenced object name (a literal, or a `set`-propagated constant).
@@ -33,7 +32,7 @@ pub struct IrulesObjectReference {
 
 /// Variable → constant-literal bindings carried through linear copy-propagation
 /// within a scope. `None` marks an overdefined (re-assigned from non-literal)
-/// binding so later lookups fail closed. Mirrors `_BindingScope`.
+/// binding so later lookups fail closed.
 #[derive(Clone, Default)]
 struct BindingScope {
     bindings: HashMap<String, Option<String>>,
@@ -71,7 +70,7 @@ pub fn object_ref_spans(source: &str, registry: &CommandRegistry) -> Vec<Span> {
 /// Extract every BIG-IP object reference from iRules `source`, resolving both
 /// literal arguments (`pool /Common/foo`) and constants propagated through
 /// `set` (`set p /Common/foo; pool $p`). Results are sorted by source position
-/// then name (mirrors `extract_irules_object_references`).
+/// then name.
 #[must_use]
 pub fn extract_irules_object_references(
     source: &str,
@@ -112,13 +111,13 @@ fn walk(
 
         // Resolve declared references *before* mutating the binding table, so a
         // same-command `set` re-bind doesn't leak into this call's refs.
-        for (arg_index, kinds) in resolve_object_ref_args(cmd.name(), &args, rule_module) {
-            if let Some((name, range)) = resolve_arg_value(full, &cmd, arg_index, scope) {
+        for (argument_index, kinds) in resolve_object_ref_args(cmd.name(), &args, rule_module) {
+            if let Some((name, range)) = resolve_arg_value(full, &cmd, argument_index, scope) {
                 out.push(IrulesObjectReference {
                     name,
                     kinds,
                     command: cmd.name().to_owned(),
-                    argument_index: arg_index,
+                    argument_index,
                     range,
                 });
             }
@@ -214,7 +213,7 @@ fn recurse_token(
 
 /// The trimmed literal `(name, span)` of argument `arg_index`, or `None` when it
 /// isn't a usable single-token literal (`$var` / `[cmd]` / multi-token /
-/// whitespace). Mirrors `_literal_arg_value` + `_normalise_literal_name`.
+/// whitespace). + `_normalise_literal_name`.
 fn literal_arg_value(
     full: &str,
     cmd: &SegmentedCommand,
@@ -304,7 +303,7 @@ fn resolve_arg_value(
 }
 
 /// Record a `set <var> <literal>` constant binding, or widen on a non-literal
-/// RHS (mirrors `_record_set_binding`).
+/// RHS.
 fn record_set_binding(full: &str, cmd: &SegmentedCommand, scope: &mut BindingScope) {
     if cmd.name() != "set" || cmd.args().len() < 2 {
         return;
@@ -338,9 +337,6 @@ mod tests {
 
     #[test]
     fn extracts_pool_snatpool_and_datagroup_refs() {
-        // Ported from `tests/test_bigip_irules_refs.py`
-        // ::test_extract_irules_refs_for_pool_snatpool_and_datagroup
-        // (TEST-MIGRATE — first tests for the `tcl-irules` crate).
         let source = "\n\
             when HTTP_REQUEST {\n\
             \x20   if {[class match -- [HTTP::host] equals /Common/host_dg]} {\n\
@@ -359,8 +355,6 @@ mod tests {
 
     #[test]
     fn extracts_refs_nested_in_body_and_command_substitution() {
-        // Ported from
-        // ::test_extract_irules_refs_nested_in_body_and_command_substitution.
         let source = "\n\
             when HTTP_REQUEST {\n\
             \x20   set count [active_members /Common/app_pool]\n\

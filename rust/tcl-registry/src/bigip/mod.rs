@@ -1,21 +1,18 @@
-//! BIG-IP object registry — Rust port of the Python
-//! `core/bigip/registry` object/property specs (GAP-e).
+//! BIG-IP object registry — object/property specs.
 //!
-//! Mirrors the Python `BigipObjectSpec` / `BigipObjectKindSpec` /
-//! `BigipPropertySpec` / `ValueKind` model. Each [`BigipObjectSpec`]
+//! Each [`BigipObjectSpec`]
 //! describes one tmsh object kind (its module, object-type words,
 //! header keys) and the schema of its properties (value kind, enum
 //! values, references to other kinds, list operators, defaults, …).
 //!
-//! The spec data is `&'static` const data generated from the
-//! reconciled Python source of truth (the canonical `origin/main`
-//! baseline); see `scripts/registry-audit/gen_bigip_rust.py`.
+//! The spec data is `&'static` const data emitted by the
+//! registry-data generator.
 
 use std::collections::HashMap;
 
 pub mod data;
 
-/// Canonical property value-kind vocabulary. Mirrors Python `ValueKind`.
+/// Canonical property value-kind vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ValueKind {
     /// `string`.
@@ -45,7 +42,7 @@ pub enum ValueKind {
 }
 
 impl ValueKind {
-    /// Stable wire tag matching the Python `ValueKind` value
+    /// Stable wire tag matching `ValueKind` value
     /// (`"string"`, `"ip-address"`, …) — used by the audit dumper.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -66,8 +63,7 @@ impl ValueKind {
     }
 }
 
-/// Resolution metadata for one BIG-IP object kind. Mirrors Python
-/// `BigipObjectKindSpec`.
+/// Resolution metadata for one BIG-IP object kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BigipObjectKindSpec {
     /// The registry's canonical kind name (e.g. `"ltm_virtual"`).
@@ -82,8 +78,7 @@ pub struct BigipObjectKindSpec {
     pub object_types: &'static [&'static str],
 }
 
-/// Property metadata for schema/validation-aware tooling. Mirrors
-/// Python `BigipPropertySpec`.
+/// Property metadata for schema/validation-aware tooling.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BigipPropertySpec {
     /// Property identifier as it appears in tmsh.
@@ -111,7 +106,7 @@ pub struct BigipPropertySpec {
     /// Human-readable description.
     pub description: &'static str,
     /// Richer shape kind when `value_type` collapses the scalar.
-    /// `None` when unset (Python empty string).
+    /// `None` when unset.
     pub shape_kind: Option<ValueKind>,
     /// Documented default value.
     pub default: Option<&'static str>,
@@ -158,8 +153,7 @@ impl BigipPropertySpec {
     }
 }
 
-/// Complete registry metadata owned by one BIG-IP object kind. Mirrors
-/// Python `BigipObjectSpec`.
+/// Complete registry metadata owned by one BIG-IP object kind.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BigipObjectSpec {
     /// Identity record.
@@ -250,16 +244,14 @@ impl BigipRegistry {
         names
     }
 
-    // ----------------------------------------------------------------------
-    // Object-registry query layer — port of `object_registry.py`'s pure
-    // functions (kind/candidate-kind lookups). These are the registry-backed
+    // Object-registry query layer: the kind / candidate-kind lookup
+    // functions. These are the registry-backed
     // half of the BIG-IP reference graph; the config-dependent resolution
     // (`resolve_kind_in_configs`) and the graph builder itself live in
     // `tcl-bigip`, which owns `BigipConfig`.
-    // ----------------------------------------------------------------------
 
     /// Property specs declared for `name` on the `(module, object_type)`
-    /// container (mirrors `_property_specs_for_context`). Empty when the
+    /// container. Empty when the
     /// container is unknown or declares no such property.
     fn property_specs_for_context(
         &self,
@@ -278,7 +270,6 @@ impl BigipRegistry {
 
     /// Collect the referenced kinds from `property_specs`, restricted to those
     /// matching `section` and prioritising section-constrained properties
-    /// (mirrors `_kinds_from_properties`).
     fn kinds_from_properties(
         property_specs: &[&'static BigipPropertySpec],
         section: Option<&str>,
@@ -303,7 +294,7 @@ impl BigipRegistry {
     }
 
     /// Candidate object kinds a property `key` may reference on the given
-    /// container (mirrors `candidate_kinds_for_key`).
+    /// container.
     #[must_use]
     pub fn candidate_kinds_for_key(
         &self,
@@ -317,7 +308,6 @@ impl BigipRegistry {
     }
 
     /// Candidate object kinds the items of a list `section` may reference
-    /// (mirrors `candidate_kinds_for_section_item`).
     #[must_use]
     pub fn candidate_kinds_for_section_item(
         &self,
@@ -331,7 +321,7 @@ impl BigipRegistry {
     }
 
     /// The canonical kind for a `(module, object_type)` stanza header, or
-    /// `None` when unregistered (mirrors `kind_for_header`).
+    /// `None` when unregistered.
     #[must_use]
     pub fn kind_for_header(&self, module: &str, object_type: &str) -> Option<&'static str> {
         self.get_by_header(module, object_type)
@@ -339,8 +329,7 @@ impl BigipRegistry {
     }
 
     /// Map a `Reference.target_kind` display string (`"ltm pool"`, `"ltm
-    /// monitor"`, …) to registry-key kinds (mirrors
-    /// `candidate_registry_kinds_for_display`).
+    /// monitor"`, …) to registry-key kinds.
     ///
     /// An exact `(module, object_type)` header gives a single kind; a bare
     /// family prefix (`"ltm monitor"`) fans out to every matching specific kind
@@ -360,7 +349,7 @@ impl BigipRegistry {
             format!("{object_type} ")
         };
         // Iterate specs (and their header types) in registration order — the
-        // same order `HEADER_KIND_MAP.items()` yields in Python.
+        // same order `HEADER_KIND_MAP.items()` yields.
         let mut matches = Vec::new();
         for spec in &self.specs {
             for &(mod_, obj) in spec.header_types {
@@ -381,8 +370,8 @@ impl BigipRegistry {
 }
 
 impl BigipPropertySpec {
-    /// Whether this property is in scope for `section` (mirrors
-    /// `BigipPropertySpec.matches_section`): an unconstrained property matches
+    /// Whether this property is in scope for `section`: an unconstrained
+    /// property matches
     /// any section; otherwise `section` (defaulting to `""`) must be listed.
     #[must_use]
     pub fn matches_section(&self, section: Option<&str>) -> bool {
@@ -393,8 +382,7 @@ impl BigipPropertySpec {
     }
 }
 
-/// The process-wide default BIG-IP object registry (built once on first use),
-/// mirroring `get_default_bigip_object_registry`.
+/// The process-wide default BIG-IP object registry (built once on first use).
 #[must_use]
 pub fn default_registry() -> &'static BigipRegistry {
     use std::sync::OnceLock;
@@ -409,8 +397,8 @@ mod tests {
     #[test]
     fn registry_builds_and_resolves() {
         let reg = BigipRegistry::build();
-        // The reconciled Python `OBJECT_SPECS` baseline (regenerated by
-        // `scripts/registry-audit/gen_bigip_rust.py`) carries 798 object kinds.
+        // The `OBJECT_SPECS` baseline (regenerated by the registry-data
+        // generator) carries 798 object kinds.
         assert_eq!(
             reg.len(),
             798,
@@ -448,14 +436,19 @@ mod tests {
             .expect("`ltm pool` is registered");
         let spec = reg.get(pool_kind).expect("kind round-trips to a spec");
         assert!(
-            spec.header_types.iter().any(|&(m, o)| m == "ltm" && o == "pool"),
+            spec.header_types
+                .iter()
+                .any(|&(m, o)| m == "ltm" && o == "pool"),
             "the resolved kind's spec carries the ltm/pool header"
         );
         // An unregistered header resolves to nothing.
         assert!(reg.kind_for_header("ltm", "__not_a_real_type__").is_none());
         // The module disambiguates same-named object types across families.
         if let Some(gtm_pool) = reg.kind_for_header("gtm", "pool") {
-            assert_ne!(pool_kind, gtm_pool, "ltm pool and gtm pool are distinct kinds");
+            assert_ne!(
+                pool_kind, gtm_pool,
+                "ltm pool and gtm pool are distinct kinds"
+            );
         }
     }
 
@@ -473,7 +466,10 @@ mod tests {
         let monitors = reg.candidate_registry_kinds_for_display("ltm monitor");
         assert!(!monitors.is_empty(), "`ltm monitor` fans out to subtypes");
         for kind in &monitors {
-            assert!(reg.get(kind).is_some(), "fanned-out kind {kind} round-trips");
+            assert!(
+                reg.get(kind).is_some(),
+                "fanned-out kind {kind} round-trips"
+            );
         }
     }
 }

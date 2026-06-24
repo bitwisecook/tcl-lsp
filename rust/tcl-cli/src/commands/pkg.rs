@@ -1,9 +1,8 @@
 //! `tcl pkg` verb group — Tcl package management.
 //!
-//! Port of `tooling/tcl/verbs/pkg.py`. Thin wrappers over the `tcl_pkg`
-//! modules: parse args, drive the library, format output. Handler-level errors
-//! print `error: <msg>` to stderr and return exit code 1, matching the Python
-//! verb's `except Exception` paths.
+//! Thin wrappers over the `tcl_pkg` modules: parse args, drive the library,
+//! format output. Handler-level errors
+//! print `error: <msg>` to stderr and return exit code 1.
 
 // Handlers return `anyhow::Result<u8>` for a uniform dispatch signature even
 // when a given verb cannot fail; the wrap is the interface contract.
@@ -177,7 +176,7 @@ fn run_init(
     Ok(0)
 }
 
-#[allow(clippy::too_many_lines)] // direct port of the Python `_run_install`
+#[allow(clippy::too_many_lines)] // the full install flow in one function
 fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
     let colour = ui::use_colour(Some(!common.json));
@@ -707,7 +706,7 @@ fn run_remove(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
 }
 
 /// Whether `line` is a `require`/`dev-require` directive for `package`
-/// (mirrors the Python regex `^\s*(?:require|dev-require)\s+<pkg>\b.*$`).
+/// (matches `^\s*(?:require|dev-require)\s+<pkg>\b.*$`).
 fn line_is_requirement_for(line: &str, package: &str) -> bool {
     let trimmed = line.trim_start();
     for prefix in ["require", "dev-require"] {
@@ -1354,8 +1353,8 @@ fn run_trust(package: &str, remove: bool) -> anyhow::Result<u8> {
     }
 }
 
-/// Build the canonical JSON object for a locked package (`LockedPackage.to_dict`
-/// in Python). Keys are sorted by the canonical-JSON emitter.
+/// Build the canonical JSON object for a locked package. Keys are sorted by the
+/// canonical-JSON emitter.
 fn locked_to_json(pkg: &LockedPackage) -> Value {
     let mut provides = pkg.provides.clone();
     provides.sort();

@@ -1,5 +1,4 @@
-//! Lazy projection over a parsed `BigipConfig` — port of
-//! `dialects/f5/query/projection/{_engine,_classes,_data}.py`.
+//! Lazy projection over a parsed `BigipConfig`.
 //!
 //! Turns a [`Root`] backed by a [`BigipConfig`] into a navigable tree of
 //! [`Container`]s. The synthetic `<root>` container holds one child per
@@ -9,7 +8,7 @@
 //! materialise when navigated into, and the resulting refs are memoised on
 //! `Root.object_cache` keyed by `(kind, full_path)`.
 //!
-//! This increment covers the **core LTM kinds** the cookbook + common
+//! The projection covers the **core LTM kinds** the cookbook + common
 //! queries use: `ltm virtual`, `ltm virtual-address`, `ltm pool`
 //! (+ members), `ltm node`, `ltm monitor`, `ltm rule`, `ltm data-group`,
 //! `ltm persistence`, `ltm snatpool`, `ltm profile`, and `ltm policy`
@@ -18,8 +17,8 @@
 //! edit-plan engine can rewrite a single property in place; pool members
 //! get their slots from `BigipPoolMember.field_offsets`. `stanza_slot` is
 //! populated from each object's range so `--scf` / auto output matches
-//! Python. The synthesised `ltm rule .refs` sub-object is deferred (see
-//! `rule_refs_value`).
+//! the canonical layout. The synthesised `ltm rule .refs` sub-object is built by
+//! `rule_refs_value`.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -39,12 +38,9 @@ use crate::errors::QueryError;
 use crate::eval::Root;
 use crate::value::{FieldSlot, ObjectRef, PathRef, Value};
 
-// ---------------------------------------------------------------------------
 // Container
-// ---------------------------------------------------------------------------
 
 /// A navigable namespace / kind container projected from a `BigipConfig`
-/// (port of `projection.Container`).
 ///
 /// `kind` carries either a module name (`"ltm"`), the synthetic
 /// `"<root>"`, or a full TMSH module+type (`"ltm virtual"`). Entries are
@@ -85,7 +81,7 @@ impl Container {
     }
 
     /// Look up *key* in this container's entries, with partition shorthand
-    /// (`<name>` -> `/Common/<name>`) — port of `Container.lookup`.
+    /// (`<name>` -> `/Common/<name>`).
     ///
     /// # Errors
     /// Returns an eval error for a missing or ambiguous entry.
@@ -120,8 +116,7 @@ impl Container {
         )))
     }
 
-    /// Keys matching *pattern* (regex search) — port of
-    /// `Container.regex_keys`.
+    /// Keys matching *pattern* (regex search).
     ///
     /// # Errors
     /// Returns an eval error if the pattern fails the shared regex guard.
@@ -141,12 +136,9 @@ impl Container {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Public entry point
-// ---------------------------------------------------------------------------
 
-/// Return the synthetic top-level container or external JSON — port of
-/// `projection.root_container`.
+/// Return the synthetic top-level container or external JSON.
 #[must_use]
 pub fn root_container(root: &Rc<Root>) -> Value {
     if let Some(v) = &root.json_value {
@@ -155,11 +147,9 @@ pub fn root_container(root: &Rc<Root>) -> Value {
     Value::Container(Container::new("<root>", Rc::clone(root)))
 }
 
-// ---------------------------------------------------------------------------
 // Module / kind tables
-// ---------------------------------------------------------------------------
 
-/// The module names exposed at `<root>` (Python `_MODULE_KINDS` keys).
+/// The module names exposed at `<root>`.
 const MODULE_NAMES: &[&str] = &[
     "ltm",
     "net",
@@ -179,11 +169,11 @@ const MODULE_NAMES: &[&str] = &[
     "analytics",
 ];
 
-/// `(label, tmsh_kind)` for the LTM kinds this increment projects. The
-/// order mirrors the tail of `_MODULE_KINDS["ltm"]`. Labels not listed
+/// `(label, tmsh_kind)` for the LTM kinds the projection covers. The
+/// order matches the tail of `_MODULE_KINDS["ltm"]`. Labels not listed
 /// here (the long-tail LTM kinds the Rust model doesn't carry) are simply
 /// absent — navigating into them yields an empty container, matching the
-/// "no entry" surface Python gives for a config that has no such objects.
+/// "no entry" surface produced for a config that has no such objects.
 const LTM_KINDS: &[(&str, &str)] = &[
     ("virtual", "ltm virtual"),
     ("virtual-address", "ltm virtual-address"),
@@ -198,8 +188,8 @@ const LTM_KINDS: &[(&str, &str)] = &[
     ("data-group", "ltm data-group"),
 ];
 
-/// The set of leaf object kinds (Python `_OBJECT_KIND_ALIASES`, restricted
-/// to the covered subset). Used by `Container.is_object_kind`.
+/// The set of leaf object kinds, restricted to the covered subset. Used by
+/// `Container.is_object_kind`.
 fn is_object_kind_alias(kind: &str) -> bool {
     LTM_KINDS.iter().any(|(_, k)| *k == kind)
 }
@@ -212,9 +202,7 @@ fn kind_to_label(kind: &str) -> Option<&'static str> {
         .map(|(label, _)| *label)
 }
 
-// ---------------------------------------------------------------------------
 // Entry building
-// ---------------------------------------------------------------------------
 
 fn build_entries(container: &Container) -> IndexMap<String, Value> {
     let root = &container.root;
@@ -279,9 +267,7 @@ fn placed_kind(placed: &Placed) -> Option<&'static str> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ObjectRef building
-// ---------------------------------------------------------------------------
 
 fn build_object_ref(kind: &str, full_path: &str, obj: &ModelObject, root: &Rc<Root>) -> Value {
     let cache_key = (kind.to_owned(), full_path.to_owned());
@@ -308,8 +294,7 @@ fn build_object_ref(kind: &str, full_path: &str, obj: &ModelObject, root: &Rc<Ro
 }
 
 /// Build the whole-stanza slot from the object's range, extending back to
-/// the header's line start — port of `_engine`'s `stanza_slot` block +
-/// `_scan_back_to_line_start`.
+/// the header's line start.
 fn stanza_slot_for(obj: &ModelObject, root: &Rc<Root>) -> Option<FieldSlot> {
     let rng = model_range(obj)?;
     let start = rng.start.offset as usize;
@@ -350,12 +335,9 @@ fn model_range(obj: &ModelObject) -> Option<tcl_bigip::range::Range> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Field-slot byte-range discovery — port of `_engine._collect_field_slots`
-// ---------------------------------------------------------------------------
+// Field-slot byte-range discovery
 
-/// Locate each top-level scalar property's value span inside its stanza —
-/// port of `_engine._collect_field_slots`.
+/// Locate each top-level scalar property's value span inside its stanza.
 ///
 /// Returns a map of TMSH field name → [`FieldSlot`] for every field that
 /// appears as a single-line `key value` property in the source *and* is a
@@ -393,7 +375,7 @@ fn collect_field_slots(
 }
 
 /// Yield `(key, value_start, value_end, value_text)` for scalar lines at the
-/// stanza's top brace-depth — port of `_engine._iter_top_level_scalar_slots`.
+/// stanza's top brace-depth.
 fn iter_top_level_scalar_slots(body: &str) -> Vec<(String, usize, usize, String)> {
     let target_depth = i32::from(body.trim_start().starts_with('{'));
     let mut depth = 0i32;
@@ -415,8 +397,8 @@ fn iter_top_level_scalar_slots(body: &str) -> Vec<(String, usize, usize, String)
     out
 }
 
-/// Split *body* into lines keeping the trailing `\n` — mirrors Python's
-/// `str.splitlines(keepends=True)` for the `\n`-only line endings SCF uses.
+/// Split *body* into lines keeping the trailing `\n` — splits on the
+/// `\n`-only line endings SCF uses, keeping the newline on each line.
 fn split_keep_ends(body: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut start = 0usize;
@@ -433,8 +415,7 @@ fn split_keep_ends(body: &str) -> Vec<&str> {
     out
 }
 
-/// Parse one top-level scalar property line — port of
-/// `_engine._parse_scalar_slot_line`.
+/// Parse one top-level scalar property line.
 fn parse_scalar_slot_line(line: &str, line_start: usize) -> Option<(String, usize, usize, String)> {
     let content = line.strip_suffix('\n').unwrap_or(line);
     let bytes = content.as_bytes();
@@ -468,8 +449,7 @@ fn parse_scalar_slot_line(line: &str, line_start: usize) -> Option<(String, usiz
     Some((key.to_owned(), value_start, value_end, value.to_owned()))
 }
 
-/// Update brace depth for one line, ignoring quoted strings — port of
-/// `_engine._brace_depth_after_line`.
+/// Update brace depth for one line, ignoring quoted strings.
 fn brace_depth_after_line(line: &str, depth: i32) -> i32 {
     let mut depth = depth;
     let mut in_quote = false;
@@ -499,9 +479,7 @@ fn brace_depth_after_line(line: &str, depth: i32) -> i32 {
     depth
 }
 
-// ---------------------------------------------------------------------------
 // Per-kind field projection
-// ---------------------------------------------------------------------------
 
 fn project_fields(kind: &str, obj: &ModelObject, root: &Rc<Root>) -> IndexMap<String, Value> {
     match (kind, obj) {
@@ -548,13 +526,13 @@ impl Fields {
     }
 }
 
-/// `PathRef` value (Python `PathRef(full_path=..., expected_kind=...)`).
+/// `PathRef` value.
 fn path_ref(full_path: &str, expected_kind: &str) -> Value {
     Value::PathRef(Rc::new(PathRef::new(full_path, expected_kind)))
 }
 
 /// A list of `PathRef`s for a via-legacy ref+list field — iterate the
-/// `BigipList`'s item values as Python's `for p in raw` does.
+/// `BigipList`'s item values as `for p in raw` does.
 fn path_ref_list(list: &BigipList, expected_kind: &str) -> Value {
     let mut out = Vec::with_capacity(list.items.len());
     for item in &list.items {
@@ -570,7 +548,7 @@ fn path_ref_list_strs(paths: &[String], expected_kind: &str) -> Value {
 }
 
 /// A `BigipList` projected as a list of its items' `str()` renderings
-/// (matching `output._to_json` over a `ListSpec`-projected `BigipList`).
+/// (matching the JSON output over a `ListSpec`-projected `BigipList`).
 fn list_str_values(list: &BigipList) -> Value {
     Value::List(
         list.items
@@ -580,8 +558,8 @@ fn list_str_values(list: &BigipList) -> Value {
     )
 }
 
-/// The string a `ListItemValue` projects to when read as a path (Python
-/// iterates `item.value` and `PathRef(full_path=p)` coerces via `str`).
+/// The string a `ListItemValue` projects to when read as a path (iterating
+/// `item.value`, where `PathRef(full_path=p)` coerces via string conversion).
 fn list_item_string(value: &ListItemValue) -> String {
     match value {
         ListItemValue::Str(s) => s.clone(),
@@ -611,16 +589,16 @@ fn list_item_display(value: &ListItemValue) -> String {
     }
 }
 
-/// Project a typed value to its canonical string (Python `typed=True`
-/// branch: `str(raw)` or `""`).
+/// Project a typed value to its canonical string (the `typed=True`
+/// branch: string coercion of `raw`, or `""`).
 fn typed_str<T: std::fmt::Display>(opt: Option<&T>) -> Value {
     Value::Str(opt.map_or_else(String::new, ToString::to_string))
 }
 
 /// Project a `monitor` field through the `MonitorExpression` pilot — parse
-/// the raw string and re-render so the JSON surface matches Python's
+/// the raw string and re-render so the JSON surface matches
 /// `MonitorExpressionSpec.project`. Empty / unparseable strings fall back
-/// to the raw text (Python returns the string verbatim).
+/// to the raw text (the string is returned verbatim).
 fn monitor_value(raw: &str) -> Value {
     if raw.trim().is_empty() {
         return Value::Str(String::new());
@@ -894,8 +872,7 @@ fn project_rule(o: &BigipRule, root: &Rc<Root>) -> IndexMap<String, Value> {
         .done()
 }
 
-/// The synthesised `ltm rule .refs` sub-object — port of
-/// `_engine._rule_refs_value` / `_extract_rule_refs`.
+/// The synthesised `ltm rule .refs` sub-object.
 ///
 /// Each ref slot is a list of [`PathRef`]s drawn from the same reference
 /// graph `f5 grep` walks (forward, `max_depth=1`), so the query DSL and the
@@ -1198,17 +1175,15 @@ fn project_data_group(o: &BigipDataGroup) -> IndexMap<String, Value> {
         .done()
 }
 
-/// A `Vec<String>` projected as a list of strings (Python `list(raw)`).
+/// A `Vec<String>` projected as a list of strings.
 fn str_list(values: &[String]) -> Value {
     Value::List(values.iter().map(|s| Value::Str(s.clone())).collect())
 }
 
-// ---------------------------------------------------------------------------
 // PathRef resolution
-// ---------------------------------------------------------------------------
 
-/// Resolve the `ObjectRef` a `PathRef` points to — port of
-/// `evaluator._resolve_pathref`. Forces the relevant kind's container so
+/// Resolve the `ObjectRef` a `PathRef` points to. Forces the relevant kind's
+/// container so
 /// the object cache populates, then looks up `(expected_kind, full_path)`.
 #[must_use]
 pub fn resolve_pathref(reference: &PathRef, root: &Rc<Root>) -> Option<Rc<ObjectRef>> {

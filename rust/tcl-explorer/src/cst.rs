@@ -1,6 +1,5 @@
 //! Serialisation of the canonical red-green CST for the `cst` view.
 //!
-//! Faithful port of `_serialise_cst` (`tooling/cli/serialise.py`):
 //! `DOCUMENT` → `COMMAND` → `WORD` → fragment, each interior node carrying
 //! its absolute range (and a word's `single`/`braced`/`quoted`/`expand`
 //! shape), each leaf its inner `text` versus lossless `raw` and inner-end
@@ -16,16 +15,16 @@ use tcl_compiler::parsing::syntax::green::SyntaxKind;
 use tcl_compiler::parsing::syntax::red::{SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTree};
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 
-/// Maximum descent depth, matching Python's `depth < 24` guard.
+/// Maximum descent depth, matching `depth < 24` guard.
 const MAX_DEPTH: u32 = 24;
 
-/// Token-type name in Python's uppercase enum-member form
+/// Token-type name in uppercase enum-member form
 /// (`Str` → `"STR"`, `Cmd` → `"CMD"`, …).
 fn token_type_name(kind: TokenType) -> String {
     format!("{kind:?}").to_uppercase()
 }
 
-/// `SyntaxKind` name in Python's uppercase form (`Command` → `"COMMAND"`).
+/// `SyntaxKind` name in uppercase form (`Command` → `"COMMAND"`).
 fn kind_name(kind: SyntaxKind) -> String {
     format!("{kind:?}").to_uppercase()
 }
@@ -51,7 +50,7 @@ fn leaf_dict(
         "inQuote": tok.in_quote(),
         "startOffset": tok.start_position().offset,
         // End offsets are exclusive; the red layer's end is the lexer
-        // inner-end (#527), so +1 covers the last inner char.
+        // inner-end, so +1 covers the last inner char.
         "endOffset": tok.end_position().offset + 1,
     });
     if depth < MAX_DEPTH && is_opaque(tok.token_type()) && !tok.text().is_empty() {

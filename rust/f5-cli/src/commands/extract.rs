@@ -1,9 +1,8 @@
 //! The `extract` (`ucs2scf`) verb — convert a local UCS archive to SCF text.
 //!
-//! Port of `_run_extract` (`tooling/f5/verbs/extract.py`) + `extract_ucs_file`
-//! (`tooling/f5/f5_remote/ucs.py`). A UCS is a gzip-tar of `/config` (optionally
-//! OpenPGP-encrypted); this writes the concatenated `bigip*.conf` members as a
-//! Single Configuration File for the rest of the f5 CLI.
+//! A UCS is a gzip-tar of `/config` (optionally OpenPGP-encrypted); this writes
+//! the concatenated `bigip*.conf` members as a Single Configuration File for the
+//! rest of the f5 CLI.
 //!
 //! For the default `--format scf` the SCF text passes through verbatim. `tmsh`
 //! / `tmsh-delta` re-render the extracted config via the BIG-IP tmsh emit
@@ -30,8 +29,8 @@ pub fn run_extract(
     }
     let raw = std::fs::read(ucs).map_err(|e| anyhow::anyhow!("{}: {e}", ucs.display()))?;
 
-    // `extract_ucs_file` rejects anything that is neither gzip nor OpenPGP up
-    // front, so a mistyped path fails clearly rather than parsing as garbage.
+    // Reject anything that is neither gzip nor OpenPGP up front, so a mistyped
+    // path fails clearly rather than parsing as garbage.
     if !(is_ucs_bytes(&raw) || is_pgp_bytes(&raw)) {
         anyhow::bail!(
             "{}: not a UCS archive (gzip/OpenPGP magic missing)",

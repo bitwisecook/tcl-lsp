@@ -1,9 +1,9 @@
 //! The `tmsh` (`scf2tmsh`) verb — emit a tmsh script that recreates an SCF.
 //!
-//! Faithful port of `_run_tmsh` (`tooling/f5/verbs/tmsh.py`): read the input
-//! (`-` for stdin / UCS), validate `--include` kinds, parse the config, and
-//! render it via [`tcl_bigip::tmsh_emit::emit_tmsh`]. `--modify` swaps `create`
-//! for `modify`. The `tmsh: emitted N command(s)` summary goes to stderr.
+//! Reads the input (`-` for stdin / UCS), validates `--include` kinds, parses
+//! the config, and renders it via [`tcl_bigip::tmsh_emit::emit_tmsh`].
+//! `--modify` swaps `create` for `modify`. The `tmsh: emitted N command(s)`
+//! summary goes to stderr.
 
 use std::path::Path;
 
@@ -12,7 +12,7 @@ use tcl_bigip::tmsh_emit::emit_tmsh;
 use tcl_bigip_io::read_path;
 use tcl_cli_support::OutputTarget;
 
-/// The kinds accepted by `--include` (mirrors `_VALID_KINDS`).
+/// The kinds accepted by `--include`.
 const VALID_KINDS: [&str; 10] = [
     "generic-foundation",
     "node",
@@ -63,8 +63,7 @@ pub fn run_tmsh(
 
     let target = OutputTarget::from_arg(output);
     match &target {
-        // The Python verb writes via `Path.write_text` / `sys.stdout.write`,
-        // i.e. verbatim with no trailing-newline coercion. `script.text`
+        // Write verbatim, with no trailing-newline coercion; `script.text`
         // already ends in `\n` when non-empty.
         OutputTarget::File(p) => std::fs::write(p, &script.text)
             .map_err(|e| anyhow::anyhow!("failed to write {}: {e}", p.display()))?,

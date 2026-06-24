@@ -1,10 +1,9 @@
 //! Convert an `if`/`elseif` equality chain to a `switch` statement.
-//! Ports `tooling/refactoring/_if_to_switch.py`.
 
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 
-use super::{Refactoring, RefactorEdit, find_command_at, reindent_body};
+use super::{RefactorEdit, Refactoring, find_command_at, reindent_body};
 use crate::code_actions::ActionKind;
 
 /// Parsed equality condition: `(var_name, value, negated)`.
@@ -15,7 +14,7 @@ struct EqTest {
 }
 
 /// Parse an equality condition `$var eq "value"` / `"value" eq $var`
-/// (and the `==` / `ne` / `!=` operators).  Ports `_parse_eq_test`.
+/// (and the `==` / `ne` / `!=` operators).
 fn parse_eq_test(condition: &str) -> Option<EqTest> {
     let mut cond = condition.trim();
 
@@ -80,8 +79,8 @@ fn split_value_op_var(cond: &str) -> Option<(String, String, String)> {
     for op in OPS {
         let needle = format!(" {op} ");
         // Use the *last* occurrence so a value containing the operator
-        // text doesn't mis-split (the Python regex anchors the var on
-        // the right with `$`).
+        // text doesn't mis-split (the var is anchored on the right with
+        // `$`).
         if let Some(pos) = cond.rfind(&needle) {
             let value = cond[..pos].trim().to_owned();
             let rhs = cond[pos + needle.len()..].trim();
@@ -94,7 +93,7 @@ fn split_value_op_var(cond: &str) -> Option<(String, String, String)> {
 }
 
 /// Parse a `$var` / `${var}` / `"$var"` / `"${var}"` word to its bare
-/// variable name (`[A-Za-z0-9_]+`), or `None`.  Mirrors the regex
+/// variable name (`[A-Za-z0-9_]+`), or `None`.  Matches the shape
 /// `\$\{?(\w+)\}?` (optionally wrapped in double quotes).
 fn parse_var_word(word: &str) -> Option<String> {
     let mut w = word.trim();
@@ -122,7 +121,6 @@ fn strip_quotes(s: &str) -> &str {
 }
 
 /// Render a switch pattern, preserving whitespace literals by bracing.
-/// Ports `_render_switch_pattern`.
 fn render_switch_pattern(value: &str) -> String {
     if value.is_empty() {
         return "{}".to_owned();
@@ -135,7 +133,6 @@ fn render_switch_pattern(value: &str) -> String {
 }
 
 /// Convert an `if`/`elseif` chain at byte offset `cursor` to a `switch`.
-/// Ports `if_to_switch`.
 #[must_use]
 pub fn if_to_switch(
     source: &str,
@@ -268,7 +265,8 @@ mod tests {
 
     #[test]
     fn different_vars_returns_none() {
-        let source = "if {$x eq \"a\"} {\n    puts \"x\"\n} elseif {$y eq \"b\"} {\n    puts \"y\"\n}";
+        let source =
+            "if {$x eq \"a\"} {\n    puts \"x\"\n} elseif {$y eq \"b\"} {\n    puts \"y\"\n}";
         assert!(run(source, 0).is_none());
     }
 
@@ -287,7 +285,6 @@ mod tests {
     fn rewrite_covers_entire_if_command() {
         let source = "if {$x eq \"a\"} {\n    puts 1\n} elseif {$x eq \"b\"} {\n    puts 2\n}";
         let applied = run(source, 0).expect("result").apply(source);
-        // Byte-for-byte parity with the Python oracle.
         assert_eq!(
             applied,
             "switch -exact -- $x {\n    a {\n        puts 1\n    }\n    b {\n        puts 2\n    }\n}"
@@ -299,7 +296,8 @@ mod tests {
 
     #[test]
     fn values_with_spaces_are_braced() {
-        let source = "if {$x eq \"a b\"} {\n    puts one\n} elseif {$x eq \"c d\"} {\n    puts two\n}";
+        let source =
+            "if {$x eq \"a b\"} {\n    puts one\n} elseif {$x eq \"c d\"} {\n    puts two\n}";
         let applied = run(source, 0).expect("result").apply(source);
         assert!(applied.contains("{a b}"), "{applied:?}");
         assert!(applied.contains("{c d}"), "{applied:?}");
@@ -309,7 +307,7 @@ mod tests {
     fn inside_proc_body() {
         let source = "proc handler {method} {\n    if {$method eq \"GET\"} {\n        handle_get\n    } elseif {$method eq \"POST\"} {\n        handle_post\n    } elseif {$method eq \"PUT\"} {\n        handle_put\n    }\n}";
         // Cursor at line 1, col 4 — inside the `if`.
-        let cursor = source.find("if {").unwrap() as u32;
+        let cursor = u32::try_from(source.find("if {").unwrap()).unwrap();
         let r = run(source, cursor).expect("nested result");
         assert!(r.title.to_lowercase().contains("switch"));
     }

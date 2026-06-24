@@ -1,16 +1,15 @@
 //! Diff verb: compare two sources at the AST / IR / CFG layers.
 //!
-//! Port of `tooling/tcl/verbs/diff.py`. All three layers are ported and
-//! byte-parity (modulo a residual CFG/SSA construction gap on complex
-//! scripts, tracked in `docs/rust-cli-port.md`):
+//! Compares two sources across three layers, byte-parity with the captured
+//! golden output (modulo a residual CFG/SSA construction gap on complex scripts):
 //!
 //! - **AST** — segments each side (`tcl-compiler` segmenter) and serialises
 //!   the command list to canonical JSON (`sort_keys`).
-//! - **IR** — Python reads `serialise_result(compiled)["ir"]`; the native
-//!   `tcl-explorer` `serialise::serialise_ir` reproduces that view, so the
-//!   diff calls it directly rather than carrying a second IR serialiser.
+//! - **IR** — reproduces the `serialise_result(compiled)["ir"]` view via the
+//!   `tcl-explorer` `serialise::serialise_ir`, so the diff calls it directly
+//!   rather than carrying a second IR serialiser.
 //! - **CFG** — `{preSsa, postSsa}` from the explorer's `serialise_result`
-//!   `cfgPreSsa`/`cfgPostSsa` views, after the CFG/SSA engine-parity work.
+//!   `cfgPreSsa`/`cfgPostSsa` views.
 //!
 //! Every layer renders through the shared `value_to_json` →
 //! `snapshot::Json::dumps_indent2` adapter and a
@@ -30,18 +29,17 @@ use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 use tcl_registry::snapshot::Json;
 
-/// Unified-diff context lines. The Python verb exposes `--context` (default
+/// Unified-diff context lines. Exposes `--context` (default
 /// 3); the Rust CLI surface does not, so the default is used.
 const CONTEXT: usize = 3;
 
-/// Expand / validate the `--show` layer list (port of `_parse_diff_layers`).
-/// All three layers (`ast`, `ir`, `cfg`) are ported, so `all` expands to the
-/// full set — mirroring Python's `_DIFF_LAYERS`. Duplicates are dropped,
-/// preserving order.
+/// Expand / validate the `--show` layer list.
+/// All three layers (`ast`, `ir`, `cfg`) are implemented, so `all` expands to
+/// the full set. Duplicates are dropped, preserving order.
 fn parse_layers(show: &[String]) -> anyhow::Result<Vec<&'static str>> {
     const KNOWN: [&str; 3] = ["ast", "ir", "cfg"];
-    // All three layers are ported (`cfg` rides on the engine-parity CFG/SSA
-    // serialisers). Mirrors Python's `_DIFF_LAYERS`.
+    // All three layers are implemented (`cfg` rides on the engine-parity
+    // CFG/SSA serialisers).
     const ALL_IMPLEMENTED: [&str; 3] = ["ast", "ir", "cfg"];
     let mut selected: Vec<&'static str> = Vec::new();
     for raw in show {
@@ -79,15 +77,21 @@ fn range_json(span: tcl_lexer::Span, line_index: &LineIndex, source: &str) -> Js
     let end = line_index.position_at_utf16(span.end(), source);
     let mut m = BTreeMap::new();
     m.insert("startLine".to_owned(), Json::Int(i64::from(start.line)));
-    m.insert("startCol".to_owned(), Json::Int(i64::from(start.character)));
+    m.insert(
+        "startCol".to_owned(),
+        Json::Int(i64::from(start.character.get())),
+    );
     m.insert("startOffset".to_owned(), Json::Int(i64::from(span.start())));
     m.insert("endLine".to_owned(), Json::Int(i64::from(end.line)));
-    m.insert("endCol".to_owned(), Json::Int(i64::from(end.character)));
+    m.insert(
+        "endCol".to_owned(),
+        Json::Int(i64::from(end.character.get())),
+    );
     m.insert("endOffset".to_owned(), Json::Int(i64::from(span.end())));
     Json::Object(m)
 }
 
-/// `partial_delimiter.name.lower()` or `""` (port of the diff verb's mapping).
+/// `partial_delimiter.name.lower()` or `""`.
 fn partial_delimiter_str(cmd: &SegmentedCommand) -> &'static str {
     match cmd.partial_delimiter {
         Some(UnclosedDelimiter::Brace) => "brace",
@@ -97,7 +101,7 @@ fn partial_delimiter_str(cmd: &SegmentedCommand) -> &'static str {
     }
 }
 
-/// Resolve the command's subcommand name (port of `_resolve_subcommands`):
+/// Resolve the command's subcommand name:
 /// when the head has registered subcommands and the first arg names one.
 fn resolve_subcommand<'a>(cmd: &'a SegmentedCommand, registry: &CommandRegistry) -> &'a str {
     if cmd.texts.len() < 2 {
@@ -115,8 +119,7 @@ fn resolve_subcommand<'a>(cmd: &'a SegmentedCommand, registry: &CommandRegistry)
 }
 
 /// The `ast` layer payload (`{"commands": [...]}`), as canonical
-/// `json.dumps(indent=2, sort_keys=True)` text — port of
-/// `_serialise_command_ast`.
+/// 2-space-indented JSON (keys sorted).
 fn serialise_command_ast(
     source: &str,
     registry: &CommandRegistry,
@@ -162,7 +165,7 @@ fn serialise_command_ast(
     Json::Object(root).dumps_indent2()
 }
 
-/// Compute one layer's diff (port of `_compute_layer_diff`): equal flag +
+/// Compute one layer's diff: equal flag +
 /// the raw `unified_diff` line list (each line keeps its terminator).
 fn compute_layer_diff(
     layer: &str,
@@ -195,7 +198,7 @@ fn layer_payload(
     match layer {
         "ast" => Ok(serialise_command_ast(src, registry, line_index)),
         "ir" => {
-            // Python's diff reads `serialise_result(compiled)["ir"]`; the
+            // The diff reads `serialise_result(compiled)["ir"]`; the
             // native `tcl-explorer` serialiser reproduces that view, so reuse
             // it (through the shared `value_to_json` adapter) rather than
             // carrying a second IR serialiser.
@@ -209,16 +212,14 @@ fn layer_payload(
 }
 
 /// Build the `cfg` diff layer payload: `{preSsa, postSsa}` from the explorer's
-/// CFG/SSA serialisers (which match the Python CLI after the engine-parity
-/// work), rendered through the shared sort-keys indent-2 adapter the AST/IR
-/// layers use. Mirrors Python's `_collect_diff_layer_payloads` cfg branch —
-/// read the two views off `serialise_result`.
+/// CFG/SSA serialisers (which match the captured golden output), rendered through the
+/// shared sort-keys indent-2 adapter the AST/IR layers use. The two views are
+/// read off `serialise_result`.
 ///
-/// `analysis.deadStores` inside `postSsa` is the liveness-based set (a port of
-/// Python's `_dead_stores`), byte-identical wherever the SSA matches. A
-/// residual SSA-block construction gap on complex scripts can still diverge
-/// (and cascade into `inferredTypes`/`deadStores` there) — a separate
-/// workstream; see the `diff` row in `docs/rust-cli-port.md`.
+/// `analysis.deadStores` inside `postSsa` is the liveness-based set,
+/// byte-identical wherever the SSA matches. A residual SSA-block construction
+/// gap on complex scripts can still diverge (and cascade into
+/// `inferredTypes`/`deadStores` there).
 fn cfg_layer_payload(src: &str, dialect: &str) -> String {
     let result = tcl_explorer::run_pipeline(src, dialect);
     let serialised = tcl_explorer::serialise_result(&result);
@@ -235,7 +236,7 @@ fn cfg_layer_payload(src: &str, dialect: &str) -> String {
 
 /// Convert a `serde_json::Value` (the explorer serialisers' output) into the
 /// snapshot [`Json`] so it renders through the shared `dumps_indent2`
-/// (`json.dumps(indent=2, sort_keys=True)`) adapter the AST/IR layers use. The
+/// (2-space-indented JSON, keys sorted) adapter the AST/IR layers use. The
 /// CFG payload is integer-only (offsets / versions / counts), so a JSON number
 /// is always an `i64`.
 fn value_to_json(value: &serde_json::Value) -> Json {
@@ -257,7 +258,7 @@ fn value_to_json(value: &serde_json::Value) -> Json {
     }
 }
 
-/// `tcl diff` — AST/IR/CFG structural diff (AST + IR layers ported).
+/// `tcl diff` — AST/IR/CFG structural diff.
 #[allow(clippy::too_many_arguments)]
 pub fn run_diff(
     left: Option<&Path>,
@@ -313,8 +314,7 @@ pub fn run_diff(
 }
 
 /// Emit the multi-layer diff result as JSON or unified-diff text, returning the
-/// exit code (1 when any layer differs). Mirrors `_run_diff`'s payload + chunk
-/// assembly.
+/// exit code (1 when any layer differs).
 #[allow(clippy::too_many_arguments)]
 fn write_diff_result(
     target: &OutputTarget,

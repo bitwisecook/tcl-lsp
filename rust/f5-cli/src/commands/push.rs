@@ -1,9 +1,8 @@
 //! `f5 push` — send one object to a live device via iControl REST.
 //!
-//! Rust port of `tooling/f5/verbs/push.py`. The `--dry-run` surface (request
-//! summary on stderr + the `json.dumps(payload, indent=2)` body on stdout,
-//! emitted *before* any credential resolution) is byte-for-byte parity-tested
-//! offline; the live PUT/POST is implemented faithfully but untested here.
+//! The `--dry-run` surface (request summary on stderr + the 2-space-indented
+//! JSON body on stdout) is emitted *before* any credential resolution; the
+//! live PUT/POST is implemented but exercised only against a live device.
 
 use serde_json::Value;
 
@@ -12,7 +11,7 @@ use super::remote::json_compat::dumps_indent2;
 use super::remote::object_io::{self, dry_run_plan, parse_payload};
 use super::remote::os_error_string;
 
-/// Parameters for [`run_push`], mirroring the Python verb's argument namespace.
+/// Parameters for [`run_push`].
 #[allow(clippy::struct_excessive_bools)]
 pub struct PushArgs<'a> {
     pub kind: &'a str,
@@ -29,7 +28,7 @@ pub struct PushArgs<'a> {
 }
 
 /// Run `f5 push`, returning the process exit code (0 success / 2 error). All
-/// errors are printed to stderr as `error: …`, matching the Python verb.
+/// errors are printed to stderr as `error: …`.
 #[must_use]
 pub fn run_push(args: &PushArgs) -> u8 {
     let raw = if args.payload == "-" {

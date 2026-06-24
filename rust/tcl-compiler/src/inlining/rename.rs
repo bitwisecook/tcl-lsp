@@ -1,6 +1,6 @@
 //! v3 — α-renaming for inlined IR bodies.
 //!
-//! Ported from `compiler/inlining/_rename.py`. When a callee's body is
+//! When a callee's body is
 //! spliced into a caller's IR, the callee's parameter and local names
 //! must be rewritten so they don't collide with the caller's locals.
 //! This module walks every [`Statement`] shape and produces a clone with
@@ -21,10 +21,9 @@
 //! the map (a global `::ns::var`, a namespace variable, a name that's
 //! neither parameter nor local of the callee) passes through verbatim.
 //!
-//! Unlike the Python original — which leans on frozen-dataclass identity
-//! to skip untouched sub-trees — the Rust IR is owned, so this walker
-//! always rebuilds. The result is value-identical; only the structural-
-//! sharing micro-optimisation is dropped.
+//! The IR is owned rather than structurally shared, so this walker always
+//! rebuilds every sub-tree instead of skipping untouched ones; the rebuilt
+//! body is value-identical to the input.
 
 use std::collections::HashMap;
 
@@ -48,8 +47,7 @@ pub(super) fn rewrite_script(script: &Script, rename: &HashMap<String, String>) 
 
 /// Apply `rename` to a variable-name field, handling array-element
 /// references. For `arr(idx)` shapes the array base carries the binding
-/// identity; the `(idx)` suffix is preserved verbatim. Mirrors
-/// `_rename_var_name`.
+/// identity; the `(idx)` suffix is preserved verbatim.
 fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
     if let Some(paren) = name.find('(') {
         let base = &name[..paren];
@@ -63,7 +61,7 @@ fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
     }
 }
 
-#[allow(clippy::too_many_lines)] // one arm per IR statement variant, mirrors `_rename.py`
+#[allow(clippy::too_many_lines)] // one arm per IR statement variant
 fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
     match stmt {
         Statement::AssignConst {
@@ -364,7 +362,7 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
 
 /// Rewrite `$name` / `${name}` substitutions in `text`. Array-element
 /// references (`$arr(idx)`) rename the array name only — the index
-/// expression is preserved verbatim. Mirrors `_rewrite_value_string`,
+/// expression is preserved verbatim.,
 /// including the backslash-protection rule: `\$x` is a literal `$`, not
 /// a substitution, so its name is never renamed.
 fn rewrite_value_string(text: &str, rename: &HashMap<String, String>) -> String {
@@ -458,7 +456,7 @@ fn split_array(name: &str) -> (&str, &str) {
 }
 
 /// Walk an [`ExprNode`] tree and return a clone with `rename` applied to
-/// every [`ExprNode::Var`] name. Mirrors `_rewrite_expr`.
+/// every [`ExprNode::Var`] name.
 fn rewrite_expr(node: &ExprNode, rename: &HashMap<String, String>) -> ExprNode {
     match node {
         ExprNode::Var {

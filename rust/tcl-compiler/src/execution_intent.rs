@@ -7,11 +7,6 @@
 //! mixed), whether the substitution may have side effects or may
 //! escape the current frame, and how much type-conversion pressure
 //! the arguments impose.
-//!
-//! Ported from `core/compiler/execution_intent.py` in two strips:
-//! - **C23e** (this file) — enums and dataclasses.
-//! - **C23f** — the arg-categorisation + command-substitution parser
-//!   + `build_function_execution_intent` that walks the CFG.
 
 use std::collections::HashMap;
 
@@ -22,9 +17,7 @@ use crate::cfg::Function as CfgFunction;
 use crate::ir::Statement;
 use crate::side_effects::classify_side_effects;
 
-// ---------------------------------------------------------------------------
-// Enums (C23e)
-// ---------------------------------------------------------------------------
+// Enums
 
 /// How a value is executed/evaluated by Tcl at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -79,9 +72,7 @@ pub enum EscapeClass {
     MayEscape,
 }
 
-// ---------------------------------------------------------------------------
-// Intent structures (C23e)
-// ---------------------------------------------------------------------------
+// Intent structures
 
 /// Intent for a bracketed value like `[llength $x]`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -132,7 +123,7 @@ pub type StatementKey = (String, usize);
 
 /// Per-function intent facts keyed by CFG statement coordinates.
 ///
-/// The builder in C23f populates this map by walking every
+/// The builder populates this map by walking every
 /// `Statement::AssignValue` in every block and attempting to parse
 /// its value as a command substitution.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -168,12 +159,10 @@ impl FunctionExecutionIntent {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Builders (C23f)
-// ---------------------------------------------------------------------------
+// Builders
 
 /// Classify an argument's substitution category from its textual
-/// form. Ported from `execution_intent.py::_categorise_arg`.
+/// form.
 #[must_use]
 pub fn categorise_arg(text: &str) -> SubstitutionCategory {
     let stripped = text.trim();
@@ -193,8 +182,7 @@ pub fn categorise_arg(text: &str) -> SubstitutionCategory {
 }
 
 /// Estimate shimmer (type-conversion) pressure from a vector of
-/// argument categories. Matches the weights in
-/// `execution_intent.py::_shimmer_pressure`: scalar/array refs
+/// argument categories. Weighting: scalar/array refs
 /// contribute 1 each, nested commands and mixed contribute 2.
 #[must_use]
 pub fn shimmer_pressure(categories: &[SubstitutionCategory]) -> u32 {
@@ -210,7 +198,7 @@ pub fn shimmer_pressure(categories: &[SubstitutionCategory]) -> u32 {
 }
 
 /// Conservative side-effect classification by bridging to
-/// [`crate::side_effects::classify_side_effects`] (C23d). Maps the
+/// [`crate::side_effects::classify_side_effects`]. Maps the
 /// two-valued intent lattice onto the richer compiler classifier's
 /// `pure` flag.
 #[must_use]
@@ -258,13 +246,13 @@ pub fn classify_escape(
 
 /// Render a single token into its intent-form text: VAR becomes
 /// `$name`, CMD becomes `[text]`, other kinds keep their body
-/// unchanged. Mirrors Python `_token_text_for_intent`.
+/// unchanged.
 fn token_intent_text<'src>(source: &'src str, tok: &tcl_lexer::Token) -> &'src str {
     let start = tok.span.start() as usize;
     let end = tok.span.end() as usize;
     // Token spans already cover the full token text (including any
     // leading `$` / `[` and trailing `]` for wrapper tokens).
-    // Returning the raw slice preserves the Python-side behaviour.
+    // Returning the raw slice keeps the wrapper text intact.
     &source[start..end]
 }
 
@@ -280,8 +268,7 @@ fn token_intent_text<'src>(source: &'src str, tok: &tcl_lexer::Token) -> &'src s
 /// Uses the Rust lexer to tokenise the inner body; COMMENT and SEP
 /// tokens are skipped; EOL terminates the first command and
 /// rejects any further words. Adjacent tokens without a separator
-/// are concatenated into one argument (matches the Python behaviour
-/// for `$a$b` or `foo$x`).
+/// are concatenated into one argument (e.g. `$a$b` or `foo$x`).
 #[must_use]
 pub fn parse_command_substitution(
     registry: &CommandRegistry,
@@ -352,8 +339,7 @@ pub fn parse_command_substitution(
 
 /// Walk a CFG function, collecting intent records for every
 /// `Statement::AssignValue` whose value parses as a command
-/// substitution. Ported from
-/// `execution_intent.py::build_function_execution_intent`.
+/// substitution.
 #[must_use]
 pub fn build_function_execution_intent(
     registry: &CommandRegistry,
@@ -361,13 +347,13 @@ pub fn build_function_execution_intent(
     dialect: Option<&str>,
 ) -> FunctionExecutionIntent {
     let mut out = FunctionExecutionIntent::new();
-    for (block_name, block) in &cfg.blocks {
+    for block in cfg.blocks.values() {
         for (idx, stmt) in block.statements.iter().enumerate() {
             if let Statement::AssignValue { value, .. } = stmt
                 && let Some(parsed) = parse_command_substitution(registry, value, dialect)
             {
                 out.command_substitutions
-                    .insert((block_name.clone(), idx), parsed);
+                    .insert((block.name.clone(), idx), parsed);
             }
         }
     }
@@ -422,7 +408,7 @@ mod tests {
         assert_eq!(fi.len(), 0);
     }
 
-    // -- C23f: builders --
+    // -- builders --
 
     #[test]
     fn categorise_literal_text() {
@@ -534,7 +520,7 @@ mod tests {
     #[test]
     fn parse_multi_command_body_returns_none() {
         let registry = CommandRegistry::build_default();
-        // Two commands separated by `;` — Python rejects.
+        // Two commands separated by `;` — rejected.
         let out = parse_command_substitution(&registry, "[set x 1; set y 2]", None);
         assert!(out.is_none());
     }
@@ -574,7 +560,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let mut f = Function::new("::top", "entry_0");
         {
-            let entry = f.blocks.get_mut("entry_0").unwrap();
+            let entry = f.block_by_name_mut("entry_0").unwrap();
             entry.statements.push(Statement::AssignValue {
                 span: Span::new(0, 0),
                 name: "len".into(),

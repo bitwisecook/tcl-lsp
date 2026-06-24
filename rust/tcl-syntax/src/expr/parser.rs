@@ -122,15 +122,30 @@ const UNARY_BP: u8 = 24;
 #[derive(Debug)]
 struct ParseError;
 
+/// Maximum nesting depth for the recursive-descent `expression`
+/// parser.  Deeply-nested input (`((((…))))`, chained unary/ternary)
+/// would otherwise recurse one Rust frame per level and overflow the
+/// stack — an uncatchable SIGABRT.  At the cap we bail with a
+/// [`ParseError`], which `parse_expr` converts to [`ExprNode::Raw`],
+/// honouring the "never crashes on malformed expressions" contract.
+/// No hand-written or generated expression nests anywhere near this.
+const MAX_EXPR_DEPTH: usize = 256;
+
 /// Pratt (top-down operator precedence) parser for Tcl expressions.
 struct PrattParser<'a> {
     tokens: &'a [ExprToken],
     pos: usize,
+    /// Current recursion depth, bounded by [`MAX_EXPR_DEPTH`].
+    depth: usize,
 }
 
 impl<'a> PrattParser<'a> {
     fn new(tokens: &'a [ExprToken]) -> Self {
-        Self { tokens, pos: 0 }
+        Self {
+            tokens,
+            pos: 0,
+            depth: 0,
+        }
     }
 
     fn peek(&self) -> Option<&'a ExprToken> {
@@ -152,7 +167,22 @@ impl<'a> PrattParser<'a> {
     }
 
     /// Parse an expression with minimum binding power `min_bp`.
+    ///
+    /// Depth-guarded: every recursive descent (prefix unary, parens,
+    /// ternary arms, function args) re-enters here, so bounding this one
+    /// entry point caps the whole recursion at [`MAX_EXPR_DEPTH`].
     fn expression(&mut self, min_bp: u8) -> Result<ExprNode, ParseError> {
+        self.depth += 1;
+        if self.depth > MAX_EXPR_DEPTH {
+            self.depth -= 1;
+            return Err(ParseError);
+        }
+        let result = self.expression_inner(min_bp);
+        self.depth -= 1;
+        result
+    }
+
+    fn expression_inner(&mut self, min_bp: u8) -> Result<ExprNode, ParseError> {
         let mut left = self.prefix()?;
 
         while let Some(tok) = self.peek() {
@@ -376,24 +406,19 @@ pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
     }
 }
 
-// -- SYNC10: LRU-cached parse_expr -------------------------------
+// LRU-cached parse_expr
 //
-// Mirrors Python `5056effe` (parse_expr LRU cache, 4096 entries
-// keyed on `(source, dialect)`).  Python saw 17.10s → 5.04s
-// (3.4x) on a 10k-iter `for` loop after the cache landed.  The
-// Rust analyser callers are once-per-source, so the existing
-// `parse_expr` stays uncached; this sibling is for the future
-// VM port (`VM*`) which re-evaluates loop conditions on every
-// iteration.
+// The analyser callers are once-per-source, so the existing
+// `parse_expr` stays uncached; this sibling is for the VM, which
+// re-evaluates loop conditions on every iteration.
 //
-// Key shape: `(source, dialect)` — same as Python.  The cache is
-// process-global (a `OnceLock<Mutex<…>>`) and capped at 4096
-// entries with simple LRU eviction (move-to-back on hit, evict
-// front on capacity overflow).  Entries return `Arc<ExprNode>`
-// so multiple callers can share the parsed tree without cloning
-// the AST.
+// Key shape: `(source, dialect)`.  The cache is process-global (a
+// `OnceLock<Mutex<…>>`) and capped at 4096 entries with simple LRU
+// eviction (move-to-back on hit, evict front on capacity overflow).
+// Entries return `Arc<ExprNode>` so multiple callers can share the
+// parsed tree without cloning the AST.
 
-/// Cache capacity — matches Python `5056effe`.  4096 entries was
+/// Cache capacity.  4096 entries was
 /// empirically large enough to hold every distinct expression a
 /// 10k-iter loop encounters (typically <10 distinct expressions
 /// per proc); larger workloads stress the LRU eviction path.
@@ -471,9 +496,6 @@ fn expr_cache() -> &'static Mutex<ExprCache> {
 /// Use this from VM-loop hot paths (re-evaluating `expr {$i < N}`
 /// on every iteration); use the un-cached [`parse_expr`] from
 /// once-per-invocation analyser sites.
-///
-/// Mirrors Python `core/parsing/expr_parser.py::parse_expr`'s
-/// `@lru_cache(maxsize=4096)` decoration after `5056effe`.
 #[must_use]
 pub fn parse_expr_cached(source: &str, dialect: Option<&str>) -> Arc<ExprNode> {
     let key: ExprCacheKey = (source.to_owned(), dialect.map(str::to_owned));
@@ -521,6 +543,33 @@ mod tests {
 
     fn parse_irules(s: &str) -> ExprNode {
         parse_expr(s, Some("f5-irules"))
+    }
+
+    // Adversarial nesting — must not overflow the stack
+
+    #[test]
+    fn deeply_nested_parens_does_not_overflow() {
+        // ~9000 parens reproduced a SIGABRT stack overflow before the
+        // depth guard.  Now it must degrade gracefully to `Raw`, never abort.
+        let depth = 9000;
+        let src = format!("{}1{}", "(".repeat(depth), ")".repeat(depth));
+        let node = parse(&src);
+        assert!(matches!(node, ExprNode::Raw { .. }));
+    }
+
+    #[test]
+    fn deeply_chained_unary_does_not_overflow() {
+        let src = format!("{}1", "-".repeat(9000));
+        let node = parse(&src);
+        assert!(matches!(node, ExprNode::Raw { .. }));
+    }
+
+    #[test]
+    fn modestly_nested_parens_still_parses() {
+        // Well under MAX_EXPR_DEPTH — real code is unaffected by the cap.
+        let src = format!("{}1 + 2{}", "(".repeat(32), ")".repeat(32));
+        let node = parse(&src);
+        assert!(matches!(node, ExprNode::Binary { op: BinOp::Add, .. }));
     }
 
     // Literals
@@ -1058,7 +1107,7 @@ mod tests {
         assert_eq!(rendered, "-$x");
     }
 
-    // -- SYNC10: parse_expr_cached -----------------------------------
+    // parse_expr_cached
     //
     // The global cache is shared across the whole test binary, so
     // tests that assert on cache state (length / eviction) run

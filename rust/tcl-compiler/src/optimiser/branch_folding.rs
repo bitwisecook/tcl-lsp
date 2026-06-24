@@ -1,17 +1,15 @@
-//! Branch-folding optimiser pass (C30a + C30a').
+//! Branch-folding optimiser pass.
 //!
-//! Ported from `core/compiler/optimiser/_branch_folding.py`. Two
-//! Python entry points — both folded into [`run`]:
+//! Two entry points, both folded into [`run`]:
 //!
-//! - **C30a** — `optimise_constant_branches`: for every
+//! - `optimise_constant_branches`: for every
 //!   [`ConstantBranch`] SCCP produced, emits an `O101`
 //!   suggestion rewriting the condition to the literal boolean
 //!   it folded to.
-//! - **C30a'** — `optimise_branch_proc_calls`: for every branch
+//! - `optimise_branch_proc_calls`: for every branch
 //!   condition SCCP could *not* fold, tries propagation via
-//!   [`substitute_expr_constants`] (from the landed
-//!   [`super::helpers::expr_simplify`] toolkit). The deeper
-//!   simplification rewriters all landed under C30e4–C30e7;
+//!   [`substitute_expr_constants`] (from the
+//!   [`super::helpers::expr_simplify`] toolkit).
 //!   `propagate_into_branches` runs `substitute_expr_constants`
 //!   first to build a working text, then probes the four AST
 //!   rewriters in priority order — `strength_reduce` (`O113`)
@@ -28,6 +26,7 @@
 //! text.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::Terminator;
@@ -44,11 +43,11 @@ use super::helpers::expr_simplify::{
 use super::helpers::literals::format_constant;
 use super::{Optimisation, PassContext};
 
-/// Run the branch-folding pass — both C30a
-/// (`optimise_constant_branches`) and C30a'
-/// (`optimise_branch_proc_calls`).
+/// Run the branch-folding pass — both
+/// `optimise_constant_branches` and
+/// `optimise_branch_proc_calls`.
 ///
-/// Constant-branch pass (C30a):
+/// Constant-branch pass (`optimise_constant_branches`):
 ///
 /// - Code: `O101` ("Fold constant expression").
 /// - Replacement: `"1"` or `"0"` depending on the folded value,
@@ -57,7 +56,7 @@ use super::{Optimisation, PassContext};
 /// - Switch-dispatch branches (`StrEq` condition + block or
 ///   targets whose names mention `switch_next`) are skipped.
 ///
-/// Branch-proc-call propagation (C30a'):
+/// Branch-proc-call propagation (`optimise_branch_proc_calls`):
 ///
 /// - Code: `O100` ("Propagate constants into branch
 ///   expression") when SCCP could not fold the branch but the
@@ -105,9 +104,8 @@ fn brace_corrected_span(source: &str, span: Span) -> Span {
 fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // Note: `constants` may be empty — the cascade (strength-reduce, streq,
     // instcombine) and the O115 redundant-`expr` unwrap still apply to a
-    // branch condition with no propagable constants, matching Python's
-    // `propagate_into_branches` (which does not gate on a non-empty constant
-    // map). Substitution is simply a no-op in that case.
+    // branch condition with no propagable constants; this does not gate on a
+    // non-empty constant map. Substitution is simply a no-op in that case.
     let constants = sccp_constants_for(fu);
     // Numeric-type context so identity rewrites (`$x + 0` → `$x`, etc.) on a
     // branch condition fire only when the dropped operand is provably numeric.
@@ -120,7 +118,9 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         .collect();
 
     for (bn, block) in &fu.cfg.blocks {
-        if folded.contains(bn) {
+        // `folded` holds block *names* (from each `ConstantBranch.block`);
+        // resolve the iterated `BlockId` to its name to test membership.
+        if folded.contains(fu.cfg.block_name(*bn)) {
             continue;
         }
         let Some(Terminator::Branch {
@@ -167,12 +167,12 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
 
         // O115: a branch condition that is itself a redundant `[expr {…}]`
         // wrapper (`if {[expr {$x}]} …`) unwraps to its inner expression.
-        // Checked before the constant cascade, mirroring the Python order.
+        // Checked before the constant cascade.
         if let Some(unwrapped) = try_unwrap_expr_in_expr(inner)
             && unwrapped != inner
         {
             ctx.report(Optimisation::new(
-                "O115",
+                DiagCode::O115,
                 "Remove redundant nested expr",
                 span,
                 rewrap(&unwrapped),
@@ -181,8 +181,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         }
 
         // Cascade: substitute → strength-reduce → strlen → streq →
-        // instcombine, with an O101 fold short-circuit. Mirrors
-        // `optimise_branch_proc_calls`'s priority order in the Python source.
+        // instcombine, with an O101 fold short-circuit.
         let sub = substitute_expr_constants(inner, &constants, ctx.dialect);
         let working = if sub.changed {
             sub.text.clone()
@@ -192,14 +191,13 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
 
         // O101: if constant propagation makes the whole condition fold to a
         // literal (`if {$flag > 0}` with `flag == 1` → `1`), emit the fold in
-        // preference to the partial-canonicalisation codes. Mirrors Python's
-        // `_try_fold_expr(combined)` branch.
+        // preference to the partial-canonicalisation codes.
         if sub.changed
             && let Some(folded) = try_fold_expr(&working, ctx.dialect)
             && folded != inner
         {
             ctx.report(Optimisation::new(
-                "O101",
+                DiagCode::O101,
                 "Fold constant expression",
                 span,
                 rewrap(&folded),
@@ -225,26 +223,30 @@ fn branch_cascade(
     sub_changed: bool,
     sub_text: &str,
     numeric: &HashSet<String>,
-) -> Option<(&'static str, &'static str, String)> {
+) -> Option<(DiagCode, &'static str, String)> {
     let (sred, sred_changed) = try_strength_reduce_expr_typed(working, Some(numeric));
     if sred_changed {
-        return Some(("O113", "Strength-reduce expression", sred));
+        return Some((DiagCode::O113, "Strength-reduce expression", sred));
     }
     let (slen, slen_changed) = try_strlen_simplify_expr(working);
     if slen_changed {
-        return Some(("O117", "Simplify string length zero-check", slen));
+        return Some((DiagCode::O117, "Simplify string length zero-check", slen));
     }
     let (streq, streq_changed) = try_eq_ne_string_compare_simplify_expr(working);
     if streq_changed {
-        return Some(("O120", "Use eq/ne for string comparison", streq));
+        return Some((DiagCode::O120, "Use eq/ne for string comparison", streq));
     }
     let (combined, combined_changed) = instcombine_expr_typed(working, true, Some(numeric));
     if combined_changed {
-        return Some(("O110", "Canonicalise expression (InstCombine)", combined));
+        return Some((
+            DiagCode::O110,
+            "Canonicalise expression (InstCombine)",
+            combined,
+        ));
     }
     if sub_changed {
         return Some((
-            "O100",
+            DiagCode::O100,
             "Propagate constants into branch expression",
             sub_text.to_owned(),
         ));
@@ -263,27 +265,27 @@ fn is_switch_dispatch_cond(cond: &ExprNode) -> bool {
 }
 
 fn sccp_constants_for(fu: &FunctionUnit) -> HashMap<String, String> {
-    let mut per_var: HashMap<String, Vec<&ConstValue>> = HashMap::new();
-    let mut dirty: HashSet<String> = HashSet::new();
-    for ((name, _ver), lv) in &fu.sccp.values {
-        if dirty.contains(name) {
+    let mut per_var: HashMap<crate::ssa::Symbol, Vec<&ConstValue>> = HashMap::new();
+    let mut dirty: HashSet<crate::ssa::Symbol> = HashSet::new();
+    for ((sym, _ver), lv) in &fu.sccp.values {
+        if dirty.contains(sym) {
             continue;
         }
         if let LatticeValue::Const(cv) = lv {
-            per_var.entry(name.clone()).or_default().push(cv);
+            per_var.entry(*sym).or_default().push(cv);
         } else {
-            dirty.insert(name.clone());
-            per_var.remove(name);
+            dirty.insert(*sym);
+            per_var.remove(sym);
         }
     }
     let mut out = HashMap::new();
-    for (name, cvs) in per_var {
+    for (sym, cvs) in per_var {
         let first = cvs[0];
         if !cvs.iter().all(|cv| *cv == first) {
             continue;
         }
         if let Some(text) = format_constant(first) {
-            out.insert(name, text);
+            out.insert(fu.ssa.var_name(sym).to_owned(), text);
         }
     }
     out
@@ -291,7 +293,7 @@ fn sccp_constants_for(fu: &FunctionUnit) -> HashMap<String, String> {
 
 fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     for cb in &fu.sccp.constant_branches {
-        let Some(block) = fu.cfg.blocks.get(&cb.block) else {
+        let Some(block) = fu.cfg.block_by_name(&cb.block) else {
             continue;
         };
         let Some(Terminator::Branch {
@@ -333,7 +335,7 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         let replacement = format!("{prefix}{folded}{suffix}");
 
         ctx.report(Optimisation::new(
-            "O101",
+            DiagCode::O101,
             "Fold constant expression",
             span,
             replacement,
@@ -364,18 +366,19 @@ fn is_switch_dispatch(cond: &ExprNode, cb: &ConstantBranch) -> bool {
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
+    use tcl_core_types::DiagCode;
 
     use tcl_lexer::Span;
     use tcl_registry::CommandRegistry;
 
     use crate::analyses::{ConstValue, LatticeValue};
-    use crate::cfg::{Block, Function as CfgFunction, Terminator};
+    use crate::cfg::{Block, BlockId, Function as CfgFunction, Terminator};
     use crate::compilation_unit::{CompilationUnit, FunctionUnit};
     use crate::def_use::DefUseResult;
     use crate::expr_ast::{BinOp, ExprNode};
     use crate::interprocedural::InterproceduralAnalysis;
     use crate::sccp::{ConstantBranch, SccpResult};
-    use crate::ssa::{SsaBlock, SsaFunction};
+    use crate::ssa::{SsaBlock, SsaFunction, Symbol};
 
     use super::super::{PassContext, PassId};
     use super::run;
@@ -419,19 +422,24 @@ mod tests {
         }
     }
 
-    fn make_ssa(blocks: &[&str]) -> SsaFunction {
-        let mut ssa = SsaFunction {
-            name: "::top".into(),
-            entry: blocks[0].into(),
-            blocks: HashMap::new(),
-            idom: HashMap::new(),
-            dominance_frontier: HashMap::new(),
-            dominator_tree: HashMap::new(),
-        };
-        for b in blocks {
-            ssa.blocks.insert((*b).into(), empty_ssa_block(b));
+    /// Resolve an already-interned block name to its [`BlockId`].
+    fn id_of(cfg: &CfgFunction, name: &str) -> BlockId {
+        cfg.block_id(name).expect("block name interned")
+    }
+
+    /// Build an `SsaFunction` sharing `cfg`'s block-id numbering, with an
+    /// empty `SsaBlock` inserted for every block in `cfg`.
+    fn make_ssa(cfg: &CfgFunction) -> SsaFunction {
+        let mut ssa = SsaFunction::trivial("::top", cfg.entry, cfg.block_names().to_vec());
+        for (id, b) in &cfg.blocks {
+            ssa.blocks.insert(*id, empty_ssa_block(&b.name));
         }
         ssa
+    }
+
+    /// The set of [`BlockId`]s for `names`, resolved against `cfg`.
+    fn id_set(cfg: &CfgFunction, names: &[&str]) -> HashSet<BlockId> {
+        names.iter().map(|n| id_of(cfg, n)).collect()
     }
 
     /// Build a synthetic [`FunctionUnit`] wrapping `cfg`, `ssa`,
@@ -489,12 +497,18 @@ mod tests {
         }
     }
 
-    fn branch_block(name: &str, cond: ExprNode, span: Span, true_t: &str, false_t: &str) -> Block {
+    fn branch_block(
+        name: &str,
+        cond: ExprNode,
+        span: Span,
+        true_t: BlockId,
+        false_t: BlockId,
+    ) -> Block {
         let mut b = Block::new(name);
         b.terminator = Some(Terminator::Branch {
             condition: cond,
-            true_target: true_t.into(),
-            false_target: false_t.into(),
+            true_target: true_t,
+            false_target: false_t,
             span: Some(span),
         });
         b
@@ -515,26 +529,29 @@ mod tests {
         PassContext::new(source, InterproceduralAnalysis::default())
     }
 
-    // -- Tests --------------------------------------------------------------
+    // Tests
 
     #[test]
     fn constant_true_condition_emits_o101_with_one() {
         let source = "if {1} { set x 1 } else { set y 2 }";
         let cond_span = Span::new(3, 6); // covers "{1}"
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+        let entry = cfg.entry;
+        let t = cfg.intern_block("t");
+        let e = cfg.intern_block("e");
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: literal("1"),
-            true_target: "t".into(),
-            false_target: "e".into(),
+            true_target: t,
+            false_target: e,
             span: Some(cond_span),
         });
-        cfg.blocks.insert("t".into(), ret_block("t"));
-        cfg.blocks.insert("e".into(), ret_block("e"));
+        cfg.blocks.insert(t, ret_block("t"));
+        cfg.blocks.insert(e, ret_block("e"));
 
-        let ssa = make_ssa(&["entry", "t", "e"]);
+        let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             values: HashMap::new(),
-            executable_blocks: ["entry", "t"].iter().map(|s| (*s).into()).collect(),
+            executable_blocks: id_set(&cfg, &["entry", "t"]),
             executable_edges: HashSet::default(),
             constant_branches: vec![ConstantBranch {
                 block: "entry".into(),
@@ -552,7 +569,7 @@ mod tests {
 
         assert_eq!(ctx.optimisations.len(), 1);
         let opt = &ctx.optimisations[0];
-        assert_eq!(opt.code, "O101");
+        assert_eq!(opt.code, DiagCode::O101);
         assert_eq!(opt.message, "Fold constant expression");
         assert_eq!(opt.replacement, "{1}");
         assert_eq!(opt.span, cond_span);
@@ -565,19 +582,22 @@ mod tests {
         let source = "if {0} {a} else {b}";
         let cond_span = Span::new(3, 6);
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+        let entry = cfg.entry;
+        let t = cfg.intern_block("t");
+        let e = cfg.intern_block("e");
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: literal("0"),
-            true_target: "t".into(),
-            false_target: "e".into(),
+            true_target: t,
+            false_target: e,
             span: Some(cond_span),
         });
-        cfg.blocks.insert("t".into(), ret_block("t"));
-        cfg.blocks.insert("e".into(), ret_block("e"));
+        cfg.blocks.insert(t, ret_block("t"));
+        cfg.blocks.insert(e, ret_block("e"));
 
-        let ssa = make_ssa(&["entry", "t", "e"]);
+        let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             values: HashMap::new(),
-            executable_blocks: ["entry", "e"].iter().map(|s| (*s).into()).collect(),
+            executable_blocks: id_set(&cfg, &["entry", "e"]),
             executable_edges: HashSet::default(),
             constant_branches: vec![ConstantBranch {
                 block: "entry".into(),
@@ -605,27 +625,27 @@ mod tests {
         let inner_span = Span::new(12, 15); // "{0}"
 
         let mut cfg = CfgFunction::new("::top", "entry");
+        let entry = cfg.entry;
+        let mid = cfg.intern_block("mid");
+        let after = cfg.intern_block("after");
+        let inner_then = cfg.intern_block("inner_then");
+        let inner_else = cfg.intern_block("inner_else");
         cfg.blocks.insert(
-            "entry".into(),
-            branch_block("entry", literal("1"), outer_span, "mid", "after"),
+            entry,
+            branch_block("entry", literal("1"), outer_span, mid, after),
         );
         cfg.blocks.insert(
-            "mid".into(),
-            branch_block("mid", literal("0"), inner_span, "inner_then", "inner_else"),
+            mid,
+            branch_block("mid", literal("0"), inner_span, inner_then, inner_else),
         );
-        cfg.blocks
-            .insert("inner_then".into(), ret_block("inner_then"));
-        cfg.blocks
-            .insert("inner_else".into(), ret_block("inner_else"));
-        cfg.blocks.insert("after".into(), ret_block("after"));
+        cfg.blocks.insert(inner_then, ret_block("inner_then"));
+        cfg.blocks.insert(inner_else, ret_block("inner_else"));
+        cfg.blocks.insert(after, ret_block("after"));
 
-        let ssa = make_ssa(&["entry", "mid", "inner_then", "inner_else", "after"]);
+        let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             values: HashMap::new(),
-            executable_blocks: ["entry", "mid", "inner_else"]
-                .iter()
-                .map(|s| (*s).into())
-                .collect(),
+            executable_blocks: id_set(&cfg, &["entry", "mid", "inner_else"]),
             executable_edges: HashSet::default(),
             constant_branches: vec![
                 ConstantBranch {
@@ -670,38 +690,39 @@ mod tests {
         let folded_span = Span::new(13, 16); // "{1}"
 
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+        let entry = cfg.entry;
+        let mid = cfg.intern_block("mid");
+        let after = cfg.intern_block("after");
+        let t = cfg.intern_block("t");
+        let e = cfg.intern_block("e");
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: ExprNode::Var {
                 text: "$x".into(),
                 name: "x".into(),
                 start: 0,
                 end: 2,
             },
-            true_target: "mid".into(),
-            false_target: "after".into(),
+            true_target: mid,
+            false_target: after,
             span: Some(Span::new(3, 7)), // "{$x}"
         });
-        cfg.blocks.insert(
-            "mid".into(),
-            branch_block("mid", literal("1"), folded_span, "t", "e"),
-        );
-        cfg.blocks.insert("t".into(), ret_block("t"));
-        cfg.blocks.insert("e".into(), ret_block("e"));
-        cfg.blocks.insert("after".into(), ret_block("after"));
+        cfg.blocks
+            .insert(mid, branch_block("mid", literal("1"), folded_span, t, e));
+        cfg.blocks.insert(t, ret_block("t"));
+        cfg.blocks.insert(e, ret_block("e"));
+        cfg.blocks.insert(after, ret_block("after"));
 
-        let ssa = make_ssa(&["entry", "mid", "t", "e", "after"]);
-        let mut values: HashMap<(String, u32), LatticeValue> = HashMap::new();
+        let mut ssa = make_ssa(&cfg);
+        let x = ssa.intern_var("x");
+        let mut values: HashMap<(Symbol, u32), LatticeValue> = HashMap::new();
         // Simulate a mixed / Overdefined lattice for x.
         values.insert(
-            ("x".into(), 1),
+            (x, 1),
             LatticeValue::ConstSet(vec![ConstValue::Int(0), ConstValue::Int(1)]),
         );
         let sccp = SccpResult {
             values,
-            executable_blocks: ["entry", "mid", "t", "e"]
-                .iter()
-                .map(|s| (*s).into())
-                .collect(),
+            executable_blocks: id_set(&cfg, &["entry", "mid", "t", "e"]),
             executable_edges: HashSet::default(),
             // Only the SCCP-proved constant branch appears here —
             // the ConstSet lattice does not produce one.
@@ -731,26 +752,30 @@ mod tests {
         // `constant_branches`, so the pass emits nothing.
         let source = "if {$x} { ok }";
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+        let entry = cfg.entry;
+        let t = cfg.intern_block("t");
+        let e = cfg.intern_block("e");
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: ExprNode::Var {
                 text: "$x".into(),
                 name: "x".into(),
                 start: 0,
                 end: 2,
             },
-            true_target: "t".into(),
-            false_target: "e".into(),
+            true_target: t,
+            false_target: e,
             span: Some(Span::new(3, 7)),
         });
-        cfg.blocks.insert("t".into(), ret_block("t"));
-        cfg.blocks.insert("e".into(), ret_block("e"));
+        cfg.blocks.insert(t, ret_block("t"));
+        cfg.blocks.insert(e, ret_block("e"));
 
-        let ssa = make_ssa(&["entry", "t", "e"]);
-        let mut values: HashMap<(String, u32), LatticeValue> = HashMap::new();
-        values.insert(("x".into(), 1), LatticeValue::Overdefined);
+        let mut ssa = make_ssa(&cfg);
+        let x = ssa.intern_var("x");
+        let mut values: HashMap<(Symbol, u32), LatticeValue> = HashMap::new();
+        values.insert((x, 1), LatticeValue::Overdefined);
         let sccp = SccpResult {
             values,
-            executable_blocks: ["entry", "t", "e"].iter().map(|s| (*s).into()).collect(),
+            executable_blocks: id_set(&cfg, &["entry", "t", "e"]),
             executable_edges: HashSet::default(),
             constant_branches: Vec::new(),
         };
@@ -768,19 +793,22 @@ mod tests {
         let source = "if 1 { a } else { b }";
         let cond_span = Span::new(3, 4);
         let mut cfg = CfgFunction::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Branch {
+        let entry = cfg.entry;
+        let t = cfg.intern_block("t");
+        let e = cfg.intern_block("e");
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
             condition: literal("1"),
-            true_target: "t".into(),
-            false_target: "e".into(),
+            true_target: t,
+            false_target: e,
             span: Some(cond_span),
         });
-        cfg.blocks.insert("t".into(), ret_block("t"));
-        cfg.blocks.insert("e".into(), ret_block("e"));
+        cfg.blocks.insert(t, ret_block("t"));
+        cfg.blocks.insert(e, ret_block("e"));
 
-        let ssa = make_ssa(&["entry", "t", "e"]);
+        let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             values: HashMap::new(),
-            executable_blocks: ["entry", "t"].iter().map(|s| (*s).into()).collect(),
+            executable_blocks: id_set(&cfg, &["entry", "t"]),
             executable_edges: HashSet::default(),
             constant_branches: vec![ConstantBranch {
                 block: "entry".into(),
@@ -808,27 +836,26 @@ mod tests {
         let source = "switch -- $s { a { one } b { two } }";
         let cond_span = Span::new(14, 17);
         let mut cfg = CfgFunction::new("::top", "switch_probe_0");
+        let probe = cfg.entry;
+        let arm_a = cfg.intern_block("arm_a");
+        let switch_next_1 = cfg.intern_block("switch_next_1");
         cfg.blocks.insert(
-            "switch_probe_0".into(),
+            probe,
             branch_block(
                 "switch_probe_0",
                 str_eq_cond("s", "a"),
                 cond_span,
-                "arm_a",
-                "switch_next_1",
+                arm_a,
+                switch_next_1,
             ),
         );
-        cfg.blocks.insert("arm_a".into(), ret_block("arm_a"));
-        cfg.blocks
-            .insert("switch_next_1".into(), ret_block("switch_next_1"));
+        cfg.blocks.insert(arm_a, ret_block("arm_a"));
+        cfg.blocks.insert(switch_next_1, ret_block("switch_next_1"));
 
-        let ssa = make_ssa(&["switch_probe_0", "arm_a", "switch_next_1"]);
+        let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
             values: HashMap::new(),
-            executable_blocks: ["switch_probe_0", "arm_a"]
-                .iter()
-                .map(|s| (*s).into())
-                .collect(),
+            executable_blocks: id_set(&cfg, &["switch_probe_0", "arm_a"]),
             executable_edges: HashSet::default(),
             constant_branches: vec![ConstantBranch {
                 block: "switch_probe_0".into(),
@@ -869,7 +896,7 @@ mod tests {
         // No O100 because $cond is not a single constant across
         // all tracked versions.
         assert!(
-            !ctx.optimisations.iter().any(|o| o.code == "O100"),
+            !ctx.optimisations.iter().any(|o| o.code == DiagCode::O100),
             "unexpected O100 for Overdefined variable: {:?}",
             ctx.optimisations,
         );
@@ -889,7 +916,7 @@ mod tests {
         let got = ctx
             .optimisations
             .iter()
-            .find(|o| o.code == "O100" && o.message.contains("branch"));
+            .find(|o| o.code == DiagCode::O100 && o.message.contains("branch"));
         assert!(
             got.is_some(),
             "expected O100 propagating x=5 into branch, got {:?}",
@@ -914,7 +941,7 @@ mod tests {
         assert!(
             ctx.optimisations
                 .iter()
-                .any(|o| o.code == "O101" && o.replacement.contains('1')),
+                .any(|o| o.code == DiagCode::O101 && o.replacement.contains('1')),
             "expected an O101 fold via run_passes, got {:?}",
             ctx.optimisations,
         );
@@ -935,7 +962,7 @@ mod tests {
         let o115 = ctx
             .optimisations
             .iter()
-            .find(|o| o.code == "O115")
+            .find(|o| o.code == DiagCode::O115)
             .expect("expected an O115 unwrap on the branch condition");
         assert_eq!(o115.replacement, "{$x}");
     }

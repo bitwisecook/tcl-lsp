@@ -1,6 +1,6 @@
 //! Dockerfile generation for Tcl projects.
 //!
-//! Faithful port of `tooling/tclpkg/docker.py`. Generates production-ready
+//! Generates production-ready
 //! Dockerfiles that install a specific Tcl version, download the `tcl` CLI
 //! zipapp, and wire `tcl pkg sync` / `tcl venv create`. Also exposes recipe
 //! lookup helpers for AI skills composing custom Dockerfiles.
@@ -293,9 +293,7 @@ pub fn write_dockerfile(
     Ok(output.to_path_buf())
 }
 
-// ---------------------------------------------------------------------------
-// Recipe tables (verbatim from tooling/tclpkg/docker.py)
-// ---------------------------------------------------------------------------
+// Recipe tables.
 
 const DEBIAN_RECIPES: &[(&str, &str)] = &[
     (

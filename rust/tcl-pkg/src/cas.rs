@@ -1,6 +1,6 @@
 //! Content-addressable store (CAS) and integrity hashing.
 //!
-//! Faithful port of `tooling/tclpkg/cas.py`. The CAS lives at
+//! The CAS lives at
 //! `<cache_dir>/tclpkg/cas/sha256/<ab>/<full_hash>/tree/`; each entry is
 //! immutable once written. The integrity string `sha256-<base64url-no-pad>` is
 //! computed over a *canonicalised worktree* (sorted paths, stripped VCS dirs,
@@ -136,7 +136,7 @@ fn hex_digest(data: &[u8]) -> String {
 /// Return the total byte size of the files in a canonical worktree.
 ///
 /// Walks the same file set as [`integrity_of_tree`] and sums file lengths, so
-/// the lockfile `size` field is deterministic and matches the Python port.
+/// the lockfile `size` field is deterministic.
 #[must_use]
 pub fn tree_size(root: &Path) -> u64 {
     let extra = load_tclpkgignore(root);

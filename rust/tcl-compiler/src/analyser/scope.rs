@@ -1,15 +1,13 @@
-//! Scope-graph helpers — Rust port of
-//! ``core/analysis/_analyser/_scope.py``.
+//! Scope-graph helpers.
 //!
 //! Pure scope-tree mutation and traversal helpers used by the
-//! analyser's command handlers. Rust uses a path-based scope
+//! analyser's command handlers. The scope tree uses a path-based
 //! addressing scheme (``Vec<usize>`` indexing into
-//! ``result.global_scope.children``) instead of Python's
-//! ``Scope.parent`` back-pointers, so any helper that needs to
-//! walk up the chain accepts the path slice and traverses the
-//! result tree in place. The cost — at most one descent from
-//! root per helper call — is bounded by scope depth, which is
-//! shallow in practice.
+//! ``result.global_scope.children``) rather than parent
+//! back-pointers, so any helper that needs to walk up the chain
+//! accepts the path slice and traverses the result tree in place.
+//! The cost — at most one descent from root per helper call — is
+//! bounded by scope depth, which is shallow in practice.
 //!
 //! Helpers operate on ``&mut Analyser`` rather than free
 //! functions because most need both the scope under cursor
@@ -17,6 +15,7 @@
 //! tracking maps (``const_strings``, ``regex_vars``, ``ns_cache``,
 //! ``result.regex_patterns``).
 
+use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 
 use crate::naming::{normalise_qualified_name, normalise_var_name, split_array_name};
@@ -28,8 +27,7 @@ use super::types::{Scope, ScopeKind, VarDef};
 /// each of its proper ancestors back to the root, longest first.
 ///
 /// `[2, 1, 0]` yields `[2, 1, 0]`, `[2, 1]`, `[2]`, `[]`. Used by
-/// every helper that walks up the parent chain (matches Python's
-/// `while s is not None: ... s = s.parent`).
+/// every helper that walks up the parent chain.
 fn ancestor_paths(start: &[usize]) -> impl Iterator<Item = Vec<usize>> + '_ {
     (0..=start.len()).rev().map(|i| start[..i].to_vec())
 }
@@ -171,8 +169,7 @@ impl Analyser {
     }
 
     /// Compute the scope-resolved qualified name for a command
-    /// invocation at the current walk position.  Mirrors
-    /// Python's `_resolve_command_qualified_name` logic.
+    /// invocation at the current walk position.
     ///
     /// * Names starting with `::` are already absolute and are
     ///   returned as-is.
@@ -224,9 +221,6 @@ impl Analyser {
 
     /// Record a constant string assignment for `var_name` in the
     /// scope at `scope_path`.
-    ///
-    /// Mirrors `_set_const_string` in
-    /// `core/analysis/_analyser/_scope.py:32-39`.
     pub fn set_const_string(
         &mut self,
         var_name: &str,
@@ -242,9 +236,6 @@ impl Analyser {
 
     /// Remove constant-value knowledge for `var_name` (re-assigned
     /// dynamically).
-    ///
-    /// Mirrors `_clear_const_string` in
-    /// `core/analysis/_analyser/_scope.py:41-46`.
     pub fn clear_const_string(&mut self, var_name: &str, scope_path: &[usize]) {
         if let Some(map) = self.const_strings.get_mut(scope_path) {
             map.remove(var_name);
@@ -254,10 +245,8 @@ impl Analyser {
     /// Look up the constant string value for `var_name`, walking
     /// the scope chain from `scope_path` outwards.
     ///
-    /// Mirrors `_lookup_const_string` in
-    /// `core/analysis/_analyser/_scope.py:48-56`. Returns the
-    /// nearest enclosing scope's value, or `None` if the var
-    /// isn't tracked anywhere on the chain.
+    /// Returns the nearest enclosing scope's value, or `None` if the
+    /// var isn't tracked anywhere on the chain.
     #[must_use]
     pub fn lookup_const_string(&self, var_name: &str, scope_path: &[usize]) -> Option<&str> {
         self.lookup_const_string_with_span(var_name, scope_path)
@@ -269,11 +258,6 @@ impl Analyser {
     /// Used by the regex-pattern emitters to also tag the
     /// defining ``set var "..."`` value as a `RegexPattern` so
     /// semantic-token highlighting fires on the literal.
-    ///
-    /// Mirrors the inner walk of `_record_defining_set_as_regex`
-    /// in `core/analysis/_analyser/_scope.py:58-79` together
-    /// with the ``Optional[span]`` field returned by
-    /// `_lookup_const_string`.
     #[must_use]
     pub fn lookup_const_string_with_span(
         &self,
@@ -293,11 +277,9 @@ impl Analyser {
     /// Compute the namespace string for a scope path, with a
     /// per-call cache.
     ///
-    /// Mirrors `_namespace_from_scope` in
-    /// `core/analysis/_analyser/_scope.py:126-156`. Walks the
-    /// scope path collecting ``ScopeKind::Namespace`` names, then
-    /// joins them via [`normalise_qualified_name`]. Caches the
-    /// result on `self.ns_cache` keyed by the path.
+    /// Walks the scope path collecting ``ScopeKind::Namespace``
+    /// names, then joins them via [`normalise_qualified_name`].
+    /// Caches the result on `self.ns_cache` keyed by the path.
     pub fn namespace_from_scope_path(&mut self, scope_path: &[usize]) -> String {
         if let Some(cached) = self.ns_cache.get(scope_path) {
             return cached.clone();
@@ -400,9 +382,7 @@ impl Analyser {
     /// silences the builtin arity check.  A top-level call (module
     /// body, `namespace eval` body, or a conditional) executes in
     /// source order during load, so only a definition that lexically
-    /// precedes it shadows.  Mirrors the `enforce_order` flag Python
-    /// derives from `ir_module.top_level` vs `proc.body` in
-    /// `compiler_checks._arity_checks` (#475).
+    /// precedes it shadows.
     #[must_use]
     pub(super) fn scope_path_in_proc_body(&self, scope_path: &[usize]) -> bool {
         let mut cursor = &self.result.global_scope;
@@ -426,8 +406,7 @@ impl Analyser {
     /// Drives the `in_method` flag on recorded `$obj method` / `[cmd] method`
     /// dispatch sites so the W307 post-pass can apply the OO-specific
     /// suppression signals (`$self` self-reference, `my`/`self` self-dispatch
-    /// with method-return inference).  Mirrors `_scope_is_method` in
-    /// `analyser/_analyser/_commands.py`.
+    /// with method-return inference).
     #[must_use]
     pub(super) fn scope_path_in_method_body(&self, scope_path: &[usize]) -> bool {
         let mut cursor = &self.result.global_scope;
@@ -445,10 +424,8 @@ impl Analyser {
 
     /// Record a variable read for go-to-definition / find-references.
     ///
-    /// Mirrors `_record_var_read` in
-    /// `core/analysis/_analyser/_scope.py:158-175`. Looks for
-    /// the variable in the scope at `scope_path`; falls back to
-    /// the global scope for ``::``- and ``static::``-prefixed
+    /// Looks for the variable in the scope at `scope_path`; falls
+    /// back to the global scope for ``::``- and ``static::``-prefixed
     /// names. W210 (read-before-set) is emitted by the SSA-based
     /// pass elsewhere — this helper only records the reference
     /// span.
@@ -496,12 +473,11 @@ impl Analyser {
 
     /// Record a variable definition in the scope at `scope_path`.
     ///
-    /// Mirrors `_define_var` in
-    /// `core/analysis/_analyser/_scope.py:182-206`. New definitions
-    /// are inserted into the scope's `variables` map and registered
-    /// into ``result.all_variables`` keyed by ``"<scope_name>::<base_name>"``.
-    /// Re-defining an existing variable does not overwrite — it
-    /// only escalates the `warn_if_unused` flag.
+    /// New definitions are inserted into the scope's `variables` map
+    /// and registered into ``result.all_variables`` keyed by
+    /// ``"<scope_name>::<base_name>"``.  Re-defining an existing
+    /// variable does not overwrite — it only escalates the
+    /// `warn_if_unused` flag.
     pub fn define_var(
         &mut self,
         name: &str,
@@ -524,7 +500,7 @@ impl Analyser {
 
         let path = scope_path.to_vec();
         // First definition of this variable → the W215 reachability check
-        // fires here (mirrors the `first_definition` branch in `_scope.py`).
+        // fires here.
         // Done with a short immutable borrow before the mutable scope handle.
         let is_first_def = scope_at(&self.result.global_scope, &path)
             .is_some_and(|s| !s.variables.contains_key(base_name));
@@ -576,11 +552,9 @@ impl Analyser {
 
     /// **W215.** Emit when a variable's runtime name (or array element
     /// index) cannot be reached via `$`-substitution, even though it can
-    /// be created/read via `set` / `info exists` / `upvar`.  Mirrors the
-    /// `first_definition` branch of `_AnalyserScopeMixin._record_var_def`
-    /// (`analyser/_analyser/_scope.py`).  The runtime name applies Tcl
-    /// backslash substitution unless the word was braced (`STR`), since
-    /// `{...}` preserves every byte verbatim.
+    /// be created/read via `set` / `info exists` / `upvar`.  The runtime
+    /// name applies Tcl backslash substitution unless the word was
+    /// braced (`STR`), since `{...}` preserves every byte verbatim.
     fn emit_w215_unreachable_name(
         &mut self,
         base_name: &str,
@@ -613,7 +587,7 @@ impl Analyser {
                 "the brace form ``${name}`` cannot match this name"
             };
             self.result.diagnostics.push(Diagnostic {
-                code: "W215".to_string(),
+                code: DiagCode::W215,
                 span: site_span,
                 message: format!(
                     "variable name ``{runtime_name}`` is not reachable via $-substitution; \
@@ -633,7 +607,7 @@ impl Analyser {
             };
             if runtime_element.contains(')') {
                 self.result.diagnostics.push(Diagnostic {
-                    code: "W215".to_string(),
+                    code: DiagCode::W215,
                     span: site_span,
                     message: "array element index contains ')'; the element can be created \
                               and read via ``set arr(idx) ...`` / ``[set \"arr(idx)\"]``, but \
@@ -650,11 +624,8 @@ impl Analyser {
     /// Walk the scope tree depth-first, yielding the scope at
     /// `scope_path` and every descendant in declaration order.
     ///
-    /// Mirrors the generator in `_walk_scopes`
-    /// (`core/analysis/_analyser/_scope.py:177-180`). The Rust
-    /// implementation collects into a `Vec` rather than building
-    /// a generator chain — same iteration order, simpler
-    /// borrowing.
+    /// Collects the paths into a `Vec` rather than returning a lazy
+    /// iterator — simpler borrowing for the same iteration order.
     #[must_use]
     pub fn walk_scopes_from(&self, scope_path: &[usize]) -> Vec<Vec<usize>> {
         let mut out = Vec::new();
@@ -675,9 +646,7 @@ fn walk_scopes_helper(scope: &Scope, path: &[usize], out: &mut Vec<Vec<usize>>) 
     }
 }
 
-// ---------------------------------------------------------------------------
 // Substituted / expr `$var` read collection
-// ---------------------------------------------------------------------------
 
 /// Extract the base variable name from a `Var` token's source span:
 /// `$name` / `${name}` → `name`, and `$arr(idx)` → `arr` (the array
@@ -943,7 +912,7 @@ mod tests {
         a.analyse(source, dialect)
             .diagnostics
             .iter()
-            .map(|d| d.code.clone())
+            .map(|d| d.code.to_string())
             .collect()
     }
 

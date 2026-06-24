@@ -1,5 +1,5 @@
-//! Time / date-category builtins (port of the `time` section of
-//! `builtins.py`, which wraps Python's `time` / `datetime` / `calendar`).
+//! Time / date-category builtins, wrapping time / date / calendar
+//! semantics.
 //!
 //! Covers `now`, the jq date helpers (`todate` / `todateiso8601` / `date`,
 //! `fromdate` / `fromdateiso8601`), the broken-down-time family (`gmtime` /
@@ -9,7 +9,7 @@
 //! Parity notes:
 //! - Calendar conversions route through `chrono` (`DateTime<Utc>` /
 //!   `NaiveDateTime`), whose civil-date algorithm reproduces the proleptic
-//!   Gregorian calendar Python's `time`/`datetime` use, so the UTC-based
+//!   Gregorian calendar, so the UTC-based
 //!   builtins (`todate`, `fromdate`, `gmtime`, `dateadd`, `datesub`) are
 //!   byte-identical.
 //! - **`now`** returns the current Unix time as a float (non-deterministic);
@@ -20,15 +20,15 @@
 //!   `localtime` shares the UTC broken-down conversion (documented here rather
 //!   than reading `TZ` via libc, which chrono's `Local` does only
 //!   unreliably under the test harness).
-//! - **`strftime` / `strptime`**: `chrono`'s formatter matches Python's C
+//! - **`strftime` / `strptime`**: `chrono`'s formatter matches the C
 //!   `strftime` byte-for-byte on the specifiers the fixture exercises
 //!   (`%Y %m %d %H %M %S %j %w %A %a %B %b %p %U %W %%`). Locale-dependent
 //!   or name-bearing specifiers that are NOT guaranteed identical
 //!   (`%Z`, `%c`, `%x`, `%X`, `%-d`, `%z`) are deliberately excluded from the
 //!   fixture; the implementation still forwards them to `chrono`.
-//! - Result int/float types mirror Python exactly (the output renderer
-//!   distinguishes `1.0` from `1`): `fromdate` / `mktime` / `now` are floats;
-//!   `dateadd` / `datesub` preserve int-vs-float like Python `+` / `-`.
+//! - Floats render with a trailing `.0` and integers without, so each result's
+//!   int-vs-float type is tracked precisely: `fromdate` / `mktime` / `now` are
+//!   floats; `dateadd` / `datesub` preserve int-vs-float like `+` / `-`.
 
 use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, Timelike, Utc};
 
@@ -54,9 +54,7 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     ]
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Coerce an `as_number` result to `f64`.
 fn num_f64(v: &Value) -> f64 {
@@ -67,18 +65,17 @@ fn num_f64(v: &Value) -> f64 {
     }
 }
 
-/// Split a Unix-seconds float into the integer seconds Python's `time` /
-/// `datetime` pass to the C library after truncating sub-second parts, plus
-/// the original value for `datetime.fromtimestamp`. Python uses the
-/// platform `gmtime`, which floors toward negative infinity for the day /
-/// time fields; `chrono`'s `from_timestamp` takes `(secs, nanos)` with
-/// `nanos` in `[0, 1e9)`, so we floor the seconds and drop the fraction.
+/// Split a Unix-seconds float into the integer seconds passed to the C library
+/// after truncating sub-second parts, plus the original value for the
+/// `fromtimestamp` path. The platform `gmtime` floors toward negative infinity
+/// for the day / time fields; `chrono`'s `from_timestamp` takes `(secs, nanos)`
+/// with `nanos` in `[0, 1e9)`, so we floor the seconds and drop the fraction.
 fn floor_secs(n: f64) -> i64 {
     n.floor() as i64
 }
 
 /// Build a UTC datetime from Unix seconds (sub-second part dropped, matching
-/// Python's broken-down `gmtime`/`strftime`, which discard the fraction).
+/// the broken-down `gmtime`/`strftime`, which discard the fraction).
 fn utc_from_unix(n: f64) -> Option<DateTime<Utc>> {
     DateTime::<Utc>::from_timestamp(floor_secs(n), 0)
 }
@@ -91,7 +88,7 @@ fn broken_down(dt: &DateTime<Utc>) -> Value {
 }
 
 fn broken_down_naive(naive: &NaiveDateTime) -> Value {
-    // Python `tm_wday`: 0=Mon..6=Sun; the DSL remaps to 0=Sun..6=Sat via
+    // `tm_wday`: 0=Mon..6=Sun; the DSL remaps to 0=Sun..6=Sat via
     // `tm_wday + 1 if tm_wday < 6 else 0`.
     let py_wday = i64::from(naive.weekday().num_days_from_monday()); // 0=Mon..6=Sun
     let jq_wday = if py_wday < 6 { py_wday + 1 } else { 0 };
@@ -108,12 +105,10 @@ fn broken_down_naive(naive: &NaiveDateTime) -> Value {
     ])
 }
 
-// ---------------------------------------------------------------------------
 // Builtins
-// ---------------------------------------------------------------------------
 
 fn bi_now(_args: &[Value]) -> Result<Value, QueryError> {
-    // Python `time.time()` — current Unix time as a float.
+    // Current Unix time as a float.
     let now = Utc::now();
     let secs = now.timestamp() as f64;
     let frac = f64::from(now.timestamp_subsec_nanos()) / 1_000_000_000.0;
@@ -125,7 +120,7 @@ fn bi_todate(args: &[Value]) -> Result<Value, QueryError> {
     // seconds as `%Y-%m-%dT%H:%M:%SZ` in UTC (sub-second part dropped).
     let n = num_f64(&as_number(&args[0], "todate", 1)?);
     let Some(dt) = utc_from_unix(n) else {
-        // Out-of-range timestamps would raise in Python; the fixture stays in
+        // Out-of-range timestamps would raise; the fixture stays in
         // range, but mirror a clean error rather than panic.
         return Err(QueryError::builtin(format!(
             "todate: timestamp out of range: {}",
@@ -181,7 +176,7 @@ fn bi_mktime(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_strftime(args: &[Value]) -> Result<Value, QueryError> {
-    // `time.strftime(fmt, time.gmtime(n))` — UTC, sub-second part dropped.
+    // strftime over the UTC broken-down time — sub-second part dropped.
     let n = num_f64(&as_number(&args[0], "strftime", 1)?);
     let fmt = as_str(&args[1], "strftime", 2)?;
     let Some(dt) = utc_from_unix(n) else {
@@ -194,11 +189,11 @@ fn bi_strftime(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_strptime(args: &[Value]) -> Result<Value, QueryError> {
-    // `time.strptime(value, fmt)` → jq broken-down array.
+    // strptime-style parse of `value` against `fmt` → jq broken-down array.
     let s = as_str(&args[0], "strptime", 1)?;
     let fmt = as_str(&args[1], "strptime", 2)?;
     let naive = parse_strptime(&s, &fmt).ok_or_else(|| {
-        // Reproduce Python's `time.strptime` ValueError text verbatim.
+        // Reproduce the strptime parse-error text verbatim.
         QueryError::builtin(format!(
             "strptime: cannot parse {} with {}: time data {} does not match format {}",
             py_str_repr(&s),
@@ -211,20 +206,20 @@ fn bi_strptime(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_dateadd(args: &[Value]) -> Result<Value, QueryError> {
-    // Python `t + s`: int when both ints, else float.
+    // `t + s`: int when both ints, else float.
     let a = as_number(&args[0], "dateadd", 1)?;
     let b = as_number(&args[1], "dateadd", 2)?;
     Ok(py_add(&a, &b, true))
 }
 
 fn bi_datesub(args: &[Value]) -> Result<Value, QueryError> {
-    // Python `t - s`: int when both ints, else float.
+    // `t - s`: int when both ints, else float.
     let a = as_number(&args[0], "datesub", 1)?;
     let b = as_number(&args[1], "datesub", 2)?;
     Ok(py_add(&a, &b, false))
 }
 
-/// Port of Python `a + b` / `a - b` over two numbers, preserving int vs float.
+/// `a + b` / `a - b` over two numbers, preserving int vs float.
 fn py_add(a: &Value, b: &Value, add: bool) -> Value {
     if let (Value::Int(x), Value::Int(y)) = (a, b) {
         Value::Int(if add { x + y } else { x - y })
@@ -235,14 +230,12 @@ fn py_add(a: &Value, b: &Value, add: bool) -> Value {
     }
 }
 
-// ---------------------------------------------------------------------------
 // mktime: broken-down array → struct → Unix seconds (calendar.timegm)
-// ---------------------------------------------------------------------------
 
-/// Port of `_broken_down_to_struct` + `calendar.timegm`. Accepts the
+/// Convert a broken-down time to Unix seconds. Accepts the
 /// broken-down array `[year-1900, month, day, hour, minute, second, ...]`
 /// (months 0-indexed); fields beyond the 6th are ignored. Seconds are
-/// truncated to an integer (`int(second)`), matching the Python helper.
+/// truncated to an integer.
 fn broken_down_to_unix(value: &Value, name: &str) -> Result<i64, QueryError> {
     let items = match value {
         Value::List(items) | Value::Stream(items) => items,
@@ -258,10 +251,10 @@ fn broken_down_to_unix(value: &Value, name: &str) -> Result<i64, QueryError> {
             "{name}: broken-down time must be a list of at least 6 ints, got list"
         )));
     }
-    // `_as_number`-style coercion: each field is a number (int or float). The
-    // Python helper indexes the raw values; `timegm` then needs ints, with
-    // `int(second)` truncating. We truncate every field toward zero, matching
-    // Python's `struct_time` construction (year/month/... are ints; the
+    // Number coercion: each field is a number (int or float). The
+    // helper indexes the raw values; `timegm` then needs ints, with the
+    // seconds truncated to an int. We truncate every field toward zero, matching
+    // broken-down-time construction (year/month/... are ints; the
     // generator only feeds ints save for the truncated seconds case).
     let f = |i: usize| -> Result<i64, QueryError> {
         match &items[i] {
@@ -299,14 +292,12 @@ fn timegm_range_err(name: &str) -> QueryError {
     QueryError::builtin(format!("{name}: broken-down time is out of range"))
 }
 
-// ---------------------------------------------------------------------------
-// ISO-8601 parsing (port of `datetime.fromisoformat` for the supported forms)
-// ---------------------------------------------------------------------------
+// ISO-8601 parsing for the supported forms
 
 /// Parse an ISO-8601 timestamp the way `fromdate` does and return Unix
 /// seconds. The DSL normalises a trailing `Z` to `+00:00` and treats a
 /// naive datetime as UTC. We reproduce the common forms byte-identically and
-/// surface Python's `Invalid isoformat string: '...'` message for inputs that
+/// surface `Invalid isoformat string: '...'` message for inputs that
 /// do not parse; the fixture only includes cases covered here.
 fn parse_isoformat(s: &str) -> Result<f64, String> {
     let text = if let Some(stripped) = s.strip_suffix('Z') {
@@ -315,7 +306,7 @@ fn parse_isoformat(s: &str) -> Result<f64, String> {
         s.to_string()
     };
     // Split off an optional trailing `+HH:MM` / `-HH:MM` offset (after the
-    // time). `datetime.fromisoformat` also accepts `+HH:MM:SS` and `Z`;
+    // time). ISO-8601 parsing also accepts `+HH:MM:SS` and `Z`;
     // we handle the offset uniformly below.
     let (body, offset_secs) = split_offset(&text);
     let naive = parse_naive_iso(body).ok_or_else(|| invalid_iso(s))?;
@@ -367,7 +358,7 @@ fn parse_offset(off: &str) -> Option<i64> {
 
 /// Parse the naive (offset-stripped) ISO body into a `NaiveDateTime`,
 /// covering the date-only, minute-precision, second-precision, and
-/// fractional-second forms `fromisoformat` accepts (with `T` or space sep).
+/// fractional-second forms ISO-8601 parsing accepts (with `T` or space sep).
 fn parse_naive_iso(body: &str) -> Option<NaiveDateTime> {
     if let Some(idx) = body.find(['T', ' ']) {
         let (date, time) = (&body[..idx], &body[idx + 1..]);
@@ -384,13 +375,11 @@ fn parse_naive_iso(body: &str) -> Option<NaiveDateTime> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// strptime (port of `time.strptime` for the supported specifiers)
-// ---------------------------------------------------------------------------
+// strptime for the supported specifiers
 
 /// Parse `value` with a strptime `fmt` into a `NaiveDateTime`. Tries a
 /// full date+time parse, then a date-only parse (filling midnight) the way
-/// `time.strptime` defaults unmatched fields.
+/// strptime defaults unmatched fields.
 fn parse_strptime(value: &str, fmt: &str) -> Option<NaiveDateTime> {
     if let Ok(dt) = NaiveDateTime::parse_from_str(value, fmt) {
         return Some(dt);
@@ -401,9 +390,7 @@ fn parse_strptime(value: &str, fmt: &str) -> Option<NaiveDateTime> {
     None
 }
 
-// ---------------------------------------------------------------------------
-// Python repr of a string (single-quoted, like `{x!r}`)
-// ---------------------------------------------------------------------------
+// Repr-style rendering of a string (single-quoted, like `{x!r}`)
 
 fn py_str_repr(s: &str) -> String {
     crate::lexer::py_repr_str(s)

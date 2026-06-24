@@ -1,13 +1,12 @@
 //! Error types for the `tclpkg` package manager.
 //!
-//! Faithful port of `tooling/tclpkg/errors.py`. The CLI prints the
+//! The CLI prints the
 //! [`Display`] form verbatim, so the message composition (location prefixes,
-//! `hint:` suffix, integrity expected/got detail) must match the Python output
-//! byte-for-byte.
+//! `hint:` suffix, integrity expected/got detail) is stable and canonical.
 
 use std::fmt;
 
-/// Category tag, mirroring the Python `category` class attribute.
+/// Category tag for grouping errors by subsystem.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {
     TclPkg,
@@ -42,9 +41,9 @@ impl Category {
 
 /// Base error type for every tclpkg-specific failure.
 ///
-/// Mirrors `TclPkgError` and its subclasses. The variant carries a fully
-/// composed `message` plus an optional `hint`; the `Display` impl reproduces
-/// the Python `__str__` (message, then `\n  hint: <hint>` when present).
+/// The variant carries a fully composed `message` plus an optional
+/// `hint`; the `Display` impl renders the message, then
+/// `\n  hint: <hint>` when present.
 #[derive(Debug, Clone)]
 pub struct TclPkgError {
     pub category: Category,

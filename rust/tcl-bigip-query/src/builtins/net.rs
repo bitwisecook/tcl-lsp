@@ -1,6 +1,5 @@
-//! Net / IP / CIDR-category builtins (port of the `net` section of
-//! `builtins.py`, plus the typed value layer in
-//! `dialects/f5/bigip/types/`).
+//! Net / IP / CIDR-category builtins, plus the typed address / port /
+//! folder value layer they build on.
 //!
 //! These are the **pure** string/address transforms: destination /
 //! address / network / route-domain / partition / folder parsing, the IP
@@ -11,18 +10,18 @@
 //!
 //! Parity notes:
 //! - IP parsing + canonical string forms route through `std::net`
-//!   (`Ipv4Addr` / `Ipv6Addr`), whose `Display` matches Python's
-//!   `ipaddress` compression bit-for-bit (including IPv4-mapped dotted
+//!   (`Ipv4Addr` / `Ipv6Addr`), whose `Display` produces the canonical
+//!   zero-run-compressed form bit-for-bit (including IPv4-mapped dotted
 //!   form). Network canonicalisation uses `ipnet`.
 //! - Address **classification** (`is_private` / `is_global` / `is_reserved`
-//!   / …) is implemented against the exact IANA range tables `CPython` 3.11's
-//!   `ipaddress` module ships, because std's equivalents are unstable on
+//!   / …) is implemented against the exact IANA special-purpose-address range
+//!   tables, because std's equivalents are unstable on
 //!   stable Rust and would not build under `unsafe_code = "forbid"`.
-//! - `collapse_cidrs` reproduces `ipaddress.collapse_addresses`; range
-//!   summarisation reproduces `ipaddress.summarize_address_range`.
-//! - Error message text (including the interpolated `ipaddress` `ValueError`
-//!   strings, e.g. `'x' does not appear to be an IPv4 or IPv6 address`) is
-//!   reproduced verbatim.
+//! - `collapse_cidrs` collapses adjacent / overlapping CIDRs; range
+//!   summarisation turns an address range into a minimal CIDR list.
+//! - Error message text (including the interpolated address / network
+//!   `ValueError` strings, e.g. `'x' does not appear to be an IPv4 or IPv6
+//!   address`) is reproduced verbatim.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
@@ -175,11 +174,9 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     ]
 }
 
-// ===========================================================================
 // Shared coercion helpers
-// ===========================================================================
 
-/// Port of `builtins._coerce_pathlike` — accepts string / path-ref / object.
+/// Coerce a path-like value: accepts string / path-ref / object.
 fn coerce_pathlike(v: &Value, name: &str, arg: usize) -> Result<String, QueryError> {
     match v {
         Value::Str(s) => Ok(s.clone()),
@@ -192,12 +189,12 @@ fn coerce_pathlike(v: &Value, name: &str, arg: usize) -> Result<String, QueryErr
     }
 }
 
-/// Python `repr` of a string (single-quoted, like `{x!r}`). The inputs we
-/// interpolate are address tokens — plain ASCII without quotes — so a simple
-/// single-quote wrap matches `CPython`'s `repr` for the cases we hit.
+/// Repr-style rendering of a string (single-quoted). The inputs
+/// we interpolate are address tokens — plain ASCII without quotes — so a simple
+/// single-quote wrap matches the repr quoting for the cases we hit.
 fn py_str_repr(s: &str) -> String {
-    // CPython prefers single quotes unless the string contains a single quote
-    // and no double quote.
+    // Repr quoting prefers single quotes unless the string contains a single
+    // quote and no double quote.
     if s.contains('\'') && !s.contains('"') {
         format!("\"{s}\"")
     } else {
@@ -206,7 +203,7 @@ fn py_str_repr(s: &str) -> String {
     }
 }
 
-/// The `ipaddress.ip_address` `ValueError` text.
+/// The address-parse `ValueError` text.
 fn addr_value_error(text: &str) -> String {
     format!(
         "{} does not appear to be an IPv4 or IPv6 address",
@@ -214,7 +211,7 @@ fn addr_value_error(text: &str) -> String {
     )
 }
 
-/// The `ipaddress.ip_network` `ValueError` text.
+/// The network-parse `ValueError` text.
 fn net_value_error(text: &str) -> String {
     format!(
         "{} does not appear to be an IPv4 or IPv6 network",
@@ -222,19 +219,17 @@ fn net_value_error(text: &str) -> String {
     )
 }
 
-// ===========================================================================
-// IP address parsing + classification (port of `ipaddress` + `_address.py`)
-// ===========================================================================
+// IP address parsing + classification
 
-/// Parse a bare host (v4 or v6) the way `ipaddress.ip_address` does.
-/// Python is strict: it rejects leading zeros in IPv4 octets, zone ids, etc.
+/// Parse a bare host (v4 or v6).
+/// Parsing is strict: it rejects leading zeros in IPv4 octets, zone ids, etc.
 /// `std`'s parser matches on the shapes we care about.
 fn parse_ip_address(text: &str) -> Option<IpAddr> {
-    // `ipaddress.ip_address` does not strip whitespace; callers strip first.
+    // Address parsing does not strip whitespace; callers strip first.
     text.parse::<IpAddr>().ok()
 }
 
-/// A parsed network, mirroring `ipaddress.ip_network(text, strict=False)`.
+/// A parsed network, from a non-strict network parse (host bits allowed).
 #[derive(Clone, Copy)]
 enum Net {
     V4(Ipv4Net),
@@ -298,8 +293,8 @@ impl Net {
     }
 }
 
-/// Parse a CIDR network with `strict=False`, accepting integer-prefix and
-/// (IPv4) dotted-quad-netmask spellings the way `ipaddress.ip_network` does.
+/// Parse a CIDR network non-strictly, accepting integer-prefix and
+/// (IPv4) dotted-quad-netmask spellings.
 fn parse_network(text: &str) -> Result<Net, String> {
     // `ipnet` already accepts `addr/prefixlen` and masks host bits via
     // `.trunc()`. It does NOT accept dotted-quad netmasks, so handle those.
@@ -351,7 +346,7 @@ fn netmask_to_prefix(mask: u32) -> Option<u8> {
     }
 }
 
-// ---- IPv4 classification (CPython 3.11 range tables) ----------------------
+// IPv4 classification (IANA range tables)
 
 fn v4_in(ip: u32, net_addr: [u8; 4], prefix: u8) -> bool {
     let base = u32::from_be_bytes(net_addr);
@@ -414,7 +409,7 @@ fn v4_is_unspecified(ip: u32) -> bool {
     ip == 0
 }
 
-// ---- IPv6 classification (CPython 3.11 range tables) ----------------------
+// IPv6 classification (IANA range tables)
 
 fn v6_in(ip: u128, net: &str) -> bool {
     let n: Ipv6Net = net.parse().unwrap();
@@ -516,7 +511,7 @@ fn v6_is_unspecified(ip: u128) -> bool {
     ip == 0
 }
 
-// ---- per-address predicate dispatch ---------------------------------------
+// per-address predicate dispatch
 
 fn addr_is_ipv4(a: IpAddr) -> bool {
     a.is_ipv4()
@@ -592,10 +587,8 @@ fn addr_is_documentation(a: IpAddr) -> bool {
     }
 }
 
-// ===========================================================================
 // Typed value layer: IPAddress / FQDN, RouteDomain, Port, Partition,
 // Folder, ObjectPath, Destination, Network, IPRange, PortSet.
-// ===========================================================================
 
 const PART_VALID: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-.";
 
@@ -603,7 +596,7 @@ fn part_chars_ok(s: &str) -> bool {
     s.chars().all(|c| PART_VALID.contains(c))
 }
 
-/// Port of `_address.IPAddress` — an IP plus an optional `%rd` route domain.
+/// An IP plus an optional `%rd` route domain.
 #[derive(Clone)]
 struct TypedIp {
     addr: IpAddr,
@@ -611,7 +604,7 @@ struct TypedIp {
 }
 
 impl TypedIp {
-    /// Port of `IPAddress.parse`.
+    /// Parse `text` into a `TypedIp` (or `None`).
     fn try_parse(text: &str) -> Option<TypedIp> {
         let text = text.trim();
         let mut rd: Option<u64> = None;
@@ -638,7 +631,7 @@ impl TypedIp {
     }
 }
 
-/// Port of `_address.FQDN.parse` (returns whether `text` is a valid FQDN).
+/// Return whether `text` is a valid FQDN.
 fn is_valid_fqdn(text: &str) -> bool {
     let text = text.trim();
     if text.is_empty() || text.starts_with('.') || text.ends_with('.') {
@@ -681,7 +674,7 @@ impl TypedAddress {
     }
 }
 
-/// Port of `_address.parse_address` — IP first, FQDN fallback.
+/// Parse an address: IP first, FQDN fallback.
 fn parse_address(text: &str) -> Option<TypedAddress> {
     let text = text.trim();
     if let Some(ip) = TypedIp::try_parse(text) {
@@ -694,7 +687,7 @@ fn parse_address(text: &str) -> Option<TypedAddress> {
     }
 }
 
-/// Port of `_port.Port`.
+/// A parsed port: numeric value plus its original spelling.
 #[derive(Clone)]
 struct TypedPort {
     port: u16,
@@ -739,7 +732,7 @@ impl TypedPort {
     }
 }
 
-/// Port of `_partition.Partition`.
+/// A BIG-IP partition (canonical name with leading slash).
 #[derive(Clone, PartialEq, Eq)]
 struct Partition {
     name: String, // canonical with leading slash
@@ -769,7 +762,7 @@ impl Partition {
     }
 }
 
-/// Port of `_folder.Folder`.
+/// A folder: a partition plus its nested path segments.
 #[derive(Clone, PartialEq, Eq)]
 struct Folder {
     partition: Partition,
@@ -816,7 +809,7 @@ impl Folder {
     }
 }
 
-/// Port of `_folder.ObjectPath`.
+/// An object path: a folder plus the object's name.
 struct ObjectPath {
     folder: Folder,
     name: String,
@@ -861,7 +854,7 @@ impl ObjectPath {
     }
 }
 
-/// Port of `_destination.Destination`.
+/// A parsed BIG-IP destination (address, port, folder, route domain).
 struct Destination {
     address: TypedAddress,
     port: TypedPort,
@@ -871,7 +864,7 @@ struct Destination {
     port_separator: char,
 }
 
-/// Strip a trailing `%N` route domain — port of `_split_route_domain`.
+/// Strip a trailing `%N` route domain.
 /// Returns `(addr-without-rd, route-domain)`.
 fn split_route_domain(text: &str) -> (String, Option<u64>) {
     if !text.contains('%') {
@@ -895,7 +888,7 @@ fn split_route_domain(text: &str) -> (String, Option<u64>) {
     (format!("{addr}{remainder}"), Some(rd))
 }
 
-/// True when a path segment looks like a host (port of `_looks_like_address`).
+/// True when a path segment looks like a host.
 fn looks_like_address(segment: &str) -> bool {
     if segment.contains(':') {
         return true;
@@ -903,7 +896,7 @@ fn looks_like_address(segment: &str) -> bool {
     segment.chars().next().is_some_and(|c| c.is_ascii_digit())
 }
 
-/// Port of `_split_folder_prefix`.
+/// Split a leading folder prefix off `text`, returning `(folder, remainder)`.
 fn split_folder_prefix(text: &str) -> (Option<Folder>, String) {
     if !text.starts_with('/') {
         return (None, text.to_string());
@@ -940,9 +933,9 @@ fn split_folder_prefix(text: &str) -> (Option<Folder>, String) {
 }
 
 impl Destination {
-    /// Port of `Destination.parse` (returns `None` instead of raising). The
-    /// length comes from faithfully transcribing the hand-written Python
-    /// parser's bracket / IPv6 / IPv4-FQDN branches.
+    /// Parse a destination (returns `None` instead of raising). The
+    /// length comes from handling the bracket / IPv6 / IPv4-FQDN branches
+    /// individually.
     #[allow(clippy::too_many_lines)]
     fn try_parse(text: &str) -> Option<Destination> {
         let text = text.trim();
@@ -1084,7 +1077,7 @@ impl Destination {
     }
 }
 
-/// Port of `_split_destination` — returns `(partition_prefix, address,
+/// Split a destination string into `(partition_prefix, address,
 /// route_domain, port)`.
 fn split_destination(value: &str) -> (String, String, String, String) {
     if let Some(dest) = Destination::try_parse(value) {
@@ -1117,7 +1110,7 @@ fn split_destination(value: &str) -> (String, String, String, String) {
     })
 }
 
-/// Port of the `_DEST_RE` fallback regex match.
+/// Fallback regex match for a destination string.
 fn legacy_dest_re(value: &str) -> Option<(String, String, String, String)> {
     let mut rest = value;
     let mut partition = String::new();
@@ -1167,7 +1160,7 @@ fn legacy_dest_re(value: &str) -> Option<(String, String, String, String)> {
     Some((partition, addr.to_string(), rd, port))
 }
 
-/// Port of `_rebuild_destination`.
+/// Reassemble a destination string from its parts.
 fn rebuild_destination(partition: &str, address: &str, route_domain: &str, port: &str) -> String {
     let mut out = format!("{partition}{address}");
     if !route_domain.is_empty() {
@@ -1179,7 +1172,7 @@ fn rebuild_destination(partition: &str, address: &str, route_domain: &str, port:
     out
 }
 
-/// Coerce to a typed `Address` — port of `_typed_address`.
+/// Coerce to a typed `Address`.
 fn typed_address(value: &Value, name: &str) -> Result<Option<TypedAddress>, QueryError> {
     if matches!(value, Value::Null) {
         return Ok(None);
@@ -1194,7 +1187,7 @@ fn typed_address(value: &Value, name: &str) -> Result<Option<TypedAddress>, Quer
     Ok(parse_address(&s))
 }
 
-/// Coerce to a typed `Network` — port of `_typed_network`.
+/// Coerce to a typed `Network`.
 fn typed_network(value: &Value, name: &str, arg: usize) -> Result<Option<Net>, QueryError> {
     if matches!(value, Value::Null) {
         return Ok(None);
@@ -1206,7 +1199,7 @@ fn typed_network(value: &Value, name: &str, arg: usize) -> Result<Option<Net>, Q
     Ok(network_try_parse(&s))
 }
 
-/// Port of `Network.try_parse` — integer CIDR, dotted-quad netmask,
+/// Parse a network: integer CIDR, dotted-quad netmask,
 /// space-separated `ADDR MASK`, and the `default` keywords.
 fn network_try_parse(text: &str) -> Option<Net> {
     let original = text.trim();
@@ -1224,9 +1217,7 @@ fn network_try_parse(text: &str) -> Option<Net> {
     parse_network(&t).ok()
 }
 
-// ===========================================================================
 // Builtins
-// ===========================================================================
 
 fn bi_ip(args: &[Value]) -> Result<Value, QueryError> {
     if args.len() == 1 {
@@ -1391,8 +1382,8 @@ fn bi_port(args: &[Value]) -> Result<Value, QueryError> {
     if port.is_empty() {
         Ok(Value::Null)
     } else {
-        // Python `int(port)`; a non-numeric port (e.g. the wildcard spelling
-        // `"any"`) raises the stdlib ValueError verbatim.
+        // `int(port)`; a non-numeric port (e.g. the wildcard spelling
+        // `"any"`) raises the ValueError verbatim.
         match port.parse::<i64>() {
             Ok(n) => Ok(Value::Int(n)),
             Err(_) => Err(QueryError::builtin(format!(
@@ -1456,7 +1447,7 @@ fn bi_with_route_domain(args: &[Value]) -> Result<Value, QueryError> {
     )))
 }
 
-// ---- predicates -----------------------------------------------------------
+// predicates
 
 fn addr_predicate(value: &Value, name: &str, f: fn(IpAddr) -> bool) -> Result<Value, QueryError> {
     let a = typed_address(value, name)?;
@@ -1510,7 +1501,7 @@ fn bi_is_wildcard_port(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(result))
 }
 
-// ---- network info ---------------------------------------------------------
+// network info
 
 fn bi_prefix_length(args: &[Value]) -> Result<Value, QueryError> {
     match typed_network(&args[0], "prefix_length", 1)? {
@@ -1533,12 +1524,12 @@ fn bi_broadcast_address(args: &[Value]) -> Result<Value, QueryError> {
     }
 }
 
-/// `ipaddress.IPv*Network.hosts()` first / last, then the `first_host` /
-/// `last_host` fallback to the network address when `hosts()` is empty.
+/// First / last usable host of the network, then the `first_host` /
+/// `last_host` fallback to the network address when the host range is empty.
 ///
 /// `hosts()` excludes the network + broadcast addresses for IPv4 prefixes
 /// shorter than /31, and the network address for IPv6 prefixes shorter than
-/// /127. For /31, /32 (v6 /127, /128) it yields the whole range. The Python
+/// /127. For /31, /32 (v6 /127, /128) it yields the whole range. The
 /// builtins fall back to the network address when the list is empty — which,
 /// given these ranges, never happens, so first/last always exist.
 fn net_first_last_host(n: Net) -> (String, String) {
@@ -1601,7 +1592,7 @@ fn bi_host_count(args: &[Value]) -> Result<Value, QueryError> {
     }
 }
 
-// ---- CIDR algebra ---------------------------------------------------------
+// CIDR algebra
 
 fn as_sequence(v: &Value, name: &str, arg: usize) -> Result<Vec<Value>, QueryError> {
     crate::builtins::as_sequence(v, name, arg)
@@ -1631,7 +1622,7 @@ fn bi_collapse_cidrs(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::List(out))
 }
 
-/// Port of `ipaddress.collapse_addresses` for IPv4.
+/// Collapse adjacent / overlapping IPv4 networks.
 fn collapse_v4(nets: &[Ipv4Net]) -> Vec<Ipv4Net> {
     let ranges: Vec<(u128, u128)> = nets
         .iter()
@@ -1660,7 +1651,7 @@ fn collapse_v6(nets: &[Ipv6Net]) -> Vec<Ipv6Net> {
 }
 
 /// Collapse a set of `[first, last]` ranges into the minimal sorted list of
-/// CIDR `(network_int, prefix)` pairs — reproduces `collapse_addresses`.
+/// CIDR `(network_int, prefix)` pairs.
 fn collapse_ranges(ranges: &[(u128, u128)], max_prefix: u8) -> Vec<(u128, u8)> {
     if ranges.is_empty() {
         return Vec::new();
@@ -1689,7 +1680,7 @@ fn collapse_ranges(ranges: &[(u128, u128)], max_prefix: u8) -> Vec<(u128, u8)> {
     out
 }
 
-/// Reproduce `ipaddress.summarize_address_range(first, last)` as
+/// Summarise the address range `[first, last]` as
 /// `(network_int, prefix)` pairs, appended to `out`.
 fn summarize_range(first: u128, last: u128, max_prefix: u8, out: &mut Vec<(u128, u8)>) {
     let mut first = first;
@@ -1755,7 +1746,7 @@ fn bi_supernet_of(args: &[Value]) -> Result<Value, QueryError> {
     let highest = nets.iter().map(|n| n.broadcast_int()).max().unwrap();
     let mut prefix = nets.iter().map(|n| n.prefix_len()).min().unwrap();
     loop {
-        // candidate = ip_network((lowest, prefix), strict=False)
+        // candidate = the network for (lowest, prefix), host bits masked off
         let (cand_net, cand_bcast) = network_at(lowest, prefix, max_prefix);
         if cand_net <= lowest && cand_bcast >= highest {
             let addr = format_ip_int(cand_net, is_v4);
@@ -1774,7 +1765,7 @@ fn bi_supernet_of(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 /// `(network_addr, broadcast_addr)` ints for the network containing `addr`
-/// with the given `prefix` (strict=False masking).
+/// with the given `prefix` (host bits masked off).
 fn network_at(addr: u128, prefix: u8, max_prefix: u8) -> (u128, u128) {
     let host_bits = u32::from(max_prefix - prefix);
     let mask = if host_bits >= 128 {
@@ -1830,7 +1821,7 @@ fn bi_overlaps(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(result))
 }
 
-// ---- destination edit -----------------------------------------------------
+// destination edit
 
 fn bi_with_port(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "with_port", 1)?;
@@ -1942,7 +1933,7 @@ fn bi_with_host(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Str(dest.render()))
 }
 
-/// FQDN parse `ValueError` text (best-effort; matches `_address.FQDN.parse`).
+/// FQDN parse `ValueError` text (best-effort).
 fn fqdn_value_error(text: &str) -> String {
     let t = text.trim();
     if t.is_empty() {
@@ -1972,7 +1963,7 @@ fn fqdn_value_error(text: &str) -> String {
     format!("FQDN: looks like an IPv4 address ({})", py_str_repr(t))
 }
 
-// ---- path / folder --------------------------------------------------------
+// path / folder
 
 fn bi_folder(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "folder", 1)?;
@@ -2073,7 +2064,7 @@ fn bi_can_see(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(r.partition().can_see(t.partition())))
 }
 
-// ---- port sets ------------------------------------------------------------
+// port sets
 
 #[derive(Clone, Copy)]
 struct PortSeg {
@@ -2081,7 +2072,7 @@ struct PortSeg {
     high: u32,
 }
 
-/// Port of `PortSet.try_parse` → normalised segments, or `None`.
+/// Parse a port set into normalised segments, or `None`.
 fn port_set_try_parse(text: &str) -> Option<Vec<PortSeg>> {
     let text = text.trim();
     if text.is_empty() {
@@ -2128,7 +2119,7 @@ fn port_set_try_parse(text: &str) -> Option<Vec<PortSeg>> {
     Some(collapse_port_segments(raw))
 }
 
-/// Port of `_collapse_segments`.
+/// Collapse adjacent / overlapping port segments.
 fn collapse_port_segments(mut raw: Vec<PortSeg>) -> Vec<PortSeg> {
     raw.sort_by_key(|s| (s.low, s.high));
     let mut out: Vec<PortSeg> = vec![raw[0]];
@@ -2181,9 +2172,9 @@ fn bi_port_set_overlaps(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(result))
 }
 
-// ---- IP ranges ------------------------------------------------------------
+// IP ranges
 
-/// Port of `IPRange.try_parse` → `(first, last)` as same-family `IpAddr`, or `None`.
+/// Parse an IP range into `(first, last)` as same-family `IpAddr`, or `None`.
 fn ip_range_try_parse(text: &str) -> Option<(IpAddr, IpAddr)> {
     let text = text.trim();
     if text.is_empty() {
@@ -2302,10 +2293,8 @@ mod tests {
 
     #[test]
     fn in_cidr_matches_v4_ranges() {
-        // Mirrors the `in_cidr` semantics the f5-query pytest battery
-        // (`tests/test_f5_query*.py`) exercises end-to-end via
-        // `select(in_cidr(.destination, "10.10.0.0/24"))` — net.rs had no
-        // unit coverage for the IP/CIDR core (TEST-MIGRATE).
+        // `in_cidr(addr, cidr)` tests IPv4 membership, as used by
+        // `select(in_cidr(.destination, "10.10.0.0/24"))`.
         assert!(in_cidr("10.10.0.5", "10.10.0.0/24"));
         assert!(in_cidr("10.10.255.1", "10.10.0.0/16"));
         assert!(!in_cidr("192.168.0.1", "10.10.0.0/16"));

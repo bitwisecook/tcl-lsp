@@ -1,7 +1,6 @@
 //! Main emitter loop and public API.
 //!
-//! Split across multiple files by responsibility, not reproducing
-//! the Python mixin composition:
+//! Split across multiple files by responsibility:
 //!
 //! - [`ordering`]  — CFG linearisation and loop body detection
 //! - [`terminator`] — CFG terminator emission (goto/branch/return)
@@ -10,9 +9,6 @@
 //! - [`try_blocks`] — try/finally CFG pattern detection
 //! - [`generate`] — top-level dispatcher
 //! - [`bytecoded`] — registry-backed codegen hook dispatch
-//!
-//! Ported from `core/compiler/codegen/_emitter.py` and
-//! `core/compiler/codegen/_bytecoded.py`.
 
 #![allow(dead_code)]
 

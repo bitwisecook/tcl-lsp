@@ -1,24 +1,21 @@
-//! CFG-flavoured walker for var-escape (C33e4/5/6).
+//! CFG-flavoured walker for var-escape.
 //!
 //! Pulls together:
 //!
-//! * **C33e4** — barrier handlers (`eval`, `uplevel`, generic
+//! * barrier handlers (`eval`, `uplevel`, generic
 //!   barriers) plus `escape_every_name_touched_tree` (the
 //!   tree-walk variant used inside literal eval bodies, since
 //!   those statements aren't part of the enclosing SSA).
-//! * **C33e5** — `handle_call` dispatcher + value/expr scans
+//! * `handle_call` dispatcher + value/expr scans
 //!   that thread the per-statement `defs` map through.
-//! * **C33e6** — `handle_statement` (per `SsaStatement`),
+//! * `handle_statement` (per `SsaStatement`),
 //!   `walk_block` (per SSA block), `block_order` (deterministic
 //!   RPO traversal), and the public [`analyse_cfg_function`]
 //!   entry point.
-//!
-//! Mirrors the bottom half of
-//! `core/compiler/var_escape/_cfg_propagation.py`.
 
 use std::collections::HashMap;
 
-use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Statement};
 use crate::ssa::{SsaBlock, SsaFunction, SsaStatement, Version};
@@ -535,10 +532,17 @@ fn handle_stmt_assign_or_incr(
 
 /// Process one [`SsaStatement`] — apply the appropriate
 /// per-Statement transfer function.
-fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState) {
+fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState, ssa: &SsaFunction) {
     let stmt = &ssa_stmt.statement;
-    let defs = &ssa_stmt.defs;
-    state.remember_versions(ssa_stmt);
+    // The SSA per-statement `defs` map is keyed by interned [`Symbol`]; the
+    // escape handlers work in display names, so resolve each symbol once here.
+    let defs: HashMap<String, Version> = ssa_stmt
+        .defs
+        .iter()
+        .map(|(&sym, &ver)| (ssa.var_name(sym).to_owned(), ver))
+        .collect();
+    let defs = &defs;
+    state.remember_versions(ssa_stmt, ssa);
 
     if handle_stmt_call_or_barrier(stmt, state, defs) {
         return;
@@ -635,12 +639,17 @@ fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState) {
 /// Process one SSA block — every statement plus the terminator's
 /// branch condition (so `[info exists ...]` inside an `if`
 /// condition isn't missed).
-fn walk_block(block: &SsaBlock, state: &mut CfgState, terminator_condition: Option<&ExprNode>) {
+fn walk_block(
+    block: &SsaBlock,
+    state: &mut CfgState,
+    terminator_condition: Option<&ExprNode>,
+    ssa: &SsaFunction,
+) {
     for stmt in &block.statements {
         if state.dynamic_barrier() {
             return;
         }
-        handle_statement(stmt, state);
+        handle_statement(stmt, state, ssa);
     }
     if let Some(cond) = terminator_condition {
         // The terminator's condition doesn't live in any
@@ -654,7 +663,7 @@ fn walk_block(block: &SsaBlock, state: &mut CfgState, terminator_condition: Opti
 /// Reverse-postorder block traversal. The escape analysis is
 /// monotone, so any order produces the same final tags; RPO
 /// gives tests a deterministic walk order.
-fn block_order(cfg: &CfgFunction) -> Vec<String> {
+fn block_order(cfg: &CfgFunction) -> Vec<BlockId> {
     cfg.reverse_postorder()
 }
 
@@ -669,19 +678,19 @@ pub fn analyse_cfg_function<I: IntoIterator<Item = String>>(
     let known = collect_known_names_from_cfg(params, ssa);
     let mut state = CfgState::new(known);
 
-    for block_name in block_order(cfg) {
-        let Some(block) = ssa.blocks.get(&block_name) else {
+    for block_id in block_order(cfg) {
+        let Some(block) = ssa.blocks.get(&block_id) else {
             continue;
         };
         let term_cond = cfg
             .blocks
-            .get(&block_name)
+            .get(&block_id)
             .and_then(|b| b.terminator.as_ref())
             .and_then(|t| match t {
                 Terminator::Branch { condition, .. } => Some(condition),
                 _ => None,
             });
-        walk_block(block, &mut state, term_cond);
+        walk_block(block, &mut state, term_cond, ssa);
     }
 
     state.into_result()

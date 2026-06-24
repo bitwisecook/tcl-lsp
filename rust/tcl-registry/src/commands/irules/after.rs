@@ -8,8 +8,7 @@ use crate::prelude::*;
 /// (NESTING_SCRIPT)?` carries the deferred body as its trailing
 /// argument (never the `-periodic` flag, and never when only the delay
 /// is given).  The script runs later from a timer wakeup in its own
-/// dispatch context, so `body_kind` is `Structural`.  Mirrors
-/// `_after_arg_roles` in `dialects/f5/irules/after.py` (#501).
+/// dispatch context, so `body_kind` is `Structural`.
 fn after_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     match args {
         [] | ["cancel" | "info", ..] => Vec::new(),

@@ -1,8 +1,7 @@
 //! `textDocument/implementation` — `TclOO` subclass / method-override
 //! fan-out.
 //!
-//! Port of `lsp/features/implementation.py::get_implementations`
-//! (GAP-B3, strip 1).  Where plain go-to-definition jumps to the
+//! Where plain go-to-definition jumps to the
 //! *defining* site, go-to-implementation answers "who realises this":
 //!
 //! - **Cursor on a class name** → the classes that list it among their
@@ -47,7 +46,7 @@ pub fn implementation(
     // offset so the response is deterministic.
     let mut spans: BTreeSet<(u32, u32)> = BTreeSet::new();
 
-    // ---- Case 1: the word names a class -------------------------------
+    // Case 1: the word names a class
     let target_qnames: Vec<&str> = analysis
         .all_classes
         .values()
@@ -63,8 +62,8 @@ pub fn implementation(
         return finish(source, &line_index, spans);
     }
 
-    // ---- Case 2/3: the word names a method ----------------------------
-    let cursor = byte_offset_at(source, line, character);
+    // Case 2/3: the word names a method
+    let cursor = byte_offset_at(&line_index, source, line, character);
     let enclosing = enclosing_class(analysis, cursor);
 
     match enclosing {

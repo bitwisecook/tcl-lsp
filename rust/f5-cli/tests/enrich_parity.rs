@@ -1,8 +1,8 @@
 //! Differential parity tests for `f5 enrich-wireshark` and `f5 enrich-pcapng`.
 //!
 //! Runs the built `f5-query` binary against committed bigip.conf fixtures and
-//! asserts byte-for-byte equality with goldens captured from
-//! `python -m tooling.f5.main enrich-wireshark` / `enrich-pcapng`:
+//! asserts byte-for-byte equality with the captured golden output for
+//! `enrich-wireshark` / `enrich-pcapng`:
 //!
 //! - `enrich-wireshark`: every generated profile file (`hosts` / `subnets` /
 //!   `vlans` / `dfilters` / `services` / `ethers` / `colorfilters` /
@@ -12,7 +12,7 @@
 //!   observed-mode / `--all` / `--keylog` PCAPNG annotation byte-output (direct
 //!   PCAPNG→PCAPNG write, no tshark), and the not-a-file refusal.
 //!
-//! Self-contained: no Python at test time. The tshark/editcap-driven libpcap
+//! Self-contained: no external tool runs at test time. The tshark/editcap-driven libpcap
 //! conversion path is out of scope here (its bytes depend on the external
 //! tool's version); the deterministic direct-write paths are covered.
 
@@ -82,7 +82,7 @@ fn osv(s: &str) -> std::ffi::OsString {
     std::ffi::OsString::from(s)
 }
 
-// ── enrich-wireshark ────────────────────────────────────────────────
+// enrich-wireshark
 
 /// Generate a profile from `config_fixture` into a directory named
 /// `profile_name`, then assert every file matches the golden directory.
@@ -191,7 +191,7 @@ fn wireshark_refuses_non_directory_output() {
     );
 }
 
-// ── enrich-pcapng ───────────────────────────────────────────────────
+// enrich-pcapng
 
 #[test]
 fn pcapng_dry_run_name_index_matches() {
@@ -247,7 +247,7 @@ fn enrich_pcapng_to(extra: &[&std::ffi::OsStr], out: &Path, golden: &str) -> Run
     assert_eq!(
         std::fs::read(out).unwrap(),
         read_fixture(golden),
-        "pcapng output must match Python golden ({golden})"
+        "pcapng output must match golden ({golden})"
     );
     r
 }

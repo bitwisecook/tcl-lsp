@@ -1,8 +1,4 @@
-//! Predicates + allow-lists used by var-escape transfer functions
-//! (C33b1).
-//!
-//! Mirrors the helper section of
-//! `core/compiler/var_escape/_propagation.py`:
+//! Predicates + allow-lists used by var-escape transfer functions:
 //!
 //! * [`is_literal_name`] / [`is_dynamic_token`] / [`is_dynamic_name`]
 //!   — string-shape predicates for argument tokens and lowering's
@@ -65,8 +61,8 @@ fn frameless_runtime_set() -> &'static HashSet<String> {
 }
 
 /// True if *arg* is a plain identifier, not a substituted ref.
-/// Mirrors the "starts with `$` or `[`" filter used throughout the
-/// memory-SSA alias detectors.
+/// Applies the same "starts with `$` or `[`" filter used throughout
+/// the memory-SSA alias detectors.
 #[must_use]
 pub fn is_literal_name(arg: &str) -> bool {
     if arg.is_empty() {
@@ -84,10 +80,7 @@ pub fn is_dynamic_token(arg: &str) -> bool {
 /// True if *head* is the level argument of `upvar` and is
 /// potentially dynamic at runtime.
 ///
-/// Mirrors the dynamic-level predicate in
-/// `core/compiler/var_escape/_propagation.py::_handle_upvar` as of
-/// upstream commit ``6c7a7c42`` (Copilot review on PR #325 widened
-/// the original `$var`-only gate).  Any non-literal head shape —
+/// Any non-literal head shape —
 /// `$var`, `[cmd]`, double-quoted `"..."` containing `$` or `[`, or
 /// `#`-absolute forms with embedded substitution like `"#${n}"` /
 /// `"#[expr ...]"` — must trigger the pessimistic-spill path.
@@ -154,9 +147,8 @@ pub fn is_name_first_command(cmd: &str) -> bool {
 /// * *`escape_names`* — names referenced by `info exists
 ///   <literal>` (the caller should escape each).
 ///
-/// Mirrors Python's `_scan_value_for_info_hazards`. Implemented
-/// as a hand-rolled scanner to avoid pulling in the `regex` crate
-/// for a single pattern.
+/// Implemented as a hand-rolled scanner to avoid pulling in the
+/// `regex` crate for a single pattern.
 #[must_use]
 pub fn scan_value_for_info_hazards(value: &str) -> (bool, Vec<String>) {
     let mut escape_names: Vec<String> = Vec::new();

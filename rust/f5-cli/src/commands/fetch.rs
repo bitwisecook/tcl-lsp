@@ -1,12 +1,12 @@
 //! `f5 fetch` — pull SCF/UCS from a live BIG-IP device.
 //!
-//! Rust port of `tooling/f5/verbs/fetch.py` + `f5_remote.fetch_scf`. Credential
-//! resolution and the SSH-deferral / arg surfaces are parity-tested offline;
-//! the live REST flow (UCS save → poll-download → `ucs_to_scf` →
-//! cache-dir/`latest`/`fetch.meta`) is implemented faithfully but untested here.
+//! Handles credential resolution, the SSH-deferral, and the arg surfaces; the
+//! live REST flow (UCS save → poll-download → `ucs_to_scf` →
+//! cache-dir/`latest`/`fetch.meta`) is implemented but exercised only against a
+//! live device.
 //!
-//! SSH is deferred: `--transport ssh` returns the deferral error, and `auto`
-//! falls back to it only when REST is unavailable.
+//! SSH transport is not supported: `--transport ssh` returns the deferral
+//! error, and `auto` falls back to it only when REST is unavailable.
 
 use std::path::{Path, PathBuf};
 
@@ -33,7 +33,7 @@ pub struct FetchArgs<'a> {
     pub print_path: bool,
 }
 
-/// A fetched config bundle + provenance (Rust analogue of `FetchResult`).
+/// A fetched config bundle + provenance.
 struct FetchResult {
     host: String,
     transport: String,
@@ -161,7 +161,7 @@ fn resolve_output_dir(explicit: Option<&str>, result: &FetchResult) -> Result<Pa
     Ok(out)
 }
 
-/// Sanitise a host into a directory-safe component (mirrors `_safe_host_dir`).
+/// Sanitise a host into a directory-safe component.
 fn safe_host_dir(host: &str) -> String {
     host.chars()
         .map(|c| {
@@ -175,7 +175,7 @@ fn safe_host_dir(host: &str) -> String {
 }
 
 /// Point `link` at `target` (by basename). Silently skips on filesystems
-/// without symlink support, matching the Python verb.
+/// without symlink support.
 fn update_latest_symlink(link: &Path, target: &Path) {
     let Some(name) = target.file_name() else {
         return;

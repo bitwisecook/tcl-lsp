@@ -1,4 +1,4 @@
-//! `nextto` command (name-parity reconcile, GAP-d).
+//! `nextto` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

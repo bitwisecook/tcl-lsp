@@ -108,7 +108,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 /// *after* the `scan` subcommand word: `string`, `format`, then the vars).
 /// Resolve `VarWrite` dynamically so calls with arbitrarily many vars don't
 /// false-fire W210 on the unmodelled tail.  Mirrors the `binary scan`
-/// resolver in `dialects/tcl/binary.py`.
+/// resolver.
 fn binary_scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     (2..args.len())
         .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite)))

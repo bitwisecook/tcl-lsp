@@ -1,5 +1,4 @@
-//! Typed BIG-IP attachment values — profiles, persistence. Rust port of
-//! `_attachments.py`.
+//! Typed BIG-IP attachment values — profiles, persistence.
 
 use std::fmt;
 
@@ -139,8 +138,7 @@ fn leaf(path: &str) -> String {
 }
 
 /// Return `body`'s top-level tokens, skipping nested `{ ... }`. `{` and
-/// `}` are themselves emitted so callers can see brace markers. Mirrors
-/// `_iter_top_level_tokens`.
+/// `}` are themselves emitted so callers can see brace markers.
 pub(crate) fn iter_top_level_tokens(body: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut depth = 0i32;

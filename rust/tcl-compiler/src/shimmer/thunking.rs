@@ -20,13 +20,14 @@
 //!   iterations.
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_registry::TclType;
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
-use crate::ssa::{SsaFunction, ValueKey, Version};
+use crate::ssa::{SsaFunction, Symbol, ValueKey, Version};
 use crate::types::{TypeKind, TypeLattice};
 
 use super::graph::{build_successors, loop_body_blocks};
@@ -47,8 +48,8 @@ pub(super) fn build_predecessors(
 }
 
 /// Blocks of the natural loop with `header`: `{header}` plus every block that
-/// reaches a back-edge source without passing through the header.  Mirrors the
-/// per-loop block set `build_loop_forest` provides Python's S102 pass, so a
+/// reaches a back-edge source without passing through the header.  This is the
+/// per-loop block set `build_loop_forest` provides for the S102 pass, so a
 /// sibling loop's type effect on the same name never pollutes this loop's
 /// oscillation check.
 pub(super) fn natural_loop_blocks(
@@ -84,9 +85,9 @@ pub(super) fn natural_loop_blocks(
 
 /// SSA versions of each name defined by the empty literal (`set x {}` / `""`)
 /// over the whole function — the typeless-empty reset, excluded from the
-/// oscillation type sets.  Mirrors `_empty_literal_versions`.
-pub(super) fn empty_value_versions(ssa: &SsaFunction) -> HashMap<String, HashSet<Version>> {
-    let mut out: HashMap<String, HashSet<Version>> = HashMap::new();
+/// oscillation type sets.
+pub(super) fn empty_value_versions(ssa: &SsaFunction) -> HashMap<Symbol, HashSet<Version>> {
+    let mut out: HashMap<Symbol, HashSet<Version>> = HashMap::new();
     for sb in ssa.blocks.values() {
         for s in &sb.statements {
             let is_empty = matches!(
@@ -95,8 +96,8 @@ pub(super) fn empty_value_versions(ssa: &SsaFunction) -> HashMap<String, HashSet
                     if value.is_empty()
             );
             if is_empty {
-                for (name, &ver) in &s.defs {
-                    out.entry(name.clone()).or_default().insert(ver);
+                for (&sym, &ver) in &s.defs {
+                    out.entry(sym).or_default().insert(ver);
                 }
             }
         }
@@ -106,54 +107,73 @@ pub(super) fn empty_value_versions(ssa: &SsaFunction) -> HashMap<String, HashSet
 
 /// Foreach-header blocks whose body is a single `break` — the destructure
 /// idiom (`foreach {a b c} $l break`), a one-time multi-assign whose bindings
-/// must not count as per-iteration loop-body types.  Mirrors
-/// `_destructure_foreach_blocks` (block-shape heuristic).
+/// must not count as per-iteration loop-body types.  Detected by a
+/// block-shape heuristic.
 pub(super) fn destructure_foreach_blocks(cfg: &CfgFunction) -> HashSet<String> {
     let mut out = HashSet::new();
-    for (bn, block) in &cfg.blocks {
+    for block in cfg.blocks.values() {
         if block.statements.len() == 1
             && let Statement::Call { command, .. } = &block.statements[0]
             && command == "break"
         {
-            out.insert(bn.clone());
+            out.insert(block.name.clone());
         }
     }
     out
 }
 
+/// Reverse name → [`BlockId`] lookup for an [`SsaFunction`], built from its
+/// own interned name table. Lets a name-keyed loop-block set index the
+/// `BlockId`-keyed `ssa.blocks` map without a `&cfg::Function` on hand.
+fn ssa_name_to_id(ssa: &SsaFunction) -> HashMap<&str, BlockId> {
+    ssa.block_names()
+        .iter()
+        .enumerate()
+        .map(|(i, name)| {
+            (
+                name.as_str(),
+                BlockId(u32::try_from(i).expect("SSA block count fits in u32")),
+            )
+        })
+        .collect()
+}
+
 /// KNOWN, non-empty intreps each name is *defined as* inside the per-loop
-/// blocks of `header` (destructure foreach blocks excluded).  Mirrors the
-/// per-loop `per_header_body_types` build in `_find_thunking`.
+/// blocks of `header` (destructure foreach blocks excluded).
 pub(super) fn per_loop_body_types(
     header: &str,
     loop_block_set: &HashSet<String>,
     destructure: &HashSet<String>,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    empty_by_name: &HashMap<String, HashSet<Version>>,
-) -> HashMap<String, HashSet<TclType>> {
+    empty_by_name: &HashMap<Symbol, HashSet<Version>>,
+) -> HashMap<Symbol, HashSet<TclType>> {
     let _ = header;
-    let mut out: HashMap<String, HashSet<TclType>> = HashMap::new();
+    let name_to_id = ssa_name_to_id(ssa);
+    let mut out: HashMap<Symbol, HashSet<TclType>> = HashMap::new();
     for lbn in loop_block_set {
         if destructure.contains(lbn) {
             continue;
         }
-        let Some(lssa) = ssa.blocks.get(lbn) else {
+        let Some(lssa) = name_to_id
+            .get(lbn.as_str())
+            .and_then(|id| ssa.blocks.get(id))
+        else {
             continue;
         };
         for s in &lssa.statements {
-            for (name, &ver) in &s.defs {
+            for (&sym, &ver) in &s.defs {
                 if empty_by_name
-                    .get(name)
+                    .get(&sym)
                     .is_some_and(|set| set.contains(&ver))
                 {
                     continue;
                 }
-                if let Some(t) = types.get(&(name.clone(), ver))
+                if let Some(t) = types.get(&(sym, ver))
                     && t.kind == TypeKind::Known
                     && let Some(tt) = t.tcl_type
                 {
-                    out.entry(name.clone()).or_default().insert(tt);
+                    out.entry(sym).or_default().insert(tt);
                 }
             }
         }
@@ -171,7 +191,7 @@ pub(crate) fn find_thunking_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<String>,
+    executable_blocks: &HashSet<BlockId>,
 ) -> Vec<ThunkingWarning> {
     let loop_blocks = loop_body_blocks(cfg);
     let succs = build_successors(cfg);
@@ -180,12 +200,13 @@ pub(crate) fn find_thunking_warnings(
 
     // A loop header is a block that is on a cycle and has both an
     // entry edge (predecessor outside the loop) and a back edge
-    // (predecessor inside the loop, other than self-loops).
+    // (predecessor inside the loop, other than self-loops).  The
+    // successor graph is name-keyed, so headers are tracked by name too.
     let loop_headers: HashSet<String> = cfg
-        .blocks
-        .keys()
+        .block_names()
+        .iter()
         .filter(|bn| {
-            if !loop_blocks.contains(*bn) {
+            if !loop_blocks.contains(bn.as_str()) {
                 return false;
             }
             let has_entry = succs.iter().any(|(pred, targets)| {
@@ -203,22 +224,23 @@ pub(crate) fn find_thunking_warnings(
     let empty_by_name = empty_value_versions(ssa);
     let destructure = destructure_foreach_blocks(cfg);
 
-    for block_name in cfg_order(cfg) {
-        if !executable_blocks.contains(&block_name) {
+    for block_id in cfg_order(cfg) {
+        if !executable_blocks.contains(&block_id) {
             continue;
         }
-        if !loop_headers.contains(&block_name) {
+        let block_name = cfg.block_name(block_id);
+        if !loop_headers.contains(block_name) {
             continue;
         }
-        let Some(ssa_block) = ssa.blocks.get(&block_name) else {
+        let Some(ssa_block) = ssa.blocks.get(&block_id) else {
             continue;
         };
 
         // Per-loop body types for *this* loop only (sibling loops must not
         // pollute the oscillation check).
-        let this_loop = natural_loop_blocks(&block_name, &preds, &loop_blocks);
+        let this_loop = natural_loop_blocks(block_name, &preds, &loop_blocks);
         let per_loop = per_loop_body_types(
-            &block_name,
+            block_name,
             &this_loop,
             &destructure,
             ssa,
@@ -227,7 +249,7 @@ pub(crate) fn find_thunking_warnings(
         );
 
         for phi in &ssa_block.phis {
-            let key = (phi.name.clone(), phi.version);
+            let key = (phi.name, phi.version);
             let Some(lattice) = types.get(&key) else {
                 continue;
             };
@@ -248,7 +270,7 @@ pub(crate) fn find_thunking_warnings(
             // thunking requires the body to re-introduce the entry type (so
             // the phi re-shimmers each pass) or to produce ≥2 conflicting
             // types itself.  Classify the phi's incomings (entry vs body) and
-            // require oscillation.  Mirrors `_find_thunking`.
+            // require oscillation.
             let empty_vers = empty_by_name.get(&phi.name);
             let mut entry_types: HashSet<TclType> = HashSet::new();
             let mut body_types: HashSet<TclType> = HashSet::new();
@@ -257,11 +279,11 @@ pub(crate) fn find_thunking_warnings(
                 if inc_ver == 0 {
                     continue;
                 }
-                let Some(inc_type) = types.get(&(phi.name.clone(), inc_ver)) else {
+                let Some(inc_type) = types.get(&(phi.name, inc_ver)) else {
                     continue;
                 };
                 let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
-                if loop_blocks.contains(pred) {
+                if loop_blocks.contains(cfg.block_name(*pred)) {
                     if inc_type.kind == TypeKind::Known && !is_empty {
                         has_body_incoming = true;
                         if let Some(t) = inc_type.tcl_type {
@@ -293,23 +315,25 @@ pub(crate) fn find_thunking_warnings(
                 .incoming
                 .iter()
                 .filter_map(|(pred_block, &ver)| {
-                    def_map
-                        .get(&(phi.name.clone(), ver))
-                        .copied()
-                        .map(|sp| (sp, format!("version from '{pred_block}'")))
+                    def_map.get(&(phi.name, ver)).copied().map(|sp| {
+                        (
+                            sp,
+                            format!("version from '{}'", cfg.block_name(*pred_block)),
+                        )
+                    })
                 })
                 .collect();
 
+            let var = ssa.var_name(phi.name);
             out.push(ThunkingWarning {
                 span,
-                variable: phi.name.clone(),
+                variable: var.to_owned(),
                 type_a,
                 type_b,
-                code: "S102".to_owned(),
+                code: DiagCode::S102,
                 message: format!(
                     "S102: '{var}' oscillates between {a} and {b} across \
                      loop iterations (thunking)",
-                    var = phi.name,
                     a = type_name(type_a),
                     b = type_name(type_b),
                 ),
@@ -395,7 +419,7 @@ mod tests {
     /// (`set x "s"; set x [list 1]` — STRING then LIST) genuinely re-thunks
     /// every pass and fires S102.  (A *one-time* promotion — `set x 0; while …
     /// { set x "hello" }`, where x stabilises at STRING after the first pass —
-    /// is suppressed, matching Python; see the sibling/accumulator tests.)
+    /// is suppressed; see the sibling/accumulator tests.)
     #[test]
     fn thunking_detected_for_two_type_loop_body() {
         // Non-constant condition so SCCP keeps both edges executable.
@@ -406,7 +430,9 @@ mod tests {
         );
         let fu = cu.function("::f").unwrap();
         let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
-        let has_thunking = w.iter().any(|tw| tw.variable == "x" && tw.code == "S102");
+        let has_thunking = w
+            .iter()
+            .any(|tw| tw.variable == "x" && tw.code == DiagCode::S102);
         assert!(
             has_thunking,
             "expected S102 thunking for 'x' with a two-type loop body, got: {w:?}"

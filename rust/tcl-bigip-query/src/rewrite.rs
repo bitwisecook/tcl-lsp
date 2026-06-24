@@ -1,6 +1,6 @@
-//! Token-bounded source rewriter — faithful port of the **rename** half of
-//! `dialects/f5/bigip/rewrite.py` (`rename_object` + its helpers
-//! `_build_name_pattern` / `_other_kind_header_spans`, and [`RenameReport`]).
+//! Token-bounded source rewriter — the **rename** half of the BIG-IP source
+//! rewriter (`rename_object` + its helpers `_build_name_pattern` /
+//! `_other_kind_header_spans`, and [`RenameReport`]).
 //!
 //! `rename_object` rewrites every token-bounded occurrence of an object's
 //! full-path — the stanza header, every property-value reference, and iRule
@@ -9,22 +9,22 @@
 //! guard). Everything is text-level: no parser round-trip, so comments,
 //! whitespace, key order, and unknown stanzas all survive.
 //!
-//! The Python pattern uses look-behind / look-ahead assertions
+//! The reference pattern uses look-behind / look-ahead assertions
 //! (`(?<![A-Za-z0-9_/.\-])…(?![A-Za-z0-9_/.\-])`) that the `regex` crate
 //! cannot express; the token-boundary match is reproduced here with a manual
 //! byte scan so the occurrence count and rewritten text stay byte-identical to
-//! the Python engine. The other-kind header scan keeps the `regex` crate (its
+//! the reference. The other-kind header scan keeps the `regex` crate (its
 //! pattern has no look-around).
 //!
-//! The `redact_secrets` / `RedactReport` half of the Python module is a
-//! different verb and is intentionally **not** ported here.
+//! Secret redaction (`redact_secrets` / `RedactReport`) is a different verb
+//! and is intentionally **not** part of this module.
 
 use regex::Regex;
 
-/// Result of a [`rename_object`] call — port of `rewrite.RenameReport`.
+/// Result of a [`rename_object`] call.
 ///
-/// Field names / shape match the Python dataclass (`old`, `new`,
-/// `occurrences`) plus the rewritten text the applier splices back in.
+/// Carries `old`, `new`, `occurrences`, plus the rewritten text the applier
+/// splices back in.
 #[derive(Debug, Clone)]
 pub struct RenameReport {
     pub old: String,
@@ -34,18 +34,17 @@ pub struct RenameReport {
     pub new_source: String,
 }
 
-/// Whether `b` is a BIG-IP identifier character — the class the Python
+/// Whether `b` is a BIG-IP identifier character — the class the
 /// look-behind / look-ahead bounds the match with: `[A-Za-z0-9_/.\-]`.
 fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'/' | b'.' | b'-')
 }
 
-/// Find every token-bounded occurrence of `old` in `source` — port of the
-/// match set `_build_name_pattern(old)` produces.
+/// Find every token-bounded occurrence of `old` in `source`.
 ///
 /// A match at byte offset `i` is token-bounded when the byte before it (if
 /// any) and the byte after the match (if any) are both **not** identifier
-/// characters. Matches do not overlap (Python `re` scans left-to-right,
+/// characters. Matches do not overlap (the scan runs left-to-right,
 /// resuming past each match), which matters when `old` could otherwise overlap
 /// itself; BIG-IP full-paths don't self-overlap, but the non-overlapping scan
 /// is reproduced for fidelity.
@@ -75,7 +74,7 @@ fn find_name_matches(source: &str, old: &str) -> Vec<(usize, usize)> {
 }
 
 /// Byte-spans of the path tokens in *other-kind* stanza headers that share the
-/// full-path `old` — port of `rewrite._other_kind_header_spans`.
+/// full-path `old`.
 ///
 /// A rename scoped to one kind must leave the header of any other-kind stanza
 /// that happens to share `old` untouched. The header form is
@@ -112,8 +111,7 @@ fn other_kind_header_spans(source: &str, old: &str, kind_scope: &str) -> Vec<(us
     spans
 }
 
-/// Rename `old` to `new` everywhere in `source` (text-level) — port of
-/// `rewrite.rename_object`.
+/// Rename `old` to `new` everywhere in `source` (text-level).
 ///
 /// Only token-bounded full-path references are rewritten, so substring
 /// collisions don't fire (`/Common/foo` won't match `/Common/foobar`). When
@@ -125,7 +123,7 @@ fn other_kind_header_spans(source: &str, old: &str, kind_scope: &str) -> Vec<(us
 ///
 /// # Errors
 /// Returns an error message when `old` or `new` is empty, matching the
-/// Python `ValueError`.
+/// reference `ValueError`.
 pub fn rename_object(
     source: &str,
     old: &str,
@@ -165,7 +163,7 @@ pub fn rename_object(
     }
     out.push_str(&source[cursor..]);
 
-    // Python re-parses the rewritten SCF as a sanity check and raises on
+    // The reference re-parses the rewritten SCF as a sanity check and raises on
     // failure; the Rust `parse_bigip_conf` is infallible, so the field-edit
     // path likewise omits the reparse. Nothing to validate here.
 

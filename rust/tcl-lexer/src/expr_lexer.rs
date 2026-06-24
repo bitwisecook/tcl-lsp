@@ -1,6 +1,6 @@
 //! Expression sub-lexer for Tcl `[expr]` bodies.
 //!
-//! Ports `core/parsing/expr_lexer.py` — a flat single-pass tokeniser
+//! A flat single-pass tokeniser
 //! for the infix expression sub-language. Unlike the main `Lexer`,
 //! the expression lexer does not use `Span` + `SourceMap`; it
 //! produces simple `ExprToken` values with inline start/end offsets
@@ -43,7 +43,7 @@ pub enum ExprTokenType {
 }
 
 impl ExprTokenType {
-    /// Symbolic name matching the Python enum member names.
+    /// Symbolic name for the token type.
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
@@ -86,7 +86,7 @@ fn p(n: usize) -> u32 {
 /// Known Tcl math functions. Exported so upstream consumers (like
 /// the compiler) can check for shadowed functions. In the lexer
 /// itself, any identifier not in the `Bool` or `Operator` sets
-/// becomes `Function` regardless (matching the Python fallback).
+/// becomes `Function` regardless (the default fallback).
 #[must_use]
 pub fn math_functions() -> HashSet<&'static str> {
     [
@@ -189,9 +189,9 @@ impl<'s> Inner<'s> {
     /// the expr lexer treats it as whitespace — otherwise a
     /// `\`-continued multi-line braced condition (common in tcltest:
     /// `if {… \<NL><tabs> || …}`) would fall through, set `unknown`,
-    /// and degrade the whole expression to `ExprNode::Raw`.  Mirrors
-    /// the Python `expr_lexer.py` whitespace scan (LF only — a `\`
-    /// before `\r\n` is not a continuation).
+    /// and degrade the whole expression to `ExprNode::Raw`.  The
+    /// whitespace scan is LF only — a `\`
+    /// before `\r\n` is not a continuation.
     fn is_backslash_nl(&self, i: usize) -> bool {
         self.b.get(i) == Some(&b'\\') && self.b.get(i + 1) == Some(&b'\n')
     }
@@ -579,7 +579,7 @@ mod tests {
     #[test]
     fn ieee_754_special_literals() {
         // Tcl 9.0 treats Inf/NaN as numeric literals, not function
-        // names. See main commit ad81e67b for the parity fix.
+        // names.
         for word in ["Inf", "inf", "Infinity", "infinity", "NaN", "nan"] {
             assert_eq!(
                 types(word),

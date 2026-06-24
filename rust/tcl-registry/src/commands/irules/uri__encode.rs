@@ -13,9 +13,8 @@ pub const fn spec() -> CommandSpec {
             examples: "when HTTP_REQUEST {\n  set my_parameter_value \"my URL encoded parameter value with metacharacters (&*@#[])\"\n  log local0. \"The encoded version of \\\"$my_parameter_value\\\" is \\\"[URI::encode $my_parameter_value]\\\"\"\n  HTTP::redirect \"/path?parameter=[URI::encode $my_parameter_value]\"\n}",
             return_value: "Returns an encoded version of a given URI.",
         }),
-        // GAP-D2: URL-encodes its input (and strips CR/LF);
+        // URL-encodes its input (and strips CR/LF);
         // re-encoding a URL-encoded value double-encodes (T106).
-        // Mirrors `irules/uri__encode.py`.
         taint_transform: Some(TaintColour::URL_ENCODED.union(TaintColour::CRLF_FREE)),
         taint_double_encode_colour: Some(TaintColour::URL_ENCODED),
         forms: &[FormSpec {

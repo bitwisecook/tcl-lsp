@@ -1,4 +1,4 @@
-//! Option-shape factory proc specialisation (C36d/e/f).
+//! Option-shape factory proc specialisation.
 //!
 //! Drives the tcltest `Option` pattern:
 //!
@@ -17,14 +17,11 @@
 //! ```
 //!
 //! Each call to `Configure` with literal args creates a dedicated
-//! helper proc (`verbose`, `skip`, …). C36b + C36c lower the
+//! helper proc (`verbose`, `skip`, …). Lowering passes lower the
 //! *factory itself* well — the inner `proc $name` substitutes when
 //! its name and body template are const-known. But the call sites
 //! at top level still fire the factory through interpreted dispatch
 //! on every invocation, which is what this pass fixes.
-//!
-//! Mirrors `core/compiler/passes/specialise_factories.py` (main
-//! commit `0a8dcc3b`).
 
 use std::collections::HashMap;
 
@@ -60,17 +57,15 @@ pub struct FactoryShape {
     pub child_body_template: String,
 }
 
-/// Default per-factory specialisation cap (C36f).
+/// Default per-factory specialisation cap.
 ///
 /// An upper bound on how many call sites of a single factory we
-/// will specialise. Matches main's `_DEFAULT_FACTORY_CAP`.
+/// will specialise.
 pub const DEFAULT_FACTORY_CAP: usize = 64;
 
 /// Walk every procedure in *module* and rewrite call sites of any
 /// detected Option-shape factory to synthesise a per-call child
 /// proc. Mutates the module in place.
-///
-/// Mirrors `specialise_factories(module, cap=DEFAULT_FACTORY_CAP)`.
 pub fn specialise_factories(module: &mut Module, registry: &CommandRegistry) {
     specialise_factories_with_cap(module, registry, DEFAULT_FACTORY_CAP);
 }
@@ -368,7 +363,7 @@ fn try_specialise_call(
     if args.len() != shape.params.len() {
         return None;
     }
-    // C36f: per-factory cap.
+    // per-factory cap.
     let count = counts.entry(target.clone()).or_insert(0);
     if *count >= cap {
         return None;
@@ -448,7 +443,7 @@ mod tests {
     #[test]
     fn rejects_factory_with_multiple_statements() {
         // Two statements in body — current detector only matches the
-        // single-statement shape (matches Python's gate).
+        // single-statement shape.
         let m = lower_to_ir(
             "proc Configure {name default} {\n  set foo 1\n  proc $name {x} [subst -nocommands {return $default}]\n}",
             &reg(),

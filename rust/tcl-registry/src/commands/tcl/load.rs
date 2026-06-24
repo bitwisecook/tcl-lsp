@@ -19,8 +19,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(1, 3),
         return_type: Some(TclType::String),
-        // Mirrors ``core/commands/registry/tcl/load.py``.  ``--`` is
-        // the option terminator that drives W304's
+        // ``--`` is the option terminator that drives W304's
         // ``resolve_option_terminator`` lookup; the registry also
         // surfaces ``-global`` / ``-lazy`` for completion.
         options: &[

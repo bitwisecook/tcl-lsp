@@ -36,7 +36,7 @@ fn diag_key(d: &Diagnostic) -> (u32, u32, String, String) {
     (
         d.span.start(),
         d.span.end(),
-        d.code.clone(),
+        d.code.to_string(),
         d.message.clone(),
     )
 }

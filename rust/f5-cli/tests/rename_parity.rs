@@ -3,8 +3,8 @@
 //! query runner).
 //!
 //! Runs the built `f5-query` binary against the committed `bigip.conf`
-//! fixture and asserts **both** streams match goldens captured from
-//! `python -m tooling.f5.main rename`. Self-contained: no Python at test time.
+//! fixture and asserts **both** streams match the captured golden output for
+//! `rename`. Self-contained: no external tool runs at test time.
 //!
 //! Goldens embed a `__FIXTURES__` placeholder where the diff's `--- ` / `+++ `
 //! headers carry the on-disk path of the fixtures directory; the test
@@ -67,19 +67,19 @@ fn run_rename(old: &str, new: &str, extra: &[&str], ok_codes: &[i32]) -> (String
     )
 }
 
-/// Assert a rename reproduces the Python CLI byte-for-byte on both streams,
-/// matching `<base>.out.golden` / `<base>.err.golden`.
+/// Assert a rename reproduces the captured golden output byte-for-byte on both
+/// streams, matching `<base>.out.golden` / `<base>.err.golden`.
 fn assert_rename(base: &str, old: &str, new: &str, extra: &[&str], ok_codes: &[i32]) {
     let (out, err) = run_rename(old, new, extra, ok_codes);
     assert_eq!(
         out,
         golden(&format!("{base}.out.golden")),
-        "{base}: stdout does not match the Python CLI"
+        "{base}: stdout does not match the golden"
     );
     assert_eq!(
         err,
         golden(&format!("{base}.err.golden")),
-        "{base}: stderr (renamed report / warning / error) does not match the Python CLI"
+        "{base}: stderr (renamed report / warning / error) does not match the golden"
     );
 }
 
@@ -125,7 +125,7 @@ fn zero_occurrence_is_noop() {
 fn common_partition_token_is_noop() {
     // `/Common` never appears as a standalone token (always `/Common/…`), so a
     // partition rename through `rename()` is a tolerant no-op: `warning:` +
-    // exit 1, identical to Python.
+    // exit 1.
     assert_rename("rename-verb-common-noop", "/Common", "/Tenant_A", &[], &[1]);
 }
 

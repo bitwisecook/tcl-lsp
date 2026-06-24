@@ -1,6 +1,6 @@
 [package]
 name = "tcl-pkg"
-description = "Native Rust port of the tclpkg package manager (manifest, MVS resolver, lockfile, CAS, fetchers, venv, docker)"
+description = "The tclpkg package manager: manifest, MVS resolver, lockfile, CAS, fetchers, venv, docker"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

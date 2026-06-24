@@ -25,6 +25,15 @@ use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 
+/// The clean integer-overflow error tclsh raises when a `clock` computation
+/// leaves the wide range (e.g. `clock add 0 9223372036854775807 weeks`). Every
+/// timestamp here is user-controlled, so the arithmetic below funnels through
+/// `checked_*`/`i128` and returns this rather than panicking (debug) or wrapping
+/// (release) — matching tclsh, which reports a catchable error, never a wrap.
+fn overflow() -> CmdError {
+    CmdError::new("integer value too large to represent")
+}
+
 /// The current wall-clock time, read by the adapter from the host's `Clock`.
 pub struct Now {
     /// Seconds since the Unix epoch (`clock seconds`).
@@ -145,7 +154,12 @@ where
         i += 2;
     }
     let offset = if gmt { 0 } else { local_offset(clockval) };
-    let civil = Civil::from_secs(clockval + i64::from(offset));
+    // `clockval` is user input; a near-`i64::MAX` value plus the zone offset must
+    // not wrap before we break it into a civil date.
+    let local = clockval
+        .checked_add(i64::from(offset))
+        .ok_or_else(overflow)?;
+    let civil = Civil::from_secs(local);
     Ok(ops.new_str(&render(&civil, &fmt, offset, clockval)))
 }
 
@@ -189,6 +203,14 @@ where
     Ok(ops.new_int(t))
 }
 
+/// Upper bound (magnitude) on a civil year passed to `days_from_civil` in the
+/// calendar-add path. Any year beyond this yields an epoch far outside the wide
+/// range (a year holds ~3.15e7 seconds, so even `±3e11` years overflows `i64`
+/// seconds), and `days_from_civil`'s own `i64` arithmetic would itself overflow
+/// well before then — so a larger year is reported as a clean overflow rather
+/// than wrapped. Comfortably below where `era * 146097` could exceed `i64`.
+const MAX_CIVIL_YEAR: i64 = 300_000_000_000;
+
 /// Apply `count` of `unit` to the timestamp `t` (UTC seconds). Fixed units add a
 /// constant; calendar units (months/years) go through the civil date in the
 /// active zone, clamping the day to the target month's length.
@@ -208,11 +230,17 @@ fn add_units(
         _ => None,
     };
     if let Some(scale) = fixed {
-        return Ok(t + count * scale);
+        // `count` and `t` are both user-controlled wides; compute `t + count*scale`
+        // in i128 so neither the multiply nor the add can wrap before the range
+        // check (the precedent `lseq` uses i128 intermediates for the same reason).
+        let secs = i128::from(t) + i128::from(count) * i128::from(scale);
+        return i64::try_from(secs).map_err(|_| overflow());
     }
     let months = match unit {
-        "months" | "month" => count,
-        "years" | "year" => count * 12,
+        "months" | "month" => i128::from(count),
+        // `count * 12` (years→months) can itself overflow i64 for an extreme
+        // count, so keep the whole month tally in i128.
+        "years" | "year" => i128::from(count) * 12,
         other => {
             return Err(CmdError::new(format!(
                 "unknown unit of measure \"{other}\": must be \
@@ -221,13 +249,31 @@ fn add_units(
         }
     };
     let offset = if gmt { 0 } else { i64::from(local_offset(t)) };
-    let c = Civil::from_secs(t + offset);
-    let total = (i64::from(c.month) - 1) + months;
-    let year = c.year + total.div_euclid(12);
+    // `t + offset` is bounded by the offset (seconds), but guard it anyway since
+    // `t` may sit at the wide boundary.
+    let local_in = t.checked_add(offset).ok_or_else(overflow)?;
+    let c = Civil::from_secs(local_in);
+    // The civil month tally and the resulting year are derived in i128 so a huge
+    // `count` of months/years cannot overflow before we clamp it to a real date.
+    let total = (i128::from(c.month) - 1) + months;
+    let year_i128 = i128::from(c.year) + total.div_euclid(12);
+    // `days_from_civil` does its own i64 arithmetic (`era * 146097`, `yoe * 365`),
+    // which itself overflows for an astronomically large year — and such a year
+    // could never yield an epoch inside the wide range anyway (the seconds in a
+    // year past `MAX_CIVIL_YEAR` exceed `i64`). Reject it as a clean overflow
+    // before the call rather than letting the helper wrap.
+    if year_i128 > i128::from(MAX_CIVIL_YEAR) || year_i128 < -i128::from(MAX_CIVIL_YEAR) {
+        return Err(overflow());
+    }
+    let year = year_i128 as i64; // bounded above, so the cast is exact
+    // `rem_euclid(12)` is in `0..=11`, so the `+ 1` and cast are safe.
     let month = (total.rem_euclid(12) + 1) as u32;
     let day = c.day.min(days_in_month(year, month));
-    let local = days_from_civil(year, month, day) * 86_400 + c.tod;
-    Ok(local - offset)
+    // `days_from_civil` is now bounded; recompose in i128 and undo the zone
+    // offset, both range-checked back into a wide.
+    let local = i128::from(days_from_civil(year, month, day)) * 86_400 + i128::from(c.tod);
+    let result = local - i128::from(offset);
+    i64::try_from(result).map_err(|_| overflow())
 }
 
 /// `clock scan inputString -format formatString ?-gmt boolean? ?-base clock? …` —
@@ -277,7 +323,11 @@ where
         return Err(CmdError::new("free-form clock scan is not yet supported"));
     };
     let base_offset = if gmt { 0 } else { local_offset(base) };
-    let base_civil = Civil::from_secs(base + i64::from(base_offset));
+    // `-base` is user input; guard the offset add before breaking it into a date.
+    let base_local = base
+        .checked_add(i64::from(base_offset))
+        .ok_or_else(overflow)?;
+    let base_civil = Civil::from_secs(base_local);
     let fields = parse_with_format(&input, &fmt)?;
     if let Some(epoch) = fields.epoch {
         return Ok(ops.new_int(epoch));
@@ -291,9 +341,17 @@ where
     let hour = fields.hour.unwrap_or(0);
     let min = fields.min.unwrap_or(0);
     let sec = fields.sec.unwrap_or(0);
-    let local = days_from_civil(year, month, day) * 86_400 + hour * 3600 + min * 60 + sec;
+    // `year` (hence `days_from_civil`) and the `%H`/`%M`/`%S` fields all come from
+    // the input string, so compose the local epoch in i128 to avoid a wrap at the
+    // wide boundary, then range-check both it and the offset-adjusted result.
+    let local_i128 = i128::from(days_from_civil(year, month, day)) * 86_400
+        + i128::from(hour) * 3600
+        + i128::from(min) * 60
+        + i128::from(sec);
+    let local = i64::try_from(local_i128).map_err(|_| overflow())?;
     let offset = if gmt { 0 } else { local_offset(local) };
-    Ok(ops.new_int(local - i64::from(offset)))
+    let result = i128::from(local) - i128::from(offset);
+    Ok(ops.new_int(i64::try_from(result).map_err(|_| overflow())?))
 }
 
 /// The date/time fields a `-format` scan extracted (each `None` if its specifier
@@ -315,11 +373,18 @@ fn no_match() -> CmdError {
 }
 
 /// Read up to `max` decimal digits (at least one) from `inb` at `*ip`.
+///
+/// `max` is as large as 19 (the `%s` epoch field), so the accumulator can leave
+/// the wide range on attacker input (e.g. nineteen `9`s); fold the digits with
+/// `checked_*` and surface the clean overflow error tclsh would, never wrapping.
 fn read_uint(inb: &[u8], ip: &mut usize, max: usize) -> Result<i64, CmdError> {
     let start = *ip;
     let mut val: i64 = 0;
     while *ip < inb.len() && *ip - start < max && inb[*ip].is_ascii_digit() {
-        val = val * 10 + i64::from(inb[*ip] - b'0');
+        val = val
+            .checked_mul(10)
+            .and_then(|v| v.checked_add(i64::from(inb[*ip] - b'0')))
+            .ok_or_else(overflow)?;
         *ip += 1;
     }
     if *ip == start {
@@ -423,7 +488,7 @@ fn parse_with_format(input: &str, fmt: &str) -> Result<ScanFields, CmdError> {
     Ok(f)
 }
 
-// -- civil date ---------------------------------------------------------------
+// civil date
 
 /// A broken-down civil date/time (always relative to whatever zone the caller
 /// applied via the offset).
@@ -502,7 +567,7 @@ fn days_in_month(y: i64, m: u32) -> u32 {
     }
 }
 
-// -- strftime rendering -------------------------------------------------------
+// strftime rendering
 
 const MONTHS: [&str; 12] = [
     "January",
@@ -696,5 +761,52 @@ mod tests {
         let plus3 = add_units(1_700_000_000, 3, "months", true, &off).unwrap();
         let c = Civil::from_secs(plus3);
         assert_eq!((c.year, c.month, c.day), (2024, 2, 14));
+    }
+
+    #[test]
+    fn add_units_overflow_is_a_clean_error() {
+        // `clock add 0 9223372036854775807 weeks` (and the calendar units)
+        // must report the clean overflow error tclsh raises, not panic/wrap.
+        let off = |_: i64| 0;
+        let msg = "integer value too large to represent";
+        assert_eq!(
+            add_units(0, i64::MAX, "weeks", true, &off)
+                .unwrap_err()
+                .message(),
+            msg
+        );
+        assert_eq!(
+            add_units(i64::MAX, 1, "seconds", true, &off)
+                .unwrap_err()
+                .message(),
+            msg
+        );
+        // Calendar months/years go through the i128 month tally + civil clamp.
+        assert_eq!(
+            add_units(0, i64::MAX, "months", true, &off)
+                .unwrap_err()
+                .message(),
+            msg
+        );
+        assert_eq!(
+            add_units(0, i64::MAX, "years", true, &off)
+                .unwrap_err()
+                .message(),
+            msg
+        );
+        // A non-overflowing add still works (regression guard on the i128 path).
+        assert_eq!(add_units(0, 1, "weeks", true, &off).unwrap(), 7 * 86_400);
+    }
+
+    #[test]
+    fn read_uint_overflow_is_a_clean_error() {
+        // A 19-digit `%s` epoch beyond the wide range must not wrap the i64
+        // accumulator — `read_uint` returns the clean overflow error.
+        let mut ip = 0;
+        let err = read_uint(b"9999999999999999999", &mut ip, 19).unwrap_err();
+        assert_eq!(err.message(), "integer value too large to represent");
+        // In-range values still parse.
+        let mut ip = 0;
+        assert_eq!(read_uint(b"2023", &mut ip, 4).unwrap(), 2023);
     }
 }

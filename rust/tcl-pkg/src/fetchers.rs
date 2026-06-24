@@ -1,6 +1,6 @@
 //! Package source fetchers — tarball, git, and local path.
 //!
-//! Faithful port of `tooling/tclpkg/fetchers.py`. Each fetcher downloads or
+//! Each fetcher downloads or
 //! copies a package source into a target directory; the caller then hands the
 //! directory to [`cas::store`](crate::cas::ContentAddressableStore::store) for
 //! integrity hashing. Archive extraction is hardened against zip-slip,
@@ -142,7 +142,7 @@ fn extract_tar(bytes: &[u8], dest: &Path, lower: &str) -> Result<(), TclPkgError
     {
         let mut entry = entry.map_err(|e| fetch_error(format!("corrupt tar entry: {e}")))?;
         let entry_type = entry.header().entry_type();
-        // Skip symlinks and hardlinks (parity with the Python member filter).
+        // Skip symlinks and hardlinks.
         if entry_type.is_symlink() || entry_type.is_hard_link() {
             continue;
         }

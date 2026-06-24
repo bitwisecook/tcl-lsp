@@ -1,5 +1,5 @@
 //! `IPAddress` / `FQDN` value types — the host half of a destination, plus
-//! the `Address` sum type. Rust port of `_address.py`.
+//! the `Address` sum type.
 
 use super::error::ValueError;
 use super::ip_class;
@@ -39,10 +39,10 @@ impl IPAddress {
         let mut rd: Option<u32> = None;
         let mut host = text;
         if text.contains('%') {
-            // Python uses rpartition('%'): split on the LAST '%'.
+            // Split on the LAST '%'.
             let idx = text.rfind('%').unwrap();
             let rd_text = &text[idx + 1..];
-            // ``str.isdigit()`` is true for a non-empty run of digits.
+            // A non-empty run of ASCII digits qualifies as a route domain.
             if !rd_text.is_empty() && rd_text.bytes().all(|b| b.is_ascii_digit()) {
                 rd = rd_text.parse::<u32>().ok();
                 host = &text[..idx];
@@ -236,21 +236,21 @@ impl fmt::Display for FQDN {
     }
 }
 
-/// Python `str.isalnum()` matches Unicode alphanumerics. F5 FQDN labels
-/// are ASCII in practice; the original used `c.isalnum()`. We mirror the
-/// permissive Unicode-alphanumeric behaviour for parity.
+/// F5 FQDN labels are ASCII in practice, but this permits the full
+/// permissive Unicode-alphanumeric set so label classification stays
+/// lenient.
 fn is_label_alnum(c: char) -> bool {
     c.is_alphanumeric() || c.is_numeric()
 }
 
-/// Python `str.isdigit()` semantics restricted to the ASCII run used by
-/// the IPv4-shape guard (all labels being ASCII digit runs).
+/// `true` for a non-empty ASCII digit run, used by the IPv4-shape guard
+/// (all labels being ASCII digit runs).
 fn is_ascii_digits(s: &str) -> bool {
     !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
 }
 
 /// The host part of a pool member or other address-bearing field: either
-/// an [`IPAddress`] or an [`FQDN`]. Mirrors the Python `Address` union.
+/// an [`IPAddress`] or an [`FQDN`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Address {
     /// An IP address host.
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn ipv6_zone_id_rejected() {
         // ``fe80::1%eth0`` — non-numeric suffix is left intact and the IP
-        // parser rejects it, matching Python.
+        // parser rejects it.
         assert!(IPAddress::try_parse("fe80::1%eth0").is_none());
     }
 
@@ -350,7 +350,7 @@ mod tests {
         assert!(try_parse_address("!!!").is_none());
     }
 
-    /// Differential parity: `str(parse_address(input))` from Python.
+    /// Differential parity fixtures: `str(parse_address(input))`.
     #[test]
     fn parity_against_python() {
         let cases: &[(&str, &str)] = &[
@@ -371,7 +371,7 @@ mod tests {
             );
         }
         // IPv4-mapped IPv6 takes its global/private classification from the
-        // embedded v4 address (matches Python ``ipaddress``).
+        // embedded v4 address (per the IPv4-mapped rule).
         assert!(IPAddress::parse("::ffff:8.8.8.8").unwrap().is_public());
         assert!(IPAddress::parse("::ffff:10.0.0.1").unwrap().is_private());
     }

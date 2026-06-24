@@ -3,8 +3,6 @@
 //! Translates a flat token stream (via the segmenter) into the tree of
 //! IR nodes defined in [`crate::ir`]. Each Tcl command is pattern-matched by
 //! name and converted to a typed IR statement.
-//!
-//! Ports `core/compiler/lowering.py`.
 
 use std::collections::{HashMap, HashSet};
 
@@ -48,8 +46,6 @@ fn join_namespace(parent: &str, child: &str) -> String {
 
 /// The namespace a procedure body lowers in — everything up to the
 /// last `::` of its qualified name, or `::` for a global proc.
-/// Mirrors Python's `_normalise_qualified_name(qname).rsplit("::",
-/// 1)[0] or "::"`.
 fn proc_namespace(qname: &str) -> String {
     let n = normalise_qualified_name(qname);
     match n.rfind("::") {
@@ -60,9 +56,7 @@ fn proc_namespace(qname: &str) -> String {
 
 /// Recognise the OO definition-command spellings. Returns
 /// `Some("oo::class")` / `Some("oo::define")` when the command is one
-/// of those (with or without a leading `::`), else `None`. Mirrors
-/// Python's `canonical_command in ("::oo::class", "::oo::define")`
-/// gate, which also normalises both spellings.
+/// of those (with or without a leading `::`), else `None`.
 fn oo_definition_form(command: &str, canonical: Option<&str>) -> Option<&'static str> {
     let c = canonical.unwrap_or(command);
     let c = c.strip_prefix("::").unwrap_or(c);
@@ -81,8 +75,7 @@ fn oo_definition_form(command: &str, canonical: Option<&str>) -> Option<&'static
 ///
 /// Only static braced bodies qualify — the single-method
 /// `oo::define Name method m {...} {...}` and dynamic-body forms are
-/// left to the default lowering. Mirrors Python's
-/// `_is_oo_definition_shape`. `texts` / `kinds` / `single` are the
+/// left to the default lowering. `texts` / `kinds` / `single` are the
 /// full per-word arrays (index 0 = command word).
 fn is_oo_definition_shape(
     form: &str,
@@ -125,7 +118,7 @@ fn is_namespace_eval_shape(
 }
 
 /// True iff word `idx` (full argv index) is a single braced-literal
-/// (`Str`) token. Mirrors Python's `_is_static_braced`.
+/// (`Str`) token.
 fn word_is_static_braced(kinds: &[TokenType], single: &[bool], idx: usize) -> bool {
     idx < kinds.len() && idx < single.len() && single[idx] && kinds[idx] == TokenType::Str
 }
@@ -158,9 +151,8 @@ fn is_instance_var_name(nm: &str) -> bool {
 }
 
 /// True iff a statement's command (preferring its canonical form,
-/// `::`-stripped) equals `bare`. Mirrors Python's
-/// `stmt.canonical_command == "::{bare}"` checks while tolerating the
-/// Rust IR's `canonical_command == None` for un-aliased commands.
+/// `::`-stripped) equals `bare`, tolerating the IR's
+/// `canonical_command == None` for un-aliased commands.
 fn canonical_matches(command: &str, canonical: Option<&str>, bare: &str) -> bool {
     let c = canonical.unwrap_or(command);
     c.strip_prefix("::").unwrap_or(c) == bare
@@ -230,8 +222,7 @@ fn parse_param_names(param_str: &str) -> Vec<String> {
 /// Return `Some(true)` / `Some(false)` if *`expr_text`* is a
 /// literal Tcl boolean, or `None` when the condition is not a
 /// simple literal. Tolerates surrounding whitespace and is
-/// case-insensitive (matches `Tcl_GetBoolean`). Mirrors Python's
-/// `_static_bool` (main commit `06f42efa`).
+/// case-insensitive (matches `Tcl_GetBoolean`).
 pub(crate) fn static_bool(expr_text: &str) -> Option<bool> {
     let stripped = expr_text.trim().to_ascii_lowercase();
     match stripped.as_str() {
@@ -262,7 +253,7 @@ fn parse_uplevel_level(text: &str) -> Option<i32> {
 /// The LHS must be a plain bareword `Esc` token (no substitutions,
 /// array index, or namespace qualifier) so we only ever track
 /// proc-local scalars. The RHS must be a single brace-string `Str`
-/// token. Mirrors Python's `_set_literal_body`.
+/// token.
 fn set_literal_body(seg: &SegmentedCommand) -> Option<(String, String)> {
     if seg.name() != "set" || seg.args().len() != 2 {
         return None;
@@ -303,8 +294,7 @@ fn set_literal_body(seg: &SegmentedCommand) -> Option<(String, String)> {
 /// no nested command substitution. `Str` (`{...}`) tokens are
 /// re-braced in the synthesised body so list-canonicalisation
 /// stays correct (we trust the segmenter's `single_token_word`
-/// flag plus the absence of `$` / `[` in `Esc` text). Mirrors
-/// Python's `_eval_list_literal_body`.
+/// flag plus the absence of `$` / `[` in `Esc` text).
 fn eval_list_literal_body(cmd_text: &str) -> Option<String> {
     let inner = segment_commands(cmd_text);
     if inner.len() != 1 {
@@ -352,11 +342,10 @@ fn eval_list_literal_body(cmd_text: &str) -> Option<String> {
 /// Straight-line assignments pop just the named variable;
 /// structured IR and barriers conservatively clear the whole map
 /// because their child scopes (or runtime side effects) could
-/// touch any tracked name. Mirrors Python's `_invalidate_const_map_for`.
-/// C43 / barrier-gate: token-level check that a relaxed-eval /
+/// touch any tracked name.
+/// Token-level check that a relaxed-eval /
 /// relaxed-uplevel body is free of nested dynamic-shape barriers.
 ///
-/// Mirrors `core/compiler/lowering_hooks/_barrier_gate.py::body_has_dynamic_barrier`.
 /// When the eval/uplevel hooks consider relaxing a braced-literal
 /// body to inline IR, they first walk the body's command words and
 /// reject any nested `eval`/`uplevel` whose own body argument is
@@ -498,52 +487,49 @@ pub struct Lowerer<'r> {
     in_namespace_eval: bool,
     /// Command registry for arg-role queries.
     registry: &'r CommandRegistry,
-    /// Per-script const-map stack (C35). Each scope tracks
+    /// Per-script const-map stack. Each scope tracks
     /// proc-local variables assigned a brace-string literal so
     /// later `eval $var` / `uplevel 1 $var` calls can fold the
     /// body in at lowering time. Active only when
     /// `proc_depth > 0` — top-level / `namespace eval` scopes
     /// write globals or namespace vars whose values can be
     /// observed and mutated by other code, so const-propagating
-    /// them is unsound. Mirrors Python's `_const_map_stack`.
+    /// them is unsound.
     const_map_stack: Vec<HashMap<String, String>>,
     /// Depth of `proc` / `when` body lowerings currently in
-    /// flight. A positive value enables the const-map. Mirrors
-    /// Python's `_proc_depth`.
+    /// flight. A positive value enables the const-map.
     proc_depth: u32,
-    /// `namespace import` directives observed at lowering time
-    /// (C38a). Recorded as `(context_namespace, absolute_pattern)`
+    /// `namespace import` directives observed at lowering time.
+    /// Recorded as `(context_namespace, absolute_pattern)`
     /// pairs and copied into `Module::namespace_imports` at the
     /// end of lowering. Order is preserved.
     namespace_imports: Vec<(String, String)>,
-    /// `namespace export` directives observed at lowering time
-    /// (C38b). Recorded as `(context_namespace, pattern)` pairs
+    /// `namespace export` directives observed at lowering time.
+    /// Recorded as `(context_namespace, pattern)` pairs
     /// and copied into `Module::namespace_exports` at the end of
     /// lowering. Order is preserved.
     namespace_exports: Vec<(String, String)>,
-    /// Depth of statically-dead branches currently being lowered
-    /// (C38c). `if {0} {…}` / `if {1} {…} else {…}` bump this
+    /// Depth of statically-dead branches currently being lowered.
+    /// `if {0} {…}` / `if {1} {…} else {…}` bump this
     /// around the dead body so any `namespace import` /
     /// `namespace export` directives found inside don't register
     /// with the module-level tables. The IR for the dead code is
     /// still produced so consumers that walk the tree by syntactic
-    /// offset see the original structure. Mirrors Python's
-    /// `_dead_code_depth`.
+    /// offset see the original structure.
     pub(crate) dead_code_depth: u32,
-    /// `true` while lowering a `TclOO` method body (SF-2). A `proc`
+    /// `true` while lowering a `TclOO` method body. A `proc`
     /// (or `namespace eval`-lifted proc) defined inside a method
     /// body is created at method-call time in the global namespace,
     /// NOT at class-definition time — so it must not be lifted into
     /// `module.procedures` (codegen would otherwise emit it
     /// unconditionally at script load). The method body is still
     /// lowered for analysis; only the global registration is
-    /// suppressed. Mirrors Python's `_suppress_proc_register`.
+    /// suppressed.
     suppress_proc_register: bool,
     /// Lexer config for the document's dialect, threaded into every
     /// body re-segmentation so `{*}` expansion (off for Tcl 8.4 /
     /// iRules) and the iRules `}{` ghost SEP are honoured rather than
-    /// always assuming the Tcl-8.5+ default
-    /// (`SYNC-MAY19-dialect-contextvar`, strip 3).  Defaults to
+    /// always assuming the Tcl-8.5+ default.  Defaults to
     /// `LexerConfig::default()`; production callers thread the active
     /// dialect via [`Lowerer::with_config`] / [`lower_to_ir_with_config`].
     config: tcl_lexer::LexerConfig,
@@ -596,7 +582,7 @@ impl<'r> Lowerer<'r> {
     /// Lower a complete source string to an IR module.
     pub fn lower(&mut self, source: &str) -> &Module {
         self.module.top_level = self.lower_script(source, "::");
-        // C38a: surface namespace import / export directives onto
+        // Surface namespace import / export directives onto
         // the module for downstream consumers (codegen import
         // resolution, future warning passes).
         self.module.namespace_imports = std::mem::take(&mut self.namespace_imports);
@@ -624,8 +610,8 @@ impl<'r> Lowerer<'r> {
 
     /// Lower a body argument (inside braces/brackets) to an IR script.
     ///
-    /// Inherits the parent scope's const-map (C35a, mirroring main
-    /// commit `c30203da`) so a child body can still relax its
+    /// Inherits the parent scope's const-map so a child body can
+    /// still relax its
     /// `eval` / `uplevel` against literals bound in the enclosing
     /// scope (`set body {literal}; catch {uplevel 1 $body}` is the
     /// canonical example).
@@ -665,7 +651,7 @@ impl<'r> Lowerer<'r> {
         stmts
     }
 
-    /// Maintain the per-scope const-map (C35) after a command lowers.
+    /// Maintain the per-scope const-map after a command lowers.
     ///
     /// Populates a `name → braced-literal` entry when *seg* is a
     /// `set var {literal}` shape with a plain bareword LHS;
@@ -748,7 +734,7 @@ impl<'r> Lowerer<'r> {
             .collect()
     }
 
-    /// C38a / C38b: detect ``namespace import ?-force? pattern...``
+    /// Detect ``namespace import ?-force? pattern...``
     /// and ``namespace export pattern...``. Records absolute
     /// patterns only.  Skips `{*}`-expanded calls and statically-
     /// dead branches.
@@ -834,42 +820,21 @@ impl<'r> Lowerer<'r> {
     }
 
     /// Try to dispatch *`cmd_name`* through the registry's typed
-    /// [`LoweringHookId`] for structured commands that have
-    /// migrated off the `match cmd_name` block in
+    /// [`LoweringHookId`] for structured commands dispatched from
     /// [`lower_command`](Self::lower_command).  Returns
-    /// `Some(stmt)` when the hook ID matches a migrated form;
+    /// `Some(stmt)` when the hook ID matches a structured form;
     /// returns `None` otherwise so `lower_command` falls back to
-    /// its remaining string-pattern arms.
+    /// [`lower_default`](Self::lower_default).
     ///
-    /// C43 migration sequencing: each structured command form
-    /// migrates as its own sub-commit per the chunk-log row's
-    /// "each command form's hook lands as its own sub-commit"
-    /// directive.
+    /// Every structured form routes through
+    /// `resolve_call().lowering_hook`, and unmatched commands flow
+    /// straight to `lower_default`.  Forms with shape preconditions
+    /// (`proc`, `namespace eval`, `foreach`, `lmap`, `dict`,
+    /// `when`, `foreachLine`) return `None` on a failed
+    /// precondition so `lower_default` catches them.
     ///
-    /// * Sub-strip 1 — `eval`, `uplevel` (pilot, dialect-agnostic
-    ///   single-method dispatch).
-    /// * Sub-strip 2 — `if`, `switch`, `for`, `while`, `catch`,
-    ///   `try` (straightforward single-method dispatch).
-    /// * Sub-strip 3 — `proc`, `namespace eval`, `foreach`,
-    ///   `lmap`, `dict` (arity / subcommand / shared-method
-    ///   preconditions handled inside the match arm; falling
-    ///   the precondition returns `None` so `lower_command`'s
-    ///   `_ => lower_default(...)` arm catches it).
-    /// * Sub-strip 4 — `when` (iRules dialect; production
-    ///   callers load the dialect, tests that need it call
-    ///   `load_irules()` explicitly), and `foreachLine` (Tcl
-    ///   9.0+, always registered in `build_default()` via the
-    ///   `tcl::foreachline` spec; the bare-name registration
-    ///   now carries the dedicated `LoweringHookId::ForeachLine`
-    ///   stamp so the registry resolves it without the string
-    ///   match).  With sub-strip 4 in, `lower_command` no
-    ///   longer has any per-name fallback — every structured
-    ///   form routes through `resolve_call().lowering_hook`,
-    ///   and unmatched commands flow straight to
-    ///   `lower_default`.
-    ///
-    /// The migrated forms pick up two benefits over the string
-    /// match:
+    /// Dispatching through the hook ID picks up two benefits over a
+    /// bare name match:
     ///
     /// 1. Canonical resolution via [`CommandRegistry::resolve_call`]
     ///    instead of bare name comparison, so any future spec
@@ -877,10 +842,7 @@ impl<'r> Lowerer<'r> {
     ///    `eval` variant) automatically dispatches correctly
     ///    when its `lowering_hook` is stamped.
     /// 2. The hook ID is the canonical key consumed by downstream
-    ///    audit / LSP / compiler-explorer surfaces; once the
-    ///    runtime path also routes through it, the registry is
-    ///    the single source of truth for "what does this form
-    ///    lower to".
+    ///    audit / LSP / compiler-explorer surfaces.
     fn try_dispatch_structured_hook(
         &mut self,
         cmd_name: &str,
@@ -893,7 +855,7 @@ impl<'r> Lowerer<'r> {
             .registry
             .resolve_call(cmd_name, &arg_refs, DialectSet::empty())?;
         match resolved.lowering_hook? {
-            // C34a: static-body uplevel.  Match `uplevel 1 {body}`,
+            // Static-body uplevel.  Match `uplevel 1 {body}`,
             // `uplevel #0 {body}`, and the canonical no-level form
             // `uplevel {body}` (level defaults to 1) when the body
             // arg is a brace-string literal token.  Dynamic forms
@@ -905,7 +867,7 @@ impl<'r> Lowerer<'r> {
                     .unwrap_or_else(|| self.lower_default(seg, namespace)),
             ),
 
-            // C35b: `eval $body` / `eval {body}` with a literal /
+            // `eval $body` / `eval {body}` with a literal /
             // const-folded body relaxes to a `Statement::Block` so
             // downstream analyses see the inlined script.  Dynamic
             // bodies (`eval $dyn` with no const-map binding,
@@ -916,10 +878,9 @@ impl<'r> Lowerer<'r> {
                     .unwrap_or_else(|| self.lower_default(seg, namespace)),
             ),
 
-            // C43 sub-strip 2: straightforward control-flow forms.
-            // Each is a single-method dispatch with no arity /
-            // shared-method / subcommand complications, so the
-            // migration is a pure 1:1 swap of the dispatch key.
+            // Straightforward control-flow forms.  Each is a
+            // single-method dispatch with no arity / shared-method /
+            // subcommand complications.
             LoweringHookId::If => Some(self.lower_if(seg, namespace)),
             LoweringHookId::Switch => Some(self.lower_switch(seg, namespace)),
             LoweringHookId::For => Some(self.lower_for(seg, namespace)),
@@ -927,14 +888,11 @@ impl<'r> Lowerer<'r> {
             LoweringHookId::Catch => Some(self.lower_catch(seg, namespace)),
             LoweringHookId::Try => Some(self.lower_try(seg, namespace)),
 
-            // C43 sub-strip 3: forms with shape preconditions.
-            // The original `match cmd_name` block guarded these
-            // arms so calls with the wrong arity / shape fell
-            // through to `lower_default` instead of crashing
-            // the dedicated lowerer.  Mirror that here by
-            // returning `None` on precondition failure —
-            // `lower_command` then falls through to its
-            // `_ => lower_default(...)` arm.
+            // Forms with shape preconditions.  Calls with the wrong
+            // arity / shape must fall through to `lower_default`
+            // instead of crashing the dedicated lowerer, so each arm
+            // returns `None` on precondition failure and
+            // `lower_command` then falls through to `lower_default`.
             //
             // `proc name params body` — exactly three args and
             // at least three token slices (the body needs to
@@ -975,8 +933,6 @@ impl<'r> Lowerer<'r> {
                 }
             }
 
-            // C43 sub-strip 4: the last two structured forms.
-            //
             // `when EVENT ?priority N? body` — iRules event
             // handler.  The hook stamp lives on the `when` spec
             // in `tcl-registry/src/commands/irules/when.rs`,
@@ -1003,12 +959,10 @@ impl<'r> Lowerer<'r> {
             // via `tcl::foreachline::spec`, so no dialect-load
             // dance is needed.  The `lower_foreach_line`
             // emitter handles its own shape errors and
-            // dynamic-body fallback, but we keep the original
-            // `args.len() == 3` guard to mirror the previous
-            // string-pattern arm's contract — an under- or
-            // over-argued `foreachLine` flows to
-            // `lower_default` instead of triggering a barrier
-            // inside the dedicated emitter.
+            // dynamic-body fallback, but the `args.len() == 3`
+            // guard keeps an under- or over-argued `foreachLine`
+            // flowing to `lower_default` instead of triggering a
+            // barrier inside the dedicated emitter.
             LoweringHookId::ForeachLine => {
                 if args.len() == 3 {
                     Some(self.lower_foreach_line(seg, namespace))
@@ -1072,16 +1026,14 @@ impl<'r> Lowerer<'r> {
             return Some(barrier);
         }
 
-        // C43: registry-driven hook-ID dispatch covers all 15
+        // Registry-driven hook-ID dispatch covers all 15
         // structured command forms — every typed
         // `LoweringHookId` (Proc, When, NamespaceEval, If,
         // Switch, For, While, Foreach, Lmap, ForeachLine, Catch,
-        // Try, Dict, Eval, Uplevel) now flows through
+        // Try, Dict, Eval, Uplevel) flows through
         // [`try_dispatch_structured_hook`].  Commands that
         // aren't in the registry, or whose hook is `None`, fall
-        // through to [`lower_default`] below.  The string-
-        // pattern `match cmd_name` block that used to handle
-        // these forms is gone.
+        // through to [`lower_default`] below.
         if let Some(stmt) = self.try_dispatch_structured_hook(cmd_name, seg, namespace) {
             return Some(stmt);
         }
@@ -1113,7 +1065,6 @@ impl<'r> Lowerer<'r> {
         // runtime lookup needs.  Route the whole shape through the
         // runtime `proc` builtin via `Statement::Barrier`.  Carries
         // namespace-old-1.27 / 2.1 / 2.2 and namespace-14.11.
-        // Mirrors `core/compiler/lowering.py` after PR #430.
         if proc_name_initial.ends_with("::") {
             return Statement::Barrier {
                 span: seg.span,
@@ -1135,7 +1086,7 @@ impl<'r> Lowerer<'r> {
         let proc_name = &proc_name_owned;
 
         // Phase 3: dynamic body / params check, plus body
-        // materialisation via the const-map (PR #393 / `0fc2d6a9`).
+        // materialisation via the const-map.
         let (materialised_body, body_is_dynamic, body_offset) =
             match self.check_proc_body_dynamic(seg, args, name_was_substituted) {
                 Ok(triple) => triple,
@@ -1148,14 +1099,14 @@ impl<'r> Lowerer<'r> {
         let params = parse_param_names(&args[1]);
         let qualified = qualify_proc_name(namespace, proc_name);
         let body_text = &args[2];
-        // C37b: fresh const-map frame for the nested proc body.
+        // Fresh const-map frame for the nested proc body.
         // ``lower_body`` would otherwise inherit the enclosing
         // scope's tracked scalars — correct for control-flow
         // bodies (if / catch / loops share the frame) but unsound
         // for ``proc`` bodies, which have their own runtime frame.
         // Pushing an empty frame here means the inner ``lower_body``
         // clones an empty parent, giving the proc body a clean
-        // slate. Mirrors main commit `49f90130`.
+        // slate.
         self.proc_depth += 1;
         self.const_map_stack.push(HashMap::new());
         let body = if let Some(text) = materialised_body {
@@ -1174,13 +1125,12 @@ impl<'r> Lowerer<'r> {
         self.const_map_stack.pop();
         self.proc_depth -= 1;
 
-        // SF-2: a `proc` defined inside a TclOO method body is created
+        // A `proc` defined inside a TclOO method body is created
         // at method-call time in the global namespace, not at script
         // load — so it must not be lifted into `module.procedures`
         // (codegen would otherwise emit it unconditionally). The body
         // was still lowered above for analysis; only the global
-        // registration is suppressed. Mirrors Python's
-        // `_suppress_proc_register` guard.
+        // registration is suppressed.
         if !self.suppress_proc_register {
             match self.module.procedures.entry(qualified.clone()) {
                 std::collections::hash_map::Entry::Vacant(e) => {
@@ -1225,9 +1175,8 @@ impl<'r> Lowerer<'r> {
     /// with a "dynamic proc name" barrier — the caller propagates
     /// it as the statement.
     ///
-    /// C36b — main commit `2ad4efc9`.  Multi-token names
-    /// (`foo_$x`) and command-substitution names (`$name[suffix]`)
-    /// stay on the runtime path.
+    /// Multi-token names (`foo_$x`) and command-substitution names
+    /// (`$name[suffix]`) stay on the runtime path.
     fn resolve_dynamic_proc_name(
         &mut self,
         seg: &SegmentedCommand,
@@ -1268,8 +1217,7 @@ impl<'r> Lowerer<'r> {
     }
 
     /// Check whether the proc body and/or params are dynamic, and
-    /// attempt to materialise the body from the const-map (PR #393 /
-    /// `0fc2d6a9`).
+    /// attempt to materialise the body from the const-map.
     ///
     /// Returns:
     ///   * `Ok((Some(text), _, body_offset))` — body materialised
@@ -1309,8 +1257,7 @@ impl<'r> Lowerer<'r> {
                 // `eval_subst_nocommands_body` segments its input as
                 // a top-level Tcl command stream and expects the
                 // inner content, so strip the outer `[…]` before
-                // handing it over.  Mirrors Python's `body_tok.text`,
-                // which the lexer already stores without brackets.
+                // handing it over.
                 args[2]
                     .strip_prefix('[')
                     .and_then(|s| s.strip_suffix(']'))
@@ -1349,14 +1296,14 @@ impl<'r> Lowerer<'r> {
         let body_tok = seg.arg_tokens()[body_idx];
         let body_text = &args[body_idx];
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-        // C37b: fresh const-map frame for the nested proc body.
+        // Fresh const-map frame for the nested proc body.
         // ``lower_body`` would otherwise inherit the enclosing
         // scope's tracked scalars — correct for control-flow
         // bodies (if / catch / loops share the frame) but unsound
         // for ``proc`` bodies, which have their own runtime frame.
         // Pushing an empty frame here means the inner ``lower_body``
         // clones an empty parent, giving the proc body a clean
-        // slate. Mirrors main commit `49f90130`.
+        // slate.
         self.proc_depth += 1;
         self.const_map_stack.push(HashMap::new());
         let body = self.lower_body(body_text, body_offset, namespace);
@@ -1434,7 +1381,7 @@ impl<'r> Lowerer<'r> {
         // Static-body `uplevel` inlining (`Statement::UpFrame`) requires
         // frame-shift bytecode the VM does not yet implement — a spliced body
         // would run against the wrong activation, and a bare `UpFrame` reaches
-        // codegen as a no-op. Until that lands, fall back to a runtime
+        // codegen as a no-op. Until then, fall back to a runtime
         // `Barrier`, which dispatches to the `uplevel` builtin (correct frame
         // semantics). Set this to `false` to re-enable static lowering.
         const STATIC_UPLEVEL_LOWERING: bool = false;
@@ -1449,7 +1396,7 @@ impl<'r> Lowerer<'r> {
             _ => return None,
         };
         let body_tok = arg_tokens.get(body_tok_idx)?;
-        // C43 / barrier-gate: see `try_lower_eval_static` for the
+        // Barrier gate: see `try_lower_eval_static` for the
         // rationale.  A static-body `uplevel 1 {eval $x}` would
         // relax to inline IR with a still-dynamic `eval`; reject.
         if body_tok.kind == TokenType::Str {
@@ -1463,7 +1410,7 @@ impl<'r> Lowerer<'r> {
             let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
             self.lower_body(body_text, body_offset, namespace)
         } else if body_tok.kind == TokenType::Var {
-            // C35b: `uplevel ?N? $var` with $var resolved by the
+            // `uplevel ?N? $var` with $var resolved by the
             // const-map to a brace-string literal — fold the literal
             // in and lower as a static UpFrame.
             let literal = self.const_map_lookup(&args[body_tok_idx])?;
@@ -1484,10 +1431,9 @@ impl<'r> Lowerer<'r> {
     /// current const-map, return the substituted string. Otherwise
     /// `None` so the caller falls back to runtime dispatch.
     ///
-    /// Used by C36c to materialise the tcltest-style `Option`
-    /// factory body at compile time when the surrounding proc has
-    /// all the template vars const-tracked. Mirrors Python's
-    /// `_eval_subst_nocommands_body`.
+    /// Used to materialise the tcltest-style `Option` factory body
+    /// at compile time when the surrounding proc has all the
+    /// template vars const-tracked.
     fn eval_subst_nocommands_body(&self, cmd_text: &str) -> Option<String> {
         use tcl_lexer::TokenType;
         let inner = segment_commands_with_offset_and_config(cmd_text, 0, self.config);
@@ -1547,9 +1493,6 @@ impl<'r> Lowerer<'r> {
     /// command-substitution shape. Returns `None` for dynamic
     /// bodies so the caller falls through to runtime barrier
     /// dispatch.
-    ///
-    /// Mirrors main commits `b5e18ce2` (string + var shapes) and
-    /// `a080c8d7` (`[list ...]` shape).
     fn try_lower_eval_static(
         &mut self,
         seg: &SegmentedCommand,
@@ -1565,7 +1508,7 @@ impl<'r> Lowerer<'r> {
             return None;
         }
         let body_tok = arg_tokens[0];
-        // C43 / barrier-gate: a braced literal body might contain a
+        // Barrier gate: a braced literal body might contain a
         // nested ``eval $x`` / ``uplevel $lvl {...}`` whose own body
         // is still dynamic.  Relaxing the outer barrier in that case
         // produces IR that runs a compiled inner barrier with a
@@ -1589,7 +1532,7 @@ impl<'r> Lowerer<'r> {
             }
             self.lower_script(&literal, namespace)
         } else if body_tok.kind == TokenType::Cmd {
-            // C35c: ``eval [list lit1 lit2 ...]`` — synthesise the
+            // ``eval [list lit1 lit2 ...]`` — synthesise the
             // body by joining the list's literal arguments and
             // re-lowering. The bracket-substitution text retains
             // the surrounding ``[...]``; strip them via
@@ -1646,8 +1589,6 @@ impl<'r> Lowerer<'r> {
         // dispatch (codegen hook lookup, side-effect classification,
         // GVN purity, var-escape) can key off the canonical target
         // instead of re-resolving from the source spelling.
-        // Mirrors Python's post-`a042271a` IRCall.canonical_command
-        // population.  Addresses Copilot review on PR #389.
         let mut role_cmd = cmd_name.to_owned();
         let mut role_args: Vec<String> = args.to_vec();
         let mut prepend_n: usize = 0;
@@ -1740,9 +1681,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    // ---------------------------------------------------------------
-    // TclOO method-body lowering (SF-2: method purity for O126)
-    // ---------------------------------------------------------------
+    // TclOO method-body lowering (method purity for O126)
 
     /// Populate `module.methods` from the fully-assembled IR.
     ///
@@ -1754,7 +1693,7 @@ impl<'r> Lowerer<'r> {
     /// [`MethodDef`]. Method bodies are lowered for analysis only —
     /// codegen never reads `module.methods`, and the barrier emitted
     /// for the class command is unchanged, so bytecode is
-    /// byte-identical. Mirrors Python's `extract_oo_methods_pass`.
+    /// byte-identical.
     pub fn extract_oo_methods_pass(&mut self) {
         let top_level = self.module.top_level.clone();
         self.walk_for_oo_methods(&top_level.statements, "::");
@@ -1773,16 +1712,15 @@ impl<'r> Lowerer<'r> {
     /// Recursive walk for `oo::class` / `oo::define` definition
     /// barriers. Descends `namespace eval` blocks (tracking the active
     /// namespace) and extracts methods from any class/define command
-    /// carrying a static braced body. Mirrors Python's
-    /// `_walk_for_oo_methods` — except the Rust lowerer evaluates a
+    /// carrying a static braced body. The lowerer evaluates a
     /// `namespace eval` body inline and discards it (emitting a
-    /// `Barrier`), so where Python descends a preserved `IRBlock`, the
-    /// Rust walk re-segments the barrier's body token instead (see
+    /// `Barrier`), so rather than descending a preserved block this
+    /// walk re-segments the barrier's body token instead (see
     /// [`Self::walk_segments_for_oo`]).
     fn walk_for_oo_methods(&mut self, statements: &[Statement], namespace: &str) {
         for stmt in statements {
             match stmt {
-                // C35-folded `eval` / `uplevel` bodies survive as Blocks.
+                // Folded `eval` / `uplevel` bodies survive as Blocks.
                 Statement::Block {
                     body,
                     namespace: block_ns,
@@ -1876,8 +1814,8 @@ impl<'r> Lowerer<'r> {
     /// bodies inside an `oo::class create` / `oo::define` block to
     /// per-method [`MethodDef`] entries keyed by
     /// `{class_qname}::{method_name}` (constructors / destructors use
-    /// the synthetic names `<constructor>` / `<destructor>`). Mirrors
-    /// Python's `_extract_oo_methods`. `texts` is the class command's
+    /// the synthetic names `<constructor>` / `<destructor>`). `texts`
+    /// is the class command's
     /// full per-word text array; `body_content_offset` is the absolute
     /// source offset of the first byte inside the body's braces.
     fn extract_oo_methods(
@@ -2029,7 +1967,7 @@ pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
 /// Like [`lower_to_ir`] but with an explicit dialect
 /// [`tcl_lexer::LexerConfig`], threaded into every body re-segmentation
 /// so `{*}` expansion (off for Tcl 8.4 / iRules) and the iRules `}{`
-/// ghost SEP are honoured (`SYNC-MAY19-dialect-contextvar`, strip 3).
+/// ghost SEP are honoured.
 #[must_use]
 pub fn lower_to_ir_with_config(
     source: &str,
@@ -2100,7 +2038,7 @@ pub fn first_fatal_parse_error(source: &str) -> Option<String> {
 /// the `lower_to_ir*` entry points).
 fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {
     lowerer.lower(source);
-    // SF-2: extract TclOO method bodies from the fully-assembled
+    // Extract TclOO method bodies from the fully-assembled
     // module (cache-independent — see `extract_oo_methods_pass`).
     lowerer.extract_oo_methods_pass();
     let mut module = lowerer.module;
@@ -2109,7 +2047,7 @@ fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {
     module
 }
 
-/// SYNC9: post-lower scan for `trace add execution NAME enter|leave …`
+/// Post-lower scan for `trace add execution NAME enter|leave …`
 /// that populates `Module::traced_commands` / `has_dynamic_trace`.
 ///
 /// Runs over the top-level script + every procedure body.  Literal
@@ -2117,8 +2055,6 @@ fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {
 /// the canonical key); non-literal targets (`$cmd`, `[expr ...]`,
 /// command substitutions) flip `has_dynamic_trace` so GVN treats
 /// every call as potentially traced.
-///
-/// Mirrors Python's IR-builder pass added by `8a6f4d58` (closes `#251`).
 fn populate_trace_facts(module: &mut Module) {
     let top_level = module.top_level.clone();
     walk_for_trace(&top_level, module);
@@ -2220,13 +2156,12 @@ mod tests {
 
     #[test]
     fn lowering_is_dialect_aware_via_expand_syntax() {
-        // SYNC-MAY19-dialect-contextvar strip 3: lowering re-segments each
+        // Lowering re-segments each
         // body under the document dialect.  For `if {*}$cond { puts hi }`,
         // on 8.5+ the `{*}` expands the condition, so the structured `if`
         // trips the expand-barrier (an opaque `Statement::Barrier` — the
         // structure can't be reasoned about); on 8.4 `{*}` is a literal
-        // word, so the `if` lowers normally (no barrier).  Before strip 3
-        // lowering always assumed expansion regardless of dialect.
+        // word, so the `if` lowers normally (no barrier).
         let reg = reg();
         let src = "if {*}$cond { puts hi }";
         let m90 = lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::default());
@@ -2285,7 +2220,7 @@ mod tests {
         ));
     }
 
-    // SF-2 (SYNC-JUN02-1): the `extract_oo_methods_pass` post-pass
+    // The `extract_oo_methods_pass` post-pass
     // lifts TclOO method bodies into `module.methods`.
 
     #[test]
@@ -2583,7 +2518,7 @@ mod tests {
     #[test]
     fn uplevel_dynamic_body_falls_back_to_default() {
         // ``uplevel 1 $body`` body is a $var, not a brace literal —
-        // can't be statically resolved without C35's const-propagate.
+        // can't be statically resolved without const-propagation.
         // Falls back to ``lower_default`` (Statement::Call).
         let m = lower_to_ir("uplevel 1 $body", &reg());
         assert!(matches!(
@@ -2606,7 +2541,7 @@ mod tests {
     #[test]
     #[ignore = "static-uplevel lowering disabled pending VM frame-shift opcodes"]
     fn const_prop_uplevel_resolves_set_var_body() {
-        // C35b: ``set body {set x 1}; uplevel 1 $body`` inside a
+        // ``set body {set x 1}; uplevel 1 $body`` inside a
         // proc — the const-map records ``body`` and the uplevel
         // folds in the literal as an UpFrame.
         let m = lower_to_ir("proc f {} { set body {set x 1}\n uplevel 1 $body }", &reg());
@@ -2623,7 +2558,7 @@ mod tests {
 
     #[test]
     fn const_prop_eval_resolves_set_var_body() {
-        // C35b: ``eval $body`` with const-mapped body folds to a
+        // ``eval $body`` with const-mapped body folds to a
         // Statement::Block.
         let m = lower_to_ir("proc f {} { set body {set x 1}\n eval $body }", &reg());
         let proc = m.procedures.get("::f").expect("proc registered");
@@ -2638,7 +2573,7 @@ mod tests {
 
     #[test]
     fn const_prop_eval_brace_body_emits_block() {
-        // C35b: ``eval {body}`` in a proc context lowers to Block.
+        // ``eval {body}`` in a proc context lowers to Block.
         let m = lower_to_ir("proc f {} { eval {set x 1} }", &reg());
         let proc = m.procedures.get("::f").expect("proc registered");
         assert!(matches!(proc.body.statements[0], Statement::Block { .. }));
@@ -2677,7 +2612,7 @@ mod tests {
 
     #[test]
     fn const_prop_eval_list_literal() {
-        // C35c: ``eval [list set x 42]`` recognised as static body.
+        // ``eval [list set x 42]`` recognised as static body.
         let m = lower_to_ir("proc f {} { eval [list set x 42] }", &reg());
         let proc = m.procedures.get("::f").expect("proc registered");
         assert!(matches!(proc.body.statements[0], Statement::Block { .. }));
@@ -2703,7 +2638,7 @@ mod tests {
 
     #[test]
     fn const_prop_does_not_leak_into_nested_proc() {
-        // C37b: a ``set body {literal}`` in the outer proc must
+        // A ``set body {literal}`` in the outer proc must
         // NOT appear to a nested ``proc inner``'s
         // barrier-relaxation gate as a tracked literal.
         let m = lower_to_ir(
@@ -2723,7 +2658,7 @@ mod tests {
 
     #[test]
     fn ns_import_recorded_with_context_namespace() {
-        // C38a: ``namespace import ::tcltest::*`` at top-level
+        // ``namespace import ::tcltest::*`` at top-level
         // records (``::``, ``::tcltest::*``).
         let m = lower_to_ir("namespace import ::tcltest::*", &reg());
         assert_eq!(
@@ -2753,7 +2688,7 @@ mod tests {
 
     #[test]
     fn proc_dynamic_name_resolved_via_const_map() {
-        // C36b: ``set name {Verbose}; proc \$name {} { ... }``
+        // ``set name {Verbose}; proc \$name {} { ... }``
         // inside a proc — ``name`` is in the const-map, so the
         // inner proc registers as ``::Verbose``.
         let m = lower_to_ir(
@@ -2786,7 +2721,7 @@ mod tests {
         // strip the trailing ``::`` and register the proc under the
         // namespace name itself — wrong cmd.  Route through
         // Statement::Barrier so the runtime ``proc`` builtin handles
-        // the registration.  PR #430 (3ff02ff2).
+        // the registration.
         let m = lower_to_ir("proc ::ns:: {a b} { puts $a$b }", &reg());
         // No procedure entry should have been AOT-registered under
         // ``::ns`` (which is what the bug would produce) or any
@@ -2835,7 +2770,7 @@ mod tests {
 
     #[test]
     fn proc_subst_nocommands_body_materialised() {
-        // C36c: ``proc \$name {x} [subst -nocommands {return \$default}]``
+        // ``proc \$name {x} [subst -nocommands {return \$default}]``
         // with both ``name`` and ``default`` const-tracked materialises
         // the body to ``return 0`` and lowers it as a real script.
         let m = lower_to_ir(
@@ -2854,7 +2789,7 @@ mod tests {
 
     #[test]
     fn foreach_line_lowers_to_foreach_statement() {
-        // PR #433 (0f9288d2): `foreachLine var filename body` lowers
+        // `foreachLine var filename body` lowers
         // to a single-iterator IRForeach so variables assigned
         // inside the body propagate to the enclosing scope.  The
         // generic stdlib-proc path would route through IRBarrier and
@@ -2914,7 +2849,7 @@ mod tests {
 
     #[test]
     fn proc_var_body_const_map_materialised() {
-        // PR #393 (0fc2d6a9): a bare `$body` body word whose value
+        // A bare `$body` body word whose value
         // is in the const-map materialises into the IRProcedure body
         // (matching the `proc $name {x} $body` shape).
         let m = lower_to_ir(
@@ -2952,7 +2887,7 @@ mod tests {
         // A dynamic params word — there's no static arg-list to
         // build a real IRProcedure from, so the whole proc shape
         // bails to a Barrier.  Even when the name resolves via the
-        // const-map.  PR #393 (0fc2d6a9).
+        // const-map.
         let m = lower_to_ir(
             "proc factory {} { set name {x}\n proc $name $params { puts hi } }",
             &reg(),
@@ -2971,8 +2906,7 @@ mod tests {
         // `proc foo {} "pre${body}post"` — the body is a quoted
         // multi-token word.  Even though the first token is Str,
         // single_token_word is false so the whole word is dynamic
-        // and we route through Barrier (matching Python's
-        // multi-token guard).
+        // and we route through Barrier (the multi-token guard).
         let m = lower_to_ir(
             r#"proc factory {} { set body {return hi}; proc inner {} "pre${body}post" }"#,
             &reg(),
@@ -3002,7 +2936,7 @@ mod tests {
         );
         // Verbose not registered (because \$default missing means
         // we keep the dynamic body which routes via Barrier — but
-        // the proc name itself was substituted via C36b). Actually
+        // the proc name itself was substituted). Actually
         // the proc IS registered with whatever the body lowering
         // produces; the assertion is that it's NOT the materialised
         // form.
@@ -3071,7 +3005,7 @@ mod tests {
 
     #[test]
     fn ns_import_in_dead_branch_suppressed() {
-        // C38c: ``if {0} { namespace import ::evil::* }`` — the
+        // ``if {0} { namespace import ::evil::* }`` — the
         // import is inside a syntactically-dead branch so it must
         // NOT be recorded.
         let m = lower_to_ir("if {0} { namespace import ::evil::* }", &reg());
@@ -3098,7 +3032,7 @@ mod tests {
     #[test]
     #[ignore = "static-uplevel lowering disabled pending VM frame-shift opcodes"]
     fn const_prop_inherited_into_catch_body() {
-        // C35a: child scope (catch body) inherits parent's const-map.
+        // Child scope (catch body) inherits parent's const-map.
         let m = lower_to_ir(
             "proc f {} { set body {set x 1}\n catch { uplevel 1 $body } }",
             &reg(),
@@ -3121,7 +3055,7 @@ mod tests {
         }
     }
 
-    // -- SYNC9: trace add execution module-fact population -----------
+    // trace add execution module-fact population
 
     #[test]
     fn trace_add_execution_literal_recorded() {
@@ -3164,7 +3098,7 @@ mod tests {
         );
     }
 
-    // -- C43 / barrier-gate ------------------------------------------
+    // barrier-gate
 
     #[test]
     fn body_has_dynamic_barrier_clean() {
@@ -3197,7 +3131,6 @@ mod tests {
     fn body_has_dynamic_barrier_uplevel_with_literal_body_clean() {
         // ``uplevel $lvl {body}`` with a literal body is OK — the
         // gate only poisons when the BODY is substitution-bearing.
-        // Mirrors Python parity.
         assert!(!body_has_dynamic_barrier("uplevel $lvl {set x 1}", &reg()));
     }
 
@@ -3233,10 +3166,8 @@ mod tests {
         );
     }
 
-    // C43 first sub-strip: `eval` and `uplevel` migrate to
-    // registry-driven hook-ID dispatch.  The next three tests
-    // confirm the new path produces the same output the string-
-    // pattern arms used to produce.
+    // The next three tests confirm `eval` and `uplevel` dispatch
+    // through the registry-driven hook ID to the expected output.
 
     #[test]
     fn registry_dispatch_eval_static_body_lowers_to_block() {
@@ -3266,7 +3197,7 @@ mod tests {
 
     #[test]
     fn registry_dispatch_unknown_command_falls_through_to_default() {
-        // After C43 sub-strip 4, `lower_command` has no per-
+        // `lower_command` has no per-
         // name fallback — commands that aren't in the registry
         // (or whose `lowering_hook` is `None`) route directly
         // to [`Lowerer::lower_default`], which emits a generic
@@ -3283,10 +3214,8 @@ mod tests {
         }
     }
 
-    // C43 sub-strip 2: `if`, `switch`, `for`, `while`, `catch`,
-    // `try` migrate to registry-driven hook-ID dispatch.  These
-    // tests pin the new path's output to the same shape the
-    // string-pattern arms used to produce.
+    // These tests pin the registry-driven hook-ID dispatch of `if`,
+    // `switch`, `for`, `while`, `catch`, `try` to the expected shape.
 
     #[test]
     fn registry_dispatch_if_lowers_to_if() {
@@ -3348,9 +3277,9 @@ mod tests {
         );
     }
 
-    // C43 sub-strip 3: `proc`, `namespace eval`, `foreach`,
-    // `lmap`, `dict` migrate to registry-driven hook-ID dispatch,
-    // with shape preconditions enforced inside each match arm.
+    // `proc`, `namespace eval`, `foreach`, `lmap`, `dict` dispatch
+    // through registry-driven hook-ID, with shape preconditions
+    // enforced inside each match arm.
 
     #[test]
     fn registry_dispatch_proc_lowers_to_proc_call_and_registers_procedure() {
@@ -3470,9 +3399,8 @@ mod tests {
         );
     }
 
-    // C43 sub-strip 4: `when` and `foreachLine` migrate to
-    // registry-driven hook-ID dispatch — the last two structured
-    // forms.  `when` is dialect-gated (iRules), so its test
+    // `when` and `foreachLine` dispatch through registry-driven
+    // hook-ID.  `when` is dialect-gated (iRules), so its test
     // registry loads the dialect explicitly.  `foreachLine` is
     // a Tcl 9.0+ command always registered in `build_default()`.
 

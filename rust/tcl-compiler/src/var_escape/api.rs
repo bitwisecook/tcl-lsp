@@ -1,13 +1,13 @@
 //! Public driver for the var-escape analysis.
 //!
-//! Ported from `compiler/var_escape/_api.py`. The orchestrator threads the
-//! already-landed pieces — the intraprocedural pass ([`analyse_script`] /
+//! The orchestrator threads the
+//! intraprocedural pass ([`analyse_script`] /
 //! [`analyse_cfg_function`]), the interprocedural fixpoint
 //! ([`solve_interprocedural_escape`]), and slot resolution
 //! ([`populate_local_slots`]) — into per-proc [`ProcEscapeSummary`]s keyed
 //! by qualified name.
 //!
-//! Two entry points mirror the two Python source modes:
+//! Two entry points cover the two source modes:
 //!
 //! * [`analyse_var_escape`] — the **IR-only tree walk**. This is the path
 //!   the inliner consumes (`pure_leaf` is computed here); it needs only the
@@ -15,7 +15,7 @@
 //! * [`analyse_var_escape_cu`] — the **flow-sensitive CFG + SSA** path,
 //!   driven from a [`CompilationUnit`]. Used by codegen for the per-SSA
 //!   frame analysis; it leaves `pure_leaf` at its default (the inlining
-//!   predicate is only meaningful on the IR path), matching Python.
+//!   predicate is only meaningful on the IR path).
 
 use std::collections::HashMap;
 
@@ -29,8 +29,7 @@ use super::types::{EscapeTag, ProcEscapeSummary};
 use super::walker::analyse_script;
 
 /// Qualified name the top-level script is keyed under. Callers that only
-/// care about proc bodies filter it out. Mirrors Python's
-/// `TOP_LEVEL_QNAME`.
+/// care about proc bodies filter it out.
 pub const TOP_LEVEL_QNAME: &str = "::top";
 
 /// Convert a flow-sensitive [`CfgEscapeResult`] to a per-name
@@ -38,7 +37,7 @@ pub const TOP_LEVEL_QNAME: &str = "::top";
 /// "FRAME wins" (already done in `name_tags`); the per-version detail is
 /// preserved in [`ProcEscapeSummary::ssa_tags`]. `pure_leaf` is left at
 /// its default — the inlining predicate is computed only on the IR-walk
-/// path. Mirrors `_cfg_result_to_summary`.
+/// path.
 #[must_use]
 pub fn cfg_result_to_summary(result: &CfgEscapeResult) -> ProcEscapeSummary {
     let frame_needed =
@@ -63,8 +62,7 @@ pub fn cfg_result_to_summary(result: &CfgEscapeResult) -> ProcEscapeSummary {
 /// When `interprocedural` is `true` (the production default) callee-induced
 /// escapes and the transitive `pure_leaf` fixpoint are folded in; pass
 /// `false` to inspect the raw per-proc result (tests). Compile-time local
-/// slot indices are always folded in last. Mirrors `analyse_var_escape`'s
-/// `ir_module=` path.
+/// slot indices are always folded in last.
 #[must_use]
 pub fn analyse_var_escape(
     module: &Module,
@@ -88,8 +86,7 @@ pub fn analyse_var_escape(
 }
 
 /// Per-proc escape summaries from a [`CompilationUnit`] (the flow-sensitive
-/// CFG/SSA path). Used by codegen frame analysis. Mirrors
-/// `analyse_var_escape`'s `cu=` path.
+/// CFG/SSA path). Used by codegen frame analysis.
 #[must_use]
 pub fn analyse_var_escape_cu(
     cu: &CompilationUnit,

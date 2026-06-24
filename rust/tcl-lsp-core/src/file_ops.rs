@@ -1,7 +1,7 @@
 //! File-operation helpers: rewrite `source FILE` references when a
-//! sourced file is renamed (GAP-A9).
+//! sourced file is renamed.
 //!
-//! Port of `lsp/features/workspace_file_ops.py`'s pure core.  When a
+//! When a
 //! `.tcl` file is renamed, every dependent file that `source`s it
 //! (via a *literal* path) gets its path literal rewritten so the
 //! workspace still loads.  `compute_rename_edits` is pure and
@@ -33,7 +33,6 @@ pub struct RenameEdit {
 /// `workspace_roots` are `file://` URIs of the workspace folders, tried
 /// for a relative literal that doesn't resolve next to its script.
 /// Returns an empty vector when nothing references the renamed file.
-/// Mirrors `compute_rename_edits` / `_collect_edits_for_rename`.
 #[must_use]
 pub fn compute_rename_edits(
     old_uri: &str,
@@ -140,9 +139,9 @@ fn hex_val(b: u8) -> Option<u8> {
 }
 
 /// True when a literal `source` path resolves to `old_path` under any of
-/// the candidate bases Python's `resolve_source_target` tries (for the
-/// literal case): the script's own directory first, then each workspace
-/// root; an absolute literal resolves only to itself.  The pure analog
+/// the candidate bases tried (for the literal case): the script's own
+/// directory first, then each workspace root; an absolute literal
+/// resolves only to itself.  The pure analog
 /// of the filesystem `isfile` probes — a match against *any* candidate
 /// counts, since the renamed file is known to exist at `old_path`.
 fn source_resolves_to(raw: &str, dep_path: &str, roots: &[String], old_path: &str) -> bool {
@@ -162,7 +161,7 @@ fn source_resolves_to(raw: &str, dep_path: &str, roots: &[String], old_path: &st
 
 /// The new path literal preserving the existing style: an absolute
 /// literal becomes the new absolute path; a relative one is re-relative
-/// to the dependent's directory.  Mirrors `_compute_new_literal`.
+/// to the dependent's directory.
 fn compute_new_literal(old_literal: &str, dep_path: &str, new_abs_path: &str) -> String {
     if old_literal.starts_with('/') {
         return new_abs_path.to_string();
@@ -170,7 +169,7 @@ fn compute_new_literal(old_literal: &str, dep_path: &str, new_abs_path: &str) ->
     relpath(new_abs_path, posix_dirname(dep_path))
 }
 
-// -- posix path helpers (the test environment is Linux) -------------
+// posix path helpers (the test environment is Linux)
 
 fn posix_dirname(p: &str) -> &str {
     match p.rfind('/') {
@@ -190,7 +189,7 @@ fn posix_join(dir: &str, rel: &str) -> String {
     }
 }
 
-/// Collapse `.` / `..` / repeated slashes (posix `os.path.normpath`).
+/// Collapse `.` / `..` / repeated slashes (POSIX path normalisation).
 fn normpath(p: &str) -> String {
     if p.is_empty() {
         return ".".to_string();
@@ -220,7 +219,7 @@ fn normpath(p: &str) -> String {
     }
 }
 
-/// Relative path from `start` to `target` (posix `os.path.relpath`).
+/// Relative path from `start` to `target`.
 fn relpath(target: &str, start: &str) -> String {
     let target_norm = normpath(target);
     let start_norm = normpath(start);

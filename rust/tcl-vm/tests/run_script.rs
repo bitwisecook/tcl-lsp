@@ -959,7 +959,7 @@ fn string_and_numeric_compare() {
     assert_eq!(result, "1");
 }
 
-/// The `string` subcommands ported into the shared `tcl-cmd-core` (driven over
+/// The `string` subcommands served by the shared `tcl-cmd-core` (driven over
 /// the VM's `ValueOps`) behave identically end-to-end.
 #[test]
 fn string_core_helpers() {
@@ -993,7 +993,7 @@ fn string_repeat_bad_count_errors() {
     assert_eq!(result, "expected integer but got \"x\"");
 }
 
-/// The `list`-family commands ported into the shared `tcl-cmd-core` (driven over
+/// The `list`-family commands served by the shared `tcl-cmd-core` (driven over
 /// the VM's `ValueOps` list operations) behave identically end-to-end.
 #[test]
 fn list_core_helpers() {
@@ -1032,7 +1032,7 @@ fn string_case_replace_insert() {
     assert_eq!(run("puts [string insert abc end Z]").2, "abcZ\n");
 }
 
-/// `string cat` and the `string trim` family, ported into the shared core.
+/// `string cat` and the `string trim` family, served by the shared core.
 #[test]
 fn string_cat_and_trim() {
     assert_eq!(run("puts [string cat foo bar baz]").2, "foobarbaz\n");
@@ -1041,7 +1041,7 @@ fn string_cat_and_trim() {
     assert_eq!(run("puts \"[string trimright abcxx x]<\"").2, "abc<\n");
 }
 
-/// `string is` classification, ported into the shared core (`string_is`).
+/// `string is` classification, served by the shared core (`string_is`).
 #[test]
 fn string_is_classes() {
     assert_eq!(run("puts [string is alpha abc]").2, "1\n");
@@ -1055,7 +1055,7 @@ fn string_is_classes() {
     assert_eq!(run("string is alpha -failindex fi abc5\nset fi").1, "3");
 }
 
-/// `format` rendering, ported into the shared core over `ValueOps`.
+/// `format` rendering, served by the shared core over `ValueOps`.
 #[test]
 fn format_core() {
     assert_eq!(run("puts [format %d-%s 5 hi]").2, "5-hi\n");
@@ -1070,7 +1070,7 @@ fn format_core() {
     assert_eq!(run("puts [format 100%%]").2, "100%\n");
 }
 
-/// The pure `dict` family, ported into the shared core (over the default
+/// The pure `dict` family, served by the shared core (over the default
 /// list-backed `dict_pairs`/`new_dict` seam).
 #[test]
 fn dict_core_helpers() {
@@ -1389,7 +1389,7 @@ fn opcode_reverse_lindex_multi_str_replace() {
     assert_eq!(r, "Z");
 }
 
-/// `set x [cmd …]` inline command-substitution assign (FE-CODEGEN re-land):
+/// `set x [cmd …]` inline command-substitution assign:
 /// the value is compiled inline (specialised opcode where available, else a
 /// generic invoke) rather than pushed as raw `[…]` text for the runtime
 /// `subst_word` fallback. Results verified against tclsh 9.0. The
@@ -1430,9 +1430,9 @@ fn set_inline_cmd_subst() {
 
 /// `INVOKE_REPLACE` (ensemble-rewrite invoke): `[string equal -nocase …]` /
 /// `[string compare -length …]` in value position inline to the resolved
-/// implementation (`::tcl::string::equal …`) via the opcode. This regressed
-/// when the `set x [cmd]` re-land routed the flagged forms through the
-/// (previously unimplemented) opcode; verified against tclsh 9.0.
+/// implementation (`::tcl::string::equal …`) via the opcode. This is sensitive to
+/// inline `set x [cmd]` routing the flagged forms through the
+/// (otherwise unimplemented) opcode; verified against tclsh 9.0.
 #[test]
 fn invoke_replace_string_ensemble() {
     assert_eq!(
@@ -1471,8 +1471,8 @@ fn dict_toplevel_ensemble() {
 
 /// `{*}` expansion inside a command substitution in value position
 /// (`set x [cmd a {*}$args b]`) compiles to `expandStart … expandStkTop N;
-/// invokeExpanded` (result on the stack), matching tclsh 9.0 — FE-CODEGEN
-/// task 4. Statement-position `{*}` already lowered correctly.
+/// invokeExpanded` (result on the stack), matching tclsh 9.0.
+/// Statement-position `{*}` already lowered correctly.
 #[test]
 fn set_inline_cmd_subst_expand() {
     assert_eq!(
@@ -1494,8 +1494,8 @@ fn set_inline_cmd_subst_expand() {
     );
 }
 
-/// `encoding` — mirrors the tree-walking runtime (`runtime/rust`), the VM's
-/// parity oracle: UTF-8 internal model, so `convertto`/`convertfrom` pass data
+/// `encoding` — matches the tree-walking runtime (`runtime/rust`): UTF-8
+/// internal model, so `convertto`/`convertfrom` pass data
 /// through, `system` is `utf-8`, `names` lists the supported set, `dirs` is
 /// ignored. (Real codepage conversion is unimplemented on both sides.)
 #[test]
@@ -1542,7 +1542,7 @@ fn interp_eval_current() {
     assert_eq!(msg, "could not find interpreter \"foo\"");
 }
 
-/// Regression tests for the codex review of the `set x [cmd]` re-land.
+/// Regression tests for inline `set x [cmd]` command-substitution edge cases.
 #[test]
 fn inline_cmd_subst_review_fixes() {
     // `string is` generic fallback must keep the `is` subcommand (it used to be

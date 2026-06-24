@@ -1,7 +1,7 @@
 //! WASM backend tests: the greenfield eval-fallback emitter produces a
 //! structurally valid module with the right shape (imports, data section,
 //! eval-fallback calls, structured `if` / loops). Execution against a runtime is
-//! a later stage (the Rust runtime's wasm32 ABI is still the T1.1 stub), so these
+//! currently (the Rust runtime's wasm32 ABI is still a stub), so these
 //! assert the emitted structure; `wasmtime compile` (run below where the CLI is
 //! present) validates the bytes for full structural validity.
 
@@ -204,8 +204,7 @@ fn foreach_is_opaque_eval_fallback() {
 
 /// Every emitted module is **structurally valid WASM** — confirmed by
 /// `wasmtime compile` (which fully validates before native compilation). Skips
-/// gracefully where the `wasmtime` CLI isn't available, mirroring the Python
-/// oracle skip in `differential_codegen.rs`.
+/// gracefully where the `wasmtime` CLI isn't available.
 #[test]
 fn wasmtime_validates_emitted_modules() {
     let have_wasmtime = std::process::Command::new("wasmtime")

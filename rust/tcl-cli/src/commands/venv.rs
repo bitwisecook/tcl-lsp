@@ -1,7 +1,7 @@
 //! `tcl venv` verb group — virtual environment management.
 //!
-//! Port of `tooling/tcl/verbs/venv.py`. Thin wrappers over `tcl_pkg::venv`.
-//! Handler-level errors print `error: <msg>` to stderr and return exit code 1.
+//! Thin wrappers over `tcl_pkg::venv`. Handler-level errors print
+//! `error: <msg>` to stderr and return exit code 1.
 
 // Handlers return `anyhow::Result<u8>` for a uniform dispatch signature even
 // when a given verb cannot fail; the wrap is the interface contract.

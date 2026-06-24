@@ -1,20 +1,20 @@
 //! `minimize` (`minimise` / `repro`) verb: reduce a diagnostic to a minimal
 //! reproducer.
 //!
-//! Ports two Python modules:
+//! Two layers:
 //!
-//! - `server/features/minimize.py` — the engine: delta-debugging (`_ddmin`)
+//! - The engine: delta-debugging
 //!   over source lines, gated by "the target diagnostic still fires", followed
-//!   by a verify-gated identifier-rename pass (`_collect_rename_edits` over the
-//!   tokeniser + segmenter, `_apply_edits`, `_dedent`). `minimize_diagnostic`
-//!   raises `ValueError` when the code does not fire on the input; here that is
+//!   by a verify-gated identifier-rename pass (collect rename edits over the
+//!   tokeniser + segmenter, apply them, then dedent). When the code does not
+//!   fire on the input the reduction fails with
 //!   `Err(MinimizeError::NotPresent)`.
-//! - `tooling/tcl/verbs/minimize.py` — the verb: iterate the input documents,
+//! - The verb: iterate the input documents,
 //!   skip those where the code does not fire, and print the per-document result
 //!   as text or JSON.
 //!
 //! The predicate is membership-only ("does CODE fire?"), so the accepted
-//! diagnostic-ordering divergence between the Rust and Python analysers is
+//! diagnostic-ordering divergence between the analysers is
 //! irrelevant to the reduction — both engines reduce to a snippet that still
 //! fires CODE.
 
@@ -29,8 +29,7 @@ use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
 use crate::cli::InputArgs;
 
 /// Variable-target commands: arguments at these positions name a variable (not
-/// a value), so a rename must rewrite them alongside `$` references. Mirrors
-/// `_VAR_TARGET_CMDS`.
+/// a value), so a rename must rewrite them alongside `$` references.
 fn var_target_positions(cmd: &str) -> Option<&'static [usize]> {
     match cmd {
         "set" | "variable" | "incr" | "append" | "lappend" => Some(&[0]),
@@ -41,7 +40,7 @@ fn var_target_positions(cmd: &str) -> Option<&'static [usize]> {
 }
 
 /// Tcl specials / globals whose names are semantically load-bearing — never
-/// renamed. Mirrors `_RESERVED_NAMES`.
+/// renamed.
 const RESERVED_NAMES: [&str; 13] = [
     "argv",
     "argv0",
@@ -58,8 +57,8 @@ const RESERVED_NAMES: [&str; 13] = [
     "selfns",
 ];
 
-/// Outcome of minimising a diagnostic to a minimal reproducer (mirrors the
-/// Python `MinimizeResult` dataclass).
+/// Outcome of minimising a diagnostic to a minimal reproducer (the
+/// `MinimizeResult` structure).
 #[derive(Debug, Clone)]
 pub struct MinimizeResult {
     pub source: String,
@@ -70,7 +69,7 @@ pub struct MinimizeResult {
     pub reproduces: bool,
 }
 
-/// Why `minimize_diagnostic` could not run (mirrors the Python `ValueError`).
+/// Why `minimize_diagnostic` could not run.
 #[derive(Debug)]
 pub enum MinimizeError {
     /// The requested code does not fire on the given source.
@@ -83,12 +82,11 @@ fn fires(source: &str, code: &str, dialect: &str) -> bool {
         .analyse(source, dialect)
         .diagnostics
         .iter()
-        .any(|d| d.code == code)
+        .any(|d| d.code.as_str() == code)
 }
 
 /// Zeller delta-debugging: minimise `units` keeping `test` true. Returns the
-/// smallest sublist of `units` for which `test(&sublist)` holds. Direct port of
-/// `_ddmin`.
+/// smallest sublist of `units` for which `test(&sublist)` holds.
 fn ddmin<F>(mut units: Vec<String>, test: &F) -> Vec<String>
 where
     F: Fn(&[String]) -> bool,
@@ -121,7 +119,7 @@ where
 }
 
 /// Assign the next short name (`a`, `b`, …, `z`, `a1`, `b1`, …) for `name`,
-/// or `None` for names that must never be renamed. Mirrors `_short_for`.
+/// or `None` for names that must never be renamed.
 fn short_for(name: &str, names_seen: &mut HashMap<String, String>) -> Option<String> {
     if RESERVED_NAMES.contains(&name)
         || name.contains("::")
@@ -147,7 +145,7 @@ fn short_for(name: &str, names_seen: &mut HashMap<String, String>) -> Option<Str
 
 /// Return `(start, end, new_text)` byte-offset edits renaming user variables.
 /// Covers `$`/`${}` references (VAR tokens, base name only) and variable-target
-/// command arguments. Mirrors `_collect_rename_edits`.
+/// command arguments.
 fn collect_rename_edits(
     source: &str,
     names_seen: &mut HashMap<String, String>,
@@ -207,8 +205,7 @@ fn collect_rename_edits(
     edits
 }
 
-/// Apply non-overlapping `(start, end, text)` edits right-to-left. Mirrors
-/// `_apply_edits`.
+/// Apply non-overlapping `(start, end, text)` edits right-to-left.
 fn apply_edits(source: &str, edits: &[(usize, usize, String)]) -> String {
     let mut seen: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
     let mut uniq: Vec<(usize, usize, String)> = Vec::new();
@@ -225,7 +222,7 @@ fn apply_edits(source: &str, edits: &[(usize, usize, String)]) -> String {
     out
 }
 
-/// Strip common leading whitespace from non-blank lines. Mirrors `_dedent`.
+/// Strip common leading whitespace from non-blank lines.
 fn dedent(source: &str) -> String {
     let lines: Vec<&str> = source.split('\n').collect();
     let common = lines
@@ -253,7 +250,7 @@ fn dedent(source: &str) -> String {
 }
 
 /// Reduce `source` to the minimum code still firing diagnostic `code` under
-/// `dialect`. Mirrors `minimize_diagnostic`.
+/// `dialect`.
 pub fn minimize_diagnostic(
     source: &str,
     code: &str,
@@ -302,8 +299,8 @@ pub fn minimize_diagnostic(
     })
 }
 
-/// One per-document result in the `minimize --json` payload. Field order matches
-/// the Python dict (`file, code, original_lines, reduced_lines, renamed,
+/// One per-document result in the `minimize --json` payload. Field order is
+/// fixed (`file, code, original_lines, reduced_lines, renamed,
 /// reproduces, source`); `serde_json::to_string_pretty` preserves declaration
 /// order, so the JSON is byte-faithful.
 #[derive(Serialize)]
@@ -320,9 +317,8 @@ struct MinimizeItem {
 /// `tcl minimize [INPUT...] CODE` — reduce a diagnostic to a minimal
 /// reproducer.
 ///
-/// The diagnostic CODE is the final positional argument (argparse parity — see
-/// the `Minimize` command doc in `cli.rs`); the inputs are everything before
-/// it.
+/// The diagnostic CODE is the final positional argument (see the `Minimize`
+/// command doc in `cli.rs`); the inputs are everything before it.
 pub fn run_minimize(input: &InputArgs, no_rename: bool, json: bool) -> anyhow::Result<u8> {
     let Some((code_arg, file_inputs)) = input.inputs.split_last() else {
         anyhow::bail!("the following arguments are required: code");

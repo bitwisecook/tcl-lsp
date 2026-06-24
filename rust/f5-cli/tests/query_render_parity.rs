@@ -3,9 +3,9 @@
 //! wiring.
 //!
 //! Runs the built `f5-query` binary against the committed `bigip.conf`
-//! fixture and asserts stdout matches a golden captured from
-//! `python -m tooling.f5.main query ... --render ...`. Self-contained: no
-//! Python at test time. Error cases assert stderr + exit code directly.
+//! fixture and asserts stdout matches the captured golden output for
+//! `query ... --render ...`. Self-contained: no external tool runs at test
+//! time. Error cases assert stderr + exit code directly.
 
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -50,7 +50,7 @@ fn assert_stdout(golden: &str, ok_codes: &[i32], args: &[&str]) {
     let actual = String::from_utf8_lossy(&output.stdout);
     assert_eq!(
         actual, expected,
-        "render output does not match the Python CLI ({golden})\nargs: {args:?}"
+        "render output does not match the golden ({golden})\nargs: {args:?}"
     );
 }
 
@@ -62,11 +62,11 @@ fn assert_error(expected_stderr: &str, args: &[&str]) {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(
         stderr, expected_stderr,
-        "render error does not match the Python CLI\nargs: {args:?}"
+        "render error does not match the golden\nargs: {args:?}"
     );
 }
 
-// --- mermaid ------------------------------------------------------------
+// mermaid
 
 #[test]
 fn mermaid_chain() {
@@ -93,7 +93,7 @@ fn mermaid_direction_tb() {
     );
 }
 
-// --- gantt --------------------------------------------------------------
+// gantt
 
 #[test]
 fn gantt_default() {
@@ -120,7 +120,7 @@ fn gantt_unit_minutes_10() {
     );
 }
 
-// --- ascii-blocks -------------------------------------------------------
+// ascii-blocks
 
 #[test]
 fn ascii_blocks_flat() {
@@ -168,7 +168,7 @@ fn ascii_blocks_square_min_width() {
     );
 }
 
-// --- error cases --------------------------------------------------------
+// error cases
 
 #[test]
 fn unknown_renderer() {

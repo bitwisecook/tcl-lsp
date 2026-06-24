@@ -2,8 +2,8 @@
 //!
 //! These are IR-shape tests — the execution-differential standard the
 //! repo applies to the inliner is gated on the WASM codegen consumer
-//! (RT-WASM, unported), so these verify the spliced IR's structure
-//! against the Python `tests/test_inline_pass.py` expectations meanwhile.
+//! (not yet implemented), so these verify the spliced IR's structure
+//! meanwhile.
 
 use super::*;
 use crate::compilation_unit::CompilationUnit;
@@ -39,7 +39,7 @@ fn has_inline_binding(stmts: &[Statement]) -> bool {
     })
 }
 
-// ── v0 / verbatim (parity with the original suite) ──────────────────
+// v0 / verbatim (parity with the original suite)
 
 #[test]
 fn empty_body_call_vanishes() {
@@ -106,7 +106,7 @@ fn count_statements_walks_nested_bodies() {
     assert_eq!(count_statements(&proc.body), 4);
 }
 
-// ── v3 parameterised ────────────────────────────────────────────────
+// v3 parameterised
 
 #[test]
 fn v3_binds_param_and_renames_body() {
@@ -400,7 +400,7 @@ fn idempotent_second_pass_is_noop() {
     assert_eq!(once, twice, "re-running the inliner changes nothing");
 }
 
-// ── catalogue helpers ───────────────────────────────────────────────
+// catalogue helpers
 
 #[test]
 fn classify_large_single_call_is_if_single_call() {

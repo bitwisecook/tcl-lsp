@@ -4,12 +4,10 @@
 //! and returns `Some(Statement)` if the command is handled, or `None` to
 //! fall through to the default `IRCall` path.
 //!
-//! Ports `core/compiler/lowering_hooks/_control.py` and `_var.py`.
-//! As of chunk **C43** the per-command logic is being split out into
-//! [`crate::lowering::hooks`] (one file per command); this module
-//! retains the dispatcher, the [`LoweringCommand`] context type, and
-//! the shared helpers (`make_call`, `extract_single_expr_arg`,
-//! `parse_decimal_int`).
+//! The per-command logic lives in [`crate::lowering::hooks`] (one
+//! file per command); this module retains the dispatcher, the
+//! [`LoweringCommand`] context type, and the shared helpers
+//! (`make_call`, `extract_single_expr_arg`, `parse_decimal_int`).
 
 use std::collections::HashSet;
 
@@ -24,8 +22,6 @@ use crate::ir::{CommandTokens, Statement};
 use crate::naming::normalise_var_name;
 
 /// Parsed command context passed to lowering hooks.
-///
-/// This replaces the Python `_Command` dataclass.
 pub struct LoweringCommand<'a> {
     /// Source span of the full command.
     pub span: Span,
@@ -39,7 +35,7 @@ pub struct LoweringCommand<'a> {
     pub expand_word: Option<&'a [bool]>,
     /// Snapshot of parsed tokens for downstream passes.
     pub tokens: Option<CommandTokens>,
-    /// Per-arg token kinds (mapped from Python `arg_tokens[i].type`).
+    /// Per-arg token kinds.
     /// Uses a simplified enum since we only check STR/ESC/CMD.
     pub arg_kinds: &'a [ArgTokenKind],
 }
@@ -107,7 +103,7 @@ pub fn dispatch_lowering_hook(
         LoweringHookId::Global => lower_global(cmd),
         LoweringHookId::Variable => Some(lower_variable(cmd)),
         LoweringHookId::Upvar => lower_upvar(cmd),
-        // C43 structured-command hooks: the lowerer's per-command
+        // Structured-command hooks: the lowerer's per-command
         // methods (`lower_proc`, `lower_when`, `lower_if`,
         // `lower_switch`, `lower_for`, `lower_while`,
         // `lower_foreach`, `lower_catch`, `lower_try`, `lower_dict`,
@@ -115,15 +111,8 @@ pub fn dispatch_lowering_hook(
         // `lower_namespace_eval`) require `&mut self` to thread the
         // const-map / proc-depth / dead-code-depth / module state
         // through; the static dispatcher here can't call them.
-        // Return `None` so `lower_command` falls back to its
-        // existing string-pattern dispatch, which calls the
-        // matching method directly.  The registry-typed
-        // `LoweringHookId` lands so downstream consumers (LSP /
-        // compiler explorer / coverage audit) can discover the
-        // canonical hook for each spec without re-parsing names;
-        // the wiring step that routes runtime dispatch through the
-        // hook ID instead of the string match is the next C43
-        // sub-strip.
+        // Return `None` so `lower_command` dispatches to the
+        // matching method directly.
         LoweringHookId::Proc
         | LoweringHookId::When
         | LoweringHookId::NamespaceEval
@@ -152,19 +141,19 @@ pub(crate) fn has_expansion(cmd: &LoweringCommand<'_>) -> bool {
     cmd.expand_word.is_some_and(|ew| ew.iter().any(|&e| e))
 }
 
-// ── expr ──────────────────────────────────────────────────────────
+// expr
 //
-// Moved to `crate::lowering::hooks::control::try_lower_expr` (chunk
-// **C43**). The dispatcher above delegates the `"expr"` case to
-// the per-hook module.
+// Moved to `crate::lowering::hooks::control::try_lower_expr`. The
+// dispatcher above delegates the `"expr"` case to the per-hook
+// module.
 
-// ── return ────────────────────────────────────────────────────────
+// return
 //
-// Moved to `crate::lowering::hooks::control::try_lower_return`
-// (chunk **C43**). The dispatcher above delegates the `"return"`
-// case to the per-hook module.
+// Moved to `crate::lowering::hooks::control::try_lower_return`. The
+// dispatcher above delegates the `"return"` case to the per-hook
+// module.
 
-// ── set ───────────────────────────────────────────────────────────
+// set
 
 fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement {
     if has_expansion(cmd) || cmd.args.len() != 2 {
@@ -218,12 +207,10 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                 // ``expr "0005"`` which all care about it.
                 // ``parse_decimal_int`` itself trims its input, so
                 // comparing against ``value.trim()`` would still
-                // accept leading-whitespace shapes — Copilot
-                // review on PR #376 caught this.  Tighten to
+                // accept leading-whitespace shapes.  Tighten to
                 // ``value == int_val`` so any whitespace or sign
                 // form different from the canonical produces no
-                // fold.  Mirrors upstream commit ``31f5357f``
-                // (PR #341).
+                // fold.
                 if let Some(int_val) = parse_decimal_int(value)
                     && value.as_str() == int_val
                 {
@@ -276,13 +263,13 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
     }
 }
 
-// ── incr ──────────────────────────────────────────────────────────
+// incr
 //
-// Moved to `crate::lowering::hooks::incr::try_lower_incr` (chunk
-// **C43**). The dispatcher above delegates the `"incr"` case to
-// the per-hook module.
+// Moved to `crate::lowering::hooks::incr::try_lower_incr`. The
+// dispatcher above delegates the `"incr"` case to the per-hook
+// module.
 
-// ── append / lappend ──────────────────────────────────────────────
+// append / lappend
 
 fn lower_append_lappend(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     if cmd.args.is_empty() {
@@ -303,7 +290,7 @@ fn lower_append_lappend(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     })
 }
 
-// ── unset ─────────────────────────────────────────────────────────
+// unset
 
 fn lower_unset(cmd: &LoweringCommand<'_>) -> Statement {
     let mut i = 0;
@@ -336,7 +323,7 @@ fn lower_unset(cmd: &LoweringCommand<'_>) -> Statement {
     }
 }
 
-// ── global ────────────────────────────────────────────────────────
+// global
 
 fn lower_global(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     if cmd.args.is_empty() {
@@ -361,7 +348,7 @@ fn lower_global(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     })
 }
 
-// ── variable ──────────────────────────────────────────────────────
+// variable
 
 fn lower_variable(cmd: &LoweringCommand<'_>) -> Statement {
     let var_names: Vec<String> = cmd
@@ -384,7 +371,7 @@ fn lower_variable(cmd: &LoweringCommand<'_>) -> Statement {
     }
 }
 
-// ── upvar ─────────────────────────────────────────────────────────
+// upvar
 
 fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     if cmd.args.len() < 2 {
@@ -401,8 +388,7 @@ fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     // `$name` / `[cmd]` target may resolve to a non-existent caller variable,
     // in which case the alias is a no-op and reading `$local` errors — so the
     // local is possibly-unset and must not be recorded as a def (read-before-set
-    // fires on an unconditional read).  Mirrors `upvar_local_declaration_indices`
-    // and Python's dynamic-target read-before-set firing.
+    // fires on an unconditional read).
     let rest = &cmd.args[start..];
     let mut my_vars: Vec<String> = Vec::new();
     let mut i = 0;
@@ -427,7 +413,7 @@ fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     })
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
+// Helpers
 
 /// Build a generic `Statement::Call` from a lowering command.
 ///
@@ -556,12 +542,12 @@ mod tests {
         // ``set arg 0005`` must store ``0005`` verbatim — folding
         // to ``5`` would destroy the source-level repr that
         // ``puts $arg`` / ``string length $arg`` / ``expr "0005"``
-        // depend on.  Mirrors upstream commit ``31f5357f`` (PR #341).
+        // depend on.
         // The leading-zero rejection in `parse_decimal_int` already
         // kicks the value to the `AssignValue` path; the
-        // `int_val == value.trim()` guard added in the same sync
-        // is a redundant safety check that catches any future
-        // loosening of `parse_decimal_int`.
+        // `int_val == value.trim()` guard is a redundant safety
+        // check that catches any future loosening of
+        // `parse_decimal_int`.
         let m = crate::lowering::lower_to_ir("set arg 0005", &CommandRegistry::build_default());
         let value = match &m.top_level.statements[0] {
             Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => {
@@ -579,9 +565,8 @@ mod tests {
         // still accept leading-whitespace shapes; the tightened
         // ``value == int_val`` check rejects them and sends ``" 5"``
         // through the ``AssignValue`` path with the spelling
-        // preserved (Copilot review on PR #376).  Use the brace
-        // form so the segmenter passes the literal text through
-        // without trimming on its end.
+        // preserved.  Use the brace form so the segmenter passes the
+        // literal text through without trimming on its end.
         let m = crate::lowering::lower_to_ir("set arg { 5}", &CommandRegistry::build_default());
         let value = match &m.top_level.statements[0] {
             Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => {
@@ -715,10 +700,6 @@ mod tests {
         }
     }
 
-    // `lower_return_simple` lived here in pre-C43 layouts; origin/rust
-    // moved the algorithm to `crate::lowering::hooks::control` in
-    // chunk C43, where the per-hook module owns its own test surface.
-
     /// Registry must drive the lowering-hook dispatch — `set`'s
     /// hook ID must come from [`tcl_registry::CommandSpec`], not a
     /// compiler-side name table.
@@ -746,14 +727,13 @@ mod tests {
         assert_eq!(spec.lowering_hook, Some(LoweringHookId::Incr));
     }
 
-    /// C43: structured-command specs declare their canonical
+    /// Structured-command specs declare their canonical
     /// `LoweringHookId` so downstream consumers (LSP / compiler
     /// explorer / coverage audit) can dispatch through the
     /// registry-typed identifier rather than re-parsing names.
     /// The dispatcher returns `None` for these hooks (the lowerer's
-    /// per-command methods need `&mut self`); runtime dispatch
-    /// continues to flow through `lower_command`'s string-pattern
-    /// match until the wiring follow-up.
+    /// per-command methods need `&mut self`); runtime dispatch flows
+    /// through `lower_command`'s dispatch instead.
     #[test]
     fn structured_specs_declare_lowering_hook_ids() {
         let mut registry = CommandRegistry::build_default();

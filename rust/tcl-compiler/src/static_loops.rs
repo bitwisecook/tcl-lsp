@@ -2,11 +2,9 @@
 //!
 //! Supports a narrow, side-effect-free subset so callers can
 //! infer post-loop constants without changing semantics. Uses
-//! the C22 expression evaluator to fold conditions and bounded
+//! the expression evaluator to fold conditions and bounded
 //! iteration (capped by `DEFAULT_MAX_STATIC_LOOP_ITERS`) to
 //! catch pathological inputs.
-//!
-//! Ported from `core/compiler/static_loops.py` (C27b).
 
 use std::collections::HashMap;
 
@@ -20,7 +18,7 @@ use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr};
 pub const DEFAULT_MAX_STATIC_LOOP_ITERS: u64 = 4096;
 
 /// A value the static simulator tracks: integer, float, boolean,
-/// or string. Mirrors the Python `int | float | bool | str` union.
+/// or string.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StaticValue {
     /// Integer.
@@ -73,8 +71,7 @@ pub fn parse_literal_value(text: &str) -> StaticValue {
 /// Evaluate an expression string under `env`.
 ///
 /// Returns `Some(int)` when the result folds to an integer (or an
-/// integer-valued float), `None` otherwise. Python returns
-/// `int | bool | None`; in Rust we collapse booleans into
+/// integer-valued float), `None` otherwise. Booleans collapse into
 /// `i64` (0/1) for simpler call-sites.
 #[must_use]
 pub fn evaluate_expr_with_constants(expr: &ExprNode, env: &StaticEnv) -> Option<i64> {
@@ -167,9 +164,7 @@ fn resolve_switch_pattern(pattern: &str) -> String {
     strip_word_delimiters(pattern)
 }
 
-// ---------------------------------------------------------------------------
 // Simulator
-// ---------------------------------------------------------------------------
 
 /// Execute one IR statement in the simulator, updating `env`.
 ///
@@ -302,9 +297,7 @@ fn exec_switch(
     }
 }
 
-// ---------------------------------------------------------------------------
 // For-loop summarisation
-// ---------------------------------------------------------------------------
 
 /// Summarise a simple static `for`-loop from its structured IR
 /// form. Returns the post-loop variable environment on success,
@@ -508,7 +501,7 @@ mod tests {
     }
 
     /// `switch $mode { a {set v 1} default {set v 9} }` — shared by the
-    /// switch-dispatch port and its unresolvable-subject counterpart.
+    /// switch-dispatch case and its unresolvable-subject counterpart.
     fn mode_switch() -> Statement {
         Statement::Switch {
             span: sp(),
@@ -532,8 +525,6 @@ mod tests {
 
     #[test]
     fn summarise_resolves_if_else_branch_in_body() {
-        // Ported from `tests/test_static_loops.py`
-        // ::test_static_loop_handles_if_branching (TEST-MIGRATE).
         // for {set i 0} {$i < 3} {incr i} {
         //     if {$i == 1} {set x 10} else {set x 20}
         // }  →  i ends at 3; the last iteration (i = 2) takes the else.
@@ -559,7 +550,6 @@ mod tests {
 
     #[test]
     fn summarise_resolves_switch_dispatch_in_body() {
-        // Ported from `::test_static_loop_handles_switch_dispatch`.
         // for {set i 0; set mode a} {$i < 1} {incr i} { switch … } → v = 1.
         let init = script_of(vec![assign_const("i", "0"), assign_const("mode", "a")]);
         let cond = parse_expr("$i < 1", None);
@@ -572,7 +562,6 @@ mod tests {
 
     #[test]
     fn summarise_bails_on_unresolvable_switch_subject() {
-        // Ported from `::test_static_loop_switch_requires_resolvable_subject`.
         // `$mode` is never set, so the subject can't resolve → summary bails.
         let init = script_of(vec![assign_const("i", "0")]);
         let cond = parse_expr("$i < 1", None);

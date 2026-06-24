@@ -1,4 +1,4 @@
-//! `bgerror` command (name-parity reconcile, GAP-d).
+//! `bgerror` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

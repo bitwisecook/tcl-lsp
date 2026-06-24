@@ -16,7 +16,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Native Rust bytecode VM executing Tcl 9 bytecode (TCLVM)"
+description = "Bytecode VM executing Tcl 9 bytecode (TCLVM)"
 
 [lib]
 name = "tcl_vm"

@@ -3,8 +3,8 @@
 //! rename engine (identity-field writes + the `rename*` builtins).
 //!
 //! Runs the built `f5-query` binary against the committed `bigip.conf`
-//! fixture and asserts stdout matches a golden captured from
-//! `python -m tooling.f5.main query`. Self-contained: no Python at test time.
+//! fixture and asserts stdout matches the captured golden output for `query`.
+//! Self-contained: no external tool runs at test time.
 //!
 //! Goldens embed a `__FIXTURES__` placeholder where the diff's `--- ` /
 //! `+++ ` headers (and any error text) carry the on-disk path of the fixtures
@@ -62,7 +62,7 @@ fn assert_query(golden: &str, ok_codes: &[i32], args: &[&str]) {
     let actual = run_query(args, ok_codes);
     assert_eq!(
         actual, expected,
-        "f5 query mutation output does not match the Python CLI ({golden})\nargs: {args:?}"
+        "f5 query mutation output does not match the golden ({golden})\nargs: {args:?}"
     );
 }
 
@@ -100,9 +100,9 @@ fn golden(name: &str) -> String {
         .replace("__FIXTURES__", &fixtures_path())
 }
 
-/// Assert a rename query reproduces the Python CLI byte-for-byte on **both**
-/// stdout (the diff / `--write` payload) and stderr (the `renamed …` reports /
-/// `error:` line), matching `<base>.out.golden` / `<base>.err.golden`.
+/// Assert a rename query reproduces the captured golden output byte-for-byte on
+/// **both** stdout (the diff / `--write` payload) and stderr (the `renamed …`
+/// reports / `error:` line), matching `<base>.out.golden` / `<base>.err.golden`.
 ///
 /// The fixture is passed as its canonical absolute path so the diff headers and
 /// any error text embed exactly the prefix the goldens capture (under
@@ -117,16 +117,16 @@ fn assert_rename(base: &str, ok_codes: &[i32], extra: &[&str]) {
     assert_eq!(
         out,
         golden(&format!("{base}.out.golden")),
-        "{base}: stdout does not match the Python CLI"
+        "{base}: stdout does not match the golden"
     );
     assert_eq!(
         err,
         golden(&format!("{base}.err.golden")),
-        "{base}: stderr (renamed reports / error) does not match the Python CLI"
+        "{base}: stderr (renamed reports / error) does not match the golden"
     );
 }
 
-// --- rename engine: identity-field writes + rename* builtins ------------
+// rename engine: identity-field writes + rename* builtins
 
 #[test]
 fn rename_identity_field_write_diff() {
@@ -215,7 +215,7 @@ fn rename_zero_occurrence_is_noop() {
     );
 }
 
-// --- diff preview (default) ---------------------------------------------
+// diff preview (default)
 
 #[test]
 fn destination_compound_transform_diff() {
@@ -276,7 +276,7 @@ fn virtual_rules_append_diff() {
     );
 }
 
-// --- --write (rewritten config) -----------------------------------------
+// --write (rewritten config)
 
 #[test]
 fn destination_compound_transform_write() {
@@ -291,7 +291,7 @@ fn destination_compound_transform_write() {
     );
 }
 
-// --- no-op / strict exit codes ------------------------------------------
+// no-op / strict exit codes
 
 #[test]
 fn noop_matches_object_but_same_text_exits_1() {
@@ -318,14 +318,14 @@ fn noop_strict_exits_2() {
     );
 }
 
-// --- cross-file edits ---------------------------------------------------
+// cross-file edits
 
 #[test]
 fn cross_file_edit_targets_named_source() {
     // A mutation reaching another loaded source via `$name` (here `$xfb`,
     // while the per-file runner iterates `xfa` then `xfb`) must apply against
     // that source — not fail with "no source loaded". The diff lands on the
-    // named file, byte-identical to the Python runner.
+    // named file, byte-identical to the captured golden output.
     let xfa = std::fs::canonicalize(fixtures_dir().join("xfa.conf"))
         .expect("canonicalize xfa.conf")
         .to_string_lossy()
@@ -341,7 +341,7 @@ fn cross_file_edit_targets_named_source() {
     assert_eq!(
         out,
         golden("query-crossfile-edit.golden"),
-        "cross-file edit diff does not match the Python CLI"
+        "cross-file edit diff does not match the golden"
     );
 }
 

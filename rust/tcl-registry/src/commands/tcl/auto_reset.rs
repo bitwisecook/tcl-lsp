@@ -1,4 +1,4 @@
-//! `auto_reset` command (name-parity reconcile, GAP-d).
+//! `auto_reset` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

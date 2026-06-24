@@ -1,11 +1,11 @@
 //! Emit a sequence of `tmsh create / modify` commands from a parsed config.
 //!
-//! Faithful Rust port of `dialects/f5/bigip/tmsh_emit.py`. [`emit_tmsh`]
+//! [`emit_tmsh`]
 //! renders each parsed object back to a `tmsh create|modify` stanza in
 //! dependency order; [`emit_tmsh_delta`] renders only the changes between
 //! two configs (`create` for added, `modify` for changed, `delete` for
 //! removed). The tmsh syntax (indentation, brace layout, field order,
-//! list / sub-block formatting, quoting) is reproduced byte-for-byte.
+//! list / sub-block formatting, quoting) is rendered byte-for-byte.
 //!
 //! Properties the typed model doesn't capture are recovered from the
 //! original SCF stanza text (via the same block extractor the SCF emitter
@@ -53,8 +53,7 @@ fn is_foundation(module: &str, object_type: &str) -> bool {
     FOUNDATION_TYPES.contains(&(module, object_type))
 }
 
-/// The rendered tmsh script plus a command count. Mirrors Python
-/// `TmshScript`.
+/// The rendered tmsh script plus a command count.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TmshScript {
     /// The full tmsh script text (trailing newline when non-empty).
@@ -63,10 +62,9 @@ pub struct TmshScript {
     pub command_count: usize,
 }
 
-// ── Block index (mirrors iter_blocks_with_source) ───────────────────────
+// Block index
 
-/// `(module, object_type, identifier)` → full stanza text, mirroring the
-/// Python `iter_blocks_with_source` block index.
+/// `(module, object_type, identifier)` → full stanza text.
 fn index_blocks(source: &str) -> HashMap<(String, String, String), String> {
     let mut out = HashMap::new();
     if source.is_empty() {
@@ -80,7 +78,7 @@ fn index_blocks(source: &str) -> HashMap<(String, String, String), String> {
         else {
             continue;
         };
-        // Full stanza text including its header line (mirrors `_slice_for_block`).
+        // Full stanza text including its header line.
         let mut header_start = block.start_offset;
         while header_start > 0 && bytes[header_start - 1] != b'\n' {
             header_start -= 1;
@@ -91,7 +89,7 @@ fn index_blocks(source: &str) -> HashMap<(String, String, String), String> {
     out
 }
 
-// ── Per-kind container accessors ─────────────────────────────────────────
+// Per-kind container accessors
 
 macro_rules! kind_iter {
     ($cfg:expr, $table:expr, $variant:path) => {{
@@ -151,9 +149,9 @@ fn snatpool_members(sp: &BigipSnatPool) -> Vec<String> {
     sp.members.paths()
 }
 
-// ── emit_tmsh ───────────────────────────────────────────────────────────
+// emit_tmsh
 
-/// Render `cfg` as a tmsh script. Mirrors Python `emit_tmsh`.
+/// Render `cfg` as a tmsh script.
 ///
 /// `source` is the original SCF text, used to recover stanza bodies for
 /// objects the model doesn't fully capture. `include` narrows the kinds
@@ -252,10 +250,9 @@ fn finish(lines: &[String]) -> TmshScript {
     }
 }
 
-// ── emit_tmsh_delta ─────────────────────────────────────────────────────
+// emit_tmsh_delta
 
 /// Emit only the *changed* objects between `old_cfg` and `new_cfg`.
-/// Mirrors Python `emit_tmsh_delta`.
 #[must_use]
 pub fn emit_tmsh_delta(
     old_cfg: &BigipConfig,
@@ -275,7 +272,7 @@ pub fn emit_tmsh_delta(
     let mut lines: Vec<String> = Vec::new();
     let has = |k: &str| include.contains(&k);
 
-    // ── 1. Modifies (foundation first, then dependency order) ──────────
+    // 1. Modifies (foundation first, then dependency order)
     if has("generic-foundation") {
         for (gkey, obj) in &new_cfg.generic_objects {
             if !is_foundation(&obj.module, &obj.object_type) {
@@ -315,14 +312,14 @@ pub fn emit_tmsh_delta(
         );
     }
 
-    // ── 2. Deletes (reverse dependency order) ──────────────────────────
+    // 2. Deletes (reverse dependency order)
     for kind_name in include.iter().rev() {
         if *kind_name == "generic-foundation" {
             continue;
         }
         delta_deletes(kind_name, old_cfg, new_cfg, &mut lines);
     }
-    // Generic foundation deletes (deferred to end of phase 2).
+    // Generic foundation deletes, emitted after the per-kind deletes.
     if has("generic-foundation") {
         for (key, obj) in &old_cfg.generic_objects {
             if !is_foundation(&obj.module, &obj.object_type) {
@@ -338,7 +335,7 @@ pub fn emit_tmsh_delta(
         }
     }
 
-    // ── 3. Creates (foundation first, then dependency order) ───────────
+    // 3. Creates (foundation first, then dependency order)
     if has("generic-foundation") {
         for (key, obj) in &new_cfg.generic_objects {
             if !is_foundation(&obj.module, &obj.object_type) {
@@ -497,7 +494,7 @@ fn delta_modifies(
 
     for (full_path, obj) in &new_objs {
         if !old_paths.contains(full_path) {
-            continue; // creates handled in phase 3
+            continue; // creates handled in the creates pass
         }
         let key = (module.to_owned(), object_type.to_owned(), full_path.clone());
         if !changed(&key) {
@@ -569,17 +566,17 @@ fn delta_creates(
         .collect();
     for (full_path, obj) in collect_kind(new_cfg, kind_name) {
         if old_paths.contains(&full_path) {
-            continue; // modify, already emitted in phase 1
+            continue; // modify, already emitted in the modifies pass
         }
         let _ = obj.full_path();
         lines.push(obj.render("create", new_blocks));
     }
 }
 
-// ── pool member delta ───────────────────────────────────────────────────
+// pool member delta
 
 /// Granular `tmsh modify ltm pool X members <op> { ... }` lines, or `None`
-/// when the member list is identical. Mirrors `_emit_pool_member_delta`.
+/// when the member list is identical.
 fn emit_pool_member_delta(old_pool: &BigipPool, new_pool: &BigipPool) -> Option<Vec<String>> {
     let old_members = pool_members(old_pool);
     let new_members = pool_members(new_pool);
@@ -640,8 +637,7 @@ fn emit_pool_member_delta(old_pool: &BigipPool, new_pool: &BigipPool) -> Option<
     Some(lines)
 }
 
-/// Render one member's name + `{ ... }` body for tmsh list ops. Mirrors
-/// `_render_member_with_body`.
+/// Render one member's name + `{ ... }` body for tmsh list ops.
 fn render_member_with_body(member: &BigipPoolMember) -> String {
     let mut parts: Vec<String> = Vec::new();
     if let Some(addr) = &member.address {
@@ -693,8 +689,7 @@ fn pool_member_body(
     )
 }
 
-/// True when any non-`members` pool field differs. Mirrors
-/// `_pool_non_member_changed` (skips `members` + `range`).
+/// True when any non-`members` pool field differs (skips `members` + `range`).
 fn pool_non_member_changed(old_pool: &BigipPool, new_pool: &BigipPool) -> bool {
     let mut a = old_pool.clone();
     let mut b = new_pool.clone();
@@ -705,10 +700,9 @@ fn pool_non_member_changed(old_pool: &BigipPool, new_pool: &BigipPool) -> bool {
     a != b
 }
 
-// ── Renderers ───────────────────────────────────────────────────────────
+// Renderers
 
-/// Quote `value` for tmsh if it contains whitespace or braces. Mirrors
-/// `_quote`.
+/// Quote `value` for tmsh if it contains whitespace or braces.
 fn quote(value: &str) -> String {
     if value.is_empty() {
         return "\"\"".to_owned();
@@ -775,8 +769,7 @@ fn render_pool(verb: &str, pool: &BigipPool) -> String {
 /// Render a list-valued field's brace body. The registry returns
 /// `replace-all-with` for every list property the emitter touches (pool
 /// members, data-group records, snatpool members, virtual
-/// profiles/rules/persist), so the operator is constant here. Mirrors
-/// `_list_field`.
+/// profiles/rules/persist), so the operator is constant here.
 fn list_field(name: &str, items_text: &str) -> String {
     format!("{name} replace-all-with {{ {items_text} }}")
 }
@@ -978,7 +971,6 @@ fn render_generic(
 }
 
 /// Return the original `{ ... }` body of a block, collapsed to one line.
-/// Mirrors `_passthrough_body`.
 fn passthrough_body(
     blocks: &HashMap<(String, String, String), String>,
     module: &str,
@@ -1003,8 +995,8 @@ fn passthrough_body(
     format!("{{ {collapsed} }}")
 }
 
-/// Top-level prop extractor for monitor stanzas (no nesting). Mirrors
-/// `_extract_block_properties`. Preserves source order.
+/// Top-level prop extractor for monitor stanzas (no nesting). Preserves
+/// source order.
 fn extract_block_properties(text: &str) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     if text.is_empty() {
@@ -1032,7 +1024,7 @@ fn extract_block_properties(text: &str) -> Vec<(String, String)> {
     out
 }
 
-/// Insert or overwrite `key` (Python dict last-wins, key keeps first position).
+/// Insert or overwrite `key` (last-wins on value, key keeps first position).
 fn upsert(out: &mut Vec<(String, String)>, key: String, value: String) {
     if let Some(slot) = out.iter_mut().find(|(k, _)| *k == key) {
         slot.1 = value;
@@ -1041,8 +1033,7 @@ fn upsert(out: &mut Vec<(String, String)>, key: String, value: String) {
     }
 }
 
-/// The text between the *last* top-level `{` … `}` at the end of `text`
-/// (mirrors the Python regex `\{(.*)\}\s*\Z` with DOTALL).
+/// The text between the *last* top-level `{` … `}` at the end of `text`.
 fn inner_brace_body(text: &str) -> Option<String> {
     let open = text.find('{')?;
     let close = text.rfind('}')?;
@@ -1056,7 +1047,7 @@ fn inner_brace_body(text: &str) -> Option<String> {
     Some(text[open + 1..close].to_owned())
 }
 
-/// Collapse all runs of whitespace to a single space (Python `\s+` → ` `).
+/// Collapse all runs of whitespace to a single space (`\s+` → ` `).
 fn collapse_whitespace(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut in_ws = false;
@@ -1075,8 +1066,7 @@ fn collapse_whitespace(s: &str) -> String {
 }
 
 /// tmsh profile-type spelling: the `ProfileType` member name lowercased
-/// with `_` → `-` (mirrors `profile.profile_type.name.lower().replace("_",
-/// "-")`).
+/// with `_` → `-`.
 fn profile_type_str(profile: &BigipProfile) -> String {
     profile
         .profile_type

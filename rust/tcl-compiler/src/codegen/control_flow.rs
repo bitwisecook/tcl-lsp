@@ -2,7 +2,6 @@
 //!
 //! Extends [`CodegenCtx`] with methods for emitting `beginCatch4`/`endCatch`
 //! bytecodes for `catch` and `try` commands.
-//! Ported from `core/compiler/codegen/_control_flow.py`.
 
 #![allow(clippy::similar_names, clippy::doc_markdown)]
 
@@ -14,9 +13,7 @@ use super::cmd_subst::parse_cmd_parts;
 use super::values::is_qualified;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 
-// ---------------------------------------------------------------------------
 // Constant expression error detection
-// ---------------------------------------------------------------------------
 
 /// Detect compile-time expression errors (e.g. divide by zero).
 ///
@@ -38,9 +35,7 @@ pub fn detect_const_expr_error(node: &ExprNode) -> Option<(String, String)> {
     None
 }
 
-// ---------------------------------------------------------------------------
 // CodegenCtx methods
-// ---------------------------------------------------------------------------
 
 impl CodegenCtx<'_> {
     /// Emit inline `beginCatch4`/`endCatch` bytecodes for `catch`.
@@ -527,8 +522,12 @@ impl CodegenCtx<'_> {
         try_body_name: &str,
         try_finally_name: &str,
     ) {
-        let body_blk = &cfg.blocks[try_body_name];
-        let finally_blk = &cfg.blocks[try_finally_name];
+        let body_blk = cfg
+            .block_by_name(try_body_name)
+            .expect("try body block present");
+        let finally_blk = cfg
+            .block_by_name(try_finally_name)
+            .expect("try finally block present");
 
         // try body
         self.emit(
@@ -647,9 +646,7 @@ impl CodegenCtx<'_> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

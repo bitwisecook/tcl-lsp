@@ -1,6 +1,6 @@
 [package]
 name = "f5-xc"
-description = "iRule → F5 Distributed Cloud (XC) static translator and XC-translatability diagnostics (port of dialects/f5/xc)"
+description = "iRule → F5 Distributed Cloud (XC) static translator and XC-translatability diagnostics"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

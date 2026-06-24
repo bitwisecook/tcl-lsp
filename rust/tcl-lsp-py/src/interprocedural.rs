@@ -4,7 +4,7 @@
 // whole module.
 #![allow(clippy::useless_conversion)]
 
-//! `PyO3` bindings for the interprocedural analysis (C32-shim).
+//! `PyO3` bindings for the interprocedural analysis.
 //!
 //! Exposes `interprocedural_summaries(source, dialect)` to Python.
 //! Returns a dict keyed on qualified proc name, where each value
@@ -13,10 +13,9 @@
 //! `ProcSummary` dataclass on top — this keeps the Rust crate
 //! free of Python-type knowledge.
 //!
-//! The method-level `MethodSummary` is not yet surfaced — the
-//! Rust side doesn't populate the OO fields today (C28-OO
-//! deferred). When they land, this binding will grow a
-//! parallel `methods` key.
+//! The method-level `MethodSummary` is not surfaced — the
+//! Rust side doesn't populate the OO fields, so there is no
+//! `methods` key.
 
 use std::collections::HashMap;
 
@@ -54,8 +53,12 @@ pub fn interprocedural_summaries<'py>(
     dialect: Option<&str>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let registry = crate::registry::default_registry();
-    let cu =
-        CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, dialect);
+    let owned_source = source.to_owned();
+    let owned_dialect = dialect.map(str::to_owned);
+    let cu = py.detach(move || {
+        CompilationUnit::build_for(&owned_source, registry, false)
+            .with_interprocedural(registry, owned_dialect.as_deref())
+    });
     let out = PyDict::new(py);
     let Some(ia) = cu.interproc.as_ref() else {
         return Ok(out);

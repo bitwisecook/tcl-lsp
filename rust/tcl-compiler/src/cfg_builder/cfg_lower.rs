@@ -27,7 +27,7 @@ fn literal_true_expr() -> ExprNode {
 }
 
 impl CfgBuilder {
-    // ── if ────────────────────────────────────────────────────────
+    // if
 
     /// Flatten `Statement::If` into cascaded branch blocks.
     pub(super) fn lower_if(&mut self, stmt: &Statement, block_name: &str) -> String {
@@ -46,7 +46,7 @@ impl CfgBuilder {
         let mut dispatch = block_name.to_owned();
 
         for clause in clauses {
-            // C18 case 5: when the branch condition contains a
+            // When the branch condition contains a
             // command substitution, append a synthetic `<cond>` IRCall
             // statement so the emitter can wrap the ExprCommand with
             // its own startCommand boundary.
@@ -71,10 +71,12 @@ impl CfgBuilder {
             let then_block = self.new_block("if_then");
             let next_dispatch = self.new_block("if_next");
 
+            let true_target = self.bid(&then_block);
+            let false_target = self.bid(&next_dispatch);
             self.block_mut(&dispatch).terminator = Some(Terminator::Branch {
                 condition: clause.condition.clone(),
-                true_target: then_block.clone(),
-                false_target: next_dispatch.clone(),
+                true_target,
+                false_target,
                 span: Some(clause.condition_span),
             });
 
@@ -96,7 +98,7 @@ impl CfgBuilder {
         end_block
     }
 
-    // ── for ───────────────────────────────────────────────────────
+    // for
 
     /// Flatten `Statement::For` into init → header → body → step → header loop.
     pub(super) fn lower_for(&mut self, stmt: &Statement, block_name: &str) -> Option<String> {
@@ -140,10 +142,12 @@ impl CfgBuilder {
 
         self.ensure_goto(&init_tail, &header, Some(*init_span));
 
+        let body_id = self.bid(&body_block);
+        let end_id = self.bid(&end_block);
         self.block_mut(&header).terminator = Some(Terminator::Branch {
             condition: condition.clone(),
-            true_target: body_block.clone(),
-            false_target: end_block.clone(),
+            true_target: body_id,
+            false_target: end_id,
             span: Some(*condition_span),
         });
 
@@ -174,7 +178,7 @@ impl CfgBuilder {
                 });
         }
         // Analysis builds rotate a `for` whose condition is statically true on
-        // entry (FP-RBS-18 + Codex C2): the step re-checks the condition
+        // entry: the step re-checks the condition
         // (back-edge) instead of looping to the header, and the header is demoted
         // to a synthetic always-true entry guard (span `None`, so the optimiser's
         // constant-branch source rewriter never folds the loop's source
@@ -190,14 +194,14 @@ impl CfgBuilder {
             if rotate {
                 self.block_mut(&header).terminator = Some(Terminator::Branch {
                     condition: literal_true_expr(),
-                    true_target: body_block.clone(),
-                    false_target: end_block.clone(),
+                    true_target: body_id,
+                    false_target: end_id,
                     span: None,
                 });
                 self.block_mut(&step_tail).terminator = Some(Terminator::Branch {
                     condition: condition.clone(),
-                    true_target: body_block.clone(),
-                    false_target: end_block.clone(),
+                    true_target: body_id,
+                    false_target: end_id,
                     span: Some(*condition_span),
                 });
             } else {
@@ -205,10 +209,11 @@ impl CfgBuilder {
             }
         }
 
+        let entry_block = self.bid(block_name);
         self.loop_nodes.insert(
             end_block.clone(),
             LoopNode {
-                entry_block: block_name.to_owned(),
+                entry_block,
                 span: *span,
                 for_stmt: stmt.clone(),
             },
@@ -217,7 +222,7 @@ impl CfgBuilder {
         Some(end_block)
     }
 
-    // ── while ─────────────────────────────────────────────────────
+    // while
 
     /// Flatten `Statement::While` into header → body → header loop.
     pub(super) fn lower_while(&mut self, stmt: &Statement, block_name: &str) -> String {
@@ -256,10 +261,12 @@ impl CfgBuilder {
             });
         }
 
+        let body_id = self.bid(&body_block);
+        let end_id = self.bid(&end_block);
         self.block_mut(&header).terminator = Some(Terminator::Branch {
             condition: condition.clone(),
-            true_target: body_block.clone(),
-            false_target: end_block.clone(),
+            true_target: body_id,
+            false_target: end_id,
             span: Some(*condition_span),
         });
 
@@ -274,7 +281,7 @@ impl CfgBuilder {
         end_block
     }
 
-    // ── foreach / lmap ────────────────────────────────────────────
+    // foreach / lmap
 
     /// Flatten `Statement::Foreach` into a header → body → header loop
     /// with a synthetic variable-definition node at the header.
@@ -302,8 +309,7 @@ impl CfgBuilder {
         // vector is a flattened concatenation of every iterator
         // group's vars; ``foreach_groups`` records the size of
         // each group so the codegen can reconstruct the original
-        // ``var-list`` ↔ ``list-arg`` pairing.  Mirrors upstream
-        // commit ``342d4c7a`` (PR #331).
+        // ``var-list`` ↔ ``list-arg`` pairing.
         let all_vars: Vec<String> = iterators.iter().flat_map(|it| it.vars.clone()).collect();
         let group_sizes: Vec<usize> = iterators.iter().map(|it| it.vars.len()).collect();
         let list_args: Vec<String> = iterators.iter().map(|it| it.list_arg.clone()).collect();
@@ -338,6 +344,8 @@ impl CfgBuilder {
         // variable) read after the loop is no longer a false read-before-set,
         // while SCCP values stay intact (no synthetic def). `break`/`continue`
         // stay real edges, so partial-def exits remain sound.
+        let body_id = self.bid(&body_block);
+        let end_id = self.bid(&end_block);
         if self.faithful_exceptions && crate::cfg_builder::foreach_runs_at_least_once(stmt) {
             let latch_block = self.new_block("foreach_latch");
             // Entry guard: the list is a non-empty literal, so the body always
@@ -346,8 +354,8 @@ impl CfgBuilder {
             // optimiser's constant-branch source rewriter off this synthetic guard.
             self.block_mut(&header).terminator = Some(Terminator::Branch {
                 condition: literal_true_expr(),
-                true_target: body_block.clone(),
-                false_target: end_block.clone(),
+                true_target: body_id,
+                false_target: end_id,
                 span: None,
             });
             // The iteration variables are (re)bound at the top of every body
@@ -366,8 +374,8 @@ impl CfgBuilder {
                 condition: ExprNode::Raw {
                     text: "<foreach_has_next>".into(),
                 },
-                true_target: body_block.clone(),
-                false_target: end_block.clone(),
+                true_target: body_id,
+                false_target: end_id,
                 span: Some(*span),
             });
             return end_block;
@@ -380,8 +388,8 @@ impl CfgBuilder {
             condition: ExprNode::Raw {
                 text: "<foreach_has_next>".into(),
             },
-            true_target: body_block.clone(),
-            false_target: end_block.clone(),
+            true_target: body_id,
+            false_target: end_id,
             span: Some(*span),
         });
 
@@ -396,7 +404,7 @@ impl CfgBuilder {
         end_block
     }
 
-    // ── switch ────────────────────────────────────────────────────
+    // switch
 
     /// Lower a `Statement::Switch`.
     ///
@@ -407,8 +415,7 @@ impl CfgBuilder {
     /// fall-through is flattened into a chain of arm-dispatch branches on a
     /// foldable `STR_EQ(subject, pattern)` so the bytecode backend can build a
     /// real jump table.
-    /// Append an opaque `switch` to `block_name` and model how it leaves
-    /// (FP-RBS-15 + Codex C3).
+    /// Append an opaque `switch` to `block_name` and model how it leaves.
     ///
     /// An opaque (glob/regexp/fall-through) switch is kept as a single
     /// `Statement::Switch` whose arm bodies are not lowered into the CFG, so its
@@ -508,10 +515,8 @@ impl CfgBuilder {
             return;
         }
         if targets.len() == 1 {
-            self.block_mut(block_name).terminator = Some(Terminator::Goto {
-                target: targets[0].clone(),
-                span,
-            });
+            let target = self.bid(&targets[0]);
+            self.block_mut(block_name).terminator = Some(Terminator::Goto { target, span });
             return;
         }
         let opaque = ExprNode::Raw {
@@ -524,10 +529,12 @@ impl CfgBuilder {
             } else {
                 self.new_block("switch_jump")
             };
+            let true_id = self.bid(&targets[i]);
+            let false_id = self.bid(&false_target);
             self.block_mut(&current).terminator = Some(Terminator::Branch {
                 condition: opaque.clone(),
-                true_target: targets[i].clone(),
-                false_target: false_target.clone(),
+                true_target: true_id,
+                false_target: false_id,
                 span,
             });
             current = false_target;
@@ -554,11 +561,9 @@ impl CfgBuilder {
         // no expanded arm blocks. Their shared-body / OR-matching topology can't
         // be expressed as structured control flow, and tclsh 9.0 invokes them
         // generically rather than compiling a jump table; codegen emits a
-        // generic `switch` invoke for the opaque statement. Mirrors the Python
-        // CFG builder (`compiler/cfg.py` ~L1121-1126, `expand_fallthrough_switch`
-        // defaulting off). SSA reads of the subject + arm/default bodies are
-        // recovered by `ssa::uses_of`'s `Statement::Switch` arm (Python's
-        // `_switch_reads`); the switch contributes no defs (Python's `_defs`).
+        // generic `switch` invoke for the opaque statement. SSA reads of the
+        // subject + arm/default bodies are recovered by `ssa::uses_of`'s
+        // `Statement::Switch` arm; the switch contributes no defs.
         // A `-nocase` exact switch must also stay opaque: the flattened form
         // builds a `STR_EQ`/JUMP_TABLE dispatch that is case-sensitive, so the
         // case-insensitive match has to run through the generic `switch`
@@ -570,7 +575,7 @@ impl CfgBuilder {
         let end_block = self.new_block("switch_end");
         let default_block = self.new_block("switch_default");
 
-        let body_name = "switch_arm_body"; // matches the Python CFG builder naming
+        let body_name = "switch_arm_body";
         let body_targets: Vec<String> = arms.iter().map(|_| self.new_block(body_name)).collect();
 
         // Resolve fallthrough: fallthrough arms jump to the next
@@ -620,10 +625,12 @@ impl CfgBuilder {
                     text: subject.clone(),
                 }
             };
+            let true_id = self.bid(&final_targets[i]);
+            let false_id = self.bid(&next_dispatch);
             self.block_mut(&dispatch).terminator = Some(Terminator::Branch {
                 condition: cond,
-                true_target: final_targets[i].clone(),
-                false_target: next_dispatch.clone(),
+                true_target: true_id,
+                false_target: false_id,
                 span: arm.pattern_span.into(),
             });
             dispatch = next_dispatch;
@@ -661,10 +668,9 @@ impl CfgBuilder {
         end_block
     }
 
-    // ── try ───────────────────────────────────────────────────────
+    // try
 
-    /// Record the analysis-only exception edges into a `try` handler block,
-    /// mirroring Python `_lower_try`:
+    /// Record the analysis-only exception edges into a `try` handler block:
     ///
     /// * `on ok` runs only after the body completes normally → source = body
     ///   tail (the body's exit versions).
@@ -751,19 +757,19 @@ impl CfgBuilder {
         // are sourced from each explicit `error`/`throw` point (where the
         // body's prior defs are live), not the pre-`try` block. Restore the
         // outer list afterwards so a nested `try`'s throws aren't attributed
-        // to this handler. Mirrors Python `_lower_try`.
+        // to this handler.
         let outer_throw_blocks = self.throw_blocks.take();
         self.throw_blocks = Some(Vec::new());
         let raw_body_tail = self.lower_script(body, &body_block);
         // Capture the body's terminating block *before* the handler bodies are
         // lowered below (each overwrites `last_terminal_block`).  Used to source
         // an on-error edge from a body that ended without an explicit
-        // `error`/`throw` (a bare `return`). Mirrors Python `_lower_try`.
+        // `error`/`throw` (a bare `return`).
         let body_terminal = self.last_terminal_block.take();
         let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
         self.throw_blocks = outer_throw_blocks;
-        // `lower_script` now always returns the resting block (mirroring Python's
-        // `return current`), so distinguish *normal fall-through* from a
+        // `lower_script` now always returns the resting block, so distinguish
+        // *normal fall-through* from a
         // terminated body via `body_terminal` (set iff the body did not fall
         // through — the former `body_tail.is_none()` signal). A terminated body
         // must not edge to `post_body`, and the handler's on-error edge must be
@@ -1031,8 +1037,8 @@ mod tests {
     #[test]
     fn switch_glob_stays_opaque() {
         // Glob/regexp switches are kept opaque (a single `Statement::Switch` in
-        // the block, no expanded arm blocks / branches) — mirroring the Python
-        // CFG builder. Codegen emits a generic `switch` invoke for them.
+        // the block, no expanded arm blocks / branches). Codegen emits a generic
+        // `switch` invoke for them.
         let func = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Glob), true);
         let entry = &func.blocks[&func.entry];
         assert_eq!(entry.statements.len(), 1, "opaque switch is one statement");

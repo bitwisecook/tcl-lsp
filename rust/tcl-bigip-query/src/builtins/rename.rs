@@ -1,5 +1,4 @@
-//! Rename builtins — faithful port of the `category="rename"` builtins in
-//! `dialects/f5/query/builtins.py`: `rename`, `rename_partition`,
+//! Rename builtins (`category="rename"`): `rename`, `rename_partition`,
 //! `rename_folder`, `rename_prefix`.
 //!
 //! `rename` queues a tolerant whole-source [`EditOp`](crate::edit_plan::EditOp)
@@ -9,7 +8,7 @@
 //! All four are [`Builtin::Ctx`](super::Builtin::Ctx) — they need the parsed
 //! config (for the active source URI and, for `rename`, the reference graph).
 //!
-//! Each returns the integer occurrence / match count, matching Python.
+//! Each returns the integer occurrence / match count.
 
 use regex::Regex;
 use tcl_bigip::value::{Folder, ObjectPath};
@@ -21,15 +20,15 @@ use crate::value::Value;
 
 use super::{BuiltinSpec, as_str};
 
-/// `regex::escape`-equivalent of Python `re.escape`, used to build the
+/// `regex::escape`-equivalent metacharacter escaping, used to build the
 /// token-bounded cascade patterns.
 fn re_escape(s: &str) -> String {
     regex::escape(s)
 }
 
 /// Count the token-bounded matches a [`PrefixRewrite`] will land on — the
-/// builtin's return value (`len(pattern.findall(source))` in Python). Mirrors
-/// the `apply` engine's boundary filtering so the count is consistent.
+/// builtin's return value (`len(pattern.findall(source))`). Reproduces the
+/// `apply` engine's boundary filtering so the count is consistent.
 fn count_matches(pattern: &Regex, before: Before, after: After, source: &str) -> usize {
     let bytes = source.as_bytes();
     let mut count = 0usize;
@@ -140,10 +139,10 @@ fn bi_rename_partition(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Q
     }
 
     // `/Old/...` -> `/New/...`: token-bounded so a longer name isn't matched.
-    // Python: `(?<![A-Za-z0-9_/.\-])/Old/(?=[A-Za-z0-9_])` -> `/New/`.
+    // Pattern: `(?<![A-Za-z0-9_/.\-])/Old/(?=[A-Za-z0-9_])` -> `/New/`.
     let prefix_re = compile(&format!(r"/{}/", re_escape(&old_name)))?;
     // `auth partition Old { ... }` — the standalone partition stanza.
-    // Python: `(?<![…])(auth\s+partition\s+)Old(?![…])` -> `\g<1>New`.
+    // Pattern: `(?<![…])(auth\s+partition\s+)Old(?![…])` -> `\g<1>New`.
     let header_re = compile(&format!(r"(auth\s+partition\s+){}", re_escape(&old_name)))?;
 
     let prefix_count = count_matches(
@@ -174,7 +173,7 @@ fn bi_rename_partition(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Q
         pattern: header_re,
         before: Before::NotIdent,
         after: After::NotIdent,
-        // Python `\g<1>New`; the regex crate uses `${1}`.
+        // The `\g<1>New`-style template; the regex crate uses `${1}`.
         replacement: format!("${{1}}{new_name}"),
         human_new: format!("auth partition {new_name}"),
     });
@@ -209,7 +208,7 @@ fn bi_rename_folder(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Quer
         return Ok(Value::Int(0));
     }
 
-    // Python: `(?<![A-Za-z0-9_/.\-])Old/(?=[A-Za-z0-9_])` -> `New/`.
+    // Pattern: `(?<![A-Za-z0-9_/.\-])Old/(?=[A-Za-z0-9_])` -> `New/`.
     let prefix_re = compile(&format!(r"{}/", re_escape(&old_canonical)))?;
     let count = count_matches(
         &prefix_re,
@@ -256,7 +255,7 @@ fn bi_rename_prefix(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Quer
     if old_text == new_text {
         return Ok(Value::Int(0));
     }
-    // Python: `(?<![A-Za-z0-9_./\-])Old(?=[A-Za-z0-9_])` -> `New`. The
+    // Pattern: `(?<![A-Za-z0-9_./\-])Old(?=[A-Za-z0-9_])` -> `New`. The
     // look-behind char set is the same identifier class.
     let prefix_re = compile(&re_escape(&old_text))?;
     let count = count_matches(
@@ -278,9 +277,8 @@ fn bi_rename_prefix(args: &[Value], ctx: &mut EvalContext) -> Result<Value, Quer
 }
 
 /// Refuse a `rename` whose partition move would break visibility for any
-/// existing referrer — port of the `_builtin_rename` partition-visibility
-/// guard. A no-op when `old`/`new` aren't both parseable object paths or share
-/// a partition.
+/// existing referrer. A no-op when `old`/`new` aren't both parseable object
+/// paths or share a partition.
 fn check_partition_visibility(
     old_s: &str,
     new_s: &str,
@@ -308,7 +306,7 @@ fn check_partition_visibility(
     if broken.is_empty() {
         return Ok(());
     }
-    // De-duplicate + sort (Python `sorted(set(broken))`).
+    // De-duplicate + sort.
     broken.sort();
     broken.dedup();
     let total = broken.len();
@@ -334,7 +332,7 @@ fn check_partition_visibility(
     )))
 }
 
-/// Whether `name` matches `[A-Za-z0-9_.-]+` (Python `re.fullmatch`).
+/// Whether `name` matches `[A-Za-z0-9_.-]+`.
 fn is_partition_name(name: &str) -> bool {
     !name.is_empty()
         && name
@@ -342,7 +340,7 @@ fn is_partition_name(name: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
 }
 
-/// Compile a cascade *core* pattern (the Python pattern with its look-behind /
+/// Compile a cascade *core* pattern (the pattern with its look-behind /
 /// look-ahead boundaries stripped — those are carried out-of-band as
 /// [`Before`] / [`After`]).
 fn compile(core: &str) -> Result<Regex, QueryError> {

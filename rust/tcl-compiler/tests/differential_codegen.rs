@@ -1,10 +1,9 @@
-//! Differential codegen test harness (C20).
+//! Differential codegen test harness.
 //!
-//! Feeds a corpus of Tcl scripts through both the Python emitter
-//! (subprocess invocation of `core.compiler.codegen.codegen_module`
-//! from the Python repo root) and the Rust pipeline
-//! (`lower_to_ir` → `build_cfg` → `codegen_module`), then compares
-//! the resulting disassembly.
+//! Feeds a corpus of Tcl scripts through both an external reference
+//! emitter (invoked as a subprocess and used purely as an oracle) and
+//! the Rust pipeline (`lower_to_ir` → `build_cfg` → `codegen_module`),
+//! then compares the resulting disassembly.
 //!
 //! Three tiers of equivalence are reported:
 //!
@@ -21,15 +20,15 @@
 //! The corpus under `tests/fixtures/codegen/matching/` is asserted
 //! to at least semantic-match. The corpus under
 //! `tests/fixtures/codegen/divergent/` is run purely as a progress
-//! tracker for C18/C19 — the test reports the current divergence
+//! tracker — the test reports the current divergence
 //! count but never fails. As each remaining gap closes, divergent
 //! fixtures are promoted to the matching corpus in the same commit
 //! that lands the fix.
 //!
-//! If the Python oracle can't be invoked (no `python3`, import
-//! failure, etc.) the entire harness logs a skip message and returns
-//! `Ok`. This keeps the test green on stripped-down sandboxes while
-//! still running under `make prep-pr`.
+//! If the reference oracle can't be invoked (interpreter missing,
+//! import failure, etc.) the entire harness logs a skip message and
+//! returns `Ok`. This keeps the test green on stripped-down sandboxes
+//! while still running under `make prep-pr`.
 
 use std::fmt::Write as _;
 use std::fs;
@@ -44,9 +43,7 @@ use tcl_compiler::codegen::format::format_module_asm;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
-// ---------------------------------------------------------------------------
 // Pipeline wrappers
-// ---------------------------------------------------------------------------
 
 /// Compile `source` through the Rust pipeline and return the rendered
 /// disassembly string.
@@ -63,20 +60,20 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
 }
 
-/// Result of trying to invoke the Python oracle.
+/// Result of trying to invoke the reference oracle.
 #[derive(Debug)]
 enum OracleResult {
-    /// Python ran successfully; contains the disassembly string.
+    /// The oracle ran successfully; contains the disassembly string.
     Ok(String),
-    /// Python was available but rejected this input (syntax error,
+    /// The oracle was available but rejected this input (syntax error,
     /// lowering failure, etc.). Carries the captured stderr.
     Error(String),
-    /// Python was not available (couldn't spawn `python3`, import
-    /// failed, etc.). Tests should degrade to a graceful skip.
+    /// The oracle was not available (couldn't spawn the interpreter,
+    /// import failed, etc.). Tests should degrade to a graceful skip.
     Unavailable(String),
 }
 
-/// The inline Python driver that reads a Tcl script from stdin and
+/// The inline reference driver that reads a Tcl script from stdin and
 /// writes the disassembly to stdout.
 const PY_DRIVER: &str = r"
 import sys
@@ -99,7 +96,7 @@ asm = codegen_module(c, m)
 sys.stdout.write(format_module_asm(asm))
 ";
 
-/// Probe whether the Python oracle is usable on this host. Cached so
+/// Probe whether the reference oracle is usable on this host. Cached so
 /// the subprocess spawn happens at most once per test run.
 fn oracle_status() -> &'static Result<(), String> {
     static STATUS: OnceLock<Result<(), String>> = OnceLock::new();
@@ -125,7 +122,7 @@ except Exception as e:
             Ok(())
         } else {
             Err(format!(
-                "python oracle unavailable (exit {:?}): {}",
+                "reference oracle unavailable (exit {:?}): {}",
                 output.status.code(),
                 String::from_utf8_lossy(&output.stderr).trim(),
             ))
@@ -133,7 +130,7 @@ except Exception as e:
     })
 }
 
-/// Invoke the Python oracle on `source`.
+/// Invoke the reference oracle on `source`.
 fn python_disasm(source: &str) -> OracleResult {
     if let Err(msg) = oracle_status() {
         return OracleResult::Unavailable(msg.clone());
@@ -166,9 +163,9 @@ fn python_disasm(source: &str) -> OracleResult {
         OracleResult::Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     } else {
         let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
-        // The Python driver exits with code 2 and an `ORACLE_IMPORT_FAIL:`
+        // The reference driver exits with code 2 and an `ORACLE_IMPORT_FAIL:`
         // stderr prefix when it can't import the oracle — mirror that as
-        // `Unavailable` so environments without the Python side skip
+        // `Unavailable` so environments without the oracle side skip
         // gracefully instead of reporting divergence.
         if out.status.code() == Some(2) && stderr.starts_with("ORACLE_IMPORT_FAIL:") {
             OracleResult::Unavailable(stderr)
@@ -178,12 +175,10 @@ fn python_disasm(source: &str) -> OracleResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Disassembly normalisation
-// ---------------------------------------------------------------------------
 
 /// Strip label-comment lines (`  # label:`) so a semantic compare
-/// ignores Rust/Python disagreements over internal label names and
+/// ignores Rust/oracle disagreements over internal label names and
 /// the ordering of coincident labels at the same offset.
 fn strip_label_comments(disasm: &str) -> String {
     disasm
@@ -240,7 +235,7 @@ fn brief_diff(rust: &str, py: &str, context: usize) -> String {
         out.push_str(line);
         out.push('\n');
     }
-    out.push_str("    --- python ---\n");
+    out.push_str("    --- reference ---\n");
     for line in &p[start..end_p] {
         out.push_str("    ");
         out.push_str(line);
@@ -249,7 +244,7 @@ fn brief_diff(rust: &str, py: &str, context: usize) -> String {
     if r.len() != p.len() {
         writeln!(
             out,
-            "    (rust has {} lines, python has {} lines)",
+            "    (rust has {} lines, reference has {} lines)",
             r.len(),
             p.len()
         )
@@ -258,9 +253,7 @@ fn brief_diff(rust: &str, py: &str, context: usize) -> String {
     out
 }
 
-// ---------------------------------------------------------------------------
 // Fixture discovery
-// ---------------------------------------------------------------------------
 
 fn fixture_dir(subdir: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -291,19 +284,17 @@ fn gather_fixtures(dir: &Path) -> Vec<(String, String)> {
     entries
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
-/// The matching corpus must at least semantic-match the Python oracle — unless
+/// The matching corpus must at least semantic-match the reference oracle — unless
 /// the oracle itself has drifted from tclsh.
 ///
 /// tclsh 9.0 is the reference standard (rust-rewrite §0), and each matching
 /// fixture's `.golden` is Rust output verified byte-true against it. So when Rust
-/// diverges from the *Python* oracle yet still matches its golden, the gap is
-/// **Python-oracle drift** (the Python codegen has fallen behind tclsh — e.g. for
+/// diverges from the *reference* oracle yet still matches its golden, the gap is
+/// **oracle drift** (the reference codegen has fallen behind tclsh — e.g. for
 /// the statement-position `append`/`unset`/`upvar`/`global` array specialisations,
-/// where Python mis-slots `arr(k)` as a scalar), not a Rust regression. Those are
+/// where the oracle mis-slots `arr(k)` as a scalar), not a Rust regression. Those are
 /// reported, not failed. A Rust output matching *neither* the oracle nor its
 /// golden is the only hard failure.
 #[test]
@@ -336,7 +327,7 @@ fn matching_corpus_is_semantically_equivalent() {
                     if !golden.trim().is_empty()
                         && strip_label_comments(&rust) == strip_label_comments(&golden)
                     {
-                        // Rust still matches tclsh-verified golden → Python drift.
+                        // Rust still matches tclsh-verified golden → oracle drift.
                         oracle_drift.push(name.clone());
                     } else {
                         failures.push((name.clone(), brief_diff(&rust, &py, 4)));
@@ -344,7 +335,7 @@ fn matching_corpus_is_semantically_equivalent() {
                 }
             },
             OracleResult::Error(err) => {
-                failures.push((name.clone(), format!("python oracle error: {err}")));
+                failures.push((name.clone(), format!("reference oracle error: {err}")));
             }
             OracleResult::Unavailable(msg) => {
                 eprintln!("[differential_codegen] oracle went away mid-run: {msg}");
@@ -354,7 +345,7 @@ fn matching_corpus_is_semantically_equivalent() {
     }
 
     eprintln!(
-        "[differential_codegen] matching corpus: {} exact, {} semantic, {} python-drift, {} divergent / {} total",
+        "[differential_codegen] matching corpus: {} exact, {} semantic, {} reference-drift, {} divergent / {} total",
         exact,
         semantic,
         oracle_drift.len(),
@@ -363,7 +354,7 @@ fn matching_corpus_is_semantically_equivalent() {
     );
     if !oracle_drift.is_empty() {
         eprintln!(
-            "[differential_codegen] {} fixture(s) match their tclsh-verified golden but the Python oracle has drifted (not a Rust regression):",
+            "[differential_codegen] {} fixture(s) match their tclsh-verified golden but the reference oracle has drifted (not a Rust regression):",
             oracle_drift.len(),
         );
         for name in &oracle_drift {
@@ -373,7 +364,7 @@ fn matching_corpus_is_semantically_equivalent() {
 
     if !failures.is_empty() {
         let mut msg = format!(
-            "{} fixture(s) in matching/ diverged from the Python oracle:\n",
+            "{} fixture(s) in matching/ diverged from the reference oracle:\n",
             failures.len()
         );
         for (name, diff) in &failures {
@@ -383,7 +374,7 @@ fn matching_corpus_is_semantically_equivalent() {
     }
 }
 
-/// The divergent corpus tracks known codegen gaps (driven by C18/C19).
+/// The divergent corpus tracks known codegen gaps.
 /// This test never fails — it only reports the current divergence
 /// count so progress is visible in test output and CI logs. When a
 /// gap closes, its fixture graduates to `matching/` in the same
@@ -437,9 +428,7 @@ fn divergent_corpus_reports_progress() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Unit tests for the normalisation helpers
-// ---------------------------------------------------------------------------
 
 #[test]
 fn classify_exact_match() {

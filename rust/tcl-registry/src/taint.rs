@@ -12,12 +12,12 @@ use crate::registry::CommandRegistry;
 use crate::traits::Traits;
 use crate::types::TclType;
 use bitflags::bitflags;
+use tcl_core_types::DiagCode;
 
 bitflags! {
     /// Properties carried by a tainted value — the taint *colour* lattice.
     ///
-    /// Mirrors `TaintColour` in
-    /// `core/commands/registry/taint_hints.py`. Colours compose with
+    /// Colours compose with
     /// `|`; the lattice *join* of two colours is their intersection
     /// (`&`): a property only survives a control-flow merge when every
     /// incoming path proves it.
@@ -30,7 +30,7 @@ bitflags! {
     ///
     /// Bit layout matches the existing `tcl_compiler::taint::TaintColour`
     /// for bits 0..=14; `PATH_JOINED` (`file join` output) and `CHANNEL`
-    /// (I/O channel handle) extend it to the full Python set.
+    /// (I/O channel handle) extend it to the full colour set.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct TaintColour: u32 {
         /// Value is attacker-controlled.
@@ -74,8 +74,7 @@ bitflags! {
 /// replacement for the hardcoded `SETTER_CONSTRAINTS` table in
 /// `tcl_compiler::taint`.
 ///
-/// Mirrors `SetterConstraint` in
-/// `core/commands/registry/taint_hints.py`. Attached to a command via
+/// Attached to a command via
 /// [`crate::CommandSpec::setter_constraints`]; the consumer's IRULE3101
 /// check reads the table from the registry instead of its 2-entry
 /// hardcode.
@@ -87,7 +86,7 @@ pub struct SetterConstraint {
     /// Literal prefix the argument must start with (e.g. `"/"`).
     pub required_prefix: &'static str,
     /// Diagnostic code emitted on violation (e.g. `"IRULE3101"`).
-    pub code: &'static str,
+    pub code: DiagCode,
     /// Human-readable explanation for the diagnostic.
     pub message: &'static str,
 }
@@ -119,7 +118,7 @@ pub const IRULES_TAINT_SOURCE_PREFIXES: &[&str] = &[
 ///   ([`CommandRegistry::taint_source`]) — the iRules namespace getters
 ///   (`HTTP::path`, `IP::client_addr`, …), each declaring its source
 ///   colour on its own [`crate::CommandSpec::taint_source`]. The index is
-///   global, mirroring Python's import-time `TAINT_HINTS`, so these fire
+///   global, so these fire
 ///   in every dialect (even `tcl8.6`).
 #[must_use]
 pub fn is_taint_source(
@@ -150,14 +149,13 @@ pub fn is_taint_source(
 /// return value, augmented with derived safety properties, or `None`
 /// when the call is not a taint source.
 ///
-/// Ports `compiler/taint/_lattice.py::_taint_source_colour` together
-/// with its inner `_augment_source_colours`. The base colour comes from
+/// The base colour comes from
 /// the command's own [`crate::CommandSpec::taint_source`] (surfaced
 /// dialect-agnostically via [`CommandRegistry::taint_source`]); a
 /// trait-detected source with no index entry (`gets`, `read`, …) is plain
 /// `TAINTED`. The indexed colour is the getter-form result, so its
-/// non-`TAINTED` bits apply only when `args` is empty (Python keys the
-/// path/IP/port/FQDN getters on `Arity(0, 0)`).
+/// non-`TAINTED` bits apply only when `args` is empty (the
+/// path/IP/port/FQDN getters are keyed on `Arity(0, 0)`).
 #[must_use]
 pub fn taint_source_colour(
     registry: &CommandRegistry,
@@ -180,10 +178,9 @@ pub fn taint_source_colour(
     Some(augment_source_colours(base | TaintColour::TAINTED))
 }
 
-/// Add the conservative derived properties a source colour implies —
-/// the port of Python `_augment_source_colours`. A path-prefixed value
-/// also proves `NON_DASH_PREFIXED`; an IP / port / FQDN value proves
-/// `NON_DASH_PREFIXED`, `CRLF_FREE`, and `SHELL_ATOM`.
+/// Add the conservative derived properties a source colour implies.
+/// A path-prefixed value also proves `NON_DASH_PREFIXED`; an IP / port /
+/// FQDN value proves `NON_DASH_PREFIXED`, `CRLF_FREE`, and `SHELL_ATOM`.
 #[must_use]
 pub fn augment_source_colours(colour: TaintColour) -> TaintColour {
     let mut out = colour;
@@ -237,8 +234,7 @@ pub fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) ->
 }
 
 /// Single-pass taint-sink classification for a `(command, subcommand)`
-/// pair — the registry-side counterpart of Python
-/// `CommandRegistry.classify_taint_sinks` (`command_registry.py`).
+/// pair.
 ///
 /// The consumer (`tcl_compiler::taint`) reads this instead of
 /// re-deriving sink categories from command-name sets. Carries every
@@ -256,8 +252,7 @@ pub struct TaintSinkInfo {
     /// IRULE3004), if the matched subcommand qualifies.
     pub output_sink: Option<&'static str>,
     /// Whether the output sink is subcommand-qualified — i.e. its label
-    /// should read `"<cmd> <sub>"`. Mirrors
-    /// `output_sink_is_subcommand_qualified`.
+    /// should read `"<cmd> <sub>"`.
     pub output_sink_is_subcommand_qualified: bool,
     /// Log-injection sink diagnostic code (IRULE3003).
     pub log_sink: Option<&'static str>,
@@ -271,8 +266,8 @@ pub struct TaintSinkInfo {
 /// Classify all taint-sink properties of `command` (with optional
 /// `subcommand`) in a single pass, filtered to `dialect`.
 ///
-/// Ports `CommandRegistry.classify_taint_sinks`. Returns the default
-/// (all-clear) [`TaintSinkInfo`] when the command is unknown.
+/// Returns the default (all-clear) [`TaintSinkInfo`] when the command is
+/// unknown.
 #[must_use]
 pub fn classify_taint_sinks(
     registry: &CommandRegistry,
@@ -283,8 +278,8 @@ pub fn classify_taint_sinks(
     let Some(spec) = registry.get(command) else {
         return TaintSinkInfo::default();
     };
-    // An empty `dialect` means "no dialect filter" — mirrors Python's
-    // `dialect is None` short-circuit in `classify_taint_sinks`. Only a
+    // An empty `dialect` means "no dialect filter" — a `None`-like
+    // short-circuit. Only a
     // concrete dialect set gates dialect-specific specs.
     if !dialect.is_empty() && !spec.supports_dialect(dialect) {
         return TaintSinkInfo::default();
@@ -421,7 +416,7 @@ mod tests {
 
     #[test]
     fn http_uri_is_a_source_in_every_dialect() {
-        // Python's `TAINT_HINTS` is an import-time global, so `HTTP::uri`
+        // `TAINT_HINTS` is an import-time global, so `HTTP::uri`
         // is a taint source even when analysing a non-iRules document
         // (e.g. `tcl8.6`, where the iRules spec set is not loaded). This
         // is what lets the generic option-injection / sink checks fire on
@@ -521,7 +516,7 @@ mod tests {
         assert!(SubCommand::DEFAULT.traits.is_empty());
     }
 
-    /// GAP-D2: the new taint/security fields default to clear, so a
+    /// The taint/security fields default to clear, so a
     /// spec that doesn't opt in is never misclassified.
     #[test]
     fn default_spec_has_no_taint_metadata() {
@@ -559,7 +554,7 @@ mod tests {
         assert!(info.output_sink.is_none());
     }
 
-    /// GAP-D2 data: `exec` suppresses T100 on a `SHELL_ATOM` value,
+    /// `exec` suppresses T100 on a `SHELL_ATOM` value,
     /// `eval`/`uplevel` on `LIST_CANONICAL`.
     #[test]
     fn sink_safe_colours_are_populated() {
@@ -578,7 +573,7 @@ mod tests {
         );
     }
 
-    /// GAP-D2 data: `puts` is a T101 output sink; `socket` /
+    /// `puts` is a T101 output sink; `socket` /
     /// `http::geturl` are network sinks; `interp` carries the T105
     /// interp-eval subcommands.
     #[test]
@@ -602,7 +597,7 @@ mod tests {
         assert_eq!(interp.interp_eval_subcommands, &["eval", "invokehidden"]);
     }
 
-    /// GAP-D2 data: the sanitising transforms (`URI::encode`,
+    /// The sanitising transforms (`URI::encode`,
     /// `file join`/`file normalize`) resolve through the accessors,
     /// command- and subcommand-level.
     #[test]
@@ -627,7 +622,7 @@ mod tests {
         );
     }
 
-    /// GAP-D2 data: `HTTP::cookie insert` is an IRULE3002 sink but
+    /// `HTTP::cookie insert` is an IRULE3002 sink but
     /// `HTTP::cookie domain` is not (subcommand-qualified).
     #[test]
     fn cookie_output_sink_is_subcommand_qualified() {
@@ -642,7 +637,7 @@ mod tests {
         assert_eq!(domain.output_sink, None);
     }
 
-    /// GAP-D2 data: the registry-driven setter-constraint table is
+    /// The registry-driven setter-constraint table is
     /// populated for `HTTP::uri` / `HTTP::path`.
     #[test]
     fn setter_constraints_are_populated() {
@@ -651,7 +646,7 @@ mod tests {
         let uri = setter_constraints(&registry, "HTTP::uri");
         assert_eq!(uri.len(), 1);
         assert_eq!(uri[0].required_prefix, "/");
-        assert_eq!(uri[0].code, "IRULE3101");
+        assert_eq!(uri[0].code.as_str(), "IRULE3101");
         assert_eq!(setter_constraints(&registry, "HTTP::path").len(), 1);
     }
 }

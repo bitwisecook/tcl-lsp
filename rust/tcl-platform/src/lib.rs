@@ -144,8 +144,8 @@ pub struct ExecOutput {
 }
 
 /// Whole-file and directory access. Streaming channels (the per-fd table,
-/// buffering, encoding) layer on top in a later milestone; this is the
-/// stateless surface the Phase-1 path/`glob`/`file` commands need.
+/// buffering, encoding) layer on top separately; this is the stateless
+/// surface the path/`glob`/`file` commands need.
 pub trait Filesystem {
     /// Whether `path` exists.
     fn exists(&self, path: &str) -> bool;

@@ -1,5 +1,4 @@
-//! `RouteDomain` value type — the F5 `%N` route-domain suffix. Rust port
-//! of `_route_domain.py`.
+//! `RouteDomain` value type — the F5 `%N` route-domain suffix.
 
 use super::error::ValueError;
 use super::port::{parse_decimal_int, py_repr};

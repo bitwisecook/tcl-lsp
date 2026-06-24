@@ -1,9 +1,13 @@
-//! Dependency-free shared vocabulary for the Tcl runtimes and command cores.
+//! Dependency-free shared vocabulary for the Tcl runtimes, command cores, and
+//! analysis layers.
 //!
 //! These are the value-less types every Tcl runtime agrees on regardless of its
 //! value representation or execution model: the completion [`Code`], the generic
 //! [`Completion`] container, and the opaque arena handles
-//! ([`NsId`]/[`FrameId`]/[`CommandId`]/[`VarId`]).
+//! ([`NsId`]/[`FrameId`]/[`CommandId`]/[`VarId`]). It also holds the editor
+//! vocabulary the analysis and LSP layers share — the diagnostic [`Severity`] —
+//! so the analyser, compiler-checks, CLI, and server name one type rather than
+//! each maintaining its own copy.
 //!
 //! They live in their own leaf crate (depending on nothing) so that pure
 //! command logic — `tcl-cmd-core`'s helpers — can name a completion code
@@ -12,6 +16,9 @@
 //! `docs/design/common-runtime-emitter-architecture.md` (§6).
 
 #![no_std]
+
+mod diag_code;
+pub use diag_code::{DiagCode, DiagFamily, UnknownDiagCode};
 
 /// A Tcl completion code (`tcl.h` `TCL_OK`..`TCL_CONTINUE`, plus arbitrary user
 /// codes from `return -code N` / `try on N`).
@@ -129,3 +136,41 @@ pub struct VarId(pub u32);
 pub const GLOBAL_FRAME: FrameId = FrameId(0);
 /// The root (`::`) namespace handle.
 pub const ROOT_NS: NsId = NsId(0);
+
+// -- Editor vocabulary --
+
+/// Severity of a diagnostic, shared by the analyser, the compiler-checks
+/// pipeline, and the LSP/CLI consumers that lower it.
+///
+/// Ordered least-to-most severe. The wire form ([`Severity::as_str`]) is the
+/// stable lower-case vocabulary every LSP layer consumes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Severity {
+    /// Hint — non-actionable suggestion.
+    Hint,
+    /// Suggestion — minor improvement opportunity.
+    Suggestion,
+    /// Info — observational note (LSP `Information`), not a problem. Used by the
+    /// constant-branch I230/I231 family so it renders as `Information` rather
+    /// than collapsing to `Hint`.
+    Info,
+    /// Warning — likely-incorrect code that still compiles.
+    Warning,
+    /// Error — definitely-incorrect code.
+    Error,
+}
+
+impl Severity {
+    /// Stable lower-case wire form (`"hint"`, `"suggestion"`, `"info"`,
+    /// `"warning"`, `"error"`) — the vocabulary every LSP layer consumes.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Hint => "hint",
+            Self::Suggestion => "suggestion",
+            Self::Info => "info",
+            Self::Warning => "warning",
+            Self::Error => "error",
+        }
+    }
+}

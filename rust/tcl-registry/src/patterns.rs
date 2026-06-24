@@ -5,12 +5,9 @@
 //! `format`/`clock`/`binary`/`regsub` format string — so the LSP can
 //! emit *sub-tokens* (semantic-token splitting inside the string
 //! literal) and run pattern-specific validation.
-//!
-//! Mirrors `PatternType` / `FormatType` in
-//! `core/commands/registry/models.py`.
 
 /// Kind of pattern language an argument uses, for semantic tokens and
-/// validation. Mirrors Python `PatternType`.
+/// validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PatternType {
     /// Glob pattern (`string match`, `glob`, `lsearch` default,
@@ -22,9 +19,8 @@ pub enum PatternType {
 }
 
 impl PatternType {
-    /// Stable lowercase tag matching the Python enum *value*
-    /// (`"glob"` / `"regex"`) — used by the audit dumper so both sides
-    /// normalise identically.
+    /// Stable lowercase tag (`"glob"` / `"regex"`) — used by the audit
+    /// dumper so both sides normalise identically.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -35,7 +31,7 @@ impl PatternType {
 }
 
 /// Kind of format string an argument uses, for inlay-hint parsing and
-/// semantic tokens. Mirrors Python `FormatType`.
+/// semantic tokens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FormatType {
     /// `printf`-style conversion string (`format`, `scan`).
@@ -49,7 +45,7 @@ pub enum FormatType {
 }
 
 impl FormatType {
-    /// Stable lowercase tag matching the Python enum *value*
+    /// Stable lowercase tag
     /// (`"sprintf"` / `"clock"` / `"binary"` / `"regsub"`).
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -75,7 +71,7 @@ mod tests {
         assert_eq!(FormatType::Regsub.as_str(), "regsub");
     }
 
-    /// GAP-D1 data: `regexp` / `regsub` carry `PatternType::Regex`.
+    /// `regexp` / `regsub` carry `PatternType::Regex`.
     #[test]
     fn regexp_and_regsub_are_regex_patterns() {
         let registry = CommandRegistry::build_default();

@@ -1,20 +1,18 @@
 //! Shared iRules `when`-context detection.
 //!
-//! Port of `lsp/features/irules_context.py::find_enclosing_when_event`
-//! plus `core/.../namespace_data.py::scan_file_events`.  Both feed the
-//! context-aware snippet templates (GAP-A9): `find_enclosing_when_event`
+//! Both `find_enclosing_when_event` and `scan_file_events` feed the
+//! context-aware snippet templates: `find_enclosing_when_event`
 //! supplies the `current_event` top-level guard (event templates only
 //! offer outside any `when` block) and `scan_file_events` supplies
 //! `file_events` (event templates decline when their event is already
 //! declared).
 //!
-//! Two deliberate divergences from the Python reference, both documented
-//! here:
+//! Two deliberate design choices, both documented here:
 //!
 //! * The conf-wrapped `embedded_rules` mode (scoping the search to the
 //!   rule body containing the cursor in a BIG-IP `.conf` wrapper) is not
-//!   modelled — the Rust core analyses the raw iRule body directly.
-//! * `scan_file_events` walks the segmenter rather than Python's
+//!   modelled — the raw iRule body is analysed directly.
+//! * `scan_file_events` walks the segmenter rather than a
 //!   `\bwhen\s+([A-Z_]…)` regex (the project never parses Tcl with
 //!   regex).  Both collect every `when EVENT` at any brace nesting; they
 //!   differ only on the pathological case of the literal text `when X`
@@ -26,8 +24,7 @@ use tcl_lexer::{LexerConfig, LineIndex, TokenType};
 
 /// Find the enclosing `when EVENT { … }` event at `line` (0-based), or
 /// `None` at the top level.  The innermost enclosing event wins (nested
-/// `when` blocks shadow their parents), matching Python's recursive
-/// `_scan_when_context`.
+/// `when` blocks shadow their parents).
 #[must_use]
 pub fn find_enclosing_when_event(source: &str, line: u32, dialect: &str) -> Option<String> {
     if source.is_empty() {
@@ -38,7 +35,7 @@ pub fn find_enclosing_when_event(source: &str, line: u32, dialect: &str) -> Opti
 }
 
 /// Every distinct `when EVENT` name declared in `source` (uppercased,
-/// sorted), at any brace nesting.  Mirrors `scan_file_events`.
+/// sorted), at any brace nesting.
 #[must_use]
 pub fn scan_file_events(source: &str, dialect: &str) -> Vec<String> {
     let mut events = Vec::new();
@@ -68,8 +65,7 @@ fn scan_when_context(
             continue;
         }
         // The braced body is the first `Str` argument word (barewords —
-        // including the event name — are `Esc`).  Mirrors Python's
-        // `next(tok for tok in arg_tokens if tok.type is STR)`.
+        // including the event name — are `Esc`).
         let Some(body_tok) = cmd.arg_tokens().iter().find(|t| t.kind == TokenType::Str) else {
             continue;
         };
@@ -143,8 +139,7 @@ mod tests {
     #[test]
     fn when_open_line_counts_as_inside_body() {
         // The body Str token starts at the `{` on line 0, so a cursor on
-        // the `when … {` line is already "inside" — matches Python's
-        // `body_tok.start.line <= idx` containment check.
+        // the `when … {` line is already "inside".
         let src = "when HTTP_REQUEST {\n    set x 1\n}\n";
         assert_eq!(
             find_enclosing_when_event(src, 0, D),
@@ -172,9 +167,8 @@ mod tests {
 
     #[test]
     fn innermost_nested_event_wins() {
-        // `find_enclosing` descends only into `when` bodies (mirrors
-        // Python's `_scan_when_context`), so the inner `when` is nested
-        // directly inside the outer one.
+        // `find_enclosing` descends only into `when` bodies, so the inner
+        // `when` is nested directly inside the outer one.
         let src =
             "when HTTP_REQUEST {\n    when CLIENT_DATA {\n        set y 2\n    }\n    set x 1\n}\n";
         // Line 2 sits inside the nested CLIENT_DATA body.

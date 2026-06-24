@@ -7,9 +7,9 @@
 //! mirroring the reference VM's `subst_command`. Whole-word simple variables are
 //! already inlined to `loadStk`, so only `${…}` and `[…]` trigger here.
 //!
-//! M1 scope: `${name}` variable substitution and `[script]` command
+//! Scope: `${name}` variable substitution and `[script]` command
 //! substitution (via the injected `CompileService`). Backslash decoding and
-//! array-element substitution are deferred to M2 (a `\X` only escapes the next
+//! array-element substitution are not yet implemented (a `\X` only escapes the next
 //! char from being mis-read as a substitution trigger; it is not decoded).
 
 use tcl_runtime_api::Code;

@@ -1,4 +1,4 @@
-//! `auto_mkindex` command (name-parity reconcile, GAP-d).
+//! `auto_mkindex` command.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {

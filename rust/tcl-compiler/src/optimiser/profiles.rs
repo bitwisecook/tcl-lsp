@@ -1,11 +1,9 @@
 //! Optimisation profiles — named tiers controlling which optimisation
 //! passes surface as diagnostics.
 //!
-//! Ports `shared/optimisation_profiles.py` + the `@opt(opt_category=…)`
-//! metadata from the Python optimiser passes. Each optimisation code
-//! belongs to one *category*; a profile enables a set of categories, and
-//! [`profile_to_disabled`] returns the codes a profile turns off (the
-//! complement of its enabled categories).
+//! Each optimisation code belongs to one *category*; a profile enables a
+//! set of categories, and [`profile_to_disabled`] returns the codes a
+//! profile turns off (the complement of its enabled categories).
 //!
 //! The default editor profile is [`DEFAULT_EDITOR_PROFILE`]
 //! (`Readability`) — idiomatic rewrites only; constant folding, DCE,
@@ -13,8 +11,7 @@
 
 use std::collections::HashSet;
 
-/// Optimisation-pass category — mirrors the Python `opt_category`
-/// metadata declared on each `@opt(...)` pass.
+/// Optimisation-pass category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptCategory {
     /// Idiomatic rewrites, no code removal/restructuring.
@@ -31,7 +28,7 @@ pub enum OptCategory {
     Recursion,
 }
 
-/// Named optimisation tiers — mirrors Python `OptimisationProfile`.
+/// Named optimisation tiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimisationProfile {
     /// All optimisations disabled.
@@ -46,13 +43,11 @@ pub enum OptimisationProfile {
     Aggressive,
 }
 
-/// The default profile for editor / LSP surfaces — mirrors Python
-/// `DEFAULT_EDITOR_PROFILE`.
+/// The default profile for editor / LSP surfaces.
 pub const DEFAULT_EDITOR_PROFILE: OptimisationProfile = OptimisationProfile::Readability;
 
-/// Every optimisation code with its category — the single Rust home for
-/// the `opt_category` metadata Python declares per `@opt(...)` pass. Kept
-/// in sync with `shared/codes.py::optimisation_codes_by_category`.
+/// Every optimisation code with its category — the single home for the
+/// per-pass `opt_category` metadata.
 const OPT_CATEGORIES: &[(&str, OptCategory)] = &[
     // readability
     ("O111", OptCategory::Readability),
@@ -125,8 +120,7 @@ impl OptimisationProfile {
 }
 
 /// The set of optimisation codes a `profile` turns *off* — the complement
-/// of its enabled categories. Mirrors Python
-/// `profile_to_disabled(profile)`.
+/// of its enabled categories.
 #[must_use]
 pub fn profile_to_disabled(profile: OptimisationProfile) -> HashSet<&'static str> {
     OPT_CATEGORIES

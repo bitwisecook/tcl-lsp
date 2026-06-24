@@ -1,30 +1,27 @@
-//! Liveness-based dead-store detection — the Rust port of Python's
-//! `core_analyses._dead_stores` (the `analysis.dead_stores` the explorer's
-//! `cfgPostSsa` view reports), distinct from the optimiser's O109 dead-store
-//! finder ([`crate::optimiser::find_dead_stores`]).
+//! Liveness-based dead-store detection — the `analysis.dead_stores` the
+//! explorer's `cfgPostSsa` view reports, distinct from the optimiser's O109
+//! dead-store finder ([`crate::optimiser::find_dead_stores`]).
 //!
 //! A *dead store* is an assignment to a plain proc-local scalar/array whose
 //! SSA value is never read (no use in any statement, branch condition, return
 //! value, or executable phi edge — exactly the def-use chain's "no uses"
-//! verdict). The same suppressions Python applies are reproduced here:
+//! verdict). The following suppressions apply:
 //!
 //! * **reportable-local place** — only a proc-local scalar/array is reportable;
 //!   globals/namespace vars, `upvar` aliases, instance vars, traced, and
 //!   dynamic (runtime-named) places are observable outside the frame and never
-//!   flagged (Python's `_reportable_local`; subsumes the `::`-prefix +
+//!   flagged (subsumes the `::`-prefix +
 //!   scope-alias guards the W220 diagnostic uses).
 //! * **substitution-hidden reads** — a name read inside a `[…]` command
-//!   substitution / `expr` / branch condition the version-precise SSA misses
-//!   (Python's `expr_sub_reads`).
+//!   substitution / `expr` / branch condition the version-precise SSA misses.
 //! * **element-observed** — an array-element write a read may alias
-//!   (Python's `_element_observed`, via the place-overlap relation).
+//!   (via the place-overlap relation).
 //! * **SCCP-unreachable blocks** — skipped (reported as O107 instead).
 //! * **IR-statement type** — only `AssignConst`, `AssignValue` without a `[…]`
 //!   substitution, and `AssignExpr` without a command call are reportable;
 //!   side-effecting writes are not (dropping them would drop the side effect).
 //!
-//! The result is byte-identical to the Python CLI's `cfgPostSsa`
-//! `analysis.deadStores`, gated by the `tcl diff --show cfg` golden tests.
+//! The result is gated by the `tcl diff --show cfg` golden tests.
 
 use tcl_registry::CommandRegistry;
 
@@ -40,7 +37,7 @@ use crate::place_bridge::{build_resolve_context, def_places, element_writes_obse
 /// A def *place* a dead-store check may report: a plain proc-local scalar or
 /// array — not a global/namespace var (`ns != LOCAL_NS`), `upvar` alias or
 /// instance var (wrong `kind`/`owner`), traced (`observed`), or dynamic
-/// (runtime-named) target. Mirrors Python's `_reportable_local`.
+/// (runtime-named) target.
 fn is_reportable_local(place: &Place) -> bool {
     matches!(
         place.kind,
@@ -51,8 +48,7 @@ fn is_reportable_local(place: &Place) -> bool {
         && place.owner.is_empty()
 }
 
-/// Liveness-based dead stores for one function, mirroring Python's
-/// `_dead_stores`. See the module docs.
+/// Liveness-based dead stores for one function. See the module docs.
 #[must_use]
 pub fn liveness_dead_stores(fu: &FunctionUnit, registry: &CommandRegistry) -> Vec<DeadStore> {
     let ctx = build_resolve_context(&fu.cfg, &fu.name);
@@ -68,15 +64,19 @@ pub fn liveness_dead_stores(fu: &FunctionUnit, registry: &CommandRegistry) -> Ve
         }
         let (var, version) = &chain.key;
         // A name read in a position the version-precise `used` set can't see
-        // keeps every write of it alive (Python's `expr_sub_reads`).
+        // keeps every write of it alive.
         if hidden_reads.contains(var) {
             continue;
         }
         // Definitions in SCCP-unreachable blocks are reported as O107.
-        if !fu.sccp.executable_blocks.contains(&chain.definition.block) {
+        if !fu
+            .cfg
+            .block_id(&chain.definition.block)
+            .is_some_and(|id| fu.sccp.executable_blocks.contains(&id))
+        {
             continue;
         }
-        let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+        let Some(block) = fu.cfg.block_by_name(&chain.definition.block) else {
             continue;
         };
         let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
@@ -85,7 +85,7 @@ pub fn liveness_dead_stores(fu: &FunctionUnit, registry: &CommandRegistry) -> Ve
         let Some(stmt) = block.statements.get(idx) else {
             continue;
         };
-        // IR-statement type filter (Python `_dead_stores` shape): only pure
+        // IR-statement type filter: only pure
         // assignments are reportable.
         match stmt {
             Statement::AssignConst { .. } => {}
@@ -114,8 +114,7 @@ pub fn liveness_dead_stores(fu: &FunctionUnit, registry: &CommandRegistry) -> Ve
         });
     }
     // Order by block *creation* order (the `prefix_N` counter suffix) then
-    // statement index — matching Python's `_dead_stores`, which iterates
-    // `ssa.blocks` in insertion (creation) order. (`fu.cfg.blocks` is a
+    // statement index. (`fu.cfg.blocks` is a
     // `HashMap`, but the name suffix recovers the order.)
     dead.sort_by(|a, b| {
         (

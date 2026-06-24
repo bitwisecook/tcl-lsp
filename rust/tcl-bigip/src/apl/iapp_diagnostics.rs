@@ -1,5 +1,4 @@
-//! Cross-file diagnostics for iApp presentation ↔ implementation — Rust
-//! port of `dialects/f5/bigip/iapp_diagnostics.py`.
+//! Cross-file diagnostics for iApp presentation ↔ implementation.
 //!
 //! Validates that:
 //! - implementation variables reference fields that exist in the presentation
@@ -24,11 +23,10 @@ use crate::validator::{ConfigDiagnostic, DiagSeverity};
 /// Dialects in which iApp presentation/implementation cross-validation
 /// makes sense (iApps live under `f5-iapps`; `f5-tmsh` / `f5-bigip` share
 /// the iApp template format). All other dialects are unrelated, so the
-/// IAPP diagnostics must not fire there. Mirrors Python `IAPP_DIALECTS`.
+/// IAPP diagnostics must not fire there.
 pub const IAPP_DIALECTS: [&str; 3] = ["f5-iapps", "f5-tmsh", "f5-bigip"];
 
-/// Whether `dialect` is one where iApp checks apply (port of
-/// `_iapp_dialect_active`).
+/// Whether `dialect` is one where iApp checks apply.
 #[must_use]
 pub fn iapp_dialect_active(dialect: &str) -> bool {
     IAPP_DIALECTS.contains(&dialect)
@@ -36,7 +34,7 @@ pub fn iapp_dialect_active(dialect: &str) -> bool {
 
 /// Validate an APL presentation model, optionally cross-checked against
 /// implementation variable references. Returns an empty list outside the
-/// iApp dialects (defense-in-depth, exactly as in Python) so iApp advice
+/// iApp dialects (defense-in-depth) so iApp advice
 /// never leaks into plain Tcl / iRules / EDA dialects.
 ///
 /// IAPP7001 (undefined variable) is emitted by
@@ -56,8 +54,7 @@ pub fn validate_iapp_presentation(
     // IAPP7003: #include not found.
     for inc in &model.includes {
         if !inc.resolved {
-            // AplInclude only tracks the line number; offset/char are 0,
-            // mirroring the Python placeholder.
+            // AplInclude only tracks the line number; offset/char are 0.
             let pos = Position {
                 line: inc.line,
                 character: 0,
@@ -106,7 +103,7 @@ pub fn validate_iapp_presentation(
 /// Validate iApp implementation references against the presentation,
 /// producing diagnostics positioned in the implementation source. Returns
 /// an empty list outside the iApp dialects, or when no presentation model
-/// is available. Mirrors `validate_iapp_implementation`.
+/// is available.
 #[must_use]
 pub fn validate_iapp_implementation(
     impl_var_refs: &[IappVarRef],

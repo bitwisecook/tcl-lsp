@@ -1,9 +1,8 @@
 //! Differential parity tests for the native `f5-query` CLI.
 //!
-//! Runs the built binary on committed fixtures and asserts stdout matches a
-//! golden captured from `python -m tooling.f5.main`. Only verbs whose engine is
-//! fully ported (file-I/O-only today) are asserted byte-for-byte; the rest await
-//! their BIG-IP engine ports.
+//! Runs the built binary on committed fixtures and asserts stdout matches the
+//! captured golden output. Only verbs whose engine is implemented
+//! (file-I/O-only for now) are asserted byte-for-byte.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -38,7 +37,7 @@ fn assert_diff_matches(args: &[&str], golden: &str) {
     assert_eq!(
         String::from_utf8_lossy(&actual),
         String::from_utf8_lossy(&expected),
-        "f5 diff output does not match the Python CLI ({golden})"
+        "f5 diff output does not match the golden ({golden})"
     );
 }
 
@@ -52,14 +51,14 @@ fn merge_matches_python() {
     assert_eq!(
         String::from_utf8_lossy(&actual),
         String::from_utf8_lossy(&expected),
-        "f5 merge output does not match the Python CLI"
+        "f5 merge output does not match the golden"
     );
 }
 
 #[test]
 fn split_then_merge_matches_python() {
     // split a multi-partition fixture into a temp dir, then merge it back, and
-    // assert the round-trip equals the golden captured from the Python CLI.
+    // assert the round-trip equals the captured golden output.
     let dir = fixtures_dir();
     let input = dir.join("split-multi.conf");
     let expected = std::fs::read(dir.join("split-multi.roundtrip.golden")).expect("read golden");
@@ -73,7 +72,7 @@ fn split_then_merge_matches_python() {
     assert_eq!(
         String::from_utf8_lossy(&actual),
         String::from_utf8_lossy(&expected),
-        "f5 split→merge round-trip does not match the Python CLI"
+        "f5 split→merge round-trip does not match the golden"
     );
 }
 
@@ -141,8 +140,8 @@ fn explain_virtual_json_matches_python() {
     );
 }
 
-/// Assert that `f5 extract`'s stdout matches a golden captured from the Python
-/// CLI, optionally with `F5_UCS_PASSPHRASE` set for an encrypted archive.
+/// Assert that `f5 extract`'s stdout matches the captured golden output,
+/// optionally with `F5_UCS_PASSPHRASE` set for an encrypted archive.
 fn assert_extract_matches(args: &[&str], passphrase: Option<&str>, golden: &str) {
     let expected = std::fs::read(fixtures_dir().join(golden)).expect("read golden");
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_f5-query"));
@@ -159,7 +158,7 @@ fn assert_extract_matches(args: &[&str], passphrase: Option<&str>, golden: &str)
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&expected),
-        "f5 extract output does not match the Python CLI ({golden})"
+        "f5 extract output does not match the golden ({golden})"
     );
 }
 
@@ -209,7 +208,7 @@ fn explain_reads_ucs_matches_python() {
 #[test]
 fn diff_reads_ucs_matches_python() {
     // `f5 diff` accepts `.ucs` inputs on either side; diffing an archive
-    // against itself yields no changes, byte-identical to the Python CLI.
+    // against itself yields no changes, byte-identical to the captured golden output.
     let ucs = fixtures_dir().join("sample.ucs");
     assert_diff_matches(
         &["diff", ucs.to_str().unwrap(), ucs.to_str().unwrap()],

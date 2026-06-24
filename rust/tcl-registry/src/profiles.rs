@@ -10,7 +10,7 @@
 // readability.
 #![allow(clippy::too_many_lines)]
 
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// Metadata for an F5 profile type.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,8 +59,8 @@ pub struct StackModification {
 
 /// Profile registry providing lookup over static profile tables.
 pub struct ProfileRegistry {
-    profiles: HashMap<&'static str, ProfileSpec>,
-    namespaces: HashMap<&'static str, ProtocolNamespaceSpec>,
+    profiles: FxHashMap<&'static str, ProfileSpec>,
+    namespaces: FxHashMap<&'static str, ProtocolNamespaceSpec>,
     modifications: Vec<StackModification>,
 }
 
@@ -68,11 +68,11 @@ impl ProfileRegistry {
     /// Build the profile registry from static data.
     #[must_use]
     pub fn build() -> Self {
-        let mut profiles = HashMap::new();
+        let mut profiles = FxHashMap::default();
         for spec in profile_specs() {
             profiles.insert(spec.name, spec);
         }
-        let mut namespaces = HashMap::new();
+        let mut namespaces = FxHashMap::default();
         for spec in protocol_namespace_specs() {
             namespaces.insert(spec.prefix, spec);
         }
@@ -100,8 +100,8 @@ impl ProfileRegistry {
     /// (`SSL_PERSISTENCE`/`PERSIST`) profile that the stack implies rather
     /// than the operator selecting. The `# Profiles:` header code action
     /// filters these out. Derives the former hardcoded `INFRA_PROFILES`
-    /// list from each profile's registered `layer` (mirrors the
-    /// `transport` / `tls_shared` layers of Python `_PROFILE_LAYERS`).
+    /// list from each profile's registered `layer` (the `transport` and
+    /// `tls_shared` layers).
     #[must_use]
     pub fn is_infrastructure_profile(&self, profile: &str) -> bool {
         self.get_profile(profile)
@@ -139,10 +139,10 @@ impl ProfileRegistry {
     }
 
     /// `profiles` plus all transitive [`ProfileSpec::requires`] parents,
-    /// uppercased.  Mirrors Python `expand_profile_stack`.
+    /// uppercased.
     #[must_use]
-    pub fn expand_profile_stack(&self, profiles: &[&str]) -> HashSet<String> {
-        let mut expanded: HashSet<String> = profiles.iter().map(|p| p.to_uppercase()).collect();
+    pub fn expand_profile_stack(&self, profiles: &[&str]) -> FxHashSet<String> {
+        let mut expanded: FxHashSet<String> = profiles.iter().map(|p| p.to_uppercase()).collect();
         let mut pending: Vec<String> = expanded.iter().cloned().collect();
         while let Some(cur) = pending.pop() {
             if let Some(spec) = self.get_profile(&cur) {
@@ -158,8 +158,7 @@ impl ProfileRegistry {
     }
 
     /// True when `active`'s expanded profile stack satisfies any one of the
-    /// `required` profiles (OR semantics).  Mirrors Python
-    /// `profile_stack_satisfies`.
+    /// `required` profiles (OR semantics).
     #[must_use]
     pub fn stack_satisfies(&self, required: &[&str], active: &[&str]) -> bool {
         if required.is_empty() {
@@ -173,7 +172,7 @@ impl ProfileRegistry {
     }
 }
 
-/// Profiles attached to a file — Python `compute_file_profiles`.
+/// Profiles attached to a file.
 ///
 /// Combines an explicit `# profiles: …` directive (scanned from the leading
 /// comment block) with the profiles implied by every `when EVENT` handler
@@ -185,7 +184,7 @@ pub fn compute_file_profiles(
     events: &crate::events::EventRegistry,
     profiles: &ProfileRegistry,
 ) -> Vec<String> {
-    let mut seed: HashSet<String> = parse_profile_directive(source);
+    let mut seed: FxHashSet<String> = parse_profile_directive(source);
     for event in scan_file_events(source) {
         if let Some(props) = events.get_props(&event) {
             seed.extend(props.implied_profiles.iter().map(|p| p.to_uppercase()));
@@ -200,13 +199,13 @@ pub fn compute_file_profiles(
     expanded
 }
 
-/// Parse a leading `# profiles: HTTP, CLIENTSSL` directive — Python
-/// `parse_profile_directive`.  Scans at most the first 20 lines and stops at
+/// Parse a leading `# profiles: HTTP, CLIENTSSL` directive.  Scans at most
+/// the first 20 lines and stops at
 /// the first non-comment, non-blank line.  Names are uppercased and split on
 /// commas/whitespace.
 #[must_use]
-pub fn parse_profile_directive(source: &str) -> HashSet<String> {
-    let mut out = HashSet::new();
+pub fn parse_profile_directive(source: &str) -> FxHashSet<String> {
+    let mut out = FxHashSet::default();
     for line in source.split('\n').take(20) {
         let stripped = line.trim();
         if stripped.is_empty() {
@@ -227,8 +226,7 @@ pub fn parse_profile_directive(source: &str) -> HashSet<String> {
 }
 
 /// Match `# profiles? :` (case-insensitive) at the head of an already-trimmed
-/// comment line and return the payload after the colon.  Mirrors the Python
-/// `_PROFILE_DIRECTIVE_RE` (`^\s*#\s*profiles?\s*:\s*(.+)`).
+/// comment line and return the payload after the colon.
 fn profile_directive_payload(stripped_line: &str) -> Option<&str> {
     let after_hash = stripped_line.strip_prefix('#')?.trim_start();
     let lower = after_hash.to_ascii_lowercase();
@@ -245,14 +243,14 @@ fn profile_directive_payload(stripped_line: &str) -> Option<&str> {
     (!payload.is_empty()).then_some(payload)
 }
 
-/// Event names from every `when EVENT` occurrence — Python `scan_file_events`
+/// Event names from every `when EVENT` occurrence
 /// (`\bwhen\s+([A-Z_][A-Z0-9_]*)`).  The event name is upper-case-led, so a
-/// lower-cased `when foo` does not match (matching the Python regex's case
-/// sensitivity for the captured group).
+/// lower-cased `when foo` does not match (the captured group is
+/// case-sensitive).
 #[must_use]
-pub fn scan_file_events(source: &str) -> HashSet<String> {
+pub fn scan_file_events(source: &str) -> FxHashSet<String> {
     let bytes = source.as_bytes();
-    let mut out = HashSet::new();
+    let mut out = FxHashSet::default();
     for (pos, _) in source.match_indices("when") {
         // `\b` before `when`: the preceding byte must be a non-word char.
         if pos > 0 && is_word_byte(bytes[pos - 1]) {
@@ -287,9 +285,9 @@ const fn is_word_byte(b: u8) -> bool {
     b == b'_' || b.is_ascii_alphanumeric()
 }
 
-// Full static data — auto-generated from Python namespace_data.py
+// Full static data — auto-generated.
 
-// AUTO-GENERATED from Python namespace_data.py — do not edit manually
+// AUTO-GENERATED — do not edit manually
 
 fn profile_specs() -> Vec<ProfileSpec> {
     vec![
@@ -623,8 +621,7 @@ fn profile_specs() -> Vec<ProfileSpec> {
         },
         ProfileSpec {
             name: "PERSIST",
-            // Side-independent (shared) TLS/persistence layer — mirrors
-            // Python `_PROFILE_LAYERS["PERSIST"] == "tls_shared"`. Stack
+            // Side-independent (shared) TLS/persistence layer. Stack
             // infrastructure, not an operator-selected profile.
             layer: "tls_shared",
             side: "both",
@@ -762,8 +759,7 @@ fn profile_specs() -> Vec<ProfileSpec> {
         },
         ProfileSpec {
             name: "SSL_PERSISTENCE",
-            // Side-independent (shared) TLS layer — mirrors Python
-            // `_PROFILE_LAYERS["SSL_PERSISTENCE"] == "tls_shared"`. Stack
+            // Side-independent (shared) TLS layer. Stack
             // infrastructure, not an operator-selected profile.
             layer: "tls_shared",
             side: "client",

@@ -1,10 +1,9 @@
 //! `PyO3` wrappers for the `tcl_lexer` token types.
 //!
-//! These types mirror the Python API of `core.parsing.tokens` exactly so
-//! that the existing pytest suite continues to pass when the Python module
-//! re-exports them. The wrappers are deliberately the only place where
-//! Python compatibility leaks in: the underlying [`tcl_lexer`] crate
-//! stays Python-agnostic, and Rust callers consume those types directly.
+//! These types expose the lexer token data to Python. The wrappers are
+//! deliberately the only place where Python compatibility leaks in: the
+//! underlying [`tcl_lexer`] crate stays Python-agnostic, and Rust callers
+//! consume those types directly.
 //!
 //! The wrappers own their text (via `String`) because Python objects can
 //! outlive the source buffer they were lexed from, and the source buffer
@@ -12,15 +11,14 @@
 
 use pyo3::prelude::*;
 
-use tcl_lexer::{SourcePosition as CoreSourcePosition, TokenType as CoreTokenType};
+use tcl_lexer::{ByteCol, SourcePosition as CoreSourcePosition, TokenType as CoreTokenType};
 
 /// `enum.Enum`-style token kind exposed to Python as
-/// `tcl_lsp_py.TokenType` (also reachable via the legacy
-/// `tcl_lsp_rust.TokenType` alias for the transition window).
+/// `tcl_lsp_py.TokenType` (also reachable via the
+/// `tcl_lsp_rust.TokenType` alias).
 ///
-/// Variants carry explicit discriminants matching the order of the
-/// original Python `auto()` declarations (1-indexed) so `TokenType.X.value`
-/// stays stable across the Rust port and any external scripts that
+/// Variants carry explicit 1-indexed discriminants so `TokenType.X.value`
+/// stays stable for any external scripts that
 /// happened to read it.
 #[pyclass(
     name = "TokenType",
@@ -74,7 +72,7 @@ impl PyTokenType {
         CoreTokenType::from(*self).name()
     }
 
-    /// Numeric discriminant. Mirrors `enum.Enum.value`.
+    /// Numeric discriminant.
     #[getter]
     fn value(&self) -> u32 {
         *self as u32
@@ -122,8 +120,8 @@ impl From<PyTokenType> for CoreTokenType {
 }
 
 /// A position in source text. Exposed to Python as
-/// `tcl_lsp_py.SourcePosition` (also reachable via the legacy
-/// `tcl_lsp_rust.SourcePosition` alias for the transition window).
+/// `tcl_lsp_py.SourcePosition` (also reachable via the
+/// `tcl_lsp_rust.SourcePosition` alias).
 #[pyclass(
     name = "SourcePosition",
     eq,
@@ -159,7 +157,7 @@ impl PySourcePosition {
     #[pyo3(signature = (line, character, offset))]
     fn new(line: u32, character: u32, offset: u32) -> Self {
         Self {
-            inner: CoreSourcePosition::new(line, character, offset),
+            inner: CoreSourcePosition::new(line, ByteCol::new(character), offset),
         }
     }
 
@@ -170,7 +168,7 @@ impl PySourcePosition {
 
     #[getter]
     fn character(&self) -> u32 {
-        self.inner.character
+        self.inner.character.get()
     }
 
     #[getter]
@@ -187,12 +185,11 @@ impl PySourcePosition {
 }
 
 /// A token: kind, text, source range, quoting context. Exposed to Python
-/// as `tcl_lsp_py.Token` (also reachable via the legacy
-/// `tcl_lsp_rust.Token` alias for the transition window).
+/// as `tcl_lsp_py.Token` (also reachable via the
+/// `tcl_lsp_rust.Token` alias).
 ///
-/// Owns its text as `String`. The original Python dataclass was frozen
-/// (`@dataclass(frozen=True, slots=True)`) and Rust enforces the same
-/// invariant via `#[pyclass(frozen)]`.
+/// Owns its text as `String` and is immutable from Python — the type is
+/// `#[pyclass(frozen)]`.
 #[pyclass(
     name = "Token",
     eq,
@@ -214,7 +211,7 @@ impl PyToken {
     /// Rust-side constructor used by other binding modules (notably
     /// `crate::lexer`) when lifting a pure-Rust `tcl_lexer::Token<'_>`
     /// into a Python-visible `PyToken`. Separate from `#[new]` so the
-    /// signature stays Rust-friendly; the Python `__init__` is a thin
+    /// signature stays Rust-friendly; `__init__` is a thin
     /// wrapper that delegates here.
     #[must_use]
     pub fn new_from_core(
@@ -258,11 +255,11 @@ impl PyToken {
     /// Rust field is named `kind` because `type` is a reserved keyword.
     ///
     /// The getter resolves the variant via a class-attribute lookup on
-    /// the Python `TokenType` class so callers get the cached singleton
-    /// (`tok.type is TokenType.ESC` is `True`). 200+ call sites in the
-    /// existing Python codebase rely on `is`-comparison; if this getter
-    /// returned a fresh `PyTokenType` value instead they would all
-    /// silently start failing.
+    /// `TokenType` class so callers get the cached singleton
+    /// (`tok.type is TokenType.ESC` is `True`). Callers rely on
+    /// identity comparison; if this getter returned a fresh
+    /// `PyTokenType` value instead they would all silently start
+    /// failing.
     #[getter]
     #[pyo3(name = "type")]
     fn token_type<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
@@ -304,8 +301,8 @@ impl PyToken {
 
 /// Register the token types with a `#[pymodule]`.
 ///
-/// Called from `lib.rs` so the registration list stays in one place per
-/// chunk: as more domain types arrive, they all get one
+/// Called from `lib.rs` so the registration list stays in one place:
+/// as more domain types arrive, they all get one
 /// `register_with(m)` call.
 pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyTokenType>()?;

@@ -1,5 +1,4 @@
-//! Formatting provider — Rust port of
-//! `lsp/features/formatting.py` + `core/formatting/`.
+//! Formatting provider.
 //!
 //! [`formatting`] produces a single full-document `TextEdit`
 //! by running the token-aware [`engine::format_tcl`] with a
@@ -25,9 +24,8 @@
 //! `textDocument/rangeFormatting` ("format selection") leaves
 //! the rest of the document untouched.
 //!
-//! What is still *deferred*: docstring reflow and the
-//! expr-brace knobs (tracked under `S-formatting` /
-//! `F-tcl-formatter`).
+//! Docstring reflow and the expr-brace knobs are not
+//! implemented.
 
 pub mod config;
 pub mod engine;
@@ -76,7 +74,7 @@ pub fn formatting_with(
             start_line: 0,
             start_character: 0,
             end_line: end_pos.line,
-            end_character: end_pos.character,
+            end_character: end_pos.character.get(),
         },
         new_text: formatted,
     }]
@@ -176,7 +174,7 @@ pub fn range_formatting(
             start_line,
             start_character: 0,
             end_line: end_pos.line,
-            end_character: end_pos.character,
+            end_character: end_pos.character.get(),
         }
     };
     vec![TextEdit {

@@ -1,7 +1,7 @@
 //! Pluggable output renderers for the query DSL.
 //!
-//! Faithful port of `dialects/f5/query/renderers/__init__.py` plus the three
-//! built-in renderer modules (`mermaid`, `gantt`, `ascii-blocks`).
+//! Covers the renderer registry plus the three built-in renderer modules
+//! (`mermaid`, `gantt`, `ascii-blocks`).
 //!
 //! Renderers turn the flattened evaluator value list into a human-readable
 //! string. They sit alongside the built-in output modes in
@@ -9,10 +9,9 @@
 //! `f5 query --render NAME` (with `--render-opt KEY=VALUE` per-renderer
 //! options).
 //!
-//! Unlike the Python implementation — which self-registers each renderer on
-//! import via the `@renderer` decorator — the Rust port keeps a small static
-//! registry built on first use. The renderer contract is the same: a
-//! callable `(values, &opts) -> Result<String, QueryError>` that parses and
+//! Renderers are not self-registering; a small static registry is built on
+//! first use. The renderer contract is a callable
+//! `(values, &opts) -> Result<String, QueryError>` that parses and
 //! validates its own options and raises [`QueryError::Renderer`] for
 //! caller-visible problems.
 
@@ -28,7 +27,7 @@ mod mermaid;
 /// The implementation signature shared by every renderer.
 type RenderFn = fn(&[Value], &BTreeMap<String, String>) -> Result<String, QueryError>;
 
-/// Metadata for one registered renderer — port of `RendererSpec`.
+/// Metadata for one registered renderer.
 ///
 /// `accepts` is a short free-text shape hint shown by `--help-renderers`; the
 /// registry does not enforce it.
@@ -43,7 +42,7 @@ pub struct RendererSpec {
 /// The static catalogue of built-in renderers, sorted by name.
 ///
 /// Sorted at definition time so [`list_renderers`] and the registered-names
-/// list in error messages match Python's `sorted(..., key=name)` output.
+/// list in error messages is sorted by name.
 const REGISTRY: &[RendererSpec] = &[
     RendererSpec {
         name: "ascii-blocks",
@@ -85,22 +84,20 @@ const REGISTRY: &[RendererSpec] = &[
     },
 ];
 
-/// Return the spec for *name*, or `None` if no such renderer — port of
-/// `renderers.lookup`.
+/// Return the spec for *name*, or `None` if no such renderer.
 #[must_use]
 pub fn lookup(name: &str) -> Option<&'static RendererSpec> {
     REGISTRY.iter().find(|s| s.name == name)
 }
 
-/// Return every registered renderer, sorted by name — port of
-/// `renderers.list_renderers`. The static [`REGISTRY`] is already sorted.
+/// Return every registered renderer, sorted by name. The static [`REGISTRY`]
+/// is already sorted.
 #[must_use]
 pub fn list_renderers() -> &'static [RendererSpec] {
     REGISTRY
 }
 
-/// Look up *name* and dispatch the renderer with *values* and *opts* — port
-/// of `renderers.render`.
+/// Look up *name* and dispatch the renderer with *values* and *opts*.
 ///
 /// # Errors
 ///

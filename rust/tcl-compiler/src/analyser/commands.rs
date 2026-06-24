@@ -1,30 +1,12 @@
-//! Central command dispatch — Rust port of the core handler-call
-//! portion of ``_AnalyserCommandsMixin._process_command`` in
-//! ``core/analysis/_analyser/_commands.py:118-540``.
+//! Central command dispatch.
 //!
 //! Walks one segmented Tcl command and routes it through the
-//! per-command handlers landed in C41b1-C41b6. The Python source
-//! is ~466 LOC because it interleaves several concerns:
-//!
-//! 1. **Handler dispatch** (this strip — C41b7).
-//! 2. Var/cmd-as-command site recording for W307 — deferred to
-//!    **C41d3**.
-//! 3. W125 (orphaned control-flow keyword) — deferred to
-//!    **C41d5** (`_diag_branches.py` orchestration).
-//! 4. IRULE5005 (direct iRules-proc call without ``call``) —
-//!    deferred to **C41d6**.
-//! 5. Arity checks — already live in
-//!    ``compiler_checks::arity_checks``.
-//! 6. Sub-command resolution / unresolved-command tracking —
-//!    deferred to **C41d4**.
-//!
-//! C41b7 lands the core dispatch only — when later strips need
-//! to interleave additional concerns, they extend
-//! [`Analyser::process_command`] in place rather than each
-//! adding a parallel walker. The dispatch shape is a series of
-//! ``if let true = self.handle_xxx(...) { return }`` calls so
-//! extending it remains a one-liner.
+//! per-command handlers. The dispatch shape is a series of
+//! ``if let true = self.handle_xxx(...) { return }`` calls, so
+//! adding a new handler or interleaving an additional concern
+//! remains a one-liner.
 
+use tcl_core_types::DiagCode;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
@@ -35,11 +17,18 @@ use crate::segmenter::SegmentedCommand;
 use super::state::Analyser;
 use super::types::{CodeFix, Diagnostic, Severity};
 
+/// Maximum nested-body recursion depth for [`Analyser::analyse_body`].
+/// `analyse_body` ↔ `process_command` ↔ `dispatch_body_arguments`
+/// recurse one frame group per braced-body nesting level; generated /
+/// minified Tcl and machine-emitted iRules can nest deeply enough to
+/// overflow the stack — an uncatchable SIGABRT that crashes the LSP
+/// diagnostics worker and the `tcl diag` / `lint` / `validate` CLIs. At
+/// the cap we stop descending into further nested bodies (the diagnostics
+/// already collected stand); no real source nests anywhere near this.
+const MAX_BODY_DEPTH: u32 = 256;
+
 /// Parent command for a control-flow keyword that is only valid as an
 /// argument *within* a parent command, or `None` for any other name.
-///
-/// Mirrors `_ORPHANED_KEYWORDS` in
-/// `analyser/_analyser/_commands.py:118` — keyword → parent command.
 fn orphaned_keyword_parent(cmd_name: &str) -> Option<&'static str> {
     match cmd_name {
         "else" | "elseif" | "then" => Some("if"),
@@ -52,44 +41,39 @@ impl Analyser {
     /// Re-segment a body script and dispatch each command at
     /// `scope_path`.
     ///
-    /// Mirrors the post-segmentation portion of
-    /// `_analyse_body_inner` in
-    /// `core/analysis/_analyser/_core.py:438-524` — the analyser-
-    /// side of body recursion. Used by every body-walking handler
-    /// (`handle_proc_command`, `handle_switch_command`,
-    /// `handle_try_command`, `handle_catch_command`, etc.).
+    /// Used by every body-walking handler (`handle_proc_command`,
+    /// `handle_switch_command`, `handle_try_command`,
+    /// `handle_catch_command`, etc.).
     ///
     /// Body recursion does **not** use the segmenter's re-segmentation
-    /// recovery (Seg2) — that splits a runaway top-level command and only
+    /// recovery — that splits a runaway top-level command and only
     /// fires at the top level. The per-command syntax *detectors* (E100 /
     /// E102 stray closers, E201 unterminated `[`, E202 unterminated `"`,
-    /// E203 unterminated `{`) do run on every body, matching Python's
-    /// `_analyse_body_inner`, whose `segment_with_recovery(source,
-    /// body_token)` runs the same detectors over body content.
-    /// Dynamic bodies (`$body`, `[gen]`) are skipped because they
-    /// can't be statically re-segmented.
+    /// E203 unterminated `{`) do run on every body. Dynamic bodies
+    /// (`$body`, `[gen]`) are skipped because they can't be statically
+    /// re-segmented.
     ///
     /// `body_depth` is bumped for the duration of the walk so
-    /// top-level-only command checks (deferred to **C41d**) can
-    /// distinguish nested invocations.
-    ///
-    /// **Deferred concerns** (each gets its own future strip):
-    /// var-read recording for `VAR` tokens, `CMD`-substitution
-    /// recursion, preceding-comment harvesting, and the
-    /// recovery hooks (`recover_stray_close_bracket`,
-    /// `recover_missing_open_brace`).  This helper covers the
-    /// minimal subset C41c needs.
+    /// top-level-only command checks can distinguish nested
+    /// invocations.
     pub(super) fn analyse_body(&mut self, body_text: &str, body_tok: Token, scope_path: &[usize]) {
         if body_tok.kind != TokenType::Str {
             return;
         }
         self.body_depth += 1;
+        if self.body_depth > MAX_BODY_DEPTH {
+            // stop descending before the recursive body walk
+            // overflows the stack. Restore the depth and return — the
+            // diagnostics collected up to this nesting level still stand.
+            self.body_depth -= 1;
+            return;
+        }
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         // Absolute byte offset at which this body region ends. The E202 /
         // E203 detectors test "reaches end of region" against this, not the
         // whole document — the body's tokens are absolute spans into
         // `self.source`, but a runaway `"` / `{` only swallows to the body's
-        // own end. Mirrors Python's `base_offset + len(source)` arithmetic.
+        // own end.
         let region_end = base_offset as usize + body_text.len();
         let body_commands = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
@@ -105,10 +89,10 @@ impl Analyser {
                 continue;
             }
             if cmd_ref.is_partial {
-                // GAP-A1: an unterminated `"` / `{` emits the precise E202 /
+                // An unterminated `"` / `{` emits the precise E202 /
                 // E203 (with a closing-delimiter fix) ahead of the generic
-                // E200, mirroring the top-level `walk_commands_top_level`
-                // branch.  **C41e5.** Stolen-close-brace detection ⇒ E103
+                // E200, matching the top-level `walk_commands_top_level`
+                // branch. Stolen-close-brace detection ⇒ E103
                 // (brace partials only); otherwise the generic E200 fires so
                 // the user still sees a parse-error diagnostic.
                 let brace_partial = matches!(
@@ -123,12 +107,9 @@ impl Analyser {
                 cmd_idx += 1;
                 continue;
             }
-            // GAP-A6 follow-up: run the E100 (stray `]`) / E102
-            // (stray `}`) token checks on every analysed body, not
-            // just the top level — mirrors Python's
-            // ``_UNIVERSAL_CHECKS`` (`check_unmatched_close_bracket`
-            // / `check_unmatched_close_brace`) running on every
-            // command.  Run on the *original* token stream before
+            // Run the E100 (stray `]`) / E102 (stray `}`) token
+            // checks on every analysed body, not just the top
+            // level. Run on the *original* token stream before
             // ``recover_stray_close_bracket`` repairs the clone,
             // matching the top-level loop's ordering.  Token spans
             // are absolute into the full document, so the full
@@ -142,9 +123,10 @@ impl Analyser {
             // E201 (unterminated `[`) inside a body — `proc p {} { set y
             // [foo }`.  The CST auto-closes the bracket so the command isn't
             // flagged `is_partial`, but the source carries no real `]`, so
-            // it would otherwise go unreported.  Mirror the top-level
-            // `emit_syntax_recovery_diagnostics` E201 detector (the
-            // top-level ghost-recovery doesn't reach into body scripts).
+            // it would otherwise go unreported.  Run the same E201
+            // detector as `emit_syntax_recovery_diagnostics` at the
+            // top level (the top-level ghost-recovery doesn't reach
+            // into body scripts).
             let e201 = super::syntax_checks::unterminated_bracket_diagnostics(
                 cmd_ref,
                 &self.source,
@@ -155,21 +137,18 @@ impl Analyser {
             // body — `proc p {} { set x "\n puts hi }`.  The brace word the
             // body sits in is balanced, so the body re-segments cleanly and
             // the run-away quote/brace is a non-partial command whose token
-            // reaches the body's end.  Mirror the top-level
-            // `emit_syntax_recovery_diagnostics` E202/E203 detector, which
-            // the top-level ghost-recovery doesn't reach into body scripts —
-            // matching Python's `_analyse_body_inner`, whose
-            // `segment_with_recovery` runs the same detectors on every body.
+            // reaches the body's end.  Run the same E202/E203 detector
+            // as `emit_syntax_recovery_diagnostics` at the top level,
+            // which the top-level ghost-recovery doesn't reach into body
+            // scripts.
             self.emit_unterminated_delimiter_diagnostics(cmd_ref, region_end);
             let mut cmd = cmd_ref.clone();
-            // **C41e4.** Repair stray ``]`` (missing ``[``) so
-            // downstream handlers see the intended argv shape
-            // before dispatch.
+            // Repair stray ``]`` (missing ``[``) so downstream
+            // handlers see the intended argv shape before dispatch.
             self.recover_stray_close_bracket(&mut cmd);
-            // **C41e5.** Splice orphaned switch case pairs
-            // when ``{`` was forgotten.  The returned count is
-            // added to ``cmd_idx`` so we skip past the consumed
-            // orphans.
+            // Splice orphaned switch case pairs when ``{`` was
+            // forgotten.  The returned count is added to ``cmd_idx``
+            // so we skip past the consumed orphans.
             let consumed = self.recover_missing_open_brace(&mut cmd, &body_commands, cmd_idx);
             // ``# noqa`` directives in the preceding-comment
             // attribute to this command's line range — same
@@ -189,10 +168,9 @@ impl Analyser {
                 scope_path,
             );
             self.emit_w216_brace_then_paren(&cmd);
-            // `S-document-highlight-rich` / `S-references-rich`
-            // follow-up: record every `$var` substitution in
-            // arg positions so `VarDef.references` carries the
-            // read spans the LSP providers consume.
+            // Record every `$var` substitution in arg positions so
+            // `VarDef.references` carries the read spans the LSP
+            // providers consume.
             self.record_arg_var_reads(&cmd, scope_path);
             cmd_idx += 1 + consumed;
         }
@@ -201,15 +179,11 @@ impl Analyser {
 
     /// Process a single segmented command.
     ///
-    /// Mirrors the **handler-dispatch** subset of
-    /// ``_process_command`` in
-    /// ``core/analysis/_analyser/_commands.py:118-540``. Walks
-    /// `args` against every handler in C41b1-C41b6 and stops at
-    /// the first match. Non-matching commands fall through
-    /// silently — they're either unknown (W123 emitter handles
-    /// reporting in **C41d4**) or registry-known commands that
-    /// don't need analyser-side intervention (the IR pass does
-    /// the heavy lifting).
+    /// Walks `args` against every handler and stops at the first
+    /// match. Non-matching commands fall through silently —
+    /// they're either unknown (the W123 emitter handles reporting)
+    /// or registry-known commands that don't need analyser-side
+    /// intervention (the IR pass does the heavy lifting).
     ///
     /// `argv_texts` and `arg_tokens` parallel each other:
     /// `argv_texts[0]` is the command name, `argv_texts[1..]`
@@ -218,14 +192,9 @@ impl Analyser {
     /// whether each word is a single atomic token (used by
     /// ``handle_set_command`` for the const-string heuristic).
     ///
-    /// Deferred concerns (each gets its own future strip — see
-    /// the module docstring): var-as-command site recording,
-    /// W125 / IRULE5005 emission, sub-command resolution,
-    /// command-invocation recording with resolved-qname annotation.
-    /// Simple-command arity (E002 / E003) lands here via
-    /// [`Self::emit_arity_diagnostics`] (SYNC-MAY21-3); the
-    /// candidates are flushed post-walk by
-    /// [`Self::flush_arity_diagnostics`].
+    /// Simple-command arity (E002 / E003) is emitted here via
+    /// [`Self::emit_arity_diagnostics`]; the candidates are
+    /// flushed post-walk by [`Self::flush_arity_diagnostics`].
     #[allow(clippy::too_many_lines)]
     pub fn process_command(
         &mut self,
@@ -255,12 +224,9 @@ impl Analyser {
             &[]
         };
 
-        // **C41d4.** Record this invocation so the post-walk
+        // Record this invocation so the post-walk
         // ``emit_unresolved_command_diagnostics`` (W123) can iterate
-        // every command head the analyser visited.  Mirrors the
-        // matching ``self.result.command_invocations.append(...)``
-        // call in ``_AnalyserCommandsMixin._process_command``
-        // (``core/analysis/_analyser/_commands.py``).  ``inv.range``
+        // every command head the analyser visited.  ``inv.range``
         // anchors at the command-head token so the W123 message
         // points at the unresolved name rather than the whole
         // command line.
@@ -273,7 +239,7 @@ impl Analyser {
         // `file_decls_corpus` corpus test).
         if !self.structure_only {
             let resolved = self.resolve_command_qualified_name(cmd_name);
-            // Argument count for cross-file arity checking (Task 6).  A `{*}`-
+            // Argument count for cross-file arity checking.  A `{*}`-
             // expanded argument makes the runtime count unknown, so record `None`
             // and let arity checking skip conservatively.
             let arg_count = if arg_expand_in.iter().skip(1).copied().any(|e| e) {
@@ -293,9 +259,7 @@ impl Analyser {
             // iRules ``call PROC ARG...`` — record an additional
             // ``CommandInvocation`` for the target proc so that
             // references, rename, and call-hierarchy see through the
-            // indirection.  Mirrors
-            // ``_AnalyserCommandsMixin._process_command`` line 231 in
-            // ``core/analysis/_analyser/_commands.py``.
+            // indirection.
             if cmd_name == "call"
                 && self.dialect == "f5-irules"
                 && let (Some(target_name), Some(target_tok)) =
@@ -316,9 +280,7 @@ impl Analyser {
 
             // Walk every argument's source slice for ``[cmd ...]``
             // substitutions and record each nested head as its own
-            // ``CommandInvocation``.  Mirrors ``_iter_nested_invocations``
-            // in ``_AnalyserCommandsMixin._record_command_invocation``
-            // (Python).
+            // ``CommandInvocation``.
             self.record_nested_invocations_from_args(cmd_name, args, arg_tokens_in);
 
             // Run the per-command syntactic checks on commands nested inside
@@ -326,9 +288,8 @@ impl Analyser {
             // substitution (it treats `[cmd …]` as a value), so a command
             // like `set fh [open "|$cmd" r]` or `set x [string index abc 99]`
             // would otherwise escape the security / bounds / arity / style
-            // families entirely.  Mirrors main's ``_recurse_nested_commands``
-            // re-running ``run_all_checks`` on each descended substitution
-            // command.
+            // families entirely.  Re-runs the per-command checks on each
+            // descended substitution command.
             self.run_nested_command_diagnostics(arg_tokens_in, scope_path);
 
             // Run the per-command syntactic + EXPR checks on commands nested
@@ -336,23 +297,18 @@ impl Analyser {
             // argument (`if { [matchclass …] }`, `while { [done $x] }`).
             // The bare-`Cmd` walk above never enters a braced `Str` expr
             // arg, so those substitution commands would otherwise escape
-            // every per-command check (IRULE2001/2002, W100, …).  Mirrors
-            // main's ``_recurse_expression_subcommands``.
+            // every per-command check (IRULE2001/2002, W100, …).
             self.run_nested_expr_diagnostics(cmd_name, args, arg_tokens, scope_path);
 
-            // **C41d3.** Record variable-as-command and
+            // Record variable-as-command and
             // command-substitution-as-command call sites so the
             // post-walk W307 / W308 emitters can resolve them.
-            // Mirrors the inline recording in
-            // ``_AnalyserCommandsMixin._process_command``
-            // (``_commands.py:182-198``).
             self.record_var_or_cmd_command_site(cmd_tok, args, scope_path);
 
             // W125 (orphaned control-flow keyword) and IRULE5005 (direct
             // iRules-proc call without `call`) — both key off whether the
             // command head resolves to a user proc, so they share one
-            // resolution.  Mirrors the W125 / IRULE5005 blocks of
-            // ``_AnalyserCommandsMixin._process_command``.
+            // resolution.
             self.emit_proc_resolution_diagnostics(cmd_name, args, cmd_tok, scope_path);
 
             // Record TclOO instance creation (`set v [Cls new]`,
@@ -404,8 +360,7 @@ impl Analyser {
             return;
         }
 
-        // oo::class create / oo::define — class records + body
-        // walk (C41e1 / C41e2 fill in the body walks).
+        // oo::class create / oo::define — class records + body walk.
         if self.handle_oo_class_command(cmd_name, args, arg_tokens, scope_path) {
             return;
         }
@@ -432,8 +387,8 @@ impl Analyser {
             return;
         }
 
-        // foreach / for / switch / catch / try — entry shims;
-        // body recursion lands in C41f1.
+        // foreach / for / switch / catch / try — entry shims that
+        // recurse into their braced bodies.
         if self.handle_foreach_command(cmd_name, args, arg_tokens, scope_path) {
             return;
         }
@@ -478,27 +433,23 @@ impl Analyser {
         // interpreter at runtime; ``rename`` can introduce new
         // command names dynamically.  Both make static W123
         // unknown-command analysis unreliable, so the flag
-        // suppresses those diagnostics on the document.  Mirrors
-        // Python's ``_commands.py`` behaviour.
+        // suppresses those diagnostics on the document.
         if matches!(cmd_name, "load" | "rename") {
             self.result.has_dynamic_providers = true;
         }
 
         // Generic body recursion via the command registry's
-        // `ArgRole::Body`.  Mirrors the `iter_body_arguments` loop
-        // in `_AnalyserCommandsMixin._process_command` (Python).
-        // Picks up `if` / `while` / `when` / `eval` / `uplevel`
-        // / `subst` / etc. — every command whose registry spec
-        // marks an argument index as `BODY`.  The dedicated
-        // `handle_*_command` calls above already returned early
-        // for the commands they own (proc, oo::class, oo::define,
-        // namespace eval, foreach, for, switch, catch, try), so
-        // this loop only fires for the rest.
+        // `ArgRole::Body`.  Picks up `if` / `while` / `when` /
+        // `eval` / `uplevel` / `subst` / etc. — every command whose
+        // registry spec marks an argument index as `BODY`.  The
+        // dedicated `handle_*_command` calls above already returned
+        // early for the commands they own (proc, oo::class,
+        // oo::define, namespace eval, foreach, for, switch, catch,
+        // try), so this loop only fires for the rest.
         //
         // For `when EVENT { body }` the iRules dialect spec
         // marks arg 1 as BODY; set `current_event` for the body
-        // walk so race-detection diagnostics see the event
-        // name, mirroring the Python behaviour.
+        // walk so race-detection diagnostics see the event name.
         self.dispatch_body_arguments(cmd_name, args, arg_tokens, arg_single, scope_path);
     }
 
@@ -515,9 +466,7 @@ impl Analyser {
     ///   iRules event body, where Tcl-on-TMM requires `call PROC ARGS`.
     ///   Ships a `call PROC`-rewrite [`CodeFix`].
     ///
-    /// Mirrors the W125 (`analyser/_analyser/_commands.py:171`) and
-    /// IRULE5005 (`:228`) blocks of `_process_command`; the proc is
-    /// resolved once and shared between both checks.
+    /// The proc is resolved once and shared between both checks.
     pub(super) fn emit_proc_resolution_diagnostics(
         &mut self,
         cmd_name: &str,
@@ -535,7 +484,7 @@ impl Analyser {
                 .is_none_or(|r| r.get(cmd_name).is_none())
         {
             self.result.diagnostics.push(Diagnostic {
-                code: "W125".to_string(),
+                code: DiagCode::W125,
                 span: cmd_tok.span,
                 message: format!(
                     "\"{cmd_name}\" used as standalone command — should be part of \
@@ -557,7 +506,7 @@ impl Analyser {
                 format!(" {}", args.join(" "))
             };
             self.result.diagnostics.push(Diagnostic {
-                code: "IRULE5005".to_string(),
+                code: DiagCode::Irule5005,
                 span: cmd_tok.span,
                 message: format!(
                     "iRules procs must be invoked with 'call': call {cmd_name}{suffix}"
@@ -576,27 +525,20 @@ impl Analyser {
     /// [`Self::process_command`] before the early-returning handlers so
     /// option-bearing / body-owning commands still get checked.
     ///
-    /// - **W302** (`catch` without a result variable) — `IRCatch` arm
-    ///   of `_check_statement` (`compiler_checks.py:491-504`); fires
-    ///   before the early-returning `handle_catch_command`.
+    /// - **W302** (`catch` without a result variable) — fires before
+    ///   the early-returning `handle_catch_command`.
     /// - **W001** (unknown subcommand on a `SubcommandSig` command) —
-    ///   `SubcommandSig` branch of `_check_arity`
-    ///   (`compiler_checks.py:580-643`); before
-    ///   `handle_namespace_eval_command` so `namespace foo` is flagged.
-    /// - **E004** (malformed `if`) — `IRBarrier` arm of
-    ///   `_check_statement` (`compiler_checks.py:506-525`).
-    /// - **W101** (`eval` with substituted args) —
-    ///   `check_eval_string_concat` (`checks/_security.py:19-73`);
-    ///   before body-walk dispatch so the `ArgRole::Body` recursion
-    ///   into the `eval` body still runs.
-    /// - **W304** (missing `--` option terminator) —
-    ///   `check_missing_option_terminator` (`checks/_style.py:506-679`),
-    ///   driven by the registry's option-terminator profile.
-    /// - **W004** (option not available in the active dialect,
-    ///   SYNC-MAY19-W003-W004) — `check_dialect_invalid_option`
-    ///   (`checks/_domain.py`, PR #433).
-    /// - **E002 / E003** (arity, SYNC-MAY21-3) — collected here and
-    ///   flushed post-walk by [`Self::flush_arity_diagnostics`].
+    ///   before `handle_namespace_eval_command` so `namespace foo` is
+    ///   flagged.
+    /// - **E004** (malformed `if`).
+    /// - **W101** (`eval` with substituted args) — before body-walk
+    ///   dispatch so the `ArgRole::Body` recursion into the `eval`
+    ///   body still runs.
+    /// - **W304** (missing `--` option terminator) — driven by the
+    ///   registry's option-terminator profile.
+    /// - **W004** (option not available in the active dialect).
+    /// - **E002 / E003** (arity) — collected here and flushed
+    ///   post-walk by [`Self::flush_arity_diagnostics`].
     #[allow(clippy::too_many_arguments)]
     fn emit_dispatch_site_diagnostics(
         &mut self,
@@ -618,7 +560,7 @@ impl Analyser {
         }
         self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
         // W102 / W103 / W300 / W301 / W309 / W312 security-injection
-        // checks (GAP-A2), ported from `core/analysis/checks/_security.py`.
+        // checks.
         self.emit_w102_subst_injection(cmd_name, args, arg_tokens);
         self.emit_w103_open_pipeline(cmd_name, args, arg_tokens, arg_single);
         self.emit_w300_source_variable(cmd_name, args, arg_tokens);
@@ -632,8 +574,8 @@ impl Analyser {
         self.emit_w310_hardcoded_credentials(cmd_name, args, arg_tokens);
         // IRULE2002: deprecated iRules command (f5-irules only).
         self.emit_irule2002_deprecated_command(cmd_name, cmd_tok);
-        // IRULE2001: deprecated `matchclass` (f5-irules only).  Python
-        // fires this alongside IRULE2002 at the same command-head span.
+        // IRULE2001: deprecated `matchclass` (f5-irules only).  Fires
+        // alongside IRULE2002 at the same command-head span.
         self.emit_irule2001_matchclass(cmd_name, arg_tokens, cmd_tok);
         // IRULE1003 / 1004 / 2101 / 4001 / 4003 / 5001 / 6001 —
         // analyser-level iRules event-context checks (f5-irules only).
@@ -648,7 +590,7 @@ impl Analyser {
         self.emit_w200_binary_format_modifiers(cmd_name, args, arg_tokens);
         self.emit_w121_invalid_subnet_mask(args, arg_tokens);
         self.emit_w108_non_ascii(arg_tokens);
-        // W240 / W241 loop-termination + W230 / W232 index-bounds (GAP-A4).
+        // W240 / W241 loop-termination + W230 / W232 index-bounds.
         let loop_diags =
             super::bounds_checks::loop_termination_diagnostics(cmd_name, args, arg_tokens);
         self.result.diagnostics.extend(loop_diags);
@@ -673,13 +615,9 @@ impl Analyser {
     }
 
     /// Generic EXPR-argument walk via the command registry's
-    /// `ArgRole::Expr`.  Mirrors the EXPR slice of
-    /// `iter_body_arguments` plus the explicit per-check
-    /// dispatchers in `core/analysis/checks/_style.py`.
-    /// Currently invokes the W110 emitter on each EXPR-role
-    /// argument.  For `expr`, multi-arg invocations are joined
-    /// with spaces before the W110 walk — matches Python's
-    /// `expr_text = " ".join(args)` special-case.
+    /// `ArgRole::Expr`.  Currently invokes the W110 emitter on each
+    /// EXPR-role argument.  For `expr`, multi-arg invocations are
+    /// joined with spaces before the W110 walk.
     fn dispatch_expr_arguments(&mut self, cmd_name: &str, args: &[String], arg_tokens: &[Token]) {
         let Some(registry) = self.registry.as_ref() else {
             return;
@@ -695,21 +633,20 @@ impl Analyser {
         }
         indices.sort_unstable();
 
-        // W100 (GAP-A8): unbraced expression argument. Runs for every
+        // W100: unbraced expression argument. Runs for every
         // EXPR-role form, including the `expr 1 + 2` multi-word case
         // handled by the early return below.
         self.emit_w100_unbraced_expr(cmd_name, args, arg_tokens);
 
         // Special-case ``expr ...``: when the user wrote multiple
         // arguments (``expr $a == "x"`` instead of the more common
-        // ``expr {$a eq "x"}``), Python anchors W110 / W003 at the full
-        // argument token range and parses ``" ".join(args)`` — the
+        // ``expr {$a eq "x"}``), anchor W110 / W003 at the full
+        // argument token range and parse the joined arguments — the
         // *substituted* word values, with quote delimiters already
         // stripped by Tcl's word splitting.  So ``expr $a == "x"`` parses
         // as ``$a == x`` where ``x`` is a bareword, not an ``ExprString``,
         // and W110 (string ``==``) does NOT fire — matching what `expr`
-        // actually receives at runtime.  (The earlier source-slice text
-        // kept the quotes and over-fired W110 vs Python.)
+        // actually receives at runtime.
         if cmd_name == "expr" && args.len() > 1 && !arg_tokens.is_empty() {
             let span = tcl_lexer::Span::new(
                 arg_tokens[0].span.start(),
@@ -731,11 +668,9 @@ impl Analyser {
     }
 
     /// Generic body recursion via the command registry's
-    /// `ArgRole::Body`.  Mirrors the `iter_body_arguments` loop
-    /// in `_AnalyserCommandsMixin._process_command` (Python).
-    /// Picks up `if` / `while` / `when` / `eval` / `uplevel`
-    /// / `subst` / etc. — every command whose registry spec
-    /// marks an argument index as `BODY`.  Sets
+    /// `ArgRole::Body`.  Picks up `if` / `while` / `when` / `eval`
+    /// / `uplevel` / `subst` / etc. — every command whose registry
+    /// spec marks an argument index as `BODY`.  Sets
     /// ``current_event`` for ``when EVENT { body }`` and bumps
     /// ``conditional_depth`` for ``if`` / ``try``.  Emits W105
     /// before recursing into each body so the unbraced-body
@@ -758,10 +693,8 @@ impl Analyser {
         // `when`) is, under a plain-tcl dialect, an unknown user command whose
         // braced `{...}` is an ordinary string argument — not a script. So we
         // do NOT recurse into it (and do not fire W123/W002 on its contents).
-        // Python applies the iRules `when` BODY role even under tcl8.6, which
-        // leaks iRules semantics into non-iRules analysis; that divergence is
-        // intentional (Rust is the more-correct side). Analyse iRules under
-        // the f5-irules dialect, where `when` is a real body-owning command.
+        // Analyse iRules under the f5-irules dialect, where `when` is a real
+        // body-owning command.
         let body_indices = registry.arg_indices_for_role(
             cmd_name,
             &body_args,
@@ -802,9 +735,7 @@ impl Analyser {
     /// (``set x [helper $foo]``, ``puts "got [count $items]"``,
     /// ``if { [HTTP::uri] eq "/foo" }``) aren't tracked, which
     /// breaks workspace usage counts, find-references, rename,
-    /// and call-hierarchy.  Mirrors ``_iter_nested_invocations``
-    /// in ``_AnalyserCommandsMixin._record_command_invocation``
-    /// (Python).
+    /// and call-hierarchy.
     fn record_nested_invocations_from_args(
         &mut self,
         cmd_name: &str,
@@ -824,10 +755,11 @@ impl Analyser {
                 r.arg_indices_for_role(cmd_name, &arg_strs, ArgRole::Expr)
             })
             .unwrap_or_default();
-        // A command whose *name* is itself a substitution (`[x] hi`) — main's
-        // `_recurse_nested_commands` iterates every token including the head,
-        // so descend a `Cmd` head too (the head's *name* is recorded
-        // separately by `process_command`; this records what it substitutes).
+        // A command whose *name* is itself a substitution (`[x] hi`):
+        // descend a `Cmd` head too, since every token including the
+        // head can hold a nested invocation (the head's *name* is
+        // recorded separately by `process_command`; this records what
+        // it substitutes).
         if let Some(head) = arg_tokens_in.first()
             && head.kind == TokenType::Cmd
         {
@@ -845,8 +777,8 @@ impl Analyser {
             } else if arg_tok.kind == TokenType::Str {
                 // Braced word: scan its `[...]` substitutions only when it
                 // is an expression argument (substitutions are then active);
-                // a braced data word stays opaque (mirrors main, which never
-                // walks a non-expr braced word as a script).
+                // a braced data word stays opaque (a non-expr braced word
+                // is never walked as a script).
                 if expr_indices.contains(&(i - 1)) {
                     self.record_invocations_from_expr_token(*arg_tok);
                 }
@@ -862,16 +794,14 @@ impl Analyser {
     }
 
     /// Inner: ``Cmd`` (``[…]``) substitution tokens.  Descend the
-    /// substitution into a child CST ([`descend_token`]) and record
-    /// *every* inner command's bareword head, recursing into nested
-    /// ``[...]``.  Mirrors main's ``_recurse_nested_commands`` (segment
-    /// the substitution, process each command).
+    /// substitution into a child CST ([`descend_token`]), segment it,
+    /// and record *every* inner command's bareword head, recursing
+    /// into nested ``[...]``.
     ///
-    /// The previous flat [`first_command_head`] scan recorded only the
-    /// *first* head of each ``[...]``, so ``;``- / newline-separated
-    /// commands were dropped (`[foo; bar]` → only `foo`); the CST
-    /// descent finds them all (CST-CONSUMERS strip 1).  This is the
-    /// first production caller of the landed-but-unused `descend_token`.
+    /// A flat [`first_command_head`] scan would record only the
+    /// *first* head of each ``[...]``, dropping ``;``- / newline-
+    /// separated commands (`[foo; bar]` → only `foo`); the CST
+    /// descent finds them all.
     fn record_invocations_from_cmd_token(&mut self, arg_tok: Token) {
         let config = self.lexer_config();
         // Collect the inner heads first (this borrows `self.source`
@@ -886,9 +816,9 @@ impl Analyser {
             // span from the first fragment's start to the *last* fragment's
             // end.  Descending that merged span would re-lex the trailing
             // literal as a script and record a bogus head (`[foo]bar` →
-            // `foo]bar`).  Descend each `[…]` fragment instead, mirroring
-            // main's walk over the unmerged token stream; a single-fragment
-            // `[…]` word yields just itself.
+            // `foo]bar`).  Descend each `[…]` fragment instead, walking the
+            // unmerged token stream; a single-fragment `[…]` word yields
+            // just itself.
             for frag in self.cmd_fragments(arg_tok, config) {
                 collect_substitution_heads(&sm, self.registry.as_ref(), frag, config, &mut heads);
             }
@@ -906,9 +836,7 @@ impl Analyser {
     /// control-flow *bodies* (so those commands are already checked) but
     /// never a ``[…]`` substitution, which it treats as an opaque value —
     /// so `set fh [open "|$cmd" r]` / `set x [string index abc 99]` would
-    /// otherwise escape the per-command checks.  Mirrors main's
-    /// ``_recurse_nested_commands`` re-running ``run_all_checks`` on each
-    /// descended substitution command.
+    /// otherwise escape the per-command checks.
     ///
     /// Only ``[…]`` regions are entered here; everything reached from
     /// inside one is invisible to the main walk, so the recursion may
@@ -950,9 +878,7 @@ impl Analyser {
                     // commands escape every per-command check (IRULE3102, W123,
                     // …).  A braced `Str` data word's `[...]` is literal and is
                     // skipped; braced *expr* args are covered by
-                    // `run_nested_expr_diagnostics`.  Mirrors Python's
-                    // `_recurse_nested_commands` descending nested `Cmd` tokens
-                    // inside quoted words.
+                    // `run_nested_expr_diagnostics`.
                     TokenType::Esc => {
                         let arg_src = &self.source[start..end];
                         if !arg_src.contains('[') {
@@ -990,9 +916,7 @@ impl Analyser {
     /// argument is a `Str` (braced) token, so it is opaque to
     /// [`Self::run_nested_command_diagnostics`] (which only descends bare
     /// `Cmd` argument tokens) — yet the expression's `[…]` substitutions
-    /// are live commands the main walk never reaches.  Mirrors main's
-    /// ``_recurse_expression_subcommands`` re-running ``run_all_checks`` on
-    /// each substitution command found inside an EXPR-role argument.
+    /// are live commands the main walk never reaches.
     fn run_nested_expr_diagnostics(
         &mut self,
         cmd_name: &str,
@@ -1053,10 +977,9 @@ impl Analyser {
     /// ([`Self::emit_dispatch_site_diagnostics`]) plus the EXPR-argument
     /// walk ([`Self::dispatch_expr_arguments`], which hosts W100 / W110 /
     /// W114 / W003).  The main walk runs both on a top-level command but
-    /// only the syntactic half had been reaching substitution commands, so
-    /// an unbraced `expr` inside `[…]` (`set y [expr $a + $b]`) escaped
-    /// W100.  Mirrors main feeding nested commands through the same
-    /// ``run_all_checks`` entry point as top-level ones.
+    /// only the syntactic half reaches substitution commands by
+    /// default, so an unbraced `expr` inside `[…]`
+    /// (`set y [expr $a + $b]`) would otherwise escape W100.
     fn dispatch_nested_segment(&mut self, seg: &SegmentedCommand, scope_path: &[usize]) {
         if seg.texts.is_empty() || seg.argv.is_empty() {
             return;
@@ -1077,16 +1000,14 @@ impl Analyser {
         // call site too (`puts [$obj method]`, `if {[$obj ok]} …`).  The main
         // walk treats `[…]` as a value, so without this the W307 multi-dispatch
         // suppression under-counts `$obj` dispatches that live inside command
-        // substitutions and the W307/W308 emitters never see them — Python's
-        // nested `run_all_checks` recursion records every one.
+        // substitutions and the W307/W308 emitters never see them.
         self.record_var_or_cmd_command_site(cmd_tok, args, scope_path);
         // W125 (orphaned keyword) and IRULE5005 (direct iRules-proc call
         // without `call`) key off whether the head resolves to a user proc, so
         // they must reach substitution commands too: `when HTTP_REQUEST { set x
         // [helper] }` invokes `helper` directly inside a `[…]`, and without this
-        // the IRULE5005 emitter never sees it.  Mirrors the top-level
-        // `process_command` ordering (proc-resolution after site recording) and
-        // Python's `run_all_checks` recursion into nested commands.
+        // the IRULE5005 emitter never sees it.  Matches the top-level
+        // `process_command` ordering (proc-resolution after site recording).
         self.emit_proc_resolution_diagnostics(&cmd_name, args, cmd_tok, scope_path);
     }
 
@@ -1207,10 +1128,7 @@ impl Analyser {
     /// Record this command as a variable-as-command (``$obj
     /// method ...``) or command-substitution-as-command
     /// (``[expr ...] args``) call site so the post-walk W307 /
-    /// W308 emitters can resolve them.  Mirrors the inline
-    /// recording in ``_AnalyserCommandsMixin._process_command``
-    /// (``core/analysis/_analyser/_commands.py:182-198``).  OO
-    /// method-context detection lands in C41e.
+    /// W308 emitters can resolve them.
     fn record_var_or_cmd_command_site(
         &mut self,
         cmd_tok: Token,
@@ -1225,8 +1143,8 @@ impl Analyser {
                 // (`${ns}::define::[…]`) merges into one Var word token, so the
                 // raw text spans the whole word.  The dispatched variable is
                 // only the braced name (`${ns}` → `ns`); the `}` closes it and
-                // the rest is a literal / substituted suffix.  Python reads the
-                // first VAR sub-token's clean name — mirror that by truncating
+                // the rest is a literal / substituted suffix.  Read the
+                // first VAR sub-token's clean name by truncating
                 // at the first `}` (a simple `$obj` or namespaced `$ns::v` head
                 // contains no `}` and is unchanged).
                 let raw = sm.token_text(cmd_tok);
@@ -1347,15 +1265,13 @@ impl Analyser {
 /// inner command's head as ``(name, head_span)``, recursing into nested
 /// ``[...]`` substitutions and registry-resolved body arguments.
 ///
-/// Mirrors main's ``_recurse_nested_commands``: the token is descended
-/// into a child CST ([`descend_token`]) and the inner script segmented;
-/// each command is then handled by [`record_command_invocations`].
-/// Spans are absolute (the descent anchors the child tree at the
-/// substitution's position).
+/// The token is descended into a child CST ([`descend_token`]) and the
+/// inner script segmented; each command is then handled by
+/// [`record_command_invocations`].  Spans are absolute (the descent
+/// anchors the child tree at the substitution's position).
 /// Statically-known argument count of a segmented command for the cross-file
 /// arity check: `None` when any argument word is `{*}`-expanded (runtime count
-/// unknown), else the literal argument count (`argv` minus the head).  Mirrors the
-/// top-level `process_command` / signature-walker `argc` derivation.
+/// unknown), else the literal argument count (`argv` minus the head).
 fn segment_argc(seg: &SegmentedCommand) -> Option<usize> {
     if seg
         .expand_word
@@ -1385,19 +1301,18 @@ fn collect_substitution_heads(
 
 /// Record one (already-segmented) command's head, then recurse into its
 /// nested ``[...]`` substitutions *and* its registry-resolved body
-/// arguments — the combined ``_recurse_nested_commands`` +
-/// ``_recurse_body_arguments`` walk main runs on every command, so a
-/// command-substitution containing a control-flow command surfaces the
-/// body's commands too (`[if {$c} {puts hi}]` → `if`, `puts`).
+/// arguments, so a command-substitution containing a control-flow
+/// command surfaces the body's commands too (`[if {$c} {puts hi}]` →
+/// `if`, `puts`).
 ///
-/// The head is recorded as main's ``argv_texts[0]`` (the `word_piece`
-/// form in `texts[0]`: a ``$var`` head as ``${var}``, a ``"quoted"``
-/// head unquoted, a compound ``$x$y`` head reconstructed); a ``[subst]``
-/// head is left to the substitution recursion, and a ``{brace}`` head is
-/// data, not a command.  Body arguments are resolved through
-/// [`descend_command`] (the registry's ``arg_indices_for_role`` /
-/// `iter_body_arguments`), so the body set matches the registry exactly
-/// and an ``Expr`` argument is never walked as a script.
+/// The head is recorded as the `word_piece` form in `texts[0]`: a
+/// ``$var`` head as ``${var}``, a ``"quoted"`` head unquoted, a compound
+/// ``$x$y`` head reconstructed; a ``[subst]`` head is left to the
+/// substitution recursion, and a ``{brace}`` head is data, not a
+/// command.  Body arguments are resolved through [`descend_command`]
+/// (the registry's ``arg_indices_for_role``), so the body set matches
+/// the registry exactly and an ``Expr`` argument is never walked as a
+/// script.
 fn record_command_invocations(
     sm: &SourceMap<'_>,
     registry: Option<&CommandRegistry>,
@@ -1405,11 +1320,11 @@ fn record_command_invocations(
     config: LexerConfig,
     out: &mut Vec<(String, Span, Option<usize>)>,
 ) {
-    // Head — main records ``argv_texts[0]`` (the `word_piece` form in
-    // `texts[0]`) for *every* command, whatever the head's kind: a bare
-    // word, a `$var` (`${var}`), a `"quote"` (unquoted), a compound head,
-    // a `[subst]` head (`[gen]` — recorded *and* descended below), or a
-    // `{braced}` head (its inner text).
+    // Head — record the `word_piece` form in `texts[0]` for *every*
+    // command, whatever the head's kind: a bare word, a `$var`
+    // (`${var}`), a `"quote"` (unquoted), a compound head, a `[subst]`
+    // head (`[gen]` — recorded *and* descended below), or a `{braced}`
+    // head (its inner text).
     if let (Some(&head), Some(name)) = (seg.argv.first(), seg.texts.first())
         && !name.is_empty()
     {
@@ -1430,8 +1345,8 @@ fn record_command_invocations(
         let arg_tokens: Vec<Token> = seg.argv.iter().skip(1).copied().collect();
         // The `switch … {pattern body …}` list-form arg is a Tcl *list*,
         // not a script — the registry still marks it `Body`, but walking
-        // it as one mis-reads a pattern as a command head.  Main
-        // special-cases it (`_recurse_switch_list_body`): parse the list
+        // it as one mis-reads a pattern as a command head.  It is
+        // special-cased: parse the list
         // into pattern/body pairs and descend each arm *body*.
         let switch_list_idx = if name == "switch" {
             switch_list_body_index(&args)
@@ -1465,8 +1380,7 @@ fn record_command_invocations(
         // command substitution inside the expression is an invocation
         // too (`if {[acl_ok]} …` → `acl_ok`).  `descend_command`
         // deliberately excludes `Expr` args (they are not scripts), so
-        // handle them here — mirroring main's
-        // `_recurse_expression_subcommands`.
+        // handle them here.
         for index in registry.arg_indices_for_role(name, &args, ArgRole::Expr) {
             if let Some(&tok) = arg_tokens.get(index) {
                 collect_expr_substitutions(sm, Some(registry), tok, config, out);
@@ -1476,8 +1390,7 @@ fn record_command_invocations(
 }
 
 /// Find the ``[…]`` command substitutions inside an expression argument
-/// (`if` / `while` / `expr` conditions) and descend each — mirroring
-/// main's `_recurse_expression_subcommands`.
+/// (`if` / `while` / `expr` conditions) and descend each.
 ///
 /// An expression's own operands (`$x`, `+`, literals) are not commands,
 /// so the braced expr is re-lexed as a script (which still tokenises a
@@ -1557,10 +1470,9 @@ fn collect_segment_recursive(
     out.push(seg);
 }
 
-/// Mirror of main's `_switch_list_body_index`: for the
-/// ``switch ?options? string {pattern body …}`` form, the index (into
-/// `args`, 0-based, excluding the command name) of the single braced
-/// pattern/body list.  `None` for the separate-args form
+/// For the ``switch ?options? string {pattern body …}`` form, the index
+/// (into `args`, 0-based, excluding the command name) of the single
+/// braced pattern/body list.  `None` for the separate-args form
 /// (``switch string pat body pat body``), whose bodies *are* scripts.
 fn switch_list_body_index(args: &[&str]) -> Option<usize> {
     let mut i = 0;
@@ -1590,8 +1502,7 @@ fn switch_list_body_index(args: &[&str]) -> Option<usize> {
 /// (quoted / bareword / compound).  A braced *word* is a `Str` token (handled
 /// elsewhere and excluded by the caller); inside a quoted or bareword context
 /// `{` / `}` are ordinary characters that do *not* suppress substitution, so
-/// `log "got { [HTTP::uri] }"` still executes — and must still be scanned
-/// (Codex review, PR #639).
+/// `log "got { [HTTP::uri] }"` still executes — and must still be scanned.
 fn top_level_cmd_subst_regions(text: &str) -> Vec<(usize, &str)> {
     let bytes = text.as_bytes();
     let mut out = Vec::new();
@@ -1637,8 +1548,6 @@ fn top_level_cmd_subst_regions(text: &str) -> Vec<(usize, &str)> {
 /// (outer first, then inner).  Braced regions are skipped
 /// opaquely; backslash-escaped ``\\[`` / ``\\]`` are skipped.
 ///
-/// Mirrors the ``_iter_nested_invocations`` walk in
-/// ``_AnalyserCommandsMixin._record_command_invocation``.
 /// Returns ``(name, byte_offset_in_text)`` pairs.  The caller
 /// adds the enclosing token's source-span start to obtain an
 /// absolute offset.
@@ -1960,7 +1869,7 @@ mod tests {
             &[],
         );
         // No handler matched; no procs, vars, classes, or aliases
-        // recorded. (Unknown-command diagnostic emission is C41d4.)
+        // recorded.
         assert!(a.result.all_procs.is_empty());
         assert!(a.result.global_scope.variables.is_empty());
     }
@@ -2004,7 +1913,7 @@ mod tests {
         let res = a.analyse(source, dialect);
         res.diagnostics
             .iter()
-            .map(|d| (d.code.clone(), d.message.clone()))
+            .map(|d| (d.code.to_string(), d.message.clone()))
             .collect()
     }
 
@@ -2095,7 +2004,7 @@ mod tests {
         let d = res
             .diagnostics
             .iter()
-            .find(|d| d.code == "IRULE5005")
+            .find(|d| d.code == DiagCode::Irule5005)
             .expect("IRULE5005 expected");
         assert!(d.message.contains("call helper x y"));
         assert_eq!(d.fixes.len(), 1);

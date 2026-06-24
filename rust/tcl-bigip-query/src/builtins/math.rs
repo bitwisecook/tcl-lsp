@@ -1,4 +1,4 @@
-//! Math-category builtins (port of the `math` section of `builtins.py`).
+//! Math-category builtins.
 //!
 //! Covers the trig / hyperbolic wrappers, the advanced C-math family
 //! (`sqrt`, `pow`, `log*`, `exp*`, gamma, …), the IEEE helpers
@@ -7,26 +7,25 @@
 //! `floor`, `ceil`, and `abs` live in the parent module and are NOT
 //! re-registered here.
 //!
-//! Numeric result types mirror Python exactly (int vs float) because the
-//! output formatter renders `2.0` and `2` differently. For byte-identical
+//! Float results render with a trailing `.0` and integers without, so each
+//! builtin tracks the int-vs-float result type precisely. For byte-identical
 //! results we mostly use Rust's `std::f64` methods (which bind to the same
-//! system libm Python's `math` calls), fall back to the pure-Rust `libm`
+//! system libm `math` calls), fall back to the pure-Rust `libm`
 //! crate for the few C functions `std` lacks (`expm1`, `log1p`, `ldexp`,
-//! `remainder`, `fmod`, `frexp`, `modf`), and port two families verbatim
-//! from the source so they stay exact: the Bessel functions (the DSL's own
-//! Abramowitz & Stegun polynomial approximation) and gamma / lgamma
-//! (`CPython`'s Lanczos approximation — Python's gamma / lgamma do not use the
-//! platform libm).
+//! `remainder`, `fmod`, `frexp`, `modf`), and implement two families exactly
+//! so they stay byte-identical: the Bessel functions (an Abramowitz & Stegun
+//! polynomial approximation) and gamma / lgamma (the Lanczos
+//! approximation for gamma / lgamma — these do not use the platform libm).
 
-// This module reproduces Python/C `math` numerics bit-for-bit, which means
-// transcribing the source's exact float literals and float-equality checks:
+// This module reproduces the C `math` numerics bit-for-bit, which means
+// transcribing the exact float literals and float-equality checks:
 // - `approx_constant` / `unreadable_literal` / `excessive_precision`: the
 //   Bessel polynomials use truncated constants (e.g. `0.636619772` ≈ 2/π and
-//   long coefficient literals) copied verbatim from the DSL; "tidying" them
+//   long coefficient literals) copied verbatim; "tidying" them
 //   would change the result bits.
 // - `float_cmp`: integral / tie / zero tests (`x == x.floor()`, `… == 0.5`,
-//   `x == 0.0`) are exact by design — they mirror CPython's `m_tgamma` /
-//   `m_lgamma` and the round-half-even path.
+//   `x == 0.0`) are exact by design — they belong to the Lanczos gamma /
+//   lgamma approximation and the round-half-even path.
 #![allow(
     clippy::approx_constant,
     clippy::unreadable_literal,
@@ -39,18 +38,18 @@ use crate::errors::QueryError;
 use crate::jsonfmt;
 use crate::value::Value;
 
-// Python's `math` module mostly delegates to the platform C library (glibc
+// The `math` surface mostly delegates to the platform C library (glibc
 // on the reference host). Rust's `std::f64` transcendental methods bind to
-// the same system libm, so they reproduce Python's results bit-for-bit —
+// the same system libm, so they reproduce the reference results bit-for-bit —
 // whereas the pure-Rust `libm` crate diverges by ~1 ULP on some functions
 // (`exp`, `cosh`, …). We therefore prefer `std` methods, and use the `libm`
 // crate only for the C functions `std` lacks where its result already agrees
 // with glibc bit-for-bit on the relevant domain: `expm1`, `log1p`, `ldexp`,
 // `remainder`, `fmod`, plus the exact bit-manipulation `frexp` / `modf`. The
-// `gamma`/`lgamma` family is NOT libm-backed: Python ships its own Lanczos
-// approximation, ported verbatim below. (`unsafe_code = "forbid"` rules out
-// binding the system libm via `extern "C"`, which is why these choices
-// matter for byte parity.)
+// `gamma`/`lgamma` family is NOT libm-backed: it uses the Lanczos
+// approximation reproduced below so results match bit-for-bit.
+// (`unsafe_code = "forbid"` rules out binding the system libm via
+// `extern "C"`, which is why these choices matter for byte parity.)
 
 pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     vec![
@@ -123,9 +122,7 @@ pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     ]
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Coerce an `as_number` result to `f64`.
 fn num_f64(v: &Value) -> f64 {
@@ -136,8 +133,8 @@ fn num_f64(v: &Value) -> f64 {
     }
 }
 
-/// Python `repr` of an int-or-float number value, used inside domain-error
-/// messages that interpolate `{n!r}`.
+/// Repr-style rendering of an int-or-float number value, used inside
+/// domain-error messages that interpolate `{n!r}`.
 fn num_repr(v: &Value) -> String {
     match v {
         Value::Int(i) => i.to_string(),
@@ -146,16 +143,14 @@ fn num_repr(v: &Value) -> String {
     }
 }
 
-/// `str(n)` of a number value (Python `f"{n}"`), used by the Bessel domain
+/// `str(n)` of a number value, used by the Bessel domain
 /// errors which interpolate `{val}` rather than `{val!r}`.
 fn num_str(v: &Value) -> String {
     // For ints and floats `str` and `repr` agree on the shapes we hit here.
     num_repr(v)
 }
 
-// ---------------------------------------------------------------------------
 // Rounding / sign
-// ---------------------------------------------------------------------------
 
 fn bi_round(args: &[Value]) -> Result<Value, QueryError> {
     // C `round` semantics (ties away from zero) — jq parity, not banker's.
@@ -175,14 +170,14 @@ fn bi_fabs(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_trunc(args: &[Value]) -> Result<Value, QueryError> {
-    // Python `math.trunc` returns an int.
+    // `trunc` returns an int.
     Ok(Value::Int(
         num_f64(&as_number(&args[0], "trunc", 1)?).trunc() as i64,
     ))
 }
 
 fn bi_rint(args: &[Value]) -> Result<Value, QueryError> {
-    // Python `int(round(x))` — banker's rounding, then int.
+    // `int(round(x))` — banker's rounding, then int.
     Ok(Value::Int(
         py_round_half_even(num_f64(&as_number(&args[0], "rint", 1)?)) as i64,
     ))
@@ -194,7 +189,7 @@ fn bi_nearbyint(args: &[Value]) -> Result<Value, QueryError> {
     ))
 }
 
-/// Python 3 `round(x)` (to nearest int) — ties to even.
+/// Round `x` to the nearest int — ties to even.
 fn py_round_half_even(x: f64) -> f64 {
     let r = x.round(); // ties away from zero
     if (x - x.trunc()).abs() == 0.5 {
@@ -210,9 +205,7 @@ fn py_round_half_even(x: f64) -> f64 {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Powers / roots / logs
-// ---------------------------------------------------------------------------
 
 fn bi_sqrt(args: &[Value]) -> Result<Value, QueryError> {
     let v = as_number(&args[0], "sqrt", 1)?;
@@ -227,7 +220,7 @@ fn bi_sqrt(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_cbrt(args: &[Value]) -> Result<Value, QueryError> {
-    // Python uses `n ** (1/3)` (not C cbrt), negating for negative inputs.
+    // Uses `n ** (1/3)` (not C cbrt), negating for negative inputs.
     let n = num_f64(&as_number(&args[0], "cbrt", 1)?);
     let r = if n < 0.0 {
         -(-n).powf(1.0 / 3.0)
@@ -248,14 +241,14 @@ fn bi_exp(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_exp2(args: &[Value]) -> Result<Value, QueryError> {
-    // Python: math.pow(2.0, value).
+    // Computes `pow(2.0, value)`.
     Ok(Value::Float(
         2.0f64.powf(num_f64(&as_number(&args[0], "exp2", 1)?)),
     ))
 }
 
 fn bi_exp10(args: &[Value]) -> Result<Value, QueryError> {
-    // Python: math.pow(10.0, value) — shared by `exp10` and `pow10`.
+    // Computes `pow(10.0, value)` — shared by `exp10` and `pow10`.
     Ok(Value::Float(
         10.0f64.powf(num_f64(&as_number(&args[0], "exp10", 1)?)),
     ))
@@ -310,7 +303,7 @@ fn bi_log1p(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_logb(args: &[Value]) -> Result<Value, QueryError> {
-    // Python: -inf for 0, +inf for inf, else float(floor(log2(|n|))).
+    // -inf for 0, +inf for inf, else float(floor(log2(|n|))).
     let n = num_f64(&as_number(&args[0], "logb", 1)?);
     if n == 0.0 {
         return Ok(Value::Float(f64::NEG_INFINITY));
@@ -331,9 +324,7 @@ fn bi_significand(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Float(n / 2.0f64.powf(e)))
 }
 
-// ---------------------------------------------------------------------------
 // Constants / classification
-// ---------------------------------------------------------------------------
 
 fn bi_nan(_args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Float(f64::NAN))
@@ -369,12 +360,10 @@ fn bi_isnormal(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(result))
 }
 
-// ---------------------------------------------------------------------------
 // Trig / hyperbolic (thin wrappers — domain errors surface "math domain error")
-// ---------------------------------------------------------------------------
 
-/// Port of Python's domain-checking `math` wrappers: when the result is NaN
-/// but the input was finite, Python raised `ValueError: math domain error`.
+/// Domain-checking wrapper for the `math` builtins: when the result is NaN
+/// but the input was finite, this is a `ValueError: math domain error`.
 fn domain_checked(input: f64, result: f64) -> Result<Value, QueryError> {
     if result.is_nan() && !input.is_nan() {
         return Err(QueryError::builtin("math domain error"));
@@ -448,9 +437,7 @@ fn bi_atanh(args: &[Value]) -> Result<Value, QueryError> {
     domain_checked(n, n.atanh())
 }
 
-// ---------------------------------------------------------------------------
 // IEEE helpers
-// ---------------------------------------------------------------------------
 
 fn bi_copysign(args: &[Value]) -> Result<Value, QueryError> {
     let x = num_f64(&as_number(&args[0], "copysign", 1)?);
@@ -459,7 +446,7 @@ fn bi_copysign(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_fdim(args: &[Value]) -> Result<Value, QueryError> {
-    // Python: max(float(x - y), 0.0).
+    // Computes `max(float(x - y), 0.0)`.
     let x = num_f64(&as_number(&args[0], "fdim", 1)?);
     let y = num_f64(&as_number(&args[1], "fdim", 2)?);
     let d = x - y;
@@ -482,7 +469,7 @@ fn bi_ldexp(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_modf(args: &[Value]) -> Result<Value, QueryError> {
-    // Python `math.modf` returns (frac, int) — both floats; libm::modf
+    // `modf` returns (frac, int) — both floats; libm::modf
     // returns the same `(frac, int)` order. Pure bit manipulation, so this
     // matches the platform C library exactly.
     let n = num_f64(&as_number(&args[0], "modf", 1)?);
@@ -497,7 +484,7 @@ fn bi_hypot(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_fma(args: &[Value]) -> Result<Value, QueryError> {
-    // Python computes the naive expression float(x)*float(y) + float(z).
+    // Computes the naive expression float(x)*float(y) + float(z).
     let x = num_f64(&as_number(&args[0], "fma", 1)?);
     let y = num_f64(&as_number(&args[1], "fma", 2)?);
     let z = num_f64(&as_number(&args[2], "fma", 3)?);
@@ -505,7 +492,7 @@ fn bi_fma(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 fn bi_fmax(args: &[Value]) -> Result<Value, QueryError> {
-    // Python `max(x, y)` preserves the winning operand's int/float type and
+    // `max(x, y)` preserves the winning operand's int/float type and
     // its tie behaviour (returns the first when equal).
     py_max_min(&args[0], &args[1], true)
 }
@@ -514,7 +501,7 @@ fn bi_fmin(args: &[Value]) -> Result<Value, QueryError> {
     py_max_min(&args[0], &args[1], false)
 }
 
-/// Port of Python `max`/`min` over two numbers: returns the original value
+/// `max`/`min` over two numbers: returns the original value
 /// (preserving int vs float), with `min`/`max` keeping the first operand on
 /// ties (`x` is not replaced unless `y` is strictly better).
 fn py_max_min(a: &Value, b: &Value, want_max: bool) -> Result<Value, QueryError> {
@@ -522,7 +509,7 @@ fn py_max_min(a: &Value, b: &Value, want_max: bool) -> Result<Value, QueryError>
     let bv = as_number(b, if want_max { "fmax" } else { "fmin" }, 2)?;
     let af = num_f64(&av);
     let bf = num_f64(&bv);
-    // Python `max(x, y)` returns y only when y > x; otherwise x.
+    // `max(x, y)` returns y only when y > x; otherwise x.
     let pick_b = if want_max { bf > af } else { bf < af };
     Ok(if pick_b { bv } else { av })
 }
@@ -540,12 +527,10 @@ fn bi_remainder(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Float(libm::remainder(x, y)))
 }
 
-// ---------------------------------------------------------------------------
 // Gamma family
-// ---------------------------------------------------------------------------
 
 fn bi_gamma(args: &[Value]) -> Result<Value, QueryError> {
-    // Shared by `gamma` and `tgamma`. Python wraps the C domain ValueError
+    // Shared by `gamma` and `tgamma`. The C domain error surfaces
     // as `BuiltinError("gamma: math domain error")`.
     let n = num_f64(&as_number(&args[0], "gamma", 1)?);
     if gamma_is_domain_error(n) {
@@ -555,7 +540,7 @@ fn bi_gamma(args: &[Value]) -> Result<Value, QueryError> {
 }
 
 /// `math.gamma` raises `ValueError` for non-positive integers and for
-/// negative infinity (`CPython` `m_tgamma` sets `EDOM` there).
+/// negative infinity (a domain error there).
 fn gamma_is_domain_error(n: f64) -> bool {
     if n.is_nan() {
         return false;
@@ -574,10 +559,10 @@ fn bi_lgamma(args: &[Value]) -> Result<Value, QueryError> {
 
 fn bi_lgamma_r(args: &[Value]) -> Result<Value, QueryError> {
     // Returns [lgamma, sign]; sign is +1 when gamma(n) >= 0 (or on the
-    // gamma-domain-error fallback, mirroring the Python `try` block), else -1.
+    // gamma-domain-error fallback), else -1.
     let n = num_f64(&as_number(&args[0], "lgamma_r", 1)?);
     let lg = m_lgamma(n);
-    // Python falls back to sign +1 when `gamma(n)` raises (the domain-error
+    // Sign falls back to +1 when `gamma(n)` raises (the domain-error
     // case); otherwise the sign of `gamma(n)`.
     let sign: i64 = if !gamma_is_domain_error(n) && m_tgamma(n) < 0.0 {
         -1
@@ -587,14 +572,11 @@ fn bi_lgamma_r(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::List(vec![Value::Float(lg), Value::Int(sign)]))
 }
 
-// ---------------------------------------------------------------------------
-// CPython Lanczos gamma / lgamma (port of `Modules/mathmodule.c`
-// `m_tgamma` / `m_lgamma` / `m_sinpi`). Python's `math.gamma` / `lgamma` do
-// NOT use the platform libm — they ship this Lanczos approximation — so we
-// reproduce it verbatim for byte-identical results. The `errno`/`EDOM`
+// Lanczos approximation for gamma / lgamma. `math.gamma` / `lgamma` do
+// NOT use the platform libm — they use this Lanczos approximation — so we
+// compute it directly for byte-identical results. The `errno`/`EDOM`
 // signalling is handled by the callers (`gamma_is_domain_error`); these
 // helpers just compute the value.
-// ---------------------------------------------------------------------------
 
 const LANCZOS_N: usize = 13;
 const LANCZOS_G: f64 = 6.024_680_040_776_729_5;
@@ -781,10 +763,8 @@ fn m_lgamma(x: f64) -> f64 {
     r
 }
 
-// ---------------------------------------------------------------------------
-// Bessel (Abramowitz & Stegun polynomial approximations — ported verbatim
-// from the Python source so results stay byte-identical).
-// ---------------------------------------------------------------------------
+// Bessel (Abramowitz & Stegun polynomial approximations, matching the
+// reference approximation so results stay byte-identical).
 
 fn bi_j0(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Float(bessel_j0(num_f64(&as_number(
@@ -1007,10 +987,7 @@ mod tests {
 
     #[test]
     fn round_ties_away_from_zero() {
-        // Ported from `tests/test_f5_query.py`
-        // ::test_floor_ceil_round_match_jq_semantics (round half) — C/jq
-        // ties-away-from-zero, not banker's rounding (math.rs had no unit
-        // coverage).
+        // Round half is C/jq ties-away-from-zero, not banker's rounding.
         assert_eq!(round_of(2.5), 3);
         assert_eq!(round_of(-2.5), -3);
         assert_eq!(round_of(0.5), 1);
@@ -1019,7 +996,7 @@ mod tests {
 
     #[test]
     fn fabs_returns_float_magnitude() {
-        // Ported from `::test_abs_and_fabs` (fabs half — always a float).
+        // `fabs` always returns a float.
         assert_eq!(fabs_of(-5.0), 5.0);
         assert_eq!(fabs_of(3.14), 3.14);
     }

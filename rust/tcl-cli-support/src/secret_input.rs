@@ -1,7 +1,6 @@
 //! Shared secret-input resolution for the native `tcl` / `f5` CLIs.
 //!
-//! Faithful Rust port of `tooling/f5/f5_remote/secret_input.py`: a single,
-//! idiomatic way to obtain a secret (passphrase, master key, password, …) from
+//! A single, idiomatic way to obtain a secret (passphrase, master key, password, …) from
 //! the four sources the CLI supports, tried in a fixed order — the first
 //! non-empty one wins:
 //!
@@ -21,8 +20,7 @@
 use std::io::IsTerminal;
 use std::path::Path;
 
-/// Raised when interactive secret entry is cancelled (port of
-/// `SecretInputError`).
+/// Raised when interactive secret entry is cancelled.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SecretInputError(pub String);
 
@@ -55,8 +53,8 @@ pub struct SecretRequest<'a> {
     pub strip: bool,
 }
 
-/// Whether a controlling terminal is available to prompt on (port of
-/// `_has_tty`): true when *either* stdin or stderr is a terminal.
+/// Whether a controlling terminal is available to prompt on: true when *either*
+/// stdin or stderr is a terminal.
 #[must_use]
 pub fn has_tty() -> bool {
     std::io::stdin().is_terminal() || std::io::stderr().is_terminal()

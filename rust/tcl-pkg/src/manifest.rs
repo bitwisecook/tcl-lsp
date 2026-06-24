@@ -1,10 +1,10 @@
 //! `tclpkg.tcl` manifest loader.
 //!
-//! Faithful port of `tooling/tclpkg/manifest.py`. The manifest is a tiny Tcl
+//! The manifest is a tiny Tcl
 //! file evaluated under a whitelist of 13 directives; any other command is
-//! refused with `command not permitted in safe mode: <cmd>`, exactly as the
-//! Python loader's sandboxed `TclInterp(safe=True)` does. Because manifests are
-//! pure data (no variable/command substitution), this port parses the script
+//! refused with `command not permitted in safe mode: <cmd>`, as in a
+//! safe Tcl interpreter. Because manifests are
+//! pure data (no variable/command substitution), the script is parsed
 //! into commands and words using Tcl grouping rules (braces, quotes,
 //! backslash, comments, semicolons) and dispatches each directive directly —
 //! no VM required.
@@ -180,7 +180,7 @@ fn manifest_err(message: &str, path: Option<&str>) -> TclPkgError {
     TclPkgError::manifest(message, path, None, None)
 }
 
-#[allow(clippy::too_many_lines)] // one arm per directive; mirrors the Python loader
+#[allow(clippy::too_many_lines)] // one arm per directive
 fn dispatch(ast: &mut ManifestAst, name: &str, args: &[String]) -> Result<(), String> {
     match name {
         "package" => {
@@ -370,9 +370,7 @@ fn validate(ast: &ManifestAst, path: Option<&str>) -> Result<(), TclPkgError> {
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // Tcl script parsing (commands + words; no substitution)
-// ---------------------------------------------------------------------------
 
 /// Split a manifest script into commands, each a list of words, applying Tcl
 /// grouping rules (braces, quotes, backslash, `#` comments, `;`/newline command

@@ -1,15 +1,12 @@
-//! Bespoke structural per-kind parsers — the structured-field half of
-//! `dialects/f5/bigip/parser/_parsers.py` that the generated scalar
-//! parsers leave at `Default`.
+//! Bespoke structural per-kind parsers — the structured-field half that
+//! the generated scalar parsers leave at `Default`.
 //!
-//! Each function mirrors its Python `_parse_*` counterpart faithfully:
-//! same field values, same `BigipList` syntax tags, same `Range`
-//! conventions. The generated scalar parser is invoked first for the
-//! scalar half; this module then fills the structured fields (typed
-//! value-layer values, keyed-block lists, sub-records) and overrides any
-//! scalar field whose Python source diverges from the generator (e.g.
-//! `_unquote`d monitor/profile fields, the `data-group` `type` key, the
-//! `gtm wideip` `last-resort-pool` prefix strip).
+//! The generated scalar parser is invoked first for the scalar half; this
+//! module then fills the structured fields (typed value-layer values,
+//! keyed-block lists, sub-records) and overrides any scalar field the
+//! generator gets wrong (e.g. unquoted monitor/profile fields, the
+//! `data-group` `type` key, the `gtm wideip` `last-resort-pool` prefix
+//! strip).
 //!
 //! Offset-sensitive fields (pool-member `field_offsets`, virtual
 //! `pool_range`) need the absolute source position of the block, so the
@@ -17,8 +14,8 @@
 //! index, and the block's `start_offset`.
 
 #![allow(clippy::wildcard_imports)]
-// Mirrors the generated `parsers.rs`, which assigns structured fields onto a
-// freshly-built object one at a time after calling the scalar parser.
+// Structured fields are assigned onto a freshly-built object one at a time
+// after calling the scalar parser.
 #![allow(clippy::assigning_clones)]
 
 use std::collections::HashMap;
@@ -64,17 +61,14 @@ pub struct BespokeCtx<'a> {
     pub source: &'a str,
     /// Its line index (for offset -> position resolution).
     pub line_index: &'a LineIndex,
-    /// Absolute byte offset of the block's opening `{` (Python
-    /// `block.start_offset`).
+    /// Absolute byte offset of the block's opening `{`.
     pub block_start: usize,
 }
 
-// ---------------------------------------------------------------------------
-// Small helpers mirroring `_parsers.py` primitives not in `scalar`/`helpers`.
-// ---------------------------------------------------------------------------
+// Small helpers for primitives not in `scalar`/`helpers`.
 
-/// Convert a byte offset into a code-point (Python str) index, matching
-/// the Python parser's offset convention for non-ASCII sources.
+/// Convert a byte offset into a code-point index (the offset convention
+/// for non-ASCII sources).
 fn byte_to_cp(source: &str, byte: usize) -> usize {
     source
         .get(..byte.min(source.len()))
@@ -82,14 +76,13 @@ fn byte_to_cp(source: &str, byte: usize) -> usize {
 }
 
 /// Strip a single layer of surrounding `{ ... }` from a sub-block value.
-/// Mirrors `_strip_outer_braces`.
 fn strip_outer_braces(text: &str) -> &str {
     let s = text.trim();
     let s = s.strip_prefix('{').unwrap_or(s);
     s.strip_suffix('}').unwrap_or(s).trim()
 }
 
-/// Strip surrounding double quotes after trimming. Mirrors `_strip_quotes`.
+/// Strip surrounding double quotes after trimming.
 fn strip_quotes(text: &str) -> String {
     let s = text.trim();
     if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
@@ -101,7 +94,7 @@ fn strip_quotes(text: &str) -> String {
 
 /// For a block of anonymous sub-blocks like `{ { ip 10.0.0.1 } { ip
 /// 10.0.0.2 } }`, extract `prop_name` from every direct sub-block in
-/// document order. Mirrors `_collect_named_property_from_anon_subblocks`.
+/// document order.
 fn collect_named_property_from_anon_subblocks(braced: &str, prop_name: &str) -> Vec<String> {
     let inner = strip_outer_braces(braced);
     let bytes = inner.as_bytes();
@@ -140,7 +133,6 @@ fn collect_named_property_from_anon_subblocks(braced: &str, prop_name: &str) -> 
 
 /// For a block like `{ 1 { ip ... } 2 { ip ... } }`, return the
 /// `prop_name` value from every direct sub-block in document order.
-/// Mirrors `_collect_named_property_from_subblocks`.
 fn collect_named_property_from_subblocks(braced: &str, prop_name: &str) -> Vec<String> {
     let inner = strip_outer_braces(braced);
     let mut out = Vec::new();
@@ -159,8 +151,7 @@ fn collect_named_property_from_subblocks(braced: &str, prop_name: &str) -> Vec<S
     out
 }
 
-/// `(start, end)` of the first non-whitespace / non-`#{}` token. Mirrors
-/// `_first_scalar_token_span`.
+/// `(start, end)` of the first non-whitespace / non-`#{}` token.
 fn first_scalar_token_span(value: &str) -> Option<(usize, usize)> {
     let bytes = value.as_bytes();
     let mut i = 0;
@@ -178,8 +169,7 @@ fn first_scalar_token_span(value: &str) -> Option<(usize, usize)> {
     Some((start, i))
 }
 
-/// Quote-aware tokeniser for policy `values { ... }` lists. Mirrors
-/// `_parse_policy_values_block`.
+/// Quote-aware tokeniser for policy `values { ... }` lists.
 fn parse_policy_values_block(braced: &str) -> Vec<String> {
     let inner = strip_outer_braces(braced);
     let bytes = inner.as_bytes();
@@ -219,7 +209,7 @@ fn parse_policy_values_block(braced: &str) -> Vec<String> {
 }
 
 /// The known property keys for a `(module, object_type)` pair, used by
-/// [`split_compact_props`]. Mirrors `property_names_for`.
+/// [`split_compact_props`].
 fn property_names_for(module: &str, object_type: &str) -> Vec<String> {
     let registry = BigipRegistry::build();
     registry
@@ -230,8 +220,8 @@ fn property_names_for(module: &str, object_type: &str) -> Vec<String> {
 }
 
 /// Re-split a read-to-EOL value containing inline sibling properties.
-/// Mirrors `_split_inline_keys`. Returns the additional inline pairs plus
-/// an optional `__head__` (the owning key's real first-token value).
+/// Returns the additional inline pairs plus an optional `__head__` (the
+/// owning key's real first-token value).
 fn split_inline_keys(value: &str, known: &[String]) -> HashMap<String, String> {
     let mut out: HashMap<String, String> = HashMap::new();
     let tokens: Vec<&str> = value.split_whitespace().collect();
@@ -277,7 +267,7 @@ fn split_inline_keys(value: &str, known: &[String]) -> HashMap<String, String> {
 }
 
 /// Parse a body's top-level props, splitting inline sibling pairs against
-/// `known`. Mirrors `_split_compact_props`.
+/// `known`.
 fn split_compact_props(body: &str, known: &[String]) -> HashMap<String, String> {
     let base = parse_properties(body);
     let mut out: HashMap<String, String> = base.iter().cloned().collect();
@@ -300,8 +290,7 @@ fn split_compact_props(body: &str, known: &[String]) -> HashMap<String, String> 
     out
 }
 
-/// Map a profile type string to a [`ProfileType`]. Mirrors
-/// `_classify_profile` / `_PROFILE_TYPE_MAP`.
+/// Map a profile type string to a [`ProfileType`].
 fn classify_profile(type_str: &str) -> ProfileType {
     match type_str.to_lowercase().as_str() {
         "http" | "http2" | "http-compression" | "http-proxy-connect" | "web-acceleration" => {
@@ -329,7 +318,7 @@ fn classify_profile(type_str: &str) -> ProfileType {
     }
 }
 
-/// Policy condition operand vocabulary. Mirrors `_POLICY_OPERANDS`.
+/// Policy condition operand vocabulary.
 const POLICY_OPERANDS: &[&str] = &[
     "http-method",
     "geoip",
@@ -346,7 +335,7 @@ const POLICY_OPERANDS: &[&str] = &[
     "http-uri",
 ];
 
-/// Policy condition selector vocabulary. Mirrors `_POLICY_SELECTORS`.
+/// Policy condition selector vocabulary.
 const POLICY_SELECTORS: &[&str] = &[
     "extension",
     "scheme",
@@ -360,7 +349,7 @@ const POLICY_SELECTORS: &[&str] = &[
     "address",
 ];
 
-/// Policy condition operator vocabulary. Mirrors `_POLICY_OPERATORS`.
+/// Policy condition operator vocabulary.
 const POLICY_OPERATORS: &[&str] = &[
     "less",
     "equals",
@@ -375,7 +364,7 @@ const POLICY_OPERATORS: &[&str] = &[
     "starts-with",
 ];
 
-/// Policy event vocabulary. Mirrors `_POLICY_EVENTS`.
+/// Policy event vocabulary.
 const POLICY_EVENTS: &[&str] = &[
     "websocket-request",
     "response",
@@ -389,7 +378,7 @@ const POLICY_EVENTS: &[&str] = &[
     "websocket-response",
 ];
 
-/// Policy action target vocabulary. Mirrors `_POLICY_ACTION_TARGETS`.
+/// Policy action target vocabulary.
 const POLICY_ACTION_TARGETS: &[&str] = &[
     "http-cookie",
     "shutdown",
@@ -402,13 +391,13 @@ const POLICY_ACTION_TARGETS: &[&str] = &[
     "log",
 ];
 
-/// Policy action verb vocabulary. Mirrors `_POLICY_ACTION_VERBS`.
+/// Policy action verb vocabulary.
 const POLICY_ACTION_VERBS: &[&str] = &[
     "redirect", "enable", "reset", "insert", "rewrite", "disable", "drop", "select", "replace",
     "remove",
 ];
 
-/// NTP restrict flag keys. Mirrors `_NTP_RESTRICT_FLAG_KEYS`.
+/// NTP restrict flag keys.
 const NTP_RESTRICT_FLAG_KEYS: &[&str] = &[
     "ignore",
     "kod",
@@ -422,12 +411,10 @@ const NTP_RESTRICT_FLAG_KEYS: &[&str] = &[
     "no-trust",
 ];
 
-// ---------------------------------------------------------------------------
 // pool
-// ---------------------------------------------------------------------------
 
 /// Parse a pool member's `{ ... }` body, returning props + absolute field
-/// spans. Mirrors `_parse_pool_member_body_with_spans`.
+/// spans.
 fn parse_pool_member_body_with_spans(
     braced_body: &str,
     base_offset: usize,
@@ -459,8 +446,7 @@ fn parse_pool_member_body_with_spans(
     (values, spans)
 }
 
-/// Extract pool members from a `members { ... }` block. Mirrors
-/// `_parse_pool_members`.
+/// Extract pool members from a `members { ... }` block.
 fn parse_pool_members(braced: &str, base_offset: usize) -> Vec<BigipPoolMember> {
     let mut members = Vec::new();
     let mut inner = braced;
@@ -549,7 +535,7 @@ fn parse_pool_members(braced: &str, base_offset: usize) -> Vec<BigipPoolMember> 
     members
 }
 
-/// Parse an `ltm pool` block. Mirrors `_parse_pool`.
+/// Parse an `ltm pool` block.
 #[must_use]
 pub fn parse_pool(full_path: &str, body: &str, range: Range, ctx: BespokeCtx) -> BigipPool {
     let mut obj = parse_bigip_pool(full_path, body, range);
@@ -561,8 +547,8 @@ pub fn parse_pool(full_path: &str, body: &str, range: Range, ctx: BespokeCtx) ->
     {
         let members_abs = ctx.block_start + 1 + prop.value_start.unwrap_or(0);
         members = parse_pool_members(&prop.value, members_abs);
-        // `field_offsets` are absolute source offsets; Python stores
-        // them as code-point indices (str indexing), so convert the
+        // `field_offsets` are absolute source offsets; the canonical form
+        // stores them as code-point indices, so convert the
         // byte offsets to code points for non-ASCII fidelity.
         for m in &mut members {
             for span in m.field_offsets.values_mut() {
@@ -577,10 +563,9 @@ pub fn parse_pool(full_path: &str, body: &str, range: Range, ctx: BespokeCtx) ->
         items: members
             .into_iter()
             .map(|m| {
-                // Mirror Python: `ListItem(value=m, key=m.name)`. The typed
-                // member carries address / port / field_offsets; the item
-                // key is the member name. Per-item lexical spans stay at
-                // their defaults (Python leaves them empty here too).
+                // The typed member carries address / port / field_offsets;
+                // the item key is the member name. Per-item lexical spans
+                // stay at their defaults.
                 let key = m.name.clone();
                 let mut item = ListItem::new(ListItemValue::PoolMember(m));
                 item.key = key;
@@ -593,11 +578,9 @@ pub fn parse_pool(full_path: &str, body: &str, range: Range, ctx: BespokeCtx) ->
     obj
 }
 
-// ---------------------------------------------------------------------------
 // snatpool
-// ---------------------------------------------------------------------------
 
-/// Parse an `ltm snatpool` block. Mirrors `_parse_snatpool`.
+/// Parse an `ltm snatpool` block.
 #[must_use]
 pub fn parse_snatpool(full_path: &str, body: &str, range: Range) -> BigipSnatPool {
     let mut obj = parse_bigip_snat_pool(full_path, body, range);
@@ -615,12 +598,10 @@ pub fn parse_snatpool(full_path: &str, body: &str, range: Range) -> BigipSnatPoo
     obj
 }
 
-// ---------------------------------------------------------------------------
 // virtual
-// ---------------------------------------------------------------------------
 
 /// Re-glue a `(key, body)` pair into the per-item source the inner spec's
-/// parse consumes (`"<key> { <body> }"`). Mirrors `_keyed_item_text`.
+/// parse consumes (`"<key> { <body> }"`).
 fn keyed_item_text(key: &str, body: &str) -> String {
     let body = body.trim();
     if body.is_empty() {
@@ -634,10 +615,10 @@ fn keyed_item_text(key: &str, body: &str) -> String {
 /// closure maps `(path, body)` to the typed list item value.
 ///
 /// Each item's lexical spans (`raw` / `body` / `range` / `key_range` /
-/// `body_range`) mirror the Python `ListSpec` keyed-block parse: offsets
-/// are relative to `block` (the property value, `base_offset == 0`), `raw`
-/// is the re-glued `keyed_item_text`, and `body_range` is `None` when the
-/// body span is empty.
+/// `body_range`) follow the keyed-block parse: offsets are relative to
+/// `block` (the property value, `base_offset == 0`), `raw` is the re-glued
+/// `keyed_item_text`, and `body_range` is `None` when the body span is
+/// empty.
 fn keyed_attachment_list<F>(block: &str, make: F) -> BigipList
 where
     F: Fn(&str, &str) -> ListItemValue,
@@ -670,7 +651,7 @@ where
     }
 }
 
-/// Parse an `ltm virtual` block. Mirrors `_parse_virtual`.
+/// Parse an `ltm virtual` block.
 #[must_use]
 pub fn parse_virtual(
     full_path: &str,
@@ -790,8 +771,7 @@ fn braced_space_list(block: Option<&String>) -> BigipList {
     }
 }
 
-/// A `Vec<String>` from an optional brace-list value (mirrors
-/// `tuple(_parse_list_block(...))`).
+/// A `Vec<String>` from an optional brace-list value.
 fn list_from(block: Option<&String>) -> Vec<String> {
     block
         .filter(|b| !b.is_empty())
@@ -799,11 +779,9 @@ fn list_from(block: Option<&String>) -> Vec<String> {
         .unwrap_or_default()
 }
 
-// ---------------------------------------------------------------------------
 // node / virtual-address
-// ---------------------------------------------------------------------------
 
-/// Parse an `ltm node` block. Mirrors `_parse_node`.
+/// Parse an `ltm node` block.
 #[must_use]
 pub fn parse_node(full_path: &str, body: &str, range: Range) -> BigipNode {
     let mut obj = parse_bigip_node(full_path, body, range);
@@ -831,7 +809,7 @@ pub fn parse_node(full_path: &str, body: &str, range: Range) -> BigipNode {
     obj
 }
 
-/// Parse an `ltm virtual-address` block. Mirrors `_parse_virtual_address`.
+/// Parse an `ltm virtual-address` block.
 #[must_use]
 pub fn parse_virtual_address(full_path: &str, body: &str, range: Range) -> BigipVirtualAddress {
     let mut obj = parse_bigip_virtual_address(full_path, body, range);
@@ -848,12 +826,10 @@ pub fn parse_virtual_address(full_path: &str, body: &str, range: Range) -> Bigip
     obj
 }
 
-// ---------------------------------------------------------------------------
 // monitor / profile / persistence
-// ---------------------------------------------------------------------------
 
 /// Parse an `ltm/gtm monitor` block. `monitor_type` is the sub-type after
-/// `monitor `. Mirrors `_parse_monitor`.
+/// `monitor `.
 #[must_use]
 pub fn parse_monitor(
     full_path: &str,
@@ -864,7 +840,7 @@ pub fn parse_monitor(
     let mut obj = parse_bigip_monitor(full_path, body, range);
     let props = props_map(body);
     obj.monitor_type = monitor_type.to_owned();
-    // Python `_unquote`s these quoted text fields.
+    // These quoted text fields are unquoted.
     let uq = |k: &str| unquote(props.get(k).map_or("", String::as_str)).to_owned();
     obj.send = uq("send");
     obj.recv = uq("recv");
@@ -879,7 +855,7 @@ pub fn parse_monitor(
 }
 
 /// Parse an `ltm profile <type>` block. `profile_type_str` is the sub-type
-/// after `profile `. Mirrors `_parse_profile`.
+/// after `profile `.
 #[must_use]
 pub fn parse_profile(
     full_path: &str,
@@ -903,7 +879,7 @@ pub fn parse_profile(
 }
 
 /// Parse an `ltm persistence <type>` block. `persistence_type` is the
-/// sub-type after `persistence `. Mirrors `_parse_persistence`.
+/// sub-type after `persistence `.
 #[must_use]
 pub fn parse_persistence(
     full_path: &str,
@@ -918,12 +894,10 @@ pub fn parse_persistence(
     obj
 }
 
-// ---------------------------------------------------------------------------
 // data-group
-// ---------------------------------------------------------------------------
 
 /// Parse an `ltm data-group internal|external` block. `kind` comes from the
-/// header. Mirrors `_parse_data_group`.
+/// header.
 #[must_use]
 pub fn parse_data_group(
     full_path: &str,
@@ -943,12 +917,9 @@ pub fn parse_data_group(
     obj
 }
 
-// ---------------------------------------------------------------------------
 // policy
-// ---------------------------------------------------------------------------
 
-/// Parse a single `conditions { N { ... } }` body. Mirrors
-/// `_parse_policy_condition`.
+/// Parse a single `conditions { N { ... } }` body.
 fn parse_policy_condition(index: i64, body: &str) -> BigipPolicyCondition {
     let props = parse_properties(body);
     let mut operand = String::new();
@@ -995,8 +966,7 @@ fn parse_policy_condition(index: i64, body: &str) -> BigipPolicyCondition {
     }
 }
 
-/// Parse a single `actions { N { ... } }` body. Mirrors
-/// `_parse_policy_action`.
+/// Parse a single `actions { N { ... } }` body.
 fn parse_policy_action(index: i64, body: &str) -> BigipPolicyAction {
     let props = parse_properties(body);
     let mut target = String::new();
@@ -1046,8 +1016,7 @@ fn parse_policy_action(index: i64, body: &str) -> BigipPolicyAction {
     }
 }
 
-/// Parse a single `rules { name { ... } }` body. Mirrors
-/// `_parse_policy_rule`.
+/// Parse a single `rules { name { ... } }` body.
 fn parse_policy_rule(name: &str, body: &str) -> BigipPolicyRule {
     let props_with_spans = parse_properties_with_spans(body);
     let props: HashMap<&str, &Property> = props_with_spans
@@ -1090,7 +1059,7 @@ fn parse_policy_rule(name: &str, body: &str) -> BigipPolicyRule {
     }
 }
 
-/// Parse an `ltm policy` block. Mirrors `_parse_policy`.
+/// Parse an `ltm policy` block.
 #[must_use]
 pub fn parse_policy(full_path: &str, body: &str, range: Range) -> BigipPolicy {
     let mut obj = parse_bigip_policy(full_path, body, range);
@@ -1122,11 +1091,9 @@ pub fn parse_policy(full_path: &str, body: &str, range: Range) -> BigipPolicy {
     obj
 }
 
-// ---------------------------------------------------------------------------
 // rule
-// ---------------------------------------------------------------------------
 
-/// Parse an `ltm rule` block. Mirrors `_parse_rule`.
+/// Parse an `ltm rule` block.
 #[must_use]
 pub fn parse_rule(full_path: &str, body: &str, range: Range) -> BigipRule {
     let mut obj = parse_bigip_rule(full_path, body, range);
@@ -1135,12 +1102,10 @@ pub fn parse_rule(full_path: &str, body: &str, range: Range) -> BigipRule {
     obj
 }
 
-// ---------------------------------------------------------------------------
 // gtm pool / wideip / topology
-// ---------------------------------------------------------------------------
 
 /// Parse a `gtm pool <record-type>` block. `record_type` is the sub-type
-/// after `pool `. Mirrors `_parse_gtm_pool`.
+/// after `pool `.
 #[must_use]
 pub fn parse_gtm_pool(
     full_path: &str,
@@ -1173,7 +1138,7 @@ pub fn parse_gtm_pool(
         }
     }
     obj.members = members;
-    // Python prefers ``qos-kilobytes-second`` over ``qos-kbps``.
+    // Prefer ``qos-kilobytes-second`` over ``qos-kbps``.
     let kbps = props
         .get("qos-kilobytes-second")
         .filter(|v| !v.is_empty())
@@ -1185,7 +1150,7 @@ pub fn parse_gtm_pool(
 }
 
 /// Parse a `gtm wideip <record-type>` block. `record_type` is the sub-type
-/// after `wideip `. Mirrors `_parse_gtm_wideip`.
+/// after `wideip `.
 #[must_use]
 pub fn parse_gtm_wideip(
     full_path: &str,
@@ -1212,7 +1177,7 @@ pub fn parse_gtm_wideip(
 }
 
 /// Parse a `gtm topology` stanza. `identifier` is the multi-token condition
-/// from the header. Mirrors `_parse_gtm_topology`.
+/// from the header.
 #[must_use]
 pub fn parse_gtm_topology(identifier: &str, body: &str, range: Range) -> BigipGtmTopology {
     let props = props_map(body);
@@ -1226,11 +1191,9 @@ pub fn parse_gtm_topology(identifier: &str, body: &str, range: Range) -> BigipGt
     }
 }
 
-// ---------------------------------------------------------------------------
 // sys ntp / snmp
-// ---------------------------------------------------------------------------
 
-/// Parse a `sys ntp` block. Mirrors `_parse_sys_ntp`.
+/// Parse a `sys ntp` block.
 #[must_use]
 pub fn parse_sys_ntp(full_path: &str, body: &str, range: Range) -> BigipSysNtp {
     let mut obj = parse_bigip_sys_ntp(full_path, body, range);
@@ -1266,7 +1229,7 @@ pub fn parse_sys_ntp(full_path: &str, body: &str, range: Range) -> BigipSysNtp {
     obj
 }
 
-/// Parse a `sys snmp` block. Mirrors `_parse_sys_snmp`.
+/// Parse a `sys snmp` block.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn parse_sys_snmp(full_path: &str, body: &str, range: Range) -> BigipSysSnmp {
@@ -1366,11 +1329,9 @@ pub fn parse_sys_snmp(full_path: &str, body: &str, range: Range) -> BigipSysSnmp
     obj
 }
 
-// ---------------------------------------------------------------------------
 // net route / self
-// ---------------------------------------------------------------------------
 
-/// Parse a `net route` block. Mirrors `_parse_net_route`.
+/// Parse a `net route` block.
 #[must_use]
 pub fn parse_net_route(full_path: &str, body: &str, range: Range) -> BigipNetRoute {
     let mut obj = parse_bigip_net_route(full_path, body, range);
@@ -1396,7 +1357,7 @@ pub fn parse_net_route(full_path: &str, body: &str, range: Range) -> BigipNetRou
     obj
 }
 
-/// Parse a `net self` block. Mirrors `_parse_net_self`.
+/// Parse a `net self` block.
 #[must_use]
 pub fn parse_net_self(full_path: &str, body: &str, range: Range) -> BigipNetSelf {
     let mut obj = parse_bigip_net_self(full_path, body, range);
@@ -1425,15 +1386,12 @@ pub fn parse_net_self(full_path: &str, body: &str, range: Range) -> BigipNetSelf
     obj
 }
 
-// ---------------------------------------------------------------------------
 // security firewall rule-list
-// ---------------------------------------------------------------------------
 
-/// Parse a `security firewall rule-list` block. Mirrors
-/// `_parse_security_firewall_rule_list`.
+/// Parse a `security firewall rule-list` block.
 ///
-/// Note: the Rust model has no `rule_objects` field (the Python carries the
-/// typed `FirewallRule` tuple), so only the `rules` name tuple is surfaced.
+/// Note: the model has no `rule_objects` field, so only the `rules` name
+/// tuple is surfaced.
 #[must_use]
 pub fn parse_security_firewall_rule_list(
     full_path: &str,
@@ -1454,7 +1412,7 @@ pub fn parse_security_firewall_rule_list(
 }
 
 /// `security firewall policy` — `rules` + `rule_lists` walked out of the
-/// nested `rules { ... }` block. Mirrors `_parse_security_firewall_policy`.
+/// nested `rules { ... }` block.
 #[must_use]
 pub fn parse_security_firewall_policy(
     full_path: &str,
@@ -1469,7 +1427,6 @@ pub fn parse_security_firewall_policy(
 }
 
 /// Walk a firewall `rules { ... }` block → `(rule_names, rule_list_refs)`.
-/// Mirrors `_firewall_rules_summary`.
 fn firewall_rules_summary(props: &HashMap<String, String>) -> (Vec<String>, Vec<String>) {
     let raw = props.get("rules").map_or("", String::as_str);
     if raw.is_empty() || !raw.starts_with('{') {
@@ -1491,9 +1448,8 @@ fn firewall_rules_summary(props: &HashMap<String, String>) -> (Vec<String>, Vec<
 }
 
 /// `gtm server` — `addresses` / `virtual_servers` flattened out of the
-/// nested `devices` / `virtual-servers` numbered sub-blocks. Mirrors
-/// `_parse_gtm_server` (the generated scalar parser mis-reads them as
-/// flat lists, so override both).
+/// nested `devices` / `virtual-servers` numbered sub-blocks (the generated
+/// scalar parser mis-reads them as flat lists, so override both).
 #[must_use]
 pub fn parse_gtm_server(full_path: &str, body: &str, range: Range) -> BigipGtmServer {
     let mut obj = parse_bigip_gtm_server(full_path, body, range);
@@ -1527,9 +1483,8 @@ pub fn parse_gtm_server(full_path: &str, body: &str, range: Range) -> BigipGtmSe
     obj
 }
 
-/// `apm policy item` — `caption` is a quoted string Python `_strip_quotes`-es.
-/// Mirrors `_parse_apm_policy_item` (the rest is faithful via the scalar
-/// parser).
+/// `apm policy item` — `caption` is a quoted string whose quotes are
+/// stripped. The rest is handled by the scalar parser.
 #[must_use]
 pub fn parse_apm_policy_item(full_path: &str, body: &str, range: Range) -> BigipApmPolicyItem {
     let mut obj = parse_bigip_apm_policy_item(full_path, body, range);
@@ -1540,11 +1495,9 @@ pub fn parse_apm_policy_item(full_path: &str, body: &str, range: Range) -> Bigip
     obj
 }
 
-// ---------------------------------------------------------------------------
 // Per-kind structured-list parsers (cm / gtm / ltm / net / pem / security / sys)
-// ---------------------------------------------------------------------------
 
-/// `_parse_list_block` over a property's value when present, else empty.
+/// Apply `parse_list_block` to a property's value when present, else empty.
 fn list_block_of(props: &HashMap<String, String>, key: &str) -> Vec<String> {
     props
         .get(key)
@@ -1553,8 +1506,7 @@ fn list_block_of(props: &HashMap<String, String>, key: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// The ordered top-level keys of a braced sub-block value (mirrors
-/// `tuple(_parse_properties_with_spans(_strip_outer_braces(value)).keys())`).
+/// The ordered top-level keys of a braced sub-block value.
 fn subblock_keys(value: &str) -> Vec<String> {
     parse_properties_with_spans(strip_outer_braces(value))
         .into_iter()
@@ -1562,9 +1514,8 @@ fn subblock_keys(value: &str) -> Vec<String> {
         .collect()
 }
 
-/// `apm oauth db-instance` — `purge_time` is a quoted string Python
-/// `_strip_quotes`-es (the rest is faithful via the scalar parser).
-/// Mirrors `_parse_apm_oauth_db_instance`.
+/// `apm oauth db-instance` — `purge_time` is a quoted string whose quotes
+/// are stripped. The rest is handled by the scalar parser.
 #[must_use]
 pub fn parse_apm_oauth_db_instance(
     full_path: &str,
@@ -1579,8 +1530,7 @@ pub fn parse_apm_oauth_db_instance(
 }
 
 /// `cm device` — `unicast_address` flattened out of anon-or-numbered
-/// `ip` sub-blocks; `comment`/`contact`/`location` `_strip_quotes`-ed.
-/// Mirrors `_parse_cm_device`.
+/// `ip` sub-blocks; `comment`/`contact`/`location` quote-stripped.
 #[must_use]
 pub fn parse_cm_device(full_path: &str, body: &str, range: Range) -> BigipCmDevice {
     let mut obj = parse_bigip_cm_device(full_path, body, range);
@@ -1605,7 +1555,7 @@ pub fn parse_cm_device(full_path: &str, body: &str, range: Range) -> BigipCmDevi
     obj
 }
 
-/// `cm device-group` — `devices` list. Mirrors `_parse_cm_device_group`.
+/// `cm device-group` — `devices` list.
 #[must_use]
 pub fn parse_cm_device_group(full_path: &str, body: &str, range: Range) -> BigipCmDeviceGroup {
     let mut obj = parse_bigip_cm_device_group(full_path, body, range);
@@ -1613,7 +1563,7 @@ pub fn parse_cm_device_group(full_path: &str, body: &str, range: Range) -> Bigip
     obj
 }
 
-/// `cm traffic-group` — `ha_order` list. Mirrors `_parse_cm_traffic_group`.
+/// `cm traffic-group` — `ha_order` list.
 #[must_use]
 pub fn parse_cm_traffic_group(full_path: &str, body: &str, range: Range) -> BigipCmTrafficGroup {
     let mut obj = parse_bigip_cm_traffic_group(full_path, body, range);
@@ -1621,7 +1571,7 @@ pub fn parse_cm_traffic_group(full_path: &str, body: &str, range: Range) -> Bigi
     obj
 }
 
-/// `cm trust-domain` — `ca_devices` list. Mirrors `_parse_cm_trust_domain`.
+/// `cm trust-domain` — `ca_devices` list.
 #[must_use]
 pub fn parse_cm_trust_domain(full_path: &str, body: &str, range: Range) -> BigipCmTrustDomain {
     let mut obj = parse_bigip_cm_trust_domain(full_path, body, range);
@@ -1629,8 +1579,7 @@ pub fn parse_cm_trust_domain(full_path: &str, body: &str, range: Range) -> Bigip
     obj
 }
 
-/// `gtm datacenter` — `contact`/`location` `_strip_quotes`-ed. Mirrors
-/// `_parse_gtm_datacenter`.
+/// `gtm datacenter` — `contact`/`location` quote-stripped.
 #[must_use]
 pub fn parse_gtm_datacenter(full_path: &str, body: &str, range: Range) -> BigipGtmDatacenter {
     let mut obj = parse_bigip_gtm_datacenter(full_path, body, range);
@@ -1644,7 +1593,7 @@ pub fn parse_gtm_datacenter(full_path: &str, body: &str, range: Range) -> BigipG
     obj
 }
 
-/// `gtm prober-pool` — `members` list. Mirrors `_parse_gtm_prober_pool`.
+/// `gtm prober-pool` — `members` list.
 #[must_use]
 pub fn parse_gtm_prober_pool(full_path: &str, body: &str, range: Range) -> BigipGtmProberPool {
     let mut obj = parse_bigip_gtm_prober_pool(full_path, body, range);
@@ -1652,8 +1601,7 @@ pub fn parse_gtm_prober_pool(full_path: &str, body: &str, range: Range) -> Bigip
     obj
 }
 
-/// `gtm rule` — Tcl body stored verbatim in `source`. Mirrors
-/// `_parse_gtm_rule`.
+/// `gtm rule` — Tcl body stored verbatim in `source`.
 #[must_use]
 pub fn parse_gtm_rule(full_path: &str, body: &str, range: Range) -> BigipGtmRule {
     let mut obj = parse_bigip_gtm_rule(full_path, body, range);
@@ -1661,8 +1609,7 @@ pub fn parse_gtm_rule(full_path: &str, body: &str, range: Range) -> BigipGtmRule
     obj
 }
 
-/// `ltm dns cache resolver` — `forward_zones` keys. Mirrors
-/// `_parse_ltm_dns_cache_resolver`.
+/// `ltm dns cache resolver` — `forward_zones` keys.
 #[must_use]
 pub fn parse_ltm_dns_cache_resolver(
     full_path: &str,
@@ -1678,8 +1625,7 @@ pub fn parse_ltm_dns_cache_resolver(
     obj
 }
 
-/// `net dns-resolver` — `forward_zones` + `nameservers` lists. Mirrors
-/// `_parse_net_dns_resolver`.
+/// `net dns-resolver` — `forward_zones` + `nameservers` lists.
 #[must_use]
 pub fn parse_net_dns_resolver(full_path: &str, body: &str, range: Range) -> BigipNetDnsResolver {
     let mut obj = parse_bigip_net_dns_resolver(full_path, body, range);
@@ -1689,8 +1635,7 @@ pub fn parse_net_dns_resolver(full_path: &str, body: &str, range: Range) -> Bigi
     obj
 }
 
-/// `net interface` — `name = full_path` (bare slot/port token). Mirrors
-/// `_parse_net_interface`.
+/// `net interface` — `name = full_path` (bare slot/port token).
 #[must_use]
 pub fn parse_net_interface(full_path: &str, body: &str, range: Range) -> BigipNetInterface {
     let mut obj = parse_bigip_net_interface(full_path, body, range);
@@ -1698,7 +1643,7 @@ pub fn parse_net_interface(full_path: &str, body: &str, range: Range) -> BigipNe
     obj
 }
 
-/// `net port-list` — `ports` list. Mirrors `_parse_net_port_list`.
+/// `net port-list` — `ports` list.
 #[must_use]
 pub fn parse_net_port_list(full_path: &str, body: &str, range: Range) -> BigipNetPortList {
     let mut obj = parse_bigip_net_port_list(full_path, body, range);
@@ -1706,8 +1651,7 @@ pub fn parse_net_port_list(full_path: &str, body: &str, range: Range) -> BigipNe
     obj
 }
 
-/// `net route-domain` — `vlans` + `routing_protocol` lists. Mirrors
-/// `_parse_net_route_domain`.
+/// `net route-domain` — `vlans` + `routing_protocol` lists.
 #[must_use]
 pub fn parse_net_route_domain(full_path: &str, body: &str, range: Range) -> BigipNetRouteDomain {
     let mut obj = parse_bigip_net_route_domain(full_path, body, range);
@@ -1717,7 +1661,7 @@ pub fn parse_net_route_domain(full_path: &str, body: &str, range: Range) -> Bigi
     obj
 }
 
-/// `net stp` — `interfaces` + `vlans` lists. Mirrors `_parse_net_stp`.
+/// `net stp` — `interfaces` + `vlans` lists.
 #[must_use]
 pub fn parse_net_stp(full_path: &str, body: &str, range: Range) -> BigipNetStp {
     let mut obj = parse_bigip_net_stp(full_path, body, range);
@@ -1727,7 +1671,7 @@ pub fn parse_net_stp(full_path: &str, body: &str, range: Range) -> BigipNetStp {
     obj
 }
 
-/// `net vlan` — `interfaces` list. Mirrors `_parse_net_vlan`.
+/// `net vlan` — `interfaces` list.
 #[must_use]
 pub fn parse_net_vlan(full_path: &str, body: &str, range: Range) -> BigipNetVlan {
     let mut obj = parse_bigip_net_vlan(full_path, body, range);
@@ -1735,7 +1679,7 @@ pub fn parse_net_vlan(full_path: &str, body: &str, range: Range) -> BigipNetVlan
     obj
 }
 
-/// `pem listener` — `virtual_servers` list. Mirrors `_parse_pem_listener`.
+/// `pem listener` — `virtual_servers` list.
 #[must_use]
 pub fn parse_pem_listener(full_path: &str, body: &str, range: Range) -> BigipPemListener {
     let mut obj = parse_bigip_pem_listener(full_path, body, range);
@@ -1743,7 +1687,7 @@ pub fn parse_pem_listener(full_path: &str, body: &str, range: Range) -> BigipPem
     obj
 }
 
-/// `pem policy` — `rules` sub-block keys. Mirrors `_parse_pem_policy`.
+/// `pem policy` — `rules` sub-block keys.
 #[must_use]
 pub fn parse_pem_policy(full_path: &str, body: &str, range: Range) -> BigipPemPolicy {
     let mut obj = parse_bigip_pem_policy(full_path, body, range);
@@ -1754,7 +1698,6 @@ pub fn parse_pem_policy(full_path: &str, body: &str, range: Range) -> BigipPemPo
 }
 
 /// `pem service-chain-endpoint` — `service_endpoints` sub-block keys.
-/// Mirrors `_parse_pem_service_chain_endpoint`.
 #[must_use]
 pub fn parse_pem_service_chain_endpoint(
     full_path: &str,
@@ -1768,8 +1711,7 @@ pub fn parse_pem_service_chain_endpoint(
     obj
 }
 
-/// `security firewall port-list` — `ports` list. Mirrors
-/// `_parse_security_firewall_port_list`.
+/// `security firewall port-list` — `ports` list.
 #[must_use]
 pub fn parse_security_firewall_port_list(
     full_path: &str,
@@ -1782,7 +1724,7 @@ pub fn parse_security_firewall_port_list(
 }
 
 /// `security log profile` — `application_data` from the `application`
-/// key. Mirrors `_parse_security_log_profile`.
+/// key.
 #[must_use]
 pub fn parse_security_log_profile(
     full_path: &str,
@@ -1798,7 +1740,6 @@ pub fn parse_security_log_profile(
 }
 
 /// `security nat policy` — firewall `rules` + `rule_lists` summary.
-/// Mirrors `_parse_security_nat_policy`.
 #[must_use]
 pub fn parse_security_nat_policy(
     full_path: &str,
@@ -1813,7 +1754,7 @@ pub fn parse_security_nat_policy(
 }
 
 /// `security packet-filter policy` — firewall `rules` summary (no
-/// rule-lists surfaced). Mirrors `_parse_security_packet_filter_policy`.
+/// rule-lists surfaced).
 #[must_use]
 pub fn parse_security_packet_filter_policy(
     full_path: &str,
@@ -1826,8 +1767,7 @@ pub fn parse_security_packet_filter_policy(
     obj
 }
 
-/// `sys file ssl-cert` — `cert_validators` list. Mirrors
-/// `_parse_sys_file_ssl_cert`.
+/// `sys file ssl-cert` — `cert_validators` list.
 #[must_use]
 pub fn parse_sys_file_ssl_cert(full_path: &str, body: &str, range: Range) -> BigipSysFileSslCert {
     let mut obj = parse_bigip_sys_file_ssl_cert(full_path, body, range);
@@ -1835,8 +1775,7 @@ pub fn parse_sys_file_ssl_cert(full_path: &str, body: &str, range: Range) -> Big
     obj
 }
 
-/// `sys provision` — `name = full_path` (bare module name). Mirrors
-/// `_parse_sys_provision`.
+/// `sys provision` — `name = full_path` (bare module name).
 #[must_use]
 pub fn parse_sys_provision(full_path: &str, body: &str, range: Range) -> BigipSysProvision {
     let mut obj = parse_bigip_sys_provision(full_path, body, range);
@@ -1845,7 +1784,6 @@ pub fn parse_sys_provision(full_path: &str, body: &str, range: Range) -> BigipSy
 }
 
 /// `auth partition` — `name = full_path` (cluster-wide identifier).
-/// Mirrors `_parse_auth_partition`.
 #[must_use]
 pub fn parse_auth_partition(full_path: &str, body: &str, range: Range) -> BigipAuthPartition {
     let mut obj = parse_bigip_auth_partition(full_path, body, range);
@@ -1853,12 +1791,9 @@ pub fn parse_auth_partition(full_path: &str, body: &str, range: Range) -> BigipA
     obj
 }
 
-// ---------------------------------------------------------------------------
 // Range helpers
-// ---------------------------------------------------------------------------
 
 /// Build an inclusive `Range` from token start/exclusive-end offsets.
-/// Mirrors `_range_from_token_offsets`.
 fn range_from_token_offsets(ctx: BespokeCtx, start: usize, end_exclusive: usize) -> Range {
     let end = end_exclusive.max(start + 1) - 1;
     Range::from_offsets(ctx.source, ctx.line_index, start, end)
@@ -1907,7 +1842,7 @@ mod tests {
             members[0].address.as_ref().unwrap().to_string(),
             "10.0.1.10"
         );
-        // address present -> port stays 0 (Python only parses port from the
+        // address present -> port stays 0 (the port is only parsed from the
         // name when no explicit address is set).
         assert_eq!(members[0].port, 0);
         assert!(members[0].field_offsets.contains_key("address"));
@@ -2113,7 +2048,7 @@ mod tests {
         assert_eq!(v.source_address_translation, "snat");
         assert_eq!(v.snatpool, "/Common/my_snatpool");
 
-        // pool_range captured from the live Python parser.
+        // pool_range captured from the reference parser.
         let pr = v.pool_range.unwrap();
         assert_eq!(
             (pr.start.line, pr.start.character, pr.start.offset),

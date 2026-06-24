@@ -1,5 +1,4 @@
-//! Semantic-tokens provider — Rust port of
-//! `lsp/features/_semantic_tokens/`.
+//! Semantic-tokens provider.
 //!
 //! Produces an LSP-encoded semantic-tokens stream covering
 //! the common Tcl token categories:
@@ -39,7 +38,7 @@
 //! [`legend_token_modifiers`] so the server advertises it in
 //! the LSP `initialize` capabilities response.
 //!
-//! What landed in `S-semantic-tokens-rich`:
+//! Additional variants:
 //!
 //! * Range variant ([`range`]) — same encoding as [`full`]
 //!   filtered to tokens whose start position falls inside
@@ -50,16 +49,16 @@
 //!   edit list when nothing changed); a stale / unknown previous
 //!   id falls back to a fresh full stream.
 //!
-//! What is *still deferred* (a separate document-mode feature, not a
-//! per-argument sub-token slice):
-//!
-//! * BIG-IP **config-file** mode (`is_bigip_conf`) — partition paths
-//!   (`/Common/…`), IPv4 / route-domain / port literals in `.conf`
-//!   text — and **APL** embedded-Tcl detection.  These run on whole
-//!   documents of a different type, not on Tcl/iRules command
-//!   arguments; the iRules object-reference highlighting (the
-//!   code-relevant half of the BIG-IP taxonomy) has landed.
+//! Not handled (a separate document-mode feature, not a
+//! per-argument sub-token slice): BIG-IP **config-file** mode
+//! (`is_bigip_conf`) — partition paths (`/Common/…`), IPv4 /
+//! route-domain / port literals in `.conf` text — and **APL**
+//! embedded-Tcl detection.  These run on whole documents of a
+//! different type, not on Tcl/iRules command arguments.  The
+//! iRules object-reference highlighting (the code-relevant half
+//! of the BIG-IP taxonomy) is handled.
 
+use rustc_hash::FxHashMap;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Token, TokenType};
 
@@ -137,12 +136,11 @@ enum TokenKind {
     Escape = 29,
 }
 
-/// `binary format`/`scan` specifier letters.  Mirrors
-/// `_BINARY_FORMAT_SPECIFIERS`.
+/// `binary format`/`scan` specifier letters.
 const BINARY_FORMAT_SPECIFIERS: &[u8] = b"aAbBhHcsSiInwWmrRfdxX@t";
 
 /// Integer specifiers that accept a `u`/`s` signed/unsigned modifier
-/// (Tcl 8.5+).  Mirrors `_BINARY_INT_SPECIFIERS`.
+/// (Tcl 8.5+).
 const BINARY_INT_SPECIFIERS: &[u8] = b"csSiIntwWmrR";
 
 /// The token-type / token-modifier legend the server
@@ -185,16 +183,13 @@ pub fn legend_token_types() -> Vec<&'static str> {
 
 /// Token-modifiers part of the legend.  Order is fixed and must
 /// align with the `1 << index` bits in [`MOD_DEFAULT_LIBRARY`] etc.
-/// Mirrors `SEMANTIC_TOKEN_MODIFIERS` in
-/// `lsp/features/_semantic_tokens/_constants.py`.
 #[must_use]
 pub fn legend_token_modifiers() -> Vec<&'static str> {
     vec!["declaration", "definition", "readonly", "defaultLibrary"]
 }
 
 /// `defaultLibrary` modifier bit (legend index 3) — set on a
-/// command head that resolves to a registry built-in.  Mirrors
-/// `1 << _MOD_INDEX["defaultLibrary"]`.
+/// command head that resolves to a registry built-in.
 const MOD_DEFAULT_LIBRARY: u32 = 1 << 3;
 
 /// `definition` modifier bit (legend index 1) — set on the name token of a
@@ -204,9 +199,7 @@ const MOD_DEFINITION: u32 = 1 << 1;
 /// Sub-keywords highlighted as `keyword` that are **not** standalone
 /// commands, so they have no `CommandSpec` to carry the
 /// `LANGUAGE_KEYWORD` trait: clause keywords of `if`/`try`/`switch`
-/// and `TclOO` definition-/method-context words.  Mirrors Python's
-/// `_LANGUAGE_KEYWORD_SUB_KEYWORDS` in
-/// `lsp/features/_semantic_tokens/_constants.py`.  The standalone
+/// and `TclOO` definition-/method-context words.  The standalone
 /// commands (`if`, `while`, `proc`, `when`, `oo::*`, …) are sourced
 /// from the registry's `LANGUAGE_KEYWORD` trait instead of a
 /// hardcoded list.
@@ -242,8 +235,7 @@ const LANGUAGE_KEYWORD_SUB_KEYWORDS: &[&str] = &[
     "link",
 ];
 
-/// Classify a command-head token name.  Mirrors Python's
-/// `_classify_token` (command-name branch): a name is a `keyword`
+/// Classify a command-head token name: a name is a `keyword`
 /// when it carries the registry's `LANGUAGE_KEYWORD` trait or is one
 /// of the non-command [`LANGUAGE_KEYWORD_SUB_KEYWORDS`]; a
 /// `::`-qualified name is a `namespace`; everything else is a
@@ -257,7 +249,7 @@ fn classify_command_head(name: &str, registry: &CommandRegistry) -> TokenKind {
         TokenKind::Keyword
     } else if is_operator_command(name) {
         // A bare operator used as a command head (`+ 3 4`, `tcl::mathop`
-        // style) — mirrors Python `_OPERATORS`.
+        // style).
         TokenKind::Operator
     } else if name.contains("::") {
         TokenKind::Namespace
@@ -266,8 +258,8 @@ fn classify_command_head(name: &str, registry: &CommandRegistry) -> TokenKind {
     }
 }
 
-/// `true` when `name` is one of the operator command heads Python's
-/// `_OPERATORS` set recognises (`+ - * / > >= < <= == !=`).
+/// `true` when `name` is one of the recognised operator command heads
+/// (`+ - * / > >= < <= == !=`).
 fn is_operator_command(name: &str) -> bool {
     matches!(
         name,
@@ -296,8 +288,8 @@ pub fn range(
 ) -> SemanticTokens {
     let mut entries = collect_entries(source, dialect, registry);
     entries.retain(|(line, col, _, _, _)| {
-        // Half-open interval per LSP `Range` semantics (PR #454
-        // Copilot review): start is inclusive, end is exclusive.
+        // Half-open interval per LSP `Range` semantics: start is
+        // inclusive, end is exclusive.
         let pos = (*line, *col);
         let start = (range.start_line, range.start_character);
         let end = (range.end_line, range.end_character);
@@ -312,7 +304,6 @@ pub fn range(
 type Entry = (u32, u32, u32, TokenKind, u32);
 
 /// True when `s` looks like an iRules event name (`^[A-Z][A-Z0-9_]+$`).
-/// Mirrors `_EVENT_RE`.
 fn is_event_name(s: &str) -> bool {
     let bytes = s.as_bytes();
     bytes.len() >= 2
@@ -364,13 +355,12 @@ enum ArgOverride {
     ProcNameDef,
     /// The braced case-list argument of `switch -regexp … { pat body … }`:
     /// the pattern elements are sub-tokenised as regexes and the body
-    /// elements recursed as scripts.  Mirrors
-    /// `_collect.py::_collect_switch_case_bodies`.
+    /// elements recursed as scripts.
     SwitchRegexpCaseList,
     /// A structural keyword word at an argument position (`if`'s
     /// `then`/`elseif`/`else`, `try`'s `on`/`trap`/`finally`), carried
     /// by `ArgRole::Keyword` → highlighted as `Keyword` rather than a
-    /// string.  Mirrors `_collect.py`'s KEYWORD-role branch.
+    /// string.
     KeywordArg,
 }
 
@@ -419,8 +409,7 @@ fn flush_run(
 
 /// Sub-tokenise a `regsub` replacement spec: `\&` → `Operator`,
 /// `\0`-`\9` → `Number`, literal runs → `String`.  Returns `false` when
-/// there are no backreferences.  Mirrors `_collect_regsub_subspec_tokens`
-/// — a direct backslash scan (no regex).
+/// there are no backreferences.  A direct backslash scan (no regex).
 fn push_regsub_subtokens(
     line_index: &LineIndex,
     source: &str,
@@ -482,15 +471,12 @@ fn push_regsub_subtokens(
 ///   `pattern_type == Regex`, option-skipped first positional) →
 ///   [`ArgOverride::RegexPattern`] (sub-tokenised into ARE components);
 /// * a `when EVENT` event-name argument → [`TokenKind::Event`].
-///
-/// The format-string (`%Y` / `%s`) and `BigIP` object sub-token
-/// taxonomies remain the deferred bulk of `S-semantic-tokens-rich`.
 #[allow(clippy::too_many_lines)]
 fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
-) -> std::collections::HashMap<u32, ArgOverride> {
-    let mut overrides = std::collections::HashMap::new();
+) -> FxHashMap<u32, ArgOverride> {
+    let mut overrides = FxHashMap::default();
     let head = &seg.texts[0];
 
     // `when EVENT` — the literal event-name argument.
@@ -526,7 +512,7 @@ fn special_arg_kinds(
             overrides.insert(tok.span.start(), ArgOverride::RegexPattern);
         }
         // `regsub … exp string subSpec …` — the replacement spec sits two
-        // words after the pattern.  Mirrors `_regsub_subspec_arg_index`.
+        // words after the pattern.
         if head == "regsub"
             && let Some(tok) = seg.argv.get(idx + 3)
         {
@@ -535,8 +521,8 @@ fn special_arg_kinds(
     }
 
     // `format FMT …` (arg 1) / `scan STR FMT …` (arg 2) — the conversion
-    // string.  Command-name gated, mirroring `_sprintf_format_arg_index`
-    // (the registry's `format_string_type` field is never populated).
+    // string.  Command-name gated (the registry's `format_string_type`
+    // field is never populated).
     let fmt_word = match head.as_str() {
         "format" if seg.argv.len() >= 2 => Some(1),
         "scan" if seg.argv.len() >= 3 => Some(2),
@@ -549,7 +535,6 @@ fn special_arg_kinds(
     }
 
     // `clock format/scan … -format FMT` — the `-format` option value.
-    // Mirrors `_clock_format_arg_index`.
     if head == "clock"
         && seg.texts.len() >= 3
         && matches!(seg.texts[1].as_str(), "format" | "scan")
@@ -560,7 +545,6 @@ fn special_arg_kinds(
     }
 
     // `binary format FMT …` (arg 2) / `binary scan VAL FMT …` (arg 3).
-    // Mirrors `_binary_format_arg_index`.
     if head == "binary" && seg.texts.len() >= 3 {
         let bin_word = match seg.texts[1].as_str() {
             "format" => Some(2),
@@ -611,7 +595,7 @@ fn special_arg_kinds(
     // word, when option-skipped past `-regexp`/`--`) carries regex patterns.
     // Tag it so `collect_script` sub-tokenises the patterns as regexes and
     // recurses the bodies, rather than treating the whole list as one opaque
-    // body.  Mirrors `_collect_switch_case_bodies`.
+    // body.
     if head == "switch" {
         let mut i = 1;
         let mut is_regexp = false;
@@ -685,7 +669,6 @@ fn special_arg_kinds(
 /// `BinarySpec`, a `u`/`s` modifier after an integer specifier (Tcl 8.5+)
 /// or a trailing `*` → `BinaryFlag`.  Whitespace and unrecognised
 /// characters are skipped.  Returns `false` when nothing was emitted.
-/// Mirrors `_collect_binary_format_spec_tokens`.
 fn push_binary_subtokens(
     line_index: &LineIndex,
     source: &str,
@@ -780,8 +763,7 @@ fn push_binary_subtokens(
 /// Sub-tokenise a `clock format`/`scan` field string into its `%`
 /// specifiers (`ClockPercent` + optional `ClockModifier` + `ClockSpec`),
 /// literal runs classified as `string`.  Returns `false` when there are
-/// no specifiers.  Mirrors `_collect_clock_format_spec_tokens` +
-/// `_CLOCK_FORMAT_RE`.
+/// no specifiers.
 fn push_clock_subtokens(
     line_index: &LineIndex,
     source: &str,
@@ -860,8 +842,7 @@ fn push_clock_subtokens(
     true
 }
 
-/// `clock format`/`scan` specifier letters (and `%`).  Mirrors the class
-/// in `_CLOCK_FORMAT_RE`.
+/// `clock format`/`scan` specifier letters (and `%`).
 fn is_clock_spec(b: u8) -> bool {
     matches!(
         b,
@@ -911,8 +892,7 @@ fn is_clock_spec(b: u8) -> bool {
 /// Sub-tokenise a `format`/`scan` conversion string into its `%`
 /// specifier components (`FormatPercent` / `FormatFlag` / `FormatWidth`
 /// / `FormatSpec`), with literal runs classified as `string`.  Returns
-/// `false` (emitting nothing) when there are no `%` specifiers.  Mirrors
-/// `_collect_sprintf_format_spec_tokens` + `_SPRINTF_RE`.
+/// `false` (emitting nothing) when there are no `%` specifiers.
 fn push_sprintf_subtokens(
     line_index: &LineIndex,
     source: &str,
@@ -958,8 +938,7 @@ fn push_sprintf_subtokens(
     true
 }
 
-/// `format`/`scan` conversion type letters.  Mirrors the `type` class in
-/// `_SPRINTF_RE`.
+/// `format`/`scan` conversion type letters.
 fn is_sprintf_type(b: u8) -> bool {
     matches!(
         b,
@@ -986,8 +965,7 @@ fn is_sprintf_type(b: u8) -> bool {
 /// Parse one `%`-specifier at `b[start]` into its component
 /// `(end, kind)` cuts (monotonic ends, consumed in order by
 /// [`emit_part`]), or `None` when it isn't a valid conversion (no type
-/// letter — the `%` is then a literal).  Replaces `_SPRINTF_RE` +
-/// `emit_sprintf_spec`; component order is identical.
+/// letter — the `%` is then a literal).
 fn parse_sprintf_cuts(b: &[u8], start: usize) -> Option<Vec<(usize, TokenKind)>> {
     let n = b.len();
     let mut cuts: Vec<(usize, TokenKind)> = Vec::new();
@@ -1036,12 +1014,10 @@ fn parse_sprintf_cuts(b: &[u8], start: usize) -> Option<Vec<(usize, TokenKind)>>
         cuts.push((j, kind));
     }
 
-    // Precision `.` then `*` | digits.  Python's `_SPRINTF_RE` writes the
-    // separator as a regex `.` (any char), so it would also treat e.g.
-    // `%5,3d` as width-5 / precision-3.  We intentionally narrow to a
-    // literal `.` — the actual sprintf precision separator — so a
-    // malformed `%5,3d` stays a plain string rather than being mis-split;
-    // this only diverges on invalid format strings (highlighting only).
+    // Precision `.` then `*` | digits.  The separator is matched as a
+    // literal `.` — the actual sprintf precision separator — not any
+    // character, so a malformed `%5,3d` stays a plain string rather than
+    // being mis-split into width-5 / precision-3 (highlighting only).
     if b.get(j) == Some(&b'.') {
         let value_start = j + 1;
         let mut k = value_start;
@@ -1113,8 +1089,7 @@ fn emit_part(
 /// alternation), with the literal runs between them classified as
 /// `regexp`.  Returns `false` (emitting nothing) when the token isn't a
 /// braced/quoted literal or contains no metacharacters — the caller then
-/// falls back to a single `regexp` token.  Mirrors
-/// `_collect_regex_pattern_tokens` + `_REGEX_PART_RE`.
+/// falls back to a single `regexp` token.
 fn push_regex_subtokens(
     line_index: &LineIndex,
     source: &str,
@@ -1166,9 +1141,7 @@ fn push_regex_subtokens(
 
 /// Recognise one ARE metacharacter construct starting at `b[i]`,
 /// returning its exclusive end, or `None` when `b[i]` is a literal
-/// character.  A hand-written scanner replacing Python's `_REGEX_PART_RE`
-/// (its one malformed `\{\d+\}` BRE alternative, dead in Python too, is
-/// omitted).
+/// character.
 fn scan_are_token(b: &[u8], i: usize) -> Option<usize> {
     let len = b.len();
     match b[i] {
@@ -1310,8 +1283,7 @@ fn scan_are_escape(b: &[u8], i: usize) -> Option<usize> {
     }
 }
 
-/// Classify a single ARE metacharacter run.  Mirrors the component
-/// classifier inside `_collect_regex_pattern_tokens`.
+/// Classify a single ARE metacharacter run.
 fn classify_regex_component(matched: &str) -> TokenKind {
     let bytes = matched.as_bytes();
     if matched.starts_with('[') {
@@ -1358,18 +1330,18 @@ fn push_subtoken(
     }
     let pos = line_index.position_at_utf16(u32::try_from(abs_off).unwrap_or(0), source);
     let len_utf16 = utf16_len(text);
-    entries.push((pos.line, pos.character, len_utf16, kind, 0));
+    entries.push((pos.line, pos.character.get(), len_utf16, kind, 0));
 }
 
 /// Maximum body / expr / command-substitution recursion depth — guards
-/// against pathological nesting (mirrors Python's `_collect_tokens` cap).
+/// against pathological nesting.
 const MAX_TOKEN_RECURSION: u32 = 32;
 
 /// Emit the command-head token, splitting a namespace-qualified head
 /// (`oo::class`, `::set`) into a `namespace` token for the leading
-/// `…::` prefix plus a command token for the final segment — mirrors
-/// Python's `_emit_namespace_qualified`.  A bare head is emitted whole,
-/// carrying `defaultLibrary` when it resolves to a registry built-in.
+/// `…::` prefix plus a command token for the final segment.  A bare head
+/// is emitted whole, carrying `defaultLibrary` when it resolves to a
+/// registry built-in.
 /// Sub-tokenise the braced case list of `switch -regexp … { pat body … }`.
 ///
 /// The inner script is re-segmented into commands; the words are flattened
@@ -1377,7 +1349,7 @@ const MAX_TOKEN_RECURSION: u32 = 32;
 /// body), since a Tcl `switch` case list is one flat list whose line breaks
 /// are insignificant whitespace.  Pattern words (except the literal
 /// `default`) are sub-tokenised as regexes; body words are recursed as
-/// scripts.  Mirrors `_collect.py::_collect_switch_case_bodies`.
+/// scripts.
 #[allow(clippy::too_many_arguments)]
 fn collect_switch_regexp_case_list(
     full_source: &str,
@@ -1538,8 +1510,7 @@ fn collect_script(
             continue;
         }
         // Classify the command-head token.  A head that resolves to a registry
-        // built-in carries the `defaultLibrary` modifier (mirrors
-        // `_collect.py`: `is_cmd_name && function && builtin`).
+        // built-in carries the `defaultLibrary` modifier.
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
         emit_command_head(
@@ -1705,8 +1676,7 @@ fn collect_script(
 /// Tokenise a braced expression argument via the expression sub-lexer,
 /// emitting variable / number / operator / function / string / boolean
 /// sub-tokens (math functions carry `defaultLibrary`) and recursing into
-/// nested `[cmd]` substitutions.  Mirrors Python's
-/// `_collect_expression_tokens`.
+/// nested `[cmd]` substitutions.
 fn collect_expr(
     full_source: &str,
     tok: Token,
@@ -1803,7 +1773,7 @@ fn collect_expr(
                 };
                 entries.push((
                     pos.line,
-                    pos.character,
+                    pos.character.get(),
                     utf16_len(&et.text),
                     TokenKind::Function,
                     mods,
@@ -1869,7 +1839,7 @@ fn push_object_token(
     if start.line != end.line {
         return;
     }
-    let len = end.character.saturating_sub(start.character);
+    let len = end.character.get().saturating_sub(start.character.get());
     if len == 0 {
         return;
     }
@@ -1880,7 +1850,9 @@ fn push_object_token(
     // wins and suppresses the object token.
     let mut other_overlap = false;
     entries.retain(|(l, c, ln, kind, _)| {
-        let overlaps = *l == start.line && *c < start.character + len && start.character < *c + *ln;
+        let overlaps = *l == start.line
+            && *c < start.character.get() + len
+            && start.character.get() < *c + *ln;
         if overlaps {
             if *kind == TokenKind::String {
                 return false;
@@ -1890,7 +1862,7 @@ fn push_object_token(
         true
     });
     if !other_overlap {
-        entries.push((start.line, start.character, len, TokenKind::Object, 0));
+        entries.push((start.line, start.character.get(), len, TokenKind::Object, 0));
     }
 }
 
@@ -1927,7 +1899,7 @@ fn push_escape_subtokens(
                     entries,
                 );
             }
-            // Minimal `\X` (two chars); richer `\uHHHH` widths are a follow-up.
+            // Minimal `\X` (two chars); richer `\uHHHH` widths aren't handled.
             let esc = &text[i..(i + 2).min(text.len())];
             push_subtoken(
                 source,
@@ -1976,8 +1948,7 @@ fn classify_arg_token(tok: Token, source: &str) -> Option<TokenKind> {
             // — including the leading fragment whose span may
             // not include the opening `"`.  This matches the
             // lexer contract and avoids the prior byte-peek
-            // heuristic that missed inner fragments (PR #454
-            // Copilot review).
+            // heuristic that missed inner fragments.
             if tok.in_quote {
                 return Some(TokenKind::String);
             }
@@ -1990,10 +1961,9 @@ fn classify_arg_token(tok: Token, source: &str) -> Option<TokenKind> {
             } else if text.contains("::") {
                 Some(TokenKind::Namespace)
             } else {
-                // Bareword argument words classify as String — mirrors
-                // Python `_classify_token`'s ESC fallback (after the
-                // int/float checks), so `puts hello` emits the `hello`
-                // string token rather than dropping it.
+                // Bareword argument words classify as String, so `puts
+                // hello` emits the `hello` string token rather than
+                // dropping it.
                 Some(TokenKind::String)
             }
         }
@@ -2029,7 +1999,7 @@ fn is_number_literal(text: &str) -> bool {
 }
 
 /// Scan `source` for `#` comment lines and push each one as
-/// a Comment-kind entry.  Mirrors Python's `_collect_comments`.
+/// a Comment-kind entry.
 fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<Entry>) {
     let bytes = source.as_bytes();
     let mut line_start = true;
@@ -2058,7 +2028,13 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             let comment_start = u32::try_from(idx).unwrap_or(0);
             let pos = line_index.position_at_utf16(comment_start, source);
             let len_utf16 = utf16_len(&source[idx..p]);
-            entries.push((pos.line, pos.character, len_utf16, TokenKind::Comment, 0));
+            entries.push((
+                pos.line,
+                pos.character.get(),
+                len_utf16,
+                TokenKind::Comment,
+                0,
+            ));
             // Skip the remainder of the comment line; the terminating `\n`
             // (at `p`) is processed normally and resets `line_start`.
             skip_until = p;
@@ -2106,20 +2082,19 @@ fn push_token(
     let text = source.get(start as usize..end as usize).unwrap_or("");
     // Skip multi-line tokens — LSP encoding wants per-line
     // entries; multi-line tokens would need splitting.
-    // For the minimal rich port, drop them.
+    // Drop them.
     if text.contains('\n') {
         return;
     }
     let len_utf16 = utf16_len(text);
-    entries.push((pos.line, pos.character, len_utf16, kind, modifiers));
+    entries.push((pos.line, pos.character.get(), len_utf16, kind, modifiers));
 }
 
 /// Emit a structural keyword word (`if`'s then/elseif/else, `try`'s
 /// on/trap/finally) as a `Keyword` token.  Offsets past any leading
 /// delimiter so a quoted `"else"` — whose span starts on the opening
 /// quote — marks `else` rather than `"els`, and trims the matching
-/// trailing delimiter.  Mirrors Python's `token_content_base` use in
-/// the KEYWORD-role branch.
+/// trailing delimiter.
 fn push_keyword_arg(line_index: &LineIndex, source: &str, tok: Token, entries: &mut Vec<Entry>) {
     if let Some((cstart, inner)) = subspec_content(source, tok) {
         let content = inner.trim_end_matches(['"', '}']);
@@ -2346,7 +2321,7 @@ mod tests {
     #[test]
     fn bareword_argument_classified_as_string() {
         // `puts hello` → function head + a `string` token for the bareword
-        // arg (mirrors Python's ESC fallback), not a dropped arg.
+        // arg, not a dropped arg.
         let ks = kinds("puts hello\n", "tcl", &reg());
         assert_eq!(ks.len(), 2, "expected head + arg token; got {ks:?}");
         assert!(
@@ -2587,13 +2562,12 @@ mod tests {
 
     #[test]
     fn semantic_tokens_are_dialect_aware_via_expand_syntax() {
-        // SYNC-MAY19-dialect-contextvar strip 5: the provider re-segments
+        // The provider re-segments
         // under the document dialect.  In `foo {*}$x`, on 8.5+ the `{*}`
         // is the expansion operator (consumed — not a highlighted word),
         // but on 8.4 it is a literal braced string `{*}`, which adds an
         // extra `string` token.  So the packed token stream is longer on
-        // 8.4.  Before strip 5 the provider always lexed `{*}` as
-        // expansion regardless of dialect.
+        // 8.4.
         let src = "foo {*}$x\n";
         let on_90 = full(src, "tcl9.0", &reg()).data;
         let on_84 = full(src, "tcl8.4", &reg()).data;
@@ -2753,7 +2727,7 @@ mod tests {
 
     #[test]
     fn if_else_elseif_are_keywords() {
-        // else/elseif structural keywords highlight like `if` (issue #637).
+        // else/elseif structural keywords highlight like `if`.
         let src = "if 1 {\n puts a\n} elseif 2 {\n puts b\n} else {\n puts c\n}";
         let kw = keyword_words(src, &reg());
         for expected in ["if", "elseif", "else"] {
@@ -2785,7 +2759,7 @@ mod tests {
 
     #[test]
     fn quoted_structural_keyword_offsets_past_quote() {
-        // A quoted `"else"` keyword marks `else`, not `"els` (PR #643).
+        // A quoted `"else"` keyword marks `else`, not `"els`.
         let src = "if 0 {} \"else\" {puts ok}";
         let kw = decode_words(src, &reg())
             .into_iter()
@@ -2871,7 +2845,7 @@ mod tests {
         assert_eq!(classify_command_head("if", &reg()), TokenKind::Keyword);
     }
 
-    // -- S-semantic-tokens-rich: range variant -----------------------
+    // range variant
 
     #[test]
     fn range_filters_tokens_outside_window() {
@@ -2918,7 +2892,7 @@ mod tests {
 
     #[test]
     fn range_excludes_token_at_exact_end_position() {
-        // Regression for PR #454 Codex review: LSP ranges are
+        // Regression: LSP ranges are
         // half-open [start, end), so a token starting exactly
         // at `end` is OUTSIDE the range.
         let src = "set a 1\nset b 2\n";

@@ -3,9 +3,9 @@
 //! `--merge` treats every loaded config as one logical namespace:
 //! `.ltm.virtual[]` enumerates virtuals from every source, `refs` /
 //! `referenced_by` walk references across files, and two sources defining the
-//! same `(kind, full-path)` are refused. Each golden was captured from
-//! `python -m tooling.f5.main query --merge ...`; self-contained (no Python at
-//! test time).
+//! same `(kind, full-path)` are refused. Each test asserts stdout against the
+//! captured golden output for `query --merge ...`; self-contained (no external
+//! tool runs at test time).
 //!
 //! Goldens embed the `__FIXTURES__` placeholder in place of the absolute
 //! `file://` URI of the fixtures directory; the test substitutes the real
@@ -58,11 +58,11 @@ fn assert_merge(golden: &str, ok_codes: &[i32], args: &[&str]) {
     );
     assert_eq!(
         actual, expected,
-        "f5 query --merge output does not match the Python CLI ({golden})\nargs: {args:?}"
+        "f5 query --merge output does not match the golden ({golden})\nargs: {args:?}"
     );
 }
 
-// --- unified enumeration ------------------------------------------------
+// unified enumeration
 
 #[test]
 fn merge_virtual_names() {
@@ -107,7 +107,7 @@ fn merge_json_envelope() {
     );
 }
 
-// --- cross-file references ----------------------------------------------
+// cross-file references
 
 #[test]
 fn merge_referenced_by_cross_file() {
@@ -140,7 +140,7 @@ fn merge_refs_cross_file() {
     );
 }
 
-// --- (kind, full-path) collision refusal --------------------------------
+// (kind, full-path) collision refusal
 
 #[test]
 fn merge_collision_refused() {

@@ -1,12 +1,9 @@
 //! Optimiser passes — source-rewrite suggestions produced by
 //! analysing the compiled IR / CFG / SSA.
 //!
-//! Ported from `core/compiler/optimiser/` (C30 + follow-up sub-strips
-//! C30a … C30j and the per-pass `*-final` / `*-remainder` strips
-//! tracked in `docs/rust-rewrite.md`).  This module owns the shared
-//! optimiser types (`Optimisation`, `PassContext`, opt priorities,
-//! `PassId`, `run_passes`) plus per-pass submodules.  Every pass body
-//! is now landed:
+//! This module owns the shared optimiser types (`Optimisation`,
+//! `PassContext`, opt priorities, `PassId`, `run_passes`) plus per-pass
+//! submodules:
 //!
 //! - [`branch_folding`] — constant branch folding (O101) +
 //!   `propagate_into_branches` cascade (`substitute` →
@@ -54,6 +51,7 @@ pub use manager::{
 };
 
 use std::collections::{HashMap, HashSet};
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 
@@ -63,15 +61,13 @@ use crate::ir::Module as IrModule;
 use crate::ssa::ValueKey;
 use tcl_registry::CommandRegistry;
 
-// ---------------------------------------------------------------------------
 // Optimisation diagnostic
-// ---------------------------------------------------------------------------
 
 /// A suggested source rewrite.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Optimisation {
     /// Diagnostic code (`"O100"` … `"O127"`).
-    pub code: String,
+    pub code: DiagCode,
     /// Human-readable message.
     pub message: String,
     /// Source span the rewrite targets.
@@ -90,13 +86,13 @@ impl Optimisation {
     /// `hint_only` flag.
     #[must_use]
     pub fn new(
-        code: impl Into<String>,
+        code: DiagCode,
         message: impl Into<String>,
         span: Span,
         replacement: impl Into<String>,
     ) -> Self {
         Self {
-            code: code.into(),
+            code,
             message: message.into(),
             span,
             replacement: replacement.into(),
@@ -111,34 +107,41 @@ impl Optimisation {
 /// Higher priorities are displayed first in editor quick-fix
 /// menus. Unknown codes default to `0`.
 #[must_use]
-pub fn opt_priority(code: &str) -> u8 {
+pub fn opt_priority(code: DiagCode) -> u8 {
     match code {
-        "O126" | "O124" => 10,
-        "O112" => 9,
-        "O109" => 8,
-        "O108" => 7,
-        "O107" | "O122" => 6,
-        "O121" | "O123" | "O125" | "O119" | "O120" | "O118" | "O117" | "O116" | "O115" | "O114"
-        | "O113" | "O110" => 5,
-        "O104" => 4,
-        "O103" => 3,
-        "O102" => 2,
-        "O101" => 1,
+        DiagCode::O126 | DiagCode::O124 => 10,
+        DiagCode::O112 => 9,
+        DiagCode::O109 => 8,
+        DiagCode::O108 => 7,
+        DiagCode::O107 | DiagCode::O122 => 6,
+        DiagCode::O121
+        | DiagCode::O123
+        | DiagCode::O125
+        | DiagCode::O119
+        | DiagCode::O120
+        | DiagCode::O118
+        | DiagCode::O117
+        | DiagCode::O116
+        | DiagCode::O115
+        | DiagCode::O114
+        | DiagCode::O113
+        | DiagCode::O110 => 5,
+        DiagCode::O104 => 4,
+        DiagCode::O103 => 3,
+        DiagCode::O102 => 2,
+        DiagCode::O101 => 1,
         _ => 0,
     }
 }
 
-// ---------------------------------------------------------------------------
 // Pass context
-// ---------------------------------------------------------------------------
 
 /// Qualified proc name → `(cfg_function_name, parameter names)`.
 ///
-/// Mirrors the Python `proc_cfgs` mapping — the optimiser reaches
-/// for this when it needs to fold a call across procedure
-/// boundaries (`_propagation` → `_substitute_expr_proc_calls`).
-/// The value is the pair `(qualified_cfg_key, params)`; callers
-/// look the CFG up in a [`CompilationUnit`] by name.
+/// The optimiser reaches for this when it needs to fold a call
+/// across procedure boundaries. The value is the pair
+/// `(qualified_cfg_key, params)`; callers look the CFG up in a
+/// [`CompilationUnit`] by name.
 pub type ProcCfgs = HashMap<String, ProcCfgEntry>;
 
 /// Value of a [`ProcCfgs`] entry — the qualified CFG key plus the
@@ -154,8 +157,7 @@ pub struct ProcCfgEntry {
 
 /// Shared mutable state threaded through all optimisation passes.
 ///
-/// The state mirrors the Python `PassContext` field-for-field so
-/// passes ported straight from `core/compiler/optimiser/` can
+/// The state mirrors `PassContext` field-for-field so passes can
 /// consult the same bookkeeping:
 ///
 /// - [`optimisations`](Self::optimisations) — accumulated rewrites.
@@ -164,14 +166,14 @@ pub struct ProcCfgEntry {
 ///   by propagation to fold calls.
 /// - [`propagated_branch_uses`](Self::propagated_branch_uses) —
 ///   `(var, ssa_version)` pairs whose branch use has been
-///   propagated, so `_elimination` can drop dead stores feeding
+///   propagated, so the elimination pass can drop dead stores feeding
 ///   those uses.
 /// - [`propagated_use_groups`](Self::propagated_use_groups) —
 ///   group-id assignment for propagated uses, enabling
 ///   all-or-nothing application of the associated rewrite group.
 /// - [`propagated_expr_stmts`](Self::propagated_expr_stmts) —
 ///   `(block_name, stmt_index)` of propagated expression
-///   statements, again to coordinate with `_elimination`.
+///   statements, again to coordinate with the elimination pass.
 /// - [`cross_event_vars`](Self::cross_event_vars) — names whose
 ///   values must be preserved across `when <event>` boundaries
 ///   (iRules-specific; empty for plain Tcl).
@@ -184,8 +186,7 @@ pub struct ProcCfgEntry {
 pub struct PassContext<'a> {
     /// Full source text (UTF-8).
     pub source: &'a str,
-    /// Tcl dialect currently active. Matches the Python
-    /// `active_dialect()` thread-local — passed once when the
+    /// Tcl dialect currently active — passed once when the
     /// context is built so gated passes (e.g. O124) can check
     /// for `"f5-irules"` without threading it through every
     /// entry point.
@@ -223,7 +224,7 @@ pub struct PassContext<'a> {
     /// bridge (O109 array-element precision).  `None` in the bare
     /// [`PassContext::new`] test path → place suppression is simply skipped.
     pub registry: Option<&'a CommandRegistry>,
-    /// Whole-module command-rebinding summary (SYNC-JUN02b-4): the
+    /// Whole-module command-rebinding summary — the
     /// builtin-fold trust gate.  Set by the `optimise*` entry points; the
     /// bare [`PassContext::new`] test path leaves it at its `Default`
     /// (trust everything), so existing tests are unaffected.  The O129
@@ -286,8 +287,6 @@ impl<'a> PassContext<'a> {
 
     /// Reset the per-function scratch state (`propagated_*`) so
     /// the same context can drive multiple functions in sequence.
-    /// Python's manager does this at the top of
-    /// `_process_function`.
     pub fn reset_function_state(&mut self) {
         self.propagated_branch_uses.clear();
         self.propagated_use_groups.clear();
@@ -295,14 +294,11 @@ impl<'a> PassContext<'a> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Pass registry
-// ---------------------------------------------------------------------------
 
-/// Identifier for one optimisation pass. Pass bodies land as
-/// follow-up strips; this enum is the public surface callers use
-/// to select a subset of passes or sequence them in a custom
-/// order.
+/// Identifier for one optimisation pass. This enum is the public
+/// surface callers use to select a subset of passes or sequence
+/// them in a custom order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PassId {
     /// Fold constant branches — dead-branch elimination.
@@ -342,7 +338,7 @@ impl PassId {
         ]
     }
 
-    /// Short text form matching the Python pass module names.
+    /// Short text form of the pass name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -378,7 +374,7 @@ impl PassId {
 /// Run a sequence of optimisation passes over `ctx`, accumulating
 /// diagnostics in `ctx.optimisations`.
 ///
-/// Dispatches each requested [`PassId`] to its landed pass body.
+/// Dispatches each requested [`PassId`] to its pass body.
 ///
 /// Pass coverage:
 ///
@@ -438,25 +434,25 @@ mod tests {
 
     #[test]
     fn optimisation_new_defaults() {
-        let o = Optimisation::new("O105", "message", Span::new(0, 5), "replacement");
-        assert_eq!(o.code, "O105");
+        let o = Optimisation::new(DiagCode::O105, "message", Span::new(0, 5), "replacement");
+        assert_eq!(o.code, DiagCode::O105);
         assert!(o.group.is_none());
         assert!(!o.hint_only);
     }
 
     #[test]
     fn opt_priority_known_and_unknown() {
-        assert_eq!(opt_priority("O126"), 10);
-        assert_eq!(opt_priority("O112"), 9);
-        assert_eq!(opt_priority("O104"), 4);
-        assert_eq!(opt_priority("unknown"), 0);
+        assert_eq!(opt_priority(DiagCode::O126), 10);
+        assert_eq!(opt_priority(DiagCode::O112), 9);
+        assert_eq!(opt_priority(DiagCode::O104), 4);
+        assert_eq!(opt_priority(DiagCode::O130), 0);
     }
 
     #[test]
     fn pass_context_records_diagnostics() {
         let interproc = InterproceduralAnalysis::default();
         let mut ctx = PassContext::new("set x 1", interproc);
-        ctx.report(Optimisation::new("O105", "m", Span::new(0, 1), "x"));
+        ctx.report(Optimisation::new(DiagCode::O105, "m", Span::new(0, 1), "x"));
         assert_eq!(ctx.optimisations.len(), 1);
     }
 
@@ -484,8 +480,10 @@ mod tests {
     #[test]
     fn reset_function_state_clears_propagation_scratch() {
         let mut ctx = PassContext::default();
-        ctx.propagated_branch_uses.insert(("x".into(), 1));
-        ctx.propagated_use_groups.insert(("x".into(), 1), 0);
+        ctx.propagated_branch_uses
+            .insert((crate::ssa::Symbol(0), 1));
+        ctx.propagated_use_groups
+            .insert((crate::ssa::Symbol(0), 1), 0);
         ctx.propagated_expr_stmts.insert(("b".into(), 3));
         // cross_event_vars and next_group are intentionally
         // preserved across functions.

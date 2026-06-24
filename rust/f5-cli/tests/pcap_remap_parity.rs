@@ -3,11 +3,11 @@
 //!
 //! Runs the built `f5-query` binary against committed, hand-emitted libpcap and
 //! PCAPNG fixtures plus a redaction `.map`, and asserts the OUTPUT capture is
-//! byte-for-byte identical to a golden produced by `python -m tooling.f5.main
-//! pcap-remap`. Also covers the stderr summary line, the `--list-schemas`
-//! stdout, and the `--on-unknown error/preserve/sweep` policies (incl. the
-//! exit-2 unknown-trailer error and its message). Self-contained: no Python at
-//! test time.
+//! byte-for-byte identical to the captured golden output. Also covers the
+//! stderr summary line, the `--list-schemas` stdout, and the
+//! `--on-unknown error/preserve/sweep` policies (incl. the exit-2
+//! unknown-trailer error and its message). Self-contained: no external tool
+//! runs at test time.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -82,10 +82,7 @@ fn libpcap_forward_byte_identical() {
     assert_eq!(r.code, 0, "stderr: {}", r.stderr);
     let got = std::fs::read(&output).expect("read output");
     let golden = read_fixture("pcap-remap-sample.forward.pcap.golden");
-    assert_eq!(
-        got, golden,
-        "forward libpcap output must match Python golden"
-    );
+    assert_eq!(got, golden, "forward libpcap output must match golden");
     assert_eq!(
         r.stderr,
         "pcap-remap: 6/7 packet(s) rewritten, 14 address(es) changed; \
@@ -129,7 +126,7 @@ fn pcapng_forward_byte_identical() {
     assert_eq!(
         std::fs::read(&output).unwrap(),
         read_fixture("pcap-remap-sample.pcapng.golden"),
-        "pcapng output must match Python golden"
+        "pcapng output must match golden"
     );
     assert_eq!(
         r.stderr,
@@ -274,7 +271,7 @@ fn list_schemas_with_overlay_byte_identical() {
     assert_eq!(
         r.stdout.into_bytes(),
         read_fixture("pcap-remap-list-schemas-overlay.golden"),
-        "list-schemas-with-overlay must match the Python golden"
+        "list-schemas-with-overlay must match the golden"
     );
 }
 

@@ -1,13 +1,13 @@
 //! Token, position, and kind types produced by the Tcl lexer.
 //!
-//! Ports `core/parsing/tokens.py` as idiomatic Rust:
+//! Idiomatic Rust token types:
 //!
 //! - [`TokenType`] is a `Copy` enum with `PascalCase` variants. The
 //!   `PyO3` binding crate exposes the variants under their original
-//!   `SCREAMING_CASE` Python names.
+//!   `SCREAMING_CASE` names.
 //! - [`SourcePosition`] is a 12-byte `Copy` struct of `u32` fields.
 //!   Line, character, and offset all fit comfortably in 32 bits for
-//!   any source we care about. Exposed to Python via the binding
+//!   any source we care about. Exposed via the binding
 //!   crate and returned by [`SourceMap`] lookups.
 //! - [`Token`] carries a [`Span`] — not an inline text slice and not
 //!   inline start/end positions. Text and positions are resolved on
@@ -16,7 +16,7 @@
 //!   trivially `Copy`.
 //!
 //! Field names follow Rust conventions (`kind`, not `type`); the
-//! binding crate renames `kind` to `type` for Python callers and
+//! binding crate renames `kind` to `type` and
 //! resolves `span` to `start` / `end` / `text` at the FFI boundary.
 //!
 //! [`Span`]: crate::Span
@@ -50,7 +50,7 @@ impl TokenType {
     ///
     /// Used by the `PyO3` wrapper to mimic `enum.Enum.name` and by
     /// debug-print code in CLI tools. The mapping is fixed by the
-    /// Python API surface and must not change without a coordinated
+    /// public API surface and must not change without a coordinated
     /// shim update.
     #[must_use]
     pub const fn name(self) -> &'static str {
@@ -68,21 +68,51 @@ impl TokenType {
     }
 }
 
-/// A position in source text.
+/// A zero-based column counted in **bytes** from the start of its line.
 ///
-/// Stores 0-based line and character plus the absolute byte offset into
-/// the source string. The `character` field is currently a **byte
-/// offset within the line**, not a UTF-16 code-unit column; it
-/// therefore matches LSP-style columns only for ASCII text. All three
-/// fields are `u32`, which bounds the largest source file we care about
-/// at 4 GiB, well above any realistic Tcl/iRules input.
+/// This is the raw column [`LineIndex::position_at`](crate::LineIndex::position_at)
+/// produces; it agrees with an LSP UTF-16 column ([`Utf16Col`]) only for ASCII
+/// text. Kept a distinct type so a byte column can never be handed to an LSP
+/// consumer that expects UTF-16 code units — the conversion has to go through
+/// [`LineIndex::position_at_utf16`](crate::LineIndex::position_at_utf16). Build
+/// one with [`ByteCol::new`], read it back with [`ByteCol::get`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct ByteCol(u32);
+
+impl ByteCol {
+    /// Wrap a raw byte-column count.
+    #[must_use]
+    pub const fn new(bytes: u32) -> Self {
+        Self(bytes)
+    }
+
+    /// The raw byte-column count.
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl std::fmt::Display for ByteCol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// A position in source text whose `character` column is counted in **bytes**
+/// (see [`ByteCol`]).
+///
+/// Stores a 0-based line and byte column plus the absolute byte offset into the
+/// source string. Produced by
+/// [`LineIndex::position_at`](crate::LineIndex::position_at); the UTF-16-column
+/// counterpart is [`Utf16Position`]. Keeping the two columns as separate types
+/// means the byte column can never be mistaken for an LSP UTF-16 column.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct SourcePosition {
     /// 0-based line number.
     pub line: u32,
-    /// 0-based byte offset within the line (ASCII-parity with LSP
-    /// columns; UTF-16 parity is deferred work).
-    pub character: u32,
+    /// 0-based column, in bytes from the line start.
+    pub character: ByteCol,
     /// Byte offset into the source string.
     pub offset: u32,
 }
@@ -91,7 +121,67 @@ impl SourcePosition {
     /// Construct a new `SourcePosition`. `const`-friendly so callers can
     /// build sentinel positions in static contexts.
     #[must_use]
-    pub const fn new(line: u32, character: u32, offset: u32) -> Self {
+    pub const fn new(line: u32, character: ByteCol, offset: u32) -> Self {
+        Self {
+            line,
+            character,
+            offset,
+        }
+    }
+}
+
+/// A zero-based column counted in **UTF-16 code units** from the start of its
+/// line — the unit the LSP `Position.character` field is defined in.
+///
+/// Kept distinct from a byte column ([`SourcePosition::character`]) so the two
+/// cannot be interchanged without an explicit conversion: only ASCII text makes
+/// them numerically equal, and silently swapping the units is the classic
+/// off-by-column LSP bug. Build one with [`Utf16Col::new`], read it back with
+/// [`Utf16Col::get`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct Utf16Col(u32);
+
+impl Utf16Col {
+    /// Wrap a raw UTF-16 code-unit count.
+    #[must_use]
+    pub const fn new(units: u32) -> Self {
+        Self(units)
+    }
+
+    /// The raw UTF-16 code-unit count.
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl std::fmt::Display for Utf16Col {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// An LSP-style source position whose `character` column is counted in UTF-16
+/// code units (see [`Utf16Col`]).
+///
+/// Produced by [`LineIndex::position_at_utf16`](crate::LineIndex::position_at_utf16);
+/// the byte-column counterpart is [`SourcePosition`]. Keeping the two as
+/// separate types means a byte position can never be handed to an LSP consumer
+/// that expects UTF-16 columns without the mismatch surfacing at compile time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Utf16Position {
+    /// 0-based line number.
+    pub line: u32,
+    /// 0-based column, in UTF-16 code units.
+    pub character: Utf16Col,
+    /// Byte offset into the source string.
+    pub offset: u32,
+}
+
+impl Utf16Position {
+    /// Construct a new `Utf16Position`.
+    #[must_use]
+    pub const fn new(line: u32, character: Utf16Col, offset: u32) -> Self {
         Self {
             line,
             character,
@@ -116,7 +206,7 @@ impl SourcePosition {
 /// assert_eq!(source_map.text(first.span), "puts");
 /// let (start, end) = source_map.range_positions(first.span);
 /// assert_eq!(start.line, 0);
-/// assert_eq!(end.character, 3);
+/// assert_eq!(end.character.get(), 3);
 /// ```
 ///
 /// The `Token` itself is 16 bytes, `Copy`, and has no lifetime —
@@ -135,8 +225,8 @@ pub struct Token {
     /// Number of leading bytes in `span` that are delimiters rather
     /// than content. Used by [`SourceMap::token_text`] to strip the
     /// opening `$` / `${` / `[` / `{` / `"` (etc.) from wrapper
-    /// tokens so the "human-readable" text matches Python's
-    /// `Token.text` without needing a separate content range.
+    /// tokens so the "human-readable" text is the inner content
+    /// without needing a separate content range.
     ///
     /// Always `0` for bare-word `Esc` / `Sep` / `Eol` / `Comment`
     /// tokens where the span is the content. For `Var`, `Cmd`,
@@ -202,20 +292,19 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
 
-    // The tests below port the Python-side coverage of `tokens.py`. The
-    // Python tests historically exercise these types implicitly through
-    // the lexer suite (tests/test_lexer.py, tests/test_token_positions.py,
-    // tests/test_incremental_update.py, tests/test_formatter.py); the
+    // The tests below exercise the token types and the
+    // variant-to-name contract. These types are otherwise exercised
+    // implicitly through the lexer suite; the
     // assertions here pin down the contract directly so a regression in
     // the Rust types is caught at `cargo test` time, before the
     // differential lexer harness runs.
 
     #[test]
     fn token_type_name_exact_mapping() {
-        // Rust variant → Python-visible name. This is the contract the
+        // Rust variant → binding-visible name. This is the contract the
         // PyO3 binding crate relies on when it exposes the enum with
         // `#[pyo3(name = "…")]` on each variant; if these ever
-        // disagree, Python callers see a mismatched symbol.
+        // disagree, callers see a mismatched symbol.
         assert_eq!(TokenType::Esc.name(), "ESC");
         assert_eq!(TokenType::Str.name(), "STR");
         assert_eq!(TokenType::Cmd.name(), "CMD");
@@ -258,7 +347,7 @@ mod tests {
         // Same variant compares equal; different variants do not.
         assert_eq!(TokenType::Esc, TokenType::Esc);
         assert_ne!(TokenType::Esc, TokenType::Str);
-        // Pattern-matching, the Rust analogue of Python `match tok.type`.
+        // Rust pattern-matching on the token type.
         let kind = TokenType::Var;
         let label = match kind {
             TokenType::Var => "var",
@@ -284,11 +373,10 @@ mod tests {
 
     #[test]
     fn source_position_construction_and_field_access() {
-        // Mirrors `SourcePosition(line=5, character=10, offset=100)` from
-        // tests/test_incremental_update.py::test_shift_position.
-        let pos = SourcePosition::new(5, 10, 100);
+        // A position at line 5, character 10, byte offset 100.
+        let pos = SourcePosition::new(5, ByteCol::new(10), 100);
         assert_eq!(pos.line, 5);
-        assert_eq!(pos.character, 10);
+        assert_eq!(pos.character.get(), 10);
         assert_eq!(pos.offset, 100);
     }
 
@@ -296,15 +384,15 @@ mod tests {
     fn source_position_default_is_origin() {
         let pos = SourcePosition::default();
         assert_eq!(pos.line, 0);
-        assert_eq!(pos.character, 0);
+        assert_eq!(pos.character.get(), 0);
         assert_eq!(pos.offset, 0);
     }
 
     #[test]
     fn source_position_equality_and_hash() {
-        let a = SourcePosition::new(1, 2, 3);
-        let b = SourcePosition::new(1, 2, 3);
-        let c = SourcePosition::new(1, 2, 4);
+        let a = SourcePosition::new(1, ByteCol::new(2), 3);
+        let b = SourcePosition::new(1, ByteCol::new(2), 3);
+        let c = SourcePosition::new(1, ByteCol::new(2), 4);
         assert_eq!(a, b);
         assert_ne!(a, c);
 
@@ -318,7 +406,7 @@ mod tests {
     #[test]
     fn source_position_is_copy() {
         // Copy check via shadowing.
-        let a = SourcePosition::new(1, 2, 3);
+        let a = SourcePosition::new(1, ByteCol::new(2), 3);
         let b = a;
         assert_eq!(a, b);
     }
@@ -329,15 +417,15 @@ mod tests {
         // narrow on any supported target. We don't expect real Tcl
         // files to approach these values, but the type must not
         // panic or overflow if a fabricated test fixture does.
-        let pos = SourcePosition::new(u32::MAX, u32::MAX, u32::MAX);
+        let pos = SourcePosition::new(u32::MAX, ByteCol::new(u32::MAX), u32::MAX);
         assert_eq!(pos.line, u32::MAX);
-        assert_eq!(pos.character, u32::MAX);
+        assert_eq!(pos.character.get(), u32::MAX);
         assert_eq!(pos.offset, u32::MAX);
     }
 
     #[test]
     fn token_construction_carries_span() {
-        // Mirrors the shape every real call site uses: build a span
+        // Matches the shape every real call site uses: build a span
         // pointing at some byte range in the source, then resolve it
         // via a SourceMap for text or positions.
         use crate::{SourceMap, Span};
@@ -411,8 +499,8 @@ mod tests {
         assert!(eof.span.is_empty());
         assert_eq!(map.text(eof.span), "");
         let (start, end) = map.range_positions(eof.span);
-        assert_eq!(start, SourcePosition::new(0, 3, 3));
-        assert_eq!(end, SourcePosition::new(0, 3, 3));
+        assert_eq!(start, SourcePosition::new(0, ByteCol::new(3), 3));
+        assert_eq!(end, SourcePosition::new(0, ByteCol::new(3), 3));
     }
 
     #[test]

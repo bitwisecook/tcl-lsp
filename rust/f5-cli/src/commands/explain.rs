@@ -1,10 +1,8 @@
 //! The `explain` verb — resolve and describe the plan for a virtual or pool.
 //!
-//! Port of `compute_explain` / `_run_explain` (`dialects/f5/bigip/explain.py`,
-//! `tooling/f5/verbs/explain.py`). Model-based: it parses with `tcl-bigip`,
-//! resolves short names via the ported `resolve_name`, and walks each object's
-//! canonical JSON (`canon_fields`) to render profiles / iRules / persistence /
-//! SNAT / pool sections.
+//! Model-based: it parses with `tcl-bigip`, resolves short names via
+//! `resolve_name`, and walks each object's canonical JSON (`canon_fields`) to
+//! render profiles / iRules / persistence / SNAT / pool sections.
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
@@ -28,8 +26,8 @@ fn table_to_kind(table: &str) -> Option<&'static str> {
     }
 }
 
-/// Per-config ordered inventories (source order, matching the Python dicts), so
-/// `resolve_name`'s suffix fallback picks the same key Python does.
+/// Per-config ordered inventories (source order), so `resolve_name`'s suffix
+/// fallback picks a deterministic key.
 struct Model {
     default_partition: String,
     by_kind: HashMap<&'static str, Vec<(String, Value)>>,
@@ -68,7 +66,7 @@ impl Model {
     }
 }
 
-/// Resolve a possibly-short name to a full path (mirrors `resolve_name`).
+/// Resolve a possibly-short name to a full path.
 fn resolve_name(name: &str, inv: &[(String, Value)], default_partition: &str) -> Option<String> {
     if inv.iter().any(|(p, _)| p == name) {
         return Some(name.to_owned());
@@ -278,7 +276,7 @@ fn or_none(items: Vec<String>) -> Vec<String> {
     }
 }
 
-/// Count non-blank, non-comment lines (mirrors `_count_irule_lines`).
+/// Count non-blank, non-comment lines.
 fn count_irule_lines(body: &str) -> usize {
     body.lines()
         .filter(|l| {
@@ -408,9 +406,8 @@ pub fn run_explain(
 ) -> anyhow::Result<u8> {
     let kind_hint = if kind == "auto" { None } else { Some(kind) };
 
-    // Resolve inputs via the UCS-aware loader (mirrors `load_paths`), so a
-    // `.ucs` — plain or encrypted — is transparently extracted to SCF and
-    // parsed just like a `.conf`/`.scf`.
+    // Resolve inputs via the UCS-aware loader, so a `.ucs` — plain or encrypted
+    // — is transparently extracted to SCF and parsed just like a `.conf`/`.scf`.
     let opts = crate::cli::PassphraseArgs::default().to_options();
     let paths: Vec<String> = inputs
         .iter()
@@ -466,8 +463,8 @@ pub fn run_explain(
     Ok(u8::from(!report.found))
 }
 
-/// Python `repr()` of a string (only the simple, quote-free path is needed
-/// for the not-found message).
+/// Render a string in repr form (only the simple, quote-free path
+/// is needed for the not-found message).
 fn py_repr(s: &str) -> String {
     let quote = if s.contains('\'') && !s.contains('"') {
         '"'

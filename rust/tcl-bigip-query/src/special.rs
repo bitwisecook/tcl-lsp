@@ -1,5 +1,4 @@
-//! Special-form builtins — port of `evaluator._eval_special_form` and the
-//! helpers it drives.
+//! Special-form builtins.
 //!
 //! Special forms receive their arguments unevaluated (as AST) plus the
 //! evaluator context, so they can re-bind `.` per input value (`select`,
@@ -412,7 +411,7 @@ fn walk(body: &Expr, value: Value, ctx: &mut EvalContext) -> Result<Value, Query
 
 /// Port of `evaluator._flatten_one` used inside `walk` — there it collapses
 /// a single-item stream to its item but does not error on multi (jq's walk
-/// keeps the last). `_flatten_one` in the Python `walk` is actually
+/// keeps the last). `_flatten_one` in `walk` is actually
 /// `_flatten_one` which raises on empty/multi; mirror that loosely by taking
 /// the first flattened value (walk bodies yield one value).
 fn flatten_one_value(value: Value) -> Value {
@@ -663,7 +662,7 @@ fn path_from_steps(steps: &[PathStep]) -> Option<Vec<Value>> {
     Some(out)
 }
 
-/// Python `str(key)` for INDEX keys (scalar shapes).
+/// String coercion of an INDEX key (scalar shapes).
 fn py_str_key(v: &Value) -> String {
     match v {
         Value::Str(s) => s.clone(),

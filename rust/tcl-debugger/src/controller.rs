@@ -1,9 +1,9 @@
 //! The debug controller: breakpoints + the step-mode decision logic.
 //!
-//! Port of `tooling/debugger/controller.py`'s decision core. The VM backend
-//! calls [`DebugController::should_stop`] at each source-line boundary with the
-//! current line and frame level; the controller decides whether to pause
-//! (breakpoint hit, or the active step mode is satisfied). When the frontend
+//! The VM backend calls [`DebugController::should_stop`] at each source-line
+//! boundary with the current line and frame level; the controller decides
+//! whether to pause (breakpoint hit, or the active step mode is satisfied). When
+//! the frontend
 //! resumes, it calls [`DebugController::resume`] with the next [`StepMode`],
 //! which re-anchors the step depth to the frame the VM stopped in.
 //!
@@ -27,7 +27,7 @@ impl Default for DebugController {
     fn default() -> Self {
         Self {
             breakpoints: BTreeSet::new(),
-            // Stop at the first line, like the Python controller.
+            // Stop at the first line by default.
             step_mode: StepMode::StepIn,
             step_depth: 0,
         }
@@ -72,7 +72,7 @@ impl DebugController {
     }
 
     /// Decide whether to pause at a source-line boundary, given the line and
-    /// the current frame `level`. Mirrors `controller.py::debug_hook`'s
+    /// the current frame `level`.'s
     /// stop decision.
     ///
     /// Returns `Some(reason)` to stop (and the reason to report), or `None` to

@@ -1,5 +1,4 @@
-//! Core formatting engine — Rust port of
-//! `core/formatting/engine.py`.
+//! Core formatting engine.
 //!
 //! Parses Tcl source into commands, identifies body / expr /
 //! param-list arguments via the registry, recursively formats
@@ -50,9 +49,7 @@ struct ParsedCommand {
     preceding_blank_lines: usize,
 }
 
-// ---------------------------------------------------------------------------
 // Token → raw source reconstruction
-// ---------------------------------------------------------------------------
 
 /// Collapse `\<newline>` continuations to a single space.  Inside
 /// `[]` and `"…"` this is semantics-preserving and keeps the
@@ -96,7 +93,6 @@ fn utf8_len(b: u8) -> usize {
 }
 
 /// Rebuild source text from a single token, re-adding delimiters.
-/// Mirrors Python's `_reconstruct_raw`.
 fn reconstruct_raw(sm: &SourceMap, tok: Token) -> String {
     match tok.kind {
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
@@ -134,8 +130,7 @@ fn reconstruct_arg(sm: &SourceMap, arg: &CommandArg, braced_vars: bool) -> Strin
 }
 
 /// Normalise whitespace in a braced parameter list, joining
-/// top-level elements with single spaces.  Mirrors
-/// `_normalize_param_list`.
+/// top-level elements with single spaces.
 fn normalise_param_list(text: &str) -> String {
     let bytes = text.as_bytes();
     let n = bytes.len();
@@ -172,9 +167,7 @@ fn normalise_param_list(text: &str) -> String {
     format!("{{{}}}", elements.join(" "))
 }
 
-// ---------------------------------------------------------------------------
 // Command parsing
-// ---------------------------------------------------------------------------
 
 /// Count blank lines represented by an EOL token's text (each
 /// newline beyond the first is a blank line).
@@ -183,7 +176,7 @@ fn count_newlines(text: &str) -> usize {
 }
 
 /// Parse Tcl source into structured commands plus any trailing
-/// comments.  Mirrors Python's `parse_commands`.
+/// comments.
 fn parse_commands(
     source: &str,
     sm: &SourceMap,
@@ -277,12 +270,9 @@ fn parse_commands(
     (commands, pending_comments)
 }
 
-// ---------------------------------------------------------------------------
 // Body / expr / param-list argument identification
-// ---------------------------------------------------------------------------
 
-/// Mark body / keyword / param-list arguments in place.  Mirrors
-/// `_identify_body_args`.
+/// Mark body / keyword / param-list arguments in place.
 fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
     // {*}-expanded command word: dynamic identity, skip.
     if cmd
@@ -295,9 +285,8 @@ fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
     }
 
     let name = cmd.name.clone();
-    // Post-name argument texts (Python's `args = cmd.args[1:]`),
-    // owned so the immutable borrow of `cmd.args` is released
-    // before the role-driven mutation below.
+    // Post-name argument texts, owned so the immutable borrow of
+    // `cmd.args` is released before the role-driven mutation below.
     let arg_texts: Vec<String> = cmd.args.iter().skip(1).map(|a| a.text.clone()).collect();
 
     // Formatter-specific `for` override: only the main body (arg 3)
@@ -343,8 +332,7 @@ fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
     }
 }
 
-/// Indices into `cmd.args` of braced expression arguments.  Mirrors
-/// `_identify_expr_args`.
+/// Indices into `cmd.args` of braced expression arguments.
 fn identify_expr_args(cmd: &ParsedCommand, registry: &CommandRegistry) -> Vec<usize> {
     let arg_texts: Vec<&str> = cmd.args.iter().skip(1).map(|a| a.text.as_str()).collect();
     registry
@@ -354,11 +342,9 @@ fn identify_expr_args(cmd: &ParsedCommand, registry: &CommandRegistry) -> Vec<us
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // Comment formatting
-// ---------------------------------------------------------------------------
 
-/// Format a comment per config.  Mirrors `_format_comment`.
+/// Format a comment per config.
 fn format_comment(comment_text: &str, config: &FormatterConfig) -> String {
     if comment_text.is_empty() || comment_text == "#" {
         return "#".to_owned();
@@ -379,12 +365,9 @@ fn format_comment(comment_text: &str, config: &FormatterConfig) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Blank-line computation
-// ---------------------------------------------------------------------------
 
 /// How many blank lines to insert before `commands[index]`.
-/// Mirrors `_compute_blank_lines`.
 fn compute_blank_lines(
     commands: &[ParsedCommand],
     index: usize,
@@ -406,9 +389,7 @@ fn compute_blank_lines(
         .min(config.max_consecutive_blank_lines)
 }
 
-// ---------------------------------------------------------------------------
 // Switch body formatting
-// ---------------------------------------------------------------------------
 
 /// One element (pattern or body) of a `switch` body.
 struct SwitchElem {
@@ -418,7 +399,7 @@ struct SwitchElem {
 }
 
 /// Format the braced body of a `switch` command (pattern/body
-/// pairs).  Mirrors `_format_switch_body`.
+/// pairs).
 fn format_switch_body(
     body_text: &str,
     config: &FormatterConfig,
@@ -513,12 +494,10 @@ fn format_switch_body(
     lines.join("\n")
 }
 
-// ---------------------------------------------------------------------------
 // Long-line expression wrapping
-// ---------------------------------------------------------------------------
 
 /// Find top-level `&&` / `||` positions in an expression (not
-/// nested in `[] {} () ""`).  Mirrors `_find_expr_break_points`.
+/// nested in `[] {} () ""`).
 fn find_expr_break_points(text: &str) -> Vec<usize> {
     let bytes = text.as_bytes();
     let n = bytes.len();
@@ -564,9 +543,8 @@ fn find_expr_break_points(text: &str) -> Vec<usize> {
     breaks
 }
 
-/// Try to wrap a braced expression at `&&` / `||`.  Mirrors
-/// `_wrap_braced_expr`; returns the wrapped inner text (no braces)
-/// or `None`.
+/// Try to wrap a braced expression at `&&` / `||`; returns the
+/// wrapped inner text (no braces) or `None`.
 fn wrap_braced_expr(text: &str, config: &FormatterConfig, indent_level: usize) -> Option<String> {
     let stripped: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
     let breaks = find_expr_break_points(&stripped);
@@ -592,7 +570,7 @@ fn wrap_braced_expr(text: &str, config: &FormatterConfig, indent_level: usize) -
 }
 
 /// Estimate the content length after `args[start]` on the first
-/// line.  Mirrors `_estimate_trailing_len`.
+/// line.
 fn estimate_trailing_len(args: &[CommandArg], start: usize) -> usize {
     let mut length = 0;
     for arg in &args[start..] {
@@ -608,7 +586,7 @@ fn estimate_trailing_len(args: &[CommandArg], start: usize) -> usize {
     length
 }
 
-/// Current column from accumulated parts.  Mirrors `_current_col`.
+/// Current column from accumulated parts.
 fn current_col(parts: &[String], indent_len: usize) -> usize {
     let text: String = parts.concat();
     match text.rfind('\n') {
@@ -617,12 +595,10 @@ fn current_col(parts: &[String], indent_len: usize) -> usize {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Backslash-continuation line splitting
-// ---------------------------------------------------------------------------
 
 /// Find `(index, bracket_depth)` of spaces where `\`-continuation
-/// is safe.  Mirrors `_find_splittable_spaces`.
+/// is safe.
 fn find_splittable_spaces(text: &str, start: usize) -> Vec<(usize, i32)> {
     let bytes = text.as_bytes();
     let n = bytes.len();
@@ -659,7 +635,7 @@ fn find_splittable_spaces(text: &str, start: usize) -> Vec<(usize, i32)> {
 }
 
 /// Find spaces inside double-quoted strings where `\<newline>` is
-/// safe.  Mirrors `_find_quoted_string_spaces`.
+/// safe.
 fn find_quoted_string_spaces(text: &str, start: usize) -> Vec<usize> {
     let bytes = text.as_bytes();
     let n = bytes.len();
@@ -699,8 +675,7 @@ fn find_quoted_string_spaces(text: &str, start: usize) -> Vec<usize> {
     spaces
 }
 
-/// Greedy line splitting at the given space positions.  Mirrors
-/// `_greedy_split`.
+/// Greedy line splitting at the given space positions.
 fn greedy_split(
     line: &str,
     spaces: &[usize],
@@ -762,7 +737,7 @@ fn greedy_split(
 }
 
 /// Split a long line using `\` continuation, preferring shallow
-/// breaks.  Mirrors `_split_long_line`.
+/// breaks.
 fn split_long_line(line: &str, config: &FormatterConfig, cont_indent: &str) -> Option<String> {
     if line.len() <= config.max_line_length {
         return None;
@@ -820,7 +795,7 @@ fn split_long_line(line: &str, config: &FormatterConfig, cont_indent: &str) -> O
 }
 
 /// Try to split a long commented-out command using `\`
-/// continuation.  Mirrors `_split_commented_code`.
+/// continuation.
 fn split_commented_code(
     comment_text: &str,
     config: &FormatterConfig,
@@ -849,12 +824,9 @@ fn split_commented_code(
     Some(split_lines.join("\n"))
 }
 
-// ---------------------------------------------------------------------------
 // Inline body detection
-// ---------------------------------------------------------------------------
 
-/// Whether a body is short enough to keep on one line.  Mirrors
-/// `_body_can_be_inline`.
+/// Whether a body is short enough to keep on one line.
 fn body_can_be_inline(
     body_text: &str,
     config: &FormatterConfig,
@@ -878,9 +850,7 @@ fn body_can_be_inline(
     inline_len <= config.goal_line_length
 }
 
-// ---------------------------------------------------------------------------
 // Command reconstruction
-// ---------------------------------------------------------------------------
 
 /// Push a leading separator space before the next part, unless
 /// we're continuing a `}{` brace chain with
@@ -960,8 +930,7 @@ fn append_word_arg(
     true
 }
 
-/// Reconstruct a single command as formatted text.  Mirrors
-/// `_reconstruct_command`.
+/// Reconstruct a single command as formatted text.
 fn reconstruct_command(
     sm: &SourceMap,
     cmd: &ParsedCommand,
@@ -1048,7 +1017,6 @@ fn reconstruct_command(
 }
 
 /// Reconstruct a `switch` command, handling the braced body form.
-/// Mirrors `_reconstruct_switch`.
 fn reconstruct_switch(
     sm: &SourceMap,
     cmd: &ParsedCommand,
@@ -1084,12 +1052,10 @@ fn reconstruct_switch(
     format!("{indent}{}", parts.concat())
 }
 
-// ---------------------------------------------------------------------------
 // Main entry points
-// ---------------------------------------------------------------------------
 
 /// Format a Tcl script body at the given indent level.  The core
-/// recursive function.  Mirrors `format_body`.
+/// recursive function.
 /// Format a script body at `indent_level`, applying every engine
 /// rule (comments, switch bodies, recursion, long-line wrapping, …).
 /// [`format_tcl`] calls this at level 0 for a whole document; range
@@ -1161,7 +1127,7 @@ pub(crate) fn format_body(
 }
 
 /// Format a Tcl source string.  Pure function: source in,
-/// formatted source out.  Mirrors `format_tcl`.
+/// formatted source out.
 #[must_use]
 pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegistry) -> String {
     let mut result = format_body(source, config, registry, 0);
@@ -1191,8 +1157,8 @@ mod tests {
         format_tcl(src, &FormatterConfig::default(), &registry)
     }
 
-    /// Each `(input, expected)` pair is the verbatim output of the
-    /// Python `format_tcl` reference for the same input.
+    /// Each `(input, expected)` pair is the expected formatted output
+    /// for the same input.
     fn check(input: &str, expected: &str) {
         let got = fmt(input);
         assert_eq!(

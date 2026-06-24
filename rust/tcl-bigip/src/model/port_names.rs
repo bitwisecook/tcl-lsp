@@ -1,7 +1,7 @@
 //! BIG-IP mcpd service-name → port-number table.
 //!
 //! Generated from `dialects/f5/bigip/data/scf_port_names.csv` (the canonical
-//! mcpd service-name table). Mirrors `_port_names_table.NAME_TO_PORT` /
+//! mcpd service-name table). /
 //! `port_names.name_to_port`. Keys are pre-lowercased; lookup is binary search.
 
 /// Sorted `(lowercase service name, port number)` pairs.
@@ -4541,7 +4541,7 @@ static NAME_TO_PORT: &[(&str, i64)] = &[
 ];
 
 /// Return the BIG-IP port number for a (already lowercased) service `name`,
-/// or `None` if unknown. Mirrors `name_to_port` (case-folding is the caller's).
+/// or `None` if unknown. (case-folding is the caller's).
 #[must_use]
 pub fn name_to_port(name: &str) -> Option<i64> {
     NAME_TO_PORT

@@ -1,34 +1,26 @@
-//! Single-pass Tcl analyser — Rust port of `core/analysis/_analyser/`.
+//! Single-pass Tcl analyser.
 //!
-//! Mirrors the Python ``Analyser`` mixin class in
-//! ``core/analysis/_analyser/__init__.py``: walks segmented Tcl
-//! commands, populates an [`AnalysisResult`] (procs, classes,
-//! variables, diagnostics, package requires, …), and emits
-//! W-coded warnings via the diagnostic emitters.
+//! Walks segmented Tcl commands, populates an [`AnalysisResult`]
+//! (procs, classes, variables, diagnostics, package requires, …),
+//! and emits W-coded warnings via the diagnostic emitters.
 //!
-//! Module shape (mirrors the Python file layout 1:1 for handler
-//! files; mixin-trait pattern is *not* ported — the Rust analyser
-//! is a single struct with methods grouped by concern):
+//! The analyser is a single struct with methods grouped by concern:
 //!
 //! - [`state`] — the [`Analyser`] struct + per-walk state fields.
 //! - [`types`] — [`AnalysisResult`] + the per-record types
 //!   ([`ProcDef`], [`ClassDef`], [`VarDef`], [`Diagnostic`], …).
-//! - [`snapshot`] — [`AnalyserSnapshot`] for chunked re-analysis
-//!   (filled in by **C41a3**).
-//! - [`utils`] — pure helpers ported from
-//!   ``core/analysis/_analyser/_utils.py`` (filled in by **C41a2**).
+//! - [`snapshot`] — [`AnalyserSnapshot`] for chunked re-analysis.
+//! - [`utils`] — pure helpers.
 //!
-//! Subsequent strips add per-concern modules — `commands.rs`
-//! (**C41b**), `proc.rs` (**C41c**), `diagnostics/` (**C41d**),
-//! `oo.rs` + `recovery.rs` (**C41e**), and the public entry +
-//! `PyO3` binding (**C41f**).
+//! Per-concern modules cover commands (`commands.rs`), procs
+//! (`proc.rs`), diagnostics (`diagnostics/`), `TclOO` and recovery
+//! (`oo.rs` + `recovery.rs`), and the public entry plus the `PyO3`
+//! binding.
 //!
-//! The `PyO3` binding for ``analyser_analyse(source, dialect)``
-//! lives in the ``tcl-lsp-rust`` crate; the dispatch shim in
-//! ``core.analysis._analyser.__init__`` will route to the Rust
-//! binding via ``TCL_LSP_RUST_ANALYSER=1`` (default-off at first;
-//! flip to default-on once the differential corpus has baked, same
-//! as ``C40-default-on``).
+//! This pure analyser is consumed directly by the native
+//! `tcl-lsp-server` (it is the default and only path) and exposed to
+//! Python wheel consumers through the `tcl-lsp-py` `PyO3` surface
+//! (`tcl-lsp-rust` is a re-export alias).
 
 pub mod bounds_checks;
 pub mod class_hierarchy;

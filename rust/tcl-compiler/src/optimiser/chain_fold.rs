@@ -1,8 +1,5 @@
 //! O104 / O130 — write-only build-chain folding.
 //!
-//! Ported (sound subset) from `optimise_string_build_chains` in
-//! `core/compiler/optimiser/_pattern_recognition.py`.
-//!
 //! Collapses a run of consecutive static writes to one variable into a
 //! single `set`:
 //!
@@ -26,7 +23,7 @@
 //!
 //! - The writes must be **strictly consecutive** — no statement runs
 //!   between them, so no intermediate value can be observed (the
-//!   `var_observability` flow-sensitive read check Python performs is
+//!   `var_observability` flow-sensitive read check is
 //!   subsumed: a read between writes would be a non-write statement and
 //!   ends the run).
 //! - Every value word must be a static literal (`Esc`/`Str` single-token
@@ -36,10 +33,11 @@
 //!   cross-event iRules state variable — folding would drop a trace
 //!   callback or a value a later scope / event observes.
 //!
-//! These gates make the fold conservative (it can miss a chain Python's
+//! These gates make the fold conservative (it can miss a chain a
 //! flow-sensitive pass would fold) but never unsound.
 
 use std::collections::HashSet;
+use tcl_core_types::DiagCode;
 
 use tcl_lexer::TokenType;
 
@@ -300,7 +298,6 @@ fn try_fold_chain_at(
             // only matches single-token `Esc`/`Str` value words with no
             // substitution), so the chain continues past it — the
             // interleaved statement stays in place and is not folded.
-            // Mirrors Python's "skip a non-reading statement" chain rule.
             Some(other) if write_var(&other) != var => {
                 j += 1;
             }
@@ -317,14 +314,14 @@ fn try_fold_chain_at(
 
     let (code, fold_msg, dead_msg, rendered) = if let Some(els) = &elements {
         (
-            "O130",
+            DiagCode::O130,
             "Fold write-only list build chain",
             "Remove dead intermediate list write",
             render_list_word(els),
         )
     } else {
         (
-            "O104",
+            DiagCode::O104,
             "Fold write-only string build chain",
             "Remove dead intermediate string write",
             render_static_string_word(&chain_value)?,
@@ -359,9 +356,8 @@ fn try_fold_chain_at(
 
 /// Render `elements` as the single `set` value-word that recreates the
 /// list — join into a canonical Tcl list, then quote that as one element.
-/// Mirrors `_render_list_word` (`tcl_list_quote(tcl_list_join(...))`); the
-/// joined string never begins with a bare `#` (the join already quotes a
-/// leading `#`), so `list_element`'s first-element rule is equivalent here.
+/// The joined string never begins with a bare `#` (the join already quotes
+/// a leading `#`), so `list_element`'s first-element rule is equivalent here.
 fn render_list_word(elements: &[String]) -> String {
     tcl_syntax::list::list_element(&tcl_syntax::list::join_list(elements))
 }
@@ -389,7 +385,7 @@ mod tests {
     fn apply(source: &str) -> String {
         let mut opts: Vec<Optimisation> = run_pass(source)
             .into_iter()
-            .filter(|o| o.code == "O104" || o.code == "O130")
+            .filter(|o| o.code == DiagCode::O104 || o.code == DiagCode::O130)
             .collect();
         opts.sort_by_key(|o| std::cmp::Reverse(o.span.start()));
         let mut out = source.to_owned();
@@ -407,11 +403,11 @@ mod tests {
         let opts = run_pass("set s \"\"\nappend s foo\nappend s bar");
         let fold = opts
             .iter()
-            .find(|o| o.code == "O104" && o.replacement.starts_with("set"))
+            .find(|o| o.code == DiagCode::O104 && o.replacement.starts_with("set"))
             .expect("expected an O104 fold");
         assert_eq!(fold.replacement, "set s foobar");
         // One fold + two deletions, all in one group.
-        let o104: Vec<_> = opts.iter().filter(|o| o.code == "O104").collect();
+        let o104: Vec<_> = opts.iter().filter(|o| o.code == DiagCode::O104).collect();
         assert_eq!(o104.len(), 3);
         let groups: HashSet<_> = o104.iter().filter_map(|o| o.group).collect();
         assert_eq!(groups.len(), 1);
@@ -448,7 +444,7 @@ mod tests {
         let opts = run_pass("set s \"\"\nputs $s\nappend s foo\nappend s bar");
         let fold = opts
             .iter()
-            .find(|o| o.code == "O104" && o.replacement.starts_with("set s"));
+            .find(|o| o.code == DiagCode::O104 && o.replacement.starts_with("set s"));
         // The `set s ""; puts $s` prefix breaks; the two trailing appends
         // have no anchoring `set`, so no fold fires.
         assert!(
@@ -477,11 +473,11 @@ mod tests {
     #[test]
     fn single_write_does_not_fold() {
         let opts = run_pass("set s \"\"\nappend s foo");
-        // set + one append = 2 writes → folds. (Mirrors Python's >= 2 gate.)
-        assert!(opts.iter().any(|o| o.code == "O104"));
+        // set + one append = 2 writes → folds (the chain needs >= 2 writes).
+        assert!(opts.iter().any(|o| o.code == DiagCode::O104));
         // But a lone set is not a chain.
         let opts = run_pass("set s foo");
-        assert!(opts.iter().all(|o| o.code != "O104"));
+        assert!(opts.iter().all(|o| o.code != DiagCode::O104));
     }
 
     #[test]
@@ -491,7 +487,7 @@ mod tests {
         let opts = run_pass("set s \"\"\nappend s foo\nappend s $x");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O104" && o.replacement == "set s foo")
+                .any(|o| o.code == DiagCode::O104 && o.replacement == "set s foo")
         );
     }
 
@@ -500,11 +496,11 @@ mod tests {
         // `puts $s` reads the accumulator, ending the run after `append s
         // foo`. The consecutive prefix still folds to `set s foo` (the same
         // value `puts` observes); the trailing `append s bar` is not folded
-        // into it. Matches Python's `finish_chain`-on-read behaviour.
+        // into it. Matches `finish_chain`-on-read behaviour.
         let opts = run_pass("set s \"\"\nappend s foo\nputs $s\nappend s bar");
         let folds: Vec<&str> = opts
             .iter()
-            .filter(|o| o.code == "O104" && o.replacement.starts_with("set"))
+            .filter(|o| o.code == DiagCode::O104 && o.replacement.starts_with("set"))
             .map(|o| o.replacement.as_str())
             .collect();
         assert_eq!(folds, ["set s foo"], "got {opts:?}");
@@ -515,7 +511,7 @@ mod tests {
         // `s` is global — every write is visible to other scopes.
         let opts = run_pass("proc ::f {} { global s\nset s \"\"\nappend s foo\nappend s bar }");
         assert!(
-            opts.iter().all(|o| o.code != "O104"),
+            opts.iter().all(|o| o.code != DiagCode::O104),
             "global var must not fold, got {opts:?}",
         );
     }
@@ -527,7 +523,7 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         ctx.cross_event_vars.insert("s".to_owned());
         run(&mut ctx, &cu);
-        assert!(ctx.optimisations.iter().all(|o| o.code != "O104"));
+        assert!(ctx.optimisations.iter().all(|o| o.code != DiagCode::O104));
     }
 
     #[test]

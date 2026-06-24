@@ -1,5 +1,4 @@
-//! Credential resolution for the `f5` remote verbs — Rust port of
-//! `tooling/f5/f5_remote/auth.py`.
+//! Credential resolution for the `f5` remote verbs.
 //!
 //! Resolution order (highest priority first):
 //!
@@ -9,8 +8,8 @@
 //!    `~/.config/f5/hosts.toml`) keyed by host alias
 //! 4. Interactive prompt
 //!
-//! The error strings (`no host/user/password configured (...)`) are reproduced
-//! byte-for-byte so the offline parity tests match the Python verb.
+//! The error strings (`no host/user/password configured (...)`) use fixed
+//! wording.
 
 use std::collections::BTreeMap;
 use std::env;
@@ -24,8 +23,8 @@ pub struct Credentials {
     pub user: String,
     pub password: String,
     pub port: u16,
-    // Resolved for parity with the Python `Credentials`; consumed only by the
-    // SSH transport, which is deferred in the Rust port.
+    // Consumed only by the SSH transport, which is not implemented, so it is
+    // otherwise unused.
     #[allow(dead_code)]
     pub ssh_port: u16,
 }
@@ -64,7 +63,7 @@ type AliasEntry = BTreeMap<String, String>;
 /// string / integer scalar keys. Full TOML is overkill (and the `toml` crate is
 /// not a workspace dependency); only the host alias map is consulted, and only
 /// on the live (untested) path. Unreadable / malformed files warn and yield an
-/// empty map, mirroring the Python verb's graceful degradation.
+/// empty map (graceful degradation).
 fn load_hosts_config() -> BTreeMap<String, AliasEntry> {
     let path = hosts_config_path();
     let Ok(text) = std::fs::read_to_string(&path) else {
@@ -110,8 +109,7 @@ fn unquote(s: &str) -> String {
     s.to_owned()
 }
 
-/// Options threaded into [`resolve_credentials`], mirroring the Python keyword
-/// arguments.
+/// Options threaded into [`resolve_credentials`].
 pub struct ResolveOptions<'a> {
     pub host: Option<&'a str>,
     pub user: Option<&'a str>,
@@ -124,7 +122,7 @@ pub struct ResolveOptions<'a> {
 /// Resolve a complete [`Credentials`] from layered sources.
 ///
 /// # Errors
-/// Returns the exact Python error strings (`"no host configured (set --host or
+/// Returns the exact error strings (`"no host configured (set --host or
 /// F5_HOST)"`, etc.) when a required field cannot be resolved non-interactively,
 /// or an I/O message when an interactive prompt fails.
 pub fn resolve_credentials(opts: &ResolveOptions) -> Result<Credentials, String> {
@@ -231,8 +229,7 @@ pub fn resolve_credentials(opts: &ResolveOptions) -> Result<Credentials, String>
     })
 }
 
-/// Print a prompt to stdout and read one stripped line from stdin (mirrors
-/// Python's `input(...).strip()`).
+/// Print a prompt to stdout and read one whitespace-stripped line from stdin.
 fn prompt_line(prompt: &str) -> Result<String, String> {
     print!("{prompt}");
     std::io::stdout().flush().map_err(|e| e.to_string())?;

@@ -1,10 +1,9 @@
-//! Syntax highlighter (ANSI + HTML) — the Rust port of `_highlight_source_ansi`
-//! / `_highlight_source_html` and their helpers in `tooling/cli/_utils.py`.
+//! Syntax highlighter (ANSI + HTML).
 //!
 //! Lexer-driven (no analyser/optimiser dependency), so this reaches byte-for-byte
-//! parity with the Python CLI. Command heads and registry-resolved subcommands
+//! parity with the captured golden output. Command heads and registry-resolved subcommands
 //! are detected via the command segmenter + registry, exactly as
-//! `_collect_command_spans` does.
+//! `collect_command_spans` does.
 
 use std::collections::HashSet;
 
@@ -14,7 +13,7 @@ use tcl_registry::registry_for_dialect;
 
 const ANSI_RESET: &str = "\x1b[0m";
 
-/// Highlight kind → ANSI SGR escape (mirrors `_ANSI_HIGHLIGHT_CODES`).
+/// Highlight kind → ANSI SGR escape.
 fn ansi_code(kind: HighlightKind) -> &'static str {
     match kind {
         HighlightKind::Command => "\x1b[1;34m",
@@ -27,7 +26,7 @@ fn ansi_code(kind: HighlightKind) -> &'static str {
     }
 }
 
-/// Highlight kind → inline CSS (mirrors `_HTML_HIGHLIGHT_STYLES`).
+/// Highlight kind → inline CSS.
 fn html_style(kind: HighlightKind) -> &'static str {
     match kind {
         HighlightKind::Command => "color:#2b6cb0;font-weight:600;",
@@ -54,7 +53,7 @@ enum HighlightKind {
 /// Byte-span key `(start, end)` used to tag command / subcommand heads.
 type SpanKey = (u32, u32);
 
-/// Classify a token (mirrors `_highlight_token_kind`).
+/// Classify a token.
 fn token_kind(
     ty: TokenType,
     span: SpanKey,
@@ -80,8 +79,7 @@ fn token_kind(
     }
 }
 
-/// Collect the spans of command heads and resolved subcommands (mirrors
-/// `_collect_command_spans` + `_resolve_subcommands`).
+/// Collect the spans of command heads and resolved subcommands.
 fn collect_command_spans(source: &str, dialect: &str) -> (HashSet<SpanKey>, HashSet<SpanKey>) {
     let registry = registry_for_dialect(dialect);
     let mut command_spans = HashSet::new();
@@ -105,7 +103,7 @@ fn collect_command_spans(source: &str, dialect: &str) -> (HashSet<SpanKey>, Hash
     (command_spans, subcommand_spans)
 }
 
-/// A braced word that looks like a command body (mirrors `_is_body_token`).
+/// A braced word that looks like a command body.
 fn is_body_token(text: &str) -> bool {
     if !text.starts_with('{') {
         return false;
@@ -115,7 +113,7 @@ fn is_body_token(text: &str) -> bool {
 }
 
 /// ANSI-highlight `source` for the given dialect. Caller decides whether colour
-/// is wanted (mirrors `_highlight_source_ansi` with `use_colour=True`).
+/// is wanted (ANSI colour variant).
 #[must_use]
 pub fn highlight_ansi(source: &str, dialect: &str) -> String {
     highlight_ansi_inner(source, dialect, 0)
@@ -173,7 +171,7 @@ fn highlight_ansi_inner(source: &str, dialect: &str, depth: u32) -> String {
     out
 }
 
-/// HTML-highlight `source` (mirrors `_highlight_source_html`).
+/// HTML-highlight `source`.
 #[must_use]
 pub fn highlight_html(source: &str, dialect: &str) -> String {
     if source.is_empty() {
@@ -215,7 +213,7 @@ pub fn highlight_html(source: &str, dialect: &str) -> String {
     format!("<pre>\n{out}\n</pre>\n")
 }
 
-/// Escape text for HTML, matching Python's `html.escape(s, quote=True)`.
+/// Escape text for HTML, replacing `&`, `<`, `>`, `"`, and `'` with entities.
 fn html_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {

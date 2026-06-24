@@ -1,10 +1,9 @@
-//! Formatter configuration — Rust port of
-//! `core/formatting/config.py`.
+//! Formatter configuration.
 //!
 //! Defaults follow the F5 iRules Style Guide.  Only the fields the
 //! engine consults today are modelled; the docstring-related knobs
-//! are carried for parity but the docstring rewriter itself is a
-//! later sub-strip.
+//! are carried but the docstring rewriter itself is not yet
+//! implemented.
 
 /// Where to place opening braces.  Only K&R is supported (the F5
 /// style-guide default); the enum exists so the field can grow.
@@ -23,8 +22,7 @@ pub enum IndentStyle {
     Tabs,
 }
 
-/// All configurable formatting options.  Mirrors Python's
-/// `FormatterConfig`; `Default` reproduces its dataclass defaults.
+/// All configurable formatting options.
 ///
 /// This is a configuration DTO — the boolean toggles are
 /// independent user-facing settings, not a state machine, so the
@@ -54,15 +52,11 @@ pub struct FormatterConfig {
     /// Rewrite `$var` as `${var}` for consistency.
     pub enforce_braced_variables: bool,
     /// Rewrite a bare expression argument as a braced `{ … }` expr.
-    /// Config-surface parity with Python `enforce_braced_expr`
-    /// (GAP-C4): declared and serialised, but — like the Python
-    /// field — not yet consumed by the engine (the behaviour is
-    /// hardcoded on both sides).
+    /// Declared and serialised, but not yet consumed by the engine —
+    /// the behaviour is hardcoded.
     pub enforce_braced_expr: bool,
     /// Align trailing inline comments to a consistent column.
-    /// Config-surface parity with Python `align_comments_to_code`
-    /// (GAP-C4): declared and serialised, not yet engine-consumed on
-    /// either side.
+    /// Declared and serialised, not yet engine-consumed.
     pub align_comments_to_code: bool,
     /// Line ending for formatted output.
     pub line_ending: String,
@@ -72,15 +66,11 @@ pub struct FormatterConfig {
     pub expand_single_line_bodies: bool,
     /// Minimum number of commands a body must contain before
     /// `expand_single_line_bodies` forces it onto multiple lines.
-    /// Config-surface parity with Python
-    /// `min_body_commands_for_expansion` (GAP-C4): declared and
-    /// serialised, not yet engine-consumed on either side.
+    /// Declared and serialised, not yet engine-consumed.
     pub min_body_commands_for_expansion: usize,
     /// Split `;`-separated commands onto their own lines.
-    /// Config-surface parity with Python
-    /// `replace_semicolons_with_newlines` (GAP-C4): declared and
-    /// serialised, but semicolon-splitting is hardcoded-on in both
-    /// the Python and Rust engines, so the flag is not yet consumed.
+    /// Declared and serialised, but semicolon-splitting is
+    /// hardcoded-on, so the flag is not yet consumed.
     pub replace_semicolons_with_newlines: bool,
     /// Blank lines between proc definitions.
     pub blank_lines_between_procs: usize,
@@ -118,8 +108,7 @@ impl Default for FormatterConfig {
 }
 
 impl FormatterConfig {
-    /// Build the indentation string for nesting `level`.  Mirrors
-    /// Python's `_make_indent`.
+    /// Build the indentation string for nesting `level`.
     #[must_use]
     pub fn make_indent(&self, level: usize) -> String {
         match self.indent_style {
