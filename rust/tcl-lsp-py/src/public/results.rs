@@ -23,7 +23,10 @@ use super::errors::RangeTuple;
 /// `((start_line, start_char), (end_line, end_char))` shape.
 pub(crate) fn range_of(sm: &SourceMap<'_>, span: tcl_lexer::Span) -> RangeTuple {
     let (start, end) = sm.range_positions(span);
-    ((start.line, start.character), (end.line, end.character))
+    (
+        (start.line, start.character.get()),
+        (end.line, end.character.get()),
+    )
 }
 
 /// One lexer token: its kind name, source text, and position.

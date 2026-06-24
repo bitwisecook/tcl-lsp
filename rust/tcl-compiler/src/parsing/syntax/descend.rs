@@ -95,11 +95,11 @@ pub fn descend_token(sm: &SourceMap<'_>, token: Token, config: LexerConfig) -> D
         (
             start.offset + 1,
             start.line,
-            start.character + 1,
+            start.character.get() + 1,
             terminated(sm, token),
         )
     } else {
-        (start.offset, start.line, start.character, false)
+        (start.offset, start.line, start.character.get(), false)
     };
     let inner = sm.token_text(token);
     let (document, _warnings) = build_document(inner, config);

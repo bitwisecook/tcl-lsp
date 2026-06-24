@@ -20,7 +20,7 @@
 //! ([`SyntaxNode::tokens`]).  No `parent` back-pointer is stored (no red
 //! method reads it).
 
-use tcl_lexer::{SourcePosition, Span, Token, TokenType};
+use tcl_lexer::{ByteCol, SourcePosition, Span, Token, TokenType};
 
 use super::green::{GreenElement, GreenNode, GreenToken};
 
@@ -143,11 +143,11 @@ impl SyntaxTree {
         let line_idx_u32 = u32::try_from(line_idx).unwrap_or(u32::MAX);
         SourcePosition {
             line: self.base_line + line_idx_u32,
-            character: if line_idx == 0 {
+            character: ByteCol::new(if line_idx == 0 {
                 self.base_col + col
             } else {
                 col
-            },
+            }),
             offset: self.base_offset + region_offset,
         }
     }
@@ -399,13 +399,25 @@ mod tests {
         );
         let tree = SyntaxTree::anchored(doc, 10, 2, 4);
         // Offset 0 — first line, base_col applies.
-        assert_eq!(tree.position_at(0), SourcePosition::new(2, 4, 10));
+        assert_eq!(
+            tree.position_at(0),
+            SourcePosition::new(2, ByteCol::new(4), 10)
+        );
         // Offset 1 — still first line.
-        assert_eq!(tree.position_at(1), SourcePosition::new(2, 5, 11));
+        assert_eq!(
+            tree.position_at(1),
+            SourcePosition::new(2, ByteCol::new(5), 11)
+        );
         // Offset 3 — start of second region line; base_col does NOT apply.
-        assert_eq!(tree.position_at(3), SourcePosition::new(3, 0, 13));
+        assert_eq!(
+            tree.position_at(3),
+            SourcePosition::new(3, ByteCol::new(0), 13)
+        );
         // Offset 4 — second char of line 2.
-        assert_eq!(tree.position_at(4), SourcePosition::new(3, 1, 14));
+        assert_eq!(
+            tree.position_at(4),
+            SourcePosition::new(3, ByteCol::new(1), 14)
+        );
     }
 
     #[test]
@@ -426,8 +438,14 @@ mod tests {
         let toks = root.tokens();
         assert_eq!(toks.len(), 1);
         assert_eq!(toks[0].raw_start(), 2);
-        assert_eq!(toks[0].start_position(), SourcePosition::new(0, 2, 2));
-        assert_eq!(toks[0].end_position(), SourcePosition::new(0, 4, 4));
+        assert_eq!(
+            toks[0].start_position(),
+            SourcePosition::new(0, ByteCol::new(2), 2)
+        );
+        assert_eq!(
+            toks[0].end_position(),
+            SourcePosition::new(0, ByteCol::new(4), 4)
+        );
     }
 
     /// Cross-check the red layer against the real lexer: build a green
@@ -528,7 +546,10 @@ mod tests {
         let red = tree.root().tokens()[0];
         assert_eq!(red.start_position(), lex_start);
         assert_eq!(red.end_position(), lex_end);
-        assert_eq!(red.end_position(), SourcePosition::new(1, 1, 4));
+        assert_eq!(
+            red.end_position(),
+            SourcePosition::new(1, ByteCol::new(1), 4)
+        );
         assert_eq!(red.to_token(), lex_tok);
     }
 
@@ -553,7 +574,7 @@ mod tests {
                 let line = red_starts.partition_point(|&s| s <= off) - 1;
                 let col = off - red_starts[line];
                 assert_eq!(
-                    (lex.line, lex.character),
+                    (lex.line, lex.character.get()),
                     (u32::try_from(line).expect("line fits u32"), col),
                     "offset {off} in {src:?}",
                 );
@@ -563,7 +584,7 @@ mod tests {
         // `b` (offset 2) is line 0, column 2 — not line 1.
         assert_eq!(
             SourceMap::new("a\rb").position_at(2),
-            SourcePosition::new(0, 2, 2),
+            SourcePosition::new(0, ByteCol::new(2), 2),
         );
     }
 
@@ -656,7 +677,10 @@ mod tests {
         };
         assert_eq!(cmd_view.kind(), SyntaxKind::Command);
         // The command's leading space is excluded: start at offset 1.
-        assert_eq!(cmd_view.start_position(), SourcePosition::new(0, 1, 1));
+        assert_eq!(
+            cmd_view.start_position(),
+            SourcePosition::new(0, ByteCol::new(1), 1)
+        );
         // Two words under the command.
         let words: Vec<_> = cmd_view.children().collect();
         assert_eq!(words.len(), 2);

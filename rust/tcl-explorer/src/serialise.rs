@@ -1304,7 +1304,7 @@ pub fn serialise_structural_index(source: &str, li: &LineIndex) -> Value {
 
     fn pos(li: &LineIndex, off: u32) -> Value {
         let p = li.position_at(off);
-        json!({ "line": p.line, "col": p.character, "offset": p.offset })
+        json!({ "line": p.line, "col": p.character.get(), "offset": p.offset })
     }
     fn inert_spans(li: &LineIndex, source: &str, spans: &[(u32, u32, bool)]) -> Value {
         Value::Array(

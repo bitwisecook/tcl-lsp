@@ -343,7 +343,10 @@ fn query_error(py: Python<'_>, query: &str, e: &QueryError) -> PyErr {
     let range = if positional {
         let sm = SourceMap::new(query);
         let pos = sm.position_at(u32::try_from(e.offset()).unwrap_or(0));
-        Some(((pos.line, pos.character), (pos.line, pos.character)))
+        Some((
+            (pos.line, pos.character.get()),
+            (pos.line, pos.character.get()),
+        ))
     } else {
         None
     };
