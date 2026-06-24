@@ -346,6 +346,12 @@ impl Analyser {
         for fu in cu.procedures.values() {
             collect_object_types(fu, &mut all_object_types);
         }
+        // Method bodies are real analysable units (`cu.methods` carries a full
+        // FunctionUnit per method). Including them lets `$var method` dispatch
+        // inside a method body see object/const evidence from the same body.
+        for fu in cu.methods.values() {
+            collect_object_types(fu, &mut all_object_types);
+        }
         self.harvest_constructor_object_types(cu, &mut all_object_types);
 
         // Build the class hierarchy once for W308 method
@@ -376,6 +382,12 @@ impl Analyser {
         };
         collect_from(&cu.top_level, &mut all_constsets);
         for fu in cu.procedures.values() {
+            collect_from(fu, &mut all_constsets);
+        }
+        // A literal `set cmd nope` inside an `oo::class` method body must be
+        // captured so SCCP can prove `$cmd` is a non-command — defeating the
+        // blanket `in_method` W307 suppression (FP-OBJ-D4-F5).
+        for fu in cu.methods.values() {
             collect_from(fu, &mut all_constsets);
         }
 
