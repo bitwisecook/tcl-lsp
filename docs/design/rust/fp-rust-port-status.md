@@ -98,3 +98,22 @@ Under-fires (Rust suppresses where Python emits — tighten the heuristic):
 - **FP-STY-15 / FP-OPT-12 bridge-only skips**: Python tests that drive
   `TclLexer.tokenise_all()` / `lower_to_ir(...).procedures` IR structure with no
   public Rust surface; behaviourally covered by sibling diagnostic tests.
+
+## Found via new lsp_e2e UTF-16 coverage
+
+`tests/lsp_e2e/test_unicode_positions_e2e.py` adds exact UTF-16 column
+correctness tests (the C1 byte-vs-UTF-16 class) — input mapping and output
+columns across providers, with BMP-multibyte and astral (emoji) cases. 4 pass.
+
+**Bug found — astral-character OUTPUT columns (cross-provider C1 residual).**
+Provider *output* columns (`document_highlight`, go-to-definition target
+ranges) are computed as a Unicode **scalar** (code-point) count rather than
+UTF-16 code units, so an astral char (🚀 = 2 UTF-16 units, 1 code point) yields
+a column **one short per astral char** (returns 13/15 where UTF-16 is 14/16;
+byte would be 16/18). BMP multibyte output is correct (scalar==UTF-16 there),
+and astral **input** mapping is correct (`offset_at_utf16` handles it). The fix
+is to route the residual scalar column sites (`chars().count()` in
+`lsp-core/{definition,completion,code_actions}.rs` and the highlight/symbol
+output paths) through the UTF-16 conversion (`utf16_len` / `position_at_utf16`),
+matching `span_to_range`. The focused astral-output assertion is withheld in
+the test (with a NOTE) until that lands, to keep the suite green.
