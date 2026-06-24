@@ -569,3 +569,32 @@ fn single_char_bare_words() {
         assert_eq!(lex(ch), [(TokenType::Esc, ch.to_string())], "{ch}");
     }
 }
+
+// -- Port: {*} expansion edge cases (expands only when immediately followed
+// by a word; tclsh `list {*}`→1, `list {*} x`→2, `list {**}`→1). --
+
+#[test]
+fn expand_followed_by_each_word_form() {
+    for src in ["{*}list", "{*}{body}", "{*}$var", "{*}[cmd]", "{*}\"hello\""] {
+        assert!(
+            kinds(src).contains(&TokenType::Expand),
+            "{src} must produce an EXPAND token"
+        );
+    }
+    // The following word's kind is preserved.
+    assert!(kinds("{*}{body}").contains(&TokenType::Str));
+    assert!(kinds("{*}$var").contains(&TokenType::Var));
+    assert!(kinds("{*}[cmd]").contains(&TokenType::Cmd));
+}
+
+#[test]
+fn no_expansion_without_immediately_following_word() {
+    // `{*}` at EOF is the braced string "*" (tclsh: `list {*}` → 1 element).
+    assert_eq!(lex("{*}"), [(TokenType::Str, "*".to_string())]);
+    // `{*} list` (space after) → braced "*" then a separate word.
+    let spaced = lex("{*} list");
+    assert_eq!(spaced[0], (TokenType::Str, "*".to_string()));
+    assert!(!spaced.iter().any(|(k, _)| *k == TokenType::Expand));
+    // `{**}` is the braced string "**", not expansion (tclsh: `list {**}` → 1).
+    assert_eq!(lex("{**}"), [(TokenType::Str, "**".to_string())]);
+}
