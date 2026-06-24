@@ -189,3 +189,26 @@ Remaining (5 `#[ignore]`s):
 - **astral-output C1** — analyser stores `var_def.references` / `name_span`
   byte-spans miscounted by an astral char's extra UTF-16 unit (the LSP
   range-lift is already correct).
+
+## Update — 8 of 12 fixed
+
+Additional fixes since the 7-of-12 mark:
+8. **FP-OBJ-10** — callback-array-slot W307 suppression (`is_callback_array_slot`)
+   gated on the OBJ-09 evidence check, plus `harvest_array_element_set_constants`
+   capturing the slot's literal value from the `AssignValue { name: "arr(key)" }`
+   shape that a direct `set arr(key) literal` actually lowers to (confirmed by IR
+   dump). All FP-OBJ-10 + FP-OBJ-17 cases pass. (commit `6ea321c6`)
+
+Remaining 3 `#[ignore]`s + astral, each with a now-confirmed structural root:
+- **FP-OBJ-D4-F5** — `oo::class create C { method m {…} }` lowers the *entire
+  class body as an opaque `Barrier`* ("unsupported body command"); the method
+  body is never lowered to IR/CFG/SSA, so `set cmd nope` is invisible and the
+  in-method W307 gate cannot see the non-command evidence. Needs oo::class
+  method-body lowering (structural), not a heuristic.
+- **FP-OPT-03** — LICM hoist of an outer-pure/inner-pure nested shape (a pass
+  capability the Rust LICM does not yet have).
+- **FP-OPT-08** — overlap arbitration (`select_non_overlapping` /
+  `consumed_var_count`) deletes `set b 0` while keeping a `$b` reference; it
+  must count EXPR-role consumption across the nested-if fold.
+- **astral-output C1** — analyser var-reference / `name_span` byte-spans
+  miscounted by an astral char's extra UTF-16 unit (LSP range-lift is correct).
