@@ -25,9 +25,12 @@ use crate::lower::lower_function;
 /// Returns the first [`BpfError`] encountered (bad event, out-of-subset
 /// construct, type error, …).
 pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
-    // Vanilla registry — deliberately NO `load_irules()`, so `when` is not
-    // hijacked into the F5 `::when::` namespace.
-    let registry = CommandRegistry::build_default();
+    // Load the BPF dialect (the typed verbs + `when`). This is deliberately NOT
+    // the iRules dialect, and the BPF `when` spec carries no lowering hook, so
+    // `when` stays a generic call we re-lower ourselves — a separate event space
+    // from F5's `::when::`.
+    let mut registry = CommandRegistry::build_default();
+    registry.load_bpf();
     let module = lower_to_ir(source, &registry);
 
     let mut programs = Vec::new();

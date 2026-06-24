@@ -35,6 +35,8 @@ bitflags! {
         const QUARTUS   = 1 << 11;
         /// Mentor/Siemens EDA
         const MENTOR    = 1 << 12;
+        /// BPF-Tcl (the eBPF framework dialect)
+        const BPF       = 1 << 13;
 
         /// All standard Tcl versions.
         const ALL_TCL = Self::TCL84.bits() | Self::TCL85.bits()
@@ -73,6 +75,7 @@ bitflags! {
 /// (`f5-bigip`, `f5-tmsh`) appear here but collapse to plain Tcl when
 /// parsed, matching the Python registry's graceful fallback.
 pub const KNOWN_DIALECTS: &[&str] = &[
+    "bpf",
     "cadence-eda-tcl",
     "expect",
     "f5-bigip",
@@ -124,6 +127,7 @@ impl DialectSet {
     #[must_use]
     pub fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "bpf" => Self::BPF,
             "tcl8.4" => Self::TCL84,
             "tcl8.5" => Self::TCL85,
             "tcl8.6" => Self::TCL86,
@@ -149,11 +153,12 @@ mod tests {
     #[test]
     fn available_dialects_is_sorted_and_complete() {
         let d = available_dialects();
-        assert_eq!(d.len(), 14);
+        assert_eq!(d.len(), 15);
         let mut sorted = d.to_vec();
         sorted.sort_unstable();
         assert_eq!(d, sorted.as_slice(), "must be pre-sorted");
         // Spot-check the names that diverge from DialectSet::parse.
+        assert!(d.contains(&"bpf"));
         assert!(d.contains(&"f5-bigip"));
         assert!(d.contains(&"f5-tmsh"));
         assert!(!d.contains(&"tk"));
