@@ -267,7 +267,6 @@ const FP_OPT_06_REPRO: &str =
     "proc f {} { set x a; set y [append x b]; puts $x; puts $y }";
 
 #[test]
-#[ignore = "FP-OPT-06: Rust propagates stale value vs Python suppresses; actual=`puts a` present — cmd-sub write kill not yet wired into Rust SSA kill-sites (D2-O100 not ported)"]
 fn fp_opt_06_o100_does_not_propagate_past_cmd_sub_write() {
     // FP-OPT-06: [append x b] mutates x; optimiser must NOT propagate stale "a" into puts $x.
     let opt_src = optimised(FP_OPT_06_REPRO, D);
