@@ -1693,14 +1693,18 @@ fn collect_folds_for_scope(
         if !fu.sccp.executable_blocks.contains(block_id) {
             continue;
         }
-        let mut block_vars: HashMap<String, Version> = ssa_block.entry_versions.clone();
+        let mut block_vars: HashMap<String, Version> = ssa_block
+            .entry_versions
+            .iter()
+            .map(|(sym, ver)| (fu.ssa.var_name(*sym).to_owned(), *ver))
+            .collect();
         for (stmt_idx, stmt) in block.statements.iter().enumerate() {
             let Some(ssa_stmt) = ssa_block.statements.get(stmt_idx) else {
                 continue;
             };
             let mut uses = block_vars.clone();
             for (name, ver) in &ssa_stmt.uses {
-                uses.insert(name.clone(), *ver);
+                uses.insert(fu.ssa.var_name(*name).to_owned(), *ver);
             }
             match stmt {
                 Statement::AssignValue {
@@ -1723,9 +1727,10 @@ fn collect_folds_for_scope(
                         if !(content.contains('$') || content.contains('[')) {
                             continue;
                         }
-                        if let Some(folded) = fold_string_via_sccp(content, &uses, &fu.sccp.values)
+                        if let Some(folded) =
+                            fold_string_via_sccp(content, &uses, &fu.sccp.values, &fu.ssa)
                         {
-                            if has_unsafe_tainted_inputs(content, &uses, &fu.taints) {
+                            if has_unsafe_tainted_inputs(content, &uses, &fu.taints, &fu.ssa) {
                                 continue;
                             }
                             if let Some(close) = find_close_quote(source, arg_off + 1) {
@@ -1742,7 +1747,7 @@ fn collect_folds_for_scope(
                 _ => {}
             }
             for (name, ver) in &ssa_stmt.defs {
-                block_vars.insert(name.clone(), *ver);
+                block_vars.insert(fu.ssa.var_name(*name).to_owned(), *ver);
             }
         }
     }
@@ -1759,10 +1764,10 @@ fn try_fold_region(
     edits: &mut Vec<Edit>,
     fold_map: &mut BTreeMap<String, String>,
 ) {
-    let Some(folded) = fold_string_via_sccp(value, uses, &fu.sccp.values) else {
+    let Some(folded) = fold_string_via_sccp(value, uses, &fu.sccp.values, &fu.ssa) else {
         return;
     };
-    if has_unsafe_tainted_inputs(value, uses, &fu.taints) {
+    if has_unsafe_tainted_inputs(value, uses, &fu.taints, &fu.ssa) {
         return;
     }
     let (start, end) = (span.start() as usize, span.end() as usize);
@@ -1788,7 +1793,8 @@ fn try_fold_region(
 fn fold_string_via_sccp(
     content: &str,
     uses: &HashMap<String, Version>,
-    values: &HashMap<(String, Version), LatticeValue>,
+    values: &HashMap<(tcl_compiler::ssa::Symbol, Version), LatticeValue>,
+    ssa: &tcl_compiler::ssa::SsaFunction,
 ) -> Option<String> {
     let bytes = content.as_bytes();
     let n = bytes.len();
@@ -1804,7 +1810,7 @@ fn fold_string_via_sccp(
                 if ver == 0 {
                     return None;
                 }
-                let lv = values.get(&(name.to_owned(), ver))?;
+                let lv = values.get(&(ssa.var_symbol(name)?, ver))?;
                 let LatticeValue::Const(cv) = lv else {
                     return None;
                 };
@@ -1847,7 +1853,8 @@ fn const_to_string(cv: &ConstValue) -> Option<String> {
 fn has_unsafe_tainted_inputs(
     content: &str,
     uses: &HashMap<String, Version>,
-    taints: &HashMap<(String, Version), TaintLattice>,
+    taints: &HashMap<(tcl_compiler::ssa::Symbol, Version), TaintLattice>,
+    ssa: &tcl_compiler::ssa::SsaFunction,
 ) -> bool {
     let safe = safe_taint_colours();
     let mut pos = 0;
@@ -1858,7 +1865,8 @@ fn has_unsafe_tainted_inputs(
             if let Some(name) = name {
                 let ver = uses.get(name).copied().unwrap_or(0);
                 if ver > 0
-                    && let Some(t) = taints.get(&(name.to_owned(), ver))
+                    && let Some(sym) = ssa.var_symbol(name)
+                    && let Some(t) = taints.get(&(sym, ver))
                     && t.is_tainted()
                     && !t.colours.intersects(safe)
                 {

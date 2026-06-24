@@ -2148,7 +2148,7 @@ fn infer_var_type(unit: &CompilationUnit, var_name: &str) -> Option<String> {
         let entries: Vec<&TypeLattice> = func
             .types
             .iter()
-            .filter(|((name, _ver), _)| name == var_name)
+            .filter(|((name, _ver), _)| func.ssa.var_name(*name) == var_name)
             .map(|(_, t)| t)
             .collect();
         if entries.is_empty() {
@@ -2232,7 +2232,7 @@ fn infer_var_taint(unit: &CompilationUnit, var_name: &str) -> Option<String> {
         let entries: Vec<&TaintLattice> = func
             .taints
             .iter()
-            .filter(|((name, _ver), _)| name == var_name)
+            .filter(|((name, _ver), _)| func.ssa.var_name(*name) == var_name)
             .map(|(_, t)| t)
             .collect();
         if entries.is_empty() {

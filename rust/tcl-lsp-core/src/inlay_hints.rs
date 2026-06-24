@@ -213,7 +213,7 @@ fn collect_type_hints(
     for fu in cu.functions() {
         for ((name, _ver), tl) in &fu.types {
             if let Some(display) = type_display(tl) {
-                type_map.insert(name.clone(), display);
+                type_map.insert(fu.ssa.var_name(*name).to_owned(), display);
             }
         }
     }
