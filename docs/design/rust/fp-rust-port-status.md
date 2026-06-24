@@ -162,3 +162,30 @@ is to route the residual scalar column sites (`chars().count()` in
 output paths) through the UTF-16 conversion (`utf16_len` / `position_at_utf16`),
 matching `span_to_range`. The focused astral-output assertion is withheld in
 the test (with a NOTE) until that lands, to keep the suite green.
+
+## Session progress — 7 of 12 fixed
+
+Fixed (each full-suite regression-verified, committed):
+1. FP-DS-04 — cross-scope traced `::`-globals (`scan_module_traced_globals`).
+2. FP-DS-02 — reads inside `[expr {…}]` cmd-subs (`dollar_reads_in_cmd_subs`).
+3. FP-OBJ-05 — snit-instance W308 suppression (metaclass check).
+4. FP-OBJ-07 — `[cmd]::method` ensemble W307 suppression.
+5. FP-OBJ-09 — SCCP non-command evidence overrides W307 multi-dispatch.
+6. FP-OPT-06 — builtin var-writes inside cmd-subs modelled as SSA defs
+   (`builtin_write_defs_from_text`), killing stale O100 copy-propagation.
+7. FP-OBJ-VAR-as-cmd — cascade-fixed by (6): interproc param-constant
+   non-command evidence now reaches the W307 site.
+
+Remaining (5 `#[ignore]`s):
+- **FP-OBJ-10** — callback-slot suppression is written, gated on the OBJ-09
+  evidence check; blocked on the IR shape of a direct `set arr(key) literal`
+  (excluded from `set_literal_body`, not a plain `Call "set"`) so the SCCP-const
+  TP variants fire. Two prior attempts reverted to avoid breaking the TPs.
+- **FP-OBJ-D4-F5** — const value not captured in `oo::class` method-body scope.
+- **FP-OPT-03** — LICM does not hoist the outer-pure/inner-pure nested shape.
+- **FP-OPT-08** — overlap arbitration deletes `set b 0` while keeping a `$b`
+  reference (the EXPR-role consumption across the nested-if fold is not counted
+  in `consumed_var_count` / `select_non_overlapping`).
+- **astral-output C1** — analyser stores `var_def.references` / `name_span`
+  byte-spans miscounted by an astral char's extra UTF-16 unit (the LSP
+  range-lift is already correct).
