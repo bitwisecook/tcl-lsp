@@ -74,9 +74,9 @@ impl RefactorEdit {
         crate::rename::TextEdit {
             range: LspRange {
                 start_line: start.line,
-                start_character: start.character,
+                start_character: start.character.get(),
                 end_line: end.line,
-                end_character: end.character,
+                end_character: end.character.get(),
             },
             new_text: self.new_text.clone(),
         }

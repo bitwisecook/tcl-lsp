@@ -72,7 +72,7 @@ pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
             LegacyIssue {
                 code: d.code.clone(),
                 line: pos.line + 1,
-                column: pos.character + 1,
+                column: pos.character.get() + 1,
                 message: d.message.clone(),
                 conversion: conversion_for(&d.code).to_owned(),
             }

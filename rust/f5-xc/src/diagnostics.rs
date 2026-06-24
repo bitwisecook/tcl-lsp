@@ -90,11 +90,11 @@ fn item_to_diagnostic(
         range: Range {
             start: Position {
                 line: start.line,
-                character: start.character,
+                character: start.character.get(),
             },
             end: Position {
                 line: end.line,
-                character: end.character,
+                character: end.character.get(),
             },
         },
     })

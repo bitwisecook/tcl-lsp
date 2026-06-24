@@ -78,7 +78,7 @@ fn position_at(source: &str, line_index: &LineIndex, offset: usize) -> Position 
         .map_or(0, |s| s.chars().count());
     Position {
         line: sp.line,
-        character: sp.character,
+        character: sp.character.get(),
         offset: u32::try_from(codepoint_offset).unwrap_or(u32::MAX),
     }
 }

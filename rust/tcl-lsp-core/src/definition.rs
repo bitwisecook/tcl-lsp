@@ -50,7 +50,7 @@
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_lexer::LineIndex;
+use tcl_lexer::{LineIndex, Utf16Col};
 
 use crate::hover::{find_var_at_position, find_word_span_at_position};
 
@@ -325,7 +325,7 @@ pub(crate) fn byte_offset_at(
     line: u32,
     character: u32,
 ) -> u32 {
-    line_index.offset_at_utf16(line, character, source)
+    line_index.offset_at_utf16(line, Utf16Col::new(character), source)
 }
 
 /// Walk the scope tree to find the variable definition that
@@ -531,9 +531,9 @@ pub(crate) fn span_to_range(
     let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
-        start_character: start.character,
+        start_character: start.character.get(),
         end_line: end.line,
-        end_character: end.character,
+        end_character: end.character.get(),
     }
 }
 

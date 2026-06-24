@@ -38,7 +38,7 @@
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_lexer::LineIndex;
+use tcl_lexer::{LineIndex, Utf16Col};
 
 use crate::definition::{LspRange, utf16_col_to_char_col};
 
@@ -150,9 +150,9 @@ pub fn code_actions(
         let diag_end = line_index.position_at_utf16(diag.span.end(), source);
         let diag_range = LspRange {
             start_line: diag_start.line,
-            start_character: diag_start.character,
+            start_character: diag_start.character.get(),
             end_line: diag_end.line,
-            end_character: diag_end.character,
+            end_character: diag_end.character.get(),
         };
         if !ranges_overlap(diag_range, range) {
             continue;
@@ -168,9 +168,9 @@ pub fn code_actions(
         if diag.code == "W302" {
             let insertion = LspRange {
                 start_line: diag_end.line,
-                start_character: diag_end.character,
+                start_character: diag_end.character.get(),
                 end_line: diag_end.line,
-                end_character: diag_end.character,
+                end_character: diag_end.character.get(),
             };
             for (title, suffix) in [
                 ("Add catch result variable", " result"),
@@ -216,9 +216,9 @@ pub fn code_actions(
                 edits: vec![crate::rename::TextEdit {
                     range: LspRange {
                         start_line: fix_start.line,
-                        start_character: fix_start.character,
+                        start_character: fix_start.character.get(),
                         end_line: fix_end.line,
-                        end_character: fix_end.character,
+                        end_character: fix_end.character.get(),
                     },
                     new_text: fix.new_text.clone(),
                 }],
@@ -285,9 +285,9 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
         let diag_end = line_index.position_at_utf16(diag.span.end(), source);
         let diag_range = LspRange {
             start_line: diag_start.line,
-            start_character: diag_start.character,
+            start_character: diag_start.character.get(),
             end_line: diag_end.line,
-            end_character: diag_end.character,
+            end_character: diag_end.character.get(),
         };
         if !ranges_overlap(diag_range, range) {
             continue;
@@ -306,9 +306,9 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
                 edits: vec![crate::rename::TextEdit {
                     range: LspRange {
                         start_line: fix_start.line,
-                        start_character: fix_start.character,
+                        start_character: fix_start.character.get(),
                         end_line: fix_end.line,
-                        end_character: fix_end.character,
+                        end_character: fix_end.character.get(),
                     },
                     new_text: fix.new_text.clone(),
                 }],
@@ -339,9 +339,9 @@ fn build_unset_nocomplain_action(
     let pos = line_index.position_at_utf16(insert_offset, source);
     let insertion = LspRange {
         start_line: pos.line,
-        start_character: pos.character,
+        start_character: pos.character.get(),
         end_line: pos.line,
-        end_character: pos.character,
+        end_character: pos.character.get(),
     };
     Some(CodeAction {
         title: "Add '-nocomplain' to unset".to_string(),
@@ -547,9 +547,9 @@ fn continuation_comment_actions(
             ranges_overlap(
                 LspRange {
                     start_line: start.line,
-                    start_character: start.character,
+                    start_character: start.character.get(),
                     end_line: end.line,
-                    end_character: end.character,
+                    end_character: end.character.get(),
                 },
                 range,
             )
@@ -939,13 +939,18 @@ fn refactor_engine_actions(
     registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
     let mut out = Vec::new();
 
-    let cursor = line_index.offset_at_utf16(range.start_line, range.start_character, source);
+    let cursor = line_index.offset_at_utf16(
+        range.start_line,
+        Utf16Col::new(range.start_character),
+        source,
+    );
     let has_selection =
         range.start_line != range.end_line || range.start_character != range.end_character;
 
     // Extract variable — requires a selection.
     if has_selection {
-        let end = line_index.offset_at_utf16(range.end_line, range.end_character, source);
+        let end =
+            line_index.offset_at_utf16(range.end_line, Utf16Col::new(range.end_character), source);
         if let Some(r) = refactor::extract_variable(source, cursor, end, "result", line_index) {
             out.push(refactoring_to_action(&r, source, line_index));
         }

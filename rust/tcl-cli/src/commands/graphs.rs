@@ -243,7 +243,7 @@ fn line0(line_index: &LineIndex, offset: u32) -> u32 {
 /// in UTF-16 code units, over the analyser `Range`.
 fn pos_value(line_index: &LineIndex, source: &str, offset: u32) -> Value {
     let pos = line_index.position_at_utf16(offset, source);
-    json!({ "line": pos.line, "character": pos.character })
+    json!({ "line": pos.line, "character": pos.character.get() })
 }
 
 /// Call sites of a proc, deduplicated by span.

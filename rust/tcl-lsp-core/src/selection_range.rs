@@ -210,9 +210,9 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
     let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
-        start_character: start.character,
+        start_character: start.character.get(),
         end_line: end.line,
-        end_character: end.character,
+        end_character: end.character.get(),
     }
 }
 

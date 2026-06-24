@@ -320,9 +320,9 @@ fn offsets_to_range(source: &str, line_index: &LineIndex, start: usize, end: usi
     let end_pos = line_index.position_at_utf16(u32::try_from(end).unwrap_or(u32::MAX), source);
     LineRange {
         start_line: start_pos.line,
-        start_character: start_pos.character,
+        start_character: start_pos.character.get(),
         end_line: end_pos.line,
-        end_character: end_pos.character,
+        end_character: end_pos.character.get(),
     }
 }
 

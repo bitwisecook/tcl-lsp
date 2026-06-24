@@ -1330,7 +1330,7 @@ fn push_subtoken(
     }
     let pos = line_index.position_at_utf16(u32::try_from(abs_off).unwrap_or(0), source);
     let len_utf16 = utf16_len(text);
-    entries.push((pos.line, pos.character, len_utf16, kind, 0));
+    entries.push((pos.line, pos.character.get(), len_utf16, kind, 0));
 }
 
 /// Maximum body / expr / command-substitution recursion depth — guards
@@ -1773,7 +1773,7 @@ fn collect_expr(
                 };
                 entries.push((
                     pos.line,
-                    pos.character,
+                    pos.character.get(),
                     utf16_len(&et.text),
                     TokenKind::Function,
                     mods,
@@ -1839,7 +1839,7 @@ fn push_object_token(
     if start.line != end.line {
         return;
     }
-    let len = end.character.saturating_sub(start.character);
+    let len = end.character.get().saturating_sub(start.character.get());
     if len == 0 {
         return;
     }
@@ -1850,7 +1850,9 @@ fn push_object_token(
     // wins and suppresses the object token.
     let mut other_overlap = false;
     entries.retain(|(l, c, ln, kind, _)| {
-        let overlaps = *l == start.line && *c < start.character + len && start.character < *c + *ln;
+        let overlaps = *l == start.line
+            && *c < start.character.get() + len
+            && start.character.get() < *c + *ln;
         if overlaps {
             if *kind == TokenKind::String {
                 return false;
@@ -1860,7 +1862,7 @@ fn push_object_token(
         true
     });
     if !other_overlap {
-        entries.push((start.line, start.character, len, TokenKind::Object, 0));
+        entries.push((start.line, start.character.get(), len, TokenKind::Object, 0));
     }
 }
 
@@ -2026,7 +2028,13 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             let comment_start = u32::try_from(idx).unwrap_or(0);
             let pos = line_index.position_at_utf16(comment_start, source);
             let len_utf16 = utf16_len(&source[idx..p]);
-            entries.push((pos.line, pos.character, len_utf16, TokenKind::Comment, 0));
+            entries.push((
+                pos.line,
+                pos.character.get(),
+                len_utf16,
+                TokenKind::Comment,
+                0,
+            ));
             // Skip the remainder of the comment line; the terminating `\n`
             // (at `p`) is processed normally and resets `line_start`.
             skip_until = p;
@@ -2079,7 +2087,7 @@ fn push_token(
         return;
     }
     let len_utf16 = utf16_len(text);
-    entries.push((pos.line, pos.character, len_utf16, kind, modifiers));
+    entries.push((pos.line, pos.character.get(), len_utf16, kind, modifiers));
 }
 
 /// Emit a structural keyword word (`if`'s then/elseif/else, `try`'s

@@ -103,9 +103,9 @@ pub fn document_links_with_home(
                 let end = line_index.position_at_utf16(tok.span.end(), source);
                 links.push(DocumentLink {
                     start_line: start.line,
-                    start_character: start.character,
+                    start_character: start.character.get(),
                     end_line: end.line,
-                    end_character: end.character,
+                    end_character: end.character.get(),
                     target: String::new(),
                     tooltip: Some(format!("package require {}", seg.texts[2])),
                 });
@@ -170,9 +170,9 @@ pub fn document_links_with_home(
         let end = line_index.position_at_utf16(arg_tok.span.end(), source);
         links.push(DocumentLink {
             start_line: start.line,
-            start_character: start.character,
+            start_character: start.character.get(),
             end_line: end.line,
-            end_character: end.character,
+            end_character: end.character.get(),
             target,
             tooltip: Some(path_owned),
         });

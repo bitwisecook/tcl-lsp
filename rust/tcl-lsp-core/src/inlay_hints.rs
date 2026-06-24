@@ -255,7 +255,7 @@ fn walk_scope_type_hints(
         }
         out.push(InlayHint {
             position_line: end.line,
-            position_character: end.character,
+            position_character: end.character.get(),
             label: format!(": {type_str}"),
             kind: InlayHintKind::Type,
             padding_left: true,
@@ -484,7 +484,7 @@ fn push_format_hint(
     }
     out.push(InlayHint {
         position_line: pos.line,
-        position_character: pos.character,
+        position_character: pos.character.get(),
         label: label.to_owned(),
         kind: InlayHintKind::Type,
         padding_left: true,
@@ -688,12 +688,12 @@ fn emit_builtin_hints(
     for (&arg_idx, name) in positional_args.iter().zip(selected.iter()) {
         let arg_tok = &seg.argv[arg_idx];
         let pos = line_index.position_at_utf16(arg_tok.span.start(), source);
-        if !position_within_range(pos.line, pos.character, range) {
+        if !position_within_range(pos.line, pos.character.get(), range) {
             continue;
         }
         out.push(InlayHint {
             position_line: pos.line,
-            position_character: pos.character,
+            position_character: pos.character.get(),
             label: format!("{name}:"),
             kind: InlayHintKind::Parameter,
             padding_left: false,
@@ -889,12 +889,12 @@ fn emit_hints_for_call(
             continue;
         }
         let pos = line_index.position_at_utf16(arg_tok.span.start(), source);
-        if !position_within_range(pos.line, pos.character, range) {
+        if !position_within_range(pos.line, pos.character.get(), range) {
             continue;
         }
         out.push(InlayHint {
             position_line: pos.line,
-            position_character: pos.character,
+            position_character: pos.character.get(),
             label: format!("{}:", param.name),
             kind: InlayHintKind::Parameter,
             padding_left: false,
